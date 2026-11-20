@@ -15,8 +15,11 @@ import { SKIN_FS, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
 import { COURSES } from '../src/scene/circuit/course.ts';
-import { CIRC_SKIN_REACH, CircuitSkinSet, circuitFallbacks, circuitFarGrowers, circuitRadius, circuitReach, circuitTube, findCircuitJunctions, turnMatrix, type CircuitSkinDeps } from '../src/scene/circuit/skins.ts';
-import { MAP_CENTRE, MAP_K, turnScenePt } from '../src/scene/circuit/map.ts';
+import { CIRC_SKIN_REACH, CircuitSkinSet, circuitFallbacks, circuitOldJoins, circuitFarGrowers, circuitRadius, circuitReach, circuitTube, findCircuitJunctions, turnMatrix, type CircuitSkinDeps } from '../src/scene/circuit/skins.ts';
+import { MAP_CENTRE, MAP_K, mapToScene, turnScenePt } from '../src/scene/circuit/map.ts';
+import { BED_REACH } from '../src/scene/circuit/course.ts';
+import { NODE_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
+import { closedShapeFolds } from '../src/scene/vessels/skin/mesh.ts';
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { GROW_REACH, SKIN_REACH } from '../src/scene/vessels/skin/inventory.ts';
@@ -49,10 +52,11 @@ const TABLE: Record<string, readonly string[]> = {
 const GROWS: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
 };
-/** What the build leaves out of a skin: a growing arm one skin cannot take. None: REX and S_DSR (the hull of their seam rings refused them: SMV's and SVD's skins are meshed from the surface, sheet.ts) and DIPS (the cava's IVCS and the run-on IVC_D are one skin, meshed from the surface) are welded on the map. */
-const DROPPED: string[] = [];
-/** The nodes that get a skin, as built: every junction, the cava's IVCS and the run-on pair IVC_D one skin (`IVCS+IVC_D`). */
-const BUILT = Object.keys(TABLE).filter((n) => n !== 'IVC_D' && n !== 'IVCS').concat('IVCS+IVC_D');
+/** What the build leaves out of a skin: a growing arm one skin cannot take, each with the reason (`set.why`). REX leaves SMV 5 degrees from S_MC, and DIPS lands on the run-on IVC_D beside the cava's skin: their closed shapes fold (mesh.ts closedShapeFolds). S_DSR is welded
+ *  at SVD and at LRV_S (the hull refused it: SVD is meshed from the surface, sheet.ts, and its two growers are closed together, mesh.ts). */
+const DROPPED = ['IVC_D:DIPS', 'SMV:REX'];
+/** The nodes that get a skin: every junction less IVC_D (a run-on pair whose one collateral could not be taken). */
+const BUILT = Object.keys(TABLE).filter((n) => n !== 'IVC_D');
 const armKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => !a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 const growKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 
@@ -120,7 +124,7 @@ function setOf(scene: CelScene, baked?: CircuitSkinDeps['baked']): { set: Circui
   return { set, made, ends };
 }
 
-test('a build welds the nineteen skins (the cava and its run-on one) with no fall back and no growing arm left out: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
+test('a build welds the nineteen skins with no fall back, the two growing arms it cannot take named with their reason: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
@@ -129,6 +133,7 @@ test('a build welds the nineteen skins (the cava and its run-on one) with no fal
     assert.deepEqual([...set.nodes].sort(), [...BUILT].sort());
     assert.deepEqual(set.fellBack, [], 'nothing falls back on the map');
     assert.deepEqual([...set.dropped].sort(), DROPPED, 'the growing arms that keep their lines, named');
+    for (const d of DROPPED) assert.match(set.why[d] ?? '', /the closed shape folds/, `${d}: why`);
     assert.equal(set.count, 19);
     assert.ok(made.length >= 19, 'every skin was made once at least (a retry makes more)');
     assert.ok(ends[0]! >= 1, 'the scene is told the ends changed (it writes the map mates again)');
@@ -158,6 +163,48 @@ test('a build welds the nineteen skins (the cava and its run-on one) with no fal
     assert.deepEqual(set.endsOf('PVH_R'), [false, false]);
     assert.equal(set.count, 0);
   } finally { scene.dispose(); setSmoothJoins(was); }
+});
+
+test('the beds\' arterioles run on to the bed\'s station on the map (the 2D art stops them at the comb, 30 map units short): SIN_R and SIN_L are welded', () => {
+  assert.deepEqual(BED_REACH, { A_HR: 'SIN_R', A_HL: 'SIN_L' });
+  for (const [id, node] of Object.entries(BED_REACH)) {
+    const e = COURSES.get(id)!.curveC.getPointAt(1), s = mapToScene(NODE_CIRCUIT[node]![0], NODE_CIRCUIT[node]![1]);
+    assert.ok(Math.hypot(e.x - s[0], e.y - s[1]) < 1e-9, `${id} ends on ${node}'s station`);
+  }
+  const was = smoothJoinsOn(); setSmoothJoins(true);
+  const scene = new CelScene({ joins: 'old' });
+  try {
+    const { set } = setOf(scene); set.build();
+    for (const n of ['SIN_R', 'SIN_L']) assert.ok(set.nodes.includes(n), `${n} is a skin`);
+    assert.ok(!set.fellBack.includes('SIN_R') && !set.fellBack.includes('SIN_L'));
+  } finally { scene.dispose(); setSmoothJoins(was); }
+});
+
+test('S_DSR is welded at both its ends and every skin\'s closed shape is whole: no triangle turned against its normals with the growing arms closed, half grown, three quarters and fully grown; the one skin meshed from the surface is SVD\'s', () => {
+  const was = smoothJoinsOn(); setSmoothJoins(true);
+  const scene = new CelScene({ joins: 'old' });
+  try {
+    const { set } = setOf(scene); set.build();
+    for (const n of set.nodes) { const m = set.skinOf(n)!; assert.equal(closedShapeFolds(m.position, m.normal, m.index, m.grow, m.junction.arms), 0, `${n}: closed shape`); }
+    const growers = (n: string) => set.skinOf(n)!.junction.arms.filter((a) => a.grow).map((a) => a.vesselId).sort();
+    assert.deepEqual(growers('SVD'), ['C6', 'S_DSR']);
+    assert.deepEqual(growers('LRV_S'), ['C6', 'S_DSR']);
+    assert.equal(set.skinOf('SVD')!.grow.length, 2, 'both of SVD\'s growing arms morph');
+    // (the hull of SVD\'s seam rings refused it with S_DSR: its sheet starts on the surface, the last rung)
+    assert.deepEqual(set.nodes.filter((n) => set.skinOf(n)!.junction.surface), ['SVD']);
+    for (const d of DROPPED) assert.ok(!set.nodes.some((n) => growers(n).includes(d.split(':')[1]!) && n === d.split(':')[0]), `${d} is not an arm`);
+  } finally { scene.dispose(); setSmoothJoins(was); }
+});
+
+test('what the map still draws the old way is named: the four liver trees\' 24 branches, the caudate lane, the custom shunts (routed when a learner opens one); none of them is a vessel of the network, so none is an arm of a skin', () => {
+  const old = circuitOldJoins();
+  assert.deepEqual(old.trees, ['PRE_R', 'PRE_L', 'SIN_RR', 'SIN_LL'].flatMap((l) => [0, 1, 2, 3, 4, 5].map((i) => `${l}#${i}`)));
+  assert.deepEqual(old.caudate, ['CAUD']);
+  assert.equal(old.custom.length, 119);
+  assert.ok(old.custom.every((id) => id.startsWith('X_')));
+  for (const id of [...old.trees, ...old.caudate, ...old.custom]) assert.ok(!NETWORK_BY_ID.has(id), `${id} is a map-only tube`);
+  const skinned = new Set(findCircuitJunctions().flatMap((j) => j.arms.map((a) => a.vesselId)));
+  for (const id of [...old.trees, ...old.caudate, ...old.custom]) assert.ok(!skinned.has(id), `${id} keeps its lines`);
 });
 
 test('two skins on one vessel never cross: PV_TRUNK_1 keeps a piece of tube between CONF and PVT_L', () => {

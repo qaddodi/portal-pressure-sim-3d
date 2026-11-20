@@ -41,8 +41,10 @@ Source of truth is the 2D app (`qaddodi/portal-pressure-simulator`, `claude/sett
 
 ## Junction skins on the map (`circuit/skins.ts`)
 The Anatomy's welds (`vessels/skin`, docs/junction-skin-spec.md) are on the map too: the same pipeline, the map's frame.
-- **Which junctions**: the body's permanent nodes, read on the map (`findCircuitJunctions`): HA, SV, CONF, PVT_L, PVH, CV_R, IVCS, IVCI, SVC_E, SVC (ten). Every arm ends exactly on its station. SIN_R and SIN_L stay lines (named in `circuitFallbacks`): the map
-  draws the arteriole beside the bed's comb, 30 units off its station, so it is not a junction there. Pinned by `tests/circuit-skins.test.ts`.
+- **Which junctions**: the body's permanent nodes, read on the map (`findCircuitJunctions`): twenty, HA, SIN_R, SIN_L, SMV, SV, SVD, CONF, PVT_L, PVH, RPV_T, CV_R, RHV_T, IVCS, IVCI, IVC_D, LRV_S, LRV, EPI, SVC_E, SVC. Every arm ends exactly on its station. The beds' arterioles
+  are carried on to the bed's station on the map (`course.ts` BED_REACH, as the body's `starts.ts` does: the 2D art stops them at the comb, 30 units short), so SIN_R and SIN_L are junctions. Pinned by `tests/circuit-skins.test.ts`.
+- **The ladder** (`CircuitSkinSet.produce`): a junction the hull of its seam rings refuses is meshed from the surface itself (`SkinJunction.surface`, sheet.ts: SVD with S_DSR); a skin whose growing arms fold when closed (`mesh.ts` closedShapeFolds) is refused and loses its narrowest growing arm
+  (`dropped`, with the reason in `why`: REX beside S_MC, DIPS on IVC_D). `mesh.ts` closes two growers together when closing them one by one folds (shares by weight).
 - **Rings** (`circuitTube`): the tube the vertex shader draws at circT 1 (circuit/shader.ts), computed on the CPU from the body tube's own mesh (map centre `cC`, offset `fr` in the frame fixed by `tC`, the map radius). Ring k is where a cut at u = k / tubular lies, so the
   skin starts on the tube's own vertices. Built on the unturned map; the quarter turn is the skin's object matrix (`setTurn`, the same turn as `turnScenePt`).
 - **Widths**: rings are built at the map width at boost 1 (circuit/width.ts); the live width is the skin shader's `circSwellOf` (2D's widthAt, `circBoost`, the least width on the screen), so a zoom or a changed diameter eases the junction with its arms.
@@ -50,7 +52,8 @@ The Anatomy's welds (`vessels/skin`, docs/junction-skin-spec.md) are on the map 
   A skinned end has no map taper of its own (`applyMates` writes the map's mates without it); the skin's weights blend the widths.
 - **Marks, line, colour**: the arms' chevrons, streaks and dust, lens colours, fade and highlight come through the same handover as the body's (`CircuitSkinSet.sync`); the line is the map's bolder one (`CIRC_INK_K`) with its inner line (`CIRC_INNER`).
 - **Baked**: `scripts/bake-skins.mjs` also writes `anatomy/circuit-skins.bin` (digest `circuit/...`); the page fetches it with the Anatomy's and builds live when it is not the file for this figure.
-- **Not welded yet**: the liver branch trees, the caudate lane, the custom shunts and the collaterals' mouths on the map (they are the map's own tubes, `circuit/tubes.ts`), and the two beds. Never seen on a device.
+- **Not welded yet** (`circuitOldJoins`): the liver branch trees (24 branches), the caudate lane and the custom shunts, the map's own tubes (`circuit/tubes.ts`, no vessel of the network). A weld needs (1) those tubes as arms (their rings, presence and the tree's own width rule `treeCircW`
+  in the skin shader), (2) a hole in the host lane on the map (a `skinHoleC` as the body's `skinHole`) for the branches that leave a lane's side, (3) a skin built when a custom shunt is routed. Never seen on a device.
 
 ## Not done yet (gaps)
 - Nothing here has run on a real GPU (the new tangent GLSL, the ribbons and the caption layer are only checked in node): Mac play-test first.

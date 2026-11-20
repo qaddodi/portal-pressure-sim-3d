@@ -10,7 +10,8 @@
 //   - DRAWING: skin-object.ts with `SKIN_CIRC` (skin/shaders.ts): the map's widths (the zoom's boost, the least width on the screen), its bolder line and inner line. It is in over the END of the change (SKIN_CIRC_IN .. 1) and the arm tubes' second cut
 //     (`skinCutC`, vessels/shaders.ts) takes their ends away over the same, by one screen pattern: the body's skins are gone by 0.35 and the tubes whole between, so a junction is never two skins at once and nothing pops.
 //   - BAKED at build time with the Anatomy's (scripts/bake-skins.mjs): the file `anatomy/circuit-skins.bin` carries these, so the page meshes nothing at load; a figure the file was not made for builds them live as before.
-// Left out, named in tests/circuit-skins.test.ts: the liver's branch trees, the caudate lane, the custom shunts and the collaterals' mouths are tubes of the map's own (circuit/tubes.ts) or growing arms; they keep their lines as they are.
+// Left out, named in tests/circuit-skins.test.ts (`circuitOldJoins`, and the growing arms the build drops with the reason): the liver's branch trees, the caudate lane and the custom shunts are tubes of the map's own (circuit/tubes.ts), no vessel of the network, and keep their lines as they are.
+// Meshed from the surface where the hull of the seam rings refuses (sheet.ts, `SkinJunction.surface`), and refused when a growing arm's closed shape folds (mesh.ts closedShapeFolds): that arm is dropped and named.
 import type { Group, Object3D } from 'three';
 import { Matrix4 } from 'three';
 import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../vessels/network.ts';
@@ -20,7 +21,7 @@ import { indexOf } from '../../engine/vessel-data.ts';
 import { GROW_REACH, MAX_ARMS, MIN_ARMS, PHASE_2_NODES, SKIN_REACH, growerEndsByNode, permanentEndsByNode } from '../vessels/skin/inventory.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, type HiState } from '../vessels/skin/arm-twins.ts';
 import { armWalk, planSkins, type ArmTube, type HullOk } from '../vessels/skin/cuts.ts';
-import { PACES, buildSkinSteady, hullCovers } from '../vessels/skin/mesh.ts';
+import { PACES, buildSkinSteady, closedShapeFolds, hullCovers } from '../vessels/skin/mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins } from '../vessels/skin/baked.ts';
 import { sdArm, skinKOf } from '../vessels/skin/sdf.ts';
 import { weldThrough } from '../vessels/skin/through.ts';
@@ -31,6 +32,7 @@ import type { VesselObject } from '../vessels/vessel-object.ts';
 import { COURSES } from './course.ts';
 import { decode } from './frame.ts';
 import { attachRuns, slicesFor } from './geometry.ts';
+import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES } from './data.copied.ts';
 import { MAP_CENTRE, MAP_K } from './map.ts';
 import { circuitWidthMap } from './width.ts';
 
@@ -94,6 +96,18 @@ export function circuitFallbacks(network: readonly NetVessel[] = NETWORK): { nod
   return candidates(network, CIRCUIT_SKIN_NODES).filter((c) => c.why).map((c) => ({ node: c.node, why: c.why! }));
 }
 
+/**
+ * What the map still draws the old way, as tubes that run into one another (named, so that a new one fails tests/circuit-skins.test.ts until someone looks): the map's OWN tubes (circuit/tubes.ts), which are not vessels of the network and so not arms of any skin yet:
+ * the four liver trees' branches (`PRE_R#0`: the lane and the index of the branch), the caudate lane, and the custom shunts a learner opens (routed on the map when they open, never at build time).
+ */
+export function circuitOldJoins(): { trees: string[]; caudate: string[]; custom: string[] } {
+  return {
+    trees: Object.entries(CIRCUIT_TREES).flatMap(([lane, list]) => list.map((_, i) => `${lane}#${i}`)),
+    caudate: CIRCUIT_D.CAUD ? ['CAUD'] : [],
+    custom: CUSTOM_EDGES.map((c) => c[0]),
+  };
+}
+
 /** How far each arm's end lies from J on the map, in radii of the widest arm. */
 export function circuitReach(j: SkinJunction): number[] {
   return j.arms.map((a) => { const e = endOf(a.vesselId, a.end); return Math.hypot(e[0] - j.J[0], e[1] - j.J[1], e[2] - j.J[2]) / j.arms[0]!.restR; });
@@ -125,6 +139,17 @@ export function circuitTube(id: string): ArmTube & { radius: number } {
   geometry.setAttribute('rk', new (cC.constructor as new (a: Float32Array, n: number) => typeof cC)(rk, 1));
   g.dispose();
   return { geometry, tubular: run.tubular, radius: R };
+}
+
+/** The message of a closed shape that folds: no other rung of the mesher helps (two growing arms' mouths lie on one stretch of wall), the narrowest growing arm goes. */
+const CLOSED_FOLD = /the closed shape folds/;
+/**
+ * A skin whose growing arms fold when they are closed is no skin (tests/skin-closed-footprint.test.ts, on the Anatomy's): a triangle turned against its own normals is thrown away as a back face, so a hole opens in the trunk where a collateral is not there.
+ * mesh.ts closes the growing arms on their own and then together; a skin that still folds is refused here, so that `produce` drops its narrowest growing arm and names it.
+ */
+function refuseFoldedClosedShape(mesh: SkinMesh): void {
+  const n = closedShapeFolds(mesh.position, mesh.normal, mesh.index, mesh.grow, mesh.junction.arms);
+  if (n) throw new SkinBuildError(mesh.junction.node, `the closed shape folds (${n} triangles turned against their normals over the closed, half and three quarters grown states: a growing arm that does not close onto the trunk, or two whose mouths lie on one stretch of wall)`);
 }
 
 /** One arm as the per-frame handover reads it. */
@@ -238,13 +263,14 @@ export class CircuitSkinSet {
           const j = todo.find((x) => x.node === n);
           if (!j || again.has(n)) continue;
           // the first remedy is the surface rung (sheet.ts), where the hull of the seam rings is the thing that refuses (a growing arm that leaves a short arm at a sharp angle, the map's REX and S_DSR): the same junction meshed from the surface, no arm lost
-          if (!this.surfaced.has(n) && (f.nodes.length === 1 || j.arms.some((a) => a.grow))) { this.surfaced.add(n); again.add(n); next.push(j); continue; }
+          if (!this.surfaced.has(n) && !CLOSED_FOLD.test(f.message) && (f.nodes.length === 1 || j.arms.some((a) => a.grow))) { this.surfaced.add(n); again.add(n); next.push(j); continue; }
           const g = j.arms.filter((a) => a.grow);
           if (!g.length) {
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.add(n); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
+          this.surfaced.delete(n);   // (without that arm the hull may cover the rings again: the junction is tried from the hull first, as before)
           this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.add(n);
           if (arms.length >= MIN_ARMS) next.push({ ...j, arms });
@@ -282,6 +308,7 @@ export class CircuitSkinSet {
     else if (j.surface) this.paces.set(j.node, PACES.length - 1);   // (meshed from the surface from the start: no hull to fold)
     const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (the seam ring's rest radius is the tube's own, exactly)
+    if (!ready) refuseFoldedClosedShape(mesh);
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
     const arms: Link[] = j.arms.map((a, i) => ({ obj: objs[i]!, id: a.vesselId, end: a.end, u: plan.cuts[i]!.u, grow: !!a.grow && mesh.grow.some((m) => m.arm === i), span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN], lenC: COURSES.get(a.vesselId)!.lenC }));
     return { node: j.node, mesh, draw, arms, sources: plan.merged ?? [j.node], hidden: plan.hidden, bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0 } };
