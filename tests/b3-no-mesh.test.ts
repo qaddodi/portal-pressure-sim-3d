@@ -43,3 +43,14 @@ test('the arterioportal shunts are never drawn, in any preset or view (Mohammad,
   assert.ok(!NETWORK.some((v) => v.id.startsWith('AP_') || v.host.startsWith('AP_')), 'no AP vessel in the network');
   assert.ok(!DRAWN_EDGE_IDS.some((id) => id.startsWith('AP_')), 'no AP edge is drawn');
 });
+
+test('the cavernoma channels run into the trunk\'s centre at both ends (no round caps standing out of the trunk\'s side as a knot)', async () => {
+  const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
+  const { NETWORK_BY_ID: N } = await import('../src/scene/vessels/network.ts');
+  const trunk = N.get('PV_TRUNK_1')!.radius, cs = coursesOf(N.get('C8')!, { ...REST, rec: 1, strandsOn: true });
+  assert.ok(cs.length > 2, 'channels');
+  for (const c of cs.slice(1)) for (const at of [0, c.pts.length - 1]) {
+    const p = c.pts[at]!, own = cs[0]!.pts[at]!;
+    assert.ok(Math.hypot(p[0] - own[0], p[1] - own[1]) < trunk * 0.15, 'a channel end is on the vessel\'s own end, inside the trunk');
+  }
+});
