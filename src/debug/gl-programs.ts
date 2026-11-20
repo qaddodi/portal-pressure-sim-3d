@@ -147,12 +147,36 @@ export function templateConstants(text: string): Record<string, string> {
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 const SLOTS: Record<string, number> = { float: 1, int: 1, uint: 1, bool: 1, vec2: 1, vec3: 1, vec4: 1, ivec2: 1, ivec3: 1, ivec4: 1, uvec2: 1, uvec3: 1, uvec4: 1, mat2: 2, mat3: 3, mat4: 4 };
 
+/** The source as the driver's preprocessor leaves it, for the forms the app's shaders use: `#define NAME`, `#undef NAME`, `#ifdef NAME`, `#ifndef NAME`, `#else`, `#endif` (nested), the defines read in order from the source itself (an assembled program has its
+ *  material's defines at the top). Any other `#if` keeps both of its branches, as the declarations were read before. A block behind a define the program does not carry (the inspector's VDBG hooks) is not counted against its budget or its uniforms. */
+export function liveSource(src: string): string {
+  const defined = new Set<string>(), stack: { on: boolean; parent: boolean; known: boolean }[] = [];
+  const active = () => (stack.length ? stack[stack.length - 1]!.on : true);
+  const out: string[] = [];
+  for (const line of src.split('\n')) {
+    const d = /^[ \t]*#[ \t]*(\w+)[ \t]*(\w*)/.exec(line);
+    if (d) {
+      const [, dir, name] = d;
+      if (dir === 'ifdef' || dir === 'ifndef') { const parent = active(), v = defined.has(name!) === (dir === 'ifdef'); stack.push({ on: parent && v, parent, known: true }); out.push(''); continue; }
+      if (dir === 'if') { const parent = active(); stack.push({ on: parent, parent, known: false }); out.push(''); continue; }
+      if (dir === 'elif') { const t = stack[stack.length - 1]; if (t) { t.known = false; t.on = t.parent; } out.push(''); continue; }
+      if (dir === 'else') { const t = stack[stack.length - 1]; if (t && t.known) t.on = t.parent && !t.on; out.push(''); continue; }
+      if (dir === 'endif') { stack.pop(); out.push(''); continue; }
+      if (!active()) { out.push(''); continue; }
+      if (dir === 'define' && name) defined.add(name); else if (dir === 'undef' && name) defined.delete(name);
+      out.push(line); continue;
+    }
+    out.push(active() ? line : '');
+  }
+  return out.join('\n');
+}
+
 export interface Decl { storage: string; type: string; name: string; array: number }
 /** The global `uniform`, `attribute`/`in`, `varying`/`out` declarations of a source, after `#define attribute in` style words are taken as the keyword they stand for. */
 export function declarations(src: string): Decl[] {
   // statements, not lines: `in vec2 a_pos; in vec4 a_col;` on one line is two declarations; a local variable or a parameter never starts with these words
   const out: Decl[] = [];
-  for (const stmt of stripComments(src).replace(/^[ \t]*#.*$/gm, '').split(/[;{}]/)) {
+  for (const stmt of liveSource(stripComments(src)).replace(/^[ \t]*#.*$/gm, '').split(/[;{}]/)) {
     const m = /^\s*(?:layout\s*\([^)]*\)\s*)?(uniform|attribute|varying|in|out)\s+(?:(?:highp|mediump|lowp|flat|smooth|centroid)\s+)*(\w+)\s+([\s\S]+)$/.exec(stmt);
     if (!m) continue;
     for (const part of m[3]!.split(',')) {

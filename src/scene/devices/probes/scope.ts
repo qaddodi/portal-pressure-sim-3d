@@ -121,7 +121,9 @@ export const SCOPE_SILVER = (t: { scopeTip: string }): string => mixHex(t.scopeT
 export const SCOPE_DISTAL = (t: { scope: string; scopeTip: string }): string => mixHex(t.scope, t.scopeTip, 0.12);
 /** The distal end as the owner's photo has it (20 Nov 2026, "the tip end should look different"): a bending section a little WIDER than the insertion tube (its rubber cover, BEND_WIDE of the tube's radius),
  *  glossy black, with soft creases where its cover wrinkles (CREASES of them, the deepest CREASE_DEPTH of the radius, bunched toward its two ends as a bent cover bunches), then the cap, the cover's width, domed. */
-export const BEND_RINGS = 56, BEND_WIDE = 1.12, TIP_WIDE = 1.12, CREASES = 7, CREASE_DEPTH = 0.07;
+/** The bending section's length, figure units (about five of the slim tube's widths, as in the owner's photo). */
+export const BEND_LEN = 63;   // (was 42: owner, 20 Nov 2026, marked on a shot: the cover reaches about 74 units back from the tip's end, past the 60-unit mark)
+export const BEND_RINGS = 90, BEND_WIDE = 1.12, TIP_WIDE = 1.12, CREASES = 7, CREASE_DEPTH = 0.07;
 export function bendRadius(u: number): number {
   const rise = Math.min(1, u / 0.08);   // (a short swell from the tube's width up to the cover's: a collar, not a step)
   const w = 1 + (BEND_WIDE - 1) * rise * rise * (3 - 2 * rise);
@@ -294,6 +296,10 @@ export class EndoScope {
     // The bending section is on every scope (owner, 20 Nov 2026: the endoscope redesign): where it is not turning it lies straight along the way, the bend's shortest length behind the rigid tip, and the shaft ends where it starts.
     const straight = !(Math.abs(phi) > 1e-4 && bendLen > 0.01), len0 = Math.min(EUS_BEND_MIN as number, dA);
     if (straight && len0 > 0.5) { shaftEnd = dA - len0; bendLen = len0; phi = 0; }
+    // (owner, 20 Nov 2026: "the bending part should be longer": a real bending section is several tube widths long. The cover runs BEND_LEN back from the rigid tip; where the 2D pose turns over a shorter
+    //  length, the extra lies straight along the way before the turn, so the tip, the port and the needle's aim stay exactly 2D's.)
+    const extra = Math.max(0, Math.min(BEND_LEN - bendLen, shaftEnd)), turnLen = straight ? 0 : bendLen;
+    shaftEnd -= extra; bendLen += extra;
     // the shaft: the way's rings up to where the bend (or the rigid tip) begins
     way.pts.forEach((p, i) => { const r = this.shaft.rings[i]!; at3(p, r.c); const q = way.at(way, way.cum[i]!); dir3(q.t, r.t); });
     this.shaft.commit();
@@ -308,16 +314,24 @@ export class EndoScope {
     const showBend = bendLen > 0.01;
     this.bendOn = showBend;
     if (showBend) {
-      const n = this.bend.n - 1, q0 = way.at(way, shaftEnd), ds = bendLen / n;
+      const n = this.bend.n - 1, q0 = way.at(way, shaftEnd), ds = bendLen / n, flat = bendLen - turnLen;
+      // (owner, 20 Nov 2026: "EUS scope also has the bendy region": the turn runs through the whole cover, eased in and out, not straight then a short knee. Walked so, its end misses 2D's tip start by a
+      //  little; that miss is taken up smoothly along the cover (none at the shaft, all of it at the tip), so the tip, the port and the needle's aim stay exactly 2D's.)
+      const head = (sAt: number): number => { const t = way.at(way, shaftEnd + sAt).t, u = Math.min(1, Math.max(0, sAt / bendLen)); return Math.atan2(t[1], t[0]) + (turnLen > 0 ? phi * u * u * (3 - 2 * u) : 0); };
+      void flat;
+      const xs: number[] = [], ys: number[] = [];
       let x = q0.p[0], y = q0.p[1];
-      const h0 = Math.atan2(way.at(way, shaftEnd + bendLen * 0.5).t[1], way.at(way, shaftEnd + bendLen * 0.5).t[0]);
+      for (let i = 0; i <= n; i++) { if (i) { const h = head(ds * (i - 0.5)); x += Math.cos(h) * ds; y += Math.sin(h) * ds; } xs.push(x); ys.push(y); }
+      const ex = turnLen > 0 ? tipFrom[0] - xs[n]! : 0, ey = turnLen > 0 ? tipFrom[1] - ys[n]! : 0;
       for (let i = 0; i <= n; i++) {
-        if (i) { const h = Math.atan2(way.at(way, shaftEnd + ds * (i - 0.5)).t[1], way.at(way, shaftEnd + ds * (i - 0.5)).t[0]) + (phi * (i - 0.5)) / n; x += Math.cos(h) * ds; y += Math.sin(h) * ds; }
-        const r = this.bend.rings[i]!;
-        r.r = R * bendRadius(i / n);
-        at3([x, y], r.c);
-        const hh = (i ? Math.atan2(way.at(way, shaftEnd + ds * (i - 0.5)).t[1], way.at(way, shaftEnd + ds * (i - 0.5)).t[0]) + (phi * (i - 0.5)) / n : h0);
-        r.t.set(Math.cos(hh), -Math.sin(hh), 0);
+        const u = i / n, k = u * u * (3 - 2 * u), r = this.bend.rings[i]!;
+        xs[i] = xs[i]! + ex * k; ys[i] = ys[i]! + ey * k;
+        r.r = R * bendRadius(u);
+        at3([xs[i]!, ys[i]!], r.c);
+      }
+      for (let i = 0; i <= n; i++) {
+        const a0 = Math.max(0, i - 1), a1 = Math.min(n, i + 1), dx = xs[a1]! - xs[a0]!, dy = ys[a1]! - ys[a0]!, l = Math.hypot(dx, dy) || 1;
+        this.bend.rings[i]!.t.set(dx / l, -dy / l, 0);
       }
       this.bend.commit();
     }

@@ -18,6 +18,7 @@ import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { BootCrash } from './ui/shell/BootCrash.tsx';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { holdSplash } from './boot/ready.ts';
+import { bakedReady } from './scene/vessels/skin/baked.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
@@ -27,7 +28,7 @@ import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
 import { isFrameRequest } from './ui/debug/frame/request.ts';
-import { flagOn, flagValue, debugPage } from './ui/debug/flags.ts';
+import { flagOn, flagValue, debugPage, inspectRequested } from './ui/debug/flags.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's applier is Stage's)
@@ -65,7 +66,7 @@ async function start() {
     return;
   }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
-  const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
+  const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); }), bakedReady]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();
@@ -78,6 +79,7 @@ async function start() {
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
   if (flagOn('dust')) void import('./ui/debug/dust-panel.ts').then((m) => m.mountDust());   // ?dust: the hidden tuning panel for the blood's dust
+  if (inspectRequested()) void import('./ui/debug/inspect/panel.ts').then((m) => m.mountInspect());   // ?inspect, ?joins=debug: the inspector's panel (turn the figure, switch shaders, passes and layers live)
   if (flagOn('gl')) void import('./debug/gl-check.tsx').then((m) => m.mountGl());   // ?gl: every shader program, compiled on this device (WP10)
   void mountDebug();   // ?watch / ?debug on the preview copy only (batch B14)
   mountCharts();   // ?charts: the charts gallery (batch B10)

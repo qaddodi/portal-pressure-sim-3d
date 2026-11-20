@@ -1,4 +1,5 @@
 import { CIRC_ARTERY, CIRC_BED, MIN_PX } from '../circuit/width.ts';
+import { vdbgDefines, vdbgUniforms } from './debug-view.ts';
 import { HI_NONE } from '../materials/shaders.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, MaxEquation, Mesh, NearestFilter, OneFactor, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
@@ -105,7 +106,9 @@ export class VesselObject extends CelObject {
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
+        ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
       },
+      defines: vdbgDefines(),
     });
     old.dispose();
     // One mesh, one material, one draw: the outline is part of the tube (the vertex stage builds it ink wider than its lumen, the fragment stage paints the band), so it is continuous by construction.
@@ -280,7 +283,7 @@ export class VesselObject extends CelObject {
    *  organs is the same one-draw tube as any vessel's). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });
+    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } });
     if (this.tip) mat.transparent = true;   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;

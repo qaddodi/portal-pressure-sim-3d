@@ -22,6 +22,8 @@ export const FOLLOW_TAU_MS = 350;
 export const ORBIT_PER_PX = 0.006;
 /** The most the free turn tilts up or down (radians): just short of straight over or under, where the camera's up would flip. */
 export { TILT_LIMIT as PITCH_LIMIT } from './shots.ts';
+/** The inspector's tilt stops here (88 degrees): straight up or down the camera has no up vector. */
+export const INSPECT_PITCH = (88 * Math.PI) / 180;
 /** A soft stop at ±lim: follows the hand exactly up to 70% of the limit, then eases into it (never a hard wall). Exact in the middle, so taking hold again never jumps there. */
 export const softLimit = (x: number, lim: number): number => {
   const a = Math.abs(x), k = 0.7 * lim;
@@ -253,7 +255,42 @@ export class CameraRig {
   }
   /** Whether the viewer may turn the figure without limit on both axes (Stage: the setting is on and the view is the body). */
   freeGate: (() => boolean) | null = null;
-  get free(): boolean { return !!this.freeGate && this.freeGate(); }
+  get free(): boolean { return this.inspectOn || (!!this.freeGate && this.freeGate()); }
+
+  // ── THE INSPECTOR'S TURN (`?inspect`, src/ui/debug/inspect): the figure turned round without limit, on top of the shot's own turn and tilt, never kept in the hand's or the shot's state. While it is on, the gestures' turn and tilt
+  //    land HERE (setOrbit, setOrbitPitch, orbitAngle and pitchAngle answer for it), nothing springs home by itself (the gesture controller's `holdTurn`), and a view button or Reset eases to its angle on the clock. Off: nothing of this runs. ──
+  private inspectOn_ = false;
+  private inspectYaw = 0;
+  private inspectPitch = 0;
+  private inspectGoal: { yaw: number; pitch: number } | null = null;
+  private inspectT = 0;
+  get inspectOn(): boolean { return this.inspectOn_; }
+  /** Turns the inspector's turn on or off. Off, it eases back to square on the clock (the angles are kept until then, so nothing jumps). */
+  setInspect(on: boolean): void {
+    if (this.inspectOn_ === on) return;
+    this.inspectOn_ = on;
+    if (!on) this.inspectGoal = { yaw: 0, pitch: 0 };
+    this.inspectT = 0; this.dirty = true;
+  }
+  /** The inspector's turn and tilt now (radians). */
+  get inspectAngles(): { yaw: number; pitch: number } { return { yaw: this.inspectYaw, pitch: this.inspectPitch }; }
+  /** Eases the inspector's turn to (yaw, pitch) (radians; the tilt stops short of straight up and down, where the camera has no up). The turn takes the short way round. */
+  inspectTo(yaw: number, pitch: number): void {
+    const d = yaw - this.inspectYaw, wrapped = this.inspectYaw + Math.atan2(Math.sin(d), Math.cos(d));
+    this.inspectGoal = { yaw: wrapped, pitch: Math.max(-INSPECT_PITCH, Math.min(INSPECT_PITCH, pitch)) };
+    this.inspectT = 0; this.dirty = true;
+  }
+  /** One step of the inspector's ease toward its goal (a smoothed approach, never a snap); true while it still goes. */
+  private stepInspect(now: number): boolean {
+    const g = this.inspectGoal;
+    if (!g) { this.inspectT = 0; return false; }
+    const dt = this.inspectT > 0 ? Math.min(100, Math.max(0, now - this.inspectT)) : 16, k = this.reduceMotion || reduced() ? 1 : 1 - Math.exp(-dt / 120);
+    this.inspectT = now;
+    this.inspectYaw += (g.yaw - this.inspectYaw) * k; this.inspectPitch += (g.pitch - this.inspectPitch) * k;
+    this.dirty = true;
+    if (Math.abs(g.yaw - this.inspectYaw) < 1e-4 && Math.abs(g.pitch - this.inspectPitch) < 1e-4) { this.inspectYaw = g.yaw; this.inspectPitch = g.pitch; this.inspectGoal = null; this.inspectT = 0; return false; }
+    return true;
+  }
   /** Gentle tilt (tilt.ts): a few degrees added to the shot's yaw and pitch when the camera is written, never kept in the hand's or the orbit's state. Square (zero) until Stage gives it a gate. */
   readonly tilt = new Tilt();
   /** What Stage says about the tilt: whether Settings > Figure depth has it on, and whether something other than a camera move holds it (a gesture, a view other than the body). */
@@ -425,20 +462,22 @@ export class CameraRig {
 
   /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
+    if (this.inspectOn_) { if (rad === this.inspectYaw && !this.inspectGoal) return false; this.inspectYaw = rad; this.inspectGoal = null; this.dirty = true; return true; }   // (the inspector's turn has no limit)
     const o = softLimit(rad, ORBIT_LIMIT);
     if (o === this.orbit) return false;
     this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;
   }
-  get orbitAngle(): number { return this.orbit; }
+  get orbitAngle(): number { return this.inspectOn_ ? this.inspectYaw : this.orbit; }
   /** Tilt up or down by `rad` (only while the free turn is on; otherwise it stays square). Returns true when it changed. */
   setOrbitPitch(rad: number): boolean {
+    if (this.inspectOn_) { const p = Math.max(-INSPECT_PITCH, Math.min(INSPECT_PITCH, rad)); if (p === this.inspectPitch && !this.inspectGoal) return false; this.inspectPitch = p; this.inspectGoal = null; this.dirty = true; return true; }
     const o = this.free ? softLimit(rad, TILT_LIMIT) : 0;
     if (o === this.pitchOrbit) return false;
     this.pitchOrbit = o; this.pitchFrom = o; this.pitchTo = o; this.dirty = true;
     return true;
   }
-  get pitchAngle(): number { return this.pitchOrbit; }
+  get pitchAngle(): number { return this.inspectOn_ ? this.inspectPitch : this.pitchOrbit; }
   /** The free turn was switched off: ease the turn and the tilt home (the pose and the hand stay). */
   levelOut(now: number): void {
     if (this.orbit === 0 && this.pitchOrbit === 0) return;
@@ -544,6 +583,7 @@ export class CameraRig {
       this.followT = now;
     } else this.followT = 0;
     if (this.stepTilt(now)) moving = true;
+    if (this.stepInspect(now)) moving = true;
     if (this.dirty) { this.apply(); this.dirty = false; }
     return moving;
   }
@@ -566,7 +606,7 @@ export class CameraRig {
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     // (the viewer's turn and tilt are about the SCREEN's axes: a rolled camera (the sinusoid on a portrait screen) carries them round with the roll, so a drag to the right still swings the picture to the right)
-    const roll = shot.roll ?? 0, oy = this.orbit + (this.noTilt ? 0 : this.tilt.yaw), op = this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch);
+    const roll = shot.roll ?? 0, oy = this.orbit + (this.noTilt ? 0 : this.tilt.yaw + this.inspectYaw), op = this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch + this.inspectPitch);
     const cr = Math.cos(roll), sr = Math.sin(roll);
     const yaw = shot.yaw + (roll === 0 ? oy : cr * oy - sr * op), pitch = shot.pitch + (roll === 0 ? op : sr * oy + cr * op);
     const cp = Math.cos(pitch);

@@ -57,7 +57,7 @@ void main() {
 }`;
 
 export class PostAA {
-  readonly mode: AaMode;
+  private mode: AaMode;
   readonly material: ShaderMaterial;
   private readonly quad = new Scene();
   private readonly cam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -85,6 +85,9 @@ export class PostAA {
 
   /** Whether the next frame goes through the pass. */
   get on(): boolean { return this.mode === 'fxaa' && !this.failed; }
+  /** The inspector's switch (`?inspect`): the pass on ('fxaa') or off, live. 'msaa' is the canvas's own and needs a reload, so it is not offered here. */
+  setMode(m: 'fxaa' | 'off'): void { if (this.mode === m) return; this.mode = m; if (!this.on) this.free(); }
+  get aaMode(): AaMode { return this.mode; }
   /** The pass is not on from now: the figure draws straight to the canvas (a refused program). */
   fail(): void { this.failed = true; this.dispose(); }
 
