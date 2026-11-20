@@ -11,7 +11,7 @@ test('every stent, vein stent, tamponade, band and glue part, and the Tests prob
   const s = new CelScene();
   assert.ok(s.procs.stents.size > 0);
   for (const [id, st] of s.procs.stents) assert.deepEqual(off(st.group), [], `stent ${id}`);
-  for (const [id, st] of s.procs.veinStents) assert.deepEqual(off(st.group), [], `vein stent ${id}`);
+  for (const [id, st] of (s.procs as unknown as { veinStents: Map<string, { group: Object3D }> }).veinStents) assert.deepEqual(off(st.group), [], `vein stent ${id}`);
   assert.deepEqual(off(s.procs.tamponade.group), []);
   assert.deepEqual(off(s.procs.bands.group).filter((n) => n !== 'Group'), []);
   assert.deepEqual(off(s.probes.group), []);
