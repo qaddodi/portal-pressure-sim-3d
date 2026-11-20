@@ -53,6 +53,7 @@ uniform vec2 res;
 // x < 0 where nothing, which is every vessel with the switch off
 uniform vec3 mate0;
 uniform vec3 mate1;
+uniform vec3 nbrMate;   // the vessel nbr is measured against (a fork's other tube, the cava): its data index, the diameter it was built at, its width kind (-1: none)
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform float hiOn;
 uniform float hiDir;
@@ -177,7 +178,8 @@ ${CIRCUIT_VS_CALL}
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
   vFade = fa;
-  vNbr = nbr;
+  // the other tube's radius is the one it is DRAWN at: its built radius times its own live swell (the engine's diameter). Its built radius put the cut and the union's outline inside the real wall wherever the engine widens it (Mohammad, 20 Nov: "a big gaping hole" at the hepatic veins' mouths)
+  vNbr = vec2(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0));
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two widths in CSS px (never device px: a device-px clamp drew
   // the line a third as heavy on a 3x iPhone as on a 1x screen), the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone; thinned with a lumen under LINE_MIN CSS px of radius (cel-ink.ts inkTaper), so the smallest branches keep their colour.

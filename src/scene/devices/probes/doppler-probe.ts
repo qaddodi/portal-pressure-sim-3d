@@ -24,6 +24,10 @@ import { basisAt, newBasis, toPlate, toScreen, type Basis, type Box, type Pt, ty
 import type { DopplerSeg } from './state.ts';
 
 const RAD = Math.PI / 180;
+/** The marks' places in `lines`. */
+/** How long after the view last changed it still counts as moving, ms. */
+export const VIEW_SETTLE_MS = 300;
+export const LINE_SIGHT = 0, LINE_AXIS = 1, LINE_BAR_A = 2, LINE_BAR_B = 3;
 /** The probe's body, face to end, in px along its axis from the face and the radius there (dop-probe.js BODY: the face band, the neck, the handle, its round end). */
 const PROFILE: readonly (readonly [number, number])[] = [[0, 9], [2, 11], [10, 11], [18, 6], [42, 6], [46, 4.5], [48, 0.5]];
 /** The beam's opacity at its face, at 0.8 of its length, and at the far end (dop-probe.js #dpr-wedge), and where the middle stop is. */
@@ -107,6 +111,13 @@ export class DopplerProbe {
   private readonly fr: Frame = { gate: new Vector3(), ex: new Vector3(), ey: new Vector3(), U: len3(1) };
   private readonly geom = makeProbeGeom();
   private shut = false;
+  /** the gate's place and the plate's map as last seen, and when they last changed (the view is moving under the hand until VIEW_SETTLE_MS after) */
+  private readonly viewKey = [0, 0, 1, 0, 0, 1]; private viewAt = -1e9;
+  /** the marks as thin screen strokes (the label layer draws them): 4 lines of x0, y0, x1, y1 in stage px, and whether they are what shows of the marks (a screen is given) */
+  readonly lines = new Float32Array(16);
+  overlay = false;
+  /** the sample volume is closed: its axis and bars are gone */
+  get sampleShut(): boolean { return this.shut; }
   /** the parts the sample volume's closing takes away: the axis and the two bars */
   private closing: ProbePart[] = [];
 
@@ -168,7 +179,7 @@ export class DopplerProbe {
   }
 
   /** Writes the probe's geometry for a frame and what is drawn (the 2D probe's marks in its own frame: x from the gate toward the probe, y across). */
-  private lay(f: Frame, d: Draw): void {
+  private lay(f: Frame, d: Draw, scr: { ox: number; oy: number; ang: number } | null = null): void {
     const S = PROBE.SCALE * d.k, U = f.U, px = (v: number) => v * S * U;
     const g = probeGeomInto(this.geom, d.D, d.r, d.phi, d.k, d.out) as ReturnType<typeof makeProbeGeom>;
     const { gate, ex, ey } = f;
@@ -191,6 +202,19 @@ export class DopplerProbe {
     this.barB.line(at(-g.at, -g.half, t), at(-g.at, g.half, u), U * 1.5);
     this.axis.line(at(-g.axx, -g.axy, t), at(g.axx, g.axy, u), U * 1.0);
     this.shut = shut;
+    // With a screen the lines are not tubes: they are thin strokes laid over the figure in screen px (the label layer draws them, like the leaders), from these ends: the sight line, the flow axis and the
+    // two gate bars (owner, 20 Nov 2026: "they should look 2D and thin and almost like they're overlaid on top"). The head and the beam stay 3D.
+    this.overlay = !!scr;
+    if (scr) {
+      const c = Math.cos(scr.ang * RAD), s = Math.sin(scr.ang * RAD), L = this.lines;
+      const put = (i: number, x0: number, y0: number, x1: number, y1: number): void => {
+        L[i * 4] = scr.ox + x0 * c - y0 * s; L[i * 4 + 1] = scr.oy + x0 * s + y0 * c; L[i * 4 + 2] = scr.ox + x1 * c - y1 * s; L[i * 4 + 3] = scr.oy + x1 * s + y1 * c;
+      };
+      put(LINE_SIGHT, g.dh - PROBE.EDGE, 0, g.bx1, 0);
+      put(LINE_AXIS, -g.axx, -g.axy, g.axx, g.axy);
+      put(LINE_BAR_A, g.at, -g.half, g.at, g.half);
+      put(LINE_BAR_B, -g.at, -g.half, -g.at, g.half);
+    }
     // the faded ultrasound beam: a narrow wedge from the probe's face, to past the vessel's far wall
     const pos = this.wedgeGeo.getAttribute('position') as BufferAttribute;
     const a = at(g.dh, 0, this.w0), b = at(g.far, g.wk, this.w1), c = at(g.far, -g.wk, this.w2);
@@ -244,7 +268,7 @@ export class DopplerProbe {
   private paint(a: number, headA: number): void {
     const vis = a > 0.002;
     this.group.visible = vis;
-    for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !(this.shut && this.closing.includes(o)); }
+    for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !this.overlay && !(this.shut && this.closing.includes(o)); }
     for (const o of this.headParts) { const h = a * headA; if (h > 0.002) o.setAlpha(h); o.group.visible = h > 0.002; }
     this.wedge.visible = vis; this.wedgeMat.opacity = a;
   }
@@ -305,7 +329,9 @@ export class DopplerProbe {
     this.searchGap = sig === this.lastSig ? Math.min(600, this.searchGap * 2) : 150; this.lastSig = sig;
     const act = this.mind.act({ pose, tgt: next, on: this.on, cur: this.has ? this.cur : null, sig, now, instant: reduce, swing }) as 'go' | 'hide' | 'hold' | 'restart' | 'wait' | 'jump';
     if (act === 'hold') return 'hold';
-    if (act === 'hide') return 'hide';
+    // (While the view is being moved it never goes: the figure under the hand is a layout that changes every frame, and "no place" there is not an answer yet. It is asked again, and if there is still none
+    //  450 ms after the view settles it hides then: the 2D app's own rule, whose camera never turned under the hand.)
+    if (act === 'hide') return swing && this.on ? 'hold' : 'hide';
     if (act === 'restart') { this.searchAt = -1e9; return 'wait'; }
     if (act === 'wait') return 'wait';
     if (act === 'jump') { this.leave(); this.swap = true; return 'wait'; }
@@ -336,7 +362,11 @@ export class DopplerProbe {
     else {
       this.swap = false;
       const B = basisAt(env, this.gate3, this.basis);
-      const act = this.place(now, edge, seg, env, B, reduce, !!env.moving?.() && this.on);
+      // The view moves under the hand as well as in a glide (an orbit, a pan, a pinch): the gate's place and the plate's map change from frame to frame. 2D's rules for a camera that moves (swing to a far
+      // place, never fade out and in at it; never hide) are for all of it, not only the glides `env.moving` names: the probe used to jump (fade out, fade in) or hide at random as the figure was turned.
+      const V = this.viewKey;
+      if (Math.abs(B.ox - V[0]!) > 0.4 || Math.abs(B.oy - V[1]!) > 0.4 || Math.abs(B.a - V[2]!) > 0.2 || Math.abs(B.b - V[3]!) > 0.2 || Math.abs(B.c - V[4]!) > 0.2 || Math.abs(B.d - V[5]!) > 0.2) { V[0] = B.ox; V[1] = B.oy; V[2] = B.a; V[3] = B.b; V[4] = B.c; V[5] = B.d; this.viewAt = now; }
+      const act = this.place(now, edge, seg, env, B, reduce, ((env.moving?.() ?? false) || now - this.viewAt < VIEW_SETTLE_MS) && this.on);
       if (act === 'hide') this.leave(); else if (act !== 'go') moving = true;
     }
     // the easing: place, size and distance in about 0.3 s, the head on its own clock, the swing out and in on PROBE.OUT_MS
@@ -362,7 +392,7 @@ export class DopplerProbe {
     const o = easeMove(this.oP) as number, angDraw = probeTurn(c.ang, reduce ? 0 : t.sw, o) as number;
     const fr = this.frameFor(B, this.gate3, angDraw);
     const rNow = g ? g.r * B.sc : t.r;
-    this.lay(fr, { D: Math.max(0, rNow) + c.d, r: rNow, k: c.k, phi: angTo(angDraw, t.ax), out: o });
+    this.lay(fr, { D: Math.max(0, rNow) + c.d, r: rNow, k: c.k, phi: angTo(angDraw, t.ax), out: o }, { ox: B.ox, oy: B.oy, ang: angDraw });
     const op = probeFade(this.oP) as number, headA = smooth01(this.headP) as number;
     this.shown = op; this.paint(op, headA);
     // where it stands, for the labels and the tests
