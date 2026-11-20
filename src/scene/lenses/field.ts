@@ -15,7 +15,7 @@ const NEEDS_FRAME = new Set<LensId>(['pressure', 'delta', 'heat', 'drop', 'flow'
 export const TAIL_LENSES = new Set<LensId>(['origin', 'firstpass', 'oxygen']);
 
 function texturesFor(data: LensData): { grad: DataTexture; lanes: DataTexture } {
-  const make = (a: Float32Array) => { const t = new DataTexture(a, LENS_EDGE_COUNT, 2, RGBAFormat, FloatType); t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; };
+  const make = (a: Float32Array) => { const t = new DataTexture(a, LENS_EDGE_COUNT, a.length / (LENS_EDGE_COUNT * 4), RGBAFormat, FloatType); t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; };
   return { grad: make(data.grad), lanes: make(data.lanes) };
 }
 
