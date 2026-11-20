@@ -12,6 +12,7 @@ import { GEO2D } from '../procedures/route.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
 import { EUS_GLUE_ROUTE, EUS_GLUE_TARGET, coilReach, layCoil, pointOn } from './probes/copied/eus-scope.copied.js';
 import { DeviceObject } from './device-object.ts';
+import { inVesselPass } from '../layers.ts';
 import { allocTube, makeRings, showRings, writeRings } from './tube-rings.ts';
 
 type P2 = [number, number];
@@ -93,7 +94,7 @@ export class GlueCast {
     this.course = { P, cum, L: cum[cum.length - 1]! };
     const mk = (g: BufferGeometry, tone: ConstructorParameters<typeof DeviceObject>[1], order: number, px: number): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order }, 'ink');
-      o.group.visible = false; this.group.add(o.group); this.objects.push(o); return o;
+      o.group.visible = false; this.group.add(inVesselPass(o.group)); this.objects.push(o); return o;
     };
     this.castGeo = allocTube(CAST_RINGS, CAST_RADIAL); writeRings(this.castGeo, this.castRings, CAST_RADIAL);
     this.cast = mk(this.castGeo, 'glue', 1, 0.6);
