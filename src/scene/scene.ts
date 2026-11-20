@@ -59,7 +59,7 @@ import { organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
-import { growOf, stageOf } from './circuit/grow.ts';
+import { flatOf, growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
@@ -150,10 +150,10 @@ export class CelScene {
   readonly disease: DiseaseLayer;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
-  /** The same two views as true 3D scenes (Settings > Figure depth > 3D lobule and sinusoid): drawn in place of the flat ones while the switch is on; the flat views keep the model, names, taps and clock. */
+  /** The same two views as true 3D scenes, ALWAYS (Mohammad, 20 Nov 2026: "remove the toggle for 3D or not 3D; everything 3D"): drawn in place of the flat ones' pictures; the flat views keep the model, names, taps and clock. */
   readonly sinus3d: Sinusoid3D;
   readonly lobule3d: Lobule3D;
-  private micro3d = useSettings.getState().micro3d;
+  private readonly micro3d = true;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
   readonly circuit = new CircuitView();
   private readonly mapLayer = new MapLayer();
@@ -245,6 +245,7 @@ export class CelScene {
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
+    for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
@@ -257,12 +258,10 @@ export class CelScene {
     this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
     this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
     this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
-    this.unMicro = useSettings.subscribe((st, prev) => { if (st.micro3d !== prev.micro3d) { this.micro3d = st.micro3d; this.moving = true; } });
     this.applyLook(this.look);
   }
 
   private unJoins: () => void = () => {};
-  private unMicro: () => void = () => {};
 
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
   private applyMates(): void {
@@ -891,7 +890,11 @@ export class CelScene {
   private growLiver(t: number): void {
     if (t === this.lastGrow) return;
     this.lastGrow = t;
-    for (const id of this.grownIds) this.presence.drive(id, growOf(id, t) ?? 0);
+    for (const id of this.grownIds) {
+      const g = growOf(id, t) ?? 0;
+      this.presence.drive(id, g);
+      this.vesselObject(id)?.setFlat(flatOf(g));
+    }
   }
   private lastGrow = -1;
   private readonly grownIds: readonly string[] = NETWORK.filter((v) => v.kind === 'liver' && stageOf(v.id)).map((v) => v.id);
@@ -933,7 +936,6 @@ export class CelScene {
     this.disease.strands.setDpr(dpr);
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
-    this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
     this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
@@ -958,7 +960,7 @@ export class CelScene {
   }
 
   dispose(): void {
-    this.unJoins(); this.unMicro();
+    this.unJoins();
     this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();

@@ -1,0 +1,9 @@
+/* The Protein legend stands beside the lens key in the top bar (scene/sinusoid/ProteinLegend.tsx; owner, 20 Nov: "move protein legend next to the lens legend"): left of the figure's pill on a laptop, under it
+   on a phone, where #stageTop has no room beside it. 2D's .sv-legend rule gives its look; here it is a flex item, not an absolutely placed word on the figure. */
+.topbar .stage-bar.top { position: relative; }
+.topbar .stage-bar.top > .sv-legend { position: static; order: 1; flex: none; align-self: center; margin-left: auto; max-width: none; pointer-events: none; animation: lk-in 240ms var(--ease-arrive) backwards; }
+.topbar .stage-bar.top > .sv-legend.out { animation: lk-out 240ms var(--ease-arrive) forwards; }
+.topbar .stage-bar.top > .sb-right { order: 2; }
+.topbar .stage-bar.top:has(> .sv-legend) > .sb-right { margin-left: 0; }
+.app.thumb .topbar .stage-bar.top > .sv-legend { position: absolute; top: calc(100% + 6px); right: 0; margin: 0; order: 0; }
+@media (prefers-reduced-motion: reduce) { .topbar .stage-bar.top > .sv-legend, .topbar .stage-bar.top > .sv-legend.out { animation: none; } }

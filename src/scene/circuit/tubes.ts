@@ -19,7 +19,7 @@ import { attachCircuit } from './geometry.ts';
 import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
 import { mapCurve } from './course.ts';
 import { mapToScene } from './map.ts';
-import { growOf } from './grow.ts';
+import { flatOf, growOf } from './grow.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import type { CircuitShared } from './uniforms.ts';
 import { createRouter, route as routeText } from './router.copied.js';
@@ -119,6 +119,7 @@ export class CircuitTubes {
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
+    if (kind === 'tree') { const a = built.curve.getPointAt(0); o.setStretchAnchors(a, a); }
     // drawn over the organs with the rest of the figure's vessels (scene.ts VESSEL_LAYER)
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     if (this.palette) o.applyPalette(this.palette);
@@ -183,7 +184,7 @@ export class CircuitTubes {
       if (e.amount !== e.goal) { e.amount = Math.abs(e.goal - e.amount) <= k ? e.goal : e.amount + Math.sign(e.goal - e.amount) * k; moving = true; }
       // a liver branch grows along its flow on the change's own clock (circuit/grow.ts) instead of fading in: the portal venules, then the sinusoids, never a pop
       const f = grown != null ? e.amount * c.body : (e.lens ? 1 : c.ramp) * e.amount * c.body;
-      if (grown != null) e.obj.setReveal(grown);
+      if (grown != null) { e.obj.setReveal(grown); e.obj.setFlat(flatOf(grown)); }
       // the flow marks keep their pitch in scene units: the vessel's length is its body course's, then the map course's (circuit/view.ts)
       if (e.lens) (e.obj.toon.uniforms.len as { value: number }).value = e.lens[0] + (e.lens[1] - e.lens[0]) * c.t;
       e.obj.setFade(f);

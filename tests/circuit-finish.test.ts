@@ -470,3 +470,19 @@ test('a liver branch\'s drawing is handed to the change: its presence only keeps
   const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
   assert.match(scene, /this\.presence\.own\(this\.grownIds\)/); assert.match(scene, /this\.growLiver\(t\)/);
 });
+
+test('a growing liver branch is squeezed toward its start and stretches out as it grows; whole it is exactly the map course; the draw-on front is a soft gradient', async () => {
+  const { flatOf, SQUEEZE, growAt } = await import('../src/scene/circuit/grow.ts');
+  assert.equal(flatOf(1), 0, 'grown: nothing squeezed'); assert.equal(flatOf(0), SQUEEZE);
+  assert.ok(SQUEEZE > 0 && SQUEEZE < 0.8, 'never collapsed to a point');
+  for (const t of [0.3, 0.5, 0.7]) assert.ok(flatOf(growAt('portal', t)) >= flatOf(growAt('portal', t + 0.1)), 'it only stretches');
+  assert.match(CIRCUIT_VS_HEAD, /if \(circFlat > 0\.0\) \{ vec3 o0 = mix\(circAnchA, circTurnPt\(circAnchC\), w\); cen = o0 \+ \(cen - o0\) \* \(1\.0 - circFlat\); \}/);
+  assert.match(CIRCUIT_VS_HEAD, /uniform float circFlat;/);
+  const { FADE_GLSL } = await import('../src/scene/materials/shaders.ts');
+  assert.match(FADE_GLSL, /bool frontOut\(float u, float rv\)/);
+  for (const f of ['../src/scene/vessels/shaders.ts', '../src/scene/materials/shaders.ts']) {
+    const s = readFileSync(new URL(f, import.meta.url), 'utf8');
+    assert.ok(!/> reveal\) discard/.test(s), `${f}: no hard cut at the reveal's front`);
+    assert.match(s, /frontOut\(/);
+  }
+});

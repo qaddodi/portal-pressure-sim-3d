@@ -6,11 +6,9 @@ import { test } from 'node:test';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { endsFor, measureScreen } from '../src/scene/sinusoid/portrait.ts';
-import { FACE_UM, LEGEND_INSET, legendBox, legendOn } from '../src/scene/sinusoid/legend.ts';
-import type { Vector4 } from 'three';
+import { FACE_UM, legendOn } from '../src/scene/sinusoid/legend.ts';
 
 const run = (v: SinusoidView, ms: number) => { for (let t = 0; t <= ms; t += 16) v.update(t); };
-const uEnd = (v: SinusoidView) => (v.tissue.material as unknown as { uniforms: Record<string, { value: Vector4 }> }).uniforms.uEnd!.value;
 
 test('measureScreen: pixels per µm and where the room\'s middle is along the flow, whichever way the flow runs on the screen', () => {
   // wide: 10 µm along is 86 px to the right; the room's middle is 40 px right of the sinusoid's
@@ -31,14 +29,14 @@ test('the arrows stand 32 px inside the room\'s ends about the room\'s middle, n
   assert.ok(Math.abs(a2 - (a + 40 / k)) < 1e-9 && Math.abs(b2 - (b + 40 / k)) < 1e-9);
   const v = new SinusoidView(createShared()); v.setVisible(true);
   v.setScreen(k, 800, 800, 40 / k); run(v, 64);
-  const e = uEnd(v);
-  assert.ok(Math.abs(e.x - a2) < 1e-6 && Math.abs(e.y - b2) < 1e-6, `uEnd ${e.x}, ${e.y}`);
+  const e = v.ends;
+  assert.ok(Math.abs(e[0] - a2) < 1e-6 && Math.abs(e[1] - b2) < 1e-6, `ends ${e[0]}, ${e[1]}`);
 });
 
 test('the traffic runs over the stretch really on screen: centred where the screen is, a little past each end, so the same dots show as 2D\'s', () => {
   const dots = (k: number, centre: number) => {
     const v = new SinusoidView(createShared()); v.setVisible(true); v.setScreen(k, 800, 800, centre); run(v, 600);
-    return v.sprites.geometry.drawRange.count;
+    return v.spriteCount;
   };
   const near = dots(14, 0), real = dots(8.6, 0);
   assert.ok(real > near * 1.3, `more dots when more of the stretch is on screen (${real} against ${near})`);
@@ -56,18 +54,21 @@ test('the scene measures the camera\'s own picture for the view (not the rest-sc
   assert.match(src, /if \(!this\.sinus\.isVisible\) return;/);
 });
 
-test('the Protein legend: 2D\'s own look, only while the sinusoid is the view, at the free room\'s top left under the top bar, its room to 8 px short of a tall sinusoid\'s plate', () => {
+test('the Protein legend: 2D\'s own look, only while the sinusoid is the view, in the top bar beside the lens key', () => {
   assert.equal(legendOn('sinusoid', true), true);
   for (const [v, d] of [['sinusoid', false], ['lobule', true], ['body', true]] as const) assert.equal(legendOn(v, d), false);
-  const b = legendBox({ l: 12, t: 8, r: 788, b: 500 }, 0, 56, 788);
-  assert.equal(b.x, 12 + LEGEND_INSET.x);
-  assert.equal(b.y, 56 - LEGEND_INSET.bar + LEGEND_INSET.y);
-  assert.equal(b.maxW, 788 - b.x);
-  assert.equal(legendBox({ l: 12, t: 8, r: 388, b: 700 }, 0, 56, 100).maxW, 90, 'never narrower than 90');
   assert.ok(Math.abs(FACE_UM - 9.2) < 1e-9);
   const css = readFileSync(new URL('../src/ui/css2d/app-03-layouts.css', import.meta.url), 'utf8');
   assert.match(css, /\.sv-legend i\.alb \{ width: 8px; height: 8px; background: var\(--albumin\)/);
   const comp = readFileSync(new URL('../src/scene/sinusoid/ProteinLegend.tsx', import.meta.url), 'utf8');
-  assert.match(comp, /className="alb"/); assert.match(comp, /Protein/);
+  assert.match(comp, /className="alb"/); assert.match(comp, /getElementById\('stageTop'\)/); assert.match(comp, /Protein/);
   assert.match(readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8'), /<ProteinLegend \/>/);
+});
+
+test('the Protein legend sits beside the lens key: before the figure\'s pill in the bar on a laptop, under it on a phone, faded in and out', () => {
+  const css = readFileSync(new URL('../src/scene/sinusoid/legend.css', import.meta.url), 'utf8');
+  assert.match(css, /\.topbar \.stage-bar\.top > \.sv-legend \{ position: static; order: 1;[^}]*margin-left: auto/);
+  assert.match(css, /\.stage-bar\.top:has\(> \.sv-legend\) > \.sb-right \{ margin-left: 0; \}/);
+  assert.match(css, /\.app\.thumb \.topbar \.stage-bar\.top > \.sv-legend \{ position: absolute; top: calc\(100% \+ 6px\); right: 0;/);
+  assert.match(css, /\.sv-legend\.out \{ animation: lk-out/);
 });

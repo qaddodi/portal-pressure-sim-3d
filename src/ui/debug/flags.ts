@@ -18,7 +18,7 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'look', group: 'Pages', gate: 'local', meaning: 'The Mac look board (bare ?look; ?look&twod adds the 2D app beside each row): walks about 40 fixed states (patient, view, look, device) in one frame, reads the figure canvas in the frame that draws it, shows it beside the saved baseline and the difference (src/debug/look-board.ts, look/README.md).' },
   { id: 'twod', group: 'Pages', gate: 'local', meaning: 'The look board: a button per row opens the 2D app\'s preview of the same patient in the row.' },
   { id: 'capture', group: 'Open', gate: 'local', meaning: 'One look-board state (the look board\'s own frame opens it): ?capture&look=dark&preset=cirr-decomp&view=circuit&chevrons=0&orbit=25 applies it in memory (nothing saved) and window.__look hands out the canvas (src/debug/look-app.ts).' },
-  { id: 'liver', group: 'Open', gate: 'local', meaning: 'The cirrhotic liver\'s surface: ?liver=a (pebbled), b (bridged), c (micronodular), d (cel); none keeps the old one (src/scene/organs/liver-texture.ts).' },
+  { id: 'liver', group: 'Open', gate: 'local', meaning: 'The cirrhotic liver\'s surface: ?liver=a (pebbled), b (bridged), c (micronodular), d (cel), c1 to c4 (calmer micronodular); none keeps the old one (src/scene/organs/liver-texture.ts).' },
   { id: 'only', group: 'Pages', gate: 'live', meaning: 'The Phone check or the Sweep: just these journeys or specimens (comma list).' },
   { id: 'steps', group: 'Pages', gate: 'live', meaning: 'The Phone check: steps=0 leaves out the per-step rows.' },
   { id: 'fresh', group: 'Pages', gate: 'live', meaning: 'The Phone check: fresh=1 forgets a walk the browser was part way through.' },
