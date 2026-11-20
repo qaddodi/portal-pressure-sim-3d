@@ -278,7 +278,7 @@ test('the switch applies live: toggling it rewrites every tube in place (same ve
   const was = useSettings.getState().smoothJoins;
   try {
     useSettings.getState().set('smoothJoins', true);
-    const s = new CelScene();
+    const s = new CelScene({ joins: 'old' }); // (the old method's rule: with ?joins=old every mate stays; the skin's rule is tests/skin-scene.test.ts)
     assert.equal(smoothJoinsOn(), true, 'the scene took the setting');
     const obj = (id: string) => s.vesselObject(id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array; count: number } } }; toon: { uniforms: Record<string, { value: { x: number } | number }> } };
     const posOn = Float32Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), nOn = obj('PVH_L').toonMesh.geometry.getAttribute('position').count;

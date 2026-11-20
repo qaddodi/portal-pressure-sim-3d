@@ -4,8 +4,8 @@
 import { flagValue } from '../../../ui/debug/flags.ts';
 
 export type JoinsMode = 'old' | 'mesh' | 'mesh2';
-/** What no flag means. WP7 sets it to 'mesh2' (skins on by default, Mohammad 20 Nov: "let's just do it all, and we can reverse if it sucks"). */
-export const JOINS_DEFAULT: JoinsMode = 'old';
+/** What no flag means: every skin of the spec (WP7, Mohammad 20 Nov: "let's just do it all, and we can reverse if it sucks"). `?joins=old` is the way back; the old junction code (nbr, bury, mates, collars) is all still in place under it. */
+export const JOINS_DEFAULT: JoinsMode = 'mesh2';
 
 /** The mode from an address search string (no argument: the page's own). An unknown value is the default. */
 export function joinsMode(search?: string): JoinsMode {
