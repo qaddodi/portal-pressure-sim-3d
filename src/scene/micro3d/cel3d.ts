@@ -15,6 +15,7 @@ import {
 import { CEL_STYLE } from '../cel-style.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
+import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 const L = CEL_LIGHT_UNIT;
@@ -66,8 +67,8 @@ uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 #ifdef STREAKS
-// streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it),
-// each with its own phase and length, the middle lanes fastest (2D's lanes: 1.5 (1 - a^2) + 0.08); one hard-edged lighter tone, never a gradient
+// streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it), the middle lanes fastest;
+// one flat lighter tone (one shade above the lumen's), never a gradient
 uniform float uFlow;      // how far the stream has run (µm)
 uniform float uHalf;      // the stream's half width (µm): the lanes' pitch is across it
 uniform float uStreak;    // how strong the streaks are (0 none)
@@ -75,20 +76,10 @@ uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed (
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
-float h11(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
-// one lane's streak at this pixel (1 inside, 0 out): long and slim, round at both ends, its edge antialiased over a pixel
-float streaks() {
-  float lanes = max(2.0, floor(uHalf * 2.0 / 0.9));
-  float u = (vAux * 0.5 + 0.5) * lanes, lane = floor(u), fu = fract(u);
-  float a = (lane + 0.5) / lanes * 2.0 - 1.0;
-  float sp = mix(1.0, 1.5 * (1.0 - a * a) + 0.08, uProfile);
-  float period = 34.0 + 26.0 * h11(lane * 3.1), len = 14.0 + 16.0 * h11(lane * 7.7 + 1.3);
-  float t = mod(vP.x - uFlow * sp + period * h11(lane * 1.7 + 9.1), period);
-  float q = clamp(t / len * 2.0 - 1.0, -1.0, 1.0);
-  float hw = 0.3 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
-  float d = abs(fu - 0.5) - hw, w = max(fwidth(u), 1e-3);
-  return (1.0 - smoothstep(-w, w, d)) * step(0.3, h11(lane * 5.3 + 2.0));
-}
+// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, comets with a blunt round head and a tail tapering to a point, parabolic lanes): the same as the Anatomy's vessels
+${STREAK_FIELD_GLSL}
+uniform float uStreakDir; // +1: the heads lead toward +x (the way the stream runs); -1: toward -x (a reversed flow)
+float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreakDir); }
 #endif
 void main() {
   if (fadedOut()) discard;
@@ -178,7 +169,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
+      uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
