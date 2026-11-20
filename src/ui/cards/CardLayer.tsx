@@ -145,8 +145,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
       area: { left: 0, top: 0, width: vp.w, height: vp.h },
     });
   };
-  // a slide change, a new size or a leaving layout puts the zoom back at once (2D closes it first; here the slide's own cards come in on the rail)
-  useEffect(() => { cardZoom.reset(); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere]);
+  // a slide change, a new size or a leaving layout glides the zoom back (nothing in the app snaps: Mohammad, 20 Nov), as the slide's own cards go out and come in on the rail
+  useEffect(() => { void cardZoom.close({ reduce: reduceMotion() }); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => cardZoom.reset(), []);
 
   // the cards' boxes go to the scene once per layout change, when every card up has been measured
@@ -204,7 +204,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} zoomable={zoomsHere && e.phase === 'in'} onTap={e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : (e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : undefined}>
+        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} zoomable={zoomsHere && e.phase === 'in'} onTap={e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
         {content(e)}
       </CardFrame>
     );
