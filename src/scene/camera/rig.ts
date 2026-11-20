@@ -8,6 +8,7 @@ import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
+import { slideSpanOf, stepOf, wholeViewOf, zoomShare } from './slide-time.ts';
 import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
@@ -96,18 +97,36 @@ function fillHalf(p: Pose): Pose {
   const half: [number, number] = h[0] > 0 ? [h[0], (h[0] * ht) / w] : [(h[1] * w) / ht, h[1]];
   return { shot: { ...p.shot, half }, room: p.room };
 }
-export function blendPose(a0: Pose, b0: Pose, k: number, arc = 1): Pose {
+/** What the even glide needs to know about a move's zoom: the camera's distance at its two ends (as the room fits them) and the pixels one scene unit spans at distance 1 (the lens). */
+export interface ZoomEnds { da: number; db: number; px?: number }
+/** The even glide (2D cam-arc.js lerpInto, STG-4): the zoom runs on a log scale, so it neither rushes at one end nor crawls at the other, and the aim and the room go with the ZOOM's share (not the clock's)
+ *  so that every point of the figure travels a straight line on the screen: a point's place is `o + p·s`, the zoom `s` is linear in the share q by its definition, and the offset `o` (the room's middle
+ *  less the aim times the zoom) is made linear in q too, which gives the aim as 2D's pan: it is derived from the offsets, not interpolated itself (interpolated, it bows every point's path).
+ *  Linear in the distance (what this did until 20 Nov) zoomed in with a rush at its end, out with a rush at its start, and curved the paths. `z`: the move's zoom ends (rig.zoomEnds); without it the shots' own
+ *  `r`, and the aim goes with the share q directly. Angles stay linear (a turn is not a zoom). */
+export function blendPose(a0: Pose, b0: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
   const a = fillHalf(a0), b = fillHalf(b0);
   if (isDive(a, b)) return blendDive(a, b, k, arc);
+  const da = z?.da ?? a.shot.r, db = z?.db ?? b.shot.r, q = zoomShare(da, db, k);
+  const room = { x: lerp(a.room.x, b.room.x, q), y: lerp(a.room.y, b.room.y, q), w: lerp(a.room.w, b.room.w, q), h: lerp(a.room.h, b.room.h, q) };
+  const ta = a.shot.target, tb = b.shot.target;
+  let tx = lerp(ta[0], tb[0], q), ty = lerp(ta[1], tb[1], q);
+  if (z?.px && z.px > 0 && da > 0 && db > 0 && a.room.w > 1 && b.room.w > 1) {
+    // the aim that keeps each point's screen offset linear in q: o = Rc ∓ T·s (x: room middle less aim·s; y is flipped), then T back from the offset at this q
+    const sa = z.px / da, sb = z.px / db, s = sa + (sb - sa) * q;
+    const cx = (r: Room) => r.x + r.w / 2, cy = (r: Room) => r.y + r.h / 2;
+    const oxa = cx(a.room) - ta[0] * sa, oxb = cx(b.room) - tb[0] * sb, oya = cy(a.room) + ta[1] * sa, oyb = cy(b.room) + tb[1] * sb;
+    tx = (cx(room) - lerp(oxa, oxb, q)) / s; ty = (lerp(oya, oyb, q) - cy(room)) / s;
+  }
   return {
     shot: {
-      yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: lerp(a.shot.r, b.shot.r, k),
-      target: [lerp(a.shot.target[0], b.shot.target[0], k), lerp(a.shot.target[1], b.shot.target[1], k), lerp(a.shot.target[2], b.shot.target[2], k)],
-      half: [lerp(a.shot.half[0], b.shot.half[0], k), lerp(a.shot.half[1], b.shot.half[1], k)],
-      ...narrowOf(a.shot, b.shot, (x, y) => lerp(x, y, k)),
+      yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: geo(a.shot.r, b.shot.r, k),
+      target: [tx, ty, lerp(ta[2], tb[2], q)],
+      half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
+      ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
-    // (a move that is not a dive: the room goes with k; blendDive moves it with the aim instead, as its comment says)
-    room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
+    // (a move that is not a dive: the room goes with the zoom's share q, as blendDive's does)
+    room,
   };
 }
 
@@ -121,7 +140,7 @@ export function arcSize(ra: number, rb: number): number {
   const ratio = Math.max(ra, rb) / Math.max(1e-9, Math.min(ra, rb));
   return Math.min(1, Math.log(ratio / DIVE_RATIO + 1) / Math.log(200 / DIVE_RATIO + 1));
 }
-const geo = (a: number, b: number, k: number) => (a > 0 && b > 0 ? a * Math.pow(b / a, k) : lerp(a, b, k));
+const geo = (a: number, b: number, k: number) => (k <= 0 ? a : k >= 1 ? b : a > 0 && b > 0 ? a * Math.pow(b / a, k) : lerp(a, b, k));   // (exact at both ends: a move lands on its shot to the last digit)
 /** The room's share in a dive (blendDive's q) at the pose `c` between `a` and `b`. */
 function roomShareOf(a: Pose, b: Pose, c: Pose): number { return diveRoomShare(a.shot.r, b.shot.r, c.shot.r); }
 /** The room's share in a dive with the camera at distance r (a.r to b.r): the zoom's own share, log(a/r) / log(a/b), the same both ways. Tied to the aim's share q (21539e4) the room and the aim
@@ -155,8 +174,12 @@ export class CameraRig {
   private from: Pose;
   private to: Pose;
   private cur: Pose;
-  private t0 = 0;
+  /** The move's own clock (2D createSlideClock): ms into the move, advanced each frame by what the frame took but never by more than STEP_MAX, so a stalled frame pauses the move where it stood instead of landing the next part of it in one jump. -1 `lastT`: the first frame draws the start. */
+  private at = 0;
+  private lastT = -1;
   private dur = 0;
+  /** The camera's distance at the move's two ends as the room fits them: what the even glide's zoom share is measured on (blendPose). */
+  private zoomEnds: ZoomEnds | null = null;
   /** The speed the move began with (easeCarry's slope): zero from a standstill. */
   private carry = 0;
   /** The progress the last frame was drawn at (the eased value the pose is at now). */
@@ -172,6 +195,8 @@ export class CameraRig {
   /** 2D's long-move path (arc.ts) for this move, or null for the plain glide. */
   private long: LongPath | null = null;
   private readonly longPath = new LongPath();
+  /** What the last frame advanced the move's clock by, ms. */
+  private step = 0;
   private active = false;
   /** The curve of a move that brings its own (a time-lapse's slow push: 2D's driftEase); null for the plain glide's easeCarry. */
   private easeFn: ((k: number) => number) | null = null;
@@ -247,11 +272,31 @@ export class CameraRig {
   get isMoving(): boolean { return this.active; }
   /** 2D's glide time (ease.js camMs): 480 ms up to half a screen of reach (the pan in screens wide and the zoom, a doubling counting half a screen), then in proportion, at most 900 ms; a dive (the distance changes by more than DIVE_RATIO) has the lobule's 1500 ms. */
   reachMs(shot: ShotName | Shot): number {
+    const { d, dive } = this.reach(shot);
+    return Math.round(Math.min(dive ? 1500 : 900, 480 * Math.max(1, d / 0.5)));
+  }
+  /** A deck slide's glide time (2D planSlide: slideMs clamped to 800 to 1400 ms, where `reachMs` is a hand's glide at 480 to 900): the move is longer, "a third of a screen in 480 ms read as a swoop". A dive keeps its own
+   *  length (reachMs's 1500; the dive times are the owner's call, 20 Nov: kept as 3D has them). */
+  slideMs(shot: ShotName | Shot): number {
+    const { d, dive } = this.reach(shot);
+    return dive ? this.reachMs(shot) : slideSpanOf(d);
+  }
+  /** How far a move to `shot` goes on screen, in 2D's units (the pan in screens wide, the zoom with a doubling counting half a screen, combined), and whether it is a dive. */
+  private reach(shot: ShotName | Shot): { d: number; dive: boolean } {
     const t = typeof shot === 'string' ? SHOTS[shot] : shot, a = this.cur.shot;
     const pan = Math.hypot(t.target[0] - a.target[0], t.target[1] - a.target[1]) / Math.max(1e-6, a.half[0] + t.half[0]);
     const zoom = Math.abs(Math.log(Math.max(1e-6, t.half[0]) / Math.max(1e-6, a.half[0]))) / (2 * Math.LN2);
-    const dive = Math.max(a.r, t.r) / Math.max(1e-9, Math.min(a.r, t.r)) > DIVE_RATIO;
-    return Math.round(Math.min(dive ? 1500 : 900, 480 * Math.max(1, Math.hypot(pan, zoom) / 0.5)));
+    return { d: Math.hypot(pan, zoom), dive: Math.max(a.r, t.r) / Math.max(1e-9, Math.min(a.r, t.r)) > DIVE_RATIO };
+  }
+  /** The move's zoom ends: the camera's distance at its start and end as the room fits them, and the lens's pixels per unit (blendPose's even glide). */
+  private measureZoom(): ZoomEnds {
+    return { da: effectiveDistance(this.from.shot, this.scaleFrom, this.height, this.width), db: effectiveDistance(this.to.shot, this.scaleTo, this.height, this.width), px: this.height / (2 * Math.tan((FOV * Math.PI) / 360)) };
+  }
+  /** The hand view that frames the whole figure (`whole`: the body's play shot, the Circuit's whole map) in the room the camera is fitted to, seen from the shot it is going to; null when that shot already is it.
+   *  What the hand's zoom limits and its zoomed-out resting place are measured on (2D measures them on the whole plate: scene/gesture/view.ts zoomLimits). */
+  wholeView(whole: Shot): View | null {
+    const sc = this.scaleTo.w > 1 ? this.scaleTo : this.targetRoom;
+    return wholeViewOf(this.to.shot, whole, sc, this.height, this.width);
   }
   /** The lens's field of view now (degrees): the long lens at rest, wider in the middle of a plunge. */
   get fov(): number { return fovAt(this.bump); }
@@ -326,7 +371,8 @@ export class CameraRig {
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
-    this.t0 = carry > 0 || hv || (this.active && this.vel.on) ? now - 16 : now; this.eNow = 0; this.roomP = 0; this.lateRoom = null;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
+    this.zoomEnds = this.measureZoom();
+    this.at = carry > 0 || hv || (this.active && this.vel.on) ? 16 : 0; this.lastT = -1; this.eNow = 0; this.roomP = 0; this.lateRoom = null;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
@@ -337,10 +383,10 @@ export class CameraRig {
   }
 
   /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
-  setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false): void {
+  setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false, ease: ((k: number) => number) | null = null): void {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
     // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
-    if (refit) this.scaleTo = { w: room.w, h: room.h };
+    if (refit) { this.scaleTo = { w: room.w, h: room.h }; this.zoomEnds = this.measureZoom(); }
     if (this.active && ms == null && !homeTurn && this.dur > 0) {
       // (the room's own share, not the clock's: in a dive the room follows the aim (q). Rebuilding it with the clock's share made the picture jump each time a card arrived mid-dive,
       //  a zoom-out and a shift right per card: the Lobule -> Sinusoid staircase)
@@ -359,10 +405,10 @@ export class CameraRig {
         return;
       }
     }
-    const left = this.active ? Math.max(1, this.t0 + this.dur - now) : undefined;
+    const left = this.active ? Math.max(1, this.dur - this.at) : undefined;
     // (a room change alone keeps the zoom: the camera only pans into the new room. A guided step (homeTurn: a slide on the same shot) is an explicit fit and may refit)
     this.keepScale = !homeTurn && !refit;
-    this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true);
+    this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true, ease);
     this.keepScale = false;
     // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
     if (homeTurn) this.orbitTo = 0;
@@ -441,28 +487,34 @@ export class CameraRig {
     c.half[1] = (a.half[1] + (b.half[1] - a.half[1]) * q) * (c.half[0] / (a.half[0] + (b.half[0] - a.half[0]) * q));
     c.r = a.r * Math.pow(b.r / a.r, q);
   }
-  private sampleVel(now: number): void {
+  private sampleVel(now: number, step: number): void {
     const c = this.cur.shot, L = this.velLast, lh = Math.log(Math.max(1e-6, c.half[0]));
-    if (L.ok && now > L.t && now - L.t < 100) { const dt = now - L.t; this.vel.x = (c.target[0] - L.x) / dt; this.vel.y = (c.target[1] - L.y) / dt; this.vel.lh = (lh - L.lh) / dt; this.vel.t = now; this.vel.on = true; }
+    // (the speed is what the picture moved per ms of the move's own clock: a stalled frame moved it by STEP_MAX, not by the wall time it took)
+    if (L.ok && now > L.t && now - L.t < 100 && step > 0) { const dt = step; this.vel.x = (c.target[0] - L.x) / dt; this.vel.y = (c.target[1] - L.y) / dt; this.vel.lh = (lh - L.lh) / dt; this.vel.t = now; this.vel.on = true; }
     L.t = now; L.x = c.target[0]; L.y = c.target[1]; L.lh = lh; L.ok = true;
   }
   /** Steps the tween and writes the camera. Returns true while the camera is still moving (the clock needs another frame). */
   update(now: number): boolean {
     let moving = false;
     if (this.active) {
-      const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
+      // the move's own clock: this frame adds what it took, at most STEP_MAX (2D createSlideClock). A move with a curve of its own (a time-lapse's push, which has to end with the days) keeps the wall clock.
+      const dt = this.lastT >= 0 ? Math.max(0, now - this.lastT) : 0;
+      this.lastT = now;
+      this.step = this.easeFn ? dt : stepOf(dt);
+      this.at += this.step;
+      const k = this.dur <= 0 ? 1 : Math.min(1, this.at / this.dur);
       const e = this.easeFn ? this.easeFn(k) : easeCarry(k, this.carry);
       this.eNow = e;
-      this.cur = blendPose(this.from, this.to, e, 0);
-      // the share of the way the room has gone (blendPose: e, or in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
-      this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : e;
+      this.cur = blendPose(this.from, this.to, e, 0, this.zoomEnds ?? undefined);
+      // the share of the way the room has gone (blendPose: the zoom's share, in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
+      this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : zoomShare(this.zoomEnds?.da ?? this.from.shot.r, this.zoomEnds?.db ?? this.to.shot.r, e);
       this.scaleNow = { w: lerp(this.scaleFrom.w, this.scaleTo.w, this.roomP), h: lerp(this.scaleFrom.h, this.scaleTo.h, this.roomP) };
       if (this.lateRoom) {   // a card that came after the room had all but arrived (see setRoom): the room goes the rest of the way on the clock, from where it was
         const L = this.lateRoom, u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))), c = this.cur.room = copyRoom(this.cur.room), b = this.to.room;
         c.x = lerp(L.from.x, b.x, u); c.y = lerp(L.from.y, b.y, u); c.w = lerp(L.from.w, b.w, u); c.h = lerp(L.from.h, b.h, u);
       }
       if (this.hv && e < 1) this.hermiteAim(k);
-      this.sampleVel(now);
+      this.sampleVel(now, this.step);
       if (this.long && e < 1) this.long.at(e, this.cur.shot);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose

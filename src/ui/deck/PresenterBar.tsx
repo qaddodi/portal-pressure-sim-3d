@@ -5,7 +5,7 @@ import { SettingsMenu } from '../settings/SettingsMenu.tsx';
 import { barOf } from '../layout/plan.ts';
 import { layoutOf } from '../layout/rules2d.ts';
 import { Icon } from '../shell/icons.tsx';
-import { leaveTalk } from '../shell/talk.ts';
+import { stopTalk } from '../shell/talk.ts';
 import { finishTalk } from '../cards/finish.ts';
 
 // the 2D app's chev-left / chev-right (its `.ib` rules size and stroke them)
@@ -47,7 +47,7 @@ export function PresenterBar({ title }: { title: string }) {
         {!sideways && <button type="button" className="ib pzb-next" aria-label="Next slide" title={end ? 'Finish (→)' : 'Next (→)'} onClick={() => (atEnd(useUi.getState()) ? finishTalk() : move('next'))}><Chevron dir="r" /></button>}
         <SettingsMenu />
         {/* 2D presenter-scales.js: the pill ends with Exit (a phone: "Exit the presentation", a wide screen: "Stop presenting", Esc) */}
-        <button type="button" className="ib pzb-exit" aria-label={stacked ? 'Exit the presentation' : 'Stop presenting'} title={stacked ? 'Exit' : 'Stop (Esc)'} onClick={() => leaveTalk()}><Icon n="close" /></button>
+        <button type="button" className="ib pzb-exit" aria-label={stacked ? 'Exit the presentation' : 'Stop presenting'} title={stacked ? 'Exit' : 'Stop (Esc)'} onClick={() => stopTalk()}><Icon n="close" /></button>
       </div>
     </>
   );

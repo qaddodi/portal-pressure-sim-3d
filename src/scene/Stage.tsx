@@ -28,7 +28,9 @@ import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { installTilt } from './camera/tilt-input.ts';
 import { reduced } from '../ui/a11y/motion.ts';
-import { K_MIN } from './gesture/view.ts';
+import { K_MAX, zoomLimits } from './gesture/view.ts';
+import { SHOTS } from './camera/shots.ts';
+import { circuitShot } from './circuit/shots.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
 import { tapSelect } from '../ui/action/tap-select.ts';
@@ -43,6 +45,9 @@ clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }
 export { vesselData };
 
 /** A phone is the small side under 500 CSS px (portrait or landscape): its ink is 0.2 px lighter on organs (spec section 3). */
+/** The hand view that frames the whole figure here (the body's play shot, the Circuit's whole map) seen from the shot now up: what the zoom limits and a zoomed-out view's resting place are measured on. Null when the shot is that, or the view has none. */
+const wholeHome = () => (cel.view === 'body' ? cel.rig.wholeView(SHOTS.play) : cel.view === 'circuit' ? cel.rig.wholeView(circuitShot(cel.circuit.upright)) : null);
+
 const isPhone = () => Math.min(innerWidth, innerHeight) < 500;
 
 function SceneBridge() {
@@ -129,7 +134,12 @@ function SceneBridge() {
       centre: () => cel.rig.roomCentre(),
       fitRect: () => cel.rig.fitRect(),
       // (the sinusoid and the lobule keep their subject framed, and Anatomy never rests zoomed out past its fit (owner, 20 Nov: "spring back zoom to fit when i try to zoom out"): a pinch out stretches a little and springs back on release)
-      kMin: () => (cel.view === 'sinusoid' || cel.view === 'lobule' || cel.view === 'body' ? 1 : K_MIN),
+      // Zoom limits are 2D's, measured on the WHOLE figure (the body, the whole Circuit map), not on the shot now up: from a close shot (a pick, a Tests shot, a Circuit slide's box) a pinch or − reaches the whole figure and
+      // no further (the least rests at its fit), and the most is 6 x its fit, never 6 x the close-up. The lobule and the sinusoid keep their own subject framed (limits on their own fit).
+      kMin: () => (cel.view === 'sinusoid' || cel.view === 'lobule' ? 1 : zoomLimits(wholeHome(), 1).kMin),
+      kMax: () => (cel.view === 'sinusoid' || cel.view === 'lobule' ? K_MAX : zoomLimits(wholeHome(), 1).kMax),
+      home: () => wholeHome(),
+      fitToggles: () => cel.view === 'circuit',
       recentre: () => cel.view === 'sinusoid',
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },

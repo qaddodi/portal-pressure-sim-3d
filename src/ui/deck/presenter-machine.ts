@@ -36,8 +36,12 @@ export function next(stops: Stop[], p: Pos): Pos {
   return p.stop + 1 < stops.length ? { stop: p.stop + 1, beat: 0 } : p;
 }
 
+/** A slide that opens on a case card (2D `vignette`; a question is the other kind of first card, and keeps its own way). */
+const hasCase = (s: Stop | undefined): boolean => s?.kind === 'slide' && caseOf(s.slide)?.kicker === 'Case';
+
+/** Back. The case card shows only going forward (2D presenter.js `to > lastAt`): Back from the slide it opens goes on to the slide before, never onto the card again. */
 export function back(stops: Stop[], p: Pos): Pos {
-  if (p.beat > 0) return { stop: p.stop, beat: p.beat - 1 };
+  if (p.beat > 0 && !(p.beat === 1 && hasCase(stops[p.stop]))) return { stop: p.stop, beat: p.beat - 1 };
   if (p.stop === 0) return p;
   return { stop: p.stop - 1, beat: beatsOf(stops[p.stop - 1]) - 1 };
 }
@@ -45,8 +49,10 @@ export function back(stops: Stop[], p: Pos): Pos {
 /** Jump to the start of a stop (the progress dots). */
 /** Lands on a stop from outside the walk (the outline, a link, opening the deck at a slide). A slide that is only a question (2D `question`, no case or procedure with it) is asked
  *  when the talk walks up to it with Next, so a jump skips its card and lands on the slide itself, as 2D does; Back from there still reaches the card. */
-export const goto = (stops: Stop[], stop: number): Pos => {
+export const goto = (stops: Stop[], stop: number, o: { case?: boolean } = {}): Pos => {
   const at = Math.max(0, Math.min(stops.length - 1, stop | 0)), s = stops[at];
+  // (a case card is met only going forward: a start, a resume, a link and a jump back land on the slide itself, as 2D's start (`noCase`) and `to > lastAt` do; a jump forward still meets it)
+  if (s?.kind === 'slide' && hasCase(s) && s.beats > 1) return { stop: at, beat: o.case ? 0 : 1 };
   // (a slide with beats is opened on its last view, so it stands with its whole point made: 2D slide-beats.js)
   const ends = s?.kind === 'slide' && !caseOf(s.slide) && (s.slide.beats?.length ?? 0) > 0;
   return { stop: at, beat: s?.kind === 'slide' && s.beats > 1 && caseOf(s.slide)?.kicker === 'Question' ? 1 : ends ? s.beats - 1 : 0 };

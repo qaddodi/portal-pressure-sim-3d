@@ -45,6 +45,8 @@ export const HI_PX = 0;
 export const PICK_LIFT = 0.012;
 /** Fade in and out of the outline, ms. */
 export const HIGHLIGHT_FADE_MS = 180;
+/** The share of the glow still shown at `t` of the Circuit's change (eased, circuit.t): whole at rest, gone by the change's first 15 %, a smoothstep between (the glow lies along the body's course, which the change leaves). */
+export const glowGate = (t: number): number => { const x = Math.min(1, Math.max(0, t / 0.15)); return 1 - x * x * (3 - 2 * x); };
 
 /** Which vessels carry the outline for a pick, and where along the flow each one starts. Walks the topology both ways. A pick is a group
  *  when the engine cuts a vein into pieces (a vein with a shunt joining part-way along it is one vein to the eye): every piece is the pick. */
@@ -123,7 +125,7 @@ export class Highlight {
   private hostOf: ReadonlyMap<string, string>;
 
   private courseOf: CourseOf;
-  private glowShown = true;
+  private glowShown = 1;
 
   constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map(), courseOf: CourseOf = () => undefined) {
     this.hostOf = hostOf;
@@ -200,12 +202,13 @@ export class Highlight {
     return moving;
   }
 
-  /** Whether the glow may show (the body's courses only: the Circuit lays the vessels out afresh). */
-  setGlowShown(shown: boolean): void { this.glowShown = shown; }
+  /** How much of the glow may show, 0 to 1 (the body's courses only: the Circuit lays the vessels out afresh). It eases with the Circuit's change (`glowGate`), as 2D's selection glow eases on its SEL_FADE: a
+   *  boolean made it snap off at the first frame of a view switch. */
+  setGlowShown(shown: boolean | number): void { this.glowShown = typeof shown === 'number' ? Math.min(1, Math.max(0, shown)) : shown ? 1 : 0; }
 
   /** The glow of one track: laid along the vessel's course when it is first lit (or lit differently), in the vessel's own tone, eased in with `on`. */
   private glow(t: Track): void {
-    if (!t.spec || (t.on === 0 && t.target === 0)) { t.glow?.show(0, false); return; }
+    if (!t.spec || (t.on === 0 && t.target === 0)) { t.glow?.show(0, 0); return; }
     const o = t.obj, c = this.courseOf(o.edge!.id);
     if (!c) return;
     if (!t.glow) t.glow = new VesselGlow(o.group);

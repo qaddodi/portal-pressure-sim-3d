@@ -5,13 +5,16 @@ import { CameraRig, blendPose, dragToOrbit, easeInOutCubic, lerpAngle } from '..
 import { SHOTS, SHOT_MS, ORBIT_LIMIT, FOV } from '../src/scene/camera/shots.ts';
 import { effectiveDistance, fitDistance, fullRoom, viewOffset } from '../src/scene/camera/room.ts';
 
-test('the camera goes straight from any shot to any shot: halfway is the plain average, no fit waypoint', () => {
+/** Frames of a rig's clock at `dt` ms, from just after `t0` to `t1` (a move's own clock advances by what a frame took, at most 50 ms, so a test steps it as the app's clock does). */
+const drive = (rig: CameraRig, t0: number, t1: number, dt = 10): void => { for (let t = t0 + dt; t < t1 + dt / 2; t += dt) rig.update(t); };
+
+test('the camera goes straight from any shot to any shot: halfway is the even (log) glide, no fit waypoint', () => {
   const a = { shot: SHOTS.title, room: fullRoom(800, 600) };
   const b = { shot: SHOTS.wedge, room: { x: 480, y: 60, w: 300, h: 500 } };
   const m = blendPose(a, b, 0.5);
-  assert.ok(Math.abs(m.shot.r - (a.shot.r + b.shot.r) / 2) < 1e-9);
-  assert.ok(Math.abs(m.shot.target[1] - (a.shot.target[1] + b.shot.target[1]) / 2) < 1e-9);
-  assert.ok(Math.abs(m.room.x - 240) < 1e-9);
+  assert.ok(Math.abs(m.shot.r - Math.sqrt(a.shot.r * b.shot.r)) < 1e-9, 'the distance is the geometric mean: the zoom is even on a log scale');
+  assert.ok(Math.abs(m.shot.half[0] - Math.sqrt(a.shot.half[0] * b.shot.half[0])) < 1e-9);
+  assert.ok(m.shot.target[1] > Math.min(a.shot.target[1], b.shot.target[1]) && m.shot.target[1] < Math.max(a.shot.target[1], b.shot.target[1]), 'the aim is between the two');
   // and at every step the distance stays between the two ends (it never pulls out to fit everything first)
   for (let k = 0; k <= 1; k += 0.1) {
     const p = blendPose(a, b, k);
@@ -37,11 +40,13 @@ test('a move lasts 950 ms and the rig says so while it moves, then goes quiet', 
   rig.resize(800, 600);
   rig.update(0);
   rig.goTo('title', fullRoom(800, 600), 0);   // the first shot is put in place; every one after it flies
-  rig.goTo('free', fullRoom(800, 600), 1000);
+  rig.goTo('free', fullRoom(800, 600), 1000, 950);
   assert.equal(rig.update(1000), true);
-  assert.equal(rig.update(1500), true);
+  drive(rig, 1000, 1500);
+  assert.equal(rig.update(1510), true);
+  drive(rig, 1510, 1940);
   assert.equal(rig.update(1949), true);
-  assert.equal(rig.update(1950), false);
+  assert.equal(rig.update(1959), false);
   assert.equal(rig.isMoving, false);
   assert.ok(Math.abs(rig.pose.shot.r - SHOTS.free.r) < 1e-9 || rig.pose.shot.r > 0);
   assert.equal(rig.update(2000), false);
@@ -118,10 +123,10 @@ test('a card opening (the room alone changes) leaves the turn the viewer chose; 
   rig.goTo('free', fullRoom(800, 600), 0, 0); rig.update(0);
   rig.setOrbit(0.3);
   rig.setRoom({ x: 0, y: 0, w: 500, h: 600 }, 100);
-  rig.update(100); rig.update(600); rig.update(1100);
+  rig.update(100); drive(rig, 100, 1100);
   assert.equal(rig.orbitAngle, 0.3, 'the room moved, the turn did not');
   rig.goTo('wedge', { x: 0, y: 0, w: 500, h: 600 }, 2000);
-  rig.update(3000);
+  rig.update(2000); drive(rig, 2000, 3100);
   assert.ok(Math.abs(rig.orbitAngle) < 1e-9, 'a new shot eases the turn home with the move');
 });
 
@@ -132,12 +137,12 @@ test('a guided step that asks for the shot the camera is already on still brings
   rig.goTo('free', fullRoom(800, 600), 0, 0); rig.update(0);
   rig.setOrbit(0.3);
   rig.setRoom(room, 100);                                  // a card opened: the turn stays
-  rig.update(100); rig.update(2000);
+  rig.update(100); drive(rig, 100, 2000);
   assert.equal(rig.orbitAngle, 0.3);
   rig.setRoom(room, 3000, undefined, true);                // the next slide, same shot: the turn goes home with the move
-  rig.update(3000 + SHOT_MS / 2);
+  rig.update(3000); drive(rig, 3000, 3000 + SHOT_MS / 2);
   assert.ok(rig.orbitAngle > 0 && rig.orbitAngle < 0.3, 'on its way');
-  rig.update(3000 + SHOT_MS);
+  drive(rig, 3000 + SHOT_MS / 2, 3000 + SHOT_MS + 20);
   assert.equal(rig.orbitAngle, 0);
   assert.equal(rig.update(5000), false, 'and quiet');
 });
@@ -253,7 +258,7 @@ test('the turn and the tilt: within their limits everywhere (tilt tighter than t
   rig.setOrbit(0.1); assert.equal(rig.orbitAngle, 0.1, 'exact in the middle');
   assert.ok(dragToPitch(0, 100) > 0);
   on = false; rig.levelOut(0);
-  rig.update(1000);
+  rig.update(0); drive(rig, 0, 1000);
   assert.equal(rig.orbitAngle, 0); assert.equal(rig.pitchAngle, 0);
 });
 
@@ -358,6 +363,6 @@ test('follow: the aim eases after a moving point as one smooth glide (no steps, 
   assert.ok(Math.abs(rig.pose.shot.target[0] - 2000 / 4000) < 0.2, 'it keeps up with the point');
   rig.goTo('play', room, t, 500);
   const at = rig.pose.shot.target[0]; rig.follow(null);
-  rig.update(t + 700); rig.update(t + 800);
+  drive(rig, t, t + 800);
   assert.ok(Math.abs(rig.pose.shot.target[0] - SHOTS.play.target[0]) < 1e-6 && at !== rig.pose.shot.target[0], 'a new shot goes where it was asked');
 });

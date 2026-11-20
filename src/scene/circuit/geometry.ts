@@ -16,6 +16,16 @@ export function slicesFor(id: string): number {
 }
 
 export const CIRCUIT_ATTRIBUTES = ['cC', 'tC', 'fr', 'pk', 'cl'] as const;
+/** The floats each morph attribute carries per vertex. */
+export const CIRCUIT_ATTRIBUTE_SIZE: Readonly<Record<(typeof CIRCUIT_ATTRIBUTES)[number], number>> = { cC: 3, tC: 3, fr: 3, pk: 2, cl: 2 };
+
+/** A vessel with no map course (a fan of tributaries, the liver's branching veins) gets the morph's attributes as zeros, so the shader's `cl.y <= 0` guard (circuit/shader.ts: the vertex stays where it is and
+ *  fades by 2D's `1 - 2 * T0`) reads a real attribute and never relies on what a missing one defaults to. Attributes it already has are kept. */
+export function withCircuitAttributes(g: BufferGeometry): BufferGeometry {
+  const n = g.getAttribute('position').count;
+  for (const name of CIRCUIT_ATTRIBUTES) if (!g.getAttribute(name)) g.setAttribute(name, new BufferAttribute(new Float32Array(n * CIRCUIT_ATTRIBUTE_SIZE[name]), CIRCUIT_ATTRIBUTE_SIZE[name]));
+  return g;
+}
 
 /** Adds the morph's attributes to a built tube. The tube must have been built with at least `slicesFor(id)` slices. */
 export function attachCircuit(built: VesselGeometry, course: CircuitCourse, radius: number): BufferGeometry {

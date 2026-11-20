@@ -80,10 +80,11 @@ function begin(r: Run, fast: boolean): void {
  */
 function skip(): boolean {
   const r = run;
-  if (!r || r.phase === 'fast' || r.phase === 'landing') return false;
+  // (a Next while the days are only being set up does not run them out: it moves on, so a quick Next-Next never stops on a lapse slide, 2D V-SLIDE-5)
+  if (!r || r.phase === 'settle' || r.phase === 'fast' || r.phase === 'landing') return false;
   const now = performance.now();
   clearTimers();
-  if (r.phase === 'settle' || !r.pace) { begin(r, true); return true; }   // (a Next before the days began: they run at once, in the same time)
+  if (!r.pace) { begin(r, true); return true; }
   const d = daysAt(r.pace, now), left = Math.max(0, r.days - d);
   r.phase = 'fast';
   if (r.bedside) send({ type: 'lapseFast', ms: SKIP_MS }); else send({ type: 'run', speed: skipSpeed(left) });
@@ -99,7 +100,7 @@ function skip(): boolean {
  * Plays a slide's days: ease the figure to the start (the slide before's state), run the days, then ease to the end (`end`, the slide's own state) and call `landed`. `push`: the camera's slow
  * push while they run (lapse-push.ts), or null. Next runs the days out (lapse-next.ts); a position change stops them (`stopLapse`).
  */
-export function playLapse(key: string, s: CopiedSlide, start: unknown, end: unknown, landed: () => void, reduce = false, push: Push | null = null): void {
+export function playLapse(key: string, s: CopiedSlide, start: unknown, end: unknown, landed: () => void, reduce = false, push: Push | null = null, settled = false): void {
   stopLapse();
   const days = s.days as number, secs = Math.max(1, (s.lapse as { seconds?: number }).seconds ?? 8);
   const bedside = (s.lapse as { clock?: string }).clock === 'seconds';
@@ -111,9 +112,16 @@ export function playLapse(key: string, s: CopiedSlide, start: unknown, end: unkn
   }
   const r: Run = { days, secs, ramp: s.ramp ?? null, bedside, end, push, landed, phase: 'settle', pace: null, endAt: 0 };
   run = r;
-  setLapseSkip(skip);
-  if (start) send({ type: 'morph', snap: start, ms: SETTLE_MS });
-  after(start ? SETTLE_MS : 0, () => begin(r, false));
+  setLapseSkip(skip);   // (the days are set up first: a Next meanwhile moves on, see skip)
+  // (`settled`: the figure was eased to the start at the press and the slide has landed since: the days begin at once, no second settle)
+  if (start && !settled) send({ type: 'morph', snap: start, ms: SETTLE_MS });
+  after(start && !settled ? SETTLE_MS : 0, () => begin(r, false));
+}
+
+/** A slide whose days will play once it has landed (2D paintLapse at the press): the counter stands at day 0 and not done, so the tiles and the words show where the days begin. */
+export function readyLapse(key: string, s: CopiedSlide): void {
+  stopLapse();
+  useLapse.setState({ key, d: 0, n: s.days as number, done: false });
 }
 
 /** A slide whose days are not played (arrived by Back or a jump back, 2D `back`): the counter reads them done. (The camera's part is lapse-push.ts `showPushEnd`.) */

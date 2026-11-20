@@ -39,8 +39,18 @@ test('the talk plays title, the 13 slides of the 2D deck (a case first where a s
 
 test('Back from the first beat of a slide lands on the last beat of the slide before', () => {
   assert.deepEqual(back(stops, { stop: 2, beat: 0 }), { stop: 1, beat: 1 });
-  assert.deepEqual(back(stops, { stop: 1, beat: 1 }), { stop: 1, beat: 0 });
   assert.deepEqual(goto(stops, 99), { stop: 14, beat: 0 });
+});
+
+test('the case card is met only going forward (2D `to > lastAt`, `noCase` on a start)', () => {
+  // Back from the slide a case opens goes on to the slide before: it never lands on the card again
+  assert.deepEqual(back(stops, { stop: 1, beat: 1 }), { stop: 0, beat: 0 });
+  // a start, a resume or a link lands on the slide itself; a jump forward still meets its card
+  assert.deepEqual(goto(stops, 1), { stop: 1, beat: 1 }, 'a start at a slide with a case lands past it');
+  assert.deepEqual(goto(stops, 1, { case: true }), { stop: 1, beat: 0 }, 'a jump forward meets the card');
+  assert.deepEqual(goto(stops, 2), { stop: 2, beat: 0 }, 'a slide with no case is untouched');
+  // walking Next still goes through the card
+  assert.deepEqual(next(stops, { stop: 0, beat: 0 }), { stop: 1, beat: 0 });
 });
 
 test('what is on screen: the case alone first, then words with the ladder where the slide has one', () => {

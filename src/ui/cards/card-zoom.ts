@@ -6,11 +6,12 @@
 // way in goes back in the part of the time it got. Written on the one clock (tween phase) as inline `translate` and `scale` (they compose with the rail's
 // transform and the height glide, which stay untouched). The tap, Esc, a slide change and a resize put it back.
 
+import { useSyncExternalStore } from 'react';
 import { clock as theClock, type Clock, type FrameInfo, type Hold } from '../../clock/frame.ts';
-import { cubicBezier } from '../../clock/tween.ts';
+import { easeArrive } from '../../clock/tween.ts';
 
 export const ZOOM_MAX = 2.2, ZOOM_MIN = 1.2, ZOOM_MS = 520, SHUT_MS = 440;
-export const easeArrive = cubicBezier(0.2, 0.7, 0.2, 1);
+export { easeArrive };   // (2D's --ease-arrive: the one curve, clock/tween.ts)
 
 export interface Box { left: number; top: number; width: number; height: number }
 export interface Cur { dx: number; dy: number; s: number }
@@ -115,6 +116,15 @@ export function createCardZoom(clock: Clock = theClock) {
     /** Everything put back at once (a slide or a resize comes first). */
     reset() { if (st) { st.veil?.classList.remove('on'); end(); } },
   };
+}
+
+/** Whether a card zoom is up or on its way (body[data-card-zoom], which `open` writes and `end` takes off): the corner button's aria-expanded and its swapped icon follow it. */
+export function useCardZoomOn(): boolean {
+  return useSyncExternalStore(
+    (notify) => { if (typeof MutationObserver !== 'function') return () => {}; const mo = new MutationObserver(notify); mo.observe(document.body, { attributes: true, attributeFilter: ['data-card-zoom'] }); return () => mo.disconnect(); },
+    () => typeof document !== 'undefined' && document.body.dataset.cardZoom !== undefined,
+    () => false,
+  );
 }
 
 /** The talk's one card zoom. */

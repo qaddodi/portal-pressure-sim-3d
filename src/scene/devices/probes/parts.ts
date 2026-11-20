@@ -6,22 +6,23 @@ import type { Palette } from '../../palette.ts';
 import { PALETTES, type LookId } from '../../palette.ts';
 import { DEVICE_TOKENS, type DeviceTokens } from '../../procedures/copied/device-tokens.copied.ts';
 import { DeviceObject, type DeviceOptions, type DeviceTone } from '../device-object.ts';
+import type { EdgeRule } from '../edges.ts';
 import { allocTube, makeRings, writeRings, type Ring } from '../tube-rings.ts';
 
 /** The colour a part wears when it is not one of the device table's: a hex, or a function of the look's device tokens. */
 export type PartColour = string | ((t: DeviceTokens, look: LookId) => string);
 
-const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
+export const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
-/** How a part's look is fixed whatever the theme: `flat` (its shade is its colour: a mark is one white, never a grey in the dark) and `rim` (its outline's own colour, not the look's ink). */
-export interface PartStyle { flat?: boolean; rim?: string }
+/** How a part's look is fixed whatever the theme: `flat` (its shade is its colour: a mark is one white, never a grey in the dark), `rim` (its outline's own colour, a fixed hex, not the look's ink), `edge` (the edge rule 2D gives the part: devices/edges.ts; the look's ink when left out) and `fat` (device px the fill grows by: a stroke 2D centres on the path sits half inside it). */
+export interface PartStyle { flat?: boolean; rim?: string; edge?: EdgeRule; fat?: number }
 
 export class ProbePart extends DeviceObject {
   private colour: PartColour | null;
   private pal: Palette | null = null;
   private readonly style: PartStyle;
   constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}, style: PartStyle = {}) {
-    super(geometry, tone, shared, o, 'ink');
+    super(geometry, tone, shared, style.fat != null ? { ...o, fat: style.fat } : o, style.edge ?? 'ink');
     this.colour = colour;
     this.style = style;
     this.group.visible = false;
