@@ -35,6 +35,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { dustTuner } from './blood/dust.ts';
 import { turnTargets } from './blood/routes.ts';
+import { CIRCUIT_MATES, mateUniform } from './circuit/mates.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { MICRO_DPR } from './micro3d/cel3d.ts';
@@ -426,6 +427,7 @@ export class CelScene {
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
+    { const cm = CIRCUIT_MATES.get(def.id); if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), [cm[0]?.ease ?? 0, cm[1]?.ease ?? 0]); }   // (the map's own pairs and their taper, circuit/mates.ts: whatever the joins switch or a skin says)
     { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
     { const cm = cavaMateOf(def.id); if (cm) { const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1]; o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
@@ -1067,8 +1069,8 @@ export class CelScene {
     const procQuiet = this.procs.busy || !!this.probes.scope.driven;
     if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
-    const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
-    const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch));
+    const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
+    const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
     const occMoving = this.stepOcclusion(dt);
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || routesMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
