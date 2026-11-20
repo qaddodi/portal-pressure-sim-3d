@@ -47,6 +47,7 @@ import { useLapse } from '../../decks/hp/lapse.ts';
 import { useScope } from '../tests/endo/scope-state.ts';
 import { lazy, Suspense } from 'react';
 import { useUi } from '../ui-store.ts';
+import { useToolRoomValue } from './tool-room.ts';
 import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
 import { BeatCard } from '../tests/slide/BeatCard.tsx';
 import { setSlidePin } from '../tests/slide/pin.ts';
@@ -98,6 +99,7 @@ export function ToolCard({ deck, slide }: { deck: Deck; slide: Slide }): ReactNo
 
 function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): ReactNode {
   const env = useEnv(deck, i);
+  const room = useToolRoomValue() || undefined;   // (the room the data card leaves this picture, 2D --pz-room: the path card and the plane keep inside it)
   const { copied, cs, st, fp, params, healthy, results, fpOf } = env;
   const tool = (cs.tool ?? {}) as Rec;
   const kind = slide.visual && (CHART_VISUALS as readonly string[]).includes(slide.visual) ? `visual:${slide.visual}` : String(tool.kind ?? '');
@@ -124,7 +126,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
 
   switch (kind) {
     case 'criteria': return <CriteriaCard tool={tool as never} fp={fp as never} />;
-    case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} />;
+    case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} room={room} />;
     case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} />;
     case 'curve': case 'course': return <CurveCard tool={tool as never} slide={slideState} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} />;
     case 'menu': return <MenuCard rows={Array.isArray(tool.rows) ? (tool.rows as string[]) : null} slide={slideState} id={`${deck.id}/${slide.id}`} />;
@@ -136,7 +138,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'plane': return <PlaneCard plane={tool.plane as never} ring={fp as never} stops={trailStops(tool.trail as never, fpOf as never) ?? undefined} />;
     case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={fitFor(tool, fp, params, fpOf, results, copied.slides as CopiedSlide[])} head /> : null;
     case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} />;
-    case 'saag': return <SaagCard rows={((tool.of as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} />;
+    case 'saag': return <SaagCard rows={((tool.of as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} room={room} />;
     case 'evgraph': return <EvGraph cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
     case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
     case 'forest': return <ForestCard ids={(tool.ids as string[] | undefined) ?? []} />;
@@ -238,5 +240,5 @@ function PlaneVisual({ deck, cs, fpOf }: { deck: Deck; cs: CopiedSlide; fpOf: (i
     void loadPoints(cs.of as never, deck.slides as never, fpOf as never, engine() as never).then((p) => { if (on) setPoints(p); }, () => undefined);
     return () => { on = false; };
   }, [deck, cs, states]);  // eslint-disable-line react-hooks/exhaustive-deps
-  return <PlaneCard plane={cs.plane as never} points={points} />;
+  return <PlaneCard plane={cs.plane as never} points={points} room={useToolRoomValue() || undefined} />;
 }

@@ -111,3 +111,14 @@ test('a phone\'s Tests sheet rests 8 px above the dock like 2D (--thumb-occ), wi
   const bar = readFileSync(new URL('../src/ui/shell/ThumbBar.tsx', import.meta.url), 'utf8');
   assert.match(bar, /aria-pressed=\{t\.id === 'tests' \? testsOpen : t\.id === 'treat' \? treatOpen : undefined\}/);
 });
+
+test('an upright iPad\'s Tests sheet is the 70 % column in the middle, as 2D\'s (left: 15%; right: 15%), so the tab row shows the short names instead of a cut "Endosc…"', async () => {
+  const { testsPlace } = await import('../src/ui/tests/place.ts');
+  const { fitTabs } = await import('../src/ui/tests/tab-fit.ts');
+  const vp = { w: 820, h: 1180, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+  const pl = testsPlace(vp, 'tablet-portrait');
+  assert.equal(pl.rect.x, 123); assert.equal(pl.rect.w, 574, 'the dock\'s own width: 123 to 697 in 2D at 820 wide');
+  assert.equal(fitTabs(pl.rect.w, 8, 'Pressure').compact, true, 'a 574 px card is under 780: short names');
+  const ph = testsPlace({ w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, 'phone-portrait');
+  assert.equal(ph.rect.x, 8); assert.equal(ph.rect.w, 374, 'a phone keeps its 8 px margins');
+});

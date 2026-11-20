@@ -101,9 +101,44 @@ test('the whole chart where every leaf has 104 px, else the small map; the card 
   const a = pathLayout('first-visit', patientOf('first-visit', { lsm: 8, plt: 200 }, null), 330, { phone: true }), b = pathLayout('first-visit', patientOf('first-visit', { lsm: 18, plt: 128 }, null), 330, { phone: true });
   assert.equal(a.H, b.H);
   // a room smaller than the picture brings the rows closer (2D's tight layout) at the same size of words
-  const t = pathLayout('first-visit', patientOf('first-visit', null, null), 800, { room: 200 });
+  const t = pathLayout('first-visit', patientOf('first-visit', null, null), 800, { room: wide.H - 1 });
   assert.equal(t.tight, true);
   assert.ok(t.H < wide.H);
+});
+
+test('a data card with a room shorter than the chart draws the small map, never a chart that stands past it (shunts slide 5: 624 px in a 768 px window, cut off at the foot)', () => {
+  for (const of of ids) {
+    const spec = (PATHS as Record<string, { kind: string }>)[of];
+    for (const W of [360, 440, 520, 600]) {
+      const p = patientOf(of, null, null), full = pathLayout(of, p, W, {}), tight = pathLayout(of, p, W, { room: 1 });
+      // the chain: the rows close first, then the small map; the room never makes the card taller
+      assert.ok(tight.H <= full.H, `${of} ${W}`);
+      const room = Math.max(120, Math.min(tight.H - 1, full.H - 1));
+      const L = pathLayout(of, p, W, { room });
+      assert.ok(L.H <= full.H, `${of} ${W}`);
+      if (full.H > room) assert.equal(L.tight, true, `${of} ${W}: rows closer first`);
+      // a tree or card that still does not fit with tight rows gives way to the small map (2D tool-path.js layout(1, true, tight)), where that is shorter
+      if (L.compact && !full.compact) assert.ok(L.H < full.H, `${of} ${W}: the small map is shorter`);
+    }
+    void spec;
+  }
+  // the instance from the report: the guideline flowchart at a Mac card's width in a 768 px window (the card's room was ~330 px)
+  const big = pathLayout('ascites', patientOf('ascites', { tips: true, lt: true }, null), 560, {});
+  const small = pathLayout('ascites', patientOf('ascites', { tips: true, lt: true }, null), 560, { room: 330 });
+  assert.ok(small.H < big.H, 'a room shorter than the chart makes the picture shorter');
+});
+
+test('the deck hands every data card\'s instrument its room (2D --pz-room), measured from the card: path, saag and the plane keep inside it', () => {
+  const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+  const body = src('ui/talk/ToolCardBody.tsx'), box = src('ui/talk/ToolCard.tsx'), layer = src('ui/cards/CardLayer.tsx'), room = src('ui/talk/tool-room.ts');
+  assert.match(box, /useToolRoom\(\)/, 'the instrument box measures its room');
+  assert.match(box, /ToolRoom\.Provider/);
+  assert.match(layer, /DataCap\.Provider value=\{stacked \|\| alone \? 0 : plan\.maxH\.data\}/, 'the data card hands its height cap down');
+  assert.match(body, /<PathCard[^\n]*room=\{room\}/, 'the path card gets the room');
+  assert.match(body, /<SaagCard[^\n]*room=\{room\}/, 'the SAAG card gets the room');
+  assert.match(body, /<PlaneCard plane=\{cs\.plane as never\} points=\{points\} room=/, 'the plane in a card gets the room');
+  assert.match(room, /--pz-room/, 'the stylesheets that read --pz-room get it on the card');
+  assert.match(room, /toolRoomOf\(/, 'the arithmetic is 2D\'s own (tool-room.copied.js)');
 });
 
 test('the lit path is whole and the rest quiet, in every look: the lit words are full, the others at 70%', () => {
