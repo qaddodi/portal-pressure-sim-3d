@@ -13,6 +13,8 @@ import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS } from
 import { ATLAS_PALETTE } from '../src/scene/atlas-art/palette.ts';
 import { AtlasOrgans } from '../src/scene/atlas-art/organs.ts';
 import { POOL_WASH } from '../src/scene/atlas-art/pool.ts';
+import { calmWash, smoothNormals } from '../src/scene/atlas-art/smooth.ts';
+import { LIVER_SHINE } from '../src/scene/atlas-art/organs.ts';
 import { STEP, X0, bulgeStep } from '../src/scene/disease/ascites.ts';
 import { fluidBase, fluidLevel } from '../src/scene/disease/copied/fluid-step.js';
 import { y3 } from '../src/scene/frame2d.ts';
@@ -230,4 +232,27 @@ test('the tube segment counts are the 2D courses\' whatever atlas course is set 
     assert.ok(ATLAS_COURSE.size > 50);
     for (const v of NETWORK) assert.deepEqual(tubularOf(v, 0), classic.get(v.id), v.id);
   } finally { ATLAS_COURSE.clear(); }
+});
+
+test('the cirrhotic liver is calm for the cel look: its normals are smoothed, its wash keeps less mottle, the nodules are one flat low-contrast band and the liver keeps little of the shine', () => {
+  const liver = parseGlb(organFile('cirr-decomp')).find((m) => m.name === 'liver')!;
+  const rough = (nrm: ArrayLike<number>) => {   // the mean cosine between a normal and its neighbours' sum
+    const n = nrm.length / 3, acc = new Float32Array(n * 3);
+    for (let t = 0; t < liver.index.length; t += 3) for (const [p, q] of [[0, 1], [1, 0], [1, 2], [2, 1], [2, 0], [0, 2]] as const) { const a = liver.index[t + p]!, b = liver.index[t + q]!; for (let k = 0; k < 3; k++) acc[a * 3 + k]! += nrm[b * 3 + k]!; }
+    let d = 0;
+    for (let i = 0; i < n; i++) d += (acc[i * 3]! * nrm[i * 3]! + acc[i * 3 + 1]! * nrm[i * 3 + 1]! + acc[i * 3 + 2]! * nrm[i * 3 + 2]!) / (Math.hypot(acc[i * 3]!, acc[i * 3 + 1]!, acc[i * 3 + 2]!) || 1);
+    return d / n;
+  };
+  const heavy = smoothNormals(liver.normal!, liver.index, 24);
+  assert.ok(rough(liver.normal!) < 0.97 && rough(heavy) > 0.995, 'the artist\'s nodules are small; the heavy pass takes them out');
+  for (let i = 0; i < heavy.length; i++) assert.ok(Number.isFinite(heavy[i]));
+  for (let i = 0; i < heavy.length; i += 3) assert.ok(Math.abs(Math.hypot(heavy[i]!, heavy[i + 1]!, heavy[i + 2]!) - 1) < 1e-4, 'unit normals');
+  const sd = (a: ArrayLike<number>) => { let s1 = 0, s2 = 0; for (let i = 0; i < a.length; i++) { s1 += a[i]!; s2 += a[i]! * a[i]!; } return Math.sqrt(s2 / a.length - (s1 / a.length) ** 2); };
+  assert.ok(sd(calmWash(liver.color!, liver.index, 6, 0.3, 0.55)) < 0.6 * sd(liver.color!), 'the wash has well under its mottle');
+  assert.match(ATLAS_VS, /in vec3 detail;/); assert.match(ATLAS_FS, /uNod \* CEL_SHADE \* nod/); assert.match(ATLAS_FS, /CEL_LIT \* lit \* uShine/);
+  assert.ok(LIVER_SHINE <= 0.3);
+  const o = new AtlasOrgans({ value: new Vector4(0, 0, -1, 1) }, { value: new Vector2(800, 600) });
+  o.add('cirr-decomp', parseGlb(organFile('cirr-decomp')));
+  const mat = (o.group.children.find((g) => g.name === 'atlas liver')!.children[0] as unknown as { material: { uniforms: Record<string, { value: number }> } }).material;
+  assert.equal(mat.uniforms.uShine!.value, LIVER_SHINE); assert.ok(mat.uniforms.uNod!.value > 0);
 });

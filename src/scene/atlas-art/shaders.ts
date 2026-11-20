@@ -16,12 +16,14 @@ precision highp float;
 
 in vec3 position;
 in vec3 normal;
+in vec3 detail;
 in vec2 uv;
 in vec3 color;
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat3 normalMatrix;
 out vec3 vNormal;
+out vec3 vDetail;
 out vec3 vPosition;
 out vec3 vWash;
 out vec2 vUv;
@@ -29,6 +31,7 @@ out vec4 vClip;
 
 void main() {
     vNormal = normalize(normalMatrix * normal);
+    vDetail = normalize(normalMatrix * detail);
     vPosition = position;
     vWash = color;
     vUv = uv;
@@ -41,6 +44,7 @@ export const ATLAS_FS = `#version 300 es
 precision highp float;
 
 in vec3 vNormal;
+in vec3 vDetail;
 in vec3 vPosition;
 in vec3 vWash;
 in vec2 vUv;
@@ -49,6 +53,8 @@ uniform sampler2D uGrain;
 uniform vec3 uColor;
 uniform float uDark;
 uniform float uAlpha;
+uniform float uNod;      // how much the broad nodules (the liver's relief the vertex stage carries as \`detail\`) darken the facets turned from the light; 0 for every other organ
+uniform float uShine;    // the share of the pale lit band kept (the liver keeps a quarter: no shine)
 // the dive's cutaway window, the same for every organ (organs/layer.ts ORGAN_CUT): x, y the dive point (ndc), z the radius cleared (negative: nothing), w the aspect
 uniform vec4 cut;
 out vec4 outColor;
@@ -78,13 +84,19 @@ void main() {
     float shadow = 1.0 - stepAt(nl, 0.30, px);    // turned from the light
     float core = 1.0 - stepAt(nl, -0.10, px);     // turned well away: the core shadow
     float lit = stepAt(nl, 0.86, px);             // facing the light
+    // the broad nodules: the facets that turn from the light more than the form under them do, one flat low-contrast band (no highlight from them)
+    vec3 nd = normalize(vDetail);
+    if (!gl_FrontFacing) nd = -nd;
+    float rel = dot(nd, key) - nl;
+    float nod = 1.0 - stepAt(rel, -0.08, max(fwidth(rel), 1e-4));
     vec3 base = uColor * vWash;
     // the print grain the package ships, kept very light so the bands stay flat
     float grain = texture(uGrain, vec2(vPosition.x * 1.37, vPosition.y * 1.37)).r - .5;
     base *= 1.0 + .03 * grain;
     vec3 pale = vec3(.96, .76, .60);
     vec3 organ = base * (1.0 - 2.0 * CEL_SHADE * shadow - 2.0 * CEL_SHADE * core);
-    organ = mix(organ, pale, 1.6 * CEL_LIT * lit);
+    organ *= 1.0 - uNod * CEL_SHADE * nod;
+    organ = mix(organ, pale, 1.6 * CEL_LIT * lit * uShine);
     organ += uColor * uDark * .10;
     outColor = vec4(linearToSrgb(clamp(organ, 0.0, 1.0)), uAlpha * win);
 }
