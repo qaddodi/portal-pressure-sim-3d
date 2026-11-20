@@ -120,7 +120,7 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
-    room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
+    room: { x: lerp(a.room.x, b.room.x, q), y: lerp(a.room.y, b.room.y, q), w: lerp(a.room.w, b.room.w, q), h: lerp(a.room.h, b.room.h, q) },
   };
 }
 
