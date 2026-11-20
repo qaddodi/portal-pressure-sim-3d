@@ -32,7 +32,7 @@ test('a lit shader never lights with a view-space normal: n.L is taken in world 
   assert.doesNotMatch(MICRO_FS, /viewMatrix|normalMatrix/);
   // organ depth: its n.L uses the world normal
   assert.match(ORGAN_VS, /vNw = normalize\(mat3\(modelMatrix\) \* normal\);/);
-  assert.match(ORGAN_FS, /float s = dot\(normalize\(vNw\), LIGHT\)/);
+  assert.match(ORGAN_FS, /float lam = dot\(normalize\(vNw\), LIGHT\);/);
   // the tubes (vessels, strands, the lobule's): n.L against the world light turned into view axes by the camera's own matrix (a view normal dotted with the view-space light IS the world n.L)
   assert.match(CEL_LIGHT_GLSL, /viewMatrix \* vec4\(CEL_LIGHT, 0\.0\)/);
   assert.match(VESSEL_FS, /float sT = dot\(n, celLightView\(\)\);/);

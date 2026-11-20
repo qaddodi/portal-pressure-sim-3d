@@ -8,7 +8,7 @@ import { ORGAN_TONES_2D } from '../../looks/organ-tones.copied.ts';
 import type { LookId, Palette } from '../palette.ts';
 import { LOOK_IDS } from '../palette.ts';
 import { LUMA } from '../disease/copied/anatomy-b4.ts';
-import { type OrganInks, type OrganState, type RGB, organColour, rgbOf } from './organ-look.ts';
+import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
 import { type Art, type ArtTokens, type Ctx2D, type Surface, paintArt } from './organ-art-paint.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 
@@ -106,11 +106,18 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
     ifd = 'varying float vEsoA;\n'; ifb = '  gl_FragColor.a *= vEsoA;\n';
   }
   if (o.eso) {
-    vd += 'attribute float eso;\nvarying float vEso;\n';
-    vb += '  vEso = eso;\n';
-    fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nvarying float vEso;\n';
-    // the esophagus's own tones (lit, shade) stand in the stomach's, band for band (the painter's gBand: organ-shader.ts), as vEso says; the figure fades out up the tube
-    fb += '  gl_FragColor.rgb += (organTone(eso1, eso2) - organTone(o1, o2)) * vEso;\n';
+    const [ex, ey, ew, eh] = o.eso.box;
+    vd += 'attribute float eso;\nvarying float vEso;\nvarying float vEsoT;\n';
+    // the esophagus's own gradient over its own box (2D: og-eso, x1 .15 y1 0 to x2 .85 y2 1)
+    vb += `  vEso = eso;
+  vec2 xy2d = vec2(position.x * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - position.y * ${UNITS_PER_SCENE.toFixed(1)});
+  vEsoT = clamp(dot(vec2((xy2d.x - ${f(ex)}) / ${f(ew)}, (xy2d.y - ${f(ey)}) / ${f(eh)}) - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
+`;
+    fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nvarying float vEso;\nvarying float vEsoT;\n';
+    // the stomach's gradient at this point, and the esophagus's: the esophagus's tone replaces it as vEso says; the figure fades out up the tube
+    fb += `  float tS = clamp(dot(vBox - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
+  gl_FragColor.rgb += (mix(eso1, eso2, vEsoT) - mix(o1, o2, tS)) * vEso;
+`;
   }
   return {
     vs: wrapMain(vs, vd, vb), fs: wrapMain(fs, fd, fb),
@@ -200,12 +207,12 @@ export class OrganArt {
   }
 
   /** The organ's state for the next frames: the lens's grey and the dim, as organColour has them, and the esophagus's own tones (so they dim and grey with the organ). */
-  setState(id: string, s: OrganState, k: OrganInks, p: Palette, esoTones?: readonly [RGB, RGB]): void {
+  setState(id: string, s: OrganState, k: OrganInks, p: Palette): void {
     const slot = this.slots.get(id);
     if (slot) (slot.mat.uniforms.artState!.value as Vector2).set(s.sat, s.dim * s.ghost);
     if (id === 'stomach' && this.stomach) {
       const eso = p.organs.tones.eso, u = this.stomach.uniforms;
-      const c1 = organColour(esoTones?.[0] ?? rgbOf(eso[0]), s, k), c2 = organColour(esoTones?.[1] ?? rgbOf(eso[1]), s, k);
+      const c1 = organColour(rgbOf(eso[0]), s, k), c2 = organColour(rgbOf(eso[1]), s, k);
       (u.eso1!.value as Vector3).set(c1[0], c1[1], c1[2]); (u.eso2!.value as Vector3).set(c2[0], c2[1], c2[2]);
     }
   }
