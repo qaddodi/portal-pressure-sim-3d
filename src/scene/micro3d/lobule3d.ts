@@ -62,6 +62,7 @@ const at3 = (p: LP2, z: number): [number, number, number] => [p[0] * R, -p[1] * 
 /** What this scene reads of the flat lobule (its own fields). */
 interface Flat {
   net: LobuleNet;
+  field: { readonly wideNow: number };
   cur: { fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number; flow: number; portal: number; art: number; lymphRate: number; seal: number };
   layers: { lymph: boolean; zones: boolean; bile: boolean };
   lyFade: number; bileFade: number; zoneFade: number;
@@ -177,7 +178,10 @@ export class Lobule3D {
     this.on = on;
     // `under`: how far the camera has gone down onto the sinusoid (0 on the lobule, 1 landed). The lobule dissolves away as the sinusoid comes in (Mohammad: "Should fade when zooming"), and once
     // landed neither this scene nor the flat lobule is drawn: the lobule's solid tiles and tubes stand above the sinusoid's plane and would cut across it in the foreground
-    this.fade.value = 1 - under; this.marksMat.uniforms.opacity!.value = 1 - under;
+    // (and on the way in from the body it comes in as the field narrows onto it: the hex lobules tile the liver from afar, the neighbours resolve, then this lobule's own detail fades in until the
+    //  landing, and the reverse on the way out; the field's breadth is the camera's distance against the lobule's framing, field.ts fieldWide)
+    const come = 1 - f.field.wideNow;
+    this.fade.value = (1 - under) * come; this.marksMat.uniforms.opacity!.value = (1 - under) * come;
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
