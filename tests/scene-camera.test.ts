@@ -339,3 +339,24 @@ test('a camera that is re-aimed every 700 ms (the way in following a catheter ti
     if (before > 0.02) assert.ok(after > before * 0.4, `speed carried across the retarget (${before.toFixed(4)} -> ${after.toFixed(4)})`);
   }
 });
+
+test('follow: the aim eases after a moving point as one smooth glide (no steps, no restart), and a new shot ends it', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('route', room, 0);
+  rig.update(0);
+  rig.follow([0, 0, 0]);
+  let prev = rig.pose.shot.target[0], prevStep = 0, t = 16, maxJerk = 0;
+  for (; t < 2000; t += 16) {
+    rig.follow([t / 4000, -t / 4000, 0]);   // the point moves steadily
+    rig.update(t);
+    const x = rig.pose.shot.target[0], step = x - prev; prev = x;
+    if (t > 200) maxJerk = Math.max(maxJerk, Math.abs(step - prevStep));
+    prevStep = step;
+  }
+  assert.ok(maxJerk < 0.002, `no steps in the follow (jerk ${maxJerk})`);
+  assert.ok(Math.abs(rig.pose.shot.target[0] - 2000 / 4000) < 0.2, 'it keeps up with the point');
+  rig.goTo('play', room, t, 500);
+  const at = rig.pose.shot.target[0]; rig.follow(null);
+  rig.update(t + 700); rig.update(t + 800);
+  assert.ok(Math.abs(rig.pose.shot.target[0] - SHOTS.play.target[0]) < 1e-6 && at !== rig.pose.shot.target[0], 'a new shot goes where it was asked');
+});

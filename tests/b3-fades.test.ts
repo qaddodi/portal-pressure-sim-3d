@@ -23,7 +23,7 @@ test('a vein that ends in its organ fades in from nothing over the 2D share of i
 test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {
   const a = fadeOf('A_HEP', true)!, r = fadeOf('A_HR', true)!;
   assert.deepEqual([a.from, a.to, a.a0, a.a1, a.keep], [0, HEP_FADE_IN, 0, 1, true]);
-  assert.deepEqual([r.from, r.to, r.a0, r.a1, r.keep], [0.7, 1, 1, 0, true]);
+  assert.deepEqual([r.from, r.to, r.a0, r.a1, r.keep], [0.4, 1, 1, 0, false], 'the right artery fades out over the last 60%, as the portal branch beside it does');
 });
 
 test('the veins that run on out of the plate fade out down it', () => {
@@ -53,4 +53,8 @@ test('the shader carries the fade into both the body and the ink, and lets go of
   assert.match(VESSEL_VS, /fa = mix\(fa, 1\.0, circT\)/, "the Circuit lets go of every fade, the artery's too: no vessel is faint on the map");
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade\);/, 'the body fades by its alpha');
   assert.match(VESSEL_FS, /c = mix\(c, mix\(mix\(inkH, inkColorCirc, circT\), hiColor, clamp\(vHi, 0\.0, 1\.0\)\), inkT\);[\s\S]*gl_FragColor = vec4\(c, vFade\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
+});
+
+test('the superior cava runs into the right atrium as solid as the inferior cava meets it: no fade to 0.3 at the atrium (a hard step in colour there)', () => {
+  for (const id of ['SVC_RA', 'SVC_RA_1']) { const f = fadeOf(id, false); assert.ok(!f || !f.ivcJoin, `${id} is the cava, not a vein joining it`); }
 });

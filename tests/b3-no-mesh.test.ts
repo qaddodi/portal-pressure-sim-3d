@@ -26,4 +26,14 @@ test('a varix is a few separate strands and no fill: the trunk tube is not drawn
   }
   const c8 = coursesOf(NETWORK_BY_ID.get('C8')!, REST);
   assert.ok(c8.length > 2, 'the cavernoma channels are the vessel\'s own');
+  assert.equal(c8[0]!.radius, 0, 'and its trunk tube is not drawn: a hard violet block beside the clot');
+});
+
+test('the rectal varices run on further down the rectum than the 2D course and fade out over the extra stretch (Mohammad: "rectal varices should reach more")', async () => {
+  const { y2d } = await import('../src/scene/frame2d.ts');
+  const { fadeOf } = await import('../src/scene/vessels/fades.ts');
+  const c4 = NETWORK_BY_ID.get('C4')!, last = c4.pts[c4.pts.length - 1]!;
+  assert.ok(y2d(last[1]) >= 1000, `ends at y ${y2d(last[1]).toFixed(0)}, past the 2D figure's 928`);
+  const f = fadeOf('C4', false)!;
+  assert.ok(f.mode === 2 && f.a1 === 0, 'faded out down the figure');
 });

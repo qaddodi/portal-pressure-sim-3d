@@ -12,9 +12,10 @@ import { clock } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
+import { figureDrawn } from '../boot/ready.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
-import { figureDpr, msaaFor } from './quality.ts';
+import { figureDpr } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
@@ -49,6 +50,7 @@ function SceneBridge() {
   const gl = useThree((s) => s.gl);
   const size = useThree((s) => s.size);
   const raycaster = useRef(new Raycaster());
+  const warmed = useRef(false);
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
@@ -57,6 +59,13 @@ function SceneBridge() {
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
     if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
+    figureDrawn();   // (the splash waits for this: the first frame, then the labels it places; boot/ready.ts)
+    // every program of every view (the lobule, the sinusoid, the Circuit, the devices, the hidden ones) is built once, off the frame, a moment after the first picture, so the first show of a view never stalls on a driver
+    // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
+    if (!warmed.current) {
+      warmed.current = true;
+      setTimeout(() => { void (gl as unknown as { compileAsync(s: unknown, c: unknown): Promise<unknown> }).compileAsync(cel.scene, cel.rig.camera).catch(() => undefined); }, 400);
+    }
   }, 1);
 
   useEffect(() => {
@@ -173,13 +182,14 @@ function SceneBridge() {
 
 export function Stage() {
   useEffect(() => { clock.invalidate('stage-mounted'); }, []);
-  // the pixel ratio the figure rests at, and so whether the context is multisampled (off from 2x: msaaFor); the canvas is made again only when that answer changes
+  // the pixel ratio the figure rests at, and whether the context is multisampled (only on ?aa=msaa, at any ratio); the canvas is made again only when that answer changes
   const detail = useSettings((s) => s.figureDetail);
   const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
-  // (the anti-aliasing pass, the default, does the canvas's job: the context is multisampled only when the address asks for `?aa=msaa`, and then only below 2x)
-  const msaa = aaMode() === 'msaa' && msaaFor(rest);
+  // (the anti-aliasing pass, the default, does the canvas's job: the context is multisampled only when the address asks for `?aa=msaa`, and then at ANY pixel ratio: the post pass is off in that mode, so
+  // refusing the samples at 2x left the figure with no anti-aliasing at all)
+  const msaa = aaMode() === 'msaa';
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
+    <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
       <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, stencil: true, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />

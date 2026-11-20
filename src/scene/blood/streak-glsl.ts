@@ -19,7 +19,7 @@ export const STREAK = {
   /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px, a little varied by streak */
   THICK_OF_R: 0.16, THICK_MIN: 1.3, THICK_MAX: 3, THICK_JITTER: 0.3,
   /** the field's own numbers (a shape with an across and an along, um): a lane's pitch, a comet's period and length (base + spread), its half width in lane units, the share of the cycles left empty */
-  FIELD_PITCH: 0.9, FIELD_PERIOD: [34, 26], FIELD_LEN: [12, 14], FIELD_THICK: 0.3, FIELD_GAP: 0.25,
+  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [21, 16], FIELD_LEN: [12, 14], FIELD_THICK: 0.3, FIELD_GAP: 0.12,
   /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
   FEATHER: 0.3,
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
@@ -34,9 +34,19 @@ export const STREAK = {
   T_END: 0.4, T_STENOSIS: 0.9, T_FLOW: 0.5,
   /** the most a streak wanders across (of the tube's half width) and tilts (radians) at full turbulence */
   WANDER: 0.3, TILT: 0.45,
+  /** CONTAINED 100 percent (Mohammad, 20 Nov: "the streaks should be CONTAINED within the vessels 100%"): a streak's whole extent, across, stays within EDGE of the lumen's radius (the lane, the wander, its width and the sideways reach of its tilt all count), so it never touches the ink; SAG: how far a straight streak may stand off a bending course (of the radius) */
+  EDGE: 0.8, SAG: 0.1,
   /** the vessel's lit tone lifted this far toward white (one shade lighter, never white) and the streak's alpha (whole inside the lumen band) */
   LIFT: 0.28, ALPHA: 1,
 } as const;
+/** Whether a streak of the field can be at `across` (-1 .. 1 over the lumen) at all: the field draws nothing past FIELD_EDGE, so a streak never reaches the ink (the twin of the clip in streakField). */
+export const streakInside = (across: number): boolean => Math.abs(across) <= STREAK.FIELD_EDGE;
+/** The furthest across (of the lumen's half width) any mark of a field of `lanes` lanes reaches: the outer lane's centre plus its half width, all inside FIELD_EDGE. */
+export function fieldReach(lanes: number): number {
+  const half = STREAK.FIELD_THICK * (1 + STREAK.THICK_JITTER / 2) * (1 / lanes);   // (lane units: the mark's half width, a lane being 1 wide, in the lane's share of the face)
+  const centre = (lanes - 1) / lanes;
+  return STREAK.FIELD_EDGE * Math.min(1, centre + 2 * half);
+}
 /** The streak lanes a vessel of radius `r2d` (2D units) carries across its width: 3, 5 or 7. */
 export const lanesFor = (r2d: number): number => (r2d >= STREAK.LANE_7 ? 7 : r2d >= STREAK.LANE_5 ? 5 : 3);
 /** The speed of lane `k` (-h to h, of a tube with 2h+1 lanes) as a share of the stream's mean speed: parabolic, WALL_SPEED of the middle lane's at the outer lane, the mean over the lanes 1. */
@@ -46,6 +56,20 @@ export function laneSpeed(k: number, h: number): number {
   return at(k) / m;
 }
 
+/** The streak's fit inside the tube (the twin of streakFit in GLSL), all in CSS px: `lat` the centre's offset from the axis, `ang` its tilt, `len` and `thick` its size, `R` the tube's radius, `bendLen` the longest a streak may be on this bend. */
+export function streakFit(lat: number, ang: number, len: number, thick: number, R: number, bendLen: number): { lat: number; ang: number; len: number } {
+  const room = Math.max(STREAK.EDGE * R - 0.5 * thick, 0);
+  const l = Math.min(len, bendLen);
+  const la = Math.min(room, Math.max(-room, lat));
+  const sm = Math.min(1, Math.max(0, (room - Math.abs(la)) / Math.max(0.5 * l, 1e-3)));
+  const lim = Math.asin(sm);
+  return { lat: la, ang: Math.min(lim, Math.max(-lim, ang)), len: l };
+}
+/** The longest a straight streak may be on a bend of radius of curvature `rho` (CSS px) in a tube of radius R: its ends stand off the curve by at most SAG of R. */
+export const bendLength = (rho: number, R: number): number => 2 * Math.sqrt(2 * rho * STREAK.SAG * R);
+/** The whole sideways extent of a streak from the axis (CSS px): its offset, half its width and the reach of its tilt. Always within EDGE of R after streakFit. */
+export const streakReach = (lat: number, ang: number, len: number, thick: number): number => Math.abs(lat) + 0.5 * thick * Math.abs(Math.cos(ang)) + 0.5 * len * Math.abs(Math.sin(ang));
+
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 
 /** Lane speed, comet shape and hash (any stage). */
@@ -53,6 +77,15 @@ export const STREAK_LANE_GLSL = /* glsl */ `
 // lane: -1 .. 1 across the lanes (the outer lane's centre is +-1), h: half the lanes less a half (1, 2 or 3): the lane's speed over the stream's mean, parabolic, WALL_SPEED at the outer lane
 float streakLaneSpeed(float lane, float h) {
   return (${F(STREAK.WALL_SPEED)} + ${F(1 - STREAK.WALL_SPEED)} * (1.0 - lane * lane)) / (${F(STREAK.WALL_SPEED)} + ${F(1 - STREAK.WALL_SPEED)} * (1.0 - (h + 1.0) / (3.0 * h)));
+}
+// the streak's fit inside the tube (CSS px; streak-glsl.ts streakFit): the centre's offset and tilt are pulled in so that the offset, half the width and the sideways reach of the tilt stay within EDGE of the radius R; the length is held to bendLen
+vec3 streakFit(float lat, float ang, float len, float thick, float R, float bendLen) {
+  float room = max(${F(STREAK.EDGE)} * R - 0.5 * thick, 0.0);
+  float l = min(len, bendLen);
+  float la = clamp(lat, -room, room);
+  float sm = clamp((room - abs(la)) / max(0.5 * l, 1e-3), 0.0, 1.0);
+  float lim = asin(sm);
+  return vec3(la, clamp(ang, -lim, lim), l);
 }
 float streakHash(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
 // a streak's own speed over its lane's: 1 +- SPEED_JITTER from its seed in 0 .. 1 (symmetric, so the mean stands)
@@ -87,7 +120,10 @@ vec2 gStreakK = vec2(1.0, 0.5);
 // profile 1 the blood's parabolic lanes and 0 one speed (the lymph), dir +1 or -1: the way the stream runs (the mark is the same both ways). 1 inside a mark, 0 out.
 float streakField(float across, float along, float flow, float halfWidth, float profile, float dir) {
   float lanes = clamp(2.0 * floor(floor(halfWidth * 2.0 / ${F(STREAK.FIELD_PITCH)}) * 0.5) + 1.0, 3.0, ${F(STREAK.LANES)});
-  float u = (across * 0.5 + 0.5) * lanes, idx = clamp(floor(u), 0.0, lanes - 1.0), fu = fract(u);
+  // CONTAINED BY CONSTRUCTION: the lanes fill the lumen out to FIELD_EDGE of its half width and nothing at all is drawn past it, so no streak ever reaches the ink, whatever feeds this function
+  float ca = across / ${F(STREAK.FIELD_EDGE)};
+  float inLumen = step(abs(ca), 1.0);
+  float u = (clamp(ca, -1.0, 1.0) * 0.5 + 0.5) * lanes, idx = clamp(floor(u), 0.0, lanes - 1.0), fu = fract(u);
   float h = (lanes - 1.0) * 0.5;
   float sp = mix(1.0, streakLaneSpeed((idx - h) / h, h), profile) * streakPace(streakHash(idx * 5.9 + 0.7));   // (the lane's own pace: a field's marks of one lane move as one pattern)
   float period = ${F(STREAK.FIELD_PERIOD[0])} + ${F(STREAK.FIELD_PERIOD[1])} * streakHash(idx * 3.1);
@@ -100,6 +136,6 @@ float streakField(float across, float along, float flow, float halfWidth, float 
   float hw = ${F(STREAK.FIELD_THICK)} * (1.0 - ${F(STREAK.THICK_JITTER)} * 0.5 + ${F(STREAK.THICK_JITTER)} * streakHash(seed + 4.1));
   float aa = max(fwidth(u), 1e-3);
   gStreakK = vec2(streakHash(seed + 8.3), streakHash(seed + 6.1));
-  return streakMark(t, fu - 0.5, hw, aa) * step(${F(STREAK.FIELD_GAP)}, streakHash(seed * 1.9 + 2.0));
+  return inLumen * streakMark(t, fu - 0.5, hw, aa) * step(${F(STREAK.FIELD_GAP)}, streakHash(seed * 1.9 + 2.0));
 }
 `;

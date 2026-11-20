@@ -14,6 +14,8 @@ import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type Sho
 export const LENS_SWELL = false;
 /** 2D's long-move pull-back (arc.ts). OFF (20 Nov 2026, owner: "zoom in and out should still be ONE shot, not zigzaggy"): a zoom out and in again inside one move reads as a zigzag. Every move is one continuous glide. */
 export const LONG_ARC = false;
+/** How quickly the aim eases after a followed point (ms): about a third of a second, so a moving tip is followed as one smooth glide, never in steps. */
+export const FOLLOW_TAU_MS = 350;
 
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
@@ -134,6 +136,9 @@ export class CameraRig {
   private carry = 0;
   /** The progress the last frame was drawn at (the eased value the pose is at now). */
   private eNow = 0;
+  /** A point the aim follows (the catheter's tip on the way in), or null. Smoothed, never a restart: while a move is on its way its destination drifts to the point, and once it lands the aim eases after it. */
+  private followAt: [number, number, number] | null = null;
+  private followT = 0;
   /** A move retargeted in flight starts with the velocity it had (a Hermite curve for the aim and the width: the curve bends toward the new target instead of stopping at a corner); null from a standstill. */
   private hv: { x: number; y: number; lh: number } | null = null;
   /** The aim's speed per ms (x, y in world units, lh the log of the framing's width), sampled each frame of a move: what a retarget carries on. */
@@ -169,6 +174,11 @@ export class CameraRig {
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
+  /** Follow a world point with the aim (null stops following). */
+  follow(p: readonly [number, number, number] | null): void {
+    this.followAt = p ? [p[0], p[1], p[2]] : null;
+    if (p) this.dirty = true;
+  }
   /** Whether the viewer may turn the figure without limit on both axes (Stage: the setting is on and the view is the body). */
   freeGate: (() => boolean) | null = null;
   get free(): boolean { return !!this.freeGate && this.freeGate(); }
@@ -216,6 +226,7 @@ export class CameraRig {
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
+    if (!keepHand) this.followAt = null;   // a new shot ends a follow (the caller that wants one asks again after it)
     // The first shot with a real room is where the camera starts, not somewhere it flies to: until then it has no pose worth showing (the constructor's
     // title shot filling a canvas that has no size yet), so it is put there at once and nothing is drawn before. (Mohammad, 19 Nov: the figure started at the
     // top left and zoomed in.)
@@ -383,6 +394,16 @@ export class CameraRig {
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
     }
+    if (this.followAt) {
+      const f = this.followAt;
+      if (this.active) { this.to.shot.target[0] = f[0]; this.to.shot.target[1] = f[1]; this.to.shot.target[2] = f[2]; moving = true; }
+      else {
+        const dt = this.followT > 0 ? Math.min(100, Math.max(0, now - this.followT)) : 16, k = this.reduceMotion || reduced() ? 1 : 1 - Math.exp(-dt / FOLLOW_TAU_MS), t = this.cur.shot.target;
+        const dx = f[0] - t[0], dy = f[1] - t[1], dz = f[2] - t[2];
+        if (Math.hypot(dx, dy, dz) > 1e-5) { t[0] += dx * k; t[1] += dy * k; t[2] += dz * k; this.dirty = true; moving = true; }
+      }
+      this.followT = now;
+    } else this.followT = 0;
     if (this.stepTilt(now)) moving = true;
     if (this.dirty) { this.apply(); this.dirty = false; }
     return moving;

@@ -82,7 +82,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
-  const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : view?.data === 'ladder' && view.slide && hasToolChart(view.slide) ? `tool:${view.slide.id}` : 'ladder';
+  const dataKeyOf = (v: typeof view): string => (v?.data === 'table' && v.slide ? `table:${v.slide.id}` : v?.data === 'ladder' && v.slide && hasToolChart(v.slide) ? `tool:${v.slide.id}` : 'ladder');
+  const dataKey = dataKeyOf(view);
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -165,6 +166,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     },
     onMove: move,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
+    // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
+    keeps: (dx) => { const to = viewAt(stops, apply(stops, pos, dx < 0 ? 'next' : 'back'), lastSlideShot(stops)); return !!view?.data && !!to.data && dataKeyOf(to) === dataKey; },
     can: (dx) => pages > 1 || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
     width: vp.w,
     cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
@@ -182,8 +185,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const sn = snaps[e.key] ?? now;
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
-      case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
-      case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
+      case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
+      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
       case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : sn.slide ? <ToolCard deck={deck} slide={sn.slide} /> : null;
       case 'ladder': return (
         <>
@@ -199,6 +202,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check', visual: 'Summary' })[id];
   // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
   const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
+  const swapping = wordsStack.entries.some((e) => e.phase === 'out');
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
     // (only the card the plan is for takes its place: for a render the card on its way out is still 'in', and it must not be given the new card's box)
     const wantedKey = slot === 'words' ? wordsWanted?.key : dataWanted?.key;
@@ -207,7 +211,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} zoomable={zoomsHere && e.phase === 'in'} onTap={e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
+        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} swap={slot === 'data' && swapping} zoomable={zoomsHere && e.phase === 'in'} onTap={e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
         {content(e)}
       </CardFrame>
     );
