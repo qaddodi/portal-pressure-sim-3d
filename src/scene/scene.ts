@@ -364,12 +364,12 @@ export class CelScene {
   /** Call after the texture's data changed, so the next frame draws. */
   dataChanged(): void {
     const f = latest.frame;
-    this.lens.onFrame(f);
+    this.lens.onFrame(f, !!f?.jump && this.sawFrame, performance.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
-    this.procs.syncStents(f, patient.params, f ? (f.jump || !this.sawFrame) : false);
-    this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? (f.jump || !this.sawFrame) : false);
-    this.procs.syncTamponade(patient.params as never, f ? (f.jump || !this.sawFrame) : false);
+    this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
+    this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
+    this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
     if (this.figureView !== 'body') this.feedViews(false);
