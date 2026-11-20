@@ -87,7 +87,8 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSl
     words: caseBeat ? 'case' : panel ? 'visual' : 'teach',
     data: caseBeat || panel ? null : dataOf(s.slide),
     // (2D: behind a case card the camera backs out to the whole patient; the slide's own framing comes when the card is lifted)
-    slide: s.slide, shot: caseBeat ? TITLE_SHOT : s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT, scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
+    slide: s.slide, shot: s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT,   // (a case beat keeps the slide's own framing: one shot, no back-out to the whole patient and in again; owner 20 Nov)
+    scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
   };
 }
 
