@@ -6,8 +6,10 @@ import { reduced } from '../a11y/motion.ts';
 export let lastDockEnd = -1e9;
 export const justDocked = () => performance.now() - lastDockEnd < 400;
 
-/** What a touch that starts on it stays its own (a control, a slider, a chart's own handles). */
-const OWN = 'button, a, input, select, textarea, [role="slider"], [role="button"], [role="tab"], .range-wrap, [data-no-dock]';
+import { ownsTouch, axisStart, axisOf, axisEnd } from './swipe-own.ts';
+
+/** What a touch that starts on it stays its own: the slide surface's real controls (swipe-own.ts), and the wallet strip, which has its own vertical swipe. */
+const own = (t: Element | null) => ownsTouch(t) || !!t?.closest?.('.dk-strip, [data-no-dock]');
 
 interface Opts {
   /** both cards are up and the layout docks (a phone or an upright iPad), and no zoom or case is over them */
@@ -33,16 +35,18 @@ export function useDockSwipe(o: Opts) {
     if (!o.enabled) return;
     let g: { id: number; x: number; y: number; t: number; on: boolean; lvl0: number; pts: [number, number][]; el: Element } | null = null;
     const down = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse' || !e.isPrimary) return;
+      if (e.pointerType === 'mouse') return;
+      if (!e.isPrimary) { if (g?.on) { dock.glide(dock.lvl > 0.5 ? 1 : 0, DOCK_MS, () => opts.current.onSettle(dock.lvl > 0.5), reduced()); } g = null; return; }   // (a second finger: a pinch or a tilt is the figure's, the card settles where it is)
       const t = e.target as Element | null;
-      if (!t || t.closest?.(OWN)) { g = null; return; }
+      axisStart(e.pointerId);
+      if (!t || own(t)) { g = null; return; }
       g = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, on: false, lvl0: 0, pts: [[e.clientY, e.timeStamp]], el: t };
     };
     const move = (e: PointerEvent) => {
       if (!g || g.id !== e.pointerId) return;
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       if (!g.on) {
-        if (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy) * 1.2) return;   // (not yet, or sideways: the slide's own swipe)
+        if (axisOf(g.id, dx, dy) !== 'y') return;   // (not decided yet, or sideways: the slide's own swipe, useCardDrag)
         const els = dataEls();
         if (!els) { g = null; return; }
         const closed = closedPx(els.h), at = dock.running ? dock.lvl : opts.current.docked ? 1 : 0;
@@ -57,7 +61,7 @@ export function useDockSwipe(o: Opts) {
     };
     const end = (e: PointerEvent, cancelled: boolean) => {
       const s = g; if (!s || s.id !== e.pointerId) return;
-      g = null;
+      g = null; axisEnd(s.id);
       if (!s.on) return;
       lastDockEnd = performance.now();
       const a = s.pts[0]!, b = s.pts[s.pts.length - 1]!;
@@ -69,11 +73,14 @@ export function useDockSwipe(o: Opts) {
     window.addEventListener('pointerdown', down, { capture: true, passive: true });
     window.addEventListener('pointermove', move, { capture: true, passive: true });
     window.addEventListener('pointerup', up, { capture: true, passive: true });
+    const hold = (e: TouchEvent) => { if (g?.on && e.cancelable) e.preventDefault(); };   // (a swipe taken is not the page's to scroll or bounce)
+    window.addEventListener('touchmove', hold, { capture: true, passive: false });
     window.addEventListener('pointercancel', cancel, { capture: true, passive: true });
     return () => {
       window.removeEventListener('pointerdown', down, { capture: true });
       window.removeEventListener('pointermove', move, { capture: true });
       window.removeEventListener('pointerup', up, { capture: true });
+      window.removeEventListener('touchmove', hold, { capture: true });
       window.removeEventListener('pointercancel', cancel, { capture: true });
     };
   }, [o.enabled]);

@@ -31,7 +31,8 @@ test('screens with no rounded bottom keep their margin and radius', () => {
 
 test('a press on a button can still become a swipe (the quick check\'s questions are buttons); a slider, a link and the strain button are their own', () => {
   const src = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
-  const line = src.split('\n').find((l) => l.includes('closest?.(') && l.includes('st.current = null'))!;
-  assert.ok(line && !/\bbutton\b/.test(line.replace(/\s*\/\/.*$/, '')), line);
-  assert.match(line, /\.pz-strain/); assert.match(line, /input/);
+  assert.match(src, /ownsTouch\(t\)/, 'a touch is judged by the one list of what stays a control\'s own');
+  const own = readFileSync(new URL('../src/ui/cards/swipe-own.ts', import.meta.url), 'utf8').split('\n').find((l) => l.startsWith('export const OWN'))!;
+  assert.ok(!/\bbutton\b/.test(own), own);
+  assert.match(own, /\.pz-strain/); assert.match(own, /input/); assert.match(own, /\[role="dialog"\]/);
 });

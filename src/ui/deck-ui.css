@@ -28,7 +28,7 @@
 /* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour. The glass (frosted blur) is the block at the end of this file. */
 .dk-card {
   position: relative; box-sizing: border-box; overflow: hidden; pointer-events: auto;
-  touch-action: pan-y;   /* (sideways is the finger's, the card follows it: useCardDrag) */
+  touch-action: none;   /* (every touch on the slide is the deck's: sideways moves the talk, up and down the instrument card; swipe-own.ts) */
 }
 /* The card's surface, type and colours are the 2D app's own rules, lifted unchanged (src/ui/css2d: .pz-shade, .pz-text, .pz-data, .pz-bar). Those rules also place the cards on
    their screen; here the planner has placed them (.dk-pos), so the place-taking properties are taken back, at a specificity above the 2D selectors that set them. */
