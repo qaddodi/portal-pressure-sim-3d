@@ -36,7 +36,7 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkHiColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -382,7 +382,7 @@ void main() {
 #endif
   float inkT = smoothstep(-0.5, 0.5, sdPx);   // the outline: ink outside the live lumen, antialiased half a pixel each side
 #ifndef SKIN_NOINK
-  c = mix(c, mix(${inkHiColourGlsl('base', 'hi')}, inkColorCirc, circT), inkT);
+  c = mix(c, mix(${inkColourGlsl('base')}, inkColorCirc, circT), inkT);
 #endif
   gl_FragColor = vec4(c, alpha);
 }`;
