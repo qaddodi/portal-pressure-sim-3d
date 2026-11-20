@@ -122,6 +122,22 @@ test('a must label that has to stand far off takes a spot no vessel runs under w
   assert.equal(last.placed.length, 1, 'a must label is never left off for a vessel');
 });
 
+test('a label whose near spots are taken keeps off the vessels at every far spot, and gives up a width before it stands on one (Lower IVC in Compare on a phone stood on the varices line)', () => {
+  // a corridor 128 px wide (x 436-564) with the dot in it; the near spots above (a slot is left for the leader) and below are taken; a vessel runs down x = 450.
+  // The wide form (120) cannot stand in the corridor without covering the vessel; the narrow one (60) can, east of it.
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 430, y1: 700 }, { x0: 570, y0: 56, x1: 1000, y1: 700 }, { x0: 436, y0: 250, x1: 490, y1: 290 }, { x0: 510, y0: 250, x1: 564, y1: 290 }, { x0: 436, y0: 310, x1: 564, y1: 340 }];
+  const lines: [number, number, number, number][] = [[450, 56, 450, 700]];
+  const it = item('x', 500, 300, { forms: [form(120), form(60)], must: true });
+  const r = solve({ items: [it], view: VIEW, blockers, lines });
+  assert.equal(r.placed.length, 1, 'it is placed');
+  const p = r.placed[0], b = boxOf(p, it.ax, it.ay);
+  assert.ok(!(450 > b.x0 && 450 < b.x1), `form ${p.form} stands on the vessel (box ${b.x0.toFixed(0)}-${b.x1.toFixed(0)})`);
+  assert.equal(p.form, 1, 'it gives up the wide form, not the clear ground');
+  // a callout or a region's name is not a label with a leader: lines never keep it out (the far spots of a callout are its normal places)
+  const call = item('c', 500, 300, { forms: [form(120)], callout: { below: false } });
+  assert.equal(solve({ items: [call], view: VIEW, blockers: [], lines: [[0, 50, 1000, 50], [450, 56, 450, 700], [0, 150, 1000, 150], [0, 200, 1000, 200], [0, 250, 1000, 250]] }).placed.length, 1, 'a callout is placed over lines');
+});
+
 test('the diagnostic (?capwhy) names who stood in the way of a label\'s near spots, and costs nothing when it is not asked for', () => {
   const a = item('a', 300, 300), b = item('b', 330, 300, { pri: 1 });
   const why = new Map<string, Record<string, number>>();

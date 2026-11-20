@@ -106,6 +106,8 @@ const SLIDE_INSET = 18;
 const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
+/** The least cost of a spot past the near ring (the compass gaps cost 2 a step, under this): the wide gaps and every ring beyond. */
+const NEAR_COST = 20;
 /** The least cost of a spot of the wide search (RING_SPOTS): the far last-resort spots. */
 const RING_COST = 100;
 const LINE_COST = 8;
@@ -303,8 +305,9 @@ export function solve(input: SolveInput): Solved {
           let lineHits = 0;
           for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
           // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
-          // (A line cost of 8 against a form's 50 had a must label's far spot on the varices' line in Compare on a phone, when a clear one lay a little further round.)
-          if (c.cost >= RING_COST && relax < 2 && lineHits > 0) continue;
+          // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
+          // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
+          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region) continue;
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
