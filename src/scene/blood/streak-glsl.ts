@@ -46,7 +46,7 @@ export const STREAK = {
   /** the streak's alpha (whole inside the lumen band) */
   ALPHA: 1,
   /** on screen (CSS px of the lumen's radius): none under MIN_R_PX (a tube under 3.5 px across), 1 lane under LANE_R_PX[0], 3 lanes up to LANE_R_PX[1], 5 above; the wide tube's thicker core and stronger tint come in over WIDE_R_PX */
-  MIN_R_PX: 1.5, LANE_R_PX: [4, 6], WIDE_R_PX: [5.5, 9],
+  MIN_R_PX: 1.5, LANE_R_PX: [3, 4.5], WIDE_R_PX: [5.5, 9],
   /** FILAMENTS (round 3, Mohammad 20 Nov: "the streaks of blood need a lot of work... stagnant sometimes... dotted"): each one is a strip of constant width CORE_PX whose coverage is the exact AREA of its overlap with the pixel (a 1 px filament is never dotted
    *  and never crawls), its ends soft in alpha (FEATHER), its own opacity from OPACITY_LO to 1, drifting sideways by DRIFT of its lane's width over DRIFT_LEN field units. The wall lane runs at WALL_SPEED (never under half) of the middle one's. A flow of FLOW_ON
    *  display units a second or more shows them whole; none at none. A pattern never advances more than MAX_STEP of its (shortest) period per frame at FRAME_HZ (streakDCap: the streak distance the shaders read is capped there; the chevrons' D is not). */
