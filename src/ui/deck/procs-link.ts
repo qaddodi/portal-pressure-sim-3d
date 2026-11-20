@@ -71,14 +71,14 @@ export function linkProcs(): () => void {
   }
 
   /** The step's shot, glided to once; nothing moves while the camera is on its way (2D `still`: a step starts with its shot landed). */
-  function camera(shot: string, last: { name: string; at: number }): void {
+  function camera(shot: string, last: { name: string; at: number }, kind: string): void {
     if (!shot) return;
     const tip = sceneApi.procedure.tip(V);
     if (!tip) return;
     // the way in follows the tip as one smooth glide (the rig eases its aim after the point every frame: scene/camera/rig.ts follow); a stop's shot is one move, taken once
     if (shot === 'way') {
       if (last.name !== 'way') {
-        const sh = tipShot(shot, tip);
+        const sh = tipShot(shot, tip, kind);
         if (!sh) return;
         last.name = shot; last.at = performance.now();
         sceneApi.goTo(sh, room(), 1100);
@@ -88,7 +88,7 @@ export function linkProcs(): () => void {
       return;
     }
     if (shot === last.name) return;
-    const sh = tipShot(shot, tip);
+    const sh = tipShot(shot, tip, kind);
     if (!sh) return;
     sceneApi.follow(null);
     last.name = shot; last.at = performance.now();
@@ -117,7 +117,7 @@ export function linkProcs(): () => void {
         if (!c.applied && t >= sp.T.apply) { c.applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
         else if (c.applied && t < sp.T.apply) { c.applied = false; updateParams((p) => sp.undo(p) as never, { history: false, label: `${sp.name} undone` }); }
         if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
-        camera(String(rec.shot || ''), c.last);
+        camera(String(rec.shot || ''), c.last, kind);
       },
       onArrive: () => {
         if (g !== gen || ctl !== c) return;
