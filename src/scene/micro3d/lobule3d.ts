@@ -46,6 +46,7 @@ import { MICRO_DPR, MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microM
 import { joinsMode } from '../vessels/skin/joins-mode.ts';
 import { bileWeldCourses, bloodWeldCourses, trimmedInside } from '../lobule/weld-courses.ts';
 import { requestWelds, type WeldRequest } from '../lobule/weld-client.ts';
+import { HA_K, BD_K } from '../lobule/weld-bend.ts';
 import type { WeldCourseOut, WeldPlan } from '../lobule/welds.ts';
 import { type EmitOpts, type PartData, emitCourse, emitSkin } from './lobule-welded.ts';
 
@@ -74,8 +75,7 @@ export const FADE_SNAP = 0.98;
 export const END_HUSH_R = 3;
 /** Where the sinusoids stop inside the central vein, as a share of its radius: just inside its rim, so each meets the rim and none is drawn over the pool. */
 export const CV_HOLE_K = 0.96;
-/** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov). */
-const HA_K = 1.7, BD_K = 1.4;
+/** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov): HA_K and BD_K, in weld-bend.ts. */
 /** The bile canaliculi and the canals of Hering: hairlines (radius, local units at R = 1) lying in the clefts between cells, not tubes as wide as a sinusoid ("bile is a mess"). */
 const CANALICULUS_R = 0.0016, HERING_R = 0.003;
 

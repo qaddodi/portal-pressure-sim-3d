@@ -7,6 +7,8 @@
 
 import { flareAt, sinK } from './from2d/lobule-mouths.generated.js';
 import { lymphRuns, resampleRun, lyTaper } from './lymph.ts';
+import { RS0, SIN_NARROW, DUCT_R, AN_K } from './sizes.ts';
+import { bendNet } from './weld-bend.ts';
 
 export type P2 = [number, number];
 
@@ -54,14 +56,7 @@ export interface LobuleNet {
 export const N = 40;
 /** The triad's layout (lobule-tract-labels.js): the small vessels sit TRIAD_D of R out, the arteriole and ductule TRIAD_A radians either side of the outward ray. */
 export const TRIAD_D = 0.09, TRIAD_A = 0.98;
-/** Sinusoid lumen (healthy) in lobule radii: the 2D app's own, rs0 = clamp(0.0085 R, 1.7, 3) px (lobule-zoom.js), at the 0.0085 an iPad or a Mac shows (a phone's 1.7 px floor is a little more).
- *  It was 0.016 (drawn twice as wide "to read at the fit"), which put the cords of cells 1.9 times too far apart and the tubes 1.5 times too wide (visual review, 19 Nov). */
-export const RS0 = 0.0085;
-export const SIN_NARROW = 0.75;
-/** The lymph tube's radius at the portal end: a thin tube, 0.31 of rs0 (0.0026 R; a sinusoid's is 0.0064), the same all along it (only the taper toward the central vein narrows it). Mohammad, 20 Nov 2026: thin, like a ductule, "never a filled area". */
-export const DUCT_R = RS0 * 0.31;
-/** An anastomosis is 0.68 of a sinusoid (2D: rs * 0.68). */
-export const AN_K = 0.68;
+export { RS0, SIN_NARROW, DUCT_R, AN_K };
 const TAU = Math.PI * 2;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -205,6 +200,8 @@ export function buildLobule(seed = 7): LobuleNet {
     add('tw', curve((u) => [lerp(A[0], q[0], u) + 0.012 * Math.sin(Math.PI * u), lerp(A[1], q[1], u)]), { tri: tr.i });
     join(A[0], A[1], 0.012);
   }
+  // The network is bent once, here, before anything is laid along it (weld-bend.ts: the shallow V of two merging sinusoids is opened to the least angle the weld planner needs)
+  bendNet(courses, triads.map((t) => { const q = dot(t.lv[0], t.lv[1]).pts; return q[Math.floor(q.length / 2)]!; }));   // (each tract's lymphatic mouth is the middle sample of its dot, as its course will be)
   // Portal-central septa (advanced cirrhosis): from three triads into the central vein's cuff
   const septa = [0, 2, 4].map((i) => {
     const [x, y] = C[i]!, ph = r() * TAU, nx = -(cy - y), ny = cx - x;

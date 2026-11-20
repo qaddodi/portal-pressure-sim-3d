@@ -1,7 +1,7 @@
 // How wide each lobule vessel is, as the 2D app draws it: lobule-zoom-field.js radiusAt (healthy, in lobule radii: R = 1), so the 3D lobule's sinusoids are no wider than 2D's (the visual review of 19 Nov:
 // they were 1.5 to 1.9 times wider, and the cords of cells between them slivers). The numbers are 2D's own; tests/scene-lobule-widths.test.ts holds every one to the pinned 2D file's text.
 // 2D works in pixels (rs0 = clamp(0.0085 R, 1.7, 3) px, a floor and a ceiling that depend on the screen); here the figure is in lobule radii, the 0.0085 share an iPad or a Mac shows.
-import { SIN_NARROW, RS0, DUCT_R, AN_K } from './geometry.ts';
+import { SIN_NARROW, RS0, DUCT_R, AN_K } from './sizes.ts';
 import { lyTaper } from './lymph.ts';
 import { flareAt, sinK, twigRadius } from './from2d/lobule-mouths.generated.js';
 
