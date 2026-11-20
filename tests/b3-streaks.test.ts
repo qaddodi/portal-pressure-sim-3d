@@ -32,7 +32,7 @@ test('the streak programs compile (glslangValidator)', { skip: !have }, () => {
 test('a streak is a slim rounded lozenge along the flow, its alpha feathered at BOTH ends: not a disc, not a dash, not a blunt head nor a point; no ink ring, no particle size', () => {
   assert.match(CELLS_FS, /vec2 p = vec2\(dot\(q, vDir\)/, 'drawn in its own axes');
   assert.match(CELLS_FS, /float a = streakMark\(p\.x \/ max\(vLen, 1e-3\) \+ 0\.5, p\.y, 0\.5 \* vThick, 0\.6\);/, 'from the shared chunk');
-  assert.match(STREAK_MARK_GLSL, /float fe = smoothstep\(0\.0, 0\.3, t\) \* smoothstep\(0\.0, 0\.3, 1\.0 - t\);/, 'smooth alpha in, whole between, smooth alpha out');
+  assert.match(STREAK_MARK_GLSL, /float fe = smoothstep\(0\.0, 0\.35, t\) \* smoothstep\(0\.0, 0\.35, 1\.0 - t\);/, 'smooth alpha in, whole between, smooth alpha out');
   assert.match(STREAK_MARK_GLSL, /float w = halfW \* sqrt\(max\(1\.0 - c \* c, 0\.0\)\);/, 'rounded: the same at both ends');
   assert.ok(STREAK.FEATHER >= 0.2 && STREAK.FEATHER <= 0.5);
   assert.doesNotMatch(CELLS_FS, /inkCol|inkA|\bring\b|smoothstep\(0\.84/, 'no outlined disc, no soft tips');
@@ -69,9 +69,9 @@ test('the comet is a few radii long and a share of the radius thick, with a seed
   assert.ok(STREAK.THICK_OF_R * 1.15 < (2 * STREAK.SPAN) / (STREAK.LANES - 1));
 });
 
-test('tone: the vessel\'s lit tone one shade lighter, flat, never white, whole inside the lumen band', () => {
-  assert.match(CELLS_VS, /vFill = streakTone\(lit, mix\(lit, vec3\(1\.0\), 0\.70\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
-  assert.ok(STREAK.LIFT > 0 && STREAK.LIFT <= 0.75, 'lighter, never white');
+test('tone: a subtle tint of the vessel\'s own tone toward white, never near white, whole inside the lumen band', () => {
+  assert.match(CELLS_VS, /vFill = streakTone\(lit, vec3\(1\.0\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
+  assert.ok(STREAK.TONE_HI > 0 && STREAK.WHITE_CAP <= 0.3 && STREAK.TONE_HI * (1 + STREAK.TONE_WIDE_UP) <= STREAK.WHITE_CAP, 'a little lighter, never near white');
   assert.equal(STREAK.ALPHA, 1);
   assert.doesNotMatch(CELLS_FS, /spec|gloss|highlight/i);
 });
@@ -116,9 +116,9 @@ test('the 3D lobule\'s and sinusoid\'s program, with the streaks, compiles (glsl
 
 test('variation: each streak\'s tone lies between the lit tone and one shade lighter (never white, never darker, a few degrees warm or cool) and its pace is +-25 percent on its lane\'s, the mean standing', () => {
   assert.equal(STREAK.SPEED_JITTER, 0.25);
-  assert.ok(STREAK.TONE_MIN >= 0 && STREAK.TONE_MIN < 1 && STREAK.HUE > 0 && STREAK.HUE <= 0.05, 'a few degrees, not a new colour');
+  assert.ok(STREAK.TONE_LO >= 1 && STREAK.TONE_LO <= 1.1 && STREAK.LIGHT_VAR > 0 && STREAK.LIGHT_VAR <= 0.1 && STREAK.HUE > 0 && STREAK.HUE <= 0.05, 'a few degrees, not a new colour');
   assert.match(STREAK_LANE_GLSL, /float streakPace\(float seed\) \{ return 1\.0 \+ 0\.25 \* \(2\.0 \* seed - 1\.0\); \}/, 'symmetric: the mean stands');
-  assert.match(STREAK_LANE_GLSL, /return clamp\(max\(t, min\(lit, light\)\), 0\.0, 1\.0\);/, 'never darker than the lit tone');
+  assert.match(STREAK_LANE_GLSL, /return clamp\(min\(max\(t, lit\), mix\(lit, light, 0\.3\)\), 0\.0, 1\.0\);/, 'never darker than the lit tone, never over 0.3 toward white');
   assert.doesNotMatch(STREAK_LANE_GLSL, /vec3\(1\.0\)/, 'the chunk never reaches for white');
   assert.match(MICRO_FS, /streakTone\(c, uStreakCol, gStreakK\.x, gStreakK\.y\)/, 'the 3D lobule and sinusoid vary the tone too');
   assert.match(STREAK_FIELD_GLSL, /streakPace\(streakHash\(idx \* 5\.9 \+ 0\.7\)\)/, 'and the pace');
@@ -178,10 +178,10 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
   sc.dispose();
 });
 
-test('more streaks (about 1.6x the first design), still thin, in 3/5/7 lanes; and they lie UNDER the chevrons in every site', () => {
-  assert.ok(34 / STREAK.FIELD_PERIOD[0] >= 1.55 && 26 / STREAK.FIELD_PERIOD[1] >= 1.55, 'the period is 1.6 times shorter');
+test('sparse and thin (streak-visible.test.ts holds the numbers); and they lie UNDER the chevrons in every site', () => {
+  assert.ok(STREAK.FIELD_PERIOD[0] >= 100, 'a lane is mostly empty');
   assert.ok(STREAK.FIELD_GAP <= 0.15, 'few empty cycles');
-  assert.ok(STREAK.FIELD_THICK <= 0.45 && STREAK.THICK_MAX <= 4, 'still thin (a share of a lane; the 2 px floor is the pixel rule)');
+  assert.ok(STREAK.FIELD_THICK <= 0.25 && STREAK.THICK_MAX <= 4, 'thin');
   assert.equal(STREAK.LANES, 7);
   // the Anatomy: the streaks are mixed into the body tone first, the chevron's pixels are taken back to the body tone before the head is laid on
   const fs = VESSEL_FS;
@@ -191,5 +191,5 @@ test('more streaks (about 1.6x the first design), still thin, in 3/5/7 lanes; an
   assert.match(MICRO_FS, /flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
   assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('flowStreaks() * (1.0'));
   // (and the lobule's tubes carry THE ONE STREAK field, sized on the screen, not a field of their own)
-  assert.match(MICRO_FS, /return streakField\(vAcross \* one, vArc \* s, uFlowT \* s/);
+  assert.match(MICRO_FS, /return streakField\(vAcross, vArc \* s, uFlowT \* s/);
 });
