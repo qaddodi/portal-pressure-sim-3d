@@ -52,6 +52,7 @@ uniform float fadeMode;
 uniform vec4 fadeA;
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
+varying float vFade;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
@@ -123,8 +124,8 @@ ${CIRCUIT_VS_CALL}
     fa = mix(fadeA.z, fadeA.w, ft);
     fa = mix(fa, 1.0, circT);
   }
-  // a fade (a tip into its organ, a bed through the lobe, a vein into the cava) NEVER makes a vessel see-through: the tube thins to nothing instead (opaque, two flat tones, the ink round it), so no vessel is glassy
-  swell *= mix(${F(CEL_STYLE.TUBE.FADE_R)}, 1.0, fa);
+  // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
+  vFade = fa;
   vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
@@ -219,6 +220,7 @@ varying float vW;
 varying float vR;
 varying float vU;
 varying float vHull;
+varying float vFade;
 varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
@@ -354,7 +356,7 @@ void main() {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
     vec3 inkH = mix(inkColor, celTubeBase(baseH) * ${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_OWN)});
-    gl_FragColor = vec4(mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)));
+    gl_FragColor = vec4(mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * vFade);
     return;
   }
   if (!gl_FrontFacing) discard;
@@ -430,5 +432,5 @@ void main() {
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
     }
   }
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(c, vFade);
 }`;

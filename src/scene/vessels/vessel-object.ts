@@ -113,10 +113,7 @@ export class VesselObject extends CelObject {
     // so a joined vessel's outline never lands on its neighbour's body and an outline never hides a vessel in front. The body stays opaque. Both share one set of uniforms.
     const geo = this.toonMesh.geometry, half = geo.getIndex()!.count / 2;
     geo.clearGroups(); geo.addGroup(0, half, 0); geo.addGroup(half, half, 1);
-    this.hullMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: false, depthWrite: false,
-      // one outline round the union (2D's tube-joint.js), not one per tube: each pixel takes the ink once, so where two outlines overlap (a fork's crotch, a run-on, a free end's cap and its tube,
-      // the inside of a tight bend) the alpha is not applied twice (.64 would be .87). The first hull fragment to pass the depth test marks the pixel; the stencil is cleared with the depth between the passes.
-      stencilWrite: true, stencilRef: 1, stencilFuncMask: 1, stencilWriteMask: 1, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
+    this.hullMat = this.makeHull(toon.uniforms, {});
     this.toonMesh.material = [toon, this.hullMat];
     // (the mesh's bounding sphere is the body course's; in the Circuit the vertices stand on the map, far from it, so a vessel was culled once the camera came in on the map and its body sphere left the view)
     this.toonMesh.frustumCulled = false;
@@ -177,13 +174,15 @@ export class VesselObject extends CelObject {
   setQuiet(q: number): void { this.toon.uniforms.quietK!.value = q; }
 
   private tip: { a0: number; a1: number } | null = null;
-  /** The fade at a free end (fades.ts). A fade never makes a vessel see-through: the shader thins the tube to nothing along it (TUBE.FADE_R), so the material stays opaque. */
+  /** The fade at a free end (fades.ts): the one place a vessel is not opaque. Its zone fades by opacity, body and outline together, at FULL width (no taper); the material is blended only because of it. */
   setTipFade(f: { mode: number; from: number; to: number; a0: number; a1: number; keep: boolean; line?: readonly [number, number, number, number] }): void {
     const u = this.toon.uniforms;
     u.fadeMode!.value = f.mode; u.fadeKeep!.value = f.keep ? 1 : 0;
     (u.fadeA!.value as Vector4).set(f.from, f.to, f.a0, f.a1);
     if (f.line) (u.fadeLine!.value as Vector4).set(f.line[0], f.line[1], f.line[2], f.line[3]);
     this.tip = { a0: f.a0, a1: f.a1 };
+    this.toon.transparent = true; this.hullMat.transparent = true;
+    if (this.veil) this.veil.mat.transparent = this.veil.hull.transparent = true;
   }
   /** A fading tip with a collateral attached is solid to its end: its start alpha goes to 1. */
   setTipJoined(joined: boolean): void {
@@ -196,26 +195,31 @@ export class VesselObject extends CelObject {
     (this.toon.uniforms.fadeA!.value as Vector4).w = this.tip.a1 + (1 - this.tip.a1) * whole;
   }
 
-  private veil: { mesh: Mesh; depth: Mesh; mat: ShaderMaterial; pre: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
-  /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them at 0.4, the organ's veil, so
-   *  it shows through faintly (stage.js VEIL_K). `faint`: faded along its whole course as well (the cava, F_VEIL), not only where an organ is over it. `overLayer` is the camera layer of what is drawn over the organs. */
+  /** The outline's material: the hull's back faces in ink, one outline round the union (2D's tube-joint.js): each pixel takes the ink once (stencil bit 1: the first hull fragment to pass the depth test marks the pixel; the
+   *  stencil is cleared with the depth between the passes), so where two outlines overlap (a fork's crotch, a run-on, a free end's cap and its tube, the inside of a tight bend) it is not applied twice. Solid ink (a fade
+   *  zone sets `transparent`); a small depth offset pushes it behind the body it wraps, so at the silhouette the body always wins the depth tie and no tick of ink shows over the lumen (the dashed outline of 20 Nov). */
+  private makeHull(uniforms: ShaderMaterial['uniforms'], defines: Record<string, number>): ShaderMaterial {
+    return new ShaderMaterial({
+      vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms, transparent: false, depthWrite: false, defines,
+      polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8,
+      stencilWrite: true, stencilRef: 1, stencilFuncMask: 1, stencilWriteMask: 1, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp,
+    });
+  }
+
+  private veil: { mesh: Mesh; mat: ShaderMaterial; hull: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
+  /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them (the cava is whole, opaque, two tones: the copy over the
+   *  organs is the same two-draw tube as any vessel's: body, then the ink once per pixel). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });   // (opaque like every vessel: no alpha at rest)
-    // The veil is one layer, not several: a depth-only pass (same shader, so the same silhouette, pushed a hair farther) comes first for every veiled vessel, and the colour pass then draws only
-    // where it is the nearest. Without it the tube's own back faces, its ink and the round caps of the next piece blend over each other and show as dark ball joints and a dark core (Mohammad's
-    // iPhone, 19 Nov 2026: "the cava ghost shows dark ball joints").
-    const pre = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: false, colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8, defines: { VEIL: 1 } });   // (a firm offset: with the tiers 0.07 apart a 1,1 offset left the colour pass failing the depth test at random along the cava's outline, the dashes of 20 Nov)
-    const depth = new Mesh(this.toonMesh.geometry, pre);
-    depth.matrixAutoUpdate = true; depth.renderOrder = 1; depth.frustumCulled = false;
-    depth.layers.set(overLayer);
-    this.group.add(depth);
-    const mesh = new Mesh(this.toonMesh.geometry, mat);
+    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });
+    const hull = this.makeHull(this.toon.uniforms, { VEIL: 1 });
+    if (this.tip) mat.transparent = hull.transparent = true;   // (a fade zone blends; nothing else does)
+    const mesh = new Mesh(this.toonMesh.geometry, [mat, hull]);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;
     mesh.layers.set(overLayer);
     this.group.add(mesh);
-    this.veil = { mesh, depth, mat, pre, overLayer, faint, whole: false };
-    // drawn with the organs (layer 0), or, faint all along, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
+    this.veil = { mesh, mat, hull, overLayer, faint, whole: false };
+    // drawn with the organs (layer 0), or, the cava, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
     this.toonMesh.layers.set(faint ? FAINT_ONLY_LAYER : 0);
   }
   /** The cava shown whole (2D's F_WHOLE, selected or named): the organs do not fade it. It eases over from the veil's 0.4 to 1, and once whole it is drawn solid over the organs, in its tier
@@ -226,7 +230,7 @@ export class VesselObject extends CelObject {
     this.whole = k;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * k + this.lift * (1 - k));
     const whole = k >= 1;
-    v.mesh.visible = v.depth.visible = !whole;
+    v.mesh.visible = !whole;
     if (whole !== v.whole) {
       v.whole = whole;
       this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
@@ -240,7 +244,7 @@ export class VesselObject extends CelObject {
     this.lift = lift;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
-  override dispose(): void { this.hullMat?.dispose(); this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
+  override dispose(): void { this.hullMat?.dispose(); this.veil?.mat.dispose(); this.veil?.hull.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.hullOn!.value = on ? 0 : 1; }

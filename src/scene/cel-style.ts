@@ -38,11 +38,11 @@ export const CEL_STYLE = {
   /** A tube's colour (every vessel, strand and the lobule's vessels): the lens colour is made SATURATED and DEEP before it is cut into its two tones, and the shade is a hue-preserving darker step, never a mix toward white.
    *  SAT: chroma x this about the colour's own grey; LCAP: no tube is lighter than this luminance, nor has a channel above VCAP (a pale end of a ramp is darkened, hue kept);
    *  LCAP_DARK / VCAP_DARK: the same caps on the dark looks (Dark, Navy, Black), where a vessel must stand BRIGHTER than the organs behind it and the ground (Mohammad, 20 Nov: "the anatomy view should be more contrast, it's very basically dark now");
-   *  SHADE_SAT: the shade tone's chroma x this (a touch more saturated, as a painter's shade is); FADE_R: a fade (a tip, a bed, a vein into the cava) thins the tube to this share of its radius instead of making it see-through (no vessel is ever alpha < 1);
+   *  SHADE_SAT: the shade tone's chroma x this (a touch more saturated, as a painter's shade is); 
    *  RIM_SHARE: the share of 2D's light inner rim a vessel keeps (0: no pale halo or white rim, the ink is the only edge);
    *  INK_OWN / INK_TONE: the outline is the look's casing ink mixed INK_OWN of the way to a deep tone (x INK_TONE) of the vessel's own colour, so it is a soft dark of the tube and never black or white, on every look;
    *  END_R: a joined end (smooth joins) draws no ink for this many radii from the end: the cut is buried in the trunk, never outlined. */
-  TUBE: { SAT: 1.5, LCAP: 0.62, VCAP: 0.78, LCAP_DARK: 0.82, VCAP_DARK: 0.96, SHADE_SAT: 1.2, FADE_R: 0.05, RIM_SHARE: 0, INK_OWN: 0.75, INK_TONE: 0.32, END_R: 1.2 },
+  TUBE: { SAT: 1.5, LCAP: 0.62, VCAP: 0.78, LCAP_DARK: 0.82, VCAP_DARK: 0.96, SHADE_SAT: 1.2,  RIM_SHARE: 0, INK_OWN: 0.75, INK_TONE: 0.32, END_R: 1.2 },
   /** The painted plates (the lobule's tissue, the sinusoid's) step in their own measures, not the tubes' `s`: a painted colour's lightness against its local lightness, so SHADE_AT / LIT_AT above (made for -1..1) do not apply.
    *  SHADE_AT / LIT_AT: where the relative lightness changes tone (a dead zone of +-0.15 around a flat cell); DETAIL: further than this from the base the pixel is detail (a membrane, a nucleolus) and stays as painted;
    *  EDGE_LO / EDGE_HI: the lightness jump over one device pixel from which a line is inked on the lobule's plate (a membrane is under, a cell's outline over); SIN_EDGE_LO / SIN_EDGE_HI the same as a share of the lightness on the sinusoid.
