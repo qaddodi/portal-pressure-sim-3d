@@ -7,6 +7,12 @@ import { PALETTES, LOOK_IDS, luminance } from '../src/scene/palette.ts';
 import { ORGAN_STYLE, organLayerAlpha } from '../src/scene/organs/layer.ts';
 import { ORGAN_FS, ORGAN_VS } from '../src/scene/organs/organ-shader.ts';
 import { mix, rgbOf } from '../src/scene/organs/organ-look.ts';
+import { BoxGeometry, type BufferGeometry } from 'three';
+import { readFileSync } from 'node:fs';
+import { OrganLayer } from '../src/scene/organs/layer.ts';
+import { createShared } from '../src/scene/materials/cel.ts';
+import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
+import { x3, y3 } from '../src/scene/frame2d.ts';
 
 const hex = (c: readonly number[]) => '#' + c.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
 
@@ -54,7 +60,8 @@ test('the copied tones equal the 2D app\'s at the pin (copy-organ-tones --check)
 // The visual review (19 Nov): 2D's inner shade strokes (.09/.15/.24 of og-dark) stack, so the darkest rim is og-dark at 1-(.91·.85·.76) ≈ .41 of its alpha:
 // .11 on Light (2D .12), .14 on Dark (2D .16); the earlier sum divided by .26 gave .48 and .65.
 test('the inner shade stacks as 2D\'s strokes, at og-dark\'s own alpha, on the lower right only', () => {
-  assert.match(ORGAN_FS, /1\.0 - \(1\.0 - 0\.09 \* .*\) \* \(1\.0 - 0\.15 \* .*\) \* \(1\.0 - 0\.24 \* /);
+  assert.match(ORGAN_FS, /1\.0 - \(1\.0 - shadeSteps\.x \* .*\) \* \(1\.0 - shadeSteps\.y \* .*\) \* \(1\.0 - shadeSteps\.z \* /);
+  for (const id of LOOK_IDS) assert.deepEqual(PALETTES[id].organs.shade, [0.09, 0.15, 0.24], `${id}: 2D's three strokes' opacities, copied`);
   assert.match(ORGAN_FS, /ogDark\.a \* k \* lowerRight/);
   assert.doesNotMatch(ORGAN_FS, /\/ 0\.26/);
   const k = 1 - 0.91 * 0.85 * 0.76;
@@ -69,4 +76,158 @@ test('the organ outline is in the figure\'s units (2D 1.1, kidney 1.4), floored 
   assert.equal(ORGAN_STYLE.liver!.px, 1.1); assert.equal(ORGAN_STYLE['kidney-l']!.px, 1.4);
   assert.deepEqual(ORGAN_ORDER.slice(-2), ['bowel', 'colon']);
   for (const id of Object.keys(ORGAN_STYLE)) assert.ok(ORGAN_ORDER.includes(id), id);
+});
+
+// ---- WP1b: the organ's colour on screen is 2D's composite, layer by layer -----------------------------------------------------------------------------------------------------
+// 2D paints an organ as a group (opaque fill, #ogVol, the liver's sheen, the inner shade strokes, the rim light) and lays the whole group on the stage at the layer's opacity.
+// `twoDLiver` composes that in 2D's order from the copied numbers; `shaderLiver` runs ORGAN_FS's arithmetic on the uniforms the real OrganLayer sets, so the copy, the palette and the
+// uniform plumbing are in the test as well as the maths. The 2D page's colour under the organs is --stage-bg, plain (the plate has no body shape: #backdrop is the diaphragm's line only).
+type V3 = [number, number, number];
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+const lerp3 = (a: readonly number[], b: readonly number[], t: number): V3 => [a[0]! + (b[0]! - a[0]!) * t, a[1]! + (b[1]! - a[1]!) * t, a[2]! + (b[2]! - a[2]!) * t];
+const c01 = (c: readonly number[]): V3 => [c[0]! / 255, c[1]! / 255, c[2]! / 255];
+/** CIE L*a*b* of an sRGB triple (0..1), D65; ΔE is the plain distance (CIE76). */
+function lab(c: readonly number[]): V3 {
+  const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const [r, g, b] = [lin(c[0]!), lin(c[1]!), lin(c[2]!)];
+  const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, Y = 0.2126 * r + 0.7152 * g + 0.0722 * b, Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+}
+const dE = (a: readonly number[], b: readonly number[]) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]!) as V3);
+
+interface Spot {
+  /** the point in the organ's own box (0,0 top left) and in the figure's units */
+  box: [number, number]; svg: [number, number];
+  /** the inner shade's strokes that cover it (lower right edge: all three), and whether the rim light does */
+  shade: [boolean, boolean, boolean]; rim: boolean;
+}
+const CENTRE = (box: [number, number], svg: [number, number]): Spot => ({ box, svg, shade: [false, false, false], rim: false });
+
+/** 2D's liver at a spot, on a look: the group's paint in order, then the group at the layer's opacity over --stage-bg. */
+function twoDLiver(look: keyof typeof PALETTES, sp: Spot, sheenK = 1): V3 {
+  const og = PALETTES[look].organs, [o1, o2] = og.tones.liver, v = og.vol, over = (dst: V3, src: readonly number[], a: number) => lerp3(dst, c01(src), a);
+  // the gradient from the box's (.15,0) to (.85,1) in the box's own units
+  const t = clamp01(((sp.box[0] - 0.15) * 0.7 + sp.box[1] * 1.0) / (0.7 * 0.7 + 1));
+  let c = lerp3(rgbOf(o1), rgbOf(o2), t);
+  const r = Math.hypot(sp.box[0] - v.cx, sp.box[1] - v.cy) / v.r;
+  c = over(c, v.light, v.light[3] * (1 - clamp01(r / v.lightEnd)));
+  c = over(c, og.volShade, v.shadeA * clamp01((r - v.shadeStart) / (1 - v.shadeStart)));
+  for (const e of og.gloss.ellipses) {
+    const a = (e[4]! * Math.PI) / 180, dx = sp.svg[0] - e[0]!, dy = sp.svg[1] - e[1]!;
+    const q = Math.hypot((Math.cos(a) * dx + Math.sin(a) * dy) / e[2]!, (-Math.sin(a) * dx + Math.cos(a) * dy) / e[3]!);
+    const [s0, s1, s2] = og.gloss.stops;
+    const sa = q >= 1 ? 0 : q < s1!.off ? s0!.a + (s1!.a - s0!.a) * (q / s1!.off) : s1!.a + (s2!.a - s1!.a) * ((q - s1!.off) / (1 - s1!.off));
+    c = over(c, v.light, sa * sheenK);
+  }
+  sp.shade.forEach((on, i) => { if (on) c = over(c, og.dark, og.dark[3] * og.shade[i]!); });
+  if (sp.rim) c = over(c, og.light, og.light[3] * og.rim);
+  // (the layer's opacity is the look's own: Light's is Mohammad's .72, richer than 2D's .55 (palette.ts LIGHT_ORGAN_LAYER); every other look's is 2D's)
+  return lerp3(rgbOf(PALETTES[look].bg), c, PALETTES[look].organLayer);
+}
+
+type U = Record<string, { value: any }>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+/** ORGAN_FS's arithmetic, on a material's uniforms, at a spot (the dither, the vertex paint and the live derivative aside): the colour blended on the page at the layer's opacity. */
+function shaderOrgan(u: U, page: V3, sp: Spot, turnRim = 0.95): V3 {
+  const rgb = (x: { r: number; g: number; b: number }): V3 => [x.r, x.g, x.b];
+  const ss = (a: number, b: number, x: number) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+  const t = clamp01(((sp.box[0] - 0.15) * 0.7 + sp.box[1]) / (0.7 * 0.7 + 1));
+  let fill = lerp3(rgb(u.o1!.value), rgb(u.o2!.value), t);
+  const vl = u.volLight!.value, vs = u.volShade!.value, vg = u.volGeo!.value;
+  const r = Math.hypot(sp.box[0] - vg.x, sp.box[1] - vg.y) / vg.z;
+  fill = lerp3(fill, [vl.x, vl.y, vl.z], vl.w * (1 - clamp01(r / vg.w)));
+  fill = lerp3(fill, [vs.x, vs.y, vs.z], vs.w * clamp01((r - u.volShadeAt!.value) / (1 - u.volShadeAt!.value)));
+  const st = u.sheenStops!.value, rot = u.sheenRot!.value;
+  [[u.sheenE0!.value, rot.x], [u.sheenE1!.value, rot.y]].forEach(([e, a]) => {
+    const dx = sp.svg[0] - e.x, dy = sp.svg[1] - e.y, q = Math.hypot((Math.cos(a) * dx + Math.sin(a) * dy) / e.z, (-Math.sin(a) * dx + Math.cos(a) * dy) / e.w);
+    const sa = q >= 1 ? 0 : q < st.w ? st.x + (st.y - st.x) * (q / st.w) : st.y + (st.z - st.y) * ((q - st.w) / (1 - st.w));
+    fill = lerp3(fill, [vl.x, vl.y, vl.z], sa * u.sheenK!.value);
+  });
+  // the inner shade (the lower right edge: its three steps all on) and the rim light (the upper left)
+  const sh = u.shadeSteps!.value, on = sp.shade.map((b) => (b ? 1 : 0));
+  const k = 1 - (1 - sh.x * on[0]!) * (1 - sh.y * on[1]!) * (1 - sh.z * on[2]!), dk = u.ogDark!.value;
+  fill = lerp3(fill, [dk.x, dk.y, dk.z], dk.w * k * (on.some(Boolean) ? ss(-0.35, 0.65, 1) : 0));
+  const lg = u.ogLight!.value;
+  if (sp.rim) fill = lerp3(fill, [lg.x, lg.y, lg.z], lg.w * u.rimK!.value * ss(0.62, 0.8, turnRim));
+  return lerp3(page, fill, u.layer!.value);
+}
+
+const liverBox = (() => {
+  const b = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
+  setOrganData(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  return organsReady.then(() => { const g = ORGAN_MESHES.liver!(); g.computeBoundingBox(); return g.boundingBox!.clone(); });
+})();
+
+async function liverLayer(look: keyof typeof PALETTES): Promise<{ u: U; seat: U | undefined; at: (fx: number, fy: number) => { box: [number, number]; svg: [number, number] } }> {
+  const bb = await liverBox;
+  const meshes: Record<string, () => BufferGeometry> = {};
+  for (const id of Object.keys(ORGAN_STYLE)) meshes[id] = id === 'liver' ? ORGAN_MESHES.liver! : () => new BoxGeometry(0.4, 0.3, 0.1);
+  const layer = new OrganLayer(createShared(), meshes);
+  layer.setFill('seethrough', true); layer.applyLook(PALETTES[look]); layer.update(0);   // (these terms are the see-through fill's: the cel fill replaces them)
+  const w = bb.max.x - bb.min.x, h = bb.max.y - bb.min.y;
+  const at = (fx: number, fy: number) => ({ box: [fx, fy] as [number, number], svg: [700 + 300 * (bb.min.x + fx * w), 556 - 300 * (bb.max.y - fy * h)] as [number, number] });
+  const o = layer.byId.get('liver')!;
+  const seat = o.group.children.map((c) => (c as { material?: { uniforms?: U } }).material?.uniforms).find((m) => m && m.px && m.inkA && m !== o.ink.uniforms && m.color && !m.inflate);
+  return { u: o.toon.uniforms as U, seat, at };
+}
+
+for (const look of ['light', 'soft', 'dark'] as const) {
+  test(`WP1b ${look}: the liver's centre, its sheen and its lower right rim land on 2D's composite (ΔE well under 6)`, async () => {
+    const { u, at } = await liverLayer(look), page = rgbOf(PALETTES[look].bg);
+    const centre = CENTRE(...(Object.values(at(0.5, 0.5)) as [[number, number], [number, number]]));
+    const sheen = CENTRE(...(Object.values({ box: [0.2, 0.18] as [number, number], svg: [468, 236] as [number, number] }) as [[number, number], [number, number]]));
+    const rimSpot: Spot = { ...centre, box: [0.8, 0.9], shade: [true, true, true] };
+    for (const [name, sp] of [['centre', centre], ['sheen', sheen], ['lower right rim', rimSpot]] as const) {
+      const a = twoDLiver(look, sp), b = shaderOrgan(u, page, sp);
+      assert.ok(dE(a, b) < 2, `${look} ${name}: 2D ${hex(a)}, 3D ${hex(b)}, ΔE ${dE(a, b).toFixed(2)}`);
+    }
+  });
+}
+
+test('WP1b: the liver on Light and Dark is not the washed blob: the centre is the composite of 2D\'s layers and the sheen is the lightest place on the dome', async () => {
+  for (const look of ['light', 'dark'] as const) {
+    const { u, at } = await liverLayer(look), page = rgbOf(PALETTES[look].bg);
+    const c = at(0.5, 0.5), centre = shaderOrgan(u, page, CENTRE(c.box, c.svg)), sheen = shaderOrgan(u, page, CENTRE([0.2, 0.18], [468, 236]));
+    assert.ok(dE(twoDLiver(look, CENTRE(c.box, c.svg)), centre) < 6, `${look}: ΔE to 2D's centre`);
+    assert.ok(luminance(hex(sheen)) > luminance(hex(centre)), `${look}: the dome's sheen is lighter than the body`);
+  }
+});
+
+test('WP1b: Dark\'s #ogVol light is --light-ink at .22 as 2D draws it (it was --og-light at .14 × .22 / .55, a quarter of it)', async () => {
+  const { u } = await liverLayer('dark');
+  assert.deepEqual(u.volLight!.value.toArray(), [1, 1, 1, 0.22]);
+  assert.match(ORGAN_FS, /volLight\.a \* \(1\.0 - clamp\(r \/ volGeo\.w/);
+  assert.doesNotMatch(ORGAN_FS, /0\.22 \/ 0\.55/);
+});
+
+test('WP1b: the soft AO seat (.org-ao): round every plain organ at --og-ao under the layer\'s opacity, none on the atrium or the gut, no sheen off the liver', async () => {
+  const { seat } = await liverLayer('dark');
+  assert.ok(seat, 'the liver has an AO seat');
+  assert.ok(Math.abs(seat!.inkA!.value - 0.3 * PALETTES.dark.organLayer) < 1e-9, `Dark: .3 at the layer's opacity, got ${seat!.inkA!.value}`);
+  assert.equal(seat!.px!.value, 4.5, 'the 9-unit stroke\'s outer half');
+  for (const id of Object.keys(ORGAN_STYLE)) assert.equal(!!ORGAN_STYLE[id]!.ao, ['heart', 'liver', 'spleen', 'stomach', 'kidney-l'].includes(id), id);
+  const layer = new OrganLayer(createShared(), Object.fromEntries(Object.keys(ORGAN_STYLE).map((id) => [id, () => new BoxGeometry(0.4, 0.3, 0.1)])));
+  layer.setFill('seethrough', true); layer.applyLook(PALETTES.light); layer.update(0);
+  assert.equal(layer.byId.get('spleen')!.toon.uniforms.sheenK!.value, 0);
+  assert.ok(layer.byId.get('heart-ra')!.toon.uniforms.shadeSteps!.value.x < 0.06, 'the atrium\'s inner shade is its own, faint');
+  assert.equal(layer.byId.get('heart-ra')!.group.children.length, 2, 'no AO seat on the atrium');
+  assert.equal(layer.byId.get('bowel')!.group.children.length, 2, 'none on the gut');
+  layer.dispose();
+});
+
+// Cel shaded organs (fill 'solid') have none of these: every term this commit added is faded by (1 - solid) in the shader, and the AO seat's alpha with it, so the cel branch is as it was.
+test('WP1b: the sheen, #ogVol and the AO seat belong to the see-through fill only: faded by (1 - solid), the seat gone and unseen once the fill is cel shaded', async () => {
+  assert.match(ORGAN_FS, /uniform float wash;/);
+  for (const term of [/volLight\.a \* \(1\.0 - clamp\(r \/ volGeo\.w, 0\.0, 1\.0\)\) \* wash/, /\(1\.0 - volShadeAt\), 0\.0, 1\.0\) \* wash/, /sheenAt\(sheenE0, sheenRot\.x\) \* sheenK \* wash/, /sheenAt\(sheenE1, sheenRot\.y\) \* sheenK \* wash/]) assert.match(ORGAN_FS, term);
+  const bb = await liverBox, meshes: Record<string, () => BufferGeometry> = {};
+  for (const id of Object.keys(ORGAN_STYLE)) meshes[id] = id === 'liver' ? ORGAN_MESHES.liver! : () => new BoxGeometry(0.4, 0.3, 0.1);
+  assert.ok(bb);
+  const layer = new OrganLayer(createShared(), meshes);
+  const seatOf = () => layer.byId.get('liver')!.group.children.find((c) => c.name === 'org-ao') as unknown as { visible: boolean; material: { uniforms: U } };
+  layer.setFill('seethrough', true); layer.applyLook(PALETTES.dark); layer.update(0);
+  assert.ok(seatOf().visible && seatOf().material.uniforms.inkA!.value > 0.1, 'see-through: the seat shows');
+  layer.setFill('solid', true); layer.update(1);
+  assert.equal(seatOf().material.uniforms.inkA!.value, 0, 'cel shaded: the seat\'s alpha is 0');
+  assert.equal(seatOf().visible, false, 'and it is not drawn');
+  layer.dispose();
 });
