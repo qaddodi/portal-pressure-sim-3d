@@ -51,6 +51,8 @@ uniform float hiDir;
 uniform float hiOffset;
 uniform float hiAhead;
 uniform float hiBehind;
+uniform vec2 hiEnds;   // the picked vein's distance to its outer start and outer end (materials/shaders.ts HI_NONE: no fade at that end)
+uniform float hiFade;
 uniform float hiPx;
 uniform float inkOn;   // 0 on a dotted thread (no outline), else 1
 uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
@@ -150,7 +152,8 @@ ${CIRCUIT_VS_CALL}
   float aU = uv.x * len;
   float distH = hiDir > 0.5 ? hiOffset + aU : (hiDir < -0.5 ? hiOffset + (len - aU) : 0.0);
   float limitH = hiDir < -0.5 ? hiBehind : hiAhead;
-  vHi = hiOn * (1.0 - smoothstep(0.0, max(limitH, 0.0001), distH));
+  float ownH = smoothstep(0.0, max(hiFade, 0.0001), min(hiEnds.x + aU, hiEnds.y + (len - aU)));   // the picked vein's own line: nothing at its two outer ends, full a fade's length in
+  vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limitH, 0.0001), distH) : ownH);
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDevV) / dpr;

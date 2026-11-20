@@ -69,8 +69,8 @@ test('the scene can light a set of vessels apart from a pick (the targets glow, 
   const src = readFileSync(new URL('../src/scene/highlight.ts', import.meta.url), 'utf8');
   assert.match(src, /setOnly\(ids: readonly string\[\]\)/);
   assert.match(readFileSync(new URL('../src/scene/api.ts', import.meta.url), 'utf8'), /markVessels\(ids: readonly string\[\]\)/);
-  // (a pick, for comparison, runs on downstream)
-  const spec = computeHighlight('SV_CONF', [{ id: 'SV_CONF', from: 'SV', to: 'CONF', length: 1 }, { id: 'PV_TRUNK', from: 'CONF', to: 'PVH', length: 1 }]);
+  // (a pick that is given a range, for comparison, runs on downstream; a pick's own is none)
+  const spec = computeHighlight('SV_CONF', [{ id: 'SV_CONF', from: 'SV', to: 'CONF', length: 1 }, { id: 'PV_TRUNK', from: 'CONF', to: 'PVH', length: 1 }], { ahead: 0.5, behind: 0.2 });
   assert.equal(spec.get('PV_TRUNK')?.dir, 1);
 });
 

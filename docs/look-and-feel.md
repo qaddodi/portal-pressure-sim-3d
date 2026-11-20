@@ -137,8 +137,9 @@ Safe areas are always respected (59 px at the sides in landscape, 59 top and 34 
 
 ## 9. Vessel highlight
 
-The picked vessel gets a bolder outline in its own deep colour (on the dark looks its own tone lifted toward white, never pure white), which **fades out a short way past each end, further downstream than upstream** (0.5 and 0.2 scene units: it never runs on through the liver to light the cava, the shunts or the collaterals), and reaches only
-a short way upstream ("long ahead, short behind", from the 19 Nov highlight mocks). It also lifts a hair. **Nothing else is dimmed.** The data card
+The picked vein, shunt or TIPS (every piece the engine cuts it into) gets a thin, bolder outline in its own tone lifted (never pure white). The line **fades away at the vessel's two outer ends and
+is full a third of its length in** (owner, 20 Nov: "fade away at both ends"), and it runs on into no other vessel: nothing but the tapped vessel is lit (2.4 scene units downstream once lit the cava, the shunts
+and every collateral). It is 0.8 px over the vessel's own line (an organ's tapped line is 0.6 figure units over its own 1.1). It also lifts a hair. **Nothing else is dimmed.** The data card
 names the vessel, its pressure and flow, and the gradient with words ("PPG 14 · high").
 
 ## 10. Contrast
