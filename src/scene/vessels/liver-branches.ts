@@ -11,6 +11,9 @@ export interface BranchItem { /** the width at its start as a share of its vein'
 export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[]; /** the stretch (0 to 1) of the host's lens ramp the children wear: the part they leave, so there is no step in colour at the branch point */ span: readonly [number, number] }
 
 const N = 64, Z_FWD = 0.1;
+/** A branch begins this far behind the vein it leaves, rising to its own depth over its first third, so the vein's wall covers the branch's start and its outline is not drawn across the vein (a crease where it joins). */
+const Z_TUCK = 0.02;
+const tuck = (u: number): number => -Z_TUCK * (1 - smooth(u / 0.35));
 /** Where along its vein (0 to 1, from the end the branches grow from: the portal branches' liver end, the hepatic veins' start) each branching vein splits. */
 export const SPLIT_AT: Readonly<Record<string, number>> = { PVH_R_2: 0.35, RHV_IVC_1: 0.72, LHV_IVC: 0.62 };
 /** The left portal vein ends where the umbilical vein and the thin left bed meet it, so its course stays whole: its two branches start at its very end, as wide as it is there (the node rule has narrowed it to the bed's width by then). */
@@ -64,7 +67,7 @@ function grow(id: string, host: readonly P2[], prefix: readonly P2[] | null): Tr
     const pts: P2[] = [], dz: number[] = [];
     for (let i = 0; i < N; i++) {
       const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = spread * L * Math.pow(u, 1.4);
-      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(smooth(u) * z);
+      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(smooth(u) * z + (z > 0 ? tuck(u) : 0));
     }
     return { pts, dz };
   };
@@ -107,8 +110,8 @@ function endChildren(host: readonly P2[], at: number, ext: number, spread: numbe
   return ([1, -1] as const).map((sgn) => {
     const pts: P2[] = [], dz: number[] = [];
     for (let i = 0; i < N; i++) {
-      const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = sgn * sp * Math.pow(u, 1.4);
-      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(smooth(u) * (sgn > 0 ? Z_FWD : -0.03));
+      const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = sgn * sp * Math.pow(u, 1.15);
+      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(smooth(u) * (sgn > 0 ? Z_FWD : -0.03) + tuck(u));
     }
     return { pts, dz };
   });
@@ -116,7 +119,7 @@ function endChildren(host: readonly P2[], at: number, ext: number, spread: numbe
 
 function build(): readonly BranchSet[] {
   const sets: BranchSet[] = [];
-  for (const id of END_JOIN) sets.push({ host: id, when: null, span: [0.9, 1], list: endChildren(EDGE_PATH_2D[id]!, 0.97, EXT[id]!, 0.3).map((c) => ({ ...item(c, 1, true), atEnd: true as const })) });
+  for (const id of END_JOIN) sets.push({ host: id, when: null, span: [0.9, 1], list: endChildren(EDGE_PATH_2D[id]!, 0.97, EXT[id]!, 0.5).map((c) => ({ ...item(c, 1, true), atEnd: true as const })) });
   for (const id of Object.keys(SPLIT_AT)) {
     const t = treeOf(id)!;
     if (!t.side) continue;
