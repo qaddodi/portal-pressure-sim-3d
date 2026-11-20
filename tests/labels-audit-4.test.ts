@@ -194,13 +194,15 @@ test('a dot that jumps (a cut) is not carried: every label leaves and comes back
   w.step();
   const ids = w.names();
   w.set({ dx: 400 });
-  w.step(160);
-  assert.equal(w.names().length, 0, 'gone');
+  w.step(16);
+  assert.ok(ids.length > 0 && ids.every((id) => { const d = w.byId(id); return !!d && d.alpha > 0; }), 'a cut never hides a label in one frame: they are still easing out');
+  w.step(FADE.outMs);
+  assert.equal(w.names().length, 0, 'gone once the fade-out is done, before they come back');
   w.step(FADE.settleMs + 900);
   assert.deepEqual(w.names(), ids);
 });
 
-test('a label that is no longer asked for leaves at once, even while the camera is moving; one that comes in waits for the picture to be still', () => {
+test('a label that is no longer asked for fades out over D_SMALL (never in one frame), even while the camera is moving; one that comes in waits for the picture to be still', () => {
   const w = world(mac, {}, shown);
   w.step();
   w.set({ moving: true });

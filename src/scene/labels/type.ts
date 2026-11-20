@@ -77,11 +77,14 @@ export const baselineAt = (boxH: number, padY: number): number => padY + LS.BASE
 /** The halo's width round a letter, px (the 2D stroke: at least 2, else 3 times the label size). */
 export const haloPx = (): number => Math.max(LS.HALO.min, LS.HALO.perK * LS.LABEL_K);
 
+/** The weight of the name of the stent point the Doppler samples (2D velItem: `weight: 750`, class lb-gate). */
+export const GATE_WEIGHT = 750;
+
 /** The custom properties a layer carries so its stylesheet holds no number of its own: sizes at this screen, weights, gaps, halo, ring. */
 export function typeVars(vp: Vp): Record<string, string> {
   const px = (n: number) => `${Math.round(n * 100) / 100}px`;
   return {
-    '--lb-f-name': px(fontPx(LS.NAME.size, vp)), '--lb-w-name': String(LS.NAME.weight),
+    '--lb-f-name': px(fontPx(LS.NAME.size, vp)), '--lb-w-name': String(LS.NAME.weight), '--lb-w-gate': String(GATE_WEIGHT),
     '--lb-f-val': px(fontPx(LS.VALUE.size, vp)), '--lb-w-val': String(LS.VALUE.weight),
     '--lb-f-rev': px(fontPx(LS.REVERSED.size, vp)), '--lb-w-rev': String(LS.REVERSED.weight),
     '--lb-f-unit': px(fontPx(LS.UNIT.size, vp)), '--lb-w-unit': String(LS.UNIT.weight), '--lb-g-unit': px(LS.UNIT.gap * LS.LABEL_K),

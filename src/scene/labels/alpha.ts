@@ -6,8 +6,8 @@ import { MOTION } from '../../clock/tween.ts';
 export const DIM_ALPHA = 0.65;
 
 export const FADE = {
-  /** A label that goes (it is no longer wanted, or the picture was cut) leaves in this long, linear, where it stands (it never slides). */
-  outMs: 120,
+  /** A label that goes (it is no longer wanted, or the picture was cut) fades out where it stands in this long, never in one frame and never sliding: 2D's D_SMALL (ease.js), the time of a label's own change of state. */
+  outMs: 240,
   /** A label put at another spot, or given other words (a unit, a change badge, a shorter name), crosses over in this long: the old words fade out where they stood while the new fade in where they stand
    *  now, both at once with nothing missing between (2D label-gl.js moveFade: D_SMALL 240 ms, the weights 1 - easeMove(u) and easeMove(u)). */
   moveMs: 240,
@@ -19,8 +19,8 @@ export const FADE = {
   roomAir: 4,
   /** and comes in at its new spot in this long. */
   inMs: MOTION.tagBackMs,
-  /** After the camera (or a card) has stopped moving the picture, labels wait this long before they come back (look-and-feel section 7). */
-  settleMs: MOTION.tagBackMs,
+  /** After the camera (or a card) has stopped moving the picture, labels wait this long before they come back (look-and-feel section 7): never less than the fade-out, so a cut label has gone before it returns at its new spot. */
+  settleMs: Math.max(MOTION.tagBackMs, 240 + 32),
   /** Bright to dim and back. */
   dimMs: MOTION.tagBackMs,
 } as const;

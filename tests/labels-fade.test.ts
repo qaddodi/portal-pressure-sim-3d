@@ -63,7 +63,7 @@ test('new words (a unit, a change badge, a shorter name) cross over in place, an
   assert.equal(f.frame.get('a')!.from, null);
 });
 
-test('linear fades take the times of the motion table: out 120 ms, in 180 ms', () => {
+test('fades take the times of 2D: out 240 ms (D_SMALL), in 180 ms', () => {
   const f = new LabelFader();
   let t = 0;
   while (f.step(10, want(P(0)), false) || (f.frame.get('a')?.alpha ?? 0) < 1) { t += 10; if (t > 2000) break; }

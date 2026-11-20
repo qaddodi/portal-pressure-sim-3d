@@ -59,6 +59,8 @@ export interface Extras {
   alert: string;
   /** Words standing in place of the number: "microcirculation" (a bed has no single velocity) or "collaterals closed" (a station whose only vessels are closed collaterals). */
   note: string;
+  /** A stent point's number colour and whether the Doppler samples it (stent-labels.ts). */
+  tint?: string; gate?: boolean;
 }
 export const NO_EXTRAS: Extras = Object.freeze({ lens: 'pressure' as ReadingLens, number: null, unit: '', delta: '', up: false, alert: '', note: '' });
 

@@ -37,6 +37,19 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .lb[data-region] .lb-name { font-size: var(--lb-f-organ); font-weight: var(--lb-w-organ); letter-spacing: var(--lb-track-organ); color: var(--lb-organ); }
 .lb[data-region] .lb-val, .lb[data-region] .lb-rev, .lb[data-region] .lb-unit, .lb[data-region] .lb-delta, .lb[data-region] .lb-alert { display: none; }
 
+/* a stent's own label (stent-labels.ts): lines of runs, each at the 2D size of this screen, written when its words change; its point's number in the velocity colour, the sampled point in bold */
+.lb[data-geo] { flex-direction: column; align-items: flex-start; }
+.lb[data-geo]::before { display: none; }
+.lb[data-geo] > span { display: none; }
+.lb-geo { padding-top: var(--lb-pad-y); }
+.lb-gl { display: flex; align-items: baseline; white-space: nowrap; }
+.lb-gl::before { content: ""; align-self: baseline; display: block; width: 0; height: var(--b, 0px); }
+.lb-gl > span { line-height: 1; -webkit-text-stroke: var(--lb-halo-w) var(--lb-halo); paint-order: stroke fill; stroke-linejoin: round; }
+.lb-gl .lb-g-name, .lb-gl .lb-g-unit { color: var(--lb-name); }
+.lb-gl .lb-g-val { color: var(--lb-val); }
+.lb[data-tint] .lb-val { color: var(--lb-vtint); }
+.lb[data-gate] .lb-name { font-weight: var(--lb-w-gate); }
+
 /* the number rolls when it changes (400 ms, transform and opacity; the box keeps the width of the longest text) */
 .lb-roll { position: relative; display: inline-block; }
 .lb-roll > .lb-cur { display: inline-block; }

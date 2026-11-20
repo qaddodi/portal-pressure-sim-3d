@@ -20,6 +20,8 @@ import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { LS, boxSize, organRun, stationRuns, type Say } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
+import { STENT_IDS, STENT_STATIONS, COMPACT_W as STENT_COMPACT, geoFrac, geoLines, geoSets, geoSize, encodeGeo, pointName, type StentView, type StentId } from './stent-labels.ts';
+import { STENT_SITES } from '../../engine/hales/portal/topology.js';
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 import type { ProcCards } from './store.ts';
@@ -70,6 +72,8 @@ export interface LabelDeps {
   level?(): LabelLevel;
   /** The stations either side of a narrowed vessel (the findings flag them). Absent: none. */
   stenosed?(): readonly string[];
+  /** The TIPS and DIPS stents: where they stand drawn and settled, what a slide reads at their three Doppler points (stent-labels.ts). Absent: no stent labels. */
+  stents?(): StentView | null;
 }
 
 /** The names stand aside while the figure is smaller than this (hysteresis: they come back above `FIG_BACK`). The names keep one size (text never shrinks to fit), so on a figure this small they would be
@@ -137,6 +141,8 @@ export interface Draw {
   rev: boolean;
   /** The unit after the reading, the change badge ("+7.9") and which way it went, an alert ("no flow", "stasis"), and words standing in for the number ("microcirculation"): readings.ts, as 2D says them. */
   unit: string; delta: string; up: boolean; alert: string; note: string;
+  /** A stent point's number colour (the velocity lens's, toward the text) and whether the Doppler samples it (named in bold); the stent's own label (a few lines: its `word` is encodeGeo's). */
+  tint?: string; gate?: boolean; geo?: boolean;
   /** This picture's share of the label's opacity (1 standing still; while the label crosses to a new spot or new words, the new picture's easeMove share and the old picture's rest). */
   mix: number;
   /** The old picture a label is leaving (drawn as its own element, fading out where it stood): its dot is not drawn, the ring is the label's. */
@@ -170,6 +176,9 @@ interface Meta {
   extra?: boolean;
   /** Never left out for want of room (the patient's flagged stations; at the All level every one). */
   must?: boolean;
+  /** One of a stent's own labels (stent-labels.ts), and the importance it takes now. */
+  stent?: boolean;
+  pri?: number;
 }
 
 /** What a placed label says (kept with its placement: the picture it leaves is drawn as it was). */
@@ -303,6 +312,22 @@ export class LabelController {
       if (free!.extra.includes(s.id)) m.extra = true;
       list.push(m);
     }
+    // a TIPS or DIPS stent that is drawn and settled has its own label, and where a slide reads it at its three Doppler points, three more (2D stage-label-solve.js)
+    const sv = d.stents?.() ?? null;
+    if (sv) {
+      for (const sid of STENT_IDS) {
+        const ready = sv.ready(sid);
+        if (!ready) continue;
+        const seg = sv.sampled(sid), all = sv.all(sid);
+        geoFrac[sid] = seg ? (STENT_SITES as Record<string, number>)[seg] ?? 0.5 : 0.5;   // (while the Doppler samples this stent, its label points at the third the gate reads)
+        for (const s of STENT_STATIONS) {
+          if (s.stent!.sid !== sid) continue;
+          if (s.stent!.pt !== 'geo' && !all) continue;
+          const m = this.stentMeta(s, sv, all);
+          if (m) list.push(m);
+        }
+      }
+    }
     // an organ's name is not said twice: where a station's reading names the same structure ("Right atrium 3.5"), the organ's own name ("RIGHT ATRIUM") is left out
     const said = new Set(list.filter((m) => m.station.kind !== 'organ').map((m) => m.station.name.toLowerCase()));
     return this.keepIfSmall(list.filter((m) => m.station.kind !== 'organ' || !said.has(m.station.name.toLowerCase())));
@@ -319,7 +344,36 @@ export class LabelController {
   }
 
   /** Whether a station's label carries a number (2D: the hepatic artery's is its name only: its pressure sits off the venous scale and says little). */
-  private hasNumber = (s: Station): boolean => !!s.node && s.id !== 'HA';
+  private hasNumber = (s: Station): boolean => (s.stent ? s.stent.pt !== 'geo' : !!s.node && s.id !== 'HA');
+
+  /** A stent's label (2D geomItem / velItem). Its stent: one label, a line each for the diameter, the waist and the end stenosis, shortened by whole lines. A point: its name and its velocity, one form (a point's name without its number says nothing). */
+  private stentMeta(s: Station, v: StentView, all: boolean): Meta | null {
+    const { sid, pt } = s.stent!, d = this.deps, vp = d.vp(), padX = LS.PAD.x, padY = LS.PAD.y;
+    if (pt === 'geo') {
+      const sets = geoSets(geoLines(sid, v.facts(sid as StentId)));
+      const words = sets.map((ls) => encodeGeo(ls));
+      const key = `geo|${words[0]}|${vp.w}x${vp.h}`;
+      let forms = this.formCache.get(key);
+      if (!forms) {
+        forms = sets.map((ls, i) => { const b = geoSize(ls, vp, d.measure); return { text: words[i]!, w: Math.ceil((b.w + padX * 2) * 100) / 100, h: Math.ceil((b.h + padY * 2) * 100) / 100 }; });
+        this.formCache.set(key, forms);
+      }
+      return { id: s.id, kind: 'station', station: s, forms, vwUnits: 0, rev: false, say: {}, vkey: words[0]!, ex: NO_EXTRAS, stent: true, pri: all ? 7 : 9 };
+    }
+    const r = v.read(sid as StentId, pt as 'proximal' | 'mid' | 'distal');
+    if (!r) return null;
+    const name = pointName(sid, pt as 'proximal' | 'mid' | 'distal', vp.w < STENT_COMPACT);
+    const say: Say = { value: '000', unit: 'cm/s' };
+    const key = `pt|${s.id}|${name}|${vp.w}x${vp.h}`;
+    let forms = this.formCache.get(key);
+    if (!forms) {
+      const b = boxSize(stationRuns(name, true, false, '000', say), vp, d.measure);
+      forms = [{ text: name, w: Math.ceil(b.w * 100) / 100, h: Math.ceil(b.h * 100) / 100 }];
+      this.formCache.set(key, forms);
+    }
+    const ex: Extras = { ...NO_EXTRAS, lens: 'velocity', number: r.number, unit: r.none ? '' : 'cm/s', tint: r.tint, gate: v.sampled(sid as StentId) === pt };
+    return { id: s.id, kind: 'station', station: s, forms, vwUnits: 0, rev: false, say, vkey: name, ex, stent: true, pri: 8 };
+  }
 
   private metaOf(s: Station): Meta {
     const rev = !!s.vessel && s.kind !== 'organ' && this.deps.reversed(s.vessel);
@@ -495,16 +549,18 @@ export class LabelController {
   }
 
   /** What a label says beside its name, drawn: the words it had when it was placed (its box is that wide), the number and the badge's text from now. A form that has let the unit, badge and alert go says none of them. */
-  private live(m: Meta, snap: Snap | undefined): Pick<Draw, 'unit' | 'delta' | 'up' | 'alert' | 'note'> {
-    if (snap?.bare) return { unit: '', delta: '', up: false, alert: '', note: '' };
-    const unit = snap ? snap.unit : m.say.unit ?? '', alert = snap ? snap.alert : m.say.alert ?? '', note = snap ? snap.note : m.say.note ?? '';
+  private live(m: Meta, snap: Snap | undefined): Pick<Draw, 'unit' | 'delta' | 'up' | 'alert' | 'note' | 'tint' | 'gate' | 'geo'> {
+    const sx = { tint: m.ex.tint ?? '', gate: !!m.ex.gate, geo: m.station.stent?.pt === 'geo' };
+    if (snap?.bare) return { unit: '', delta: '', up: false, alert: '', note: '', ...sx };
+    // (a stent point with no flow says "No flow" and no unit)
+    const unit = m.stent && !m.ex.unit ? '' : snap ? snap.unit : m.say.unit ?? '', alert = snap ? snap.alert : m.say.alert ?? '', note = snap ? snap.note : m.say.note ?? '';
     const hasDelta = snap ? snap.delta : !!m.say.delta;
     let delta = '', up = false;
     if (hasDelta) {
       if (m.ex.delta) { this.lastDelta.set(m.id, { text: m.ex.delta, up: m.ex.up }); delta = m.ex.delta; up = m.ex.up; }
       else { const l = this.lastDelta.get(m.id); if (l) { delta = l.text; up = l.up; } }
     }
-    return { unit, delta, up, alert, note };
+    return { unit, delta, up, alert, note, ...sx };
   }
 
   /** A label's room (2D roomFade): 1 while its box stands clear of every card and inside the view, 0 once it touches one; eased over FADE.roomMs, with the air a label needs to come back (FADE.roomAir). */
@@ -558,7 +614,7 @@ export class LabelController {
       const s0 = sil;
       items.push({
         id: m.id, ax: a.x, ay: a.y, au: m.station.u0, path: path.length ? path : undefined, forms: m.optional ? m.forms.slice(0, 1) : m.forms,
-        pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.optional ? 1 : m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+        pri: picked ? 300 : isNamed ? 100 + (m.pri ?? m.station.pri) : m.optional ? 1 : m.pri ?? m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
         ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b) } : {}),
       });
     }

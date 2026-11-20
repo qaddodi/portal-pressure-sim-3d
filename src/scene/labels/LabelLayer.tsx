@@ -21,6 +21,8 @@ import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
+import { STENT_STATIONS, decodeGeo, geoPx, geoGapPx, geoLineSize } from './stent-labels.ts';
+import { stentReads } from './stent-reads.ts';
 import { bindLabelHits, labelNodeAt } from './hit.ts';
 import { useSelection } from '../../ui/action/selection.ts';
 import { buildCath } from './cath-dom.ts';
@@ -100,6 +102,9 @@ interface Rec {
   /** the words written after the number, so a frame writes them only when they change */
   say: string;
   deltaUp?: boolean;
+  /** a stent's own label: the box its lines are written in, and the words they were written from */
+  geo?: HTMLElement; geoWord?: string;
+  vtint?: string; gate?: boolean;
 }
 
 export function LabelLayer() {
@@ -130,6 +135,7 @@ export function LabelLayer() {
     const root = layer.current!;
     const ui = useUi;
     const readings = new StationExtras();
+    const stentView = stentReads(() => lookRef.current);
     const deps: LabelDeps = {
       now: () => performance.now(),
       project: (p, out) => sceneApi.project(p, out),
@@ -148,6 +154,7 @@ export function LabelLayer() {
       zoom: () => cel.rig.handZoom,
       level: () => useShell.getState().figure.labelLevel,
       stenosed: () => stenosedNodes(),
+      stents: () => stentView,
       extras: (node, P, flags) => {
         const f = latest.frame;
         if (!f) return NO_EXTRAS;
@@ -193,9 +200,10 @@ export function LabelLayer() {
 
     // ── build the skeleton once ──
     // (each station has two pictures: the label, and the one it is leaving while it crosses to a new spot or new words, drawn as its own element with no ring: fade.ts)
-    for (const s of STATIONS) {
+    for (const s of [...STATIONS, ...STENT_STATIONS]) {
       for (const ghost of [false, true]) {
         const el = mk('div', ghost ? 'lb lb-ghost' : 'lb');
+        if (s.stent?.pt === 'geo') el.dataset.geo = '';
         if (s.kind === 'organ') el.dataset.region = '';
         const name = mk('span', 'lb-name', el);
         const val = mk('span', 'lb-val', el);
@@ -204,6 +212,7 @@ export function LabelLayer() {
         const unit = mk('span', 'lb-unit', el), delta = mk('span', 'lb-delta', el), alert = mk('span', 'lb-alert', el);
         const rev = mk('span', 'lb-rev', el); rev.textContent = '⟲';
         const rec: Rec = { root: el, shown: false, tx: '', op: '', form: -1, size: '', value: '', name, cur, rolling: null, leadTx: '', anchorTx: '', rev: false, unit, delta, alert, say: '' };
+        if (s.stent?.pt === 'geo') rec.geo = mk('div', 'lb-geo', el);
         if (s.kind !== 'organ') {
           const lead = mk('i', 'lb-lead');
           const anchor = mk('i', 'lb-anchor');
@@ -318,8 +327,9 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
   if (d.form !== r.form || r.word !== d.word || r.size !== `${d.w}x${d.h}` || r.rev !== d.rev) {
     r.form = d.form; r.word = d.word; r.size = `${d.w}x${d.h}`; r.rev = d.rev;
     el.style.width = `${px(d.w)}px`; el.style.height = `${px(d.h)}px`;
+    if (r.geo) writeGeo(r, d.word);
     if (r.name) {
-      const word = d.word;   // (the controller's own words for this form; an organ's already stand in capitals)
+      const word = r.geo ? '' : d.word;   // (the controller's own words for this form; an organ's already stand in capitals; a stent's lines are written in its own box)
       r.name.textContent = word;
       r.name.style.display = word ? '' : 'none';
       el.dataset.form = word ? String(d.form) : '2';
@@ -337,6 +347,10 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
         if (d.note) el.setAttribute('data-note', ''); else el.removeAttribute('data-note');
       }
     }
+    // a stent point's number colour (the velocity lens's against the stent's own normal) and the point the Doppler samples (its name in bold)
+    const tint = d.tint ?? '';
+    if ((r.vtint ?? '') !== tint) { r.vtint = tint; if (tint) { el.style.setProperty('--lb-vtint', tint); el.setAttribute('data-tint', ''); } else { el.style.removeProperty('--lb-vtint'); el.removeAttribute('data-tint'); } }
+    if (!!r.gate !== !!d.gate) { r.gate = !!d.gate; if (d.gate) el.setAttribute('data-gate', ''); else el.removeAttribute('data-gate'); }
     // the colour the slide's words give this station (2D .lb.term): written when the slide changes it, never in a moving frame
     const tone = d.tone ? toneCss(d.tone) : '';
     if ((r.tone ?? '') !== tone) { r.tone = tone; if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); }
@@ -360,6 +374,29 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
         r.lead.setAttribute('data-on', ''); r.lead.style.opacity = op;
       } else { r.lead.removeAttribute('data-on'); r.lead.style.opacity = '0'; }
     }
+  }
+}
+
+/** A stent's own label written as lines (stent-labels.ts encodeGeo): each line a row of runs at the 2D sizes of this screen, its baseline where the 2D app writes it. Written when its words change, while it is invisible. */
+function writeGeo(r: Rec, word: string): void {
+  if (!r.geo || r.geoWord === word) return;
+  r.geoWord = word;
+  const vp = useUi.getState().vp;
+  r.geo.textContent = '';
+  for (const line of decodeGeo(word)) {
+    const row = document.createElement('div');
+    row.className = 'lb-gl';
+    const h = geoLineSize(line, vp, (t, size) => t.length * size * 0.56).h;   // (only the height is used: the line's tallest run at the 2D line height)
+    row.style.height = `${px(h)}px`; row.style.setProperty('--b', `${px(baselineAt(h, 0))}px`);
+    line.forEach((run, i) => {
+      const sp = document.createElement('span');
+      sp.className = `lb-g-${run.k}`;
+      sp.textContent = run.t;
+      sp.style.fontSize = `${px(geoPx(run, vp))}px`; sp.style.fontWeight = String(run.weight);
+      if (i) sp.style.marginLeft = `${px(geoGapPx(run))}px`;
+      row.appendChild(sp);
+    });
+    r.geo.appendChild(row);
   }
 }
 
