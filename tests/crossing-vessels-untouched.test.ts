@@ -8,6 +8,8 @@ import { opensIntoCava } from '../src/scene/vessels/fades.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { cavaMateOf } from '../src/scene/vessels/neighbour.ts';
 
+/** Whether a skin has taken the cava end (end 1) of a vein: its cut and burial are then off (scene.ts applyMates). */
+const skinnedAtCava = (s: CelScene, id: string): boolean => !!(s as unknown as { skins: { endsOf(id: string): readonly [boolean, boolean] } | null }).skins?.endsOf(id)[1];
 const run = (s: CelScene, from: number, to: number) => { for (let t = from; t <= to; t += 16) s.update(t); };
 
 test('only a vessel that ends on the cava has the cava\'s cut and fade; every other vessel, crossing or near it, has none', () => {
@@ -18,7 +20,7 @@ test('only a vessel that ends on the cava has the cava\'s cut and fade; every ot
       const o = s.vesselObject(v.id);
       if (!o) continue;
       const u = o.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number } };
-      if (opensIntoCava(v.id)) { ends++; assert.equal(u.cavaCut.value, 1, v.id); assert.ok(cavaMateOf(v.id), v.id); }
+      if (opensIntoCava(v.id)) { ends++; assert.equal(u.cavaCut.value, skinnedAtCava(s, v.id) ? 0 : 1, v.id); assert.ok(cavaMateOf(v.id), v.id); }   // (a skin that has taken the cava end is the opening: no cut there, spec 10.4)
       else { others++; assert.equal(u.cavaCut.value, 0, `${v.id} only crosses or lies near the cava`); assert.equal(cavaMateOf(v.id), null, v.id); assert.equal(u.cavaA.value, 1, v.id); }
     }
     assert.ok(ends >= 4 && others > 30);
