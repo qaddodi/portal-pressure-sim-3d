@@ -10,7 +10,7 @@
 //   const part = microPart(geometry, m);                group.add(part.group)
 //   const many = microInstanced(geometry, m, count);    many.toon.setMatrixAt(i, m4); many.ink.setMatrixAt(i, m4) (or `many.setAt(i, m4, colour)`)
 import {
-  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Vector2,
+  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
@@ -23,6 +23,7 @@ export const MICRO_VS = /* glsl */ `
 uniform float inflate;
 varying vec3 vN;
 varying vec3 vC;
+varying float vHy;
 #ifdef STREAKS
 attribute float aux;
 varying vec3 vP;
@@ -45,6 +46,7 @@ void main() {
   vC *= instanceColor;
 #endif
   vN = normalize(mat3(modelMatrix) * n);   // the normal in WORLD axes: the light is fixed in the world, not on the screen
+  vHy = p.y;
 #ifdef STREAKS
   vP = p; vAux = aux;
 #endif
@@ -57,6 +59,12 @@ uniform vec3 tint;
 uniform float opacity;
 varying vec3 vN;
 varying vec3 vC;
+// the haze: what lies away from the scene's subject (|y| past uHaze.x, whole by uHaze.y, local units) melts toward uHazeCol by up to uHaze.z, its detail and line with it, as a lens's
+// depth of field would soften it (the next sinusoids, their Disse and plates must not pull the eye from the one in focus, Mohammad 20 Nov 2026); uHaze.z 0: none
+uniform vec4 uHaze;
+uniform vec3 uHazeCol;
+varying float vHy;
+float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 #ifdef STREAKS
 // streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it),
 // each with its own phase and length, the middle lanes fastest (2D's lanes: 1.5 (1 - a^2) + 0.08); one hard-edged lighter tone, never a gradient
@@ -70,14 +78,14 @@ varying float vAux;
 float h11(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
 // one lane's streak at this pixel (1 inside, 0 out): long and slim, round at both ends, its edge antialiased over a pixel
 float streaks() {
-  float lanes = max(2.0, floor(uHalf * 2.0 / 0.6));
+  float lanes = max(2.0, floor(uHalf * 2.0 / 0.9));
   float u = (vAux * 0.5 + 0.5) * lanes, lane = floor(u), fu = fract(u);
   float a = (lane + 0.5) / lanes * 2.0 - 1.0;
   float sp = mix(1.0, 1.5 * (1.0 - a * a) + 0.08, uProfile);
-  float period = 30.0 + 22.0 * h11(lane * 3.1), len = 11.0 + 12.0 * h11(lane * 7.7 + 1.3);
+  float period = 34.0 + 26.0 * h11(lane * 3.1), len = 14.0 + 16.0 * h11(lane * 7.7 + 1.3);
   float t = mod(vP.x - uFlow * sp + period * h11(lane * 1.7 + 9.1), period);
   float q = clamp(t / len * 2.0 - 1.0, -1.0, 1.0);
-  float hw = 0.2 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
+  float hw = 0.3 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
   float d = abs(fu - 0.5) - hw, w = max(fwidth(u), 1e-3);
   return (1.0 - smoothstep(-w, w, d)) * step(0.3, h11(lane * 5.3 + 2.0));
 }
@@ -95,12 +103,14 @@ void main() {
 #ifdef STREAKS
   c = mix(c, uStreakCol, uStreak * streaks());
 #endif
+  c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);
 }`;
 
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
+varying float vHy;
 void main() {
   vec3 p = position;
   vec3 n = normal;
@@ -110,6 +120,7 @@ void main() {
   n = im * (n / max(s2, vec3(1e-12)));
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
 #endif
+  vHy = p.y;
   vec4 c = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   vec3 vn = normalize(normalMatrix * n);
   vec2 nd = (projectionMatrix * vec4(vn, 0.0)).xy;
@@ -125,7 +136,13 @@ export const MICRO_INK_FS = /* glsl */ `
 ${FADE_GLSL}
 uniform vec3 color;
 uniform float opacity;
-void main() { if (fadedOut()) discard; gl_FragColor = vec4(color * opacity, opacity); }`;
+// the haze: what lies away from the scene's subject (|y| past uHaze.x, whole by uHaze.y, local units) melts toward uHazeCol by up to uHaze.z, its detail and line with it, as a lens's
+// depth of field would soften it (the next sinusoids, their Disse and plates must not pull the eye from the one in focus, Mohammad 20 Nov 2026); uHaze.z 0: none
+uniform vec4 uHaze;
+uniform vec3 uHazeCol;
+varying float vHy;
+float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
+void main() { if (fadedOut()) discard; gl_FragColor = vec4(mix(color, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -137,6 +154,8 @@ export interface MicroOptions {
   vertexColors?: boolean;
   /** Streaks carried by a flow (the geometry has an `aux` attribute: the place across the stream, -1 to 1): set uFlow, uHalf, uStreak, uProfile, uStreakCol. */
   streaks?: boolean;
+  /** The haze's uniforms, shared by every part of a scene (hazeUniforms()); none by default. */
+  haze?: HazeUniforms;
   /** Draw both sides (a thin sheet seen from either side). */
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
@@ -147,7 +166,12 @@ export interface MicroOptions {
 export const rawRGB = (c: Color, rgb: RGB): Color => c.setRGB(rgb[0]!, rgb[1]!, rgb[2]!, LinearSRGBColorSpace);
 
 /** The toon and ink materials of a part. `fade` is the view's one dissolve uniform (the dive). */
+/** A scene's haze uniforms (see MICRO_FS): x where it starts and y where it is whole (|y|, local units), z how far toward the colour; w unused. */
+export interface HazeUniforms { uHaze: { value: Vector4 }; uHazeCol: { value: Color } }
+export const hazeUniforms = (): HazeUniforms => ({ uHaze: { value: new Vector4(1e9, 2e9, 0, 0) }, uHazeCol: { value: new Color() } });
+
 export function microMaterials(res: { value: Vector2 }, fade: { value: number }, o: MicroOptions = {}): MicroMats {
+  const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
     ...(o.streaks ? { defines: { STREAKS: '' } } : {}),
@@ -155,12 +179,13 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
+      uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade },
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: BackSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };

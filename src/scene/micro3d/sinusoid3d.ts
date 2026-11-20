@@ -20,7 +20,7 @@ import { U } from '../sinusoid/view.ts';
 import { CELL, SEED, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import {
-  MeshBuilder, MicroMany, MicroPart, type P2, type RGB, chaikin, ellipsoid, microMaterials, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
+  MeshBuilder, MicroMany, MicroPart, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the flat view's reach). */
@@ -32,8 +32,10 @@ export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -
 /** The red cells in the stream (2D's palette has their colour; the flat view draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
+/** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
+const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 12, HAZE_K = 0.72;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
-const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.9;
+const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.35;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -56,6 +58,7 @@ interface Flat {
   tissue: { visible: boolean }; sprites: { visible: boolean; geometry: { drawRange: { count: number } } }; cells: { visible: boolean };
   VW: { vis: [number, number] };
   isVisible: boolean;
+  trafficSpeed: number;
   ends: readonly [number, number, number];
 }
 
@@ -75,6 +78,8 @@ export class Sinusoid3D {
   private readonly fade = { value: 1 };
   private readonly res: CelShared['res'];
   private on = false;
+  /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
+  private readonly haze = hazeUniforms();
   private builtKey = '';
   private lookKey = '';
   private readonly m4 = new Matrix4();
@@ -111,8 +116,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the flat view's units (it turns with the flat view's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the flat view's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, o), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, o), cap, `sinusoid3d/${name}`);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, ...o }), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -166,6 +171,7 @@ export class Sinusoid3D {
     const shown = on && f.isVisible;
     // the flat view's own drawing stands aside while this one is on (it keeps its model, names and clock)
     f.tissue.visible = !on; f.sprites.visible = !on; f.cells.visible = !on;
+    f.trafficSpeed = on ? PACE : 1;
     this.group.visible = shown;
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the flat view's own share), whole at rest
@@ -445,8 +451,8 @@ export class Sinusoid3D {
       let z: number;
       if (ay < h) { const t = ay / h; z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * (0.35 + 0.25 * hash(i * 0.37)) ; }
       else z = lerp(0.1, Z.disse + 0.55, smooth(h, g.wallIn(x) + 0.4, ay));
-      // (a little larger than 2D's dot, so its two tones and its line read)
-      const rr = r * 1.7 * Math.min(1, a * 1.6);
+      // (a small bead, smaller than 2D's dot: Mohammad, 20 Nov 2026, "protein much smaller")
+      const rr = r * 0.75 * Math.min(1, a * 1.6);
       placeAt(this.m4, x, Y(yd), z, rr, rr, rr);
       this.albumin.setAt(n++, this.m4);
     }
@@ -483,10 +489,15 @@ export class Sinusoid3D {
   /** The streaks: the blood's in every lumen (lighter, at the lanes' speeds, the middle fastest) and the lymph's in Disse (darker, slow, back toward the portal tract), fixed to the tissue. */
   private stepStreaks(P: Pal): void {
     const f = this.flat, flow = f.traffic.flowX, lym = f.traffic.lymX;
-    const blood = mix3(P.cLumen, [1, 1, 1], 0.55), lymph = deep(P.cLymph, 0.82);
-    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 0.32, 1);
-    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.28, 1);
-    this.disse.setStreaks(lym, UM.disse * 0.5 + 0.5, lymph, 0.6, 0);
+    const blood = mix3(P.cLumen, [1, 1, 1], 0.6), lymph = deep(P.cLymph, 0.8);
+    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 0.5, 1);
+    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.4, 1);
+    // (the lymph's own run is slow beside the blood's: its streaks go LYMPH_PACE times as fast, so they are seen to move, Mohammad 20 Nov "faster in lymph")
+    this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.7, 0);
+    // the haze: from just past this sinusoid's plates (the next Disse, lining and lumen beyond them) toward the page, whole HAZE_RUN µm further out
+    const y0 = f.g.hepIn(0) + UM.hep + 0.5;
+    this.haze.uHaze.value.set(y0, y0 + HAZE_RUN, HAZE_K, 0);
+    rawRGB(this.haze.uHazeCol.value, P.cBg);
   }
 
   /** The two end arrows (2D's: the text's colour inside the labels' halo), in the lumen at the flat view's places, pointing the way the blood goes, fading with their names. */
