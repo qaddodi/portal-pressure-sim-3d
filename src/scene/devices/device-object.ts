@@ -56,6 +56,9 @@ export class DeviceObject extends CelObject {
     this.toon.uniforms.res = shared.res; this.toon.uniforms.fatPx = { value: FAT_PX }; this.ink.uniforms.fatPx = { value: FAT_PX };
     this.toon.vertexShader = 'uniform vec2 res;\nuniform float fatPx;\n' + withAlpha(this.toon.vertexShader, 'gl_Position = projectionMatrix * mv;', FAT_TOON);
     this.ink.vertexShader = 'uniform float fatPx;\n' + withAlpha(this.ink.vertexShader, '(px + hiPx * vHi)', '(px + fatPx + hiPx * vHi)');
+    // A device is always in the blended list (alpha 1 until it fades), which three draws after the whole opaque list, by render order: the organs' see-through wash and any vessel that blends (a fading end)
+    // were drawn over the devices, which has no depth test to stand in front of them, so a catheter looked washed out or behind the vein it runs in.
+    this.toon.transparent = this.ink.transparent = true;
     for (const m of [this.toon, this.ink]) { m.depthTest = false; m.depthWrite = false; m.needsUpdate = true; }
     // (A device draws with no depth test, so its draw order IS its picture: the ink (the back faces, grown a hairline) first and the fill over it. Left at one shared order, three sorts equal ones by material, the fill's
     //  made first, so the ink hull was drawn last and covered the whole device in its dark outline colour: a near-black catheter, probe and scope on a dark ground. Two orders a device: ink 2n, fill 2n + 1.)
@@ -75,12 +78,10 @@ export class DeviceObject extends CelObject {
     (this.ink.uniforms.color!.value as Color).copy(ink);
   }
 
-  /** 0 (gone) to 1 (whole). Under 1 the pass blends and writes no depth. */
+  /** 0 (gone) to 1 (whole). The passes always blend (see the constructor) and write no depth. */
   setAlpha(a: number): void {
     const v = Math.min(1, Math.max(0, a));
     this.toon.uniforms.alpha!.value = v; this.ink.uniforms.alpha!.value = v;
-    const t = v < 0.999;
-    if (this.toon.transparent !== t) { this.toon.transparent = this.ink.transparent = t; this.toon.needsUpdate = this.ink.needsUpdate = true; }
     this.group.visible = v > 0.002;
   }
 }
