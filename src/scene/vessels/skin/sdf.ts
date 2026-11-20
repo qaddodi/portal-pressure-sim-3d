@@ -8,7 +8,7 @@ export const SKIN_K = 0.8;
 /** How far out from J an arm's capsule runs, in its own rest radii (spec 4.3). */
 export const ARM_REACH = 6;
 /** The capsule's axis is resampled to this many segments however densely the caller gave it (a tube's ring centres can be a hundred points): enough for a gentle bend, cheap to evaluate. */
-export const CAPSULE_SEGS = 8;
+export const CAPSULE_SEGS = 6;
 
 /** One arm's capsule: its axis polyline from J outward (`n` points, xyz packed) and the radius the tube really has at each point. */
 export interface Capsule { readonly n: number; readonly pts: Float64Array; readonly r: Float64Array }
@@ -18,27 +18,28 @@ export interface Capsule { readonly n: number; readonly pts: Float64Array; reado
  * - `coursePts` is the arm's axis in the vessel's own order (`coursesOf(def, state)[0].pts`, or better the tube's ring centres so the axis sits exactly on the built tube);
  *   it is reversed when the node is the vessel's end 1, so the capsule always runs from J outward.
  * - `len` is how far out it runs along the axis (default `ARM_REACH * restR`); a shorter axis is carried straight on past its last point.
- * - `radiusAt(d)` is the tube's radius at distance `d` along the axis from J (`radiusAtU` of the course, so tapers count); the default is the arm's rest radius.
+ * - `radiusAt(d)` is the tube's radius at distance `d` along the axis from J (`radiusAtU` of the course, so tapers count); the default is the arm's rest radius, and then the axis keeps its own bends only.
  * - `J`, when given and not already the first point, is put in front, so every capsule begins at the junction centre.
  */
-export function armCapsule(arm: SkinArm, coursePts: readonly Vec3[], len = ARM_REACH * arm.restR, radiusAt: (d: number) => number = () => arm.restR, J?: Vec3): Capsule {
+export function armCapsule(arm: SkinArm, coursePts: readonly Vec3[], len = ARM_REACH * arm.restR, radiusAt?: (d: number) => number, J?: Vec3): Capsule {
   const src: Vec3[] = arm.end === 1 ? [...coursePts].reverse() : [...coursePts];
   if (J && (!src.length || Math.hypot(src[0]![0] - J[0], src[0]![1] - J[1], src[0]![2] - J[2]) > 1e-9)) src.unshift(J);
   if (src.length < 2) throw new Error(`skin: arm ${arm.vesselId} needs an axis of at least two points`);
-  // cumulative arc length of the source axis
+  // cumulative arc length of the source axis; a shorter axis is carried straight on past its last point by extending the last segment
   const cum = [0];
   for (let i = 1; i < src.length; i++) cum.push(cum[i - 1]! + Math.hypot(src[i]![0] - src[i - 1]![0], src[i]![1] - src[i - 1]![1], src[i]![2] - src[i - 1]![2]));
-  const n = CAPSULE_SEGS + 1, pts = new Float64Array(3 * n), r = new Float64Array(n);
-  let seg = 0;
-  for (let i = 0; i < n; i++) {
-    const d = (len * i) / CAPSULE_SEGS;
+  const at = (d: number): Vec3 => {
+    let seg = 0;
     while (seg < src.length - 2 && cum[seg + 1]! < d) seg++;
-    const a = src[seg]!, b = src[seg + 1]!, sl = cum[seg + 1]! - cum[seg]!;
-    // past the end of the axis the last segment simply carries on (t > 1)
-    const t = sl > 0 ? (d - cum[seg]!) / sl : 0;
-    for (let c = 0; c < 3; c++) pts[3 * i + c] = a[c]! + (b[c]! - a[c]!) * t;
-    r[i] = radiusAt(d);
-  }
+    const a = src[seg]!, b = src[seg + 1]!, sl = cum[seg + 1]! - cum[seg]!, t = sl > 0 ? (d - cum[seg]!) / sl : 0;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  };
+  // where along the axis to put capsule points: with no radius profile the source's own bends (so a straight arm is one segment), with one an even spacing that follows the taper
+  let ds: number[];
+  if (radiusAt || src.length > CAPSULE_SEGS + 1) ds = Array.from({ length: CAPSULE_SEGS + 1 }, (_, i) => (len * i) / CAPSULE_SEGS);
+  else { ds = [0]; for (let i = 1; i < src.length - 1; i++) if (cum[i]! < len - 1e-9) ds.push(cum[i]!); ds.push(len); }
+  const n = ds.length, pts = new Float64Array(3 * n), r = new Float64Array(n);
+  ds.forEach((d, i) => { const p = at(d); pts[3 * i] = p[0]; pts[3 * i + 1] = p[1]; pts[3 * i + 2] = p[2]; r[i] = radiusAt ? radiusAt(d) : arm.restR; });
   return { n, pts, r };
 }
 

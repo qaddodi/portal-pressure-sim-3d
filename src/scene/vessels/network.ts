@@ -122,7 +122,7 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 /** The edges the figure draws as vessels (kinds the engine models but the anatomy never draws are left out: the catheter wedge beds, the one-way
  *  diode, the gut-side arterioles; surgical shunts and the stents belong to the procedures (B5)). */
 export function isDrawnEdge(e: Edge): boolean {
-  if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
+  if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD') return false;   // (V_UP, the brachiocephalic veins, IS drawn: it is the superior cava's own run up out of the figure, fading to nothing as 2D's FADE_DOWN_Y says; leaving it out ended the cava in a blunt cap at the azygos and gave the Circuit no stretch above the azygos)
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
   // (the arterioportal shunts are never drawn: Mohammad, 20 Nov, "remove the arterioportal fistulas completely no matter what"; the engine still has them, its numbers are unchanged)
   if (e.kind === 'shunt') return e.shunt !== 'ap' && SHUNT_IDS.has(e.id);
