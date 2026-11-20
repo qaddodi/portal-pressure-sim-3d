@@ -160,3 +160,10 @@ export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; 
   const f = Math.abs(v).toFixed(1);
   return (v < 0 && Number(f) !== 0 ? '−' : '') + f;
 }
+
+/** The canvas the lobule's names may use: the screen inside its safe areas and under the top bar, down to the foot of the room the lobule is framed in plus 8 px (2D lobule-zoom.js liveFreeInto: the room
+ *  ends 8 px over --bot-occ, the dock and the view pill; its labels keep to the free space, `fr`, which ends at --bot-occ). Nothing of a name stands over the dock. */
+export function lobuleLabelView(vp: { w: number; h: number; safe: { top: number; bottom: number; left: number; right: number } }, topBar: number, room: { y: number; h: number } | null): { x0: number; y0: number; x1: number; y1: number } {
+  const bottom = vp.h - vp.safe.bottom;
+  return { x0: vp.safe.left, y0: vp.safe.top + topBar, x1: vp.w - vp.safe.right, y1: room && room.h > 1 ? Math.min(bottom, room.y + room.h + 8) : bottom };
+}
