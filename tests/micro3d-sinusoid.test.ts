@@ -159,4 +159,10 @@ test('the ends\' arrows are never 3D objects in the scene: they are part of the 
   assert.equal(shown, false);
   const src = (await import('node:fs')).readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8');
   assert.match(src, /endArrow\(key\)/);
+  // 2D's own arrow (a shaft and a head, never a text glyph), outside the name: left of the portal venule and right of the central vein on a wide screen, above and below on a tall one
+  assert.doesNotMatch(src, /\\u2190|\\u2192/);
+  const css = (await import('node:fs')).readFileSync('src/scene/sinusoid/names.css', 'utf8');
+  for (const d of ['l', 'r', 'u', 'd']) assert.match(css, new RegExp(`\\.sv-end-arrow-${d} \\{`));
+  assert.match(css, /\.sv-end-arrow-l \{ right: calc\(100% \+ 12px\)/);
+  assert.match(css, /\.sv-end-arrow-d \{ top: calc\(100% \+ 13px\)/);
 });
