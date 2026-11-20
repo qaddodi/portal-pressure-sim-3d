@@ -28,6 +28,8 @@ const L = CEL_LIGHT_UNIT;
 export const MICRO_VS = /* glsl */ `
 uniform float inflate;
 varying vec3 vN;
+varying vec3 vVN;
+varying vec3 vVD;
 varying vec3 vC;
 varying float vHy;
 #if defined(STREAKS) || defined(FLOW)
@@ -72,7 +74,10 @@ void main() {
 #ifdef GAPS
   vG = position.xy;
 #endif
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(p + normal * inflate, 1.0);
+  vec4 mvR = modelViewMatrix * vec4(p + normal * inflate, 1.0);
+  vVN = normalize(normalMatrix * n);
+  vVD = projectionMatrix[2][3] == 0.0 ? vec3(0.0, 0.0, 1.0) : -mvR.xyz;
+  gl_Position = projectionMatrix * mvR;
 }`;
 
 export const MICRO_FS = /* glsl */ `
@@ -88,6 +93,14 @@ uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
+// the shape's own line, drawn in its fill (uRim CSS px wide, uMicroDpr the canvas's pixel ratio, ink uRimCol, 0: none): where the surface turns away from the eye, measured in screen pixels from the outline by the
+// rate the facing changes (a dome's facing falls as the square root of the distance to its rim, so half the facing over its screen rate is that distance). It lies inside the shape: it
+// can never fight a surface behind it or its own fill, so it is whole and smooth on every screen (the hull's line broke into dashes and specks, eyes 20 Nov).
+uniform float uRim;
+uniform float uMicroDpr;
+uniform vec3 uRimCol;
+varying vec3 vVN;
+varying vec3 vVD;
 varying vec3 vP;
 // the wedged column's wash (2D sinusoid-gl.js wedgeA): an amber column in the stream from the central vein's end (uWash.z) toward the portal venule's (uWash.y), as far as uWash.w of the way, soft at
 // its front; uWash.x its strength (0: none, as on every slide but one). The blood in it is still: its streaks die away.
@@ -229,6 +242,12 @@ void main() {
 #ifndef STREAKS
   c = mix(c, uWashCol, 0.85 * wz);
 #endif
+  if (uRim > 0.0) {
+    float nv = abs(dot(normalize(vVN), normalize(vVD)));
+    float dpx = 0.5 * nv / max(fwidth(nv), 1e-5);
+    float rp = uRim * uMicroDpr;
+    c = mix(c, uRimCol, 1.0 - smoothstep(rp - 0.6, rp + 0.6, dpx));
+  }
   c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);
 }`;
@@ -238,8 +257,8 @@ export const INK_BACK = 0.0015;
 /** No line thinner than this (CSS px): the canvas has no multisampling, and a hull band under about 1.5 device px breaks into dashes as it crosses the pixel grid (the dotted
  *  hepatocytes, the stippled nucleus rings, eyes 20 Nov). Every micro part's line is held to it, so no part can ask for a line too thin to draw. */
 export const MIN_LINE = 1.0;
-/** The line's polygon offset toward the eye (factor, units): it wins over any surface at its own depth, and stays behind every face toward the viewer (INK_BACK). */
-export const INK_OFFSET = [-0.5, -2] as const;
+/** The canvas's pixel ratio, for the lines drawn in the fill (uRim, device px). The scene writes it each frame; every micro part's rim width follows it. */
+export const MICRO_DPR = { value: 2 };
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
@@ -325,6 +344,8 @@ export interface MicroOptions {
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
   transparent?: boolean;
+  /** The shape's line drawn inside its fill, this many CSS px (the small solid shapes: red cells, nuclei, albumin, the cells of the lining); 0 or none: no such line. */
+  rim?: number;
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -347,7 +368,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uHole: { value: 0 }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
+      uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
@@ -361,10 +382,6 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
     uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
-    // (the line always wins where it meets a surface at one depth: its own shape's rim, the ground a tile stands on, the cell a nucleus sits on. A hair toward the eye, more where the
-    //  surface runs steep to the view (the rim), never enough to cross a face toward the viewer (those are INK_BACK behind). Where the two met at one depth they fought pixel by pixel:
-    //  the stippled red cells and nuclei, the dashed hepatocytes, eyes 20 Nov. One rule for every outline, in place of a per-shape fix.)
-    polygonOffset: true, polygonOffsetFactor: INK_OFFSET[0], polygonOffsetUnits: INK_OFFSET[1],
   });
   return { toon, ink };
 }
@@ -384,7 +401,7 @@ export class MicroPart {
     for (const m of [this.toonMesh, this.inkMesh]) if (m) { m.frustumCulled = false; this.group.add(m); }
   }
   setTint(rgb: RGB): void { rawRGB(this.mats.toon.uniforms.tint!.value as Color, rgb); }
-  setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); }
+  setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); rawRGB(this.mats.toon.uniforms.uRimCol!.value as Color, rgb); }
   /** A vessel's line: `rgb` (the look's casing) taken `own` of the way to a deep tone of the part's own colour, as the Anatomy's vessels are inked. */
   setVesselInk(rgb: RGB, own: number = CEL_STYLE.TUBE.INK_OWN): void { if (!this.mats.ink) return; this.setInk(rgb); this.mats.ink.uniforms.uOwn!.value = own; }
   /** Not drawn within r (local units) of the part's origin, its ink neither; 0: drawn whole. */
@@ -443,7 +460,7 @@ export class MicroMany {
     this.group.visible = c > 0;
   }
   setTint(rgb: RGB): void { rawRGB(this.mats.toon.uniforms.tint!.value as Color, rgb); }
-  setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); }
+  setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); rawRGB(this.mats.toon.uniforms.uRimCol!.value as Color, rgb); }
   set renderOrder(o: number) { this.toon.renderOrder = o; if (this.ink) this.ink.renderOrder = o; }
   dispose(): void { this.geometry.dispose(); this.mats.toon.dispose(); this.mats.ink?.dispose(); this.toon.dispose(); this.ink?.dispose(); }
 }

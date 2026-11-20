@@ -120,7 +120,8 @@ test('the lobule\'s vessels are inked as the Anatomy\'s (a deep tone of their ow
   const inks: { name: string; own: number }[] = [];
   l3.group.traverse((o) => { const u = ((o as unknown as { material?: { uniforms?: Record<string, { value: unknown }> } }).material)?.uniforms; if (o.name.endsWith('/ink') && u?.uOwn) inks.push({ name: o.name, own: u.uOwn.value as number }); });
   for (const n of ['sinusoids-0', 'inlets', 'portal-venules', 'central-vein', 'canaliculi']) assert.ok(inks.find((i) => i.name.endsWith(`${n}/ink`))!.own > 0.5, n);
-  assert.equal(inks.find((i) => i.name.endsWith('hepatocytes/ink'))!.own, 0);
+  const tiles = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/hepatocytes')!;
+  assert.ok(!tiles.inkMesh && (tiles.mats.toon.uniforms.uRim!.value as number) > 0, 'the tiles\' line is drawn in their fill');
 });
 
 test('the plate reaches past every portal tract\'s whole scar (it was cut off at the hexagon)', () => {
