@@ -38,6 +38,9 @@ export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opaci
 
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
 const SHAFT_RADIAL = 10, BALLOON_N = 40, BALLOON_RADIAL = 16;
+/** The thinnest the shaft is drawn (scene units: about 3 CSS px across at the phone's framing of the cava, Mohammad 20 Nov: "can't see the catheter"), and the share of the vein it never passes. */
+export const SHAFT_MIN_R = 0.0065, SHAFT_MAX_OF_LUMEN = 0.5;
+export const shaftRadius = (rc: number, lumen: number): number => Math.min(Math.max(rc, SHAFT_MIN_R), SHAFT_MAX_OF_LUMEN * lumen);
 
 export class ProcCatheter {
   readonly group = new Group();
@@ -68,7 +71,7 @@ export class ProcCatheter {
     // the shaft (a polymer tube with its dark hairline), revealed along its length up to the tip
     const rings = makeRings(nS);
     const fill = (rs: typeof rings, radius: (i: number, d: number) => number): void => { rs.forEach((q, i) => { const d = (r.total * i) / (nS - 1); r3.point(d, q.c); r3.dir(d, q.t); q.r = radius(i, d); }); };
-    fill(rings, () => rc);
+    fill(rings, (_i, d) => shaftRadius(rc, r3.lumen(d)));   // (never thinner than SHAFT_MIN_R: a hairline vanished on a phone)
     const sg = allocTube(nS, SHAFT_RADIAL); writeRings(sg, rings, SHAFT_RADIAL);
     // the column of wedged blood or sclerosant lies under everything, as wide as the vein it fills
     const cr = makeRings(nS); fill(cr, (_i, d) => r3.lumen(d) * 0.94);
