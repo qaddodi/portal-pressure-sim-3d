@@ -84,19 +84,31 @@ const FIELDS: Record<string, { f: Field; /** mesh bump scale (a finer nodule tha
   } },
 };
 
-/** Variations of C (Mohammad 20 Nov: "micronodular but without so many variation in colour"): the same small dense nodules with the nodule-to-nodule tone almost gone. */
-function micro(size: number, sepMax: number, sepA: number, dome: number, crev: number, seed: number): Field {
+/** A round nodule at (x, y): the nearest disc of a lightly jittered grid, every disc its own radius (rLo..rHi of a cell). `edge` is units inside the nodule's rim (negative in the gap between discs, which the septum fills), `r` its radius in units. */
+function disc(x: number, y: number, s: number, rLo: number, rHi: number, jit: number, seed: number): Cell & { r: number } {
+  const gx = x / s, gy = y / s, ix = Math.floor(gx), iy = Math.floor(gy);
+  let best = -9, second = -9, id = 0, bx = 0, by = 0, br = 1;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const cx = ix + i + 0.5 + (hash(ix + i, iy + j, seed) - 0.5) * 2 * jit, cy = iy + j + 0.5 + (hash(ix + i, iy + j, seed + 1) - 0.5) * 2 * jit;
+    const r = rLo + (rHi - rLo) * hash(ix + i, iy + j, seed + 2), dx = gx - cx, dy = gy - cy, e = r - Math.hypot(dx, dy);
+    if (e > best) { second = best; best = e; id = hash(ix + i, iy + j, seed + 3); bx = dx; by = dy; br = r; } else if (e > second) second = e;
+  }
+  // where two discs overlap the wall lies between them (best == second); in a gap no disc holds the point (best < 0)
+  return { edge: Math.min(best, (best - second) * 0.5) * s, id, dx: bx, dy: by, r: br * s };
+}
+/** Micronodular, rounded (Mohammad 20 Nov: "micronodules more uniform in shape but different sizes", and "without so many variation in colour"): round nodules of mixed size, the tone spread nearly gone. */
+function micro(size: number, rLo: number, rHi: number, jit: number, sepW: number, sepA: number, domeFrac: number, crev: number, seed: number): Field {
   return (x, y) => {
-    const c = cell(x, y, size, 0.42, 0.18, 3, seed);
-    return { sep: sepA * (1 - sstep(sepMax * 0.3, sepMax, c.edge)), dome: round(c.edge, dome), tone: c.id, light: lit(c, dome, crev) };
+    const c = disc(x, y, size, rLo, rHi, jit, seed), w = Math.max(2, c.r * domeFrac);
+    return { sep: sepA * (1 - sstep(-0.1, sepW, c.edge)), dome: c.edge <= 0 ? 0 : round(c.edge, w), tone: c.id, light: lit(c, w, crev) };
   };
 }
-// c1: C with the tone spread cut to a sixth and the shade a little calmer. c2: even calmer and a touch larger, finer septa. c3: flat: almost no dome shade, only the septum draws the nodules.
-// c4: no tone at all, but the modelled dome kept, so the nodules read by light alone.
-FIELDS.c1 = { bump: 0.28, shade: 0.3, tone: 0.1, f: micro(10.5, 1.1, 1, 3, 0.55, 41) };
-FIELDS.c2 = { bump: 0.28, shade: 0.26, tone: 0.04, f: micro(12, 0.95, 0.85, 3.4, 0.5, 43) };
-FIELDS.c3 = { bump: 0.2, shade: 0.14, tone: 0.05, f: micro(9, 1.0, 0.8, 3, 0.35, 45) };
-FIELDS.c4 = { bump: 0.35, shade: 0.4, tone: 0, f: micro(11.5, 1.1, 0.9, 3.6, 0.7, 47) };
+// c1: round nodules, sizes 0.5 to 0.72 of a cell (they overlap, the wall lies between), tone spread a tenth. c2: a wider spread of sizes (small ones beside big ones), colour even. c3: small and flat: only the septum draws them.
+// c4: no tone, the modelled dome carries them.
+FIELDS.c1 = { bump: 0.28, shade: 0.3, tone: 0.1, f: micro(11, 0.36, 0.74, 0.26, 1.0, 1, 0.7, 0.55, 41) };
+FIELDS.c2 = { bump: 0.28, shade: 0.26, tone: 0.04, f: micro(13, 0.34, 0.78, 0.26, 0.9, 0.85, 0.7, 0.5, 43) };
+FIELDS.c3 = { bump: 0.2, shade: 0.14, tone: 0.05, f: micro(9.5, 0.36, 0.72, 0.26, 0.9, 0.8, 0.7, 0.35, 45) };
+FIELDS.c4 = { bump: 0.35, shade: 0.4, tone: 0, f: micro(12, 0.38, 0.76, 0.26, 1.0, 0.9, 0.75, 0.7, 47) };
 
 /** The surface of look `k` at (x, y) in 2D units. */
 export const surfaceAt = (k: LiverLook, x: number, y: number): Surface => FIELDS[k].f(x, y);
