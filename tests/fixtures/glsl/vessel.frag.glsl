@@ -566,11 +566,13 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
 // One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
 // to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.
+float chevCentreArc = 0.0;   // the arc (figure units) of the centre of the head the last chevOne call looked at: a skin hands a whole head to the one arm that owns its centre
 vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv, vec2 ends, float R, float across, float wpc, float Pt, float px) {
   float lv = max(-10.0, log2(Pt * max(abs(Bm), 0.05) / 28.0));
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
+  chevCentreArc = sc;
   float kp = chevKeep(j, n0, lv);
   float hw = chevHw(R, wpc) * chevSize(kp), L = 2.8 * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
@@ -653,11 +655,13 @@ vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float w
   float Pt = 130.0 * wpc;
   vec4 c4 = texelFetch(chainTex, ivec2(int(lensI), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
   vec2 ch = vec2(0.0);
-  if (c4.w < 1.0) ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px);
+  float scOwn = s;
+  if (c4.w < 1.0) { ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px); scOwn = chevCentreArc; }
   if (c4.w > 0.0) {
     float rootD = texelFetch(streamTex, ivec2(int(c4.x + 0.5) - 1, 0), 0).x;
     vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
     ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
+    chevCentreArc = c4.w >= 1.0 ? chevCentreArc : mix(scOwn, chevCentreArc, c4.w);
   }
   // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
   float fade = endK * flowAmt * smoothstep(1.5 * wpc, 2.1 * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));
