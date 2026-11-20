@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { BURY, SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
 import { useSettings } from '../src/state/settings.ts';
+import { HEPATIC_VEINS, ivcJoinSpan } from '../src/scene/vessels/fades.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
@@ -65,12 +66,12 @@ test('where vessels that do not connect cross on the screen, their centrelines a
   void named;
 });
 
-test('the ink is held back ONLY inside a declared branch\'s trunk: over the real network, a run-on end, a free end, a crossing and the renal vein\'s end on the cava keep their whole outline; only a branch\'s end (attach) is buried, and only the length of its trunk', () => {
+test('the ink is held back ONLY inside a declared branch\'s trunk: over the real network, a run-on end, a free end and a crossing keep their whole outline; only a branch\'s end (attach), and a hepatic or renal vein\'s end inside the cava, is buried, and only the length of its trunk', () => {
   const was = useSettings.getState().smoothJoins;
   useSettings.getState().set('smoothJoins', true);
   const s = new CelScene();
-  const unburied = ['SMV_CONF', 'PV_TRUNK', 'PV_TRUNK_1', 'PVH_R', 'SV_MID', 'V_INT_1', 'V_KID_L', 'V_KID_L_1', 'LRV_IVC', 'IVC_IS', 'IVC_IS_1'];
-  for (const id of unburied) assert.deepEqual((s.vesselObject(id)!.toon.uniforms.bury!.value as import('three').Vector2).toArray(), [0, 0], `${id}: whole outline (a run-on, a crossing or an end on the cava)`);
+  const unburied = ['SMV_CONF', 'PV_TRUNK', 'PV_TRUNK_1', 'PVH_R', 'SV_MID', 'V_INT_1', 'V_KID_L', 'V_KID_L_1', 'IVC_IS', 'IVC_IS_1'];
+  for (const id of unburied) assert.deepEqual((s.vesselObject(id)!.toon.uniforms.bury!.value as import('three').Vector2).toArray(), [0, 0], `${id}: whole outline (a run-on or a crossing)`);
   let buried = 0;
   for (const v of NETWORK) {
     const sj = SMOOTH.get(v.id), o = s.vesselObject(v.id);
@@ -78,6 +79,10 @@ test('the ink is held back ONLY inside a declared branch\'s trunk: over the real
     const got = (o.toon.uniforms.bury!.value as import('three').Vector2).toArray();
     for (const e of [0, 1] as const) {
       const want = sj?.attach[e] ? BURY * (sj.hostR[e] ?? v.radius) : 0;
+      // (one rule for every junction: a vein that opens into the cava holds its ink back inside it, as far as the cava is wide)
+      // (and a liver branch\'s join end, buried in the vein it leaves)
+      if (v.plan?.kind === 'feeder' && v.plan.list[0]?.join === e) { assert.ok(got[e]! > 0, `${v.id}: buried in its vein`); continue; }
+      if (e === 1 && (HEPATIC_VEINS.has(v.id) || ivcJoinSpan(v.id) > 0)) { assert.ok(got[1]! > 0, `${v.id}: buried in the cava`); continue; }
       assert.ok(Math.abs(got[e]! - want) < 1e-9, `${v.id} end ${e}: buried ${got[e]} (declared ${want})`);
       if (want > 0) { buried++; assert.ok(want <= BURY * 1.0001 * Math.max(...(sj!.attach[e] ?? []).map((id) => NETWORK.find((x) => x.id === id)!.radius), v.radius), 'no longer than its trunk'); }
       // a run-on end (a mate) is never buried unless it is also a declared branch end

@@ -353,3 +353,18 @@ test('the centreline is the 2D course with smooth joins on too: snapping only mo
   }
   assert.ok(moved >= 5, `${moved} vessels have an end fitted`);
 });
+
+test('one outline rule at every junction: a vein that opens into the cava, and a liver branch that leaves a vein, hold their ink back where they lie inside the other vessel\'s lumen', () => {
+  const was = useSettings.getState().smoothJoins;
+  try {
+    useSettings.getState().set('smoothJoins', true);
+    const s = new CelScene();
+    const bury = (id: string) => (s.vesselObject(id) as unknown as { toon: { uniforms: { bury: { value: { x: number; y: number } } } } }).toon.uniforms.bury.value;
+    assert.ok(bury('RHV_IVC').y > 0, 'a hepatic vein\'s end is held back inside the cava');
+    assert.ok(bury('LRV_IVC').y > 0, 'so is a renal vein\'s');
+    assert.ok(bury('PVH_R_2~F:b').x > 0, 'a portal branch\'s start is held back inside the vein it leaves');
+    assert.ok(bury('RHV_IVC_1~F:b').y > 0, 'a hepatic vein\'s side branch holds back its end (the flow end, at the vein)');
+    assert.equal(bury('PVH_R_2').x, 0, 'a vein\'s own free end keeps its whole outline');
+    s.dispose();
+  } finally { useSettings.getState().set('smoothJoins', was); setSmoothJoins(false); }
+});

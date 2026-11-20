@@ -8,11 +8,13 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
+/** How far into a vein's last stretch the ink is held back where it opens into the cava: past the cava's wall, to its middle (in the cava's radii). */
+const CAVA_BURY = 1.3;
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
-import { fadeOf } from './vessels/fades.ts';
+import { fadeOf, HEPATIC_VEINS } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -277,7 +279,14 @@ export class CelScene {
       if (!o) continue;
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
-      o.setBury(...([0, 1] as const).map((e) => (on && sj?.attach[e] ? BURY * (sj.hostR[e] ?? def.radius) : 0)) as [number, number]);   // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there)
+      // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.
+      //  Besides the declared branches: a hepatic vein's last stretch inside the cava, and a liver branch's first stretch inside the vein it leaves, as far as that vein is wide)
+      const bury: [number, number] = [0, 0];
+      for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
+      if (on && (this.ivcJoins.includes(o) || HEPATIC_VEINS.has(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
+      const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
+      if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
+      o.setBury(bury[0], bury[1]);
       o.setSmoothColour(on);
     }
   }
