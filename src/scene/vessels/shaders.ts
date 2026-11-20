@@ -434,7 +434,10 @@ void main() {
   if (cavA < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
-  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrK), fwidth(sT) * (1.0 - nbrK), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
+  float nbrT = nbrK;
+  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
+  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwidth(sT) * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
   // THE STREAKS (blood/streak-glsl.ts, the one streak) are part of the tube: painted here, in its own fragment shader, so they are inside the lumen (the field draws nothing past FIELD_EDGE of its half width,
   // never touching the ink) and follow the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
