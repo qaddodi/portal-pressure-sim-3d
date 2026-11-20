@@ -27,7 +27,7 @@
 /* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour. The glass (frosted blur) is the block at the end of this file. */
 .dk-card {
   position: relative; box-sizing: border-box; overflow: hidden; pointer-events: auto;
-  touch-action: pan-x pan-y;
+  touch-action: pan-y;   /* (sideways is the finger's, the card follows it: useCardDrag) */
 }
 /* The card's surface, type and colours are the 2D app's own rules, lifted unchanged (src/ui/css2d: .pz-shade, .pz-text, .pz-data, .pz-bar). Those rules also place the cards on
    their screen; here the planner has placed them (.dk-pos), so the place-taking properties are taken back, at a specificity above the 2D selectors that set them. */
@@ -52,12 +52,9 @@
 .dk-plate { position: absolute; left: 0; top: 0; width: 100%; border-radius: var(--r); transform-origin: 50% 0; pointer-events: none;
   box-shadow: var(--glass-shadow, 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6))); }
 .dk-plate[data-phase="wait"] { opacity: 0; visibility: hidden; }
-.dk-plate[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
-.dk-plate[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; }
 /* a card is invisible until its words are laid out and its fonts are in (nothing shows before it is whole), then it rises in */
 .dk-card[data-phase="wait"] { opacity: 0; visibility: hidden; }
-.dk-card[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
-.dk-card[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+.dk-card[data-phase="out"] { pointer-events: none; }   /* (in and out are the rail's: rail.ts writes the card's transform and opacity on the one clock) */
 @keyframes dk-in { from { opacity: 0; transform: translateY(var(--rise)); } to { opacity: 1; transform: none; } }
 @keyframes dk-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(var(--drop)); } }
 .dk-in { padding: var(--pad-y) var(--pad-x); }

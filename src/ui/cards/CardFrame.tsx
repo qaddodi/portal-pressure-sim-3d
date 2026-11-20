@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEventHandler } from 'react';
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
-import { EXIT_MS } from './stack.ts';
+import { rail, outDistance, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
@@ -23,10 +23,16 @@ interface Props {
   onTap?(): void;
   /** a visual panel's 2D visual (table, plane, walls…) */
   visual?: string;
+  /** the whole group of cards on this slide is measured and its fonts are in: a card comes in only then, so the cards arrive together and at their final size */
+  go?: boolean;
+  /** the card is the data card (it comes in 40 ms behind the words and travels a little less far: 2D's stagger, plus a slight parallax) */
+  data?: boolean;
+  /** the first cards of a talk fade in where they stand; every later one slides in */
+  fresh?: boolean;
 }
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const cardRef = useRef<HTMLDivElement>(null);
@@ -96,14 +102,32 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // the new height is in place: let go of the glide (cancelled here, after the commit, so no frame shows the full old card)
   useLayoutEffect(() => { if (animH == null && anims.current.length) { anims.current.forEach((a) => a.cancel()); anims.current = []; } }, [animH]);
 
-  // a leaving card is removed when its exit has played (the timer is the net if the animation never reports)
+  // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
+  // once let in it stays in, whatever the group does after
+  const firstFade = useRef(fresh);   // (the card's own: the cards of a talk's first slide fade in; it is read when the card comes in, not when the talk has moved on)
+  const gate = useRef(false);
+  if (go && ready) gate.current = true;
+  const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
+
+  // The rail (rail.ts, 2D's card throw): in from the side the talk comes from, out the way it goes, on the one clock; no CSS animation
+  const dir: Dir = useUi((s) => s.dir);
+  const par = data ? PARALLAX.data : PARALLAX.words;
+  const vw = vp.w, cardW = rect.w;
+  useLayoutEffect(() => {
+    const card = cardRef.current, plate = plateRef.current;
+    if (!card || !plate) return;
+    const els = [card, plate], reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (phase === 'in') rail.enter(els, { dir, delay: data ? STAGGER : 0, par, fade: firstFade.current, reduce, done: () => setLive(true) });
+    else if (phase === 'out') rail.leave(els, { dir, dist: outDistance(cardW, vw), par, reduce, done: () => onGone(entry.key) });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+  useLayoutEffect(() => () => { const card = cardRef.current, plate = plateRef.current; if (card && plate) rail.forget([card, plate]); }, []);
+  // (the net, if the clock never reports a landing)
   useEffect(() => {
     if (!out) return;
-    const t = setTimeout(() => onGone(entry.key), EXIT_MS + 120);
+    const t = setTimeout(() => onGone(entry.key), RAIL_MS + 300);
     return () => clearTimeout(t);
   }, [out, entry.key, onGone]);
-
-  const phase = out ? 'out' : ready ? 'in' : 'wait';
   // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
   const lay = layoutOf(vp.w, vp.h), stackCls = lay === 'stack' ? ' stack' : lay === 'tab' ? ' stack tab' : '';
   // the outline, the quick check and a case stand alone in the middle on 2D's own surfaces (`.pz-panel`, `.pz-case.on`); every other card is glass
@@ -113,8 +137,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)` }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
-        role="group" aria-label={label} onClick={onTap} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}
-        onAnimationEnd={(e) => { if (e.target !== e.currentTarget) return; if (out) onGone(entry.key); else if (e.animationName === 'dk-in') setLive(true); }}>
+        role="group" aria-label={label} onClick={onTap} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away */}
         {entry.id === 'ladder' && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}

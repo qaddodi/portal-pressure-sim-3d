@@ -6,6 +6,8 @@ import { useLapse, lapseText } from '../../decks/hp/lapse.ts';
 import { pickCompare, dragWhatIf, whatIfStart, pickScale, dragToolOption, toolOptionStart, strainHold } from '../talk/controls-run.ts';
 import { useVariant } from '../talk/variant-words.ts';
 
+/** 2D shows no scale pill (Anatomy, Lobule, Sinusoid) in a talk; kept off here the same. */
+export const SCALE_PILL = false;
 const SCALE_LABEL = { anatomy: 'Anatomy', lobule: 'Lobule', sinusoid: 'Sinusoid' } as const;
 
 export function SlideControls({ slide, deck }: { slide: Slide; deck: Deck }) {
@@ -14,7 +16,8 @@ export function SlideControls({ slide, deck }: { slide: Slide; deck: Deck }) {
   if (!c || i < 0) return null;
   return (
     <>
-      {c.scales && <ScalePill slide={slide} deck={deck} i={i} />}
+      {/* 2D draws no scale pill on any slide (presenter-scales.js `scalesOf = () => []`; Mohammad, 12 Nov: "Remove the pill anyways"): a slide that wants the lobule or the sinusoid dives into it with its own camera */}
+      {SCALE_PILL && c.scales && <ScalePill slide={slide} deck={deck} i={i} />}
       {c.compare && <Compare slide={slide} deck={deck} i={i} />}
       {c.whatIf && <WhatIf slide={slide} deck={deck} i={i} />}
       {c.strain && <Strain label={c.strain.label} slideKey={slide.id} />}
