@@ -4,6 +4,7 @@ import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
+import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
@@ -414,6 +415,13 @@ export class CelScene {
       if (!o) continue;
       const [cut, tie, k] = stumpOf(shunt, vein, this.presence.amountOf(shunt), vein === PV_START && side);
       if (o.setStump(cut, tie, k)) this.moving = true;
+    }
+    // the stitch rings at a surgical shunt's sewn ends: where the shunt is drawn at all (they ease with its drawing on, as the tube does)
+    for (const id of SEWN_IDS) {
+      const o = this.byEdge.get(id) as VesselObject | undefined;
+      if (!o) continue;
+      const [a, b] = seamsFor(id, side);
+      if (o.setSeam(a, b)) this.moving = true;
     }
   }
 
