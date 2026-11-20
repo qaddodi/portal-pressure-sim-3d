@@ -77,10 +77,14 @@ export const placeOf = (p: Pick<NamePlacement, 'cx' | 'cy' | 'w' | 'hh'>): { x: 
 
 /** 2D's side margin of the room the names stand in (sinusoid-view.js freeRect: l = 12, r = W - 12) and the breathing room under the top bar (its `+ 8`). */
 export const NAMES_SIDE = 12, NAMES_TOP = 8;
+/** Air between the names and the foot note over them (px). */
+export const FOOT_GAP = 6;
 /** The room the names keep to: the figure's own room (the one the camera frames the sinusoid in: the screen less the top bar and the foot, or what the cards leave in a talk), kept 12 px in from its sides
  *  and 8 under its top, as 2D's freeRect keeps it. It is NOT `boxes.free` (the cards' plan): in free play that is never published, stays empty, and put every name against the left edge. */
-export function namesFree(room: { x: number; y: number; w: number; h: number } | null | undefined, stage: { w: number; h: number }): Rect {
+export function namesFree(room: { x: number; y: number; w: number; h: number } | null | undefined, stage: { w: number; h: number }, note?: { y0: number } | null): Rect {
   const r = room && room.w > 1 && room.h > 1 ? room : { x: 0, y: 0, w: stage.w, h: stage.h };
   const l = r.x + NAMES_SIDE, t = r.y + NAMES_TOP, rr = r.x + r.w - NAMES_SIDE, b = r.y + r.h;
-  return { l: Math.round(l), t: Math.round(t), r: Math.round(Math.max(l + 80, rr)), b: Math.round(Math.max(t + 80, b)) };
+  // the foot note, while it shows, is a floor the names keep over (2D stands a note over the dock; a name under it cannot be read)
+  const floor = note ? Math.min(b, note.y0 - FOOT_GAP) : b;
+  return { l: Math.round(l), t: Math.round(t), r: Math.round(Math.max(l + 80, rr)), b: Math.round(Math.max(t + 80, floor)) };
 }
