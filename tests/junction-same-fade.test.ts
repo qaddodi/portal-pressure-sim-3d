@@ -83,3 +83,31 @@ test('where a vein meets the cava follows the cava\'s drawn width: a wider cava 
     assert.ok(w3 < w1 && w1 <= w05, `${id}: ${w3} < ${w1} <= ${w05}`);
   }
 });
+
+test('no vein end renders open: on every vessel that opens into the cava, no point of its surface that the shader keeps lies inside the cava\'s lumen (every triangle sampled, against the true distance to the cava\'s course)', async () => {
+  const { neighbourAttr } = await import('../src/scene/vessels/neighbour.ts');
+  const s = new CelScene();
+  try {
+    let n = 0;
+    for (const v of NETWORK) {
+      if (!opensIntoCava(v.id)) continue;
+      n++;
+      const g = s.vesselObject(v.id)!.toonMesh.geometry, pos = g.getAttribute('position'), nbr = g.getAttribute('nbr'), idx = g.index!;
+      let kept = 0, inside = 0, worst = 0;
+      for (let t = 0; t < idx.count; t += 3) {
+        const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+        for (const [wa, wb, wc] of [[1 / 3, 1 / 3, 1 / 3], [0.6, 0.2, 0.2], [0.2, 0.6, 0.2], [0.2, 0.2, 0.6]] as const) {
+          const x = wa * pos.getX(a) + wb * pos.getX(b) + wc * pos.getX(c), y = wa * pos.getY(a) + wb * pos.getY(b) + wc * pos.getY(c);
+          const d = Math.abs(wa * nbr.getX(a) + wb * nbr.getX(b) + wc * nbr.getX(c)), R = wa * nbr.getY(a) + wb * nbr.getY(b) + wc * nbr.getY(c);
+          const truth = Math.abs(neighbourAttr(v.id, new Float32Array([x, y, 0]))![0]!);
+          worst = Math.max(worst, Math.abs(d - truth));
+          if (d >= R) { kept++; if (truth < R - 1e-4) inside++; }
+        }
+      }
+      assert.ok(kept > 100, `${v.id} keeps its body outside the lumen`);
+      assert.equal(inside, 0, `${v.id}: nothing it keeps lies inside the lumen`);
+      assert.ok(worst < 5e-4, `${v.id}: the interpolated distance is the true one (${worst})`);
+    }
+    assert.ok(n >= 4);
+  } finally { s.dispose(); }
+});

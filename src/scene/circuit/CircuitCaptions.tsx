@@ -26,7 +26,7 @@ import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } 
 import { courseOf } from './paths.ts';
 import { halfWidthPx } from './cap-width.ts';
 import { readUiWalls } from './ui-walls.ts';
-import { resText } from './res-model.ts';
+import { resSig, resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 
@@ -203,6 +203,11 @@ export function CircuitCaptions() {
       const f = latest.frame;
       for (const [id, p] of placed) {
         const m = metas.get(id);
+        if (m?.kind === 'res') {   // (a resistor's ratio eases: its reading is written in place, the layout signature holds only its width, resSig)
+          const e = els.get(id), v = resText(cel.resistorsNow[m.res!] ?? 1);
+          if (e?.val && e.valText !== v) { e.valText = v; e.val.textContent = v; }
+          continue;
+        }
         if (!m || m.kind !== 'station') continue;
         const e = els.get(id);
         if (!e?.val) continue;
@@ -217,7 +222,7 @@ export function CircuitCaptions() {
       const { vp, boxes } = useUi.getState();
       const res = cel.resistorsNow;
       return [vp.w, vp.h, cel.circuit.upright, [...cel.stationsOf.keys()].filter((id) => cel.stationOn(id)).join(','), Object.keys(CIRCUIT_LABELS).length,
-        COURSES.size, Object.entries(res).map(([k, v]) => `${k}${Math.round((v ?? 0) * 10)}`).join(','), cel.resistors.widthNow('rLiver'), cel.resistors.widthNow('rColl'), cel.resistors.widthNow('rGut'),
+        COURSES.size, resSig(res), Math.round(cel.resistors.widthNow('rLiver')), Math.round(cel.resistors.widthNow('rColl')), Math.round(cel.resistors.widthNow('rGut')),
         useShell.getState().figure.labelLevel, [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
         [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
     };

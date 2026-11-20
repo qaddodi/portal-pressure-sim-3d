@@ -41,8 +41,8 @@ test('C: ringDistance is 0 on the rim, rises inward to the cap, and the liver ha
   }
 });
 
-test('the soft cirrhosis looks (cel8..cel11): defined, cel7 still the default, bands eased and dome wall rounded', async () => {
-  assert.equal(DEFAULT_CEL, 'cel7');
+test('the soft cirrhosis looks (cel8..cel11): defined, cel12 the default, bands eased and dome wall rounded', async () => {
+  assert.equal(DEFAULT_CEL, 'cel12', 'the subtle look is the standing cirrhotic liver');
   for (const k of ['cel8', 'cel9', 'cel10', 'cel11']) assert.ok(CELS[k]!.soft! > 0 && CELS[k]!.raw! <= 0.6, `${k} is soft`);
   assert.equal(CELS.cel7!.soft, undefined);
   // sample each look through the real surface function (the page's address picks it: flags.ts)

@@ -22,7 +22,7 @@ import { SINUSOID_L } from '../lobule/shots.ts';
 import { type NameKey, type NamePlacement } from './names.ts';
 import { SV_NOTE } from './names.ts';
 import { useFootNote } from '../../ui/shell/foot-note.ts';
-import { buildSinusoidNames, namesFree, namesOn, placeOf } from './captions.ts';
+import { buildSinusoidNames, namesFree, namesOn, placeOf, readingOf, readingsSig } from './captions.ts';
 import { type RNode, dotCss, regionClass, regionTree, treeKey } from './region.ts';
 import { U } from './view.ts';
 import { framePoint } from './portrait.ts';
@@ -145,6 +145,18 @@ export function SinusoidCaptions() {
       }
     };
 
+    /** The readings as the model has them now, written in place into the names that stand (no solve, no jump): the numbers move with the pulse and the treatments, the places do not. */
+    const refreshReadings = () => {
+      const m = cel.lobule.inkContext()?.model, cm = m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null;
+      for (const p of placed) {
+        const v = readingOf(p.key, cm, cel.sinus.porosity, cel.sinus.isPortrait);
+        if (v === null || v === p.value || !p.value) continue;
+        p.value = v;
+        const e = els.get(p.key);
+        if (e) fill(e, p.name, v, p.key, useSinusoidNames.getState().explain);
+      }
+    };
+
     const tick = () => {
       const now = performance.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
@@ -159,8 +171,8 @@ export function SinusoidCaptions() {
         const m = cel.lobule.inkContext()?.model;
         const fr = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
         const s = [vp.w, vp.h, refs, cel.sinus.isPortrait, useShell.getState().figure.labelLevel, [fr.l, fr.t, fr.r, fr.b].join(','), lookRef.current, st.explain, [...st.lit].join(' '),
-          Math.round(cel.sinus.porosity * 100), m ? [m.P1, m.P2, m.P3].map((x) => x.toFixed(1)).join(',') + Math.round(m.lymph * 100) + Math.round(m.lyProt * 100) : '-'].join('|');
-        if (s !== sig) { sig = s; solveNow(); }
+          Math.round(cel.sinus.porosity * 100), readingsSig(m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null)].join('|');
+        if (s !== sig) { sig = s; solveNow(); } else refreshReadings();
       }
       const to = still ? 1 : 0, wasAlpha = alpha;
       if (alpha !== to) alpha = Math.abs(to - alpha) <= dt / FADE_MS ? to : alpha + Math.sign(to - alpha) * (dt / FADE_MS);
