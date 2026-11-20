@@ -22,7 +22,10 @@ export const STREAK = {
   FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [90, 60], FIELD_LEN: [40, 40], FIELD_THICK: 0.18, FIELD_GAP: 0.12,
   /** SLEEK (Mohammad, 20 Nov: "those streaks are horrendous... more sleek", "much thinner, variable in colour, not too white"): a streak is a LONG soft lozenge, FIELD_LEN_R tube radii on average (the field's units are 5 to the radius, so 40 to 80 units are 8 to 16 radii), with a period of 150 to 250 units so
    *  a lane is mostly empty (at least 3 x a streak's length on a thin tube); its core is CORE_PX CSS px thick (CORE_WIDE_PX on a wide tube), its edge feathered EDGE_FEATHER_PX px. */
-  FIELD_LEN_R: 12, CORE_PX: 1.3, CORE_WIDE_PX: 1.6, EDGE_FEATHER_PX: 0.6,
+  FIELD_LEN_R: 12, CORE_PX: 1, CORE_WIDE_PX: 1, EDGE_FEATHER_PX: 0.6,
+  /** THIN AT EVERY ZOOM (Mohammad, 20 Nov: "the streaks are insanely thick when zoomed out"): the core is in screen px (never a share of the radius), whatever each streak's jitter makes of it, never over CORE_MAX_PX; and the streak's LENGTH is held in screen px too:
+   *  the pattern scales with the tube's radius only between LEN_R_PX[0] and LEN_R_PX[1] CSS px of radius (a streak is then 8 to 16 radii long), under it the length stays at 8 x LEN_R_PX[0] = 24 px or more, over it at 16 x LEN_R_PX[1] = 96 px at most. */
+  CORE_MAX_PX: 1.1, LEN_R_PX: [3, 6],
   /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
   FEATHER: 0.35,
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
@@ -83,8 +86,12 @@ export const streakWide = (rCss: number): number => sstep(STREAK.WIDE_R_PX[0], S
 export const lanesForPx = (rCss: number): number => (rCss < STREAK.MIN_R_PX ? 0 : rCss < STREAK.LANE_R_PX[0] ? 1 : rCss < STREAK.LANE_R_PX[1] ? 3 : 5);
 /** The core width in CSS px of the thinnest (`thin`) or thickest streak in a lumen of radius `rCss` CSS px (the twin of the field's hw): CORE_PX to CORE_WIDE_PX by the tube's width, x (1 -+ THICK_JITTER / 2). */
 export function streakCorePx(rCss: number, _lanes = 0, thin = true): number {
-  return (STREAK.CORE_PX + (STREAK.CORE_WIDE_PX - STREAK.CORE_PX) * streakWide(rCss)) * (1 + (thin ? -0.5 : 0.5) * STREAK.THICK_JITTER);
+  return Math.min(STREAK.CORE_MAX_PX, (STREAK.CORE_PX + (STREAK.CORE_WIDE_PX - STREAK.CORE_PX) * streakWide(rCss)) * (1 + (thin ? -0.5 : 0.5) * STREAK.THICK_JITTER));
 }
+/** The pattern's scale factor on a lumen of radius `rCss` CSS px (the twin of `rCss / clamp(rCss, LEN_R_PX)` in the shaders): the field's along coordinate is multiplied by it, so a streak is `fieldLen / FIELD_AT_R x clamp(rCss, LEN_R_PX)` CSS px long. */
+export const streakLenK = (rCss: number): number => rCss / Math.min(STREAK.LEN_R_PX[1], Math.max(STREAK.LEN_R_PX[0], rCss));
+/** A streak of `fieldLen` field units (FIELD_LEN: 40 to 80), its length on screen in CSS px on a lumen of radius `rCss` CSS px: 24 to 96 px whatever the zoom. */
+export const streakLenPx = (rCss: number, fieldLen: number): number => fieldLen / STREAK.FIELD_AT_R * Math.min(STREAK.LEN_R_PX[1], Math.max(STREAK.LEN_R_PX[0], rCss));
 /** The share of a lumen's face the streaks cover, on average (the field's lanes, marks, gaps and feathered ends). */
 export function streakCoverage(rCss: number, lanes: number): number {
   const lanePx = (rCss * 2 * STREAK.FIELD_EDGE) / lanes, widthShare = Math.min(0.5, streakCorePx(rCss, lanes, true) * 1.15 / 0.85 / 2 / lanePx) * 2;
@@ -183,7 +190,7 @@ float streakField(float across, float along, float flow, float halfWidth, float 
   float lanePx = gStreakPx * 2.0 * ${F(STREAK.FIELD_EDGE)} / lanes;
   float aa = max(fwidth(u), 1e-3);
   // on screen (the caller knows the lumen's radius in CSS px): the core is CORE_PX thick, CORE_WIDE_PX on a wide tube, its edge feathered EDGE_FEATHER_PX
-  if (lanePx > 0.0) { hw = min(0.5, mix(${F(STREAK.CORE_PX)}, ${F(STREAK.CORE_WIDE_PX)}, gStreakWide) * jit * 0.5 / lanePx); aa = max(${F(STREAK.EDGE_FEATHER_PX)} * 0.5 / lanePx, 1e-3); }
+  if (lanePx > 0.0) { hw = min(0.5, min(${F(STREAK.CORE_MAX_PX)}, mix(${F(STREAK.CORE_PX)}, ${F(STREAK.CORE_WIDE_PX)}, gStreakWide) * jit) * 0.5 / lanePx); aa = max(${F(STREAK.EDGE_FEATHER_PX)} * 0.5 / lanePx, 1e-3); }
   gStreakK = vec2(streakHash(seed + 8.3), streakHash(seed + 6.1));
   return inLumen * streakMark(t, fu - 0.5, hw, aa) * step(${F(STREAK.FIELD_GAP)}, streakHash(seed * 1.9 + 2.0));
 }

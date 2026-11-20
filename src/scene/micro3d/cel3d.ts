@@ -161,7 +161,7 @@ float flowStreaks() {
   float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
   if (rPx < ${F(STREAK.MIN_R_PX)}) return 0.0;   // (a tube under 3.5 px across carries none)
   float lanes = rPx < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rPx < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (1 under 8 px across, 3 to 16 px, 5 above)
-  float s = ${F(STREAK_FIELD_PER_R)} / R;   // field units per local unit: a streak's mean length about FIELD_LEN_R radii
+  float s = ${F(STREAK_FIELD_PER_R)} / R * rPx / clamp(rPx, ${F(STREAK.LEN_R_PX[0])}, ${F(STREAK.LEN_R_PX[1])});   // field units per local unit: a streak's mean length about FIELD_LEN_R radii, held to 24 to 96 CSS px (STREAK.LEN_R_PX)
   gStreakPx = rPx; gStreakLanes = lanes; gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rPx);
   return streakField(vAcross, vArc * s, uFlowT * s, 1.0, 1.0, 1.0) * uFlowStreak;
 }
