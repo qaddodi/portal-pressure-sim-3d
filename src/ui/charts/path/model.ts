@@ -231,10 +231,10 @@ export interface PathLayout {
 }
 
 /** Everything that does not change with the patient (tool-path.js layout): the columns, the nodes' words and their heights, the rooms reserved, the total height. */
-export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts = {}, tight = false): PathLayout {
+export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts = {}, tight = false, small = false): PathLayout {
   const of = knownOf(ofIn), spec = (PATHS as any)[of] as Spec, card = isCardKind(spec.kind), phone = !!o.phone, tiled = o.tiled ?? new Set<string>();
   const G = tight ? 6 : GAP, R1 = tight ? 8 : 12, R2 = tight ? 4 : 7;
-  const compact = card ? cardCompact(W, phone) : mapFor(spec.tree, W, phone);
+  const compact = small || (card ? cardCompact(W, phone) : mapFor(spec.tree, W, phone));
   const worst = (WORST as any)[of], base = patientIn || worst;
   const L = { of, spec, W, compact, card, tight, y: {} as PathLayout['y'], tiled } as PathLayout;
   let y = 0;
@@ -273,8 +273,13 @@ export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts 
   L.footH = Math.max(L.foot.h, PILL_H);
   y += L.footH;
   L.H = Math.ceil(y);
-  // (the data card's real room asks for it: the rows stand closer first, at full size; a phone's small map keeps its rows)
-  if (!tight && o.room && o.room > 0 && L.H > o.room && (!compact || !phone)) return pathLayout(ofIn, patientIn, W, o, true);
+  // (the data card's real room asks for it, as 2D's tool-path.js layout does: the rows stand closer first, at full size; a card that has a real room never draws its words under 12 px,
+  // so what still stands past it gives way to the small map, whose own rows are tight too. A phone's small map keeps its rows: it is the figure's last form.)
+  if (o.room && o.room > 0 && L.H > o.room && (!compact || !phone)) {
+    if (!tight) return pathLayout(ofIn, patientIn, W, o, true, small);
+    // (2D takes the small map whatever its height; here it is taken only where it is shorter, so the room never makes the picture stand further past it than the chart did)
+    if (!compact) { const m = pathLayout(ofIn, patientIn, W, o, true, true); if (m.H < L.H) return m; }
+  }
   return L;
 }
 
