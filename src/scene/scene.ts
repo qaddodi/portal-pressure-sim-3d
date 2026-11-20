@@ -48,7 +48,6 @@ import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
 import { Highlight, OrganPins, glowGate } from './highlight.ts';
 /** Each vessel's course and radius, for the selection's glow (glow.ts). */
-const GLOW_COURSES: ReadonlyMap<string, { pts: readonly (readonly [number, number, number])[]; radius: number }> = new Map(NETWORK.map((v) => [v.id, { pts: v.pts, radius: v.radius }]));
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
@@ -318,7 +317,7 @@ export class CelScene {
     this.body.add(inVesselPass(this.probes.group));
     this.body.add(this.shuntGuide.mesh);
 
-    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])), (id) => GLOW_COURSES.get(id));
+    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
     dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); };

@@ -65,39 +65,20 @@ test('a vessel\'s mark runs along its course, wider than the vessel, and thins t
   assert.ok(ring.idx.every((i) => i < ring.pos.length / 3));
 });
 
-// ── the selection's glow (owner, 20 Nov: "instead of an outline, make it a glow") ──
-import { GLOW_PROFILE, glowRibbon } from '../src/scene/glow.ts';
-
-test('a glow ribbon is clear over the lumen, brightest at the lumen\'s edge, thins to nothing at its outer edge, and fades along the vessel toward both ends', () => {
-  const pts: [number, number, number][] = Array.from({ length: 11 }, (_, i) => [i * 0.1, 0, 0]);
-  const along = (u: number) => Math.min(1, 4 * Math.min(u, 1 - u));
-  const r = glowRibbon(pts, 0.02, along, 0.04);
-  const C = GLOW_PROFILE.length * 2 + 2, a = (i: number, j: number) => r.col[(i * C + j) * 4 + 3]!;
-  for (const i of [0, 5, 10]) {
-    assert.equal(a(i, 0), 0); assert.equal(a(i, C - 1), 0, 'nothing at the outer edge');
-    assert.equal(a(i, GLOW_PROFILE.length), 0); assert.equal(a(i, GLOW_PROFILE.length + 1), 0, 'nothing over the lumen');
-  }
-  assert.equal(a(5, C - GLOW_PROFILE.length), GLOW_PROFILE[0]![1], 'the rim, at the lumen\'s edge');
-  assert.ok(a(5, C - 2) < a(5, C - 3) && a(5, C - 3) < a(5, C - GLOW_PROFILE.length), 'thinning outward');
-  assert.equal(a(0, C - GLOW_PROFILE.length), 0, 'gone at the vessel\'s end'); assert.equal(a(10, C - GLOW_PROFILE.length), 0);
-  assert.ok(a(5, C - GLOW_PROFILE.length) > a(1, C - GLOW_PROFILE.length), 'stronger toward the middle');
-  const ys = r.pos.filter((_, i) => i % 3 === 1), edge = Math.max(...ys);
-  assert.ok(Math.abs(edge - (0.02 + 0.04)) < 1e-9, 'reaches radius + reach');
-});
-
-test('a picked vessel lights a glow along its own course, eased in and out, in the body only; a shunt target set glows whole; the outline is not widened or recoloured', () => {
+// ── the selection's glow (owner, 20 Nov: "instead of an outline, make it a glow"; "even the glow should take the shape of the vessel (and fade at the ends)") ──
+test('a picked vessel lights its own hull as a glow, eased in and out, in the body only; a shunt target set glows whole; the outline is not widened or recoloured', () => {
   const s = new CelScene();
-  const glows = () => s.vessels.flatMap((o) => o.group.children.filter((c) => c.name === 'highlight/glow' && c.visible).map((c) => ({ id: o.edge!.id, mesh: c as unknown as { material: { opacity: number } } })));
+  const glows = () => s.vessels.filter((o) => o.glowMesh?.visible).map((o) => ({ id: o.edge!.id, mesh: o.glowMesh! }));
   assert.equal(glows().length, 0);
   s.pick('PV_TRUNK');
   s.highlight.step(16);
   const part = glows();
   assert.ok(part.length >= 1 && part.every((g) => ['PV_TRUNK', 'PV_TRUNK_1'].includes(g.id)), 'only the picked vein: ' + part.map((g) => g.id).join());
-  assert.equal((part[0]!.mesh as unknown as { layers: { mask: number } }).layers.mask, 2, 'in the vessels\' pass');
-  assert.ok(part[0]!.mesh.material.opacity > 0 && part[0]!.mesh.material.opacity < 1, 'eases in');
-  while (s.highlight.step(16)) { /* settle */ }
-  assert.equal(glows()[0]!.mesh.material.opacity, 1);
+  assert.equal(part[0]!.mesh.layers.mask, 2, 'in the vessels\' pass');
   const pv = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK')!;
+  assert.ok((pv.toon.uniforms.hiOn!.value as number) > 0 && (pv.toon.uniforms.hiOn!.value as number) < 1, 'eases in (the pick\'s weight the shader reads)');
+  while (s.highlight.step(16)) { /* settle */ }
+  assert.equal(pv.toon.uniforms.hiOn!.value, 1);
   assert.equal(pv.ink.uniforms.hiPx.value, 0, 'no widened outline');
   s.highlight.setGlowShown(false); s.highlight.step(16);
   assert.equal(glows().length, 0, 'not in the Circuit');
