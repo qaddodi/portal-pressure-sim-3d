@@ -53,11 +53,58 @@ test('a vessel\'s mark runs along its course, wider than the vessel, and thins t
   assert.deepEqual(lines[0]!.pts[0], c.pts[0]);
   assert.ok(lines[0]!.w > 2 * 0.01, 'wider than the vessel, so it shows on both sides');
   const r = ribbon(lines, 0);
-  const alphas = r.col.filter((_, i) => i % 4 === 3), n = alphas.length;
-  assert.ok(alphas[0]! < 0.3 && alphas[n - 1]! < 0.3, 'faint at both ends');
-  assert.equal(Math.max(...alphas), 1, 'whole in the middle');
+  const alphas = r.col.filter((_, i) => i % 4 === 3), C = 9, n = alphas.length / C;
+  const row = (i: number) => alphas.slice(i * C, (i + 1) * C);
+  assert.ok(Math.max(...row(0)) < 0.3 && Math.max(...row(n - 1)) < 0.3, 'faint at both ends');
+  assert.ok(Math.max(...row(Math.floor(n / 2))) > 0.8, 'bright in the middle');
+  for (let i = 0; i < n; i++) { const a = row(i); assert.equal(a[0], 0); assert.equal(a[C - 1], 0); assert.ok(a[4]! >= a[2]! && a[2]! >= a[1]!, 'a glow: bright at the line, thinning to nothing at each edge'); }
   const ring = ribbon(markShapes({ part: 'cv' }, env), 0);
-  assert.ok(ring.col.filter((_, i) => i % 4 === 3).every((a) => a === 1), 'a ring is even');
-  assert.equal(ring.pos.length / 3 % 2, 0);
+  const ra = ring.col.filter((_, i) => i % 4 === 3);
+  assert.ok(Math.max(...ra) <= 1 && ra.some((a) => a === 0), 'a ring is a halo too, even round');
+  assert.equal(ring.pos.length / 3 % C, 0);
   assert.ok(ring.idx.every((i) => i < ring.pos.length / 3));
+});
+
+// ── the selection's glow (owner, 20 Nov: "instead of an outline, make it a glow") ──
+import { GLOW_PROFILE, glowRibbon } from '../src/scene/glow.ts';
+
+test('a glow ribbon is clear over the lumen, brightest at the lumen\'s edge, thins to nothing at its outer edge, and fades along the vessel toward both ends', () => {
+  const pts: [number, number, number][] = Array.from({ length: 11 }, (_, i) => [i * 0.1, 0, 0]);
+  const along = (u: number) => Math.min(1, 4 * Math.min(u, 1 - u));
+  const r = glowRibbon(pts, 0.02, along, 0.04);
+  const C = GLOW_PROFILE.length * 2 + 2, a = (i: number, j: number) => r.col[(i * C + j) * 4 + 3]!;
+  for (const i of [0, 5, 10]) {
+    assert.equal(a(i, 0), 0); assert.equal(a(i, C - 1), 0, 'nothing at the outer edge');
+    assert.equal(a(i, GLOW_PROFILE.length), 0); assert.equal(a(i, GLOW_PROFILE.length + 1), 0, 'nothing over the lumen');
+  }
+  assert.equal(a(5, C - GLOW_PROFILE.length), GLOW_PROFILE[0]![1], 'the rim, at the lumen\'s edge');
+  assert.ok(a(5, C - 2) < a(5, C - 3) && a(5, C - 3) < a(5, C - GLOW_PROFILE.length), 'thinning outward');
+  assert.equal(a(0, C - GLOW_PROFILE.length), 0, 'gone at the vessel\'s end'); assert.equal(a(10, C - GLOW_PROFILE.length), 0);
+  assert.ok(a(5, C - GLOW_PROFILE.length) > a(1, C - GLOW_PROFILE.length), 'stronger toward the middle');
+  const ys = r.pos.filter((_, i) => i % 3 === 1), edge = Math.max(...ys);
+  assert.ok(Math.abs(edge - (0.02 + 0.04)) < 1e-9, 'reaches radius + reach');
+});
+
+test('a picked vessel lights a glow along its own course, eased in and out, in the body only; a shunt target set glows whole; the outline is not widened or recoloured', () => {
+  const s = new CelScene();
+  const glows = () => s.vessels.flatMap((o) => o.group.children.filter((c) => c.name === 'highlight/glow' && c.visible).map((c) => ({ id: o.edge!.id, mesh: c as unknown as { material: { opacity: number } } })));
+  assert.equal(glows().length, 0);
+  s.pick('PV_TRUNK');
+  s.highlight.step(16);
+  const part = glows();
+  assert.ok(part.length >= 1 && part.every((g) => ['PV_TRUNK', 'PV_TRUNK_1'].includes(g.id)), 'only the picked vein: ' + part.map((g) => g.id).join());
+  assert.ok(part[0]!.mesh.material.opacity > 0 && part[0]!.mesh.material.opacity < 1, 'eases in');
+  while (s.highlight.step(16)) { /* settle */ }
+  assert.equal(glows()[0]!.mesh.material.opacity, 1);
+  const pv = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK')!;
+  assert.equal(pv.ink.uniforms.hiPx.value, 0, 'no widened outline');
+  s.highlight.setGlowShown(false); s.highlight.step(16);
+  assert.equal(glows().length, 0, 'not in the Circuit');
+  s.highlight.setGlowShown(true);
+  s.pick(null);
+  while (s.highlight.step(16)) { /* fade out */ }
+  assert.equal(glows().length, 0);
+  s.highlight.setOnly(['V_KID_L']); while (s.highlight.step(16)) { /* settle */ }
+  assert.ok(glows().some((g) => g.id === 'V_KID_L'), 'a shunt target glows');
+  s.dispose();
 });

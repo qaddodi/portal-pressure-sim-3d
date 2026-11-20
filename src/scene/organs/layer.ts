@@ -45,6 +45,9 @@ export function organLayerAlpha(p: Palette, id: string): number {
 }
 /** The colour of a selected organ's outline: its own colour lifted toward white, more on the dark looks (where the fill is deep) than the light ones (where the line must stay off the cream page). */
 export const organHighlight = (c: RGB, dark: boolean): [number, number, number] => mix(c, [1, 1, 1], dark ? 0.5 : 0.3);
+/** The tapped or pinned organ's line: on a dark look its own colour lifted; on a light one the organ's own deep tone at full strength (a lifted tone is paler than the fill and the page and
+ *  cannot be seen there, 20 Nov: a tapped spleen showed nothing), never white. */
+export const organSelectLine = (c: RGB, ink: RGB, dark: boolean): [number, number, number] => (dark ? organHighlight(c, true) : mix(ink, [0, 0, 0], 0.2));
 const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2]! / 255, v[3]!);
 
 /** 2D's drawing order (back to front), the gut last: the gut is depth-tested behind the organs already drawn, which is 2D's #gutHide (the gut cut away under the
@@ -89,7 +92,8 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   // depth test, so it shows only where the fill is not, and before the outline, so the line lies over it.
   const seat = new ShaderMaterial({
     vertexShader: ORGAN_INK_VS, fragmentShader: INK_FS, side: BackSide, transparent: true, depthWrite: false,
-    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res! },
+    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res!,
+      hiOn: { value: 0 }, hiPx: { value: 0 } },   // (every uniform the shader declares: a missing one keeps what the last material drawn with this program left in it, so a tapped spleen lit the stomach's seat and the esophagus)
   });
   const mesh = new Mesh(g, seat);
   mesh.renderOrder = 2 * i + 0.5;
@@ -300,7 +304,7 @@ export class OrganLayer {
     const ink = mix(page, o3, inkA * layer);   // (the organ's own third tone at its alpha under the layer, pre-mixed against the page)
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
     // a pinned or tapped organ's heavy line is the organ's own colour, brighter (never the vessel's white: highlightColour is white on the dark looks, which an organ must not take)
-    const hi = organHighlight(c, this.palette?.highlight === 'white');
+    const hi = organSelectLine(c, o3, this.palette?.highlight === 'white');
     (o.ink.uniforms.hiColor!.value as Color).setRGB(hi[0], hi[1], hi[2]);
     const seat = this.seats.get(id);
     if (seat) {

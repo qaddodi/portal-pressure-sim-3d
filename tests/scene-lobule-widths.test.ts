@@ -7,8 +7,6 @@ import { pinned2D } from './two-d-pin.ts';
 import { buildLobule, RS0, SIN_NARROW } from '../src/scene/lobule/geometry.ts';
 import { AN_K, DISC_R, IN_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from '../src/scene/lobule/widths.ts';
 import { flareAt, sinK } from '../src/scene/lobule/from2d/lobule-mouths.generated.js';
-import { LobuleView } from '../src/scene/lobule/view.ts';
-import { createShared } from '../src/scene/materials/cel.ts';
 import { LOBULE_R } from '../src/scene/lobule/shots.ts';
 
 const two = pinned2D('src/ui/lobule-zoom-field.js');
@@ -27,18 +25,6 @@ test('a healthy sinusoid is 2D\'s: rs0 = 0.0085 of the lobule radius, drawn at S
   assert.ok(Math.abs(sinRadius('an', 0.5) - RS_N * 0.68) < 1e-12);
   // and never the old 0.0095 R (1.5 times 2D's at the portal end)
   assert.ok(sinRadius('s0', 1) * LOBULE_R < 0.0095 * LOBULE_R * 0.7);
-});
-
-test('the view draws them: the first ring of the first sinusoid is 2D\'s radius there, not a fixed wider tube', () => {
-  const v = new LobuleView(createShared());
-  const pos = v.parts.s0.toonMesh.geometry.getAttribute('position');
-  const c = v.net.courses.find((x) => x.kind === 's0')!;
-  // ring 0 has radial + 1 = 8 vertices (the last repeats the first): the circle's radius is the distance of a vertex from the mean of the seven
-  let mx = 0, my = 0, mz = 0;
-  for (let j = 0; j < 7; j++) { mx += pos.getX(j) / 7; my += pos.getY(j) / 7; mz += pos.getZ(j) / 7; }
-  const r = Math.hypot(pos.getX(0) - mx, pos.getY(0) - my, pos.getZ(0) - mz);
-  assert.ok(Math.abs(r - sinRadius('s0', c.rho[0]!) * LOBULE_R) < 1e-6, `radius ${r} against 2D's ${sinRadius('s0', c.rho[0]!) * LOBULE_R}`);
-  assert.ok(r < 0.0065 * LOBULE_R, 'about 0.0064 R at the portal end (it was 0.0095 R)');
 });
 
 test('the end-on vessels, inlets, twig and lymphatic are 2D\'s radii', () => {

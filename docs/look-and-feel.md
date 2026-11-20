@@ -137,9 +137,10 @@ Safe areas are always respected (59 px at the sides in landscape, 59 top and 34 
 
 ## 9. Vessel highlight
 
-The picked vein, shunt or TIPS (every piece the engine cuts it into) gets a thin, bolder outline in its own tone lifted (never pure white). The line **fades away at the vessel's two outer ends and
-is full a third of its length in** (owner, 20 Nov: "fade away at both ends"), and it runs on into no other vessel: nothing but the tapped vessel is lit (2.4 scene units downstream once lit the cava, the shunts
-and every collateral). It is 0.8 px over the vessel's own line (an organ's tapped line is 0.6 figure units over its own 1.1). It also lifts a hair. **Nothing else is dimmed.** The data card
+A selection is a **glow, not an outline** (owner, 20 Nov: "instead of an outline, make it a glow"): a soft halo in the item's own tone (lifted on the dark looks), brightest at its edge and thinning to nothing a short way
+out. The picked vein, shunt or TIPS (every piece the engine cuts it into) glows along its own course and **fades away toward both ends** (nothing but the tapped vessel; 2.4 scene units downstream once lit the cava, the shunts
+and every collateral); a tapped organ, a slide's pinned organ and a tapped lobule part glow the same way. It eases in and out, and the vessel lifts a hair. Nothing is outlined thicker or recoloured. `src/scene/glow.ts` (vessels),
+`highlight.ts` ORGAN_GLOW (organs, a few hulls of growing width), `lobule/mark.ts` (the lobule's ribbon). The Circuit lays the vessels out afresh and shows no glow. **Nothing else is dimmed.** The data card
 names the vessel, its pressure and flow, and the gradient with words ("PPG 14 · high").
 
 ## 10. Contrast

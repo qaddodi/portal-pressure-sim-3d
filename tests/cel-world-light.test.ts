@@ -9,7 +9,6 @@ import { MICRO_FS, MICRO_VS } from '../src/scene/micro3d/cel3d.ts';
 import { ORGAN_FS, ORGAN_VS } from '../src/scene/organs/organ-shader.ts';
 import { TOON_FS } from '../src/scene/materials/shaders.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
-import { LOBULE_TOON_FS } from '../src/scene/lobule/shading.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 test('the light is one world constant in cel-style.ts, and every shader reads it from there', () => {
@@ -19,7 +18,7 @@ test('the light is one world constant in cel-style.ts, and every shader reads it
   assert.ok(CEL_LIGHT_GLSL.includes(CEL_LIGHT_UNIT.map(F).join(', ')));
   assert.ok(MICRO_FS.includes(`vec3(${CEL_LIGHT_UNIT.map(F).join(', ')})`), 'the 3D lobule and sinusoid');
   assert.ok(ORGAN_FS.includes(`vec3(${CEL_LIGHT_UNIT.map(F).join(', ')})`), 'Organ depth');
-  assert.ok(VESSEL_FS.includes(CEL_LIGHT_GLSL) && TOON_FS.includes(CEL_LIGHT_GLSL) && LOBULE_TOON_FS.includes(CEL_LIGHT_GLSL), 'vessels, strands, the lobule\'s vessels');
+  assert.ok(VESSEL_FS.includes(CEL_LIGHT_GLSL) && TOON_FS.includes(CEL_LIGHT_GLSL), 'vessels, strands');
   // no second copy of a light in the sources
   const src = (p: string) => readFileSync(new URL(`../src/scene/${p}`, import.meta.url), 'utf8');
   assert.ok(!/-0\.45, 0\.75, 0\.55/.test(src('materials/cel.ts')), 'the shared uniform is made from the one constant');

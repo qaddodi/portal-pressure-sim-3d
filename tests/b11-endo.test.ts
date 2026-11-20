@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { FieldMotion, OverlayMotion, type ScopeIn } from '../src/ui/tests/endo/motion.ts';
+import { tessellate } from '../src/ui/charts/geometry.ts';
 import { scopeFrame } from '../src/ui/tests/endo/frame.ts';
 import { bleedShapes } from '../src/ui/tests/endo/bleed.ts';
 import { useScope } from '../src/ui/tests/endo/scope-state.ts';
@@ -197,7 +198,7 @@ test('the scope frame carries the mottling and the net, under the columns, in th
   assert.ok(hot.length > net.length * 0.9, 'red-violet, lit by the tip light');
   assert.ok(vessels[0] > vessels[1]);
   // the net is laid before the first column's ribbon (the shader mixes the vein over it)
-  const lastNet = f.shapes.lastIndexOf(net[net.length - 1]!), firstCol = f.shapes.findIndex((s) => s.k === 'path' && s.closed && s.fill && s.fill[3] === 1 && s.pts.length === 8);
+  const lastNet = f.shapes.lastIndexOf(net[net.length - 1]!), firstCol = f.shapes.findIndex((s) => s.k === 'grid');
   assert.ok(firstCol > lastNet, 'columns over the net');
 });
 
@@ -214,4 +215,32 @@ test('a slide\'s air, red and readings change what the tiles print, as 2D config
   assert.equal(air.redOn, false, 'red false hides the stigmata whatever the wall stress');
   assert.deepEqual(air.pressures, ['18.0 mmHg', '10.0 mmHg', '8.0 mmHg'], 'transmural = intravariceal − intraluminal');
   assert.equal(ENDO_WORDS.pressures.length, 3);
+});
+
+test('the scope is smooth, not stepped: the wall is one gradient, each column a shaded grid that bulges, the knuckle a dome (Mohammad, 20 Nov: "smooth somehow, and bulging")', () => {
+  const pal = paletteOf('light');
+  const m = new FieldMotion();
+  run(m, { ...base, bands: 2 }, 4000);
+  const f = scopeFrame({ field: m.state, over: { balloon: 0, jet: 0, pool: 0, seconds: 1, tearGrow: m.state.g } }, 300, pal);
+  const radial = f.shapes.filter((s) => s.k === 'radial');
+  assert.ok(radial.some((s) => s.k === 'radial' && s.stops.length >= 30), 'the mucosa is one radial gradient with a colour at every depth');
+  assert.equal(f.shapes.filter((s) => s.k === 'path' && s.closed && s.fill && s.fill[3] === 1).length, 0, 'no opaque flat piece of a column or ring is left');
+  const grids = f.shapes.filter((s) => s.k === 'grid' && s.cols > 3);
+  assert.ok(grids.length >= 1);
+  for (const g of grids) {
+    if (g.k !== 'grid') continue;
+    // across the column the colour changes smoothly and the crest stands out of its flanks (a bulge: lighter at the crest than where it meets the wall)
+    const row = Math.floor(g.rows / 3), at = (j: number) => g.colors[row * g.cols + j]!;
+    const lum = (c: readonly number[]) => c[0]! + c[1]! + c[2]!;
+    const mid = Math.floor(g.cols / 2);
+    let maxStep = 0; for (let j = 1; j < g.cols; j++) maxStep = Math.max(maxStep, Math.abs(lum(at(j)) - lum(at(j - 1))));
+    assert.ok(maxStep < 0.35, `no hard step across a column (${maxStep})`);
+    assert.ok(g.cols >= 15 && g.rows >= 40, 'sampled finely');
+    void mid;
+  }
+  // the mesh the GPU gets blends colour between its corners: a cell of a grid has different colours at its corners
+  const mesh = tessellate({ w: 300, h: 300, shapes: grids, label: '' });
+  assert.ok(mesh.triangles > 1000);
+  const colours = new Set<string>(); for (let i = 0; i < mesh.verts.length; i += 6) colours.add(mesh.verts[i + 2]!.toFixed(3));
+  assert.ok(colours.size > 200, 'many colours, not a few flat ones');
 });

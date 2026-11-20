@@ -21,7 +21,9 @@ import type { LobuleView } from '../lobule/view.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
-import { DISC_R, LT_R, RS_N, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { AN_K, DISC_R, LT_R, RS_N, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+/** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
+const LYMPH_DISSE_R = 0.0132, BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
 import { type InkContext, type Seg, inkAt, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
@@ -59,7 +61,7 @@ const mix3 = (a: RGB, b: RGB, t: number): [number, number, number] => [lerp(a[0]
 /** A 2D lobule point (lobule radii, y down) in the local frame, at height z. */
 const at3 = (p: LP2, z: number): [number, number, number] => [p[0] * R, -p[1] * R, z];
 
-/** What this scene reads of the flat lobule (its own fields). */
+/** What this scene reads of the lobule's host (lobule/view.ts: the network, the eased state, the layers' fades, the look, the field). */
 interface Flat {
   net: LobuleNet;
   field: { readonly wideNow: number };
@@ -69,14 +71,8 @@ interface Flat {
   look: LookId;
   isVisible: boolean;
   group: Group;
-  objects: CelObject[];
-  plate: { group: Group };
-  zones: { mesh: Mesh };
-  set: { get(name: string): { group: Group } };
-  o: Record<'s0' | 's1' | 's2' | 'an' | 'inlets' | 'tw' | 'lt' | 'ly', CelObject>;
-  bileObjs: CelObject[];
+  sinScale(k: 's0' | 's1' | 's2' | 'an'): number;
   cvRadiusNow: number;
-  dirty: boolean;
   inkContext(): InkContext | null;
 }
 
@@ -188,16 +184,7 @@ export class Lobule3D {
     const hide = on && under >= 1 && f.isVisible;
     if (hide !== this.hidLobule) { this.hidLobule = hide; f.group.visible = !hide && f.isVisible; }
     if (hide) return changed;
-    if (changed && !on) {
-      // give the flat view its drawing back (its own update puts the managed visibilities right on the next frame)
-      for (const o of f.objects) o.group.visible = true;
-      f.plate.group.visible = true;
-      f.dirty = true;
-    }
     if (!shown) return changed;
-    // the flat view's own drawing stands aside (its pickables still answer taps: a raycast does not look at visibility); the neighbouring field stays as the surround
-    for (const o of f.objects) o.group.visible = false;
-    f.plate.group.visible = false; f.zones.mesh.visible = false;
     const look = f.look, c = f.cur;
     const q = (x: number) => Math.round(clamp(x || 0, 0, 1) * 32);
     const ck = `${look}|${q(c.congU)}|${q(c.septU)}`;
@@ -205,11 +192,14 @@ export class Lobule3D {
     if (look !== this.lookKey) { this.lookKey = look; this.applyLook(look); }
     this.stepInk();
     this.stepMarks();
-    // widths and layers as the flat view has them now: each tube swells and shrinks with its own (inflate), the lymph and the bile go with their layers
-    const fo = f.o, inf = (p: MicroPart, o: CelObject | undefined) => { if (o) p.mats.toon.uniforms.inflate!.value = o.toon.uniforms.inflate!.value as number; };
-    inf(this.sin.s0, fo.s0); inf(this.sin.s1, fo.s1); inf(this.sin.s2, fo.s2); inf(this.sin.an, fo.an); inf(this.inlets, fo.inlets); inf(this.twigs, fo.tw); inf(this.lt, fo.lt); inf(this.disse, fo.ly);
-    inf(this.bile, f.bileObjs[0]);
-    const lymphOn = f.set.get('lymph').group.visible, bileOn = f.set.get('bile').group.visible;
+    // widths and layers as the state has them now: each sinusoid swells and shrinks with congestion and capillarization (inflate, the absolute change of its radius), the lymph and the bile
+    // shrink away with their layers and only then hide
+    const sinR = (k: 's0' | 's1' | 's2' | 'an') => (k === 'an' ? RS_N * AN_K : RS_N * 1.15) * R;
+    const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
+    for (const k of ['s0', 's1', 's2', 'an'] as const) inf(this.sin[k], sinR(k) * (f.sinScale(k) - 1));
+    const lyF = f.lyFade, biF = f.bileFade;
+    inf(this.lt, -LT_R * R * (1 - lyF)); inf(this.disse, -LYMPH_DISSE_R * R * (1 - lyF) + 0.004 * c.seal); inf(this.bile, -BILE_BC_R * R * (1 - biF));
+    const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
     this.lt.group.visible = lymphOn; this.disse.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
     const kcv = f.cvRadiusNow / DISC_R.cv;
@@ -221,6 +211,9 @@ export class Lobule3D {
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
 
   private flowAt = -1;
+  /** The drawing buffer's pixel ratio (the scene's render asks the renderer): the heads and streaks are sized in device px. */
+  private dpr = 2;
+  setDpr(dpr: number): void { this.dpr = dpr || 2; }
   private readonly flowT = { blood: 0, lymph: 0, bile: 0 };
   private stepFlow(now: number, rate: number, lymphOn: boolean, bileOn: boolean): boolean {
     const dt = this.flowAt < 0 ? 0 : clamp((now - this.flowAt) / 1000, 0, 0.1);
@@ -230,7 +223,7 @@ export class Lobule3D {
     // (`rate` is the scene's one eased pause/play rate, 0..1: Pause eases the flow to a stop and Play eases it back up, never at once)
     const k = clamp(rate, 0, 1) * dt;
     this.flowT.blood += k * 0.11 * q; this.flowT.lymph += k * 0.05; this.flowT.bile += k * 0.035;
-    const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = (this.flat as unknown as { dprU: { value: number } }).dprU.value || 2;
+    const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = this.dpr;
     // every fluid is seen to move at the fit (Mohammad, 20 Nov 2026): the blood's dark heads (few and small on these thin tubes, the shader's screen rules) and THE ONE STREAK in every vessel, the blood's
     // only while Settings > Blood streaks is on (off: chevrons only); the lymph's and the bile's always, in their own tones
     const bs = useSettings.getState().particles ? soft(0.6) : 0;   // (quiet: sleek lanes a shade off the lumen, never bold white dashes, Mohammad 20 Nov 2026 "should be more sleek")
