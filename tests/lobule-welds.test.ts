@@ -91,6 +91,29 @@ test('the real Lobule: the sinusoid tree, the inlets and the bile ducts are weld
   for (const k of ['s0', 's1', 's2', 'an', 'in', 'bile']) assert.ok(plan.skins.some((s) => s.arms.some((a) => a.key.startsWith(k))), `no skin on ${k}`);
 });
 
+test('two arms that meet at a shallow V are bent apart first, and then weld (the Lobule\'s merging sinusoids met at 4 to 15 degrees, lay on each other and could not be welded)', () => {
+  // two tubes that arrive side by side (a 20 degree V) into one trunk: unwelded in the Lobule before the splay
+  const a = line('a', [-1, 0.18, 0.03], [0, 0, 0.03], 0.03), b = line('b', [-1, -0.18, 0.03], [0, 0, 0.03], 0.03), c = line('c', [0, 0, 0.03], [1, 0, 0.03], 0.03);
+  const none = planWelds([a, b, c], { splay: false }), plan2 = planWelds([a, b, c]);
+  assert.equal(plan2.skins.length, 1, `skipped: ${plan2.skipped.map((x) => x.why).join('; ')}`);
+  assert.ok(none.skins.length <= plan2.skins.length);
+  // the junction point and the far ends stay; the arms leave J well apart (40 degrees at J itself, the path then curves toward its own line)
+  const pa = plan2.courses.get('a')!, pb = plan2.courses.get('b')!;
+  assert.deepEqual(pa.pts[pa.pts.length - 1], a.pts[a.pts.length - 1]);
+  assert.deepEqual(pa.pts[0], a.pts[0]);
+  const dir = (o: { pts: V3[] }) => { const e = o.pts[o.pts.length - 1]!, q = o.pts[o.pts.length - 4]!, d = [q[0] - e[0], q[1] - e[1], q[2] - e[2]], l = Math.hypot(d[0]!, d[1]!, d[2]!); return d.map((v) => v / l); };
+  const da = dir(pa), db = dir(pb), ang = (Math.acos(da[0]! * db[0]! + da[1]! * db[1]! + da[2]! * db[2]!) * 180) / Math.PI;
+  assert.ok(ang >= 30, `the arms leave ${ang.toFixed(1)} degrees apart`);
+});
+
+/** The junctions of the real Lobule that still keep today's round ends (the planner cannot weld them yet). This list only ever shrinks: a new fallback fails the test until someone looks. */
+const KNOWN_FALLBACKS = new Set(['T(an127.1>s058)', 'T(an134.1>s072)', 'T(s038.0>in20)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile38.0+bile39.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(in18.1+in21.1)', 'Y(in19.1+in28.1)', 'Y(in22.1+in25.1)', 'Y(in24.1+in27.1)', 'Y(s032.1+s033.1+s179.0)', 'Y(s044.1+s045.1+s185.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s056.1+s057.1+s191.0)', 'Y(s058.1+s059.1+s192.0)', 'Y(s064.1+s065.1+s195.0)', 'Y(s066.1+s067.1+s196.0)', 'Y(s072.1+s073.1+s199.0)', 'Y(s076.1+s077.1+s1101.0)', 'Y(s180.1+s181.1+s2103.0)', 'Y(s182.1+s183.1+s2104.0)']);
+test('no junction of the real Lobule falls back that is not on the known list (the list only shrinks)', () => {
+  const fresh = plan.skipped.filter((x) => !KNOWN_FALLBACKS.has(x.node));
+  assert.deepEqual(fresh, [], `new fallbacks: ${fresh.map((x) => `${x.node} (${x.why})`).join('; ')}`);
+  assert.ok(plan.skipped.length <= KNOWN_FALLBACKS.size);
+});
+
 test('every skin of the real Lobule is closed, on the tubes\' own rings, and none is inside a vessel\'s mouth', () => {
   for (const s of plan.skins) {
     assert.deepEqual(closedBetweenSeams(s.mesh), { open: 0, bad: 0 }, s.node);
