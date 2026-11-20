@@ -92,6 +92,8 @@ export interface LabelState {
   key: string | null;
 }
 
+/** What a leader crossing a vessel costs the solver, per line (solver `leaderLineCost`; the Circuit's captions pass theirs): a name's leader over the figure's vessels points at nothing useful. */
+const LEADER_LINE_COST = 9;
 export const NO_STATE: LabelState = { named: new Set(), shown: new Set(), tones: {}, picked: null, cath: null, organNames: false, quiet: false, proc: null, key: null };
 
 /** Space between the key and the edge of the free room. */
@@ -410,7 +412,7 @@ export class LabelController {
         }
       }
     }
-    const res = solve({ items, view, blockers, lines });
+    const res = solve({ items, view, blockers, lines, leaderLineCost: LEADER_LINE_COST });
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();
     for (const p of res.placed) {
