@@ -15,8 +15,8 @@ test('a vein that ends in its organ fades in from nothing over the 2D share of i
   assert.deepEqual([spl.mode, spl.from, spl.a0, spl.a1, spl.keep], [1, 0, 0, 1, false]);
   assert.ok(spl.to > 0.05 && spl.to < 0.5, `fade-in covers the stretch inside the spleen (${spl.to})`);
   assert.equal(spl.to, startInOrganShare('V_SPL', EDGE_PATH_2D.V_SPL!));
-  for (const id of ['V_INT', 'V_COL', 'V_KID_L', 'LGV_CONF']) assert.ok(fadeOf(id, false), id);
-  assert.deepEqual([...fadeOf('LGV_CONF', false)!.connect], ['C1a'], 'the coronary vein is solid while the varices are open');
+  for (const id of ['V_INT', 'V_COL', 'V_KID_L']) assert.ok(fadeOf(id, false), id);
+  assert.equal(fadeOf('LGV_CONF', false), null, 'the coronary vein is solid along the lesser curvature to the oesophagus (Mohammad, 20 Nov)');
 });
 
 test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {
