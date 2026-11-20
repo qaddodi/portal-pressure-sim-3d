@@ -15,7 +15,7 @@ class Target {
   count() { let n = 0; for (const s of this.l.values()) n += s.size; return n; }
 }
 
-function rig(over: Partial<GestureHost> = {}) {
+function rig(over: Partial<GestureHost> = {}, locked = false) {
   let t = 1000, id = 0, hand: View = { k: 1, x: 0, y: 0 }, orbit = 0, picked: string | null = null;
   const asks = new Map<number, (n: number) => void>(), timers = new Map<number, { at: number; fn: () => void }>();
   const taps: [number, number][] = [];
@@ -28,6 +28,7 @@ function rig(over: Partial<GestureHost> = {}) {
     clearTimer: (i) => { timers.delete(i); },
     reduceMotion: () => false,
     viewport: () => ({ w: 800, h: 600 }),
+    locked: () => locked,
   };
   const fitRect = { x0: 100, y0: 50, x1: 700, y1: 550 };
   const host: GestureHost = {
@@ -298,4 +299,26 @@ test('turnOff (a guided step is bringing the turn home) stops the turn\'s moment
   r.g.turnOff(); r.run(2000);
   assert.equal(r.orbit, mid, 'a Fit glide stopped too');
   assert.equal(r.g.active, false);
+});
+
+test('in a talk the camera is the slide\'s: a drag, a pinch and a wheel move nothing, a tap still lands (Mohammad, 20 Nov: "why am I able to move camera in slides")', () => {
+  const r = rig({}, true);
+  r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 600, 320); r.ptr('pointerup', 1, 600, 320);
+  assert.equal(r.orbit, 0, 'no turn');
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'no pan');
+  r.ptr('pointerdown', 1, 350, 300); r.ptr('pointerdown', 2, 450, 300); r.ptr('pointermove', 2, 600, 300); r.ptr('pointerup', 2, 600, 300); r.ptr('pointerup', 1, 350, 300);
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'no pinch');
+  r.el.emit('wheel', { deltaMode: 0, deltaX: 0, deltaY: -200, clientX: 400, clientY: 300 }); r.run(300);
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'no wheel zoom');
+  r.ptr('pointerdown', 1, 300, 200); r.ptr('pointerup', 1, 301, 200);
+  assert.deepEqual(r.taps, [[301, 200]], 'a tap still lands (the sinusoid\'s explain)');
+});
+
+test('in a talk a right click or long press opens no card and a zoom key or button does not zoom the figure', () => {
+  let ctx = 0;
+  const r = rig({ context: () => { ctx++; } }, true);
+  r.el.emit('contextmenu', { clientX: 300, clientY: 200 });
+  assert.equal(ctx, 0);
+  r.g.zoomStep(2); r.run(600);
+  assert.equal(r.hand.k, 1);
 });

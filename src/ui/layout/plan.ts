@@ -34,6 +34,8 @@ export interface Plan {
   strip: Strip | null;
   /** The data card is closed to a strip because the figure and the words need the room (iPhone upright). */
   shut: boolean;
+  /** The reader put the data card away (2D's dock: a swipe up on it, a tap on its edge brings it back): it stands as a strip at the top and the figure has the room it left (a phone or an upright iPad, both cards up). */
+  docked: boolean;
   /** The largest empty rectangle the cards leave: the figure's room. */
   free: Rect;
   /** Cards taller than the room they have; the card pages itself (never shrinks, never scrolls). */
@@ -46,12 +48,12 @@ export interface Plan {
 
 export const STRIP_H = 48;
 const GAP = 16;       // room kept between a card and the figure's free rectangle
-/** The Back / Next pill (the 2D app's .pz-bar): 44 px tall; back, the count (not sideways), next and the settings. */
+/** The Back / Next pill (the 2D app's .pz-bar): 44 px tall; back, the count, next, the settings and Exit (an iPhone on its side: the count, the settings and Exit). */
 export const BAR_H = 44;
 /** The band the shell's top bar takes above the figure (labels and the free-room solver keep clear of it). */
 export const BAR = 56;
-export const PILL_W = 210;
-export const PILL_W_SIDE = 136;
+export const PILL_W = 272;
+export const PILL_W_SIDE = 156;   // (iPhone on its side: the count, the settings and Exit, as 2D's phone pill; a swipe moves the talk)
 /** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
 export const FOOT_ZONE = 62;
 /** The least room for the talk's title to the left of the pill (a wide screen). */
@@ -103,7 +105,7 @@ export function widthOf(vp: Viewport, pair = false, step = 0): number {
 }
 
 /** Where the cards go. `active` is the wallet's showing card (iPhone: the other becomes the strip). `step` is the wallet's step on its side. */
-export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', step = 0): Plan {
+export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', step = 0, dock = false): Plan {
   const device = deviceClass(vp.w, vp.h);
   const layout = layoutOf(vp.w, vp.h);
   const sideways = isSideways(vp.w, vp.h);
@@ -112,7 +114,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const data = needs.find((n) => n.slot === 'data') ?? null;
   const placed: Placed[] = [];
   let bar = barOf(vp);
-  let strip: Strip | null = null, shut = false;
+  let strip: Strip | null = null, shut = false, docked = false;
   const maxH: Record<Slot, number> = { words: 0, data: 0 };
   let bounds: Rect;
   const extra: Rect[] = [];
@@ -149,7 +151,10 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     if (!shut) {
       maxH.words = Math.round(plan.cap);
       maxH.data = dmax;
-      if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
+      // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
+      docked = dock && !!data && !!words;
+      if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
+      if (data && docked) strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: STRIP_H } };
       if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
     } else {
       const shown = active === 'data' ? data! : words!, other = shown === data ? words! : data!;
@@ -185,7 +190,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   const overflow = placed.filter((p) => p.rect.h > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, bar };
+  return { device, layout, sideways, cards: placed, strip, shut, docked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */

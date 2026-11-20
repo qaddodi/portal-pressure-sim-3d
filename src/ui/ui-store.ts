@@ -54,6 +54,10 @@ export interface UiState {
   go(stop: number): void;
   setViewport(vp: Viewport): void;
   swapWallet(): void;
+  /** The reader's dock of the data card (2D: dock.auto = false): kept from slide to slide, put back when a talk starts. `dockShown`: the planner has the card away now (set with the plan). */
+  docked: boolean;
+  dockShown: boolean;
+  setDocked(on?: boolean): void;
   setReadings(r: Readings): void;
   /** Called by the card layer once per layout change with the plan it laid out. */
   publishPlan(plan: Plan): void;
@@ -66,7 +70,7 @@ export const useUi = create<UiState>((set, get) => ({
   deck: null,
   startAt: 0,
   nonce: 0,
-  openDeck: (deck, at = 0) => set({ deck, startAt: at, nonce: get().nonce + 1, black: false, jump: false }),
+  openDeck: (deck, at = 0) => set({ deck, startAt: at, nonce: get().nonce + 1, black: false, jump: false, docked: false, dockShown: false }),
   black: false,
   jump: false,
   setBlack: (on) => set({ black: on ?? !get().black }),
@@ -115,7 +119,11 @@ export const useUi = create<UiState>((set, get) => ({
     set({ vp, device: deviceClass(vp.w, vp.h) });
   },
 
-  swapWallet: () => set({ wallet: walletSwap(get().wallet) }),
+  // (the key that swaps the cards brings a docked card back first)
+  swapWallet: () => set(get().dockShown ? { docked: false } : { wallet: walletSwap(get().wallet) }),
+  docked: false,
+  dockShown: false,
+  setDocked: (on) => set({ docked: on ?? !get().docked }),
 
   setReadings: (r) => {
     const cur = get().readings;
@@ -129,7 +137,7 @@ export const useUi = create<UiState>((set, get) => ({
     const data = plan.cards.find((c) => c.slot === 'data')?.rect ?? null;
     const strip = plan.strip?.rect ?? null;
     const b = get().boxes;
-    if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && sameRect(b.free, plan.free)) return;
-    set({ boxes: { words, data, strip, free: plan.free } });
+    if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && sameRect(b.free, plan.free) && get().dockShown === plan.docked) return;
+    set({ boxes: { words, data, strip, free: plan.free }, dockShown: plan.docked });
   },
 }));
