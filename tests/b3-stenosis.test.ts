@@ -12,8 +12,9 @@ import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { UNITS_PER_SCENE as U } from '../src/scene/frame2d.ts';
 import { VESSEL_VS, VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { CelScene } from '../src/scene/scene.ts';
-import { MARK, markScale, placeMarks } from '../src/scene/labels/clamp-marks.ts';
+import { MARK, MARK_PATH, markScale, placeMarks } from '../src/scene/labels/clamp-marks.ts';
 import { readFileSync } from 'node:fs';
+import { CHEV, CHEVRON_GLSL, CHEV_SHAPE, chevPolygon } from '../src/scene/blood/chevron-glsl.ts';
 
 const STENOSABLE = MAPPED.filter((v) => isClampable(v.id));
 const sigOf = (v: (typeof STENOSABLE)[number]): number => {
@@ -135,20 +136,28 @@ test('the placing: the tip stands a gap off the pinched wall on each side, the h
     }
   }
   assert.equal(placeMarks({ x: 5, y: 5 }, { x: 5, y: 5 }, 0.5), null, 'a vessel seen end-on has no side to mark');
-  assert.ok(markScale(1) === 0.85 && markScale(100) === 1.4);
+  assert.ok(markScale(1) === 0.95 && markScale(100) === 1.25);
 });
 
-test('the marks are drawn by the label layer in the tags phase with transform and opacity only, from the shared css', () => {
+test('the marks are the blood chevron with the labels\' own outline, drawn by the label layer in the tags phase with transform and opacity only', () => {
   const dom = readFileSync(new URL('../src/scene/labels/clamp-marks.ts', import.meta.url), 'utf8');
   const layer = readFileSync(new URL('../src/scene/labels/LabelLayer.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
   assert.match(layer, /clampMarks\.paint\(cel\.disease\.clamps\.marks\(\)\)/);
-  assert.doesNotMatch(dom, /style\.(left|top|width|height|display)\b/, 'no layout property is written');
+  assert.doesNotMatch(dom, /style\.(left|top|width|height|display)\b/, 'no layout property is written in a frame');
   assert.doesNotMatch(dom, /requestAnimationFrame/);
-  const block = css.match(/\.cm::before \{[^}]*\}/)![0], stem = css.match(/\.cm::after \{[^}]*\}/)![0];
-  assert.match(block, new RegExp(`width: ${MARK.head}px; height: ${MARK.wing}px`));
-  assert.match(block, new RegExp(`top: -${MARK.wing / 2}px`));
-  assert.match(stem, new RegExp(`width: ${MARK.stem}px; height: ${MARK.line}px`));
+  // the shape is chevD's, from the one set of shares the shader reads
+  const poly = chevPolygon(MARK.hw), L = 2 * CHEV.LEN_OF_W * MARK.hw;
+  assert.deepEqual(poly[0], [0, 0], 'the point at the origin');
+  assert.ok(Math.abs(poly[1]![0] - L) < 1e-9 && poly[1]![1] === MARK.hw && poly[3]![1] === -MARK.hw && poly[1]![0] === poly[3]![0], 'the back: one length behind the point, a full half width either side');
+  assert.ok(Math.abs(poly[2]![0] - (CHEV_SHAPE.TIP + CHEV_SHAPE.BACK - CHEV_SHAPE.NOTCH) * L) < 1e-9 && poly[2]![1] === 0, 'the notched back');
+  assert.match(CHEVRON_GLSL, new RegExp(`tip = ${CHEV_SHAPE.TIP} \\* L, back = -${CHEV_SHAPE.BACK} \\* L, notch = ${CHEV_SHAPE.NOTCH} \\* L`), 'the shader reads the same shares');
+  assert.ok(MARK_PATH.startsWith('M0 0L') && MARK_PATH.endsWith('Z') && !MARK_PATH.includes('C'), 'a filled polygon');
+  // the outline is the labels': their halo's colour and width, drawn under the fill
+  const lb = css.match(/\.lb > span \{[^}]*\}/)![0], cm = css.match(/\.cm path \{[^}]*\}/)![0];
+  assert.match(lb, /-webkit-text-stroke: var\(--lb-halo-w\) var\(--lb-halo\); paint-order: stroke fill/);
+  assert.match(cm, /fill: var\(--lb-val\); stroke: var\(--lb-halo\); stroke-width: var\(--lb-halo-w\); paint-order: stroke fill/);
+  assert.doesNotMatch(css, /\.cm::(before|after)|cm-halo|cm-ink/, 'no hairline, no second halo');
 });
 
 // ── the cavernoma's hubs (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"): the six channels meet at the two nodes, each ending in a fine tip, never a widened, collared, round-capped end ──

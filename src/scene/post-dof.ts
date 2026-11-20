@@ -112,6 +112,8 @@ uniform vec4 bandK;
 // bandAK x the half length kept sharp, y the run to whole (px; 0: none)
 uniform vec4 bandA;
 uniform vec2 bandAK;
+// how far each pixel's blur has eased from ONE level over the whole screen (0) to its own band shape (1): the dive's focus pull is a uniform blur that lets go everywhere at once, never a window that opens
+uniform float bandO;
 varying vec2 vUv;
 #define TAPS ${DOF_TAPS}
 float distAt(vec2 uv) {
@@ -133,7 +135,7 @@ float bandCoc(vec2 uv) {
   float d = abs(dot(band.xy, p) - band.z);
   float t = clamp((d - bandK.x) / max(bandK.y, 1e-3), 0.0, 1.0), k = t * (2.0 - t);   // (eases out: the blur comes in quickly past the sharp band, then settles)
   if (bandAK.y > 0.0) k = max(k, smoothstep(bandAK.x, bandAK.x + bandAK.y, abs(dot(bandA.xy, p) - bandA.z)));
-  return k * bandK.z * bandK.w;
+  return mix(1.0, k, bandO) * bandK.z * bandK.w;
 }
 float cocOf(vec2 uv) { return max(gate.x > 0.0 ? cocAt(distAt(uv)) : 0.0, bandCoc(uv)); }
 void main() {
@@ -206,7 +208,7 @@ export class PostDof {
     const uniforms = {
       tSrc: { value: null }, tDepth: { value: null }, texel: { value: new Vector2(1, 1) }, proj: { value: new Vector2(-1, -1) },
       plane: { value: new Vector4(1, 0, 0, 1) }, focus: { value: new Vector4(1, 0, DOF_SPAN, 1) }, gate: { value: new Vector2(0, 1) },
-      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) }, bandA: { value: new Vector4(1, 0, 0, 0) }, bandAK: { value: new Vector2(0, 0) },
+      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) }, bandA: { value: new Vector4(1, 0, 0, 0) }, bandAK: { value: new Vector2(0, 0) }, bandO: { value: 1 },
     };
     this.gather = new ShaderMaterial({ name: 'post dof', vertexShader: DOF_VS, fragmentShader: DOF_GATHER_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms });
     this.mix = new ShaderMaterial({ name: 'post dof mix', vertexShader: DOF_VS, fragmentShader: DOF_MIX_FS, depthTest: false, depthWrite: false, transparent: true, uniforms: { tBlur: { value: null } } });
@@ -236,6 +238,8 @@ export class PostDof {
   /** The focus band's strength this frame (0: none). Unlike the depth's, it is wanted on every device (Mohammad tests on an iPhone) and needs no depth texture: it is only the picture blurred by a
    *  circle that grows with the distance from a line on the screen. */
   bandShare = 0;
+  /** How far the band's blur has eased from one level over the whole screen (0) to the resting band (1): the dive's focus pull (SinusoidScene3D focusOpen). */
+  bandOpen = 1;
   /** This frame's focus band: `a`, `b` two points on its centre line and `e0`, `e1` a point where the blur starts and one where it is whole (world points), `w`, `h` the picture's size in px,
    *  `k` the strength; `ends`, when given: the middle of the line and a point on it where the blur along it starts and one where it is whole (the scene's two ends, symmetric about the middle). Returns the strength. */
   bandFrame(cam: PerspectiveCamera, a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, w: number, h: number, k: number, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
@@ -255,6 +259,7 @@ export class PostDof {
       const g0 = Math.abs(tx * px(ends.f0, _c).x + ty * _c.y - cm), g1 = Math.abs(tx * px(ends.f1, _c).x + ty * _c.y - cm);
       (u.bandA!.value as Vector4).set(tx, ty, cm, 0); (u.bandAK!.value as Vector2).set(g0, Math.max(g1 - g0, 1));
     } else (u.bandAK!.value as Vector2).set(0, 0);
+    u.bandO!.value = Math.min(1, Math.max(0, this.bandOpen));
     this.bandShare = k;
     return k;
   }
