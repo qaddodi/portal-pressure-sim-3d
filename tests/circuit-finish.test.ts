@@ -510,3 +510,16 @@ test('a station name with no abbreviation of its own is shortened before its rea
   assert.ok(l.forms[1]!.w < l.forms[0]!.w && l.forms[2]!.w < l.forms[1]!.w, 'each form is narrower than the last');
   assert.deepEqual(b.meta.get('RPV')!.forms.map((f) => f.name), ['Right portal vein', 'RPV', ''], '2D\'s own abbreviation is kept');
 });
+
+test('a name never hangs from a leader drawn across the vessels when it can stand clear: the hepatic artery\'s name stood north of the sinusoids on a leader through all of them', async () => {
+  const { solve } = await import('../src/scene/labels/solver.ts');
+  // a dot at (300, 300); its preferred spot is north, 60 px up, behind four horizontal vessels (a leader goes through them, the name itself stands clear above); south is clear
+  const lines: [number, number, number, number][] = [[200, 290, 400, 290], [200, 282, 400, 282], [200, 274, 400, 274], [200, 266, 400, 266]];
+  const it = { id: 'HA', ax: 300, ay: 300, au: 0.5, forms: [{ text: 'Hepatic artery', w: 100, h: 20 }], pri: 1, dirs: ['N', 'S'] as never, minLead: 40, vw: 3 };
+  const view = { x0: 0, y0: 0, x1: 600, y1: 500 };
+  const plain = solve({ items: [it], view, blockers: [], lines });
+  const careful = solve({ items: [it], view, blockers: [], lines, leaderLineCost: 10 });
+  assert.ok(plain.placed[0]!.dy < 0, 'without the cost it goes north, across the lines');
+  assert.ok(careful.placed[0]!.dy > 0, `with it, it stands south, clear: ${careful.placed[0]!.dy}`);
+  assert.match(readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8'), /leaderLineCost: LEADER_LINE_COST/);
+});
