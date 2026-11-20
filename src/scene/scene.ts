@@ -3,6 +3,7 @@ import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
+import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
@@ -403,6 +404,17 @@ export class CelScene {
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
     }, false);
+  }
+
+  /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
+  private syncStumps(): void {
+    const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;
+    for (const [shunt, vein] of DIVIDED) {
+      const o = this.byEdge.get(vein) as VesselObject | undefined;
+      if (!o) continue;
+      const [cut, tie, k] = stumpOf(shunt, vein, this.presence.amountOf(shunt), vein === PV_START && side);
+      if (o.setStump(cut, tie, k)) this.moving = true;
+    }
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
@@ -885,6 +897,7 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
+    this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
