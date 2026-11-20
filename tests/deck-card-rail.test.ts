@@ -152,3 +152,16 @@ test('under Reduce Motion nothing travels but nothing pops: a fade of at least 2
   tick(16); tick(16);
   assert.ok(parseFloat(a[0]!.v.opacity ?? '0') < 0.5, 'not in one frame');
 });
+
+// Mohammad (no Reduce Motion): the new card still "fades in place". The lifted 2D rule `.pz-shade.pz-card:not(.stack)` carries a 420 ms transition on transform and
+// opacity, 120 ms delayed; each frame's inline write restarted it, so nothing moved until the writes stopped and then the card eased to its place.
+test('a card moved by the rail has its CSS transition switched off while it moves, and given back at rest', () => {
+  const { rail, tick } = world();
+  const a = [el()];
+  rail.enter(a, { dir: 1, dist: 900 });
+  assert.equal(a[0]!.v.transition, 'none');
+  tick(16); assert.equal(a[0]!.v.transition, 'none');
+  for (let i = 0; i < 60; i++) tick(16);
+  assert.equal(a[0]!.v.transition, undefined, 'the card\'s own transition is back at rest');
+  assert.match(rail.log.join(' '), /in 900->0px 520ms/);
+});

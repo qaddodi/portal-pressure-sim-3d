@@ -79,14 +79,18 @@ interface Run { kind: Kind; els: Styled[]; par: number; from: Pt; to: Pt; /** ms
 
 export function createRail(clock: Clock = theClock) {
   const runs = new Map<Styled, Run>();   // keyed by the group's first element
+  const log: string[] = [];   // (which moves ran, newest last: window.__rail.log in the page, for a measurement)
   let hold: Hold | null = null, off: (() => void) | null = null;
   const pos: Pt = { x: 0, o: 0 };
 
+  // (A card moved here has NO CSS transition on transform or opacity while it moves: the lifted 2D rules give `.pz-shade.pz-card` a 420 ms transition after a 120 ms
+  // delay, and a transition restarted by every frame's write never gets going: the card stood still and then faded at its place. 2D's card-throw.js writes
+  // `transition: none` first for the same reason.)
   const put = (els: Styled[], x: number, o: number, par: number) => {
     const tx = `translateX(${(x * par).toFixed(2)}px)`, op = o <= 0 ? '0' : o >= 1 ? '1' : o.toFixed(3);
-    for (const el of els) { el.style.setProperty('transform', tx); el.style.setProperty('opacity', op); }
+    for (const el of els) { el.style.setProperty('transition', 'none', 'important'); el.style.setProperty('transform', tx); el.style.setProperty('opacity', op); }
   };
-  const clear = (els: Styled[]) => { for (const el of els) { el.style.removeProperty('transform'); el.style.removeProperty('opacity'); } };
+  const clear = (els: Styled[]) => { for (const el of els) { el.style.removeProperty('transform'); el.style.removeProperty('opacity'); el.style.removeProperty('transition'); } };
   const here = (els: Styled[], par = 1): Pt => {
     const r = runs.get(els[0]!);
     if (r) return { x: r.x, o: r.o };
@@ -122,6 +126,7 @@ export function createRail(clock: Clock = theClock) {
     const key = els[0]!;
     runs.delete(key);
     put(els, from.x, from.o, par);   // (at once, in the task that starts it: no frame shows the card's own place first)
+    log.push(`${kind} ${Math.round(from.x * par)}->${Math.round(to.x * par)}px ${ms}ms delay ${delay}${anyOut() && kind === 'in' ? ' (after the old cards)' : ''}`); if (log.length > 40) log.shift();
     runs.set(key, { kind, els, par, from, to, elapsed: 0, delay, ms, x: from.x, o: from.o, done, after: kind === 'in' && anyOut() ? delay : undefined });
     wake();
   }
@@ -155,6 +160,7 @@ export function createRail(clock: Clock = theClock) {
     moving: (els: Styled[]) => runs.has(els[0]!),
     /** Lets go of a card (it is gone, or at rest): its inline values go. */
     forget(els: Styled[]) { runs.delete(els[0]!); if (!runs.size) sleep(); },
+    log,
     /** Steps the runs by hand (a test's frame). */
     step,
     get busy() { return runs.size; },
@@ -162,3 +168,4 @@ export function createRail(clock: Clock = theClock) {
 }
 
 export const rail = createRail();
+if (typeof window !== 'undefined') (window as unknown as { __rail?: { log: string[] } }).__rail = { log: rail.log };
