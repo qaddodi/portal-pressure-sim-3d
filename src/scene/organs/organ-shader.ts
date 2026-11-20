@@ -86,6 +86,10 @@ varying vec2 vBox;
 varying float vAo;
 const vec3 LIGHT = vec3(${ORGAN_LIGHT.map((v) => num(v)).join(', ')});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
 void main() {
+  // (the derivatives first, before the window's discard: a quad whose other pixels were dropped gives a garbage fwidth on a device that drops the lane, tests/no-derivative-after-discard.test.ts)
+  float turn = 1.0 - clamp(normalize(vNw).z, 0.0, 1.0);
+  float w = max(fwidth(turn), 1e-4);
+  float fwLam = fwidth(dot(normalize(vNw), LIGHT));
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
   float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
@@ -115,8 +119,6 @@ void main() {
   //  "when i tilt, the organs and everything loses shading or becomes darker"; at the rest view the eye is on that axis, so the look there is exactly 2D's)
   vec3 nw = normalize(vNw);
   float ndv = clamp(nw.z, 0.0, 1.0);
-  float turn = 1.0 - ndv;
-  float w = max(fwidth(turn), 1e-4);
   // the steps stack as 2D's strokes do (each over the last), at og-dark's own alpha, and sit on the lower right edge: 2D moves its shade
   // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
   vec2 side = length(nw.xy) > 1e-4 ? normalize(nw.xy) : vec2(0.0);
@@ -134,7 +136,7 @@ void main() {
     float wa = 0.12;
     float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
     float lam = dot(normalize(vNw), LIGHT);   // n.L in the world: the camera never changes it
-    float wl = 0.08 + fwidth(lam);
+    float wl = 0.08 + fwLam;
     float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
     float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);
     fill = mix(fill, ogDark.rgb, clamp(ogDark.a * (1.5 * tuck + 0.6 * away), 0.0, 1.0) * depthAmt);

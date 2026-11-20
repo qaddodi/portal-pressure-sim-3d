@@ -101,7 +101,12 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
     lateMaterialProgram('skin', SKIN_VS, SKIN_FS),
     lateMaterialProgram('skin (solid copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 1 }),
-    lateMaterialProgram('skin (veil copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 2 }),   // (spec 10.4: one source, three programs: the front copy is the one above)
+    lateMaterialProgram('skin (veil copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 2 }),
+    // the inspector's programs (?inspect: scene/vessels/debug-view.ts): the same sources with the VDBG hooks, and the skin's three build-time diagnostics, so every variant a panel switch can reach has been through the compile check
+    lateMaterialProgram('vessel (inspector)', VESSEL_VS, VESSEL_FS, { VDBG: 1 }),
+    lateMaterialProgram('skin (inspector)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_DEBUG: 1 }),
+    lateMaterialProgram('skin (inspector, no marks)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOMARKS: 1 }),
+    lateMaterialProgram('skin (inspector, no ink)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOINK: 1 }),   // (spec 10.4: one source, three programs: the front copy is the one above)
     ...clotPrograms(),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),

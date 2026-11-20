@@ -40,7 +40,7 @@ test('every triangle faces the way its normals do (nothing is culled or lit insi
       tot++; if (fn.dot(vn) < 0) bad++;
     }
     // (the space of Disse's sleeve is drawn both ways on purpose: one winding each side)
-    if (p.toonMesh.name === 'lobule3d/disse') assert.ok(bad <= tot / 2 + 1); else assert.equal(bad, 0, `${p.toonMesh.name}: ${bad} of ${tot} triangles inside out`);
+    assert.equal(bad, 0, `${p.toonMesh.name}: ${bad} of ${tot} triangles inside out`);
   }
 });
 

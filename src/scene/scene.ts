@@ -1,5 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
-import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -357,7 +357,15 @@ export class CelScene {
 
   /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
   private skins: SkinSet | null = null;
-  private readonly joins: JoinsMode;
+  private joins: JoinsMode;
+  /** The inspector's join switch (`?inspect`, src/ui/debug/inspect): the mode is read again from the page's live answer (joins-mode.ts) and the skins are built again on the tubes, or taken away for `old`: the same path as the Smooth vessel joins switch. */
+  useJoinsLive(): void {
+    const m = joinsMode();
+    if (m !== this.joins) { this.joins = m; this.refreshSkins(); this.applyMates(); }
+    this.moving = true; clock.invalidate('joins-live');
+  }
+  /** The mode the skins are built in now. */
+  get joinsNow(): JoinsMode { return this.joins; }
   /** The junction skins now drawn (the node names), for tests and the debug page. */
   get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
   private refreshSkins(): void {
@@ -1158,6 +1166,49 @@ export class CelScene {
     for (const g of [d.clots.group, d.strands.group, d.bleed.group, d.dye.group]) g.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });
   }
 
+  // ---- the inspector's hooks (?inspect): layers on and off, wireframe. Nothing here runs unless the panel has set something. ------------------------------------------------------------------------
+  private readonly inspectHidden = new Set<string>();
+  private readonly inspectWired = new Set<string>();
+  /** The parts of the figure the inspector can switch, each with the objects it stands for now (the vessels' tubes, the junction skins, the organs, what the disease puts on the vessels, the devices, the Circuit's map, the lobule and the sinusoid). */
+  inspectLayers(): readonly { id: string; label: string; objects: () => readonly Object3D[] }[] {
+    const d = this.disease;
+    return [
+      { id: 'tubes', label: 'Vessel tubes', objects: () => this.vessels.map((o) => o.group) },
+      { id: 'skins', label: 'Junction skins', objects: () => this.body.children.filter((c) => c.name.startsWith('skin:')) },
+      { id: 'organs', label: 'Organs', objects: () => [d.organs.group] },
+      { id: 'disease', label: 'Clots, plexus, bleed, dye', objects: () => [d.clots.group, d.strands.group, d.bleed.group, d.dye.group] },
+      { id: 'devices', label: 'Catheter, procedures, probes', objects: () => [this.catheter.group, this.procs.group, this.probes.group] },
+      { id: 'circuit', label: 'Circuit map', objects: () => [this.tubes.group, this.mapLayer.group] },
+      { id: 'dive', label: 'Lobule and sinusoid', objects: () => [this.dive] },
+    ];
+  }
+  /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
+  setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
+  isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
+  /** Draws one of `inspectLayers` as a wireframe (every mesh under it; a part built later, a skin rebuilt, is taken up on the next frame). */
+  setInspectWire(id: string, on: boolean): void {
+    if (on) this.inspectWired.add(id);
+    else {
+      this.inspectWired.delete(id);
+      for (const l of this.inspectLayers()) if (l.id === id) for (const o of l.objects()) o.traverse((c) => { if (c instanceof Mesh) for (const m of Array.isArray(c.material) ? c.material : [c.material]) if ((m as { wireframe?: boolean }).wireframe) { (m as { wireframe: boolean }).wireframe = false; } });
+    }
+    this.moving = true; clock.invalidate('inspect');
+  }
+  /** Before the draw: the hidden layers' flags go off and the wired layers' materials are set; returns what puts the flags back, or null when the inspector asked for nothing. */
+  private inspectBegin(): (() => void) | null {
+    if (!this.inspectHidden.size && !this.inspectWired.size) return null;
+    const back: Object3D[] = [];
+    for (const l of this.inspectLayers()) {
+      const hide = this.inspectHidden.has(l.id), wire = this.inspectWired.has(l.id);
+      if (!hide && !wire) continue;
+      for (const o of l.objects()) {
+        if (hide && o.visible) { o.visible = false; back.push(o); }
+        if (wire) o.traverse((c) => { if (c instanceof Mesh) for (const m of Array.isArray(c.material) ? c.material : [c.material]) { const w = m as { wireframe?: boolean }; if (w.wireframe === false) w.wireframe = true; } });
+      }
+    }
+    return () => { for (const o of back) o.visible = true; };
+  }
+
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
@@ -1171,6 +1222,7 @@ export class CelScene {
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
+    const inspectEnd = this.inspectBegin();   // (the inspector's hidden layers and wireframes: null, and nothing done, on every page without the panel)
     // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
     // depth of field in the dive (desktop only, post-dof.ts): zero cost unless its strength is above 0; the vessels' pass then keeps the depth the first pass drew (it draws nothing once the body is gone)
     const dofShare = this.post.dof.frame(this.figureView, cam, this.rig.pose.shot.target, cam.position.distanceTo(this.livePoint), this.lobuleRest(), DIVE_IN);
@@ -1192,6 +1244,7 @@ export class CelScene {
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     gl.autoClear = ac;
     cam.layers.mask = mask;
+    inspectEnd?.();
   }
 
   dispose(): void {

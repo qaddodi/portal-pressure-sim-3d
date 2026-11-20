@@ -20,7 +20,9 @@ test('the setting is off by default, saved, and has a row', () => {
 });
 
 test('the shader trades the two copies by solidK and veilK and drops a fully faded one', () => {
-  assert.match(VESSEL_FS, /#ifdef VEIL\s+fadeHere \*= veilK;\s+#else\s+fadeHere \*= solidK;\s+#endif\s+if \(fadeHere < 0\.004\) discard;/);
+  assert.match(VESSEL_FS, /#ifdef VEIL\s+fadeHere \*= veilK;\s+#else\s+fadeHere \*= solidK;\s+#endif/);
+  // (the glow's mask pass (#ifdef GLOW) returns between the trade and the drop: it paints the faded weight itself, so the drop still follows the trade)
+  assert.ok(VESSEL_FS.indexOf('fadeHere *= solidK;') < VESSEL_FS.indexOf('if (fadeHere < 0.004) discard;'));
 });
 
 test('show-through at rest; on, the cava and the lumbar vein ease from their veil copy to their solid copy, drawn with the organs; every other vessel is untouched; and back', () => {

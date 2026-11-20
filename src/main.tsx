@@ -28,7 +28,7 @@ import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
 import { isFrameRequest } from './ui/debug/frame/request.ts';
-import { flagOn, flagValue, debugPage } from './ui/debug/flags.ts';
+import { flagOn, flagValue, debugPage, inspectRequested } from './ui/debug/flags.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's applier is Stage's)
@@ -79,6 +79,7 @@ async function start() {
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
   if (flagOn('dust')) void import('./ui/debug/dust-panel.ts').then((m) => m.mountDust());   // ?dust: the hidden tuning panel for the blood's dust
+  if (inspectRequested()) void import('./ui/debug/inspect/panel.ts').then((m) => m.mountInspect());   // ?inspect, ?joins=debug: the inspector's panel (turn the figure, switch shaders, passes and layers live)
   if (flagOn('gl')) void import('./debug/gl-check.tsx').then((m) => m.mountGl());   // ?gl: every shader program, compiled on this device (WP10)
   void mountDebug();   // ?watch / ?debug on the preview copy only (batch B14)
   mountCharts();   // ?charts: the charts gallery (batch B10)

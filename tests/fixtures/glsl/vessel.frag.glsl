@@ -38,6 +38,26 @@ vec3 celTubeTone(vec3 base, float s, float sw, float rDev) {
 const vec3 CEL_LIGHT = vec3(-0.5014059075751371, 0.62174332539317, 0.6016870890901646);
 vec3 celLightView() { return (viewMatrix * vec4(CEL_LIGHT, 0.0)).xyz; }
 
+
+#ifdef VDBG
+uniform float dbgShade;
+uniform float dbgDust;
+uniform float dbgHeads;
+uniform float dbgInk;
+uniform float dbgTint;
+uniform vec4 dbgCol;
+vec3 dbgBody(vec3 c, vec3 base, vec3 n) {
+  if (dbgShade < 0.5) return c;
+  if (dbgShade < 1.5) return celTubeBase(base);
+  if (dbgShade < 2.5) return n * 0.5 + 0.5;
+  return base;
+}
+vec3 dbgEnd(vec3 c, float id) {
+  if (dbgTint > 0.5) c = mix(c, 0.5 + 0.5 * cos(6.2831853 * (fract(id * 0.61803399) + vec3(0.0, 0.33, 0.67))), 0.65);
+  return mix(c, dbgCol.rgb, dbgCol.a);
+}
+#endif
+
 // a vessel behind the organs (the cava) is drawn a second time over them with VEIL defined: OPAQUE, as every vessel is (no alpha at rest: two flat tones and the ink; Mohammad, 20 Nov: "Why is the venacava glassy")
 uniform vec3 color;
 uniform vec3 inkColor;
@@ -683,6 +703,14 @@ void main() {
   sideD = sideDL > 1e-4 ? sideD / sideDL : vec3(1.0, 0.0, 0.0);
   float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * len * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
   lensAcrossFw = fwidth(dot(nD, sideD) * 0.5 + 0.5);
+  // (the stent crowns, the suture dashes and the smoke below each want one more: the across angle's, the raw across's and the smoke's own, taken here for the same reason)
+  float acrossD = dot(nD, sideD), fwAcr = fwidth(acrossD), fwTh = fwidth(asin(clamp(acrossD, -0.999, 0.999)));
+  float nzD = 0.0, fwNz = 0.0;
+  if (smokeOn > 0.5) {   // (a uniform: every pixel takes the branch together)
+    float driftD = time * 0.04;
+    nzD = vnoise(vec2(vUv.x * len * 5.0 + driftD * 6.0, acrossD * 3.0 + driftD)) * 0.65 + vnoise(vec2(vUv.x * len * 11.0 - driftD * 4.0, acrossD * 6.0)) * 0.35;
+    fwNz = fwidth(nzD);
+  }
   vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
   if (frontOut(vUv.x, reveal)) discard;
   if (fadedOut()) discard;
@@ -766,12 +794,19 @@ void main() {
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
   vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
+#ifdef VDBG
+  c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
+#endif
   // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
   float sD = vUv.x * len * vU;
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
+  fd = clamp(fd, 0.0, 1.0);   // (premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
+#ifdef VDBG
+  if (dbgDust < 0.5) fd = vec4(0.0);
+#endif
   cBody = c;
   streakCover = fd.a;
   c = c * (1.0 - fd.a) + fd.rgb;
@@ -788,10 +823,9 @@ void main() {
   // stagnant blood in a big vein: slow, but not none (FLOW_CUTS none 1, stasis 9 cm/s), drifts as smoke. OFF by default (vessel-object.ts smokeOn 0, setSmoke(true) for a slide that asks for stasis): inside a tube there
   // are only the three flat tones and the flow heads, never blobs. When on, the smoke is flat patches of one tone with a hard edge, never a soft cloud.
   if (smokeOn > 0.5 && useData > 0.5 && dmm > 5.0 && abs(vel) > 1.0 && abs(vel) < 9.0) {
-    float drift = time * 0.04;
-    float nz = vnoise(vec2(vUv.x * len * 5.0 + drift * 6.0, across * 3.0 + drift)) * 0.65 + vnoise(vec2(vUv.x * len * 11.0 - drift * 4.0, across * 6.0)) * 0.35;
+    float nz = nzD;   // (and its derivative fwNz: taken at the top of main)
     float amt = (1.0 - smoothstep(1.0, 9.0, abs(vel))) * 0.5 + 0.12;
-    float nzW = max(fwidth(nz) * 0.75, 1e-3);
+    float nzW = max(fwNz * 0.75, 1e-3);
     c = mix(c, mix(base, vec3(lum(base) > 0.5 ? 0.15 : 0.92), 0.5), smoothstep(0.62 - amt - nzW, 0.62 - amt + nzW, nz) * 0.3);
   }
 
@@ -799,6 +833,10 @@ void main() {
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
   vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU), la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  hd = clamp(hd, 0.0, 1.0);
+#ifdef VDBG
+  if (dbgHeads < 0.5) hd = vec4(0.0);
+#endif
   if (hd.a > 0.0) {
     if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
     c = c * (1.0 - hd.a) + hd.rgb;
@@ -808,6 +846,9 @@ void main() {
   // (the same alpha as the body), is not drawn on a joined end's last stretch (a smooth join buries the cut) and is the look's casing ink taken most of the way to a deep tone of the vessel's own colour (never black, never white).
   float endK = vHi > 0.001 || nbrOn > 0.5 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
   float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
+#ifdef VDBG
+  if (dbgInk < 0.5) inkT = 0.0;
+#endif
   inkT *= 1.0 - nbrK;
   if (nbrK > 0.5 && dLat > rDevAx + 0.5) discard;
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
@@ -832,7 +873,7 @@ void main() {
       float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
       // (a wire's distance in SCREEN pixels, the distance over its own slope: a crown's steep flank stays one even line instead of breaking into dashes)
       float dv = s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
-      cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwidth(dv), 1e-5))));
+      cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))));
     }
     if (sB > s0 + 6.0 * un) {
       float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
@@ -840,7 +881,7 @@ void main() {
       for (int i = -1; i <= 1; i++) {
         float j = jc + float(i), ok = (j < 0.0 || j > Kc) ? 0.0 : 1.0;
         float dv = s - (c0 + j * Pc + Ac * cos(5.0 * th));
-        cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwidth(dv), 1e-5))));
+        cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))));
       }
       c = mix(c, vec3(1.0), 0.16 * kS * smoothstep(sB - px, sB + px, s));
       gold = 1.0 - smoothstep(0.5 * px, 1.4 * px, abs(s - (sB + 1.5 * un * (1.0 - abs(cos(th))))));
@@ -860,7 +901,7 @@ void main() {
       float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
       float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
       if (B.y > 0.5) {
-        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwidth(tn), 1e-4);
+        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
         dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
       } else {
         dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
@@ -889,5 +930,8 @@ void main() {
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
     c = mix(c, wedgeCol, 0.78 * wa);
   }
+#ifdef VDBG
+  c = dbgEnd(c, vindex);
+#endif
   gl_FragColor = vec4(c, fadeHere * cavA);
 }

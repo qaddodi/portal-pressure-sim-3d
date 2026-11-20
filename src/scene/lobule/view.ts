@@ -26,7 +26,7 @@ import { lobuleWorld } from './frames.ts';
 import type { InkContext } from './ink.ts';
 import { washProgress } from './wash.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
-import { DISC_R, LT_R, RS_N, congShare, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
+import { DISC_R, DUCT_R, LT_R, RS_N, congShare, inletRadius, lyTaper, sinRadius, twigR } from './widths.ts';
 import { defaultCanvas, type MakeCanvas } from './plate.ts';
 import { LobuleFade, LobuleRoot } from './one-fade.ts';
 
@@ -181,7 +181,7 @@ export class LobuleView {
     if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
     if (k === 'tw') return twigR(i / (n - 1), RS_N);
     if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
-    if (k === 'ly') return disseRadius((t as Course).rho[i]!);
+    if (k === 'ly') return DUCT_R * lyTaper((t as Course).rho[i]!) * lyWr(c.lymphRate, 0.45);
     if (k === 'bs') return BC_R;
     return BH_R;
   }
