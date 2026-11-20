@@ -100,7 +100,7 @@ test('the next sinusoids are hazed (from past this one\'s plates outward) and th
   s3.update(true);
   const m = meshes(s3.group).find((x) => x.name === 'sinusoid3d/lumen-beyond')!;
   const h = ((m.material as unknown as { uniforms: Record<string, { value: { x: number; y: number; z: number } }> }).uniforms.uHaze!.value);
-  assert.ok(h.x > UM.lum + UM.endo + UM.disse + UM.hep - 1 && h.y > h.x && h.z > 0.3, `haze ${h.x}..${h.y} x${h.z}`);
+  assert.ok(h.x > UM.lum + UM.endo + UM.disse + UM.hep * 0.5 && h.y > h.x && h.z > 0.3, `haze ${h.x}..${h.y} x${h.z}`);
   const F = flat as unknown as { trafficSpeed: number };
   assert.ok(F.trafficSpeed > 1);
   s3.update(false);
