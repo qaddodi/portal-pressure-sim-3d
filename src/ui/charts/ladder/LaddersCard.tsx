@@ -4,9 +4,10 @@ import { engine } from '../../../engine/index.ts';
 import type { CopiedDeck } from '../../../decks/rw/types.ts';
 import type { RunSteps } from '../../../decks/rw/numbers.ts';
 import { ProfileCard } from '../profile/ProfileCard.tsx';
+import { chartScale } from '../profile/model.ts';
 import { ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
-import { causeFit, chartScale, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
+import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
 import '../charts.css';
 
 const engineRun: RunSteps = (steps) => engine().sequence(steps).then((r) => r.map((x) => (x?.fp ?? {}) as never));
