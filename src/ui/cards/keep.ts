@@ -39,17 +39,28 @@ export function keepData(prev: F, next: F): boolean {
   return !swap || eases(next.tool);
 }
 
-/** The data card's key at every stop of a talk (null where the stop has no data card). */
-export function dataKeys(deck: Deck, stops: Stop[]): (string | null)[] {
-  const keys: (string | null)[] = [];
-  let prev: F | null = null, prevKey: string | null = null;
-  for (const st of stops) {
-    if (st.kind !== 'slide') { keys.push(null); prev = null; prevKey = null; continue; }
+/** What a stop's data card is: its key, its kind, and the stop whose slide the card shows (an instrument the slide has itself, or the one a slide with none carries on). */
+export interface DataAt { key: string; kind: 'ladder' | 'table'; from: number }
+
+/** The data card at every stop of a talk (null where the stop has none). A slide with an instrument of its own keeps the one before it where 2D does (keepData). Mohammad, 20 Nov: a slide with
+ *  no instrument of its own does not take the card away either, unless a case, a lapse, a catheter, a procedure, a question or a change of patient needs the screen: the card stays as it was
+ *  and only the words change (the 2D app clears it; the 3D app is allowed to be better). */
+export function dataKeys(deck: Deck, stops: Stop[]): (DataAt | null)[] {
+  const out: (DataAt | null)[] = [];
+  let prev: F | null = null, held: DataAt | null = null;
+  stops.forEach((st, i) => {
+    if (st.kind !== 'slide') { out.push(null); prev = null; held = null; return; }
     const f = fieldsOf(deck, st.slide), s = st.slide;
     const kind = s.ladder || s.tiles || hasToolChart(s) ? 'ladder' : s.table || hasVisualChart(s) ? 'table' : null;
-    if (!kind) { keys.push(null); prev = null; prevKey = null; continue; }
-    const key: string = prev && prevKey && keepData(prev, f) ? prevKey : kind === 'table' ? `table:${s.id}` : hasToolChart(s) ? `tool:${s.id}` : 'ladder';
-    keys.push(key); prev = f; prevKey = key;
-  }
-  return keys;
+    if (!kind) {
+      // no instrument of its own: the one on screen stays unless this slide needs the screen
+      const needs = OWN.some((k) => f[k]) || swaps(f);
+      if (held && !needs) { out.push(held); return; }
+      out.push(null); prev = null; held = null; return;
+    }
+    const kept = prev && held && keepData(prev, f) ? held : null;
+    const at: DataAt = kept ? { ...kept, from: i } : { key: kind === 'table' ? `table:${s.id}` : hasToolChart(s) ? `tool:${s.id}` : 'ladder', kind, from: i };
+    out.push(at); prev = f; held = at;
+  });
+  return out;
 }

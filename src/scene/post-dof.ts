@@ -51,8 +51,8 @@ export function dofShare(view: 'body' | 'circuit' | 'lobule' | 'sinusoid', d: nu
 export const DOF_MAX_FRAC = 0.005, DOF_SPAN = 0.35;
 /** The half thickness kept sharp either side of the focus (scene units): the lobule's slab with a margin for its vessels, and the sinusoid's own. */
 export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID = 1.0 * SIN_SCALE;
-/** The focus band's biggest circle, as a share of the picture's height (1.4%: about 24 px on an iPhone's 1688 px). */
-export const DOF_BAND_FRAC = 0.014;
+/** The focus band's biggest circle, as a share of the picture's height (2%: about 34 px on an iPhone's 1688 px). */
+export const DOF_BAND_FRAC = 0.02;
 /** The taps of the gather. */
 export const DOF_TAPS = 10;
 
@@ -128,7 +128,7 @@ float bandCoc(vec2 uv) {
   if (bandK.w <= 0.0) return 0.0;
   vec2 p = uv / texel;
   float d = abs(dot(band.xy, p) - band.z);
-  float k = smoothstep(bandK.x, bandK.x + bandK.y, d);
+  float t = clamp((d - bandK.x) / max(bandK.y, 1e-3), 0.0, 1.0), k = t * (2.0 - t);   // (eases out: the blur comes in quickly past the sharp band, then settles)
   if (bandAK.y > 0.0) k = max(k, smoothstep(bandAK.x, bandAK.x + bandAK.y, abs(dot(bandA.xy, p) - bandA.z)));
   return k * bandK.z * bandK.w;
 }

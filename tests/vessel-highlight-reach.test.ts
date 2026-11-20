@@ -93,6 +93,7 @@ test('a picked vessel lights a glow along its own course, eased in and out, in t
   s.highlight.step(16);
   const part = glows();
   assert.ok(part.length >= 1 && part.every((g) => ['PV_TRUNK', 'PV_TRUNK_1'].includes(g.id)), 'only the picked vein: ' + part.map((g) => g.id).join());
+  assert.equal((part[0]!.mesh as unknown as { layers: { mask: number } }).layers.mask, 2, 'in the vessels\' pass');
   assert.ok(part[0]!.mesh.material.opacity > 0 && part[0]!.mesh.material.opacity < 1, 'eases in');
   while (s.highlight.step(16)) { /* settle */ }
   assert.equal(glows()[0]!.mesh.material.opacity, 1);

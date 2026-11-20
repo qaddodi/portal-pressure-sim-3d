@@ -214,7 +214,7 @@ test('the Kupffer cell sits on bare lining, never on top of an endothelial cell,
   for (const sd of [SEED.nucUp, SEED.nucDn]) for (let n = -8; n <= 8; n++) assert.ok(nucAt(n + 1, sd) - nucAt(n, sd) > 2 * 4.6, 'neighbouring endothelial cells never overlap');
 });
 
-test('two more sinusoids and plates lie beyond the main plates each way, and the blur starts at the middle of the first hepatocyte row and grows gradually', async () => {
+test('two more sinusoids and plates lie beyond the main plates each way, and the blur starts at the middle of the first hepatocyte row and is whole by the next sinusoid', async () => {
   const { BEYOND, PERIOD, ACROSS } = await import('../src/scene/micro3d/sinusoid3d.ts');
   assert.equal(BEYOND, 2);
   assert.ok(ACROSS >= UM.lum + UM.endo + UM.disse + UM.hep + 2 * PERIOD, 'the ground reaches past the last plate');
@@ -230,7 +230,7 @@ test('two more sinusoids and plates lie beyond the main plates each way, and the
   const inv = new Matrix4().copy(s3.group.matrixWorld).invert();
   const y0 = Math.abs(e0.clone().applyMatrix4(inv).y), y1 = Math.abs(e1.clone().applyMatrix4(inv).y);
   assert.ok(Math.abs(y0 - (G.hepIn(0) + UM.hep * 0.5)) < 1e-6, 'sharp to the middle of the first hepatocyte row, then it begins');
-  assert.ok(y1 - y0 > PERIOD, `then gradual, over more than a whole repeat (${(y1 - y0).toFixed(0)} µm)`);
+  assert.ok(Math.abs(y1 - y0 - (UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5)) < 1e-6, `whole by the middle of the next sinusoid (${(y1 - y0).toFixed(1)} µm)`);
 });
 
 test('the bile canaliculus is a small round lumen between each pair of hepatocytes, not a long channel down the border (Mohammad 20 Nov: "like a circle in between each hepatocyte")', () => {
@@ -251,4 +251,25 @@ test('the bile canaliculus is a small round lumen between each pair of hepatocyt
     const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
     assert.ok(Math.abs(w / h - 1) < 0.1, `round, not a sliver: ${w.toFixed(3)} x ${h.toFixed(3)}`);
   }
+});
+
+test('the microvilli are the hepatocyte\'s own colour with its near-black line round each one (Mohammad 20 Nov: "outline the villi")', () => {
+  const { s3 } = scene(); s3.update(true);
+  const ms = meshes(s3.group);
+  const toon = ms.find((o) => o.name === 'sinusoid3d/microvilli')!, ink = ms.find((o) => o.name === 'sinusoid3d/microvilli/ink');
+  const cells = ms.find((o) => o.name === 'sinusoid3d/hepatocytes')!, cellInk = ms.find((o) => o.name === 'sinusoid3d/hepatocytes/ink')!;
+  assert.ok(ink, 'each villus is outlined');
+  const u = (m: Mesh, k: string) => ((m.material as unknown as { uniforms: Record<string, { value: { toArray(): number[] } }> }).uniforms[k]!.value.toArray());
+  assert.deepEqual(u(toon, 'tint'), u(cells, 'tint'), 'the hepatocyte\'s fill');
+  assert.deepEqual(u(ink!, 'color'), u(cellInk, 'color'), 'the hepatocyte\'s line');
+  assert.ok(Math.max(...u(cellInk, 'color')) < 0.2, 'near black');
+});
+
+test('the blur starts at the middle of the first hepatocyte row and is whole by the middle of the next sinusoid, rising fast (Mohammad 20 Nov: "start earlier and be more intense quickly")', async () => {
+  const { BLUR_RUN } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  const { DOF_BAND_FRAC } = await import('../src/scene/post-dof.ts');
+  assert.ok(Math.abs(BLUR_RUN - (UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5)) < 1e-9);
+  assert.ok(DOF_BAND_FRAC >= 0.02);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/post-dof.ts', import.meta.url), 'utf8');
+  assert.match(src, /k = t \* \(2\.0 - t\)/, 'eases out: most of the blur in the first half of the run');
 });

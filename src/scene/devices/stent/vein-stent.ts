@@ -8,7 +8,7 @@ import { courseOf, NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/networ
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { mergeTubes } from '../tube-rings.ts';
-import { buildStent, type StentSpec } from './stent-build.ts';
+import { buildStent, WIRE_MAX_R, type StentSpec } from './stent-build.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 
 /** The stretch of the vein the stent covers, as shares of its length (stage-venous.js VST_SPAN). */
@@ -81,7 +81,7 @@ export class VeinStent {
   private build(d: number): void {
     this.key = d.toFixed(2);
     const p = buildStent(this.specFor(d));
-    const g = mergeTubes(p.wires.map((w) => w.map((r) => ({ ...r, r: p.wireR }))), WIRE_RADIAL);
+    const g = mergeTubes(p.wires.map((w) => w.map((r) => ({ ...r, r: Math.min(p.wireR, WIRE_MAX_R) }))), WIRE_RADIAL);
     this.wires.group.traverse((c) => { const m = c as { isMesh?: boolean; geometry?: { dispose(): void } }; if (m.isMesh) { m.geometry!.dispose(); (m as unknown as { geometry: unknown }).geometry = g; } });
     this.apply();
   }
