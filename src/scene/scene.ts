@@ -104,9 +104,9 @@ const STUB_Q: Record<string, number> = {
 // (DIVE_IN follows the lobule's scale: the body is gone only when the camera is a few lobule-fits away, where the lobule's field starts to fill the screen. A fixed 0.7 left
 //  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
 /** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
-export const SIN_SHOW_FROM = 0.3;
+export const SIN_SHOW_FROM = 0.2;   // (the focus pull's start, sinusoid3d FOCUS[0]: the scene is up, its parts not yet drawn, its blur band working)
 /** The dive share from which the 3D lobule stands aside under the sinusoid: once the sinusoid (sinusoid3d.ts, whole from 0.86) covers it. */
-export const LOBULE_UNDER_FROM = 0.86;
+export const LOBULE_UNDER_FROM = 0.7;
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
 /** How much of the body is drawn with the camera `d` scene units from the lobule's place: 1 whole, 0 gone (smoothstep between DIVE_IN and DIVE_OUT). */
 // (in log distance: the zoom is geometric, so the dissolve runs evenly through the whole dive instead of all at once at its end)
@@ -1077,7 +1077,7 @@ export class CelScene {
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
     const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);

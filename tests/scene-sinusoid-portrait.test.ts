@@ -69,20 +69,20 @@ test('anchors turn with the plane: in a portrait the portal end is above the cen
 test('the turn follows the dive: the lobule turns into the tall view as the camera flies in, and out by the same frames reversed', () => {
   const T = PORTRAIT_ANGLE;
   assert.equal(turnAt(T, null), T); assert.equal(turnAt(T, 0), 0); assert.equal(turnAt(T, 1), T);
-  assert.ok(Math.abs(turnAt(T, 0.5) - T / 2) < 1e-12);
+  assert.equal(turnAt(T, 0.4), 0, 'along the lobule\'s tube while the lobule shows'); assert.ok(Math.abs(turnAt(T, 0.565) - T / 2) < 1e-12, 'then turns, eased, inside the blur');
   assert.equal(turnAt(0, 0.7), 0, 'a wide screen does not turn');
   const v = open(new SinusoidView(createShared()));
   v.setPortrait(true); run(v, 16, 3000);
   // flying in
   const seen: number[] = [];
   for (let g = 0; g <= 1.0001; g += 0.25) { v.setDive(g); v.update(2000 + g * 100); seen.push(v.group.rotation.z); }
-  assert.deepEqual(seen.map((x) => +(x / T).toFixed(6)), [0, 0.25, 0.5, 0.75, 1], 'the turn is the dive\'s share of the full turn');
+  assert.deepEqual(seen.map((x) => +(x / T).toFixed(6)), [0, 0, 0.5, 1, 1].map((x, i) => i === 2 ? +(turnAt(1, 0.5)).toFixed(6) : x), 'along the tube, then the turn inside the blur');
   v.setDive(null); v.update(3000);
   assert.ok(Math.abs(v.group.rotation.z - T) < 1e-9, 'landed: at rest it is the target');
   // flying out the same way: the same angle at the same share
   const back: number[] = [];
   for (let g = 1; g >= -1e-9; g -= 0.25) { v.setDive(Math.max(0, g)); v.update(4000 + (1 - g) * 100); back.push(v.group.rotation.z); }
-  assert.deepEqual(back.map((x) => +(x / T).toFixed(6)).reverse(), [0, 0.25, 0.5, 0.75, 1]);
+  assert.deepEqual(back.map((x) => +(x / T).toFixed(6)).reverse(), seen.map((x) => +(x / T).toFixed(6)));
 });
 
 test('a phone turned in the view glides (critically damped, no overshoot); with Reduce Motion it is there at once', () => {
