@@ -155,7 +155,7 @@ test('x2d reaches the 2D x the lobe is judged on', () => { assert.ok(Math.abs(x2
 
 // ── the heavy outline of a tapped organ ──
 import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
-import { OrganPins, PIN_PX, SELECT_PX } from '../src/scene/highlight.ts';
+import { ORGAN_GLOW, OrganPins, PIN_FADE_MS, PIN_PX, SELECT_PX } from '../src/scene/highlight.ts';
 import { MESHES_OF } from '../src/scene/organs/pick.ts';
 
 test('the organ outline widens by hiPx with hiOn and takes the highlight colour (it did neither before: the shader ignored both)', () => {
@@ -165,21 +165,31 @@ test('the organ outline widens by hiPx with hiOn and takes the highlight colour 
   assert.match(ORGAN_INK_VS, /px \+ hiOn \* hiPx/);
 });
 
-test('a tapped organ\'s outline fades in heavy, a slide\'s pin stays at its own width, and putting the selection away fades it out', async () => {
+test('a tapped organ glows (hulls of growing width round its line, in its selection colour), a slide\'s pin does too, and putting the selection away fades it out; no outline is widened', async () => {
   const s = await scene();
   const byId = s.disease.organs.byId, pins = new OrganPins();
-  const hi = (id: string) => byId.get(id)!.ink.uniforms.hiOn!.value as number, px = (id: string) => byId.get(id)!.ink.uniforms.hiPx!.value as number;
-  assert.ok(SELECT_PX > PIN_PX && SELECT_PX <= 1.5 * 1.1, 'a modest step up from the organ\'s own 1.1 line (the first try, 3.6, was a band');
+  const hi = (id: string) => byId.get(id)!.ink.uniforms.hiOn!.value as number;
+  const shells = (id: string) => byId.get(id)!.group.children.filter((c) => c.name.startsWith(`highlight/glow/${id}/`)) as unknown as { visible: boolean; material: { uniforms: Record<string, { value: number }> } }[];
+  const lit = (id: string) => shells(id).filter((m) => m.visible).map((m) => m.material.uniforms.inkA!.value);
+  assert.equal(SELECT_PX, 0); assert.equal(PIN_PX, 0, 'no widened outline: the glow is the highlight');
   pins.select(MESHES_OF.heart!);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
   assert.equal(hi('heart'), 1); assert.equal(hi('heart-ra'), 1, 'the atrium is part of the heart');
-  assert.equal(px('heart'), SELECT_PX); assert.equal(hi('liver'), 0);
+  assert.equal(lit('heart').length, ORGAN_GLOW.length, 'every hull of the glow shows');
+  assert.ok(lit('heart').every((a, j) => Math.abs(a - ORGAN_GLOW[j]!.alpha) < 1e-9), 'at full strength');
+  assert.equal(lit('liver').length, 0); assert.equal(hi('liver'), 0);
+  // the hulls widen outward and are drawn widest first
+  const widths = shells('heart').map((m) => m.material.uniforms.px!.value), orders = shells('heart').map((m) => (m as unknown as { renderOrder: number }).renderOrder);
+  for (let j = 1; j < widths.length; j++) { assert.ok(widths[j]! < widths[j - 1]!, 'narrower toward the organ'); assert.ok(orders[j]! > orders[j - 1]!, 'drawn after the wider one'); }
   pins.set(['liver']);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
-  assert.equal(hi('liver'), 1); assert.equal(px('liver'), PIN_PX, 'a slide\'s pin keeps its own line');
+  assert.equal(hi('liver'), 1); assert.equal(lit('liver').length, ORGAN_GLOW.length);
   pins.select([]); pins.set([]);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
-  assert.equal(hi('heart'), 0); assert.equal(hi('liver'), 0);
+  assert.equal(hi('heart'), 0); assert.equal(hi('liver'), 0); assert.equal(lit('heart').length, 0); assert.equal(lit('liver').length, 0);
+  // halfway through the fade the glow is part way
+  pins.select(MESHES_OF.liver!); pins.step(PIN_FADE_MS / 2, byId);
+  const part = lit('liver'); assert.ok(part.length === ORGAN_GLOW.length && part[0]! > 0 && part[0]! < ORGAN_GLOW[0]!.alpha, 'eases in');
   assert.deepEqual(MESHES_OF.spleen, ['spleen']); assert.deepEqual(MESHES_OF.liver, ['liver']);
   s.dispose?.();
 });
@@ -224,6 +234,7 @@ test('selecting any one organ lights that organ only: no other organ and no vess
     for (let i = 0; i < 40; i++) pins.step(16, byId);
     for (const [id, o] of byId) assert.equal(o.ink.uniforms.hiOn!.value, MESHES_OF[pick]!.includes(id) ? 1 : 0, `${pick} selected: ${id}`);
     for (const o of s.vessels) assert.equal(o.ink.uniforms.hiOn!.value, 0, `${pick} selected: vessel ${o.edge?.id} is not lit`);
+    for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith('highlight/glow/') && c.visible).length, MESHES_OF[pick]!.includes(id) ? ORGAN_GLOW.length : 0, `${pick} selected: ${id}'s glow`);
     // the organs' lines are not shared uniform objects: one organ's cannot write another's
     const seen = new Set<object>();
     for (const o of byId.values()) { for (const k of ['hiOn', 'hiPx', 'hiColor']) { const u = o.ink.uniforms[k]!; assert.ok(!seen.has(u), `${k} is its own`); seen.add(u); } }
@@ -232,6 +243,6 @@ test('selecting any one organ lights that organ only: no other organ and no vess
   pins.select([]);
   for (let i = 0; i < 40; i++) pins.step(16, byId);
   for (const o of byId.values()) assert.equal(o.ink.uniforms.hiOn!.value, 0);
-  assert.ok(SELECT_PX <= 1.0 && PIN_PX < SELECT_PX, 'thin: the tapped line is a little over the organ\'s own 1.1');
+  
   s.dispose?.();
 });

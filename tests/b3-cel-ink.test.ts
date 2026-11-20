@@ -44,7 +44,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.doesNotMatch(VESSEL_FS, /celTubeSpec|rimLight|wallT|fresnel|FAR_WALL|NEAR_WALL/, 'matte: no highlight, no rim light, no wall pass');
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
   assert.match(VESSEL_FS, /if \(smokeOn > 0\.5 &&/, 'the smoke is gated');
-  assert.match(VESSEL_FS, /dk = 1\.0 - step\(0\.19/, 'a head is one flat tone, not a grey halfway');
+  assert.match(VESSEL_FS, /dk = 1\.0 - step\(0\.26/, 'a head is one flat tone, not a grey halfway');
   assert.match(VESSEL_FS, /vec3 rimc = CHEV_RIM;/, 'the head\'s outline is always dark');
   assert.match(CHEVRON_GLSL, /const vec3 CHEV_RIM = vec3\(0\.2314, 0\.1725, 0\.1333\);/);
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
@@ -139,7 +139,7 @@ test('nothing inside the tube but the two tones and the flow heads: no highlight
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 1\.8 \* px/, 'a head\'s ring is a hard outline, not a halo');
   assert.match(VESSEL_FS, /abs\(across\)\)\);/, 'heads are cut inside the wall');
   assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/, 'a head needs a tube 3 px across or more (chevron-visible.test.ts)');
-  assert.match(VESSEL_FS, /float hw = min\(1\.0 \* R/, "a head is never wider than the lumen");
+  assert.match(VESSEL_FS, /float hw = min\(R \+ 1\.0 \* wpc/, "a head is never more than a pixel over each wall (the ink clips it)");
   assert.ok(!('SPEC' in CEL_STYLE), 'the style has no highlight');
 });
 
@@ -180,7 +180,7 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   const T = CEL_STYLE.TUBE;
   assert.ok(T.INK_OWN >= 0.5 && T.INK_TONE > 0.15 && T.INK_TONE < 0.5, 'mostly the vessel\'s own colour, deep but not black');
   assert.match(VESSEL_FS, new RegExp(`mix\\(inkColor, celTubeBase\\(baseH\\) \\* mix\\(${F(T.INK_TONE).replace('.', '\\.')}, ${F(T.INK_TONE_DARK).replace('.', '\\.')}, tubeDark\\), ${F(T.INK_OWN).replace('.', '\\.')}\\)`));
-  assert.match(VESSEL_FS, /mix\(mix\(inkH, inkColorCirc, circT\), hiColor/, 'the ink colour is the vessel\'s own tone, not the raw casing');
+  assert.match(VESSEL_FS, /mix\(inkH, inkColorCirc, circT\), inkT/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');
   assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/, 'only a declared branch\'s buried end is not outlined');

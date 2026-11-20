@@ -203,14 +203,14 @@ test('the head\'s shape and the spacing lattice are the 2D shader\'s text (needs
   const orange = squash(readFileSync(`${process.env.PPS_2D_REPO}/src/ui/veins-gl.js`, 'utf8'));
   const o = orange.indexOf('float chevOrange(vec3 c) {');
   assert.ok(mine.includes(orange.slice(o, orange.indexOf('}', o) + 1)), 'chevOrange');
-  assert.match(src, /CHEV_PITCH = 130/); assert.match(mine, /130\.0 \* wpc/);
+  assert.match(src, /CHEV_PITCH = 130/); assert.match(mine, /60\.0 \* wpc/);   // the 3D build's own pitch (CHEV): 60 CSS px, the 2D's 130 was not seen at the Mac fit
   const heads = readFileSync(`${process.env.PPS_2D_REPO}/src/ui/blood-heads.js`, 'utf8');
-  assert.match(heads, /clamp\(0\.5 \* R, 4\.0 \* cssPx \* pxW, 8\.0 \* cssPx \* pxW\)/); assert.match(heads, /STILL_A = 0\.3, THIN_LO = 1\.5, THIN_HI = 2\.5/); assert.match(mine, /clamp\(0\.5 \* R, 4\.0 \* wpc, 8\.0 \* wpc\)/);
+  assert.match(heads, /clamp\(0\.5 \* R, 4\.0 \* cssPx \* pxW, 8\.0 \* cssPx \* pxW\)/); assert.match(heads, /STILL_A = 0\.3, THIN_LO = 1\.5, THIN_HI = 2\.5/); assert.match(mine, /clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)/);
 });
 
 test('the inks: dark head on a light lumen, cream on a dark one (a hard step at 2D\'s luminance, never a grey halfway), orange reversed, a sepia outline always', () => {
-  assert.match(VESSEL_FS, /1\.0 - step\(0\.19, dot\(pow/);
-  assert.match(VESSEL_FS, /mix\(markDark, base \* 0\.3, 0\.2\)/);
+  assert.match(VESSEL_FS, /1\.0 - step\(0\.26, dot\(pow/);
+  assert.match(VESSEL_FS, /mix\(markDark \* 0\.5, markLight, dk\)/);
   assert.match(VESSEL_FS, /vec3\(0\.2314, 0\.1725, 0\.1333\)/);   // 59, 44, 34: the Light look's outline sepia
 });
 

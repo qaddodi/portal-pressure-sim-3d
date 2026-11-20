@@ -49,6 +49,9 @@ export function markShapes(hit: LobuleHit | null, e: MarkEnv): MarkLine[] {
   return lines;
 }
 
+/** Across a halo ribbon: the position (-1 to 1 of the half width) and the alpha, bright at the middle and thinning to nothing at both edges. */
+const ACROSS: readonly (readonly [number, number])[] = [[-1, 0], [-0.75, 0.16], [-0.5, 0.42], [-0.25, 0.7], [0, 0.85], [0.25, 0.7], [0.5, 0.42], [0.75, 0.16], [1, 0]];
+
 /** The halo as triangles: for each line a ribbon of its width, with an alpha per vertex (1, or thinning to 0.18 at the two ends of a vessel). */
 export function ribbon(lines: readonly MarkLine[], z: number): { pos: number[]; col: (number)[]; idx: number[] } {
   const pos: number[] = [], col: number[] = [], idx: number[] = [];
@@ -61,14 +64,17 @@ export function ribbon(lines: readonly MarkLine[], z: number): { pos: number[]; 
       let dx = b[0] - a[0], dy = b[1] - a[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
       const p = L.pts[i]!, u = n > 1 ? i / (n - 1) : 0;
       const al = L.fade ? 0.18 + 0.82 * Math.min(1, 5 * Math.min(u, 1 - u)) : 1;
-      for (const s of [1, -1]) {
+      // across the ribbon: the part's own line clear, then a glow thinning to nothing at the edge (a halo, not an outline)
+      for (let j = 0; j < ACROSS.length; j++) {
+        const [s, a] = ACROSS[j]!;
         const q = lobuleToScene(p[0] - dy * h * s, p[1] + dx * h * s, z);   // (y is down in the lobule's plane; lobuleToScene flips it)
         pos.push(q[0], q[1], q[2]);
-        col.push(1, 1, 1, al);
+        col.push(1, 1, 1, a * al);
       }
     }
     const m = L.closed ? n : n - 1;
-    for (let i = 0; i < m; i++) { const a = base + 2 * i, b = base + 2 * ((i + 1) % n); idx.push(a, a + 1, b, a + 1, b + 1, b); }
+    const C = ACROSS.length;
+    for (let i = 0; i < m; i++) for (let j = 0; j < C - 1; j++) { const a = base + C * i + j, b = base + C * ((i + 1) % n) + j; idx.push(a, a + 1, b, a + 1, b + 1, b); }
   }
   return { pos, col, idx };
 }

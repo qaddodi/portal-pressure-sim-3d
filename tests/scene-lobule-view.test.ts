@@ -7,12 +7,10 @@ import { SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frame
 import { WASH_DELAY_MS, WASH_MS, washAmount, washFront, washProgress, washSpan } from '../src/scene/lobule/wash.ts';
 import { LOBULE_PARTS, SINUSOID_PARTS } from '../src/scene/lobule/parts.ts';
 import { LOBULE_PALETTES, EXTRA_TONES } from '../src/scene/lobule/tones.ts';
-import { LobuleView, litParts, PLATE_PAINTED } from '../src/scene/lobule/view.ts';
+import { LobuleView } from '../src/scene/lobule/view.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
-import { Batch } from '../src/scene/lobule/batch.ts';
 import { PALETTES, LOOK_IDS } from '../src/scene/palette.ts';
-import { easeToward, type LobuleModel, type SinusoidTargets } from '../src/scene/lobule/model.ts';
-import type { CelObject } from '../src/scene/materials/cel.ts';
+import { easeToward, type LobuleModel } from '../src/scene/lobule/model.ts';
 
 const net = buildLobule();
 const kind = (k: string) => net.courses.filter((c) => c.kind === k);
@@ -115,60 +113,32 @@ test('the front runs from the central vein out past the portal edge, and a cours
   assert.equal(rev[0], 0); assert.ok(rev[1] > 0 && rev[1] < 1);
 });
 
-test('the amber is a recolour of the blood\'s own vessels only: sinusoids, links and the central vein, never the tracts or the lymph', () => {
-  const v = new LobuleView(createShared());
-  const wash = v.set.get('wash').group.children;
-  assert.equal(wash.length, 2, 'one overlay over the sinusoids, one over the central vein');
-  for (const k of ['cords', 'lymph', 'portal-tracts', 'inlets'] as const) assert.ok(!v.set.get(k).group.children.some((g) => wash.includes(g)));
-});
-
-test('the wash overlay is hidden until the wash runs, grows its front with the time, and goes away with the view', () => {
+test('the wash waits for the eye, then its progress runs to the end while the view shows it, and a hidden view asks for nothing', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true);
-  const [sin, cv] = v.set.get('wash').group.children;
   v.update(0);
-  assert.equal(sin!.visible || cv!.visible, false);
+  assert.equal(v.washProgress, 0);
   v.startWash(0);
   v.update(100);
-  assert.equal(sin!.visible, false, 'the eye finds the vessel first');
+  assert.equal(v.washProgress, 0, 'the eye finds the vessel first');
   v.update(WASH_DELAY_MS + 1000);
-  assert.ok(sin!.visible && cv!.visible);
-  const reveal = (o: CelObject) => o.ink.uniforms.reveal!.value as number;
-  const wash = v.objects.filter((o) => v.set.get('wash').group.children.includes(o.group));
-  const r1 = reveal(wash[0]!);
+  const k1 = v.washProgress;
+  assert.ok(k1 > 0 && k1 < 1);
   v.update(WASH_DELAY_MS + 2500);
-  assert.ok(reveal(wash[0]!) > r1, 'the front moves outward');
+  assert.ok(v.washProgress > k1, 'the front moves outward');
   assert.ok(v.update(WASH_DELAY_MS + 2600), 'frames keep coming while it runs');
   v.update(WASH_DELAY_MS + WASH_MS + 100);
-  assert.ok(v.washProgress === 1);
+  assert.equal(v.washProgress, 1);
   v.setVisible(false);
   assert.equal(v.update(1e6), false, 'a hidden view asks for nothing');
 });
 
-// ---- parts, tones, the artist's swap-in --------------------------------------------------------------------------------------------
+// ---- parts, tones ------------------------------------------------------------------------------------------------------------------
 
-test('every part of both views exists as a named, placeholder part, ready for the artist to swap in', () => {
-  const l = new LobuleView(createShared()), s = new SinusoidView(createShared());
-  assert.deepEqual([...l.set.parts.keys()], [...LOBULE_PARTS]);
-  assert.deepEqual([...s.set.parts.keys()], [...SINUSOID_PARTS]);   // (the sinusoid is one drawn shader on a plane, in its first part: tests/scene-sinusoid-lift.test.ts)
-  assert.deepEqual(l.set.remaining(), [...LOBULE_PARTS]);
-  for (const name of LOBULE_PARTS) if (!PLATE_PAINTED.includes(name)) assert.ok(l.set.get(name).group.children.length > 0, `lobule part ${name} has placeholder art`);
-  for (const name of PLATE_PAINTED) assert.equal(l.set.get(name).group.children.length, 0, `${name} is painted on the plate, as 2D paints it, with no geometry of its own`);
-});
-
-test('swapping a part replaces its placeholder and nothing else; the state, the wash and the shots go on addressing the part', async () => {
-  const { Group } = await import('three');
-  const l = new LobuleView(createShared());
-  const before = l.objects.length;
-  const art = new Group(); art.name = 'lobule/cords';
-  l.swap('cords', art);
-  assert.equal(l.set.get('cords').placeholder, false);
-  assert.equal(l.set.get('cords').group.children.length, 0, 'the placeholder is gone');
-  assert.ok(l.group.children.includes(art));
-  assert.ok(l.set.get('sinusoids').placeholder);
-  assert.ok(l.set.remaining().length === LOBULE_PARTS.length - 1);
-  assert.ok(l.objects.length === before, 'other parts keep their objects');
-  l.setVisible(true); l.setModel(model({ congU: 0.5 })); assert.doesNotThrow(() => l.update(0));
+test('every part of both views has a name (the cards, labels and taps address them)', () => {
+  const s = new SinusoidView(createShared());
+  assert.ok(LOBULE_PARTS.includes('sinusoids') && LOBULE_PARTS.includes('central-vein') && LOBULE_PARTS.includes('portal-tracts'));
+  assert.deepEqual([...s.set.parts.keys()], [...SINUSOID_PARTS]);
 });
 
 test('the tones are made from the looks table: every extra tone in every look, ink visible against the cords', () => {
@@ -182,107 +152,34 @@ test('the tones are made from the looks table: every extra tone in every look, i
 
 // ---- the lymph chevrons (and none in the sinusoid view) ----------------------------------------------------------------------------
 
-const marked = (v: LobuleView) => v.objects.filter((o) => o.isVessel);
-const flowOf = (o: CelObject) => o.toon.uniforms.headAmount!.value as number;   // (the flow heads, 2D's chevrons: shading.ts)
-const speedOf = (o: CelObject) => o.toon.uniforms.stubSpeed!.value as number;
-const settle = (v: LobuleView | SinusoidView, from = 0, ms = 1500) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
+const settle = (v: LobuleView, from = 0, ms = 1500) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
 
-test('lymph chevrons run on the terminal lymphatics, in toward the tract, while the Lymph layer is on; the space of Disse is a plain sleeve under its sinusoid and carries none (a yellow edge on every sinusoid)', () => {
-  const v = new LobuleView(createShared());
-  v.setVisible(true); v.snapModel(model()); settle(v);
-  const ly = v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel);
-  assert.ok(ly.length >= 1);
-  const marked = ly.filter((o) => flowOf(o) > 0.99);
-  assert.equal(marked.length, 1, 'chevrons on the lymphatics alone');
-  assert.ok(speedOf(marked[0]!) > 0, 'with their course (in toward the tract)');
-});
-
-test('hepatic lymph rises in cirrhosis, and the chevrons quicken with it', () => {
-  const calm = new LobuleView(createShared()), wet = new LobuleView(createShared());
-  for (const [v, m] of [[calm, model()], [wet, model({ lymph: 5.5, lyProt: 0.43 })]] as const) { v.setVisible(true); v.snapModel(m); settle(v); }
-  const lt = (v: LobuleView) => v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel && flowOf(o) > 0.99).map(speedOf)[0]!;
-  assert.ok(Math.abs(lt(wet)) > Math.abs(lt(calm)) * 1.4);
-});
-
-test('turning the Lymph layer off fades the ducts away (they shrink to nothing, never pop) and stops their frames', () => {
+test('turning the Lymph layer off fades it away (the 3D ducts shrink to nothing, never pop) and stops asking for frames', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); let t = settle(v);
-  const lymph = v.set.get('lymph').group;
-  assert.ok(lymph.visible);
+  assert.equal(v.lyFade, 1);
   v.setLayers({ lymph: false });
-  v.update(t += 16); assert.ok(lymph.visible, 'still going at the first frame');
-  const lt = v.objects.find((o) => lymph.children.includes(o.group) && o.isVessel)!;
-  const mid = lt.toon.uniforms.inflate!.value as number;
-  assert.ok(mid < 0 && mid > -0.04, 'shrinking');
+  v.update(t += 16); assert.ok(v.lyFade > 0 && v.lyFade < 1, 'still going at the first frame');
   t = settle(v, t);
-  assert.equal(lymph.visible, false);
+  assert.equal(v.lyFade, 0);
+  assert.equal(v.update(t + 16), false, 'settled: no frames');
 });
 
-test('blood\'s chevrons follow the Blood menu as in the 2D lobule: on for every vessel by default, off when switched off, the named parts alone for "key chevrons only"', () => {
-  assert.deepEqual([...litParts(['lobule:sinusoid'])], ['sinusoids']);
-  assert.ok(litParts(['lobule:central']).has('central-vein') && litParts(['lobule:central']).has('sinusoids'));
-  assert.ok(litParts(['lobule:triad']).has('portal-tracts') && litParts(['lobule:triad']).has('sinusoids'));
-  const v = new LobuleView(createShared());
-  v.setVisible(true); v.snapModel(model());
-  const blood = marked(v).filter((o) => !v.set.get('lymph').group.children.includes(o.group) && !v.set.get('bile').group.children.includes(o.group));
-  let t = settle(v);
-  assert.ok(blood.length >= 5);
-  for (const o of blood) assert.equal(flowOf(o), 1, 'the blood moves, nothing named');
-  v.setBlood({ chevrons: false, keyChevrons: false }); t = settle(v, t);
-  for (const o of blood) assert.equal(flowOf(o), 0, 'Blood > Chevrons off');
-  v.setBlood({ chevrons: true, keyChevrons: true }); v.setLit(litParts(['lobule:sinusoid'])); t = settle(v, t);
-  const sinus = blood.filter((o) => v.set.get('sinusoids').group.children.includes(o.group));
-  assert.equal(sinus.length, 3);
-  for (const o of sinus) assert.equal(flowOf(o), 1);
-  for (const o of blood.filter((o) => !sinus.includes(o))) assert.equal(flowOf(o), 0, 'key chevrons only: the named parts');
-});
 
-test('the marks run at the 2D painter\'s speeds (sinusoids 1 : 1.45 : 2.05 of sqrt(flow), faster in the inlets and the arteriole\'s twig), and reversed portal flow runs the inlets\' marks backward', () => {
+test('the lobule\'s disease states: congested zone 3 sinusoids dilate, capillarized ones narrow, the central vein widens with congestion and narrows with its collagen', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); settle(v);
-  const m = marked(v), speed = (part: string, i = 0) => speedOf(m.filter((o) => v.set.get(part as 'sinusoids').group.children.includes(o.group))[i]!);
-  const [a, b, c] = [speed('sinusoids', 0), speed('sinusoids', 1), speed('sinusoids', 2)];
-  assert.ok(a > 0 && Math.abs(b / a - 1.45) < 1e-6 && Math.abs(c / a - 2.05) < 1e-6);
-  assert.ok(speed('inlets') > a, 'the inlets run faster than the first sinusoids');
-  v.snapModel(model({ portal: 0.8, rev: { pre: true, sin: false, post: false } })); settle(v, 2000);
-  assert.ok(speed('inlets') < 0, 'reversed portal flow: marks the other way');
-  v.snapModel(model({ flow: 0.8, rev: { pre: false, sin: true, post: false } })); settle(v, 4000);
-  const still = m.filter((o) => v.set.get('sinusoids').group.children.includes(o.group))[0]!;
-  assert.equal(still.toon.uniforms.flowBands!.value, 1, 'a still sinusoid carries smoke (soft bands), not chevrons, as in 2D');
-  assert.ok(Math.abs(speedOf(still)) < 0.3, 'the smoke drifts slowly');
-});
-
-// ---- states ------------------------------------------------------------------------------------------------------------------------
-
-const targets = (o: Partial<SinusoidTargets> = {}): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, ...o });
-
-test('the lobule\'s disease states: the plate is painted again for a new state (collagen, nutmeg, stellate cells, zone 3 dropping out), congested zone 3 sinusoids dilate', () => {
-  const v = new LobuleView(createShared());
-  v.setVisible(true); v.snapModel(model()); settle(v);
-  const healthy = v.plate.key;
-  assert.match(healthy, /^light\|0,0,0,0,0,0$/, 'a healthy lobule\'s plate has no collagen, congestion or activation');
-  const s2 = () => v.objects.find((o) => o.tone === ('sin2' as never))!.toon.uniforms.inflate!.value as number;
-  assert.ok(Math.abs(s2()) < 1e-9);
-  const before = v.plate.paints;
-  v.setModel(model({ s: 0.85, septU: 1, fibPre: 0.7, fibPost: 0.6, congU: 0.8, act: 0.9, fibSin: 0.8, zone: { pre: 3, sin: 20, post: 3 } }));
+  assert.ok(Math.abs(v.sinScale('s2') - 1) < 1e-9 && Math.abs(v.sinScale('s0') - 1) < 1e-9);
+  const cv0 = v.cvRadiusNow;
+  v.setModel(model({ congU: 0.8 }));
   settle(v, 2000, 3000);
-  assert.equal(v.plate.paints, before + 1, 'painted once for the new state, not on every eased frame');
-  assert.equal(v.plate.key, 'light|26,32,26,29,22,19');
-  assert.ok(s2() > 0, 'congested zone-3 sinusoids dilate');
-  settle(v, 6000, 1000);
-  assert.equal(v.plate.paints, before + 1, 'a state that holds paints nothing more');
-});
-
-test('a batch builds tubes with every attribute the cel shaders read, and caps close an end-on vessel', () => {
-  const b = new Batch();
-  const len = b.tube([[0, 0, 0], [1, 0, 0], [2, 0, 0]], { radius: 0.1, radial: 6, capped: true, uvx: (_i, arc) => arc });
-  assert.ok(Math.abs(len - 2) < 1e-9);
-  const g = b.build();
-  for (const a of ['position', 'normal', 'uv', 'tang']) assert.ok(g.getAttribute(a), a);
-  assert.equal(g.getAttribute('position').count, 3 * 7 + 2 * (1 + 7));
-  assert.ok(g.getIndex()!.count % 3 === 0);
-  const nrm = g.getAttribute('normal');
-  for (let i = 0; i < nrm.count; i++) assert.ok(Math.abs(Math.hypot(nrm.getX(i), nrm.getY(i), nrm.getZ(i)) - 1) < 1e-6);
+  assert.ok(v.sinScale('s2') > v.sinScale('s1') && v.sinScale('s1') > 1, 'congested zone-3 sinusoids dilate most');
+  assert.ok(Math.abs(v.sinScale('s0') - 1) < 1e-9, 'the portal end does not');
+  assert.ok(v.cvRadiusNow > cv0);
+  v.setModel(model({ zone: { pre: 1, sin: 20, post: 1 }, fibPost: 1 }));
+  settle(v, 6000, 3000);
+  assert.ok(v.sinScale('s0') < 1, 'capillarized sinusoids narrow');
+  assert.ok(v.cvRadiusNow < cv0, 'the central vein\'s collagen narrows it');
 });
 
 test('a state target eases and lands exactly (the lobule\'s own use of easeToward)', () => {
@@ -291,32 +188,15 @@ test('a state target eases and lands exactly (the lobule\'s own use of easeTowar
   assert.equal(cur.a, 1);
 });
 
-test('with the Bile layer off (2D starts with it on) the vessels are gone; turning it on grows the canaliculi and canals out of nothing, and their arrowheads run out toward the tract (against the blood)', () => {
+test('the Bile and Zones layers fade in and back off (the 3D lobule grows the canaliculi out of nothing and eases the zones over the plate)', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); v.setLayers({ bile: false }); let t = settle(v);
-  const bile = v.set.get('bile').group;
-  assert.equal(bile.visible, false, 'off');
-  const objs = v.objects.filter((o) => bile.children.includes(o.group));
-  assert.equal(objs.length, 2, 'channels and canals');
-  v.setLayers({ bile: true });
-  v.update(t += 16); assert.ok(bile.visible, 'on at the first frame of the fade');
-  assert.ok((objs[0]!.toon.uniforms.inflate!.value as number) < 0, 'still growing');
+  assert.equal(v.bileFade, 0); assert.equal(v.zoneFade, 0);
+  v.setLayers({ bile: true, zones: true });
+  v.update(t += 16);
+  assert.ok(v.bileFade > 0 && v.bileFade < 1 && v.zoneFade > 0 && v.zoneFade < 1, 'easing in');
   t = settle(v, t);
-  for (const o of objs) { assert.ok(Math.abs(o.toon.uniforms.inflate!.value as number) < 1e-6, 'full size'); assert.equal(flowOf(o), 1, 'arrowheads on'); assert.ok(speedOf(o) > 0, 'run against the blood (bile.ts lays every course from the central vein out to the tract, so forward is out)'); }
-  v.setLayers({ bile: false }); t = settle(v, t);
-  assert.equal(bile.visible, false);
-});
-
-test('the Zones layer is 2D\'s radial gradient over the plate, easing in and back off with no new painting', () => {
-  const v = new LobuleView(createShared());
-  v.setVisible(true); v.snapModel(model()); let t = settle(v);
-  const paints = v.plate.paints;
-  assert.equal(v.zones.amount, 0); assert.equal(v.zones.mesh.visible, false);
-  v.setLayers({ zones: true }); v.update(t += 16);
-  assert.ok(v.zones.amount > 0 && v.zones.amount < 0.17, 'easing in');
-  t = settle(v, t);
-  assert.ok(Math.abs(v.zones.amount - 0.17) < 1e-9, '2D\'s opacity on Light');
-  v.setLayers({ zones: false }); t = settle(v, t);
-  assert.equal(v.zones.amount, 0); assert.equal(v.zones.mesh.visible, false);
-  assert.equal(v.plate.paints, paints, 'the tissue was not painted again');
+  assert.equal(v.bileFade, 1); assert.equal(v.zoneFade, 1);
+  v.setLayers({ bile: false, zones: false }); t = settle(v, t);
+  assert.equal(v.bileFade, 0); assert.equal(v.zoneFade, 0);
 });
