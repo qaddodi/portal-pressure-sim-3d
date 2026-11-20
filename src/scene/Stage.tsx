@@ -151,6 +151,7 @@ function SceneBridge() {
       ask: frames.ask, cancel: frames.cancel,
       timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+      locked: () => useDeck.getState().mode === 'deck',   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,
     }, window as unknown as GestureTarget);
     gesturesRef.current = g;
