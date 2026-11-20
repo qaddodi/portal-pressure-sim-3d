@@ -127,7 +127,7 @@ test('lazy instruments: a tab for one still on its way waits for it; the ones bu
 // ── stand-in elements and touches ──
 type Fn = (e: unknown) => void;
 function el(extra: Record<string, unknown> = {}) {
-  const on = new Map<string, Fn[]>(), style: Record<string, string> = {};
+  const on = new Map<string, Fn[]>(), style: Record<string, unknown> = { setProperty(k: string, v: string) { style[k] = v; }, removeProperty(k: string) { delete style[k]; } };
   return Object.assign({
     nodeType: 1, parentElement: null, scrollWidth: 0, clientWidth: 0, style, dataset: {}, matches: () => false, closest: () => null, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     addEventListener(t: string, f: Fn) { (on.get(t) ?? on.set(t, []).get(t)!).push(f); }, removeEventListener(t: string, f: Fn) { on.set(t, (on.get(t) ?? []).filter((x) => x !== f)); },

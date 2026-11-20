@@ -12,7 +12,9 @@ export const KEY_CHEV_LANES: Readonly<Record<string, readonly string[]>> = { AZY
 const kindOf = new Map((EDGES as { id: string; kind: string }[]).map((e) => [e.id, e.kind]));
 
 /** Whether vessel `id` keeps its chevrons under Key chevrons only; `open(id)`: whether a collateral is drawn open. */
-export function keyChevron(id: string, open: (id: string) => boolean = () => false): boolean {
+export function keyChevron(id0: string, open: (id: string) => boolean = () => false): boolean {
+  // (a branch drawn as a tributary of a vein (`PVH_R_2~F:b`, the liver branches; `C3~F:caput`) carries its vein's blood and is its vein's story: it is not an engine edge, so asking the tables for it by its own name found nothing and it lost its chevrons under "Key chevrons only" and in a presentation; Mohammad, 20 Nov)
+  const id = id0.includes('~F') ? id0.slice(0, id0.indexOf('~F')) : id0;
   const kind = kindOf.get(id);
   if (KEY_CHEV_IDS.has(id) || kind === 'liver' || kind === 'collateral' || kind === 'shunt') return true;
   return (KEY_CHEV_LANES[id] ?? []).some(open);

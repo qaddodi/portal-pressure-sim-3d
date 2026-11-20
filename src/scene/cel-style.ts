@@ -21,9 +21,9 @@ export const CEL_STYLE = {
   SHADE: 0.38,   // (2D: 0.17)
   LIT: 0.3,   // (2D: 0.15)
   /** The ink line, in device px: LINE_R of the radius held between LINE_MIN and LINE_MAX (2D). */
-  LINE_R: 0.2,   // (2D: 0.14)
-  LINE_MIN: 2.0,   // (2D: 1.5)
-  LINE_MAX: 3.0,
+  LINE_R: 0.3,   // (2D: 0.14; 0.2 until Mohammad, 20 Nov: "veins outlines should be thicker in general everywhere")
+  LINE_MIN: 3.5,   // (2D: 1.5; a thin vessel's line thins with its lumen under this radius, cel-ink.ts inkTaper, so it never swallows the vessel)
+  LINE_MAX: 6.0,
   /** The ink's least alpha on every look (2D's casing is .64 on Light and .3 on Dark: a line that fades into the page is not a toon line). */
   INK_ALPHA_MIN: 1.0,
   /** A band's edge is this many device px across in each direction: crisp, antialiased by fwidth, never a gradient. */
@@ -54,10 +54,10 @@ export const CEL_STYLE = {
   MICRO: {
     SHADE: 0.3,
     /** The ink, in CSS px: round the big shapes (hepatocytes, the trough, the cells), round the small ones (pores, albumin, microvilli). */
-    LINE: 2.0,
-    LINE_SMALL: 1.5,
+    LINE: 1.5,
+    LINE_SMALL: 0.75,
     /** Every cell's and particle's ink: its own fill this deep (near black, as the Anatomy's lines read; a mid red round a red cell read as no line at all). */
-    INK_K: 0.2,
+    INK_K: 0.28,
   },
 } as const;
 

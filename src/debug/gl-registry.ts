@@ -10,6 +10,7 @@ import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from '../scene/organs/organ-shader.t
 import { patchedShaders } from '../scene/organs/organ-art.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
+import { JET_INK_FS, JET_INK_VS } from '../scene/disease/bleed.ts';
 import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
 import { SYNTH_FS, SYNTH_VS } from '../ui/tests/copied/doppler-synth.copied.js';
 import { SPECTRUM_FS, SPECTRUM_VS } from '../ui/tests/doppler/spectrum-gl.ts';
@@ -33,6 +34,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
+  'scene/disease/bleed.ts': 'the bleed jet\'s ink (a hull whose line thins toward the tip; made when a bleed first shows): registered by name',
   'scene/disease/dye.ts': 'the dye overlay (made when a bolus is given): registered by name',
   'scene/shunt-guide.ts': 'the shunt\'s dashed guide (a quad on the vessels\' pass, in the body group): found on the scene graph',
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
@@ -56,7 +58,7 @@ export const GL_FILES: Record<string, string> = {
 export function namedSources(): Map<string, string> {
   return new Map<string, string>([
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
-    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
+    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [JET_INK_VS, 'bleed jet ink'], [JET_INK_FS, 'bleed jet ink'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
   ]);
 }
 

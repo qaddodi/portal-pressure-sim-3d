@@ -1,4 +1,4 @@
-// An active variceal bleed as the scope sees it (2D endo-bleed.js, drawn over the field each frame): a wet spot at the tear on a varix column, a spurt thrown into the lumen with drops falling from it,
+// An active variceal bleed as the scope sees it (2D endo-bleed.js, drawn over the field each frame): a wet spot at the tear on a varix column, a jet thrown into the lumen (jet.ts: arcing, beading, with a spray off its tip) and drops falling from it,
 // a rivulet running down the wall round the tube into a pool that lies flat at the bottom (the wedge between its two edges, widening as it fills), a red haze that thickens with the blood lost.
 // The 2D painter fills radial gradients on a canvas; the charts' drawer fills flat shapes, so each gradient is a few nested flat ones (the same colours, the same geometry, the same motion).
 // Every number of the picture comes from the copied modules (endo-motion.copied.js: the tear, the pool, the drops); the colours are the scope's own tokens.
@@ -7,29 +7,20 @@ import { bleedPulse } from '../copied/blood-slice.copied.js';
 import { SCOPE_TOKENS } from '../copied/scope-tokens.copied.js';
 import { parseColour, withAlpha, type Rgba } from '../../charts/colour.ts';
 import type { Shape } from '../../charts/scene.ts';
+import { ribbon } from './ribbon.ts';
+import { jetShapes } from './jet.ts';
 
 const tk = (n: string): Rgba => parseColour((SCOPE_TOKENS as Record<string, string>)[n]!);
 const frac = (x: number) => ((x % 1) + 1) % 1;
 const smooth = (e0: number, e1: number, x: number) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
-const NMAIN = 20, NJET = 8, NE = 16;
+const NMAIN = 20, NE = 16;
 
 /** The pool's edges sway: side +1 the right edge, -1 the left (endo-bleed.js sway). */
 const sway = (t: number, rho: number, side: number) => (0.016 * Math.sin(rho * 9 + t * 0.9 + side * 2) + 0.01 * Math.sin(rho * 23 - t * 1.3 + side)) * Math.min(1, rho * 3);
 /** The angle a pool edge leaves the centre at, rho of the way out (grow widens the wedge: the thin skirt). */
 const edgeAng = (t: number, phi: number, grow: number, side: number, rho: number) => (side > 0 ? phi - grow + sway(t, rho, 1) : Math.PI - phi + grow - sway(t, rho, -1));
 
-/** A ribbon along n points (P: flat x, y pairs), W[i] wide at each, as one closed outline (a tapered or swelling stream with no seams). */
-export function ribbon(P: ArrayLike<number>, W: ArrayLike<number>, n: number): number[] {
-  const out: number[] = [];
-  for (let side = 0; side < 2; side++) {
-    for (let s = 0; s < n; s++) {
-      const i = side ? n - 1 - s : s, i0 = Math.max(0, i - 1) * 2, i1 = Math.min(n - 1, i + 1) * 2;
-      const dx = P[i1]! - P[i0]!, dy = P[i1 + 1]! - P[i0 + 1]!, d = Math.hypot(dx, dy) || 1, w = W[i]! / 2;
-      out.push(side ? P[i * 2]! + (dy / d) * w : P[i * 2]! - (dy / d) * w, side ? P[i * 2 + 1]! - (dx / d) * w : P[i * 2 + 1]! + (dx / d) * w);
-    }
-  }
-  return out;
-}
+export { ribbon };
 
 export interface BleedIn {
   cx: number; cy: number; R: number;
@@ -114,26 +105,21 @@ export function bleedShapes(o: BleedIn): Shape[] {
     for (let i = 0; i < NE; i++) { const rho = ((i + 1) / NE) * 1.04; if (rho > far + 0.08) { const ang = edgeAng(t, phi, 0, side, rho); e.push(cx + Math.cos(ang) * rho * R, cy + Math.sin(ang) * rho * R); } }
     if (e.length >= 4) out.push({ k: 'path', pts: e, pen: { color: A(fresh, 0.5), w: Math.max(1, R * 0.006) } });
   }
-  // the spurt: a tapered stream from the tear toward the axis, bending down, thinning to nothing at its tip
-  const into = Math.atan2(-ty, -tx);
+  // the jet: a stream from the tear toward the axis (narrow mouth, widening, arcing under gravity, necking into beads, a spray off its tip), cel-drawn, then the drops it throws, each a cel drop
   if (spurt > 0) {
-    const k = Math.min(1.6, Math.max(0.6, (rate || 50) / 90)), v = (0.2 + 0.55 * p) * k;
-    const J = new Float64Array(2 * (NJET + 1)), WJ = new Float64Array(NJET + 1);
-    for (let i = 0; i <= NJET; i++) {
-      const s = (i / NJET) * 0.22;
-      J[2 * i] = jx + Math.cos(into) * v * s * R; J[2 * i + 1] = jy + (Math.sin(into) * v * s + 0.75 * s * s) * R;
-      WJ[i] = R * 0.026 * (1 - i / (NJET + 1)) * (0.7 + 0.3 * p);
-    }
-    out.push({ k: 'path', pts: ribbon(J, WJ, NJET + 1), closed: true, fill: A(fresh, spurt * (0.55 + 0.45 * p) * 0.8) });
+    const k = Math.min(1.6, Math.max(0.6, (rate || 50) / 90));
+    jetShapes({ jx, jy, cx, cy, R, t, a, spurt, k }, { jet, fresh, ink: pool }, out, (x, y) => Math.hypot(x - cx, y - cy) < R * 0.98 && !inScopePool((x - cx) / R, (y - cy) / R, phi));
   }
-  // the drops: short, fat streaks along their path
   const drops = scopeDrops(t, rate, hr, { x: tx, y: ty, th: th0 }, null) as number[][];
   for (const d of drops) {
     const al = d[3]!, r = d[2]!, vx = d[4]!, vy = d[5]!;
     if (al <= 0.01) continue;
     const X = jx + d[0]! * R, Y = jy + d[1]! * R;
     if (Math.hypot(X - cx, Y - cy) > R || inScopePool((X - cx) / R, (Y - cy) / R, phi)) continue;   // (gone into the pool)
-    out.push({ k: 'line', x1: X - vx * 0.02 * R, y1: Y - vy * 0.02 * R, x2: X, y2: Y, pen: { color: A(jet, al * 0.9), w: Math.max(1.5, 2 * r * R), cap: 'round' } });
+    const rr = Math.max(1.3, r * R * 1.15);
+    out.push({ k: 'line', x1: X - vx * 0.03 * R, y1: Y - vy * 0.03 * R, x2: X, y2: Y, pen: { color: A(jet, al * 0.5), w: rr * 1.3, cap: 'round' } });
+    out.push({ k: 'circle', cx: X, cy: Y, r: rr, fill: A(jet, al), pen: { color: A(pool, al * 0.7), w: Math.max(0.9, R * 0.004) } });
+    if (rr > 2.2) out.push({ k: 'circle', cx: X - rr * 0.3, cy: Y - rr * 0.32, r: rr * 0.3, fill: A(fresh, al * 0.9) });
   }
   // the tear: the mucosa stained round it, and the wet spot itself, at one steady size
   stain(jx, jy, R * (0.07 + 0.02 * p), 1.2);

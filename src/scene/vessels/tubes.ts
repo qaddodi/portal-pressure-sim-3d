@@ -39,6 +39,17 @@ export const factorSpan = (t: readonly [number, number], sp: readonly [number, n
 const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (end === 1 && e.flare ? (flareScale(d, e.hostR) as number) : 1));
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
+/** A course's radius at `u` (0 to 1 along it) as its tube is built, without the collar and the bead: its own radius, its end tapers, a buried end held under its trunk and a free end's point. `len` is the course's length (scene units). */
+export function radiusAtU(c: Course, u: number, len: number): number {
+  let f = c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u);
+  let R = c.radius * f;
+  const d0 = u * len, d1 = (1 - u) * len;
+  if (c.clamp) R = Math.min(buriedRadius(R, d0, c.clamp[0]), buriedRadius(R, d1, c.clamp[1]));
+  if (c.point?.[0]) R *= pointFactor(d0, pointLength(c.radius, len));
+  if (c.point?.[1]) R *= pointFactor(d1, pointLength(c.radius, len));
+  return R;
+}
+
 /** The share of its radius a free end tapers down to (a point, not a hole: the tube stays closed). */
 export const TIP_K = 0.07;
 /** The length (scene units) a free end tapers over: four radii, never more than 40 % of the course. */

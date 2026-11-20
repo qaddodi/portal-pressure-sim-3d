@@ -55,6 +55,8 @@ export const BAR_H = 44;
 /** The band the shell's top bar takes above the figure (labels and the free-room solver keep clear of it). */
 export const BAR = 56;
 export const PILL_W = 272;
+/** An iPhone's pill (Mohammad, 20 Nov: smaller, in the card's lower right corner): 32 px tall, each button's 44 px tap box reaching over its edge (deck-ui.css), about this wide. */
+export const BAR_H_PHONE = 32, PILL_W_PHONE = 188, PILL_CORNER = 14;
 export const PILL_W_SIDE = 156;   // (iPhone on its side: the count, the settings and Exit, as 2D's phone pill; a swipe moves the talk)
 /** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
 export const FOOT_ZONE = 62;
@@ -78,11 +80,12 @@ export function barOf(vp: Viewport, colRight = 0): BarPlace {
   const layout = layoutOf(vp.w, vp.h);
   if (layout === 'stack' || layout === 'tab') {
     const cardBottom = vp.h - footReserve(vp) + 0;
-    const y = cardBottom - 12 - BAR_H;
+    const phone = layout === 'stack', bh = phone ? BAR_H_PHONE : BAR_H, bw = phone ? PILL_W_PHONE : PILL_W, inset = phone ? PILL_CORNER : 13;
+    const y = cardBottom - (phone ? PILL_CORNER : 12) - bh;
     const w = Math.round(vp.w * (layout === 'tab' ? 0.7 : 1) - (layout === 'tab' ? 0 : 16));
     const left = layout === 'tab' ? Math.round((vp.w - w) / 2) : Math.max(8, safe.left);
     // the lower right corner of the words card, inside it (an iPhone, as an upright iPad: Mohammad, 20 Nov)
-    return { edge: 'card', rect: { x: left + w - 13 - PILL_W, y, w: PILL_W, h: BAR_H }, title: null };
+    return { edge: 'card', rect: { x: left + w - inset - bw, y, w: bw, h: bh }, title: null };
   }
   const sideways = isSideways(vp.w, vp.h);
   const cm = margin(vp.w, vp.h, layout), w = sideways ? PILL_W_SIDE : PILL_W;

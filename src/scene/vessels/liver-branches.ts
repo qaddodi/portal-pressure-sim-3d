@@ -14,14 +14,19 @@ const N = 64, Z_FWD = 0.1;
 /** A branch begins this far behind the vein it leaves, rising to its own depth over its first third, so the vein's wall covers the branch's start and its outline is not drawn across the vein (a crease where it joins). */
 const Z_TUCK = 0.02;
 const tuck = (u: number): number => -Z_TUCK * (1 - smooth(u / 0.35));
+/** The centre-to-centre distance (2D units) at which a side branch has cleared the vein it leaves: the two radii and a little. */
+const CLEAR: Readonly<Record<string, number>> = { PVH_R_2: 11, PVH_L_1: 9.5, RHV_IVC_1: 9, LHV_IVC: 9 };
+/** The depth of a side branch at lateral distance `w` from its vein's line: behind the vein (its wall covers it, so no outline is drawn across the vein) for as long as the two overlap, and forward to `z` only once it is clear of it.
+ *  (It used to rise with the distance along the vein, so by a fifth of the way it was already in front while still lying on the vein: a crease and a darker overlap at every fork; Mohammad, 20 Nov.) */
+export const tuckedDepth = (w: number, clear: number, z: number): number => { const s = smooth((w - 0.35 * clear) / (0.85 * clear)); return -Z_TUCK * (1 - s) + z * s; };
 /** Where along its vein (0 to 1, from the end the branches grow from: the portal branches' liver end, the hepatic veins' start) each branching vein splits. */
-export const SPLIT_AT: Readonly<Record<string, number>> = { PVH_R_2: 0.35, RHV_IVC_1: 0.72, LHV_IVC: 0.62 };
-/** The left portal vein ends where the umbilical vein and the thin left bed meet it, so its course stays whole: its two branches start at its very end, as wide as it is there (the node rule has narrowed it to the bed's width by then). */
-export const END_JOIN: ReadonlySet<string> = new Set(['PVH_L_1']);
+export const SPLIT_AT: Readonly<Record<string, number>> = { PVH_R_2: 0.35, PVH_L_1: 0.55, RHV_IVC_1: 0.72, LHV_IVC: 0.62 };
+/** (None now: the left portal vein was the one end-fork, two children from its very end, which showed as a knob with two tubes laid over each other; the umbilical vein leaves its wall earlier now (starts.ts leaveVein), so it branches like every other vein, one tube and one side branch.) */
+export const END_JOIN: ReadonlySet<string> = new Set<string>();
 /** How far each vein runs on past its 2D end, as a share of its length, into the liver (the through branch). */
 const EXT: Readonly<Record<string, number>> = { PVH_R_2: 0.55, PVH_L_1: 0.55, RHV_IVC_1: 0.4, LHV_IVC: 0.4 };
 /** How far the through branch and the side branch spread from the vein's own line, as a share of the run: [through, side]. The left hepatic vein has only its through branch, bent downward into the left lobe (never up to the capsule). */
-const SPREAD: Readonly<Record<string, readonly [number, number | null]>> = { PVH_R_2: [0, 0.5], RHV_IVC_1: [0, 0.55], LHV_IVC: [0.54, null] };
+const SPREAD: Readonly<Record<string, readonly [number, number | null]>> = { PVH_R_2: [0, 0.5], PVH_L_1: [0, 0.5], RHV_IVC_1: [0, 0.55], LHV_IVC: [0.54, null] };
 /** The width a branch narrows to at its tip, as a share of its vein's: gently, over the whole length, and it fades out before it could end. */
 export const TIP = 0.5;
 const smooth = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -67,7 +72,7 @@ function grow(id: string, host: readonly P2[], prefix: readonly P2[] | null): Tr
     const pts: P2[] = [], dz: number[] = [];
     for (let i = 0; i < N; i++) {
       const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = spread * L * Math.pow(u, 1.4);
-      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(smooth(u) * z + (z > 0 ? tuck(u) : 0));
+      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(z > 0 ? tuckedDepth(Math.abs(w), CLEAR[id] ?? 10, z) : 0);
     }
     return { pts, dz };
   };
