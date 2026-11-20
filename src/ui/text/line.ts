@@ -79,3 +79,23 @@ export function plainLine(pieces: Piece[], read: (k: string, at?: string) => num
     }
   }).join('');
 }
+
+/** A piece with the stop that follows it. */
+export interface Glued { p: Piece; stop: string }
+/** A pill keeps the word before it and the stop after it on its line (2D rich glue(), pill(), termPill()): the space before a value, cut-off, number or step marker becomes a no-break space,
+ *  and a following , . ; : (for a figure term also a closing bracket) is taken out of the words and held with its pill, so the two never part across a line. */
+export function gluePieces(pieces: readonly Piece[]): Glued[] {
+  const items: Glued[] = pieces.map((p) => ({ p, stop: '' }));
+  items.forEach((it, i) => {
+    const t = it.p.t, isTerm = t === 'term', isPill = t === 'value' || t === 'cutoff' || t === 'literal' || t === 'step';
+    if (!isTerm && !isPill) return;
+    const next = items[i + 1];
+    if (next && next.p.t === 'text') {
+      const m = (isTerm ? /^[),.;:]+/ : /^[,.;:]/).exec(next.p.text);
+      if (m) { it.stop = m[0]; next.p = { ...next.p, text: next.p.text.slice(m[0].length) }; }
+    }
+    const prev = items[i - 1];
+    if (isPill && prev && prev.p.t === 'text') prev.p = { ...prev.p, text: prev.p.text.replace(/ $/, '\u00a0') };
+  });
+  return items;
+}

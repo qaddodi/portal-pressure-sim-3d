@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { typesetter, termList, toneVar, richOf, type Node } from '../src/ui/text/rich.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { parseLine, gluePieces } from '../src/ui/text/line.ts';
 import { nb } from '../src/ui/text/glue.ts';
 import { pinned2D } from './two-d-pin.ts';
 
@@ -46,6 +47,18 @@ test('the cavernoma is always a station word; a record of words is read as the d
   assert.ok(termList({}).some(([, k]) => k === 'cavernoma'));
   const ts = typesetter({ terms: { 'the gut': 'smv' } });
   assert.deepEqual(kinds(ts.set('Blood from the gut.')), ['term:the gut']);
+});
+
+test('a pill keeps the word before it and its stop after it: no space between a value and the comma that follows it', () => {
+  const g = gluePieces(parseLine('The portal vein pressure is {pv}, the IVC {ivc} and the [right atrium](ra).'));
+  const [t0, v0, t1, v1, t2, term, t3] = g;
+  assert.equal(t0!.p.t === 'text' && t0!.p.text, 'The portal vein pressure is\u00a0');
+  assert.equal(v0!.stop, ',');
+  assert.equal(t1!.p.t === 'text' && t1!.p.text, ' the IVC\u00a0');
+  assert.equal(v1!.stop, '');
+  assert.equal(t2!.p.t === 'text' && t2!.p.text, ' and the ');
+  assert.equal(term!.stop, '.');
+  assert.equal(t3!.p.t === 'text' && t3!.p.text, '');
 });
 
 const two = pinned2D('src/ui/presenter-words.js');
