@@ -97,11 +97,13 @@ test('the waves are see-through strokes: 2D\'s packet (a ripple, the crest, a ri
 test('the scope\'s tip is one tube with its shaft: the shaft\'s width, starting inside it, and the plain scope stops higher', () => {
   const sc = new EndoScope(createShared());
   for (let t = 0; t < 8000; t += 16) sc.update(16, true, 'scope', 'pv');
-  const k = sc as unknown as { shaft: { rings: { c: Vector3; r: number }[] }; tip: { rings: { c: Vector3; r: number }[] } };
+  const k = sc as unknown as { shaft: { rings: { c: Vector3; r: number }[] }; bend: { rings: { c: Vector3; r: number }[] }; tip: { rings: { c: Vector3; r: number }[] } };
   const R = k.shaft.rings[0]!.r, first = k.tip.rings[0]!, last = k.tip.rings[k.tip.rings.length - 1]!;
-  assert.ok(k.tip.rings.every((r) => r.r === R), 'the tip is as wide as the shaft from end to end');
-  const n = sc.pose.shaftRings, next = k.shaft.rings[n + 1]!;
-  assert.ok(first.c.distanceTo(next.c) < len3(1.2 * 3), `the tip starts at the shaft (${first.c.distanceTo(next.c)})`);
+  assert.ok(k.tip.rings.every((r) => r.r === R) && k.bend.rings.every((r) => r.r === R), 'the bending section and the tip are as wide as the shaft from end to end');
+  // shaft, bending section and tip are one chain: each starts where the one before stops (the tip a ring's length inside the bend)
+  const n = sc.pose.shaftRings, next = k.shaft.rings[n + 1]!, b0 = k.bend.rings[0]!, b1 = k.bend.rings[k.bend.rings.length - 1]!;
+  assert.ok(b0.c.distanceTo(next.c) < len3(1.2 * 3), `the bending section starts at the shaft (${b0.c.distanceTo(next.c)})`);
+  assert.ok(first.c.distanceTo(b1.c) < len3(1.2 * 3), `the tip starts at the bending section's end (${first.c.distanceTo(b1.c)})`);
   assert.ok(first.c.distanceTo(last.c) > 0.01);
   assert.ok(SCOPE_UP > 40 && Math.abs(workD('scope', 'pv') - (scopeWay().cardiaD - SCOPE_UP)) < 1e-9);
   sc.dispose();
