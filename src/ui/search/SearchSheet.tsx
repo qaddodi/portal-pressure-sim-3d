@@ -9,6 +9,7 @@ import { usesBottomBar } from '../shell/room.ts';
 import { startTalk } from '../shell/talk.ts';
 import { noMatch, NO_MATCH_HELP } from '../shell/words.ts';
 import { search } from './match.ts';
+import { visibleBottom } from '../shell/place.ts';
 import { buildCommands } from './commands.ts';
 
 export function SearchSheet() {
@@ -16,7 +17,7 @@ export function SearchSheet() {
   const phone = usesBottomBar(useUi((s) => s.device));
   const [q, setQ] = useState('');
   const [at, setAt] = useState(0);
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLInputElement>(null), back = useRef<HTMLDivElement>(null), listEl = useRef<HTMLDivElement>(null);
   const cmds = useMemo(() => (open ? buildCommands(startTalk) : []), [open]);
   const hits = useMemo(() => search(cmds, q, UI.search.emptyOrder), [cmds, q]);
   // Focus the field in the very commit that shows the palette (owner, 20 Nov: "when i hit search or / the search bar should be in focus right away so i can type"). A layout effect runs inside the
@@ -25,6 +26,23 @@ export function SearchSheet() {
   // closed a moment ago handing focus back to its button.
   useLayoutEffect(() => { if (open) { setQ(''); setAt(0); input.current?.focus({ preventScroll: true }); } }, [open]);
   useEffect(() => { if (open && document.activeElement !== input.current) input.current?.focus({ preventScroll: true }); }, [open, q]);
+  // The on-screen keyboard (iOS draws it over the page without shrinking it): the sheet rests on it, and the list is held to the room above it (2D palette.js fitList; --pal-kb, --pal-vh and
+  // --pal-room are read by app-03-layouts.css). Event-driven, from the visual viewport's resize and scroll; nothing runs per frame.
+  useEffect(() => {
+    const el = back.current;
+    if (!open || !el) return;
+    const vv = window.visualViewport;
+    const fit = () => {
+      const kb = Math.max(0, Math.round(innerHeight - visibleBottom()));
+      el.style.setProperty('--pal-kb', `${kb}px`);
+      el.style.setProperty('--pal-vh', `${Math.round(vv ? vv.height : innerHeight)}px`);
+      const l = listEl.current;
+      if (l) el.style.setProperty('--pal-room', `${Math.max(96, Math.floor(visibleBottom() - l.getBoundingClientRect().top - 12))}px`);
+    };
+    fit();
+    vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit);
+    return () => { vv?.removeEventListener('resize', fit); vv?.removeEventListener('scroll', fit); for (const k of ['--pal-kb', '--pal-vh', '--pal-room']) el.style.removeProperty(k); };
+  }, [open]);
   useEffect(() => { setAt(0); }, [q]);
   useEffect(() => { document.getElementById(`pal-opt-${at}`)?.scrollIntoView({ block: 'nearest' }); }, [at]);
   const run = (i: number) => {
@@ -52,7 +70,7 @@ export function SearchSheet() {
   const close = () => useShell.getState().close();
   // 2D palette.js markup: .pal-back > .pal (.pal-top: icon, field, close; .pal-list of .pal-item; .pal-foot), on the 2D stylesheet
   return (
-    <div className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!open && !shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div ref={back} className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!open && !shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div className="pal" role="dialog" aria-modal="true" aria-label="Command palette" inert={!open}>
         <div className="pal-top">
           <Icon n="search" className="pal-ic" />
@@ -60,7 +78,7 @@ export function SearchSheet() {
             role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="pal-list" aria-activedescendant={hits[at] ? `pal-opt-${at}` : undefined} autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" />
           <button type="button" className="ib pal-x" aria-label="Close search" onClick={close}><Icon n="close" /></button>
         </div>
-        <div className="pal-list" id="pal-list" role="listbox" aria-label="Results">
+        <div ref={listEl} className="pal-list" id="pal-list" role="listbox" aria-label="Results">
           {hits.length === 0 ? (
             <div className="pal-empty"><b>{noMatch(q)}</b>{q ? NO_MATCH_HELP : null}</div>
           ) : hits.map((h, i) => (
