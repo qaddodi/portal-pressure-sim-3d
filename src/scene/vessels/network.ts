@@ -88,6 +88,7 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
+  if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -170,7 +171,7 @@ export const NETWORK: readonly NetVessel[] = build();
  *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
  *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
 /** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_Z), and rises to the plane on its way to the confluence. */
-const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen };
+const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen, EPI: TIER_Z.fwd };   // (EPI: the umbilicus, on the anterior wall)
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
   const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
