@@ -201,8 +201,10 @@ ${CIRCUIT_VS_CALL}
   // (the ring is a polygon: its flats sit at the radius, its corners ${F(TUBE_SAG)} of the radius farther out, so the silhouette never falls inside the line)
   vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * (1.0 - narrow) - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
   // where this tube carries on into another (a mate), its end ring runs on a hair (under a CSS px) into the next: two flat rings that meet exactly leave a light line between them where their edges are smoothed, along the whole of a straight join
-  if (uv.x < 0.0001 && mate0.x >= 0.0) p -= aTan * (RUN_ON_PX * wpcV / vU);
-  if (uv.x > 0.9999 && mate1.x >= 0.0) p += aTan * (RUN_ON_PX * wpcV / vU);
+  // (only where the tube is opaque: a faint tube (the cava at 0.45, a fading vein) drawn twice over those 1.5 px is a darker band, a faint dashed line across it at every join of its pieces; Mohammad, 20 Nov)
+  float runOn = RUN_ON_PX * smoothstep(0.97, 1.0, fa);
+  if (uv.x < 0.0001 && mate0.x >= 0.0) p -= aTan * (runOn * wpcV / vU);
+  if (uv.x > 0.9999 && mate1.x >= 0.0) p += aTan * (runOn * wpcV / vU);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
   vT = normalize(normalMatrix * aTan);

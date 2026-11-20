@@ -55,3 +55,12 @@ test('a vein into the cava takes the cava\'s opacity at its wall and is cut alon
     assert.ok(cavaEndSpan('RHV_IVC') > 0);
   } finally { s.dispose(); }
 });
+
+test('the run-on overlap of two joined tubes (a hair, so no light line shows) is drawn only where the tube is opaque: a faint tube (the cava) drawn twice over it is a dashed darker band across it', async () => {
+  const { VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
+  assert.match(VESSEL_VS, /float runOn = RUN_ON_PX \* smoothstep\(0\.97, 1\.0, fa\);/);
+  assert.match(VESSEL_VS, /p -= aTan \* \(runOn \* wpcV \/ vU\);/);
+  assert.match(VESSEL_VS, /p \+= aTan \* \(runOn \* wpcV \/ vU\);/);
+  assert.doesNotMatch(VESSEL_VS, /aTan \* \(RUN_ON_PX/, 'no overlap that ignores the tube\'s opacity');
+  assert.ok(VESSEL_VS.indexOf('float fa = 1.0;') < VESSEL_VS.indexOf('float runOn'), 'the opacity is known before the overlap is placed');
+});
