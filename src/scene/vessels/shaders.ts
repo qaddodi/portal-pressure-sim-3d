@@ -492,7 +492,15 @@ void main() {
     float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     if (dOn > 0.002) {
       // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
-      vec4 dust = dustField(across, vUv.x * len * vU, smS.w, max(radius * vU, 1e-3), vR, rCssD, len * vU, nar, smS.y, smS.z, fract(lensIndex * 0.6180339) * 50.0, chD.w > 0.5 ? chD.x : lensIndex + 1.0, celTubeBase(base), inkColor);
+      float sD = vUv.x * len * vU, rOwn = max(radius * vU, 1e-3), wl = chD.w;
+      vec3 litD = celTubeBase(base);
+      vec4 dust = vec4(0.0);
+      if (wl < 1.0) dust = dustField(across, sD, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssD, len * vU, nar, smS.y, smS.z, fract(lensIndex * 0.6180339) * 50.0, lensIndex + 1.0, litD, inkColor);
+      if (wl > 0.0) {   // the blood runs on from the parent: the root's particles, at the root's distance, A + B s along its stream (the chevrons' own placing)
+        int rootIx = int(chD.x + 0.5) - 1;
+        vec4 dc = dustField(across, sD, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(texelFetch(chainTex, ivec2(int(lensIndex), 1), 0).w * vU, 1e-3), vR, rCssD, len * vU, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
+        dust = wl >= 1.0 ? dc : mix(dust, dc, wl);   // (a link forming or letting go cross-fades the two sets: nothing pops)
+      }
       streakCover = dOn * dust.a;
       cBody = c;
       c = c * (1.0 - streakCover) + dust.rgb * dOn;
