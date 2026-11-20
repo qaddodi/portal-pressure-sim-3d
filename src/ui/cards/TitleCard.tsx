@@ -8,8 +8,10 @@ export function TitleCard({ deck, page, pages }: { deck: Deck; page: number; pag
   const outline = outlineOf(deck);
   return (
     <>
-      {head && <h1 className="pz-h">{deck.title}</h1>}
-      <p className="pz-line">{OUTLINE_TITLE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
+      <div className="pz-ph">
+        {head && <h1 className="pz-dtitle">{deck.title}</h1>}
+        <h1 className="pz-h">{OUTLINE_TITLE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</h1>
+      </div>
       <div className="pz-outline">
         {head && (
           <section>
