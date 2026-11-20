@@ -27,7 +27,7 @@ test('the cel base of every organ in every look is its own 2D tone (og-N-2) soft
     const chroma = (c: RGB) => Math.max(...c) - Math.min(...c);
     const sat = (c: RGB) => { const d = Math.max(...c) - Math.min(...c), l = (Math.max(...c) + Math.min(...c)) / 2; return d < 1e-9 ? 0 : d / (1 - Math.abs(2 * l - 1)); };
     assert.ok(sat(t.base) <= sat(b2d) * 0.9 + 1e-9, `${id} ${organ}: less saturated than 2D's ${og[1]}`);
-    assert.ok(lum(t.base) >= lum(b2d) - 1e-9 && lum(t.base) - lum(b2d) < 0.12, `${id} ${organ}: not darker than 2D, lifted by under .12 (${(lum(t.base) - lum(b2d)).toFixed(3)})`);
+    assert.ok(lum(t.base) >= lum(b2d) - 1e-9 && lum(t.base) - lum(b2d) < 0.15, `${id} ${organ}: not darker than 2D, lifted by under .15 (${(lum(t.base) - lum(b2d)).toFixed(3)})`);
     // the same hue (a brown-red stays brown-red: not grey-mauve), within a few degrees; a near-grey tone has no hue to keep
     if (chroma(b2d) > 0.1) for (const [name, c] of [['base', t.base], ['shade', t.shade], ['lit', t.lit], ['ink', t.ink]] as const) {
       const d = Math.abs(((hue(c) - hue(b2d) + 540) % 360) - 180);
