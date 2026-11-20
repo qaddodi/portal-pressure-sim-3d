@@ -118,6 +118,7 @@ export function LabelLayer() {
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
+      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit,
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
       present: (id) => {
         const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
