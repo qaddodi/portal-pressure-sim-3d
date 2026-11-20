@@ -161,11 +161,14 @@ test('the baked file: a round trip, the digest of the map\'s own rings, and a bu
     assert.equal(made.skins.length, 10);
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;
     assert.ok(back && back.digest === made.digest);
+    assert.equal(live.set.source, 'live');
     const baked = setOf(scene, () => back); baked.set.build();
+    assert.equal(baked.set.source, 'baked', 'the first change to the Circuit meshes nothing on the page (a mesh is a stall; the file is for this figure)');
     assert.deepEqual(baked.set.nodes, live.set.nodes);
     for (const n of baked.set.nodes) assert.ok(back.skins.some((b) => b.mesh === baked.set.skinOf(n)), `${n}: the skin drawn is the baked mesh itself`);
     // a file for another figure is not laid in
     const other = setOf(scene, () => ({ ...back, digest: 'circuit/other' })); other.set.build();
+    assert.equal(other.set.source, 'live');
     for (const n of other.set.nodes) assert.ok(!back.skins.some((b) => b.mesh === other.set.skinOf(n)), `${n}: built live`);
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
