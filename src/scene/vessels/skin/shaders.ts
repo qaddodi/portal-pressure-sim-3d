@@ -32,8 +32,8 @@
 //   growG        vec2   + the growth of the first and second growing arm (the same numbers, in the order of the mesh's morphs)
 //   gPosA0, gNorA0, gWtA0, gWt2A0 (and A1)   attributes +  per growing arm: (P1 - P0 position, restR1 - restR0), N1 - N0, the weight differences of arms 0 to 3 and of arms 4, 5
 //
-// Lane lenses (the Blood origin and First pass lenses draw lanes side by side ACROSS a tube): a skin has no "across" and takes the lane's centre (across 0), so a junction shows its arms' middle lane; the lens ramps
-// (pressure, oxygen...) are exact.
+// Lane lenses (the Blood origin and First pass lenses draw lanes side by side ACROSS a tube): each arm's lane colour is read at that arm's own across (the dot of the normal with its side, as the tube's), then the arms are blended
+// by weight, so the lanes run on from the tubes through the skin; the lens ramps (pressure, oxygen...) are exact.
 import { VDBG_GLSL } from '../debug-view.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
@@ -295,15 +295,15 @@ void main() {
   vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
-#ifndef SKIN_NOMARKS
-  // EVERY derivative the flow marks need is taken HERE, before the first discard: after a discard a quad's other pixels get no usable neighbour (a device like Apple's drops the discarded lane, and fwidth is then garbage), so at a crotch or a silhouette, where
+  // (the lens lanes need the arms' across and its derivative too, so this block is the skin's always, whatever marks are left out)
+  // EVERY derivative the flow marks and the lens lanes need is taken HERE, before the first discard: after a discard a quad's other pixels get no usable neighbour (a device like Apple's drops the discarded lane, and fwidth is then garbage), so at a crotch or a silhouette, where
   // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
   float vLen = length(vV);
   vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
-  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}];
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}];
   vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
-    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0);
+    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0);
     if (armData[i].x < 0.0) continue;
     vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
@@ -317,8 +317,8 @@ void main() {
     acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
     pxA[i] = fwidth(sIa[i]);
     awA[i] = max(fwidth(acA[i]), 0.03);
+    fwLn[i] = fwidth(acA[i] * 0.5 + 0.5);   // (the lane lens's edge softness, as the tube's lensAcrossFw)
   }
-#endif
 #ifdef SKIN_DEBUG
   if (!gl_FrontFacing) { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
@@ -363,8 +363,10 @@ void main() {
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     laArm[i] = vec4(0.0); lbArm[i] = vec4(0.0);
     if (armData[i].x < 0.0) continue;
-    vec4 la = lensOfAt(armData[i].w, armAF[i].x, lensGradA, lensLaneA, lensModeA, laneColA, 0.0);
-    vec4 lb = lensOfAt(armData[i].w, armAF[i].x, lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
+    // (the lanes of the Blood origin and First pass lenses run ACROSS the tube: this arm's own across at this pixel, which on its seam ring is the tube's, so the lanes run on through the skin and the colour is continuous with the tube's)
+    lensAcrossFw = fwLn[i];
+    vec4 la = lensOfAt(armData[i].w, armAF[i].x, lensGradA, lensLaneA, lensModeA, laneColA, acA[i]);
+    vec4 lb = lensOfAt(armData[i].w, armAF[i].x, lensGradB, lensLaneB, lensModeB, laneColB, acA[i]);
     la.a *= armColor[i].a;
     lb.a *= armColor[i].a;
     laArm[i] = la; lbArm[i] = lb;
