@@ -9,7 +9,7 @@ import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import { ORGAN_Z } from '../organs/z.ts';
-import { withStartInOrgan } from './starts.ts';
+import { cleanFeeders, withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
@@ -112,6 +112,8 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
+  // the red arteriole strands into the sinusoid fans are not drawn (Mohammad, 20 Nov: "fuck those"); the hepatic artery trunk stays
+  if (e.id === 'A_HR' || e.id === 'A_HL') return false;
   if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
   return true;
 }
@@ -144,7 +146,7 @@ function build(): NetVessel[] {
   for (const [host, list] of Object.entries(FEEDERS_2D)) {
     const e = edgeById.get(host)!, hv = NETWORK_HOST_W(e);
     for (const when of [...new Set(list.map((f) => f.when))]) {
-      const group = list.filter((f) => f.when === when);
+      const group = cleanFeeders(host, list.filter((f) => f.when === when));
       const cfgK = FEEDER_K[host] ?? 1, baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
       out.push({
         id: `${host}~F${when ? `:${when}` : ''}`, host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * cfgK)), label: e.label ?? host,

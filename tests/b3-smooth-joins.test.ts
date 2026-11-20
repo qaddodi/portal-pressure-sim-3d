@@ -109,7 +109,7 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
         checked++;
       }
     }
-    assert.ok(checked > 20, `${checked} tapered ends`);
+    assert.ok(checked >= 20, `${checked} tapered ends`);   // (was 21: the two arterioles into the sinusoid fans are no longer drawn)
   });
 });
 
@@ -135,7 +135,7 @@ test('a branch ends on its trunk: its last ring lies on the trunk\'s centreline 
         assert.ok(capR <= cl.max + 1e-9 && d + capR < hostR, `${v.id} end ${end} cap ${capR} stands out of a trunk of ${hostR}`);
       }
     }
-    assert.ok(fitted >= 7, `${fitted} branch ends fitted`);
+    assert.ok(fitted >= 6, `${fitted} branch ends fitted`);   // (was 7: ditto)
   });
   // (off: the same ends have no allowance and were never moved)
   off(() => { for (const v of MAPPED) assert.equal(coursesOf(v, REST)[0]!.clamp, undefined); });
