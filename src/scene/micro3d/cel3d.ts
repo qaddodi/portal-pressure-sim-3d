@@ -33,8 +33,8 @@ varying float vHy;
 #if defined(STREAKS) || defined(FLOW)
 attribute float aux;
 #endif
-#ifdef STREAKS
 varying vec3 vP;
+#ifdef STREAKS
 varying float vAux;
 #endif
 #ifdef FLOW
@@ -62,9 +62,9 @@ void main() {
   vC *= instanceColor;
 #endif
   vN = normalize(mat3(modelMatrix) * n);   // the normal in WORLD axes: the light is fixed in the world, not on the screen
-  vHy = p.y;
+  vHy = p.y; vP = p;
 #ifdef STREAKS
-  vP = p; vAux = aux;
+  vAux = aux;
 #endif
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
@@ -87,6 +87,21 @@ uniform vec4 uHaze;
 uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
+varying vec3 vP;
+// the wedged column's wash (2D sinusoid-gl.js wedgeA): an amber column in the stream from the central vein's end (uWash.z) toward the portal venule's (uWash.y), as far as uWash.w of the way, soft at
+// its front; uWash.x its strength (0: none, as on every slide but one). The blood in it is still: its streaks die away.
+uniform vec4 uWash;
+uniform vec3 uWashCol;
+// (uWashR > 0: the lobule's wash, a front of radius uWash.w lobule radii from the central vein out, uWashR local units to a lobule radius: 2D lobule-wash.js)
+uniform float uWashR;
+float washA() {
+  if (uWash.x <= 0.0) return 0.0;
+  if (uWashR > 0.0) { float rho = length(vP.xy) / uWashR; return uWash.x * (1.0 - smoothstep(uWash.w - 0.04, uWash.w, rho)); }
+  float span = uWash.y - uWash.z;
+  if (uWash.x <= 0.0 || abs(span) < 1.0) return 0.0;
+  float t = (vP.x - uWash.z) / span, f = uWash.w * 1.08;
+  return uWash.x * (1.0 - smoothstep(f - 0.08, f, t));
+}
 #if defined(STREAKS) || defined(FLOW)
 ${CHEVRON_GLSL}
 // the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, slim rounded lozenges feathered at both ends, a tone and a pace of their own, parabolic lanes): the same as the Anatomy's vessels
@@ -100,20 +115,9 @@ uniform float uHalf;      // the stream's half width (µm): the lanes' pitch is 
 uniform float uStreak;    // how strong the streaks are (0 none)
 uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; under 0: chevrons across the stream (the lymph), pointing the way it runs
 uniform vec3 uStreakCol;  // the streaks' one tone
-varying vec3 vP;
 varying float vAux;
 uniform float uStreakDir; // +1: the heads lead toward +x (the way the stream runs); -1: toward -x (a reversed flow)
 float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreakDir); }
-// the wedged column's wash (2D sinusoid-gl.js wedgeA): an amber column in the stream from the central vein's end (uWash.z) toward the portal venule's (uWash.y), as far as uWash.w of the way, soft at
-// its front; uWash.x its strength (0: none, as on every slide but one). The blood in it is still: its streaks die away.
-uniform vec4 uWash;
-uniform vec3 uWashCol;
-float washA() {
-  float span = uWash.y - uWash.z;
-  if (uWash.x <= 0.0 || abs(span) < 1.0) return 0.0;
-  float t = (vP.x - uWash.z) / span, f = uWash.w * 1.08;
-  return uWash.x * (1.0 - smoothstep(f - 0.08, f, t));
-}
 // the Anatomy's chevron (blood/chevron-glsl.ts), every 6 µm across the stream, its point leading the way the stream runs (the flow's sign): (core, ring)
 vec2 chevrons() {
   float dir = uFlow >= 0.0 ? 1.0 : -1.0;
@@ -196,13 +200,13 @@ void main() {
 #ifdef GAPS
   c = mix(c, c * 0.35, gapCut());
 #endif
+  float wz = washA();
 #ifdef STREAKS
   if (uProfile < 0.0) {
     vec2 ch = chevrons();
     c = mix(c, uStreakCol, uStreak * ch.x);
     c = mix(c, CHEV_RIM, uStreak * 0.75 * ch.y);
   } else {
-    float wz = washA();
     float sk = streaks() * (1.0 - 0.9 * wz);
     c = mix(c, streakTone(c, uStreakCol, gStreakK.x, gStreakK.y), uStreak * sk);   // (a streak's own tone between the surface's and the streak colour's)
     c = mix(c, uWashCol, 0.85 * wz);
@@ -210,24 +214,30 @@ void main() {
 #endif
 #ifdef FLOW
   vec2 hd = flowHeads();
-  c = mix(c, streakTone(c, uFlowCol, gStreakK.x, gStreakK.y), flowStreaks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
+  hd *= 1.0 - wz;   // (the wedged blood is still: its marks die away under the wash)
+  c = mix(c, streakTone(c, uFlowCol, gStreakK.x, gStreakK.y), flowStreaks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)) * (1.0 - wz));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
   vec3 inkH = mix(uFlowInk, c * 0.3, 0.2), rimH = vec3(0.2314, 0.1725, 0.1333);   // (the Anatomy's: the head ink a touch of the lumen's own deep tone, the ring always the dark ink)
   float hk = uFlowDark > 0.5 ? clamp(uFlowK, 0.0, 1.0) : uFlowK * 1.6;   // (the blood's dark heads whole at uFlowK 1, and they dissolve with the view as everything else does)
   vec3 core = uFlowDark > 0.5 ? inkH : uFlowCol;
   float ac = clamp(hd.x * hk, 0.0, 1.0), ar = clamp(hd.y * 0.75 * hk, 0.0, 1.0);
   c = c * (1.0 - ac - ar * (1.0 - ac)) + core * ac + rimH * ar * (1.0 - ac);
 #endif
+#ifndef STREAKS
+  c = mix(c, uWashCol, 0.85 * wz);
+#endif
   c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);
 }`;
 
+/** How far behind its shape the ink hull sits, as a share of its distance from the eye. */
+export const INK_BACK = 0.0015;
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
 uniform vec3 tint;
+uniform float inflate;
 varying float vHy;
 varying vec3 vOwnC;
-varying float vFace;
 void main() {
   vOwnC = tint;
 #ifdef USE_COLOR
@@ -244,12 +254,16 @@ void main() {
   n = im * (n / max(s2, vec3(1e-12)));
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
 #endif
+  p += normal * inflate;   // (as its shape swells or shrinks: a dilated sinusoid keeps its line)
   vHy = p.y;
-  vec4 c = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-  vec3 vn = normalize(normalMatrix * n);
-  // which way the surface faces, from its own normal before the push (the hull keeps only what faces away; see MICRO_INK_FS)
+  // the hull sits a hair behind its shape (0.15 % farther from the eye, which moves nothing on screen): drawn on both sides, its faces that face the viewer lie just under the shape's own and
+  // never show, and everything pushed out past the outline shows whichever way its triangles ended up wound. (A back-face cull dropped the thin rim strips the push turned over, and a
+  // cull by the normal dropped the hull at every rim vertex: the red cells' outline came out dotted, Mohammad 20 Nov: "the RBC outline is interrupted".)
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vFace = dot(vn, projectionMatrix[2][3] == 0.0 ? vec3(0.0, 0.0, 1.0) : normalize(-mv.xyz));
+  mv.xyz *= 1.0 + ${F(INK_BACK)};
+  vec4 c = projectionMatrix * mv;
+  if (projectionMatrix[2][3] == 0.0) c.z += ${F(INK_BACK)} * c.w;
+  vec3 vn = normalize(normalMatrix * n);
   vec2 nd = (projectionMatrix * vec4(vn, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-6 ? nd / l : vec2(0.0);
@@ -273,10 +287,7 @@ uniform vec4 uHaze;
 uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
-// The hull is drawn on both sides and keeps the surface that faces away by its normal, not by the pushed triangle's winding: pushing a thin rim strip (a red cell's edge, a bevel) out
-// on screen turns some of its triangles over, and a back-face cull then dropped them, so the line came out dashed (Mohammad 20 Nov: "the RBC outline is interrupted")
-varying float vFace;
-void main() { if (fadedOut() || vFace > 0.0) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
+void main() { if (fadedOut()) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -320,7 +331,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) },
+      uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
@@ -332,7 +343,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
@@ -365,6 +376,11 @@ export class MicroPart {
   /** The wedged column's wash on a streaked stream: its strength, the portal and central ends (µm along) and how far it has come from the central end (0 to 1), in its colour. */
   setWash(k: number, portalX: number, centralX: number, progress: number, rgb: RGB): void {
     (this.mats.toon.uniforms.uWash!.value as Vector4).set(k, portalX, centralX, progress); rawRGB(this.mats.toon.uniforms.uWashCol!.value as Color, rgb);
+  }
+  /** The lobule's wash: strength k, its front `front` lobule radii from the centre (the part's local origin), `perR` local units to a lobule radius. */
+  setRadialWash(k: number, front: number, perR: number, rgb: RGB): void {
+    const u = this.mats.toon.uniforms;
+    (u.uWash!.value as Vector4).set(k, 0, 0, front); u.uWashR!.value = perR; rawRGB(u.uWashCol!.value as Color, rgb);
   }
   /** A flowing part's marks: how far they have run, their pitch (local units), their tone and strength, the streaks' share, and filled heads (the bile) or open chevrons. */
   setFlow(t: number, pitch: number, rgb: RGB, k: number, streak = 0, head = 0, r = 0.02, dark = false, dpr = 2): void {
