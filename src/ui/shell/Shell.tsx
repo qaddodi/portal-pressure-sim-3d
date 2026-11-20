@@ -1,7 +1,7 @@
 // The UI layer above the stage. Free play: the top bar, the view pills, the play bar and the zoom group (a laptop or an iPad on its side), or the top bar, the view row,
 // the play bar and the bottom bar (a phone or an upright iPad), with the 2D app's words and behaviour. A talk: its own cards, wallet and presenter pill (src/ui/DeckUi.tsx).
 // The sheets, the toast and the diagnostics are the same in both.
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import './shell.css';
 import './chrome-3d.css';
 import { DeckUi } from '../DeckUi.tsx';
@@ -10,6 +10,7 @@ import { useShell } from './store.ts';
 import { TopBar } from './TopBar.tsx';
 import { Dock } from './Dock.tsx';
 import { Credit } from './Credit.tsx';
+import { metricVars } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { ZoomGroup } from './ZoomGroup.tsx';
 import { Sheets } from './Sheets.tsx';
@@ -116,6 +117,9 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
   }, [app, vp, thumb]);
 }
 
+/** The 2D chrome's measured numbers as `--m-*` on the shell root: the sheets' places (shell.css, history.css, why.css) read them, and without them every `calc(... var(--m-side-pad))` is invalid and the sheet falls to the corner. */
+const METRICS = metricVars() as CSSProperties;
+
 export function Shell() {
   const probe = useRef<HTMLDivElement>(null);
   const mode = useShell((s) => s.mode);
@@ -139,7 +143,7 @@ export function Shell() {
   return (
     <>
       {mode === 'deck' && <DeckUi />}
-      <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode}>
+      <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode} style={METRICS}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
         <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${testsCls}`} id="app" ref={appRef}>
           <TopBar />

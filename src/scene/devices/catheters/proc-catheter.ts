@@ -99,6 +99,7 @@ export class ProcCatheter {
     // A balloon is clear and glassy (a Fogarty's: a colourless barrel, the shaft seen straight through it): a faint pale body, a thin crisp outline, two curved white highlights on its near side.
     this.balloonGeo = allocTube(BALLOON_N + 1, BALLOON_RADIAL);
     this.balloon = mk(this.balloonGeo, 'nylon', 7, 'ink', 0.8);
+    this.balloon.setGlass(1.4, 0.4);
     this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, 6); return { g, o: mk(g, 'graft', 9, 'ink', 0) }; });
     // the two small dark collars where the balloon is bonded to the shaft
     this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.14, rc * 1.14, rc * 0.6, 16, 1, true).rotateZ(Math.PI / 2)), 'collar', 8, 'ink', 0.5));
