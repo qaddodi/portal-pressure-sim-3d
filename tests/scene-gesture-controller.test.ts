@@ -322,3 +322,9 @@ test('in a talk a right click or long press opens no card and a zoom key or butt
   r.g.zoomStep(2); r.run(600);
   assert.equal(r.hand.k, 1);
 });
+
+test('Anatomy never rests zoomed out past its fit: the host gives kMin 1 for the body (and the sinusoid)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
+  assert.match(src, /kMin: \(\) => \(cel\.view === 'sinusoid' \|\| cel\.view === 'body' \? 1 : K_MIN\)/);
+});
