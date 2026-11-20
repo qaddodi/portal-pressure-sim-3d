@@ -22,17 +22,17 @@ export const STREAK = {
   FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [84, 24], FIELD_LEN: [40, 40], FIELD_THICK: 0.18, FIELD_GAP: 0.12,
   /** SLEEK (Mohammad, 20 Nov: "those streaks are horrendous... more sleek", "much thinner, variable in colour, not too white"): a streak is a LONG soft lozenge, FIELD_LEN_R tube radii on average (the field's units are 5 to the radius, so 40 to 80 units are 8 to 16 radii), with a period of 150 to 250 units so
    *  a lane is mostly empty (at least 3 x a streak's length on a thin tube); its core is CORE_PX CSS px thick (CORE_WIDE_PX on a wide tube), its edge feathered EDGE_FEATHER_PX px. */
-  FIELD_LEN_R: 12, CORE_PX: 1, CORE_WIDE_PX: 1, EDGE_FEATHER_PX: 0.6,
+  FIELD_LEN_R: 12, CORE_PX: 1, CORE_WIDE_PX: 1.8, EDGE_FEATHER_PX: 0.6,
   /** THIN AT EVERY ZOOM (Mohammad, 20 Nov: "the streaks are insanely thick when zoomed out"): the core is in screen px (never a share of the radius), whatever each streak's jitter makes of it, never over CORE_MAX_PX; and the streak's LENGTH is held in screen px too:
    *  the pattern scales with the tube's radius only between LEN_R_PX[0] and LEN_R_PX[1] CSS px of radius (a streak is then 8 to 16 radii long), under it the length stays at 8 x LEN_R_PX[0] = 24 px or more, over it at 16 x LEN_R_PX[1] = 96 px at most. */
-  CORE_MAX_PX: 1.1, LEN_R_PX: [3, 6],
+  CORE_MAX_PX: 2, CORE_THIN_MAX_PX: 1.1, LEN_R_PX: [3, 6],
   /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
   FEATHER: 0.4,
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
   SPEED_JITTER: 0.25,
   /** each streak's own tone, seeded, a subtle tint of the vessel's OWN tone: from the body x TONE_LO to the body mixed TONE_HI toward white (TONE_HI x (1 + TONE_WIDE_UP) on a wide tube), x (1 +- LIGHT_VAR) in lightness, a warm or cool shift of up to HUE (a share of a channel),
    *  never darker than the body and never more than WHITE_CAP of the way to white */
-  TONE_LO: 1.1, TONE_HI: 0.26, TONE_WIDE_UP: 0.15, WHITE_CAP: 0.3, DEEP_SHARE: 0.6, LIGHT_VAR: 0.08, HUE: 0.03,
+  TONE_LO: 1.16, TONE_HI: 0.28, TONE_WIDE_UP: 0.6, WHITE_CAP: 0.45, DEEP_SHARE: 0.6, LIGHT_VAR: 0.08, HUE: 0.03,
   /** how far across the tube (of its radius) the outer lane sits */
   SPAN: 0.78,
   /** a streak fades out over this many tube radii at each end of its vessel, so it never crosses a junction */
@@ -46,7 +46,7 @@ export const STREAK = {
   /** the streak's alpha (whole inside the lumen band) */
   ALPHA: 1,
   /** on screen (CSS px of the lumen's radius): none under MIN_R_PX (a tube under 3.5 px across), 1 lane under LANE_R_PX[0], 3 lanes up to LANE_R_PX[1], 5 above; the wide tube's thicker core and stronger tint come in over WIDE_R_PX */
-  MIN_R_PX: 1.5, LANE_R_PX: [4, 6], WIDE_R_PX: [5.5, 7.5],
+  MIN_R_PX: 1.5, LANE_R_PX: [4, 6], WIDE_R_PX: [5.5, 9],
   /** FILAMENTS (round 3, Mohammad 20 Nov: "the streaks of blood need a lot of work... stagnant sometimes... dotted"): each one is a strip of constant width CORE_PX whose coverage is the exact AREA of its overlap with the pixel (a 1 px filament is never dotted
    *  and never crawls), its ends soft in alpha (FEATHER), its own opacity from OPACITY_LO to 1, drifting sideways by DRIFT of its lane's width over DRIFT_LEN field units. The wall lane runs at WALL_SPEED (never under half) of the middle one's. A flow of FLOW_ON
    *  display units a second or more shows them whole; none at none. A pattern never advances more than MAX_STEP of its (shortest) period per frame at FRAME_HZ (streakDCap: the streak distance the shaders read is capped there; the chevrons' D is not). */
@@ -93,7 +93,7 @@ export const streakWide = (rCss: number): number => sstep(STREAK.WIDE_R_PX[0], S
 export const lanesForPx = (rCss: number): number => (rCss < STREAK.MIN_R_PX ? 0 : rCss < STREAK.LANE_R_PX[0] ? 1 : rCss < STREAK.LANE_R_PX[1] ? 3 : 5);
 /** The core width in CSS px of the thinnest (`thin`) or thickest streak in a lumen of radius `rCss` CSS px (the twin of the field's hw): CORE_PX to CORE_WIDE_PX by the tube's width, x (1 -+ THICK_JITTER / 2). */
 export function streakCorePx(rCss: number, _lanes = 0, thin = true): number {
-  return Math.min(STREAK.CORE_MAX_PX, (STREAK.CORE_PX + (STREAK.CORE_WIDE_PX - STREAK.CORE_PX) * streakWide(rCss)) * (1 + (thin ? -0.5 : 0.5) * STREAK.THICK_JITTER));
+  { const w = streakWide(rCss); return Math.min(STREAK.CORE_THIN_MAX_PX + (STREAK.CORE_MAX_PX - STREAK.CORE_THIN_MAX_PX) * w, (STREAK.CORE_PX + (STREAK.CORE_WIDE_PX - STREAK.CORE_PX) * w) * (1 + (thin ? -0.5 : 0.5) * STREAK.THICK_JITTER)); }
 }
 /** The pattern's scale factor on a lumen of radius `rCss` CSS px (the twin of `rCss / clamp(rCss, LEN_R_PX)` in the shaders): the field's along coordinate is multiplied by it, so a streak is `fieldLen / FIELD_AT_R x clamp(rCss, LEN_R_PX)` CSS px long. */
 export const streakLenK = (rCss: number): number => rCss / Math.min(STREAK.LEN_R_PX[1], Math.max(STREAK.LEN_R_PX[0], rCss));
@@ -209,7 +209,7 @@ float streakField(float across, float along, float flow, float halfWidth, float 
   // on screen: the lane's width in px, the filament CORE_PX thick (never over CORE_MAX_PX) and the pixel's own footprint across it
   float pxA = gStreakPx > 0.0 ? gStreakPx : 1.0 / max(fwidth(across), 1e-4);
   float lanePx = pxA * 2.0 * ${F(STREAK.FIELD_EDGE)} / lanes;
-  float W = min(${F(STREAK.CORE_MAX_PX)}, mix(${F(STREAK.CORE_PX)}, ${F(STREAK.CORE_WIDE_PX)}, gStreakWide) * jit);
+  float W = min(mix(${F(STREAK.CORE_THIN_MAX_PX)}, ${F(STREAK.CORE_MAX_PX)}, gStreakWide), mix(${F(STREAK.CORE_PX)}, ${F(STREAK.CORE_WIDE_PX)}, gStreakWide) * jit);
   float pw = clamp(fwidth(across) * pxA, 1.0, 2.0);
   // a slow sideways drift (a share of the lane, kept inside it)
   float room = max(0.5 - (0.5 * W + 0.5 * pw) / max(lanePx, 1e-3), 0.0);

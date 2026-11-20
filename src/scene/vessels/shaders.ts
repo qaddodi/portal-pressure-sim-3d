@@ -31,11 +31,13 @@ export const TUBE_DEPTH_SHARE = 0.15;
 import { CIRC_INK_K, CIRC_INNER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 
 export const VESSEL_VS = /* glsl */ `
+const float RUN_ON_PX = 0.75;   // CSS px
 attribute vec3 tang;
 // a stent narrows its shunt's lumen (waist, end stenosis): the share of the tube taken off at this vertex, 0 on every vessel that has none (a missing attribute reads 0)
 attribute float narrow;
 attribute vec2 nbr;   // a fork's other tube: this vertex's signed distance from its axis and its radius there, scene units (0: none; neighbour.ts)
 attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk; a run-on eases to its neighbour's width)
+attribute float rkc;   // the same on the Circuit's map: the course's own share only (a strand is thinner than its trunk), without the body's tapers, collars and beads, which belong to the 3D figure (the map draws a vessel one width along its length)
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -65,7 +67,6 @@ uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
-uniform float cavaTail;   // a hepatic vein that ends inside the cava: the share of its length that lies in the cava's lumen, which it fades out over (0 = none)
 uniform vec2 cavaEnd;    // a hepatic vein: the share of its length at the cava end that eases to this alpha (fades.ts cavaEndSpan); 0 = none
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
@@ -101,6 +102,17 @@ float swellOf(float idx, float bD, float kind) {
 }
 // the swell the tube has at the map's end (2D stage-tubes.js widthAt, t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) map units, an artery 3, a liver bed 8, the boost on veins and beds;
 // as a share of the radius the tube was built at, so the shared morph can ease the width with the line (the map's units are MAP_K scene units, the body's 1 / 300)
+// the width (map units, before the boost's floor on the screen) a vessel of this kind and diameter has on the map: a vein clamp(vesselPx(D) * 0.95, 6, 15) times the boost, an artery 3, a bed 8 times the boost (width.ts circuitWidthMap)
+float circWidthOf(float d, float kind) {
+  if (kind > 1.5) return 8.0 * circBoost;
+  if (kind > 0.5) return 3.0;
+  return clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
+}
+float circMateWidth(vec3 m) {   // a run-on mate's width on the map (m: its data index, its built diameter, its kind)
+  float d = m.y;
+  if (useData > 0.5) { ivec2 tc = ivec2(int(mod(m.x, vdataSize.x)), int(floor(m.x / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
+  return circWidthOf(d, m.z);
+}
 float circSwell() {
   float wc;
   if (circW.x >= 0.0) wc = max(circW.z, circW.x * mix(1.0, circBoost, circW.y));
@@ -109,6 +121,9 @@ float circSwell() {
     if (useData > 0.5) { ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
     wc = clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
   }
+  // where this vessel carries on into another, the two meet at the mean of their widths over the first and last 30 %, as the body's do: the map's width is its own (the body's tapers are not carried onto it), so the join is eased here
+  if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) wc += k0 * (0.5 * (wc + circMateWidth(mate0)) - wc); }
+  if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) wc += k1 * (0.5 * (wc + circMateWidth(mate1)) - wc); }
   wc = max(wc, circW.w * circPerPx);
   return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
 }
@@ -138,6 +153,7 @@ ${CIRCUIT_VS_CALL}
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
   float fa = 1.0;
+  float rkE = mix(rk, rkc, circShare);   // (the tube's radius share here: on the map the course's own, not the body's tapers)
   if (fadeMode > 2.5) {
     // tube-geo.js tubeAlpha: the projection of the point on the line
     vec2 fd = fadeLine.zw - fadeLine.xy;
@@ -158,14 +174,13 @@ ${CIRCUIT_VS_CALL}
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
-  if (cavaTail > 0.0) fa *= mix(pow(1.0 - smoothstep(1.0 - cavaTail, 1.0, uv.x), 2.0), 1.0, circT);   // (the part inside the cava's lumen is not a tube there: no round end, no wall line, no dark wedge over the cava's marks)
   vFade = fa;
   vNbr = nbr;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two device px widths, the same on a hairline and on the
   // portal trunk, on a 1x Mac and a 3x iPhone; thinned with a lumen under LINE_MIN device px of radius (cel-ink.ts inkTaper), so the smallest branches keep their colour.
-  vR = radius * rk * swell * vU;   // the lumen's half width in the 2D figure's units
-  vec3 cenW = aPos - aNor * (radius * rk);   // the ring's centre
+  vR = radius * rkE * swell * vU;   // the lumen's half width in the 2D figure's units
+  vec3 cenW = aPos - aNor * (radius * rkE);   // the ring's centre
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cenW, 1.0));
   vCen = vec3(cc.x, cc.y, cc.w);
   float wpcV = cc.w * 2.0 / (res.y * projectionMatrix[1][1]) * vU;   // the figure's units under one CSS px here
@@ -180,9 +195,12 @@ ${CIRCUIT_VS_CALL}
   float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDevV) / dpr;
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
-  float lumenW = radius * rk * swell * (1.0 - narrow);
+  float lumenW = radius * rkE * swell * (1.0 - narrow);
   // (the ring is a polygon: its flats sit at the radius, its corners ${F(TUBE_SAG)} of the radius farther out, so the silhouette never falls inside the line)
-  vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * (1.0 - narrow) - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  // where this tube carries on into another (a mate), its end ring runs on a hair (under a CSS px) into the next: two flat rings that meet exactly leave a light line between them where their edges are smoothed, along the whole of a straight join
+  if (uv.x < 0.0001 && mate0.x >= 0.0) p -= aTan * (RUN_ON_PX * wpcV / vU);
+  if (uv.x > 0.9999 && mate1.x >= 0.0) p += aTan * (RUN_ON_PX * wpcV / vU);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
   vT = normalize(normalMatrix * aTan);
@@ -248,6 +266,7 @@ uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circu
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
+uniform float cavaCut;   // 1 on a hepatic vein that opens into the cava: where the pixel lies inside the cava's lumen (nbr is the cava's) the vein is not drawn, so it ends exactly at the wall
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
@@ -410,6 +429,7 @@ void main() {
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
+  if (cavaCut > 0.5 && nbrK > 0.995) discard;   // (a hepatic vein inside the cava's lumen: not a tube there, so it ends exactly at the wall, with no round end, no disc and no wedge over the cava's marks)
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   vec3 c = celTubeTone(base, mix(sT, 1.0, nbrK), fwidth(sT) * (1.0 - nbrK), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
@@ -570,5 +590,5 @@ void main() {
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
     c = mix(c, wedgeCol, 0.78 * wa);
   }
-  gl_FragColor = vec4(c, vFade);
+  gl_FragColor = vec4(c, vFade * (1.0 - cavaCut * nbrK));
 }`;

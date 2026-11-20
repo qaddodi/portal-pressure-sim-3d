@@ -97,7 +97,7 @@ test('at the default fit the streaks are sleek and seen: a core of about 1 px, 2
       if (R < STREAK.MIN_R_PX) { assert.equal(lanes, 0, `${v.id}: none under 3.5 px across`); continue; }
       assert.ok(lanes === 1 || lanes === 3 || lanes === 5, `${v.id} lanes ${lanes}`);
       if (R < 4) assert.equal(lanes, 1, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
-      assert.ok(streakCorePx(R, lanes, true) >= 0.8 && streakCorePx(R, lanes, false) <= 1.1, `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
+      assert.ok(streakCorePx(R, lanes, true) >= 0.8 && streakCorePx(R, lanes, false) <= (R < STREAK.WIDE_R_PX[0] ? 1.1 : STREAK.CORE_MAX_PX), `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
       const meanLen = STREAK.FIELD_LEN_R * R;   // (px: the field's 5 units to a radius)
       if (R >= 2 && R <= 5) assert.ok(meanLen >= 24 && meanLen <= 60, `${name} ${v.id}: a streak ${meanLen.toFixed(0)} px long`);
       const L = len(courseOf(v.id)) * k, period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
@@ -107,7 +107,7 @@ test('at the default fit the streaks are sleek and seen: a core of about 1 px, 2
   }
 });
 
-test('on a tube 8 px across there are visibly several streaks along 200 px, with a 1 px core, and the tint is 1.15:1 to 1.45:1 against the lit body at the middle of its range, in Light and Dark', () => {
+test('on a tube 8 px across there are visibly several streaks along 200 px, with a 1 px core, and the tint is 1.2:1 to 1.5:1 against the lit body at the middle of its range, in Light and Dark', () => {
   const R = 4, lanes = lanesForPx(R), period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
   assert.equal(lanes, 3);
   assert.ok((lanes * 200) / period * (1 - STREAK.FIELD_GAP) >= 4, `${((lanes * 200) / period).toFixed(1)} streaks over 200 px`);
@@ -117,7 +117,8 @@ test('on a tube 8 px across there are visibly several streaks along 200 px, with
     for (const v of ['portal', 'sys'] as const) {
       const lit = celTubeBase(h2(p.tones[v]), id === 'dark');
       const mid = contrast(hex(streakToneJs(lit, [1, 1, 1], 0.5, 0.5)), hex(lit)), top = contrast(hex(streakToneJs(lit, [1, 1, 1], 1, 0.5)), hex(lit));
-      assert.ok(mid >= 1.15 && mid <= 1.45 && top >= 1.25 && top <= 1.6, `${id} ${v}: ${mid.toFixed(2)} to ${top.toFixed(2)}:1`);
+      // (20 Nov: the eyes measured the streaks on screen at +8 to +12 percent over the body on the trunk and none on the branches, "only just noticeable"; the target is 15 to 20 percent, so the model's step is a third stronger)
+      assert.ok(mid >= 1.2 && mid <= 1.5 && top >= 1.25 && top <= 1.7, `${id} ${v}: ${mid.toFixed(2)} to ${top.toFixed(2)}:1`);
     }
   }
 });

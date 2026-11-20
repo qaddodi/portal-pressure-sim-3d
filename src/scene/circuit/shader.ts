@@ -81,7 +81,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   vec3 N = circFrameN(T);
   vec3 B = cross(T, N);
   vec3 off = fr.x * N + fr.y * B + fr.z * T;
-  P = cen + radius * rk * off;
+  P = cen + radius * mix(rk, rkc, w) * off;
   Nn = normalize(off);
   Tn = T;
 }

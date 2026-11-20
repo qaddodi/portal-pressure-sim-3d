@@ -13,7 +13,7 @@
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
 import { useSettings } from '../../state/settings.ts';
-import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector4, type ShaderMaterial, type Vector3 } from 'three';
+import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
@@ -172,10 +172,10 @@ export class Sinusoid3D {
     this.cells = mk('hepatocytes', { px: S.LINE });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
-    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE });
+    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE, rimUp: true });
     this.nucleoli = mk('nucleoli', { ink: null });
-    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL });
-    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL });
+    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL, rimUp: true });
+    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL, rimUp: true });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
     this.kup = mk('kupffer', { ink: null, rim: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
@@ -183,14 +183,15 @@ export class Sinusoid3D {
     for (const [p, o] of [[this.kup, 10], [this.kupN, 11]] as const) {
       const m = p.mats.toon; m.transparent = true; m.depthWrite = true; m.premultipliedAlpha = true; m.uniforms.opacity!.value = KUP_ALPHA; p.toonMesh.renderOrder = o;
     }
-    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL });
+    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL, rimUp: true });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
+    // (40 round, not 22: a tumbling cell's outline crosses its lathe at a slant, and with 22 its faces ended before n.v reached 0 in places, a dashed line, eyes 20 Nov)
+    this.rbc = many('red-cells', unitRbc(40), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
@@ -212,6 +213,22 @@ export class Sinusoid3D {
   private pinned = false;
 
   /** One frame, after the host's own update (its state, palette and traffic are this frame's). `on`: always true now (everything is 3D); false only hides it in tests. True while anything of this scene moves. */
+  /** The lift (toward the eye, over the lobule while the two cross) never changes the scene's size on screen: the group shrinks by the eye's distance to its plane against the lifted
+   *  distance, about the point under the eye, so the lumen stays exactly as wide as the lobule's tube it grows out of (eyes 20 Nov: lumen 70 px against the tube's 40, a 1.7x step at the
+   *  handoff, with the camera smooth: the lift of 8 µm was near half the eye's height there). Call after the camera has moved and update() has set the lift. */
+  holdScale(eyeWorld: Vector3): void {
+    const g = this.group, lift = g.position.z, p = g.parent;
+    let k = 1, fx = 0, fy = 0;
+    if (lift > 0 && p) {
+      p.updateWorldMatrix(true, false);
+      const e = p.worldToLocal(this.eyeL.copy(eyeWorld));
+      if (e.z > lift * 1.01) { k = (e.z - lift) / e.z; fx = e.x; fy = e.y; }
+    }
+    g.scale.setScalar(U * k);
+    g.position.x = fx * (1 - k); g.position.y = fy * (1 - k);
+  }
+  private readonly eyeL = new Vector3();
+
   update(on: boolean, rate = 1): boolean {
     const f = this.flat;
     const changed = on !== this.on;

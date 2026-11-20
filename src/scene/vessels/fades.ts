@@ -12,6 +12,15 @@ import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare } from './liver-branches.ts';
 const IVC_NODES: ReadonlySet<string> = new Set(['IVCS', 'IVCI', 'RA', 'IVC_D', 'ILI_R']);
 export const HEPATIC_VEINS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC', 'RRV_IVC']);
 const IVC_JOIN_LEN = 60;
+/** A hepatic vein that opens into the cava: one of the hepatic veins whose END is on the cava's node. The right hepatic vein is two pieces (RHV_IVC_1 from the liver to the TIPS junction, RHV_IVC from there to the cava), and only the second one opens into
+ *  the cava: the rules for "a vein into the cava" (the end eased to the cava's alpha, the ink held back inside the cava, the part inside the lumen cut away) are keyed by where the vein ENDS, never by its name (root cause of the broken outline and the light line
+ *  at the join of the two pieces in the Circuit, 20 Nov). */
+export function opensIntoCava(id: string): boolean {
+  const e = edgeById.get(id);
+  return HEPATIC_VEINS.has(id) && !!e && IVC_NODES.has(e.to);
+}
+/** The cava's piece a vein that opens into it meets: the inferior cava below the hepatic veins' node (the renal veins' side) or above it. */
+export const cavaPieceOf = (id: string): string => (edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
 /** The superior cava's two stretches are the cava itself, not a vein that joins it: they run on into the right atrium solid, as the inferior cava does (Mohammad, 20 Nov: "a hard colour step in the IVC at the right atrium": the SVC faded to 0.3 at the atrium where the IVC meets it whole). */
 const SVC_STRETCH: ReadonlySet<string> = new Set(['SVC_RA', 'SVC_RA_1']);
 /** Its alpha at the cava's wall (stage-geo.js IVC_JOIN: 0.3). */
@@ -88,7 +97,7 @@ const CAVA_RA_RAMP = 0.5;
 export const CAVA_END_LEN = 40;
 export function cavaEndSpan(id: string): number {
   const path = EDGE_PATH_2D[id];
-  if (!path || !HEPATIC_VEINS.has(id) || id === 'LRV_IVC' || id === 'RRV_IVC') return 0;
+  if (!path || !opensIntoCava(id) || id === 'LRV_IVC' || id === 'RRV_IVC') return 0;   // (the renal veins are receded to the cava's tone already)
   const l = lenOfPath(path);
   return l > 0 ? Math.min(CAVA_END_LEN, l) / l : 0;
 }

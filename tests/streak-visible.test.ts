@@ -19,13 +19,13 @@ test('the Blood streaks switch is on by default (the first cause: nothing ran wi
 });
 
 test('sleek: a core of 1 px on every tube, a 0.6 px feather, long soft lozenges, feathered over 35 percent, a mostly empty lane', () => {
-  assert.ok(STREAK.CORE_PX === 1 && STREAK.CORE_WIDE_PX === 1 && STREAK.CORE_MAX_PX <= 1.1 && STREAK.EDGE_FEATHER_PX >= 0.5 && STREAK.EDGE_FEATHER_PX <= 0.7);
+  assert.ok(STREAK.CORE_PX === 1 && STREAK.CORE_WIDE_PX <= 2 && STREAK.CORE_THIN_MAX_PX <= 1.1 && STREAK.EDGE_FEATHER_PX >= 0.5 && STREAK.EDGE_FEATHER_PX <= 0.7);
   for (const [r, lanes] of [[2, 1], [3.5, 1], [5, 3], [7, 3], [9, 5], [14, 5]] as [number, number][]) {
-    assert.ok(streakCorePx(r, lanes, true) >= 0.8 && streakCorePx(r, lanes, false) <= 1.1, `r ${r}: core ${streakCorePx(r, lanes, true).toFixed(2)} to ${streakCorePx(r, lanes, false).toFixed(2)} px`);
+    assert.ok(streakCorePx(r, lanes, true) >= 0.8 && streakCorePx(r, lanes, false) <= 1.1 + (STREAK.CORE_MAX_PX - 1.1) * streakWide(r) + 1e-9, `r ${r}: core ${streakCorePx(r, lanes, true).toFixed(2)} to ${streakCorePx(r, lanes, false).toFixed(2)} px`);
     const cov = streakCoverage(r, lanes);
     assert.ok(cov > 0.01 && cov < 0.15, `r ${r}px: coverage ${(cov * 100).toFixed(1)} percent of the face: sparse, not a mess`);
   }
-  assert.equal(streakCorePx(10, 5, true), streakCorePx(2, 1, true), 'a wide tube\'s streak is no thicker: 1 px on every tube');
+  assert.ok(Math.abs(streakCorePx(5, 3, true) - streakCorePx(2, 1, true)) < 1e-9 && streakCorePx(10, 5, true) > streakCorePx(2, 1, true), 'a thin tube\'s streak is 1 px; a wide tube\'s (9 px of radius or more) is thicker, up to 1.8');
   assert.ok(STREAK.FIELD_LEN_R >= 8 && STREAK.FIELD_LEN_R <= 16, 'a streak is 8 to 16 radii long');
   const len = STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2, lenMax = STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1], per = STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] / 2;
   assert.ok(per / len >= 1.5, `period ${per} over a length of ${len}`);
@@ -39,7 +39,7 @@ test('lanes by the width on screen: 1 under 8 px across, 3 to 12 px, 5 above (20
   assert.equal(STREAK.MIN_R_PX, 1.5); assert.deepEqual([...STREAK.LANE_R_PX], [4, 6]);
   for (const fs of [VESSEL_FS, MICRO_FS]) {
     assert.match(fs, /< 4\.0 \? 1\.0 : [a-zA-Z]+ < 6\.0 \? 3\.0 : 5\.0/, 'lanes 1, 3, 5');
-    assert.match(fs, /gStreakWide = smoothstep\(5\.5, 7\.5, /);
+    assert.match(fs, /gStreakWide = smoothstep\(5\.5, 9\.0, /);
   }
   assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCss\)/); assert.match(MICRO_FS, /if \(rPx < 1\.5\) return 0\.0;/);
   assert.match(STREAK_FIELD_GLSL, /lanes > 1\.5 \?/, 'one lane has no shear to divide by');
@@ -63,12 +63,12 @@ test('the tone is a subtle tint of the vessel\'s own, varied per streak: 1.12 to
           }
           const c = contrast(hex(t), hex(body)); best = Math.max(best, c); worst = Math.min(worst, c);
         }
-        assert.ok(best >= 1.12 && best <= (name === 'lit' ? 1.8 : 2.2), `${id} ${v} ${name}: brightest ${best.toFixed(2)}:1`);
+        assert.ok(best >= 1.12 && best <= (name === 'lit' ? 2.0 : 2.3), `${id} ${v} ${name}: brightest ${best.toFixed(2)}:1`);
         assert.ok(worst < best - 0.05, `${id} ${v} ${name}: the streaks differ from one another (${worst.toFixed(2)} to ${best.toFixed(2)})`);
         const wide = contrast(hex(streakToneJs(body, white, 1, 0.5, 1)), hex(body)), thin = contrast(hex(streakToneJs(body, white, 1, 0.5, 0)), hex(body));
         assert.ok(wide >= thin - 1e-9, `${id} ${v} ${name}: a wide tube's tint is the stronger`);
       }
     }
   }
-  assert.ok(streakWide(5) === 0 && streakWide(8) === 1);
+  assert.ok(streakWide(5) === 0 && streakWide(9) === 1);
 });

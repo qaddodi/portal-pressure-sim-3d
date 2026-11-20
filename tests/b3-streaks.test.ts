@@ -71,7 +71,7 @@ test('the comet is a few radii long and a share of the radius thick, with a seed
 
 test('tone: a subtle tint of the vessel\'s own tone toward white, never near white, whole inside the lumen band', () => {
   assert.match(CELLS_VS, /vFill = streakTone\(lit, vec3\(1\.0\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
-  assert.ok(STREAK.TONE_HI > 0 && STREAK.WHITE_CAP <= 0.3 && STREAK.TONE_HI * (1 + STREAK.TONE_WIDE_UP) <= STREAK.WHITE_CAP, 'a little lighter, never near white');
+  assert.ok(STREAK.TONE_HI > 0 && STREAK.WHITE_CAP <= 0.45 && STREAK.TONE_HI * (1 + STREAK.TONE_WIDE_UP) <= STREAK.WHITE_CAP, 'a little lighter, never near white');
   assert.equal(STREAK.ALPHA, 1);
   assert.doesNotMatch(CELLS_FS, /spec|gloss|highlight/i);
 });
@@ -116,9 +116,9 @@ test('the 3D lobule\'s and sinusoid\'s program, with the streaks, compiles (glsl
 
 test('variation: each streak\'s tone lies between the lit tone and one shade lighter (never white, never darker, a few degrees warm or cool) and its pace is +-25 percent on its lane\'s, the mean standing', () => {
   assert.equal(STREAK.SPEED_JITTER, 0.25);
-  assert.ok(STREAK.TONE_LO >= 1 && STREAK.TONE_LO <= 1.1 && STREAK.LIGHT_VAR > 0 && STREAK.LIGHT_VAR <= 0.1 && STREAK.HUE > 0 && STREAK.HUE <= 0.05, 'a few degrees, not a new colour');
+  assert.ok(STREAK.TONE_LO >= 1 && STREAK.TONE_LO <= 1.2 && STREAK.LIGHT_VAR > 0 && STREAK.LIGHT_VAR <= 0.1 && STREAK.HUE > 0 && STREAK.HUE <= 0.05, 'a few degrees, not a new colour');
   assert.match(STREAK_LANE_GLSL, /float streakPace\(float seed\) \{ return 1\.0 \+ 0\.25 \* \(2\.0 \* seed - 1\.0\); \}/, 'symmetric: the mean stands');
-  assert.match(STREAK_LANE_GLSL, /return clamp\(min\(max\(t, lit\), mix\(lit, light, 0\.3\)\), 0\.0, 1\.0\);/, 'never darker than the lit tone, never over 0.3 toward white');
+  assert.match(STREAK_LANE_GLSL, /return clamp\(min\(max\(t, lit\), mix\(lit, light, 0\.45\)\), 0\.0, 1\.0\);/, 'never darker than the lit tone, never over 0.45 toward white (a wide tube only: 0.28 on a thin one)');
   assert.doesNotMatch(STREAK_LANE_GLSL, /vec3\(1\.0\)/, 'the chunk never reaches for white');
   assert.match(MICRO_FS, /streakTone\(c, uStreakCol, gStreakK\.x, gStreakK\.y\)/, 'the 3D lobule and sinusoid vary the tone too');
   assert.match(STREAK_FIELD_GLSL, /streakPace\(streakHash\(idx \* 5\.9 \+ 0\.7\)\)/, 'and the pace');

@@ -96,7 +96,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     // the fillet's collar, never wider than the trunk it ends on (smooth joins: a bulb wider than the trunk reads as a blob at the junction)
     const collar = (end: number, d: number): number => { const a = flareAdd(c.flare?.[end], d), cl = c.clamp?.[end]; return cl?.ceil != null ? Math.min(a, Math.max(0, cl.ceil - c.radius)) : a; };
     const tube = new TubeGeometry(curve, seg, R0, RADIAL, false);
-    const rks: number[] = [];
+    const rks: number[] = [], rkcs: number[] = [];
     const clen = curve.getLength();
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
@@ -117,9 +117,12 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
         const at = k * (RADIAL + 1) + j;
         if (f !== 1) pos.setXYZ(at, P.x + (pos.getX(at) - P.x) * f, P.y + (pos.getY(at) - P.y) * f, P.z + (pos.getZ(at) - P.z) * f);
         rks.push(open ? (c.radius * f) / radius0 : 0);
+        rkcs.push(open ? c.radius / radius0 : 0);
       }
     }
     tube.setAttribute('rk', new Float32BufferAttribute(rks, 1));
+    // (`rkc`: the radius share on the Circuit's map, the course's own: the body's tapers, collars, beads and buried ends are the 3D figure's, and the map draws a vessel one width along its length)
+    tube.setAttribute('rkc', new Float32BufferAttribute(rkcs, 1));
     const tang: number[] = [];
     for (let k = 0; k <= seg; k++) { const t = curve.getTangentAt(k / seg); for (let j = 0; j <= RADIAL; j++) tang.push(t.x, t.y, t.z); }
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
@@ -143,6 +146,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       group.push(s);
     }
     for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? capRadius(e - 1) / radius0 : 0), 1));
+    for (const e of [1, 2]) group[e]!.setAttribute('rkc', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? c.radius / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;

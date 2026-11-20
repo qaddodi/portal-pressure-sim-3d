@@ -4,6 +4,7 @@
 import { NETWORK, NETWORK_BY_ID } from './network.ts';
 import { REST, coursesOf, type ShapeState } from './shape.ts';
 import { radiusAtU } from './tubes.ts';
+import { cavaPieceOf, opensIntoCava } from './fades.ts';
 
 /** The side branches (feeders that join into a vein and leave it as one more tube) of each vein: host id to its branch ids. */
 export const SIDE_BRANCHES: ReadonlyMap<string, readonly string[]> = (() => {
@@ -24,9 +25,12 @@ export function forkMateOf(id: string): string | null {
   return host && SIDE_BRANCHES.get(host)?.includes(id) ? host : null;
 }
 
+/** The cava is the "other tube" of a hepatic vein that opens into it: the vein is cut away where it lies inside the cava's lumen (shaders.ts cavaCut), exactly at the wall, so it opens into the cava with a clean edge. */
+export const cavaMateOf = (id: string): string | null => (opensIntoCava(id) ? cavaPieceOf(id) : null);
+
 /** `nbr` for every vertex of vessel `id`'s tube (`positions`: its xyz, as built): (signed distance of the vertex from its fork mate's axis in the figure's plane, positive left of the mate's heading; the mate's radius there; 0 where the vertex lies past the mate's ends). Null for a vessel with no mate. */
 export function neighbourAttr(id: string, positions: ArrayLike<number>, state: ShapeState = REST): Float32Array | null {
-  const mate = forkMateOf(id);
+  const mate = forkMateOf(id) ?? cavaMateOf(id);
   const md = mate ? NETWORK_BY_ID.get(mate) : undefined;
   if (!md) return null;
   const c = coursesOf(md, state).reduce((a, b) => (b.radius > a.radius ? b : a));

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { BURY, SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
 import { useSettings } from '../src/state/settings.ts';
-import { HEPATIC_VEINS, ivcJoinSpan } from '../src/scene/vessels/fades.ts';
+import { opensIntoCava, ivcJoinSpan } from '../src/scene/vessels/fades.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
@@ -82,7 +82,7 @@ test('the ink is held back ONLY inside a declared branch\'s trunk: over the real
       // (one rule for every junction: a vein that opens into the cava holds its ink back inside it, as far as the cava is wide)
       // (and a liver branch\'s join end, buried in the vein it leaves)
       if (v.plan?.kind === 'feeder' && v.plan.list[0]?.join === e) { assert.ok(got[e]! > 0, `${v.id}: buried in its vein`); continue; }
-      if (e === 1 && (HEPATIC_VEINS.has(v.id) || ivcJoinSpan(v.id) > 0)) { assert.ok(got[1]! > 0, `${v.id}: buried in the cava`); continue; }
+      if (e === 1 && (opensIntoCava(v.id) || ivcJoinSpan(v.id) > 0)) { assert.ok(got[1]! > 0, `${v.id}: buried in the cava`); continue; }
       assert.ok(Math.abs(got[e]! - want) < 1e-9, `${v.id} end ${e}: buried ${got[e]} (declared ${want})`);
       if (want > 0) { buried++; assert.ok(want <= BURY * 1.0001 * Math.max(...(sj!.attach[e] ?? []).map((id) => NETWORK.find((x) => x.id === id)!.radius), v.radius), 'no longer than its trunk'); }
       // a run-on end (a mate) is never buried unless it is also a declared branch end
