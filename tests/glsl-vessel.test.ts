@@ -29,6 +29,8 @@ test('the vessel fragment shader compiles, as the body and as the veil (VEIL def
 });
 
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../src/scene/materials/shaders.ts';
+import { CEL_TUBE_GLSL } from '../src/scene/cel-glsl.ts';
+import { CEL_STYLE } from '../src/scene/cel-style.ts';
 test('the cel toon and ink programs compile in every variant a strand or a part uses (plain, vertex ink, the vessels\' tube tones)', { skip: !have }, () => {
   for (const d of [[], ['VERTEX_INK'], ['TUBE_TONES'], ['VERTEX_INK', 'TUBE_TONES']]) {
     const v = compile('vert', TOON_VS, d); assert.ok(v.ok, `toon vertex ${d}: ${v.log}`);
@@ -39,6 +41,9 @@ test('the cel toon and ink programs compile in every variant a strand or a part 
 
 test('a strand is drawn in the vessels\' tones: the tube-tones variant has the same numbers as the vessel shader and no rim lift', () => {
   assert.match(TOON_FS, /#ifdef TUBE_TONES/);
-  for (const n of ['0.17 * shadowT', '0.15 * hwT * litT', '-0.70710678, 0.70710678', '-0.16 - etT', '0.24 - etT']) assert.ok(TOON_FS.includes(n) && VESSEL_FS.includes(n), n);
+  // one shared GLSL, written from CEL_STYLE, in both programs: the same numbers by construction
+  assert.ok(TOON_FS.includes(CEL_TUBE_GLSL) && VESSEL_FS.includes(CEL_TUBE_GLSL));
+  for (const n of [`${CEL_STYLE.SHADE_AT} - et`, `${CEL_STYLE.LIT_AT} - et`, `${CEL_STYLE.SHADE} * shadowT`, `${CEL_STYLE.LIT} * hw * litT`, `${CEL_STYLE.DIR[0]}, ${CEL_STYLE.DIR[1]}`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
+  assert.match(TOON_FS, /celTubeTone\(base, across0, celTubeK\(sideS\), rDev0\)/);
   assert.match(TOON_FS, /#ifndef TUBE_TONES\s+c \+= rim/);
 });

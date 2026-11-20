@@ -17,11 +17,20 @@ export interface Course {
   capless?: readonly [boolean, boolean];
   flare?: readonly [{ add: number; wall: number; span: number } | null, { add: number; wall: number; span: number } | null];
   /** smooth joins (smooth-joins.ts): the end is buried in a trunk, so its radius (the collar, the cap) stays under `max` for `d0` of course from the end and eases back to its own by `d1` */
-  clamp?: readonly [{ max: number; d0: number; d1: number } | null, { max: number; d0: number; d1: number } | null];
+  clamp?: readonly [Buried | null, Buried | null];
+  /** smooth joins: the share of the course each end's `taper` eases over (0.3 as the 2D tubes do; a vein narrowing into a thin bed funnels over the whole of it, so it never swells into a bulb) */
+  taperSpan?: readonly [number, number];
   /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
   point?: readonly [boolean, boolean];
 }
+/** A branch end buried in its trunk (smooth-joins.ts): `max` the radius its end ring and cap may take, held for `d0` of course from the end and easing back by `d1`; `ceil` the most its collar may reach anywhere (never wider than the trunk). */
+export interface Buried { max: number; d0: number; d1: number; ceil?: number }
 const smooth = (u: number) => u * u * (3 - 2 * u);
+/** The same with each end's own span (the share of the course it eases over); with 0.3 and 0.3 it is `factorAt`. */
+export const factorSpan = (t: readonly [number, number], sp: readonly [number, number], u: number): number => {
+  const fs = u < sp[0] ? t[0] + (1 - t[0]) * smooth(u / sp[0]) : 1, fe = u > 1 - sp[1] ? 1 + (t[1] - 1) * smooth((u - (1 - sp[1])) / sp[1]) : 1;
+  return fs < 1 && fe < 1 ? Math.min(fs, fe) : fs * fe;   // (two narrowings that overlap, a funnel and a tapered end, take the narrower: the radius then rises from each end to the middle and never dips on the way)
+};
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** The share of its radius a free end tapers down to (a point, not a hole: the tube stays closed). */
@@ -66,13 +75,15 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     // (A course of no radius, a strand a band has closed or a channel not yet grown, is built at a hair's width and marked rk 0, which the vertex shader keeps off the screen. Built at 0 its collar
     // share `flare / radius` and the Circuit's `offset / radius` are NaN, and a NaN position on a real GPU draws as a black blob or a long black spindle across its neighbours: Mohammad's iPhone, 19 Nov 2026.)
     const open = c.radius > 0, R0 = open ? c.radius : HAIR;
+    // the fillet's collar, never wider than the trunk it ends on (smooth joins: a bulb wider than the trunk reads as a blob at the junction)
+    const collar = (end: number, d: number): number => { const a = flareAdd(c.flare?.[end], d), cl = c.clamp?.[end]; return cl?.ceil != null ? Math.min(a, Math.max(0, cl.ceil - c.radius)) : a; };
     const tube = new TubeGeometry(curve, seg, R0, RADIAL, false);
     const rks: number[] = [];
     const clen = curve.getLength();
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg;
-      let f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
+      let f = open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, u * clen) + collar(1, (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
       curve.getPointAt(k / seg, P);
       if (open && (c.clamp || c.point)) {
         // (smooth joins) the buried ends keep their collar inside the trunk, and a free end narrows to a point
@@ -95,7 +106,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
     const capRadius = (end: number): number => {
-      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
+      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + collar(end, 0) : HAIR;
       if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
       if (open && r > HAIR && c.point?.[end]) r *= TIP_K;
       return r;

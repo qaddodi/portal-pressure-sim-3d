@@ -208,8 +208,8 @@ test('the head\'s shape and the spacing lattice are the 2D shader\'s text (needs
   assert.match(heads, /clamp\(0\.5 \* R, 4\.0 \* cssPx \* pxW, 8\.0 \* cssPx \* pxW\)/); assert.match(heads, /STILL_A = 0\.3, THIN_LO = 1\.5, THIN_HI = 2\.5/); assert.match(mine, /clamp\(0\.5 \* R, 4\.0 \* wpc, 8\.0 \* wpc\)/);
 });
 
-test('the inks are the 2D rule: dark head on a light lumen, cream on a dark one, orange reversed, sepia rim', () => {
-  assert.match(VESSEL_FS, /smoothstep\(0\.175, 0\.205/);
+test('the inks: dark head on a light lumen, cream on a dark one (a hard step at 2D\'s luminance, never a grey halfway), orange reversed, a sepia outline always', () => {
+  assert.match(VESSEL_FS, /1\.0 - step\(0\.19, dot\(pow/);
   assert.match(VESSEL_FS, /mix\(markDark, base \* 0\.3, 0\.2\)/);
   assert.match(VESSEL_FS, /vec3\(0\.2314, 0\.1725, 0\.1333\)/);   // 59, 44, 34: the Light look's outline sepia
 });

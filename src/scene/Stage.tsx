@@ -158,7 +158,7 @@ function SceneBridge() {
   // Locked (it eases to square) while a gesture runs or the view is not the body; a camera move locks it in the rig itself.
   useEffect(() => {
     const rig = cel.rig;
-    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 };
+    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || useDeck.getState().mode === 'deck' };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },

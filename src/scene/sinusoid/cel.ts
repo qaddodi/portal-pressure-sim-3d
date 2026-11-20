@@ -16,9 +16,9 @@ import { CEL_STYLE } from '../cel-style.ts';
 /** One band is the figure's own shade step wider than the one below: the shade tone is the base times (1 - SHADE) (cel-style.ts), so a step in the logarithm of the lightness of -ln(1 - SHADE) (about 0.186, 17 %)
  *  is exactly one shade step: a flat 2D fill moves at most half a step and a shaded lumen shows the same stepped tones the vessels do. Nothing here is a number of its own. */
 export const CEL_STEP = -Math.log(1 - CEL_STYLE.SHADE);
-/** An edge is inked where the lightness changes by two shade steps of itself within one pixel (a cell's or the wall's outline, not a membrane's soft line or a gradient), fully inked at three; the ink is the colour shaded three times over (the vessels' casing is 2D's near-black: three shade steps
+/** An edge is inked where the lightness changes by SIN_EDGE_LO of itself within one pixel (a cell's or the wall's outline, not a membrane's soft line or a gradient; the painted lines' own contrast, so it does not move with the tone strength), fully inked at SIN_EDGE_HI; the ink is the colour shaded three times over (the vessels' casing is 2D's near-black: three shade steps
  *  read as one tone of the same hue, the figure's ink), at the strength of the edge. The band edge is EDGE_PX device px across on each side. */
-export const CEL_EDGE_LO = 2 * CEL_STYLE.SHADE, CEL_EDGE_HI = 3 * CEL_STYLE.SHADE, CEL_INK = (1 - CEL_STYLE.SHADE) ** 3;
+export const CEL_EDGE_LO = CEL_STYLE.TISSUE.SIN_EDGE_LO, CEL_EDGE_HI = CEL_STYLE.TISSUE.SIN_EDGE_HI, CEL_INK = (1 - CEL_STYLE.SHADE) ** 3;
 /** The wall and the space of Disse are one flat tone: a colour within this many shade steps of 2D's own Disse colour is that colour (a dead zone of 1.5 steps across, 0.75 each side), so its soft lymph dashes, collagen bands and the wall's blend never slice into stripes; the lumen rounds to the nearest rung (0.5). */
 export const CEL_DEAD_DISSE = 0.75, CEL_DEAD_LUMEN = 0.5;
 
