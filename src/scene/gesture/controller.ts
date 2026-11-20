@@ -74,7 +74,7 @@ export const isSystemEdge = (e: { pointerType: string; clientX: number; clientY:
 type Drag =
   | { type: 'rotate'; x: number; y: number; orbit0: number; pitch0?: number; moved: boolean; trail: number[]; touch: boolean }
   | { type: 'pan'; x: number; y: number; v0: View; moved: boolean; trail: number[]; noFling: boolean; touch: boolean }
-  | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt; tilt?: { o0: number; p0: number } }
+  | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt; tilt?: { o0: number; p0: number }; mode?: 'zoom' | 'tilt' }
   | { type: 'ignore' };
 
 export interface Gestures {
@@ -350,9 +350,14 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (pointers.size !== 2) return;
       const a = drag.pa, b = drag.pb;
       const d = Math.hypot(a[0] - b[0], a[1] - b[1]), m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
-      if (Math.abs(d - drag.d0) > 10 || Math.hypot(m.x - drag.m0.x, m.y - drag.m0.y) > 10) drag.moved = true;
-      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(drag.tilt ? drag.m0 : m, drag.anchor, k, host.centre());
-      if (drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); }
+      const spread = Math.abs(d - drag.d0), slide = Math.hypot(m.x - drag.m0.x, m.y - drag.m0.y);
+      if (spread > 10 || slide > 10) drag.moved = true;
+      // two fingers either pinch (they move apart or together: zoom) or slide together (tilt), decided once from the first 12 px and kept for the gesture, so a tilt never
+      // zooms on the side and a pinch never tilts (before, both ran at once: the figure zoomed in and out while it tilted)
+      if (drag.tilt && !drag.mode && (spread > 12 || slide > 12)) { drag.mode = slide > spread * 1.2 ? 'tilt' : 'zoom'; if (drag.mode === 'tilt') { drag.m0 = m; drag.tilt = { o0: host.orbit(), p0: host.orbitPitch?.() ?? 0 }; } }
+      if (drag.mode === 'tilt' && drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); return; }
+      if (drag.tilt && !drag.mode) return;   // (undecided: nothing moves yet)
+      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(m, drag.anchor, k, host.centre());
       host.setHand({ k, x: p.x, y: p.y }); handSample(80);
       return;
     }
