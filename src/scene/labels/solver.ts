@@ -84,7 +84,7 @@ export const AIR_LABEL = 4;
 export const DOT_ROOM = 40;
 export const VIEW_INSET = 8;
 const SLIDE_INSET = 18;
-const SHORT_LEAD = 45, LONG_LEAD = 140;
+const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
 const LINE_COST = 8;
