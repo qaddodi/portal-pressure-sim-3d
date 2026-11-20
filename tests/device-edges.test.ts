@@ -58,7 +58,8 @@ for (const id of LOOK_IDS) {
   test(`${id}: the endoscope is black polymer with a soft edge, its needle steel in the dark edge, its port and rings with none`, () => {
     const t = DEVICE_TOKENS[id], sc = new EndoScope(sh);
     sc.applyPalette(PALETTES[id]);
-    const [shaft, bend, tip, lens, , band, needle, face, port, array, light0, light1, chan, ...rings] = sc.parts as unknown as DeviceObject[];
+    const [shaft, bend, tip, lens, , band, needle, face, port, array, light0, light1, chan, ...rest] = sc.parts as unknown as DeviceObject[];
+    const rings = rest.slice(0, 4);   // (then the needle's sheath)
     // (the redesign, 20 Nov 2026: the shaft is 2D's black polymer; the bending section a lifted black; the distal housing polished silver; the transducer cap cream with a dark face; the needle bright steel)
     assert.equal(fill(shaft!), raw(SCOPE_TUBE(t)), 'insertion tube: --dev-scope, softened'); assert.equal(edge(shaft!), raw(scopeSoftHex(t))); assert.equal(edgeA(shaft!), SCOPE_EDGE_A);
     assert.equal(fill(bend!), raw(SCOPE_BEND(t))); assert.equal(edge(bend!), raw(scopeSoftHex(t))); assert.equal(edgeA(bend!), SCOPE_EDGE_A);

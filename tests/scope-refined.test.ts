@@ -24,3 +24,11 @@ test('the distal end is domed (whole, then rounding down), never a square box en
   assert.ok(Math.abs(tipRadius(1) - DOME_END) < 1e-9);
   for (let u = 0; u < 1; u += 0.05) assert.ok(tipRadius(u + 0.05) <= tipRadius(u) + 1e-9);
 });
+
+test('the EUS needle reads as a needle: thin, a long bevel to a sharp point, a sheath round its base', async () => {
+  const m = await import('../src/scene/devices/probes/scope.ts');
+  assert.ok(m.NEEDLE_HALF < 0.5, 'thin shaft');
+  assert.ok(m.NEEDLE_BEV / m.NEEDLE_HALF >= 8, 'a long bevel');
+  assert.ok(m.NEEDLE_POINT <= 0.05, 'a sharp point');
+  assert.ok(m.SHEATH_HALF > m.NEEDLE_HALF * 1.8 && m.SHEATH_LEN > 4, 'a sheath, wider than the needle');
+});
