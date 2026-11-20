@@ -259,3 +259,20 @@ test('a side branch starts as wide as it is where it leaves its vein (a half-wid
     assert.ok(at(0) >= 0.9 * at(0.14), `${id}: ${at(0).toFixed(4)} at the join against ${at(0.14).toFixed(4)} further on`);
   }
 });
+
+test('a vein that opens into the cava takes the cava\'s colour and alpha as it nears the wall, so what meets the wall is the cava (colours blend at every vessel-into-vessel junction, owner 19 Nov)', async () => {
+  const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const { indexOf } = await import('../src/engine/vessel-data.ts');
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  assert.match(VESSEL_FS, /vec4 lensOfAt\(float lensIx, float u,/);
+  assert.match(VESSEL_FS, /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
+  assert.match(VESSEL_FS, /cavA = mix\(1\.0, cavaEnd\.y, wB\)/);
+  assert.match(VESSEL_VS, /if \(cavaEnd\.x > 0\.0 && cavaCut < 0\.5\) fa \*=/, 'the end is eased by the distance from the wall in the fragment stage, not along the length');
+  const s = new CelScene();
+  try {
+    const ref = (id: string) => (s.vesselObject(id)!.toon.uniforms as unknown as { cavaRef: { value: { x: number; y: number } } }).cavaRef.value;
+    for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const r = ref(id); assert.equal(r.x, indexOf(B.get('IVC_IS')!.lensId), id); assert.equal(r.y, 1, `${id} joins at the cava's end`); }
+    const r = ref('LRV_IVC'); assert.equal(r.x, indexOf(B.get('IVC_IS_1')!.lensId)); assert.equal(r.y, 0);
+  } finally { s.dispose(); }
+});

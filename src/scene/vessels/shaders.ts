@@ -67,6 +67,7 @@ uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
+uniform float cavaCut;   // 1 on a vein that opens into the cava: its end is eased to the cava's alpha and colour by its distance from the cava's wall in the fragment stage, not along its length
 uniform vec2 cavaEnd;    // a hepatic vein: the share of its length at the cava end that eases to this alpha (fades.ts cavaEndSpan); 0 = none
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
@@ -173,7 +174,7 @@ ${CIRCUIT_VS_CALL}
   }
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
-  if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
+  if (cavaEnd.x > 0.0 && cavaCut < 0.5) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
   vFade = fa;
   vNbr = nbr;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
@@ -266,7 +267,9 @@ uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circu
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
-uniform float cavaCut;   // 1 on a hepatic vein that opens into the cava: where the pixel lies inside the cava's lumen (nbr is the cava's) the vein is not drawn, so it ends exactly at the wall
+uniform float cavaCut;   // 1 on a vein that opens into the cava (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
+uniform vec2 cavaEnd;    // (the alpha the cava is drawn at, y)
+uniform vec2 cavaRef;    // the cava piece's lens index and the share along it where the vein joins: the colour the vein takes on
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
@@ -348,17 +351,16 @@ float vnoise(vec2 p) {
 }
 
 // the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
-vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
+vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   if (mode < 0.5 || lensUse < 0.5) return vec4(0.0);
-  ivec2 i0 = ivec2(int(lensIndex), 0), i1 = ivec2(int(lensIndex), 1);
+  ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
   vec4 g0 = texelFetch(grad, i0, 0), g1 = texelFetch(grad, i1, 0);
   if (g0.a + g1.a < 0.5) return vec4(0.0);
-  float u = mix(lensSpan.x, lensSpan.y, vUv.x);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
   float t = lensTail > 0.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
     if (lensSmooth > 0.5) {
       // the ramp's own colours along the vessel (model.ts: the pressure a third and two thirds of the way along), so a vessel that crosses a threshold passes through amber and not through a blend of its ends
-      vec3 g2 = texelFetch(grad, ivec2(int(lensIndex), 2), 0).rgb, g3 = texelFetch(grad, ivec2(int(lensIndex), 3), 0).rgb;
+      vec3 g2 = texelFetch(grad, ivec2(int(lensIx), 2), 0).rgb, g3 = texelFetch(grad, ivec2(int(lensIx), 3), 0).rgb;
       float x = t * 3.0;
       return vec4(x < 1.0 ? mix(g0.rgb, g2, x) : (x < 2.0 ? mix(g2, g3, x - 1.0) : mix(g3, g1.rgb, x - 2.0)), 1.0);
     }
@@ -373,6 +375,10 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
   col = mix(col, pal[1], 1.0 - smoothstep(c.y - w, c.y + w, f));
   col = mix(col, pal[0], 1.0 - smoothstep(c.x - w, c.x + w, f));
   return vec4(col, 1.0);
+}
+// the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
+vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
+  return lensOfAt(lensIndex, mix(lensSpan.x, lensSpan.y, vUv.x), grad, lanes, mode, pal, across);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
 }
 
 // A free end in the Circuit is round: the pixels outside a half circle of the tube's own radius at the end are carved away (the tube is the lumen plus its line, so the ink runs round the cap).
@@ -429,8 +435,15 @@ void main() {
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
-  // a hepatic vein into the cava dissolves over the last 0.8 of a cava radius before the wall, straight across (the wall's own line, not the vein's section), and is not there inside the lumen: it ends AT the wall with no seam and no round end
-  float cavA = (cavaCut > 0.5 && vNbr.y > 0.0) ? mix(1.0 - smoothstep(-0.8 * vNbr.y, 0.0, vNbr.y - abs(vNbr.x)), 1.0, circT) : 1.0;
+  // A VEIN INTO THE CAVA takes the cava's colour and alpha as it nears the wall (wB: 0 more than 1.6 cava radii before it, 1 at it), so what meets the wall is what the cava is there, and it is not drawn inside the lumen: a clean mouth, no step in colour, no ground showing through
+  float cavA = 1.0;
+  if (cavaCut > 0.5 && vNbr.y > 0.0) {
+    float cd = vNbr.y - abs(vNbr.x);
+    float wB = smoothstep(-1.6 * vNbr.y, 0.0, cd) * (1.0 - circT);
+    vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
+    base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+    cavA = mix(1.0, cavaEnd.y, wB) * (1.0 - smoothstep(-0.5, 0.5, cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
+  }
   if (cavA < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
