@@ -7,8 +7,8 @@
 //   - iPad upright: left of the nav pill at the card's left (15 % + 13 px), 29 px from the foot; too long for the room beside the pill, a row above it (73 px).
 // Pure: node judges it on every screen.
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
-import { barOf, footDrop, credRow } from '../../ui/layout/plan.ts';
-import { clamp, isSideways, layoutOf, pzh } from '../../ui/layout/rules2d.ts';
+import { barOf, footDrop, credRow, footReserve } from '../../ui/layout/plan.ts';
+import { cardPad, clamp, isSideways, layoutOf, pzh } from '../../ui/layout/rules2d.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { hits, type Box } from './geometry.ts';
 
@@ -35,7 +35,7 @@ const BESIDE_GAP = 8, CARD_GAP = 6;
 /** The gap between the words' card's top edge and a key standing above it: the card's name tab (about 22 px) and a breath. */
 const ABOVE_CARD = 30;
 /** A key wrapped over two lines is about this much taller than on one (its rows share a line gap of .1 em). */
-const TWO_LINES = 1.9;
+const TWO_LINES = 2.4;   // (21 Nov: an iPhone's two-row key drew about 58 px where 1.9 x its one-line height said 45; the dots wrap under the title)
 
 /** The key's type size, px: the 2D caption size at this screen (a phone's and a sideways phone's is the 12 px floor), times the key's share of it. */
 export function keyFontPx(vp: Viewport, gradient: boolean): number {
@@ -79,8 +79,12 @@ export function dockKey(i: DockIn): Dock {
       return { box: { x0: left, y0: vp.h - bottom - hh, x1: left + s.w, y1: vp.h - bottom }, wrap, minH, at };
     };
     const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop + (tab ? 0 : credRow(vp));   // (the phone's credit row stands under the pill's row)
-    if (natural.w <= room) return place(natural.w, natural.h, rowBottom, null, 'beside-pill');
-    if (!tab && natural.w <= 2 * room && room > 0 && natural.h * TWO_LINES <= D.pillH + 1.5) return place(room, natural.h * TWO_LINES, rowBottom, room, 'beside-pill');
+    // The card's words end this far above the card's foot (deck-ui.css: the pad, 50 px for the pill and, on a tall phone, the credit's row): the key beside the pill never stands taller than what is left of that above its own foot,
+    // estimated from the key on one line alone (the drawn size never changes the answer). Root of "the legend covers the card's last line" (iPhone, 21 Nov): the key's height was never held to the room the card keeps clear.
+    const avail = cardPad(vp.w, vp.h).y + 50 + (tab ? 0 : credRow(vp)) - (rowBottom - (tab ? Math.max(safe.bottom, 0) + 8 : footReserve(vp)));
+    const fits = (h: number) => Math.max(h, minH) <= avail + 0.5;
+    if (natural.w <= room && fits(natural.h)) return place(natural.w, natural.h, rowBottom, null, 'beside-pill');
+    if (!tab && natural.w <= 2 * room && room > 0 && natural.h * TWO_LINES <= D.pillH + 1.5 && fits(natural.h * TWO_LINES)) return place(room, natural.h * TWO_LINES, rowBottom, room, 'beside-pill');
     // too long for the pill's row: a row of its own ABOVE the words' card (2D: "somewhere else above the card if it doesn't fit"), clear of the card's name tab; never over the card's words
     const up = i.words ? vp.h - i.words.y + ABOVE_CARD : (tab ? TAB_UP_FOOT : PHONE_UP_FOOT) + safe.bottom - drop;
     return natural.w <= full ? place(natural.w, natural.h, up, null, 'above-pill') : place(full, natural.h * Math.ceil(natural.w / full), up, full, 'above-pill');
