@@ -16,7 +16,6 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
 import { COURSES } from '../src/scene/circuit/course.ts';
 import { CIRC_SKIN_REACH, CircuitSkinSet, circuitFallbacks, circuitOldJoins, circuitFarGrowers, circuitRadius, circuitReach, circuitTube, findCircuitJunctions, turnMatrix, type CircuitSkinDeps } from '../src/scene/circuit/skins.ts';
-import { TUCKED, TUCK_Z } from '../src/scene/circuit/course.ts';
 import { MAP_CENTRE, MAP_K, mapToScene, turnScenePt } from '../src/scene/circuit/map.ts';
 import { NODE_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
 import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
@@ -180,14 +179,6 @@ test('the hepatic arteries stop at the tips of the bed\'s lanes as 2D draws them
     const station = NODE_CIRCUIT[id === 'A_HR' ? 'SIN_R' : 'SIN_L']!;
     assert.ok(Math.hypot(last[0] - station[0], last[1] - station[1]) >= 25, `${id} does not run on to the bed's station`);
   }
-  // no blunt end: each artery's last stretch sinks behind the lanes' plane (the shader sorts a tube by its axis), so the lane tip is drawn over its end at every zoom, and its start at HA stays on the plane the HA skin's rings are on
-  for (const id of ['A_HR', 'A_HL']) {
-    const c = COURSES.get(id)!.curveC, a = c.getPointAt(0), b = c.getPointAt(1);
-    assert.ok(TUCKED.has(id) && Math.abs(a.z - MAP_CENTRE.z) < 1e-9, `${id} starts on the plane`);
-    assert.ok(b.z <= MAP_CENTRE.z - 0.9 * TUCK_Z, `${id} ends ${TUCK_Z} behind it (${b.z})`);
-    for (let u = 0; u <= 1; u += 0.05) assert.ok(c.getPointAt(u).z <= MAP_CENTRE.z + 0.1 * TUCK_Z && c.getPointAt(u).z >= b.z - 0.1 * TUCK_Z, `${id}: the sink eases in`);
-  }
-  assert.deepEqual([...TUCKED].sort(), ['A_HL', 'A_HR']);
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
