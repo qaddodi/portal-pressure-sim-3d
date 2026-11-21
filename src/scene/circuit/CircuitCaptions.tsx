@@ -11,7 +11,7 @@ import { NODES } from '../../engine/hales/portal/topology.js';
 import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { BAR } from '../../ui/layout/plan.ts';
-import { useUi } from '../../ui/ui-store.ts';
+import { useUi, talkRects } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { cel, usePick } from '../api.ts';
@@ -100,7 +100,7 @@ export function CircuitCaptions() {
     wallsLater();
     addEventListener('resize', wallsLater);
     const offWalls = useUi.subscribe((s, p) => { if (s.vp !== p.vp || s.dockShown !== p.dockShown || s.boxes !== p.boxes) wallsLater(); });
-    const blockers = (): Box[] => { const b = useUi.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...uiWalls]; };
+    const blockers = (): Box[] => { return [...talkRects(useUi.getState().boxes).map(rectToBox), ...uiWalls]; };
 
     const solveNow = () => {
       const { vp, boxes } = useUi.getState();
