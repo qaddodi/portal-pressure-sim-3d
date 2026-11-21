@@ -38,6 +38,14 @@ export interface RwDeck {
   copied: CopiedDeck;
 }
 
+/** Words of a 2D deck that 3D states otherwise, each keyed by the exact 2D text. A test fails when the 2D text changes (so the entry is reviewed and dropped), and nothing else is retyped here.
+ *  21 Nov (owner's rule: Baveno VIII only): the NSBB response is a fall of ≥10% or to ≤12 mmHg (Baveno VIII Table 3, as the Next-bleed deck says it); 2D's check read ">10% and to <12". */
+export const WORD_FIXES: Record<string, string> = {
+  'Much lower, not gone: the fall is >10% and to <12 mmHg, a good response, but varices can still bleed at <12 mmHg, so the NSBB is continued.':
+    'Much lower, not gone: the fall is ≥10% and to ≤12 mmHg (either meets the Baveno VIII response), a good response, but varices can still bleed at <12 mmHg, so the NSBB is continued.',
+};
+const said = (t: string): string => WORD_FIXES[t] ?? t;
+
 export const shotName = (deckId: string, slideId: string): string => `rw:${deckId}/${slideId}`;
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -61,7 +69,7 @@ export function buildDeck(c: CopiedDeck): RwDeck {
   });
   return {
     id: c.id, title: c.title, level: c.level, minutes: c.minutes, summary: c.summary, objectives: c.objectives,
-    checks: c.checks.map(([q, a]) => ({ q: parseWords(q), a: parseWords(a) })),
+    checks: c.checks.map(([q, a]) => ({ q: parseWords(said(q)), a: parseWords(said(a)) })),
     slides, copied: c,
   };
 }
