@@ -17,6 +17,6 @@ export const fluidEntry: ChartKind = {
     { id: 'flow-forces', label: 'The flow picture with the forces across the sinusoid wall', build: (c) => fluidFrame(STABLE, FORCES, c, { forces: true }) },
     { id: 'window', label: 'The day card, ascites accumulating', build: (c) => fluidFrame(BUILD, null, c, { window: true }) },
     { id: 'window-forces', label: 'The day card with the forces tile', build: (c) => fluidFrame(SHRINK, FORCES, c, { window: true, forces: true }) },
-    { id: 'healthy', label: 'No ascites: drainage matches lymph formation', build: (c) => fluidFrame(HEALTHY, null, c, { window: true }) },
+    { id: 'healthy', label: 'No ascites: the lymphatics drain all the lymph made', build: (c) => fluidFrame(HEALTHY, null, c, { window: true }) },
   ],
 };

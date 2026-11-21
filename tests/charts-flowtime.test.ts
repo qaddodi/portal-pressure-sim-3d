@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { csphFingerprint as fp0 } from '../scripts/gen-engine-fixture.mjs';
-import { flowTimeSeries, trailReading, flowGeo, startPlan, linesOf, headLeft, flowTimeHeight, withUnit, MINUTES, MEAL_LINES, LINE, modelLines, trailKeys } from '../src/ui/charts/flowtime/model.ts';
+import { clockTicks, flowTimeSeries, trailReading, flowGeo, startPlan, linesOf, headLeft, flowTimeHeight, withUnit, MINUTES, MEAL_LINES, LINE, modelLines, trailKeys } from '../src/ui/charts/flowtime/model.ts';
 import { flowTimeFrame, flowTimeLabel, minuteOf, RX, activeBands } from '../src/ui/charts/flowtime/frame.ts';
 import { pairScales, rangeOf, fixedScale, apartTier } from '../src/ui/charts/plot/scales.ts';
 import { headStep } from '../src/ui/charts/plot/follow.ts';
@@ -102,4 +102,17 @@ test('treatment bands show only the treatments the state has on', () => {
   assert.deepEqual(activeBands(['carvedilol', 'tips', 'nonsense', 'carvedilol'], { drugs: { carvedilol: true }, tips: { on: false } }), ['carvedilol']);
   assert.deepEqual(activeBands(undefined, {}), []);
   assert.ok(Object.keys(RX).length >= 8);
+});
+
+test('a time-lapse clock always names its last day, whatever step the ticks take (14 days later reads +14, not +10)', async () => {
+  for (const days of [7, 10, 14, 28, 60]) {
+    const ser = flowTimeSeries(await trailOf('healthy', 'cirr-decomp', ['pv', 'asc'], days, days + 1), 'days', ['pv', 'asc'])!;
+    for (const w of [260, 340, 520]) {
+      const G = flowGeo(ser, 'days', ['pv', 'asc'], 0, w, 200, 12), ticks = clockTicks(G, ser.ax);
+      assert.equal(ticks.at(-1), days, `${days} days at ${w}px: ${ticks}`);
+      assert.equal(ticks[0], 0);
+      assert.deepEqual([...ticks].sort((a, b) => a - b), ticks, 'in order, none twice');
+      assert.equal(new Set(ticks).size, ticks.length);
+    }
+  }
 });

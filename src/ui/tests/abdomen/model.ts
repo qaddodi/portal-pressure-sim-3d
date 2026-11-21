@@ -34,6 +34,9 @@ export interface AbView {
   fluid: boolean; fill: number; serum: number | null; diuretics: boolean;
 }
 
+/** The daily balance in words. An empty belly (nothing to tap) with a rising balance is "Refilling": a bare "▲2,100 mL/day" under "None, 0.0 L" would read as fluid that is there. */
+export const rateText = (b: number | null, tapped: boolean): string => (b == null ? '' : b === 0 ? 'Steady' : `${b > 0 && !tapped ? 'Refilling ' : ''}${fmtG(Math.abs(b), 0)} mL/day`);
+
 /** The pane's readings from a frame's metrics and the patient's settings (2D createAbdomen update). `rate` is the held balance (balance-hold.js), or null before one. */
 export function abView(m: M, params: M, held: number | null): AbView | null {
   const a = m?.ascites;
@@ -48,7 +51,7 @@ export function abView(m: M, params: M, held: number | null): AbView | null {
   return {
     num: fmt(a.volume / 1000, 1), grade: (GRADE as string[])[a.grade] || a.label, gradeTip: (GRADE_TIP as string[])[a.grade] || '', sev: (SEV as string[])[a.grade] || 'danger',
     trend: `${r > 0 ? '+' : ''}${fmt(rk, 0)} mL a day · ${trend}`,
-    rate: b == null ? '' : b === 0 ? 'Steady' : `${fmtG(Math.abs(b), 0)} mL/day`, rateDir: b == null || b === 0 ? 'steady' : b > 0 ? 'up' : 'down',
+    rate: rateText(b, tapped), rateDir: b == null || b === 0 ? 'steady' : b > 0 ? 'up' : 'down',
     iap: a.iap, iapNum: `${fmt(iapN, 0)} mmHg`, iapWord: (IAP_SAY as string[])[a.iap >= 20 ? 2 : a.iap >= 12 ? 1 : 0]!, iapSev: sev, iapFill: Math.max(0, Math.min(1, a.iap / IAP_MAX)),
     tapped, saag: tapped ? fmt(saag, 1) : '—', protein: tapped ? fmt(a.totalProtein, 1) : '—', albumin: tapped ? fmt(a.albumin, 1) : '—',
     tipSaag: tapped ? `SAAG ${fmt(r1(p.albumin), 1)} − ${fmt(r1(a.albumin), 1)} = ${fmt(saag, 1)} g/dL. SAAG ≥${SAAG_PORTAL} g/dL indicates portal hypertension.` : null,

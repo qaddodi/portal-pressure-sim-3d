@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { createCore } from '../src/engine/host/worker-core.js';
 import type { EngineFrame } from '../src/engine/protocol.ts';
-import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminText, albuminTip } from '../src/ui/tests/abdomen/model.ts';
+import { rateText, abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminText, albuminTip } from '../src/ui/tests/abdomen/model.ts';
 import { paletteOf } from '../src/ui/charts/palette.ts';
 import { pinned2D } from './two-d-pin.ts';
 
@@ -74,4 +74,12 @@ test('every label this pane writes is in the 2D source word for word (checked wh
     if (skip.has(k)) continue;
     for (const s of Array.isArray(val) ? val : [val]) assert.ok(src.includes(s), `${k}: "${s}" is not in instruments.js`);
   }
+});
+
+test('an emptied belly that is refilling says so: the balance is never a bare number under "None, 0.0 L"', () => {
+  assert.equal(rateText(2100, false), 'Refilling 2,100 mL/day');
+  assert.equal(rateText(2100, true), '2,100 mL/day');
+  assert.equal(rateText(-300, false), '300 mL/day');
+  assert.equal(rateText(0, false), 'Steady');
+  assert.equal(rateText(null, false), '');
 });

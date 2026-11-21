@@ -26,7 +26,11 @@ test('the balance, its sentence and its day numbers are the 2D app\'s', () => {
   assert.equal(fluidOf(null), null);
   assert.equal(fluidOf({ hepLymph: 1 }), null, 'a fingerprint without the fluid terms');
   assert.equal(fluidOf({ ascites: { hepLymph: 1, splLymph: 1, lymphCap: 1 } }), null, 'a live frame without a rate');
-  assert.equal(fluidWords(fluidOf({ hepLymph: 0.5, splLymph: 0.4, lymphCap: 5, lymphOver: 0, lymphBack: 0, lymphNet: 0 })!), 'No ascites: lymphatic drainage matches lymph formation.');
+  assert.equal(fluidWords(fluidOf({ hepLymph: 0.5, splLymph: 0.4, lymphCap: 5, lymphOver: 0, lymphBack: 0, lymphNet: 0 })!), 'No ascites: the lymphatics drain all the lymph made, with 5,900 mL/day of capacity unused.');
+  // the words agree with the bars: lymph made 5,870 under a capacity of 7,200 is "all drained, 1,330 unused", never "matches"
+  const calm = dayWords(fluidDay(fluidOf({ hepLymph: 5004 / 1440, splLymph: 870 / 1440, lymphCap: 7200 / 1440, lymphOver: 0, lymphBack: 0, lymphNet: 0 })!));
+  assert.equal(calm.detail, 'Liver 5,000 + gut 870, all drained; 1,330 capacity unused.');
+  assert.doesNotMatch(calm.detail + fluidWords(fluidOf({ hepLymph: 0.5, splLymph: 0.4, lymphCap: 5, lymphOver: 0, lymphBack: 0, lymphNet: 0 })!), /matches lymph/);
   assert.equal(fluidWords(fluidOf({ hepLymph: 2.6, splLymph: 1.5, lymphCap: 4, lymphOver: 0.1, lymphBack: 0.1, lymphNet: 0 })!), 'Ascites is stable: peritoneal reabsorption matches transudation.');
   assert.deepEqual([mlMin(0.04), mlMin(12.6), mlMin(-1)], ['0.0', '13', '0.0']);
   assert.equal(mlInt(5360.4), '5,360');
