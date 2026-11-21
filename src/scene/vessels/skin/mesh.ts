@@ -30,7 +30,7 @@ export const SHRINK_PULL = 0.5;
 /** The gentle schedule for a sheet that starts far from the surface (seams many radii from the junction: the long hull faces fold if pulled in at the usual rate): a third of the pull for 20 rounds, 40 in all. */
 export const GENTLE: BuildPace = { rounds: 40, shrinkRounds: 20, pull: 0.3 };
 /** How fast the remesh pulls the hull sheet onto the surface. */
-export interface BuildPace { rounds: number; shrinkRounds: number; pull: number; /** start from the surface itself (sheet.ts) and not from the hull of the rings: for a junction whose hull sheet folds at every schedule */ sdf?: boolean; /** polish rounds at the end (flips and a full smooth), `POLISH_ROUNDS` when absent */ polish?: number }
+export interface BuildPace { /** the target edge length times this (a finer remesh, `refined`): unset is 1 */ scale?: number; rounds: number; shrinkRounds: number; pull: number; /** start from the surface itself (sheet.ts) and not from the hull of the rings: for a junction whose hull sheet folds at every schedule */ sdf?: boolean; /** polish rounds at the end (flips and a full smooth), `POLISH_ROUNDS` when absent */ polish?: number }
 /** The slowest schedule, for a sheet that starts very far from the surface (five arms spread along a long host: the cava's three hepatic veins, 9 radii of cava in the skin): a seventh of the pull for 30 rounds, 48 in all. The quick schedule folds there and `GENTLE` leaves 8 triangles folded. */
 export const SLOW: BuildPace = { rounds: 48, shrinkRounds: 30, pull: 0.15 };
 export const MAX_VERTS = 12000;
@@ -112,13 +112,41 @@ export const PACES: readonly (BuildPace | undefined)[] = [undefined, GENTLE, SLO
 /** Whether a junction is meshed from the surface itself (the last rung, sheet.ts) and its seams need no hull of the rings: the forks of the liver (a fork child's id carries `~F:`) and a growing arm that lands on a host's wall (a virtual node `wall:`, wall.ts: the hull of two host rings and a ring that comes in at 40 to 70 degrees leaves the near vertices of the growing arm's ring inside it, tests/skin-wall.test.ts). */
 export const onWall = (j: SkinJunction): boolean => j.node.includes('wall:') && j.arms.some((a) => !!a.side);
 export const fromSurface = (j: SkinJunction): boolean => !!j.surface || j.arms.some((a) => a.vesselId.includes('~F:')) || onWall(j);
+/** The worst angle (degrees) between the shading normals of two neighbouring vertices of a mesh (tests/skin-builds.test.ts holds it under 80). */
+export function worstNormalAngle(m: { normal: ArrayLike<number>; index: ArrayLike<number> }): number {
+  const nn = m.normal, ix = m.index;
+  let cosMin = 1;
+  for (let i = 0; i < ix.length; i += 3) for (let s = 0; s < 3; s++) {
+    const a = ix[i + s]!, b = ix[i + (s + 1) % 3]!;
+    cosMin = Math.min(cosMin, nn[3 * a]! * nn[3 * b]! + nn[3 * a + 1]! * nn[3 * b + 1]! + nn[3 * a + 2]! * nn[3 * b + 2]!);
+  }
+  return (Math.acos(Math.min(1, Math.max(-1, cosMin))) * 180) / Math.PI;
+}
+/** A skin whose worst neighbouring-normal angle is past `REFINE_AT` degrees (a tight crotch of two arms leaving a trunk side by side: LRV_S, 79.8 with the crease easing spent) is built again with the target edge `REFINE_SCALES` times as long, finest last, and the build
+ *  with the smaller worst angle is kept (a finer build that folds, loses a vertex to a collapse or is not better is thrown away). Only such a skin pays the extra builds; every other skin is exactly as it was. A global curvature-adaptive target was tried: it
+ *  pushed LPV_A~plain from 72 to 80.5 degrees, dropped a skin and doubled the build time. */
+export const REFINE_AT = 75;
+export const REFINE_SCALES: readonly number[] = [0.8, 0.65];
+const DEFAULT_PACE: BuildPace = { rounds: REMESH_ROUNDS, shrinkRounds: SHRINK_ROUNDS, pull: SHRINK_PULL };
+function refined(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes: readonly Capsule[] | undefined, maxVerts: number, pace: BuildPace | undefined, m: SkinMesh): SkinMesh {
+  let best = m, worst = worstNormalAngle(m);
+  for (const scale of REFINE_SCALES) {
+    if (worst < REFINE_AT) break;
+    try {
+      const f = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, { ...(pace ?? DEFAULT_PACE), scale });
+      const w = worstNormalAngle(f);
+      if (w < worst) { best = f; worst = w; }
+    } catch (e) { if (!(e instanceof SkinBuildError)) throw e; }   // (a finer build that folds or runs past the vertex cap: the one in hand stands)
+  }
+  return best;
+}
 export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>): SkinMesh {
   let last: unknown;
   // the last rung, the sheet started on the surface, is for the forks of the liver (a fork child's id carries `~F:`): another junction that needs it keeps the arms it could not take at the three rungs before it dropped, as before (a pair of growing arms
   // that run along one another has no closed shape on the trunk: tests/skin-closed-footprint.test.ts)
   const top = fromSurface(j) ? PACES.length : PACES.length - 1;
   for (let i = Math.min(memo?.get(j.node) ?? 0, top - 1); i < top; i++) {
-    try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return m; }
+    try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return refined(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i], m); }
     catch (e) { last = e; if (!(e instanceof SkinBuildError) || !(e.message.includes('folds') || (top === PACES.length && e.message.includes('the hull misses')))) throw e; }   // (a junction meshed from the surface falls to that rung when its hull misses the rings too: a plain trunk whose seams were placed with no hull)
   }
   throw last;
@@ -171,7 +199,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) ringEdge.add(ekey(a * n + q, a * n + ((q + 1) % n)));
   const g = new Float64Array(3);
   const dist = (a: number, b: number) => Math.hypot(pos[3 * a]! - pos[3 * b]!, pos[3 * a + 1]! - pos[3 * b + 1]!, pos[3 * a + 2]! - pos[3 * b + 2]!);
-  const target = (a: number, b: number) => EDGE_SCALE * tau * localRadius(caps, (pos[3 * a]! + pos[3 * b]!) / 2, (pos[3 * a + 1]! + pos[3 * b + 1]!) / 2, (pos[3 * a + 2]! + pos[3 * b + 2]!) / 2);
+  const escale = EDGE_SCALE * (pace?.scale ?? 1);
+  const target = (a: number, b: number) => escale * tau * localRadius(caps, (pos[3 * a]! + pos[3 * b]!) / 2, (pos[3 * a + 1]! + pos[3 * b + 1]!) / 2, (pos[3 * a + 2]! + pos[3 * b + 2]!) / 2);
   const triNormal = (a: number, b: number, c: number, out: number[]) => {
     const ux = pos[3 * b]! - pos[3 * a]!, uy = pos[3 * b + 1]! - pos[3 * a + 1]!, uz = pos[3 * b + 2]! - pos[3 * a + 2]!, vx = pos[3 * c]! - pos[3 * a]!, vy = pos[3 * c + 1]! - pos[3 * a + 1]!, vz = pos[3 * c + 2]! - pos[3 * a + 2]!;
     const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz) || 1;
