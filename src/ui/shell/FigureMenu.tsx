@@ -15,6 +15,8 @@ import { useUi } from '../ui-store.ts';
 import { useSettings } from '../../state/settings.ts';
 import { STREAKS_ROW } from '../settings/depth-rows.ts';
 import { talkOn } from '../../state/deck.ts';
+import { FIGURE_IMAGE } from './words.ts';
+import { copyFigure, saveFigure } from './figure-image-dom.ts';
 
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 const KEY: Record<string, keyof Figure> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
@@ -78,6 +80,11 @@ export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
           )}
         </div>
       ))}
+      <div>
+        <div className="sh-title">{FIGURE_IMAGE.section}</div>
+        <button type="button" className="sh-row" onClick={() => { void copyFigure(); }}><Icon n="camera" /><span className="sh-t">{FIGURE_IMAGE.copy}</span><span className="sh-d">{FIGURE_IMAGE.copyHint}</span></button>
+        <button type="button" className="sh-row" onClick={() => { void saveFigure(); }}><Icon n="download" /><span className="sh-t">{FIGURE_IMAGE.save}</span><span className="sh-d">{FIGURE_IMAGE.saveHint}</span></button>
+      </div>
     </>
   );
 }

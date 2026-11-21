@@ -23,6 +23,8 @@ export const RESET = { title: 'Reset everything?', body: 'This clears the timeli
 export const notYet = (what: string) => `${what} is not in the 3D app yet.`;
 export const NO_WEBGL = { title: 'The 3D app needs WebGL 2', body: 'This browser cannot draw it. The 2D simulator works here.', link: 'Open the 2D simulator', href: 'https://qaddodi.github.io/portal-pressure-simulator/' } as const;
 /** The engine could not start (src/main.tsx, BootCrash.tsx). 2D says "The model stopped. Reload, or restart this patient." once it runs; at start there is no patient to restart. */
+/** Figure menu > Image: the figure as a picture (figure-image-dom.ts). */
+export const FIGURE_IMAGE = { section: 'Image', copy: 'Copy figure', copyHint: 'As a picture, with its labels', save: 'Save figure', saveHint: 'A PNG file', copied: 'Figure copied', saved: 'Figure saved', failed: 'The figure could not be made into a picture' } as const;
 export const BOOT_CRASH = { title: 'The simulation could not start', body: 'Its engine did not load. Reload to try again.', reload: 'Reload' } as const;
 /** The app-level safety net (AppBoundary.tsx): a render error outside a card never blanks the app. */
 export const APP_CRASH = {
