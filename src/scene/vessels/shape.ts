@@ -1,5 +1,6 @@
 // A vessel's tubes at its present shape: its own course (coiled as it opens), the strands of a braided collateral, or a fan of tributaries. Built from the 2D
 // figure's own courses and rules (coil.ts, coil.copied.ts); the scene rewrites a vessel's positions in place when the shape moves (VesselObject.reshape).
+import { fanCaps, fanLensRanges } from './feeder-fan.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
@@ -227,7 +228,18 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     })];
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
-  return plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
+  const fan = plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
+  return withFanJoints(fan);
+}
+
+/** A tree of tributaries (the caput's fan): each course wears the stretch of the host's colour ramp its place gives it (no colour step at a fork), and only the widest end at a point keeps its cap (one round hub). */
+function withFanJoints(courses: Course[]): Course[] {
+  if (courses.length < 2) return courses;
+  const lens = fanLensRanges(courses), caps = fanCaps(courses);
+  return courses.map((c, i) => {
+    const cl = c.capless, capless: readonly [boolean, boolean] = [(cl?.[0] ?? false) || !caps[i]![0], (cl?.[1] ?? false) || !caps[i]![1]];
+    return { ...c, ...(lens[i] ? { lens: lens[i]! } : {}), ...(capless[0] || capless[1] ? { capless } : {}) };
+  });
 }
 
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */

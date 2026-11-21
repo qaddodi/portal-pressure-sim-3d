@@ -26,6 +26,8 @@ export interface Course {
   sewn?: readonly [ShuntEnd | null, ShuntEnd | null];
   /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
   point?: readonly [boolean, boolean];
+  /** a fan's course wears this stretch `[from, to]` of the host's colour ramp (feeder-fan.ts), so a child begins in the colour its parent ends in; none: the vessel's own `lensSpan` */
+  lens?: readonly [number, number];
 }
 /** A branch end buried in its trunk (smooth-joins.ts): `max` the radius its end ring and cap may take, held for `d0` of course from the end and easing back by `d1`; `ceil` the most its collar may reach anywhere (never wider than the trunk). */
 export interface Buried { max: number; d0: number; d1: number; ceil?: number }
@@ -121,6 +123,9 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       }
     }
     tube.setAttribute('rk', new Float32BufferAttribute(rks, 1));
+    // (`lensR`: from and span of the ramp stretch this course wears; (0, 0) = the vessel's own)
+    const lensRange = [c.lens ? c.lens[0] : 0, c.lens ? c.lens[1] - c.lens[0] : 0];
+    tube.setAttribute('lensR', new Float32BufferAttribute(Array.from({ length: (seg + 1) * (RADIAL + 1) }, () => lensRange).flat(), 2));
     // (`rkc`: the radius share on the Circuit's map, the course's own: the body's tapers, collars, beads and buried ends are the 3D figure's, and the map draws a vessel one width along its length)
     tube.setAttribute('rkc', new Float32BufferAttribute(rkcs, 1));
     const tang: number[] = [];
@@ -145,6 +150,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
+    for (const e of [1, 2]) group[e]!.setAttribute('lensR', new Float32BufferAttribute(Array.from({ length: group[e]!.attributes.position!.count }, () => lensRange).flat(), 2));
     for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? capRadius(e - 1) / radius0 : 0), 1));
     for (const e of [1, 2]) group[e]!.setAttribute('rkc', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? c.radius / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
