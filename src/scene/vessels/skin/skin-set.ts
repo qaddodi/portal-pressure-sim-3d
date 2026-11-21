@@ -18,7 +18,7 @@ import { REST, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
-import { armWalk, growAlong, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
+import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
@@ -283,9 +283,9 @@ export class SkinSet {
    */
   private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
     const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
-    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts), along = growAlong(j, tubes);
+    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
-      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!) || along(i, o)) continue;
+      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
       for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
     return -1;
