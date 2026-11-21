@@ -109,7 +109,7 @@ export function lags(b: Bundle): Lag[] {
   if (dropsFinding(b, 'stall')) return [];
   const out: (Lag & { rank: number })[] = [];
   for (const p of b.parts) p.rows.forEach((r, i) => {
-    const f = r.frames, slowFps = f.fps != null && f.frames >= 10 && f.fps < LAG_FPS, bigGap = f.worstGap > LAG_GAP_MS;
+    const f = r.frames, slowFps = f.fps != null && f.frames >= 10 && f.fps < LAG_FPS, bigGap = f.worstGap > LAG_GAP_MS || f.stalls > 0;   // (zero stalls is the rule: any frame gap over 50 ms is a lag)
     if (!slowFps && !bigGap) return;
     const top = r.gpu?.slow[0];
     const cause = top ? `slowest frame: work ${top.ms} ms, gap ${top.gap} ms${top.bound ? `, waited on ${top.bound}` : ''}, asked by ${top.tags.join('/') || '-'}` : r.gpu ? 'no slow frame recorded' : 'no renderer data';
@@ -158,7 +158,9 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   L.push(`AUDIT v2 · build ${b.build} · ${b.at} · depth ${b.depth} · ${b.framed ? 'sized frames' : 'this screen'}${o.short ? ' · SHORT' : ''}`);
   L.push(`SUMMARY: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} console message${con.length === 1 ? '' : 's'}; ${steps} steps in ${b.parts.length} size${b.parts.length === 1 ? '' : 's'}; ${animTotal} CSS animations and transitions recorded; run time ${mins(wall)}${b.parallel ? ' (PARALLEL: fps and timings NOT valid)' : ''}${(b.speed ?? 1) > 1 ? ` (SPEED x${b.speed}: fps, stalls and GPU-bound NOT valid)` : ''}`);
   const lg = lags(b);
-  L.push(''); L.push(`LAGS (steps under ${LAG_FPS} fps or with a frame gap over ${LAG_GAP_MS} ms, worst first; this is the list to read first)`);
+  const stallN = dropsFinding(b, 'stall') ? null : rows.reduce((n, { r }) => n + r.frames.stalls, 0), stallSteps = dropsFinding(b, 'stall') ? 0 : rows.filter(({ r }) => r.frames.stalls > 0).length;
+  L.push(`STALLS: ${stallN == null ? 'not measured (parallel or speed run)' : `${stallN} frame gap${stallN === 1 ? '' : 's'} over 50 ms in ${stallSteps} step${stallSteps === 1 ? '' : 's'}${stallN ? ' (each one fails; zero is the rule)' : ' (zero: good)'}`}`);
+  L.push(''); L.push(`LAGS (steps under ${LAG_FPS} fps, with a frame gap over ${LAG_GAP_MS} ms, or with ANY stall (a gap over 50 ms): zero stalls is the rule, so each is a failure; worst first; this is the list to read first)`);
   if (dropsFinding(b, 'stall')) L.push('not available: frame timings are not valid in a parallel or speed run. Run once on its own, without speed.');
   else if (!lg.length) L.push('none: every step stayed at or above 30 fps with no gap over 100 ms');
   else for (const l of lg.slice(0, o.short ? 15 : 40)) L.push(`${l.fps != null ? `${l.fps} fps` : 'fps n/a'}, worst gap ${l.worstGap} ms, ${l.stalls} stall${l.stalls === 1 ? '' : 's'}  ${l.where}\n    ${l.transition}; ${l.cause}`);

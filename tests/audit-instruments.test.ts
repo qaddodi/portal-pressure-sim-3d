@@ -134,3 +134,12 @@ test('LAGS: steps under 30 fps or with a gap over 100 ms, worst first, with the 
   const t = renderText(b); assert.ok(t.indexOf('LAGS') < t.indexOf('FAILING') || !t.includes('FAILING')); assert.ok(t.indexOf('LAGS') < t.indexOf('FINDINGS BY KIND') || !t.includes('FINDINGS BY KIND'));
   assert.match(renderText({ ...b, speed: 4 }), /LAGS[^\n]*\nnot available/);
 });
+
+test('zero stalls: any frame gap over 50 ms fails (never a warning), is counted in the headline and listed under LAGS; a speed run leaves it out', () => {
+  const one = judgeStep({ group: 'HVPG', id: 'a', label: 'stop 3 of 9', run: () => undefined }, 'stop 3 of 9', { samples: card([1, 1]), gaps: [16, 16, 16, 16, 60, 16], work: { p95: 3, max: 4 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
+  assert.equal(one.flags.find((f) => f.kind === 'stall')!.sev, 'fail');
+  const b: Bundle = { build: 'b', device: 'd', at: 'n', depth: 'full', framed: false, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: false, rows: [one], console: [], notes: [] }], failed: [] };
+  assert.equal(lags(b).length, 1);
+  assert.match(renderText(b), /STALLS: 1 frame gap over 50 ms in 1 step/);
+  assert.match(renderText({ ...b, speed: 4 }), /STALLS: not measured/);
+});
