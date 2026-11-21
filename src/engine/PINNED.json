@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "a9bf565ab4f4e1ddc83a54167bc04efa81a3e81b"
+    "commit": "fd6b85696e9bfd0d3caf14a6d01670c8533dc097"
   },
   "host": {
     "repo": "qaddodi/portal-pressure-simulator",
@@ -36,6 +36,7 @@
     "hales/portal/lymph.js": "e6bb115903b5ae7c8e28b58c4653fd0e2d1b97c106ffc5a56b47ce0cbc381e3c",
     "hales/portal/metrics.js": "3a14d3688e166d08936408db9f30337e5c6777caf9916e493ca9c059991a74b0",
     "hales/portal/pressure-cuts.js": "7f96e7d40a3584ba0aa0dad13da019b22b00bcc9164a76d657501347d656e990",
+    "hales/portal/risk-scores.js": "623e2f926b510e0f32d2cc80bd00ca16aac41a10314af4d4b58e6a9307c87bf3",
     "hales/portal/scenario.js": "d7122e950865b91fcd93994a675014c7ead9a5ab01fbd044207133d21cf36f6a",
     "hales/portal/ssm-cuts.js": "86a2a77662721a8b2c0c8150f97492716fa80a8ff69fba9d0f390c08646f52a2",
     "hales/portal/stent-ease.js": "371c7231827ac20ebe9a94bd9ebe061ca3e4477e0740f70e6e33298911ac715e",

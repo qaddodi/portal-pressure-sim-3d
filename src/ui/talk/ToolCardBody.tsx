@@ -35,6 +35,8 @@ import { WallsCard } from '../charts/walls/WallsCard.tsx';
 import { ghostOf } from './ghost.ts';
 import { claimSlide, holdSlideDevices } from './slide-claim.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
+import { ScoresCard } from '../charts/scores/ScoresCard.tsx';
+import { SCORES_ON } from '../charts/scores/slides.ts';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
@@ -125,7 +127,12 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   const before = useMemo(() => beforeOf(tool.from as string | boolean | undefined, { slides: copied.slides, index: i, fp, fpOf }), [tool.from, copied, i, fp, results]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   switch (kind) {
-    case 'criteria': return <CriteriaCard tool={tool as never} fp={fp as never} />;
+    case 'criteria': {
+      // (the slides that give a case's liver function show its Child–Pugh and MELD under the criteria: charts/scores/slides.ts)
+      const sc = SCORES_ON[`${deck.id}/${slide.id}`];
+      return sc ? <><CriteriaCard tool={tool as never} fp={fp as never} /><ScoresCard facts={sc} albumin={(fp?.salb as number | null | undefined) ?? null} note={false} /></> : <CriteriaCard tool={tool as never} fp={fp as never} />;
+    }
+    case 'scores': return <ScoresCard facts={(tool.facts as never) ?? {}} albumin={(fp?.salb as number | null | undefined) ?? null} />;
     case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} room={room} />;
     case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} room={room} />;
     case 'curve': case 'course': return <CurveCard tool={tool as never} slide={slideState} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} room={room} />;
