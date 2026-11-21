@@ -4,13 +4,19 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lintFiles, judge, RULES } from './lint-rules.mjs';
+import { execFileSync } from 'node:child_process';
+import { lintFiles, judge, RULES, conflictMarkers } from './lint-rules.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const problems = [];
 const pinned = JSON.parse(readFileSync(join(root, 'src/engine/PINNED.json'), 'utf8'));
 if (!pinned.engine?.commit) problems.push('src/engine/PINNED.json has no pinned commits: run npm run sync:engine');
 for (const f of ['AGENTS.md', 'CLAUDE.md', 'index.html']) if (!existsSync(join(root, f))) problems.push(`missing ${f}`);
+
+// Conflict markers anywhere in a tracked text file (never allowed, no allowance): a merge that was committed with them breaks the build.
+let tracked = [];
+try { tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 26 }).split('\0').filter((f) => /\.(m?[jt]sx?|json|css|html|md|ya?ml|glsl|vert|frag|txt)$/.test(f) && existsSync(join(root, f))); } catch { /* (no git: the check is skipped) */ }
+for (const f of tracked) { const at = conflictMarkers(readFileSync(join(root, f), 'utf8')); if (at.length) problems.push(`${f}: unresolved merge conflict markers at line ${at.slice(0, 5).join(', ')}`); }
 
 const walk = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {
   const p = `${dir}/${e.name}`;

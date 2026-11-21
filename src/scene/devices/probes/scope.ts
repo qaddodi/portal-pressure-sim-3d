@@ -405,7 +405,8 @@ export class EndoScope {
       }
       this.needleBuf.commit();
       // the sheath: from just inside the port along the needle, as far out as the needle has gone (never past its bevel)
-      { const sl = Math.min(len3(SHEATH_LEN), Math.max(0, nU - bev)); const a = this.v.copy(ex).addScaledVector(nd, -len3(0.6)), b = new Vector3().copy(ex).addScaledVector(nd, sl); this.sheathBuf.line(a.clone(), b, len3(SHEATH_HALF)); this.sheathLen = sl; }
+      // (the sheath's start is its own vector: `ex` is this.v, and writing it there moved the port and the needle's point 0.6 units back along the needle)
+      { const sl = Math.min(len3(SHEATH_LEN), Math.max(0, nU - bev)); const a = new Vector3().copy(ex).addScaledVector(nd, -len3(0.6)), b = new Vector3().copy(ex).addScaledVector(nd, sl); this.sheathBuf.line(a, b, len3(SHEATH_HALF)); this.sheathLen = sl; }
       const tipPt = this.w.copy(ex).addScaledVector(nd, nU);
       this.pose.needleEnd.copy(tipPt);
       // the sector: from the array toward the target, a little past it, 30 degrees either side (2D: apex 0.45 rigid lengths back and 0.85 radii across, reach 1.12 times the distance to the target)

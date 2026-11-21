@@ -1,8 +1,8 @@
 {
   "raf-outside-clock": 0,
   "chained-step": 0,
-  "raw-time": 339,
+  "raw-time": 21,
   "layout-read": 200,
-  "unsafe-cast": 345,
+  "unsafe-cast": 342,
   "canvas-own-loop": 0
 }
