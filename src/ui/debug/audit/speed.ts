@@ -6,7 +6,9 @@ export const MAX_SPEED = 20;
 /** Above this the page draws a frame every 16.7 ms of wall time, which is 16.7 x N ms of page time: a 280 ms ease gets only a frame or two, so any judge that looks at the eased steps between frames reads a correct ease as a jump. */
 export const FRAME_LIMIT_SPEED = 2;
 /** Findings that read an ease from frame to frame: not valid above FRAME_LIMIT_SPEED (CSS-driven ones run on the compositor and stay valid, but the sampler's rows are too coarse for these). */
-export const FRAME_LIMITED_KINDS = new Set(['fade-instant', 'fade-under-stall', 'flash', 'stuck-mid', 'label-slide', 'label-dim-alpha', 'card-pop', 'card-size-snap', 'camera-straight', 'generic-pop', 'generic-snap']);
+/** (fade-slow: above FRAME_LIMIT_SPEED the sampler ticks every 50 ms of wall time = 1000 ms of page time at 20x, so a fade is only seen at its first and last sample and reads as two ticks, about 2.08 s: the iPhone audit of 21 Nov
+ *  had 179 rows, every card on every talk, at 2.04 to 2.12 s, 0 stalls in most. Its real fades are judged at 1x or 2x.) */
+export const FRAME_LIMITED_KINDS = new Set(['fade-instant', 'fade-under-stall', 'flash', 'stuck-mid', 'label-slide', 'label-dim-alpha', 'card-pop', 'card-size-snap', 'camera-straight', 'fade-slow', 'generic-pop', 'generic-snap']);
 /** The sampler's real interval: 33 ms of page time, but never faster than one frame (16 ms of wall time: a row between frames shows nothing new) and, above FRAME_LIMIT_SPEED, 50 ms: the fade judges are off there,
  *  so the rows only need to be cheap. Each tick reads the layout of every card and label, and a tick every 8 ms (the first version) can take the whole main thread of a busy page: the "lag" a 20x run measured. */
 export const sampleRealMs = (sampleMs: number, n: number): number => (n > FRAME_LIMIT_SPEED ? 50 : Math.max(sampleMs / n, 16));

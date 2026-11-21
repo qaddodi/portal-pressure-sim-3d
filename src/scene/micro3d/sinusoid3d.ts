@@ -163,6 +163,7 @@ export class Sinusoid3D {
   /** The shapes are built (at rest, with their `dH`, `dD`, `dH2` moves): until then the scene draws nothing, and the next `prepareShapeStep` does one more pass. */
   shapeReady = false;
   private lookKey = '';
+  private hscKey = -1;
   /** The wall's per-vertex colour weights (see sinusoid-wall.ts) and the palette they were last painted from. */
   private shellW: Weights = newWeights();
   private cutW: Weights = newWeights();
@@ -241,7 +242,7 @@ export class Sinusoid3D {
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
-    this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
+    this.villi = many('microvilli', unitRod(6), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL, rimK: this.rimKAlb });   // (its own ramp: a bead well under a micrometre is all line long before a red cell is)
     // (RBC_SEG round. 40 was set against a dashed outline (22 segments, eyes 20 Nov) before the ink hull went DoubleSide and stopped culling by normal (6f7d101), which is what the dashes were;
@@ -315,8 +316,12 @@ export class Sinusoid3D {
     const key = shapeKey(S, f.geo.xk);
     if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.buildTail(); this.kupT = Number.NaN; this.stepLife(true); this.gapKey = -1; }
     else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
-    const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}|${q(S.act)}`;
-    if (lk !== this.lookKey) { this.lookKey = lk; this.colour(P, S.act); }
+    // (the colours are the palette's: the stellate cell's activation tints only the stellate cell, `colourHsc`; before, an activation different from the one the idle priming saw repainted the whole wall's
+    //  per-vertex colours inside the first shown frame, 8 ms on a laptop, 100 ms and more on an iPhone)
+    const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}`;
+    if (lk !== this.lookKey) { this.lookKey = lk; this.hscKey = -1; this.colour(P); }
+    const ak = q(S.act);
+    if (ak !== this.hscKey) { this.hscKey = ak; this.colourHsc(P, S.act); }
     this.stepPores(S.por);
     this.stepLife();
     this.stepAlbumin();
@@ -396,7 +401,7 @@ export class Sinusoid3D {
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
 
-  private colour(P: Pal, act: number): void {
+  private colour(P: Pal): void {
     // the hepatocytes' line: their own colour darkened (2D's cleft tone), run round every microvillus too, the one thin line where two neighbours touch, and the ring round each canaliculus
     // (the ground under the cells takes the same tone: it shows only in that hair of contact and in the round gap; Mohammad 20 Nov 2026: "next to each other and just have like a circular
     // gap around the bile duct between them")
@@ -415,14 +420,18 @@ export class Sinusoid3D {
     this.endoNi.setTint(P.cEndoN); this.endoNi.setInk(inkOf(P.cEndoE));
     this.kup.setTint(mix3(P.cKup, P.cLumen, 0.45)); this.kup.setInk(deep(P.cKup, 0.55));   // (a little faded, outlined in its own colour, darker: Mohammad 20 Nov 2026)
     this.kupN.setTint(deep(P.cKup, 0.62));   // (the nucleus a deeper shade of the cell itself; it sat in the comment above, so the nucleus drew white, eyes 20 Nov)
-    const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
-    this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
     this.villi.setTint(P.cCell); this.villi.setInk(cellInk);   // (the hepatocyte's own colour, outlined: "outline the villi")
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(inkOf(P.cAlbE));
     // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
     this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(inkOf(P.cRbc));
+  }
+
+  /** The stellate cell's colour by its activation (a few uniforms). */
+  private colourHsc(P: Pal, act: number): void {
+    const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
+    this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
   }
 
   /** The wall's colours: per vertex, the lining's colour, the cell's lighter sheet by its share, and the blood's by the fade down the curve (cf. sinusoid-wall.ts Weights). */
@@ -433,9 +442,11 @@ export class Sinusoid3D {
       const col = part.geometry.getAttribute('color');
       if (!col || col.count !== w.cell.length) continue;
       const a = col.array as Float32Array;
+      // (no array per vertex: a lerp of a lerp, written straight in; the same numbers as mix3(mix3(endo, endoS, cell), lumen, lum))
+      const e = P.cEndo, es = P.cEndoS, lu = P.cLumen;
       for (let i = 0; i < w.cell.length; i++) {
-        const c = mix3(mix3(P.cEndo, P.cEndoS, w.cell[i]!), P.cLumen, w.lum[i]!);
-        a[i * 3] = c[0]; a[i * 3 + 1] = c[1]; a[i * 3 + 2] = c[2];
+        const c = w.cell[i]!, l = w.lum[i]!;
+        for (let k = 0; k < 3; k++) { const m = e[k]! + (es[k]! - e[k]!) * c; a[i * 3 + k] = m + (lu[k]! - m) * l; }
       }
       col.needsUpdate = true;
     }

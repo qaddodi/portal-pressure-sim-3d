@@ -44,6 +44,6 @@ test('a strand is drawn in the vessels\' tones: the tube-tones variant has the s
   // one shared GLSL, written from CEL_STYLE, in both programs: the same numbers by construction
   assert.ok(TOON_FS.includes(CEL_TUBE_GLSL) && VESSEL_FS.includes(CEL_TUBE_GLSL));
   for (const n of [`${CEL_STYLE.VESSEL_STEP_AT} - et`, `b * (1.0 - ${CEL_STYLE.SHADE})`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
-  assert.match(TOON_FS, /celTubeTone\(base, sT0, fwidth\(sT0\), rDev0\)/);
+  assert.match(TOON_FS, /celTubeTone\(base, sT0, fwS0, rDev0\)/);
   assert.match(TOON_FS, /#ifndef TUBE_TONES\s+c \+= rim/);
 });

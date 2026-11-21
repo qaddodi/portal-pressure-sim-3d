@@ -205,6 +205,10 @@ export class CelScene {
   private microPrimed = false;
   private microPrimed2 = false;
   onMicroBuilt: (() => void) | null = null;
+  /** Called once the micro views are built AND primed: the page then sends every geometry no frame has drawn yet (the two views, the Circuit's tubes, skins and map) to the GPU, one per idle slice (materials/warm.ts GeometryUploader). */
+  onMicroPrimed: (() => void) | null = null;
+  /** The roots whose never-drawn geometries are uploaded ahead of their first frame. */
+  get uploadRoots(): Object3D[] { return [this.scene]; }
   get microBuilt(): boolean { return this.micro !== null; }
   get sinus3d(): Sinusoid3D { return this.buildMicro().sinus; }
   get lobule3d(): Lobule3D { return this.buildMicro().lobule; }
@@ -247,9 +251,9 @@ export class CelScene {
       if (!this.micro) this.buildMicro();
       else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
       else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
-      else if (!this.microPrimed) { this.microPrimed = true; this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
+      else if (!this.microPrimed) { this.microPrimed = true; this.snapMicroToModel(); this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
       else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
-      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; return true; }
+      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; this.onMicroPrimed?.(); return true; }
       return false;
     }
   }
@@ -624,7 +628,9 @@ export class CelScene {
     this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
-    if (this.figureView !== 'body') this.feedViews(false);
+    // A new patient's numbers that arrive while the camera is in flight (the slide's zoom into the lobule or the sinusoid) are laid at once: the views are dissolved or far then, and an ease
+    // made every 1/32 of a step of it rebuild the cells and repaint the 2048 px marks plate on the main thread inside the zoom (HVPG talk, slide 6 to 7, iPhone: "significant lag").
+    if (this.figureView !== 'body') this.feedViews(this.rig.isMoving);
     this.moving = true;
   }
   private sawFrame = false;
@@ -1045,6 +1051,14 @@ export class CelScene {
   get bodyShown(): number { return this.fadeNow; }
 
   /** The model's state into the small views (from the engine's newest frame, the healthy reference and the patient's parameters); `snap` shows it at once. */
+  /** The hidden views take the patient's state before the priming pass: it builds what the first shown frame would, and the first shown frame (feedViews snaps the same model) then finds every key unchanged. Before,
+   *  the priming saw the views' default state and the entry's frame rebuilt the cells, the wall's colours and the tail for the patient's (tens of ms on a laptop, a stall on an iPhone). */
+  private snapMicroToModel(): void {
+    const f = latest.frame;
+    if (!f) return;
+    const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
+    this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
+  }
   private feedViews(snap: boolean): void {
     const f = latest.frame;
     if (!f) return;
@@ -1248,10 +1262,12 @@ export class CelScene {
     lap('micro views');
     const procMoving = this.procs.update(now);
     this.syncWedge();
+    lap('procedures+wedge');   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
     const diseaseMoving = this.disease.update(now, this.flowRate.value);
     if (diseaseMoving) this.tagOverOrgans();
+    lap('disease+organs');
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    lap('devices+disease');
+    lap('probes');
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
@@ -1290,7 +1306,7 @@ export class CelScene {
     const ramp = mapRamp(t);
     this.growLiver(t);
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
-    this.resistors.setAlpha(ramp);
+    this.resistors.setAlpha(ramp, t);
     let resMoving = false;
     if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); this.mapLayer.setScale(this.mapScale()); }
     let dots = false;

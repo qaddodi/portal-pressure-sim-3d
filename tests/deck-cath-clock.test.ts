@@ -5,7 +5,7 @@ import { Vector3 } from 'three';
 import { T, legMs, ROUTE_LEN, BALLOON_IN_MS, BALLOON_OUT_MS, balloonAt, cruise, k01 } from '../src/scene/procedures/copied/hvpg-clock.js';
 import { STEP_T } from '../src/ui/talk/hvpg-plan.ts';
 import { makeStepClock, stepClock, aim, landed, BACK_SPEED, rateOf } from '../src/scene/procedures/step-clock.ts';
-import { makeCathClock, aimCath, stepCath, poseAt, targetT, FREE_T, WEDGE_T, RESULT_T, rankOf, ARRIVE_MS } from '../src/ui/deck/cath-clock.ts';
+import { makeCathClock, aimCath, stepCath, poseAt, targetT, FREE_T, WEDGE_T, RESULT_T, rankOf, ARRIVE_MS, JUMP_MS } from '../src/ui/deck/cath-clock.ts';
 import { procKey, stopOf, specFor, type ProcCursor } from '../src/ui/deck/procs-plan.ts';
 import { tipCloseShot, closeUpOf } from '../src/ui/deck/cath-shot.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
@@ -220,4 +220,15 @@ test('the layer plays a driven procedure to a stop and holds there, runs the ste
   assert.deepEqual(ends, ['rewound']);
   assert.equal(sc.procs.driven, null);
   sc.dispose();
+});
+
+test('landing on a slide (a jump, the list, Back over several steps) puts the catheter at that slide\'s end state within JUMP_MS, from wherever it was; it does not replay the route', () => {
+  for (const [from, to] of [[null, 'result'], [null, 'wedge'], ['result', 'route'], ['wedge', null], ['route', 'result']] as const) {
+    const d = makeCathClock();
+    aimCath(d, from, false); d.clk.t = d.clk.goal; d.clk.v = 0;
+    aimCath(d, to, true);
+    const ms = run(d, () => {});
+    assert.equal(d.clk.t, targetT(to), `${from} to ${to}: lands on the slide's own place`);
+    assert.ok(ms <= JUMP_MS * 1.5, `${from} to ${to} took ${ms} ms`);
+  }
 });

@@ -4,8 +4,8 @@
 // The root fix: a marked material always uses CustomBlending, so `opaque` is constantly false and there is one program whatever the flag says. The flag still sorts the draw (opaque list or transparent list), and the blend
 // factors carry the two states: One/Zero while opaque (what NoBlending drew), the premultiply-free "normal" factors while blended. Nothing is compiled twice and nothing needs warming. `setBlendState` is the only way
 // to flip a marked material at run time.
-import { AddEquation, CustomBlending, OneFactor, OneMinusSrcAlphaFactor, SrcAlphaFactor, ZeroFactor } from 'three';
-import type { Camera, Material, Object3D } from 'three';
+import { AddEquation, CustomBlending, Mesh, MeshBasicMaterial, OneFactor, OneMinusSrcAlphaFactor, Scene, SrcAlphaFactor, ZeroFactor } from 'three';
+import type { BufferGeometry, Camera, Material, Object3D } from 'three';
 
 /** Puts a material in one blend state: `transparent` (draw order) and the factors that go with it. The program does not change. */
 export function setBlendState<T extends Material>(m: T, on: boolean): T {
@@ -45,4 +45,59 @@ export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Ca
   try { done = gl.compileAsync(scene, camera); } finally { if (target && gl.setRenderTarget) gl.setRenderTarget(prev); }
   await done;
   return 1;
+}
+
+// ---- the geometries' first upload ---------------------------------------------------------------------------------------------------------------------------------------------------
+// `compile` builds PROGRAMS for every material, visible or not, but a geometry's buffers (positions, normals, the shape's dH/dD columns, indices: about 800 000 triangles for the sinusoid, the Circuit's tubes and skins)
+// are sent to the GPU by the first draw that includes them. The micro views and the Circuit are hidden until chosen, so that first draw was the first frame of the view: 180 to 390 ms on an iPhone (audit 21 Nov:
+// 'render: pass 1' and 'vessel layer' laps, the entries' stalls). `GeometryUploader` draws each hidden geometry once, one per call, with a plain material into a 1 x 1 target, in the idle slices after the build:
+// three keys the upload on the geometry itself, so the view's own first frame finds every buffer on the card.
+
+/** The part of the renderer the upload uses (so a test can hand it a stand-in). */
+export interface UploadRenderer {
+  render(scene: Object3D, camera: Camera): void;
+  getRenderTarget(): unknown;
+  setRenderTarget(target: unknown): void;
+}
+
+/** The geometries of `root` that no frame has drawn: a mesh under a hidden object (visible false somewhere up its chain), each once. */
+export function hiddenGeometries(root: Object3D, seen: WeakSet<BufferGeometry> = new WeakSet()): BufferGeometry[] {
+  const out: BufferGeometry[] = [];
+  const walk = (o: Object3D, shown: boolean): void => {
+    const here = shown && o.visible;
+    const m = o as Mesh;
+    if (m.isMesh && !here && m.geometry && !seen.has(m.geometry)) { seen.add(m.geometry); out.push(m.geometry); }
+    for (const c of o.children) walk(c, here);
+  };
+  walk(root, true);
+  return out;
+}
+
+export class GeometryUploader {
+  private queue: BufferGeometry[] = [];
+  private readonly done = new WeakSet<BufferGeometry>();
+  private readonly scene = new Scene();
+  private readonly mesh = new Mesh(undefined, new MeshBasicMaterial());
+  private readonly gl: UploadRenderer;
+  private readonly camera: Camera;
+  private readonly target: unknown;
+  constructor(gl: UploadRenderer, camera: Camera, target: unknown) {
+    this.gl = gl; this.camera = camera; this.target = target;
+    this.mesh.frustumCulled = false;
+    this.scene.add(this.mesh);
+  }
+  /** Adds the not-yet-drawn geometries under `root` to the queue. */
+  add(root: Object3D): void { this.queue.push(...hiddenGeometries(root, this.done)); }
+  get pending(): number { return this.queue.length; }
+  /** Uploads one geometry; true while more are queued. */
+  step(): boolean {
+    const g = this.queue.shift();
+    if (!g) return false;
+    this.mesh.geometry = g;
+    const prev = this.gl.getRenderTarget();
+    this.gl.setRenderTarget(this.target);
+    try { this.gl.render(this.scene, this.camera); } finally { this.gl.setRenderTarget(prev); }
+    return this.queue.length > 0;
+  }
+  dispose(): void { this.queue = []; (this.mesh.material as MeshBasicMaterial).dispose(); }
 }

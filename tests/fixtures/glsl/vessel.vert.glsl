@@ -44,6 +44,7 @@ uniform float fadeKeep;
 uniform vec3 mapFade;   // the Circuit's own fade of an artery's end: (from, to) along the map course, 1 in z if on (fades.ts MAP_ART_FADE); 0: none, the map holds every fade off
 uniform vec3 stump;   // a vein divided at surgery (2D divideLen / stumpPinch): x the divided stretch's length from its start (figure units, 0: whole), y where the tie pinches it (units from the start), z the pinch's share
 varying float vFade;
+varying float vCircShare;   // this vertex's own share of the change (the flow peel on its rank): the map's cut takes the tube's end away as THIS point lands, not as the whole change ends
 varying vec2 vNbr;
 varying vec3 vCen;   // the tube's centreline point at this fragment, in clip space (x, y, w): the exact lateral distance to the axis, in device pixels, for the outline
 varying vec3 vN;
@@ -223,6 +224,7 @@ void main() {
   if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
   swell *= liveW;
+  vCircShare = circShare;
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
   float fa = 1.0;

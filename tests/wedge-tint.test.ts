@@ -113,13 +113,14 @@ test('the balloon is glass with streaks of light and nothing solid in it: no col
 
 // 21 Nov, Mohammad: "the balloon still has shit in it, it's not glossy". The shaft inside the glass is left clear (a ghost of it), by one shared hole in the device's alpha (fill and outline alike), and the glass has a
 // bright soft specular and a fresnel sheen.
-test('the shaft inside the balloon is cleared and the glass is glossy', () => {
+test('the shaft shows through the balloon\'s glass (no hole cut in it), and the glass is glossy', () => {
   const dev = readFileSync(new URL('../src/scene/devices/device-object.ts', import.meta.url), 'utf8');
+  const sh = readFileSync(new URL('../src/scene/devices/contact-shadow.ts', import.meta.url), 'utf8');
   const pc = readFileSync(new URL('../src/scene/devices/catheters/proc-catheter.ts', import.meta.url), 'utf8');
-  assert.match(dev, /uniform vec4 holeU;/);
-  assert.match(dev, /holeU\.z \* smoothstep\(holeU\.x - w, holeU\.x, u\)/, 'one hole for the fill and the outline (tailK is in both)');
+  assert.match(sh, /uniform vec4 holeU;/, 'the hole mechanism is the shared tail glsl');
   assert.match(dev, /gSp \* 0\.9 \+ gSh \* 0\.3/, 'a specular and a fresnel sheen on the glass');
-  assert.match(pc, /this\.shaft\.setHole\(\(ol\.dC - half\)/, 'the hole is the balloon\'s own span');
+  assert.match(pc, /export const BALLOON_SHAFT_HOLE = 0;/, 'no share of the shaft is cleared inside the balloon');
+  assert.match(pc, /this\.shaft\.setHole\([^;]*BALLOON_SHAFT_HOLE \* e/, 'the balloon\'s hole is scaled by that share');
   assert.match(pc, /else this\.shaft\.setHole\(0, 0, 0\)/, 'and gone with it');
 });
 

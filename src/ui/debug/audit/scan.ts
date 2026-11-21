@@ -12,6 +12,8 @@ export interface ScanItem {
   /** inside something that scrolls: out of view is normal there */
   scrolls: boolean;
   opacity: number;
+  /** text only: its opacity is mid-fade (an animation or transition is running on it or an ancestor), so its contrast now is not its contrast at rest: not judged until it lands */
+  fading?: boolean;
   /** inside an open sheet, menu or the cover: it stands over the page on purpose */
   modal?: boolean;
   /** text only: the element it is in (tag, id, two classes), so a bare number in a finding can be found */
@@ -67,6 +69,9 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
   const memo = new Map<Element, Vis>();
   const box = (b: DOMRect): Box => [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)];
   const meet = (a: Box | null, b: Box): Box => (a ? [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])] : b);
+
+  /** An animation or transition is running on the element or one of its ancestors (read only for text already under full opacity). */
+  const fadingUp = (el: Element): boolean => { try { for (let p: Element | null = el; p; p = p.parentElement) if (p.getAnimations?.().some((a) => a.playState === 'running')) return true; } catch { /* not asked */ } return false; };
 
   /** Whether an element is drawn at all, how opaque it is with its ancestors, the box its clipping ancestors leave it. Memoised up the tree. */
   const vis = (el: Element | null): Vis => {
@@ -151,7 +156,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     for (const r of rects) {
       if (items.length >= MAX_ITEMS) { capped = true; break; }
       const b = lineBoxes([r])[0]; if (!b) continue;
-      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, modal: !!p.closest(MODAL) || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
+      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, fading: (v.opacity < 0.999 && fadingUp(p)) || undefined, modal: !!p.closest(MODAL) || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
       items.push(item); holders.push({ el: p, item });
     }
     texts++;
