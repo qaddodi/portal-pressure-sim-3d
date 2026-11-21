@@ -159,6 +159,7 @@ test('a label fades over the camera\'s dive, so it is only "slow" past the dive\
   const j = src('src/ui/debug/audit/judge.ts');
   assert.match(j, /SLOW_LABEL_MS = 3200/);
   assert.match(j, /f\.kind === 'label' \? SLOW_LABEL_MS : SLOW_FADE_MS/);
+});
 
 test('the Tests cards, the deck screen and the doppler measure after the observer\'s delivery too (ResizeObserver loop on Ascites 9 and Measuring HVPG 15)', () => {
   for (const p of ['src/ui/tests/Cv.tsx', 'src/ui/tests/TestsLayer.tsx', 'src/ui/tests/doppler/DopplerPane.tsx', 'src/ui/DeckUi.tsx']) {
