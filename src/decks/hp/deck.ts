@@ -10,20 +10,47 @@ import { playsLapse } from './lapse.ts';
 import { instrumentOf } from '../../ui/talk/slide-instrument.generated.js';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
-const TAG = /<(mi|mo|msub)\b([^>]*)>(.*?)<\/\1>/g;
+const OPEN = /<(mi|mo|mn|msub|mfrac|mrow)\b([^>]*)>/y;
 
-/** The 2D equation (HTML-ish strings: `<mi>`, `<mo>`, `<msub><mi>P</mi><mtext>portal vein</mtext></msub>`) as the card's parts. */
+/** The index just past the `</tag>` that closes the `<tag>` opened before `from` (same-name tags nest). */
+function closeOf(html: string, tag: string, from: number): number {
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'g');
+  re.lastIndex = from;
+  let depth = 1;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    if (!depth) return m.index;
+  }
+  throw new Error(`equation "${html}" has an unclosed <${tag}>`);
+}
+
+/** The 2D equation (HTML-ish strings: `<mi>`, `<mn>`, `<msub><mi>P</mi><mtext>portal vein</mtext></msub>`, `<mfrac><mrow>..</mrow><mrow>..</mrow></mfrac>`) as the card's parts.
+ *  Every tag the 2D equations use is kept: a fraction dropped to its two halves read "1/R = 1/R_liver + 1/R_coll" as "R = R_liver + R_coll". */
 export function eqParts(html: string): EqPart[] {
   const out: EqPart[] = [];
-  for (const m of html.matchAll(TAG)) {
-    const [, tag, attrs, inner] = m;
-    const cls = /class="([^"]*)"/.exec(attrs!)?.[1] ?? '';
+  let i = 0;
+  while (i < html.length) {
+    OPEN.lastIndex = i;
+    const m = OPEN.exec(html);
+    if (!m) { i++; continue; }
+    const [open, tag, attrs] = m as unknown as [string, string, string];
+    const end = closeOf(html, tag, i + open.length);
+    const inner = html.slice(i + open.length, end);
+    i = end + tag.length + 3;
+    const cls = /class="([^"]*)"/.exec(attrs)?.[1] ?? '';
     const tone = /\beq-wedge\b/.test(cls) ? 'wedge' as const : /\beq-hv\b/.test(cls) ? 'free' as const : undefined;
-    if (tag === 'msub') {
-      const base = /<mi>(.*?)<\/mi>/.exec(inner!)?.[1], sub = /<mtext>(.*?)<\/mtext>/.exec(inner!)?.[1];
-      if (!base || !sub) throw new Error(`equation part "${m[0]}" is not <mi> and <mtext>`);
+    if (tag === 'mrow') { out.push(...eqParts(inner)); continue; }
+    if (tag === 'mfrac') {
+      const halves = [...inner.matchAll(/<mrow>/g)].length === 2 ? inner.split(/<\/mrow>\s*<mrow>/).map((h) => h.replace(/^\s*<mrow>|<\/mrow>\s*$/g, '')) : [];
+      if (halves.length !== 2) throw new Error(`equation fraction "${open}${inner}" is not two <mrow>`);
+      const num = eqParts(halves[0]!), den = eqParts(halves[1]!);
+      const flat = (ps: EqPart[]) => ps.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ');
+      out.push({ tag: 'mfrac', text: `${flat(num)} / ${flat(den)}`, num, den, ...(tone ? { tone } : {}) });
+    } else if (tag === 'msub') {
+      const base = /<mi>(.*?)<\/mi>/.exec(inner)?.[1], sub = /<mtext>(.*?)<\/mtext>/.exec(inner)?.[1];
+      if (!base || !sub) throw new Error(`equation part "${open}${inner}" is not <mi> and <mtext>`);
       out.push({ tag: 'mi', text: base, sub, ...(tone ? { tone } : {}) });
-    } else out.push({ tag: tag as 'mi' | 'mo', text: inner!, ...(tone ? { tone } : {}) });
+    } else out.push({ tag: tag as 'mi' | 'mo' | 'mn', text: inner, ...(tone ? { tone } : {}) });
   }
   if (!out.length) throw new Error(`equation "${html}" has no parts`);
   return out;

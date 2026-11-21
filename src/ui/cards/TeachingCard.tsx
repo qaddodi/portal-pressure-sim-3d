@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { Slide } from '../../decks/schema.ts';
+import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
 import { NameTab } from './NameTab.tsx';
@@ -9,6 +9,16 @@ import type { Deck } from '../../decks/schema.ts';
 import { useVariant } from '../talk/variant-words.ts';
 import { cardFields } from './card-fields.ts';
 import { richOf } from '../text/rich.ts';
+
+const eqClass = (p: EqPart) => (p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined);
+/** A slide's equation parts as MathML (2D `.pz-eq > math`): names, numbers, signs, subscripts and fractions, in 2D's own tags. */
+function EqParts({ parts }: { parts: readonly EqPart[] }) {
+  return <>{parts.map((p, i) => p.tag === 'mo' ? <mo key={i}>{p.text}</mo>
+    : p.tag === 'mn' ? <mn key={i}>{p.text}</mn>
+    : p.tag === 'mfrac' ? <mfrac key={i} className={eqClass(p)}><mrow><EqParts parts={p.num ?? []} /></mrow><mrow><EqParts parts={p.den ?? []} /></mrow></mfrac>
+    : p.sub ? <msub key={i} className={eqClass(p)}><mi>{p.text}</mi><mtext>{p.sub}</mtext></msub>
+    : <mi key={i} className={eqClass(p)}>{p.text}</mi>)}</>;
+}
 
 export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false, panel = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; /** the slide's readings (the colour of a value's pill) */ fp?: Readonly<Record<string, number | null | undefined>>; page: number; pages: number; trim?: boolean; /** 2D's visual panel: the head only (title, equation, line, caveat, cite) in `.pz-ph`; the table or chart follows it */ panel?: boolean }) {
   // a compare button that switches the patient brings its own words (2D variantWords); a new slide shows its own
@@ -28,9 +38,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
           <h1 className="pz-h">{shown.title}</h1>
           {eq && slide.eq && (
             <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
-              <math><mrow>{slide.eq.map((p, i) => p.tag === 'mo' ? <mo key={i}>{p.text}</mo>
-                : p.sub ? <msub key={i}><mi>{p.text}</mi><mtext>{p.sub}</mtext></msub>
-                : <mi key={i} className={p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined}>{p.text}</mi>)}</mrow></math>
+              <math><mrow><EqParts parts={slide.eq} /></mrow></math>
             </div>
           )}
           {text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null}
@@ -49,9 +57,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       <h2 className="pz-h" style={kick}>{shown.title}</h2>
       {eq && slide.eq && (
         <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
-          <math><mrow>{slide.eq.map((p, i) => p.tag === 'mo' ? <mo key={i}>{p.text}</mo>
-            : p.sub ? <msub key={i}><mi>{p.text}</mi><mtext>{p.sub}</mtext></msub>
-            : <mi key={i} className={p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined}>{p.text}</mi>)}</mrow></math>
+          <math><mrow><EqParts parts={slide.eq} /></mrow></math>
         </div>
       )}
       {eq && slide.eqLegend && <p className="dp-eqnote">{slide.eqLegend}</p>}

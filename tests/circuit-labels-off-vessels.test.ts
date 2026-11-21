@@ -74,3 +74,22 @@ test('upright (a phone or a portrait iPad): the stations that stand stand with t
   const out = solve({ items: built.items, view: c.view, blockers: [], lines: ln, leaderLineCost: 30 });
   for (const p of out.placed) { const m = built.meta.get(p.id); if (m?.kind === 'station') assert.notEqual(m.forms[p.form]!.name, '', `${p.id} stands as a bare number`); }
 });
+
+test('a resistor reading is never dropped or left on a station name: it moves to a free spot (phone play-test: "Hepatic artery" on "R liver")', () => {
+  for (const S of [0.2, 0.25, 0.3, 0.35]) for (const must of [[], ['HA']]) {
+    const up = (x: number, y: number): [number, number] => [20 + y * S, 30 + (1330 - x) * S];
+    const c = ctx({ upright: true, proj: up, scale: S, vp: { w: 390, h: 700 }, view: { x0: 0, y0: 0, x1: 390, y1: 700 }, compact: true, res: { rLiver: 8.4, rColl: 1.2 }, resLane: () => courseOf(CIRCUIT_D['C1b']!), must: new Set(must) });
+    const built = buildCaptions(c);
+    const ln: [number, number, number, number][] = [];
+    for (const d of Object.values(CIRCUIT_D)) { const cs = courseOf(d); for (let i = 1; i < cs.length; i++) { const a = up(cs[i - 1]![0], cs[i - 1]![1]), b = up(cs[i]![0], cs[i]![1]); ln.push([a[0], a[1], b[0], b[1]]); } }
+    const out = solve({ items: built.items, view: c.view, blockers: [], lines: ln, leaderLineCost: 30 });
+    const by = new Map(built.items.map((i) => [i.id, i]));
+    const box = (id: string) => { const p = out.placed.find((q) => q.id === id)!; const it = by.get(id)!; return { x0: it.ax + p.dx, y0: it.ay + p.dy, x1: it.ax + p.dx + p.w, y1: it.ay + p.dy + p.h }; };
+    assert.deepEqual(out.dropped.filter((d) => d.startsWith('res:')), [], `scale ${S}: a reading was dropped`);
+    for (const k of ['res:rLiver', 'res:rColl']) for (const p of out.placed) {
+      if (p.id === k || p.id.startsWith('z:')) continue;
+      const a = box(p.id), b = box(k);
+      assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `scale ${S}: ${k} stands on ${p.id}`);
+    }
+  }
+});

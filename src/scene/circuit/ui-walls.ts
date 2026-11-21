@@ -5,7 +5,7 @@
 import { readBox, readStyle } from '../../ui/tests/dock/layout-snap.ts';
 import type { Box } from '../labels/geometry.ts';
 
-export const UI_WALLS = '.float-ui, .stage-blocker, .vdock, .nb-views, .zoom-pill';
+export const UI_WALLS = '.float-ui, .stage-blocker, .vdock, .nb-views, .zoom-pill, .lb-key-wrap';
 /** Breathing room kept round each, px. */
 export const UI_WALL_PAD = 4;
 /** The most a wall may cover of the screen (area), and of either side: a bigger one is a layer or a card, not a chip. */

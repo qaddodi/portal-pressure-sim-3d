@@ -101,7 +101,7 @@ export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { 
 export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[]): CardOut[] {
   const placed: Box[] = [], out: CardOut[] = [];
   for (const it of items) {
-    if (it.w >= view.x1 - view.x0) { out.push({ id: it.id, x0: it.x - it.w / 2, y0: it.y, dir: 'none', ax: 0, box: { x0: it.x - it.w / 2, y0: it.y, x1: it.x + it.w / 2, y1: it.y + it.h }, ok: false }); continue; }
+    if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, dir: 'none', ax: 0, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
     if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
     let best: { cost: number; o: CardOut } | null = null;
@@ -420,7 +420,7 @@ export class FigureCards {
     const c = r.spec, box = r.box;
     if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
     show(r.card, true);
-    if (c.kind === 'split') { this.paintSplit(r, box); return; }
+    if (c.kind === 'split') { this.paintSplit(r, box, t); return; }
     const sz = cardSize(c, t, this.deps.measure);
     size(r.card, sz.w, sz.h);
     const key = `${c.kind}|${c.text}|${c.value ?? ''}|${c.unit ?? ''}|${c.tone}|${box.dir}|${Math.round(box.ax)}|${sz.w}`;
@@ -444,8 +444,11 @@ export class FigureCards {
     if (c.kind === 'step') this.paintLead(r, box, r.a, sz.w);
   }
 
-  private paintSplit(r: Rec, box: CardOut): void {
+  private paintSplit(r: Rec, box: CardOut, t: CathType): void {
     const c = r.spec, sp = r.split!;
+    // (its words are set in the card's own type size, the one cardSize measured the box in: 2D's CSS sets them at 12 px, which on a phone is wider than the box placed for it, so the words ran past the edge it was kept inside)
+    const k = String(Math.round((t.name / 12) * 1000) / 1000);
+    if (r.root.style.getPropertyValue('--label-scale') !== k) r.root.style.setProperty('--label-scale', k);
     const key = `${c.split?.liver}|${c.split?.shunt}`;
     if (r.sig !== key && c.split) {
       r.sig = key;

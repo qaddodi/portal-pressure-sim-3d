@@ -49,3 +49,18 @@ test('the other eleven decks are in the registry and open when asked, and the ti
   assert.deepEqual([t.tiles!.deck, t.tiles!.slide], ['kidney', t.id]);
   assert.equal(lazyDecks().find((x) => x.id === 'kidney')!.slides, d.slides.length);
 });
+
+test('a fraction in a 2D equation stays a fraction (parallel resistances read 1/R, never R)', async () => {
+  const [lhs, eq, rhs] = eqParts('<mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>R</mi><mtext>total</mtext></msub></mrow></mfrac><mo>=</mo><mfrac><mrow><mn>1</mn></mrow><mrow><msub class="eq-wedge"><mi>R</mi><mtext>liver</mtext></msub></mrow></mfrac><mo>+</mo><mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>R</mi><mtext>collaterals</mtext></msub></mrow></mfrac>');
+  assert.equal(lhs!.tag, 'mfrac');
+  assert.deepEqual(lhs!.num, [{ tag: 'mn', text: '1' }]);
+  assert.deepEqual(lhs!.den, [{ tag: 'mi', text: 'R', sub: 'total' }]);
+  assert.equal(eq!.text, '=');
+  assert.equal(rhs!.den![0]!.tone, 'wedge');
+  const sigma = eqParts('<mi>σ</mi><mo>=</mo><mfrac><mrow><mi>P</mi><mo>⋅</mo><mi>r</mi></mrow><mrow><mi>w</mi></mrow></mfrac>');
+  assert.equal(sigma[2]!.num!.length, 3);
+  // the Circuit deck's parallel slide, as it plays: 1/R on both sides
+  const circuit = await loadBuiltin('circuit');
+  const par = circuit!.slides.find((x) => x.id === 'parallel')!;
+  assert.equal(par.eq!.filter((p) => p.tag === 'mfrac').length, 2 + 1);
+});

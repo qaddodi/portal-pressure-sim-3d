@@ -395,6 +395,9 @@ test('zoomed in on the map: no vessel is culled by its body sphere, corners are 
   const caps = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
   assert.match(caps, /readUiWalls/);
   assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.nb-views/, 'the view pill is a wall');
+  // the figure key (the "Flow volume" legend) is a wall too, re-read when it comes or goes (a Mac: it stood on "Umbilicus")
+  assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.lb-key-wrap/, 'the figure key is a wall');
+  assert.match(caps, /MutationObserver[\s\S]*lb-key-wrap/, 'a key that comes or goes is read again');
 });
 
 test('the liver\'s beds and the hepatic arteries are drawn in the Circuit although the body leaves the beds out', async () => {

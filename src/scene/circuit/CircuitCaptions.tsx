@@ -100,6 +100,9 @@ export function CircuitCaptions() {
     wallsLater();
     addEventListener('resize', wallsLater);
     const offWalls = useUi.subscribe((s, p) => { if (s.vp !== p.vp || s.dockShown !== p.dockShown || s.boxes !== p.boxes) wallsLater(); });
+    // (the figure key stands where it docks, over the Circuit too: it is a wall like the pills, read again when it comes, goes or changes its words; "Flow volume" sat on "Umbilicus" on a Mac)
+    const keyMo = new MutationObserver(wallsLater);
+    for (const k of document.querySelectorAll('.lb-key-wrap')) keyMo.observe(k, { attributes: true, attributeFilter: ['data-on'], childList: true });
     const blockers = (): Box[] => { const b = useUi.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...uiWalls]; };
 
     const solveNow = () => {
@@ -295,7 +298,7 @@ export function CircuitCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
     const measureReset = () => { gate.invalidate(); clock.invalidate('circuit-captions'); };
-    return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); keyMo.disconnect(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;

@@ -14,7 +14,7 @@ export const READING_KEYS = ['whvp', 'fhvp', 'hvpg', 'ivc', 'ra', 'pv', 'ppg'] a
 export type ReadingKey = (typeof READING_KEYS)[number];
 
 /** One piece of an equation under a title: <mi> names a quantity, <mo> an operator. `tone` colours a quantity as the ladder does. */
-export interface EqPart { tag: 'mi' | 'mo'; text: string; tone?: 'wedge' | 'free'; /** a subscript (P with portal vein below it) */ sub?: string }
+export interface EqPart { tag: 'mi' | 'mo' | 'mn' | 'mfrac'; text: string; tone?: 'wedge' | 'free'; /** a subscript (P with portal vein below it) */ sub?: string; /** a fraction's two halves (`text` is their plain reading) */ num?: EqPart[]; den?: EqPart[] }
 
 /** What the scene is asked to show for a slide that is not one of the slice's named shots (batch B13: derived from the 2D deck's own camera, lens and labels). */
 export interface SlideScene {
@@ -181,7 +181,7 @@ export function validateDeck(deck: Deck): string[] {
     if (/\{[^}]*$/.test(s.line ?? '') || /^[^{]*\}/.test(s.line ?? '')) bad.push(`${at} line has an unbalanced brace`);
     for (const r of s.ladder?.rows ?? []) if (!(READING_KEYS as readonly string[]).includes(r)) bad.push(`${at} ladder names the unknown reading "${r}"`);
     if (s.ladder?.result && !s.ladder.rows.includes('whvp')) bad.push(`${at} ladder has a result but no wedged row`);
-    if (s.eq && !s.eq.every((p) => (p.tag === 'mi' || p.tag === 'mo') && typeof p.text === 'string' && p.text)) bad.push(`${at} equation has a part that is neither <mi> nor <mo>`);
+    if (s.eq && !s.eq.every((p) => (p.tag === 'mi' || p.tag === 'mo' || p.tag === 'mn' || p.tag === 'mfrac') && typeof p.text === 'string' && p.text)) bad.push(`${at} equation has a part that is none of <mi>, <mo>, <mn> or a fraction`);
     if (s.ask && (s.ask.length !== 2 || !s.ask[0] || !s.ask[1])) bad.push(`${at} ask is not [question, answer]`);
   }
   return bad;

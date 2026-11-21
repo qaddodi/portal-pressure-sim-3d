@@ -158,7 +158,10 @@ export function buildCaptions(ctx: CapCtx): Built {
       cx = ax + nx * off; cy = ay + ny * off;
     }
     const id = `res:${key}`;
-    items.push({ id, ax: cx, ay: cy, au: 0.5, forms: [form(id, w, h)], pri: 100, must: true, region: true });
+    // (a reading has the one place beside its zigzag, and the liver's one on the map's centre; a station's name that took it first left the reading standing on that name, the hepatic artery's beside
+    // "R liver" on a phone. It keeps its place first and, when that is taken, moves up, down, then sideways, then further, never onto a name.)
+    const g = 8, spots: [number, number][] = [[0, -(h + g)], [0, h + g], [-(w + g), 0], [w + g, 0], [-(w + g), -(h + g)], [w + g, -(h + g)], [-(w + g), h + g], [w + g, h + g], [0, -2 * (h + g)], [0, 2 * (h + g)]];
+    items.push({ id, ax: cx, ay: cy, au: 0.5, forms: [form(id, w, h)], pri: 100, must: true, region: true, spots });
     meta.set(id, { id, kind: 'res', forms: [{ name: RES_LABEL[key]!, value: true, key: keyed ? 'vs healthy liver' : undefined }], res: key, label: `${RES_FULL[key]}: ${resText(ratio)} the healthy liver's resistance` });
   }
 
