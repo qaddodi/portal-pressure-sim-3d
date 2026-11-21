@@ -274,5 +274,13 @@ test('the dust tones keep the vessel\'s hue family: a grey base stays grey, a bl
     const o = dustShiftJs([0.58, 0.76, 0.95], dh, ds, dl);
     assert.ok(o[2]! > o[1]! && o[1]! >= o[0]!, `a blue base keeps blue tones (${o.map((x) => x.toFixed(2))})`);
   }
-  assert.match(DUST_GLSL, /dShiftK\(h\.y\)/, 'the shader holds the same rule');
+  assert.match(DUST_GLSL, /float k = dShiftK\(c\);/, 'the shader holds the same rule');
+  assert.match(DUST_GLSL, /max\(c\.r, max\(c\.g, c\.b\)\) - min\(c\.r, min\(c\.g, c\.b\)\)/, 'by the base\'s chroma, not its HSL saturation');
+  // the pale joints (Mohammad, 20 Nov: yellow, periwinkle and white specks at the confluence): a near-WHITE base has a large HSL saturation but no colour; its tones stay colourless, however the lightness moves
+  for (const pale of [[0.93, 0.94, 0.97], [0.97, 0.97, 0.99], [0.95, 0.96, 0.94], [0.9, 0.9, 0.93], [0.12, 0.12, 0.15]]) {
+    for (const [dh, ds, dl] of shifts) {
+      const o = dustShiftJs(pale, dh, ds, dl);
+      assert.ok(Math.max(...o) - Math.min(...o) < 0.06, `pale ${pale} -> ${o.map((x) => x.toFixed(3))}: a tone of a colourless base has a colour`);
+    }
+  }
 });

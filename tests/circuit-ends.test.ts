@@ -107,3 +107,28 @@ test('a custom shunt gets its rows when it is routed (pure numbers, no frame cos
   assert.ok(rs[0]!.rk >= SHUNT_END_MIN && rs[rs.length - 1]!.rk >= SHUNT_END_MIN);
   t.dispose();
 });
+
+// The network's own collaterals, shunts and stents on the map: the ends no skin welds are sunk and flared (circuit/map-sewn.ts).
+import { NETWORK } from '../src/scene/vessels/network.ts';
+import { COURSES } from '../src/scene/circuit/course.ts';
+import { MAP_DROPPED, sewnEnds, weldedEnds } from '../src/scene/circuit/map-sewn.ts';
+import { findCircuitJunctions } from '../src/scene/circuit/skins.ts';
+
+test('every collateral, shunt and stent end on the map is welded by a skin or sunk and flared: none is left as a butt end', () => {
+  const w = weldedEnds();
+  let sewn = 0;
+  for (const v of NETWORK) {
+    if (!COURSES.has(v.id) || v.feeder || !(v.kind === 'collateral' || v.kind === 'shunt')) { assert.equal(sewnEnds(v), null, v.id); continue; }
+    const s = sewnEnds(v);
+    for (const e of [0, 1] as const) {
+      if (w.has(`${v.id}:${e}`)) { assert.ok(!s || s.ends[e] === null, `${v.id}:${e} is welded, not sewn`); continue; }
+      const x = s?.ends[e];
+      assert.ok(x && x.hostR > 0 && x.inside && x.sink && x.flare, `${v.id}:${e} has neither a skin nor a sunk and flared end`);
+      sewn++;
+    }
+  }
+  assert.ok(sewn >= 19, `${sewn} sewn ends`);
+  // the refused arms are the ones the skins' build names (the table here and the build agree)
+  const nodes = new Set(findCircuitJunctions().map((j) => j.node));
+  for (const d of MAP_DROPPED) { const [node, vessel] = d.split(':'); assert.ok(nodes.has(node!), d); assert.ok(!w.has(`${vessel}:0`) || !w.has(`${vessel}:1`), `${d}: one end of ${vessel} is not welded`); }
+});

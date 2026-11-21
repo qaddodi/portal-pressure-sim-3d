@@ -20,6 +20,7 @@ import { MAP_CENTRE, MAP_K, mapToScene, turnScenePt } from '../src/scene/circuit
 import { BED_REACH } from '../src/scene/circuit/course.ts';
 import { NODE_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
 import { closedShapeFolds } from '../src/scene/vessels/skin/mesh.ts';
+import { MAP_DROPPED } from '../src/scene/circuit/map-sewn.ts';
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { GROW_REACH, SKIN_REACH } from '../src/scene/vessels/skin/inventory.ts';
@@ -133,6 +134,7 @@ test('a build welds the nineteen skins with no fall back, the two growing arms i
     assert.deepEqual([...set.nodes].sort(), [...BUILT].sort());
     assert.deepEqual(set.fellBack, [], 'nothing falls back on the map');
     assert.deepEqual([...set.dropped].sort(), DROPPED, 'the growing arms that keep their lines, named');
+    assert.deepEqual([...MAP_DROPPED].sort(), DROPPED, 'circuit/map-sewn.ts sews the ends of exactly the arms the build refuses');
     for (const d of DROPPED) assert.match(set.why[d] ?? '', /the closed shape folds/, `${d}: why`);
     // (REX and S_MC leave SMV together: closed alone or together their rows fold, 33 triangles over the three states; DIPS: 2)
     assert.equal(set.count, 19);
