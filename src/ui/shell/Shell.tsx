@@ -6,6 +6,7 @@ import { fadeChrome } from './deck-fade.ts';
 import './shell.css';
 import './chrome-3d.css';
 import './tap-cells.css';
+import { restoreFocus } from './talk-focus.ts';
 import { DeckUi } from '../DeckUi.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
@@ -130,7 +131,7 @@ export function Shell() {
   const appRef = useRef<HTMLDivElement>(null);
   useViewport(probe);
   const wasMode = useRef(mode);
-  useLayoutEffect(() => { if (wasMode.current === mode) return; const away = mode === 'deck'; wasMode.current = mode; if (appRef.current) fadeChrome(appRef.current, away); }, [mode]);   // (the bar and dock fade by their parts, deck-fade.ts)
+  useLayoutEffect(() => { if (wasMode.current === mode) return; const away = mode === 'deck'; wasMode.current = mode; if (appRef.current) fadeChrome(appRef.current, away); if (!away) restoreFocus(appRef.current?.querySelector<HTMLElement>('.topbar button') ?? null); }, [mode]);   // (the bar and dock fade by their parts, deck-fade.ts)
   useKeys();
   useFreeCamera();
   useEffect(() => syncTransport(), []);
@@ -150,7 +151,7 @@ export function Shell() {
       {mode === 'deck' && <DeckUi />}
       <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode} style={METRICS}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${sheetUp ? ' menu-sheet-open' : ''}${testsCls}`} id="app" ref={appRef}>
+        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${sheetUp ? ' menu-sheet-open' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>
           <TopBar />
           <main className={`stage-wrap${view === 'circuit' ? ' cmap' : ''}`} id="stageWrap" aria-label="Figure">
             <div className={`stage-view${view === 'lobule' || view === 'sinusoid' ? ' in-lobule' : ''}`} id="stageView"><ZoomGroup /></div>
