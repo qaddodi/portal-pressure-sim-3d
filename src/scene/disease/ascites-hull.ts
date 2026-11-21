@@ -7,10 +7,10 @@
 // mix(S[i], W[i], t[j]): rows 0..5 sit at 2D's own depths under the surface (ROW_DEPTHS, along the segment, so the meniscus and the depth ramp shade as 2D's), the other rows go to the wall, denser toward it, and the last row
 // IS the wall (aW = 0). Columns 0 and NS collapse onto the two crossings (also on the wall). Two sheets (front aK = +1, back aK = -1, the same 2D points) and the lid (the surface row repeated across NK steps of aK from
 // -1 to 1, aLid = 1). Topology is built once; only the attributes are rewritten, into preallocated arrays (no allocation per lay, apart from wallBelow's small point list).
-// Imports from ascites.ts are read lazily (inside functions): ascites.ts will own the layer that owns this layout, and the modules import each other.
+// Imports ascites-pool.ts (the shared numbers), never ascites.ts, which imports this.
 import { BufferAttribute, BufferGeometry } from 'three';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
-import * as A from './ascites.ts';
+import * as A from './ascites-pool.ts';
 import { fluidBase } from './copied/fluid-step.js';
 
 export const HULL = {
