@@ -148,7 +148,7 @@ export function circuitTube(id: string): ArmTube & { radius: number } {
   geometry.setAttribute('normal', new (cC.constructor as new (a: Float32Array, n: number) => typeof cC)(normal, 3));
   geometry.setAttribute('rk', new (cC.constructor as new (a: Float32Array, n: number) => typeof cC)(rk, 1));
   g.dispose();
-  return { geometry, tubular: run.tubular, radius: R };
+  return { geometry, tubular: run.tubular, radius: R, input: [coursesOf(def, REST), circ.mapPts] };
 }
 
 /** One arm as the per-frame handover reads it. */

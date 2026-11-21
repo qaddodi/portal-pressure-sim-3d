@@ -7,6 +7,10 @@ import { BufferGeometry, Float32BufferAttribute, Group, type Object3D } from 'th
 import { CelScene } from '../src/scene/scene.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet, type SkinSetDeps } from '../src/scene/vessels/skin/skin-set.ts';
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { REST } from '../src/scene/vessels/shape.ts';
+import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
+import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { decodeSkins, encodeSkins, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
@@ -79,6 +83,22 @@ test('a baked file is the file for one figure: the digest moves with a junction 
   assert.equal(d(0), d(1e-6), 'the last bits of sin and cos between node and a phone do not matter');
   assert.notEqual(d(0), d(1e-3), 'a moved vertex');
   assert.notEqual(d(0), d(0, 0.5), 'a moved junction');
+});
+
+test('the digest hashes what the tubes are made FROM, so the trig last bits of another engine cannot cost a phone its baked file: noise on every vertex changes nothing, a moved course point does', () => {
+  const ids = ['C7', 'C5', 'V_SPL', 'PV_TRUNK'];
+  const make = (dy = 0, noise = 0) => new Map(ids.map((id) => {
+    const def = NETWORK_BY_ID.get(id)!, at = armTube(def, REST);
+    const courses = at.courses.map((c, i) => (i === 0 && dy ? { ...c, pts: c.pts.map((p, k) => (k === 7 ? [p[0], p[1] + dy, p[2]] as [number, number, number] : p)) } : c));
+    const b = buildTubes(courses, at.tubular, def.radius), pos = b.geometry.getAttribute('position').array as Float32Array;
+    if (noise) for (let i = 0; i < pos.length; i++) pos[i] += noise * (((i * 2654435761) >>> 0) / 4294967296 - 0.5);   // (every vertex off by up to noise/2: the last bits of another engine's sin and cos)
+    return [id, { geometry: b.geometry, tubular: b.runs[0]!.tubular, input: courses }] as const;
+  }));
+  const j = [{ node: 'N', J: [0, 0, 0] as [number, number, number], arms: [] }];
+  const d = (dy = 0, noise = 0) => skinsDigest(j, make(dy, noise));
+  assert.equal(d(), d(0, 1e-5), 'noise of 1e-5 on every vertex: the same file');
+  assert.equal(d(), d(0, 3e-4), 'even noise a rounding step wide on the vertices does not reach the digest');
+  assert.notEqual(d(), d(1e-3), 'a course point moved by 1e-3');
 });
 
 test('the build bakes the skins before the bundler, the scene builds nothing before the file is in, and the boot waits for it with the fonts and the engine', () => {

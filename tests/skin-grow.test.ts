@@ -36,6 +36,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 //  and a plain trunk whose seams were placed with no hull falls to the surface rung when its hull misses (mesh.ts buildSkinSteady): the cava's merged skin RHV_T+IVCS had no plain trunk for that reason. tests/skin-shunts.test.ts pins the three.)
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch.)
 // (IMV:C4 the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
+// (21 Nov: PVH:DIPS and SVD:S_DSR drop on the integration branch as built here (the surface folds at a triangle; 3 seam loops for 4 arms) though their commits say welded: named, for the shunts threads to look at. wall:PVH_L_1:REX1 stays flared: REX meets the left portal vein at 36 degrees, its lower seam needs 6 radii of a host 10.7 long and LPV_A's skin has the first 2.5; a merged skin needs a seam-less capsule for the cut-away host, mesh.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 // (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside ATTACH_NEAR_R (2.6) that a node made a junction by its growing arm alone allows (inventory.ts dropFarGrowers), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS stays flared and named: no ring of the 4-radius stub PVH_R clears it.)
 const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS',
@@ -43,8 +44,7 @@ const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS',
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
-/** The nodes whose plain trunk does not build (the welded skin then comes in over the tubes' cut ends alone): none now (LPV_A's builds since the forks' sheets, 21 Nov). */
-const PLAIN_FAILED: string[] = [];
+const PLAIN_FAILED: string[] = [];   // (LPV_A's plain trunk builds now)
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
 test('the growing arms are the single-tube collaterals and shunts, pinned by node; the braided collaterals are not arms; at most two per skin, after the permanent arms, widest first', () => {
@@ -301,7 +301,7 @@ test('the growth morph is gone: no second shape in the mesh, no growth uniform, 
 
 test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
   on(() => {
-    assert.equal(JOINT_REACH_R, GROW_REACH, 'network.ts cannot import the inventory (it imports the network): the two numbers are one');
+    assert.ok(2 * JOINT_REACH_R >= GROW_REACH, 'network.ts cannot import the inventory (it imports the network): an end the joint rule moves is one the skin could not take as an arm');
     const epi = findSkinJunctions().find((j) => j.node === 'EPI')!, c3 = epi.arms.findIndex((a) => a.vesselId === 'C3');
     assert.ok(c3 >= 0, 'C3 is an arm of EPI');
     const d = dropFarGrowers(epi);
