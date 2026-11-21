@@ -20,11 +20,11 @@ try { commit = execFileSync('git', ['-C', from, 'rev-parse', 'HEAD'], { encoding
 export const FILES = [
   'hvpg-clock', 'motion', 'glide-clock', 'ease', 'num',
   'doppler-synth', 'dopplerWindow', 'doppler-marks',
-  'band-settle', 'band-ease', 'band-ring', 'balloon-eso', 'rx-bands',
-  'scope-lens-rule', 'endo-size', 'endo-columns', 'endo-motion',
+  'band-settle', 'balloon-eso',
+  'endo-size', 'endo-columns', 'endo-motion',
   'trace-lanes', 'trace-tape', 'trace-labels', 'trace-room', 'trace-callouts-math',
-  'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front', 'limit-label',
-  'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars', 'balance-hold', 'idle-keys',
+  'ekg', 'drop-front', 'limit-label',
+  'instrument-aria', 'vital-read', 'table-marks', 'dock-vars', 'balance-hold', 'idle-keys',
   'wrap-label', 'sorted', 'freewheel',
 ].filter((n) => n !== 'trace-callouts-math');
 const SLICES = {
