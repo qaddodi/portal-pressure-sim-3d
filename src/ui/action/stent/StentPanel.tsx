@@ -233,7 +233,7 @@ function CardFigure({ id }: { id: string }) {
   return (
     <div className="tf tf-card">
       <Chart tag="card-tips" deps={[sig, sid]} label={`${sid}, drawn to scale, with its pressures and velocities`}
-        build={(c) => tipsFigureFrame(stentState(latest.frame, sid, currentParams() as never), c, { lens: 'velocity', labels: true, chart: false, keep: keep.current })} />
+        build={(c) => tipsFigureFrame(stentState(latest.frame, sid, currentParams() as never), c, { lens: 'velocity', labels: true, chart: false, card: true, keep: keep.current })} />
     </div>
   );
 }

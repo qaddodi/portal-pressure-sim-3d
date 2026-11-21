@@ -27,19 +27,18 @@ test('the vessel card draws the stent figure with its brackets and numbers, with
 test('the vessel card\'s actions are one row of equal columns with their icons attached, and its figure has its height from the first paint', () => {
   assert.match(plate, /\.ac-panel:has\(> \.tv\) \+ \.ac-as \{[^}]*grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\)/);
   assert.match(plate, /\.ac-panel:has\(> \.tv\) \+ \.ac-as \.ac-dye \.ac-bl \{ min-width: 0; \}/);
-  assert.match(plate, /\.tv \.tf-card \{[^}]*min-height: calc\(51px \+ 12\.264cqi\)/);
+  assert.match(plate, /\.tv \.tf-card \{[^}]*min-height: calc\(41px \+ 12\.264cqi\)/);
   assert.match(plate, /\.tv \{[^}]*container-type: inline-size/);
 });
-test('the reserved figure height is the layout\'s own: 51 px + a hepatic vein\'s 13 mm at the width\'s scale', () => {
-  const src = readFileSync(new URL('../src/ui/tests/ir/copied/figure-parts.copied.js', import.meta.url), 'utf8');
-  assert.match(src, /VEIN_CM = 1\.3, REF_CM = 8/);
-  assert.match(src, /o\.gateY = o\.cy \+ half \+ 15/);
-  assert.match(src, /o\.heroH = labels \? o\.gateY \+ 10/);
-  assert.match(src, /o\.cy = \(labels \? 26 : 1\) \+ half/);
-  // h = 26 + half + half + 15 + 10 = 51 + hvH, hvH = 13 k, k = W / (10 × 10.6)
+test('the reserved figure height is the card figure\'s own: 20 + hvH + 13 + 8 = 41 px + a hepatic vein\'s 13 mm at the width\'s scale', () => {
+  const src = readFileSync(new URL('../src/ui/tests/ir/tips-figure.ts', import.meta.url), 'utf8');
+  assert.match(src, /CARD_ROWS = \{ labY: 7, brY: 15, top: 20, gate: 13, foot: 8 \}/);
+  assert.match(src, /L\.cy = CARD_ROWS\.top \+ half; L\.gateY = L\.cy \+ half \+ CARD_ROWS\.gate; L\.heroH = L\.gateY \+ CARD_ROWS\.foot/);
+  const fp = readFileSync(new URL('../src/ui/tests/ir/copied/figure-parts.copied.js', import.meta.url), 'utf8');
+  assert.match(fp, /VEIN_CM = 1\.3, REF_CM = 8/);   // (hvH = 13 k, k = W / (10 × 10.6): 12.264 % of the width)
   assert.ok(Math.abs((13 / (10 * (8 + 2 * 1.3))) * 100 - 12.264) < 0.001);
+  assert.match(readFileSync(new URL('../src/ui/action/stent/StentPanel.tsx', import.meta.url), 'utf8'), /chart: false, card: true/);
 });
-
 test('an open action card sheet takes its height off the figure\'s room, so the camera frames the stent above it', async () => {
   const { roomAbove, takenBy } = await import('../src/ui/action/action-room-math.ts');
   const room = { x: 0, y: 100, w: 390, h: 600 };

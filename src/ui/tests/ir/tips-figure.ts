@@ -49,7 +49,9 @@ export function subPaths(d: string): { pts: number[]; closed: boolean }[] {
 }
 
 /** What the frame is made from, and what it is told about the figure's kind (a vessel card's is the stent alone; Tests > IR > TIPS has the chart). */
-export interface FigOpts { lens: TipsLens; labels?: boolean; chart?: boolean; keep?: FigKeep }
+export interface FigOpts { lens: TipsLens; labels?: boolean; chart?: boolean; keep?: FigKeep; /** the vessel card's compact figure: the rows packed tighter (CARD_TOP, CARD_GATE) and the veins outlined as the stent is */ card?: boolean }
+/** The card figure's rows: the word row 7 px down and its bracket 15, the stent from 20, the gates' ticks 13 under it and 8 px under their numbers (the full figure keeps 9, 21, 26, 15 and 10). Its height is 20 + hvH + 13 + 8 = 41 + hvH. */
+export const CARD_ROWS = { labY: 7, brY: 15, top: 20, gate: 13, foot: 8 } as const;
 
 class Pic {
   shapes: Shape[] = [];
@@ -79,6 +81,7 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   const labels = o.labels !== false, chart = !!o.chart, keep = o.keep ?? newKeep();
   const W = Math.max(200, c.w);
   const L = figLayout(W, { labels, chart }) as Record<string, number>;
+  if (o.card && labels && !chart) { const half = L.hvH! / 2; L.labY = CARD_ROWS.labY; L.brY = CARD_ROWS.brY; L.cy = CARD_ROWS.top + half; L.gateY = L.cy + half + CARD_ROWS.gate; L.heroH = L.gateY + CARD_ROWS.foot; L.h = L.heroH; }
   const p = new Pic(c), id = st.id, ex = st.have ? 1 : 0, cm = o.lens === 'pressure' ? 1 : 0;
   const sh = st.sh, len = sh.len, s = st.s, site = st.site, d = st.d, k = L.k!, cy = L.cy!, x0 = L.x0!, x1 = L.x1!, span = x1 - x0, dPx = d * k, ivc = st.ivc;
   const rec = makeTrace(), tin = traceIn(st), t = traceFor(tin, rec);
@@ -100,6 +103,10 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   };
   vein(0, x0 + 2, cy - L.pvH! / 2, L.pvH!);
   vein(x1 - 2, W, cy - L.hvH! / 2, L.hvH!);
+  if (o.card) {   // (the veins are drawn as tubes, with the stent's own thin ink on their two walls, so the figure reads as one cel drawing)
+    const wall = (xa: number, xb: number, hh: number) => { for (const y of [cy - hh / 2, cy + hh / 2]) p.line([xa, y, xb, y], 'stent.lumen', ex); };
+    wall(0, x0 + 2, L.pvH!); wall(x1 - 2, W, L.hvH!);
+  }
 
   // the lumen, to scale; its colours along the picture's width (velocity: the scanner's against the stent's range; pressure: absolute)
   const edge = stentOutline(x0, span, cy, dPx, 0, s, sh, site), n = N_PROFILE;
