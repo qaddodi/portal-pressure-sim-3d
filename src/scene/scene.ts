@@ -1175,6 +1175,7 @@ export class CelScene {
     this.shared.time.value = (now / 1000) % 1000;
     const lap = lapTimer(this.systemMs);
     const camMoving = this.rig.update(now);
+    this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
     this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);

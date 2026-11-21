@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
-import { NETWORK, NETWORK_BY_ID, type NetVessel } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID, jointPath2D, type NetVessel } from '../src/scene/vessels/network.ts';
 import { isPermanent } from '../src/scene/vessels/skin/inventory.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
@@ -168,7 +168,7 @@ test('Anatomy: the caput fan and the liver branches\' tributaries end on their h
     const host = NETWORK_BY_ID.get(v.feeder.host);
     if (!host) { failures.push(`${v.id}: its host ${v.feeder.host} is not in the network`); continue; }
     const plan = v.plan as { kind: 'feeder'; list: readonly { pts: readonly (readonly [number, number])[] }[] };
-    const host2 = EDGE_PATH_2D[host.id]!.map(([x, y]) => [x3(x), y3(y), 0]), host3 = coursesOf(host, REST)[0]!.pts as number[][], r = host.radius;
+    const host2 = jointPath2D(host.id).map(([x, y]) => [x3(x), y3(y), 0]), host3 = coursesOf(host, REST)[0]!.pts as number[][], r = host.radius;
     const cs = coursesOf(v, REST);
     assert.equal(cs.length, plan.list.length, `${v.id}: a course for each tributary`);
     let on2 = 0, on3 = 0, off = 0;

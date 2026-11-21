@@ -4,11 +4,12 @@
 // so the report leaves them out and says so. Debug only: nothing in the app reads it.
 export const MAX_SPEED = 20;
 /** Above this the page draws a frame every 16.7 ms of wall time, which is 16.7 x N ms of page time: a 280 ms ease gets only a frame or two, so any judge that looks at the eased steps between frames reads a correct ease as a jump. */
-export const FRAME_LIMIT_SPEED = 4;
+export const FRAME_LIMIT_SPEED = 2;
 /** Findings that read an ease from frame to frame: not valid above FRAME_LIMIT_SPEED (CSS-driven ones run on the compositor and stay valid, but the sampler's rows are too coarse for these). */
 export const FRAME_LIMITED_KINDS = new Set(['fade-instant', 'fade-under-stall', 'flash', 'stuck-mid', 'label-slide', 'label-dim-alpha', 'card-pop', 'card-size-snap', 'camera-straight', 'generic-pop', 'generic-snap']);
-/** The sampler's real interval: 33 ms of page time, but never faster than 8 ms of wall time (a layout read every 3 ms would starve the page it measures). */
-export const sampleRealMs = (sampleMs: number, n: number): number => Math.max(sampleMs / n, 8);
+/** The sampler's real interval: 33 ms of page time, but never faster than one frame (16 ms of wall time: a row between frames shows nothing new) and, above FRAME_LIMIT_SPEED, 50 ms: the fade judges are off there,
+ *  so the rows only need to be cheap. Each tick reads the layout of every card and label, and a tick every 8 ms (the first version) can take the whole main thread of a busy page: the "lag" a 20x run measured. */
+export const sampleRealMs = (sampleMs: number, n: number): number => (n > FRAME_LIMIT_SPEED ? 50 : Math.max(sampleMs / n, 16));
 /** The speed asked for: `speed=4` is 4; anything else (missing, 0, junk) is 1, and the most is MAX_SPEED. */
 export function speedOf(v: string | null | undefined): number {
   const n = Number(v);
@@ -27,11 +28,13 @@ export function speedAnimations(doc: { getAnimations(): { playbackRate: number; 
   try { for (const a of doc.getAnimations()) if (a.playbackRate !== n) a.updatePlaybackRate(n); } catch { /* an animation that will not change rate */ }
 }
 
+/** A timer's scaled wait: 1/n of it, but a short one (a poll, a retry, a debounce) keeps at least 16 ms, or it becomes a hot loop (a 50 ms poll at 20x would run every 2.5 ms and starve the page). */
+export const scaledDelay = (ms: number, n: number): number => (ms <= 0 ? ms : Math.max(ms / n, Math.min(ms, 16)));
 /** Makes `setTimeout` wait 1/n of the time for the length of the run, so every timer the app keeps in page time (a frameFor hold, a card's delay, a debounce, the audit's own waits) scales with the clock.
  *  Without it a hold of 950 ms outlives a camera move that now takes 95 ms, and every step waits for it. Returns the restorer. `setInterval` is left alone (the sampler's own). */
 export function scaleTimers(n: number, g: { setTimeout: (...a: never[]) => unknown }): { restore(): void } {
   if (n <= 1) return { restore() { /* nothing to undo */ } };
   const orig = g.setTimeout as (fn: unknown, ms?: number, ...a: unknown[]) => unknown;
-  (g as { setTimeout: unknown }).setTimeout = (fn: unknown, ms?: number, ...a: unknown[]) => orig.call(g, fn, typeof ms === 'number' ? ms / n : ms, ...a);
+  (g as { setTimeout: unknown }).setTimeout = (fn: unknown, ms?: number, ...a: unknown[]) => orig.call(g, fn, typeof ms === 'number' ? scaledDelay(ms, n) : ms, ...a);
   return { restore() { (g as { setTimeout: unknown }).setTimeout = orig; } };
 }

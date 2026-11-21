@@ -15,7 +15,7 @@ export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad',
 /** The speeds the banner offers, each with what it is good for (the report says what a speed leaves out). */
 export const SPEEDS: { n: number; label: string; hint: string }[] = [
   { n: 1, label: '1x real time', hint: 'Real frame rates, stalls and the glass cost. The slowest run; use it for the final numbers.' },
-  { n: 4, label: '4x faster', hint: 'Still judges fades and snaps, and every stall. About a quarter of the time; frame rates are not measured.' },
+  { n: 2, label: '2x faster', hint: 'Still judges fades and snaps, and every stall; frame rates are not measured. The most that still judges fades: the page draws a frame per 16 ms, so faster than this an ease gets too few frames.' },
   { n: 10, label: '10x fast', hint: 'Layout, words, coverage, errors and any lag (a real gap over 50 ms is a serious lag). Fades and snaps are not judged.' },
   { n: 20, label: '20x quickest', hint: 'The quickest layout, words, coverage, errors and lag check. Fades and snaps are not judged.' },
 ];
