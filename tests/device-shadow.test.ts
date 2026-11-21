@@ -36,7 +36,7 @@ test('it is soft: alpha falls to nothing at the tube edge (n.v), is capped low, 
   assert.match(m.fragmentShader, /pow\(clamp\(vNV, 0\.0, 1\.0\), 2\.2\)/, 'the edge falls off by n.v');
   assert.match(m.vertexShader, /fatN \* blurPx/, 'blurred in screen px');
   assert.doesNotMatch(m.fragmentShader, /\bstep\(/, 'no hard step in the shadow');
-  assert.ok(SHADOW_ALPHA.light <= 0.15 && SHADOW_ALPHA.dark <= 0.25, 'low opacity');
+  assert.ok(SHADOW_ALPHA.light <= 0.12 && SHADOW_ALPHA.dark <= 0.16, 'low opacity');
   const push = m.uniforms.push!.value as { x: number; y: number };
   assert.ok(push.x > 0 && push.y < 0, 'down and to the right on screen, away from the light at the upper left');
   assert.ok(m.uniforms.grow!.value as number > 0 && (m.uniforms.blurPx!.value as number) > 0);
