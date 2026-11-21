@@ -55,7 +55,9 @@ export function fluidWords(f: Fluid): string {
   const d = Math.round(Math.abs(f.perDay) / 10) * 10;
   if (f.net > 0 && d >= 10) return `Ascites accumulates at about ${d.toLocaleString('en-US')} mL/day.`;
   if (f.net < 0 && d >= 10) return `Ascites decreases by about ${d.toLocaleString('en-US')} mL/day.`;
-  return f.over > 0.005 ? 'Ascites is stable: peritoneal reabsorption matches transudation.' : 'No ascites: lymphatic drainage matches lymph formation.';
+  if (f.over > 0.005) return 'Ascites is stable: peritoneal reabsorption matches transudation.';
+  const spare = Math.round(f.spare * 1440 / 10) * 10;   // (the day card's own rounding)
+  return spare >= 10 ? `No ascites: the lymphatics drain all the lymph made, with ${spare.toLocaleString('en-US')} mL/day of capacity unused.` : 'No ascites: the lymphatics drain all the lymph made.';
 }
 
 export interface Day { liver: number; gut: number; made: number; limit: number; carried: number; over: number; back: number; net: number; room: number }
@@ -70,13 +72,16 @@ export function fluidDay(f: Fluid): Day {
 /** A whole number of mL with its thousands comma (5,360). */
 export const mlInt = (v: number) => Math.round(Math.max(0, v)).toLocaleString('en-US');
 
+/** No ascites: the lymph made is all drained, said with the day card's own numbers (never "matches": the capacity above it is the gauge's room, and the words must agree with the bars). */
+const lymphKeepsUp = (d: Day): string => `Liver ${mlInt(d.liver)} + gut ${mlInt(d.gut)}, all drained${d.room > 0 ? `; ${mlInt(d.room)} capacity unused` : ''}.`;
+
 export interface DayWords { title: string; detail: string; limit: string; net: string; dir: 'up' | 'down' | '' }
 /** The day card's words for a day's numbers: the answer in a sentence, the line under it, the lymphatics' limit and the day's change. */
 export function dayWords(d: Day): DayWords {
   const title = d.net > 0 ? 'Ascites accumulating' : d.net < 0 ? 'Ascites decreasing' : d.over > 0 ? 'Ascites stable' : 'No ascites';
   const detail = d.over > 0
     ? (d.back > 0 ? `Transudation ${mlInt(d.over)}; peritoneal reabsorption ${mlInt(d.back)}.` : `Transudation ${mlInt(d.over)}; no peritoneal reabsorption.`)
-    : d.back > 0 ? `No transudation; peritoneal reabsorption ${mlInt(d.back)}.` : 'Lymphatic drainage matches lymph formation.';
+    : d.back > 0 ? `No transudation; peritoneal reabsorption ${mlInt(d.back)}.` : lymphKeepsUp(d);
   return { title, detail, limit: d.room > 0 ? `Capacity ${mlInt(d.limit)}` : `Capacity ${mlInt(d.limit)} · full`,
     net: d.net > 0 ? `▲ ${mlInt(d.net)}` : d.net < 0 ? `▼ ${mlInt(-d.net)}` : '0', dir: d.net > 0 ? 'up' : d.net < 0 ? 'down' : '' };
 }

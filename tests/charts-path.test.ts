@@ -7,7 +7,7 @@ import { PATHS, litOf, outcomeOf, readingFor, chipsOf, patientOf, slots, treeBox
 import { pathFrame, roundedPts } from '../src/ui/charts/path/frame.ts';
 import { pathFingerprint, phoneLayout } from '../src/ui/charts/path/data.ts';
 import { pathEntry } from '../src/ui/charts/path/entry.ts';
-import type { TextShape } from '../src/ui/charts/scene.ts';
+import { scaleFrame, type TextShape } from '../src/ui/charts/scene.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 
 const ids = Object.keys(PATHS);
@@ -183,4 +183,20 @@ test('the registry entry is done and its specimens draw', () => {
   assert.equal(pathEntry.status, 'done');
   assert.ok(pathEntry.specimens.length >= 3);
   for (const s of pathEntry.specimens) judge(s.build(ctxOf('dark', 330)), 'dark', { onCard: false });
+});
+
+test('under a card zoom the flowchart is laid out at the screen\'s own width and scaled back: its words stay 12 px on the screen (never 8)', () => {
+  const ctx = (w: number, fit: number) => ({ ...ctxOf('light', w), fit });
+  const spec = { of: 'holdcarv', patient: { held: false, sbp: 84, hrs: true } };
+  const fit = 0.7, W = 480;
+  const zoomed = pathFrame(spec, ctx(W, fit)), plain = pathFrame(spec, ctx(W, 1));
+  const sizes = (f: typeof zoomed) => f.shapes.filter((s) => s.k === 'text').map((s) => (s as { size: number }).size);
+  const onScreen = sizes(zoomed).map((z) => z * fit);
+  assert.ok(onScreen.length > 5);
+  for (const px of onScreen) assert.ok(px >= 11.99, `a word is ${px.toFixed(2)} px on the screen`);
+  assert.ok(Math.min(...sizes(plain)) >= 12, 'unzoomed it is unchanged');
+  assert.ok(Math.abs(zoomed.w - W) < 1e-6, 'the box keeps the card\'s own width');
+  const f2 = scaleFrame({ w: 10, h: 10, label: '', shapes: [{ k: 'text', x: 1, y: 2, s: 'a', size: 12, color: [0, 0, 0, 1], halo: { color: [1, 1, 1, 1], w: 3 } }] }, 2);
+  assert.deepEqual((f2.shapes[0] as { size: number; x: number; halo: { w: number } }).halo.w, 6);
+  assert.equal(scaleFrame(f2, 1), f2);
 });

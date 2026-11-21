@@ -233,7 +233,7 @@
    Room after it, none before (the space before it is its gap, and a pill that starts a line sits on the text's edge), and only a
    hair before a stop after it ("11.6 mmHg." not "11.6 mmHg ."). */
 .pz-val, .pz-term { display: inline-block; box-sizing: border-box; padding: .04em .45em; margin-inline: 0 .14em; font-size: 1em; line-height: 1.15; vertical-align: baseline; }
-.pz-stop > :is(.pz-val, .pz-term) { margin-inline-end: .08em; }
+.pz-stop :is(.pz-val, .pz-term) { margin-inline-end: .08em; }   /* (descendant, not child: a value's pill sits inside its no-break span, so "2.2 g/dL." kept the full .14em gap and read "2.2 g/dL .") */
 .pz-eq { margin: 0; color: var(--text); }
 .pz-eq math { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", math; font-size: calc(var(--s-val) * var(--eq-k, 1)); math-style: normal; }
 .pz:not(.stack) .pz-eq math { font-size: calc(var(--s-body) * 1.15 * var(--eq-k, 1)); }   /* (a wide screen: a little above the line's size, as on a phone; STIX runs small) */
@@ -246,7 +246,7 @@
    centres on their x-height; the negative block margin keeps the circle inside the line's own 1.4 spacing, so a line holding one is
    spaced like any other. No gap before it (the space ahead of it is its gap). */
 .pz-step { display: inline-grid; place-items: center; box-sizing: border-box; min-width: 1.5em; height: 1.5em; padding: 0 .3em; margin-block: -.3em; border-radius: var(--r-pill); background: var(--text); color: var(--stage-bg); font-family: var(--font-ui); font-size: max(12px, .68em); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pz-stop > .pz-step { margin-inline-end: .1em; }
+.pz-stop .pz-step { margin-inline-end: .1em; }
 .app.pz-hi .pz-val { background: color-mix(in srgb, var(--text) 12%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 55%, transparent); }
 /* A pill in a station's colour (--tone): a live value ({pv}) or a term that points at the figure ([portal vein](pv)). */
 .pz-val.tone, .pz-term { background: color-mix(in srgb, var(--tone) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 50%, transparent); color: color-mix(in srgb, var(--tone) 72%, var(--text)); }

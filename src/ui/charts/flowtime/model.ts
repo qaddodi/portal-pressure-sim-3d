@@ -129,6 +129,12 @@ export function clockTicks(G: Geo, ax: Axis): number[] {
   const step = G.meal ? 10 : niceStep(ax.end / Math.max(2, Math.min(4, Math.floor((G.R - G.L) / (4 * G.f)))));
   const out: number[] = [];
   for (let m = ax.from; m <= ax.end + 1e-9; m += step) out.push(m);
+  // The clock always names where it ends ("14 days later" must be on the axis, not just +10): the end joins the ticks, and a tick it would crowd gives way.
+  if (!G.meal && out.at(-1)! < ax.end - 1e-9) {
+    const room = (a: number, b: number) => xAt(G, ax, b) - xAt(G, ax, a) >= (cw(`+${a}`, G.f) + cw(`+${b}`, G.f)) / 2 + 0.8 * G.f;
+    if (out.length > 1 && !room(out.at(-1)!, ax.end)) out.pop();
+    out.push(ax.end);
+  }
   return out;
 }
 export { yOf, decOf };

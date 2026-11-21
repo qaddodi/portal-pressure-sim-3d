@@ -62,3 +62,25 @@ export interface Frame {
 }
 
 export const pen = (color: Rgba, w = 1, extra: Partial<Pen> = {}): Pen => ({ color, w, ...extra });
+
+/** A frame drawn k times as large, every length of it (coordinates, sizes, pens, dashes, halos). A chart laid out at the screen's own pixels and scaled by 1/fit comes out, under its card's
+ *  zoom, at the size it was laid out in: the words of a chart that must never be under 12 px on the screen (the 2D app's rule) stay 12 px, whatever the card's fit. */
+export function scaleFrame(f: Frame, k: number): Frame {
+  if (k === 1) return f;
+  const pen = (p: Pen | undefined): Pen | undefined => (p ? { ...p, w: p.w * k, ...(p.dash ? { dash: p.dash.map((d) => d * k) } : {}) } : p);
+  const xs = (a: readonly number[]) => a.map((v) => v * k);
+  const one = (s: Shape): Shape => {
+    switch (s.k) {
+      case 'rect': return { ...s, x: s.x * k, y: s.y * k, w: s.w * k, h: s.h * k, ...(s.r !== undefined ? { r: s.r * k } : {}), pen: pen(s.pen) };
+      case 'line': return { ...s, x1: s.x1 * k, y1: s.y1 * k, x2: s.x2 * k, y2: s.y2 * k, pen: pen(s.pen)! };
+      case 'path': return { ...s, pts: xs(s.pts), pen: pen(s.pen) };
+      case 'band': return { ...s, top: xs(s.top), bottom: xs(s.bottom) };
+      case 'circle': return { ...s, cx: s.cx * k, cy: s.cy * k, r: s.r * k, pen: pen(s.pen) };
+      case 'radial': return { ...s, cx: s.cx * k, cy: s.cy * k, stops: s.stops.map((t) => ({ ...t, r: t.r * k })) };
+      case 'clip': return { ...s, x: s.x * k, y: s.y * k, w: s.w * k, h: s.h * k, ...(s.r !== undefined ? { r: s.r * k } : {}) };
+      case 'unclip': return s;
+      case 'text': return { ...s, x: s.x * k, y: s.y * k, size: s.size * k, ...(s.halo ? { halo: { ...s.halo, w: s.halo.w * k } } : {}) };
+    }
+  };
+  return { ...f, w: f.w * k, h: f.h * k, shapes: f.shapes.map(one) };
+}

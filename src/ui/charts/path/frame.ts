@@ -4,7 +4,7 @@
 import type { ChartCtx } from '../Chart.tsx';
 import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
-import type { Frame, Shape } from '../scene.ts';
+import { scaleFrame, type Frame, type Shape } from '../scene.ts';
 import {
   CARD_HELPERS, PILL_H, PILL_PAD, ROLE, TOKEN, chipsOf, drawCard, edgesOf, flat, flow, litOf, outcomeOf, pathLayout, pathWords, readParas, readingFor, type PathLayout, type PathOpts,
 } from './model.ts';
@@ -27,6 +27,8 @@ export function roundedPts(P: number[][], rad: number): number[] {
 export interface PathSpec { of: string; patient: any; opts?: PathOpts }
 
 export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
+  // (the flowchart's words are 12 px at the least ON THE SCREEN: under the card's fit zoom they would shrink with it, so the chart is laid out at the screen's own width and scaled back up by 1 / fit)
+  if (c.fit && c.fit > 0 && c.fit < 0.99) { const o = spec.opts; return scaleFrame(pathFrame(o?.room ? { ...spec, opts: { ...o, room: o.room * c.fit } } : spec, { ...c, w: c.w * c.fit, fit: 1 }), 1 / c.fit); }
   const W = Math.max(200, c.w), of = spec.of, patient = spec.patient;
   const L = pathLayout(of, patient, W, spec.opts);
   const memo = new Map<string, Look>();
