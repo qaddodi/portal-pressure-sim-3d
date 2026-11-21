@@ -33,7 +33,7 @@ import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
 import { WallsCard } from '../charts/walls/WallsCard.tsx';
 import { ghostOf } from './ghost.ts';
-import { useProbes } from '../../scene/devices/probes/state.ts';
+import { claimSlide, holdSlideDevices } from './slide-claim.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
@@ -183,19 +183,16 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
     if (plan.doppler) { setDopplerProbe(plan.doppler.vessel); useDopplerProbe.getState().setGate((plan.doppler.gate as Gate | null) ?? null); }
     if (plan.view) useScope.getState().setView(plan.view);
     if (plan.organ) useTests.getState().setFibro(plan.organ);
-    return () => useToolPatch.getState().set('', null);
+    return claimSlide('options', () => useToolPatch.getState().set('', null));   // (a leaving card never clears the arriving card's options: slide-claim.ts)
   }, [plan, slideKey]);
   // the instrument's own device on the figure while its card is up: the ultrasound probe on the slide's vessel (none on the EUS slide, probe: 'scope': the scope is the probe), the FibroScan probe on
   // the organ, the scope down the esophagus. bind-tests.ts keeps them on whatever the Tests card does; they leave with the slide.
   const figure = !!plan.doppler?.figure, fibro = !!plan.organ, scope = !!plan.scope, points = !!plan.doppler?.points;
-  useEffect(() => {
-    const pr = useProbes.getState();
-    pr.setSlide({ doppler: figure, fibro, endoscope: scope }); pr.setDopplerPoints(points);
-    return () => { const q = useProbes.getState(); q.setSlide({ doppler: false, fibro: false, endoscope: false }); q.setDopplerPoints(false); };
-  }, [figure, fibro, scope, points]);
+  // (a card that is leaving unmounts after the one that came in has mounted: its cleanup must not take the new slide's device off the figure, slide-claim.ts)
+  useEffect(() => holdSlideDevices({ doppler: figure, fibro, endoscope: scope, points }), [figure, fibro, scope, points]);
   // the slide's own numbers for the pane (2D presenter-tools pin): the settled state its tiles and words show, not the beat-to-beat live value
   useEffect(() => { setSlidePin(fp); }, [fp]);
-  useEffect(() => () => setSlidePin(null), []);
+  useEffect(() => claimSlide('pin', () => setSlidePin(null)), []);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
