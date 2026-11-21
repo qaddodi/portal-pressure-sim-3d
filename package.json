@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "node scripts/lint.mjs",
     "check": "npm run typecheck && npm run lint && npm test",
+    "pre-push": "node scripts/pre-push.mjs",
+    "hooks": "git config core.hooksPath .githooks",
     "sync:engine": "node scripts/sync-engine.mjs",
     "gen:engine-fixture": "node scripts/gen-engine-fixture.mjs",
     "sync:inventory": "node scripts/sync-inventory.mjs",

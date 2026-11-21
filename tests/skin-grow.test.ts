@@ -207,10 +207,10 @@ test('the weld follows the growing arm\'s own draw-on: 0 while it grows (the fla
     assert.ok(firstOn >= 0.9, `the skin starts at growth ${firstOn.toFixed(3)}`);
     assert.equal(weldOf(0.9), 0); assert.equal(weldOf(1), 1); assert.equal(weldOf(0), 0);
     // the draws: the welded skin keeps the pixels under the weld, the plain trunk the rest, the tube's cut end the pixels neither draws
-    const [bm, bw] = b.draws.findLast((d) => nodeOf(d) === 'CONF')!.weldOf();
+    const [bm, bw] = b.draws.findLast((d) => nodeOf(d) === 'CONF')!.weldOf!();
     assert.equal(bm, 1); assert.equal(bw, 1);
     const plain = b.set.plainDraws().filter((p) => (p as SkinObject).mesh.name === 'skin:CONF~plain')[0] as SkinObject | undefined;
-    assert.ok(plain, 'CONF has a plain trunk'); assert.deepEqual(plain!.weldOf(), [-1, 1]);
+    assert.ok(plain, 'CONF has a plain trunk'); assert.deepEqual(plain!.weldOf!(), [-1, 1]);
     spc.setReveal(1); spc.setFade(0.5); b.set.sync();
     assert.equal(b.set.weldOf('CONF'), 0, 'a vessel the dive fades takes its weld with it');
     assert.equal(spc.skinWeld(0) + spc.skinWeld(1) >= 0, true);
@@ -293,11 +293,11 @@ test('every welded skin and its plain trunk are one complementary pair: modes +1
     for (const d of b.draws) {
       const node = nodeOf(d), plain = b.set.plainOf(node);
       if (!plain) continue;
-      const [mode, w] = d.weldOf();
+      const [mode, w] = d.weldOf!();
       assert.equal(mode, 1, `${node}: the welded skin keeps the pixels under the weld, never draws them all`);
-      const mate = plains.find((p) => b.set.armIdsOf(p).every((id) => meshOf(b, d).junction.arms.some((a) => a.vesselId === id)) && b.set.armIdsOf(p).length === plain.junction.arms.length && p.weldOf()[1] === w);
+      const mate = plains.find((p) => b.set.armIdsOf(p).every((id) => meshOf(b, d).junction.arms.some((a) => a.vesselId === id)) && b.set.armIdsOf(p).length === plain.junction.arms.length && p.weldOf!()[1] === w);
       assert.ok(mate, `${node}: a plain trunk on the same share ${w}`);
-      assert.equal(mate!.weldOf()[0], -1, `${node}: the plain trunk keeps the pixels at or over the weld`);
+      assert.equal(mate!.weldOf!()[0], -1, `${node}: the plain trunk keeps the pixels at or over the weld`);
     }
     // the two predicates of the fragment stage are exact opposites: a pixel is the welded skin's (hash under the share) or the plain trunk's (at or over it)
     const welded = (h: number, w: number) => !(h >= w), plainP = (h: number, w: number) => !(h < w);
