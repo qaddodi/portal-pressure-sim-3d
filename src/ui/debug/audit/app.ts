@@ -16,7 +16,7 @@ import { startLedger } from './ledger.ts';
 import type { Step, Reads } from './run.ts';
 import type { Box, LayoutRead } from './judge.ts';
 import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
-import { renderStats } from '../../../debug/render-stats.ts';
+import { renderStats } from '../../../clock/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
 import { estimateSteps } from './progress.ts';

@@ -4,7 +4,7 @@ import type { AuditFinding, FrameStats, Sev } from './judge.ts';
 import type { AnimRec } from './ledger.ts';
 import { CHECKS, GAPS } from './scan-judge.ts';
 import { FRAME_LIMITED_KINDS, FRAME_LIMIT_SPEED } from './speed.ts';
-import { memoryClimb, LEAK_BASELINE_STEPS } from '../../../debug/render-stats.ts';
+import { memoryClimb, LEAK_BASELINE_STEPS } from '../../../clock/render-stats.ts';
 
 export interface AuditSize { id: string; w: number; h: number; dpr: number }
 /** What the renderer and the clock saw during a step (code review 21 Nov #4 #5 #6): the last frame's draw calls and triangles, the live programs, geometries and textures (`gl.info`), the junction-skin rebuilds that ran,

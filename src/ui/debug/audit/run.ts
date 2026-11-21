@@ -5,7 +5,7 @@ import { frameStats, timeline, fadeEpisodes, fadeFindings, stallWindows, layoutF
 import { judgeScan } from './scan-judge.ts';
 import type { RawScan } from './scan.ts';
 import type { AnimRec } from './ledger.ts';
-import { memoryClimb } from '../../../debug/render-stats.ts';
+import { memoryClimb } from '../../../clock/render-stats.ts';
 import { SLOW_BUSY_MS, LOW_FPS, type RowGpu, type AuditRow, type AuditData, type AuditSize, type ConsoleLine, type Coverage } from './report.ts';
 
 /** One move: open a view, a sheet, a patient, a slide, or press Next. It may return the label it learned by doing it (a Next press knows which slide it landed on). */
