@@ -74,3 +74,10 @@ export function judge(hits, allow) {
   for (const r of Object.keys(counts)) { const a = allow[r] ?? 0; if (counts[r] > a) over.push(r); else if (counts[r] < a) under.push(r); }
   return { counts, over, under };
 }
+
+/** Unresolved merge conflict markers (a line that is only `<<<<<<< x`, `=======` or `>>>>>>> x`): the line numbers, or []. A merge left them in scripts/build.mjs once and the deploy failed. */
+export function conflictMarkers(text) {
+  const out = [];
+  text.split('\n').forEach((l, i) => { if (/^(<{7}|>{7})( .*)?$/.test(l) || /^={7}$/.test(l)) out.push(i + 1); });
+  return out;
+}

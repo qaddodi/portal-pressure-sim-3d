@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { lintFiles, judge, RULES } from '../scripts/lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers } from '../scripts/lint-rules.mjs';
 
 type Hit = { rule: string; path: string; line: number; text: string };
 const lint = (path: string, text: string): string[] => (lintFiles([{ path, text }]) as Hit[]).map((h) => h.rule);
@@ -42,4 +42,10 @@ test('the repo is inside every allowance (scripts/lint-allow.json only goes down
   const allow = JSON.parse(readFileSync('scripts/lint-allow.json', 'utf8')) as Record<string, number>;
   const { counts, over } = judge(lintFiles(files), allow) as { counts: Record<string, number>; over: string[] };
   assert.deepEqual(over, [], `over allowance: ${over.map((r) => `${r} ${counts[r]} > ${allow[r] ?? 0}`).join(', ')}`);
+});
+
+test('unresolved merge conflict markers are found, ordinary lines and rulers are not', () => {
+  const marks = ['<'.repeat(7) + ' HEAD', '='.repeat(7), '>'.repeat(7) + ' abc123'];
+  assert.deepEqual(conflictMarkers(`a\n${marks.join('\n')}\nb`), [2, 3, 4]);
+  assert.deepEqual(conflictMarkers('x = a <<<<<<< b;\n// ======== a longer ruler\n  ======='), []);
 });
