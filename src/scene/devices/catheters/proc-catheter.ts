@@ -8,9 +8,11 @@ import { PALETTES, type LookId, type Palette } from '../../palette.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
 import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
+import { type Centreline, centrelineOf } from '../../vessels/centreline.ts';
+import { smoothJoinsOn } from '../../vessels/join-mode.ts';
 import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
-import { BALLOON_EDGE, CATH_EDGE, MARKER_EDGE, type EdgeRule } from '../edges.ts';
+import { BALLOON_EDGE, CATH_EDGE, type EdgeRule } from '../edges.ts';
 import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
 import { balloonOutline, balloonRy } from '../../procedures/copied/hvpg-balloon.js';
@@ -89,8 +91,8 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
   return { dC, rx, ol };
 }
 
-/** One vessel's share of the wedge tint (vessel-object.ts setWedge): `cut` where it stops on the balloon's side and `edge` how softly (both u, 1 at the piece's start on the route to 0 at its outer end), `front` how far toward the outer end the tint has come and `frontEdge` how softly. */
-export interface WedgePiece { cut: number; fade: number; edge: number; front: number; frontEdge: number }
+/** One vessel's line of the wedge's one field (wedge-glsl.ts): its route distance from the balloon's distal edge at u is `d0 + slope u` (route units, so `slope` is minus the vessel's drawn length), and `fade` how far (u) the tint thins toward a branch's tip, 0 for none. */
+export interface WedgePiece { d0: number; slope: number; fade: number }
 const smoother = (k: number): number => { const x = clamp01(k); return x * x * x * (x * (x * 6 - 15) + 10); };
 
 export class ProcCatheter {
@@ -151,9 +153,10 @@ export class ProcCatheter {
     this.balloonGeo = allocTube(BALLOON_N + 1, BALLOON_RADIAL);
     this.balloon = mk(this.balloonGeo, 'nylon', 7, BALLOON_EDGE, 0.7);
     this.balloon.setGlass(1.4, 0.4);
-    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, GLINT_SIDES); return { g, o: mk(g, 'graft', 9, 'ink', 0) }; });
+    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, GLINT_SIDES); return { g, o: mk(g, 'graft', 9, 'none', 0, { fat: 0.4 }) }; });   // (a specular streak of light: no ink round it, or it read as a dark bar inside the glass)
     // the two small dark collars where the balloon is bonded to the shaft
-    this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.16, rc * 1.16, rc * 0.5, DEVICE_SIDES, 1, true).rotateZ(Math.PI / 2)), 'platinum', 8, MARKER_EDGE, 0.4));
+    // (no collars or marker bands inside the glass: the solid dark bars Mohammad saw through the balloon, 21 Nov; the balloon is glass, the shaft seen through it, and its streaks of light)
+    this.balloonBands = [];
     for (let i = 0; i < 2; i++) {
       this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'trPv', 9, 'ink', 0));
       this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'monFree', 9, 'ink', 0));
@@ -196,33 +199,53 @@ export class ProcCatheter {
 
   /** The wedge's amber column on the HVPG route, as a tint on the vessels themselves: everything upstream of the balloon in the vein the tip is in, and the branches that leave it, fading out toward their tips.
    *  `pieces`: for each vessel id, how far up its own course the tint reaches (a share of the course from its outer end; 2 is all of it) and over how much of it it thins toward the tip. Null when there is none. */
-  wedgeTint(): { amount: number; color: Color; pieces: Map<string, WedgePiece> } | null {
+  wedgeTint(): { amount: number; color: Color; front: number; frontSoft: number; behind: number; pieces: Map<string, WedgePiece> } | null {
     const { r3 } = this, r = r3.route, s = this.last, col = clamp01(s.column);
     if (r.kind !== 'hvpg' || col <= 0.001 || !this.group.visible) return null;
-    // The tint starts AT the balloon's distal edge (the glass ends 4.2 shaft radii behind the tip: fitBalloon's `gap`) and its front travels forward from there, into the vein and then its branches, as the column
-    // fills (Mohammad, 20 Nov: "the yellow/orange highlighting should start basically from the balloon edge and move forward into the hepatic vein and branches to cover it"). The front is one distance along the route,
-    // so it crosses the vein's pieces and runs on into the branch in order; at a full column it covers all of it. The tint is whole at the edge (it was 0 there and rose over 8% of the vein's course, so an
-    // untinted stretch of about ten shaft radii stood between the balloon and the amber).
-    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 2;
-    const front = edgeD + smoother(col) * Math.max(1e-6, r.total - edgeD) * 1.02;
+    // ONE FIELD (wedge-glsl.ts). The tint starts AT the balloon's distal edge (the glass ends 4.2 shaft radii behind the tip: fitBalloon's `gap`) and is a function of the distance along the network from there:
+    // every vessel of the hepatic tree (the vein, its forks, the branch) is given the line `d0 + slope u` of its own drawn length, the junction skins blend their arms' seams' values, and the column's front is ONE
+    // advancing distance with a soft edge, so it flows from the balloon through the vein, the join and out to every branch at one speed, and nothing lags or jumps (Mohammad, 21 Nov: "the tubes filled, the join did
+    // NOT fill, then it filled all of a sudden"). At a full column the front is past the farthest tip by its own softness: everything is covered.
+    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 5, frontSoft = soft * 3;
     const pieces = new Map<string, WedgePiece>();
-    // (u runs 1 at a piece's start on the route to 0 at its outer end: a piece is tinted from the front's u to the cut's u)
-    const uAt = (sub: { d0: number; d1: number; fa: number; fb: number }, d: number) => sub.fa + (sub.fb - sub.fa) * clamp01((d - sub.d0) / Math.max(1e-6, sub.d1 - sub.d0));
-    const edgeU = (sub: { d0: number; d1: number; fa: number; fb: number }) => soft * Math.abs(sub.fb - sub.fa) / Math.max(1e-6, sub.d1 - sub.d0);
+    let far = 0;
+    const put = (id: string, dStart: number, uStart: number, fallbackLen: number, fade: number): void => {
+      // (u runs from `uStart` at the piece's start toward the outer end, 0; the vessel's drawn length is the course's own)
+      const c = this.courseOf(id), len = c ? c.length * U : fallbackLen;
+      pieces.set(id, { d0: dStart + uStart * len, slope: -len, fade });
+      far = Math.max(far, dStart + uStart * len);
+    };
+    // WHERE a distance along the route is on the vein AS DRAWN: the shader's u is the share of the DRAWN tube's own length, and the vein's drawn course is not the 2D course the route was laid on, so the balloon's
+    // edge is placed by projecting the route's own point there (it lies ON the drawn centreline) on that centreline.
+    const uAt = (id: string, d: number, fb: number): number => { const c = this.courseOf(id); if (!c) return fb; const p = r3.centre(d, this.v); return c.nearestU([p.x, p.y, p.z]); };
     const hv = r.parts.find((q) => q.name === 'hv');
     for (const sub of hv?.subs?.length ? hv.subs : hv ? [hv] : []) {
       if (!sub.id || edgeD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
-      if (front <= sub.d0) continue;   // (the front has not reached it yet)
-      const cut = edgeD <= sub.d0 ? 2 : uAt(sub, edgeD), e = edgeU(sub);
-      pieces.set(sub.id, { cut, fade: 0, edge: e, front: uAt(sub, front), frontEdge: e * 3 });
-      const into = (front - sub.d1) / Math.max(1e-6, (r.total - sub.d1) * 0.5);
-      if (into > 0) for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) pieces.set(v.id, { cut: 2, fade: 0.6, edge: 0.02, front: 1 - clamp01(into), frontEdge: 0.08 });
+      const inside = edgeD > sub.d0;
+      const uRef = uAt(sub.id, inside ? edgeD : sub.d0, sub.fa), dRef = inside ? 0 : sub.d0 - edgeD;
+      put(sub.id, dRef, uRef, (sub.d1 - sub.d0) / Math.max(1e-6, Math.abs(sub.fb - sub.fa)), 0);
+      // (a child starts where its parent's line says it is, so the field is one number across the seam, by construction)
+      const mine = pieces.get(sub.id)!;
+      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) put(v.id, mine.d0, 1, Math.max(1e-6, r.total - sub.d1), 0.6);
     }
     const br = r.parts.find((q) => q.name === 'branch');
-    if (br?.id && NETWORK_BY_ID.has(br.id) && front > br.d0) pieces.set(br.id, { cut: 2, fade: 0.6, edge: 0.02, front: 1 - clamp01((front - br.d0) / Math.max(1e-6, br.d1 - br.d0)), frontEdge: 0.08 });
-    return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, pieces };
+    if (br?.id && NETWORK_BY_ID.has(br.id)) {
+      const host = hv?.subs?.find((q) => q.id && pieces.has(q.id) && br.d0 >= q.d0 - 1e-6 && br.d0 <= q.d1 + 1e-6), hp = host?.id ? pieces.get(host.id) : undefined;
+      put(br.id, hp && host?.id ? hp.d0 + hp.slope * uAt(host.id, br.d0, host.fb) : br.d0 - edgeD, 1, Math.max(1e-6, br.d1 - br.d0), 0.6);
+    }
+    if (!pieces.size) return null;
+    // the front: eased in the column, from the balloon (0) to past the farthest tip by its own softness
+    const front = smoother(col) * (far + frontSoft);
+    return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, front, frontSoft, behind: soft, pieces };
   }
   private readonly wedgeColor = new Color();
+  private readonly courses = new Map<string, Centreline | null>();
+  /** The drawn centreline of vessel `id` (kept: the wedge tint asks every frame while the column is up). */
+  private courseOf(id: string): Centreline | null {
+    const key = `${id}|${smoothJoinsOn()}`;
+    if (!this.courses.has(key)) this.courses.set(key, centrelineOf(id));
+    return this.courses.get(key)!;
+  }
 
   set(s: CatheterState): void {
     this.last = s;
@@ -264,7 +287,7 @@ export class ProcCatheter {
     this.balloon.group.visible = bl > 0.001;
     for (const b of this.balloonBands) b.group.visible = bl > 0.001;
     for (const q of this.glints) q.o.group.visible = bl > 0.001;
-    if (bl > 0.001) this.fitBalloon(bl, tipD, op);
+    if (bl > 0.001) this.fitBalloon(bl, tipD, op); else this.shaft.setHole(0, 0, 0);
 
     // the tip's reading ripples, and the coil
     if (s.ring) this.ripple(s.ring, tipD, s.clock, op);
@@ -301,23 +324,21 @@ export class ProcCatheter {
     // it swells on a smootherstep of the model's own 0..1, so it starts and ends gently and never jumps (owner, 20 Nov 2026: "easing as it inflates")
     const sw = bl * bl * bl * (bl * (bl * 6 - 15) + 10);
     const ol = balloonFit(r3, rc, Math.max(sw, 1e-4), tipD, this.span, (this.ballRings ||= makeRings(BALLOON_N + 1)));
-    const rings = this.ballRings!, dC = ol.dC, rx = ol.rx;
+    const rings = this.ballRings!;
     writeRings(this.balloonGeo, rings, BALLOON_RADIAL);
     // a solid-looking latex balloon: a body that reads against the vein (0.42, it was a barely-there 0.12 and the balloon vanished into the vessel; Mohammad, 20 Nov: "make the HVPG balloon less transparent") with a firm outline that eases in with the swelling
     const e = bl * bl * (3 - 2 * bl);
     this.balloon.setAlphas(0.42 * Math.min(1, e * 2.2) * op, (0.45 + 0.5 * e) * op * Math.min(1, bl * 4));
     this.lay(ol.ol, rings, e, op);
-    // its two collars, where the glass meets the shaft
-    [-1, 1].forEach((side, i) => {
-      const b = this.balloonBands[i]!, d = dC + side * rx * 0.97;
-      b.setAlpha(op); b.group.position.copy(r3.point(d, this.v)); this.orient(b, d);
-    });
+    // the shaft inside the glass is left clear (a ghost of 10%), ramping in and out over a few shaft radii: the balloon reads as clean glass, with nothing solid or inked in it (Mohammad, 21 Nov: "the balloon still has shit in it")
+    const total = Math.max(1e-6, this.r3.route.total), half = ol.rx, soft = this.rc * U * 1.5 / total;
+    this.shaft.setHole((ol.dC - half) / total + soft, (ol.dC + half) / total - soft, 0.9 * e, soft);
   }
   private readonly gr = [makeRings(GLINT_N), makeRings(GLINT_N)];
   private readonly n1 = new Vector3(); private readonly n2 = new Vector3(); private readonly tt = new Vector3();
   /** Two white curved highlights on the glass's near side (the figure's front is +z): arcs a hair inside the balloon's surface, one long above the shaft and one short below it, as a Fogarty's light curves round its barrel. */
   private lay(ol: { s: number }[], rings: ReturnType<typeof makeRings>, e: number, op: number): void {
-    const arcs = [{ phi: 0.62, s0: -0.62, s1: 0.5, a: 0.8 }, { phi: -0.5, s0: 0.12, s1: 0.62, a: 0.5 }];
+    const arcs = [{ phi: 0.62, s0: -0.62, s1: 0.5, a: 0.95 }, { phi: -0.5, s0: 0.12, s1: 0.62, a: 0.6 }];
     arcs.forEach((arc, k) => {
       const out = this.gr[k]!;
       for (let i = 0; i < GLINT_N; i++) {
@@ -329,7 +350,7 @@ export class ProcCatheter {
         // up on the screen is -n1, toward the viewer is -n2
         const c = Math.cos(arc.phi), sn = Math.sin(arc.phi), r = out[i]!;
         r.c.copy(q.c).addScaledVector(this.n2, -c * q.r * 0.9).addScaledVector(this.n1, -sn * q.r * 0.9);
-        r.t.copy(tt); r.r = Math.max(this.rc * 0.075 * Math.sin(Math.PI * (i / (GLINT_N - 1))) + this.rc * 0.01, 0.0003);
+        r.t.copy(tt); r.r = Math.max(this.rc * 0.13 * Math.pow(Math.sin(Math.PI * (i / (GLINT_N - 1))), 0.8) + this.rc * 0.01, 0.0003);
       }
       writeRings(this.glints[k]!.g, out, GLINT_SIDES);
       this.glints[k]!.o.setAlpha(arc.a * e * op);

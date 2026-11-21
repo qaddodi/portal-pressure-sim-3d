@@ -20,8 +20,7 @@ class Rec implements SkinDraw {
 
 interface Rig { set: SkinSet; scene: CelScene; clockMs: { t: number }; cost: { ms: number }; draws: Rec[]; inScene: Set<Object3D>; log: string[]; ends: { n: number }; done(): void }
 function rig(): Rig {
-  const was = smoothJoinsOn(); setSmoothJoins(true); useSettings.setState({ smoothJoins: true });
-  const scene = new CelScene({ joins: 'old' });   // (the vessels with no skins of the scene's own: the set under test is the only one)
+  const was = smoothJoinsOn(); setSmoothJoins(true);  const scene = new CelScene({ joins: 'old' });   // (the vessels with no skins of the scene's own: the set under test is the only one)
   const draws: Rec[] = [], inScene = new Set<Object3D>(), log: string[] = [], clockMs = { t: 0 }, cost = { ms: 0 }, ends = { n: 0 };
   const set = new SkinSet({
     vessel: (id) => scene.vesselObject(id) as VesselObject | undefined,
@@ -172,8 +171,7 @@ test('a node that cannot be rebuilt goes back to today\'s joins (cut off, the sc
 });
 
 test('the scene wires it: the reshape of a vessel marks its skin, the render phase steps it once, and a pending rebuild asks the clock under the tag skin-build', () => {
-  const was = smoothJoinsOn(); setSmoothJoins(true); useSettings.setState({ smoothJoins: true });
-  const s = new CelScene({ joins: 'mesh2' });
+  const was = smoothJoinsOn(); setSmoothJoins(true);  const s = new CelScene({ joins: 'mesh2' });
   try {
     const sk = (s as unknown as { skins: SkinSet | null }).skins!;
     assert.ok(sk && sk.count >= 4);

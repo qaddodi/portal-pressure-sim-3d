@@ -2,7 +2,7 @@
 // Pure geometry on the tubes `buildTubes` made; no scene objects. The hull rule (4.4 rule 3) is WP2's, called back through `hullOk`.
 import type { BufferGeometry } from 'three';
 import { TUBE_RADIAL } from '../tubes.ts';
-import { SKIN_GROWERS, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
+import { SKIN_GROWERS, armR, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
 export interface ArmTube { geometry: BufferGeometry; tubular: number }
@@ -88,7 +88,7 @@ function sdCapsule(p: ArrayLike<number>, o: number, c: Capsule): number {
  * Throws a `SkinBuildError` for the node when an arm runs out of rings or the tries; the scene keeps today's method for that node.
  */
 export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, hullOk: HullOk, clear: { k: number; r: number } = { k: CLEAR_K, r: CLEAR_R }): SkinCut[] {
-  const n = j.arms.length, k = CUT_SKIN_K * Math.min(...j.arms.map((a) => a.restR));
+  const n = j.arms.length, k = CUT_SKIN_K * Math.min(...j.arms.map(armR));
   const rings: Ring[][] = j.arms.map((a) => {
     const t = tubes.get(a.vesselId);
     if (!t) throw new SkinBuildError(j.node, `no tube for ${a.vesselId}`);
@@ -190,9 +190,17 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
         // two skins would crowd or cross on this vessel: one skin for both nodes
         merged = true; done.add(a); done.add(b);
         const A = js[a]!, B = js[b]!;
-        // a landing on a host's wall (a virtual `wall:` node, wall.ts) that crowds another skin is not merged into it (its side arm is no run-on between two nodes): the other skin stays as it was, the landing keeps today's fork method (named)
+        // a landing on a host's wall (a virtual `wall:` node, wall.ts) that crowds another skin is not merged into it (its side arm is no run-on between two nodes): the other skin stays as it was, the landing keeps the tube's own flared end (named)
         if (isWall(A) || isWall(B)) {
-          const [w, other, otherPlan] = isWall(A) ? [A, B, pb] : [B, A, pa];
+          const [w, other, otherPlan, wallPlan] = isWall(A) ? [A, B, pb, pa] : [B, A, pa, pb];
+          // ...unless the two seams can be ONE ring: the other skin's cut is a ring the wall's own seam may stand on (the wall's seam only moves AWAY from its centre, never nearer), so the skins abut on that ring (identical seam, no tube between them) and the host is
+          // skin all the way along (S_PC and C9 on the cava's first stretch, IVCI's seam and the wall node's own both at ring 3)
+          const [wc, oc] = wallPlan === pa ? [ca, cb] : [cb, ca];
+          if (wc.side !== undefined && (wc.end === 1 ? oc.ring <= wc.ring : oc.ring >= wc.ring)) {
+            const moved: SkinCut = { ...wc, ring: oc.ring, u: oc.u };
+            out.push(otherPlan, { ...wallPlan, cuts: wallPlan.cuts.map((c) => (c === wc ? moved : c)) });
+            break;
+          }
           failures.push(new SkinBuildError(w.node, `${w.node} crowds the skin of ${other.node} on ${ca.vesselId}`));
           out.push(otherPlan);
           break;

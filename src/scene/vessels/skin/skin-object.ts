@@ -6,8 +6,9 @@
 // and its veil copy (over the organs, seen through them). A skin that has such an arm is drawn the same way: ONE geometry, three meshes with a material each (`defines: { SKIN_COPY: 0 | 1 | 2 }`: one source, three programs), every copy's alpha the sum over the
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
+import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { facetSag } from './facet-sag.ts';
-import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector4, type IUniform, type Object3D } from 'three';
+import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import { markBlends } from '../../materials/warm.ts';
 import { GLOW_LAYER } from '../../glow.ts';
@@ -92,6 +93,8 @@ export class SkinObject implements SkinDraw {
   private readonly growArms: number[];
   private readonly armGrow: number[] = new Array(SKIN_ARMS).fill(1);
   private readonly growG = new Vector2(1, 1);
+  /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
+  private readonly kw = new Vector3(0, 0, 1);   // (x the blend width skinK, y the mode, z the share: skinKW in the fragment stage)
 
   /** `circuit`: this is a skin of the Circuit's map (circuit/skins.ts): its mesh is built on the map's courses, its program is the one built with SKIN_CIRC and its name says so. */
   constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[], circuit = false) {
@@ -133,9 +136,9 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armWedge: { value: new Array(SKIN_ARMS).fill(WEDGE_ABSENT) }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
-      armAxisP: { value: armAxisP }, skinK: { value: skinKOf(skin.junction.arms) },
+      armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       armGrow: { value: this.armGrow }, growG: { value: this.growG },
       // the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units and its widths, line and fade are a uniform, so a map skin compiles nothing the body's skins have not
       skinMap: { value: new Vector2(circuit ? 1 / MAP_K : SKIN_FIGURE_UNITS, circuit ? 1 : 0) },
@@ -182,6 +185,13 @@ export class SkinObject implements SkinDraw {
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
   }
 
+  /** The wedge's one field at arm `i`'s seam: its tube's route distance from the balloon's distal edge there (WEDGE_ABSENT: no wedge on that tube), and the column as every tube has it (how much, how softly it ends behind the balloon's edge, the front, how softly the front ends) with its amber. */
+  setWedge(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void {
+    const u = this.material.uniforms;
+    (u.armWedge!.value as number[])[i] = d;
+    if (col) { (u.wedgeS!.value as Vector4).set(col.amount, col.behind, col.front, col.frontSoft); (u.wedgeColS!.value as Color).copy(col.color); }
+  }
+
   /** The arm's flow marks (the fragment stage's THE FLOW MARKS): the arc at the seam (figure units), which way it grows toward the node (+1 the vessel's end 1, -1 its start), the vessel's length and its rest radius (figure units), and the tube's flowAmount. */
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void {
     this.armArc[i]!.set(seamArc, dir, length, restR);
@@ -206,6 +216,15 @@ export class SkinObject implements SkinDraw {
     if (s === 0) this.growG.x = g; else this.growG.y = g;
     this.showCopies();
   }
+  /** This skin is one of a growing arm's pair: the WELDED skin (mode +1, with the arm at full size) or the PLAIN one (mode -1, the trunk without it), and `w` how far the weld is (0 the flared tube alone, 1 the welded skin). The two draw complementary pixels
+   *  of one screen pattern (the tubes' own dither), so a pixel is one or the other and nothing is two skins at once; the welded one is not drawn at all at 0 and the plain one not at 1. */
+  setWeld(mode: 1 | -1 | 0, w: number): void {
+    if (this.kw.y === mode && this.kw.z === w) return;
+    this.kw.y = mode; this.kw.z = w;
+    this.showCopies();
+  }
+  /** The weld mode and share (a test reads them). */
+  weldOf(): readonly [number, number] { return [this.kw.y, this.kw.z]; }
   /** The growth arm `i` has now (1 for an arm that does not grow). */
   growOf(i: number): number { return this.armGrow[i]!; }
   /** Whether arm `i` is one the skin morphs. */
@@ -220,7 +239,8 @@ export class SkinObject implements SkinDraw {
   private isThere(k: number): boolean { return (this.growArms.includes(k) ? this.armGrow[k]! : this.armAF[k]!.w) > 0.002; }
   /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (its presence): a skin has no visibility of its own, it inherits its arms'. */
   private showCopies(): void {
-    this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && this.isThere(k) ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
+    const weldOut = (this.kw.y > 0 && this.kw.z < 0.002) || (this.kw.y < 0 && this.kw.z > 0.998);   // (the welded skin before the weld begins, the plain one once it is whole: nothing to draw)
+    this.copies.forEach((m, c) => { m.visible = !weldOut && this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && this.isThere(k) ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
     this.showGlow();
   }
 

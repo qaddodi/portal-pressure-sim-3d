@@ -16,21 +16,19 @@ import { findSkinJunctions, growerEndsByNode, isGrower } from '../src/scene/vess
 import { braidRootEnds, isBraid, strandCutU } from '../src/scene/vessels/skin/braid-arm.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
-import { grownValue } from '../src/scene/vessels/skin/arm-twins.ts';
 import { sdUnion, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
 /** The braid roots that are welded: the end of the braid, the node whose skin it is an arm of. Pinned (a braid or a node added to the network is seen here). */
-const WELDED: Record<string, readonly string[]> = { 'C2:0': ['SV'], 'C7:0': ['SMV_R'] };
+const WELDED: Record<string, readonly string[]> = { 'C2:0': ['SV'], 'C4:0': ['IMV'], 'C7:0': ['SMV_R'] };
 /** A bundle root that is an arm of its node in the inventory but that the retry ladder drops: the strands leave IMV 25 degrees from the run-on V_COL, a growing arm along a permanent one, whose closed footprint folds (the mesher's limit as PVH's DIPS and the S_DSR pair: tests/skin-closed-footprint.test.ts). Named, not hidden. */
-const DROPPED_ROOT: Record<string, string> = { 'C4:0': 'IMV' };
+const DROPPED_ROOT: Record<string, string> = {};
 /** The braid ends that keep the fork method, each for a reason a person can read. */
 const FORK: Record<string, string> = {
   'C1a:0': 'LGV is the free start of the left gastric vein: one permanent arm, a run-on of two, no junction',
   'C1a:1': 'VAR: no vessel there, the varices end free',
   'C2:1': 'GV: no vessel there, the gastric varix ends free',
-  'C4:0': 'IMV: a bundle root, an arm in the inventory, dropped at build: it runs 25 degrees from V_COL and the closed footprint folds (DROPPED_ROOT)',
   'C4:1': 'ILI: the strands part at once (about one radius apart one radius from the node): no single ring holds them',
   'C7:1': 'ILI_R: the strands part at once',
   'C8:0': 'CONF: six channels that fan out of the node as separate tubes',
@@ -45,7 +43,7 @@ test('the braid roots are named: the ends where the strands leave a node as one 
     const roots = BRAIDS.flatMap((id) => braidRootEnds(NETWORK_BY_ID.get(id)!).map((e) => `${id}:${e}`));
     const ends = BRAIDS.flatMap((id) => [0, 1].map((e) => `${id}:${e}`));
     assert.deepEqual(ends.filter((e) => !(e in WELDED)).sort(), Object.keys(FORK).sort(), 'every braid end is welded or named');
-    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), ['C1a:0', 'C4:0'], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm, C4\'s is dropped');
+    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), ['C1a:0'], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm');
     for (const e of Object.keys(WELDED)) assert.ok(roots.includes(e), `${e} is a bundle root`);
     for (const [key, node] of Object.entries(DROPPED_ROOT)) { const v = NETWORK_BY_ID.get(key.split(':')[0]!)!; assert.equal(node, key.endsWith(':0') ? v.from : v.to); assert.ok(findSkinJunctions().find((x) => x.node === node)!.arms.some((a) => a.vesselId === v.id && a.grow)); }
     const js = findSkinJunctions();
@@ -82,7 +80,7 @@ function built() {
 const skinOf = (d: SkinObject): string[] => d.mesh.name.replace('skin:', '').split('+');
 const capsOf = (ax: readonly ArmAxis[]): Capsule[] => ax.map((a) => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate }));
 
-test('every welded braid root is a growing arm of a built skin, none is dropped, nothing falls back; closed (growth 0) its mouth lies on the plain trunk and the seam at growth 1 is the arm tube\'s own ring', () => {
+test('every welded braid root is a growing arm of a built skin, none is dropped, nothing falls back; its skin is static with the arm whole', () => {
   const b = built();
   try {
     assert.deepEqual(b.warnings, []);
@@ -96,14 +94,8 @@ test('every welded braid root is a growing arm of a built skin, none is dropped,
       const m: SkinMesh = b.set.skinOf(d.mesh.name.replace('skin:', ''))!;
       const ai = m.junction.arms.findIndex((a) => a.vesselId === id && a.end === Number(end));
       assert.ok(ai >= 0, `${key} is an arm of ${nodes[0]}`);
-      const g = m.grow.find((x) => x.arm === ai);
-      assert.ok(g, `${key} is a morphed (growing) arm: the mouth opens with the vessel`);
-      const caps = capsOf(b.axes.get(d)!), others = caps.filter((_, i) => i !== ai), k = skinKOf(m.junction.arms), Rmin = Math.min(...m.junction.arms.map((a) => a.restR));
-      for (const sv of m.seamVerts[ai]!) {
-        for (let q = 0; q < 3; q++) assert.equal(grownValue(m.position[3 * sv + q]!, g.dPos[3 * sv + q]!, 1), m.position[3 * sv + q]);
-        const p: number[] = [0, 1, 2].map((q: number): number => grownValue(m.position[3 * sv + q]!, g.dPos[3 * sv + q]!, 0));
-        assert.ok(Math.abs(sdUnion(others, k, p[0]!, p[1]!, p[2]!)) <= 0.05 * Rmin, `${key}: the closed mouth is on the trunk`);
-      }
+      assert.ok(m.junction.arms[ai]!.grow, `${key} is a growing arm of its skin: whole in the static skin, the tube's flared end grows and the weld hands over at growth 0.9 to 1`);
+      assert.equal(m.grow.length, 0, `${nodes[0]}: no growth morph`);
       n++;
     }
     assert.equal(n, Object.keys(WELDED).length);

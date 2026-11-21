@@ -14,12 +14,17 @@ export interface SkinArm {
   baseD: number;             // def.baseD
   widthKind: 0 | 1 | 2;      // def.widthKind
   restR: number;             // def.radius (scene units)
+  /** the tube's radius where the arm meets the junction (its end at the node, or at `side.u` on a host's wall), scene units, tapers and buried ends counted: `restR` is the vessel's NOMINAL radius, and a branch that thins toward its tip or a vein that tapers is far narrower than that at J. The blend width and the seam's clearance are sized from it (`armR`), so a thin joint never gets the fillet of a fat one (the bulb at the right hepatic vein's branch, 21 Nov). Absent: `restR`. */
+  jointR?: number;
   /** A SIDE-WALL arm (spec 10.1): the stretch of this vessel on one side of the point `u` along it (`dir` -1 the part below `u`, +1 the part above), where the junction lies on the vessel's side and not at a node. `end` is then 1 for dir -1 and 0 for dir +1
    *  (the rings run away from the junction the way an end's do), and the arm's walk starts at the ring nearest `u` instead of the tube's own end. Two side arms of one vessel (a virtual node mid-host) leave a HOLE in it (VesselObject.setSkinHole). */
   side?: { u: number; dir: -1 | 1 };
   /** A GROWING arm (spec 10.2): a collateral or a shunt, which comes and goes. Its seam is chosen at full radius and never moves; the skin carries a second shape (`GrowMorph`) with this arm at radius 0, and the live growth eases between the two. */
   grow?: boolean;
 }
+
+/** The radius an arm really has at the junction (types.ts `jointR`), else its nominal one: what the blend width is a share of. */
+export const armR = (a: Pick<SkinArm, 'restR' | 'jointR'>): number => a.jointR ?? a.restR;
 
 /** One junction: a node where 3 or 4 permanent tubes meet. */
 export interface SkinJunction {
@@ -28,6 +33,8 @@ export interface SkinJunction {
   arms: SkinArm[];           // 3 or 4, sorted widest first
   /** meshed from the surface itself (sheet.ts, the last rung), its seams chosen with no hull of the rings: a junction whose seam rings the hull cannot cover (the Circuit's, circuit/skins.ts) */
   surface?: boolean;
+  /** the growing arms are built WHOLE and the skin is one static shape (no `GrowMorph`): the Anatomy's welds (skin-set.ts: the tube's flared end grows, then the skin takes over at growth 0.9 to 1). The Circuit's skins still morph until it follows. */
+  still?: boolean;
 }
 
 /** Where an arm's tube hands over to the skin. */

@@ -4,6 +4,7 @@ import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, SphereGeometr
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { beadRadius } from './varix-bead.copied.js';
+import { PIN_RAMP } from './coil.ts';
 import { flareScale, sideEndScale } from './fork-joins.copied.js';
 import type { ShuntEnd } from './shunt-ends.ts';
 
@@ -26,6 +27,11 @@ export interface Course {
   sewn?: readonly [ShuntEnd | null, ShuntEnd | null];
   /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
   point?: readonly [boolean, boolean];
+  /** a fan's course wears this stretch `[from, to]` of the host's colour ramp (feeder-fan.ts), so a child begins in the colour its parent ends in; none: the vessel's own `lensSpan` */
+  lens?: readonly [number, number];
+  /** a junction skin stands on this course's end(s) and the course is coiling (coil.ts pinCourse): `len` the course's length at rest, `a` and `b` the share of it, from its start and from its end, held as at rest. The rings there sit at the same distances from the end whatever the length now is
+   *  (the rings are spaced along the arc, so a longer course would slide the skin's seam ring along its axis), and the varix's bead is not applied there; both ease in over PIN_RAMP of the course after it. */
+  hold?: { len: number; a: number; b: number };
 }
 /** A branch end buried in its trunk (smooth-joins.ts): `max` the radius its end ring and cap may take, held for `d0` of course from the end and easing back by `d1`; `ceil` the most its collar may reach anywhere (never wider than the trunk). */
 export interface Buried { max: number; d0: number; d1: number; ceil?: number }
@@ -37,6 +43,8 @@ export const factorSpan = (t: readonly [number, number], sp: readonly [number, n
 };
 /** A shunt's sewn end (shunt-ends.ts) as a share of the tube's radius at distance `d` from that end: narrowed inside its host (2D sideEndScale), flared in front of the wall (flareScale). */
 const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (e.flare ? (flareScale(d, e.hostR) as number) : 1));
+/** The narrowing alone of a sewn end at distance `d`: inside its host's wall it closes toward SIDE_END_MIN (2D sideEndScale). */
+const narrowAt = (e: ShuntEnd | null | undefined, d: number): number => (e && e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1);
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** A course's radius at `u` (0 to 1 along it) as its tube is built, without the collar and the bead: its own radius, its end tapers, a buried end held under its trunk and a free end's point. `len` is the course's length (scene units). */
@@ -73,6 +81,22 @@ export const flareAdd = (f: { add: number; wall: number; span: number } | null |
 };
 
 export const TUBE_RADIAL = 14;
+
+const smooth01 = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+/** The pinned stretch's weight at `u`: 0 inside the held stretch, 1 past its ramp (coil.ts PIN_RAMP, the same ramp the courses use). */
+const holdWeight = (h: NonNullable<Course['hold']>, u: number): number => (h.a > 0 ? smooth01((u - h.a) / PIN_RAMP) : 1) * (h.b > 0 ? smooth01((1 - u - h.b) / PIN_RAMP) : 1);
+/** Where along the arc (0 to 1) ring `u` sits: the held stretches keep the distance from their end they have at rest, the rings between them share the rest of the course. */
+function heldArc(h: NonNullable<Course['hold']>, len: number): (u: number) => number {
+  const ka = h.len / len, a1 = h.a * ka, b1 = h.b * ka;   // (the held stretches' share of the course now)
+  if (!(len > 0) || a1 + b1 >= 1) return (u) => u;
+  return (u) => (h.a > 0 && u <= h.a ? u * ka : h.b > 0 && u >= 1 - h.b ? 1 - (1 - u) * ka : a1 + ((u - (h.a > 0 ? h.a : 0)) / (1 - (h.a > 0 ? h.a : 0) - (h.b > 0 ? h.b : 0))) * (1 - a1 - b1));
+}
+/** A curve whose parameter runs through a remap (the held rings): the tube geometry reads its points, tangents and frames through `getPointAt` and `getTangentAt`. */
+class HeldCurve extends CatmullRomCurve3 {
+  at: (u: number) => number = (u) => u;
+  override getPointAt(u: number, t?: Vector3): Vector3 { return super.getPointAt(this.at(u), t); }
+  override getTangentAt(u: number, t?: Vector3): Vector3 { return super.getTangentAt(this.at(u), t); }
+}
 const RADIAL = TUBE_RADIAL;
 
 /** The tubes, each with round caps, in one geometry: uv.x runs 0 to 1 along each, uv.y round it; `tang` is the unit tangent; `rk` the tube's radius against `radius0`. */
@@ -87,8 +111,9 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
   const runs: TubeRun[] = [];
   let length = 0, at = 0;
   courses.forEach((c, i) => {
-    const curve = new CatmullRomCurve3(c.pts.map((p) => new Vector3(p[0], p[1], p[2])));
+    const curve = new HeldCurve(c.pts.map((p) => new Vector3(p[0], p[1], p[2])));
     if (i === 0) length = curve.getLength();
+    if (c.hold) curve.at = heldArc(c.hold, curve.getLength());
     const seg = tubular[i]!;
     // (A course of no radius, a strand a band has closed or a channel not yet grown, is built at a hair's width and marked rk 0, which the vertex shader keeps off the screen. Built at 0 its collar
     // share `flare / radius` and the Circuit's `offset / radius` are NaN, and a NaN position on a real GPU draws as a black blob or a long black spindle across its neighbours: Mohammad's iPhone, 19 Nov 2026.)
@@ -100,13 +125,19 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const clen = curve.getLength();
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
-      const u = k / seg;
-      let f = open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, u * clen) + collar(1, (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
+      const u = k / seg, ua = curve.at(u);   // (ua: the share of the arc the ring sits at: its distances to the ends are ua * clen)
+      let f = open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, ua * clen) + collar(1, (1 - ua) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (1 + ((beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) - 1) * (c.hold ? holdWeight(c.hold, u) : 1)) : 1) : 1;
       curve.getPointAt(k / seg, P);
-      if (open && c.sewn) f *= sewnAt(c.sewn[0], 0, u * clen) * sewnAt(c.sewn[1], 1, (1 - u) * clen);
+      if (open && c.sewn) {
+        const f0 = f, a0 = sewnAt(c.sewn[0], 0, ua * clen), a1 = sewnAt(c.sewn[1], 1, (1 - ua) * clen);
+        f *= a0 * a1;
+        // a generated end's flare never takes the tube wider than its host (a stent in a vein of its own width, a shunt on a thin branch: the heel was a bulge): the narrowing stays, the flare is cut at the host's radius
+        const cap = [c.sewn[0], c.sewn[1]].reduce((m, e, i) => (e?.capped && e.flare && flareScale(i ? (1 - ua) * clen : ua * clen, e.hostR) as number > 1 ? Math.max(m, e.hostR / c.radius) : m), 0);
+        if (cap > 0) f = Math.min(f, Math.max(f0 * narrowAt(c.sewn[0], ua * clen) * narrowAt(c.sewn[1], (1 - ua) * clen), cap));
+      }
       if (open && (c.clamp || c.point)) {
         // (smooth joins) the buried ends keep their collar inside the trunk, and a free end narrows to a point
-        const d0 = u * clen, d1 = (1 - u) * clen;
+        const d0 = ua * clen, d1 = (1 - ua) * clen;
         let R = c.radius * f;
         if (c.clamp) R = Math.min(buriedRadius(R, d0, c.clamp[0]), buriedRadius(R, d1, c.clamp[1]));
         if (c.point?.[0]) R *= pointFactor(d0, pointLength(c.radius, clen));
@@ -121,6 +152,9 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       }
     }
     tube.setAttribute('rk', new Float32BufferAttribute(rks, 1));
+    // (`lensR`: from and span of the ramp stretch this course wears; (0, 0) = the vessel's own)
+    const lensRange = [c.lens ? c.lens[0] : 0, c.lens ? c.lens[1] - c.lens[0] : 0];
+    tube.setAttribute('lensR', new Float32BufferAttribute(Array.from({ length: (seg + 1) * (RADIAL + 1) }, () => lensRange).flat(), 2));
     // (`rkc`: the radius share on the Circuit's map, the course's own: the body's tapers, collars, beads and buried ends are the 3D figure's, and the map draws a vessel one width along its length)
     tube.setAttribute('rkc', new Float32BufferAttribute(rkcs, 1));
     const tang: number[] = [];
@@ -145,6 +179,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
+    for (const e of [1, 2]) group[e]!.setAttribute('lensR', new Float32BufferAttribute(Array.from({ length: group[e]!.attributes.position!.count }, () => lensRange).flat(), 2));
     for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? capRadius(e - 1) / radius0 : 0), 1));
     for (const e of [1, 2]) group[e]!.setAttribute('rkc', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? c.radius / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;

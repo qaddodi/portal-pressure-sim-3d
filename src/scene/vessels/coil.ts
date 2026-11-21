@@ -95,9 +95,34 @@ export class CoilState {
   }
 }
 
+/** The share of a course (its length) over which the pinned stretch at a skinned end eases from the rest course to the live one, and the margin kept past the seam (a few rings: the skin reads the ring's neighbours for its tangent). */
+export const PIN_RAMP = 0.1, PIN_MARGIN = 0.04;
+/** The stretch of a course at each end that stays exactly as at rest (share of its length from the start, from the end): a skinned end's seam and a margin past it. */
+export type Pin = readonly [number, number];
+/** A course held at `rest` over the first `pin[0]` and the last `pin[1]` of its length, easing to `pts` over PIN_RAMP after that (smoothstep). A skin stands on the arm's tube at its seam: the seam region of the tube must not move when the rest of the vessel coils, or the skin would have to be rebuilt (about a tenth of a second to two seconds of CPU) on every frame of the growth. Same point count in both. */
+export function pinCourse(pts: readonly P2[], rest: readonly P2[], pin: Pin): P2[] {
+  if (pin[0] <= 0 && pin[1] <= 0) return pts as P2[];
+  const cum = [0];
+  for (let i = 1; i < rest.length; i++) cum.push(cum[i - 1]! + Math.hypot(rest[i]![0] - rest[i - 1]![0], rest[i]![1] - rest[i - 1]![1]));
+  const L = cum[cum.length - 1] || 1;
+  return pts.map((p, i): P2 => {
+    const u = cum[i]! / L;
+    const w = (pin[0] > 0 ? smooth01((u - pin[0]) / PIN_RAMP) : 1) * (pin[1] > 0 ? smooth01((1 - u - pin[1]) / PIN_RAMP) : 1);
+    if (w >= 1) return p;
+    const r = rest[i]!;
+    return [r[0] + (p[0] - r[0]) * w, r[1] + (p[1] - r[1]) * w];
+  });
+}
+
 export interface CoilCourse { pts: P2[]; k: number; ph: number; /** 0 to 1: how much of it is drawn (a channel growing in, a strand a band has closed) */ live?: number }
 /** The 2D course of a collateral (or a liver bed) and its strands at coil `wig` and spread `spr`, as stage-frame.js builds them in the anatomic view. */
-export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number): { main: P2[]; strands: CoilCourse[] } {
+export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number, pin?: Pin): { main: P2[]; strands: CoilCourse[] } {
+  const live = coilCoursesFree(id, base, coils, wig, spr);
+  if (!pin || (pin[0] <= 0 && pin[1] <= 0)) return live;
+  const rest = coilCoursesFree(id, base, coils, 0, 1);
+  return { main: pinCourse(live.main, rest.main, pin), strands: live.strands.map((c, i) => ({ ...c, pts: pinCourse(c.pts, rest.strands[i]!.pts, pin) })) };
+}
+function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number): { main: P2[]; strands: CoilCourse[] } {
   const u0 = STRAND_FROM_2D[id] ?? 0;
   let main = base as P2[];
   if (coils) { const wz = wiggle(base, Math.min(wig, WIG_CAP_2D[id] ?? Infinity), id.length); main = u0 ? blendFrom(base, wz, u0) : wz; }

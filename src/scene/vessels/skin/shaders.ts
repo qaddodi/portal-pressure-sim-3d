@@ -22,7 +22,7 @@
 //   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
 //   armFlow[4]   float + the arm tube's `flowAmount`
 //   streamTex, chainTex, streakAmt, dustP, time, markDark, markLight, markRev: the tubes' (shared by reference)
-//   skinK        float  the smooth-min blend width, scene units
+//   skinKW       vec3   x the smooth-min blend width, scene units (`skinK` below); y, z a skin of a growing arm's pair (skin-set.ts): y +1 draws only the pixels whose screen pattern is under z (the welded skin coming in), -1 only the pixels at or over it (the plain trunk going out), 0 draws all
 //   lensUse + : 1 (the per-arm flag above is multiplied in), inkColor, inkColorCirc, tubeDark, fade, hiPx, inflate, res, dpr, projY, circT, vdata, vdataSize, useData, the two lens sets (lensGradA/B, lensLaneA/B,
 //   lensModeA/B, laneColA/B, lensMix, lensTail, lensSmooth) are the tubes' (shared by reference).
 //
@@ -49,6 +49,7 @@ import { SKIN_CIRC_IN } from './types.ts';
 import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
+import { WEDGE_GLSL } from '../wedge-glsl.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -241,9 +242,14 @@ uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres)
 uniform vec4 armCopy[${SKIN_ARMS}];   // each arm's shares of the three copies (xyz: front, solid, veil: vessel-object.ts copyShares; this program is ONE of them, SKIN_COPY) and in w the arm it runs THROUGH the node with (through.ts), or -1: their union is a plain minimum (one vec4, because a float array costs a whole vector a slot)
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
-uniform float skinK;
+uniform vec3 skinKW;
+#define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
 uniform float armFlow[${SKIN_ARMS}];
+uniform float armWedge[${SKIN_ARMS}];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
+uniform vec3 wedgeColS;
+uniform vec4 wedgeS;   // the column (as every tube has it): x how much, y how softly it ends behind the balloon's edge, z the front, w how softly the front ends
+${WEDGE_GLSL}
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -391,6 +397,10 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
+  // THE ALPHA IS THE PRESENT ARMS' ONLY (Mohammad, 20 Nov: a dotted pink and blue patch left at the old end of both hepatic arteries, at the sinusoid nodes): the body does not draw the liver's beds, so at SIN_R and SIN_L the arteriole is the one arm that is there, and the skin is dithered
+  // by its share (pres). The alpha blended EVERY arm's fade by weight, the hidden beds' too (PRE_R whole, SIN_RR 0.8), so the skin kept an alpha and a colour from vessels that are not drawn at the pixels the artery's own dither let through, long after the artery had faded to nothing. The alpha is the weighted fade of the arms that are
+  // there (each arm's weight times its presence, over their sum), so an arm that is not drawn adds nothing, and where the one that is has faded the skin is gone with it.
+  if (skinKW.y != 0.0) { float wh = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); if (skinKW.y > 0.0 ? wh >= skinKW.z : wh < skinKW.z) discard; }
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
   // THE JUNCTION FADE RULE (Mohammad, 20 Nov: "a vessel merging into a faded vessel fades gradually on approach, so both share the same fade at the junction", and the torn edge where the hepatic veins' solid streaks met the faint cava): a vein that opens into the side
@@ -405,7 +415,7 @@ void main() {
     if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
   }
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)}`).join(' + ')}) 
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4)
     * mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
@@ -564,5 +574,15 @@ void main() {
 #ifdef VDBG
   c = dbgEnd(c, armData[0].x + 0.5);
 #endif
+  // the wedge's amber column through the join: the SAME field the tubes carry (wedge-glsl.ts). The arms that carry it blend their seams' distances by the arms' weights, so a pixel in the join has the distance
+  // of the place it is at, and the one front crosses the tubes and the skin at one speed
+  if (skinCirc < 0.5 && wedgeS.x > 0.001) {
+    float pwS = 0.0, dwS = 0.0;
+    for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); if (armWedge[i] > -1000.0) { pwS += wi; dwS += wi * armWedge[i]; } }
+    if (pwS > 0.001) {
+      float waS = wedgeS.x * clamp(pwS, 0.0, 1.0) * wedgeCover(dwS / pwS, vec3(wedgeS.y, wedgeS.z, wedgeS.w));
+      c = mix(c, wedgeColS, 0.78 * waS);
+    }
+  }
   gl_FragColor = vec4(c, alpha);
 }`;
