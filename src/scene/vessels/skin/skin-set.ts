@@ -235,6 +235,8 @@ export class SkinSet {
   plainDraws(): readonly SkinDraw[] { return this.drawn.flatMap((b) => (b.plain ? [b.plain.draw] : [])); }
   /** The plain trunk's mesh of a node, or undefined. */
   plainOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.plain?.mesh; }
+  /** The vessels a node's skin replaces whole (a merged skin's shared run: its tube is not drawn at all, the skin is all there is of it). */
+  hiddenOf(node: string): readonly string[] { return this.drawn.find((b) => b.node === node)?.hidden ?? []; }
   /** The weld a node's skin shows now (1 whole, 0 the flared tubes alone), NaN for a skin without a growing arm. */
   weldOf(node: string): number { const b = this.drawn.find((x) => x.node === node); return b && b.arms.some((a) => a.grow) ? (Number.isNaN(b.w) ? 0 : b.w) : NaN; }
   /** The built skin of a node, or undefined. */
