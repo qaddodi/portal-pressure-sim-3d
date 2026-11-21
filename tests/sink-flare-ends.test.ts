@@ -53,3 +53,18 @@ test('every sewn end: last ring inside its host or within half its radius of the
   }
   assert.ok(ends >= 20, `${ends} sewn ends checked`);
 });
+
+test('the strands of a braid (C1a, C2, C4, C7 and the caput fan) are sewn at the ends their trunk is; the cavernoma\'s channels end in a point, as before', () => {
+  setSmoothJoins(true);
+  let n = 0;
+  for (const v of NETWORK) {
+    const row = shuntEnds(v.id), cs = coursesOf(v, REST);
+    if (cs.length < 2 || !row || v.kind !== 'collateral') continue;
+    for (const c of cs.slice(1)) {
+      if (v.id === 'C8') { assert.equal(c.sewn, undefined, 'a cavernoma channel ends in a point'); continue; }
+      assert.deepEqual(c.sewn, row, `${v.id}: each strand carries its trunk's sewn ends`);
+      n++;
+    }
+  }
+  assert.ok(n >= 8, `${n} strands checked`);
+});
