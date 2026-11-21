@@ -13,6 +13,8 @@ import { afterLoad } from './lazy.ts';
 import { afterMs } from '../copied/motion.copied.js';
 
 export const STAGE_MAX = 320;
+/** A card opening cold waits at most this long (its code loading, then two frames) before it shows, whatever the pane does. */
+export const COLD_MAX = 600;
 
 export interface Leaver { id: PaneId; key: number }
 export interface Swap {
@@ -22,6 +24,8 @@ export interface Swap {
   staged: PaneId | null;
   /** panes fading out where they stood */
   leaving: Leaver[];
+  /** the card has just opened and its pane is not yet built and drawn: the card stays hidden (the same wait a warm swap makes: code in, two frames, then it shows), so no shell shows over an empty plot */
+  cold: boolean;
   /** the pane that has just landed: it plays no entrance of its own */
   landed: PaneId | null;
   /** a pane (the swipe's) that is taken in as it stands: no staging, no fade-out of the one it slid away from */
@@ -35,17 +39,32 @@ export interface Swap {
 /** `canStage`: whether a pane may be built first (the card is up and drawn, nothing is being swiped, no second instrument is being picked). Read when the ask is made. */
 export function usePaneSwap(open: boolean, pane: PaneId, second: PaneId | null, canStage: () => boolean): Swap {
   const [shown, setShown] = useState<PaneId>(pane), [staged, setStaged] = useState<PaneId | null>(null), [landed, setLanded] = useState<PaneId | null>(null);
-  const [leaving, setLeaving] = useState<Leaver[]>([]);
+  const [leaving, setLeaving] = useState<Leaver[]>([]), [cold, setCold] = useState(false);
   const shownRef = useRef(shown), seq = useRef(0), keys = useRef(0), skip = useRef<PaneId | null>(null), stop = useRef<(() => void) | null>(null), secondWas = useRef<PaneId | null>(second), wasOpen = useRef(false);
   shownRef.current = shown;
-  const cancel = useCallback(() => { seq.current++; stop.current?.(); stop.current = null; setStaged(null); }, []);
+  const cancel = useCallback(() => { seq.current++; stop.current?.(); stop.current = null; setStaged(null); setCold(false); }, []);
   const leave = useCallback((ids: PaneId[]) => { if (ids.length) setLeaving((l) => [...l.filter((x) => !ids.includes(x.id)), ...ids.map((id) => ({ id, key: ++keys.current }))]); }, []);
 
   useEffect(() => {
     // (a card that was closed comes in with its pane as it is: the card's own fade is the entrance, nothing is built first or faded out)
     const fresh = !wasOpen.current;
     wasOpen.current = open;
-    if (!open || fresh) { cancel(); setShown(pane); setLeaving([]); setLanded(null); return; }
+    if (!open) { cancel(); setShown(pane); setLeaving([]); setLanded(null); return; }
+    if (fresh) {
+      // (a cold open: the pane is built in place under a hidden card, and the card shows once its code is in and two frames have drawn it: the one sequence a warm swap makes)
+      cancel(); setShown(pane); setLeaving([]); setLanded(null); setCold(true);
+      const mine = seq.current, h = clock.hold('tests-stage');
+      let n = 0, ended = false, timer = 0, off = () => undefined as void;
+      const end = () => { if (ended) return; ended = true; clearTimeout(timer); off(); h.release(); if (seq.current === mine) setCold(false); };
+      stop.current = end;
+      const go = () => {
+        if (ended || seq.current !== mine) return;
+        off = clock.on('tags', () => { if (++n >= 2) end(); });
+      };
+      timer = window.setTimeout(end, afterMs(COLD_MAX));   // (the net, from the ask: a pane that never loads still shows)
+      if (!afterLoad(pane, go)) go();
+      return;
+    }
     const cur = shownRef.current;
     if (pane === cur) { cancel(); return; }
     if (tabOf(pane) === tabOf(cur)) { cancel(); setShown(pane); setLanded(null); return; }   // (the Pressure tab's own switch: in place, the CSS crossfade)
@@ -86,5 +105,5 @@ export function usePaneSwap(open: boolean, pane: PaneId, second: PaneId | null, 
 
   const swipedTo = useCallback((id: PaneId) => { skip.current = id; }, []);
   const left = useCallback((key: number) => setLeaving((l) => l.filter((x) => x.key !== key)), []);
-  return { shown, staged, leaving, landed, swipedTo, left, cancelStage: cancel };
+  return { shown, staged, leaving, cold, landed, swipedTo, left, cancelStage: cancel };
 }

@@ -35,7 +35,7 @@ test('the dpr seen before the build is applied when it happens', () => {
 
 test('Stage compiles the programs when they appear, and asks for the idle build after the first warm', () => {
   assert.match(stage, /cel\.onMicroBuilt = warm/);
-  assert.match(stage, /warm\(\); cel\.buildMicroIdle\(\)/);
+  assert.match(stage, /warmP\(\)[\s\S]{0,160}cel\.buildMicroIdle\(\)/);   // (serialised 21 Nov: the build follows the warm-up's compile)
 });
 
 test('the red cell has 16 segments and well under half its old triangles', () => {

@@ -22,6 +22,7 @@ import { NO_STENT_WHY } from './copied/tips-parts.copied.js';
 import { TipsView } from './TipsView.tsx';
 import { hvpgNote, useMeasured } from '../hidden.ts';
 import { usePaneHost } from '../Cv.tsx';
+import { OwnerNote, useBlocker } from '../OwnerNote.tsx';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
 const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whvp', 'WHVP'], ['hvpg', 'HVPG']];
@@ -32,7 +33,7 @@ function Measure({ h }: { h: number }) {
   useEngine((s) => { void s.frames; const m = latest.frame?.metrics; return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`; });
   useParamsTick((s) => s.tick);
   const mode = useShell((s) => s.mode), measured = useMeasured((s) => s.hvpgMeasured);
-  const ph = phase(), running = hvpgRunning(), isBusy = busy();
+  const ph = phase(), running = hvpgRunning(), other = useBlocker('ir'), isBusy = busy() || !!other;
   const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(patient.params), v: values(), hasFrame: !!latest.frame });
   const ppg = ppgShown(), watch = watchButtons();
   const caption = procSay() || ppgCaption() || side.caption;
@@ -57,6 +58,7 @@ function Measure({ h }: { h: number }) {
             {STEPS.map((s, i) => <li key={String(s[0])} data-step={s[0]} data-state={side.steps[i] || undefined} title={String(s[2])}><span>{s[3]}</span></li>)}
           </ol>
         )}
+        <OwnerNote me="ir" />
         <p className="ctl-sub hvpg-caption" aria-live="polite">{caption}</p>
         <div className="hvpg-procs" role="group" aria-label="Play a procedure on the anatomy">
           <span className="hvpg-procs-k">Watch</span>
@@ -83,10 +85,9 @@ export function IrPane(p: PaneProps) {
   const ids = stentsNow(), has = ids.length > 0, host = usePaneHost();
   const h = Math.max(190, Math.round(p.narrow ? Math.min(p.plot, 220) : p.plot));
 
-  // a new patient starts with no measurement; the pane going away stops what plays
+  // a new patient starts with no measurement (the pane going away stops nothing: what plays goes on, the figure shows it, and the owner's claim says so: owner.ts)
   const presetId = useEngine((s) => s.presetId);
   useEffect(() => { resetAll(); }, [presetId]);
-  useEffect(() => () => { if (!hvpgRunning() && !R.procKind && !R.ppg.run) return; /* what plays goes on: the figure shows it */ }, []);
   // "Test TIPS in IR" on a stent card: this pane on the TIPS view, on that stent (the card stays selected, so the selection says which)
   useEffect(() => {
     const open = () => { const sel = useSelection.getState().sel; if (sel?.type === 'edge') openStent(sel.id); };

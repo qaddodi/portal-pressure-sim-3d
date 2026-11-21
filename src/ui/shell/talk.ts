@@ -7,6 +7,7 @@ import { cel } from '../../scene/api.ts';
 import { openById, cancelOpen } from '../deck/deck-of.ts';
 import { W } from '../deck/words.ts';
 import type { Deck } from '../../decks/schema.ts';
+import { rememberFocus } from './talk-focus.ts';
 import { captureSaved, restoreSaved, type Saved } from '../talk/deck-model.ts';
 import { loadToolCard, toolCardReady } from '../talk/tool-card-load.ts';
 import { coverUp, coverDown } from './curtain.ts';
@@ -43,6 +44,7 @@ async function begin(deck: Deck, at: number): Promise<void> {
   const mine = ++startGen;
   await Promise.all([coverUp(deck.title), fontsIn()]);
   if (mine !== startGen) return;
+  rememberFocus(typeof document !== 'undefined' ? document.activeElement : null, useShell.getState().mode === 'deck');   // (focus returns here when the talk ends: talk-focus.ts)
   if (useShell.getState().mode !== 'deck') saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
   cel.setView('body');
   // (the cover lifts at the first landing the new talk makes; landing.ts begins it once the talk's stops are in)

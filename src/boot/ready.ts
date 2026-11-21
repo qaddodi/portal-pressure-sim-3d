@@ -36,6 +36,14 @@ export function figureDrawn(): void {
   }
 }
 
+/** The renderer cannot produce the figure (its context was lost before the first picture): a terminal state, not a slow one. The splash says so with Reload and the 2D link (index.html `ppsBootRendererFail`); a start already released is left alone. */
+export function rendererFailed(reason: string): void {
+  if (done || !waiting) return;
+  done = true; waiting = false;
+  clearTimeout(timer); off?.(); off = null;
+  (window as unknown as { ppsBootRendererFail?: (r: string) => void }).ppsBootRendererFail?.(reason);
+}
+
 /** Every label the figure shows is fully in (LabelLayer, each frame it is true). */
 export function labelsShown(): void { if (waiting) labels = true; }
 

@@ -3,6 +3,7 @@
 // and not from the planner, and the figure's first frame has them. The file carries the digest of what it was made from (the junctions and every arm tube's vertices, to 1e-4): a file for other numbers, or a page whose figure is not at rest
 // when it loads, never lays it in, and the set plans and meshes live as before (a dev server, a build whose bake failed, a disease state loaded first).
 // Layout, as the Lobule's (lobule/weld-codec.ts): "SKB1", u32 header length, the header as JSON (every typed array replaced by {$t, o, n}), padding to 4 bytes, then the arrays' bytes one after another.
+import { spanAsync } from '../../../boot/spans.ts';
 import { weldDigest } from '../../lobule/weld-codec.ts';
 import type { ArmTube, SkinPlan } from './cuts.ts';
 import type { ArmAxis } from './skin-object.ts';
@@ -110,13 +111,19 @@ export const BAKED_CIRCUIT_SKINS = 'anatomy/circuit-skins.bin';
 let held: BakedSkins | null = null;
 let heldCircuit: BakedSkins | null = null;
 const browser = typeof window !== 'undefined' && typeof fetch !== 'undefined' && typeof DecompressionStream !== 'undefined';
+/** The fetch and the decode are each bounded (release review 21 Nov #1): a pending file must not hold the boot for ever; past this the scene plans its skins live (slower, never blank) and says why in the console. */
+export const BAKED_FETCH_MS = 8000;
+export const BAKED_DECODE_MS = 8000;
+const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> => new Promise<T>((ok, no) => { const t = setTimeout(() => no(new Error(`${what} took over ${ms} ms`)), ms); p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); no(e); }); });
 async function fetchSkins(name: string): Promise<BakedSkins | null> {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   try {
     const env = (import.meta as { env?: { BASE_URL?: string } }).env;
-    const r = await fetch(`${env?.BASE_URL ?? '/'}${name}`);
+    const r = await spanAsync(`fetch:${name}`, () => within(fetch(`${env?.BASE_URL ?? '/'}${name}`, ctl ? { signal: ctl.signal } : undefined), BAKED_FETCH_MS, `fetch ${name}`));
     if (!r.ok || !r.body) return null;
-    return decodeSkins(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-  } catch { return null; }
+    const body = r.body;
+    return await spanAsync(`decode:${name}`, () => within(new Response(body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then(decodeSkins), BAKED_DECODE_MS, `decode ${name}`));
+  } catch (e) { ctl?.abort(); console.warn(`[boot] baked skins ${name} unavailable, planning live:`, e instanceof Error ? e.message : e); return null; }
 }
 async function load(): Promise<void> { [held, heldCircuit] = await Promise.all([fetchSkins(BAKED_SKINS), fetchSkins(BAKED_CIRCUIT_SKINS)]); }
 const loading: Promise<void> | null = browser ? load() : null;

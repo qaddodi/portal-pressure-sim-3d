@@ -65,7 +65,13 @@ vec3 dHsl2Rgb(vec3 h) {
 // large (d / (2 - max - min): a pale blue-grey of chroma 0.04 has s 0.75), so a lightness shift of it gave a vivid pastel of an arbitrary hue. What a base is worth is its CHROMA (max - min), which no lightness changes: the hue shift,
 // the saturation added and the saturation itself are all scaled by how much chroma it has (dShiftK), so a grey or near-white base keeps only the lightness spread, and a coloured one is exactly as before.
 float dShiftK(vec3 c) { return smoothstep(${F(DUST_GREY_FROM)}, ${F(DUST_GREY_TO)}, max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b))); }
-vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(c); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp((h.y + ds * k) * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
+// THE CHROMA IS KEPT, NOT HSL's SATURATION (Mohammad, 21 Nov: violet specks on the pale cava and confluence): a dark tone of a PALE base kept the base's HSL saturation, which is large near white (chroma 0.15 at l 0.8 is s 0.75), so
+// lowering the lightness gave a vivid blue-violet far from the pale vessel it sits in. The tone's chroma is the base's (plus the saturation added), then re-expressed as the saturation of the new lightness.
+vec3 dShift(vec3 c, float dh, float ds, float dl) {
+  vec3 h = dRgb2Hsl(c); float k = dShiftK(c);
+  float l1 = clamp(h.z + dl, 0.04, 0.96), ch0 = (h.y + ds * k) * k * (1.0 - abs(2.0 * h.z - 1.0));
+  return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp(ch0 / max(1.0 - abs(2.0 * l1 - 1.0), 0.08), 0.0, 1.0), l1));
+}
 // THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
 struct DFrame {
   float across;   // the pixel across the lumen on screen (-1 .. 1)
@@ -405,7 +411,7 @@ export function dustShiftJs(c: readonly number[], dh: number, ds: number, dl: nu
     h /= 6;
   }
   const t = Math.min(1, Math.max(0, (d - DUST_GREY_FROM) / (DUST_GREY_TO - DUST_GREY_FROM))), k = t * t * (3 - 2 * t);
-  const H = (((h + dh * k) % 1) + 1) % 1, S = Math.min(1, Math.max(0, (s + ds * k) * k)), L = Math.min(0.96, Math.max(0.04, l + dl));
+  const H = (((h + dh * k) % 1) + 1) % 1, L = Math.min(0.96, Math.max(0.04, l + dl)), S = Math.min(1, Math.max(0, (s + ds * k) * k * (1 - Math.abs(2 * l - 1)) / Math.max(1 - Math.abs(2 * L - 1), 0.08)));
   if (S <= 1e-5) return [L, L, L];
   const q = L < 0.5 ? L * (1 + S) : L + S - L * S, p = 2 * L - q;
   const hue = (tt: number): number => { tt = ((tt % 1) + 1) % 1; return tt < 1 / 6 ? p + (q - p) * 6 * tt : tt < 0.5 ? q : tt < 2 / 3 ? p + (q - p) * (2 / 3 - tt) * 6 : p; };

@@ -1,4 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
+import { span } from '../boot/spans.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
@@ -209,8 +210,8 @@ export class CelScene {
   get lobule3d(): Lobule3D { return this.buildMicro().lobule; }
   private buildMicro(): { sinus: Sinusoid3D; lobule: Lobule3D } {
     if (this.micro) return this.micro;
-    const sinus = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(sinus.group);
-    const lobule = new Lobule3D(this.lobule, this.shared, true);   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
+    const sinus = span('build:sinusoid3d', () => new Sinusoid3D(this.sinus, this.shared)); this.sinus.group.add(sinus.group);
+    const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
     if (this.microDpr) lobule.setDpr(this.microDpr);
     this.moving = true;
