@@ -10,6 +10,7 @@ import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
 import { speedOf, scaleTime, scaleTimers } from './speed.ts';
+import { SPEEDS } from './outer.ts';
 
 export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
@@ -20,11 +21,11 @@ const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);ma
 const depthOf = (): 'quick' | 'full' => (flagValue('depth') === 'quick' ? 'quick' : 'full');
 
 /** One run of this screen: the data for its size. */
-export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string, total: number): void }): Promise<AuditData> {
+export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string, total: number): void }, speedIn?: number): Promise<AuditData> {
   const notes: string[] = [], coverage: Coverage[] = [];
   const { failed } = await loadAllDecks();   // (the registry holds only the HVPG talk until the rest are read in)
   if (failed.length) notes.push(`these talks would not load, so they are not walked: ${failed.join(', ')}`);
-  const speed = speedOf(flagValue('speed'));
+  const speed = speedOf(speedIn !== undefined ? String(speedIn) : flagValue('speed'));
   if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (performance.now, every timer and every CSS animation), so frame rates are not valid (stalls are: they are real-time gaps); fades, settle times, layout and words are.`);
   const glassOff = flagValue('noglass') === '1';
   if (glassOff) { document.documentElement.setAttribute('data-noglass', ''); notes.push('NOGLASS: the frosted-glass blur was off for this run (&noglass=1). Compare its talk-open frame rates with a normal run to see what the glass costs.'); }
@@ -60,22 +61,32 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const out = document.createElement('pre'); out.hidden = true;
   const row = document.createElement('div');
   let stop = false, running = false, last: Bundle | null = null;
+  // the speed of the walk, chosen here (an address's &speed=N is the starting choice): what each speed is good for is written under the list
+  const nearest = (n: number) => SPEEDS.reduce((best, c) => (Math.abs(c.n - n) < Math.abs(best - n) ? c.n : best), SPEEDS[0]!.n);
+  const hintOf = (n: number) => `Speed ${n}x: ${SPEEDS.find((x) => x.n === n)!.hint}`;
+  let speed = nearest(speedOf(flagValue('speed')));
+  const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Speed of the test');
+  for (const c of SPEEDS) { const o = document.createElement('option'); o.value = String(c.n); o.textContent = c.label; sel.append(o); }
+  sel.value = String(speed);
+  const why = document.createElement('div'); why.style.cssText = 'opacity:.75;margin:4px 0'; why.textContent = hintOf(speed);
+  sel.onchange = () => { speed = Number(sel.value); why.textContent = hintOf(speed); };
+  const speedRow = document.createElement('label'); speedRow.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0'; speedRow.append('Speed', sel);
   const btn = (label: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = on; row.append(b); return b; };
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
   const go = async (depth: 'quick' | 'full') => {
-    if (running) return; running = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = performance.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
+    if (running) return; running = true; sel.disabled = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = performance.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
     try {
-      const data = await runHere(depth, { status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, performance.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } });
+      const data = await runHere(depth, { status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, performance.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
       bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, performance.now(), true).text;
       last = bundle([data], depth);
       out.textContent = renderText(last, { short: true }); out.hidden = false;
       status.textContent = `Done: ${data.rows.length} steps in ${Math.round(data.ms / 1000)} s${data.stopped ? ' (stopped early)' : ''}. Copy the report.`;
       if (mode === 'run') post({ audit: 'done', data });
-    } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; }
+    } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; }
   };
   if (mode === 'here') { btn('Run full', () => { void go('full'); }); btn('Run quick', () => { void go('quick'); }); btn('Stop', () => { stop = true; status.textContent = 'Stopping after this step…'; }); }
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
-  root.append(head, status, bar, pctLine, row, out);
+  root.append(head, status, bar, pctLine, ...(mode === 'here' ? [speedRow, why] : []), row, out);
   document.body.append(root);
   attach('audit', { run: (d: 'quick' | 'full' = 'full') => go(d), text: () => (last ? renderText(last) : ''), json: () => (last ? renderJson(last) : ''), stop: () => { stop = true; } });
   if (mode === 'run') {

@@ -456,7 +456,7 @@
 .app.thumb .vdock .readouts:not(.all) .metric .v .unit { display: none; }
 .app.thumb .vdock .readouts:not(.all) .ro-group + .ro-group::before { display: none; }
 .app.thumb .vdock .readouts { border-left: 0; }
-.app.thumb .vdock .readouts:not(.all) { width: auto; container-type: normal; }   /* (sized by its two numbers) */
+.app.thumb .vdock .readouts:not(.all) { width: auto; min-width: max-content; container-type: normal; }   /* (sized by its two numbers, and never narrower than them: flex let the timeline squeeze it and the reading ran 14 to 21 px off the right edge after a talk; iPhone audit) */
 .app.thumb .vdock .readouts:not(.all) :is(.ro-tiles, .metric) { flex: none; }
 .app.thumb .vdock .readouts:not(.all) .metric { width: max-content; }
 .app.thumb .vdock .readouts:not(.all) .metric .k { flex: none; overflow: visible; }
@@ -510,7 +510,7 @@
 @media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
   .vdock:not(.mini) { grid-template-columns: auto minmax(0, 1fr); }
   .vdock:not(.mini) .timeline .tl-jumps { margin-left: 0; }
-  .vdock:not(.mini) .readouts:not(.all) { width: auto; }
+  .vdock:not(.mini) .readouts:not(.all) { width: auto; min-width: max-content; }
   .vdock:not(.mini) .readouts:not(.all) :is(.ro-row, .ro-group, .ro-tiles) { flex: 1 1 auto; min-width: 0; padding-left: 0; padding-right: 0; }
   .vdock:not(.mini) .readouts:not(.all) .ro-tiles { justify-content: space-evenly; margin-right: -3px; }
   .vdock:not(.mini) .readouts:not(.all) .metric.primary { flex: none; width: max-content; }
