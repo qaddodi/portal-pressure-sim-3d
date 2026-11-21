@@ -24,7 +24,7 @@ import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { plainOf, weldOf } from './plain.ts';
-import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, wedgeShareAt, type FadeState, type HiState } from './arm-twins.ts';
+import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, wedgeSeamD, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
@@ -38,8 +38,8 @@ export interface SkinDraw {
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
   setPres(i: number, p: number): void;
-  /** arm `i`'s tube's wedge tint share at its seam, and the amber (the tint is one field through the join) */
-  setWedge?(i: number, share: number, colour?: Color): void;
+  /** arm `i`'s tube's route distance from the balloon's distal edge at its seam, and the column (the tint is ONE field through the join: wedge-glsl.ts) */
+  setWedge?(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void;
   /** a growing arm's growth at its seam (0 gone, 1 whole): the skin's own shape eases with it (spec 10.2); an arm the skin does not morph ignores it */
   setGrow?(i: number, g: number): void;
   /** this skin is one of a growing arm's pair (a welded skin, mode +1, or the plain trunk, mode -1): how far the weld is, 0 the flared tubes alone, 1 the welded skin; the pair draw complementary pixels (skin-object.ts) */
@@ -80,7 +80,7 @@ export const SKIN_BUILD_TAG = 'skin-build';
 export interface SkinBuildStats { rebuilds: number; lastMs: number; worstMs: number; lastNode: string }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge share last written (NaN before the first) */ wedge: number; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
+interface ArmLink { /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 /** The plain trunk of a skin with growing arms (plain.ts): the arms that stay, as a static skin of their own. */
 interface PlainBuilt { mesh: SkinMesh; draw: SkinDraw; keep: number[]; bake: PlainBake }
@@ -383,7 +383,7 @@ export class SkinSet {
       const cut = plan.cuts[i]!, ring = pos[i]!;
       let x = 0, y = 0;
       for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      return { grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: NaN, cp: [NaN, NaN, NaN] };
+      return { grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: [NaN, NaN, NaN, NaN, NaN], cp: [NaN, NaN, NaN] };
     });
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
@@ -639,10 +639,14 @@ export class SkinSet {
           weld = Math.min(weld, weldOf((u.dotted!.value as number) > 0.5 ? 0 : pr));
         }
         if (a.last[10] !== pr) { a.last[10] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
-        // the wedge's amber at the seam, the tube's own formula: the tint runs on through the skin
-        const wv = u.wedge!.value as { x: number; y: number; z: number; w: number }, wb = u.wedgeB!.value as { x: number; y: number; z: number };
-        const ws = wedgeShareAt([wv.x, wv.y, wv.z, wv.w], [wb.x, wb.y, wb.z], a.u);
-        if (a.wedge !== ws) { a.wedge = ws; both((d, k) => d.setWedge?.(k, ws, u.wedgeCol!.value as Color)); any = true; }
+        // the wedge's one field at the seam (the tube's own distance line there), with the column's numbers: the amber runs on through the skin at the same front
+        const wv = u.wedge!.value as { x: number; y: number; z: number; w: number }, wd = u.wedgeD!.value as { x: number; y: number; z: number; w: number };
+        const wsd = wedgeSeamD(wv, wd, a.u);
+        if (a.wedge[0] !== wsd || a.wedge[1] !== wv.x || a.wedge[2] !== wv.y || a.wedge[3] !== wd.z || a.wedge[4] !== wd.w) {
+          a.wedge = [wsd, wv.x, wv.y, wd.z, wd.w];
+          const col = wv.x > 0.001 ? { amount: wv.x, behind: wv.y, front: wd.z, frontSoft: wd.w, color: u.wedgeCol!.value as Color } : undefined;
+          both((d, k) => d.setWedge?.(k, wsd, col)); any = true;
+        }
         // the arm's flow marks ride on its arc (armArcOf: the tube's own u x len x figure units) and its tube's flowAmount
         const ln = u.len!.value as number, rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[8] !== ln || a.last[9] !== fl) {

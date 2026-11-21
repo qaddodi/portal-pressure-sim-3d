@@ -1,7 +1,7 @@
 // A device part (catheter shaft, balloon, needle, stent wire…): the scene's cel object in a device material from the 2D app's --dev-* tokens (the look's own, per look),
 // drawn in front of the anatomy it sits in (the 2D rule "devices over the vessels"): no depth test, drawn after everything else, so a catheter in a vein reads at the vein's own place
 // and keeps it as the figure turns. It can fade (alpha), for the catheter's leave and a balloon's latex.
-import { Color, type BufferGeometry } from 'three';
+import { Color, Vector4, type BufferGeometry } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import { INK_FS, TOON_FS } from '../materials/shaders.ts';
 import { PALETTES, type LookId, type Palette } from '../palette.ts';
@@ -22,7 +22,8 @@ const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find
 export const FAT_PX = 1.0;
 /** How much of a device's free end fades out as a gradient, figure units (the scope's top, the catheter's lead-in above the figure: never a cut). */
 export const TAIL_UNITS = 110;
-const TAIL_GLSL = 'uniform float tailFade;\nfloat tailK(float u) { return tailFade > 0.0 ? smoothstep(0.0, tailFade, u) : 1.0; }\n';
+// (`holeU`: a stretch of the device that is left clear, x..y in uv.x, z how much of it is gone (0..1), w how softly its ends ramp: the shaft inside a balloon, so the glass reads as glass. A gradient at both ends, never a cut.)
+const TAIL_GLSL = 'uniform float tailFade;\nuniform vec4 holeU;\nfloat tailK(float u) { float t = tailFade > 0.0 ? smoothstep(0.0, tailFade, u) : 1.0; if (holeU.z > 0.0) { float w = max(holeU.w, 1e-5); t *= 1.0 - holeU.z * smoothstep(holeU.x - w, holeU.x, u) * (1.0 - smoothstep(holeU.y, holeU.y + w, u)); } return t; }\n';
 const FAT_TOON = `vec4 gp = projectionMatrix * mv;
   vec2 fatN = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float fatL = length(fatN);
@@ -67,12 +68,13 @@ export class DeviceObject extends CelObject {
     // a thin device (a catheter, a wire) is always a few pixels of fill: both passes grow by FAT_PX device px each way, the fill first and the outline outside it (a hairline catheter was only its outline)
     // a free end (the top of a scope, the start of a catheter's lead-in above the figure) fades out along the first `tailFade` share of its length (uv.x), a gradient, never a cut
     this.toon.uniforms.tailFade = this.ink.uniforms.tailFade = { value: 0 };
+    this.toon.uniforms.holeU = this.ink.uniforms.holeU = { value: new Vector4(0, 0, 0, 0.01) };
     this.toon.fragmentShader = TAIL_GLSL + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha);', 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
     this.ink.fragmentShader = TAIL_GLSL + withAlpha(this.ink.fragmentShader, ' * alpha', ' * alpha * tailK(vU)');
     // A clear device (a balloon) is glass: its fill is faint in the middle and firmer toward the rim (rimFill), and its ink is the rim only (rimOnly, the width of the rim as n.v): drawn whole, the ink's far wall
     // showed through the faint fill as a solid dark barrel (20 Nov 2026, "the balloon is black").
     this.toon.uniforms.rimFill = { value: 0 }; this.ink.uniforms.rimOnly = { value: 0 };
-    this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
+    this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  if (rimFill > 0.0) {\n    // GLASS: a bright soft specular highlight (a window light at the upper left) and a fresnel sheen on the rim, light, never dark; the glass stays about as see-through as it was\n    vec3 gV = normalize(vV), gN = normalize(vN); if (dot(gN, gV) < 0.0) gN = -gN;\n    vec3 gH = normalize(normalize(vec3(-0.45, 0.65, 0.6)) + gV);\n    float gSp = pow(max(dot(gN, gH), 0.0), 36.0), gSh = pow(1.0 - max(dot(gN, gV), 0.0), 2.5);\n    float gK = clamp(gSp * 0.9 + gSh * 0.3, 0.0, 1.0);\n    c = mix(c, vec3(1.0), gK);\n    alpha = clamp(alpha + gSp * 0.45 + gSh * 0.18, 0.0, 1.0);\n  }\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
     // Depth rings (an endoscope's insertion tube has thin white rings every few cm, a heavier one every fifth): bands across the tube, by distance along it (uv.x), counted back from `stripeOff` (where the tip is, in uv),
     // none within `stripeSkip` of it (the bending section has none). `stripeP` is the spacing in uv (0: none, the default).
     this.toon.uniforms.stripeP = { value: 0 }; this.toon.uniforms.stripeOff = { value: 0 }; this.toon.uniforms.stripeW = { value: 0 }; this.toon.uniforms.stripeSkip = { value: 0 }; this.toon.uniforms.stripeCol = { value: new Color(1, 1, 1) }; this.toon.uniforms.stripeHeavy = { value: 2.4 }; this.toon.uniforms.gloss = { value: 0 };
@@ -112,6 +114,9 @@ export class DeviceObject extends CelObject {
 
   /** The first `share` (0..1) of the device's length, from its start, fades in from nothing as a gradient: a free end that has no tip to end on. 0 for none. */
   setTailFade(share: number): void { const v = Math.min(1, Math.max(0, share)); this.toon.uniforms.tailFade!.value = v; this.ink.uniforms.tailFade!.value = v; }
+
+  /** A stretch of the device, `u0` to `u1` (uv.x), fades to `1 - amount` of itself over `soft` at both ends (0 amount: whole). Fill and outline alike. */
+  setHole(u0: number, u1: number, amount: number, soft = 0.01): void { (this.toon.uniforms.holeU!.value as Vector4).set(u0, u1, Math.min(1, Math.max(0, amount)), soft); }
 
   /** Changes the material (a ring's colour, a column's) and paints it in the look it is in. */
   setTone(t: DeviceTone): void { if (t === this.deviceTone) return; this.deviceTone = t; if (this.palette) this.applyPalette(this.palette); }

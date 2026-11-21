@@ -2,6 +2,7 @@
 // arm's own tube has at its seam ring. These are the JS twins of the tube's vertex stage (vessels/shaders.ts: `fa`, `vHi`) and of the lens span mapping (`lensOf`), read from the tube's own uniforms, so the two never disagree. Pure:
 // they read plain numbers, never a three.js object, so a node test pins them.
 
+import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { TUBE_SAG } from '../shaders.ts';
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
@@ -23,13 +24,9 @@ export interface FadeState {
   len: number; units: number;
 }
 
-/** The wedge's amber share a tube has at `u` (vessels/shaders.ts, the tint block before the final colour write), from its `wedge` (amount, cut, fade, fadeOn) and `wedgeB` (edge, front, frontEdge) uniforms. 0..1; the colour is mixed in at 0.78 of it. The skin hands this over for each arm's seam, so the tint is ONE field through the join. */
-export function wedgeShareAt(w: readonly [number, number, number, number], b: readonly [number, number, number], u: number): number {
-  if (w[0] <= 0.001) return 0;
-  const ss = (a: number, c: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (c - a || 1e-9))); return t * t * (3 - 2 * t); };
-  let wa = w[0] * (1 - ss(w[1], w[1] + Math.max(b[0], 0.001), u)) * ss(b[1] - Math.max(b[2], 0.001), b[1], u);
-  wa *= w[3] > 0.5 ? ss(0, Math.max(w[2], 0.001), u) : 1;
-  return wa;
+/** An arm's route distance from the balloon's distal edge at its seam (wedge-glsl.ts: the tube's own line `d0 + slope u`), or WEDGE_ABSENT when its tube carries no wedge. The skin blends these by its arms' weights, so the amber is one field through the join. */
+export function wedgeSeamD(wedge: { x: number }, wedgeD: { x: number; y: number }, u: number): number {
+  return wedge.x > 0.001 ? wedgeD.x + wedgeD.y * u : WEDGE_ABSENT;
 }
 
 /** The vertex stage's `fa` (the vFade a tube carries) at `u` along the vessel, for a point at scene (x, y), at rest on the body (no Circuit: the skin crossfades with the map on its own). */
