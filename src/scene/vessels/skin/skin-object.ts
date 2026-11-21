@@ -10,7 +10,7 @@ import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { facetSag } from './facet-sag.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
-import { markBlends } from '../../materials/warm.ts';
+import { markBlends, setBlendState } from '../../materials/warm.ts';
 import { GLOW_LAYER } from '../../glow.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FIGURE_UNITS, SKIN_FS, SKIN_VS } from './shaders.ts';
@@ -223,7 +223,7 @@ export class SkinObject implements SkinDraw {
   /** The glow shows while the front copy does and some arm has a pick weight (the shader weights its reach and alpha by it, so it is nothing where no arm is picked). */
   private showGlow(): void { this.glow.visible = this.armAF.some((a, k) => a.z > 0.001 && this.armData[k]!.x >= 0 && this.isThere(k)) && this.copies[0]!.visible; }
 
-  setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; if (mat.transparent !== on) { mat.transparent = on; mat.needsUpdate = true; } } }
+  setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; setBlendState(mat, on); } }
 
   dispose(): void { this.mesh.geometry.dispose(); for (const m of this.copies) (m.material as ShaderMaterial).dispose(); (this.glow.material as ShaderMaterial).dispose(); }
 }

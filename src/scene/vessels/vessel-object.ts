@@ -1,7 +1,7 @@
 import { CIRC_ARTERY, CIRC_BED, MIN_PX } from '../circuit/width.ts';
 import { vdbgDefines, vdbgUniforms } from './debug-view.ts';
 import { HI_NONE } from '../materials/shaders.ts';
-import { markBlends } from '../materials/warm.ts';
+import { markBlends, setBlendState } from '../materials/warm.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, MaxEquation, Mesh, Sphere, NearestFilter, OneFactor, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
@@ -179,6 +179,7 @@ export class VesselObject extends CelObject {
   }
 
   /** What a blend between two key frames touches (kept for as long as the pair stands): per attribute the stretch of values where the two differ (a held end, the uv, the Circuit's widths are the same in both and are never written again). */
+  private lerpFull = false;
   private lerpPlan: { a: ReshapeFrame; b: ReshapeFrame; spans: { name: string; lo: number; hi: number; dir: boolean }[] } | null = null;
 
   /** The shape `t` of the way from key frame `a` to key frame `b` (shape-track.ts: the same tubes built at two coil strengths), written into the geometry's own arrays: no geometry is built, nothing is allocated. Centres and radii are exactly linear in the coil, the rings only turn a hair
@@ -202,6 +203,7 @@ export class VesselObject extends CelObject {
         if (lo >= 0) spans.push({ name, lo: lo - (lo % k), hi: hi - (hi % k) + k, dir: k === 3 && (name === 'normal' || name === 'tang') });
       }
       plan = this.lerpPlan = { a, b, spans };
+      this.lerpFull = true;   // (the whole-array write above goes up in full with this frame's first blend)
       // one sphere round the vertices of both shapes: culling and picking only need it to hold the shape wherever it is between them
       const P = a.arrays.get('position'), Q = b.arrays.get('position');
       if (P && Q) {
@@ -218,8 +220,11 @@ export class VesselObject extends CelObject {
       const A = a.arrays.get(sp.name)!, B = b.arrays.get(sp.name)!, dst = geo.getAttribute(sp.name)!, out = dst.array as Float32Array;
       for (let i = sp.lo; i < sp.hi; i++) out[i] = A[i]! + (B[i]! - A[i]!) * t;
       if (sp.dir) for (let i = sp.lo; i < sp.hi; i += 3) { const l = Math.hypot(out[i]!, out[i + 1]!, out[i + 2]!) || 1; out[i] = out[i]! / l; out[i + 1] = out[i + 1]! / l; out[i + 2] = out[i + 2]! / l; }
+      // only the stretch that was written goes to the GPU (three would upload the whole buffer, 7 of them per blended vessel per frame); the first blend after a new pair uploads the whole array once
+      if (!this.lerpFull) (dst as BufferAttribute).addUpdateRange(sp.lo, sp.hi - sp.lo);
       dst.needsUpdate = true;
     }
+    this.lerpFull = false;
     this.toon.uniforms.len!.value = a.length + (b.length - a.length) * t;
   }
 
@@ -322,8 +327,8 @@ export class VesselObject extends CelObject {
     (u.fadeA!.value as Vector4).set(f.from, f.to, f.a0, f.a1);
     if (f.line) (u.fadeLine!.value as Vector4).set(f.line[0], f.line[1], f.line[2], f.line[3]);
     this.tip = { a0: f.a0, a1: f.a1 };
-    this.toon.transparent = true;
-    if (this.veil) this.veil.mat.transparent = true;
+    setBlendState(this.toon, true);
+    if (this.veil) setBlendState(this.veil.mat, true);
   }
   /** A fading tip with a collateral attached is solid to its end: its start alpha goes to 1. */
   setTipJoined(joined: boolean): void {
@@ -334,15 +339,15 @@ export class VesselObject extends CelObject {
   /** A hepatic vein opens into the faint cava at full strength: its last `span` (a share of its length) eases to alpha `a`, the cava's, so no solid end lies in a faint vessel (fades.ts cavaEndSpan). Eased back up by `whole`. */
   setCavaEnd(span: number, a: number): void {
     (this.toon.uniforms.cavaEnd!.value as Vector2).set(span, a); this.cavaEndA = a;
-    this.toon.transparent = true;
-    if (this.veil) this.veil.mat.transparent = true;
+    setBlendState(this.toon, true);
+    if (this.veil) setBlendState(this.veil.mat, true);
   }
   /** A hepatic vein that opens into the cava ends on the cava's axis: the last `share` of it (the cava's radius) lies in its lumen and fades out, whatever the cava's own alpha. */
   /** A vein that opens into the cava (its `nbr` is the cava's): it takes the cava's colour (the lens colour of cava piece `lensIndex`, `u` of the way along it) and alpha as it nears the wall, and is not drawn inside the lumen (shaders.ts cavA). */
   setCavaCut(on: boolean | 'fade', lensIndex = 0, u = 1, cavaAlpha = 1): void {
     this.toon.uniforms.cavaCut!.value = on === 'fade' ? 2 : on ? 1 : 0; (this.toon.uniforms.cavaRef!.value as Vector2).set(lensIndex, u);
     this.cavaJoinA = cavaAlpha; this.toon.uniforms.cavaA!.value = cavaAlpha;
-    if (on) { this.toon.transparent = true; if (this.veil) this.veil.mat.transparent = true; }
+    if (on) { setBlendState(this.toon, true); if (this.veil) setBlendState(this.veil.mat, true); }
   }
   private cavaJoinA = 1;
   /** The cava rises from its faint tone to whole (named or selected): the opacity the vein comes to at its wall rises with it. */
@@ -360,7 +365,7 @@ export class VesselObject extends CelObject {
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
     const mat = markBlends(new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } }));
-    if (this.tip) mat.transparent = true;   // (a fade zone blends; nothing else does)
+    if (this.tip) setBlendState(mat, true);   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;
     mesh.layers.set(overLayer);

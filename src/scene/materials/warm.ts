@@ -1,43 +1,37 @@
-// Warming the programs a material changes into at run time. three.js keys a ShaderMaterial's program on `material.transparent` (its `opaque` parameter, a `#define OPAQUE` in the fragment prefix), whether or not the shader
-// reads it: our vessel, veil and junction-skin shaders never do, but a vessel that fades at a free end, a skin whose arm lies behind the organs, flips the flag at run time, and the flip is a program the page has never
-// compiled: one driver compile (a second or more for these shaders on a Mac, several on a phone) in the middle of whatever was moving, the first time that state is reached. The Circuit's first change did it: its skins
-// (three programs each) flip as the map's tubes fade. So the one warm-up at boot (Stage.tsx) compiles each program in its other blend state too, one program at a time in the gaps between frames, never leaving a flag flipped
-// across a frame: `warmPrograms`.
-import type { Camera, Material, Mesh, Object3D, ShaderMaterial } from 'three';
+// One program per blend-capable material. three.js keys a ShaderMaterial's program on `material.transparent` (its `opaque` parameter, a `#define OPAQUE` in the fragment prefix: true only while transparent is false AND
+// blending is NormalBlending), whether or not the shader reads it. Our vessel, veil and junction-skin shaders never do, but a vessel that fades at a free end or a skin whose arm lies behind the organs flips the flag at run
+// time, and each flip was a second program the page had to compile (a second or more on a Mac, several on a phone), the first time that state was reached, mid-motion.
+// The root fix: a marked material always uses CustomBlending, so `opaque` is constantly false and there is one program whatever the flag says. The flag still sorts the draw (opaque list or transparent list), and the blend
+// factors carry the two states: One/Zero while opaque (what NoBlending drew), the premultiply-free "normal" factors while blended. Nothing is compiled twice and nothing needs warming. `setBlendState` is the only way
+// to flip a marked material at run time.
+import { AddEquation, CustomBlending, OneFactor, OneMinusSrcAlphaFactor, SrcAlphaFactor, ZeroFactor } from 'three';
+import type { Camera, Material, Object3D } from 'three';
 
-/** Marks a material whose `transparent` flag changes while the page runs (its other blend state is warmed too). */
-export function markBlends<T extends Material>(m: T): T { m.userData.blends = true; return m; }
+/** Puts a material in one blend state: `transparent` (draw order) and the factors that go with it. The program does not change. */
+export function setBlendState<T extends Material>(m: T, on: boolean): T {
+  if (m.transparent !== on) m.transparent = on;
+  const src = on ? SrcAlphaFactor : OneFactor, dst = on ? OneMinusSrcAlphaFactor : ZeroFactor, dstA = on ? OneMinusSrcAlphaFactor : ZeroFactor;
+  if (m.blendSrc !== src) m.blendSrc = src;
+  if (m.blendDst !== dst) m.blendDst = dst;
+  if (m.blendDstAlpha !== dstA) m.blendDstAlpha = dstA;
+  return m;
+}
+
+/** Marks a material whose `transparent` flag changes while the page runs: it blends through CustomBlending (one program for both states, see above) and is flipped with `setBlendState`. */
+export function markBlends<T extends Material>(m: T): T {
+  m.userData.blends = true;
+  m.blending = CustomBlending; m.blendEquation = AddEquation; m.blendEquationAlpha = null;
+  m.blendSrcAlpha = OneFactor;
+  return setBlendState(m, m.transparent);
+}
 
 /** The part of three's WebGLRenderer the warm-up uses (so a test can hand it a stand-in). */
 export interface WarmRenderer {
-  compile(scene: Object3D, camera: Camera, target?: Object3D): unknown;
   compileAsync(scene: Object3D, camera: Camera, target?: Object3D): Promise<unknown>;
 }
 
-const isShader = (m: unknown): m is ShaderMaterial => !!m && (m as ShaderMaterial).isShaderMaterial === true;
-
-/** One mesh for each distinct program among the materials marked `markBlends` (the same shaders, defines, side and blend state are one program: its other state is warmed once, every other material of it finds it built). */
-export function blendWarmups(root: Object3D): { mesh: Mesh; mat: ShaderMaterial }[] {
-  const seen = new Map<string, { mesh: Mesh; mat: ShaderMaterial }>();
-  root.traverse((o) => {
-    const mesh = o as Mesh, m = mesh.material as Material | Material[] | undefined;
-    if (!mesh.isMesh || !isShader(m) || !m.userData.blends) return;
-    const key = [m.vertexShader.length, m.fragmentShader.length, JSON.stringify(m.defines ?? {}), m.side, m.transparent, m.name].join('|');
-    if (!seen.has(key)) seen.set(key, { mesh, mat: m });
-  });
-  return [...seen.values()];
-}
-
-/** Builds every program of the scene (`compileAsync`), then each marked material's program in its other blend state: the flag is flipped only for the synchronous `compile` call (which asks the driver, and returns; the link runs
- *  beside the page), and put back before any frame can see it. `gap`: the wait between two programs, so a driver that compiles on the page's own thread is never asked for two at once. */
-export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Camera, gap: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): Promise<number> {
+/** Builds every program of the scene (`compileAsync`) once. Blend states share a program, so there is no second pass. */
+export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Camera): Promise<number> {
   await gl.compileAsync(scene, camera);
-  let n = 0;
-  for (const { mesh, mat } of blendWarmups(scene)) {
-    const was = mat.transparent;
-    mat.transparent = !was;
-    try { gl.compile(mesh, camera, scene); n++; } finally { mat.transparent = was; }
-    await gap(24);
-  }
-  return n;
+  return 1;
 }
