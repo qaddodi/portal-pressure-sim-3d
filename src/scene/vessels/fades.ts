@@ -51,6 +51,8 @@ export interface TipFade {
   a0: number; a1: number;
   /** the Circuit does not let go of it (the artery's fades hold in both views) */
   keep: boolean;
+  /** the Circuit's own fade (a share of the map course, from to to): only an artery's end lets go of nothing on the map (MAP_ART_FADE) */
+  mapFade?: readonly [number, number];
   /** the collaterals whose being open makes the tip solid */
   connect: readonly string[];
   /** a fade into the faint cava: it goes while the cava is drawn whole (selected or named) */
@@ -86,6 +88,8 @@ export const FREE_START_FADE: Readonly<Record<string, number>> = { AZY_SVC: 0.55
 
 /** The rectal varices run on further down (starts.ts END_ON): they fade out over the new stretch instead of the 2D one. */
 const FADE_DOWN_ON: Readonly<Record<string, readonly [number, number]>> = { C4: [940, 1005] };
+/** The lobar arteries' ends on the map (2D's circuit lets them run out under the lane tips; here they fade to nothing over the last 70 % of the short course, gone before the lane, so no blunt end can show). */
+export const MAP_ART_FADE: readonly [number, number] = [0.3, 0.9];
 const ART_OUT_SHARE: Readonly<Record<string, number>> = { A_HR: 0.6, A_HL: 0.5 };
 
 /** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
@@ -156,7 +160,7 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   // (the lobar arteries fade out with the portal branch they run beside, over the same share of their length: Mohammad, 20 Nov, "the right branch doesn't fade at the end")
   // (the artery runs on to its bed's node now, starts.ts alongVein: the fade starts where it always did along the portal branch)
-  if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, connect: [] }; }
+  if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, mapFade: MAP_ART_FADE, connect: [] }; }
   const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const tip = TIP_FADE_2D[id] ?? FREE_START_FADE[id];
