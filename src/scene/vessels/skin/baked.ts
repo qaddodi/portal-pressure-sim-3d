@@ -121,6 +121,20 @@ async function fetchSkins(name: string): Promise<BakedSkins | null> {
 async function load(): Promise<void> { [held, heldCircuit] = await Promise.all([fetchSkins(BAKED_SKINS), fetchSkins(BAKED_CIRCUIT_SKINS)]); }
 const loading: Promise<void> | null = browser ? load() : null;
 
+/** Under node (a test, a script) the baked files are read from disk, synchronously, when they are there: `new CelScene()` then lays the skins in (the digest still rejects a file for another figure, which plans live as before) instead of remeshing all of them, about 35 s a scene.
+ * `PPS_NO_BAKED=1` skips it (the bake script itself, a test of the live path). `process.getBuiltinModule` keeps `node:fs` out of the page's bundle. */
+function readDisk(name: string): BakedSkins | null {
+  try {
+    const proc = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown; env?: Record<string, string | undefined> } }).process;
+    if (browser || !proc?.getBuiltinModule || proc.env?.PPS_NO_BAKED) return null;
+    const fs = proc.getBuiltinModule('node:fs') as typeof import('node:fs'), zlib = proc.getBuiltinModule('node:zlib') as typeof import('node:zlib');
+    const root = new URL('../../../../public/', import.meta.url);
+    const b = zlib.gunzipSync(fs.readFileSync(new URL(name, root)));
+    return decodeSkins(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+  } catch { return null; }
+}
+if (!loading) { held = readDisk(BAKED_SKINS); heldCircuit = readDisk(BAKED_CIRCUIT_SKINS); }
+
 /** The skins baked for this build, once `bakedReady` has settled (null: none, or not the file for this figure: the set then plans live). */
 export const bakedSkins = (): BakedSkins | null => held;
 /** The Circuit's skins baked for this build (the same file's twin: null when none, or not for this figure). */
