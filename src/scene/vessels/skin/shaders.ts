@@ -282,18 +282,21 @@ float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
   return mix(b, a, h) - k * h * (1.0 - h);
 }
-// the point's place in device pixels (x, y) and the radius a rest radius R has there in device pixels (z)
-vec3 skinPx(vec3 p, float R, float swell) {
+// the point's place in device pixels (x, y), the radius a rest radius R has there in device pixels (z) and its view depth (w: the clip w, the distance along the view axis)
+vec4 skinPx(vec3 p, float R, float swell) {
   vec4 q = projectionMatrix * (modelViewMatrix * vec4(p, 1.0));
-  return vec3((q.xy / q.w * 0.5 + 0.5) * res * dpr, R * swell / max(${wpcGlsl('q.w', 'projY', '1.0')}, 1e-9) * dpr);
+  return vec4((q.xy / q.w * 0.5 + 0.5) * res * dpr, R * swell / max(${wpcGlsl('q.w', 'projY', '1.0')}, 1e-9) * dpr, q.w);
 }
-// signed distance, in device px, from this pixel to the live capsule of one arm: the least over its two segments of (the distance to the segment, less the radius interpolated at the closest point)
-float skinArmPx(vec2 frag, int arm, float swell) {
+// signed distance, in device px, from this pixel to the live capsule of one arm: the least over its two segments of (the distance to the segment, less the radius interpolated at the closest point).
+// DEPTH (the seam's ink): the outline is a screen-space field, and a WALL skin's arm leaves its host's wall, so from the front its silhouette lies over the host's though the two are a whole radius apart in depth: the blend then pulled the arm's own outline in
+// (3 px at the seam of S_PC on wall:IVC_IS_1:S_PC1,C90; the front-view kink at the four-arm nodes). So an arm whose surface at its nearest point lies out of the pixel's own depth (fragW, the pixel's view depth; below 0: no judgement) is held out of the blend as an absent
+// arm is, by how far out it is, in px, past the tube's radius there: nothing within a quarter k of the pixel's depth, all of it from k. Continuous in the depth, never a step
+float skinArmPx(vec2 frag, int arm, float swell, float fragW, float kPx) {
   // the axis: J (the bridge over the art's gap), the start of the straight line through the seam, the seam, the far point
-  vec3 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
-  vec3 p1 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 1].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 1].w, swell);
-  vec3 p2 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 2].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 2].w, swell);
-  vec3 p3 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 3].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 3].w, swell);
+  vec4 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
+  vec4 p1 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 1].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 1].w, swell);
+  vec4 p2 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 2].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 2].w, swell);
+  vec4 p3 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 3].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 3].w, swell);
   vec2 a = p1.xy - p0.xy, b = p2.xy - p1.xy, c = p3.xy - p2.xy;
   float t0 = clamp(dot(frag - p0.xy, a) / max(dot(a, a), 1e-6), 0.0, 1.0);
   float t1 = clamp(dot(frag - p1.xy, b) / max(dot(b, b), 1e-6), 0.0, 1.0);
@@ -301,7 +304,12 @@ float skinArmPx(vec2 frag, int arm, float swell) {
   float d0 = length(frag - p0.xy - a * t0) - mix(p0.z, p1.z, t0);
   float d1 = length(frag - p1.xy - b * t1) - mix(p1.z, p2.z, t1);
   float d2 = length(frag - p2.xy - c * t2) - mix(p2.z, p3.z, t2);
-  return min(d0, min(d1, d2));
+  float d = min(d0, min(d1, d2));
+  if (fragW < 0.0) return d;
+  float wNear = d0 <= d1 && d0 <= d2 ? mix(p0.w, p1.w, t0) : (d1 <= d2 ? mix(p1.w, p2.w, t1) : mix(p2.w, p3.w, t2));
+  float rNear = d0 <= d1 && d0 <= d2 ? mix(p0.z, p1.z, t0) : (d1 <= d2 ? mix(p1.z, p2.z, t1) : mix(p2.z, p3.z, t2));
+  float gap = abs(fragW - wNear) / max(${wpcGlsl('wNear', 'projY', '1.0')}, 1e-9) * dpr - rNear;
+  return d + 2.0 * kPx * smoothstep(0.25 * kPx, kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
@@ -309,7 +317,7 @@ float skinSdPx(float kPx) {
   float dArm[${SKIN_ARMS}];
   // an arm that is not there (a collateral not yet grown, a vessel closed to nothing) is not in the outline: a capsule of no width is a LINE, its smooth union with the trunk a horn along it, and the cone of the arm's collapsed
   // ring out to the wall stayed inside its band as a thorn (Mohammad, 20 Nov). It is held out of reach (the blend sees nothing of it past k) and comes in as its width does: continuous, never a pop
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
+  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i), 1.0 / gl_FragCoord.w, kPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -332,7 +340,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   float d[${SKIN_ARMS}];
   float lo = 1.0e9;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
-    d[k] = armData[k].x < 0.0 ? 1.0e9 : skinArmPx(fc, k, swAt(k)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
+    d[k] = armData[k].x < 0.0 ? 1.0e9 : skinArmPx(fc, k, swAt(k), -1.0, kPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
     lo = min(lo, d[k]);
   }
   float mine = 0.0, sum = 0.0;

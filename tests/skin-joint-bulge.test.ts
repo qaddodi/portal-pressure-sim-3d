@@ -64,7 +64,7 @@ test('every skin is blended at the radius its arms really have at the junction, 
   set.build(2);
   const live = new Set<unknown>(set.liveDraws());
   assert.ok(built.length >= 12);
-  let tapered = 0;
+  let tapered = 0, grown = 0;
   for (const { mesh, axes } of built) {
     const j = mesh.junction, name = j.node;
     // (1) every arm knows its radius at the junction, never wider than its nominal one, and the blend is a share of the narrowest of them
@@ -78,6 +78,8 @@ test('every skin is blended at the radius its arms really have at the junction, 
     axes.forEach((ax, i) => { if (!j.arms[i]!.grow) atJ = Math.min(atJ, toAxis(ax, j.J[0], j.J[1], j.J[2]).r); });
     if (branch) assert.ok(k <= SKIN_K * atJ * 1.12, `${name}: blend ${k.toExponential(2)} against 0.8 x ${atJ.toExponential(2)}, the narrowest arm's radius at the junction (a fillet that wide is a bulb)`);
     // (3) at rest, and at each HVPG patient's widths: no vertex stands farther out of the arms' union than half the local radius (the worst of all the skins at rest was 0.44 before)
+    // (a growing arm on a side-wall skin is drawn full-size, but its built tube is tapered into the host: its capsule at J is never the tube's narrow end ring alone, half way to the seam's radius at least (WHOLE_AT_J), or it necks down inside the fillet: C9 on the cava's wall was 0.0099 against 0.0227, the one vertex of 587 that bulged 0.51)
+    if (j.arms.some((a) => a.side)) axes.forEach((ax, i) => { if (j.arms[i]!.grow) { grown++; assert.ok(ax.radii[0]! >= 0.5 * ax.radii[2]! * 0.999, `${name}: ${j.arms[i]!.vesselId} necks to ${ax.radii[0]!.toFixed(4)} at J against ${ax.radii[2]!.toFixed(4)} at its seam`); } });
     const rest = j.arms.map(() => 1);
     assert.ok(worstExcess(mesh, axes, rest) <= 0.45, `${name}: bulges ${worstExcess(mesh, axes, rest).toFixed(2)} radii at rest`);
     if (!live.size) continue;
@@ -88,5 +90,7 @@ test('every skin is blended at the radius its arms really have at the junction, 
       assert.ok(e <= 0.45, `${name}: bulges ${e.toFixed(2)} radii at ${id}'s widths`);
     }
   }
+  assert.ok(built.some((b) => b.mesh.junction.node === 'wall:IVC_IS_1:S_PC1,C90'), 'the cava wall skin with S_PC and C9 is built (its growers were dropped when the neck was closed all the way)');
+  assert.ok(grown >= 2, `growing side-wall arms checked: ${grown}`);
   assert.ok(tapered >= 2, `the right hepatic vein's branch skin has tapered joints (${tapered} arms found): the case this pins`);
 });
