@@ -2,6 +2,7 @@
 // its progress and its result to the outer page, outer.ts). Loaded only when the address asks (debug/mount.ts); nothing runs until a button, or the frame's start.
 import { runAudit } from './run.ts';
 import { plan, startTaps, settle, QUIET_MS } from './app.ts';
+import { loadAllDecks } from '../page/live.ts';
 import { renderText, renderJson, type Bundle, type AuditData, type Coverage } from './report.ts';
 import { flagValue } from '../flags.ts';
 import { deviceOf } from '../devices.ts';
@@ -18,8 +19,10 @@ const depthOf = (): 'quick' | 'full' => (flagValue('depth') === 'quick' ? 'quick
 
 /** One run of this screen: the data for its size. */
 export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string): void }): Promise<AuditData> {
-  const taps = startTaps();
   const notes: string[] = [], coverage: Coverage[] = [];
+  const { failed } = await loadAllDecks();   // (the registry holds only the HVPG talk until the rest are read in)
+  if (failed.length) notes.push(`these talks would not load, so they are not walked: ${failed.join(', ')}`);
+  const taps = startTaps();
   const w = innerWidth, h = innerHeight;
   const dev = ['iphone', 'iphone-landscape', 'ipad', 'ipad-portrait', 'mac', 'mac-short'].map((id) => deviceOf(id)!).find((d) => d.w === w && d.h === h);
   const size = { id: dev?.id ?? `${w}x${h}`, w, h, dpr: devicePixelRatio };

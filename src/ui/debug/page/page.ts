@@ -6,7 +6,7 @@
 // Every run ends in ONE report in the 2D app's format (core/run.copied.js), shown in the panel with Copy. Nothing here runs per frame: every read and write is a tap or a step.
 import { Vector3 } from 'three';
 import { buildCatalog, byId, resolveSpec, defaultSweep, SECTION_NAMES, type Entry, type Section } from './catalog.ts';
-import { liveCatalog, openEntry, settle, problems, memoryMB, setLook, journeys, caughtCount } from './live.ts';
+import { liveCatalog, loadAllDecks, openEntry, settle, problems, memoryMB, setLook, journeys, caughtCount } from './live.ts';
 import { runSweep } from './sweep.ts';
 import { runCheck } from './check.ts';
 import { renderRun, type Run } from '../core/api.ts';
@@ -54,8 +54,9 @@ const CSS = `
 .gl[data-shoot] .gl-tag { display: block; }
 `;
 
-export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
+export async function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): Promise<void> {
   if (document.getElementById('gl-root')) return;
+  await loadAllDecks();   // (every talk, not just the one the registry holds at boot: the catalog and the checks list the decks)
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, attrs: Record<string, string> = {}) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
   const btn = (label: string, on: () => void) => { const b = el('button', '', label, { type: 'button' }); b.onclick = on; return b; };
