@@ -230,6 +230,18 @@ export class LobuleView {
     if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + ANCHOR_Z); }
     return w(0, 0, 0);
   }
+  /** The plate point (lobule radii) a name stands at (the same places as `anchor`). */
+  private spotXY(name: string): [number, number] {
+    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return [t.x, t.y]; }
+    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return [Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr]; }
+    return [0, 0];
+  }
+  /** The ring a slide's callout draws round a place (2D lobule-zoom-labels.js callRingAt): a triad's ring is 1.6 times the portal venule's radius; the sinusoids' and the central vein's the
+   *  central vein's as drawn now, with a little air. Returns the scene point on the ring's edge (along the plate's x axis), so the figure measures its pixels from the camera. */
+  ringEdge(name: string, out: V3 = [0, 0, 0]): V3 {
+    const [x, y] = this.spotXY(name), rho = name.startsWith('triad:') ? DISC_R.pv * 1.6 : this.cvRadiusNow * 1.2;
+    return this.anchorAt(x + rho, y, out);
+  }
   /** A point of the plate (its own units, the plane the labels stand on) in the scene. */
   anchorAt(x: number, y: number, out: V3 = [0, 0, 0]): V3 { return lobuleWorld(lobuleToScene(x, y, slabZ(x, y) + ANCHOR_Z, out), out); }
 

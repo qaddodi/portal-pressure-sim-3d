@@ -196,3 +196,18 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .wb[data-on] { transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s; }
 .wb-bar { width: 100px; height: 1.5px; margin-top: -0.75px; background: var(--lb-val); box-shadow: 0 0 0 var(--lb-halo-w, 1px) var(--lb-halo); border-radius: 1px; }
 .wb-tick { width: 5px; height: 1.5px; margin-top: -0.75px; background: var(--lb-val); box-shadow: 0 0 0 var(--lb-halo-w, 1px) var(--lb-halo); border-radius: 1px; }
+
+/* ── a slide's callout, as the 2D app draws it (every callout of a slide: a thick ring on the place, a leader of the same stroke, the words in the same colour, no card; lobule-zoom.js callEl,
+   callLine, callRing; `small.call`: stroke 4, danger / accent / quiet ink). The marks on a vessel or an organ (block, treat) are 2D's solid pill in the same colour. ── */
+.lz-co { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; --co: var(--cl-danger, var(--danger)); --co-ink: var(--cl-danger-ink, var(--danger)); }
+.lz-co[data-tone="accent"] { --co: var(--accent); --co-ink: var(--accent); }
+.lz-co[data-tone="note"] { --co: var(--cl-text, var(--text-2)); --co-ink: var(--cl-text, var(--text)); }
+.lz-co-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border: 4px solid var(--co); border-radius: 50%; will-change: transform; }
+.lz-co-line { position: absolute; left: 0; top: 0; width: 1px; height: 4px; margin-top: -2px; transform-origin: 0 50%; background: var(--co); will-change: transform; visibility: hidden; }
+.cl[data-fig="callout"] .cl-glass, .cl[data-fig="callout"] .cl-ring { display: none; }
+.cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 650; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
+.cl[data-fig="callout"][data-co="accent"] .cl-k { color: var(--accent); }
+.cl[data-fig="callout"][data-co="note"] .cl-k { color: var(--cl-text, var(--text)); }
+.cl[data-fig="mark"][data-tone="danger"] .cl-k, .cl[data-fig="mark"][data-tone="custom"] .cl-k { color: var(--cl-on, #fff); }
+html:not([data-noglass]) .lb-layer .cl[data-fig="mark"][data-tone="danger"] .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-danger) !important; }
+html:not([data-noglass]) .lb-layer .cl[data-fig="mark"][data-tone="custom"] .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-tone) !important; }

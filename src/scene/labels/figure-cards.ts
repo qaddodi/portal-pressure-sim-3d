@@ -48,6 +48,30 @@ export interface FigCaliper {
   text: string;
 }
 
+/** A slide's ring on the figure (2D lobule-zoom-labels.js RING_STROKE, RING_GAP): its stroke, the air a label keeps off it, its least radius, px. */
+export const RING_STROKE = 4, RING_AIR = RING_STROKE / 2 + 8;
+const ringPx = (r: number) => Math.max(10, Math.round(r * 10) / 10);
+/** The label of a ring stands this far (px) off the leader's end, so the line never runs in under the letters (2D CALL_GAP). */
+export const RING_LABEL_GAP = 7;
+
+/** A leader from a ring's edge to its label: it starts on the ring (at its radius, on the line to the label's centre) and stops RING_LABEL_GAP short of the label's box, where that line enters it.
+ *  null when the label stands too close for a line to show. */
+export function ringLeader(at: { x: number; y: number }, r: number, box: Box): [number, number, number, number] | null {
+  const cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2, dx = cx - at.x, dy = cy - at.y, len = Math.hypot(dx, dy);
+  if (len < 1e-6) return null;
+  // where the line from the ring's centre to the label's centre enters the label's box grown by the gap (the slab test, per axis)
+  const g = RING_LABEL_GAP, lo = [box.x0 - g, box.y0 - g], hi = [box.x1 + g, box.y1 + g], from = [at.x, at.y], d = [dx, dy];
+  let t0 = 0;
+  for (let i = 0; i < 2; i++) {
+    if (Math.abs(d[i]!) < 1e-9) { if (from[i]! < lo[i]! || from[i]! > hi[i]!) return null; continue; }
+    const a = (lo[i]! - from[i]!) / d[i]!, b = (hi[i]! - from[i]!) / d[i]!;
+    t0 = Math.max(t0, Math.min(a, b));
+  }
+  const end = Math.min(t0, 1) * len;
+  if (end - r < 4) return null;
+  return [at.x + (dx / len) * r, at.y + (dy / len) * r, at.x + (dx / len) * end, at.y + (dy / len) * end];
+}
+
 /** How near its point a step's number may stand, at least (2D STEP_LEAD_GAP), px. */
 export const STEP_LEAD_GAP = 10;
 const normal = (px: number) => px * (INTER.asc + INTER.desc);
@@ -65,7 +89,7 @@ export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number
   return pillSize(t, { kicker: c.text, value: c.value ?? '', unit: c.unit ?? '', tone: 'free' }, measure, false);
 }
 
-export interface CardIn { id: string; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean; /** a step's number: how far its edge stands from the point it names, px (2D `near`); it stands off the point, on a leader to it */ near?: number }
+export interface CardIn { id: string; /** a slide's ring on the figure (2D's lobule pointer): its radius with its stroke and air, px; the card stands clear of it, the leader runs from its edge */ ring?: number; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean; /** a step's number: how far its edge stands from the point it names, px (2D `near`); it stands off the point, on a leader to it */ near?: number }
 export interface CardOut { id: string; x0: number; y0: number; dir: 'top' | 'bottom' | 'none'; /** the point it names, from the card's centre */ ax: number; box: Box; /** false: no clear place in the view (the card waits) */ ok: boolean }
 
 const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
@@ -105,16 +129,17 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
     if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, dir: 'none', ax: 0, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
     if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
+    const gap = it.ring ?? PILL_GAP, hold = it.ring ? [...blockers, { x0: it.x - it.ring, y0: it.y - it.ring, x1: it.x + it.ring, y1: it.y + it.ring }] : blockers;
     let best: { cost: number; o: CardOut } | null = null;
     const steps = [0, 0.25, -0.25, 0.5, -0.5, 0.75, -0.75, 1, -1, 1.5, -1.5].map((k) => k * it.w);
     // a step's circle and the plain "none" cards stand diagonally off the point instead of straight above or below it
     for (const above of sides) for (const dx of steps) {
-      const cx = it.x + dx, x0 = Math.min(Math.max(cx - it.w / 2, view.x0 + 4), view.x1 - it.w - 4), y0 = above ? it.y - PILL_GAP - it.h : it.y + PILL_GAP;
+      const cx = it.x + dx, x0 = Math.min(Math.max(cx - it.w / 2, view.x0 + 4), view.x1 - it.w - 4), y0 = above ? it.y - gap - it.h : it.y + gap;
       const box: Box = { x0, y0, x1: x0 + it.w, y1: y0 + it.h };
       const reach: Box = above ? { x0, y0, x1: box.x1, y1: Math.max(it.y, box.y1) } : { x0, y0: Math.min(it.y, y0), x1: box.x1, y1: box.y1 };
       let cost = Math.abs(dx) * 0.01 + (above === sides[0] ? 0 : 0.5);
       if (!within(box, view)) cost += 1e6;
-      for (const b of blockers) if (hits(box, b)) cost += 1e4 + overlap(box, b);
+      for (const b of hold) if (hits(box, b)) cost += 1e4 + overlap(box, b);
       for (const b of placed) if (hits(reach, b)) cost += 1e4 + overlap(reach, b);
       const o: CardOut = { id: it.id, x0, y0, dir: above ? 'bottom' : 'top', ax: it.x - (x0 + it.w / 2), box: reach, ok: cost < 1e6 };
       if (!best || cost < best.cost) best = { cost, o };
@@ -122,7 +147,7 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
     }
     // No clear spot in the sweep above (a talk's cards and the key leave only a pocket far from the point): the nearest clear place anywhere in the view, rather than the one under a card.
     if (best!.cost >= 1e4) {
-      const f = freeSpot(it, view, blockers, placed);
+      const f = freeSpot(it, view, hold, placed);
       if (f) best = { cost: 0, o: f };
     }
     placed.push(best!.o.box);
@@ -162,6 +187,8 @@ export interface CardDeps {
   spleenScale(): number;
   /** A place of the lobule view ('triad:0', 'centre', 'zone:2'), scene point; null when that view is not the figure now. */
   lobule(name: string, out: Vector3): Vector3 | null;
+  /** The point on the ring a lobule callout draws round that place (one ring radius from it, along the plate): its pixels are measured from the camera. */
+  lobuleRing(name: string, out: Vector3): Vector3 | null;
   /** The Circuit once it is the figure: pixels one map unit covers, and a map point (units) on the canvas; null while another view is. */
   circuit(): { k: number; project(x: number, y: number, out: { x: number; y: number }): { x: number; y: number } } | null;
 }
@@ -187,7 +214,8 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
 }
 
 interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[] }
-interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; lead?: Lead; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
+interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; tx: string; key: string; ltx: string }
+interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
 interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
 interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
 
@@ -225,6 +253,14 @@ export class FigureCards {
     const card = makeCard(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig');
     card.root.dataset.fig = spec.kind;
     const rec: Rec = { card, spec, a: 0, box: null, sig: '', root: card.root };
+    if (spec.kind === 'mark' && 'lobule' in spec.anchor) {
+      // a slide's pointer at the lesion (2D lobule-zoom.js callEl, callLine, callRing): a thick ring on the place, a leader of the same stroke from the ring to its words, the words in the ring's colour, no card
+      card.root.dataset.fig = 'callout';
+      const root = document.createElement('div'); root.className = 'lz-co'; this.parent.appendChild(root);
+      const ring = document.createElement('i'); ring.className = 'lz-co-ring'; const line = document.createElement('i'); line.className = 'lz-co-line';
+      root.append(line, ring);
+      rec.co = { root, ring, line, tx: '', key: '', ltx: '' };
+    }
     if (spec.kind === 'step') {
       // the leader to the vessel the number names (2D: a dot on the vessel and a thin line to the chip; a group's number a line to each of its vessels)
       const root = document.createElement('div'); root.className = 'cl-lead'; this.parent.appendChild(root);
@@ -272,7 +308,7 @@ export class FigureCards {
     const vp = d.vp(), t = cathType(vp), view = d.view();
     // the cards of this slide: made once each, gone with the slide
     const want = new Set(this.cards.map((c) => c.id));
-    for (const [id, r] of this.recs) if (!want.has(id) && r.a <= 0) { r.root.remove(); r.lead?.root.remove(); this.recs.delete(id); }
+    for (const [id, r] of this.recs) if (!want.has(id) && r.a <= 0) { r.root.remove(); r.lead?.root.remove(); r.co?.root.remove(); this.recs.delete(id); }
     for (const c of this.cards) {
       let r = this.recs.get(c.id);
       if (!r) { r = this.make(c); this.recs.set(c.id, r); }
@@ -298,7 +334,10 @@ export class FigureCards {
       // a step's number points at the middle of its vessel's solid stretch (stepMidOf); a group's at the middle of its vessels, with a leader to each (the fans)
       const p = anchorPoint(c.anchor, this.p, d.lobule, c.kind === 'step' && 'edge' in c.anchor ? stepMidOf(c.anchor.edge) : 0.5);
       if (!p) continue;
-      put(c.id, d.project(p, { x: 0, y: 0 }));
+      const at = d.project(p, { x: 0, y: 0 });
+      put(c.id, at);
+      // a lobule callout's ring: its radius on the screen, from a point one ring radius off along the plate (it changes only as the camera does, so it hides the card like any other move)
+      if ('lobule' in c.anchor) { const e = d.lobuleRing(c.anchor.lobule, this.q); if (e) { const b = d.project(e, this.pt2); put(c.id + '#r', { x: ringPx(Math.hypot(b.x - at.x, b.y - at.y)), y: 0 }); } }
       if (c.kind === 'step' && 'edges' in c.anchor) c.anchor.edges.forEach((e, i) => { const q = anchorPoint({ edge: e }, this.q, d.lobule, stepMidOf(e)); if (q) put(`${c.id}#${i}`, d.project(q, { x: 0, y: 0 })); });
     }
     // each caliper's two ends on the canvas
@@ -328,7 +367,8 @@ export class FigureCards {
       }
     }
     this.anchors = anchors;
-    if (moved) this.lastMove = now;
+    // (a place that moved is placed again once the picture is still: the boxes were solved for where it stood)
+    if (moved) { this.lastMove = now; this.dirty = true; }
     const hold = now - this.lastMove < FADE.settleMs;
 
     // solve once the picture is still and something changed
@@ -337,7 +377,7 @@ export class FigureCards {
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       const ins: CardIn[] = [];
-      for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null) }); }
+      for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure), rg = anchors.get(c.id + '#r'); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null), ...(rg ? { ring: rg.x + RING_AIR } : null) }); }
       for (const c of this.calipers) {
         const e = ends.get(c.id); if (!e) continue;
         const w = ceil2(d.measure(c.text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h = ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name));
@@ -354,7 +394,7 @@ export class FigureCards {
       for (const [id, r] of this.recs) { r.box = by.get(id) ?? null; r.sig = ''; }
       for (const [id, r] of this.cals) r.box = by.get('cal:' + id) ?? null;
       for (const [id, r] of this.spanRecs) r.box = by.get('span:' + id) ?? null;
-      this.boxes = outs.filter((o) => o.ok).map((o) => o.box);
+      this.boxes = outs.filter((o) => o.ok).map((o) => o.box).concat(ins.filter((i) => i.ring).map((i) => ({ x0: i.x - i.ring!, y0: i.y - i.ring!, x1: i.x + i.ring!, y1: i.y + i.ring! })));
       calloutClaims.set(this.boxes);
     }
 
@@ -444,7 +484,7 @@ export class FigureCards {
 
   private paintCard(r: Rec, t: CathType, a: { x: number; y: number } | undefined): void {
     const c = r.spec, box = r.box;
-    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
+    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.co) r.co.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
     show(r.card, true);
     // (opacity lives on a card's children, never on the card: a hidden card used to keep a root opacity of 0 for good, so a number that came back after the picture moved stood invisible beside its leader)
     if (c.kind !== 'split' && r.root.style.opacity !== '') r.root.style.removeProperty('opacity');
@@ -470,6 +510,30 @@ export class FigureCards {
     place(r.card, box.x0, box.y0);
     fade(r.card, r.a);
     if (c.kind === 'step') this.paintLead(r, box, r.a, sz.w);
+    if (r.co) this.paintRing(r, box, a, sz);
+  }
+
+  /** A slide's ring: it stands on its place at its radius, the leader runs from its edge to the words (both the stroke of 2D's `small.call`, in the callout's colour), and they fade with the words. Moved by
+   *  transform and opacity; the radius and the colour are written when they change, which is while the picture is moving and the card hidden. */
+  private paintRing(r: Rec, box: CardOut, a: { x: number; y: number }, sz: { w: number; h: number }): void {
+    const co = r.co!, rg = this.anchors.get(r.spec.id + '#r');
+    if (!rg) { co.root.style.opacity = '0'; return; }
+    const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : 'accent';
+    if (co.root.dataset.tone !== tone) co.root.dataset.tone = tone;
+    if (r.root.dataset.co !== tone) r.root.dataset.co = tone;
+    const key = String(rad);
+    if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; }
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const tx = `translate3d(${round(a.x)}px,${round(a.y)}px,0)`;
+    if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; }
+    const seg = ringLeader(a, rad, { x0: box.x0, y0: box.y0, x1: box.x0 + sz.w, y1: box.y0 + sz.h });
+    co.line.style.visibility = seg ? 'visible' : 'hidden';
+    if (seg) {
+      const len = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]), ang = Math.atan2(seg[3] - seg[1], seg[2] - seg[0]);
+      const ltx = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${ang.toFixed(4)}rad) scaleX(${round(len)})`;
+      if (ltx !== co.ltx) { co.ltx = ltx; co.line.style.transform = ltx; }
+    }
+    co.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
   }
 
   private paintSplit(r: Rec, box: CardOut, t: CathType): void {
@@ -544,7 +608,7 @@ export class FigureCards {
   }
 
   destroy(): void {
-    for (const r of this.recs.values()) r.root.remove();
+    for (const r of this.recs.values()) { r.root.remove(); r.lead?.root.remove(); r.co?.root.remove(); }
     for (const r of this.cals.values()) { r.root.remove(); r.card.root.remove(); }
     for (const r of this.spanRecs.values()) { r.root.remove(); r.card.root.remove(); }
     this.recs.clear(); this.cals.clear(); this.spanRecs.clear();
