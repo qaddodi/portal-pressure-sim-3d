@@ -21,7 +21,7 @@ export interface Sheet { pos: number[]; tris: number[] }
  * The sheet of a junction: `pos` the seam rings' vertices first (arm * n + j, as given), then the surface's own; `tris` outward triangles, closed except along the seam rings' edges (each of which is on exactly one triangle).
  * Throws `SkinBuildError` when the surface is not one clean piece per seam (an arm whose cut leaves no loop, two loops, a loop that touches itself, an edge on three faces).
  */
-export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seamRings: readonly Float32Array[], J: V3): Sheet {
+export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seamRings: readonly Float32Array[], J: V3, anchors?: readonly V3[]): Sheet {
   const A = seamRings.length, n = seamRings[0]!.length / 3;
   // each seam: the ring's centre, mean radius, and the plane normal turned away from J
   const cen: V3[] = [], nor: V3[] = [], rad: number[] = [];
@@ -35,7 +35,7 @@ export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seam
       nx += p[1]! * w[2]! - p[2]! * w[1]!; ny += p[2]! * w[0]! - p[0]! * w[2]!; nz += p[0]! * w[1]! - p[1]! * w[0]!;
       R += Math.hypot(p[0]!, p[1]!, p[2]!) / n;
     }
-    const l = Math.hypot(nx, ny, nz) || 1, away = (c[0]! - J[0]) * nx + (c[1]! - J[1]) * ny + (c[2]! - J[2]) * nz < 0 ? -1 : 1;
+    const o = anchors?.[a] ?? J, l = Math.hypot(nx, ny, nz) || 1, away = (c[0]! - o[0]) * nx + (c[1]! - o[1]) * ny + (c[2]! - o[2]) * nz < 0 ? -1 : 1;   // (away from the arm's own start: a landing arm inside another's skin starts at its landing)
     cen.push([c[0]!, c[1]!, c[2]!]); nor.push([(nx / l) * away, (ny / l) * away, (nz / l) * away]); rad.push(R);
   }
   const Rmin = Math.min(...rad);

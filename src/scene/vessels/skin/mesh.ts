@@ -163,7 +163,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   const ekey = (a: number, b: number) => (a < b ? a * 1e7 + b : b * 1e7 + a);
 
   // the guess at the topology: the vertices are the rings, the triangles the hull's
-  const sheet = pace?.sdf ? sdfSheet(j.node, caps, k, seamRings, j.J) : null;   // (a sheet started on the surface: sheet.ts)
+  const sheet = pace?.sdf ? sdfSheet(j.node, caps, k, seamRings, j.J, j.arms.map((a) => a.at ?? j.J)) : null;   // (a sheet started on the surface: sheet.ts)
   const pos: number[] = sheet ? sheet.pos : [];
   if (!sheet) for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) pos.push(seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!);
   let tris = sheet ? sheet.tris : hull!.faces.slice();
