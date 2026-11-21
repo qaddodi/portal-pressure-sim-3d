@@ -54,7 +54,7 @@ export function work(group: string, title: string): ((n: number | null) => void)
   if (group === 'App') {
     if (title === 'Home') return () => sh().set({ mode: 'free', sheet: null });
     if (title === 'Reset everything') return () => sh().set({ dialog: 'reset' });
-    if (title === 'Guide & shortcuts') return () => sh().set({ sheet: 'help', helpSection: null });
+    if (title === 'Guide & shortcuts') return () => sh().set({ sheet: 'guide', helpSection: null });
     if (title === 'Light / dark theme') return () => { const s = useSettings.getState(); s.setLook(document.documentElement.dataset.look === 'light' || document.documentElement.dataset.look === 'soft' ? 'dark' : 'light'); };
     const look = LOOK_IDS.find((id) => title === `Appearance: ${UI.looks.find((l) => l.id === id)!.name}`);
     if (look) return () => useSettings.getState().setLook(look as LookId);
