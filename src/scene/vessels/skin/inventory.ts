@@ -208,11 +208,15 @@ export function liverBranchJunctions(network: readonly NetVessel[] = NETWORK, st
 
 /** How far (in radii of the widest arm) a growing arm's end may lie from J (the bridge of spec 10.5 spans it with the arm's own width): a shunt or a collateral that lands a few radii down a host's side is not at the node but on the wall, the side-wall arms of spec 10.1.
  *  Measured on the network (20 Nov): the ends at their nodes lie within 2.0 radii (the gastrorenal collateral C5 at the left renal vein, 2.0, is the farthest that builds), the landings on a wall from 2.3 (DIPS on the cava) to 8.9. */
-export const GROW_REACH = 2.4;
+export const GROW_REACH = 2.2;
+/** A growing end that lands within this many radii (of the junction's widest arm) of an existing junction's centre is an arm of THAT junction, whatever node the network names for it (S_MC lands 1.5 radii from IVCI's centre, on the iliac vein's end). wall.ts re-exports it. */
+export const ATTACH_NEAR_R = 2.6;
 /** The junction without the growing arms that end farther than `GROW_REACH` radii from J (a side-wall landing, spec 10.1: left to the side-wall arms), and which they were. The permanent arms decide whether the NODE is a junction (`nodesBeyondReach`); a far collateral or shunt is
  *  only left out of it, and keeps today's fork method. */
 export function dropFarGrowers(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): { junction: SkinJunction; far: string[]; farArms: SkinArm[] } {
-  const reach = armReach(j, network, state), farArms = j.arms.filter((a, i) => a.grow && reach[i]! > GROW_REACH), far = farArms.map((a) => a.vesselId);
+  // a node the growing arm alone makes a junction (two permanent arms that run on, and the collateral or shunt that ends on them: DIPS at IVC_D, 2.29 radii out) is not left to a wall landing on the run-on's stub, which has no ring to cut: a growing end that near is the node's own arm, the reach wall.ts attachNear already allows
+  const limit = j.arms.filter((a) => !a.grow).length < MIN_ARMS ? ATTACH_NEAR_R : GROW_REACH;
+  const reach = armReach(j, network, state), farArms = j.arms.filter((a, i) => a.grow && reach[i]! > limit), far = farArms.map((a) => a.vesselId);
   return far.length ? { junction: { ...j, arms: j.arms.filter((a) => !far.includes(a.vesselId)) }, far, farArms } : { junction: j, far, farArms };
 }
 

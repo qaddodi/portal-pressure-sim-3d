@@ -62,3 +62,15 @@ test('no stylesheet of ours promotes or fades, as a whole, a class that holds a 
     }
   }
 });
+
+// The dock's own paint: a whole that no longer fades keeps whatever it draws itself. .vdock draws the pill's shadow and hairline (box-shadow), which stayed as an empty rounded outline in a talk.
+test('every holder that stays opaque in a talk has no paint of its own left: the dock\'s shadow goes with the parts', () => {
+  assert.match(css, /\.sh-root\[data-mode="deck"\] > \.app \.vdock \{ box-shadow: none; \}/);
+  assert.match(css, /\.sh-root > \.app \.vdock \{ transition: box-shadow var\(--d-surface, \.42s\) var\(--ease\); \}/);
+  // the holders the talk fade keeps opaque, and what each paints itself in 2D (app-07-floating.css): the bar paints nothing; the dock paints a shadow, handled above; the pills that hold a face have none
+  const f = readFileSync('src/ui/css2d/app-07-floating.css', 'utf8');
+  assert.match(f, /\.vdock \{[^}]*box-shadow: var\(--shadow-pill\)/);
+  assert.match(f, /\.topbar \.tb-id \{[^}]*background: transparent; box-shadow: none;/);
+  assert.match(f, /\.topbar \.sb-right\.has-face \{[^}]*background: transparent; box-shadow: none;/);
+  assert.doesNotMatch(f, /^\.topbar \{[^}]*(box-shadow|background)/m);
+});

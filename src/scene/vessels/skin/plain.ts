@@ -21,7 +21,7 @@ export function plainOf(plan: Pick<SkinPlan, 'junction' | 'cuts'>): PlainPlan | 
   const j = plan.junction;
   const keep = j.arms.map((_, i) => i).filter((i) => !j.arms[i]!.grow);
   if (keep.length === j.arms.length || keep.length < PLAIN_MIN_ARMS) return null;
-  return { junction: { ...j, node: `${j.node}~plain`, arms: keep.map((i) => j.arms[i]!), surface: true, still: true }, cuts: keep.map((i) => plan.cuts[i]!), keep };
+  return { junction: { ...j, node: `${j.node}~plain`, arms: keep.map((i) => j.arms[i]!), surface: true }, cuts: keep.map((i) => plan.cuts[i]!), keep };
 }
 
 /** The weld's share of a growing arm: 0 while it grows (the tube's flared end is drawn), 1 once it is whole and the skin has taken over; the skin comes in from growth WELD_FROM. */

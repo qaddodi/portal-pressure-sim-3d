@@ -1,7 +1,7 @@
 // Keeps each vessel's shape where the 2D figure has it: a collateral coils as it opens and its strands fan out as far as their varix is big (stage-tubes.js), a
 // fan of tributaries thins and thickens as its rule comes on. The positions are rewritten in place (VesselObject.reshape), and only while a shape moves.
 import { type NetVessel, type PresenceFrame, collateralOpen, feederLive, recruitFrac } from './network.ts';
-import { CoilState, LOOK_SITE, varixGrowth, varixSize, varixSpreadK } from './coil.ts';
+import { CoilState, LOOK_SITE, type Pin, varixGrowth, varixSize, varixSpreadK } from './coil.ts';
 /** The least beading of the esophageal varices (share of a strand's radius), at their full size; the 2D figure's own (varix-bead.js BEAD_MAX 0.35) takes over once it is larger. */
 export const VARIX_BEAD_FLOOR = 0.16;
 import { REST, type ShapeState, coursesOf, tubularOf } from './shape.ts';
@@ -16,12 +16,17 @@ const VARIX_MEAN_MS = 2000, VARIX_JUMP_MM = 1.5;
 
 export interface ShapeFrame extends PresenceFrame { metrics?: { varix?: { d?: number; present?: boolean }; gastricVarix?: { d?: number; present?: boolean } }; bands?: number }
 
-interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; live: number; strandsOn: boolean; bead: number; built: string }
+interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; live: number; strandsOn: boolean; bead: number; built: string; seam: string; /** the tick of its last rebuild (the one waiting longest goes first) */ at: number }
 
-const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.rec.toFixed(2)}|${s.bead.toFixed(2)}|${s.bands.toFixed(2)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}`;
+const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.rec.toFixed(2)}|${s.bead.toFixed(2)}|${s.bands.toFixed(2)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}|${s.pin ? s.pin.map((x) => x.toFixed(3)).join(',') : ''}`;
+/** What of a shape reaches the seam of a skin standing on the vessel's end: everything but the coil (wig, spr), which the pin holds off the seam (coil.ts pinCourse). A vessel with no pin moves its seam with the coil too. */
+const seamKeyOf = (s: ShapeState) => (s.pin ? keyOf({ ...s, wig: 0, spr: 1 }) : keyOf(s));
+/** The most CPU time (ms) one frame spends rebuilding tubes for shapes that move (buildTubes + reshape, 1 to 7 ms for each coiling collateral): the rest wait for the next frame, so a preset that opens a dozen collaterals at once spreads the work over frames instead of making one long one. At least one is always rebuilt. */
+export const SHAPE_BUDGET_MS = 4;
 
 export class ShapeTracks {
   private items: Item[] = [];
+  private tick = 0;
   /** Told whenever a vessel's course was rewritten (the junction skins stand on its ends and are rebuilt: vessels/skin/skin-set.ts markDirty). */
   onReshaped: ((id: string) => void) | null = null;
   /** the bands the model counts, and the count drawn (it follows in a moment, band-ease.js: a strand a band closes fades out rather than vanishing in a frame) */
@@ -36,7 +41,7 @@ export class ShapeTracks {
       if (!obj || !p) continue;
       if (p.kind === 'coil' && !p.coils && !LOOK_SITE[v.id] && !p.strands) continue;
       if (p.kind === 'coil' && !p.coils && !p.strands) continue;
-      this.items.push({ v, obj, coil: new CoilState(), state: { ...REST }, tubular: tubularOf(v, slicesFor(v.id)), shown: 0, spread: 1, live: 1, strandsOn: false, bead: 0, built: keyOf(REST) });
+      this.items.push({ v, obj, coil: new CoilState(), state: { ...REST }, tubular: tubularOf(v, slicesFor(v.id)), shown: 0, spread: 1, live: 1, strandsOn: false, bead: 0, built: keyOf(REST), seam: seamKeyOf(REST), at: 0 });
     }
   }
 
@@ -72,7 +77,7 @@ export class ShapeTracks {
       it.spread = lookSite ? varixSpreadK(varixSize(lookSite, this.mean[lookSite].m ?? undefined)) : 1;
       it.strandsOn = p.coils ? collateralOpen(id, f) : true;
     }
-    if (instant) for (const it of this.items) this.settle(it, 0, true);
+    if (instant) for (const it of this.items) { this.settle(it, 0, true); this.rebuild(it); }
   }
 
   private settle(it: Item, dtMs: number, instant: boolean): boolean {
@@ -90,24 +95,52 @@ export class ShapeTracks {
       moving = q !== it.state.live;
       it.state.live = q;
     }
-    const key = keyOf(it.state);
-    if (key !== it.built) {
-      const { geometry, length } = buildTubes(coursesOf(it.v, it.state), it.tubular, it.v.radius);
-      it.obj.reshape(geometry, length);
-      geometry.dispose();
-      it.built = key;
-      this.onReshaped?.(it.v.id);
-    }
     return moving;
   }
 
-  /** Eases the shapes one frame; true while any is still moving. */
+  /** Rebuilds a vessel's tubes at its present shape when the shape changed since they were built. True when it did. */
+  private rebuild(it: Item): boolean {
+    const key = keyOf(it.state);
+    if (key === it.built) return false;
+    const { geometry, length } = buildTubes(coursesOf(it.v, it.state), it.tubular, it.v.radius);
+    it.obj.reshape(geometry, length);
+    geometry.dispose();
+    it.built = key;
+    // the skin standing on this vessel's end is rebuilt only when its seam moved: a coil is held off the seam by the pin, so the growth of a collateral costs it nothing (a rebuild is 0.1 to 2 s of CPU)
+    const seam = seamKeyOf(it.state);
+    if (seam !== it.seam) { it.seam = seam; this.onReshaped?.(it.v.id); }
+    return true;
+  }
+
+  private stale(it: Item): boolean { return keyOf(it.state) !== it.built; }
+
+  /** The stretch of each vessel's course that must not move because a junction skin stands on it (SkinSet.pins). Installed once the skins are built: at rest the tubes come out the same, so nothing is rebuilt; a vessel that is not at rest is rebuilt at once, and its skin with it. */
+  setPins(pins: ReadonlyMap<string, Pin>): void {
+    for (const it of this.items) {
+      const pin = pins.get(it.v.id);
+      const same = (a?: Pin, b?: Pin) => (a?.[0] ?? 0) === (b?.[0] ?? 0) && (a?.[1] ?? 0) === (b?.[1] ?? 0);
+      if (same(it.state.pin, pin)) continue;
+      const atRest = it.state.wig === 0 && it.state.spr === 1 && it.state.bead === 0 && !this.stale(it);
+      it.state.pin = pin && (pin[0] > 0 || pin[1] > 0) ? pin : undefined;
+      if (atRest) { it.built = keyOf(it.state); it.seam = seamKeyOf(it.state); }   // (the same tubes: the pin holds a course at rest where it is already at rest)
+      else { this.rebuild(it); }
+    }
+  }
+
+  /** Eases the shapes one frame; true while any is still moving or waits for its tubes. The tubes are rebuilt within SHAPE_BUDGET_MS a frame, the longest-waiting first. */
   step(dtMs: number): boolean {
     let moving = false;
     const was = this.bandsShown;
     this.bandsShown = bandsStep(this.bandsShown, this.bandsGoal, dtMs / 1000) as number;
     if (this.bandsShown !== this.bandsGoal || was !== this.bandsShown) moving = true;
     for (const it of this.items) if (this.settle(it, dtMs, false)) moving = true;
+    const due = this.items.filter((it) => this.stale(it)), t0 = performance.now();
+    due.sort((a, b) => a.at - b.at);
+    let done = 0;
+    for (const it of due) {
+      if (done > 0 && performance.now() - t0 > SHAPE_BUDGET_MS) { moving = true; continue; }
+      it.at = ++this.tick; this.rebuild(it); done++;
+    }
     return moving;
   }
 }

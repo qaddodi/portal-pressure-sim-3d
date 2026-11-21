@@ -11,6 +11,10 @@
 .sh-root > .app .zoom-pill[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.zoom-pill, .stage-credit) { opacity: 0; }
 .sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { pointer-events: none !important; }
 /* The bar and the dock are away in a talk by their parts, never as wholes: a whole at opacity < 1 is a backdrop root and its faces lose their blur for the fade (shell/deck-fade.ts plays the way there and back). */
+/* The dock keeps its own paint (the pill's shadow and hairline, app-07-floating.css .vdock) now that it no longer fades as a whole: that paint goes with the parts, on the same ease, so no empty outline stays behind in a talk
+   (owner, 21 Nov: "the rounded square at the bottom of the slides"). Its glass is the .vd-face child, which fades. */
+.sh-root > .app .vdock { transition: box-shadow var(--d-surface, .42s) var(--ease); }
+.sh-root[data-mode="deck"] > .app .vdock { box-shadow: none; }
 .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock):has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)),
 .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock) :has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)),
 .sh-root > .app :is(.topbar, .vdock)[data-hidden="true"]:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)),

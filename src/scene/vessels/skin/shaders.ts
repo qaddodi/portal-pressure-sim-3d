@@ -26,12 +26,8 @@
 //   lensUse + : 1 (the per-arm flag above is multiplied in), inkColor, inkColorCirc, tubeDark, fade, hiPx, inflate, res, dpr, projY, circT, vdata, vdataSize, useData, the two lens sets (lensGradA/B, lensLaneA/B,
 //   lensModeA/B, laneColA/B, lensMix, lensTail, lensSmooth) are the tubes' (shared by reference).
 //
-// GROWING ARMS (spec 10.2; mesh.ts `GrowMorph`): a collateral or a shunt comes and goes, and its mouth on the trunk must ease in with it, never pop. The skin carries a second shape for each growing arm (at most SKIN_GROWERS, the shader's SKIN_GROW define): the same
-// topology with that arm's capsule at radius 0. The vertex stage is `value = P1 - (1 - g) * delta` for position, normal, rest radius and weights, `g` the arm's live growth (`armGrow`, written by the SkinSet: its tube's draw-on at the seam), so on the arm's seam ring that
-// is the tube's own ring at share g, and at g = 0 the trunk is a plain trunk (the weights are the trunk's own, so no dent). The arm's live width in the ink's capsule is `g x swell`, the same lumen, so the outline of the mouth grows with it. Plain skins compile without any of it.
-//   armGrow[6]   float  + each arm's growth: 1 for a plain arm; a growing arm's draw-on at its seam (0 gone, 1 whole)
-//   growG        vec2   + the growth of the first and second growing arm (the same numbers, in the order of the mesh's morphs)
-//   gPosA0, gNorA0, gWtA0, gWt2A0 (and A1)   attributes +  per growing arm: (P1 - P0 position, restR1 - restR0), N1 - N0, the weight differences of arms 0 to 3 and of arms 4, 5
+// GROWING ARMS (spec 10.2): a collateral or a shunt comes and goes. Its skin is ONE static full-size shape (nothing morphs): the arms that stay have a plain trunk skin of their own, and the welded skin comes in over the tube's flared end
+// from growth 0.9 to 1 by the screen pattern of `skinKW` (skin/plain.ts weldOf), the two skins and the tube's cut end drawing complementary pixels.
 //
 // Lane lenses (the Blood origin and First pass lenses draw lanes side by side ACROSS a tube): each arm's lane colour is read at that arm's own across (the dot of the normal with its side, as the tube's), then the arms are blended
 // by weight, so the lanes run on from the tubes through the skin; the lens ramps (pressure, oxygen...) are exact.
@@ -72,31 +68,10 @@ const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ lengt
 /** The four arms' shares of THIS copy are read per arm: component `SKIN_COPY` of each arm's (front, solid, veil), spec 10.4. */
 const COPY_OF = (i: number): string => `armCopy[${i}][SKIN_COPY]`;
 
-/** The vertex stage's growing-arm declarations and its morph (empty for a skin with none: SKIN_GROW 0). */
-const GROW_DECL = /* glsl */ `
-#if SKIN_GROW > 0
-attribute vec4 gPosA0;   // growing arm 0: P1 - P0 (xyz) and restR1 - restR0 (w)
-attribute vec3 gNorA0;   // N1 - N0
-attribute vec4 gWtA0;    // weight1 - weight0, arms 0 to 3
-attribute vec2 gWt2A0;   // arms 4 and 5
-#endif
-#if SKIN_GROW > 1
-attribute vec4 gPosA1;
-attribute vec3 gNorA1;
-attribute vec4 gWtA1;
-attribute vec2 gWt2A1;
-#endif
-uniform float armGrow[${SKIN_ARMS}];   // each arm's growth (1 for an arm that does not grow)
-uniform vec2 growG;                    // the growth of the first and of the second growing arm
-`;
-
 export const SKIN_VS = /* glsl */ `
 uniform vec2 skinMap;    // (x) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1); (y) 1 on the Circuit's own skins (circuit/skins.ts): the map's widths, its bolder line and inner line, in over the end of the change. A uniform, not a define: the map's skins share the body's programs (skin-object.ts)
 #define SKIN_U skinMap.x
 #define skinCirc skinMap.y
-#ifndef SKIN_GROW
-#define SKIN_GROW 0   // how many growing arms the skin morphs (the material's define; a skin with none has no morph)
-#endif
 attribute vec3 cen;      // the nearest point on the nearest arm's axis: the depth and the lumen's centre, as a tube's ring centre is
 attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 to 3; the six sum to 1, arm order)
 attribute vec2 weight2;  // arms 4 and 5
@@ -111,7 +86,6 @@ uniform float hiPx;
 uniform vec4 armData[${SKIN_ARMS}];
 uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4 each, because a float array costs a whole vector a slot
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
-${GROW_DECL}
 varying vec3 vN;
 varying vec3 vV;
 varying float vW;        // the surface's clip depth
@@ -138,30 +112,18 @@ float circSwellOf(vec4 a) {
   float least = (a.z > 1.5 ? 4.5 : (a.z > 0.5 ? 3.0 : 5.0)) * circPerPx;
   return max(circWidthAt(d, a.z, circBoost), least) / circWidthAt(a.y, a.z, 1.0);
 }
-vec4 wgA;   // the weights now (the mesh's, less what each growing arm has still to grow)
+vec4 wgA;   // the weights (the mesh's)
 vec2 wgB;
 float wAt(int i) { return i < 4 ? wgA[i] : wgB[i - 4]; }
 void main() {
-  // THE SHAPE NOW: P1 less, for each growing arm, how far it has still to grow times its difference to the closed shape (a plain skin is its mesh as it is)
+  // THE SHAPE: the mesh as it is (every growing arm is built whole, one static shape: the weld of skin/plain.ts hands it over, nothing morphs)
   vec3 pos = position, nor = normal;
   float rst = restR;
   vec4 wA = weight;
   vec2 wB = weight2;
-#if SKIN_GROW > 0
-  { float q = 1.0 - growG.x; pos -= q * gPosA0.xyz; rst -= q * gPosA0.w; nor -= q * gNorA0; wA -= q * gWtA0; wB -= q * gWt2A0; }
-#endif
-#if SKIN_GROW > 1
-  { float q = 1.0 - growG.y; pos -= q * gPosA1.xyz; rst -= q * gPosA1.w; nor -= q * gNorA1; wA -= q * gWtA1; wB -= q * gWt2A1; }
-#endif
-#if SKIN_GROW > 0
-  nor = normalize(nor + vec3(1e-6, 0.0, 0.0));
-  wA = max(wA, vec4(0.0)); wB = max(wB, vec2(0.0));
-  float wSum = max(wA.x + wA.y + wA.z + wA.w + wB.x + wB.y, 1e-6);
-  wA /= wSum; wB /= wSum;
-#endif
   wgA = wA; wgB = wB;
   // each arm's live width (the engine's diameter by the 2D figure's rule), then the blend: on a seam ring the weight is 1 on its own arm, so this IS the tube's swell and the ring lands where the tube's ring lands.
-  // A growing arm has two: its LUMEN (swT: the width times its growth, what the ink's capsule and the flow marks are made from) and the SHIFT its vertices take along their normals (swE: the morph has already moved
+  // an arm's LUMEN (swT: what the ink's capsule and the flow marks are made from) and the SHIFT its vertices take along their normals (swE; the same number now that nothing morphs): the one live width of the arm (the morph has already moved
   // them by the growth, so the engine's width is applied to the grown part only: radius g x R x swell = g R + g R (swell - 1))
   float swT[${SKIN_ARMS}];
   float swE[${SKIN_ARMS}];
@@ -169,11 +131,7 @@ void main() {
   // (an arm's waist at its seam is part of its width there, as the tube's own narrowK is: the same share kept, 1 - narrow clamped as the tube clamps it)
   for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) {
     float sw = (skinCirc > 0.5 ? circSwellOf(armData[i]) : swellOf(armData[i].x, armData[i].y, armData[i].z)) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
-    float gi = 1.0;
-#if SKIN_GROW > 0
-    gi = armGrow[i];
-#endif
-    swT[i] = sw * gi; swE[i] = 1.0 + gi * (sw - 1.0);
+    swT[i] = sw; swE[i] = sw;
   }
   float swell = 0.0, swellE = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); swell += wi * swT[i]; swellE += wi * swE[i]; }
@@ -397,6 +355,9 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
+  // THE ALPHA IS THE PRESENT ARMS' ONLY (Mohammad, 20 Nov: a dotted pink and blue patch left at the old end of both hepatic arteries, at the sinusoid nodes): the body does not draw the liver's beds, so at SIN_R and SIN_L the arteriole is the one arm that is there, and the skin is dithered
+  // by its share (pres). The alpha blended EVERY arm's fade by weight, the hidden beds' too (PRE_R whole, SIN_RR 0.8), so the skin kept an alpha and a colour from vessels that are not drawn at the pixels the artery's own dither let through, long after the artery had faded to nothing. The alpha is the weighted fade of the arms that are
+  // there (each arm's weight times its presence, over their sum), so an arm that is not drawn adds nothing, and where the one that is has faded the skin is gone with it.
   if (skinKW.y != 0.0) { float wh = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); if (skinKW.y > 0.0 ? wh >= skinKW.z : wh < skinKW.z) discard; }
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
@@ -412,7 +373,7 @@ void main() {
     if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
   }
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)}`).join(' + ')}) 
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4)
     * mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
