@@ -18,6 +18,7 @@ import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
 import { escStep } from './escape.ts';
+import { talkOn } from '../../state/deck.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -38,7 +39,7 @@ export function carryOut(a: KeyAction): void {
     case 'close': {
       const tests = useTests.getState();
       const step = escStep({ dialog: !!sh.dialog, sheet: !!sh.sheet, testsOpen: tests.open, testsFocus: tests.open && tests.state === 'focus', treatOpen: useTreat.getState().open,
-        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: sh.mode === 'deck' });
+        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: talkOn() });
       if (step === 'dialog') useShell.setState({ dialog: null });
       else if (step === 'sheet') sh.close();
       else if (step === 'tests-focus' || step === 'tests') tests.back();   // (the Tests card; its Why? is the shared sheet above, closed first)
@@ -70,7 +71,7 @@ export function carryOut(a: KeyAction): void {
       break;
     }
     case 'settle': settle(); sh.say(SETTLED); break;
-    case 'help': openGuide(sh.mode === 'deck' ? 'present' : null); break;   // (2D: ? in a talk opens the guide at While presenting)
+    case 'help': openGuide(talkOn() ? 'present' : null); break;   // (2D: ? in a talk opens the guide at While presenting)
     case 'tests': runFeature('tests', 'Tests'); break;
     case 'treat': runFeature('treat', 'Treat'); break;
     case 'compare': runFeature('compare', 'Compare'); break;
@@ -85,7 +86,7 @@ export function useKeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const sh = useShell.getState();
-      const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: sh.mode === 'deck', keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
+      const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: talkOn(), keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
       if (!a) return;
       if (a.type === 'ignore') { if (a.prevent) e.preventDefault(); return; }
       if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help' || a.type === 'zoom' || a.type === 'step' || (a.type === 'card-remove' && removeFromCard.available())) e.preventDefault();

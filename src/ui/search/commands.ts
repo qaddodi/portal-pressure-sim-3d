@@ -52,7 +52,7 @@ export function work(group: string, title: string): ((n: number | null) => void)
     if (title === 'Tests') return () => { runFeature('tests', title); };   // (2D ctx.instruments: the Tests card, up or down)
   }
   if (group === 'App') {
-    if (title === 'Home') return () => sh().set({ mode: 'free', sheet: null });
+    if (title === 'Home') return () => sh().set({ sheet: null });
     if (title === 'Reset everything') return () => sh().set({ dialog: 'reset' });
     if (title === 'Guide & shortcuts') return () => sh().set({ sheet: 'help', helpSection: null });
     if (title === 'Light / dark theme') return () => { const s = useSettings.getState(); s.setLook(document.documentElement.dataset.look === 'light' || document.documentElement.dataset.look === 'soft' ? 'dark' : 'light'); };

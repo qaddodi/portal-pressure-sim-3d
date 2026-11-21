@@ -5,6 +5,7 @@ import { live } from '../../engine/store.ts';
 import { timeline } from '../timeline/index.ts';
 import { useShell } from '../shell/store.ts';
 import { TREAT_WORDS } from '../treat/treat.generated.ts';
+import { talkOn } from '../../state/deck.ts';
 
 type Action = { kind: string; [k: string]: unknown };
 
@@ -45,7 +46,7 @@ export function actionAnswer(a: Action, f: Seen, quiet = false): { send: boolean
 
 export function sendAction(a: Action): void {
   const sh = useShell.getState();
-  const ans = actionAnswer(a, live.frame as Seen, sh.mode === 'deck');
+  const ans = actionAnswer(a, live.frame as Seen, talkOn());
   if (ans.say) sh.say(ans.say);
   if (!ans.send) return;
   engine().send({ type: 'action', action: a });

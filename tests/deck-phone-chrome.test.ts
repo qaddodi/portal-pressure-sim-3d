@@ -66,6 +66,6 @@ test('the reader\'s dock is kept from slide to slide, put back when a talk start
 
 test('the figure is locked while a talk plays: the stage hands the gestures the deck check (the gesture controller test covers what it blocks) and the tilt stands still', () => {
   const stage = read('src/scene/Stage.tsx');
-  assert.match(stage, /locked: \(\) => useDeck\.getState\(\)\.mode === 'deck'/);
-  assert.match(stage, /rig\.tiltGate = \{[^}]*useDeck\.getState\(\)\.mode === 'deck'/);
+  assert.match(stage, /locked: \(\) => talkOn\(\)/);
+  assert.match(stage, /rig\.tiltGate = \{[^}]*talkOn\(\)/);
 });

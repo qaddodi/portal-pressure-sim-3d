@@ -23,6 +23,7 @@ import { speedAnimations, sampleRealMs } from './speed.ts';
 import { estimateSteps, sequenceOn } from './progress.ts';
 import { sequence, newProof, type Driver, type SequenceProof } from './sequence.ts';
 import { goToView } from '../../shell/view-actions.ts';
+import { talkOn } from '../../../state/deck.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -30,7 +31,7 @@ export const settle = () => pageSettle({ timeoutMs: 45000, quietMs: QUIET_MS, po
 const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 /** Waits (up to `ms`) for something an open starts asynchronously (a talk's cover, its charts, its first cards), so the walk's "is the page still?" never reads the instant before it begins. */
 const until = async (cond: () => boolean, ms: number) => { const t = performance.now(); while (!cond() && performance.now() - t < ms) await sleep(50); };
-const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
+const talkUp = () => talkOn() && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 
 /** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
 export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length), sequence: sequenceOn(flagValue('sequence'), depth) });
@@ -62,7 +63,7 @@ export function talkDriver(): Driver {
   const cards = () => Array.from(document.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]'));
   return {
     get total() { return ui().stops.length; },
-    now: () => { const u = ui(); return { stop: u.pos.stop, beat: u.pos.beat, page: u.page, ended: useShell.getState().mode !== 'deck' }; },
+    now: () => { const u = ui(); return { stop: u.pos.stop, beat: u.pos.beat, page: u.page, ended: !talkOn() }; },
     press: (m) => ui().move(m),
     headings: () => cards().flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>('h1, h2, h3, .pz-h, .pz-dtitle, [class*="title"]')).filter(visible).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean)),
     targets: () => cards().reduce((n, c) => n + Array.from(c.querySelectorAll('button, a[href], [role="tab"], [role="button"]')).filter(visible).length, 0),
@@ -117,9 +118,9 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
     if (sequenceOn(flagValue('sequence'), depth)) {
       const proof = newProof(d.title); seq(proof);
       yield* sequence(talkDriver(), d.title, { edges: true }, proof);
-      if (useShell.getState().mode !== 'deck') { const again = open(`slide:${d.id}:0`); if (again) yield { ...again, label: 'outline (reopening the talk)' }; }   // (the pass ended the talk with its last Next: reopen it so the leave step below has a talk to leave)
+      if (!talkOn()) { const again = open(`slide:${d.id}:0`); if (again) yield { ...again, label: 'outline (reopening the talk)' }; }   // (the pass ended the talk with its last Next: reopen it so the leave step below has a talk to leave)
     }
-    yield { group: d.title, id: `${d.id}:leave`, label: 'leave the talk', run: async () => { leaveTalk(); await until(() => useShell.getState().mode !== 'deck', 15000); } };
+    yield { group: d.title, id: `${d.id}:leave`, label: 'leave the talk', run: async () => { leaveTalk(); await until(() => !talkOn(), 15000); } };
   }
   // put the app back as it was
   yield { group: 'Views', id: 'restore', label: 'put the app back', run: async () => { useShell.getState().setFigure({ collaterals: keep.collaterals }); await loadPatient(keep.patient); } };
