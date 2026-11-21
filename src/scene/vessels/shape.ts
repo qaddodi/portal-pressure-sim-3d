@@ -205,6 +205,8 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     if (sj && NARROWS_INTO_NEIGHBOUR(v) && !sj.taper) { const n0 = narrowTo(v, 0), n1 = narrowTo(v, 1); if (n0 < 1 || n1 < 1) taper = [Math.min(taper?.[0] ?? 1, n0), Math.min(taper?.[1] ?? 1, n1)]; }
     const sewn = shuntEnds(v.id);
     if (sewn) taper = [Math.min(taper?.[0] ?? 1, endShare(sewn[0], rad)), Math.min(taper?.[1] ?? 1, endShare(sewn[1], rad))];
+    // (the paraumbilical vein ends in the caput's hub, where the fan's roots start: it narrows over its last stretch to the widest root, so one round hub of their width, not a ball wider than every tube that leaves it)
+    if (v.id === 'C3') { const hub = hubRootRadius(s); if (hub > 0 && rad > 0) taper = [taper?.[0] ?? 1, Math.min(taper?.[1] ?? 1, Math.min(1, hub / rad))]; }
     const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
@@ -222,7 +224,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
         // each strand's two ends are sewn onto the host as the trunk's would be (shunt-ends.ts: narrowed to the host's width above, sunk and flared here); the cavernoma's channels end in a point instead
         ...(bundle && v.id !== 'C8' && own.sewn ? { sewn: own.sewn } : {}),
         ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: [true, true] as const } : {}),
-        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick), (own.taper?.[1] ?? 1) / (c.k * thick)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
+        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick) * bundleShare(own.sewn?.[0], strands.length), (own.taper?.[1] ?? 1) / (c.k * thick) * bundleShare(own.sewn?.[1], strands.length)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];
@@ -230,6 +232,19 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
   const fan = plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
   return withFanJoints(fan);
+}
+
+/** The share of the trunk's width each of `n` strands takes at an end that is sewn onto a host: they all land on one point, so together (not each) they make the trunk's width there (n strands of 1/sqrt(n) of it have its area); at an end that is not sewn each still meets the vessel at the trunk's full width, as before. */
+export const bundleShare = (sewn: unknown, n: number): number => (sewn && n > 1 ? 1 / Math.sqrt(n) : 1);
+
+/** The widest root of the caput's fan at full growth (the courses that start where no other ends): what the paraumbilical vein narrows to at the hub. */
+function hubRootRadius(s: ShapeState): number {
+  const fan = NETWORK_BY_ID.get('C3~F:caput');
+  if (!fan) return 0;
+  const cs = coursesOf(fan, { ...s, live: 1 });
+  let r = 0;
+  cs.forEach((c) => { if (c.lens && c.lens[0] === 0) r = Math.max(r, c.radius); });
+  return r;
 }
 
 /** A tree of tributaries (the caput's fan): each course wears the stretch of the host's colour ramp its place gives it (no colour step at a fork), and only the widest end at a point keeps its cap (one round hub). */
