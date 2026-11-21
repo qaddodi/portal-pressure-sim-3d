@@ -44,9 +44,17 @@ export const WHY_COLOUR: Readonly<Record<UnweldedWhy, string>> = { dropped: '#ff
 
 /** "NODE:VESSEL" as `SkinSet.dropped` lists it (a node's name has no colon; a vessel's id may). */
 export function splitDropped(s: string): { node: string; id: string } {
-  const i = s.indexOf(':');
+  // (a key is `${node}:${vessel}`; a vessel id may hold a colon (a fork child, `~F:b`), so the node ends at the first colon, except a wall node, `wall:<host>:<arm><end>,...`, which holds two)
+  let i = s.indexOf(':');
+  if (s.startsWith('wall:')) { const j = s.indexOf(':', 5), k = j < 0 ? -1 : s.indexOf(':', j + 1); i = k; }
   return i < 0 ? { node: '', id: s } : { node: s.slice(0, i), id: s.slice(i + 1) };
 }
+
+/** Whether `key` (a `dropped` entry) names the end `end` of vessel `id` at the real node `node`: either its own node, or a wall node (wall.ts: a virtual node on a host's side wall, `wall:<host>:<arm><end>,...`) that lists that very end. */
+export const droppedAt = (key: string, node: string, id: string, end: 0 | 1): boolean => {
+  const k = splitDropped(key);
+  return k.id === id && (k.node === node || (k.node.startsWith('wall:') && (k.node.split(':').pop() ?? '').split(',').includes(`${id}${end}`)));
+};
 
 export interface ReportInput {
   network?: readonly NetVessel[];
@@ -68,7 +76,7 @@ export function unweldedEnds(inp: ReportInput): UnweldedEnd[] {
     if (isFeeder(v)) continue;
     for (const [node, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
   }
-  const dropped = new Set(inp.dropped), fell = new Set(inp.fellBack);
+  const fell = new Set(inp.fellBack);
   const out: UnweldedEnd[] = [];
   for (const [node, ends] of at) {
     for (const { v, end } of ends) {
@@ -77,7 +85,7 @@ export function unweldedEnds(inp: ReportInput): UnweldedEnd[] {
       const grows = GROWER_KINDS.has(v.kind);
       const others = ends.filter((x) => x !== ends.find((y) => y.v === v && y.end === end) && !GROWER_KINDS.has(x.v.kind)).length;   // (the permanent tubes that end here too: a pair is a run-on, joined by the tubes' own mates and taper)
       if (!grows && others < 2) continue;
-      const why: UnweldedWhy = dropped.has(`${node}:${v.id}`) ? 'dropped' : fell.has(node) ? 'fell-back' : grows ? (isBraid(v) ? 'braid' : 'fork') : 'no-skin';
+      const why: UnweldedWhy = inp.dropped.some((d) => droppedAt(d, node, v.id, end)) ? 'dropped' : fell.has(node) ? 'fell-back' : grows ? (isBraid(v) ? 'braid' : 'fork') : 'no-skin';
       const pts = coursesOf(v, inp.stateOf?.(v.id) ?? REST)[0]?.pts as readonly Vec3[] | undefined;
       const p = pts?.[end ? pts.length - 1 : 0];
       if (!p) continue;

@@ -46,6 +46,9 @@ export const COPY_LAYER = [VESSEL_LAYER, 0, VESSEL_LAYER] as const;
 /** The veil copy is drawn after the vessels, as the tube's own veil is (vessel-object.ts setBehindOrgans). */
 export const COPY_ORDER = [0, 0, 2] as const;
 
+/** Writes float `i` of a six-float uniform packed in two vectors (the shader's armFlowAt, armWedgeAt). */
+const packSet = (v: Vector4[], i: number, x: number): void => { const q = v[i >> 2]!, c = i & 3; if (c === 0) q.x = x; else if (c === 1) q.y = x; else if (c === 2) q.z = x; else q.w = x; };
+
 /** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
 function skinDefines(c: number): Record<string, number> {
   const d: Record<string, number> = { SKIN_COPY: c, ...vdbgDefines() }, out = skinLeaveOut();
@@ -122,7 +125,7 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armWedge: { value: new Array(SKIN_ARMS).fill(WEDGE_ABSENT) }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4()] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       
@@ -174,14 +177,14 @@ export class SkinObject implements SkinDraw {
   /** The wedge's one field at arm `i`'s seam: its tube's route distance from the balloon's distal edge there (WEDGE_ABSENT: no wedge on that tube), and the column as every tube has it (how much, how softly it ends behind the balloon's edge, the front, how softly the front ends) with its amber. */
   setWedge(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void {
     const u = this.material.uniforms;
-    (u.armWedge!.value as number[])[i] = d;
+    packSet(u.armWedge!.value as Vector4[], i, d);
     if (col) { (u.wedgeS!.value as Vector4).set(col.amount, col.behind, col.front, col.frontSoft); (u.wedgeColS!.value as Color).copy(col.color); }
   }
 
   /** The arm's flow marks (the fragment stage's THE FLOW MARKS): the arc at the seam (figure units), which way it grows toward the node (+1 the vessel's end 1, -1 its start), the vessel's length and its rest radius (figure units), and the tube's flowAmount. */
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void {
     this.armArc[i]!.set(seamArc, dir, length, restR);
-    (this.material.uniforms.armFlow!.value as number[])[i] = flow;
+    packSet(this.material.uniforms.armFlow!.value as Vector4[], i, flow);
   }
 
   /** The shares arm `i` has of the three copies (its tube's `copyShares`), and which copies show now: one is visible while the arms' shares of it add up to something and some arm of the skin is there at all. */
