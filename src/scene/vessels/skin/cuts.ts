@@ -207,8 +207,14 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
           const grown = w.arms.filter((m) => m.grow);
           if (grown.length && other.arms.filter((m) => m.grow).length + grown.length <= SKIN_GROWERS && other.arms.length + grown.length <= MERGED_MAX_ARMS) {
             const mj: SkinJunction = { ...other, arms: [...other.arms, ...grown.map((g): SkinArm => ({ ...g, at: w.J }))] };
-            try { out.push({ ...otherPlan, junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), merged: [other.node, w.node] }); break; }
-            catch (e) { if (!(e instanceof SkinBuildError)) throw e; failures.push(new SkinBuildError(w.node, e.message)); out.push(otherPlan); break; }
+            try {
+              const cuts = chooseCuts(mj, tubes, hullFor(mj));
+              // ...but the arms that stay are the PLAIN TRUNK whenever the grower is not whole (Healthy has no REX): their seams must stay where the skin without it put them. A grower's capsule that pushes them out makes the plain skin a bigger, straighter one over
+              // the faded stretch of the vein (the left portal vein washed out and doubled, 21 Nov): then the landing keeps the tube's own flared end, named
+              const moved = otherPlan.cuts.findIndex((c, i) => cuts[i]!.ring !== c.ring);
+              if (moved >= 0) { failures.push(new SkinBuildError(w.node, `${w.node} would move the seam of ${otherPlan.cuts[moved]!.vesselId} on the skin of ${other.node} (ring ${otherPlan.cuts[moved]!.ring} to ${cuts[moved]!.ring})`)); out.push(otherPlan); break; }
+              out.push({ ...otherPlan, junction: mj, cuts, merged: [other.node, w.node] }); break;
+            } catch (e) { if (!(e instanceof SkinBuildError)) throw e; failures.push(new SkinBuildError(w.node, e.message)); out.push(otherPlan); break; }
           }
           failures.push(new SkinBuildError(w.node, `${w.node} crowds the skin of ${other.node} on ${ca.vesselId}`));
           out.push(otherPlan);
