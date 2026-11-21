@@ -84,3 +84,33 @@ test('the fit passes that write onto the element they observe go through observe
     assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
   }
 });
+
+test('the curve and the course are held to the card\'s room too (the audit\'s 18 to 36 px past the foot: The course on one chart, Ten years on one chart, PPG and fundal varix)', async () => {
+  const { ctxOf } = await import('./charts-helpers.ts');
+  const { courseFrame } = await import('../src/ui/charts/curve/course-frame.ts');
+  const { curveFrame } = await import('../src/ui/charts/curve/frame.ts');
+  const { COURSE_TOOL, TIPS_TOOL, courseSeriesSpecimen } = await import('../src/ui/charts/curve/specimens.ts');
+  const c = ctxOf('light', 430);
+  const free = courseFrame({ tool: COURSE_TOOL, ser: courseSeriesSpecimen() }, c).frame.h;
+  const room = free - 40;
+  assert.equal(courseFrame({ tool: COURSE_TOOL, ser: courseSeriesSpecimen(), room }, c).frame.h, room, 'the course stands in its room');
+  assert.equal(courseFrame({ tool: COURSE_TOOL, ser: courseSeriesSpecimen(), room: free + 50 }, c).frame.h, free, 'room to spare: unchanged');
+  const cf = curveFrame({ tool: TIPS_TOOL, ser: null }, c).frame.h;
+  assert.equal(curveFrame({ tool: TIPS_TOOL, ser: null, room: cf - 30 }, c).frame.h, cf - 30, 'the curve stands in its room');
+  const tb = src('src/ui/talk/ToolCardBody.tsx');
+  assert.match(tb, /<CurveCard [^>]*room=\{room\}/);
+  assert.match(src('src/ui/charts/curve/CurveCard.tsx'), /deps=\{\[t, ser, height, room\]\}/);
+});
+
+test('the audit reads a scrolling list\'s rows below its fold, and a sheet over the page, as what they are (the Settings rows "covered by the canvas", the Menu\'s words "over" the bar)', () => {
+  const sc = src('src/ui/debug/audit/scan.ts');
+  assert.match(sc, /view: cuts \|\| scrolling \?/);
+  assert.match(sc, /const view = vis\(el\)\.view/);
+  assert.match(src('src/ui/debug/audit/scan-judge.ts'), /!!a\.modal !== !!b\.modal/);
+  assert.match(src('src/ui/debug/audit/judge.ts'), /overlap\(k\.box, k\.clip\) <= 0\) continue/);
+});
+
+test('the intra-abdominal pressure bar is named with its number and its word, and a fill inside a named picture is not "colour only" (a11y-colour-cue, 23 findings in the first run, 7 in the next)', () => {
+  assert.match(src('src/ui/tests/abdomen/AbdomenPane.tsx'), /aria-label=\{`\$\{WORDS\.iapKey\} \$\{v\.iapNum\}, \$\{v\.iapWord\}`\}/);
+  assert.match(src('src/ui/debug/screen/raw.ts'), /el\.closest\('\[role="img"\]\[aria-label\]'\)/);
+});

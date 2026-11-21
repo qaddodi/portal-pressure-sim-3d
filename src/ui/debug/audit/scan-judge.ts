@@ -93,6 +93,7 @@ export function judgeScan(s: RawScan): AuditFinding[] {
       const a = texts[i]!, b = texts[j]!;
       if (b.box[0] >= a.box[2]) break;
       if (a.what === b.what) continue;
+      if (!!a.modal !== !!b.modal) continue;   // (a sheet over the page is not words over words: what it hides is not read)
       const o = inter(a.box, b.box) / Math.min(area(a.box), area(b.box));
       if (o > 0.2) add('text-overlap', 'fail', `${label(a)} and ${label(b)} overlap by ${Math.round(o * 100)}% of the smaller`, `${a.what} | ${b.what}`, n);
     }

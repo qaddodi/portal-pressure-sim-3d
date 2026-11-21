@@ -6,12 +6,13 @@ import type { Frame, Shape, TextShape } from '../scene.ts';
 import { measure } from '../measure.ts';
 import * as C from './course-pure.generated.js';
 import { curveHeight } from './frame.ts';
+import { heldToRoom } from '../profile/model.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 /** The 2D tool object of a course: `{ kind: 'course', reading, from, event, wait, after, then, words }`. */
 export type CourseTool = Record<string, Any>;
-export interface CourseSpec { tool: CourseTool; /** the series from courseSeries(), or null while the days are being worked out (the zones, numbers and axes show; the lines come later) */ ser: Any | null; height?: number }
+export interface CourseSpec { tool: CourseTool; /** the series from courseSeries(), or null while the days are being worked out (the zones, numbers and axes show; the lines come later) */ ser: Any | null; height?: number; /** the room the data card leaves the chart, px (--pz-room): never taller than it */ room?: number }
 
 const H = { host: 'curve' };
 const tokOf = (v: string) => v.replace(/^--/, '');
@@ -40,7 +41,7 @@ export function flattenPath(d: string, n = 14): number[] {
 }
 
 export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: Any; labels: Any } {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, spec.height ?? curveHeight(w, f)));
+  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? curveHeight(w, f), spec.room, f)!));
   const co = C.courseOf(spec.tool), ser = spec.ser;
   const { G, labels, zoneNames } = C.compose(w, h, f, co, ser) as Any;
   const { L, R, B, X, Y } = G, r = Math.max(3.5, 0.3 * f);

@@ -104,7 +104,7 @@ export function AbdomenPane({ square }: { square?: number }) {
           </div>
           <div className="ab-iap">
             <div className="ab-kv"><span>{WORDS.iapKey}</span><span className="ab-v"><b>{v.iapNum}</b><span className="ab-w" data-sev={v.iapSev}>{v.iapWord}</span></span></div>
-            <div className="ab-iap-bar" role="img" title={WORDS.iapTip} aria-label={`${WORDS.iapKey} ${v.iapNum}`}>
+            <div className="ab-iap-bar" role="img" title={WORDS.iapTip} aria-label={`${WORDS.iapKey} ${v.iapNum}, ${v.iapWord}`}>
               <i className="ab-iap-fill" data-sev={v.iapSev} style={{ translate: slideTxt(v.iapFill) }} />
               <i className="ab-iap-mark" style={{ left: '40%' }} /><i className="ab-iap-mark" style={{ left: '66.7%' }} />
             </div>

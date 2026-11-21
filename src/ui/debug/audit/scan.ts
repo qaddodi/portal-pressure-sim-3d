@@ -12,6 +12,8 @@ export interface ScanItem {
   /** inside something that scrolls: out of view is normal there */
   scrolls: boolean;
   opacity: number;
+  /** inside an open sheet, menu or the cover: it stands over the page on purpose */
+  modal?: boolean;
   /** text only */ px?: number; bold?: boolean; fg?: string; bg?: string | null;
 }
 export interface RawScan {
@@ -38,8 +40,9 @@ export function normColour(c: string): string | null {
 }
 const alphaOf = (c: string): number => { const m = /,\s*([\d.]+)\)$/.exec(c); return m ? +m[1]! : 1; };
 
-interface Vis { ok: boolean; opacity: number; clip: Box | null; scrolls: boolean }
-const HIDDEN: Vis = { ok: false, opacity: 0, clip: null, scrolls: false };
+/** `clip`: where a hidden or clipping ancestor cuts it (scrolling lists do not cut text off: you scroll to it). `view`: the same, plus scrolling ancestors: the only part of it a pointer can reach. */
+interface Vis { ok: boolean; opacity: number; clip: Box | null; view: Box | null; scrolls: boolean }
+const HIDDEN: Vis = { ok: false, opacity: 0, clip: null, view: null, scrolls: false };
 
 /** Short name of an element for a finding: tag, id, first two classes. */
 export function nameOf(el: Element, text = ''): string {
@@ -56,7 +59,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
 
   /** Whether an element is drawn at all, how opaque it is with its ancestors, the box its clipping ancestors leave it. Memoised up the tree. */
   const vis = (el: Element | null): Vis => {
-    if (!el || el === doc.documentElement) return { ok: true, opacity: 1, clip: null, scrolls: false };
+    if (!el || el === doc.documentElement) return { ok: true, opacity: 1, clip: null, view: null, scrolls: false };
     const hit = memo.get(el); if (hit) return hit;
     const up = vis(el.parentElement);
     let v: Vis = HIDDEN;
@@ -68,7 +71,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
         const clips = (x: string) => x === 'hidden' || x === 'clip';
         const scrolling = /auto|scroll|overlay/.test(cs.overflowX + cs.overflowY);
         const cuts = clips(cs.overflowX) || clips(cs.overflowY) || /paint|strict|content/.test(cs.contain) || el.tagName.toLowerCase() === 'svg';
-        v = { ok: true, opacity: up.opacity * (parseFloat(cs.opacity) || 0), clip: cuts ? meet(up.clip, box(el.getBoundingClientRect())) : up.clip, scrolls: up.scrolls || scrolling };
+        v = { ok: true, opacity: up.opacity * (parseFloat(cs.opacity) || 0), clip: cuts ? meet(up.clip, box(el.getBoundingClientRect())) : up.clip, view: cuts || scrolling ? meet(up.view, box(el.getBoundingClientRect())) : up.view, scrolls: up.scrolls || scrolling };
       }
     }
     memo.set(el, v);
@@ -137,7 +140,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     for (const r of rects) {
       if (items.length >= MAX_ITEMS) { capped = true; break; }
       const b = lineBoxes([r])[0]; if (!b) continue;
-      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, px, bold, fg: fg ?? undefined, bg };
+      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, modal: !!p.closest(MODAL) || undefined, px, bold, fg: fg ?? undefined, bg };
       items.push(item); holders.push({ el: p, item });
     }
     texts++;
@@ -178,7 +181,8 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     if (item.opacity < 0.5) continue;
     if (win.getComputedStyle(el).pointerEvents === 'none' || el.closest('#preview-badge')) continue;   // (elementFromPoint cannot see through it: not asked)
     let [l, t, r, b] = item.box;
-    if (item.clip) { l = Math.max(l, item.clip[0]); t = Math.max(t, item.clip[1]); r = Math.min(r, item.clip[2]); b = Math.min(b, item.clip[3]); }
+    const view = vis(el).view;   // (a row of a scrolling menu below its fold is not there to be covered: the canvas under the menu is what the point finds)
+    if (view) { l = Math.max(l, view[0]); t = Math.max(t, view[1]); r = Math.min(r, view[2]); b = Math.min(b, view[3]); }
     l = Math.max(l, 0); t = Math.max(t, 0); r = Math.min(r, vw - 1); b = Math.min(b, vh - 1);
     if ((r - l) * (b - t) < 24 || r - l < 3 || b - t < 3) continue;
     hit++;

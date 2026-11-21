@@ -45,6 +45,8 @@ interface CardProps {
   id?: string;
   /** the chart's height, px; else about three fifths of its width */
   height?: number;
+  /** the room the data card leaves the chart, px (2D --pz-room, ToolCardBody's `room`): the chart is held to it */
+  room?: number;
 }
 
 /** A parameter curve or a course for a slide. The points are worked out once on the engine's worker; until they are there the axes show and the lines then fade in. */
@@ -52,7 +54,7 @@ export function CurveCard(p: CardProps) {
   return (p.tool as { kind?: string }).kind === 'course' ? <CourseCard {...p} /> : <ParamCurveCard {...p} />;
 }
 
-function ParamCurveCard({ tool, slide = null, live = null, fpOf, run, id, height }: CardProps) {
+function ParamCurveCard({ tool, slide = null, live = null, fpOf, run, id, height, room }: CardProps) {
   const t = tool as CurveTool;
   const key = useMemo(() => curveKey(t, id ?? slide?.fp), [t, id, slide?.fp]);
   const [work, setWork] = useState<CurveWork | null>(() => (ready.get(key) as CurveWork | undefined) ?? null);
@@ -95,12 +97,12 @@ function ParamCurveCard({ tool, slide = null, live = null, fpOf, run, id, height
   const [label, setLabel] = useState('A curve');
   return (
     <div className="pz-curve">
-      <Chart tag="chart:curve" painter={painter} deps={[t, work, goal, height]} label={label} build={(c) => { const o = curveFrame({ tool: t, ser: work?.s ?? null, dots: work?.dd, goal, atX: shown.current, height }, c); out.current = o; setLabel(o.frame.label); return o.frame; }} />
+      <Chart tag="chart:curve" painter={painter} deps={[t, work, goal, height, room]} label={label} build={(c) => { const o = curveFrame({ tool: t, ser: work?.s ?? null, dots: work?.dd, goal, atX: shown.current, height, room }, c); out.current = o; setLabel(o.frame.label); return o.frame; }} />
     </div>
   );
 }
 
-function CourseCard({ tool, slide = null, run, id, height }: CardProps) {
+function CourseCard({ tool, slide = null, run, id, height, room }: CardProps) {
   const t = tool as CourseTool;
   const key = useMemo(() => curveKey(t, id ?? slide?.fp ?? 'course'), [t, id, slide?.fp]);
   const [ser, setSer] = useState<unknown>(() => ready.get(key) ?? null);
@@ -115,7 +117,7 @@ function CourseCard({ tool, slide = null, run, id, height }: CardProps) {
   const [label, setLabel] = useState('A course over the days');
   return (
     <div className="pz-curve pz-course">
-      <Chart tag="chart:course" deps={[t, ser, height]} label={label} build={(c) => { const o = courseFrame({ tool: t, ser, height }, c); setLabel(o.frame.label); return o.frame; }} />
+      <Chart tag="chart:course" deps={[t, ser, height, room]} label={label} build={(c) => { const o = courseFrame({ tool: t, ser, height, room }, c); setLabel(o.frame.label); return o.frame; }} />
     </div>
   );
 }

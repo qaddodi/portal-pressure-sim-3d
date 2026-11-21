@@ -135,13 +135,14 @@ export function layoutFindings(r: LayoutRead): AuditFinding[] {
     // a chart whose picture runs past the edge of whatever clips it: the axis, the lines and the last point are cut off (the plot taller than the card's room)
     for (const ch of c.charts ?? []) {
       const clip = ch.clip ?? c.box;
-      if (area(ch.box) < 4 || within(ch.box, clip, SPILL_PX)) continue;
+      if (area(ch.box) < 4 || within(ch.box, clip, SPILL_PX) || overlap(ch.box, clip) <= 0) continue;   // (wholly outside what clips it is a shut part, not a cut one)
       const cut = { bottom: ch.box[3] - clip[3], right: ch.box[2] - clip[2], top: clip[1] - ch.box[1], left: clip[0] - ch.box[0] };
       const parts = (Object.entries(cut) as [string, number][]).filter(([, v]) => v > SPILL_PX).map(([k, v]) => `${r0(v)} px at the ${k}`);
       out.push({ kind: 'chart-clipped', sev: 'fail', what: `${ch.what} in card ${name} is cut off by its card: ${parts.join(', ')} hidden`, where: `card ${c.id}, ${ch.what}` });
     }
     for (const k of c.kids) {
       if (area(k.box) < 4) continue;
+      if (k.clip && overlap(k.box, k.clip) <= 0) continue;   // (wholly outside what clips it: a collapsed part, as scan-judge reads it)
       if (k.clip && !within(k.box, k.clip, SPILL_PX)) {
         const by = Math.max(k.box[2] - k.clip[2], k.box[3] - k.clip[3], k.clip[0] - k.box[0], k.clip[1] - k.box[1]);
         out.push({ kind: 'clipped', sev: 'fail', what: `"${k.what}" in card ${name} is cut off by its container: ${r0(by)} px hidden`, where: `card ${c.id}, ${k.what}` });

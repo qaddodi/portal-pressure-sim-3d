@@ -111,7 +111,7 @@ export function collectCues(doc: Document): RawCue[] {
     el: `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? `.${el.className.trim().split(/\s+/)[0]}` : ''}`,
     tone: el.dataset.tone || el.dataset.sev || '',
     text: (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
-    named: !!(el.getAttribute('aria-label') || el.getAttribute('aria-description') || el.hasAttribute('data-cue')),
+    named: !!(el.getAttribute('aria-label') || el.getAttribute('aria-description') || el.hasAttribute('data-cue') || el.closest('[role="img"][aria-label]')),   // (a fill inside a picture that is named by its words is named by them)
   }));
 }
 

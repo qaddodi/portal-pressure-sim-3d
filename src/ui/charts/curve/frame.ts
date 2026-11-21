@@ -9,6 +9,7 @@ import { measure } from '../measure.ts';
 import type { Frame, Shape, TextShape } from '../scene.ts';
 import * as P from './curve-pure.generated.js';
 import { minusFixed } from '../looks2d/num.js';
+import { heldToRoom } from '../profile/model.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -26,6 +27,8 @@ export interface CurveSpec {
   goal?: Goal | null;
   atX?: number | null;
   height?: number;
+  /** the room the data card leaves the chart, px (2D --pz-room): the chart is never taller than it; absent or 0: none measured, or a stacked card */
+  room?: number;
 }
 export interface CurveOut { frame: Frame; G: Any; fits: boolean; /** the dots' names cannot all stand close and clear (2D needSteps): the dots then carry numbers and a key names them */ crowded: boolean }
 
@@ -372,7 +375,7 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
 }
 
 export function curveFrame(spec: CurveSpec, c: ChartCtx): CurveOut {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, spec.height ?? curveHeight(w, f)));
+  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? curveHeight(w, f), spec.room, f)!));
   let out = drawOnce(spec, c, w, h, f, false, false);
   // a crowd of names: numbers on the dots and a key under the chart, if the plot keeps its height
   if (out.crowded) { const g2 = drawOnce(spec, c, w, h, f, true, false); if (g2.G.B - g2.G.T >= 5 * f) out = g2; }
