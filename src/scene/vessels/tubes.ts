@@ -39,6 +39,8 @@ export const factorSpan = (t: readonly [number, number], sp: readonly [number, n
 };
 /** A shunt's sewn end (shunt-ends.ts) as a share of the tube's radius at distance `d` from that end: narrowed inside its host (2D sideEndScale), flared in front of the wall (flareScale). */
 const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (e.flare ? (flareScale(d, e.hostR) as number) : 1));
+/** The narrowing alone of a sewn end at distance `d`: inside its host's wall it closes toward SIDE_END_MIN (2D sideEndScale). */
+const narrowAt = (e: ShuntEnd | null | undefined, d: number): number => (e && e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1);
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** A course's radius at `u` (0 to 1 along it) as its tube is built, without the collar and the bead: its own radius, its end tapers, a buried end held under its trunk and a free end's point. `len` is the course's length (scene units). */
@@ -105,7 +107,13 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       const u = k / seg;
       let f = open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, u * clen) + collar(1, (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
       curve.getPointAt(k / seg, P);
-      if (open && c.sewn) f *= sewnAt(c.sewn[0], 0, u * clen) * sewnAt(c.sewn[1], 1, (1 - u) * clen);
+      if (open && c.sewn) {
+        const f0 = f, a0 = sewnAt(c.sewn[0], 0, u * clen), a1 = sewnAt(c.sewn[1], 1, (1 - u) * clen);
+        f *= a0 * a1;
+        // a generated end's flare never takes the tube wider than its host (a stent in a vein of its own width, a shunt on a thin branch: the heel was a bulge): the narrowing stays, the flare is cut at the host's radius
+        const cap = [c.sewn[0], c.sewn[1]].reduce((m, e, i) => (e?.capped && e.flare && flareScale(i ? (1 - u) * clen : u * clen, e.hostR) as number > 1 ? Math.max(m, e.hostR / c.radius) : m), 0);
+        if (cap > 0) f = Math.min(f, Math.max(f0 * narrowAt(c.sewn[0], u * clen) * narrowAt(c.sewn[1], (1 - u) * clen), cap));
+      }
       if (open && (c.clamp || c.point)) {
         // (smooth joins) the buried ends keep their collar inside the trunk, and a free end narrows to a point
         const d0 = u * clen, d1 = (1 - u) * clen;

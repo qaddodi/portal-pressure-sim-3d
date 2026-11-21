@@ -244,6 +244,8 @@ uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm
 uniform float skinK;
 uniform vec4 armArc[${SKIN_ARMS}];
 uniform float armFlow[${SKIN_ARMS}];
+uniform float armWedge[${SKIN_ARMS}];   // each arm tube's wedge tint share at its seam (arm-twins.ts wedgeShareAt: the tube's own formula), blended by the arms' weights like every other per-arm value: ONE tint field through the join
+uniform vec3 wedgeColS;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -564,5 +566,10 @@ void main() {
 #ifdef VDBG
   c = dbgEnd(c, armData[0].x + 0.5);
 #endif
+  // the wedge's amber column through the join: the tube's own tint (vessels/shaders.ts) at each seam, blended by the arms' weights, drawn last like the tube's
+  if (skinCirc < 0.5) {
+    float waS = clamp(${BLEND('armWedge')}, 0.0, 1.0);
+    c = mix(c, wedgeColS, 0.78 * waS);
+  }
   gl_FragColor = vec4(c, alpha);
 }`;

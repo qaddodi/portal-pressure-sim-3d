@@ -8,7 +8,7 @@ import { isPermanent, nearestOnPolyline } from './skin/inventory.ts';
 import type { Vec3 } from './skin/types.ts';
 
 /** One end of a shunt: the host's radius (scene units), whether the end lies inside the host's lumen (so it narrows there), whether it is a sink (2D SINK: narrowed but not further reduced) and flares. */
-export interface ShuntEnd { hostR: number; inside: boolean; sink: boolean; flare: boolean }
+export interface ShuntEnd { hostR: number; inside: boolean; sink: boolean; flare: boolean; /** a generated end (not the Warren's or the portocaval's own row): its flare may not take the tube wider than its host (tubes.ts) */ capped?: true }
 interface Row { hosts: readonly [readonly string[], readonly string[]]; inside: readonly [boolean, boolean]; sink?: boolean; flare: boolean }
 /** The Warren shunt leaves the splenic vein's side (its start runs on from the divided splenic vein, so it is not inside) and ends inside the left renal vein; the portocaval shunt sinks into the cava. */
 const ROWS: Readonly<Record<string, Row>> = {
@@ -23,11 +23,11 @@ export const SEWN_TOL_R = 1.5;
 /** A host as the Circuit (or any caller that has no network vessel) gives it: its axis and its radius, in the units of the path asked about. */
 export interface HostAxis { pts: readonly Vec3[]; radius: number }
 
-/** How an end that lands on a wall is drawn (2D's own: narrowed to the host's width, sunk inside the wall, flared at the heel): the host is the widest one within reach. Null where the end is on no host. */
+/** How an end that lands on a wall is drawn (the Warren shunt's way, 2D SIDE_INSIDE: narrowed to the host's width, closing to a point inside the wall so no round cap shows past it, flared at the heel but never wider than the host): the host is the widest one within reach. Null where the end is on no host. */
 export function sewnEndAt(p: Vec3, hosts: readonly HostAxis[]): ShuntEnd | null {
   let r = 0;
   for (const h of hosts) { if (h.pts.length < 2) continue; const n = nearestOnPolyline(h.pts, p); if (n.d <= SEWN_TOL_R * h.radius) r = Math.max(r, h.radius); }
-  return r > 0 ? { hostR: r, inside: true, sink: true, flare: true } : null;
+  return r > 0 ? { hostR: r, inside: true, sink: false, flare: true, capped: true } : null;
 }
 /** The two sewn ends of a path made at run time (a custom shunt of the Circuit, a strand): each end that lands on one of `hosts`, else null. Pure numbers, a few polyline distances. */
 export function endProfileFor(pts: readonly Vec3[], hosts: readonly HostAxis[]): readonly [ShuntEnd | null, ShuntEnd | null] | null {

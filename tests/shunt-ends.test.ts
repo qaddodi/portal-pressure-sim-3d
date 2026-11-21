@@ -46,6 +46,6 @@ test('a path made at run time (a custom shunt of the Circuit) is sewn at each en
   const host = { pts: [[0, 0, 0], [1, 0, 0]] as [number, number, number][], radius: 0.05 };
   const e = endProfileFor([[0.5, 0.06, 0], [0.5, 0.5, 0], [0.9, 0.9, 0]], [host])!;
   assert.ok(e[0] && !e[1]);
-  assert.deepEqual(e[0], { hostR: 0.05, inside: true, sink: true, flare: true });
+  assert.deepEqual(e[0], { hostR: 0.05, inside: true, sink: false, flare: true, capped: true });
   assert.equal(endProfileFor([[0.5, 0.5, 0], [0.9, 0.9, 0]], [host]), null);
 });
