@@ -212,6 +212,8 @@ export class LabelController {
   private lastFollow = -1e9;
   private dirty = true;
   private sig = '';
+  /** What the reading cards were last solved for while the picture was still sliding (see tick): the cards ride their points, so they never wait for a rest the slide would not give. */
+  private cardSig = '';
   private last = -1;
   private readonly tmp = new Vector3();
   private readonly tmp2 = new Vector3();
@@ -486,6 +488,15 @@ export class LabelController {
     const cathNow = here ? this.state.cath : null, procNow = here ? this.state.proc : null;
     const cathSig = (here ? '' : 'away|') + (this.state.cath || this.state.proc ? `${this.state.proc?.sig ?? ''}|${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '');
     const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
+    // A new card (or a new view or card box) comes in while the points slide (a tilt, a follow, the scope bending), which never rests: the reading cards ride their points (`show.ride`), so they are placed
+    // now, without the names, which keep waiting for the picture to be still. Without this a card that came while anything slid waited for ever and never appeared (EUS-PPG's PV and HV, 21 Nov).
+    if (!hold && !resting && (cathNow || procNow)) {
+      const cs = `${this.state.proc?.sig ?? ''}|${this.state.cath ?? ''}|${here ? 1 : 0}|${this.cGot}|${keyBox ? boxKey(keyBox) : '-'}|${boxKey(view)}|${blockers.map(boxKey).join(';')}`;
+      if (cs !== this.cardSig) {
+        this.cardSig = cs;
+        this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
+      }
+    }
     if (!hold && resting && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       for (const [id, m] of next) this.metas.set(id, m);
