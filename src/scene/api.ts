@@ -22,7 +22,7 @@ import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './l
 import { circuitShot, circuitBoxShot } from './circuit/shots.ts';
 import type { ResKey } from './circuit/res-model.ts';
 import { TURN_MS } from './circuit/data.copied.ts';
-import { useCircuitTurn } from './circuit/pref.ts';
+import { useCircuitTurn, entryUpright } from './circuit/pref.ts';
 import { useLens } from './lenses/store.ts';
 import { useBlood } from './blood/options.ts';
 import type { BloodChoice } from './blood/options.ts';
@@ -66,7 +66,7 @@ export const sceneApi = {
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
     const from = cel.view;
-    if (v === 'circuit') cel.setCircuitUpright(useCircuitTurn.getState().upright);
+    if (v === 'circuit') cel.setCircuitUpright(entryUpright());
     cel.setView(v);
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
     const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
@@ -75,7 +75,7 @@ export const sceneApi = {
   },
   /** Show the Circuit framed on a part of the map (a slide's region: a box in map units, `kMax` its closest zoom), or the whole map; the resistors and the caudate lane that the slide asks for come with it. */
   showCircuit(room: Room, o: { box?: readonly [number, number, number, number] | null; kMax?: number | null; resistors?: readonly ResKey[]; caudate?: boolean } = {}): void {
-    const upright = useCircuitTurn.getState().upright;
+    const upright = entryUpright();
     cel.setCircuitUpright(upright);
     cel.setView('circuit');
     cel.setResistors(o.resistors ?? []); cel.setCaudatePin(!!o.caudate);
@@ -87,6 +87,7 @@ export const sceneApi = {
   /** Show a view and fly to a shot of the caller's own (a ported deck slide's camera), fitted into the room the cards leave free. */
   showShot(v: FigureView, shot: ShotName | Shot, room: Room, slide = true): void {
     const from = cel.view;
+    if (v === 'circuit' && from !== v) cel.setCircuitUpright(entryUpright());
     if (from !== v) cel.setView(v);
     if (from === 'circuit' && v !== 'circuit') { cel.setResistors([]); cel.setCaudatePin(false); }
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
