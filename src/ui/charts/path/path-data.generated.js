@@ -31,7 +31,6 @@ import secprop from './algos/secprop.generated.js';
 import psvdscope from './algos/psvdscope.generated.js';
 import pvtocc from './algos/pvtocc.generated.js';
 import pvtdur from './algos/pvtdur.generated.js';
-import aasld from './algos/aasld.generated.js';
 import psvdscore from './algos/psvdscore.generated.js';
 import recomp from './algos/recomp.generated.js';
 import pvtgrid from './algos/pvtgrid.generated.js';
@@ -39,7 +38,7 @@ import ladder from './algos/ladder.generated.js';
 import { leavesOf, cpClass } from './algos/helpers.generated.js';
 
 /** Every algorithm by the name a slide gives (tool { kind: 'path', of }): its module (path-algos/<id>.js, the contract in each file's shape). */
-export const ALGOS = Object.fromEntries([first, bleed, gastric, ascites, stopcarv, holdcarv, secprop, psvdscope, pvtocc, pvtdur, aasld, psvdscore, recomp, pvtgrid, ladder].map((a) => [a.id, a]));
+export const ALGOS = Object.fromEntries([first, bleed, gastric, ascites, stopcarv, holdcarv, secprop, psvdscope, pvtocc, pvtdur, psvdscore, recomp, pvtgrid, ladder].map((a) => [a.id, a]));
 export const DEFAULT_OF = 'first-visit';
 /** The algorithm a tool names (an unknown name is the first-visit chart). */
 export const algoOf = (of) => ALGOS[of] || ALGOS[DEFAULT_OF];
@@ -49,7 +48,7 @@ export const FIRST_VISIT = first.tree;
 export const BLEED = bleed.tree;
 export { leavesOf, cpClass };
 /** The short name in a slide's tab. */
-const SHORT = { 'first-visit': 'First-visit path', bleed: 'Bleed path', gastric: 'Gastric bleed path', ascites: 'Ascites path', stopcarv: 'Stop carvedilol?', holdcarv: 'Hold carvedilol?', secprop: 'Rebleeding path', psvdscope: 'PSVD endoscopy?', pvtocc: 'PVT occlusion', pvtdur: 'PVT duration', aasld: 'Rule of five', psvdscore: 'PSVD score', recomp: 'Recompensated?', pvtgrid: 'PVT anticoagulation', ladder: 'Cirrhosis stages' };
+const SHORT = { 'first-visit': 'First-visit path', bleed: 'Bleed path', gastric: 'Gastric bleed path', ascites: 'Ascites path', stopcarv: 'Stop carvedilol?', holdcarv: 'Hold carvedilol?', secprop: 'Rebleeding path', psvdscope: 'PSVD endoscopy?', pvtocc: 'PVT occlusion', pvtdur: 'PVT duration', psvdscore: 'PSVD score', recomp: 'Recompensated?', pvtgrid: 'PVT anticoagulation', ladder: 'Cirrhosis stages' };
 /** What the card needs of an algorithm by name: its tree, the pill's words, the foot, the screen-reader name. A kind that is not a tree ('score' | 'grid' | 'ladder')
  *  has no tree: the card draws its own rows, zones, cells or steps (algo, path-cards.js). */
 export const PATHS = Object.fromEntries(Object.values(ALGOS).map((a) => [a.id, { tree: a.tree, algo: a, kick: a.source, foot: a.cite, label: a.label, short: SHORT[a.id] || a.label, kind: a.kind }]));

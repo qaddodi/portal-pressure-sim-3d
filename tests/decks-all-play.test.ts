@@ -67,7 +67,10 @@ test('a question slide is asked on a card of its own first (two beats), and a sl
       if (stop.kind !== 'slide') return;
       assert.equal(stop.beats, (caseOf(s) ? 2 : 1) + (s.beats?.length ?? 0), `${id}/${s.id}`);   // (a slide's camera beats are views after its own)
       if (s.question) { questions++; assert.ok(!s.vignette, `${id}/${s.id}: only a slide with no case and no patient of its own is asked`); assert.equal(viewAt(stops, { stop: i + 1, beat: 0 }).words, 'case'); assert.equal(viewAt(stops, { stop: i + 1, beat: 1 }).words, s.table || hasVisualChart(s) ? 'visual' : 'teach', `${id}/${s.id}: after its question the slide shows as itself (a summary table or chart is 2D's one centred panel)`); assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 1 }, `${id}/${s.id}: a jump lands on the slide, not on its question`); }
-      else if (s.vignette) assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 0 }, `${id}/${s.id}: a jump to a case still shows the case`);
+      else if (s.vignette) {   // (a case card is met only going forward, as 2D's `to > lastAt`: a start, a resume, a link and a jump back land on the slide itself (beat 1); a jump forward, `case: true`, meets the card (presenter-machine goto))
+        assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 1 }, `${id}/${s.id}: an outside jump lands on the slide, not on its case`);
+        assert.deepEqual(goto(stops, i + 1, { case: true }), { stop: i + 1, beat: 0 }, `${id}/${s.id}: a jump forward still meets the case`);
+      }
     });
   }
   assert.ok(questions >= 8, `question slides (${questions})`);

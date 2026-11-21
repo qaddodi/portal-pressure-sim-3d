@@ -6,6 +6,7 @@
 //   src/ui/tests/copied/dock-words.copied.js  the Tests tabs' order and names (dock.js SHORT, TINY, ORDER).
 // Usage: node scripts/copy-b11.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { uiTextEdits } from './source-edits.mjs';
 import { execFileSync } from 'node:child_process';
 
 const args = process.argv.slice(2);
@@ -37,7 +38,8 @@ const SLICES = {
 const dir = new URL('../src/ui/tests/copied/', import.meta.url);
 mkdirSync(dir, { recursive: true });
 const changed = [];
-const put = (name, text) => {
+const put = (name, text0) => {
+  const text = uiTextEdits(text0);
   const url = new URL(name, dir);
   if (existsSync(url) && readFileSync(url, 'utf8') === text) return;
   changed.push(name);

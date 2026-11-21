@@ -104,3 +104,29 @@ export function sourceEdits(json) {
   }
   return JSON.stringify(deck, null, indent);
 }
+
+// ---- the app's own words (About, the menu's thresholds line, the tile help, the chart gallery) ----
+// Same rule as the talks: Baveno VIII is the only guideline named on screen. The generators of those files call uiTextEdits() on the text they are about to write
+// (gen-ui-strings, copy-about, copy-presenter, copy-b11, copy-chart-catalog, copy-chart-path). About's reference list keeps its citations (a citation is not guidance).
+const UI_EDITS = [
+  ['the directly measured portosystemic gradient (AASLD 2024).', 'the directly measured portosystemic gradient.'],
+  ['The presentations follow Baveno VIII (J Hepatol, 2026), with AASLD guidance where US practice differs, for example the vasoactive drug and the antibiotic in variceal bleeding.', 'The presentations follow Baveno VIII (J Hepatol, 2026). Where it is silent, for example on doses, the speaker notes name the source.'],
+  ['Baveno VIII consensus on portal hypertension (2026); AASLD guidance on risk stratification and management of portal hypertension and varices in cirrhosis (2024). Thresholds', 'Baveno VIII consensus on portal hypertension (2026). Thresholds'],
+  ['the WSACS definition.', 'the definition used for the abdominal compartment syndrome.'],
+  ['  {"id":"path/aasld",', null],   // (a gallery row: the whole line goes)
+  ["import aasld from './algos/aasld.generated.js';\n", ''],
+  [' pvtdur, aasld, psvdscore,', ' pvtdur, psvdscore,'],
+  [" aasld: 'Rule of five',", ''],
+];
+/** Charts the 3D app does not carry because they teach a guideline other than Baveno VIII (a path algorithm file of 2D's path-algos). */
+export const RETIRED_PATH_ALGOS = ['aasld'];
+
+/** A generated UI file's text with the Baveno-only edits put in (an edit the file does not hold is skipped). */
+export function uiTextEdits(text) {
+  let out = text;
+  for (const [from, to] of UI_EDITS) {
+    if (to !== null) { out = out.split(from).join(to); continue; }
+    out = out.split('\n').filter((l) => !l.startsWith(from)).join('\n');
+  }
+  return out;
+}

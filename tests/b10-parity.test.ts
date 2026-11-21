@@ -26,7 +26,7 @@ test('every claim is a row of the inventory, and every chart: and card: row of t
   for (const c of claims) assert.ok(ids.has(c.id), `${c.id} is not in the inventory`);
   const have = new Set(CATALOG.map((e) => `card:${e.id}`));
   for (const e of CATALOG) assert.ok(ids.has(`card:${e.id}`), `${e.id} has no row`);
-  assert.equal(CATALOG.length, 116);
+  assert.equal(CATALOG.length, 115);   // (116 in 2D: `path/aasld` is not carried, Baveno VIII is the only guideline drawn; scripts/source-edits.mjs)
   assert.ok(have.has('card:menu/full') && have.has('card:tiles/dips') && have.has('card:trial/sharma'));
 });
 

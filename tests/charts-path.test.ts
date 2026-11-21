@@ -29,7 +29,6 @@ test('the algorithms are the 2D app\'s: lit set, outcome, reading and chips of k
   assert.deepEqual(h.chips, ['Carvedilol held', 'SBP 84', 'No HRS-AKI']);
   assert.deepEqual(run('pvtgrid', { r: 'yes', c: 'maj' }).lit, ['root', 'r:yes', 'c:maj', 'cell:yes|maj']);
   assert.equal(run('ladder', { s: 1, rc: false }).r!.head, 'cACLD with CSPH');
-  assert.deepEqual(run('aasld', { lsm: 18, plt: 128 }).lit, ['root', 'gray']);
   const b = run('bleed', { src: 'ov', cp: 11, active: false, hvpg: 22, ctrl: true, fit: true });
   assert.deepEqual(b.lit, ['root', 'ctrl', 'ptips']);
   assert.equal(b.r!.why, 'Band ligation controlled the bleeding. Child–Pugh C11 is C 10–13, and the patient is a TIPS candidate.');
@@ -45,11 +44,11 @@ test('the model\'s readings replace the slide\'s own as the tiles print them (2D
   assert.equal(phoneLayout('desktop') || phoneLayout('phone-landscape'), false);
 });
 
-test('Baveno VIII only: no algorithm or reading names Baveno VII, and the sources are Baveno VIII or AASLD', () => {
-  assert.equal(ids.length, 15);
+test('Baveno VIII only: no algorithm or reading names Baveno VII, and the source is Baveno VIII (no AASLD flowchart)', () => {
+  assert.equal(ids.length, 14);   // (2D has 15: its AASLD rule-of-five chart is retired, scripts/source-edits.mjs RETIRED_PATH_ALGOS)
   for (const id of ids) {
     const s = PATHS[id as keyof typeof PATHS] as { kick: string; label: string };
-    assert.match(s.kick, /^(Baveno VIII|AASLD 2024)$/, id);
+    assert.match(s.kick, /^Baveno VIII$/, id);
     for (const p of [patientOf(id, null, null), WORST[id as keyof typeof WORST]]) assert.doesNotMatch(pathWords(id, p), /Baveno VII\b(?!I)/, id);
   }
   // and the copied files themselves

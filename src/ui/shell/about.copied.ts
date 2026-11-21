@@ -795,7 +795,7 @@ export const ABOUT: Page = {
      "class": "sub"
     },
     "k": [
-     "The guidelines grade the HVPG, not the pressure at a single vessel; the portal vein pressure rows above are the model’s own reference. HVPG ≥10 mmHg is clinically significant portal hypertension (CSPH) in cirrhosis. HVPG ≥20 mmHg is prognostic when measured during acute variceal bleeding. An HVPG of 12 mmHg is not a bleeding threshold: varices can bleed below it. After a TIPS for variceal bleeding, 12 mmHg is the reference for the directly measured portosystemic gradient (AASLD 2024)."
+     "The guidelines grade the HVPG, not the pressure at a single vessel; the portal vein pressure rows above are the model’s own reference. HVPG ≥10 mmHg is clinically significant portal hypertension (CSPH) in cirrhosis. HVPG ≥20 mmHg is prognostic when measured during acute variceal bleeding. An HVPG of 12 mmHg is not a bleeding threshold: varices can bleed below it. After a TIPS for variceal bleeding, 12 mmHg is the reference for the directly measured portosystemic gradient."
     ]
    },
    {
@@ -807,7 +807,7 @@ export const ABOUT: Page = {
    {
     "t": "p",
     "k": [
-     "The presentations follow Baveno VIII (J Hepatol, 2026), with AASLD guidance where US practice differs, for example the vasoactive drug and the antibiotic in variceal bleeding. Baveno VIII changed the recompensation criteria (>6 months, Child–Pugh A), the criteria that establish CSPH without a measured gradient (LSM ≥25 kPa in selected causes, ANTICIPATE probability ≥75%, or spleen stiffness ≥55 kPa), the window for preemptive TIPS and anticoagulation for portal vein thrombosis. A statement number in a talk (for example Baveno VIII 8.18) refers to the full text of the guideline."
+     "The presentations follow Baveno VIII (J Hepatol, 2026). Where it is silent, for example on doses, the speaker notes name the source. Baveno VIII changed the recompensation criteria (>6 months, Child–Pugh A), the criteria that establish CSPH without a measured gradient (LSM ≥25 kPa in selected causes, ANTICIPATE probability ≥75%, or spleen stiffness ≥55 kPa), the window for preemptive TIPS and anticoagulation for portal vein thrombosis. A statement number in a talk (for example Baveno VIII 8.18) refers to the full text of the guideline."
     ]
    },
    {
