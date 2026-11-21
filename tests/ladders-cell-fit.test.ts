@@ -31,3 +31,14 @@ test('every cell sets --lad-k and --lad-s on its holder from its own measure, an
   assert.match(fit, /classList\?\.contains\('pz-cc'\)/);
   assert.match(fit, /--lad-k/);
 });
+
+// Mohammad, 21 Nov (iPhone, 11/14): the HVPG / PPG pills ran out of the card on the rows with a long site and cause. Root cause: the fit pass strips the cause's size and the 'under' class, then set them back through React state;
+// when a second pass (the observer fires after the first one's own layout change) came out the same, the state did not change, React did not render, and the stripped size and class stayed stripped. 2D (presenter-question.js fitRow) writes both to the DOM at the end of every pass.
+test('the first row\'s fit writes the size and the under class to the DOM on every pass, never through state', () => {
+  const card = readFileSync('src/ui/charts/ladder/LaddersCard.tsx', 'utf8');
+  const head = card.slice(card.indexOf('function CellHead'), card.indexOf('A wide screen'));
+  assert.match(head, /tt\.style\.fontSize = /);
+  assert.match(head, /row\.classList\.toggle\('under', f\.under\)/);
+  assert.doesNotMatch(head, /useState|setFit/, 'a stripped class or size would stay stripped when the state came out the same');
+  assert.doesNotMatch(head, /className=\{`pz-cell-k\$\{/, 'the class is the pass\'s, not React\'s');
+});

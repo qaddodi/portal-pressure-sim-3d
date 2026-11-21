@@ -26,7 +26,6 @@ export function LadderNames() {
 /** The first row of a cell: the site, the cause stepping down beside it (never under 12 px), and the case's HVPG and PPG as pills (2D presenter.js fitRow). A cause that does not fit at 12 px goes under the site, whole. */
 function CellHead({ r }: { r: LadderRow }) {
   const k = useRef<HTMLDivElement>(null), t = useRef<HTMLDivElement>(null), tag = useRef<HTMLDivElement>(null), pills = useRef<HTMLDivElement>(null);
-  const [fit, setFit] = useState<{ size: number | null; under: boolean }>({ size: null, under: false });
   const pl = useMemo(() => pillReadings(r.f), [r.f]);
   useLayoutEffect(() => {
     const row = k.current, tt = t.current, tg = tag.current;
@@ -38,7 +37,9 @@ function CellHead({ r }: { r: LadderRow }) {
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0, pw = pills.current?.offsetWidth ?? 0, room = row.clientWidth - tg.offsetWidth - gap - (pw ? pw + gap : 0) - 1;
       let f = causeFit(fs, tt.offsetWidth, room, 12 / z);
       if (f.under) f = { ...causeFit(fs, tt.offsetWidth, row.clientWidth - 1, 12 / z), under: true };
-      setFit((o) => (o.size === (f.size !== fs ? f.size : null) && o.under === f.under ? o : { size: f.size !== fs ? f.size : null, under: f.under }));
+      // (Applied to the DOM here, as 2D does, never through React state: this pass strips the size and the class first, and a state that came out the same would leave them stripped.)
+      if (f.size !== fs) tt.style.fontSize = `${f.size.toFixed(2)}px`;
+      row.classList.toggle('under', f.under);
     };
     run();
     const ro = new ResizeObserver(run);
@@ -46,9 +47,9 @@ function CellHead({ r }: { r: LadderRow }) {
     return () => ro.disconnect();
   }, [r.name, r.kicker, pl.length]);
   return (
-    <div ref={k} className={`pz-cell-k${fit.under ? ' under' : ''}`}>
+    <div ref={k} className="pz-cell-k">
       <div ref={tag} className="pz-kick" data-site={r.site || 'none'}>{headOf(r)}</div>
-      <div ref={t} className="pz-cell-t" style={fit.size ? { fontSize: `${fit.size.toFixed(2)}px` } : undefined}>{r.name}</div>
+      <div ref={t} className="pz-cell-t">{r.name}</div>
       <div ref={pills} className="pz-gpills">{pl.map((q) => <span key={q.k} className="pz-gpill" data-k={q.k} data-rate={q.rate}><span className="k">{q.name} </span>{q.v}</span>)}</div>
     </div>
   );
