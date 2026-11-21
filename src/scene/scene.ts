@@ -1248,10 +1248,12 @@ export class CelScene {
     lap('micro views');
     const procMoving = this.procs.update(now);
     this.syncWedge();
+    lap('procedures+wedge');   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
     const diseaseMoving = this.disease.update(now, this.flowRate.value);
     if (diseaseMoving) this.tagOverOrgans();
+    lap('disease+organs');
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    lap('devices+disease');
+    lap('probes');
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
