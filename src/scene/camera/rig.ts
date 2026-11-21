@@ -349,6 +349,8 @@ export class CameraRig {
   /** Whether the camera has its first real shot and room; nothing is drawn before. */
   get placed(): boolean { return this.placedFirst; }
   get pose(): Readonly<Pose> { return this.cur; }
+  /** The room the camera's distance is fitted to (the scale room), which is not always the room the picture is centred in: a room change alone keeps the zoom (setRoom). Anything that judges "where the camera is framed" (the dive's blur and fades) reads this, never targetRoom. */
+  get fitRoom(): Readonly<Room> { return this.scaleTo.w > 1 ? { x: 0, y: 0, w: this.scaleTo.w, h: this.scaleTo.h } : this.targetRoom; }
   /** The room the camera is going to (or is in): what a layout decision reads, so it changes once as a card opens and not all along the glide. */
   get targetRoom(): Readonly<Room> { return this.to.room.w > 1 ? this.to.room : { x: 0, y: 0, w: this.width, h: this.height }; }
 

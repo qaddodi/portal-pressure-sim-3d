@@ -42,7 +42,7 @@ test('the store keeps the room hint, and the scene link moves the camera to it i
   useUi.getState().hintRoom({ x: 0, y: 0, w: 390, h: 500 }, 300);
   assert.deepEqual(useUi.getState().roomHint, { free: { x: 0, y: 0, w: 390, h: 500 }, ms: 300 });
   const link = readFileSync('src/ui/deck/scene-link.ts', 'utf8');
-  assert.match(link, /s\.roomHint; if \(h && h !== prev\.roomHint[^)]*\)[^;]*sceneApi\.setRoom\(h\.free, h\.ms, false, false, easeArrive\)/);
+  assert.match(link, /s\.roomHint; if \(h && h !== prev\.roomHint[^)]*\)[^;]*sceneApi\.setRoom\(h\.free, h\.ms, false, true, easeArrive\)/);
   assert.match(link, /stepped \|\| !sceneApi\.roomIs\(room\)/, 'the landing asks for nothing the glide already sent');
   assert.match(readFileSync('src/ui/cards/CardLayer.tsx', 'utf8'), /dock\.onGlide = \(to, ms\) => \{ const p = planFor\.current\(to === 1\); useUi\.getState\(\)\.hintRoom\(p\.free, ms\)/);
 });
