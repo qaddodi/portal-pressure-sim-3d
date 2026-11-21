@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { frameStats, timeline, fadeEpisodes, fadeFindings, layoutFindings, INSTANT_MS, type LayoutRead } from '../src/ui/debug/audit/judge.ts';
 import { runAudit, judgeStep, type Step, type Reads } from '../src/ui/debug/audit/run.ts';
 import { renderText, renderJson, groupFindings, type Bundle, type AuditData } from '../src/ui/debug/audit/report.ts';
+import { SPEED_CHOICES, speedChoiceOf, speedWhy } from '../src/ui/debug/audit/speed.ts';
 import { childSrc, sizesOf, DEFAULT_SIZES } from '../src/ui/debug/audit/outer.ts';
 import { auditPage } from '../src/ui/debug/flags.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
@@ -252,4 +253,12 @@ test('what stands under a faded-out part of a card is not seen, so a tucked data
   const win = { getComputedStyle: (e: { op: number }) => ({ opacity: String(e.op) }) } as never;
   const vis = seenMemo(win);
   assert.equal(vis(chart as never), 0); assert.equal(vis(inner as never), 0); assert.equal(vis(shown as never), 1);
+});
+
+test('the banner offers a speed (real time, x2, x4, x8, x20) with what each is good for; the frame gets it in its address, and a speed in the outer address is not passed twice', () => {
+  assert.deepEqual(SPEED_CHOICES.map((c) => c.v), [1, 2, 4, 8, 20]);
+  assert.equal(speedChoiceOf(3.4), 4); assert.equal(speedChoiceOf(1), 1); assert.equal(speedChoiceOf(100), 20);
+  assert.match(speedWhy(1), /frame rates and stalls are valid/); assert.match(speedWhy(20), /layout, words, coverage and errors only/);
+  assert.equal(childSrc('/p/', '?audit&speed=20&look=dark', 'full', 4), '/p/?audit=run&depth=full&speed=4&look=dark');
+  assert.equal(childSrc('/p/', '?audit&speed=20', 'full', 1), '/p/?audit=run&depth=full');
 });

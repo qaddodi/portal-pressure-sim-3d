@@ -7,6 +7,7 @@ import { renderText, renderJson, type Bundle, type AuditData } from './report.ts
 import type { Msg } from './page.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { pace, combine } from './progress.ts';
+import { SPEED_CHOICES, speedChoiceOf, speedOf, speedWhy } from './speed.ts';
 
 export const DEFAULT_SIZES = ['iphone', 'ipad-portrait', 'ipad', 'mac'];
 export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad', 'mac-short', 'mac'];
@@ -14,9 +15,9 @@ export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad',
 export const SILENT_MS = 150000;
 
 /** The address of the app inside a frame: the same path, `?audit=run`, the depth, and whatever else the outer address carried (the frame list and the old audit flags are dropped). */
-export function childSrc(pathname: string, search: string, depth: string): string {
-  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel']);
-  return `${pathname}?audit=run&depth=${depth}${rest ? `&${rest}` : ''}`;
+export function childSrc(pathname: string, search: string, depth: string, speed = 1): string {
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed']);
+  return `${pathname}?audit=run&depth=${depth}${speed > 1 ? `&speed=${speed}` : ''}${rest ? `&${rest}` : ''}`;
 }
 /** The sizes the address names (a comma list of device ids), or the default four; unknown names are dropped. */
 export function sizesOf(v: string | null): string[] {
@@ -42,7 +43,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const stamp = mk('strong', '', `build ${hash}`); stamp.title = 'The build this self-test is running';
   const meter = doc.createElement('progress'); meter.max = 100; meter.value = 0; meter.hidden = true; meter.style.cssText = 'width:min(320px,40vw);height:12px';
   const meterText = mk('span', '', ''); meterText.hidden = true;
-  const status = mk('span', '', 'Pick the sizes and press Start; the app appears here.'); status.setAttribute('role', 'status');
+  const status = mk('span', '', 'Pick the sizes and a speed, then press Start; the app appears here.'); status.setAttribute('role', 'status');
   const note = mk('div', 'ao-note', 'Runs the app by itself in each size, one after the other, and measures layout, timing, fades, frame rate and errors; no AI, nothing is sent anywhere. Keep this tab in front until it ends (a hidden tab stops the clock). The frame rates are this computer\'s: run ?audit=here on the iPhone and iPad for theirs.');
   const wanted = new Set(sizesOf(flagValue('sizes')));
   const boxes = ALL_SIZES.map((id) => { const l = mk('label'); const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = wanted.has(id); c.onchange = () => { if (c.checked) wanted.add(id); else wanted.delete(id); }; l.append(c, `${FRAME_DEVICES[id]!.label} ${FRAME_DEVICES[id]!.w}`); return l; });
@@ -50,10 +51,18 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const dsel = doc.createElement('select'); for (const d of ['full', 'quick']) { const o = doc.createElement('option'); o.value = d; o.textContent = d === 'full' ? 'Full (everything)' : 'Quick (3 slides a talk)'; dsel.append(o); } dsel.value = depth; dsel.onchange = () => { depth = dsel.value as 'quick' | 'full'; };
   const par = doc.createElement('input'); par.type = 'checkbox'; par.checked = flagValue('parallel') === '1';
   const parL = mk('label'); parL.title = 'All the sizes at once: much faster, but the frames share this computer, so frame rates and timings are NOT valid (layout, snaps, coverage and errors are).'; parL.append(par, 'All sizes at once (fps not valid)');
+  // the speed of the walk: the page's clock runs faster in each frame (speed.ts); what each choice is good for is written beside it
+  let speed = speedChoiceOf(speedOf(flagValue('speed')));
+  const ssel = doc.createElement('select'); ssel.setAttribute('aria-label', 'Speed of the test');
+  for (const c of SPEED_CHOICES) { const o = doc.createElement('option'); o.value = String(c.v); o.textContent = c.label; ssel.append(o); }
+  ssel.value = String(speed);
+  const swhy = mk('span', '', speedWhy(speed)); swhy.style.cssText = 'color:#5b5a57;flex:1 1 220px';
+  ssel.onchange = () => { speed = Number(ssel.value); swhy.textContent = speedWhy(speed); };
+  const sLabel = mk('label'); sLabel.append('Speed', ssel);
   let stop = false, running = false, last: Bundle | null = null;
   const btn = (label: string, on: () => void) => { const b = mk('button', '', label); b.type = 'button'; b.onclick = on; bar.append(b); return b; };
   const copy = (t: string, what: string) => { win.navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { status.textContent = 'The browser would not copy: select the text on the right.'; }); };
-  bar.append(...boxes, dsel, parL);
+  bar.append(...boxes, dsel, sLabel, swhy, parL);
   const start = btn('Start', () => { void run(); });
   btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
@@ -63,7 +72,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   /** One size: a fresh frame in its own place, wait for its result, take it away. `of`: how many frames share the room. */
   const one = (id: string, of: number): Promise<{ data?: AuditData; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
-    const wrap = mk('div', 'ao-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`; frame.src = childSrc(win.location.pathname, searchNow(), depth);
+    const wrap = mk('div', 'ao-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`; frame.src = childSrc(win.location.pathname, searchNow(), depth, speed);
     wrap.append(frame); room.append(wrap);
     const r = room.getBoundingClientRect(), k = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * k)}px`; wrap.style.height = `${Math.round(d.h * k)}px`; wrap.style.margin = '0 6px';
@@ -87,7 +96,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   /** the whole run's bar: steps done in the sizes finished, plus the ones running now, over the estimate for all sizes */
   const showPace = (done = false) => { const c = combine(sizesTotal - finished, counts), p = pace(prior.n + c.n, Math.max(prior.total + c.total, prior.n + c.n), runStart, performance.now(), done); meter.hidden = false; meterText.hidden = false; meter.value = p.pct; meterText.textContent = p.text; };
   async function run() {
-    if (running) return; running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
+    if (running) return; running = true; stop = false; start.disabled = true; ssel.disabled = true; out.textContent = ''; progress.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
     const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = performance.now(), together = par.checked;
     const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, parallel: together, speed: parts[0]?.speed, wallMs: Math.round(performance.now() - t0), parts, failed });
     const take = (id: string, r: { data?: AuditData; why?: string }) => { const c = counts.get(id); if (!together && c) { prior.n += r.data ? r.data.rows.length : c.n; prior.total += r.data ? r.data.rows.length : c.total; counts.delete(id); finished++; } if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };
@@ -95,7 +104,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
     if (together) await Promise.all(ids.map(async (id) => take(id, await one(id, ids.length))));
     else for (const id of ids) { if (stop) break; take(id, await one(id, 1)); }
     showPace(true); status.textContent = `Finished ${parts.length} of ${ids.length} sizes in ${((performance.now() - t0) / 60000).toFixed(1)} min${failed.length ? ` (${failed.length} did not finish)` : ''}. Copy the report.`;
-    running = false; start.disabled = false;
+    running = false; start.disabled = false; ssel.disabled = false;
   }
   if (flagValue('audit') === 'frames' && flagValue('sizes') !== null) setTimeout(() => { void run(); }, 300);   // (an address that names its sizes starts itself)
 }
