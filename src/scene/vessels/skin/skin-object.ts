@@ -135,7 +135,7 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armWedge: { value: new Array(SKIN_ARMS).fill(0) }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       armGrow: { value: this.armGrow }, growG: { value: this.growG },
@@ -182,6 +182,13 @@ export class SkinObject implements SkinDraw {
     this.armAF[i]!.set(lensU, fade, hi, this.armAF[i]!.w); (u.armNarrow!.value as number[])[i] = narrow;
     this.showGlow();
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
+  }
+
+  /** The wedge's amber share arm `i`'s tube has at its seam (0 none), and the amber (arm-twins.ts wedgeShareAt). */
+  setWedge(i: number, share: number, colour?: Color): void {
+    const u = this.material.uniforms;
+    (u.armWedge!.value as number[])[i] = share;
+    if (colour) (u.wedgeColS!.value as Color).copy(colour);
   }
 
   /** The arm's flow marks (the fragment stage's THE FLOW MARKS): the arc at the seam (figure units), which way it grows toward the node (+1 the vessel's end 1, -1 its start), the vessel's length and its rest radius (figure units), and the tube's flowAmount. */
