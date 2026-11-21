@@ -28,6 +28,7 @@ export const BOOT_CRASH = { title: 'The simulation could not start', body: 'Its 
 export const APP_CRASH = {
   title: 'Something went wrong', body: 'The simulator hit an unexpected error. Reload to pick up where you were.',
   figureTitle: 'The 3D figure stopped', figureBody: 'The controls still work. Reload to bring the figure back where you were.',
+  engineTitle: 'The simulation stopped', engineBody: 'The figure no longer follows the patient. Reload to pick up where you were.',
   reload: 'Reload', copy: 'Copy details', copied: 'Copied', twoD: 'Open the 2D simulator',
 } as const;
 /** The figure's graphics context was lost after the first picture (scene/context-loss.ts, ContextNote.tsx). */

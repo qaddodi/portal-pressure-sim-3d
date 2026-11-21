@@ -11,14 +11,14 @@ function CopyDetails({ text }: { text: string }) {
   return <button type="button" className="sh-crash-alt" onClick={() => { void navigator.clipboard?.writeText(text).then(() => setDone(true), () => undefined); }}>{done ? APP_CRASH.copied : APP_CRASH.copy}</button>;
 }
 
-/** The fallback card of either layer. It fades in (shell.css `.sh-crash`), never pops. */
-export function CrashCard({ layer, message, onReload = () => { void reloadKeepingState(); } }: { layer: 'figure' | 'root'; message: string; onReload?: () => void }) {
-  const figure = layer === 'figure';
+/** The fallback card of either layer, and of the engine stopping after the app is up (App.tsx: the same card, words and Reload as the others, never a frozen figure). It fades in (shell.css `.sh-crash`), never pops. */
+export function CrashCard({ layer, message, onReload = () => { void reloadKeepingState(); } }: { layer: 'figure' | 'root' | 'engine'; message: string; onReload?: () => void }) {
+  const figure = layer === 'figure', engine = layer === 'engine';
   return (
     <main className={`sh-nogl sh-crash sh-crash-${layer}`} role="alert">
       <div>
-        <h1>{figure ? APP_CRASH.figureTitle : APP_CRASH.title}</h1>
-        <p>{figure ? APP_CRASH.figureBody : APP_CRASH.body}</p>
+        <h1>{figure ? APP_CRASH.figureTitle : engine ? APP_CRASH.engineTitle : APP_CRASH.title}</h1>
+        <p>{figure ? APP_CRASH.figureBody : engine ? APP_CRASH.engineBody : APP_CRASH.body}</p>
         <p className="sh-nogl-why selectable">{message}</p>
         <button type="button" onClick={onReload}>{APP_CRASH.reload}</button>{' '}
         <CopyDetails text={detailsNow(message)} />{' '}
