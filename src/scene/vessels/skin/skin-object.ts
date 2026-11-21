@@ -6,6 +6,7 @@
 // and its veil copy (over the organs, seen through them). A skin that has such an arm is drawn the same way: ONE geometry, three meshes with a material each (`defines: { SKIN_COPY: 0 | 1 | 2 }`: one source, three programs), every copy's alpha the sum over the
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
+import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { facetSag } from './facet-sag.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
@@ -135,7 +136,7 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armWedge: { value: new Array(SKIN_ARMS).fill(0) }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armWedge: { value: new Array(SKIN_ARMS).fill(WEDGE_ABSENT) }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       armGrow: { value: this.armGrow }, growG: { value: this.growG },
@@ -184,11 +185,11 @@ export class SkinObject implements SkinDraw {
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
   }
 
-  /** The wedge's amber share arm `i`'s tube has at its seam (0 none), and the amber (arm-twins.ts wedgeShareAt). */
-  setWedge(i: number, share: number, colour?: Color): void {
+  /** The wedge's one field at arm `i`'s seam: its tube's route distance from the balloon's distal edge there (WEDGE_ABSENT: no wedge on that tube), and the column as every tube has it (how much, how softly it ends behind the balloon's edge, the front, how softly the front ends) with its amber. */
+  setWedge(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void {
     const u = this.material.uniforms;
-    (u.armWedge!.value as number[])[i] = share;
-    if (colour) (u.wedgeColS!.value as Color).copy(colour);
+    (u.armWedge!.value as number[])[i] = d;
+    if (col) { (u.wedgeS!.value as Vector4).set(col.amount, col.behind, col.front, col.frontSoft); (u.wedgeColS!.value as Color).copy(col.color); }
   }
 
   /** The arm's flow marks (the fragment stage's THE FLOW MARKS): the arc at the seam (figure units), which way it grows toward the node (+1 the vessel's end 1, -1 its start), the vessel's length and its rest radius (figure units), and the tube's flowAmount. */

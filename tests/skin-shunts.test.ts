@@ -8,9 +8,8 @@ import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
-import { SURFACE_FIRST, SurfaceRung } from '../src/scene/vessels/skin/surface-rung.ts';
 import { capStrayLoops, strayLoops } from '../src/scene/vessels/skin/sheet-caps.ts';
-import type { SkinJunction, SkinMesh } from '../src/scene/vessels/skin/types.ts';
+import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
 function built() {
   const was = smoothJoinsOn(); setSmoothJoins(true);
@@ -25,25 +24,20 @@ function built() {
 }
 const armsOf = (m: SkinMesh | undefined) => (m ? m.junction.arms.map((a) => `${a.vesselId}:${a.end}`) : []);
 
-test('S_DSR is welded at both ends (SVD, LRV_S) and the TIPS at the hepatic vein (RHV_T+IVCS): static, no fold, a plain trunk to weld from, nothing dropped for them', () => {
+test('S_DSR is welded at both ends (SVD, LRV_S): a static full-size arm, no fold, nothing dropped for it; the TIPS at the hepatic vein is still named', () => {
   const b = built();
   try {
     assert.deepEqual(b.warnings, []);
-    for (const d of ['SVD:S_DSR', 'LRV_S:S_DSR', 'RHV_T:TIPS']) assert.ok(!b.set.dropped.includes(d), `${d} is not dropped`);
-    const svd = b.set.skinOf('SVD'), lrv = b.set.skinOf('LRV_S'), rhv = b.set.skinOf('RHV_T+IVCS');
+    for (const d of ['SVD:S_DSR', 'LRV_S:S_DSR']) assert.ok(!b.set.dropped.includes(d), `${d} is not dropped`);
+    const svd = b.set.skinOf('SVD'), lrv = b.set.skinOf('LRV_S');
     assert.ok(armsOf(svd).includes('S_DSR:0'), 'S_DSR is an arm of SVD');
     assert.ok(armsOf(lrv).includes('S_DSR:1') && armsOf(lrv).includes('C6:1'), 'S_DSR and C6 are arms of LRV_S, running along one axis');
-    assert.ok(armsOf(rhv).includes('TIPS:1'), 'TIPS is an arm of the hepatic vein\'s skin, the cava\'s merged with it');
-    for (const [name, m] of [['SVD', svd], ['LRV_S', lrv], ['RHV_T+IVCS', rhv]] as const) {
+    for (const [name, m] of [['SVD', svd], ['LRV_S', lrv]] as const) {
       assert.equal(m!.grow.length, 0, `${name}: no growth morph, one static shape`);
-      assert.ok(m!.junction.surface, `${name}: meshed from the surface (the surface rung)`);
       assert.equal(foldedTriangles(m!.position, m!.normal, m!.index).length, 0, `${name}: no folds`);
     }
-    // (SVD and LRV_S are a run-on pair with two growing arms: two arms stay, no junction of their own, the tubes' cut ends carry the weld; the cava's merged skin has a plain trunk of the arms that stay)
     for (const n of ['SVD', 'LRV_S']) assert.equal(b.set.plainOf(n), undefined, `${n}: the tubes' cut ends carry the weld`);
-    const p = b.set.plainOf('RHV_T+IVCS');
-    assert.ok(p, 'RHV_T+IVCS: a plain trunk of the arms that stay (its seams were placed with no hull: the plain trunk is meshed from the surface too)');
-    assert.equal(foldedTriangles(p!.position, p!.normal, p!.index).length, 0, 'the plain trunk has no folds');
+    assert.ok(b.set.dropped.includes('RHV_T:TIPS'), 'RHV_T:TIPS stays flared and named');
   } finally { b.done(); }
 });
 
@@ -55,20 +49,6 @@ test('PVH:DIPS stays flared and named: PVH_R is shorter than the DIPS lies over 
     assert.ok(b.set.skinOf('PVH'), 'the portal vein\'s hepatic end keeps its skin without the DIPS');
     assert.ok(!armsOf(b.set.skinOf('PVH')).includes('DIPS:0'));
   } finally { b.done(); }
-});
-
-test('the surface rung is for the shunts\' nodes alone, once per node, and only for a junction with a growing arm', () => {
-  assert.deepEqual([...SURFACE_FIRST].sort(), ['LRV_S', 'PVH', 'RHV_T', 'SVD']);
-  const arm = { vesselId: 'A', end: 0 as const, courseIndex: 0, dataIndex: 0, lensIndex: 0, baseD: 1, widthKind: 0 as const, restR: 1 };
-  const j = (node: string, grow: boolean): SkinJunction => ({ node, J: [0, 0, 0], arms: [arm, arm, { ...arm, grow }] });
-  const r = new SurfaceRung();
-  assert.equal(r.retry('SVD', j('SVD', false)), false, 'no growing arm: nothing to retry');
-  assert.equal(r.retry('SMV', j('SMV', true)), false, 'not a shunt node of this piece');
-  assert.equal(r.retry('SVD', j('SVD', true)), true);
-  assert.equal(r.retry('SVD', j('SVD', true)), false, 'once');
-  assert.ok(r.on(j('SVD', true)) && r.on(j('RHV_T+IVCS', true)) === false && !r.mark({ junction: j('SMV', true) }).junction.surface);
-  assert.equal(r.mark({ junction: j('SVD', true) }).junction.surface, true);
-  r.release('SVD'); assert.equal(r.on(j('SVD', true)), false);
 });
 
 test('a hole of the sampled sheet at no seam is closed by a fan, the seams\' loops are kept', () => {

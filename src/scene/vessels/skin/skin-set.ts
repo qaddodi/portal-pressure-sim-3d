@@ -16,20 +16,20 @@ import type { BufferGeometry, Color, Object3D } from 'three';
 import { NETWORK_BY_ID } from '../network.ts';
 import { REST, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
+import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { PACES, buildSkinSteady, hullCovers } from './mesh.ts';
+import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { plainOf, weldOf } from './plain.ts';
-import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, wedgeShareAt, type FadeState, type HiState } from './arm-twins.ts';
+import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, wedgeSeamD, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
 import { weldThrough } from './through.ts';
 import { armTube, strandCutU } from './braid-arm.ts';
-import { SurfaceRung } from './surface-rung.ts';
 
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
@@ -38,8 +38,8 @@ export interface SkinDraw {
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
   setPres(i: number, p: number): void;
-  /** arm `i`'s tube's wedge tint share at its seam, and the amber (the tint is one field through the join) */
-  setWedge?(i: number, share: number, colour?: Color): void;
+  /** arm `i`'s tube's route distance from the balloon's distal edge at its seam, and the column (the tint is ONE field through the join: wedge-glsl.ts) */
+  setWedge?(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void;
   /** a growing arm's growth at its seam (0 gone, 1 whole): the skin's own shape eases with it (spec 10.2); an arm the skin does not morph ignores it */
   setGrow?(i: number, g: number): void;
   /** this skin is one of a growing arm's pair (a welded skin, mode +1, or the plain trunk, mode -1): how far the weld is, 0 the flared tubes alone, 1 the welded skin; the pair draw complementary pixels (skin-object.ts) */
@@ -80,7 +80,7 @@ export const SKIN_BUILD_TAG = 'skin-build';
 export interface SkinBuildStats { rebuilds: number; lastMs: number; worstMs: number; lastNode: string }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge share last written (NaN before the first) */ wedge: number; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
+interface ArmLink { /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 /** The plain trunk of a skin with growing arms (plain.ts): the arms that stay, as a static skin of their own. */
 interface PlainBuilt { mesh: SkinMesh; draw: SkinDraw; keep: number[]; bake: PlainBake }
@@ -185,11 +185,9 @@ export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi:
 }
 
 /** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`), or lands on a host's wall (wall.ts): meshed from the surface, no hull of the rings. */
-const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
+const hasLiverBranch = (j: SkinJunction): boolean => onWall(j) || !!j.surface || j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
 
 export class SkinSet {
-  /** the nodes whose failed growing arm is tried from the surface before it is dropped (surface-rung.ts) */
-  private readonly rung = new SurfaceRung();
   private built: Built[] = [];
   /** the ends that are skinned, by vessel id: [start, end] */
   private readonly ends = new Map<string, [boolean, boolean]>();
@@ -272,8 +270,8 @@ export class SkinSet {
     //  seams 8 radii out and a skin that crowds its neighbours)
     return planSkins(js, tubes, (j) => {
       let blamed = -1;
-      const ok: HullOk = (cs) => { blamed = -1; if (!(hasLiverBranch(j) || this.rung.on(j) || hullCovers(this.ringsFor(tubes, cs).pos))) return false; blamed = this.clearOfAxes(j, tubes, cs); return blamed < 0; };
-      ok.blame = () => (hasLiverBranch(j) || this.rung.on(j) ? blamed : -1);   // (the arm whose seam stands too near another arm moves out, not the seam nearest J)
+      const ok: HullOk = (cs) => { blamed = -1; if (!(hasLiverBranch(j) || hullCovers(this.ringsFor(tubes, cs).pos))) return false; blamed = this.clearOfAxes(j, tubes, cs); return blamed < 0; };
+      ok.blame = () => (hasLiverBranch(j) ? blamed : -1);   // (the arm whose seam stands too near another arm moves out, not the seam nearest J)
       return ok;
     });
   }
@@ -302,7 +300,7 @@ export class SkinSet {
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
     let todo: SkinJunction[] = [...js];
     const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));   // (the junction of each node as it was last planned: growing arms dropped included)
-    for (let round = 0; todo.length && round <= SKIN_GROWERS + 1; round++) {
+    for (let round = 0; todo.length && round <= SKIN_GROWERS + 2; round++) {
       const { plans, failures } = this.plan(todo, tubes);
       const again = new Map<string, string>();   // (node -> why: the junctions to try again with one growing arm fewer)
       const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
@@ -321,9 +319,9 @@ export class SkinSet {
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
-          if (this.rung.retry(n, j)) { again.set(n, f.message); next.push(j); continue; }   // (the surface rung first, surface-rung.ts)
+          // a skin whose full-size shape does not build from the hull of its rings is tried once more meshed from the surface itself (sheet.ts, no hull: the rung the liver's forks use) before it loses a growing arm
+          if (!j.surface) { again.set(n, f.message); next.push({ ...j, surface: true }); continue; }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
-          this.rung.release(n);
           this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.set(n, f.message);
           if (arms.length >= MIN_ARMS) next.push({ ...j, arms });   // (a run-on pair with its collateral gone is no junction: it never had a skin, so it is not a fall back, only a dropped arm)
@@ -344,13 +342,13 @@ export class SkinSet {
       todo = next.filter((j) => !made.some((m) => m.sources.includes(j.node)));
       for (const j of todo) latest.set(j.node, j);
     }
-    for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 1} rounds of dropping growing arms` });
+    for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 2} rounds of dropping growing arms` });
     return { made, lost };
   }
 
   /** The skin of one plan, made but not yet in the scene: its mesh, its drawing object and the handover links. Throws a SkinBuildError (or any error) the caller turns into a fallback. Null: an arm's vessel is not in this scene. */
-  private makeBuilt(planned: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>, ready?: BakedSkin): Built | null {
-    const plan = ready ? planned : this.rung.mark(planned), j = plan.junction;
+  private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>, ready?: BakedSkin): Built | null {
+    const j = plan.junction;
     const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
@@ -359,7 +357,7 @@ export class SkinSet {
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
     const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
-    if (!ready && (hasLiverBranch(j) || j.surface)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
+    if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
     const growing = j.arms.some((a) => a.grow);
     const mesh = ready?.mesh ?? buildSkinSteady(growing ? { ...j, still: true } : j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
@@ -378,14 +376,14 @@ export class SkinSet {
       } catch { plain = null; }
     }
     // without a plain trunk the whole skin comes in over the tubes' cut ends, and a hole or a hidden vessel cannot be dithered back: such a skin takes no growing arm (the retry ladder drops it and names it)
-    if (growing && !plain && (holesOf(plan.cuts).length || plan.hidden.length)) throw new SkinBuildError(j.node, 'a growing arm on a skin with holes or a hidden vessel, and no plain trunk to weld from');
+    if (growing && !plain && plan.hidden.length) throw new SkinBuildError(j.node, 'a growing arm on a skin that hides a vessel whole, and no plain trunk to weld from');
     if (plain) plain.draw = this.deps.make(plain.mesh, plain.bake.axes, pp!.keep.map((i) => objs[i]!) as VesselObject[]);
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
     const arms: ArmLink[] = j.arms.map((a, i) => {
       const cut = plan.cuts[i]!, ring = pos[i]!;
       let x = 0, y = 0;
       for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      return { grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: NaN, cp: [NaN, NaN, NaN] };
+      return { grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: [NaN, NaN, NaN, NaN, NaN], cp: [NaN, NaN, NaN] };
     });
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
@@ -456,14 +454,20 @@ export class SkinSet {
   /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
    *  built keeps today's joins, is named in `fellBack` and warned once. */
   build(phase: 1 | 2): void {
-    this.clear(); this.rung.clear();
+    this.clear();
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
     const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
     const farGone: { node: string; id: string }[] = [];
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
-    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named: a far growing end is a landing on a wall, which keeps the tube's own sunk and flared end)
+    // ...and every growing vessel's end that is not an arm of a node's skin lands on a host's WALL (spec 10.1, wall.ts): each makes a virtual node on the host, built STILL like any other (its growing arm whole, the weld hands over at growth 0.9 to 1)
+    const welded = new Set(near.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
+    const lands = phase === 2 ? attachNear(near, wallLandings(welded)) : { junctions: near, left: [] };
+    const walls = wallJunctions(lands.left);
+    near.length = 0; near.push(...lands.junctions, ...walls.junctions);
+    for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
+    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
     all.length = 0; all.push(...near);
     const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
     for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);
@@ -608,6 +612,7 @@ export class SkinSet {
   /** The tubes' cut ends a skin was dithering come back whole (the weld uniform's rest value 1). */
   private unweld(b: Built): void {
     for (const a of b.arms) if (a.weld) this.deps.vessel(a.id)?.setSkinWeld(a.end, 1);
+    for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, 1);
   }
 
   /** The live handover, once a frame after the vessels have moved: for each arm what its tube has at its seam, copied to the skin only when it changed. True when any skin's numbers changed (the scene draws a frame). */
@@ -634,10 +639,14 @@ export class SkinSet {
           weld = Math.min(weld, weldOf((u.dotted!.value as number) > 0.5 ? 0 : pr));
         }
         if (a.last[10] !== pr) { a.last[10] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
-        // the wedge's amber at the seam, the tube's own formula: the tint runs on through the skin
-        const wv = u.wedge!.value as { x: number; y: number; z: number; w: number }, wb = u.wedgeB!.value as { x: number; y: number; z: number };
-        const ws = wedgeShareAt([wv.x, wv.y, wv.z, wv.w], [wb.x, wb.y, wb.z], a.u);
-        if (a.wedge !== ws) { a.wedge = ws; both((d, k) => d.setWedge?.(k, ws, u.wedgeCol!.value as Color)); any = true; }
+        // the wedge's one field at the seam (the tube's own distance line there), with the column's numbers: the amber runs on through the skin at the same front
+        const wv = u.wedge!.value as { x: number; y: number; z: number; w: number }, wd = u.wedgeD!.value as { x: number; y: number; z: number; w: number };
+        const wsd = wedgeSeamD(wv, wd, a.u);
+        if (a.wedge[0] !== wsd || a.wedge[1] !== wv.x || a.wedge[2] !== wv.y || a.wedge[3] !== wd.z || a.wedge[4] !== wd.w) {
+          a.wedge = [wsd, wv.x, wv.y, wd.z, wd.w];
+          const col = wv.x > 0.001 ? { amount: wv.x, behind: wv.y, front: wd.z, frontSoft: wd.w, color: u.wedgeCol!.value as Color } : undefined;
+          both((d, k) => d.setWedge?.(k, wsd, col)); any = true;
+        }
         // the arm's flow marks ride on its arc (armArcOf: the tube's own u x len x figure units) and its tube's flowAmount
         const ln = u.len!.value as number, rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[8] !== ln || a.last[9] !== fl) {
@@ -654,6 +663,7 @@ export class SkinSet {
         b.w = weld; any = true;
         b.draw.setWeld?.(1, weld); b.plain?.draw.setWeld?.(-1, weld);
         for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, weld);
+        if (!b.plain) for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, weld);   // (a host's hole is dithered back with the weld when no plain trunk stands in for it)
       }
       if (any) changed = true;
       b.draw.setTransparent(blend); b.plain?.draw.setTransparent(blend);
