@@ -20,6 +20,7 @@ import { screenNow, packetNow, stateNow } from '../packet/sources.ts';
 import { stateLink, baseOf } from '../packet/state.ts';
 import { togglePlay } from '../../shell/transport.ts';
 import { latest } from '../../../engine/index.ts';
+import { clock } from '../../../clock/frame.ts';
 void buildCatalog;
 
 const CSS = `
@@ -117,10 +118,10 @@ export async function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): P
   const row = (...b: HTMLElement[]) => { const r = el('div', 'gl-row'); r.append(...b); return r; };
   tools.append(Object.assign(el('div', 'gl-head'), {}), tbody);
   tools.firstElementChild!.append(el('strong', '', 'Tools'), btn('Close', () => { tools.hidden = true; }));
-  const lookBtns = LOOK_IDS.map((id) => { const b = btn(LOOK_LABELS[id], () => { setLook(id); dark(); setTimeout(paintLooks, 50); }); return [id, b] as const; });
+  const lookBtns = LOOK_IDS.map((id) => { const b = btn(LOOK_LABELS[id], () => { setLook(id); dark(); clock.after(paintLooks, 50); }); return [id, b] as const; });
   const paintLooks = () => { const cur = document.documentElement.dataset.look; lookBtns.forEach(([id, b]) => b.setAttribute('aria-pressed', String(id === cur))); dark(); };
   sec('Look', row(...lookBtns.map(([, b]) => b)));
-  const frozen = btn('Freeze', () => { togglePlay(); setTimeout(() => { const run = latest.frame?.running; frozen.setAttribute('aria-pressed', String(run === false)); }, 200); });
+  const frozen = btn('Freeze', () => { togglePlay(); clock.after(() => { const run = latest.frame?.running; frozen.setAttribute('aria-pressed', String(run === false)); }, 200); });
   sec('The page', row(frozen, btn('Shoot', () => { root.setAttribute('data-shoot', ''); }), btn('Copy link', () => { const link = stateLink(stateNow(), baseOf(location)); void navigator.clipboard?.writeText(link).then(() => { status.textContent = 'Link copied.'; }); show(link); }),
     btn('Check', () => { void busyWhile('Checking this screen', async () => { const t = Date.now(); const f = screenNow().findings as { rule: string; what: string; where?: string }[]; const { checkRun } = await import('../core/api.ts'); showRun(checkRun(f.map((x) => ({ kind: x.rule, text: x.what, where: x.where })), { size: `${innerWidth}x${innerHeight}`, look: document.documentElement.dataset.look, title: nameEl.textContent ?? '', at: new Date(t).toISOString() })); }); })));
   const spec = el('input', '', undefined, { type: 'text', placeholder: 'Specimens: all, slide:hvpg, view, sheet:help … (empty: one of each)', 'aria-label': 'Specimens to sweep' }) as HTMLInputElement;
@@ -176,7 +177,7 @@ export async function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): P
     if (e.key === 'Escape') root.removeAttribute('data-shoot'); else if (e.key === '[') step(-1); else if (e.key === ']') step(1);
   });
   paintLooks();
-  useSettings.subscribe(() => setTimeout(paintLooks, 50));
+  useSettings.subscribe(() => clock.after(paintLooks, 50));
 
   attach('vessels', () => cel.probeVessels());
   attach('rigProject', (pts: number[][]) => pts.map((q) => { const o = cel.rig.project(new Vector3(q[0], q[1], q[2] ?? 0)); return [o.x, o.y]; }));   // where scene points are on the canvas now (CSS px): what the picture does, which the target alone does not show (the room moves the picture without moving the target)
@@ -186,7 +187,7 @@ export async function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): P
   // ── what the address asks for ──
   const auto = kind === 'check' ? 'phone' : kind === 'full' ? 'full' : null;
   const sw = flagValue('sweep');
-  if (auto) setTimeout(() => { void walk(auto === 'full'); }, 600);
-  else if (sw != null) setTimeout(() => { void sweep(sw === '' ? '' : sw, (flagValue('look') ?? '').split(',').filter(Boolean)); }, 600);
+  if (auto) clock.after(() => { void walk(auto === 'full'); }, 600);
+  else if (sw != null) clock.after(() => { void sweep(sw === '' ? '' : sw, (flagValue('look') ?? '').split(',').filter(Boolean)); }, 600);
   void flagNumber; void debugPage;
 }

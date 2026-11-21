@@ -66,7 +66,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     const c = ctxRef.current, pt = painter.current;
     if (!c || !pt) return;
     m.dpr = dprNow();
-    pt.show(m.frameFor(c.w, hRef.current, performance.now(), aria.current, c.pal.tok('doppler')), false);
+    pt.show(m.frameFor(c.w, hRef.current, clock.now(), aria.current, c.pal.tok('doppler')), false);
     if (m.busy) clock.invalidate('doppler');   // (a mark or a letter is easing: frames until it is still, with the model paused too)
   };
   // the spectrum's pixels are 2D's own shaders, drawn under the chart's shapes on the shared context (spectrum-gl.ts); where that cannot be built the shapes lay the spectrum instead
@@ -172,7 +172,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
               m.dpr = dprNow();
               m.pickWindow(c.w - (PAD_L as number) - (PAD_R as number));
               if (m.sweepIndex !== sweepIndex) queueMicrotask(() => setSweepIndex(m.sweepIndex));
-              return m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler'));
+              return m.frameFor(c.w, h, clock.now(), aria.current, c.pal.tok('doppler'));
             }} /></Cv>
         </div>
         <div className="dop-report" ref={reportRef}>

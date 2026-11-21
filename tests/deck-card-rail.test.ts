@@ -227,7 +227,7 @@ test('a card the finger took far on keeps going the way it went: it never drifts
 test('a swipe that commits a slide change does not ease the leaving cards back first; one that does not (a page, a beat) does', () => {
   const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
   assert.match(drag, /const out = m \? opts\.current\.leaves\?\.\(m\) \?\? true : false;/);
-  assert.match(drag, /if \(!m\) setTimeout\(home, 0\);\s*else if \(!out\) setTimeout\(home, 60\);/, 'only the cards that stay come back, and a leave that never came is the 900 ms net');
+  assert.match(drag, /if \(!m\) clock.after\(home, 0\);\s*else if \(!out\) clock.after\(home, 60\);/, 'only the cards that stay come back, and a leave that never came is the 900 ms net');
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(layer, /leaves: \(m\) =>/);
 });

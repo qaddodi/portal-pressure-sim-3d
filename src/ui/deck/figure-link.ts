@@ -54,7 +54,7 @@ export function linkFigure(): () => void {
   const stopSeq = () => { seq.hold?.release(); seq = { named: [], shown: -1, hold: null }; };
   const offClock = clock.on('tween', () => {
     if (!seq.named.length) return;
-    const el = performance.now() - t0, n = seq.named.filter((g) => g.at <= el).length;
+    const el = clock.now() - t0, n = seq.named.filter((g) => g.at <= el).length;
     if (n !== seq.shown) { seq.shown = n; sceneApi.setNamedVessels(seq.named.filter((g) => g.at <= el).map((g) => g.id)); }
     if (n === seq.named.length && seq.hold) { seq.hold.release(); seq.hold = null; }
   }, 0);
@@ -68,7 +68,7 @@ export function linkFigure(): () => void {
     sceneApi.pinOrgans(c.pins, c.normalSpleen);
     sceneApi.setResistors(c.res);
     sceneApi.setCaudatePin(c.caudate);
-    t0 = performance.now();
+    t0 = clock.now();
     useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, t0 });
   };
 

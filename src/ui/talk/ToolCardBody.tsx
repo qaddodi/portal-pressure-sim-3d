@@ -62,6 +62,7 @@ import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
+import { clock } from '../../clock/frame.ts';
 const DopplerPane = lazyRetry(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
 const FibroPane = lazyRetry(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const EndoPane = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
@@ -115,13 +116,13 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   const slideState = useMemo(() => (fp ? { fp: fp as never, params, base: st?.base, snap: st?.snap } : null), [fp, params, st?.base, st?.snap]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the next two slides' curves and courses are worked out while this one is read, so they open drawn
   useEffect(() => {
-    const t = setTimeout(() => {
+    const t = clock.after(() => {
       for (let j = i + 1; j <= i + 2 && j < copied.slides.length; j++) {
         const c = copied.slides[j] as CopiedSlide, tl = (c.tool ?? {}) as Rec, r = results?.[j];
         if (tl.kind === 'curve' || tl.kind === 'course') warmCurve(tl as never, r?.fp ? { fp: r.fp as never, params: r.params, base: r.base, snap: r.snap } : null, `${deck.id}/${c.id}`, fpOf as never);
       }
     }, 700);
-    return () => clearTimeout(t);
+    return () => clock.cancel(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i, deck.id, results]);
   const stateOf = useMemo(() => { let last = 0; return copied.slides.map((s, j) => (j === 0 || changes(s as CopiedSlide) ? (last = j) : last)); }, [copied]);

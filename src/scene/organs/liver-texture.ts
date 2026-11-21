@@ -8,6 +8,7 @@
 /** The texture's frame in 2D figure units (the liver's outline sits well inside it). */
 import { flagValue } from '../../ui/debug/flags.ts';
 
+import { clock } from '../../clock/frame.ts';
 export const TEX_X0 = 270, TEX_Y0 = 130, TEX_W = 660, TEX_H = 430;
 const PX = 1.8;   // texels per 2D unit
 export const TEX_PW = Math.round(TEX_W * PX), TEX_PH = Math.round(TEX_H * PX);
@@ -210,7 +211,7 @@ export class LiverBake {
   constructor() { this.H = this.cel?.height ? new Float32Array(this.W * (TEX_PH + 2)) : null; if (!this.H) this.phase = 1; else this.row = -1; }
   /** Works for at most `ms` (0: to the end). True when the texture is whole. */
   step(ms = 0): boolean {
-    const t0 = performance.now(), cel = this.cel, out = this.out, W = this.W, H = this.H;
+    const t0 = clock.now(), cel = this.cel, out = this.out, W = this.W, H = this.H;
     for (;;) {
       if (this.phase === 0) {
         // the height field once over the texture (and a texel's border), then each texel's slope from its neighbours: a fifth of the work of asking for the slope at every texel
@@ -230,7 +231,7 @@ export class LiverBake {
           }
         }
       } else return true;
-      if (ms > 0 && performance.now() - t0 >= ms) return false;
+      if (ms > 0 && clock.now() - t0 >= ms) return false;
     }
   }
 }

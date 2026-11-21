@@ -50,7 +50,7 @@ export const sceneApi = {
   /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long, even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on. */
   goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
-    cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot), ease);
+    cel.goTo(shot, room, clock.now(), ms ?? cel.rig.reachMs(shot), ease);
     clock.invalidate('shot');
   },
   /** Follow a world point with the camera's aim, smoothly and without restarting any move (the catheter's tip on its way in); null stops. */
@@ -128,7 +128,7 @@ export const sceneApi = {
     if (homeTurn) gesturesRef.current?.turnOff();
     // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
     if (cel.view === 'sinusoid' && stagePortrait() !== cel.isPortrait) { this.goTo(sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)), room, ms); return; }
-    cel.rig.setRoom(room, performance.now(), ms, homeTurn, refit, ease ?? null);
+    cel.rig.setRoom(room, clock.now(), ms, homeTurn, refit, ease ?? null);
     clock.invalidate('room');
   },
   /** Glide the hand's zoom and pan home to the shot's own framing (a second tap on the active view, a Fit button). */
@@ -140,7 +140,7 @@ export const sceneApi = {
   /** The procedures' devices (B5): the 2D app's own choreography (proc-anim.js `procFrame`) drawn on its routes. Every kind of `PROCS`, the measurements and the plugs. */
   procedure: {
     /** Play a procedure ('tips', 'brto', 'bato', 'tipscoil', 'hvpgcath', …) from `from` to `to` ms of its own time (default the whole), at the 2D pace times `speed`. */
-    play(kind: string, o?: PlayOptions): void { cel.procs.play(kind, performance.now(), o); clock.invalidate('procedure'); },
+    play(kind: string, o?: PlayOptions): void { cel.procs.play(kind, clock.now(), o); clock.invalidate('procedure'); },
     /** Put a procedure at time t ms at once (a step's end, a jump). */
     seek(kind: string, t: number): void { cel.procs.seek(kind, t); clock.invalidate('procedure'); },
     /** The HVPG catheter in one of the deck's states (route, free, wedge, result, blocked), `advance` how far in (0..1). */
@@ -151,11 +151,11 @@ export const sceneApi = {
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
     /** Start a procedure driven a step at a time (a presentation): it stands at `from` until `aim` sends it to a stop. */
-    drive(kind: string, o?: DriveOptions): void { cel.procs.drive(kind, performance.now(), o); clock.invalidate('procedure'); },
+    drive(kind: string, o?: DriveOptions): void { cel.procs.drive(kind, clock.now(), o); clock.invalidate('procedure'); },
     /** Run the driven procedure to a stop, ms of its own time (back a little faster than forward; `rush` plays the rest out fast). */
     aim(goal: number, rush = false): boolean { const ok = cel.procs.aimAt(goal, rush); if (ok) clock.invalidate('procedure'); return ok; },
     /** Hold the driven procedure still for `ms` (the step's camera is on its way). */
-    pause(ms: number): void { cel.procs.pauseUntil(performance.now() + ms); clock.invalidate('procedure'); },
+    pause(ms: number): void { cel.procs.pauseUntil(clock.now() + ms); clock.invalidate('procedure'); },
     /** The driven procedure's time, its goal and whether it is moving, or null. */
     get driven(): { kind: string; t: number; goal: number; moving: boolean } | null { return cel.procs.driven; },
   },
@@ -189,7 +189,7 @@ export const sceneApi = {
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
   flowPulse(): void { /* the 2D app has no pulse option: nothing to trigger */ clock.invalidate('flow-pulse'); },
   /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
-  setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, performance.now(), instant); clock.invalidate('lens'); },
+  setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, clock.now(), instant); clock.invalidate('lens'); },
   /** Compare's Change view: Change and Congestion count from a pinned moment's pressures; null goes back to the healthy reference. */
   setLensRef(P: ArrayLike<number> | null): void { cel.setLensRef(P); clock.invalidate('lens'); },
   /** A "change since" slide's baseline: the node pressures (the state of the slide before, a named slide's, a lapse's start) the Since lens counts from; null goes back to the state the figure showed as the lens came in. */

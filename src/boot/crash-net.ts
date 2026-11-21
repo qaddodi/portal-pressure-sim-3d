@@ -4,7 +4,7 @@
 // (ErrorNote.tsx). Keep going silences the pill for QUIET_MS; the faults are still kept. Nothing here runs per frame, and nothing is sent anywhere.
 import { create } from 'zustand';
 import { caught } from '../ui/debug/caught.ts';
-import { setClockFaultSink } from '../clock/frame.ts';
+import { setClockFaultSink, clock } from '../clock/frame.ts';
 
 export interface Fault { site: string; message: string; stack: string; at: number }
 export const BROKEN_COUNT = 5, BROKEN_WINDOW_MS = 10_000, QUIET_MS = 60_000, KEEP = 20;
@@ -56,7 +56,7 @@ export function createNet(o: { now(): number; online(): boolean; onBroken(): voi
 }
 
 export const useCrashNet = create<{ broken: boolean }>(() => ({ broken: false }));
-const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const now = () => (typeof performance !== 'undefined' ? clock.now() : Date.now());
 const net = createNet({ now, online: () => typeof navigator === 'undefined' || navigator.onLine !== false, onBroken: () => useCrashNet.setState({ broken: true }), onQuiet: () => useCrashNet.setState({ broken: false }) });
 export const dismissBroken = (): void => net.dismiss();
 /** Keep a fault for the reports without counting it (an error boundary caught it). */

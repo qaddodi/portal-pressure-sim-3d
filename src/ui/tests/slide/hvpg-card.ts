@@ -56,10 +56,10 @@ class Tracing implements MonSource {
   private rising = (): boolean => this.mode !== 'free' && this.bal < 1 && this.t <= T.wedge;
   private falling = (): boolean => this.mode === 'free' && this.bal > 0;
   frame(w: number, h: number, sweeping: boolean) {
-    if (sweeping) this.advance(performance.now());
+    if (sweeping) this.advance(clock.now());
     const st = this.st;
     st.ph = this.waiting && !this.mode ? 'idle' : this.phase(); st.t = this.t; st.v = this.live();
-    if (sweeping || !this.wave.on) syncWave(this.wave, latest.frame, this.t, performance.now());
+    if (sweeping || !this.wave.on) syncWave(this.wave, latest.frame, this.t, clock.now());
     return hvpgFrame(this.key, st, w, h, this.label());
   }
   private advance(now: number): void {
@@ -74,7 +74,7 @@ class Tracing implements MonSource {
   private wake(): void {
     this.running = true;
     if (!this.hold) this.hold = clock.hold('hvpg-card');
-    this.last = performance.now();
+    this.last = clock.now();
     clock.invalidate('hvpg-card');
     bump();
   }
@@ -127,7 +127,7 @@ function paintSteps(): void { paintReading(); useHvpgCard.setState({ at, hidden:
 /** The levels ease to the target on the shown state's filter (display-state.js follow2): the bar's and the figure's one clock. */
 function tween(): void {
   if (!cur || !target) { stopFollow(); return; }
-  const now = performance.now(), dt = Math.min(0.1, Math.max(0, (now - lastF) / 1000)); lastF = now;
+  const now = clock.now(), dt = Math.min(0.1, Math.max(0, (now - lastF) / 1000)); lastF = now;
   let moving = false;
   if (!curWOn) { curW = { fhvp: cur.fhvp, whvp: cur.whvp }; curWOn = true; }
   for (const key of KEY2) {
@@ -144,7 +144,7 @@ function tween(): void {
 }
 function follow(): void {
   if (followOff || !cur || !target) return;
-  lastF = performance.now();
+  lastF = clock.now();
   followHold = clock.hold('hvpg-card-levels');
   followOff = clock.on('tween', tween);
 }
@@ -152,10 +152,10 @@ function stopFollow(): void { followOff?.(); followOff = null; followHold?.relea
 
 /** The balloon from a to b on the procedure's clock, the trace riding it and the figure's balloon told each frame. */
 function ride(my: number, a: number, b: number): void {
-  const t0 = performance.now(), len = T.wedge - T.inflate;
+  const t0 = clock.now(), len = T.wedge - T.inflate;
   const off = clock.on('tween', () => {
     if (my !== token || !shown) { off(); h.release(); return; }
-    const k = REDUCED() ? 1 : Math.min(1, Math.max(0, (performance.now() - t0) / len)), e = k * k * (3 - 2 * k), v = a + (b - a) * e;
+    const k = REDUCED() ? 1 : Math.min(1, Math.max(0, (clock.now() - t0) / len)), e = k * k * (3 - 2 * k), v = a + (b - a) * e;
     tracing.balloon(v); tell(v);
     if (k >= 1) { off(); h.release(); }
   });

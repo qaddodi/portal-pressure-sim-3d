@@ -1,6 +1,7 @@
 // A label's number rolling to its new value (400 ms, transform and opacity only).
 import { MOTION } from '../../clock/tween.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity).
  *  Until the two animations have started (a busy frame: a settings sheet or the Tests card opening can hold the first frame for seconds) only the old number is seen, never both
  *  stacked ("IVC 4.6" with a grey 4.5 behind it, Mac play-test, 19 Nov): the new one is held at opacity 0 by its own style until its animation takes over, and the old one is
@@ -43,6 +44,6 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
   const doneIn = () => { if (rolls.get(cur) === mine) cur.style.opacity = ''; };   // (a newer roll on this number holds its own)
   out.onfinish = doneOut; out.oncancel = doneOut;
   inn.onfinish = () => { doneIn(); inn.cancel(); }; inn.oncancel = doneIn;
-  setTimeout(() => { doneOut(); doneIn(); }, MOTION.rollMs * 4);
+  clock.after(() => { doneOut(); doneIn(); }, MOTION.rollMs * 4);
 }
 

@@ -46,14 +46,14 @@ export const MORPH_MS = 2200, MORPH_BACK_MS = 900;
 export function linkProcs(): () => void {
   let key = '';                      // `${deck}/${slide}` of the slide whose features are on the figure
   let gen = 0;                       // a play's generation: a newer play or a slide change ends the older one's callbacks
-  let timers: ReturnType<typeof setTimeout>[] = [];
+  let timers: number[] = [];
   let playing = false;               // a procedure of this link is on the figure
   let held = false;                  // a procedure that holds its last frame (HOLD_KINDS) is standing on the figure
-  let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: ReturnType<typeof setTimeout> | undefined, lastView = 'body';
+  let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: number | undefined, lastView = 'body';
   let probeOff: (() => void) | null = null, probeHold: { release(): void } | null = null;
   let plan: ProcPlan | null = null;
   let auto: { g: number; key: string } | null = null;   // a slide whose procedure starts by itself once the slide has landed (2D procPlay, after the camera and the cards)
-  const later = (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+  const later = (fn: () => void, ms: number) => { const t = clock.after(fn, ms); timers.push(t); return t; };
   const room = () => useUi.getState().boxes.free;
 
   // ── the playing: guided by Next (2D presenter.js procPlay / procNext / procBack) ──
@@ -68,7 +68,7 @@ export function linkProcs(): () => void {
 
   function stopPlay(): void {
     gen++;
-    timers.forEach(clearTimeout); timers = [];
+    timers.forEach((t) => clock.cancel(t)); timers = [];
     sceneApi.follow(null);
     if (playing || held) { sceneApi.procedure.stop(); playing = false; held = false; }
     ctl = null; starting = false; phase = 'wait';
@@ -85,7 +85,7 @@ export function linkProcs(): () => void {
       if (last.name !== 'way') {
         const sh = tipShot(shot, tip, kind);
         if (!sh) return;
-        last.name = shot; last.at = performance.now();
+        last.name = shot; last.at = clock.now();
         sceneApi.goTo(sh, room(), 1100);
         sceneApi.procedure.pause(GLIDE_MS + LAND_MS);
       }
@@ -96,7 +96,7 @@ export function linkProcs(): () => void {
     const sh = tipShot(shot, tip, kind);
     if (!sh) return;
     sceneApi.follow(null);
-    last.name = shot; last.at = performance.now();
+    last.name = shot; last.at = clock.now();
     sceneApi.goTo(sh, room(), 1100);
     sceneApi.procedure.pause(GLIDE_MS + LAND_MS);
   }
@@ -271,9 +271,9 @@ export function linkProcs(): () => void {
   function probe(): void {
     const r3 = route3d('hvpg');
     if (!r3) return;
-    const r = r3.route, push = (1.6 * 0.9 * (r3.lumen(r.free) * UNITS_PER_SCENE)) / (r.free - r.start || 1), t0 = performance.now();
+    const r = r3.route, push = (1.6 * 0.9 * (r3.lumen(r.free) * UNITS_PER_SCENE)) / (r.free - r.start || 1), t0 = clock.now();
     probeHold = clock.hold('probe'); probeOff = clock.on('tween', () => {
-      const k = Math.min(1, (performance.now() - t0) / PROBE_MS), u = OSTIUM_U + Math.sin(k * 3 * Math.PI) ** 2 * push;
+      const k = Math.min(1, (clock.now() - t0) / PROBE_MS), u = OSTIUM_U + Math.sin(k * 3 * Math.PI) ** 2 * push;
       sceneApi.setCatheter({ advance: u, balloon: 0 });
       if (k >= 1) stopProbe();
     });
@@ -294,7 +294,7 @@ export function linkProcs(): () => void {
     if (key) { sceneApi.setStented([]); }
     if (washKey) { sceneApi.setWash(false); washKey = ''; }
     if (ringKey) { sceneApi.setCatheterRing(null); ringKey = ''; }
-    if (layersOn && !keepLayers) { clearTimeout(layerTimer); const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); layersOn = false; }
+    if (layersOn && !keepLayers) { clock.cancel(layerTimer); const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); layersOn = false; }
     plan = null; key = ''; auto = null;
   }
 
@@ -314,9 +314,9 @@ export function linkProcs(): () => void {
       // the lobule's layers: the viewer's own, zones off, and the slide's on; where the slide leaves the lobule they wait for the way out (2D slideLayers)
       const f = useShell.getState().figure, want = layersWant({ lymph: f.lymph, zones: f.zones, bile: f.bile }, s);
       layersOn = true;
-      clearTimeout(layerTimer);
+      clock.cancel(layerTimer);
       const apply = () => sceneApi.setLobuleLayers(want);
-      if (view === 'body' && wasView !== 'body') layerTimer = setTimeout(apply, DIVE_MS); else apply();
+      if (view === 'body' && wasView !== 'body') layerTimer = clock.after(apply, DIVE_MS); else apply();
       plan = ask.procedure;
       if (plan) {
         const sp = specFor(plan.kind), steps = stepsOfPlan(plan);
@@ -339,7 +339,7 @@ export function linkProcs(): () => void {
       if (cath === 'blocked') { later(probe, ARRIVE_MS + 300); }
     }
     // the wedge's wash, counted from when the view has landed
-    if (askOf(s).wash && washKey !== key && (sceneApi.figureView === 'lobule' || sceneApi.figureView === 'sinusoid')) { washKey = key; sceneApi.setWash(true, performance.now() + washLand); }
+    if (askOf(s).wash && washKey !== key && (sceneApi.figureView === 'lobule' || sceneApi.figureView === 'sinusoid')) { washKey = key; sceneApi.setWash(true, clock.now() + washLand); }
   };
 
   sync();

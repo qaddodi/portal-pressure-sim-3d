@@ -6,6 +6,7 @@
 import { clamp } from '../copied/num.copied.js';
 import { sidewaysWidth } from '../place.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export interface DividerEnv {
   /** the card now: its box and whether it is on the right; the stage's size; the least a sheet leaves above it */
   side(): boolean;
@@ -29,7 +30,7 @@ function guideEl(): HTMLElement {
   return guide;
 }
 /** Takes the guide line out of the page (the layer went). */
-export function removeGuide(): void { clearTimeout(layerT); guide?.remove(); guide = null; }
+export function removeGuide(): void { clock.cancel(layerT); guide?.remove(); guide = null; }
 
 /** Wires a divider element. Returns the remover. */
 export function attachDivider(divider: HTMLElement, env: DividerEnv): () => void {
@@ -43,7 +44,7 @@ export function attachDivider(divider: HTMLElement, env: DividerEnv): () => void
     Object.assign(g.style, side
       ? { left: `${d.left + d.width / 2 - 1}px`, top: `${c.y}px`, width: '2px', height: `${c.h}px`, transform: '' }
       : { left: `${c.x}px`, top: `${d.top + d.height / 2 - 1}px`, width: `${c.w}px`, height: '2px', transform: '' });
-    clearTimeout(layerT);
+    clock.cancel(layerT);
     g.classList.add('dg-live', 'on');
     divider.closest('.instrument-workspace')?.classList.add('resizing');
     try { divider.setPointerCapture(e.pointerId); } catch { /* the pointer is gone */ }
@@ -58,7 +59,7 @@ export function attachDivider(divider: HTMLElement, env: DividerEnv): () => void
     if (!d) return;
     drag = null;
     guide?.classList.remove('on');
-    clearTimeout(layerT); layerT = window.setTimeout(() => guide?.classList.remove('dg-live'), 700);   // (the guide keeps its layer while it fades out)
+    clock.cancel(layerT); layerT = clock.after(() => guide?.classList.remove('dg-live'), 700);   // (the guide keeps its layer while it fades out)
     divider.closest('.instrument-workspace')?.classList.remove('resizing');
     if (d.side && d.wNew != null) env.set({ w: d.wNew });
     else if (!d.side && d.hNew != null) env.set({ h: d.hNew });

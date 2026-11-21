@@ -23,7 +23,7 @@ export function setSpeed(v: number, lapse: boolean) {
 export const jump = (days: number | 'event') => jumpAhead(days);
 export const settle = () => engine().send({ type: 'settle' });
 export const restart = () => { void restartPatient(); };
-export const step = () => { engine().send({ type: 'run', running: true }); setTimeout(() => engine().send({ type: 'run', running: false }), 60); };
+export const step = () => { engine().send({ type: 'run', running: true }); clock.after(() => engine().send({ type: 'run', running: false }), 60); };
 
 /** Start mirroring the engine into the store (call once, after the engine has booted). The clock's engine phase reads the newest frame; the store changes only
  *  when the running state, the speed or the clock's words do. Returns the remover. */

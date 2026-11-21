@@ -19,6 +19,7 @@ import { LOBULE_TILES, roomFor, type Scale } from './lobule-strip.ts';
 // @ts-ignore the pinned engine copy is plain JS
 import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
 
+import { clock } from '../../clock/frame.ts';
 const pb = UI.playbar;
 const HOLD_MS = 450;
 
@@ -124,7 +125,7 @@ export function Readouts() {
 /** The timeline row of the dock, as 2D's timeline.js builds it: .tl-left > .tl-split (.tl-speed, .ib.play) and .tl-restart, .tl-time, .tl-jumps > .tl-ff, .tl-hist, .tl-pin. */
 export function Timeline({ phone }: { phone: boolean }) {
   const { running, speed, lapse, time } = useShell((s) => s.transport);
-  const hold = useRef<{ t: ReturnType<typeof setTimeout> | undefined; held: boolean }>({ t: undefined, held: false });
+  const hold = useRef<{ t: number | undefined; held: boolean }>({ t: undefined, held: false });
   const comparing = useCompare((c) => !!c.snap), histCount = useTimeline((t) => t.count);
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
@@ -137,8 +138,8 @@ export function Timeline({ phone }: { phone: boolean }) {
             <SpeedMenu />
           </Anchored>
           <button type="button" className={`ib play${lapse && !running ? ' lapse' : ''}`} aria-label={running ? 'Pause' : 'Play'} title={PLAY_TITLES.playPause}
-            onPointerDown={() => { hold.current.held = false; clearTimeout(hold.current.t); hold.current.t = setTimeout(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
-            onPointerUp={() => clearTimeout(hold.current.t)} onPointerLeave={() => clearTimeout(hold.current.t)} onPointerCancel={() => clearTimeout(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
+            onPointerDown={() => { hold.current.held = false; clock.cancel(hold.current.t); hold.current.t = clock.after(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
+            onPointerUp={() => clock.cancel(hold.current.t)} onPointerLeave={() => clock.cancel(hold.current.t)} onPointerCancel={() => clock.cancel(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
             onClick={() => { if (hold.current.held) { hold.current.held = false; return; } togglePlay(); }}>
             <I n={running ? 'pause' : lapse ? 'playlapse' : 'play'} />
           </button>

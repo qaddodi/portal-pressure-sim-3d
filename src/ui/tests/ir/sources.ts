@@ -7,6 +7,7 @@ import { hvpgFrame, type TraceSt } from './hvpg.ts';
 import { monitorFrame, type MonitorState } from './monitor.ts';
 import { R, phaseAt, values, hvpgRunning, ppgMonitor, ppgScript } from './run.ts';
 
+import { clock } from '../../../clock/frame.ts';
 const hvKey = {}, hvWave = newWave();
 const hvSt: TraceSt = { ph: 'idle', t: 0, v: null, blocked: false, running: false, wave: hvWave };
 export const hvpgSource: MonSource = {
@@ -16,7 +17,7 @@ export const hvpgSource: MonSource = {
   frame(w, h, sweeping) {
     hvSt.ph = phaseAt(); hvSt.t = R.t; hvSt.v = values(); hvSt.blocked = R.blocked; hvSt.running = R.t0 != null;
     // the waves follow the model's clock only while the sweep runs; at rest, a resize redraws the trace with the waves it was last drawn with
-    if (sweeping || !hvWave.on) syncWave(hvWave, latest.frame, R.t, performance.now());
+    if (sweeping || !hvWave.on) syncWave(hvWave, latest.frame, R.t, clock.now());
     return hvpgFrame(hvKey, hvSt, w, h, this.label());
   },
 };

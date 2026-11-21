@@ -4,15 +4,16 @@
 import { D_SMALL, D_SURFACE, fadeMs } from '../a11y/motion.ts';
 import { W } from '../deck/words.ts';
 
+import { clock } from '../../clock/frame.ts';
 export const COVER_MAX_MS = 12000;
 let cover: HTMLDivElement | null = null;
-let giveUp: ReturnType<typeof setTimeout> | undefined;
+let giveUp: number | undefined;
 
 /** The cover comes up (what is opening is its cue). Resolves once it has faded in. */
 export function coverUp(what = ''): Promise<void> {
   if (typeof document === 'undefined') return Promise.resolve();
   document.documentElement.classList.add('pz-covered');
-  clearTimeout(giveUp); giveUp = setTimeout(() => { void coverDown(); }, COVER_MAX_MS);
+  clock.cancel(giveUp); giveUp = clock.after(() => { void coverDown(); }, COVER_MAX_MS);
   if (!cover || !cover.isConnected) {
     const c = document.createElement('div');
     c.className = 'pz-cover'; c.setAttribute('role', 'status');
@@ -25,17 +26,17 @@ export function coverUp(what = ''): Promise<void> {
   }
   const c = cover;
   // (the class that brings the opacity up is set a task later, so the first paint is the cover at 0 and the fade is seen)
-  return new Promise((done) => { setTimeout(() => { c.classList.add('on'); setTimeout(done, fadeMs(D_SMALL)); }, 0); });
+  return new Promise((done) => { clock.after(() => { c.classList.add('on'); clock.after(done, fadeMs(D_SMALL)); }, 0); });
 }
 
 /** The cover fades away, and the cards under it show. Resolves when it is gone. */
 export function coverDown(): Promise<void> {
-  clearTimeout(giveUp);
+  clock.cancel(giveUp);
   const c = cover;
   if (!c) { document.documentElement.classList.remove('pz-covered'); return Promise.resolve(); }
   c.classList.remove('on');
   document.documentElement.classList.remove('pz-covered');
-  return new Promise((done) => setTimeout(() => { if (cover === c && !c.classList.contains('on')) { c.remove(); cover = null; } done(); }, fadeMs(D_SURFACE) + 40));
+  return new Promise((done) => clock.after(() => { if (cover === c && !c.classList.contains('on')) { c.remove(); cover = null; } done(); }, fadeMs(D_SURFACE) + 40));
 }
 
 export const covered = (): boolean => typeof document !== 'undefined' && document.documentElement.classList.contains('pz-covered');

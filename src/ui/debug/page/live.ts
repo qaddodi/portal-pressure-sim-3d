@@ -37,7 +37,7 @@ export const liveCatalog = (): Entry[] => buildCatalog({
 });
 
 const leave = () => { if (talkOn()) leaveTalk(); useShell.setState({ sheet: null, dialog: null }); };
-export const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
+export const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
 
 /** Opens a specimen the way the app opens it: a view pill, a sheet, a talk at a stop, a patient. */
 export async function openEntry(e: Entry): Promise<void> {

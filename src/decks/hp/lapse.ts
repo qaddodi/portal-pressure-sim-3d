@@ -7,6 +7,7 @@ import { engine } from '../../engine/boot.ts';
 import { daysAt, setLapseSkip, skipPace, skipSpeed, SKIP_MS, type Pace } from '../../ui/deck/lapse-next.ts';
 import type { CopiedSlide } from './types.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** The counter's state: which slide it belongs to, the days played, the days in all, and whether the days are done. */
 export const useLapse = create<{ key: string; d: number; n: number; done: boolean }>(() => ({ key: '', d: 0, n: 0, done: false }));
 
@@ -27,17 +28,17 @@ export interface Push { start(endAt: number): void; end(ms?: number): void; canc
 /** The lapse under way: its slide's days, where the counter's line in time is, and what it hands over to. */
 interface Run { days: number; secs: number; ramp: unknown; bedside: boolean; end: unknown; push: Push | null; landed: () => void; phase: 'settle' | 'days' | 'fast' | 'landing'; pace: Pace | null; endAt: number }
 let run: Run | null = null;
-let timers: ReturnType<typeof setTimeout>[] = [];
-let ticker: ReturnType<typeof setInterval> | null = null;
+let timers: number[] = [];
+let ticker: number | null = null;
 let playing = false;
 const send = (m: unknown) => { try { engine().send(m as never); } catch { /* the engine is not up yet */ } };
-const after = (ms: number, fn: () => void) => { timers.push(setTimeout(fn, ms)); };
-const clearTimers = () => { for (const t of timers) clearTimeout(t); timers = []; };
+const after = (ms: number, fn: () => void) => { timers.push(clock.after(fn, ms)); };
+const clearTimers = () => { for (const t of timers) clock.cancel(t); timers = []; };
 
 export function stopLapse(): void {
   clearTimers();
   run?.push?.cancel();
-  if (ticker) { clearInterval(ticker); ticker = null; }
+  if (ticker) { clock.cancel(ticker); ticker = null; }
   run = null;
   setLapseSkip(null);
   if (playing) { playing = false; send({ type: 'lapse', days: 0 }); }
@@ -45,13 +46,13 @@ export function stopLapse(): void {
 
 /** The counter follows the pace (the days' line in time), so Next's fast run carries on from the day it was at and never jumps. */
 const tick = (r: Run, every: number) => {
-  if (ticker) clearInterval(ticker);
-  ticker = setInterval(() => { if (r.pace) useLapse.setState({ d: daysAt(r.pace, performance.now()) }); }, every);
+  if (ticker) clock.cancel(ticker);
+  ticker = clock.every(() => { if (r.pace) useLapse.setState({ d: daysAt(r.pace, clock.now()) }); }, every);
 };
 
 /** The days end: the counter and the figure ease to the slide's own end state, and the slide is told. */
 function land(r: Run): void {
-  if (ticker) { clearInterval(ticker); ticker = null; }
+  if (ticker) { clock.cancel(ticker); ticker = null; }
   r.phase = 'landing';
   setLapseSkip(null);
   playing = false; send({ type: 'lapse', days: 0 });
@@ -63,7 +64,7 @@ function land(r: Run): void {
 
 /** The days begin on the engine: at the slide's own pace, or (`fast`, a Next before they began) in the time Next gives them. */
 function begin(r: Run, fast: boolean): void {
-  const ms = fast ? SKIP_MS : r.secs * 1000, now = performance.now();
+  const ms = fast ? SKIP_MS : r.secs * 1000, now = clock.now();
   r.phase = fast ? 'fast' : 'days';
   playing = true;
   send({ type: 'lapse', days: r.days, speed: r.days / (ms / 1000), ramp: r.ramp ?? null, bedside: r.bedside });
@@ -82,7 +83,7 @@ function skip(): boolean {
   const r = run;
   // (a Next while the days are only being set up does not run them out: it moves on, so a quick Next-Next never stops on a lapse slide, 2D V-SLIDE-5)
   if (!r || r.phase === 'settle' || r.phase === 'fast' || r.phase === 'landing') return false;
-  const now = performance.now();
+  const now = clock.now();
   clearTimers();
   if (!r.pace) { begin(r, true); return true; }
   const d = daysAt(r.pace, now), left = Math.max(0, r.days - d);

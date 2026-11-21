@@ -142,7 +142,7 @@ export function LabelLayer() {
     const readings = new StationExtras();
     const stentView = stentReads(() => lookRef.current);
     const deps: LabelDeps = {
-      now: () => performance.now(),
+      now: () => clock.now(),
       project: (p, out) => sceneApi.project(p, out),
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
@@ -429,8 +429,8 @@ function useKeyBlend(model: KeyM | null): { now: KeyM | null; leaving: KeyM | nu
     if (!was || was.lens === model.lens) return;
     if (reduced()) return;
     setLeaving(was);
-    const t = setTimeout(() => setLeaving(null), KEY_BLEND_MS + 40);
-    return () => clearTimeout(t);
+    const t = clock.after(() => setLeaving(null), KEY_BLEND_MS + 40);
+    return () => clock.cancel(t);
   }, [model]);
   return { now: model ?? last.current, leaving: leaving && model && leaving.lens !== model.lens ? leaving : null };
 }

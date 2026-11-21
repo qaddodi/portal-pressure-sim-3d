@@ -43,6 +43,7 @@ import { startHistory } from '../history/bind.ts';
 import { startActions } from '../action/boot.ts';
 import { useTalkOn } from '../../state/deck.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
 function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
   const setViewport = useUi((s) => s.setViewport);
@@ -89,7 +90,7 @@ function useFreeCamera() {
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0 || !entered.current) return;
     // once the probe has landed (it waits for the camera and fades in), move the figure so the probe stands in the middle of what the card leaves
-    const t = setTimeout(() => {
+    const t = clock.after(() => {
       const { base } = roomNow(), f = testsPlace ? sceneApi.testFocus() : null, b = bias.current;
       const { x: nx, y: ny } = probeShift(base, testsPlace, f, b);   // (only as far as the probe needs to clear the card: place.ts probeShift)
       if (Math.abs(nx - b.x) < 24 && Math.abs(ny - b.y) < 24 && !(nx === 0 && ny === 0 && (b.x !== 0 || b.y !== 0))) return;
@@ -97,7 +98,7 @@ function useFreeCamera() {
       const r = roomNow().room;
       if (r.w > 0 && r.h > 0) sceneApi.setRoom(r);
     }, 700);
-    return () => clearTimeout(t);
+    return () => clock.cancel(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, vp, testsPlace, probe]);
   const seen = useRef(refit);

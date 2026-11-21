@@ -9,6 +9,7 @@
 // `{ type: 'crash', message }` once (every request waiting on it settles with that), and the next message starts a fresh one.
 import type { WorkerLike } from './client.ts';
 
+import { clock } from '../clock/frame.ts';
 /** How long a request to a second engine may wait before the worker is taken for stalled and dropped. A deck's chain is seconds on a laptop; this is for a worker that never answers. */
 export const SECOND_WAIT_MS = 120000;
 
@@ -24,7 +25,7 @@ export type SecondMessage = { type: string; reqId?: number; message?: string; [k
 export class Second {
   private w: WorkerLike | null = null;
   private cb: ((m: SecondMessage) => void) | null = null;
-  private timer: ReturnType<typeof setTimeout> | undefined;
+  private timer: number | undefined;
   private readonly start: () => WorkerLike;
   private readonly waitMs: number;
   constructor(start: () => WorkerLike = startWorker, waitMs = SECOND_WAIT_MS) { this.start = start; this.waitMs = waitMs; }
@@ -51,7 +52,7 @@ export class Second {
     return w;
   }
   // (the stall rule: a worker silent for waitMs after a request is dropped; an answer, or the next request, starts the wait again)
-  private arm(): void { clearTimeout(this.timer); this.timer = setTimeout(() => this.fail('The simulation did not answer in time.'), this.waitMs); }
+  private arm(): void { clock.cancel(this.timer); this.timer = clock.after(() => this.fail('The simulation did not answer in time.'), this.waitMs); }
 
   /** The worker is gone: end it, tell the listener once, and let the next message start a new one. */
   fail(message: string): void {
@@ -64,7 +65,7 @@ export class Second {
   }
 
   /** A request that has been answered: nothing is waiting, so the stall timer stops. */
-  idle(): void { clearTimeout(this.timer); this.timer = undefined; }
+  idle(): void { clock.cancel(this.timer); this.timer = undefined; }
 
   /** Ends the worker for good (a deck's states are no longer wanted). The listener is not told. */
   dispose(): void {

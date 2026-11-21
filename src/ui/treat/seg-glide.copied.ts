@@ -18,6 +18,7 @@
 //   - High contrast keeps today's Highlight on the button and hides the piece (the stylesheet).
 import { D_SMALL, restPass, readBox, readMetric, readStyle, reduceMotionMQ } from './sheet-shim.ts';
 
+import { clock } from '../../clock/frame.ts';
 const SEL = '.seg, .instr-tabs, .um-tabs, .pressure-switch';
 const PICKED = '[aria-pressed="true"], [aria-selected="true"]';
 // The piece glides by its translate and scale only, on the compositor: its size is set at once and a scale from the old size to 1
@@ -165,7 +166,7 @@ export function startSegGlide(root = document.body) {
     for (const b of ctl.children) if (b.localName === 'button') ro?.observe(b);
     const btn = chosen(ctl), box = btn ? boxIn(ctl, btn) : null;
     if (!box) { st.token = null; st.btn = null; st.box = null; st.org = null; drop(ctl); return; }
-    const first = !st.box, now = performance.now(), org = frameOf(ctl);
+    const first = !st.box, now = clock.now(), org = frameOf(ctl);
     const shift = st.org && org ? { x: st.org.x - org.x, y: st.org.y - org.y } : null;
     st.org = org;
     moved = moved && !first && btn !== st.btn;

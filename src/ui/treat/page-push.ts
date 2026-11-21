@@ -76,19 +76,19 @@ export function pushPage(page: HTMLElement, away: HTMLElement[], width: number, 
       if (!(dx > 0 && dx > Math.abs(dy) * 1.2)) { s = null; return; }   // (a scroll, or a drag the other way: not this page's)
       stop();   // (caught while it is still coming in: the finger takes it from where it stands)
       backTo(1);
-      s.on = true; s.x = e.clientX - x; s.t = performance.now();
+      s.on = true; s.x = e.clientX - x; s.t = clock.now();
       try { page.setPointerCapture(e.pointerId); } catch { /* the pointer is gone */ }
     }
     const raw = e.clientX - s.x;
     s.dx = raw > 0 ? Math.min(W, raw) : 0;   // (never further open than it stands)
-    s.trail.push([performance.now(), e.clientX]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([clock.now(), e.clientX]); if (s.trail.length > 8) s.trail.shift();
     apply(s.dx);
   });
   const end = (e?: PointerEvent) => {
     const s0 = s;
     if (!s0?.on || (e && e.pointerId !== s0.id)) { if (!e || !s0 || e.pointerId === s0.id) s = null; return; }
     s = null;
-    const now = performance.now(), v = releaseSpeed(s0.trail, now);   // (px per ms to the right, as the finger lifted)
+    const now = clock.now(), v = releaseSpeed(s0.trail, now);   // (px per ms to the right, as the finger lifted)
     const flick = isFlick(s0.dx, v, s0.dx / Math.max(1, now - s0.t), SHEET_FLICK_MIN, SHEET_FLICK_FAR);
     if (flick || s0.dx > Math.min(SHEET_CLOSE_PX, W * SHEET_CLOSE_SHARE)) pop(v);
     else run(0);   // (a short pull comes home)

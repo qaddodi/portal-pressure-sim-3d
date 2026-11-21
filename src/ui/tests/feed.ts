@@ -13,6 +13,7 @@ import { recordDay, calmedDays } from '../../engine/hales/portal/trail-calm.js';
 import { treatmentKey } from '../../engine/hales/portal/change-events.js';
 import { TRACES } from './trace/model.ts';
 
+import { clock } from '../../clock/frame.ts';
 export const CHANNELS = ['ph', 'vel', 'pvVel', 'hvVel', 'whvp', 'hvpg', 'RA', 'IVCS', 'RHV', 'CONF', 'SIN_R', 'VAR', 'AO', 'SV', 'SMV'] as const;
 export type Channel = (typeof CHANNELS)[number];
 /** seconds of model time kept (the two-minute range plus slack) */
@@ -104,7 +105,7 @@ export class SampleFeed {
       const n = s.t.length, last = this.last, t0 = s.t[0]! + this.off;
       if (this.t.length && (t0 < last - 1e-9 || t0 > last + JUMP_S)) {
         // (After a freewheel the newest sample is put the lag ahead of the head as it has moved on, so the trace keeps its pace through the landing.)
-        this.off = was ? Math.max(last, this.head[0]! + Math.min(0.25, (performance.now() - this.head[1]!) / 1000) + FW_LAG_S) - s.t[n - 1]!
+        this.off = was ? Math.max(last, this.head[0]! + Math.min(0.25, (clock.now() - this.head[1]!) / 1000) + FW_LAG_S) - s.t[n - 1]!
           : last + (n > 1 ? s.t[1]! - s.t[0]! : 0.004) - s.t[0]!;
       }
       this.wheel.land();

@@ -23,7 +23,7 @@ export interface Glide { stop(): void }
  */
 export function glide(o: { ms: number; curve: (u: number) => number; apply(k: number): void; done?(): void; tag?: string }): Glide {
   if (reduced() || !(o.ms > 0)) { o.apply(1); o.done?.(); return { stop() {} }; }
-  const h = clock.hold(o.tag ?? 'menu-glide'), t0 = performance.now();
+  const h = clock.hold(o.tag ?? 'menu-glide'), t0 = clock.now();
   let live = true;
   const off = clock.on('tween', (f) => {
     if (!live) return;

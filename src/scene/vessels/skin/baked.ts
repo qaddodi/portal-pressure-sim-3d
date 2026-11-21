@@ -10,6 +10,7 @@ import type { ArmAxis } from './skin-object.ts';
 import type { SkinJunction, SkinMesh } from './types.ts';
 import { plainOf } from './plain.ts';
 
+import { clock } from '../../../clock/frame.ts';
 /** One baked skin: the plan it was made from (its cuts, the vessels it hides whole, the node it merged with), the arms' drawn axes, the mesh, and the rung of the pace ladder (mesh.ts PACES) that closed it. */
 export interface BakedSkin { plan: SkinPlan; axes: ArmAxis[]; mesh: SkinMesh; pace: number; /** the plain trunk of a skin with growing arms (plain.ts): its axes, mesh and pace; null when it could not be built (the weld then runs over the tubes' cut ends alone); absent on a skin with no growing arm */ plain?: PlainBake | null }
 /** The plain trunk of one baked skin: the welded skin's axes of the arms that stay, its mesh and the rung of the pace ladder that closed it. */
@@ -114,7 +115,7 @@ const browser = typeof window !== 'undefined' && typeof fetch !== 'undefined' &&
 /** The fetch and the decode are each bounded (release review 21 Nov #1): a pending file must not hold the boot for ever; past this the scene plans its skins live (slower, never blank) and says why in the console. */
 export const BAKED_FETCH_MS = 8000;
 export const BAKED_DECODE_MS = 8000;
-const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> => new Promise<T>((ok, no) => { const t = setTimeout(() => no(new Error(`${what} took over ${ms} ms`)), ms); p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); no(e); }); });
+const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> => new Promise<T>((ok, no) => { const t = clock.after(() => no(new Error(`${what} took over ${ms} ms`)), ms); p.then((v) => { clock.cancel(t); ok(v); }, (e) => { clock.cancel(t); no(e); }); });
 async function fetchSkins(name: string): Promise<BakedSkins | null> {
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   try {

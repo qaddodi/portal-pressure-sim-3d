@@ -27,7 +27,7 @@ export function ReadingTool({ procedure, fp, of }: { procedure: unknown; fp: Rec
         script.vals(fpRef.current, v);
         const r = readingAt(script, tk, v);
         st.ph = r.ph as MonitorState['ph']; st.t = r.t;
-        if (st.ph === 'run') syncWave(wave, latest.frame, st.t, performance.now());
+        if (st.ph === 'run') syncWave(wave, latest.frame, st.t, clock.now());
         return monitorFrame(key, script, st, w, h, r.words);
       },
     };

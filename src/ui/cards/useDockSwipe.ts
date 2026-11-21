@@ -4,10 +4,11 @@ import { reduced } from '../a11y/motion.ts';
 
 /** When the last dock drag let go (ms): the click that follows is not a tap. */
 export let lastDockEnd = -1e9;
-export const justDocked = () => performance.now() - lastDockEnd < 400;
+export const justDocked = () => clock.now() - lastDockEnd < 400;
 
 import { ownsTouch, axisStart, axisOf, axisEnd } from './swipe-own.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** What a touch that starts on it stays its own: the slide surface's real controls (swipe-own.ts), and the wallet strip, which has its own vertical swipe. */
 const own = (t: Element | null) => ownsTouch(t) || !!t?.closest?.('.dk-strip, [data-no-dock]');
 
@@ -63,7 +64,7 @@ export function useDockSwipe(o: Opts) {
       const s = g; if (!s || s.id !== e.pointerId) return;
       g = null; axisEnd(s.id);
       if (!s.on) return;
-      lastDockEnd = performance.now();
+      lastDockEnd = clock.now();
       const a = s.pts[0]!, b = s.pts[s.pts.length - 1]!;
       const v = b[1] > a[1] ? (b[0] - a[0]) / (b[1] - a[1]) : 0;
       const to = cancelled ? (dock.lvl > 0.5 ? 1 : 0) : settleOf(dock.lvl, v);

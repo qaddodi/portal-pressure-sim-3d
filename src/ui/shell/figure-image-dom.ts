@@ -57,19 +57,19 @@ function paint(g: CanvasRenderingContext2D, cmds: Cmd[]): void {
 /** One picture of the figure now, with its labels, at the canvas's own resolution (the device's pixel ratio: 2x on a phone, an iPad and a Retina Mac). Resolves null when no frame could be read. */
 export function figurePicture(): Promise<Blob | null> {
   return new Promise((done) => {
-    const give = window.setTimeout(() => done(null), 8000);
+    const give = clock.after(() => done(null), 8000);
     lookCapture.ask((canvas) => {
       try {
         const rect = canvas.getBoundingClientRect(), scale = rect.width > 0 ? canvas.width / rect.width : 1;
         const out = document.createElement('canvas'); out.width = canvas.width; out.height = canvas.height;
         const g = out.getContext('2d');
-        if (!g) { window.clearTimeout(give); done(null); return; }
+        if (!g) { clock.cancel(give); done(null); return; }
         g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff';   // (the look's ground under the figure: the canvas itself is clear where nothing is drawn)
         g.fillRect(0, 0, out.width, out.height);
         g.drawImage(canvas, 0, 0);
         paint(g, figureCmds(readSeen(), { x: rect.left, y: rect.top, w: rect.width, h: rect.height }, scale));
-        out.toBlob((b) => { window.clearTimeout(give); done(b); }, 'image/png');
-      } catch { window.clearTimeout(give); done(null); }
+        out.toBlob((b) => { clock.cancel(give); done(b); }, 'image/png');
+      } catch { clock.cancel(give); done(null); }
     });
     clock.invalidate('figure-image');
   });
@@ -84,7 +84,7 @@ export async function saveFigure(): Promise<void> {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = figureFileName(useShell.getState().view, useEngine.getState().presetId);
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  clock.after(() => URL.revokeObjectURL(a.href), 10000);
   say(FIGURE_IMAGE.saved);
 }
 

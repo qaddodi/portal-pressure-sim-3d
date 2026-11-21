@@ -6,6 +6,7 @@ import { STORAGE_PREFIX } from '../../state/settings.ts';
 import type { ViewId } from './views.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 
+import { clock } from '../../clock/frame.ts';
 export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | null;
 export type MenuTab = 'present' | 'patients';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
@@ -66,7 +67,7 @@ function loadFigure(): Figure {
 }
 const saveFigure = (f: Figure) => { try { localStorage.setItem(KEY, JSON.stringify(f)); } catch { /* kept for this visit */ } };
 
-let toastId = 0, toastTimer: ReturnType<typeof setTimeout> | undefined;
+let toastId = 0, toastTimer: number | undefined;
 export const TOAST_MS = 3200;
 /** A toast with a button stays long enough to reach it. */
 export const ACTION_MS = 9000;
@@ -84,10 +85,10 @@ export const useShell = create<ShellState>((set, get) => ({
   close: () => { if (get().sheet) set({ sheet: null }); },
   toggle: (sheet) => set({ sheet: get().sheet === sheet ? null : sheet }),
   say: (text, tone = 'info', action, sticky = false) => {
-    clearTimeout(toastTimer);
+    clock.cancel(toastTimer);
     set({ toast: { id: ++toastId, text, tone, ...(action ? { action } : {}) } });
     // (a sticky note, the first-run hint, stays until its owner closes it, as 2D's toast with `sticky`)
-    if (!sticky) toastTimer = setTimeout(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : TOAST_MS);
+    if (!sticky) toastTimer = clock.after(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : TOAST_MS);
   },
   setFigure: (p) => { const f = { ...get().figure, ...p }; set({ figure: f }); saveFigure(f); },
   markViewReady: (v) => set({ ready: { ...get().ready, [v]: true } }),

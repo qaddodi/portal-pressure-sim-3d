@@ -5,6 +5,7 @@ import type { AuditFinding } from './judge.ts';
 import { INSTANT_MS } from './judge.ts';
 import { nameOf, describeEl } from './scan.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export interface AnimRec { sel: string; prop: string; kind: 'transition' | 'animation'; startMs: number; plannedMs: number | null; delayMs: number; easing: string | null; ended: 'end' | 'cancel' | 'running'; actualMs: number | null }
 export interface LedgerRead { anims: AnimRec[]; findings: AuditFinding[] }
 export interface Ledger { mark(): void; read(): LedgerRead; stop(): void }
@@ -20,7 +21,7 @@ const SKIP = (el: Element) => !!el.closest('[data-debug], #boot') || el.tagName 
 export function vanishedShowing(own: number, descOps: readonly number[]): boolean { return own >= 0.9 && !descOps.some((o) => o < 0.9); }
 
 export function startLedger(doc: Document = document, win: Window = window): Ledger {
-  let t0 = performance.now(), recs: AnimRec[] = [], found: AuditFinding[] = [];
+  let t0 = clock.now(), recs: AnimRec[] = [], found: AuditFinding[] = [];
   const open = new Map<string, AnimRec>();
   const key = (e: Event, prop: string) => `${(e.target as Element | null)?.tagName}|${prop}|${(e.target as Element & { __au?: number }).__au ?? ((e.target as Element & { __au?: number }).__au = Math.random())}`;
   const plannedOf = (el: Element, prop: string, kind: 'transition' | 'animation'): { ms: number | null; delay: number; easing: string | null } => {
@@ -35,14 +36,14 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     const el = e.target as Element | null; if (!el || SKIP(el)) return;
     const prop = kind === 'transition' ? (e as TransitionEvent).propertyName : (e as AnimationEvent).animationName;
     const p = plannedOf(el, prop, kind);
-    const r: AnimRec = { sel: nameOf(el), prop, kind, startMs: Math.round(performance.now() - t0), plannedMs: p.ms, delayMs: p.delay, easing: p.easing, ended: 'running', actualMs: null };
+    const r: AnimRec = { sel: nameOf(el), prop, kind, startMs: Math.round(clock.now() - t0), plannedMs: p.ms, delayMs: p.delay, easing: p.easing, ended: 'running', actualMs: null };
     recs.push(r); open.set(key(e, prop), r);
     if (p.ms != null && p.ms > 0 && p.ms < INSTANT_MS && (kind === 'animation' || VISIBLE.test(prop))) found.push({ kind: 'anim-too-fast', sev: 'warn', what: `${r.sel} ${prop} ${kind} lasts ${p.ms} ms (under ${INSTANT_MS}): it reads as a snap`, where: r.sel });
   };
   const finish = (how: 'end' | 'cancel', kind: 'transition' | 'animation') => (e: Event) => {
     const prop = kind === 'transition' ? (e as TransitionEvent).propertyName : (e as AnimationEvent).animationName;
     const k = key(e, prop), r = open.get(k); if (!r) return;
-    r.ended = how; r.actualMs = Math.round(performance.now() - t0) - r.startMs; open.delete(k);
+    r.ended = how; r.actualMs = Math.round(clock.now() - t0) - r.startMs; open.delete(k);
   };
   const L: [string, (e: Event) => void][] = [['transitionrun', begin('transition')], ['animationstart', begin('animation')], ['transitionend', finish('end', 'transition')], ['transitioncancel', finish('cancel', 'transition')], ['animationend', finish('end', 'animation')], ['animationcancel', finish('cancel', 'animation')]];
   for (const [t, f] of L) doc.addEventListener(t, f, true);
@@ -67,7 +68,7 @@ export function startLedger(doc: Document = document, win: Window = window): Led
   const MIN_AREA = 1600;   // (a 40 x 40 box: under it a change is a digit, a dot or a caret, not a thing popping)
   const look = (el: Element, added: boolean) => {
     if (SKIP(el) || !el.isConnected || covered()) return;
-    const now = performance.now(), r = el.getBoundingClientRect();
+    const now = clock.now(), r = el.getBoundingClientRect();
     const cur: Seen = { t: now, op: effOpacity(el), b: [r.left, r.top, r.width, r.height] };
     const prev = seen.get(el); seen.set(el, cur);
     if (r.width * r.height < MIN_AREA || !paints(el)) return;
@@ -88,13 +89,13 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     }
     // an element put in where one just like it was taken out is a re-render (the same card, the same number): nothing appeared; one inside a newly added parent comes with its parent
     for (const n of addedRoots) if (!removed.has(sig(n)) && !(n.parentElement && addedRoots.has(n.parentElement)) && ![...addedRoots].some((a) => a !== n && a.contains(n))) { added.add(n); targets.add(n); }
-    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && vanishedShowing(p.op, [...n.querySelectorAll('*')].map((d) => seen.get(d)?.op).filter((o): o is number => o !== undefined)) && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${describeEl(n)} vanished at full opacity in one frame (no fade)`, n); }
+    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && vanishedShowing(p.op, [...n.querySelectorAll('*')].map((d) => seen.get(d)?.op).filter((o): o is number => o !== undefined)) && clock.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${describeEl(n)} vanished at full opacity in one frame (no fade)`, n); }
     let k = 0;
     for (const el of targets) { if (k++ >= 30) break; look(el, added.has(el)); }
   });
   mo.observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden', 'data-on', 'data-phase', 'data-open', 'aria-hidden', 'data-state'] });
   return {
-    mark() { t0 = performance.now(); recs = []; found = []; open.clear(); snapSeen.clear(); },
+    mark() { t0 = clock.now(); recs = []; found = []; open.clear(); snapSeen.clear(); },
     read() { const anims = recs.slice(0, 400); return { anims, findings: found.slice() }; },
     stop() { for (const [t, f] of L) doc.removeEventListener(t, f, true); mo.disconnect(); },
   };

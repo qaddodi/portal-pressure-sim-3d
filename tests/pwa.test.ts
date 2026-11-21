@@ -166,7 +166,7 @@ test('a tab that stays open asks for a newer build itself and takes it up out of
   const reg = readFileSync(new URL('../src/pwa/register.ts', import.meta.url), 'utf8');
   assert.match(reg, /reg\.update\(\)/, 'the page asks the host for a newer worker');
   assert.match(reg, /addEventListener\('visibilitychange', ask\)/, 'when the tab comes to the front');
-  assert.match(reg, /setInterval\(ask, CHECK_MS\)/, 'and while it stays open');
+  assert.match(reg, /clock.every\(ask, CHECK_MS\)/, 'and while it stays open');
   assert.match(reg, /reloadKeepingState\(/, 'the reload keeps what is on the screen');
   assert.match(readFileSync(new URL('../src/boot/reload.ts', import.meta.url), 'utf8'), /reloadUrl\(/, 'the shared reload keeps what is on the screen');
 });
@@ -194,6 +194,6 @@ test('the Lobule\'s baked weld plan, its planner worker and the fonts\' other al
 
 test('the page asks for the weld plan after the first picture, not in the Lobule\'s constructor', () => {
   const l = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
-  assert.match(l, /setTimeout\(\(\) => this\.askWelds\(\), WELDS_ASK_MS\)/);
+  assert.match(l, /clock.after\(\(\) => this\.askWelds\(\), WELDS_ASK_MS\)/);
   assert.match(l, /if \(!this\.weldsAsked && on && this\.flat\.isVisible\) this\.askWelds\(\)/, 'a Lobule that is wanted before the timer asks at once');
 });

@@ -28,6 +28,7 @@ import { pushPage, type Pushed } from './page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
 import { D_SMALL, reduced } from '../a11y/motion.ts';
 
+import { clock } from '../../clock/frame.ts';
 const L = TREAT_WORDS.lines.labels;
 const EASE_ARRIVE = 'cubic-bezier(.2, .8, .2, 1)';   // (2D ease.js)
 
@@ -93,11 +94,11 @@ function Chip({ id, label, note, on }: { id: string; label: string; note: string
 
 function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
   const [given, setGiven] = useState(false);
-  const t = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(t.current), []);
+  const t = useRef<number | undefined>(undefined);
+  useEffect(() => () => clock.cancel(t.current), []);
   return (
     <button type="button" className="order-btn fluid-btn" data-given={given ? '' : undefined} title={`${label}: ${sub}`}
-      onClick={() => { giveFluid(appEnv, id); setGiven(true); clearTimeout(t.current); t.current = setTimeout(() => setGiven(false), 1400); }}>
+      onClick={() => { giveFluid(appEnv, id); setGiven(true); clock.cancel(t.current); t.current = clock.after(() => setGiven(false), 1400); }}>
       <span className="ob-t">{label}<small>{sub}</small></span>
     </button>
   );

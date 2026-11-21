@@ -9,6 +9,7 @@
 import { releaseSpeed, carryCurve, cssCurve, isFlick, D_SMALL, SHEET_FLICK_MIN, SHEET_FLICK_FAR, SHEET_CLOSE_PX, SHEET_CLOSE_SHARE } from '../tests/copied/ease.copied.js';
 import { follow, glide, type Glide } from '../menu/motion.ts';
 
+import { clock } from '../../clock/frame.ts';
 export interface SwipeOpts {
   /** the sheet is to be closed (the let-go is a close) */
   onClose(): void;
@@ -49,9 +50,9 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     const shut = () => panel.dataset.open === 'false' || panel.classList.contains('out') || panel.classList.contains('leaving') || panel.hasAttribute('inert');
     let seenShut = shut();
     const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });
-    const clear = () => { mo?.disconnect(); clearTimeout(tm); away = null; run?.stop(); run = null; off = 0; panel.style[o.prop ?? 'translate'] = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
+    const clear = () => { mo?.disconnect(); clock.cancel(tm); away = null; run?.stop(); run = null; off = 0; panel.style[o.prop ?? 'translate'] = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
     mo?.observe(panel, { attributes: true, attributeFilter: ['data-open', 'class', 'inert'] });
-    const tm = setTimeout(() => { if (!shut()) clear(); }, AWAY_FALLBACK_MS);   // (a close that did not happen: the sheet comes back)
+    const tm = clock.after(() => { if (!shut()) clear(); }, AWAY_FALLBACK_MS);   // (a close that did not happen: the sheet comes back)
     away = clear;
   };
 
@@ -79,7 +80,7 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
       if (!mine) { s = null; return; }
       // (caught while it is still easing back: the pull carries on from where the sheet is, with no jump)
       if (run) { s.here = off; run.stop(); run = null; }
-      s.on = true; s.y = y - s.here; s.t = performance.now();
+      s.on = true; s.y = y - s.here; s.t = clock.now();
       panel.dataset.pulling = '1'; panel.dataset.pulled = '1';   // (the stylesheet's entrance, if it is still playing, gives way to the finger: pulled stays, so it is not played again when the finger lets go)
       s.m = follow(write(panel, o.prop), 'sheet-swipe');
       s.m.set(s.here);
@@ -87,17 +88,17 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     }
     const raw = y - s.y;
     s.dy = raw >= 0 ? raw : raw * STRETCH;   // (past its own height a pull up stretches with resistance, as a card does past Full)
-    s.trail.push([performance.now(), y]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([clock.now(), y]); if (s.trail.length > 8) s.trail.shift();
     off = s.dy; s.m!.set(s.dy);
   };
   const end = () => {
     const g = s;
     s = null;
     if (!g?.on) return;
-    swallow = performance.now() + CLICK_SWALLOW_MS;
+    swallow = clock.now() + CLICK_SWALLOW_MS;
     g.m?.flush(); g.m?.stop();
-    const speed: number = releaseSpeed(g.trail, performance.now());   // (px per ms down, as the finger lifted: the settle starts at that speed)
-    const gone = closes(g.dy, speed, g.dy / Math.max(1, performance.now() - g.t), g.h);
+    const speed: number = releaseSpeed(g.trail, clock.now());   // (px per ms down, as the finger lifted: the settle starts at that speed)
+    const gone = closes(g.dy, speed, g.dy / Math.max(1, clock.now() - g.t), g.h);
     const to = gone ? g.h + 8 : 0, from = g.dy, w = write(panel, o.prop);
     if (gone) { panel.dataset.swiped = '1'; awaitReopen(); }
     const curve = cssCurve(carryCurve(speed, to - from, D_SMALL) as string) as (u: number) => number;
@@ -125,7 +126,7 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
   };
   const onTEnd = () => { if (s?.via === 'touch') end(); };
   // (the click a drag's release makes is not a tap: swallowed if it comes within 350 ms)
-  const onClick = (e: MouseEvent) => { if (performance.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
+  const onClick = (e: MouseEvent) => { if (clock.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
 
   panel.addEventListener('pointerdown', onPDown, { passive: true });
   panel.addEventListener('pointermove', onPMove);

@@ -28,6 +28,7 @@ import { pinnedAt } from '../slide/pin.ts';
 import { dopplerVel } from '../../../scene/lenses/vel-normal.copied.js';
 import type { SpectrumDraw } from './spectrum-gl.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export type DopMode = 'spectrum' | 'velocity' | 'variance';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -93,7 +94,7 @@ export class DopplerModel {
   ovTop: number | null = null;
   private steadySt = { probe: null as string | null, v: 0, t: 0, n: 0 };
   /** The running mean behind a slide's reading: eases toward the 3 s mean over about six seconds (about a second and a half after a clear change), and starts again on a new vessel or after a gap (2D steadyMean). */
-  private steadyMean(x: number, now = performance.now()): number {
+  private steadyMean(x: number, now = clock.now()): number {
     const st = this.steadySt, dt = (now - st.t) / 1000;
     if (st.probe !== this.probe || dt > 1.5 || !Number.isFinite(st.v)) { st.probe = this.probe; st.v = x; st.n = 1; }
     else if (dt > 0) {
@@ -209,7 +210,7 @@ export class DopplerModel {
     // (and the paired vessel's record beside it, a slide's pair: replayed unscaled, its swings eased out with the main one's)
     const pm = pts.reduce((a, q) => a + (q[2] || 0), 0) / pts.length;
     this.tpl = { t0: pts[0]![0]!, L, pts, mean, pm, hasPair: pts.every((q) => Number.isFinite(q[2])) };
-    return { t: tEnd, wall: performance.now(), mean, target: mean, amp: 1, still: false };
+    return { t: tEnd, wall: clock.now(), mean, target: mean, amp: 1, still: false };
   }
   /** The template at time t, looped, its last 0.25 s cross-faded into its start so the seam does not step (2D tplAt). */
   private tplAt(t: number, j = 1): number {
@@ -225,7 +226,7 @@ export class DopplerModel {
   /** One frame of the replay: samples at bedside speed from the template, its mean easing to the vessel's now (2D runSynth). */
   private runSynth(): void {
     const sy = this.synth!, tp = this.tpl!;
-    const now = performance.now();
+    const now = clock.now();
     const dt = Math.min(0.25, (now - sy.wall) / 1000);
     sy.wall = now;
     const m0 = tp.mean, ratio = Math.abs(m0) > 2;

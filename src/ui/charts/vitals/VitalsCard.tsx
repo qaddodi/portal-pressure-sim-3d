@@ -57,7 +57,7 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
 
   const build = (c: ChartCtx) => {
     ctx.current = c;
-    const now = performance.now(), f = latest.frame, pin = fpRef.current;
+    const now = clock.now(), f = latest.frame, pin = fpRef.current;
     const m = pin ? metricsOfFp(pin) : metricsOf(f);
     const raw = vitalCells(m, ids, xs.current as never, !!f?.running, now);
     const dt = Math.min(0.1, Math.max(0, (now - at.current) / 1000));
@@ -93,9 +93,9 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
       const f = latest.frame, run = !!f?.running;
       if (run && !hd) hd = clock.hold('vitals'); else if (!run && hd) { hd.release(); hd = null; }
     };
-    const off = onFrame(() => { wall.current = performance.now(); sync(); clock.invalidate('vitals'); });
+    const off = onFrame(() => { wall.current = clock.now(); sync(); clock.invalidate('vitals'); });
     const tick = clock.on('tween', () => { if (hd || moving.current || dirty.current) { dirty.current = false; draw(); } });
-    wall.current = performance.now();
+    wall.current = clock.now();
     sync();
     return () => { off(); tick(); hd?.release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps

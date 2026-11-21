@@ -15,6 +15,7 @@ import { buildCommands } from './commands.ts';
 import { readMetric } from '../tests/dock/layout-snap.ts';
 import { restPass, cancelRest } from '../tests/dock/rest-pass.ts';
 
+import { clock } from '../../clock/frame.ts';
 export function SearchSheet() {
   const open = useShell((s) => s.sheet === 'search');
   const phone = usesBottomBar(useUi((s) => s.device));
@@ -106,8 +107,8 @@ export function SearchSheet() {
     if (open) { setShown(true); setLeaving(false); return; }
     if (!shown) return;
     setLeaving(true);
-    const t = window.setTimeout(() => { setShown(false); setLeaving(false); }, 180);
-    return () => window.clearTimeout(t);
+    const t = clock.after(() => { setShown(false); setLeaving(false); }, 180);
+    return () => clock.cancel(t);
   }, [open, shown]);
   const close = () => useShell.getState().close();
   // 2D palette.js markup: .pal-back > .pal (.pal-top: icon, field, close; .pal-list of .pal-item; .pal-foot), on the 2D stylesheet

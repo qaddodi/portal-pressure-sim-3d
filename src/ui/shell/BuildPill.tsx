@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { buildLabel, buildChecks, cachePrefix, reloadUrl, BADGE_H } from './build-pill.ts';
 import { shareLinkNow } from './share-wire.ts';
 
+import { clock } from '../../clock/frame.ts';
 async function dropThisCopy(): Promise<void> {
   const scope = new URL('./', location.href), pre = cachePrefix(location.href), jobs: Promise<unknown>[] = [];
   if (navigator.serviceWorker?.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then((rs) => Promise.all(rs.filter((r) => r.scope === scope.href).map((r) => r.unregister()))));
@@ -21,8 +22,8 @@ export function BuildPill() {
   const reload = () => {
     if (busy) return;
     setBusy(true);
-    const t = setTimeout(go, 3000);
-    dropThisCopy().catch(() => undefined).then(() => { clearTimeout(t); go(); });
+    const t = clock.after(go, 3000);
+    dropThisCopy().catch(() => undefined).then(() => { clock.cancel(t); go(); });
   };
   return (
     <div id="preview-badge" role="button" tabIndex={0} onClick={reload} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') reload(); }}

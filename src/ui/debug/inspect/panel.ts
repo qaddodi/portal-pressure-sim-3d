@@ -306,7 +306,7 @@ export function mountInspect(): void {
   box.append(msg);
 
   // the angles follow a drag on the figure (a timer, not a frame: the panel is not part of the picture)
-  window.setInterval(() => {
+  clock.every(() => {
     if (box.style.display === 'block' && vl.open) { const now = new Map(cel.inspectVesselList().map((v) => [v.id, v.drawn])); for (const [id, r] of rows) r.dot.style.color = now.get(id) ? '#7fe39a' : '#667'; }
     if (labelsOn && cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id).join(',') !== labelSig) buildLabels();
     if (box.style.display !== 'block' || !cel.rig.inspectOn) return;

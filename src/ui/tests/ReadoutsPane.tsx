@@ -15,6 +15,7 @@ import { openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx
 import type { Out } from './readouts/live.ts';
 import { D_FLIP, D_SMALL, EASE_ARRIVE, EASE_IN } from './copied/motion.copied.js';
 
+import { clock } from '../../clock/frame.ts';
 const STATICS = tileStatics(), VITALS = vitalStatics();
 
 /** The number: its text, or, while a roll runs, each changed digit in its own column (the lifted `.odo` rule), then the plain number again. A number that appears where "?" was fades in. */
@@ -24,8 +25,8 @@ function Num({ out, cls, nref }: { out: Out; cls?: string; nref?: RefObject<HTML
   const roll = out.roll && out.roll.n !== done ? out.roll : null;
   useEffect(() => {
     const r = out.roll; if (!r) return;
-    const t = setTimeout(() => setDone(r.n), r.ms + 40);
-    return () => clearTimeout(t);
+    const t = clock.after(() => setDone(r.n), r.ms + 40);
+    return () => clock.cancel(t);
   }, [out.roll]);
   const first = useRef(true);
   useLayoutEffect(() => {
