@@ -14,7 +14,7 @@
 // names, the taps and the clock. Flow marks: 2D's chevrons ride on the flat view's own tubes, which are hidden here, so this scene shows none (the blood's colour along each sinusoid
 // still runs from the portal's to the central vein's).
 import { useSettings } from '../../state/settings.ts';
-import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, type BufferAttribute, type BufferGeometry } from 'three';
+import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, Texture, type BufferAttribute, type BufferGeometry } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { CelObject } from '../materials/cel.ts';
 import type { LobuleView } from '../lobule/view.ts';
@@ -30,6 +30,7 @@ import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
+import { PlateClient } from '../lobule/plate-client.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
 import { hexToRgb01 } from '../lenses/oklab.ts';
@@ -115,8 +116,10 @@ interface Coloured {
   seg2?: Seg; w2?: Float32Array; m?: Float32Array;
 }
 
+const quant = (s: PlateState): PlateState => { const q = (x: number) => Math.round(clamp(x, 0, 1) * 32) / 32; return { congU: q(s.congU), septU: q(s.septU), fibSin: q(s.fibSin), act: q(s.act), fibPre: q(s.fibPre), fibPost: q(s.fibPost) }; };
+
 /** How long the tiles take to ease from one build to the next (ms). */
-const CELL_EASE_MS = 900, MARKS_DIP_MS = 260;
+const CELL_EASE_MS = 900, MARKS_DIP_MS = 260, PLATE_CROSS_MS = 700;
 
 /** The scene's fade below which a waiting weld plan may be laid in (nothing of it can be told). */
 const WELD_SWAP_FADE = 0.02;
@@ -157,6 +160,15 @@ export class Lobule3D {
   private cellTween: { from: Float32Array[]; to: Float32Array[]; t: number } | null = null;
   private cellAt = -1;
   private marksFade = 1;
+  // the marks plate's second slot (a patient change is painted in a worker, and the new plate crossfades over the old: plate-client.ts)
+  private readonly plates = new PlateClient();
+  private marksB!: Mesh;
+  private marksMatB!: ShaderMaterial;
+  private texFront: Texture | null = null;
+  private texSpare: Texture | null = null;
+  private askedKey = '';
+  private plateReady: { key: string; bmp: ImageBitmap } | null = null;
+  private crossT = 0;
   private marksAt = -1;
   private inkKey = '';
   private lookKey = '';
@@ -257,6 +269,14 @@ export class Lobule3D {
     const side = 2 * PLATE_BOX * R;
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
+    this.texFront = this.tex;
+    this.marksMatB = new ShaderMaterial({
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: blank }, opacity: { value: 0 }, uDpr: MICRO_DPR, fade: this.fade },
+      transparent: true, depthWrite: false, depthTest: false, side: DoubleSide,
+      blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
+    });
+    this.marksB = new Mesh(this.marks.geometry, this.marksMatB);
+    this.marksB.position.z = LZ.marks; this.marksB.name = 'lobule3d/marks-next'; this.marksB.frustumCulled = false; this.marksB.visible = false; this.marksB.renderOrder = -2;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
     this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5;
     const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
@@ -275,7 +295,7 @@ export class Lobule3D {
     this.cvScar.renderOrder = 0;
     { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
     for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
-    this.group.add(this.marks);
+    this.group.add(this.marks); this.group.add(this.marksB);
     // (the vessels' meshes are the constructor's heavy part: Scene's idle slices build them in a slice of their own, prepareVessels, hidden; update() builds them at once if nobody has)
     if (!lazy) this.buildVessels();
     this.group.visible = false;
@@ -591,13 +611,50 @@ export class Lobule3D {
     const key = `${plateKey(s, f.look)}|${zones ? 'z' : ''}`;
     const nowMs = performance.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
     this.marksAt = nowMs;
-    // A new state is painted ONCE, for where the model is going (never per eased step: a 2048 px repaint each). The old plate eases out, the new is painted while it is clear, and eases in.
-    if (key !== this.marksKey) {
+    // A new state is painted ONCE, for where the model is going, in a worker (the 2048 px repaint is 100 to 300 ms on a phone: never on this thread), and the new plate crossfades over the old when it arrives.
+    // The first plate, and a page with no worker, are painted here (the old plate dips while the new is painted).
+    if (key !== this.marksKey && this.marksKey !== '' && this.plates.available) {
+      if (key !== this.askedKey) {
+        this.askedKey = key;
+        if (this.plateReady) { this.plateReady.bmp.close(); this.plateReady = null; this.crossT = 0; }
+        this.plates.ask({ look: f.look, s: quant(s), zones, skip: 2, cvR: DISC_R.cv }, (bmp) => {
+          if (!bmp) { this.askedKey = ''; return; }   // (no worker after all: the next step paints here)
+          if (this.askedKey !== key) { bmp.close(); return; }
+          this.plateReady = { key, bmp }; this.crossT = 0;
+        });
+      }
+    } else if (key !== this.marksKey) {
       if (this.marksKey !== '' && !unseen && this.marksFade > 0) { this.marksFade = Math.max(0, this.marksFade - dt / MARKS_DIP_MS); this.marksMat.uniforms.opacity!.value = this.marksFade; return true; }
       this.paintMarks(key, s);
     }
+    const rd = this.plateReady;
+    if (rd) {
+      if (this.crossT === 0 && !this.marksB.visible) {
+        const t = this.texSpare ?? (this.texSpare = this.newPlateTexture());
+        const old = t.image as ImageBitmap | null; t.image = rd.bmp; t.needsUpdate = true; if (old && typeof old.close === 'function') old.close();
+        this.marksMatB.uniforms.map!.value = t; this.marksB.visible = true;
+      }
+      this.crossT = unseen ? 1 : Math.min(1, this.crossT + dt / PLATE_CROSS_MS);
+      const e = this.crossT * this.crossT * (3 - 2 * this.crossT);
+      this.marksMat.uniforms.opacity!.value = 1 - e; this.marksMatB.uniforms.opacity!.value = e;
+      if (this.crossT >= 1) {
+        // the new plate is the front one; the old one's texture is the spare for the next
+        const t = this.marksMatB.uniforms.map!.value as Texture, was = this.texFront;
+        this.marksMat.uniforms.map!.value = t; this.texFront = t; this.texSpare = was === this.tex ? this.tex : was;
+        this.marksMatB.uniforms.map!.value = this.texSpare; this.marksMat.uniforms.opacity!.value = 1; this.marksMatB.uniforms.opacity!.value = 0; this.marksB.visible = false;
+        this.marksKey = rd.key; this.plateReady = null; this.crossT = 0;
+        return false;
+      }
+      return true;
+    }
+    if (key !== this.marksKey && this.askedKey === key) return true;   // (the worker is painting)
     if (this.marksFade < 1) { this.marksFade = unseen ? 1 : Math.min(1, this.marksFade + dt / (MARKS_DIP_MS * 2)); this.marksMat.uniforms.opacity!.value = this.marksFade; return this.marksFade < 1; }
     return false;
+  }
+  private newPlateTexture(): Texture {
+    const t = new Texture();
+    t.flipY = false; t.premultiplyAlpha = false; t.generateMipmaps = true; t.minFilter = LinearMipmapLinearFilter; t.magFilter = LinearFilter; t.anisotropy = 4;
+    return t;
   }
   private paintMarks(key: string, s: PlateState): void {
     const f = this.flat, zones = f.layers.zones;
@@ -845,7 +902,7 @@ export class Lobule3D {
   dispose(): void {
     this.disposed = true;
     for (const p of this.partsForTest) p.dispose();
-    this.marks.geometry.dispose(); this.marksMat.dispose(); this.tex?.dispose();
+    this.marks.geometry.dispose(); this.marksMat.dispose(); this.marksMatB.dispose(); this.tex?.dispose(); this.texSpare?.dispose(); this.plates.dispose(); this.plateReady?.bmp.close();
   }
 }
 
