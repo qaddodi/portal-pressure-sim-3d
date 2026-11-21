@@ -4,6 +4,7 @@ import type { AuditFinding, FrameStats, Sev } from './judge.ts';
 import type { AnimRec } from './ledger.ts';
 import { CHECKS, GAPS } from './scan-judge.ts';
 import { FRAME_LIMITED_KINDS, FRAME_LIMIT_SPEED } from './speed.ts';
+import type { SequenceProof } from './sequence.ts';
 import { memoryClimb, LEAK_BASELINE_STEPS } from '../../../debug/render-stats.ts';
 
 export interface AuditSize { id: string; w: number; h: number; dpr: number }
@@ -39,11 +40,13 @@ export interface Coverage { deck: string; reached: number; total: number; missed
 export interface AuditData {
   size: AuditSize; build?: string; ms: number; depth: 'quick' | 'full'; stopped: boolean;
   rows: AuditRow[]; console: ConsoleLine[]; notes: string[]; coverage?: Coverage[];
+  /** the sequential pass (Next and Back one press at a time): what each talk intended, reached and skipped */
+  sequence?: SequenceProof[];
   /** the page's clock speed for the run (`?audit&speed=N`), absent at 1 */
   speed?: number;
 }
 export interface Bundle {
-  build: string; device: string; at: string; depth: 'quick' | 'full'; framed: boolean;
+  build: string; /** the exact deployment commit the run was served from */ sha?: string; device: string; at: string; depth: 'quick' | 'full'; framed: boolean;
   /** the sizes ran at the same time: frame rates and timings are not valid */
   parallel?: boolean;
   /** `?audit&speed=N` ran the page's clock N times faster: fades and settle times are page time, but frame rates are NOT valid; stalls ARE (a frame gap is measured in real time) */
@@ -172,6 +175,7 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   if (kinds.size) L.push(`FINDINGS BY KIND: ${[...kinds].sort((a, b2) => b2[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   if (b.parallel) L.push(`PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid, and ${rows.reduce((n, { r }) => n + r.flags.filter((f) => TIMING_KINDS.has(f.kind)).length, 0)} timing findings (stall, low-fps, slow-load, fade-slow, unsettled) are left out. Layout, snaps, coverage and console errors are valid.`);
   if ((b.speed ?? 1) > 1) L.push(`SPEED RUN x${b.speed}: the page's clock ran ${b.speed} times faster, so settle and fade lengths are in page time (valid), but frame rates (low-fps), gpu-bound and fade-under-stall findings are NOT valid and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => SPEED_INVALID.has(f.kind)).length, 0)} dropped). Layout, coverage, console errors and STALLS (real-time frame gaps over 50 ms) are valid.${(b.speed ?? 1) > FRAME_LIMIT_SPEED ? ` ABOVE ${FRAME_LIMIT_SPEED}x the page draws only a frame or two of each ease, so fade, snap and pop findings (fade-instant, flash, card-pop, generic-pop...) are NOT valid either and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => FRAME_LIMITED_KINDS.has(f.kind)).length, 0)} dropped): use speed=${FRAME_LIMIT_SPEED} or less for those.` : ' Snaps and fades are valid up to 2x.'} Run once without speed for the real timings.`);
+  if (b.sha) L.push(`deployment SHA: ${b.sha}`);
   L.push(`device: ${b.device}`);
   L.push(`sizes: ${b.parts.map((p) => `${p.size.id} ${p.size.w}x${p.size.h}@${p.size.dpr} (${p.rows.length} steps, ${mins(p.ms)}${p.stopped ? ', STOPPED' : ''})`).join('; ') || 'none'}${b.parts.length > 1 ? (b.parallel ? ' (sizes ran at the same time)' : ` (ran one after the other, ${mins(wall)} in all)`) : ''}`);
   if (b.failed.length) { L.push(''); L.push('SIZES THAT DID NOT FINISH'); for (const f of b.failed) L.push(`- ${f.size}: ${f.why}`); }
@@ -180,6 +184,10 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
     const miss = p.coverage.filter((c) => c.missed.length || c.reached < c.total);
     L.push(''); L.push(`COVERAGE ${p.size.id}: ${p.coverage.reduce((n, c) => n + c.reached, 0)} of ${p.coverage.reduce((n, c) => n + c.total, 0)} stops in ${p.coverage.length} talks${miss.length ? '' : ' (all reached)'}`);
     for (const c of miss) L.push(`- NOT REACHED in "${c.deck}": ${c.total - c.reached} of ${c.total} stops${c.missed.length ? ` (stop ${c.missed.join(', ')})` : ''}`);
+  }
+  for (const p of b.parts) if (p.sequence?.length) {
+    L.push(''); L.push(`SEQUENTIAL PASS ${p.size.id} (Next and Back one press at a time; ${p.stopped ? 'the run stopped early: partial' : 'complete'}): per talk, stops intended / reached / skipped`);
+    for (const q of p.sequence) L.push(`- ${q.deck}: intended ${q.intended}, reached ${q.reached.length}, skipped ${q.skipped.length}${q.skipped.length ? ` (stop ${q.skipped.slice(0, 12).join(', ')}${q.skipped.length > 12 ? '…' : ''})` : ''}; ${q.presses} presses, ${q.selectorsClicked} selectors clicked, ${q.targetsSeen} targets seen${q.stuckAt ? `; NEXT STUCK at stop ${q.stuckAt}` : ''}${q.backFailed.length ? `; Back failed at stop ${q.backFailed.join(', ')}` : ''}${q.noHeading.length ? `; no heading at stop ${q.noHeading.join(', ')}` : ''}`);
   }
   const show = (gs: Group[], head: string) => {
     if (!gs.length) return;
