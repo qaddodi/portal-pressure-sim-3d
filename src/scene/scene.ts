@@ -775,7 +775,7 @@ export class CelScene {
   get view(): FigureView { return this.figureView; }
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = performance.now()): void {
-    const wasCircuit = this.figureView === 'circuit';
+    const wasCircuit = this.figureView === 'circuit', wasSinusoid = this.figureView === 'sinusoid';
     this.figureView = v;
     if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
     this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox() as Vec3[]) : null);
@@ -785,7 +785,9 @@ export class CelScene {
     if (v === 'circuit') { if (this.circuit.t === 0) this.circuit.snapTurn(this.circuit.upright); }
     this.circuit.go(v === 'circuit', now);
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
-    if (v === 'lobule') this.lobule.setVisible(true);
+    // (the lobule is what lies between the body and the sinusoid: a move that has the sinusoid at either end passes through it, so it is on for the flight whichever view is the other end.
+    //  Before, only a move TO the lobule turned it on: sinusoid <-> body (a talk's slide change) drew the sinusoid dissolving over nothing, a black gap, and then the body fading in from the dark)
+    if (v === 'lobule' || v === 'sinusoid' || wasSinusoid) this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)
     this.hideLeftBehind = true;

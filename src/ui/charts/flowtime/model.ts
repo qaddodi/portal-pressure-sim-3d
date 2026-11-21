@@ -76,6 +76,15 @@ export function flowTimeHeight(w: number, f: number, keys: readonly string[] = M
   const legend = legendOf(keys, f), rows = legend[0]!.w + legend[1]!.w + 2 * f <= w ? 1 : 2, bands = bandEm * f;
   return { min: (rows * 1.5 + 1.9 + 1.7 + 6) * f + bands, preferred: Math.max(0.6 * w, 15 * f) + bands };
 }
+/** The height the chart is drawn at: what it wants, held to the room its card leaves it (2D presenter-zoom.js fitFlowTime: `room >= min ? min(preferred, room) : keep it`) and, on a phone's stacked card,
+ *  to 2D's one height for it (`.pz.stack.stack .pz-flowtime { --ft-h: min(43cqi, 144px) }`, never under what its words need). The card's box takes THIS height (charts.css), so the picture is never taller than the box it stands in. */
+export function flowTimeFit(w: number, f: number, keys: readonly string[] = MEAL_LINES, bandEm = 0, room = 0, cap = 0): number {
+  const { min, preferred } = flowTimeHeight(w, f, keys, bandEm), bands = bandEm * f;
+  let h = preferred;
+  if (cap > 0) h = Math.min(h, Math.max(min, cap + bands));
+  if (room >= min) h = Math.min(h, room);
+  return h;
+}
 export interface Geo { w: number; h: number; f: number; half: number; meal: boolean; keysL: KeyInfo[]; oneRow: boolean; rowH: number; keyH: number; L: number; R: number; T: number; B: number; ix: number; iy: number; FB: [number, number]; PB: [number, number] }
 /** The geometry for a chart w × h px in type f px (see flow-time.js flowGeo). */
 export function flowGeo(ser: FlowSeries, clock: 'meal' | 'days', keys: readonly string[], rxN: number, w: number, h: number, f: number): Geo {
