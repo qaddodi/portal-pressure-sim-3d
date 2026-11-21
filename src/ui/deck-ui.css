@@ -18,6 +18,8 @@
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card[data-card="ladder"] .dk-in { padding: 10px 12px; }
 /* a stacked words card keeps its foot clear for the pill that stands in it */
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card:not([data-card="ladder"]) .dk-in { padding-bottom: calc(var(--pad-y) + 50px); }
+/* an iPhone's credit row (plan.ts CRED_ROW: 20 px) stands under the pill in the same foot; 2D shows it from 601 px tall, and the floating credit (shell/Credit.tsx) yields to it (chrome-3d.css) */
+@media (min-height: 601px) { .deck-ui[data-layout="stack"] .dk-card:not([data-card="ladder"]) .dk-in { padding-bottom: calc(var(--pad-y) + 50px + 20px); } }
 .deck-ui [hidden] { display: none !important; }
 
 /* ── a card's place (transform only) and its surface ── */

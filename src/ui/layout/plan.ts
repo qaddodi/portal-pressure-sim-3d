@@ -60,6 +60,10 @@ export const BAR_H_PHONE = 32, PILL_W_PHONE = 188, PILL_CORNER = 14;
 export const PILL_W_SIDE = 156;   // (iPhone on its side: the count, the settings and Exit, as 2D's phone pill; a swipe moves the talk)
 /** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
 export const FOOT_ZONE = 62;
+/** An iPhone's credit stands in a row of its own at the foot of the words card (2D app-05 `.pz-cred`: "no bare spot at 12 px on most slides, 15 Oct"), so a card's words never run under it: the row is part of the card's foot,
+ *  the pill and the key stand this much higher, and the card's foot padding (deck-ui.css) is this much deeper. A short phone (600 px tall or less) has no room for the row: there the credit floats (shell/Credit.tsx). */
+export const CRED_ROW = 20;
+export const credRow = (vp: Viewport): number => (layoutOf(vp.w, vp.h) === 'stack' && vp.h > 600 ? CRED_ROW : 0);
 /** The least room for the talk's title to the left of the pill (a wide screen). */
 const TITLE_MIN_W = 220;
 /** The corner radius of an iPhone's own screen (a phone whose page reaches the home-bar inset has rounded corners; the older models, whose page has no bottom inset, are square). */
@@ -81,7 +85,7 @@ export function barOf(vp: Viewport, colRight = 0): BarPlace {
   if (layout === 'stack' || layout === 'tab') {
     const cardBottom = vp.h - footReserve(vp) + 0;
     const phone = layout === 'stack', bh = phone ? BAR_H_PHONE : BAR_H, bw = phone ? PILL_W_PHONE : PILL_W, inset = phone ? PILL_CORNER : 13;
-    const y = cardBottom - (phone ? PILL_CORNER : 12) - bh;
+    const y = cardBottom - (phone ? PILL_CORNER : 12) - bh - credRow(vp);
     const w = Math.round(vp.w * (layout === 'tab' ? 0.7 : 1) - (layout === 'tab' ? 0 : 16));
     const left = layout === 'tab' ? Math.round((vp.w - w) / 2) : Math.max(8, safe.left);
     // the lower right corner of the words card, inside it (an iPhone, as an upright iPad: Mohammad, 20 Nov)
