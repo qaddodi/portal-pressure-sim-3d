@@ -520,6 +520,10 @@ void main() {
         if (a0 > 0.004 && onD0 > 0.002) dust += dustTube(FD0, litD, inkColor, revD0) * (onD0 * a0);
         if (a1 > 0.004 && onD1 > 0.002) dust += dustTube(FD1, litD, inkColor, revD1) * (onD1 * a1);
         dust /= aN;
+        // THE SHARE THAT HOLDS (Mohammad, 21 Nov: the join is a brighter patch, gone with ?joins=nodust). The renormalising above lets whichever frame holds a little draw at FULL strength, so in the fillet and the web between the arms,
+        // where neither cylinder holds (inD near 0 in both), the dust a frame still sees there was drawn whole, a pale slab over the wall the tubes beside it do not have (a tube draws nothing past its own lumen). The dust fades with the
+        // best frame's hold (twin and test: tests/skin-dust-hold.test.ts), so it is whole wherever an arm holds and gone where none does.
+        dust *= max(a0 > 0.004 ? inD0 : 0.0, a1 > 0.004 ? inD1 : 0.0);
       }
 #endif
 #ifdef SKIN_DUSTBLEND
