@@ -418,8 +418,10 @@ export class FigureCards {
 
   private paintCard(r: Rec, t: CathType, a: { x: number; y: number } | undefined): void {
     const c = r.spec, box = r.box;
-    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
+    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
     show(r.card, true);
+    // (opacity lives on a card's children, never on the card: a hidden card used to keep a root opacity of 0 for good, so a number that came back after the picture moved stood invisible beside its leader)
+    if (c.kind !== 'split' && r.root.style.opacity !== '') r.root.style.removeProperty('opacity');
     if (c.kind === 'split') { this.paintSplit(r, box, t); return; }
     const sz = cardSize(c, t, this.deps.measure);
     size(r.card, sz.w, sz.h);

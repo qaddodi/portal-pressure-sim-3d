@@ -5,16 +5,27 @@
 // (the ink 45 % toward white, gone by about 5 units down). One mesh; the straw is a program of its own (POOL_VS / POOL_FS) so the surface can live:
 //   - the surface ripples as 2D's does (two sines, amplitude from the volume, the phase running with the blood's eased flow rate, so Pause stills it over half a second);
 //   - "Living fluid" (Settings > Figure depth, on by default; off is 2D's hard-edged pool): the pool fades out over FEATHER units before the wall instead of ending in two ruler lines,
-//     the surface climbs the wall a few units like water in a glass, a pale rim lies just inside the wall, a crisp pale line rides the surface, deep water is a richer amber, and
-//     the surface sloshes a little while the level moves (a damped swing driven by how fast it rises or falls, always back to calm).
+//     the surface climbs the wall a few units like water in a glass, a crisp pale line rides the surface, deep water is a richer amber, the surface sloshes a little while the level
+//     moves (a damped swing driven by how fast it rises or falls, always back to calm), the water swells gently toward the viewer like a full belly (the dome), and a tilt down shows
+//     the water's top (ascites-top.ts). There is no pale rim inside the wall: with the flank line and the feather it read as a second line on both sides (21 Nov).
+// ONE BELLY (21 Nov): the pool, the flank line (landmarks.ts) and the tap test all lie on the gut's own plane, `bellyZ()`. They had a depth each (pool 0.28, flank -0.4), so on a turn the pool slid off its wall.
 // Everything is a number the clock eases (the volume's spring, the flow rate, the living switch's own 0.45 s glide, the slosh's damping): nothing pops.
-import { BufferAttribute, BufferGeometry, Group, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Group, Mesh, NearestFilter, RedFormat, ShaderMaterial, Vector2, Vector3, type Raycaster } from 'three';
 import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { fluidBase, fluidLevel, poolFade } from './copied/fluid-step.js';
-import { x3, y3 } from '../frame2d.ts';
+import { x3, y3, x2d, y2d } from '../frame2d.ts';
+import { ORGAN_Z } from '../organs/z.ts';
+import { AscitesTop } from './ascites-top.ts';
+import { EDGE_STEPS, FLUID_COLS, LIVER_CUT_FS, LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN, NO_LIVER, liverCut, liverEdgeTable, liverScaleOf } from './liver-edge.ts';
 import type { LookId } from '../../looks/looks.ts';
 
-export const FLUID_Z = 0.28;
+/** The belly's one plane (scene units): the gut's own (organs/z.ts). The pool, the flank ribbon (landmarks.ts) and the tap test all lie on it, so they agree from every camera angle. The organ depth switch (Settings > Figure
+ *  depth) changes the organs' shading only, never their z, so this does not move with it: pool and bowel stay on the same plane. */
+export const bellyZ = (): number => ORGAN_Z.bowel!;
+/** The water's swell toward the viewer (scene units) at its deepest, and the distance from the wall (2D units) over which it grows: an elliptic dome, 0 on the wall to the whole by DOME_R in. At a 14 degree lens
+ *  the swell moves the head-on surface by at most about 1.3 CSS px (0.12 moved it 2.1 px at 800 mL, the lowest surface, so it is 0.075) (tests/ascites-basin.test.ts pins 1.5), so 2D's flat look is kept at rest. */
+export const DOME = 0.075, DOME_R = 140;
+export const poolDome = (aW: number): number => { const w = Math.min(Math.max(aW / DOME_R, 0), 1); return Math.sqrt(Math.max(0, 1 - (1 - w) * (1 - w))); };
 /** 2D paints the pool over the organ plate and the vessels (veins-gl.js fluidAt), so it is drawn after every organ and its ink (organs run to renderOrder 2 * 9 + 1) and ignores depth: the pool washes what lies in it, as in 2D. */
 export const POOL_ORDER = 19;
 /** The pool's ink in each look: tokens.css --ascites (the straw) and --ascites-a (its opacity at depth). Dark, Navy and Black share the dark block's; Soft has its own. */
@@ -32,6 +43,8 @@ export const ROW_DEPTHS = [0, 2, 4.5, 8, 16, DEEP_AT] as const;
 export const POOL_ROWS = ROW_DEPTHS.length + 1;
 const ROWS = POOL_ROWS;
 const X0 = 296, X1 = 1128, STEP = 8;
+/** The pool's columns start at x = POOL_X0 (2D units) and are POOL_STEP apart. */
+export const POOL_X0 = X0, POOL_STEP = STEP;
 export const POOL_COLS = Math.floor((X1 - X0) / STEP) + 1;
 const COLS = POOL_COLS;
 
@@ -87,8 +100,6 @@ export const FEATHER_PX = 22, RIPPLE_REST_PX = 30;
 export const CLIMB_PX = 7, CLIMB_FALL_PX = 9, RIPPLE_DEPTH = 16;
 /** The ripple's crest-to-mean at 2D's full amplitude (2 units): never less than 2D's own units, and at least this many CSS px (so it reads on a phone). */
 export const RIPPLE_PX = 3.5, RIPPLE_AMP2D = 2;
-/** The pale rim just inside the wall: centred RIM_AT_PX from it, RIM_W_PX wide, up to RIM_K toward white. */
-export const RIM_AT_PX = 14, RIM_W_PX = 9, RIM_K = 0.28;
 /** The crisp pale line on the surface: full to LINE_FROM_PX under it, gone by LINE_TO_PX, LINE_K toward white (a cel line over 2D's soft meniscus); and a soft sheen, SHEEN_K toward white, fading over the top SHEEN_PX: the water's glassy top. */
 export const LINE_FROM_PX = 1.4, LINE_TO_PX = 3.2, LINE_K = 0.55, SHEEN_PX = 34, SHEEN_K = 0.2;
 /** Deep water is richer: from RICH_FROM to RICH_TO 2D units under the surface the straw turns RICH_K of the way to its saturated self (x RICH_SAT, at the same value: no darker, no muddier). Alpha does not grow, so labels under it stay readable. */
@@ -142,39 +153,58 @@ export function wallDistance(poly: readonly [number, number][], x: number, y: nu
   return best;
 }
 
-const f = (n: number): string => { const t = String(Number(n.toFixed(4))); return /[.e]/.test(t) ? t : `${t}.0`; };
-/** The pool's program: one mesh, the depth under its own surface (aD) and the distance to the wall (aW) per vertex; the straw, its opacity, the ripple's phase and amplitude, the slosh and the living share are uniforms. */
-export const POOL_VS = /* glsl */ `
-attribute float aD;
-attribute float aW;
+export const f = (n: number): string => { const t = String(Number(n.toFixed(4))); return /[.e]/.test(t) ? t : `${t}.0`; };
+/** The lift of the water and the dome, once, for the pool and the water's top (ascites-top.ts): the same sums as `poolLift` and `poolDome` in JS. Needs `uPhase`, `uAmp`, `uSlosh`, `uLiving`, `uRes`. */
+export const POOL_COMMON_GLSL = /* glsl */ `
 uniform float uPhase;
 uniform float uAmp;
 uniform float uSlosh;
 uniform float uLiving;
 uniform vec2 uRes;
-varying float vD;
-varying float vW;
-varying float vPxu;
-void main() {
-  // CSS px per 2D unit where this vertex is drawn (the projection's scale, the canvas height in CSS px, the depth, 300 units to a scene unit)
-  vec4 c0 = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  float pxu = projectionMatrix[1][1] * uRes.y * 0.5 / max(c0.w, 1e-3) / 300.0;
+// CSS px per 2D unit where p is drawn (the projection's scale, the canvas height in CSS px, the depth, 300 units to a scene unit)
+float poolPxu(vec3 p) {
+  vec4 c0 = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  return projectionMatrix[1][1] * uRes.y * 0.5 / max(c0.w, 1e-3) / 300.0;
+}
+// how far the water at world x (2D units) is lifted (2D units, up positive): the ripple, the climb up the wall and the slosh's tilt, on the top ${RIPPLE_DEPTH} units only
+float poolLift(float wx, float aW, float aD, float pxu) {
   float boost = clamp(${f(RIPPLE_PX)} / (${f(RIPPLE_AMP2D)} * max(pxu, 1e-3)), 1.0, 5.0);
-  float wx = position.x * 300.0 + 700.0;
   float ripple = (sin(wx / 38.0 + uPhase) * 0.7 + sin(wx / 23.0 - uPhase * 1.3) * 0.3) * uAmp * mix(1.0, boost, uLiving);
   float rest = mix(1.0, smoothstep(0.0, ${f(RIPPLE_REST_PX)} / pxu, aW), uLiving);
   float climb = ${f(CLIMB_PX)} / pxu * exp(-aW * pxu / ${f(CLIMB_FALL_PX)});
   float tilt = clamp((wx - 712.0) / 400.0, -1.0, 1.0) * uSlosh * boost;
-  float lift = (ripple * rest + uLiving * (climb + tilt)) * (1.0 - smoothstep(0.0, ${f(RIPPLE_DEPTH)}, aD));
+  return (ripple * rest + uLiving * (climb + tilt)) * (1.0 - smoothstep(0.0, ${f(RIPPLE_DEPTH)}, aD));
+}
+// the swell toward the viewer, in scene units: 0 on the wall, ${DOME} by ${DOME_R} units in (elliptic); the Living switch glides it
+float poolSwell(float aW) {
+  float w = min(aW / ${f(DOME_R)}, 1.0);
+  return uLiving * ${f(DOME)} * sqrt(max(1.0 - (1.0 - w) * (1.0 - w), 0.0));
+}
+`;
+/** The pool's program: one mesh, the depth under its own surface (aD) and the distance to the wall (aW) per vertex; the straw, its opacity, the ripple's phase and amplitude, the slosh and the living share are uniforms. */
+export const POOL_VS = /* glsl */ `
+attribute float aD;
+attribute float aW;
+${POOL_COMMON_GLSL}
+varying float vD;
+varying float vW;
+varying float vPxu;
+${LIVER_CUT_VS_DECL}
+void main() {
+  float pxu = poolPxu(position);
+  float wx = position.x * 300.0 + 700.0;
   vec3 p = position;
-  p.y += lift / 300.0;
+  p.y += poolLift(wx, aW, aD, pxu) / 300.0;
+  p.z += poolSwell(aW);   // (the vertex lies on the belly's plane, bellyZ; the swell is from the wall distance, so the wall stays exactly on the wall line)
   vD = aD;
   vW = aW;
   vPxu = pxu;
+  ${LIVER_CUT_VS_MAIN}
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }`;
 export const POOL_FS = /* glsl */ `
 precision highp float;
+${LIVER_CUT_FS}
 uniform vec3 uInk;
 uniform float uInkA;
 uniform float uOpacity;
@@ -188,23 +218,23 @@ void main() {
   // 2D's fluidAt: ${SURFACE_SHARE} of the ink at the surface, the whole of it by ${DEEP_AT} units under, a soft pale meniscus
   float a = uInkA * (${f(SURFACE_SHARE)} + ${f(1 - SURFACE_SHARE)} * smoothstep(0.0, ${f(DEEP_AT)}, d));
   vec3 c = mix(uInk, mix(uInk, vec3(1.0), ${f(MENISCUS)}), exp(-d * d / ${f(MENISCUS_FALL)}));
-  // Living fluid: a glassy sheen over the top of the water and a crisp pale line on the surface (both in px), richer amber far under it, a pale rim just inside the wall, and the edge fading out over the last ${FEATHER_PX} px
+  // Living fluid: a glassy sheen over the top of the water and a crisp pale line on the surface (both in px), richer amber far under it, and the edge fading out over the last ${FEATHER_PX} px
   c = mix(c, vec3(1.0), ${f(SHEEN_K)} * (1.0 - smoothstep(0.0, ${f(SHEEN_PX)}, px)) * uLiving);
   c = mix(c, vec3(1.0), ${f(LINE_K)} * (1.0 - smoothstep(${f(LINE_FROM_PX)}, ${f(LINE_TO_PX)}, px)) * uLiving);
   float lum = dot(c, vec3(0.299, 0.587, 0.114));
   vec3 rich = clamp(vec3(lum) + (c - vec3(lum)) * ${f(RICH_SAT)}, 0.0, 1.0) * ${f(RICH_VAL)};
   c = mix(c, rich, ${f(RICH_K)} * smoothstep(${f(RICH_FROM)}, ${f(RICH_TO)}, d) * uLiving);
   float wpx = vW * vPxu;
-  float rq = (wpx - ${f(RIM_AT_PX)}) / ${f(RIM_W_PX)};
-  float rim = exp(-rq * rq) * ${f(RIM_K)} * uLiving;
-  c = mix(c, vec3(1.0), rim);
   float edge = mix(1.0, smoothstep(0.0, ${f(FEATHER_PX)}, wpx), uLiving);
-  gl_FragColor = vec4(c, min(1.0, a * edge * (1.0 + rim)) * uOpacity);
+  gl_FragColor = vec4(c, min(1.0, a * edge) * uOpacity);
+  // 2D's liver cut (veins-gl.js fluidAt): the straw is kept off a congested liver, above its lower edge
+  gl_FragColor.a *= liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
 }`;
 
 export class AscitesLayer {
   readonly group = new Group();
   private fill: Mesh;
+  private readonly top: AscitesTop;
   private pf = new Float32Array(COLS * ROWS * 3); private aD = new Float32Array(COLS * ROWS); private aW = new Float32Array(COLS * ROWS);
   private lastH = NaN; private lastStep = -1;
   private body = 1; private poolA = 0;
@@ -213,7 +243,13 @@ export class AscitesLayer {
     uInk: { value: this.ink }, uInkA: { value: FLUID_RGBA[3] as number }, uOpacity: { value: 0 },
     uPhase: { value: 0 }, uAmp: { value: 0 }, uSlosh: { value: 0 }, uLiving: { value: 1 },
     uRes: { value: new Vector2(1, 1) } as { value: Vector2 },
+    // the liver's lower edge (one number per column across 2D's fluid rectangle), how far the straw is kept off it, and the liver's drawn scale: set by `setLiver`
+    uLiverEdge: { value: null as unknown as DataTexture }, uLiverCut: { value: 0 }, uLiverScale: { value: 1 },
   };
+  private readonly edge = new Float32Array(FLUID_COLS).fill(NO_LIVER);
+  private edgeKey = '';
+  /** What the organs are dimmed to apart from the lens's grey (2D: the selection's and a slide spotlight's dim; the Circuit's change is `body`): the organs' own eased value, handed over each frame. */
+  private dim = 1;
   /** The pool's level in 2D units at the middle of the belly (x 712), for the tests and the labels; null while there is no pool. */
   surface: number | null = null;
   /** Reduce Motion: the surface holds still (no ripple, no slosh); the soft edges are still. */
@@ -230,11 +266,16 @@ export class AscitesLayer {
     for (let c = 0; c < COLS - 1; c++) for (let r = 0; r < ROWS - 1; r++) { const a = c * ROWS + r, b = a + ROWS; idx.push(a, a + 1, b, a + 1, b + 1, b); }
     g.setIndex(idx);
     // (the colours are written as the figure's own numbers, the way materials/cel.ts rawColor does: the picture goes through the anti-aliasing pass as it is)
+    const tex = new DataTexture(this.edge, FLUID_COLS, 1, RedFormat, FloatType);
+    tex.minFilter = tex.magFilter = NearestFilter; tex.needsUpdate = true;
+    this.uniforms.uLiverEdge.value = tex;
     const mat = new ShaderMaterial({ name: 'pool', vertexShader: POOL_VS, fragmentShader: POOL_FS, uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: false });
     const m = new Mesh(g, mat);
     m.renderOrder = POOL_ORDER; m.frustumCulled = false; m.visible = false;
     this.group.add(m);
     this.fill = m;
+    this.top = new AscitesTop(this.uniforms);   // (the water's top: its own mesh, the same uniforms, so the ripple, the living switch, the fade and the ink are the pool's)
+    this.group.add(this.top.mesh);
   }
   /** The canvas size in CSS px (the scene's shared `res`): the pool's sizes are pixels, so its program needs the screen's. */
   bindRes(res: { value: Vector2 }): void { this.uniforms.uRes = res; }
@@ -248,9 +289,23 @@ export class AscitesLayer {
   get living(): number { return this.uniforms.uLiving.value; }
   /** The body's dissolve (disease/index.ts setFade): the pool lies in the belly, so it fades with the anatomy. */
   setFade(f: number): void { this.body = f; this.apply(); }
+  /** The organs' dim (their selection and spotlight dim, already eased by the organs' own clock: no second timer here): the pool is never brighter than the belly it lies in (2D stage-transitions.js stepFluid). */
+  setDim(k: number): void { if (k !== this.dim) { this.dim = k; this.apply(); } }
+  /** The liver's shown cirrhosis and congestion (the organs' eased values): the straw is kept off the liver by 2D's cut, smooth01(congestion / 0.5), above the liver's lower edge in its drawn frame. True when the edge changed. */
+  setLiver(cirrhosis: number, congestion: number): boolean {
+    const u = this.uniforms, cut = liverCut(congestion);
+    u.uLiverCut.value = cut; u.uLiverScale.value = liverScaleOf(cirrhosis, congestion);
+    if (!(cut > 0)) return false;
+    const key = `${Math.round(Math.min(1, Math.max(0, cirrhosis)) * EDGE_STEPS)},${Math.round(Math.min(1, Math.max(0, congestion)) * EDGE_STEPS)}`;
+    if (key === this.edgeKey) return false;
+    this.edgeKey = key;
+    liverEdgeTable(cirrhosis, congestion, this.edge); u.uLiverEdge.value.needsUpdate = true;
+    return true;
+  }
   private apply(): void {
-    this.fill.visible = this.poolA > 0 && this.body > 0.001;
-    this.uniforms.uOpacity.value = this.poolA * this.body;
+    this.fill.visible = this.poolA > 0 && this.body > 0.001 && this.dim > 0.001;
+    this.top.mesh.visible = this.fill.visible;
+    this.uniforms.uOpacity.value = this.poolA * this.body * this.dim;
   }
   /** One frame on the clock: the ripple's phase runs with the eased flow rate (0 paused .. 1), the slosh swings with the level's speed, the living switch glides. True while any of it still moves (the clock draws another frame). */
   step(dt: number, flowRate: number): boolean {
@@ -303,8 +358,9 @@ export class AscitesLayer {
       for (let k = 1; k < COLS && n < 0; k++) { if (c - k >= 0 && inside[c - k]) n = c - k; else if (c + k < COLS && inside[c + k]) n = c + k; }
       tops[c] = bots[c] = n < 0 ? 0 : tops[n]!;
     }
+    const topW = new Float32Array(COLS), depthH = new Float32Array(COLS);
     for (let c = 0; c < COLS; c++) {
-      const x = X0 + c * STEP, px = x3(x), z = FLUID_Z, top = tops[c]!, bot = bots[c]!;
+      const x = X0 + c * STEP, px = x3(x), z = bellyZ(), top = tops[c]!, bot = bots[c]!;
       for (let r = 0; r < ROWS; r++) {
         const d = r < ROW_DEPTHS.length ? Math.min(ROW_DEPTHS[r]!, bot - top) : bot - top, v = c * ROWS + r;
         this.pf[v * 3] = px; this.pf[v * 3 + 1] = y3(top + d); this.pf[v * 3 + 2] = z;
@@ -312,7 +368,10 @@ export class AscitesLayer {
         // (a column outside the cavity has no wall to be near: its water is none)
         this.aW[v] = inside[c] ? wallDistance(poly, x, top + d) : 0;
       }
+      topW[c] = this.aW[c * ROWS]!; depthH[c] = bot - top;
     }
+    this.top.lay(tops, topW, depthH);
+    this.fill.geometry.boundingSphere = null;
     for (const n of ['position', 'aD', 'aW']) (this.fill.geometry.getAttribute(n) as BufferAttribute).needsUpdate = true;
     return true;
   }
@@ -322,5 +381,22 @@ export class AscitesLayer {
     const cr = crossings(polyOf(this.lastStep), x);
     return !!cr && y <= cr[1] && y > Math.max(fluidBase(x, this.lastH), cr[0]);
   }
-  dispose(): void { this.fill.geometry.dispose(); (this.fill.material as ShaderMaterial).dispose(); }
+  /** What a tap hits: the drawn pool or its top, by a ray (the tap test used its own flat plane, at a depth of its own). The shader adds the swell on the GPU, so the CPU copy is lifted by the same numbers
+   *  (the living share shown now) for the cast and put back; the ripple's lift is ignored. Returns the hit's 2D x when it lies in the water (`holds`), else null. */
+  pick(raycaster: Raycaster): { x: number; y: number } | null {
+    if (!this.fill.visible) return null;
+    const live = this.uniforms.uLiving.value, z0 = bellyZ();
+    const pz = (this.fill.geometry.getAttribute('position') as BufferAttribute).array as Float32Array;
+    for (let v = 0; v < this.aW.length; v++) pz[v * 3 + 2] = z0 + live * DOME * poolDome(this.aW[v]!);
+    this.fill.geometry.boundingSphere = null;
+    this.top.swell(live);
+    const hit = raycaster.intersectObjects([this.fill, this.top.mesh], false)[0];
+    for (let v = 0; v < this.aW.length; v++) pz[v * 3 + 2] = z0;
+    this.fill.geometry.boundingSphere = null;
+    this.top.swell(0);
+    if (!hit) return null;
+    const x = x2d(hit.point.x), y = y2d(hit.point.y) + (hit.object === this.top.mesh ? 0.5 : 0);   // (the top lies on the surface: a hair into the water)
+    return this.holds(x, y) ? { x, y } : null;
+  }
+  dispose(): void { this.fill.geometry.dispose(); (this.fill.material as ShaderMaterial).dispose(); this.top.dispose(); }
 }

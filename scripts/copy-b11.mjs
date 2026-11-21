@@ -20,11 +20,11 @@ try { commit = execFileSync('git', ['-C', from, 'rev-parse', 'HEAD'], { encoding
 export const FILES = [
   'hvpg-clock', 'motion', 'glide-clock', 'ease', 'num',
   'doppler-synth', 'dopplerWindow', 'doppler-marks',
-  'band-settle', 'band-ease', 'band-ring', 'balloon-eso', 'rx-bands',
-  'scope-lens-rule', 'endo-size', 'endo-columns', 'endo-motion',
+  'band-settle', 'balloon-eso',
+  'endo-size', 'endo-columns', 'endo-motion',
   'trace-lanes', 'trace-tape', 'trace-labels', 'trace-room', 'trace-callouts-math',
-  'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front', 'limit-label',
-  'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars', 'balance-hold', 'idle-keys',
+  'ekg', 'drop-front', 'limit-label',
+  'instrument-aria', 'vital-read', 'table-marks', 'dock-vars', 'balance-hold', 'idle-keys',
   'wrap-label', 'sorted', 'freewheel',
 ].filter((n) => n !== 'trace-callouts-math');
 const SLICES = {
@@ -60,7 +60,9 @@ function rewrite(name, src) {
     throw new Error(`${name}.js imports '${spec}', which is not in the copy list (add it, or the file is not pure)`);
   });
 }
-for (const n of FILES) put(`${n}.copied.js`, HEAD(`${n}.js`) + rewrite(n, read(`src/ui/${n}.js`)));
+// One copy of each 2D file that other copy scripts also write (src/ui/charts/looks2d/{ease,num}.js, src/scene/procedures/copied/balloon-eso.js): these names re-export it, so a 2D change lands once.
+const ONE = { ease: '../../charts/looks2d/ease.js', num: '../../charts/looks2d/num.js', 'balloon-eso': '../../../scene/procedures/copied/balloon-eso.js' };
+for (const n of FILES) put(`${n}.copied.js`, HEAD(`${n}.js`) + (ONE[n] ? `export * from '${ONE[n]}';\n` : rewrite(n, read(`src/ui/${n}.js`))));
 for (const [n, s] of Object.entries(SLICES)) {
   const lines = read(`src/ui/${s.file}.js`).split('\n');
   const take = s.lines.map((re) => { const l = lines.find((x) => re.test(x)); if (!l) throw new Error(`${s.file}.js has no line for ${re}`); return l.replace(/^const /, 'export const ').replace(/\s*\/\/ \(.*$/, ''); });

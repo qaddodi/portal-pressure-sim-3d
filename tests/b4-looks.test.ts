@@ -15,7 +15,8 @@ import { PAINTED, VertexPaint, infarctAt, infarctEdgeY } from '../src/scene/orga
 import { CelScene } from '../src/scene/scene.ts';
 import { bodyTargets } from '../src/scene/disease/targets.ts';
 import { waistNarrow, waistSigma, isClampable } from '../src/scene/disease/clamps.ts';
-import { FLANK_Z, Landmarks, flankPoints, ribbon } from '../src/scene/disease/landmarks.ts';
+import { Landmarks, flankPoints, ribbon } from '../src/scene/disease/landmarks.ts';
+import { bellyZ } from '../src/scene/disease/ascites.ts';
 import { RED_WALE, waleEnvelope } from '../src/scene/disease/strands.ts';
 import { varixWale } from '../src/scene/disease/copied/varix-bead.js';
 import { x3, y3 } from '../src/scene/frame2d.ts';
@@ -111,7 +112,7 @@ test('the navel\'s ring comes with the paraumbilical vein, in steps, and the fla
   l.setAscites(2000); const st = l.state(); assert.equal(st.flank, true); assert.ok(st.step > 0);
   l.setFade(0); assert.equal(l.state().flank, false, 'it goes with the body');
   const pts = flankPoints(0); assert.deepEqual(pts[0], [336, 470]); assert.deepEqual(pts[pts.length - 1], [1088, 470]);
-  const g = ribbon(pts, 0.7, FLANK_Z); assert.equal(g.getAttribute('position').count, pts.length * 2);
+  const g = ribbon(pts, 0.7, bellyZ()); assert.equal(g.getAttribute('position').count, pts.length * 2);
   const b = flankPoints(68); assert.ok(b[Math.floor(b.length / 4)]![0] < pts[Math.floor(pts.length / 4)]![0], 'the wall bulges outward');
   l.dispose();
 });
