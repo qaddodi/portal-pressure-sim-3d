@@ -232,7 +232,7 @@ export class FigureCards {
     }
     if (split) {
       // the 2D portal-blood label, its own markup (stage-sites-paint.js SPLIT_B): the number and "bypasses the liver", the caption, the bar split into the liver's and the shunts' share
-      card.glass.remove(); card.k.remove(); card.n.remove(); card.u.remove();
+      card.glass.remove(); card.ring.remove(); card.k.remove(); card.n.remove(); card.u.remove();
       const b = document.createElement('b');
       b.innerHTML = '<span class="sp-h"><em class="sp-n"></em><em class="sp-pc">%</em><span class="sp-w">bypasses the liver</span></span><span class="sp-cap"><em class="sp-k">Portal blood</em><em class="sp-lt"></em><em class="sp-st"></em></span><span class="sp-bar"><i class="sp-l"></i><i class="sp-s"></i></span>';
       card.root.appendChild(b);
