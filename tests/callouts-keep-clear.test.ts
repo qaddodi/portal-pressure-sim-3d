@@ -57,3 +57,27 @@ test('a pressure\'s name on the scope card wraps inside its column rather than l
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   assert.match(css, /\.endo-read > \.endo-pr > dt \{ white-space: normal; overflow-wrap: anywhere;/);
 });
+
+// Hyperdynamic 4 and Kidney 9 (iPhone audit, 21 Nov): "SPLEEN" lay over "STOMACH". The solver keeps names apart where it placed them; a dot that moves afterwards (the spleen's growth) carried one over the other.
+import { RoomFade } from '../src/scene/labels/ride.ts';
+import { FADE } from '../src/scene/labels/alpha.ts';
+test('a name carried over a name drawn before it fades out whole and back once clear (the controller feeds each drawn box to the next as a blocker)', () => {
+  const room = new RoomFade(), view: Box = { x0: 0, y0: 0, x1: 400, y1: 800 };
+  const first: Box = { x0: 100, y0: 100, x1: 180, y1: 120 };
+  room.of('spleen', { x0: 300, y0: 100, x1: 380, y1: 120 }, view, [first], 16);
+  let a = 1;
+  for (let t = 0; t < FADE.roomMs + 64; t += 16) a = room.of('spleen', { x0: 150, y0: 105, x1: 230, y1: 125 }, view, [first], 16);
+  assert.equal(a, 0);
+  for (let t = 0; t < FADE.roomMs + 64; t += 16) a = room.of('spleen', { x0: 300, y0: 100, x1: 380, y1: 120 }, view, [first], 16);
+  assert.equal(a, 1);
+  const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
+  assert.match(src, /for \(const t of this\.taken\) roomBlk\.push\(t\);\s*\n\s*const ra = this\.room\.of\(id, box, view, roomBlk, dt\);\s*\n\s*if \(ra > 0\) this\.taken\.push\(box\);/);
+});
+
+import { childSrc, speedChoice, SPEEDS } from '../src/ui/debug/audit/outer.ts';
+test('the audit banner offers a speed: the frame gets it, real time adds nothing, and an old ?speed address picks the nearest offer', () => {
+  assert.equal(childSrc('/p/', '?audit&sizes=iphone', 'full', 4), '/p/?audit=run&depth=full&speed=4');
+  assert.equal(childSrc('/p/', '?audit&speed=10', 'full'), '/p/?audit=run&depth=full');
+  assert.equal(speedChoice('3'), 2); assert.equal(speedChoice(null), 1); assert.equal(speedChoice('99'), 20);
+  assert.ok(SPEEDS.every((s) => s.hint.length > 20) && SPEEDS[0]!.n === 1);
+});
