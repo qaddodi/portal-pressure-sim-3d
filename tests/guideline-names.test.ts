@@ -69,3 +69,28 @@ test('every source patch names a talk that exists', () => {
   const ids = new Set(DECKS.map((d) => d.id));
   for (const p of SOURCE_PATCHES) assert.ok(ids.has(p.deck), `${p.deck} ${p.at}`);
 });
+
+// The same rule for the app's own words: About, the menu's thresholds line, the tile help, the chart gallery and the flowcharts. About's reference list keeps its
+// citations (a journal citation is not guidance), so a string there may name another society only when it is written as a citation.
+import { ABOUT, PRIVACY } from '../src/ui/shell/about.copied.ts';
+import { UI } from '../src/ui/strings.generated.ts';
+import { CATALOG } from '../src/ui/charts/gallery/catalog.generated.ts';
+import { ALGOS } from '../src/ui/charts/path/path-data.generated.js';
+import { TILE } from '../src/ui/deck/from2d/table-marks.js';
+import { LESION } from '../src/engine/hales/portal/inverse-families.js';
+
+const CITATION = /\b(Hepatology|J Hepatol)\b[^.]*\b20\d\d\s*[;,]/;
+
+test('About, the menu strings, the tile help and the engine words name no guideline but Baveno VIII (reference-list citations excepted)', () => {
+  const bad: string[] = [];
+  for (const [name, root] of [['about', ABOUT], ['privacy', PRIVACY], ['ui', UI], ['tile', TILE], ['lesions', LESION]] as const) {
+    const on: { at: string; text: string }[] = []; walk(root, name, on, []);
+    for (const { at, text } of on) if (OTHER.test(text) && !(name === 'about' && CITATION.test(text))) bad.push(`${at}: ${text.slice(0, 120)}`);
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('the chart gallery and the flowcharts carry no AASLD chart: Baveno VIII is the only guideline drawn', () => {
+  assert.deepEqual(CATALOG.filter((e) => /aasld/i.test(JSON.stringify(e))).map((e) => e.id), []);
+  assert.ok(!('aasld' in (ALGOS as Record<string, unknown>)), 'no aasld flowchart');
+});

@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "55359089cf732393d54e29d5a918c978cd405107"
+    "commit": "190f022548643ee24c59a0566f4fd8b82a8a3e1b"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -23,7 +23,7 @@
     "hales/portal/explain.js": "a5b5b97b53b13c6df89a6e1a12ed89bc79d0d2725d53657ed886dbed05104840",
     "hales/portal/fingerprint.js": "caa55bdc585e6e2caae1d525a538ef2f1e5bb9d79a152584e64401a3411a0116",
     "hales/portal/flow-cuts.js": "2a664f63054e736a9c0e709f6a93957849f0335190b118c44510eab4b91f4867",
-    "hales/portal/inverse-families.js": "b119268289136febea5983aa02c30c709fd78e5dea1bfc38c9f3cc2641cba970",
+    "hales/portal/inverse-families.js": "3ef753812ec7b5cd108839757d0c2adb3bf451d651e0869eaa2c4ee067a40d9f",
     "hales/portal/inverse-library.js": "57a5fca03ed93327e0737c0f2196ec1ed9c394e99e4b7ac85911821aabbc9fd8",
     "hales/portal/inverse-run.js": "a05c632321afd1792117fe5994ee86352f5ce1b4688873947bc2da107855e919",
     "hales/portal/inverse-try-cases.js": "75596a3892d6f9f548b16e2f75c2ff3b8e1e4c8b02b8d926620386c10ce7b9c0",

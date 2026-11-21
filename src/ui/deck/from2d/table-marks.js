@@ -160,7 +160,7 @@ export const TILE = {
   // (The systolic alone, for a criteria row or a table column that reads it against Baveno VIII 4.6's 90 mmHg; a slide shows the pressure as map.)
   sbp: { t: 'Systolic pressure', n: 'Systolic', s: 'Arm cuff', u: 'mmHg', d: 0, better: 1 },
   // (The key `rpp` is the quantity's first name; saved decks and shared links write it. It is the abdominal perfusion pressure, MAP − IAP, and no rating, direction or cut-off goes with it: kidney-cuts.js.)
-  rpp: { t: 'Abdominal perfusion pressure', n: 'APP', s: 'MAP − IAP', u: 'mmHg', d: 0, long: 'Abdominal perfusion pressure: APP = MAP − IAP (mean arterial pressure minus intra-abdominal pressure), the WSACS definition. It is not renal perfusion or kidney function: the model has no GFR, creatinine or renal blood flow. No guideline gives it a normal range, so the tile has none.' },
+  rpp: { t: 'Abdominal perfusion pressure', n: 'APP', s: 'MAP − IAP', u: 'mmHg', d: 0, long: 'Abdominal perfusion pressure: APP = MAP − IAP (mean arterial pressure minus intra-abdominal pressure), the definition used for the abdominal compartment syndrome. It is not renal perfusion or kidney function: the model has no GFR, creatinine or renal blood flow. No guideline gives it a normal range, so the tile has none.' },
   hr: { t: 'Heart rate', n: 'HR', s: 'Beats per minute', u: '/min', d: 0 },
   lsm: { t: 'Liver stiffness', n: 'Stiffness', s: 'FibroScan', u: 'kPa', better: -1 },
   ssm: { t: 'Spleen stiffness', n: 'SSM', s: 'FibroScan, 100 Hz probe', u: 'kPa', better: -1 },
