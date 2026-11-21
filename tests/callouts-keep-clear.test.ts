@@ -73,3 +73,12 @@ test('a name carried over a name drawn before it fades out whole and back once c
   const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
   assert.match(src, /for \(const t of this\.taken\) roomBlk\.push\(t\);\s*\n\s*const ra = this\.room\.of\(id, box, view, roomBlk, dt\);\s*\n\s*if \(ra > 0\) this\.taken\.push\(box\);/);
 });
+
+test('every callout card draws the cel outline (the look\'s ink) from the one glass rule, and every callout is that glass', () => {
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  assert.match(css, /\.lb-layer \.cl-glass\.cl-hair path \{ stroke: var\(--ink[^;]*; stroke-width: 3\.6;/);
+  const dom = readFileSync(new URL('../src/scene/labels/cath-dom.ts', import.meta.url), 'utf8');
+  assert.match(dom, /'cl-glass cl-hair'/);
+  const fig = readFileSync(new URL('../src/scene/labels/figure-cards.ts', import.meta.url), 'utf8');
+  assert.ok(!/makeCard\(/.test(fig.replace(/makeCard\(this\.parent, [^)]*\)/g, '')), 'a callout made another way would miss the outline');
+});
