@@ -22,10 +22,23 @@ const num = (s: string) => { const v = parseFloat(s); return Number.isFinite(v) 
 function roleOf(el: Element): RawText['role'] {
   const c = el.classList;
   if (c.contains('dk-kicker')) return 'kicker';
-  if (c.contains('dk-title')) return 'title';
+  // (the cards wear the 2D app's pz-* classes: the title is .pz-h (or the title card's .pz-dtitle), the words are the paragraph .pz-line or the case's .pz-case-p; a pill, a chip or a sub/superscript inside the words is smaller by design and is not the words' size)
+  if (c.contains('dk-title') || c.contains('pz-h') || c.contains('pz-dtitle')) return 'title';
   if (c.contains('dk-body') || el.closest('.dk-body, .dk-obj, .dk-q-text, .dk-a')) return 'body';
+  if (el.closest('.pz-line, .pz-case-p') && !el.closest('[class*="pill"], [class*="chip"], sub, sup, small, .pz-eq')) return 'body';
   if (el.closest('.dk-ladder, .dk-gap, .dk-data, .dk-pill')) return 'data';
   return 'other';
+}
+
+/** A box that holds words only for a reader: a 2 px box (or less) that clips its overflow (`.sr-only`, `.lb-sr`). Its text is laid out whole, from the box's corner, so its range reaches far past the card
+ *  (every cell of the summary table carries one): the screen report called a line "past the card's edge" and "off the screen" on an iPhone's last table slide (21 Nov) for words nobody sees. */
+export const clipsAway = (w: number, h: number, overflow: string): boolean => w <= 2 && h <= 2 && overflow !== 'visible';
+function hiddenFromEyes(win: Window, el: Element, card: Element): boolean {
+  for (let e: Element | null = el; e && e !== card; e = e.parentElement) {
+    const b = e.getBoundingClientRect();
+    if (b.width <= 2 && b.height <= 2 && clipsAway(b.width, b.height, win.getComputedStyle(e).overflow)) return true;
+  }
+  return false;
 }
 
 /** A card's texts: every visible run of words with its size and the box it stands in. */
@@ -39,7 +52,7 @@ function textsOf(win: Window, card: Element): RawText[] {
     const p = n.parentElement;
     if (!text || !p) continue;
     const cs = win.getComputedStyle(p);
-    if (cs.visibility === 'hidden' || cs.display === 'none' || p.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out')) continue;
+    if (cs.visibility === 'hidden' || cs.display === 'none' || p.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') || hiddenFromEyes(win, p, card)) continue;
     range.selectNodeContents(n);
     const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0);
     if (!rects.length) continue;
@@ -71,10 +84,18 @@ export function collectCards(doc: Document, win: Window): RawCard[] {
   });
 }
 
+/** How visible a label or callout is. A label that is not on (no data-on) is gone, whatever its element's opacity says; a callout's own element is never faded (cath-dom.ts fades the pieces inside it), so its alpha is the strongest of those pieces'. */
+export function labelAlpha(on: boolean, own: number, inner: number[]): number {
+  if (!on) return 0;
+  return inner.length ? Math.max(...inner) : own;
+}
+
 export function collectLabels(doc: Document, win: Window): RawLabel[] {
   const out: RawLabel[] = [];
   const read = (el: HTMLElement, kind: RawLabel['kind'], name: string) => {
-    const b = el.getBoundingClientRect(), op = num(win.getComputedStyle(el).opacity);
+    const b = el.getBoundingClientRect(), own = num(win.getComputedStyle(el).opacity);
+    const inner = kind === 'callout' ? Array.from(el.querySelectorAll<HTMLElement>('[style*="opacity"]')).map((c) => num(win.getComputedStyle(c).opacity)) : [];
+    const op = kind === 'key' ? own : labelAlpha(el.hasAttribute('data-on'), own, inner);
     out.push({ name, kind, x: r1(b.left), y: r1(b.top), w: r1(b.width), h: r1(b.height), opacity: Math.round(op * 100) / 100, on: el.hasAttribute('data-on'), tone: el.dataset.tone ?? '' });
   };
   doc.querySelectorAll<HTMLElement>('.lb').forEach((el) => read(el, 'label', (el.querySelector('.lb-name')?.textContent ?? '').trim()));

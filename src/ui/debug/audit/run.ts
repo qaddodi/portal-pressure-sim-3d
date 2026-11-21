@@ -2,7 +2,7 @@
 // sampler, the clock and the DOM saw, and judges it into one row. Judges: judge.ts (layout, fades, frames), the watch rules (flash, pop, size snap, label slide) and the screen's own rules (fit, edge, labels).
 import { judgeMotion, type Sample } from '../watch/motion-rules.ts';
 import { frameStats, timeline, fadeEpisodes, fadeFindings, layoutFindings, type AuditFinding, type LayoutRead } from './judge.ts';
-import { SLOW_BUSY_MS, LOW_FPS, type AuditRow, type AuditData, type AuditSize, type ConsoleLine } from './report.ts';
+import { SLOW_BUSY_MS, LOW_FPS, type AuditRow, type AuditData, type AuditSize, type ConsoleLine, type Coverage } from './report.ts';
 
 /** One move: open a view, a sheet, a patient, a slide, or press Next. It may return the label it learned by doing it (a Next press knows which slide it landed on). */
 export interface Step { group: string; id: string; label: string; run(): Promise<string | void> | string | void }
@@ -53,7 +53,7 @@ export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, s
   };
 }
 
-export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps: AuditDeps, o: { depth: 'quick' | 'full'; notes?: string[]; shouldStop?: () => boolean; onStep?: (n: number, row: AuditRow) => void } = { depth: 'full' }): Promise<AuditData> {
+export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps: AuditDeps, o: { depth: 'quick' | 'full'; notes?: string[]; coverage?: Coverage[]; shouldStop?: () => boolean; onStep?: (n: number, row: AuditRow) => void } = { depth: 'full' }): Promise<AuditData> {
   const t00 = deps.now(), rows: AuditRow[] = [], con: ConsoleLine[] = [], notes = o.notes ?? [];
   let stopped = false;
   for await (const step of steps) {
@@ -66,8 +66,8 @@ export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps
     const reads = deps.read(t0);
     const row = judgeStep(step, label, reads, busy, st.settled);
     if (failed) row.flags.unshift({ kind: 'step-failed', sev: 'fail', what: failed, where: '' });
-    rows.push(row); con.push(...reads.console);
+    rows.push(row); con.push(...reads.console.map((c) => ({ ...c, at: `${c.at}, during ${step.group} > ${label}` })));   // (a console line names the step it came in, so a message from one card's code can be traced)
     o.onStep?.(rows.length, row);
   }
-  return { size: deps.size, ms: Math.round(deps.now() - t00), depth: o.depth, stopped, rows, console: con, notes };
+  return { size: deps.size, ms: Math.round(deps.now() - t00), depth: o.depth, stopped, rows, console: con, notes, coverage: o.coverage };
 }

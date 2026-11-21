@@ -110,3 +110,52 @@ test('every page that is not the app lifts the loading cover and sets its own co
   assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = dark\.matches/); assert.match(main, /root\.style\.display = 'none'/);   // (the empty fixed #root otherwise sits over the page and takes its clicks)
   for (const call of ['bootFrame()', 'bootOuter()', 'bootLookBoard()']) assert.match(main, new RegExp(`plainPage\\(\\);\\s*${call.replace(/[()]/g, '\\$&')}`), `${call} is called after plainPage()`);
 });
+
+test('a callout that is not on is gone, whatever its own element says (the audit called hidden callouts f and w overlapping labels on every screen)', async () => {
+  const { labelAlpha } = await import('../src/ui/debug/screen/raw.ts');
+  assert.equal(labelAlpha(false, 1, [1, 1]), 0);   // (cath-dom hides a pill by removing data-on and fading its pieces: the element's own opacity stays 1)
+  assert.equal(labelAlpha(true, 1, [0.25, 0.6]), 0.6);
+  assert.equal(labelAlpha(true, 0.7, []), 0.7);
+});
+
+test('a faded dock is not a bar (the audit called every iPhone talk card covered by it)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../src/ui/debug/audit/app.ts', import.meta.url), 'utf8');
+  // the dock's own box never fades (its face and bars do): the bar is its painted face, read through every ancestor's opacity
+  assert.doesNotMatch(app, /\['dock', '\.vdock'\]/);
+  assert.match(app, /\['dock', '\.vd-face'\]/);
+  assert.match(app, /seen\(win, el\) > 0\.5\) bars\.push/);
+});
+
+test('the report opens with the run time, says when a parallel run makes the speed numbers invalid, and names every stop the walk could not reach', () => {
+  const part = (id: string): AuditData => ({ size: { id, w: 390, h: 844, dpr: 3 }, build: 'b', ms: 120000, depth: 'full', stopped: false, rows: [], console: [], notes: [],
+    coverage: [{ deck: 'Measuring HVPG', reached: 14, total: 15, missed: [9] }, { deck: 'TIPS', reached: 8, total: 8, missed: [] }] });
+  const seq = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, wallMs: 250000, parts: [part('iphone'), part('mac')], failed: [] });
+  assert.match(seq, /^AUDIT v1[^\n]*\nRUN TIME: 4\.2 min in all \(one after the other: iphone 2\.0 min, mac 2\.0 min\)/);
+  assert.match(seq, /COVERAGE iphone: 22 of 23 stops in 2 talks/); assert.match(seq, /NOT REACHED in "Measuring HVPG": 1 of 15 stops \(stop 9\)/);
+  const par = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, wallMs: 130000, parts: [part('iphone'), part('mac')], failed: [] });
+  assert.match(par, /sizes ran at the same time/); assert.match(par, /PARALLEL RUN: .*NOT valid/);
+});
+
+test('words that only a screen reader hears are not words on the card (the iPhone summary table: every cell\'s sr-only text reaches past the card, so the report named an edge cut and words off the screen)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { clipsAway } = await import('../src/ui/debug/screen/raw.ts');
+  assert.equal(clipsAway(1, 1, 'hidden'), true);    // .sr-only: 1 px box, overflow hidden, its nowrap text laid out whole from the corner
+  assert.equal(clipsAway(1, 1, 'visible'), false);
+  assert.equal(clipsAway(120, 18, 'hidden'), false);   // a real label that clips is still read
+  const raw = readFileSync(new URL('../src/ui/debug/screen/raw.ts', import.meta.url), 'utf8');
+  assert.match(raw, /hiddenFromEyes\(win, p, card\)\) continue/);
+  // (every card's cells that carry the hidden words are the table's, drawn in TableCard)
+  assert.match(readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8'), /className="sr-only"/);
+});
+
+test('the registry holds one talk at boot and the rest lazily, so every tool that walks the talks loads them first (the audit, the Phone check and the Sweep walked one talk)', async () => {
+  const { builtinDecks, lazyDecks, loadBuiltin } = await import('../src/decks/registry.ts');
+  const lazy = lazyDecks();
+  assert.ok(lazy.length > 5, 'many talks are lazy');
+  assert.equal(builtinDecks().length, 1, 'only HVPG is in at boot, so builtinDecks() alone is not the list of talks');
+  await Promise.all(lazy.map((l) => loadBuiltin(l.id)));
+  assert.equal(builtinDecks().length, lazy.length + 1);
+  const { readFileSync } = await import('node:fs');
+  for (const f of ['src/ui/debug/audit/page.ts', 'src/ui/debug/page/page.ts']) assert.match(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'), /await loadAllDecks\(\)/, `${f} loads every talk first`);
+});

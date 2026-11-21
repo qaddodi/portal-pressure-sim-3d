@@ -23,6 +23,8 @@ export function labelRows(els: readonly LabelEl[]): (string | number)[][] {
   }
   return rows;
 }
+/** Does a card hold anything: any words, or a picture (svg, canvas, image, table, math)? (The cards use the 2D app's pz-* classes, so asking for .dk-title or .dk-body, as this once did, called every ladder, visual and words card empty.) */
+export const hasContent = (el: Element): boolean => !!(el.textContent ?? '').trim() || !!el.querySelector('svg, canvas, img, video, table, math');
 
 export function domSources(doc: Document = document, win: Window = window): Sources {
   const out = { x: 0, y: 0 };
@@ -45,7 +47,7 @@ export function domSources(doc: Document = document, win: Window = window): Sour
       doc.querySelectorAll<HTMLElement>('.dk-card').forEach((el) => {
         const b = el.getBoundingClientRect();
         K.push([el.dataset.card ?? 'card', r1(b.left), r1(b.top), r1(b.width), r1(b.height), alpha(win, el)]);
-        W.push((el.querySelector('.dk-title, .dk-body')?.textContent ?? '').trim() ? 1 : 0);
+        W.push(hasContent(el) ? 1 : 0);
       });
       return { K, W };
     },
