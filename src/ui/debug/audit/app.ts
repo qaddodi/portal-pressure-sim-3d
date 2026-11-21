@@ -18,7 +18,7 @@ import type { Box, LayoutRead } from './judge.ts';
 import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
 import { renderStats } from '../../../debug/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
-import { speedAnimations } from './speed.ts';
+import { speedAnimations, sampleRealMs } from './speed.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -174,7 +174,7 @@ export function readLayout(doc: Document = document, win: Window = window): Layo
 export function startTaps(win: Window = window, speed = 1): Tap {
   const rec = createRecorder(domSources(win.document, win), { seconds: 120 });
   // (at speed N the page's clock runs N times faster, so the sampler ticks N times as often and its rows stay 33 ms of page time; the CSS animations are played N times faster here)
-  const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, SAMPLE_MS / speed);
+  const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, sampleRealMs(SAMPLE_MS, speed));
   let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0;
   // (`f.dt` is page time: at speed N the real gap is dt / N, which is what the frame rate is judged on)
   const off = clock.on('tags', (f) => { if (f.dt > 0) { gaps.push(f.dt / speed); if (f.dt > 50) stalls.push({ t: f.time - markAt, ms: f.dt }); } }, 2000);

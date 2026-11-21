@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { PerspectiveCamera, Raycaster, Vector2, Vector3 } from 'three';
 import {
-  AscitesLayer, DOME, DOME_R, LIVING_TAU, POOL_COLS, POOL_COMMON_GLSL, POOL_FS, POOL_ROWS, POOL_STEP, POOL_VS, POOL_X0, bellyZ, bulgeStep, outlinePolygon, poolDome, poolLift,
+  AscitesLayer, DOME, DOME_R, SHELL_BACK, LIVING_TAU, POOL_COLS, POOL_COMMON_GLSL, POOL_FS, POOL_ROWS, POOL_STEP, POOL_VS, POOL_X0, bellyZ, bulgeStep, outlinePolygon, poolDome, poolLift,
 } from '../src/scene/disease/ascites.ts';
 import { TOP_ELEV_FROM, TOP_ELEV_TO, topFS, topShow, topVS } from '../src/scene/disease/ascites-top.ts';
 import { Landmarks, flankPoints } from '../src/scene/disease/landmarks.ts';
@@ -139,7 +139,7 @@ test('the swell is an elliptic dome: 0 on the wall, the whole by DOME_R, monoton
   assert.match(POOL_VS, /p\.z \+= poolSwell\(aW\)/);
 });
 
-test('the water\'s top: gone head-on and from below, whole with a 12 degree tilt down, at least 6 px tall at 8500 mL', () => {
+test('the water\'s top: gone head-on and from below, whole with a 12 degree tilt down, at least 15 px deep at 8500 mL', () => {
   const a = new AscitesLayer(); a.set(8500);
   const { pos, aW } = attrs(topOf(a)), aH = (topOf(a) as unknown as { geometry: Geo }).geometry.getAttribute('aH').array;
   const column = (c: number): Pos[] => [0, 1].map((k) => { const v = 2 * c + k; return [pos[v * 3]!, pos[v * 3 + 1]!, pos[v * 3 + 2]!]; });
@@ -163,14 +163,14 @@ test('the water\'s top: gone head-on and from below, whole with a 12 degree tilt
   const back = { ...drawn(down, column(mid)[1]!, aW[2 * mid + 1]!, 0, 1) };   // (the back vertex is the front's mirror)
   void back;
   const z0 = bellyZ(), sw = DOME * poolDome(aW[2 * mid]!);
-  const front = screen(down, [column(mid)[0]![0], column(mid)[0]![1], z0 + sw]), rear = screen(down, [column(mid)[0]![0], column(mid)[0]![1], z0 - sw]);
-  assert.ok(Math.abs(front.y - rear.y) >= 6, `the top is ${Math.abs(front.y - rear.y).toFixed(1)} px tall at x 712 with a 12 degree tilt`);
+  const front = screen(down, [column(mid)[0]![0], column(mid)[0]![1], z0 + sw]), rear = screen(down, [column(mid)[0]![0], column(mid)[0]![1], z0 - SHELL_BACK]);
+  assert.ok(Math.abs(front.y - rear.y) >= 15, `the top is ${Math.abs(front.y - rear.y).toFixed(1)} px tall at x 712 with a 12 degree tilt`);
   void cf; void cb;
   assert.ok(show(down, mid) > 0.99, `whole at 12 degrees (${show(down, mid).toFixed(3)})`);
   assert.ok(front.y > rear.y, 'the back edge is higher on the screen than the front edge: it is a surface seen from above');
   // the front face winds toward the viewer from above (counter-clockwise on the screen) and away from below: the material culls what faces away
   const area = (cam: PerspectiveCamera): number => {
-    const c = mid, f0 = column(c)[0]!, b0: Pos = [f0[0], f0[1], z0 - sw], f1 = column(c + 1)[0]!;
+    const c = mid, f0 = column(c)[0]!, b0: Pos = [f0[0], f0[1], z0 - SHELL_BACK], f1 = column(c + 1)[0]!;
     const P = [screen(cam, [f0[0], f0[1], z0 + sw]), screen(cam, [f1[0], f1[1], z0 + DOME * poolDome(aW[2 * (c + 1)]!)]), screen(cam, b0)];
     return ((P[1]!.x - P[0]!.x) * (P[2]!.y - P[0]!.y) - (P[2]!.x - P[0]!.x) * (P[1]!.y - P[0]!.y)) * -1;   // (screen y is down: negate for a counter-clockwise sign)
   };
@@ -236,7 +236,7 @@ test('the tap hits what is drawn: the pool\'s centre at a full turn is the abdom
   // tilted down: a ray at the water's top surface (above the pool's front face) is the abdomen too
   const down = camera(0, 12 * D2R), tp = attrs(topOf(a)).pos;
   const sw = DOME * poolDome(attrs(topOf(a)).aW[2 * 52]!);
-  const onTop = [tp[2 * 52 * 3]!, tp[2 * 52 * 3 + 1]!, bellyZ() - sw * 0.5] as Pos;
+  const onTop = [tp[2 * 52 * 3]!, tp[2 * 52 * 3 + 1]!, bellyZ() - SHELL_BACK * 0.5] as Pos;
   const s = screen(down, onTop), r2 = new Raycaster(); r2.setFromCamera(new Vector2((s.x / W) * 2 - 1, -(s.y / H) * 2 + 1), down);
   assert.ok(a.pick(r2), 'a ray at the water\'s top is the abdomen');
   // a pool with no water takes no tap
