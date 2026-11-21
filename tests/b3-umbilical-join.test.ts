@@ -24,8 +24,10 @@ test('the umbilical vein starts on the left portal vein\'s own axis, well before
   const end = lpv[lpv.length - 1]!, d = Math.hypot(c3[0]![0] - end[0], c3[0]![1] - end[1]);
   assert.ok(d > 20, `it leaves ${d.toFixed(0)} units short of the vein's end, where the vein is still wide`);
   const own = EDGE_PATH_2D.C3!, last = c3[c3.length - 1]!;
-  assert.deepEqual([Math.round(last[0]), Math.round(last[1])], [Math.round(own[own.length - 1]![0]), Math.round(own[own.length - 1]![1])], 'it ends where 2D\'s does');
-  for (const k of [10, 20, 30]) assert.ok(distToPath(own[own.length - k]!, c3) < 0.05, 'the rest of its course is the 2D course');
+  // (since e10ef788 it ends on the epigastric pair's JOINT, which the pair's fillet puts about 12 px off the node 2D ends at: the weld needs the vein to end where the pair does)
+  const away = Math.hypot(last[0] - own[own.length - 1]![0], last[1] - own[own.length - 1]![1]);
+  assert.ok(away < 13, `it ends ${away.toFixed(1)} units from where 2D's does (the pair's joint, not 2D's node)`);
+  for (const k of [10, 20, 30]) assert.ok(distToPath(own[own.length - k]!, c3) < (k < 30 ? 13 : 0.05), 'the rest of its course is the 2D course (the last stretch bends to the joint)');
 });
 
 test('no corner and no doubling back: the bend\'s radius of curvature is several times the tube\'s radius, and no segment turns by more than a few degrees', () => {
