@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
+import { JOINT_REACH_R } from '../src/scene/vessels/network.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { GROW_REACH, GROWER_KINDS, dropFarGrowers, findSkinJunctions, isGrower, isPermanent, isLiverBranch, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
@@ -35,7 +36,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
 // (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as PVH's DIPS and the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
-const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS',
+const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS',
   'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:S_PC1,C90:C9', 'wall:IVC_IS_1:S_PC1,C90:S_PC', 'wall:PVH_L_1:REX1:REX'];
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
@@ -284,4 +285,14 @@ test('the fragment outline of a static skin has no growth: no SKIN_GROW define, 
   const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
   assert.match(SKIN_FS, /uniform vec3 skinKW;/);
   assert.match(SKIN_FS, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z/);
+});
+
+test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
+  on(() => {
+    assert.equal(JOINT_REACH_R, GROW_REACH, 'network.ts cannot import the inventory (it imports the network): the two numbers are one');
+    const epi = findSkinJunctions().find((j) => j.node === 'EPI')!, c3 = epi.arms.findIndex((a) => a.vesselId === 'C3');
+    assert.ok(c3 >= 0, 'C3 is an arm of EPI');
+    const d = dropFarGrowers(epi);
+    assert.deepEqual(d.far, [], 'C3 ends within reach of the joint (was 4.97 radii: dropped)');
+  });
 });
