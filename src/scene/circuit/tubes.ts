@@ -27,7 +27,7 @@ import { flatOf, growOf } from './grow.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import type { CircuitShared } from './uniforms.ts';
 import { createRouter, route as routeText } from './router.copied.js';
-import { applyEnds, sunkEnd } from './map-ends.ts';
+import { applyEnds, runOnEnd, sunkEnd } from './map-ends.ts';
 import type { ShuntEnd } from '../vessels/shunt-ends.ts';
 import { GLOW_LAYER } from '../glow.ts';
 
@@ -105,7 +105,7 @@ export function treeRunOns(): ReadonlyMap<string, readonly [boolean, boolean]> {
 export function treeEnds(lane: string, i: number): MapEnds | null {
   const own = treeOwn(lane, i), h = treeHost(lane, i);
   if (!h || !(own > 0)) return null;
-  return { ends: [h.runOn ? { ...sunkEnd(h.r), flare: false } : sunkEnd(h.r), null], own };
+  return { ends: [h.runOn ? runOnEnd(h.r) : sunkEnd(h.r), null], own };
 }
 /** What a node of the map is for a tube that ends at it: the widest permanent vessel there; a station of no vessel (the varices' VAR and GV) takes the tube's own caliber, so its end still sinks and flares there. */
 const hostAt = (node: string, own: number): ShuntEnd => sunkEnd(trunkRadius(node) || own);

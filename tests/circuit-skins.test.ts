@@ -16,8 +16,8 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
 import { COURSES } from '../src/scene/circuit/course.ts';
 import { CIRC_SKIN_REACH, CircuitSkinSet, circuitFallbacks, circuitOldJoins, circuitFarGrowers, circuitRadius, circuitReach, circuitTube, findCircuitJunctions, turnMatrix, type CircuitSkinDeps } from '../src/scene/circuit/skins.ts';
+import { TUCKED, TUCK_Z } from '../src/scene/circuit/course.ts';
 import { MAP_CENTRE, MAP_K, mapToScene, turnScenePt } from '../src/scene/circuit/map.ts';
-import { BED_REACH } from '../src/scene/circuit/course.ts';
 import { NODE_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
 import { closedShapeFolds } from '../src/scene/vessels/skin/mesh.ts';
 import { MAP_DROPPED } from '../src/scene/circuit/map-sewn.ts';
@@ -37,8 +37,6 @@ const TABLE: Record<string, readonly string[]> = {
   PVT_L: ['PV_TRUNK_1:1', 'PV_TRUNK:0', 'LGV_CONF:1'],
   PVH: ['PV_TRUNK:1', 'PVH_R:0', 'PVH_L:0'],
   RPV_T: ['PVH_R_1:1', 'PVH_R_2:0'],
-  SIN_R: ['PRE_R:1', 'SIN_RR:0', 'A_HR:1'],
-  SIN_L: ['PRE_L:1', 'SIN_LL:0', 'A_HL:1'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
   RHV_T: ['RHV_IVC_1:1', 'RHV_IVC:0'],
   IVCS: ['IVC_IS:1', 'IVCS_RA:0', 'RHV_IVC:1', 'MHV_IVC:1', 'LHV_IVC:1'],
@@ -61,13 +59,14 @@ const BUILT = Object.keys(TABLE).filter((n) => n !== 'IVC_D');
 const armKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => !a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 const growKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the map finds the body\'s junctions: twenty nodes, their arms, growing arms and ends pinned; the two liver beds are junctions on the map too (the arteriole runs on to the bed\'s station), nothing falls back', () => {
+test('the map finds the body\'s junctions: eighteen nodes, their arms, growing arms and ends pinned; the two liver beds are named fallbacks, not hidden (the hepatic arteries stop at the lanes\' tips as 2D draws them)', () => {
   const js = findCircuitJunctions();
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
   for (const j of js) { assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node); assert.deepEqual(growKeys(j), [...(GROWS[j.node] ?? [])].sort(), `${j.node}: growing arms`); }
   assert.deepEqual(circuitFarGrowers(), [], 'every growing arm ends at its station on the map: none is a side-wall landing there');
-  // the beds: the 2D art stops the arteriole at the comb beside the lanes (A_HR ends 30 map units off the bed's station), the map carries it on to the station (course.ts BED_REACH) as the body does: SIN_R and SIN_L are junctions on the map
-  assert.deepEqual(circuitFallbacks(), [], 'no node of the body\'s inventory is left out of the map\'s');
+  // the beds: the 2D art stops the arteriole at the comb beside the lanes (A_HR ends 30 map units off the bed's station) and the map draws it so (Mohammad, 21 Nov: "do it like 2D does it"): the bed is not a junction there
+  assert.deepEqual(circuitFallbacks().map((f) => f.node).sort(), ['SIN_L', 'SIN_R']);
+  assert.ok(circuitFallbacks().every((f) => f.why === 'an arm ends too far from the station'));
   assert.equal(CIRC_SKIN_REACH, SKIN_REACH, 'the map keeps the body\'s reach');
 });
 
@@ -125,7 +124,7 @@ function setOf(scene: CelScene, baked?: CircuitSkinDeps['baked']): { set: Circui
   return { set, made, ends };
 }
 
-test('a build welds the nineteen skins with no fall back, the two growing arms it cannot take named with their reason: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
+test('a build welds the seventeen skins with no fall back, the two growing arms it cannot take named with their reason: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
@@ -137,8 +136,8 @@ test('a build welds the nineteen skins with no fall back, the two growing arms i
     assert.deepEqual([...MAP_DROPPED].sort(), DROPPED, 'circuit/map-sewn.ts sews the ends of exactly the arms the build refuses');
     for (const d of DROPPED) assert.match(set.why[d] ?? '', /the closed shape folds/, `${d}: why`);
     // (REX and S_MC leave SMV together: closed alone or together their rows fold, 33 triangles over the three states; DIPS: 2)
-    assert.equal(set.count, 19);
-    assert.ok(made.length >= 19, 'every skin was made once at least (a retry makes more)');
+    assert.equal(set.count, 17);
+    assert.ok(made.length >= 17, 'every skin was made once at least (a retry makes more)');
     assert.ok(ends[0]! >= 1, 'the scene is told the ends changed (it writes the map mates again)');
     for (const node of set.nodes) {
       const m = set.skinOf(node)!;
@@ -168,18 +167,32 @@ test('a build welds the nineteen skins with no fall back, the two growing arms i
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
-test('the beds\' arterioles run on to the bed\'s station on the map (the 2D art stops them at the comb, 30 map units short): SIN_R and SIN_L are welded', () => {
-  assert.deepEqual(BED_REACH, { A_HR: 'SIN_R', A_HL: 'SIN_L' });
-  for (const [id, node] of Object.entries(BED_REACH)) {
-    const e = COURSES.get(id)!.curveC.getPointAt(1), s = mapToScene(NODE_CIRCUIT[node]![0], NODE_CIRCUIT[node]![1]);
-    assert.ok(Math.hypot(e.x - s[0], e.y - s[1]) < 1e-9, `${id} ends on ${node}'s station`);
+test('the hepatic arteries stop at the tips of the bed\'s lanes as 2D draws them and never cross a lane (Mohammad, 21 Nov: "do it like 2D does it"): SIN_R and SIN_L are no junction on the map, nothing is orphaned', () => {
+  // (the course is the 2D art's own, to its last point: A_HR (786, 333) to (800, 333), A_HL (786, 357) to (800, 357), beside the outermost lane of each bed)
+  const end = { A_HR: [800, 333], A_HL: [800, 357] } as const;
+  for (const [id, e] of Object.entries(end)) {
+    const pts = COURSES.get(id)!.mapPts, last = pts[pts.length - 1]!;
+    assert.ok(Math.hypot(last[0] - e[0], last[1] - e[1]) < 1e-6, `${id} ends at the lane's tip ${e}`);
+    // the artery stays on its own side of the bed: the right one at or below its lowest lane (y 333), the left one at or above its highest (357); no lane is crossed
+    for (const [, y] of pts) assert.ok(id === 'A_HR' ? y >= 333 - 1e-6 : y <= 357 + 1e-6, `${id} stays clear of the bed's lanes (y ${y})`);
+    const station = NODE_CIRCUIT[id === 'A_HR' ? 'SIN_R' : 'SIN_L']!;
+    assert.ok(Math.hypot(last[0] - station[0], last[1] - station[1]) >= 25, `${id} does not run on to the bed's station`);
   }
+  // no blunt end: each artery's last stretch sinks behind the lanes' plane (the shader sorts a tube by its axis), so the lane tip is drawn over its end at every zoom, and its start at HA stays on the plane the HA skin's rings are on
+  for (const id of ['A_HR', 'A_HL']) {
+    const c = COURSES.get(id)!.curveC, a = c.getPointAt(0), b = c.getPointAt(1);
+    assert.ok(TUCKED.has(id) && Math.abs(a.z - MAP_CENTRE.z) < 1e-9, `${id} starts on the plane`);
+    assert.ok(b.z <= MAP_CENTRE.z - 0.9 * TUCK_Z, `${id} ends ${TUCK_Z} behind it (${b.z})`);
+    for (let u = 0; u <= 1; u += 0.05) assert.ok(c.getPointAt(u).z <= MAP_CENTRE.z + 0.1 * TUCK_Z && c.getPointAt(u).z >= b.z - 0.1 * TUCK_Z, `${id}: the sink eases in`);
+  }
+  assert.deepEqual([...TUCKED].sort(), ['A_HL', 'A_HR']);
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
     const { set } = setOf(scene); set.build();
-    for (const n of ['SIN_R', 'SIN_L']) assert.ok(set.nodes.includes(n), `${n} is a skin`);
-    assert.ok(!set.fellBack.includes('SIN_R') && !set.fellBack.includes('SIN_L'));
+    for (const n of ['SIN_R', 'SIN_L']) assert.ok(!set.nodes.includes(n), `${n} has no skin`);
+    assert.deepEqual(set.fellBack, [], 'a node the map does not find is no fall back of the build');
+    assert.deepEqual([...set.dropped].sort(), DROPPED);
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
@@ -229,7 +242,7 @@ test('the baked file: a round trip, the digest of the map\'s own rings, and a bu
     const live = setOf(scene); live.set.build();
     const made = live.set.bake();
     assert.ok(made.digest.startsWith('circuit/'), 'a Circuit file is never taken for the Anatomy\'s');
-    assert.equal(made.skins.length, 19);
+    assert.equal(made.skins.length, 17);
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;
     assert.ok(back && back.digest === made.digest);
     assert.equal(live.set.source, 'live');
