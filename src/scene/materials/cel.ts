@@ -21,6 +21,9 @@ export interface CelShared {
   vdataSize: { value: Vector2 };
   /** The device shadows' master amount, 0..1 (Settings > Figure depth > Device shadows, eased by the scene): every device's contact shadow multiplies by it. */
   shadow: { value: number };
+  /** The camera's rest eye (the shot's own yaw and pitch, no turn or tilt), in world space, and how far the eye is turned off it (0 at rest, 1 at the 25° turn limit): the ascites hull reads them. */
+  restEye: { value: Vector3 };
+  offRest: { value: number };
 }
 
 export function createShared(): CelShared {
@@ -35,6 +38,8 @@ export function createShared(): CelShared {
     vdata: { value: blank },
     vdataSize: { value: new Vector2(1, 1) },
     shadow: { value: 1 },
+    restEye: { value: new Vector3(0, 0, 1) },
+    offRest: { value: 0 },
   };
 }
 
