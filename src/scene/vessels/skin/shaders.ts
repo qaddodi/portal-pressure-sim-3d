@@ -92,6 +92,11 @@ uniform float hiPx;
 uniform vec4 armData[${SKIN_ARMS}];
 uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4 each, because a float array costs a whole vector a slot
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
+uniform vec4 armFade[${SKIN_ARMS}];   // per arm (a0, 1 / (a1 - a0), a2, a3): the tube's own fade by its length share u (arm-twins.ts uFadeOf), so the skin's alpha at each vertex is the tube's at that place along the arm and not its value at the seam; a2 < 0: none (the seam's value stands)
+uniform vec4 armArc[${SKIN_ARMS}];   // (as the fragment stage's) the arc at the seam, which way it grows toward the node, the vessel's length, its rest radius
+uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // (as the fragment stage's)
+varying vec4 vFadeA;     // each arm's fade at this vertex (arms 0 to 3), -1 where the arm has no u-fade: the seam's value stands
+varying vec2 vFadeB;
 varying vec3 vN;
 varying vec3 vV;
 varying float vW;        // the surface's clip depth
@@ -164,6 +169,19 @@ void main() {
   vRest = rst;
   vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
   vSwell2 = vec2(swT[4], swT[5]);
+  // EACH ARM'S FADE AT THIS VERTEX (the junction's seam far out on a fading vein washed the whole skin and drew its neighbour's fork branch as a ghost, 21 Nov): the tube's own fade rule at this vertex's arc along the arm, the arc the flow marks use. An arm whose seam is whole keeps -1: its seam value, as before
+  float fdA[${SKIN_ARMS}];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) {
+    fdA[i] = -1.0;
+    if (armData[i].x < 0.0 || armFade[i].z < 0.0) continue;
+    vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, toNode = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - seamP;
+    float tn = length(toNode);
+    if (tn < 1e-6) continue;
+    float uAt = clamp((armArc[i].x + armArc[i].y * dot(pos - seamP, toNode / tn) * SKIN_U) / max(armArc[i].z, 1e-6), 0.0, 1.0);
+    fdA[i] = mix(armFade[i].z, armFade[i].w, clamp((uAt - armFade[i].x) * armFade[i].y, 0.0, 1.0));
+  }
+  vFadeA = vec4(fdA[0], fdA[1], fdA[2], fdA[3]);
+  vFadeB = vec2(fdA[4], fdA[5]);
   vPos = pos;   // (the rest position NOW, the morph's: an absent growing arm's mesh is moved off the other arms, and every arc, lateral gate and union gradient the fragment stage reads from this must be taken where the pixel is drawn, not at the full-grown shape's vertex it was moved from)
   gl_Position = c;
 }`;
@@ -246,7 +264,11 @@ varying float vRest;
 varying vec4 vSwell;
 varying vec2 vSwell2;
 varying vec3 vPos;
+varying vec4 vFadeA;
+varying vec2 vFadeB;
 float wAt(int i) { return i < 4 ? vWeight[i] : vWeight2[i - 4]; }
+// an arm's alpha HERE: its tube's fade at this place along the arm (the vertex stage), or its value at the seam where the arm carries no u-fade (vFade < 0)
+float fadeOf(int i) { float v = i < 4 ? vFadeA[i] : vFadeB[i - 4]; return v >= 0.0 ? v : armAF[i].y; }
 float swAt(int i) { return i < 4 ? vSwell[i] : vSwell2[i - 4]; }
 ${LENS_OF_AT_GLSL}
 ${CHEVRON_GLSL}
@@ -394,11 +416,11 @@ void main() {
   // the map's skin comes in as the map POINT under it lands (the flow peel on its rank, from its place on the map), as the tubes' cut goes (vessels/shaders.ts keepC): the whole change's clock brought the heart end's skins in while its tubes were still on the way (floating bars, 21 Nov)
   float skinShare = skinPeelShare(vPos);
   float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, skinShare), skinCirc);
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(fadeOf(${i}), aTrunk, wRamp) : fadeOf(${i})) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
 #if SKIN_COPY == 2
   // THE COPIES SHARE ONE COVERAGE (a patch where the cava's lower edge meets the liver, Mohammad 21 Nov): at a junction of arms drawn over the organs (the front copy: the renal vein) and arms behind them (the veil copy: the cava) the weights split the pixel between the two copies, and
   // two alpha blends in turn cover 1 - (1 - a0)(1 - a2), less than a0 + a2: the organ showed through the vessel across the mixing zone. The veil is drawn after the front copy, so its alpha is what is left of the pixel once the front has taken its share (the shares add to the pixel's coverage).
-  float alphaFront = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * armCopy[${i}][0] * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
+  float alphaFront = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(fadeOf(${i}), aTrunk, wRamp) : fadeOf(${i})) * armCopy[${i}][0] * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
   alpha = min(1.0, alpha / max(1.0 - alphaFront, 1.0e-3));
 #endif   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
 #ifdef SKIN_DEBUG
