@@ -30,6 +30,11 @@ import {
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
 /** Segments round a red cell's lathe (sinusoid3d: 16, was 40). */
 export const RBC_SEG = 16;
+const q64 = (x: number): number => Math.round(x * 64);
+/** What the sinusoid's shapes are built from (everything but the stellate cell, basement and fibres' own scalar). */
+export const shapeKey = (S: { lum: number; pinch: number; col: number }, xk: unknown): string => `${q64(S.lum)}|${q64(S.pinch)}|${q64(S.col)}|${xk}`;
+/** What only the tail (stellate cell, basement membrane, collagen) is built from beyond the shapes: the activation. */
+export const tailKey = (S: { act: number }): string => `${q64(S.act)}`;
 export const REACH = 200;
 /** The traffic runs this far each way (µm): past the ends' blur, short of the scene's ends, so its density stays 2D's. */
 export const TRAFFIC_REACH = 150;
@@ -145,6 +150,7 @@ export class Sinusoid3D {
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
   private readonly haze = hazeUniforms();
   private builtKey = '';
+  private tailKey = '';
   private lookKey = '';
   /** The wall's per-vertex colour weights (see sinusoid-wall.ts) and the palette they were last painted from. */
   private shellW: Weights = newWeights();
@@ -290,8 +296,11 @@ export class Sinusoid3D {
     const P = f.pal.palette(dark) as unknown as Pal;
     const S = f.cur;
     const q = (x: number) => Math.round(x * 64);
-    const key = `${q(S.lum)}|${q(S.pinch)}|${q(S.col)}|${q(S.act)}|${q(S.mv)}|${q(S.bm)}|${f.geo.xk}`;
-    if (key !== this.builtKey) { this.builtKey = key; this.build(); }
+    // (only what the SHAPES read keys the rebuild: the lumen, its pinch, the collagen's Disse (disseW) and the pores' slots. The basement membrane's share (`bm`, its opacity, set below) and the microvilli's (`mv`, read in
+    //  colour()) are no geometry, so an ease of either no longer remeshes the whole scene 64 times; the stellate cell's activation redoes only the stellate cell, the basement and the collagen: buildTail. Review 21 Nov, the dive's stalls.)
+    const key = shapeKey(S, f.geo.xk);
+    if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.build(); }
+    else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
     const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}|${q(S.act)}`;
     if (lk !== this.lookKey) { this.lookKey = lk; this.colour(P, S.act); }
     this.stepPores(S.por);
@@ -536,6 +545,14 @@ export class Sinusoid3D {
     // the Kupffer cell (its arms move on the scene's life: stepLife)
     this.kupT = Number.NaN; this.stepLife(true);
 
+    this.buildTail();
+  }
+
+  /** The parts that follow the stellate cell's activation and the collagen: the stellate cells, the basement membrane and the fibres in Disse (built after the shapes they lie on). */
+  private buildTail(): void {
+    const g = this.flat.g, geo = this.flat.geo, S = this.flat.cur;
+    const xs: number[] = [];
+    for (let x = -REACH; x <= REACH + 1e-6; x += 1) xs.push(x);
     // the stellate cell: a spindle in the upper Disse at xs, long processes along it; it grows as it activates
     {
       const b = new MeshBuilder(), bn = new MeshBuilder();
