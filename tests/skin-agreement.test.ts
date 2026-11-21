@@ -163,21 +163,29 @@ const RES = 1000, DPR = 1;
 /** The skin fragment stage's rule (skin/shaders.ts skinPx, skinArmPx, skinSmin, skinSdPx) in JS, on a perspective camera at the fit. */
 function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number, kM: number) {
   cam.updateMatrixWorld(); cam.updateProjectionMatrix();
-  const project = (p: readonly number[], R: number): [number, number, number] => {
+  const wpc = (w: number): number => (w * 2) / (RES * cam.projectionMatrix.elements[5]!);
+  /** x, y, the radius, and the view depth w, all in px as the shader's skinPx has them. */
+  const project = (p: readonly number[], R: number): [number, number, number, number] => {
     const q = new Vector4(p[0]!, p[1]!, p[2]!, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix);
-    return [(q.x / q.w * 0.5 + 0.5) * RES * DPR, (q.y / q.w * 0.5 + 0.5) * RES * DPR, R * swell / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR];
+    return [(q.x / q.w * 0.5 + 0.5) * RES * DPR, (q.y / q.w * 0.5 + 0.5) * RES * DPR, R * swell / wpc(q.w) * DPR, q.w];
   };
-  const armPx = (frag: readonly number[], ax: ArmAxis): number => {
+  const smooth = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // skinArmPx: the distance to the arm's capsule, and (fragW >= 0) the depth rule: an arm whose surface at its nearest point is out of the pixel's depth is held out of the blend
+  const armPx = (frag: readonly number[], ax: ArmAxis, fragW = -1, kPx = 0): number => {
     const a = project(ax.pts[0], ax.radii[0]), b = project(ax.pts[1], ax.radii[1]), c = project(ax.pts[2], ax.radii[2]), d = project(ax.pts[3], ax.radii[3]);
-    const seg = (p: number[], q: number[]): number => {
+    const seg = (p: number[], q: number[]): { d: number; w: number; r: number } => {
       const abx = q[0]! - p[0]!, aby = q[1]! - p[1]!, t = Math.min(1, Math.max(0, ((frag[0]! - p[0]!) * abx + (frag[1]! - p[1]!) * aby) / Math.max(abx * abx + aby * aby, 1e-6)));
-      return Math.hypot(frag[0]! - p[0]! - abx * t, frag[1]! - p[1]! - aby * t) - (p[2]! + t * (q[2]! - p[2]!));
+      const r = p[2]! + t * (q[2]! - p[2]!);
+      return { d: Math.hypot(frag[0]! - p[0]! - abx * t, frag[1]! - p[1]! - aby * t) - r, w: p[3]! + t * (q[3]! - p[3]!), r };
     };
-    return Math.min(seg(a, b), seg(b, c), seg(c, d));
+    const best = [seg(a, b), seg(b, c), seg(c, d)].reduce((m, x) => (x.d < m.d ? x : m));
+    if (fragW < 0) return best.d;
+    const gap = Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * DPR - best.r;
+    return best.d + 2 * kPx * smooth(0.25 * kPx, kPx, gap);
   };
   const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
   const kPx = (centre: readonly number[]): number => { const q = new Vector4(centre[0]!, centre[1]!, centre[2]!, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix); return kM / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR; };
-  return { project, armPx, sdPx: (frag: readonly number[], centre: readonly number[]): number => { let d = 0; axes.forEach((ax, i) => { const di = armPx(frag, ax); d = i === 0 ? di : smin(d, di, kPx(centre)); }); return d; } };
+  return { project, armPx, sdPx: (frag: readonly number[], centre: readonly number[], fragW = -1): number => { let d = 0; const k = kPx(centre); axes.forEach((ax, i) => { const di = armPx(frag, ax, fragW, k); d = i === 0 ? di : smin(d, di, k); }); return d; } };
 }
 
 test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tube\'s own lateral distance minus its radius (within a quarter pixel), so the line runs on with no kink', () => {
@@ -190,7 +198,6 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
       mesh.junction.arms.forEach((arm, ai) => {
         if (isBraid(NETWORK_BY_ID.get(arm.vesselId)!)) return;
         // (a growing arm on a WALL skin leaves the host's wall, so from the front it always overlaps the host's silhouette and the screen-space blend pulls its outline in: measured -3.3 px at S_PC of wall:IVC_IS_1:S_PC1,C90 whatever ring the seam is on. A three-arm node's seams are moved out of the overlap instead (skin-set.ts clearOfAxes), so IVC_D's DIPS is judged)
-        if (arm.grow && mesh.junction.arms.some((a) => a.side)) return;
         const tb = tubeOf(arm.vesselId), cut = mesh.cuts[ai]!;
         // the three axis points the shader draws from: the tube's own ring centres, as the set builds them
         const sided = mesh.junction.arms.some((a) => !!a.side);
@@ -204,8 +211,8 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
         for (const k of [0, 0.5, 1]) for (const sgn of [-1, 1]) {
           const off = sgn * k * s1[2], frag = [s1[0] - hy * off, s1[1] + hx * off];
           const want = Math.abs(off) - s1[2];
-          if (process.env.SKIN_DEBUG) console.log(mesh.junction.node, arm.vesselId, k, sgn, (tw.sdPx(frag, seam) - want).toFixed(3), 'R px', s1[2].toFixed(2));
-          assert.ok(Math.abs(tw.sdPx(frag, seam) - want) <= 0.25, `${mesh.junction.node} ${arm.vesselId}: skin ${tw.sdPx(frag, seam).toFixed(3)} px vs tube ${want.toFixed(3)} px (offset ${k} R)`);
+          if (process.env.SKIN_DEBUG) console.log(mesh.junction.node, arm.vesselId, k, sgn, (tw.sdPx(frag, seam, s1[3]) - want).toFixed(3), 'R px', s1[2].toFixed(2));
+          assert.ok(Math.abs(tw.sdPx(frag, seam, s1[3]) - want) <= 0.25, `${mesh.junction.node} ${arm.vesselId}: skin ${tw.sdPx(frag, seam, s1[3]).toFixed(3)} px vs tube ${want.toFixed(3)} px (offset ${k} R)`);
           n++;
         }
         void tb; void cut;

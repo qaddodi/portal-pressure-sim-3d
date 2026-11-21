@@ -305,15 +305,6 @@ export class SkinSet {
       if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
       for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
-    // the same clearance in the figure's own view: the outline is a screen-space field (skin/shaders.ts skinPx), and the body is seen from the front, along z. An arm that leaves its node toward the viewer (the DIPS stent: 0.04 in z against 0.05 across) is 0.026 clear of the cava in 3D
-    // yet its silhouette lies 0.003 from the cava's, inside the blend: the skin's outline ran 3 px inside the tube's own at the seam (IVC_D, tests/skin-agreement.test.ts). So a seam must clear the others' flattened capsules by k too, where it can (a node whose arms all lie across the view clears at once).
-    // (only a three-arm node: on the four-arm nodes (IVCI, SMV) the same rule moves seams, which crowds the wall skins beside them (wall:IVC_IS_1:S_PC1,C90 lost its two growers to it); there the front-view kink stays, a known gap. A wall skin's arms always overlap the host in projection.)
-    if (j.arms.length > 3 || j.arms.some((a) => a.side)) return -1;
-    const flat = caps.map((c) => ({ ...c, pts: Float64Array.from(c.pts, (x, q) => (q % 3 === 2 ? 0 : x)) }));
-    for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
-      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
-      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(flat[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, 0) < k) return i;
-    }
     return -1;
   }
 
