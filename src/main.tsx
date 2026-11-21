@@ -28,7 +28,7 @@ import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
 import { isFrameRequest } from './ui/debug/frame/request.ts';
-import { flagOn, flagValue, debugPage, inspectRequested } from './ui/debug/flags.ts';
+import { flagOn, flagValue, debugPage, inspectRequested, auditPage } from './ui/debug/flags.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's applier is Stage's)
@@ -57,6 +57,12 @@ async function start() {
   if (isPreview() && isFrameRequest(location.search)) {
     const { bootFrame } = await import('./ui/debug/frame/frame.ts');
     bootFrame();
+    return;
+  }
+  // ?audit on a Mac (the preview copy and a local run only): the self-test's outer page, which holds the app in sized frames one after the other. It starts no app itself.
+  if (isPreview() && auditPage(undefined, matchMedia('(pointer: fine)').matches) === 'frames') {
+    const { bootOuter } = await import('./ui/debug/audit/outer.ts');
+    bootOuter();
     return;
   }
   // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.

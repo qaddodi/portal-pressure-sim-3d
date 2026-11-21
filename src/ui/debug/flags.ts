@@ -18,6 +18,9 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'gallery', group: 'Pages', gate: 'local', alias: 'debug', meaning: 'The old spelling of ?debug (?gallery&sweep=... runs the Sweep; the sweeps still open it so).' },
   { id: 'check', group: 'Pages', gate: 'local', alias: 'debug=check', meaning: 'The old spelling of ?debug=check, the Phone check (?check=full for the long walk).' },
   { id: 'sweep', group: 'Pages', gate: 'local', meaning: 'The debug page: run the Sweep over these specimens (a list, or affected).' },
+  { id: 'audit', group: 'Pages', gate: 'local', meaning: "The self-test (src/ui/debug/audit): walks every view, sheet, patient and every slide of every talk by itself, measures layout spill and covered text, load times, fade lengths (snaps), frames a second, hitches and console errors, and ends in one report with Copy. Bare ?audit on a Mac runs the app in iPhone, iPad and Mac frames one after the other; ?audit=here runs this screen only (do this on the iPhone and iPad). No AI, nothing sent anywhere." },
+  { id: 'sizes', group: 'Pages', gate: 'local', meaning: 'The self-test frames: which sizes (comma list of device ids: iphone, ipad-portrait, ipad, mac, mac-short, iphone-landscape).' },
+  { id: 'depth', group: 'Pages', gate: 'local', meaning: 'The self-test: depth=quick walks the views, three slides of every talk and the collateral patients; depth=full (the default) walks everything.' },
   { id: 'look', group: 'Pages', gate: 'local', meaning: 'The Mac look board (bare ?look; ?look&twod adds the 2D app beside each row): walks about 40 fixed states (patient, view, look, device) in one frame, reads the figure canvas in the frame that draws it, shows it beside the saved baseline and the difference (src/debug/look-board.ts, look/README.md).' },
   { id: 'twod', group: 'Pages', gate: 'local', meaning: 'The look board: a button per row opens the 2D app\'s preview of the same patient in the row.' },
   { id: 'capture', group: 'Open', gate: 'local', meaning: 'One look-board state (the look board\'s own frame opens it): ?capture&look=dark&preset=cirr-decomp&view=circuit&chevrons=0&orbit=25 applies it in memory (nothing saved) and window.__look hands out the canvas (src/debug/look-app.ts).' },
@@ -80,6 +83,15 @@ export function debugPage(at?: At): 'gallery' | 'check' | 'full' | 'frame' | nul
   if (d === 'frame' || g === 'frame') return 'frame';
   if (d !== null || g !== null) return 'gallery';
   return null;
+}
+
+/** Which self-test the address asks for: 'frames' (the outer page that holds the app in sized frames, one after the other), 'here' (this screen only), 'run' (the app inside a frame, which starts at once and reports to its parent), or null.
+ *  A bare ?audit is the frames page where a mouse is the pointer (a Mac) and 'here' on a touch screen (an iPhone or iPad runs its own size, never a frame of another). */
+export function auditPage(at?: At, fine = false): 'frames' | 'here' | 'run' | null {
+  const v = flagValue('audit', at);
+  if (v === null) return null;
+  if (v === 'run' || v === 'here' || v === 'frames') return v;
+  return fine ? 'frames' : 'here';
 }
 
 /** The rest of an address's query once these flags are taken out, in its order (the device frame keeps everything but `debug`, `gallery` and `device`, so the page inside it opens as the address asked). */
