@@ -30,13 +30,14 @@ const GROWERS: Record<string, readonly string[]> = {
 };
 /** The collaterals drawn as BRAIDS of strands (plan.strands): no tube of their own, three or six strands that part from the node and each end at the trunk's width, so at the node they are a bundle of identical overlapping tubes, not a branch. The ends where the strands leave the node as ONE bundle are arms of its skin (braid-arm.ts); the others keep today's fork method (tests/skin-strands.test.ts names both). */
 const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
-/** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: PVH's DIPS lies 12 degrees from PVH_R, SVD's S_DSR and LRV_S's S_DSR run along C6). */
+/** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: SVD's S_DSR and LRV_S's S_DSR run along C6). */
+// (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside GROW_REACH (2.4), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS is welded too: it lies 12 degrees from PVH_R, so no ring of that short stub clears its blend, and the arms that stay are judged without it (cuts.ts growAlong).)
 // (RHV_T:TIPS: the hepatic vein's run-on RHV_T lies on the piece RHV_IVC that the cava's IVCS skin takes 15 of 20 rings of, so the two skins crowd; they cannot merge (the hull refuses the seven rings), and the cava's weld is the one kept (Mohammad, 20 Nov: "did you weld the hepatic veins into the IVC?"). TIPS keeps the fork method at that end.)
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
-// (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as PVH's DIPS and the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
+// (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
-const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS',
-  'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:S_PC1,C90:C9', 'wall:IVC_IS_1:S_PC1,C90:S_PC', 'wall:PVH_L_1:REX1:REX'];
+const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'LRV_S:S_DSR', 'RHV_T:TIPS',
+  'wall:IVC_IS_1:S_PC1,C90:C9', 'wall:IVC_IS_1:S_PC1,C90:S_PC', 'wall:PVH_L_1:REX1:REX'];
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
@@ -119,7 +120,9 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1'];
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
-    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
+    assert.deepEqual(grown.get('IVC_D'), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');
+    assert.deepEqual(grown.get('PVH'), ['DIPS:0'], 'PVH: DIPS is a static full-size growing arm of its node, welded though it runs 12 degrees from PVH_R');
+    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
   } finally { done(b); }
 });
 

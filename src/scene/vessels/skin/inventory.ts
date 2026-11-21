@@ -208,7 +208,7 @@ export function liverBranchJunctions(network: readonly NetVessel[] = NETWORK, st
 
 /** How far (in radii of the widest arm) a growing arm's end may lie from J (the bridge of spec 10.5 spans it with the arm's own width): a shunt or a collateral that lands a few radii down a host's side is not at the node but on the wall, the side-wall arms of spec 10.1.
  *  Measured on the network (20 Nov): the ends at their nodes lie within 2.0 radii (the gastrorenal collateral C5 at the left renal vein, 2.0, is the farthest that builds), the landings on a wall from 2.3 (DIPS on the cava) to 8.9. */
-export const GROW_REACH = 2.2;
+export const GROW_REACH = 2.4;
 /** The junction without the growing arms that end farther than `GROW_REACH` radii from J (a side-wall landing, spec 10.1: left to the side-wall arms), and which they were. The permanent arms decide whether the NODE is a junction (`nodesBeyondReach`); a far collateral or shunt is
  *  only left out of it, and keeps today's fork method. */
 export function dropFarGrowers(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): { junction: SkinJunction; far: string[]; farArms: SkinArm[] } {
