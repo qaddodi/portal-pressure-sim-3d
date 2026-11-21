@@ -40,7 +40,10 @@ export function centrelineOf(id: string, state: ShapeState = REST): Centreline |
       let best = 0, bd = Infinity;
       const n = 200;
       for (let i = 0; i <= n; i++) { curve.getPointAt(i / n, P); const d = (P.x - p[0]) ** 2 + (P.y - p[1]) ** 2 + (P.z - p[2]) ** 2; if (d < bd) { bd = d; best = i / n; } }
-      return best;
+      // (refined between the two samples either side of the best, so the answer is good to a thousandth of a sample)
+      let lo = Math.max(0, best - 1 / n), hi = Math.min(1, best + 1 / n), bu = best;
+      for (let k = 0; k <= 24; k++) { const u = lo + ((hi - lo) * k) / 24; curve.getPointAt(u, P); const d = (P.x - p[0]) ** 2 + (P.y - p[1]) ** 2 + (P.z - p[2]) ** 2; if (d < bd) { bd = d; bu = u; } }
+      return bu;
     },
   };
 }
