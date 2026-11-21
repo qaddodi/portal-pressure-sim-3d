@@ -19,6 +19,8 @@ export interface CelShared {
   light: { value: Vector3 };
   vdata: { value: Texture };
   vdataSize: { value: Vector2 };
+  /** The device shadows' master amount, 0..1 (Settings > Figure depth > Device shadows, eased by the scene): every device's contact shadow multiplies by it. */
+  shadow: { value: number };
 }
 
 export function createShared(): CelShared {
@@ -32,6 +34,7 @@ export function createShared(): CelShared {
     light: { value: new Vector3(...CEL_LIGHT_UNIT) },
     vdata: { value: blank },
     vdataSize: { value: new Vector2(1, 1) },
+    shadow: { value: 1 },
   };
 }
 

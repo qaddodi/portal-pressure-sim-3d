@@ -8,6 +8,7 @@ import { PALETTES, type LookId, type Palette } from '../palette.ts';
 import { LOOKS } from '../../looks/looks.ts';
 import { DEVICE_TOKENS, type DeviceTokens } from '../procedures/copied/device-tokens.copied.ts';
 import { resolveEdge, type EdgeRule } from './edges.ts';
+import { ContactShadow, TAIL_GLSL } from './contact-shadow.ts';
 
 export type DeviceTone = 'collar' | 'poly' | 'steel' | 'platinum' | 'latex' | 'nylon' | 'graft' | 'gold' | 'stentWire' | 'stentGlint' | 'glue' | 'ptfe' | 'thread' | 'marker'
   | 'trWedge' | 'trPv' | 'trIvc' | 'trScler' | 'monFree' | 'monWedge' | 'monAlarm'
@@ -22,8 +23,6 @@ const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find
 export const FAT_PX = 1.0;
 /** How much of a device's free end fades out as a gradient, figure units (the scope's top, the catheter's lead-in above the figure: never a cut). */
 export const TAIL_UNITS = 110;
-// (`holeU`: a stretch of the device that is left clear, x..y in uv.x, z how much of it is gone (0..1), w how softly its ends ramp: the shaft inside a balloon, so the glass reads as glass. A gradient at both ends, never a cut.)
-const TAIL_GLSL = 'uniform float tailFade;\nuniform vec4 holeU;\nfloat tailK(float u) { float t = tailFade > 0.0 ? smoothstep(0.0, tailFade, u) : 1.0; if (holeU.z > 0.0) { float w = max(holeU.w, 1e-5); t *= 1.0 - holeU.z * smoothstep(holeU.x - w, holeU.x, u) * (1.0 - smoothstep(holeU.y, holeU.y + w, u)); } return t; }\n';
 const FAT_TOON = `vec4 gp = projectionMatrix * mv;
   vec2 fatN = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float fatL = length(fatN);
@@ -41,13 +40,16 @@ export function withAlpha(src: string, from: string, to: string): string {
 }
 
 /** `fat`: device px the part grows by on each side (FAT_PX when left out; negative shrinks the fill, so an outline can sit half inside it as 2D's strokes do). */
-export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number; tubeTones?: boolean; fat?: number }
+/** `shadow`: the tube's radius (scene units) when the part casts a soft contact shadow (devices/contact-shadow.ts); left out, none. */
+export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number; tubeTones?: boolean; fat?: number; shadow?: number }
 
 export class DeviceObject extends CelObject {
   deviceTone: DeviceTone;
   private palette: Palette | null = null;
   /** The edge the device wears: the rule 2D gives that part (--dev-poly-edge on the catheter, the scope's soft hairline, the Doppler head's ink line; 'none' draws no outline; 'ink' the look's own). */
   private edgeRule: EdgeRule;
+  /** The soft shadow the part casts on what is beneath it (tubes only; null on a part that casts none). */
+  readonly shadow: ContactShadow | null;
 
   constructor(geometry: BufferGeometry, deviceTone: DeviceTone, shared: CelShared, o: DeviceOptions = {}, edge: EdgeRule = 'ink') {
     super(geometry, { tone: 'cath', bands: o.bands ?? 2, spec: o.spec ?? 1, px: o.px ?? 0.9, tubeTones: o.tubeTones ?? geometry.userData.ringTube === true }, shared);
@@ -110,7 +112,15 @@ export class DeviceObject extends CelObject {
     // (A device draws with no depth test, so its draw order IS its picture: the ink (the back faces, grown a hairline) first and the fill over it. Left at one shared order, three sorts equal ones by material, the fill's
     //  made first, so the ink hull was drawn last and covered the whole device in its dark outline colour: a near-black catheter, probe and scope on a dark ground. Two orders a device: ink 2n, fill 2n + 1.)
     this.group.traverse((c) => { c.renderOrder = DEVICE_RENDER_ORDER + 2 * (o.order ?? 0) + (c === this.toonMesh ? 1 : 0); c.frustumCulled = false; });
+    // the contact shadow: this tube once more, under every device (one order below the first), sharing the tail fade, hole, reveal and dissolve
+    this.shadow = o.shadow && o.shadow > 0 ? new ContactShadow(geometry, shared, o.shadow, DEVICE_RENDER_ORDER - 1, { tailFade: this.toon.uniforms.tailFade!, holeU: this.toon.uniforms.holeU!, reveal: this.toon.uniforms.reveal!, fade: this.toon.uniforms.fade! }) : null;
+    if (this.shadow) this.group.add(this.shadow.mesh);
   }
+
+  /** The tube's radius (scene units) the shadow is cut to, when it changes (a stent's graft is rebuilt at the vein's width). */
+  setShadowRadius(r: number): void { this.shadow?.setRadius(r); }
+  /** The shadow's own alpha, when it is not the device's (a clear graft casts the shadow of a whole sleeve). */
+  setShadowAlpha(a: number): void { this.shadow?.setAlpha(Math.min(1, Math.max(0, a))); }
 
   /** The first `share` (0..1) of the device's length, from its start, fades in from nothing as a gradient: a free end that has no tip to end on. 0 for none. */
   setTailFade(share: number): void { const v = Math.min(1, Math.max(0, share)); this.toon.uniforms.tailFade!.value = v; this.ink.uniforms.tailFade!.value = v; }
@@ -124,6 +134,7 @@ export class DeviceObject extends CelObject {
   override applyPalette(p: Palette): void {
     this.palette = p;
     const look = lookOf(p), t = DEVICE_TOKENS[look];
+    this.shadow?.paint(look, LOOKS[look].scheme === 'dark');
     const base = rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : t[TOKEN_OF[this.deviceTone]]);
     const edge = resolveEdge(this.edgeRule, { t, look, ink: p.ink });
     const ink = rawColor(edge.hex);
@@ -151,6 +162,7 @@ export class DeviceObject extends CelObject {
   setAlphas(fill: number, ink: number): void {
     const f = Math.min(1, Math.max(0, fill)), k = Math.min(1, Math.max(0, ink));
     this.toon.uniforms.alpha!.value = f; this.ink.uniforms.alpha!.value = k;
+    this.shadow?.setAlpha(Math.max(f, k));
     this.group.visible = Math.max(f, k) > 0.002;
   }
 
@@ -158,6 +170,9 @@ export class DeviceObject extends CelObject {
   setAlpha(a: number): void {
     const v = Math.min(1, Math.max(0, a));
     this.toon.uniforms.alpha!.value = v; this.ink.uniforms.alpha!.value = v;
+    this.shadow?.setAlpha(v);
     this.group.visible = v > 0.002;
   }
+
+  override dispose(): void { super.dispose(); this.shadow?.dispose(); }
 }
