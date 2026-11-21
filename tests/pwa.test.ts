@@ -183,7 +183,7 @@ test('the Lobule\'s baked weld plan, its planner worker and the fonts\' other al
     'index.css': '', 'fonts/fonts.css': '@font-face{src:url(inter-latin.woff2)} @font-face{src:url(inter-latin-ext.woff2)} @font-face{src:url(inter-greek.woff2)}',
   };
   built['index.html'] += '<link rel="stylesheet" href="./fonts/fonts.css">';
-  const { boot, later } = orderFiles(Object.keys(built).sort(), (f) => built[f] ?? '');
+  const { boot, later } = orderFiles(Object.keys(built).sort(), (f: string) => built[f] ?? '');
   for (const f of ['lobule/welds.bin', 'assets/weld-worker-Ww.js', 'fonts/inter-latin-ext.woff2', 'fonts/inter-greek.woff2', 'fonts/source-serif-4-latin-ext.woff2']) {
     assert.ok(!boot.includes(f), `${f} must not be held at install`);
     assert.ok(later.includes(f), `${f} is filled when quiet`);
