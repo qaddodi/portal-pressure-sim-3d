@@ -27,12 +27,12 @@ export const shownState = createShownState({ ask, cancel } as never) as unknown 
 let live: ReadoutsLive | null = null;
 export function liveReadouts(): ReadoutsLive {
   if (live) return live;
-  const l = new ReadoutsLive({ shown: shownState, reduce: () => reduceMotionMQ.matches, later: (fn, ms) => setTimeout(fn, ms), unlater: (h) => clearTimeout(h as ReturnType<typeof setTimeout>) });
+  const l = new ReadoutsLive({ shown: shownState, reduce: () => reduceMotionMQ.matches, later: (fn, ms) => clock.after(fn, ms), unlater: (h) => clock.cancel(h as number) });
   shownState.on(() => l.follow());
   return (live = l);
 }
 
-const ctxNow = () => ({ running: useShell.getState().transport.running, hidden: hiddenNow(), then: (useCompare.getState().snap?.metrics ?? null) as never, params: patient.params, now: performance.now() });
+const ctxNow = () => ({ running: useShell.getState().transport.running, hidden: hiddenNow(), then: (useCompare.getState().snap?.metrics ?? null) as never, params: patient.params, now: clock.now() });
 
 /** The pane is on screen: feed the tiles every model frame, and again when what they depend on changes with no frame to say so. Returns the unbind. */
 export function bindReadouts(): () => void {

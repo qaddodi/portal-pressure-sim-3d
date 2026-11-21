@@ -145,7 +145,7 @@ export function LobuleCaptions() {
       return out;
     };
     const tick = () => {
-      const now = performance.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
+      const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
       const on = cel.view === 'lobule' && cel.lobule.group.visible;
       // (four corners of a square on the plate: the dots ride the plate's own perspective, exact under a tilt, ride.ts)

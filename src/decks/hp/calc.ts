@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { chainOf, sequencer, type Fp, type StepResult } from './numbers.ts';
 import type { CopiedDeck } from './types.ts';
 
+import { clock } from '../../clock/frame.ts';
 interface Calc { post(msg: unknown): void; subscribe(cb: (m: never) => void): void; dispose(): void }
 
 let calc: Calc | null = null;
@@ -50,7 +51,7 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
       useStates.setState((s) => ({ failed: { ...s.failed, [deck.id]: String((e as Error).message) } }));
       started.delete(deck.id);
       const n = retries.get(deck.id) ?? 0;
-      if (n < 2) { retries.set(deck.id, n + 1); setTimeout(() => void ensureStates(deck), 1500 * (n + 1)); }
+      if (n < 2) { retries.set(deck.id, n + 1); clock.after(() => void ensureStates(deck), 1500 * (n + 1)); }
     }
   });
   return queue;

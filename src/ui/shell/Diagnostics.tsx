@@ -15,14 +15,14 @@ export function Diagnostics() {
   const last = useRef({ n: 0, t: 0 });
   useEffect(() => {
     if (!fps && !breakdown) return;
-    last.current = { n: clock.stats().framesDrawn, t: performance.now() };
-    const id = setInterval(() => {
-      const n = clock.stats().framesDrawn, t = performance.now();
+    last.current = { n: clock.stats().framesDrawn, t: clock.now() };
+    const id = clock.every(() => {
+      const n = clock.stats().framesDrawn, t = clock.now();
       setRate(Math.round(((n - last.current.n) * 1000) / Math.max(1, t - last.current.t)));
       last.current = { n, t };
       if (breakdown) setText(report());
     }, 500);
-    return () => clearInterval(id);
+    return () => clock.cancel(id);
   }, [fps, breakdown]);
   return (
     <>

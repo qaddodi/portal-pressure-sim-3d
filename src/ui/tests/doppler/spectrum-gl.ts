@@ -14,6 +14,7 @@ import { SYNTH_FS } from '../copied/doppler-synth.copied.js';
 import { DISPLAY_FS } from './copied/doppler-gl.copied.js';
 import { MAP } from './copied/doppler-colours.copied.js';
 
+import { clock } from '../../../clock/frame.ts';
 /** The vertex stage: one quad over the trace's rectangle. */
 export const SPECTRUM_VS = `#version 300 es
 in vec2 q;
@@ -71,7 +72,7 @@ function build(gl: WebGL2RenderingContext, gen: number): Built {
  * The picture under the chart's shapes: the trace of the frame `read()` gives (null: draws nothing). `onFail` is called once if the program cannot be made
  * (the model then draws the spectrum from shapes again). `now` is the wall clock in ms (the noise floor takes a new view of its texture about ten times a second, as 2D's).
  */
-export function spectrumUnder(read: () => SpectrumDraw | null, onFail: () => void, now: () => number = () => performance.now()): Under {
+export function spectrumUnder(read: () => SpectrumDraw | null, onFail: () => void, now: () => number = () => clock.now()): Under {
   let st: Built | null = null, failed = false, noiseAt = -Infinity, nx = 0, ny = 0;
   return (gl, pw, ph, gen) => {
     const d = read();

@@ -10,6 +10,7 @@ import { applyExtras, applyFromAddress } from './apply.ts';
 import { attach, pps } from '../pps.ts';
 import { useShell } from '../../shell/store.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export function installPacketTrigger(win: Window = window, doc: Document = document): Record<string, unknown> | null {
   if (pps(win as never).packet) return null;
   const say = (t: string) => useShell.getState().say(t);
@@ -27,7 +28,7 @@ export function installPacketTrigger(win: Window = window, doc: Document = docum
     longPress(badge, open);
     return true;
   };
-  if (!hook()) { const t = setInterval(() => { if (hook()) clearInterval(t); }, 500); setTimeout(() => clearInterval(t), 20000); }
+  if (!hook()) { const t = clock.every(() => { if (hook()) clock.cancel(t); }, 500); clock.after(() => clock.cancel(t), 20000); }
   const skipped = applyFromAddress(win.location.hash);
   if (skipped?.length) console.warn('[packet] not applied:', skipped.join('; '));
   return api;

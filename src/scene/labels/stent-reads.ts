@@ -10,6 +10,7 @@ import { useProbes } from '../devices/probes/state.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { GeoFacts, PointRead, StentId, StentPoint, StentView } from './stent-labels.ts';
 
+import { clock } from '../../clock/frame.ts';
 type Edge = { id: string };
 const EI = new Map((EDGES as Edge[]).map((e, i) => [e.id, i]));
 const PI: Record<StentPoint, number> = { proximal: 0, mid: 1, distal: 2 };
@@ -43,7 +44,7 @@ export function pointVelocity(params: unknown, sid: StentId, pt: StentPoint, ope
 }
 
 /** The label layer's view of the stents. `look` is the figure's look now (the velocity colours follow it). */
-export function stentReads(look: () => LookId, now: () => number = () => performance.now()): StentView {
+export function stentReads(look: () => LookId, now: () => number = () => clock.now()): StentView {
   const calm = new Map<string, number>();
   const beats = new BeatMean();
   const frame = () => latest.frame as unknown as { D: ArrayLike<number>; Q: ArrayLike<number>; Qf?: ArrayLike<number>; Pf?: ArrayLike<number>; P: ArrayLike<number> } | null;

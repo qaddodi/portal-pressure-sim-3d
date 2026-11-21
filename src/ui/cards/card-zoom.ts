@@ -7,7 +7,7 @@
 // transform and the height glide, which stay untouched). The tap, Esc, a slide change and a resize put it back.
 
 import { useSyncExternalStore } from 'react';
-import { clock as theClock, type Clock, type FrameInfo, type Hold } from '../../clock/frame.ts';
+import { clock as theClock, type Clock, type FrameInfo, type Hold, clock } from '../../clock/frame.ts';
 import { easeArrive } from '../../clock/tween.ts';
 
 export const ZOOM_MAX = 2.2, ZOOM_MIN = 1.2, ZOOM_MS = 520, SHUT_MS = 440;
@@ -110,7 +110,7 @@ export function createCardZoom(clock: Clock = theClock) {
       s.veil?.classList.remove('on');
       if (o.instant || o.reduce) { end(); return Promise.resolve(); }
       const ms = reverseMs(SHUT_MS, s.cur.s, s.plan.s);
-      s.closing = Promise.race([drive({ dx: 0, dy: 0, s: 1 }, ms), new Promise<void>((r) => setTimeout(r, ms + 200))]).then(() => { if (st === s) end(); });
+      s.closing = Promise.race([drive({ dx: 0, dy: 0, s: 1 }, ms), new Promise<void>((r) => clock.after(r, ms + 200))]).then(() => { if (st === s) end(); });
       return s.closing;
     },
     /** Everything put back at once (a slide or a resize comes first). */

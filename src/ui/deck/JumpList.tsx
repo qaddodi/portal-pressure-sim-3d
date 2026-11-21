@@ -7,6 +7,7 @@ import { W } from './words.ts';
 import { Icon } from '../shell/icons.tsx';
 import { viewsOf, jumpGroups } from './presenter-link.ts';
 
+import { clock } from '../../clock/frame.ts';
 export function JumpList() {
   const deck = useUi((s) => s.deck), open = useUi((s) => s.jump), at = useUi((s) => s.pos.stop);
   const ref = useRef<HTMLElement>(null);
@@ -25,8 +26,8 @@ export function JumpList() {
   const [shown, setShown] = useState(open);
   useEffect(() => {
     if (open) { setShown(true); return; }
-    const t = setTimeout(() => setShown(false), 220);
-    return () => clearTimeout(t);
+    const t = clock.after(() => setShown(false), 220);
+    return () => clock.cancel(t);
   }, [open]);
   if (!deck) return null;
   const views = viewsOf(deck);

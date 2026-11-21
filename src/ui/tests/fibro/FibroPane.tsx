@@ -140,7 +140,7 @@ export function FibroPane({ plot, slide = false, bar = true, platelets = false }
         <div className="chart-box fibroscan-box" data-organ={organ} style={host.box(h0)}>
           <Cv at={cv.ref}>
             <Chart tag={TAG} deps={[organ, h]} label={label} painter={painter}
-              build={(c) => { ctxRef.current = c; painter.current?.setUnder(under); return paint(c, performance.now(), !!latest.frame?.running).frame; }} />
+              build={(c) => { ctxRef.current = c; painter.current?.setUnder(under); return paint(c, clock.now(), !!latest.frame?.running).frame; }} />
           </Cv>
         </div>
         {!isSlide && (

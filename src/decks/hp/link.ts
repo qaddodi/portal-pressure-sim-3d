@@ -16,6 +16,7 @@ import { pushShotOf } from './lapse-cam.ts';
 import { freshPatient, morphMsFor } from './slide-motion.ts';
 import { dipIn, dipOut } from '../../ui/shell/figure-dip.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** How long the figure takes to ease to the next slide's state when the patient stays (ms; slide-motion.ts: 2D's MORPH_ONE_MS). */
 export const MORPH_MS = 1200;
 
@@ -43,7 +44,7 @@ export function linkStates(deck: Deck): () => void {
   useUi.setState({ readings: {} });
   void ensureStates(copied);
   let morphed: unknown = null, shownOnce = false;   // (shownOnce: a state has been put on the figure: the first slide's patient is in before the talk is seen, never dipped in)
-  const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const wait = (ms: number) => new Promise<void>((r) => clock.after(r, ms));
   // where the talk came from (2D lastAt): a slide reached by Back or a jump back does not play its days (2D `back`), it shows where they ended
   let lastStop = -1, from = -1;
   // the stop whose time-lapse moved the camera (its push, or its end framing): the camera is brought to the next slide's own framing as it is left, whatever that slide asks of the scene

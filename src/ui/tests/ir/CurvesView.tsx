@@ -13,6 +13,7 @@ import { liveParams, paramsId, ringFp, sweepKey } from './curves-model.ts';
 import type { StentId } from './store.ts';
 import { useCv } from '../Cv.tsx';
 
+import { clock } from '../../../clock/frame.ts';
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const NOTE = `Solid: the stent in this patient, each point settled. Dashed: the same shunt on a bench (the stent with its tract into the veins), with a fixed ${BENCH_DP} mmHg from its portal end to its hepatic end and no circulation to answer. The lines are worked out for the patient as they stand when this view opens, and again when the patient, the stent or the day changes; the dashed line stands at the stent as it is now, and moves as you edit it.`;
 
@@ -36,7 +37,7 @@ export function CurvesView({ which, h: h0 }: { which: StentId; h: number }) {
   useEffect(() => {
     if (!f?.metrics || !st) return;
     const my = ++tok.current;
-    const t = setTimeout(async () => {
+    const t = clock.after(async () => {
       let got: Any;
       try { got = await Promise.all([engine().request({ type: 'snapshot' }), engine().request({ type: 'metrics' })]); } catch { return; }
       if (my !== tok.current) return;
@@ -44,7 +45,7 @@ export function CurvesView({ which, h: h0 }: { which: StentId; h: number }) {
       if (!snap || !fp) return;
       setAsked({ id: `ir|${want}`, slide: { fp, params: patient.params, snap } });
     }, SETTLE_MS);
-    return () => clearTimeout(t);
+    return () => clock.cancel(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [want, !!st]);
 

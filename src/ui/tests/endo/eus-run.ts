@@ -62,8 +62,8 @@ const sleep = () => { hold?.release(); hold = null; };
 
 /** Measure › EUS-PPG (2D eus-ppg.js play): the needle on the anatomy, the monitor taking the scope's place. */
 export function playEus(): void {
-  if (performance.now() - E.playT < 600 || E.run) return;
-  E.playT = performance.now();
+  if (clock.now() - E.playT < 600 || E.run) return;
+  E.playT = clock.now();
   if (sceneApi.procedure.playing || sceneApi.procedure.tip(V)) { useShell.getState().say(W.eusBusy); return; }
   for (const k of Object.keys(readsRef.eus)) (readsRef.eus as unknown as Record<string, number>)[k] = NaN;
   if (useShell.getState().view !== 'anatomic') goToView('anatomic');   // (2D leaveFor: the needle is drawn on the body, so the Circuit, the lobule and the sinusoid close first)

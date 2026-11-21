@@ -12,6 +12,7 @@ import { goToView } from './view-actions.ts';
 import { hasShare, loadShared, readShare, shareUrl, SHARE_WORDS, type ShareDeps, type ShareNow } from './share.ts';
 import type { Cam } from '../debug/packet/state.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** The scenario on the screen now. The camera rides only when the hand has moved it (a view frames itself). */
 export function shareNow(): ShareNow {
   const sh = useShell.getState(), hand = cel.rig.handView, orbit = Math.round(((cel.rig.orbitAngle * 180) / Math.PI) * 10) / 10;
@@ -32,9 +33,9 @@ function cameraWhenLanded(cam: Cam): void {
   const gen = ++camGen, t0 = Date.now();
   const put = () => sceneApi.setCameraView({ orbit: (cam.orbit * Math.PI) / 180, k: cam.k, x: cam.x, y: cam.y });
   const ready = () => sceneApi.placed && !sceneApi.cameraMoving;
-  const t = setInterval(() => {
-    if (gen !== camGen) { clearInterval(t); return; }
-    if (ready() || Date.now() - t0 > 20000) { clearInterval(t); put(); }
+  const t = clock.every(() => {
+    if (gen !== camGen) { clock.cancel(t); return; }
+    if (ready() || Date.now() - t0 > 20000) { clock.cancel(t); put(); }
   }, 150);
 }
 

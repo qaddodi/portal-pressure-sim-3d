@@ -91,12 +91,12 @@ function SceneBridge() {
         const up = new GeometryUploader(gl as unknown as UploadRenderer, cel.rig.camera, new WebGLRenderTarget(1, 1));
         for (const r of cel.uploadRoots) up.add(r);
         const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-        const next = () => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (more) { if (ric) ric(next, { timeout: 300 }); else setTimeout(next, 60); } else up.dispose(); };
+        const next = () => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (more) { if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60); } else up.dispose(); };
         spanAsync('upload:geometries', () => Promise.resolve()).catch(() => undefined);
-        if (ric) ric(next, { timeout: 300 }); else setTimeout(next, 60);
+        if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60);
       };   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
       // One thing at a time (release review 21 Nov #8): the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in the same slot: on a low-budget device the two together were one long hitch.
-      setTimeout(() => { void Promise.race([warmP(), new Promise((r) => setTimeout(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
+      clock.after(() => { void Promise.race([warmP(), new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }
   }, 1);
 
@@ -144,13 +144,13 @@ function SceneBridge() {
       const d = figureDpr(st.figureDetail, st.sharpMoving, moving, window.devicePixelRatio || 1);
       if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
-      window.clearTimeout(settle);
-      if (moving && !st.sharpMoving) settle = window.setTimeout(apply, 200);
+      clock.cancel(settle);
+      if (moving && !st.sharpMoving) settle = clock.after(apply, 200);
     };
     apply();
     const off = clock.on('camera', apply, 1);
     const un = useSettings.subscribe(apply);
-    return () => { off(); un(); window.clearTimeout(settle); };
+    return () => { off(); un(); clock.cancel(settle); };
   }, [setDpr]);
 
   // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
@@ -190,9 +190,9 @@ function SceneBridge() {
       // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
       context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
-      now: () => performance.now(),
+      now: () => clock.now(),
       ask: frames.ask, cancel: frames.cancel,
-      timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
+      timer: (fn, ms) => clock.after(fn, ms), clearTimer: (id) => clock.cancel(id),
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
       locked: () => useDeck.getState().mode === 'deck',   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,

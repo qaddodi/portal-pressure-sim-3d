@@ -1,3 +1,4 @@
+import { clock } from '../../clock/frame.ts';
 // The laser pointer of a talk (2D ink-gl.js: L switches it on and off; on an iPad, press and hold on the figure). In 2D it is a spotlight: the figure is as it is inside a window round
 // the pointer and steps back under a veil of the stage's own colour outside it ("keep the figure lit as normal, and dim everything not laser", owner, 5 Nov), with a faint thin ring at
 // the window's edge in the pen's colour; no dot and no glow; the mouse arrow is hidden while it is on. It stays on from slide to slide (2D clears only the pen's strokes on a new slide)
@@ -58,7 +59,7 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
     group.style.opacity = v ? '1' : '0';
   };
   const onMove = (e: PointerEvent) => {
-    if (hold && e.pointerId === holdId && Math.hypot(e.clientX - hx, e.clientY - hy) > HOLD_SLOP) { clearTimeout(hold); hold = 0; }
+    if (hold && e.pointerId === holdId && Math.hypot(e.clientX - hx, e.clientY - hy) > HOLD_SLOP) { clock.cancel(hold); hold = 0; }
     if (e.pointerType === 'mouse' || touchSpot) { x = e.clientX; y = e.clientY; has = true; if (on) place(); }
     if (touchSpot) { if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation(); }   // (the finger that holds the laser moves the laser, not the figure)
   };
@@ -66,7 +67,7 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
     if (e.pointerType !== 'touch') return;
     if (e.isPrimary) touches.clear();
     touches.add(e.pointerId);
-    clearTimeout(hold); hold = 0;
+    clock.cancel(hold); hold = 0;
     if (touches.size > 1) return;   // (a pinch or a two-finger pan: no laser)
     if (!active() || !onFigure(e.target as Element | null)) return;
     holdId = e.pointerId; hx = e.clientX; hy = e.clientY;
@@ -74,14 +75,14 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
   };
   const onUp = (e: PointerEvent) => {
     if (e.pointerType === 'touch') touches.delete(e.pointerId);
-    if (hold && e.pointerId === holdId) { clearTimeout(hold); hold = 0; }
-    if (touchSpot && e.pointerId === holdId) { touchSpot = false; set(false); eat = performance.now() + EAT_MS; }   // (the click a lifted hold can leave must not also open a label)
+    if (hold && e.pointerId === holdId) { clock.cancel(hold); hold = 0; }
+    if (touchSpot && e.pointerId === holdId) { touchSpot = false; set(false); eat = clock.now() + EAT_MS; }   // (the click a lifted hold can leave must not also open a label)
   };
   const onTouch = (e: TouchEvent) => { if (touchSpot) { if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation(); } };
   const onMenu = (e: Event) => { if (touchSpot || hold) e.preventDefault(); };   // (an iPad's own press-and-hold menu)
-  const onClick = (e: MouseEvent) => { if (eat && performance.now() < eat) { e.preventDefault(); e.stopImmediatePropagation(); } };
+  const onClick = (e: MouseEvent) => { if (eat && clock.now() < eat) { e.preventDefault(); e.stopImmediatePropagation(); } };
   // (only the window's own blur: a button or a field losing focus reaches a capture listener on the window too)
-  const onBlur = (e: Event) => { if (e.target !== win) return; touches.clear(); clearTimeout(hold); hold = 0; touchSpot = false; set(false); };
+  const onBlur = (e: Event) => { if (e.target !== win) return; touches.clear(); clock.cancel(hold); hold = 0; touchSpot = false; set(false); };
   const onSize = () => { if (on) { size(); place(); } };
   const opts = { capture: true, passive: false } as const;
   const L: [string, EventListener][] = [['pointermove', onMove as EventListener], ['pointerdown', onDown as EventListener], ['pointerup', onUp as EventListener], ['pointercancel', onUp as EventListener],
@@ -93,6 +94,6 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
     toggle() { set(!on); return on; },
     set,
     get on() { return on; },
-    dispose() { set(false); on = false; doc.documentElement.style.cursor = ''; clearTimeout(hold); for (const [t, f] of L) win.removeEventListener(t, f, opts); win.removeEventListener('resize', onSize); group.remove(); },
+    dispose() { set(false); on = false; doc.documentElement.style.cursor = ''; clock.cancel(hold); for (const [t, f] of L) win.removeEventListener(t, f, opts); win.removeEventListener('resize', onSize); group.remove(); },
   };
 }

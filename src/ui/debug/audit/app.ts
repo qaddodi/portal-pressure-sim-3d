@@ -27,9 +27,9 @@ import { goToView } from '../../shell/view-actions.ts';
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
 export const settle = () => pageSettle({ timeoutMs: 45000, quietMs: QUIET_MS, pollMs: 50 });
-const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
+const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
 /** Waits (up to `ms`) for something an open starts asynchronously (a talk's cover, its charts, its first cards), so the walk's "is the page still?" never reads the instant before it begins. */
-const until = async (cond: () => boolean, ms: number) => { const t = performance.now(); while (!cond() && performance.now() - t < ms) await sleep(50); };
+const until = async (cond: () => boolean, ms: number) => { const t = clock.now(); while (!cond() && clock.now() - t < ms) await sleep(50); };
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 
 /** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
@@ -230,12 +230,12 @@ export function readLayout(doc: Document = document, win: Window = window): Layo
 export function startTaps(win: Window = window, speed = 1): Tap {
   const rec = createRecorder(domSources(win.document, win), { seconds: 120 });
   // (at speed N the page's clock runs N times faster, so the sampler ticks N times as often and its rows stay 33 ms of page time; the CSS animations are played N times faster here)
-  const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, sampleRealMs(SAMPLE_MS, speed));
+  const timer = clock.every(() => { speedAnimations(win.document, speed); rec.sample(clock.now()); }, sampleRealMs(SAMPLE_MS, speed));
   let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0, sys0: Record<string, number> = {};
   // (`f.dt` is page time: at speed N the real gap is dt / N, which is what the frame rate is judged on)
   const off = clock.on('tags', (f) => { if (f.dt > 0) { gaps.push(f.dt / speed); if (f.dt > 50) stalls.push({ t: f.time - markAt, ms: f.dt }); } }, 2000);
   const lines: ConsoleLine[] = [];
-  const stamp = () => `at ${Math.round(performance.now() / 1000)} s`;
+  const stamp = () => `at ${Math.round(clock.now() / 1000)} s`;
   const cons = console, orig = { error: cons.error, warn: cons.warn };
   const text = (a: unknown[]) => a.map((x) => (x instanceof Error ? x.message : typeof x === 'string' ? x : (() => { try { return JSON.stringify(x); } catch { return String(x); } })())).join(' ').slice(0, 400);
   cons.error = (...a: unknown[]) => { lines.push({ level: 'error', text: text(a), at: stamp() }); orig.error.apply(cons, a as []); };
@@ -248,7 +248,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
   const onVis = () => { if (win.document.hidden) hiddenSince = true; };
   win.document.addEventListener('visibilitychange', onVis);
   return {
-    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; sys0 = { ...(cel.systemMs ?? {}) }; markAt = performance.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
+    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; sys0 = { ...(cel.systemMs ?? {}) }; markAt = clock.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = clock.now(); return mark; },
     read(t0) {
       const st = clock.stats(), led = ledger.read();
       const rs = renderStats();
@@ -265,7 +265,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
         scan: safe(() => scanPage(win.document, win)), anims: led.anims, generic: led.findings,
       };
     },
-    stop() { clearInterval(timer); ledger.stop(); off(); cons.error = orig.error; cons.warn = orig.warn; win.removeEventListener('error', onErr); win.removeEventListener('unhandledrejection', onRej); win.document.removeEventListener('visibilitychange', onVis); void mark; },
+    stop() { clock.cancel(timer); ledger.stop(); off(); cons.error = orig.error; cons.warn = orig.warn; win.removeEventListener('error', onErr); win.removeEventListener('unhandledrejection', onRej); win.document.removeEventListener('visibilitychange', onVis); void mark; },
   };
 }
 const safe = <T,>(f: () => T): T | null => { try { return f(); } catch { return null; } };

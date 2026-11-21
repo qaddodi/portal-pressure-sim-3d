@@ -26,12 +26,12 @@ export async function bootEngine(worker?: WorkerLike, preset = START_PRESET, wai
     onCrash: crashed,
   });
   const mine = client;
-  const late = setTimeout(() => mine.crash('The simulation did not answer. Check the connection, then reload.'), waitMs);
+  const late = clock.after(() => mine.crash('The simulation did not answer. Check the connection, then reload.'), waitMs);
   client.send({ type: 'init' });
   const [loadedPreset, healthy] = await Promise.all([
     client.request<Extract<FromWorker, { type: 'presetLoaded' }>>({ type: 'preset', id: preset }),
     client.request<{ type: 'healthy'; reqId: number; P: number[]; Q: number[]; metrics: { ascites?: { hepLymph?: number }; hepLymph?: number } }>({ type: 'healthyProfile' }),
-  ]).finally(() => clearTimeout(late));
+  ]).finally(() => clock.cancel(late));
   setParams(loadedPreset.params);
   patient.reference = { P: healthy.P, Q: healthy.Q, hepLymph: healthy.metrics.ascites?.hepLymph ?? healthy.metrics.hepLymph };
   loaded = true;

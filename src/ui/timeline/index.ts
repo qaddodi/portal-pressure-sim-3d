@@ -32,9 +32,9 @@ const host: TimelineHost = {
   labelsOf: (p) => labels(p),
   say: (t) => useShell.getState().say(t),
   announce,
-  now: () => performance.now(),
-  later: (fn, ms) => setTimeout(fn, ms),
-  cancel: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+  now: () => clock.now(),
+  later: (fn, ms) => clock.after(fn, ms),
+  cancel: (h) => clock.cancel(h as number),
 };
 
 export const timeline = new Timeline(host);

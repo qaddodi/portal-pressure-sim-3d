@@ -11,6 +11,7 @@ import { I } from './icons.tsx';
 import { placePopover } from './place.ts';
 import { pushPage, type Push } from './page-push.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** 2D util.js STACK_MQ: the one breakpoint at which a menu is a bottom sheet (a phone, or a tablet held upright). */
 export const STACK_MQ = '(max-width: 767px), (max-width: 1100px) and (orientation: portrait)';
 export const MENU_LEAVE_MS = 180;   // 2D --d-flip
@@ -23,8 +24,8 @@ export function usePresence(open: boolean, ms = MENU_LEAVE_MS) {
     if (open) { setShown(true); setLeaving(false); return; }
     if (!shown) return;
     setLeaving(true);
-    const t = window.setTimeout(() => { setShown(false); setLeaving(false); }, ms);
-    return () => window.clearTimeout(t);
+    const t = clock.after(() => { setShown(false); setLeaving(false); }, ms);
+    return () => clock.cancel(t);
   }, [open, shown, ms]);
   return { shown: shown || open, leaving: leaving && !open };
 }

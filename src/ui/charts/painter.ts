@@ -52,7 +52,7 @@ export class ChartPainter {
     this.box.style.height = `${Math.round(next.h)}px`;
     this.gl.size(next.w, next.h);
     if (glide && !reduce && this.shown) {
-      this.from = this.shown; this.to = next; this.t0 = performance.now(); this.ms = MOTION.cardInMs;
+      this.from = this.shown; this.to = next; this.t0 = clock.now(); this.ms = MOTION.cardInMs;
       if (!this.hold) this.hold = clock.hold(this.tag);
     } else {
       this.from = this.to = null; this.shown = next; this.stopHold();

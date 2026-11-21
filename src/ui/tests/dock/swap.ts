@@ -55,13 +55,13 @@ export function usePaneSwap(open: boolean, pane: PaneId, second: PaneId | null, 
       cancel(); setShown(pane); setLeaving([]); setLanded(null); setCold(true);
       const mine = seq.current, h = clock.hold('tests-stage');
       let n = 0, ended = false, timer = 0, off = () => undefined as void;
-      const end = () => { if (ended) return; ended = true; clearTimeout(timer); off(); h.release(); if (seq.current === mine) setCold(false); };
+      const end = () => { if (ended) return; ended = true; clock.cancel(timer); off(); h.release(); if (seq.current === mine) setCold(false); };
       stop.current = end;
       const go = () => {
         if (ended || seq.current !== mine) return;
         off = clock.on('tags', () => { if (++n >= 2) end(); });
       };
-      timer = window.setTimeout(end, afterMs(COLD_MAX));   // (the net, from the ask: a pane that never loads still shows)
+      timer = clock.after(end, afterMs(COLD_MAX));   // (the net, from the ask: a pane that never loads still shows)
       if (!afterLoad(pane, go)) go();
       return;
     }
@@ -86,11 +86,11 @@ export function usePaneSwap(open: boolean, pane: PaneId, second: PaneId | null, 
       let n = 0, ended = false, timer = 0, off = () => undefined as void;
       const end = (swap: boolean) => {
         if (ended) return;
-        ended = true; clearTimeout(timer); off(); h.release();
-        if (swap) setTimeout(() => { if (seq.current === mine) { setLanded(pane); commit(); } }, 0);   // (the swap is written in a task of its own, never inside a frame)
+        ended = true; clock.cancel(timer); off(); h.release();
+        if (swap) clock.after(() => { if (seq.current === mine) { setLanded(pane); commit(); } }, 0);   // (the swap is written in a task of its own, never inside a frame)
       };
       off = clock.on('tags', () => { if (++n >= 2) end(true); });
-      timer = window.setTimeout(() => end(true), afterMs(STAGE_MAX));
+      timer = clock.after(() => end(true), afterMs(STAGE_MAX));
       stop.current = () => end(false);
     };
     if (!afterLoad(pane, go)) go();

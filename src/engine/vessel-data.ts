@@ -13,6 +13,7 @@ import { EDGES, NODES } from './hales/portal/topology.js';
 import type { EngineFrame } from './protocol.ts';
 import { easeInOutCubic } from '../clock/tween.ts';
 
+import { clock } from '../clock/frame.ts';
 interface Edge { id: string; from: string; to: string }
 const edges = EDGES as Edge[];
 const nodeIndex = new Map<string, number>((NODES as { id: string }[]).map((n, i) => [n.id, i]));
@@ -70,7 +71,7 @@ export class VesselData {
   /** True while the drawn numbers are still travelling to the new patient's (the clock goes on asking for frames). */
   get easing(): boolean { return this.gliding; }
   /** Adopt a frame if it is newer than the one already in the texture, and step the glide. Returns whether the texture changed. */
-  update(frame: EngineFrame | null, version: number, now: number = performance.now()): boolean {
+  update(frame: EngineFrame | null, version: number, now: number = clock.now()): boolean {
     this.fresh = false;
     let changed = false;
     if (frame && version !== this.seen) {

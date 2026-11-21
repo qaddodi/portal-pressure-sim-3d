@@ -6,6 +6,7 @@
 // Positions are layout positions from the pill's centre (offsetLeft, which a transform in flight does not move), so one fold taking over from another starts from the layout, never a half-way frame.
 import type { ViewId } from './views.ts';
 
+import { clock } from '../../clock/frame.ts';
 export interface Box { l: number; w: number; pl?: number; pr?: number }
 /** What the pill's layout is: its own width, and each shown button's left edge (px from the pill's centre) and width. */
 export interface Snap { w: number; items: Map<ViewId, Box>; inset?: number }
@@ -125,6 +126,6 @@ export function playFold(seg: HTMLElement, box: HTMLElement, before: Snap, order
   seg.classList.add('vp-fold');   // (the selection piece travels on the fold's clock and curve: app-11-deck-visuals.css)
   const end = () => { if (!running.size) seg.classList.remove('vp-fold'); };
   for (const x of running) if (!(x instanceof HTMLElement)) x.addEventListener('finish', end);
-  setTimeout(end, FOLD_MS + 60);
+  clock.after(end, FOLD_MS + 60);
   return true;
 }

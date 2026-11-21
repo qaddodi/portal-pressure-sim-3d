@@ -49,9 +49,9 @@ const browserEnv = (): GlideEnv => {
     drawn: () => new Promise<void>((res) => {
       const off = clock.on('tags', () => { off(); res(); }, 1e6);
       clock.invalidate('look');
-      setTimeout(() => { off(); res(); }, 200);   // (no frame comes where nothing is drawn yet)
+      clock.after(() => { off(); res(); }, 200);   // (no frame comes where nothing is drawn yet)
     }),
-    ease: () => { if (!doc) return; const r = doc.documentElement; r.classList.add('look-glide'); clearTimeout(timer); timer = window.setTimeout(() => r.classList.remove('look-glide'), GLIDE_MS + 60); },
+    ease: () => { if (!doc) return; const r = doc.documentElement; r.classList.add('look-glide'); clock.cancel(timer); timer = clock.after(() => r.classList.remove('look-glide'), GLIDE_MS + 60); },
   };
 };
 

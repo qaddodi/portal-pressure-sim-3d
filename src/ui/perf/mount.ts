@@ -40,5 +40,5 @@ export function mountPerf(): void {
     if (open) pre.textContent = full;   // (closed, the long text is not rebuilt: less layout while timings are collected)
   };
   tick();
-  setInterval(tick, 500);
+  clock.every(tick, 500);
 }

@@ -5,6 +5,7 @@ import { ForcesAverage, fluidInputs, wantsCaveat, type FluidFrameLike, type Flui
 import type { Forces } from './model.ts';
 import '../charts.css';
 
+import { clock } from '../../../clock/frame.ts';
 export interface FluidCardProps {
   /** the slide's fingerprint (what its tiles show): the card shows these numbers, not the beat-to-beat live ones */
   fp?: Record<string, unknown> | null;
@@ -25,7 +26,7 @@ export function FluidCard({ fp = null, frame = null, params = null, window: win 
   const avg = useRef(new ForcesAverage());
   const live = useMemo(() => fluidInputs(fp, frame, params), [fp, frame, params]);
   // a live push is eased; a pinned one is the slide's own
-  const F: Forces | null = live.forces && !live.pinned ? avg.current.next(live.forces, typeof performance !== 'undefined' ? performance.now() : 0) : live.forces;
+  const F: Forces | null = live.forces && !live.pinned ? avg.current.next(live.forces, typeof performance !== 'undefined' ? clock.now() : 0) : live.forces;
   const o = { window: win, forces: wantForces, caveat: wantsCaveat({ caveat }, params, compare) };
   const key = live.f ? [live.f.hep, live.f.spl, live.f.cap, live.f.back, live.f.net, F?.out, F?.pull].map((v) => (v === undefined ? '' : (+v).toFixed(3))).join(',') : '';
   return (

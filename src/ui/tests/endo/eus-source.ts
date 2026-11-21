@@ -9,6 +9,7 @@ import { scriptOf, phaseOf, takenOf, readingWords } from '../ir/copied/reading-s
 import { monitorFrame, type MonitorState } from '../ir/monitor.ts';
 import type { MonSource } from '../ir/Monitor.tsx';
 
+import { clock } from '../../../clock/frame.ts';
 type Obj = Record<string, number>;
 type Script = { clock: { now(tk: Obj): number }; vals(fp: unknown, o: Obj): Obj; keys: string[]; marks: number[] };
 const NI: Record<string, number> = Object.fromEntries((NODES as { id: string }[]).map((n, i) => [n.id, i]));
@@ -42,7 +43,7 @@ export function eusMonitor(): MonitorState {
   const t = S.clock.now(M.tk);
   st.t = fin(t) ? t : 0;
   st.running = true; st.probing = false; st.wave = M.wave; st.v = out.v;
-  if (st.ph === 'run') syncWave(M.wave, latest.frame, st.t, performance.now());
+  if (st.ph === 'run') syncWave(M.wave, latest.frame, st.t, clock.now());
   return st;
 }
 /** The readings said aloud as they are taken (2D createReading's `said`). */

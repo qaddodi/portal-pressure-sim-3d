@@ -4,6 +4,7 @@
 import { create } from 'zustand';
 import { NODES } from '../../../engine/hales/portal/topology.js';
 
+import { clock } from '../../../clock/frame.ts';
 const VAR = (NODES as { id: string }[]).findIndex((n) => n.id === 'VAR');
 
 export type Fp = Record<string, unknown> | null | undefined;
@@ -14,7 +15,7 @@ export const useSlidePin = create<SlidePin>(() => ({ fp: null, n: 0 }));
 
 let wallPin = NaN, wallAt = 0;
 /** The slide's state (a fingerprint), or null when the card leaves. The wall's stress share eases into the last one when a what-if or a time-lapse pins a new state every few frames (2D createVarixWall pin). */
-export function setSlidePin(fp: Fp, now = performance.now()): void {
+export function setSlidePin(fp: Fp, now = clock.now()): void {
   const x = num((fp as { wall?: unknown } | null | undefined)?.wall);
   wallPin = !Number.isFinite(x) ? NaN : Number.isFinite(wallPin) && now - wallAt < 1000 ? wallPin + (x - wallPin) * 0.35 : x;
   wallAt = now;

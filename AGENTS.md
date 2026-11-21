@@ -13,6 +13,7 @@ card. Clinical text is for US physicians: Baveno VIII (never VII) and AASLD.
 - **One clock.** `requestAnimationFrame` is called in `src/clock/frame.ts` and nowhere else (`tests/one-clock.test.ts`). Ask for frames
   with `clock.hold(tag)` / `clock.invalidate(tag)` / `Tweened`; draw through the R3F canvas with `frameloop="never"` and `<ClockBridge/>`.
   Nothing is drawn when nothing moves.
+- **One source of time (R3, 21 Nov).** Read time with `clock.now()`, wait with `clock.after(fn, ms, tag)` (page time, scaled, cancellable, counted in `clock.stats().timers`), poll with `clock.every`, cancel with `clock.cancel(id)`. `performance.now`, `setTimeout` and `setInterval` live only in `src/clock/` (`tests/one-time.test.ts`; the byte-copied 2D `.js` files are exempt). The audit's speed mode is `clock.setScale(n)`.
 - **Per-frame DOM writes are `transform` and `opacity` only**, written by a clock system, never through React state.
 - **The engine copy is never edited.** `src/engine/hales/` and `src/engine/host/` come from `npm run sync:engine` (pinned commits in
   `src/engine/PINNED.json`). Fix the engine in `qaddodi/hales-engine`, then re-sync.

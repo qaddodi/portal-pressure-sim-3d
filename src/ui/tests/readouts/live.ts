@@ -18,6 +18,7 @@ import { readoutValue, changeFrom, SYSTEMIC, type Band, type Row } from '../read
 import { odoPlan, ROLL_TAIL_MS, type Piece } from './odo.ts';
 import type { M } from '../frame.ts';
 
+import { clock } from '../../../clock/frame.ts';
 const TREND_S = 5, TREND_FRAC = 0.03, MEAN_MS = 1200;
 const RANKS: Record<string, number> = { none: -1, ok: 0, caution: 1, danger: 2, critical: 3 };
 const shownOf = (v: number, d: number) => (Number.isFinite(v) ? +v.toFixed(d) + 0 : v);
@@ -170,7 +171,7 @@ export class ReadoutsLive {
       this.paint(x, m, { ...ctx, now: this.clockNow(now) }, true);
     }
   }
-  private nowFn: () => number = () => performance.now();
+  private nowFn: () => number = () => clock.now();
   setNow(fn: () => number): void { this.nowFn = fn; }
   private clockNow(_: number): number { return this.nowFn(); }
 

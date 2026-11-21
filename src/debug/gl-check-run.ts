@@ -6,6 +6,7 @@ import { type Program, budget } from './gl-programs.ts';
 import { allPrograms } from './gl-registry.ts';
 import type { GlHandle } from './gl-ref.ts';
 
+import { clock } from '../clock/frame.ts';
 export interface Row { name: string; ok: boolean; how: 'three' | 'text'; log: string; ms: number; warn: string[] }
 export interface Limits { renderer: string; vendor: string; version: string; attributes: number; varyings: number; vertexUniforms: number; fragmentUniforms: number; textureUnits: number; highpFragment: boolean }
 
@@ -41,7 +42,7 @@ async function compileText(gl: WebGL2RenderingContext, p: Program): Promise<{ ok
   const mk = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
   const vs = mk(gl.VERTEX_SHADER, p.vertexGlsl), fs = mk(gl.FRAGMENT_SHADER, p.fragmentGlsl), prog = gl.createProgram()!;
   gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
-  if (ext) await new Promise<void>((done) => { const poll = () => (gl.getProgramParameter(prog, ext.COMPLETION_STATUS_KHR) || gl.isContextLost() ? done() : void setTimeout(poll, 8)); poll(); });
+  if (ext) await new Promise<void>((done) => { const poll = () => (gl.getProgramParameter(prog, ext.COMPLETION_STATUS_KHR) || gl.isContextLost() ? done() : void clock.after(poll, 8)); poll(); });
   const ok = !!gl.getProgramParameter(prog, gl.LINK_STATUS);
   const log = [gl.getShaderInfoLog(vs), gl.getShaderInfoLog(fs), gl.getProgramInfoLog(prog)].map((s) => (s ?? '').trim()).filter(Boolean).join('\n');
   gl.deleteProgram(prog); gl.deleteShader(vs); gl.deleteShader(fs);
@@ -59,12 +60,12 @@ export async function runGlCheck(r: GlHandle, scene: Object3D, camera: object, f
   try { await r.compileAsync(scene as never, camera as never); } catch (e) { console.error('[?gl] compile failed', e); }
   const rows: Row[] = [];
   for (const p of programs) {
-    const t0 = performance.now();
+    const t0 = clock.now();
     let ok: boolean, log: string, how: Row['how'];
     const live = p.material ? (r.properties.get(p.material as never) as { currentProgram?: { program?: unknown } } | undefined)?.currentProgram?.program as WebGLProgram | undefined : undefined;
     if (live) { how = 'three'; ok = !!gl.getProgramParameter(live, gl.LINK_STATUS); log = ok ? '' : sub(gl, live) || (gl.getProgramInfoLog(live) ?? ''); }
     else { how = 'text'; ({ ok, log } = await compileText(gl, p)); }
-    rows.push({ name: p.name, ok, how, log: log.slice(0, 1500), ms: Math.round(performance.now() - t0), warn: overBudget(p, limits) });
+    rows.push({ name: p.name, ok, how, log: log.slice(0, 1500), ms: Math.round(clock.now() - t0), warn: overBudget(p, limits) });
   }
   return { limits, rows };
 }

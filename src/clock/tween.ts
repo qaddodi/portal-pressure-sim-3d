@@ -61,7 +61,7 @@ export class Tweened {
       this.value = to; this.move = null; this.stop(); this.c.invalidate(this.tag); done?.();
       return this;
     }
-    this.move = { from: this.value, to, t0: performance.now(), ms, ease, done };
+    this.move = { from: this.value, to, t0: this.c.now(), ms, ease, done };
     if (!this.hold) {
       this.hold = this.c.hold(this.tag);
       this.off = this.c.on('tween', (f) => this.step(f.time), -10);

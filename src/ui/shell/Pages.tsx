@@ -9,6 +9,7 @@ import { Icon } from './icons.tsx';
 import { STORAGE_PREFIX } from '../../state/settings.ts';
 import { resetUrl } from './reset.ts';
 
+import { clock } from '../../clock/frame.ts';
 const LEAVE_MS = 180;   // 2D --d-flip: the dialog sinks back, then is hidden (closeModal)
 const release = (): string => String(import.meta.env.VITE_BUILD ?? 'source').split('@').pop() ?? 'source';
 
@@ -45,8 +46,8 @@ export function PageDialog() {
     if (want) { setShown(want); setLeaving(false); return; }
     if (!shown) return;
     setLeaving(true);
-    const t = window.setTimeout(() => { setShown(null); setLeaving(false); }, LEAVE_MS);
-    return () => window.clearTimeout(t);
+    const t = clock.after(() => { setShown(null); setLeaving(false); }, LEAVE_MS);
+    return () => clock.cancel(t);
   }, [want, shown]);
   const modal = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLElement>(null);

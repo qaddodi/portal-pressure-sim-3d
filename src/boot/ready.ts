@@ -15,23 +15,23 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: ReturnType<typeof setTimeout> | undefined, done = false;
+let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: number | undefined, done = false;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
   waiting = true; done = false; frames = -1; labels = false;
   document.documentElement.dataset.boot = 'wait';
-  clearTimeout(timer);
-  timer = setTimeout(release, BOOT_FAILSAFE_MS);
+  clock.cancel(timer);
+  timer = clock.after(release, BOOT_FAILSAFE_MS);
 }
 
 /** The scene drew a frame. The first one starts the count; the frame after it has placed the labels, and the splash goes. */
 export function figureDrawn(): void {
   if (!waiting || done) return;
   if (frames < 0) {
-    frames = 0; firstAt = performance.now();
-    off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || performance.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
+    frames = 0; firstAt = clock.now();
+    off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
     clock.invalidate('boot-ready');
   }
 }
@@ -40,7 +40,7 @@ export function figureDrawn(): void {
 export function rendererFailed(reason: string): void {
   if (done || !waiting) return;
   done = true; waiting = false;
-  clearTimeout(timer); off?.(); off = null;
+  clock.cancel(timer); off?.(); off = null;
   (window as unknown as { ppsBootRendererFail?: (r: string) => void }).ppsBootRendererFail?.(reason);
 }
 
@@ -50,10 +50,10 @@ export function labelsShown(): void { if (waiting) labels = true; }
 export function release(): void {
   if (done || !waiting) return;
   done = true; waiting = false;
-  clearTimeout(timer); off?.(); off = null;
+  clock.cancel(timer); off?.(); off = null;
   delete document.documentElement.dataset.boot;
   const root = document.documentElement;
   root.dataset.reveal = '1';   // (the figure and its labels settle in from a mild zoom as the cover fades)
-  setTimeout(() => { delete root.dataset.reveal; }, REVEAL_MS);
+  clock.after(() => { delete root.dataset.reveal; }, REVEAL_MS);
   lift();
 }

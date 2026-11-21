@@ -51,6 +51,7 @@ import { HA_K, BD_K } from '../lobule/weld-bend.ts';
 import type { WeldCourseOut, WeldPlan } from '../lobule/welds.ts';
 import { type EmitOpts, type PartData, emitCourse, emitSkin } from './lobule-welded.ts';
 
+import { clock } from '../../clock/frame.ts';
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
 export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;   // (cellBot a hair over the ground: a tile's wall ended under it, and its line, drawn down the wall, dipped in and out of the ground in dashes, eyes 20 Nov)
@@ -208,7 +209,7 @@ export class Lobule3D {
   }
   private vgen: Generator<void> | null = null;
   private pumpVessels(): void {
-    setTimeout(() => {
+    clock.after(() => {
       if (this.disposed || this.vesselsBuilt) return;
       this.prepareVessels();
       if (this.vesselsBuilt) this.inkKey = '';
@@ -510,10 +511,10 @@ export class Lobule3D {
 
   /** One frame of the tiles' change: a few ms of the next build, then the ease between the old build and the new. True while either runs. */
   private stepCells(unseen: boolean): boolean {
-    const nowMs = performance.now(), dt = this.cellAt < 0 ? 0 : Math.min(100, nowMs - this.cellAt);
+    const nowMs = clock.now(), dt = this.cellAt < 0 ? 0 : Math.min(100, nowMs - this.cellAt);
     this.cellAt = nowMs;
     if (this.cellGen) {
-      while (performance.now() - nowMs < 3) {
+      while (clock.now() - nowMs < 3) {
         if (!this.cellGen.next().done) continue;
         this.cellGen = null;
         const nx = this.cellNext!; this.cellNext = null;
@@ -609,7 +610,7 @@ export class Lobule3D {
     const s: PlateState = { congU: c.congU, septU: c.septU, fibSin: c.fibSin, act: c.act, fibPre: c.fibPre, fibPost: c.fibPost };
     const zones = f.layers.zones;
     const key = `${plateKey(s, f.look)}|${zones ? 'z' : ''}`;
-    const nowMs = performance.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
+    const nowMs = clock.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
     this.marksAt = nowMs;
     // A new state is painted ONCE, for where the model is going, in a worker (the 2048 px repaint is 100 to 300 ms on a phone: never on this thread), and the new plate crossfades over the old when it arrives.
     // The first plate, and a page with no worker, are painted here (the old plate dips while the new is painted).

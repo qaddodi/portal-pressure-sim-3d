@@ -65,7 +65,7 @@ export function ProfilePane({ plot }: PaneProps) {
       if (!inp) return;
       const k = keyOf(inp);
       if (k !== last.current) { draw(true); clock.invalidate('profile'); }
-      const now = performance.now();
+      const now = clock.now();
       if (now - spoke > 1000) { spoke = now; const items = profileLabel(itemsOf(inp), !!inp.hidden?.has('pv')) + (!inp.hidden?.has('pv') ? bracketSummary(inp) : ''); setLabel((o) => (o === items ? o : items)); }
     });
     return off;

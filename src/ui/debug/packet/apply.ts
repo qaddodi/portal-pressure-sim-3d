@@ -11,6 +11,7 @@ import { flagValue } from '../flags.ts';
 import type { LookChoice } from '../../../looks/looks.ts';
 import type { LensId } from '../../../scene/lenses/model.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export function applyExtras(raw: unknown): string[] {
   const x: Extras = cleanExtras(raw), skipped: string[] = [];
   const tryDo = (name: string, fn: () => void) => { try { fn(); } catch (e) { skipped.push(`${name}: ${(e as Error)?.message ?? e}`); } };
@@ -25,7 +26,7 @@ export function applyExtras(raw: unknown): string[] {
 /** Polls `ready` every 150 ms until it is true or `ms` has passed; the answer is whether it was. (A debug-only wait on the page's own boot; nothing here runs per frame.) */
 const until = (ready: () => boolean, ms: number): Promise<boolean> => new Promise((done) => {
   if (ready()) { done(true); return; }
-  const t0 = Date.now(), t = setInterval(() => { if (ready()) { clearInterval(t); done(true); } else if (Date.now() - t0 > ms) { clearInterval(t); done(false); } }, 150);
+  const t0 = Date.now(), t = clock.every(() => { if (ready()) { clock.cancel(t); done(true); } else if (Date.now() - t0 > ms) { clock.cancel(t); done(false); } }, 150);
 });
 
 /**

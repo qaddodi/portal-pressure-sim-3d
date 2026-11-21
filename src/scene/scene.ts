@@ -234,12 +234,12 @@ export class CelScene {
     this.microIdle = true;
     const later = (f: () => void) => {
       const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-      if (ric) ric(f, { timeout: 300 }); else setTimeout(f, 60);
+      if (ric) ric(f, { timeout: 300 }); else clock.after(f, 60);
     };
     // (a slice runs steps until it has used SLICE_MS, so the many small steps of the shapes are not one idle wait each; every step is itself small)
     const slice = () => {
-      const t0 = performance.now();
-      do { if (this.microStep()) return; } while (!this.disposed && performance.now() - t0 < SLICE_MS);
+      const t0 = clock.now();
+      do { if (this.microStep()) return; } while (!this.disposed && clock.now() - t0 < SLICE_MS);
       later(slice);
     };
     later(slice);
@@ -619,7 +619,7 @@ export class CelScene {
   /** Call after the texture's data changed, so the next frame draws. */
   dataChanged(): void {
     const f = latest.frame;
-    this.lens.onFrame(f, !!f?.jump && this.sawFrame, performance.now());   // (a new patient: the colours glide from the old patient's)
+    this.lens.onFrame(f, !!f?.jump && this.sawFrame, clock.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
     if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
@@ -674,7 +674,7 @@ export class CelScene {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
     for (const v of NETWORK) if (v.feeder) this.feeders.set(v.id, feederLive(v.feeder, f, this.healthyQ), instant);
     this.pushFades();
-    this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant);
+    this.shapes.onFrame(f as never, clock.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
     const rexOn = this.presence.stateOf('REX') === 'shown';
     if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
@@ -742,7 +742,7 @@ export class CelScene {
     const col = s.column ?? s.balloon;
     this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });
     this.catheter.group.visible = false;
-    this.procs.showHvpgState(s.advance, s.balloon, s.ring ?? null, s.clock ?? performance.now(), col);
+    this.procs.showHvpgState(s.advance, s.balloon, s.ring ?? null, s.clock ?? clock.now(), col);
     this.moving = true;
   }
 
@@ -838,7 +838,7 @@ export class CelScene {
 
   get view(): FigureView { return this.figureView; }
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
-  setView(v: FigureView, now = performance.now()): void {
+  setView(v: FigureView, now = clock.now()): void {
     const wasCircuit = this.figureView === 'circuit', wasSinusoid = this.figureView === 'sinusoid';
     this.figureView = v;
     if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
@@ -864,7 +864,7 @@ export class CelScene {
   // ---- the Circuit ---------------------------------------------------------------------------
 
   /** Stand the map upright (flow bottom to top) or lay it wide. With the map not showing the turn is laid at once. */
-  setCircuitUpright(on: boolean, now = performance.now()): void {
+  setCircuitUpright(on: boolean, now = clock.now()): void {
     if (this.circuit.t === 0 && !this.circuit.toCircuit) this.circuit.snapTurn(on); else this.circuit.setUpright(on, now);
     if (this.figureView === 'circuit') this.rig.setBounds(circuitBounds(on));
     this.moving = true;
@@ -1073,7 +1073,7 @@ export class CelScene {
   private feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c); }
   setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; }
   /** The wedge's wash (a slide that says `wash`): amber from the central vein along the sinusoids, counted from `landedAtMs` in both small views. Off clears it. */
-  setWash(on: boolean, landedAtMs = performance.now()): void {
+  setWash(on: boolean, landedAtMs = clock.now()): void {
     if (on) { this.lobule.startWash(landedAtMs); this.sinus.startWash(landedAtMs); } else { this.lobule.stopWash(); this.sinus.stopWash(); }
     this.moving = true;
   }

@@ -13,8 +13,8 @@ import { lookCapture } from './look-hook.ts';
 export interface CaptureInfo { settled: boolean; ms: number; w: number; h: number; look: string; view: string; preset: string; build: string }
 export interface LookApi { apply(s: Partial<LookState> & { chevrons?: boolean }): Promise<{ settled: boolean; ms: number }>; capture(): Promise<{ blob: Blob; info: CaptureInfo }>; ready: Promise<{ settled: boolean; ms: number }> }
 
-const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
-async function until(test: () => boolean, ms: number): Promise<boolean> { const t0 = performance.now(); while (!test()) { if (performance.now() - t0 > ms) return false; await sleep(50); } return true; }
+const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
+async function until(test: () => boolean, ms: number): Promise<boolean> { const t0 = clock.now(); while (!test()) { if (clock.now() - t0 > ms) return false; await sleep(50); } return true; }
 
 /** The look and the figure's switches, set before the first paint (held in memory only: the viewer's own saved settings are not touched). */
 export function applyBefore(search: string): void {
@@ -52,10 +52,10 @@ async function apply(s: Partial<LookState> & { chevrons?: boolean }) {
 
 function capture(): Promise<{ blob: Blob; info: CaptureInfo }> {
   return new Promise((ok, no) => {
-    const give = window.setTimeout(() => { no(new Error('no frame was drawn to read')); }, 8000);
+    const give = clock.after(() => { no(new Error('no frame was drawn to read')); }, 8000);
     lookCapture.ask((canvas) => {
       canvas.toBlob((blob) => {
-        window.clearTimeout(give);
+        clock.cancel(give);
         if (!blob) { no(new Error('the canvas gave no picture')); return; }
         ok({ blob, info: { settled: true, ms: 0, w: canvas.width, h: canvas.height, look: document.documentElement.dataset.look ?? '', view: useShell.getState().view, preset: useEngine.getState().presetId ?? '', build: String(import.meta.env.VITE_BUILD ?? 'dev') } });
       }, 'image/png');

@@ -29,6 +29,7 @@ const SHADE_PASSES = 6;
 import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
 import { ORGAN_Z } from './z.ts';
 
+import { clock } from '../../clock/frame.ts';
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
  *  and which layer opacity it sits at (the gut at --gut-a, the kidney at its own, the rest at the organ layer's). */
@@ -213,8 +214,8 @@ export class OrganLayer {
         const shape = this.liverShape, ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
         const bk = this.liverBake ??= new LiverBake();
         // (the nodules' rest-place heights and the surface texture, a few ms at a time in idle time: never inside a frame, never the first scarred frame)
-        const slice = (): void => { if (this.liverShape === shape && !(shape.warm(6) && bk.step(6))) { if (ric) ric(slice, { timeout: 1000 }); else setTimeout(slice, 30); } };
-        if (ric) ric(slice, { timeout: 3000 }); else setTimeout(slice, 500);
+        const slice = (): void => { if (this.liverShape === shape && !(shape.warm(6) && bk.step(6))) { if (ric) ric(slice, { timeout: 1000 }); else clock.after(slice, 30); } };
+        if (ric) ric(slice, { timeout: 3000 }); else clock.after(slice, 500);
       }
     }
     this.dirtyColours = true; this.instant = true; this.shrinkWas = NaN;

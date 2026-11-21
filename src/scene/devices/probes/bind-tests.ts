@@ -29,13 +29,13 @@ export function bindTests(): () => void {
     if (p.edge !== d.probe || p.seg !== seg) useProbes.getState().setDoppler({ edge: d.probe, seg });
   };
   // the Endoscopy pane's work: a band press loads and fires the ligator for a few seconds; the EUS measurement sends the needle to the station its step names
-  let bandUntil = 0, lastTick = useScope.getState().bandTick, timer: ReturnType<typeof setTimeout> | undefined;
+  let bandUntil = 0, lastTick = useScope.getState().bandTick, timer: number | undefined;
   const syncScope = (): void => {
     const e = useScope.getState(), p = useProbes.getState().endoscope;
-    if (e.bandTick !== lastTick) { lastTick = e.bandTick; bandUntil = performance.now() + 3000; clearTimeout(timer); timer = setTimeout(syncScope, 3050); }
+    if (e.bandTick !== lastTick) { lastTick = e.bandTick; bandUntil = clock.now() + 3000; clock.cancel(timer); timer = clock.after(syncScope, 3050); }
     const steps = (MEASURES as unknown as { eus: { steps: [string][] } }).eus.steps;
     const station: 'pv' | 'hv' = e.step >= 0 && steps[e.step]?.[0] === 'hv' ? 'hv' : 'pv';
-    const mode = e.eus === 'run' ? 'eus' : performance.now() < bandUntil ? 'band' : 'scope';
+    const mode = e.eus === 'run' ? 'eus' : clock.now() < bandUntil ? 'band' : 'scope';
     if (p.mode !== mode || p.station !== station) useProbes.getState().setEndoscope({ mode, station });
   };
   sync(); syncDop(); syncScope();
@@ -43,5 +43,5 @@ export function bindTests(): () => void {
   const offBoxes = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes || s.vp !== p.vp) clock.invalidate('probe-cards'); });
   const offRoom = useTestsRoom.subscribe((s, p) => { if (s.place !== p.place) clock.invalidate('probe-cards'); });
   const offs = [useTests.subscribe(sync), useProbes.subscribe((s, prev) => { if (s.slide !== prev.slide) sync(); }), useDopplerProbe.subscribe(syncDop), useScope.subscribe(syncScope), offBoxes, offRoom];
-  return () => { clearTimeout(timer); offs.forEach((f) => f()); };
+  return () => { clock.cancel(timer); offs.forEach((f) => f()); };
 }

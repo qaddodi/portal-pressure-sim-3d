@@ -37,7 +37,7 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
       frame(w, h) {
         const c = L.current;
         st.t = c.t; st.v = c.lv ?? { fhvp: 0, whvp: 0, hvpg: 0 }; st.running = c.running;
-        if (c.running) syncWave(wave, latest.frame, c.t, performance.now());
+        if (c.running) syncWave(wave, latest.frame, c.t, clock.now());
         return hvpgFrame(key, st, w, h, `HVPG catheter tracing${c.lv ? `: free ${c.lv.fhvp.toFixed(1)}, wedged ${c.lv.whvp.toFixed(1)}, HVPG ${c.lv.hvpg.toFixed(1)} mmHg` : ''}`);
       },
     };
@@ -48,14 +48,14 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
     c.off?.(); c.off = null;
     const k = first.current ? kept : null, fresh = first.current;
     first.current = false;
-    const from = fresh ? startAt({ to, carry: k && performance.now() - k.at0 < KEEP_MS && k.at < at ? k.t : null, follow: !!follow, figure: cathScript.on ? cathScript.t : null, forward }) : c.t;
+    const from = fresh ? startAt({ to, carry: k && clock.now() - k.at0 < KEEP_MS && k.at < at ? k.t : null, follow: !!follow, figure: cathScript.on ? cathScript.t : null, forward }) : c.t;
     c.to = to; c.t = from; c.at = at;
     if (!c.lv || from >= to) { c.t = to; c.running = false; setN((x) => x + 1); return; }
     c.running = true; setN((x) => x + 1);
-    let last = performance.now();
+    let last = clock.now();
     const hold = clock.hold('hvpg-tool');
     const off = clock.on('tween', () => {
-      const now = performance.now(), dt = Math.min(100, now - last); last = now;
+      const now = clock.now(), dt = Math.min(100, now - last); last = now;
       // (with the catheter on the figure the card reads the figure's own time (scene-link.ts, the one hvpg-clock script), so the trace steps in the frame the balloon fills; with none, its own)
       c.t = Math.min(c.to, c.follow && cathScript.on ? Math.max(c.t, cathScript.t) : c.t + dt);
       if (c.t >= c.to) { c.running = false; setN((x) => x + 1); c.off?.(); c.off = null; }
@@ -64,7 +64,7 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
     c.off = () => { if (done) return; done = true; off(); hold.release(); };
     return c.off;
   }, [at, !!lv]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { kept = { at: L.current.at, t: L.current.t, at0: performance.now() }; }, []);
+  useEffect(() => () => { kept = { at: L.current.at, t: L.current.t, at0: clock.now() }; }, []);
   // Next and Back on the slide (a card that takes its readings one Next at a time): ui/talk/tool-step.ts, asked by the presenter's move
   useEffect(() => {
     if (follow) { setToolStep(null); return; }

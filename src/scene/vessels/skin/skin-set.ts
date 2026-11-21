@@ -32,6 +32,7 @@ import { SKIN_FIGURE_UNITS } from './shaders.ts';
 import { weldThrough } from './through.ts';
 import { armTube, strandCutU } from './braid-arm.ts';
 
+import { clock } from '../../../clock/frame.ts';
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
   readonly object: Object3D;
@@ -230,7 +231,7 @@ export class SkinSet {
   private readonly deps: SkinSetDeps;
   constructor(deps: SkinSetDeps) { this.deps = deps; }
 
-  private now(): number { return this.deps.now ? this.deps.now() : performance.now(); }
+  private now(): number { return this.deps.now ? this.deps.now() : clock.now(); }
   /** The skinned ends of vessel `id` (both false: its joins are today's). */
   endsOf(id: string): readonly [boolean, boolean] { return this.ends.get(id) ?? [false, false]; }
   /** The skins now drawn (a node that fell back at a rebuild is not counted). */

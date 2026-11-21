@@ -10,9 +10,10 @@ import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
 import type { SequenceProof } from './sequence.ts';
-import { speedOf, scaleTime, scaleTimers } from './speed.ts';
+import { speedOf } from './speed.ts';
 import { SPEEDS } from './outer.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'partial'; data: AuditData } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
 const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);max-width:min(560px,94vw);font:500 12px/1.35 system-ui,-apple-system,sans-serif;color:#efefef;background:rgba(20,20,24,.92);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px}
@@ -27,10 +28,10 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
   const { failed } = await loadAllDecks();   // (the registry holds only the HVPG talk until the rest are read in)
   if (failed.length) notes.push(`these talks would not load, so they are not walked: ${failed.join(', ')}`);
   const speed = speedOf(speedIn !== undefined ? String(speedIn) : flagValue('speed'));
-  if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (performance.now, every timer and every CSS animation), so frame rates are not valid (stalls are: they are real-time gaps); fades, settle times, layout and words are.`);
+  if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (clock.now, every clock.after wait and every CSS animation), so frame rates are not valid (stalls are: they are real-time gaps); fades, settle times, layout and words are.`);
   const glassOff = flagValue('noglass') === '1';
   if (glassOff) { document.documentElement.setAttribute('data-noglass', ''); notes.push('NOGLASS: the frosted-glass blur was off for this run (&noglass=1). Compare its talk-open frame rates with a normal run to see what the glass costs.'); }
-  const clockScale = scaleTime(speed, performance), timerScale = scaleTimers(speed, window as never);
+  clock.setScale(speed);   // (one number: every tween, wait and reader of clock.now() follows)
   const taps = startTaps(window, speed);
   const total = planTotal(depth);
   const w = innerWidth, h = innerHeight;
@@ -38,10 +39,10 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
   const size = { id: dev?.id ?? `${w}x${h}`, w, h, dpr: devicePixelRatio };
   try {
     const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c), (p) => sequenceProofs.push(p)), {
-      size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => performance.now(), quietMs: QUIET_MS,
+      size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => clock.now(), quietMs: QUIET_MS,
     }, { depth, notes, coverage, sequence: sequenceProofs, onPartial: (d) => ui.partial?.({ ...d, build: buildInfo().badge, speed: speed > 1 ? speed : undefined }), shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`, total); } });
     return { ...data, build: buildInfo().badge, speed: speed > 1 ? speed : undefined };
-  } finally { taps.stop(); clockScale.restore(); timerScale.restore(); if (glassOff) document.documentElement.removeAttribute('data-noglass'); }
+  } finally { taps.stop(); clock.setScale(1); if (glassOff) document.documentElement.removeAttribute('data-noglass'); }
 }
 
 const bundle = (parts: AuditData[], depth: 'quick' | 'full', failed: Bundle['failed'] = []): Bundle => {
@@ -76,10 +77,10 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
   const go = async (depth: 'quick' | 'full') => {
     const saveSoFar = (d: AuditData) => { last = bundle([d], depth); if (mode === 'run') post({ audit: 'partial', data: d }); };
-    if (running) return; running = true; sel.disabled = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = performance.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
+    if (running) return; running = true; sel.disabled = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = clock.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
     try {
-      const data = await runHere(depth, { partial: saveSoFar, status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, performance.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
-      bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, performance.now(), true).text;
+      const data = await runHere(depth, { partial: saveSoFar, status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
+      bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, clock.now(), true).text;
       last = bundle([data], depth);
       out.textContent = renderText(last, { short: true }); out.hidden = false;
       status.textContent = `Done: ${data.rows.length} steps in ${Math.round(data.ms / 1000)} s${data.stopped ? ' (stopped early)' : ''}. Copy the report.`;
@@ -94,7 +95,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
   if (mode === 'run') {
     post({ audit: 'hello' });
     // (the app inside a frame: wait for the page to be still after boot, then walk it)
-    setTimeout(() => { void settle().then(() => go(depthOf())); }, 1500);
+    clock.after(() => { void settle().then(() => go(depthOf())); }, 1500);
   }
 }
 function post(m: Msg): void { try { parent.postMessage(m, location.origin); } catch { /* no parent: standing alone */ } }

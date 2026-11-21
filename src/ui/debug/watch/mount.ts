@@ -19,7 +19,7 @@ export function mountWatch(opts: { dot?: boolean } = {}): Recorder {
   let last = useShell.getState().view;
   useShell.subscribe((s) => { if (s.view !== last) { last = s.view; r.event('view', { to: s.view }); } });
   for (const ev of ['pointerdown', 'wheel', 'touchstart'] as const) window.addEventListener(ev, () => r.event('hand'), { passive: true, capture: true });
-  setInterval(() => { if (!clock.awake) r.sample(performance.now()); }, 500);
+  clock.every(() => { if (!clock.awake) r.sample(clock.now()); }, 500);
   const text = () => { const f = r.findings(); return f.length ? f.map((x) => findingText(x)).join('\n') : 'No motion findings in the last 20 seconds.'; };
   attach('watch', { findings: () => r.findings(), history: (s?: number) => r.exportHistory(s), events: () => r.events(), clear: () => r.clear(), text });
   if (opts.dot !== false) mountDot(r, text);
@@ -44,5 +44,5 @@ function mountDot(r: Recorder, text: () => string): void {
     if (open) void navigator.clipboard?.writeText(text()).catch(() => undefined);
   };
   document.body.append(dot, panel);
-  setInterval(paint, 1000);
+  clock.every(paint, 1000);
 }

@@ -97,7 +97,7 @@ export function CircuitCaptions() {
     // the floating bars are read at rest (once the layout has settled after a change), not in a frame
     let uiWalls: Box[] = [], wallTimer = 0;
     const readWalls = () => { uiWalls = readUiWalls(); clock.invalidate('circuit-captions'); };   // (the signature holds the walls' boxes: a changed wall is seen there, never forced)
-    const wallsLater = () => { clearTimeout(wallTimer); wallTimer = window.setTimeout(readWalls, 260); };
+    const wallsLater = () => { clock.cancel(wallTimer); wallTimer = clock.after(readWalls, 260); };
     wallsLater();
     addEventListener('resize', wallsLater);
     const offWalls = useUi.subscribe((s, p) => { if (s.vp !== p.vp || s.dockShown !== p.dockShown || s.boxes !== p.boxes) wallsLater(); });
@@ -203,7 +203,7 @@ export function CircuitCaptions() {
     let itemsNow = new Map<string, import('../labels/solver.ts').Item>();
 
     /** The stations' readings, from the engine's newest frame (written when a number changes, at most four times a second). */
-    const writeValues = (force: boolean, now = performance.now()) => {
+    const writeValues = (force: boolean, now = clock.now()) => {
       if (!force && now - lastValues < VALUE_EVERY_MS) return;
       lastValues = now;
       const f = latest.frame;
@@ -233,7 +233,7 @@ export function CircuitCaptions() {
         [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
     };
     const tick = () => {
-      const now = performance.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
+      const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
       const onMap = cel.view === 'circuit' && cel.circuit.t >= 1 && !cel.circuit.moving;
       // two points of the map: where the picture stands (the words ride it while the camera moves it, and are placed again once it is still)
@@ -301,7 +301,7 @@ export function CircuitCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
     const measureReset = () => { gate.invalidate(); clock.invalidate('circuit-captions'); };
-    return () => { off(); offClaims(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); keyMo.disconnect(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offClaims(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); keyMo.disconnect(); clock.cancel(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;

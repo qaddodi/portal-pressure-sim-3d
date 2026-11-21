@@ -4,12 +4,13 @@
 import { feedbackHref, FEEDBACK_SHEET_MS, FEEDBACK_READ_MS } from './feedback.ts';
 import { useShell } from './store.ts';
 
+import { clock } from '../../clock/frame.ts';
 export async function sendFeedback(email: string): Promise<void> {
   const plain = { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href };
   let fb: { short: string; full: string; link: string; build: string } | null = null;
   try {
-    await new Promise((ok) => setTimeout(ok, FEEDBACK_SHEET_MS));
-    fb = await Promise.race([import('../debug/packet/feedback.ts').then((m) => m.readFeedback()), new Promise<null>((ok) => setTimeout(() => ok(null), FEEDBACK_READ_MS))]);
+    await new Promise((ok) => clock.after(ok, FEEDBACK_SHEET_MS));
+    fb = await Promise.race([import('../debug/packet/feedback.ts').then((m) => m.readFeedback()), new Promise<null>((ok) => clock.after(() => ok(null), FEEDBACK_READ_MS))]);
   } catch (e) { console.warn('[feedback] the screen could not be read; the draft goes without it', e); }
   location.href = feedbackHref(email, fb ? { ...plain, build: fb.build, view: fb.link } : plain, fb?.short ?? '');
   const full = fb?.full;

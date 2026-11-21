@@ -6,6 +6,7 @@ import { ownsTouch } from '../cards/swipe-own.ts';
 import { wheelFinger, wheelGesture, sidewaysGesture, type WheelG } from './wheel-swipe.ts';
 import type { Move } from './presenter-machine.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** A trackpad's two-finger sideways swipe goes to the next or previous slide, once a gesture (wheel-swipe.ts). A pinch (Ctrl/⌘ + wheel) is left alone (no-page-zoom.ts cancels it); a field or slider keeps its wheel. */
 export function useDeckWheel(onMove: (m: Move) => void): void {
   const go = useRef(onMove);
@@ -17,7 +18,7 @@ export function useDeckWheel(onMove: (m: Move) => void): void {
       if (!ui.deck || !ui.stops.length || sh.mode !== 'deck' || ui.jump || sh.dialog || sh.sheet || useDialogs.getState().dialog) return;
       if (e.ctrlKey || e.metaKey) return;
       if (ownsTouch(e.target as Element | null)) return;
-      const now = e.timeStamp > 0 ? e.timeStamp : performance.now();
+      const now = e.timeStamp > 0 ? e.timeStamp : clock.now();
       const [fx, fy] = wheelFinger(e.deltaX, e.deltaY, e.deltaMode, (e as WheelEvent & { webkitDirectionInvertedFromDevice?: boolean }).webkitDirectionInvertedFromDevice, innerHeight);
       const r = wheelGesture(g, fx, fy, now);
       g = r.g;

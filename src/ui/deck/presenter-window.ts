@@ -6,6 +6,7 @@ import { keepAwake } from './from2d/wake-lock.js';
 import { applyLook, resolveLook } from '../../looks/looks.ts';
 import { useSettings } from '../../state/settings.ts';
 
+import { clock as pageClock } from '../../clock/frame.ts';
 const CSS = `
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.5 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .pv { display: grid; grid-template-rows: auto 1fr auto; height: 100%; max-width: 1100px; margin: 0 auto; padding: 16px 20px; box-sizing: border-box; gap: 14px; }
@@ -107,7 +108,7 @@ export function run(): void {
     if ((e.target as HTMLElement | null)?.tagName === 'BUTTON' && (k === ' ' || k === 'Enter')) return;
     e.preventDefault(); if (!e.repeat) send(c, i);
   });
-  setInterval(() => { tick(); status(); }, 1000);
+  pageClock.every(() => { tick(); status(); }, 1000);
   paint(); status();
   try { ch?.postMessage({ v: PROTOCOL, sid, t: 'hello' }); } catch { /* channel closed */ }
 }

@@ -22,7 +22,7 @@ export function LumenCard({ params, vessel = 'PV_TRUNK', stented = null, site = 
     const f = fol.current, t = view.target;
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!shown.current || reduce) { f.snap(t.stenosis, t.thrombus); if (ctx.current) painter.current?.show(frameNow(), false); shown.current = true; return; }
-    if (!f.goal(t.stenosis, t.thrombus, performance.now())) { if (ctx.current) painter.current?.show(frameNow(), true); return; }
+    if (!f.goal(t.stenosis, t.thrombus, clock.now())) { if (ctx.current) painter.current?.show(frameNow(), true); return; }
     const hold = clock.hold('chart:lumen');
     const off = clock.on('tween', (fi) => {
       const moving = f.at(fi.time);

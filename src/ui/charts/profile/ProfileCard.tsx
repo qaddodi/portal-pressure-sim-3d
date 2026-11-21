@@ -66,7 +66,7 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
   const build = (c: ChartCtx): Frame => {
     ctx.current = c;
     if (!inp) { plan.current = null; planKey.current = ''; return empty; }
-    const m = motion.current!, now = performance.now();
+    const m = motion.current!, now = clock.now();
     m.reduce = reduced();
     const f = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
     // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
@@ -85,7 +85,7 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
   };
 
   useEffect(() => {
-    const m = motion.current!, now = performance.now();
+    const m = motion.current!, now = clock.now();
     m.setHold(hold, now);
     if (plan.current) { draw(now); kick(); }
   }, [hold]);  // eslint-disable-line react-hooks/exhaustive-deps
