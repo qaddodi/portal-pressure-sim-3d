@@ -490,18 +490,18 @@
 .tf { min-width: 0; }
 /* The TIPS and DIPS vessel card (tips-vessel.js): the stent to scale, one line of numbers, the three tiles. An open tile's tray unrolls under them and the
    card's Doppler, Dye and Remove fold away while it is open (option A, 17 Nov); nothing covers the stent. */
-.tv { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tv { display: flex; flex-direction: column; gap: 6px; min-width: 0; container-type: inline-size; }
 .tv > .tf { margin-top: 4px; }   /* (the mock: 10 px under the name, 8 px over the numbers, 10 px over the rows) */
 .tv-keys { padding: 0 2px; column-gap: 0; justify-content: space-between; overflow: visible; }   /* (the slack goes between the three readings, so the last unit is never cut at the card's edge) */
 .tv-keys .ir-kv b { margin: 0 2px; }   /* (the vessel card's three readings: 12 px, the standing floor, on one line in a 240 px card: 243 px of content with the line's own 7 px gap, 237 with this) */
 .tv-keys .ir-kv { font-size: var(--fs-12); }   /* (the line's own type scaled with its width, min(12px, 3.2cqi): 7.6 px words and 8.8 px numbers in a 240 px card, on Mac, iPad and iPhone; the layout sweep, 18 Nov) */
 .tv-keys .ir-kv b { font-size: 1.17em; }   /* (the three on one line in a 240 px card) */
 .ac-panel:has(> .tv) { position: relative; z-index: 4; }
-.ac-panel:has(> .tv) + .ac-as { transition: opacity var(--d-small) var(--ease); display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); justify-items: start; gap: 0 12px; align-content: center; min-height: 48px; border-top: 1px solid var(--hairline); }
+.ac-panel:has(> .tv) + .ac-as { transition: opacity var(--d-small) var(--ease); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); justify-items: stretch; gap: 0 4px; align-content: center; min-height: 48px; border-top: 1px solid var(--hairline); }
 :is(.ac-body, .ac-ghost) > .ac-panel:has(> .tv) + .ac-as { margin-top: 6px; animation: crossfade var(--d-small) var(--ease); }   /* (right under the tiles; back in by a fade when a tray closes) */
 .tv .ir-keys { margin-bottom: 2px; }
 .ac-panel:has(> .tv .se-panel:not([data-open=""])) + .ac-as { position: absolute; top: var(--as-top, 0px); left: var(--as-left, 0px); width: var(--as-w, 100%); box-sizing: border-box; margin: 0; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--d-small) var(--ease), visibility 0s linear var(--d-small); animation: none; }   /* (the open tray's room: the actions leave the flow at once and fade where they stood, under the tray as it unrolls, never popping off, 17 Nov 2026; stent-editor.js holdActions writes where; back in by the fade above when the tray has gone) */
-.tv .tf-card { margin: 2px 0 0; }
+.tv .tf-card { margin: 0; min-height: calc(51px + 12.264cqi); }   /* (the figure's own height from its width, 51 px + 13 mm of vein at 8 + 2 × 1.3 cm across, so the card has its full height from its first paint and the camera's room is measured once: figLayout) */
 .tf-stage { width: 100%; height: 60px; }   /* (its height is the figure's own, written when its width changes: tips-figure.js fit) */
 /* The stent editor (stent-editor.js; option A, the tab tray, 17 Nov 2026: /mnt/project-files/stent-tile-mocks/stent-tiles-three-ways.html). Three tiles side by
    side, 64 px: the name and a chevron, the value, one small line. The open tile fills in (its own fill, faded, square at the foot) and the tray unrolls from
@@ -792,3 +792,7 @@
 
 /* A stent's vessel card holds the same editor as the TIPS view (actions.js STENT_PANEL, card.js panel): one row, its own container so the chips take their narrow form. */
 .ac-panel { container-type: inline-size; min-width: 0; max-width: 100%; overflow-x: clip; margin-top: 6px; }
+
+/* The vessel card's actions: one row of equal columns, each icon attached to its word and centred in its column (Remove, Doppler, Dye, IR), whatever their number. */
+.ac-panel:has(> .tv) + .ac-as .ac-btn { justify-content: center; margin: 0; padding: 10px 2px; min-height: 44px; gap: 5px; }
+.ac-panel:has(> .tv) + .ac-as .ac-dye .ac-bl { min-width: 0; }

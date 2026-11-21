@@ -4,7 +4,8 @@
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { SwitchNum } from '../patients/SwitchNum.tsx';
-import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { useActionRoom } from './action-room.ts';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import './action.css';
 import { OrderIcon } from './icons.tsx';
 import { Icon } from '../shell/icons.tsx';
@@ -203,6 +204,14 @@ export function ActionCard() {
   const close = () => import('./selection.ts').then((m) => m.selectStructure(null));
   // a phone's sheet follows a pull down from anywhere on it and closes past a short pull or a flick (2D swipeSheet; shell/sheet-swipe.ts)
   useSheetSwipe(ref, () => { void close(); }, () => bottom);
+  // the card's height (from its own resize observer, no layout read) is the room it takes from the figure while it stands over it as a sheet
+  useLayoutEffect(() => {
+    const el = ref.current, set = useActionRoom.getState().set;
+    if (!el || !open || !bottom || typeof ResizeObserver !== 'function') { set(0); return; }
+    const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0]; set(b ? b.blockSize : es[0]?.contentRect.height ?? 0); });
+    ro.observe(el);
+    return () => { ro.disconnect(); set(0); };
+  }, [open, bottom]);
   const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - (device === 'phone-landscape' ? 0 : 0)}px)` } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>

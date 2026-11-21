@@ -30,6 +30,7 @@ import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { useTestsRoom } from '../tests/room.ts';
+import { useActionRoom, roomAbove } from '../action/action-room.ts';
 import { panRoom, probeShift } from '../tests/place.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { TestsLayer } from '../tests/TestsLayer.tsx';
@@ -63,12 +64,13 @@ function useFreeCamera() {
   const vp = useUi((s) => s.vp);
   const thumb = useThumb();
   const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
+  const actionH = useActionRoom((s) => s.h);   // (an action card over the bottom of the figure takes its height from the room)
   const entered = useRef(false);
   // The figure pans, never zooms, under the Tests card (place.ts panRoom); `bias` is the extra shift that brings the probe now up (the Doppler's gate, the FibroScan's tip) into the free part
   const bias = useRef({ x: 0, y: 0 });
   const probe = useProbes((s) => `${s.doppler.on ? `${s.doppler.edge}|${s.doppler.seg}` : ''}/${s.fibro.on ? s.fibro.organ : ''}`);
   const roomNow = () => {
-    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = panRoom(base, testsPlace), b = bias.current;
+    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = roomAbove(panRoom(base, testsPlace), actionH), b = bias.current;
     return { base, room: { x: r.x + b.x, y: r.y + b.y, w: r.w, h: r.h } };
   };
   const lastScreen = useRef('');
@@ -81,7 +83,7 @@ function useFreeCamera() {
     const screen = `${vp.w}x${vp.h}:${thumb}`, refit = screen !== lastScreen.current; lastScreen.current = screen;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room, undefined, false, refit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, vp, thumb, testsPlace]);
+  }, [mode, vp, thumb, testsPlace, actionH]);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0 || !entered.current) return;
     // once the probe has landed (it waits for the camera and fades in), move the figure so the probe stands in the middle of what the card leaves

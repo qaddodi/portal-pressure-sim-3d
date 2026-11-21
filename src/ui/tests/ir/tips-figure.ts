@@ -119,6 +119,16 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
     p.fillPoly([...top, ...bot], slice(a, b));
   }
   p.poly(edge, 'stent.lumen', ex);
+  // a soft tube shading over the lumen's flat velocity colour: a pale band along its upper side and a faint shade along the lower, each fading toward the axis (the cel look's two soft tones, never a stripe)
+  const side = (up: boolean, col: Rgba, reach: number) => {
+    const edgePt = (i: number): [number, number] => { const q = up ? i : 2 * n + 1 - i; return [edge[2 * q]!, edge[2 * q + 1]!]; };
+    const midPt = (i: number): [number, number] => { const a = edgePt(i), j = 2 * n + 1 - (up ? i : 2 * n + 1 - i), b: [number, number] = [edge[2 * j]!, edge[2 * j + 1]!]; return [a[0] + (b[0] - a[0]) * reach, a[1] + (b[1] - a[1]) * reach]; };
+    const out: number[] = [];
+    for (let i = 0; i <= n; i++) out.push(...edgePt(i));
+    for (let i = n; i >= 0; i--) out.push(...midPt(i));
+    p.fillPoly(out, col);
+  };
+  if (ex > 0.01) { side(true, [1, 1, 1, 0.2 * ex], 0.42); side(false, [0, 0, 0, 0.09 * ex], 0.38); }
 
   // The stent as a cut view (stent-mesh.js stentCutD): only its wall on each side, the cover's thin bands and the rings along them, so the lumen shows whole and a narrowing pinches the wall with it.
   const frameAt = (a: number, side: number): [number, number] => { const u = a / span; return [x0 + a, cy + (side * (dPx * profileAt(sh, s, site, u))) / 2]; };
