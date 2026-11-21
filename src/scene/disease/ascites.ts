@@ -10,12 +10,13 @@
 //     the water's top (ascites-top.ts). There is no pale rim inside the wall: with the flank line and the feather it read as a second line on both sides (21 Nov).
 // ONE BELLY (21 Nov): the pool, the flank line (landmarks.ts) and the tap test all lie on the gut's own plane, `bellyZ()`. They had a depth each (pool 0.28, flank -0.4), so on a turn the pool slid off its wall.
 // Everything is a number the clock eases (the volume's spring, the flow rate, the living switch's own 0.45 s glide, the slosh's damping): nothing pops.
-import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Group, Mesh, NearestFilter, RedFormat, ShaderMaterial, Vector2, Vector3, type Raycaster } from 'three';
+import { BackSide, BufferAttribute, BufferGeometry, DataTexture, DoubleSide, FloatType, Group, Mesh, NearestFilter, RedFormat, ShaderMaterial, Vector2, Vector3, type Raycaster } from 'three';
 import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { fluidBase, fluidLevel, poolFade } from './copied/fluid-step.js';
 import { x3, y3, x2d, y2d } from '../frame2d.ts';
 import { ORGAN_Z } from '../organs/z.ts';
 import { AscitesTop } from './ascites-top.ts';
+import { AscitesShell } from './ascites-shell.ts';
 import { EDGE_STEPS, FLUID_COLS, LIVER_CUT_FS, LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN, NO_LIVER, liverCut, liverEdgeTable, liverScaleOf } from './liver-edge.ts';
 import type { LookId } from '../../looks/looks.ts';
 
@@ -25,6 +26,12 @@ export const bellyZ = (): number => ORGAN_Z.bowel!;
 /** The water's swell toward the viewer (scene units) at its deepest, and the distance from the wall (2D units) over which it grows: an elliptic dome, 0 on the wall to the whole by DOME_R in. At a 14 degree lens
  *  the swell moves the head-on surface by at most about 1.3 CSS px (0.12 moved it 2.1 px at 800 mL, the lowest surface, so it is 0.075) (tests/ascites-basin.test.ts pins 1.5), so 2D's flat look is kept at rest. */
 export const DOME = 0.075, DOME_R = 140;
+/** The water is a closed body, not a sheet (Mohammad, 21 Nov: "not volumetric; it looks like a curtain"): the front face is the dome above (over the organs), a back face lies SHELL_BACK scene units behind the belly's plane
+ *  (the bowel's; the kidney, spleen and the flank are all in front of it), the cavity wall joins them (ascites-shell.ts) and the surface is the lid (ascites-top.ts). The back face and the far walls are drawn BEFORE the organs,
+ *  at SHELL_BACK_ORDER (after the flank's -1, before the heart's fill at 0), so the organs sit in the water; the front face, the near walls and the lid are drawn after them, as the pool always was. */
+export const SHELL_BACK = 0.3, SHELL_BACK_ORDER = -0.5;
+/** Each of the two layers a ray crosses through the body (back face, front face) takes this share of the alpha, so that the pair stacks to the one alpha 2D paints: (1 - h)^2 = 1 - a. */
+export const shellHalf = (a: number): number => 1 - Math.sqrt(Math.max(0, 1 - a));
 export const poolDome = (aW: number): number => { const w = Math.min(Math.max(aW / DOME_R, 0), 1); return Math.sqrt(Math.max(0, 1 - (1 - w) * (1 - w))); };
 /** 2D paints the pool over the organ plate and the vessels (veins-gl.js fluidAt), so it is drawn after every organ and its ink (organs run to renderOrder 2 * 9 + 1) and ignores depth: the pool washes what lies in it, as in 2D. */
 export const POOL_ORDER = 19;
@@ -195,7 +202,14 @@ void main() {
   float wx = position.x * 300.0 + 700.0;
   vec3 p = position;
   p.y += poolLift(wx, aW, aD, pxu) / 300.0;
+#if defined(POOL_BACK) || defined(POOL_WALL)
+  // the body's back face and its walls: no swell (the walls carry their own depth), and the back face lies SHELL_BACK behind the belly's plane
+#ifdef POOL_BACK
+  p.z -= ${f(SHELL_BACK)};
+#endif
+#else
   p.z += poolSwell(aW);   // (the vertex lies on the belly's plane, bellyZ; the swell is from the wall distance, so the wall stays exactly on the wall line)
+#endif
   vD = aD;
   vW = aW;
   vPxu = pxu;
@@ -225,16 +239,28 @@ void main() {
   vec3 rich = clamp(vec3(lum) + (c - vec3(lum)) * ${f(RICH_SAT)}, 0.0, 1.0) * ${f(RICH_VAL)};
   c = mix(c, rich, ${f(RICH_K)} * smoothstep(${f(RICH_FROM)}, ${f(RICH_TO)}, d) * uLiving);
   float wpx = vW * vPxu;
+#ifdef POOL_WALL
+  float edge = 1.0;   // (the cavity wall is the body's side: it does not fade out at itself)
+#else
   float edge = mix(1.0, smoothstep(0.0, ${f(FEATHER_PX)}, wpx), uLiving);
+#endif
   gl_FragColor = vec4(c, min(1.0, a * edge) * uOpacity);
   // 2D's liver cut (veins-gl.js fluidAt): the straw is kept off a congested liver, above its lower edge
   gl_FragColor.a *= liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
+  // the body: a ray crosses two layers (back, front), each takes the half of the alpha that stacks to 2D's one (shellHalf); the front glides from the whole to the half with the living switch, the back parts glide in from nothing
+  float halfA = 1.0 - sqrt(max(1.0 - gl_FragColor.a, 0.0));
+#if defined(POOL_BACK) || defined(POOL_WALL)
+  gl_FragColor.a = halfA * uLiving;
+#else
+  gl_FragColor.a = mix(gl_FragColor.a, halfA, uLiving);
+#endif
 }`;
 
 export class AscitesLayer {
   readonly group = new Group();
   private fill: Mesh;
   private readonly top: AscitesTop;
+  private readonly shell: AscitesShell;
   private pf = new Float32Array(COLS * ROWS * 3); private aD = new Float32Array(COLS * ROWS); private aW = new Float32Array(COLS * ROWS);
   private lastH = NaN; private lastStep = -1;
   private body = 1; private poolA = 0;
@@ -276,6 +302,8 @@ export class AscitesLayer {
     this.fill = m;
     this.top = new AscitesTop(this.uniforms);   // (the water's top: its own mesh, the same uniforms, so the ripple, the living switch, the fade and the ink are the pool's)
     this.group.add(this.top.mesh);
+    this.shell = new AscitesShell(this.uniforms, g);   // (the body's back face and walls: the pool's own geometry again, and a ribbon along the wall; the same uniforms)
+    for (const sm of this.shell.meshes) this.group.add(sm);
   }
   /** The canvas size in CSS px (the scene's shared `res`): the pool's sizes are pixels, so its program needs the screen's. */
   bindRes(res: { value: Vector2 }): void { this.uniforms.uRes = res; }
@@ -305,14 +333,18 @@ export class AscitesLayer {
   private apply(): void {
     this.fill.visible = this.poolA > 0 && this.body > 0.001 && this.dim > 0.001;
     this.top.mesh.visible = this.fill.visible;
+    this.syncShell();
     this.uniforms.uOpacity.value = this.poolA * this.body * this.dim;
   }
+  /** The back face and the walls are drawn while there is water and the living switch is not fully off (off is 2D's flat pool: nothing behind it). */
+  private syncShell(): void { this.shell.show(this.fill.visible && this.uniforms.uLiving.value > 0.002); }
   /** One frame on the clock: the ripple's phase runs with the eased flow rate (0 paused .. 1), the slosh swings with the level's speed, the living switch glides. True while any of it still moves (the clock draws another frame). */
   step(dt: number, flowRate: number): boolean {
     const u = this.uniforms, shown = this.fill.visible;
     const gl = this.livingGoal - u.uLiving.value;
     if (gl !== 0) { u.uLiving.value = Math.abs(gl) < 0.002 ? this.livingGoal : u.uLiving.value + gl * -Math.expm1(-dt / LIVING_TAU); }
     let moving = gl !== 0;
+    if (gl !== 0) this.syncShell();
     if (!shown) { this.levelWas = NaN; return moving; }
     const calm = this.still;
     // the ripple: 2D's phase, advanced by the eased flow rate (a pause settles it over the flow's own half second)
@@ -372,6 +404,7 @@ export class AscitesLayer {
     }
     this.top.lay(tops, topW, depthH);
     this.fill.geometry.boundingSphere = null;
+    { let ymin = Infinity; for (const q of poly) ymin = Math.min(ymin, q[1]); this.shell.lay(poly, (x) => Math.max(fluidBase(x, h), ymin)); }   // (the walls, from the cavity's outline under the same surface)
     for (const n of ['position', 'aD', 'aW']) (this.fill.geometry.getAttribute(n) as BufferAttribute).needsUpdate = true;
     return true;
   }
@@ -398,5 +431,5 @@ export class AscitesLayer {
     const x = x2d(hit.point.x), y = y2d(hit.point.y) + (hit.object === this.top.mesh ? 0.5 : 0);   // (the top lies on the surface: a hair into the water)
     return this.holds(x, y) ? { x, y } : null;
   }
-  dispose(): void { this.fill.geometry.dispose(); (this.fill.material as ShaderMaterial).dispose(); this.top.dispose(); }
+  dispose(): void { this.fill.geometry.dispose(); (this.fill.material as ShaderMaterial).dispose(); this.top.dispose(); this.shell.dispose(); }
 }

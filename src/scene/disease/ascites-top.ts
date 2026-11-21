@@ -1,5 +1,5 @@
 // The water's top (21 Nov 2026, ascites package A): a tilt down onto the figure shows the surface of the ascites, a thin lighter straw ellipse with a crisp pale line along its front edge,
-// rippling as the pool does. It is one strip per pool column, lying in the surface (the column's top row), from the swell's front (bellyZ + the dome) back to its mirror (bellyZ - the dome).
+// rippling as the pool does. It is one strip per pool column, lying in the surface (the column's top row), from the swell's front (bellyZ + the dome) back to the body's back face (bellyZ - SHELL_BACK, ascites.ts): the lid of the water.
 //   - It rides the pool's own program parts: the lift (ripple, climb, slosh) is `poolLift` from POOL_COMMON_GLSL, never a copy, the swell is `poolSwell`, and the uniforms are the pool's own object
 //     (ink, opacity, living, phase, amplitude, slosh, canvas size), so the Living switch, Reduce Motion, the volume's fade and later uniforms (the dim) reach it without a second path.
 //   - It is seen only from above: the face winds upward and the material culls the rest, and its alpha rises with the camera's elevation over the surface (TOP_ELEV_FROM..TOP_ELEV_TO, the sine of the
@@ -14,6 +14,8 @@ import { x3, y3 } from '../frame2d.ts';
 import * as A from './ascites.ts';
 import { LIVER_CUT_FS, LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN } from './liver-edge.ts';
 
+/** The lid's program (topVS / topFS) is built when its material is: the scene graph holds it (the ascites layer's group), and the GLSL compile test finds it there. */
+export const GL_ON_SCENE_GRAPH = 'the ascites layer\'s water top (pool-top)';
 /** The camera's elevation over the surface (sine of the angle) where the top starts to show and where it shows whole: about 5.7 and 11.5 degrees. */
 export const TOP_ELEV_FROM = 0.1, TOP_ELEV_TO = 0.2;
 /** Water shallower than this many 2D units (at a column) has no top yet. */
@@ -41,7 +43,7 @@ void main() {
   base.y += poolLift(wx, aW, 0.0, pxu) / 300.0;
   float dz = poolSwell(aW);
   vec3 front = base + vec3(0.0, 0.0, dz);
-  vec3 p = base + vec3(0.0, 0.0, dz * (1.0 - 2.0 * aS));
+  vec3 p = mix(front, base - vec3(0.0, 0.0, uLiving * ${A.f(A.SHELL_BACK)}), aS);   // (the lid runs from the swell's front back to the body's back face)
   vec4 cf = projectionMatrix * modelViewMatrix * vec4(front, 1.0);
   vec4 cp = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   vSpx = length((cp.xy / cp.w - cf.xy / cf.w) * 0.5 * uRes);   // CSS px from the strip's front edge: the crisp line is drawn in px, as the pool's is
@@ -108,7 +110,7 @@ export class AscitesTop {
   /** The CPU copy as the shader draws it for a living share `live` (0 flat on the belly's plane): used by the tap's ray cast, never uploaded. */
   swell(live: number): void {
     const z = A.bellyZ();
-    for (let v = 0; v < this.aW.length; v++) this.pos[v * 3 + 2] = z + live * A.DOME * A.poolDome(this.aW[v]!) * (1 - 2 * this.aS[v]!);
+    for (let v = 0; v < this.aW.length; v++) this.pos[v * 3 + 2] = this.aS[v]! ? z - live * A.SHELL_BACK : z + live * A.DOME * A.poolDome(this.aW[v]!);
     this.mesh.geometry.boundingSphere = null;
   }
   dispose(): void { this.mesh.geometry.dispose(); (this.mesh.material as ShaderMaterial).dispose(); }

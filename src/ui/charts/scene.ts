@@ -61,6 +61,10 @@ export interface Frame {
   label: string;
 }
 
+/** The height a chart takes by its own aspect (a plot so many tenths of its width), under its card's fit (2D `.pz-curve { height: cv-h * var(--pz-fit) }`). A card's `zoom` lays the box out at width / fit,
+ *  so a height read off that width came out, once zoomed, as tall as at fit 1 and the chart stood past the card's foot however far the fit went (iPhone: 53 px cut on the stent slides). Times the fit it shrinks with the card. */
+export const fitHeight = (h: number, c: { fit?: number }): number => (c.fit && c.fit > 0 && c.fit < 1 ? h * c.fit : h);
+
 export const pen = (color: Rgba, w = 1, extra: Partial<Pen> = {}): Pen => ({ color, w, ...extra });
 
 /** A frame drawn k times as large, every length of it (coordinates, sizes, pens, dashes, halos). A chart laid out at the screen's own pixels and scaled by 1/fit comes out, under its card's

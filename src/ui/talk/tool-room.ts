@@ -4,6 +4,7 @@
 // property on the card (the stylesheets' rules read it: the profile, the plane) and as a number in `ToolRoom` (the pictures the page's own code draws: the path card).
 import { createContext, useContext, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { toolRoomOf } from '../tests/slide/copied/tool-room.copied.js';
+import { observeThenFit } from '../layout/fit-later.ts';
 
 /** The height cap of the data card the instrument is in, px (the plan's `maxH.data`); 0 where the card has none (a phone's stacked card, a card standing alone). */
 export const DataCap = createContext(0);
@@ -44,11 +45,9 @@ export function useToolRoom(): [RefObject<HTMLDivElement | null>, number] {
       if (card) { if (r > 0) card.style.setProperty('--pz-room', `${r}px`); else card.style.removeProperty('--pz-room'); }
     };
     apply();
-    if (typeof ResizeObserver === 'undefined') return () => { card?.style.removeProperty('--pz-room'); };
-    // the parts round the instrument (its header's tiles wrap, a font arrives) change the room; the instrument itself does not
-    const ro = new ResizeObserver(apply);
-    for (const c of Array.from(box.parentElement?.children ?? [])) if (c !== box) ro.observe(c);
-    return () => { ro.disconnect(); card?.style.removeProperty('--pz-room'); };
+    // the parts round the instrument (its header's tiles wrap, a font arrives) change the room; the instrument itself does not (--pz-room is written on the card they stand in: after the delivery, never inside it)
+    const off = observeThenFit(Array.from(box.parentElement?.children ?? []).filter((c) => c !== box), apply);
+    return () => { off(); card?.style.removeProperty('--pz-room'); };
   }, [cap]);
   return [ref, room];
 }

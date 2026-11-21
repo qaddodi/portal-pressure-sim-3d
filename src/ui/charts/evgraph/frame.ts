@@ -4,7 +4,7 @@
 import type { ChartCtx } from '../Chart.tsx';
 import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
-import type { Frame, Shape, TextShape } from '../scene.ts';
+import { fitHeight, type Frame, type Shape, type TextShape } from '../scene.ts';
 import { LINE, cw as cwReal, headLeft, withUnit } from '../flowtime/model.ts';
 import { EVENT_S, PRE_S, TICK_S, evCw, evGeo, evHeight, evLabel, evX, evY, eventScales, fmtN, goalSpot, valAt, type EvRun, type EvSpec } from './model.ts';
 
@@ -24,7 +24,7 @@ export interface EvInput {
 
 /** The chart at t seconds after the change (t is where the heads stand; before the change, 0). */
 export function evGraphFrame(inp: EvInput, t: number, c: ChartCtx): Frame {
-  const { spec } = inp, f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, inp.height ?? evHeight(w, f)));
+  const { spec } = inp, f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, inp.height ?? fitHeight(evHeight(w, f), c)));
   const x = spec.lines.map((k) => LINE[k]?.[4] ?? 1);
   const before = [inp.before[0] * x[0]!, inp.before[1] * x[1]!] as const;
   const endv = inp.end?.every(Number.isFinite) ? ([inp.end[0] * x[0]!, inp.end[1] * x[1]!] as const) : null;

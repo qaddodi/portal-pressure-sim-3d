@@ -8,6 +8,7 @@ import { fitOf } from './fit.ts';
 import { paletteOf, type Palette } from './palette.ts';
 import { ChartPainter } from './painter.ts';
 import type { Frame } from './scene.ts';
+import { observeThenFit } from '../layout/fit-later.ts';
 
 /** What a chart's model gets: the box's width, the colours of the look, the type of the device. */
 export interface ChartCtx { w: number; pal: Palette; type: ChartType; look: LookId; /** the zoom the box lives under (the card's fit, 1 when none): a chart whose words may never be under 12 px on the screen lays itself out at w × fit and scales by 1 / fit (scaleFrame) */ fit?: number }
@@ -74,9 +75,8 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     // the rect's width the chart came out the zoom's share of the card (left-aligned, half empty) and then was zoomed down again, its words with it. Divide the zoom out.
     const measure = () => { const z = fitOf(el); setW(Math.round(el.getBoundingClientRect().width / z)); setFit(Math.round(z * 100) / 100); };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => { ro.disconnect(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
+    const off = observeThenFit([el], measure);   // (a new width redraws the chart, which changes the height of the card around it: after the observer's delivery, never inside it)
+    return () => { off(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
   }, [tag]);
 
   const lastKey = useRef('');
