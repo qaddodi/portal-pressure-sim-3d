@@ -189,8 +189,8 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
       const cam = new PerspectiveCamera(30, 1, 0.01, 100); cam.position.set(J[0], J[1], J[2] + 1.2); cam.lookAt(J[0], J[1], J[2]);
       mesh.junction.arms.forEach((arm, ai) => {
         if (isBraid(NETWORK_BY_ID.get(arm.vesselId)!)) return;
-        // (a growing arm is drawn at full size in the skin and its tube's cut end is dithered into the skin by the weld (skin-set.ts `a.weld`): there is no ink line to run on at its seam, and this twin builds its tube at rest width, not the welded one: IVC_D's DIPS read -3.2 px on the side facing the cava)
-        if (arm.grow) return;
+        // (a growing arm on a WALL skin leaves the host's wall, so from the front it always overlaps the host's silhouette and the screen-space blend pulls its outline in: measured -3.3 px at S_PC of wall:IVC_IS_1:S_PC1,C90 whatever ring the seam is on. A three-arm node's seams are moved out of the overlap instead (skin-set.ts clearOfAxes), so IVC_D's DIPS is judged)
+        if (arm.grow && mesh.junction.arms.some((a) => a.side)) return;
         const tb = tubeOf(arm.vesselId), cut = mesh.cuts[ai]!;
         // the three axis points the shader draws from: the tube's own ring centres, as the set builds them
         const sided = mesh.junction.arms.some((a) => !!a.side);
