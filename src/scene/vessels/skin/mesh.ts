@@ -4,7 +4,7 @@
 import { sdfSheet } from './sheet.ts';
 import { Vector3 } from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { SKIN_GROWERS, SkinBuildError, type GrowMorph, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
+import { SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { ARM_REACH, MAX_SKIN_ARMS, closestOnArm, gradient, localRadius, sdUnionGrad, skinKOf, weights, type Capsule } from './sdf.ts';
 
 /** The target edge length is `EDGE_SCALE` times the circumference spacing `2 pi R / ring size` of the arm nearest the edge, so the skin's triangles are the size of the tube's own around
@@ -39,13 +39,6 @@ export const SMOOTH_LAMBDA = 0.6;
 export const POLISH_ROUNDS = 2;
 /** Newton steps that put a vertex on the surface (spec 4.5.5), and the central-difference step as a share of k. */
 export const PROJECT_STEPS = 12;
-/** A closed growing arm's rows are laid on the trunk's wall from this weight of the arm (over the next FOOT_SPAN), and relaxed over it FOOT_RELAX rounds with the fillet round them held. */
-export const FOOT_FROM = 0.3;
-export const FOOT_SPAN = 0.4;
-export const FOOT_RELAX = 120;
-export const FOOT_PROJECT_EVERY = 4;
-export const FOOT_DRAW_MAX = 0.8;
-const smooth01 = (t: number): number => { const u = t < 0 ? 0 : t > 1 ? 1 : t; return u * u * (3 - 2 * u); };
 export const GRADIENT_H = 0.05;
 /** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
 export const FLIP_GAIN = 1.05;
@@ -522,121 +515,12 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     }
     normal.set(cur);
   }
-  // THE GROWING ARMS' SECOND SHAPE (spec 10.2): the skin as it is when that arm is NOT THERE: the plain trunk, the union of the OTHER arms at the same blend k, so the trunk away from the mouth is the same surface in both shapes (nothing moves
-  // there while the arm grows). Every vertex that belongs to the arm, its seam ring and the rows of skin out to it, lies on that trunk surface (the nearest point on it) with the trunk's normal and weights, so a closed arm leaves nothing standing off
-  // the trunk. The first version kept the arm's capsule at radius 0, a thread along its axis out to the ring's centre: the smooth union still drew it as a thin cone, 1.7 to 2.7 radii long, with the ink on it (the "thorns" on the SMV, 20 Nov). The
-  // arm then grows as a bud: its ring slides out from the trunk to the tube's own ring (exactly the tube's at growth 1), widening as it goes.
-  const grow: GrowMorph[] = [];
-  const growers: number[] = [];
-  for (let a = 0; a < A && growers.length < SKIN_GROWERS && !j.still; a++) if (j.arms[a]!.grow) growers.push(a);   // (a still skin: its growing arms are whole arms, nothing to close)
-  /** The morphs that close the growing arms `growers` together: the trunk is the union of the arms that are not among them (a growing arm not among them is taken as an arm that stays), each one's rows are laid on its own footprint, and the rows of all of them are relaxed over the wall in one go.
-   *  The morph of each is its SHARE of the difference between the open and the closed skin, by its weight at the vertex, the shares summing to 1: closing every one of them is exactly the closed shape, however close two mouths lie. With one the share is 1. */
-  const closeGrowers = (growers: readonly number[]): GrowMorph[] => {
-    const keep: number[] = [];
-    caps.forEach((_, i) => { if (!growers.includes(i)) keep.push(i); });
-    const capsT = keep.map((i) => caps[i]!);
-    const wT = new Float64Array(MAX_SKIN_ARMS), w0 = new Float64Array(MAX_SKIN_ARMS), n0 = new Float64Array(3);
-    const onTrunk = (p: Float64Array, o: number): void => {
-      let x = p[o]!, y = p[o + 1]!, z = p[o + 2]!;
-      for (let s = 0; s < PROJECT_STEPS; s++) {
-        const d = sdUnionGrad(capsT, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
-        if (gg < 1e-14) break;
-        const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
-      }
-      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) { p[o] = x; p[o + 1] = y; p[o + 2] = z; }
-    };
-    // THE CLOSED ARM'S PLACE ON THE TRUNK (Mohammad, 20 Nov: holes in the SMV, ragged edges). Putting each vertex of the arm on the nearest point of the trunk lands every row of the sleeve on the SAME circle of the wall: the rows collapse onto
-    // one another (9 to 40 triangles per skin turned against their own normals, which the fragment stage throws away as back faces) and the mouth's footprint is left open. The arm's own rows (its weight above FOOT_FROM) are laid on the
-    // footprint instead: the ring at its centre, each row between drawn in by how far along the arm it is, then relaxed over the wall with the fillet round them held (each free vertex to the mean of its neighbours, back onto the surface:
-    // a patch with a fixed boundary comes out without a fold). The footprint is covered, every triangle faces out, and the arm then grows from it.
-    const p0 = new Float64Array(3 * V), free: number[] = [];
-    const feet = growers.map((a) => {
-      const foot = [0, 0, 0];
-      for (let q = 0; q < n; q++) for (let c = 0; c < 3; c++) foot[c]! += position[3 * (a * n + q) + c]! / n;
-      const ringC = foot.slice();
-      { const f3 = Float64Array.from(foot); onTrunk(f3, 0); foot[0] = f3[0]!; foot[1] = f3[1]!; foot[2] = f3[2]!; }
-      const out = [ringC[0]! - foot[0]!, ringC[1]! - foot[1]!, ringC[2]! - foot[2]!];
-      return { foot, out, reach2: out[0]! * out[0]! + out[1]! * out[1]! + out[2]! * out[2]! || 1 };
-    });
-    const wOf = (v: number, a: number): number => (a < 4 ? weight[4 * v + a]! : weight2[2 * v + a - 4]!);
-    for (let v = 0; v < V; v++) {
-      p0[3 * v] = position[3 * v]!; p0[3 * v + 1] = position[3 * v + 1]!; p0[3 * v + 2] = position[3 * v + 2]!;
-      const own = v < S ? Math.floor(v / n) : -1;
-      if (own >= 0 && !growers.includes(own)) continue;   // (another arm's ring: the tube's own vertex, never moved)
-      onTrunk(p0, 3 * v);
-      // the grower whose rows this vertex is on: its own ring's, else the one with the most weight here
-      let gi = own >= 0 ? growers.indexOf(own) : 0;
-      if (own < 0) for (let q = 1; q < growers.length; q++) if (wOf(v, growers[q]!) > wOf(v, growers[gi]!)) gi = q;
-      const a = growers[gi]!, wa = wOf(v, a);
-      if (wa <= FOOT_FROM) continue;
-      const { foot, out, reach2 } = feet[gi]!;
-      const along = ((position[3 * v]! - foot[0]!) * out[0]! + (position[3 * v + 1]! - foot[1]!) * out[1]! + (position[3 * v + 2]! - foot[2]!) * out[2]!) / reach2;
-      const tc = own === a ? 1 : Math.min(FOOT_DRAW_MAX, smooth01((wa - FOOT_FROM) / FOOT_SPAN) * smooth01(along));   // (a row keeps a fifth of its radius at least, so its vertices keep their order round the footprint)
-      for (let c = 0; c < 3; c++) p0[3 * v + c] = foot[c]! + (1 - tc) * (p0[3 * v + c]! - foot[c]!);
-      onTrunk(p0, 3 * v);
-      if (own < 0) free.push(v);
-    }
-    for (let it = 0; it < FOOT_RELAX; it++) {
-      for (const v of free) {
-        let mx = 0, my = 0, mz = 0, c = 0;
-        for (let q = deg[v]!; q < deg[v + 1]!; q++) { const u = nbr[q]!; mx += p0[3 * u]!; my += p0[3 * u + 1]!; mz += p0[3 * u + 2]!; c++; }
-        if (!c) continue;
-        p0[3 * v] = mx / c; p0[3 * v + 1] = my / c; p0[3 * v + 2] = mz / c;
-        if (it % FOOT_PROJECT_EVERY === FOOT_PROJECT_EVERY - 1 || it === FOOT_RELAX - 1) onTrunk(p0, 3 * v);
-      }
-    }
-    const ms: GrowMorph[] = growers.map((a) => ({ arm: a, dPos: new Float32Array(3 * V), dNor: new Float32Array(3 * V), dRest: new Float32Array(V), dWeight: new Float32Array(4 * V), dWeight2: new Float32Array(2 * V) }));
-    const dW = new Float64Array(MAX_SKIN_ARMS);
-    for (let v = 0; v < V; v++) {
-      const own = v < S ? Math.floor(v / n) : -1;
-      const x = p0[3 * v]!, y = p0[3 * v + 1]!, z = p0[3 * v + 2]!;
-      let dRest = 0;
-      if (own >= 0 && !growers.includes(own)) {
-        // another arm's seam ring: the tube's own vertex, never moved, its normal and weights the same in both shapes
-        n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!;
-        for (let i = 0; i < MAX_SKIN_ARMS; i++) w0[i] = i === own ? 1 : 0;
-      } else {
-        // the trunk's normal and weights at that point (the six weights are the trunk's arms in their own places, the growers' are 0)
-        sdUnionGrad(capsT, k, x, y, z, g);
-        const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
-        n0[0] = g[0]! / gl; n0[1] = g[1]! / gl; n0[2] = g[2]! / gl;
-        weights(capsT, k, x, y, z, wT);
-        let rr = 0;
-        for (let i = 0; i < MAX_SKIN_ARMS; i++) {
-          const src = keep.indexOf(i);
-          w0[i] = src < 0 || i >= A ? 0 : wT[src]!;
-          if (w0[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += w0[i]! * cp[3]!; }
-        }
-        dRest = restR[v]! - rr;
-      }
-      for (let i = 0; i < A; i++) dW[i] = (i < 4 ? weight[4 * v + i]! : weight2[2 * v + i - 4]!) - w0[i]!;
-      // each grower's share of the difference: its own weight here (a vertex on no grower's rows is shared equally), the shares sum to 1
-      let tot = 0;
-      for (const a of growers) tot += wOf(v, a) + 1e-6;
-      growers.forEach((a, q) => {
-        const sh = growers.length === 1 ? 1 : (wOf(v, a) + 1e-6) / tot, m = ms[q]!;
-        m.dPos[3 * v] = sh * (position[3 * v]! - x); m.dPos[3 * v + 1] = sh * (position[3 * v + 1]! - y); m.dPos[3 * v + 2] = sh * (position[3 * v + 2]! - z);
-        m.dNor[3 * v] = sh * (normal[3 * v]! - n0[0]!); m.dNor[3 * v + 1] = sh * (normal[3 * v + 1]! - n0[1]!); m.dNor[3 * v + 2] = sh * (normal[3 * v + 2]! - n0[2]!);
-        m.dRest[v] = sh * dRest;
-        for (let i = 0; i < A; i++) { if (i < 4) m.dWeight[4 * v + i] = sh * dW[i]!; else m.dWeight2[2 * v + i - 4] = sh * dW[i]!; }
-      });
-    }
-    return ms;
-  };
-  // Each growing arm is closed on its own (its mouth on the trunk of the OTHER arms, the growing ones as they stand); two growers whose mouths lie on one stretch of wall (REX beside S_MC on the map, 5 degrees apart) move the vertices
-  // that belong to both footprints twice and fold, and are then closed together (the shares above), when that folds less.
-  let ms = growers.flatMap((a) => closeGrowers([a]));
-  if (growers.length > 1 && closedShapeFolds(position, normal, index, ms, j.arms) > 0) {
-    const both = closeGrowers(growers);
-    if (closedShapeFolds(position, normal, index, both, j.arms) < closedShapeFolds(position, normal, index, ms, j.arms)) ms = both;
-  }
-  grow.push(...ms);
   // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
   const folds = foldedTriangles(position, normal, index);
   if (folds.length) throw new SkinBuildError(j.node, `the surface folds at triangle ${folds[0]} (${folds.length} in all)`);
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
-  return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts, grow };
+  return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts };
 }
 
 /** A cheap stand-in for a triangle's smallest angle: its sine, `2 area / (longest edge x middle edge)` (no trig, no allocation; it rises and falls with the angle up to 60 degrees). */
@@ -660,26 +544,6 @@ export function minAngleDeg(pos: ArrayLike<number>, a: number, b: number, c: num
     lo = Math.min(lo, (Math.acos(Math.max(-1, Math.min(1, cs))) * 180) / Math.PI);
   }
   return lo;
-}
-
-/** The growth states a skin's closed shapes are judged at (every growing arm at the same share): closed, half grown, three quarters grown. */
-export const CLOSED_SHAPE_GROWTH: readonly number[] = [0, 0.5, 0.75];
-
-/** How many triangles that count (more than 1 % of the narrowest arm's radius squared: a smaller one is under a pixel) are turned against their normals at the states `CLOSED_SHAPE_GROWTH`, with every growing arm at the same share: the holes a collateral that is not there leaves in the trunk (tests/skin-closed-footprint.test.ts). */
-export function closedShapeFolds(position: ArrayLike<number>, normal: ArrayLike<number>, index: ArrayLike<number>, grow: readonly GrowMorph[], arms: readonly { restR: number }[]): number {
-  if (!grow.length) return 0;
-  const rmin = Math.min(...arms.map((a) => a.restR));
-  let n = 0;
-  for (const g of CLOSED_SHAPE_GROWTH) {
-    const pos = Float64Array.from(position), nor = Float64Array.from(normal);
-    for (const m of grow) { const q = 1 - g; for (let i = 0; i < pos.length; i++) { pos[i]! -= q * m.dPos[i]!; nor[i]! -= q * m.dNor[i]!; } }
-    for (const t of foldedTriangles(pos, nor, index)) {
-      const a = index[3 * t]!, b = index[3 * t + 1]!, c = index[3 * t + 2]!;
-      const u = [0, 1, 2].map((q) => pos[3 * b + q]! - pos[3 * a + q]!), v = [0, 1, 2].map((q) => pos[3 * c + q]! - pos[3 * a + q]!);
-      if (Math.hypot(u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!) / 2 > 0.01 * rmin * rmin) n++;
-    }
-  }
-  return n;
 }
 
 /** The triangles turned against the normals of their own vertices (a fold: the surface doubles back on itself). */

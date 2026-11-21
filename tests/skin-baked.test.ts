@@ -44,7 +44,7 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
       assert.deepEqual(b.plan, a.plan); assert.deepEqual(b.axes, a.axes); assert.equal(b.pace, a.pace);
       assert.equal(b.mesh.junction, b.plan.junction, 'the mesh and its plan share one junction, as they do when built live'); assert.equal(b.mesh.cuts, b.plan.cuts);
       for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.mesh[k], a.mesh[k], `${a.plan.junction.node} ${k}`);
-      assert.deepEqual(b.mesh.seamVerts, a.mesh.seamVerts); assert.deepEqual(b.mesh.grow, a.mesh.grow);
+      assert.deepEqual(b.mesh.seamVerts, a.mesh.seamVerts);
       // the plain trunk of a skin with growing arms (plain.ts) ships baked too: its axes, mesh and pace, or the null that says it could not be built
       assert.equal(b.plain === undefined, a.plain === undefined, `${a.plan.junction.node}: the plain trunk is carried`);
       if (a.plain && b.plain) {

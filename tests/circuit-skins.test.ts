@@ -206,7 +206,6 @@ test('every skin of the map is STATIC (no growth morph), whole in the full shape
     const plains = set.nodes.map((n) => set.plainOf(n)).filter((m): m is SkinMesh => !!m);
     for (const n of set.nodes) {
       const m = set.skinOf(n)!;
-      assert.equal(m.grow.length, 0, `${n}: no growth morph`);
       assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, `${n}: whole`);
     }
     for (const m of plains) assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, `${m.junction.node}: whole`);
@@ -219,7 +218,7 @@ test('every skin of the map is STATIC (no growth morph), whole in the full shape
     assert.deepEqual(set.nodes.filter((n) => set.skinOf(n)!.junction.surface).sort(), ['IVCS+IVC_D', 'LRV_S', 'SMV']);
     // the plain trunks: the arms that stay, where three or more stay (a run-on pair's tubes carry the weld alone)
     assert.deepEqual(set.nodes.filter((n) => set.plainOf(n)).sort(), ['CONF', 'IVCI', 'IVCS+IVC_D', 'PVH']);
-    for (const n of ['CONF', 'IVCI', 'IVCS+IVC_D', 'PVH']) { const p = set.plainOf(n)!; assert.ok(p.junction.arms.every((a) => !a.grow) && p.junction.still && p.junction.surface, `${n}: the plain trunk is static and meshed from the surface`); }
+    for (const n of ['CONF', 'IVCI', 'IVCS+IVC_D', 'PVH']) { const p = set.plainOf(n)!; assert.ok(p.junction.arms.every((a) => !a.grow) && p.junction.surface, `${n}: the plain trunk is meshed from the surface`); }
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 

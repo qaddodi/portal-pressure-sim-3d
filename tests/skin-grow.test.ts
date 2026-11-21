@@ -112,7 +112,6 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
     assert.match(b.set.why['LRV_S:S_DSR'] ?? '', /seam loops/, 'LRV_S:S_DSR stays flared, named with the reason');
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
-    for (const d of b.draws) assert.equal(meshOf(b, d).grow.length, 0, `${nodeOf(d)}: no growth morph, the skin is one static shape`);
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
     // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
@@ -273,7 +272,6 @@ test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the 
     const now = b.set.skinOf('CONF')!;
     assert.notEqual(now, was, 'rebuilt');
     assert.deepEqual(now.junction.arms.filter((a) => a.grow).map((a) => a.vesselId), ['S_PC']);
-    assert.equal(now.grow.length, 0);
     assert.ok(b.set.plainOf('CONF') && b.set.plainOf('CONF') !== wasPlain);
     assert.equal(now.position.length, was.position.length, 'the same shape, built again on the same tubes');
     assert.equal(b.set.stats.rebuilds, 1);
@@ -284,4 +282,13 @@ test('the fragment outline of a static skin has no growth: no SKIN_GROW define, 
   const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
   assert.match(SKIN_FS, /uniform vec3 skinKW;/);
   assert.match(SKIN_FS, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z/);
+});
+
+test('the growth morph is gone: no second shape in the mesh, no growth uniform, attribute or define in the skin program, no setGrow on a skin, nothing in the Circuit\'s set', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const gone = /GrowMorph|closeGrowers|closedShapeFolds|CLOSED_SHAPE_GROWTH|SKIN_GROW\b|armGrow|growG|gPosA|gNorA|gWtA|setGrow|growArms|\bstill\?:/;
+  for (const f of ['../src/scene/vessels/skin/mesh.ts', '../src/scene/vessels/skin/types.ts', '../src/scene/vessels/skin/shaders.ts', '../src/scene/vessels/skin/skin-object.ts', '../src/scene/vessels/skin/skin-set.ts', '../src/scene/circuit/skins.ts']) assert.ok(!gone.test(src(f)), `${f} has no growth morph`);
+  const { SKIN_VS } = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.ok(!/SKIN_GROW|growG|armGrow/.test(SKIN_VS));
 });

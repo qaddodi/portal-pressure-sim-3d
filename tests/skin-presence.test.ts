@@ -27,8 +27,8 @@ function built() {
   set.sync();
   return { scene, set, draws, was };
 }
-/** How much of each arm is there at its seam: the presence the skin dithers by, or, for a growing arm (which is never dithered away: it is morphed, spec 10.2), its growth. */
-const pres = (d: SkinObject) => (d.material.uniforms.armAF!.value as Array<{ w: number }>).map((v, i) => (d.grows(i) ? d.growOf(i) : v.w));
+/** How much of each arm is there at its seam: the presence the skin dithers by, a growing arm's included (it is welded, not morphed: plain.ts). */
+const pres = (d: SkinObject) => (d.material.uniforms.armAF!.value as Array<{ w: number }>).map((v, i) => v.w);
 
 test('the twin: hidden is 0; drawn whole is 1; the draw-on front is a tenth of the length wide at 1.1 x reveal, as the tube\'s frontOut; the dive fade multiplies', () => {
   assert.equal(armPresenceAt(false, 1, 1, 0.5), 0);
