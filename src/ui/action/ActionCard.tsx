@@ -10,7 +10,8 @@ import './action.css';
 import { OrderIcon } from './icons.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
-import { usesBottomBar, footHeight, pillSpace } from '../shell/room.ts';
+import { usesBottomBar, footHeight, pillSpace, topBarH } from '../shell/room.ts';
+import { cardMaxHeight } from './action-room-math.ts';
 import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
@@ -188,6 +189,7 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
 export function ActionCard() {
   const sel = useSelection((s) => s.sel);
   const device = useUi((s) => s.device);
+  const vp = useUi((s) => s.vp);
   const bottom = usesBottomBar(device);
   const card = useMemo(() => cardFor(sel), [sel]);
   const [held, setHeld] = useState<Card | null>(null);   // the card on show, kept while it fades out
@@ -213,7 +215,7 @@ export function ActionCard() {
     ro.observe(el);
     return () => { ro.disconnect(); set(0); };
   }, [open, bottom]);
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - pillSpace()}px)` } : undefined;
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - pillSpace()}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, footHeight(device), pillSpace()) } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <div className="ac-grab" aria-hidden="true"><i /></div>

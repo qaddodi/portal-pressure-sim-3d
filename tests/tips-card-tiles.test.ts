@@ -93,3 +93,14 @@ test('an open action card stands over the view pill\'s slot and the pill fades o
   assert.match(shell, /cardOver \? ' ac-over-pill' : ''/);
   assert.match(dock, /\.app\.thumb\.ac-over-pill \.vdock:not\(\.mini\) > \.nb-views \{ opacity: 0; pointer-events: none; transition: opacity var\(--d-small\) var\(--ease\); \}/);
 });
+
+test('a phone held sideways fits the vessel card under the top bar: the sheet\'s height is what the bars leave, and its figure steps aside', async () => {
+  const { cardMaxHeight } = await import('../src/ui/action/action-room-math.ts');
+  assert.equal(cardMaxHeight(390, 0, 48, 0, 163, 50), 231, '844 x 390: 231 px between the top bar and the sheet\'s foot');
+  assert.equal(cardMaxHeight(375, 0, 48, 0, 163, 50), 216);
+  assert.equal(cardMaxHeight(844, 0, 50, 0, 163, 50), 683);
+  assert.ok(cardMaxHeight(200, 0, 48, 0, 163, 50) >= 140, 'never a sliver');
+  assert.match(plate, /@media \(max-height: 430px\) \{ \.tv \.tf-card \{ display: none; \} \}/);
+  const card = readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8');
+  assert.match(card, /maxHeight: cardMaxHeight\(vp\.h, vp\.safe\.top, topBarH\(vp, device\)/);
+});

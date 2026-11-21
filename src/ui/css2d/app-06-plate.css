@@ -808,3 +808,6 @@
 /* The readings in the card's header line (name · PPG · flow · peak velocity · state): the line takes what the name and the state leave, its three readings spread across it. */
 .ac-nr > .tv-keys { flex: 1 1 0; min-width: 0; margin: 0; padding: 0; justify-content: space-between; }
 .ac-nr > .tv-keys .ir-kv b { margin: 0 2px; }
+
+/* A phone held sideways (390 px or less tall) has no room for the figure under the readings in the header: the sheet keeps the tiles and the actions, and the stent's picture is Tests > IR's. */
+@media (max-height: 430px) { .tv .tf-card { display: none; } }

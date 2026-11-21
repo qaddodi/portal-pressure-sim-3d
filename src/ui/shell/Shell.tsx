@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { fadeChrome } from './deck-fade.ts';
 import './shell.css';
 import './chrome-3d.css';
+import './menu-motion.css';
 import './tap-cells.css';
 import { restoreFocus } from './talk-focus.ts';
 import { DeckUi } from '../DeckUi.tsx';

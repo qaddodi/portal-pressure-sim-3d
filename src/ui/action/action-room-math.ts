@@ -9,3 +9,7 @@ export function roomAbove(room: Rect, cardH: number): Rect {
   const t = takenBy(cardH, room);
   return t > 0 ? { ...room, h: Math.max(0, room.h - t) } : room;
 }
+
+/** The tallest an action sheet may stand: from 6 px under the top bar down to its foot, which sits `pill` lower than the dock's foot line now (it stands over the view pill's slot). */
+export const cardMaxHeight = (vpH: number, safeTop: number, topBar: number, safeBottom: number, foot: number, pill: number): number =>
+  Math.max(140, Math.floor(vpH - safeTop - topBar - 6 - (safeBottom + foot - 8 - pill)));
