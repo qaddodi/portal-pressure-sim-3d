@@ -16,9 +16,10 @@ import type { BufferGeometry, Color, Object3D } from 'three';
 import { NETWORK_BY_ID } from '../network.ts';
 import { REST, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
+import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { PACES, buildSkinSteady, hullCovers } from './mesh.ts';
+import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -184,7 +185,7 @@ export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi:
 }
 
 /** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`), or lands on a host's wall (wall.ts): meshed from the surface, no hull of the rings. */
-const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
+const hasLiverBranch = (j: SkinJunction): boolean => onWall(j) || !!j.surface || j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
 
 export class SkinSet {
   private built: Built[] = [];
@@ -299,7 +300,7 @@ export class SkinSet {
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
     let todo: SkinJunction[] = [...js];
     const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));   // (the junction of each node as it was last planned: growing arms dropped included)
-    for (let round = 0; todo.length && round <= SKIN_GROWERS + 1; round++) {
+    for (let round = 0; todo.length && round <= SKIN_GROWERS + 2; round++) {
       const { plans, failures } = this.plan(todo, tubes);
       const again = new Map<string, string>();   // (node -> why: the junctions to try again with one growing arm fewer)
       const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
@@ -318,6 +319,8 @@ export class SkinSet {
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
+          // a skin whose full-size shape does not build from the hull of its rings is tried once more meshed from the surface itself (sheet.ts, no hull: the rung the liver's forks use) before it loses a growing arm
+          if (!j.surface) { again.set(n, f.message); next.push({ ...j, surface: true }); continue; }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
           this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.set(n, f.message);
@@ -339,7 +342,7 @@ export class SkinSet {
       todo = next.filter((j) => !made.some((m) => m.sources.includes(j.node)));
       for (const j of todo) latest.set(j.node, j);
     }
-    for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 1} rounds of dropping growing arms` });
+    for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 2} rounds of dropping growing arms` });
     return { made, lost };
   }
 
@@ -373,7 +376,7 @@ export class SkinSet {
       } catch { plain = null; }
     }
     // without a plain trunk the whole skin comes in over the tubes' cut ends, and a hole or a hidden vessel cannot be dithered back: such a skin takes no growing arm (the retry ladder drops it and names it)
-    if (growing && !plain && (holesOf(plan.cuts).length || plan.hidden.length)) throw new SkinBuildError(j.node, 'a growing arm on a skin with holes or a hidden vessel, and no plain trunk to weld from');
+    if (growing && !plain && plan.hidden.length) throw new SkinBuildError(j.node, 'a growing arm on a skin that hides a vessel whole, and no plain trunk to weld from');
     if (plain) plain.draw = this.deps.make(plain.mesh, plain.bake.axes, pp!.keep.map((i) => objs[i]!) as VesselObject[]);
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
     const arms: ArmLink[] = j.arms.map((a, i) => {
@@ -458,7 +461,13 @@ export class SkinSet {
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
     const farGone: { node: string; id: string }[] = [];
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
-    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named: a far growing end is a landing on a wall, which keeps the tube's own sunk and flared end)
+    // ...and every growing vessel's end that is not an arm of a node's skin lands on a host's WALL (spec 10.1, wall.ts): each makes a virtual node on the host, built STILL like any other (its growing arm whole, the weld hands over at growth 0.9 to 1)
+    const welded = new Set(near.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
+    const lands = phase === 2 ? attachNear(near, wallLandings(welded)) : { junctions: near, left: [] };
+    const walls = wallJunctions(lands.left);
+    near.length = 0; near.push(...lands.junctions, ...walls.junctions);
+    for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
+    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
     all.length = 0; all.push(...near);
     const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
     for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);
@@ -603,6 +612,7 @@ export class SkinSet {
   /** The tubes' cut ends a skin was dithering come back whole (the weld uniform's rest value 1). */
   private unweld(b: Built): void {
     for (const a of b.arms) if (a.weld) this.deps.vessel(a.id)?.setSkinWeld(a.end, 1);
+    for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, 1);
   }
 
   /** The live handover, once a frame after the vessels have moved: for each arm what its tube has at its seam, copied to the skin only when it changed. True when any skin's numbers changed (the scene draws a frame). */
@@ -649,6 +659,7 @@ export class SkinSet {
         b.w = weld; any = true;
         b.draw.setWeld?.(1, weld); b.plain?.draw.setWeld?.(-1, weld);
         for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, weld);
+        if (!b.plain) for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, weld);   // (a host's hole is dithered back with the weld when no plain trunk stands in for it)
       }
       if (any) changed = true;
       b.draw.setTransparent(blend); b.plain?.draw.setTransparent(blend);

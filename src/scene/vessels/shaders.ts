@@ -298,7 +298,7 @@ uniform vec2 skinCut;   // junction skins (skin/types.ts, WP4): the tube is draw
 uniform vec2 skinCutC;  // the same on the Circuit's MAP (circuit/skins.ts): the tube is cut at its map seams (u is the same share of the course in both views) and the map's own skin draws the junction; it takes effect over the end of the change (SKIN_CIRC_IN), the body's cut over its start. (-1, 2): none
 uniform vec2 skinHole;   // a side-wall junction's HOLE (skin/types.ts, spec 10.1): the tube is not drawn between u = skinHole.x and u = skinHole.y, the skin draws that stretch. (2, -1): no hole (never true for any u)
 uniform vec2 skinHole2; // a vessel has at most two
-uniform vec2 skinWeld;  // how much of the tube's CUT end the skin has taken over, per end (x the start's, y the end's): 1 the cut is whole (every skinned end but a growing one's), less and the cut part is still drawn at the pixels the skin does not draw (the same screen pattern: a pixel is the skin's where the pattern is under this), so a growing arm's flared end goes as its welded skin comes in
+uniform vec3 skinWeld;  // how much of the tube's CUT end the skin has taken over, per end (x the start's, y the end's, z a hole's): 1 the cut is whole (every skinned end but a growing one's), less and the cut part is still drawn at the pixels the skin does not draw (the same screen pattern: a pixel is the skin's where the pattern is under this), so a growing arm's flared end goes as its welded skin comes in
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
@@ -348,7 +348,7 @@ bool inSkinHole(vec2 h) { return h.y > h.x && vUv.x > h.x + ${F(SKIN_CUT_EPS)} &
 // (a dotted thread, a closed potential collateral, is never cut: it runs on into the trunk's wall, and the skin there is a plain trunk, its growth 0: skin-set.ts sync, spec 10.2. A hole is the host's own and is never a dotted thread's)
 bool skinPastC() { return circT > 0.0 && dotted < 0.5 && ((skinCutC.x >= 0.0 && vUv.x < skinCutC.x - ${F(SKIN_CUT_EPS)}) || (skinCutC.y <= 1.0 && vUv.x > skinCutC.y + ${F(SKIN_CUT_EPS)})); }
 bool skinCutOn() { return dotted < 0.5 && (skinCut.x >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
-float skinWeldAt() { return (dotted < 0.5 && skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : 1.0; }
+float skinWeldAt() { return (dotted < 0.5 && skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
 bool skinPast() { return (dotted < 0.5 && ((skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
