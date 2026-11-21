@@ -269,7 +269,7 @@
 .cl-glass path { fill: none; stroke: var(--rg); stroke-width: 4; stroke-linejoin: miter; }
 /* The printed tag (callout.js): the path is stroked 2 px and clipped to its inside, so 1 px shows; the border
    colour carries a fifth of the reading's colour, enough to tell a free tag from a wedged one at the edge without a ring. */
-.cl-glass.cl-hair path { stroke: var(--cl-edge, color-mix(in srgb, var(--text) 46%, transparent)); stroke-width: 3; }   /* (Mohammad 21 Nov, "the callouts need better background outlines": the hairline edge (--hairline, 1 px at a few percent) vanished on the dark glass over the dark figure; now 1.5 px of the text colour at 46 %, the same on every look) */   /* (the one glass's edge, 13 Nov 2026; it had a fifth of the reading's colour) */
+.cl-glass.cl-hair path { stroke: var(--glass-edge); stroke-width: 2; }   /* (the one glass's edge, 13 Nov 2026; it had a fifth of the reading's colour) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .cl-glass { background: var(--glass-tint); } }
 @media (prefers-reduced-transparency: reduce) { .cl-glass { background: color-mix(in srgb, var(--surface) 96%, transparent); } }
 /* (Its blur and tint drawn on the GPU under the callout layers instead, glass-gl.js: the outline above stays the DOM's) */
