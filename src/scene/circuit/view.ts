@@ -2,6 +2,8 @@
 // of the turn's, and of the vessels' tracks. The scene calls `update(now)` once a frame (the clock's camera phase) and asks `moving` whether another frame is needed.
 //   t   the change's eased share, 0 the body, 1 the map (a tween from where it stands to the end asked for, the camera's own ease and length: they land together)
 //   rr  the turn's eased share, 0 the wide map, 1 upright (flow bottom to top); it is part of the map course, never of the world, so nothing pops at either end
+import { Ease } from '../../clock/ease.ts';
+import { easeInOutCubic } from '../../clock/tween.ts';
 import { COURSES, N_TRACK } from './course.ts';
 import { MAP_CENTRE, turnAngle } from './map.ts';
 import { needsTrack, morphInto, tangentsInto } from './morph.ts';
@@ -9,30 +11,19 @@ import { createCircuitShared, type CircuitShared } from './uniforms.ts';
 import { TURN_MS, VIEW_CHANGE_MS } from './data.copied.ts';
 import { MAPPED } from '../vessels/network.ts';
 
-const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-/** A value that glides from where it stands to a target in ms, on the cubic in-out the camera uses. */
+/** A value that glides from where it stands to a target in ms, on the cubic in-out the camera uses: an Ease (it holds the clock itself), stepped by `update(now)` too so a hand-turned `now` drives it. */
 class Glide {
-  value: number;
-  private from: number;
-  private to: number;
-  private t0 = 0;
-  private ms = 0;
-  constructor(v: number) { this.value = this.from = this.to = v; }
-  get target(): number { return this.to; }
+  private readonly e: Ease;
+  constructor(v: number, tag: string) { this.e = new Ease(v, tag); }
+  get value(): number { return this.e.value; }
+  get target(): number { return this.e.target; }
   aim(to: number, now: number, ms: number): void {
-    if (to === this.to) return;
-    this.from = this.value; this.to = to; this.t0 = now; this.ms = ms;
-    if (ms <= 0) this.value = to;
+    if (to === this.e.target) return;
+    this.e.to(to, { ms, curve: easeInOutCubic, at: now });
   }
   /** Steps to `now`; returns whether it is still on its way. */
-  step(now: number): boolean {
-    if (this.value === this.to) return false;
-    const k = this.ms <= 0 ? 1 : Math.min(1, Math.max(0, (now - this.t0) / this.ms));
-    this.value = k >= 1 ? this.to : this.from + (this.to - this.from) * easeInOutCubic(k);
-    return k < 1;
-  }
-  set(v: number): void { this.value = this.from = this.to = v; }
+  step(now: number): boolean { this.e.step(now); return this.e.moving; }
+  set(v: number): void { this.e.snap(v); }
 }
 
 export interface CircuitVesselHandle {
@@ -44,8 +35,8 @@ export interface CircuitVesselHandle {
 
 export class CircuitView {
   readonly shared: CircuitShared;
-  private readonly change = new Glide(0);
-  private readonly turn = new Glide(0);
+  private readonly change = new Glide(0, 'circuit-change');
+  private readonly turn = new Glide(0, 'circuit-turn');
   private readonly rows = new Map<string, number>();
   private readonly handles: CircuitVesselHandle[] = [];
   private readonly tex: Float32Array;

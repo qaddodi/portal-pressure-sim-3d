@@ -85,6 +85,7 @@ import { useUi } from '../ui/ui-store.ts';
 import { organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
+import { Ease, fadeRate } from '../clock/ease.ts';
 import { COURSES } from './circuit/course.ts';
 import { flatOf, growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
@@ -318,12 +319,13 @@ export class CelScene {
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
   /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
-  private occNow = 0; private occGoal = 0;
-  /** Settings > Figure depth > Device shadows: where the devices' shadow amount (shared.shadow) is going; it glides (stepShadow). */
-  private shadowGoal = 1;
-  private cavaGoal = 0;
-  private cavaWhole = 0;
-  private lumbarGoal = 0; private lumbarWhole = 0;
+  private readonly occ = new Ease(0, 'occlusion', (v) => { for (const o of this.back) o.setOcclusion(v); });
+  /** Settings > Figure depth > Device shadows: the devices' shadow amount (shared.shadow); it glides on the same ease. */
+  private readonly shadow = new Ease(0, 'device-shadow', (v) => { this.shared.shadow.value = v; });
+  /** The cava (and the lumbar collateral drawn like it) eases toward whole or veiled: each its own Ease, both writing the objects they stand for. */
+  private readonly cavaE = new Ease(0, 'cava-whole', () => this.applyCava());
+  private readonly lumbarE = new Ease(0, 'lumbar-whole', () => this.applyCava());
+  private readonly eases: readonly Ease[] = [this.occ, this.shadow, this.cavaE, this.lumbarE];
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look: LookId;
   private phone: boolean;
@@ -346,12 +348,11 @@ export class CelScene {
     if (bakedPending()) void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
     else this.refreshSkins();
     this.applyMates();
-    this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
-    for (const o of this.back) o.setOcclusion(this.occNow);
-    this.shadowGoal = this.shared.shadow.value = useSettings.getState().deviceShadow ? 1 : 0;
+    this.occ.snap(useSettings.getState().hideBehind ? 1 : 0); for (const o of this.back) o.setOcclusion(this.occ.value);
+    this.shadow.snap(useSettings.getState().deviceShadow ? 1 : 0); this.shared.shadow.value = this.shadow.value;
     this.unJoins = useSettings.subscribe((st, prev) => {
-      if (st.deviceShadow !== prev.deviceShadow) { this.shadowGoal = st.deviceShadow ? 1 : 0; this.moving = true; clock.invalidate('device-shadow'); }
-      if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
+      if (st.deviceShadow !== prev.deviceShadow) this.shadow.to(st.deviceShadow ? 1 : 0, fadeRate(FLOW_FADE_MS));
+      if (st.hideBehind !== prev.hideBehind) this.occ.to(st.hideBehind ? 1 : 0, fadeRate(FLOW_FADE_MS));
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
@@ -759,40 +760,18 @@ export class CelScene {
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; if (host) for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
     // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
-    this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
-    this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
+    this.cavaE.to([...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0, fadeRate(FLOW_FADE_MS));
+    this.lumbarE.to(ids.has(LUMBAR_ID) ? 1 : 0, fadeRate(FLOW_FADE_MS));
     this.moving = true;
   }
 
-  /** Eases the back tier between show-through and normal occlusion (Settings > Hide vessels behind organs); true while it moves. */
-  private stepOcclusion(dtMs: number): boolean {
-    if (this.occNow === this.occGoal) return false;
-    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.occGoal - this.occNow;
-    this.occNow = Math.abs(d) <= k ? this.occGoal : this.occNow + Math.sign(d) * k;
-    for (const o of this.back) o.setOcclusion(this.occNow);
-    return true;
-  }
-
-  /** Eases the devices' shadow amount toward the Settings switch (the same glide as the occlusion); true while it moves. */
-  private stepShadow(dtMs: number): boolean {
-    const s = this.shared.shadow;
-    if (s.value === this.shadowGoal) return false;
-    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.shadowGoal - s.value;
-    s.value = Math.abs(d) <= k ? this.shadowGoal : s.value + Math.sign(d) * k;
-    return true;
-  }
-
-  /** Eases the cava toward whole or veiled; true while it moves. */
-  private stepCava(dtMs: number): boolean {
-    if (this.cavaWhole === this.cavaGoal && this.lumbarWhole === this.lumbarGoal) return false;
-    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.cavaGoal - this.cavaWhole, dl = this.lumbarGoal - this.lumbarWhole;
-    this.cavaWhole = Math.abs(d) <= k ? this.cavaGoal : this.cavaWhole + Math.sign(d) * k;
-    this.lumbarWhole = Math.abs(dl) <= k ? this.lumbarGoal : this.lumbarWhole + Math.sign(dl) * k;
-    for (const o of this.cava) o.setWholeShare(o.edge?.id === LUMBAR_ID ? this.lumbarWhole : this.cavaWhole);
-    for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
-    for (const o of this.hvJoins) o.setCavaEndWhole(this.cavaWhole);
-    for (const o of this.cavaCuts) o.setCavaJoinWhole(this.cavaWhole);
-    return true;
+  /** What the cava's ease writes: the cava's own objects (the lumbar collateral at its own share) and the joins that follow the cava's. */
+  private applyCava(): void {
+    const whole = this.cavaE.value, lumbar = this.lumbarE.value;
+    for (const o of this.cava) o.setWholeShare(o.edge?.id === LUMBAR_ID ? lumbar : whole);
+    for (const o of this.ivcJoins) o.setIvcWhole(whole);
+    for (const o of this.hvJoins) o.setCavaEndWhole(whole);
+    for (const o of this.cavaCuts) o.setCavaJoinWhole(whole);
   }
 
   /** Light a set of vessels at once (the shunt's valid targets); an empty list puts them out. */
@@ -1209,6 +1188,7 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const lap = lapTimer(this.systemMs);
+    for (const e of this.eases) e.step(now);   // (the clock steps them in its tween phase; this is the same step at the same time, which changes nothing, and lets a hand-turned update(now) drive them)
     const camMoving = this.rig.update(now);
     this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
     this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
@@ -1231,8 +1211,7 @@ export class CelScene {
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
     const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
-    const occMoving = anyMoving(this.stepOcclusion(dt), this.stepShadow(dt));   // (both run every frame: `||` would skip the shadow while the occlusion eases)
-    const flowActive = anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving, this.stepCava(dt), occMoving);   // (the cava eases while blood flows)
+    const flowActive = anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving);   // (the cava eases while blood flows)
     lap('flow');
     const lensMoving = this.lens.step(now);
     const dustMoving = dustTuner.step(dt);
@@ -1476,7 +1455,7 @@ export class CelScene {
   }
 
   dispose(): void {
-    this.disposed = true;
+    this.disposed = true; for (const e of this.eases) e.dispose();
     this.unJoins();
     for (const k of [...this.inspectMarks.keys()]) this.putInspectMarks(k, null);
     this.skins?.dispose();
