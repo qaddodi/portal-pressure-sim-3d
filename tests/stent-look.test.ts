@@ -15,3 +15,18 @@ describe('stent look', () => {
   });
   it('keeps the graft a rim-edged glass', () => { assert.ok(STENT_GLASS.rim > 0 && STENT_GLASS.fill > 0); });
 });
+
+import { stentCircuitLook, STENT_FRONT_ALPHA } from '../src/scene/devices/stent/stent-look.ts';
+import { PALETTES } from '../src/scene/palette.ts';
+import { readFileSync } from 'node:fs';
+describe('stent look in the Circuit', () => {
+  it('takes its colours and strengths from the one table, in every look', () => {
+    for (const id of Object.keys(PALETTES) as (keyof typeof PALETTES)[]) {
+      const l = stentCircuitLook(PALETTES[id]); assert.equal(l.wireA, STENT_FRONT_ALPHA); assert.ok(l.wire.r > 0.5 && l.goldA < 1);
+    }
+  });
+  it('has no fixed ink or gold left in the vessel shader stent', () => {
+    const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+    assert.ok(src.includes('stentWire.rgb') && !src.includes('mix(c, inkColor, 0.85 * cov * kS)') && !src.includes('vec3(0.86, 0.66, 0.2), gold * kS'));
+  });
+});

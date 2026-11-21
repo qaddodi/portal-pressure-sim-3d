@@ -289,6 +289,8 @@ uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
 uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its end's (seams.ts): the seam's distance in from the end as a quartic in the place across (c0..c3 here, c0 = 0: none)
 uniform vec4 seamB[2];   // (c4, how many dashes (0: three ticks), one dash's share of the seam, one dash and its gap's share)
+uniform vec4 stentWire;   // the stent's wire in the Circuit: rgb the Anatomy stent's own wire colour, a its strength (stent-look.ts, one source for both views)
+uniform vec4 stentGoldC;  // the band's colour and strength, the same way
 uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circuit (where the 3D device is faded out): x its share shown (0 none), y and z where it starts and ends along the course (0..1), w where its graft starts
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;
@@ -596,7 +598,7 @@ void main() {
       float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
       // (a wire's distance in SCREEN pixels, the distance over its own slope: a crown's steep flank stays one even line instead of breaking into dashes)
       float dv = s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
-      cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))));
+      cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pb, 0.7 * Pb, fwPx + 5.0 * Ab * fwTh)));
     }
     if (sB > s0 + 6.0 * un) {
       float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
@@ -604,13 +606,13 @@ void main() {
       for (int i = -1; i <= 1; i++) {
         float j = jc + float(i), ok = (j < 0.0 || j > Kc) ? 0.0 : 1.0;
         float dv = s - (c0 + j * Pc + Ac * cos(5.0 * th));
-        cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))));
+        cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ac * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pc, 0.7 * Pc, fwPx + 5.0 * Ac * fwTh)));
       }
-      c = mix(c, vec3(1.0), 0.16 * kS * smoothstep(sB - px, sB + px, s));
+      c = mix(c, vec3(1.0), 0.10 * kS * smoothstep(sB - px, sB + px, s));
       gold = 1.0 - smoothstep(0.5 * px, 1.4 * px, abs(s - (sB + 1.5 * un * (1.0 - abs(cos(th))))));
     }
-    c = mix(c, inkColor, 0.85 * cov * kS);
-    c = mix(c, vec3(0.86, 0.66, 0.2), gold * kS);
+    c = mix(c, stentWire.rgb, stentWire.a * cov * kS);
+    c = mix(c, stentGoldC.rgb, stentGoldC.a * gold * kS);
   }
   // the running stitch at a surgical shunt's sewn end (suture-marks.js seamDashes): dashes along the curve where the host's wall crosses the shunt (a slanted curve, found on the 2D courses), a dark halo under a thin thread,
   // with the 2D's thread and edge colours; a shunt in no host keeps 2D's three ticks. The distance to the curve is taken square to it (its slant against the tube's half width).
