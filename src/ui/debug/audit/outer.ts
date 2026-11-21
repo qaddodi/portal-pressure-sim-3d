@@ -7,7 +7,7 @@ import { speedOf } from './speed.ts';
 import { renderText, renderJson, type Bundle, type AuditData } from './report.ts';
 import type { Msg } from './page.ts';
 import { buildInfo } from '../packet/sources.ts';
-import { pace, combine } from './progress.ts';
+import { pace, combine, sequenceOn } from './progress.ts';
 
 export const DEFAULT_SIZES = ['iphone', 'ipad-portrait', 'ipad', 'mac'];
 export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad', 'mac-short', 'mac'];
@@ -20,16 +20,16 @@ export const SPEEDS: { n: number; label: string; hint: string }[] = [
   { n: 20, label: '20x quickest', hint: 'The quickest layout, words, coverage, errors and lag check. Fades and snaps are not judged.' },
 ];
 /** The address the banner's choices make: the current one with sizes, depth, speed, glass and parallel set to match (the others, such as look, are kept). */
-export function addressFor(search: string, c: { auto?: boolean; sizes: string[]; depth: string; speed: number; noglass: boolean; parallel: boolean }): string {
-  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass']);
-  return `?audit${c.auto ? '=frames' : ''}&sizes=${c.sizes.join(',')}&depth=${c.depth}${c.speed > 1 ? `&speed=${c.speed}` : ''}${c.noglass ? '&noglass=1' : ''}${c.parallel ? '&parallel=1' : ''}${rest ? `&${rest}` : ''}`;
+export function addressFor(search: string, c: { auto?: boolean; sizes: string[]; depth: string; speed: number; noglass: boolean; parallel: boolean; sequence?: boolean }): string {
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass', 'sequence']);
+  return `?audit${c.auto ? '=frames' : ''}&sizes=${c.sizes.join(',')}&depth=${c.depth}${c.speed > 1 ? `&speed=${c.speed}` : ''}${c.noglass ? '&noglass=1' : ''}${c.parallel ? '&parallel=1' : ''}${c.sequence === undefined ? '' : `&sequence=${c.sequence ? 1 : 0}`}${rest ? `&${rest}` : ''}`;
 }
 export const SILENT_MS = 150000;
 
 /** The address of the app inside a frame: the same path, `?audit=run`, the depth, and whatever else the outer address carried (the frame list and the old audit flags are dropped). */
-export function childSrc(pathname: string, search: string, depth: string, o: { speed?: number; noglass?: boolean } = {}): string {
-  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass']);
-  return `${pathname}?audit=run&depth=${depth}${o.speed && o.speed > 1 ? `&speed=${o.speed}` : ''}${o.noglass ? '&noglass=1' : ''}${rest ? `&${rest}` : ''}`;
+export function childSrc(pathname: string, search: string, depth: string, o: { speed?: number; noglass?: boolean; sequence?: boolean } = {}): string {
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass', 'sequence']);
+  return `${pathname}?audit=run&depth=${depth}${o.speed && o.speed > 1 ? `&speed=${o.speed}` : ''}${o.noglass ? '&noglass=1' : ''}${o.sequence === undefined ? '' : `&sequence=${o.sequence ? 1 : 0}`}${rest ? `&${rest}` : ''}`;
 }
 /** The sizes the address names (a comma list of device ids), or the default four; unknown names are dropped. */
 export function sizesOf(v: string | null): string[] {
@@ -66,18 +66,23 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const hint = mk('div', 'ao-note', ''); const showHint = () => { hint.textContent = `Speed ${speed}x: ${SPEEDS.find((x) => x.n === speed)!.hint}`; };
   const ng = doc.createElement('input'); ng.type = 'checkbox'; ng.checked = flagValue('noglass') === '1';
   const ngL = mk('label'); ngL.title = 'Turns the frosted-glass blur off for the run. Run twice (glass on, then off) to see what the glass costs the frame rate.'; ngL.append(ng, 'No glass (blur off)');
+  // the sequential pass: on for Full, off for Quick, until the person says otherwise
+  let seqTouched = flagValue('sequence') !== null;
+  const sq = doc.createElement('input'); sq.type = 'checkbox'; sq.checked = sequenceOn(flagValue('sequence'), depth);
+  const sqL = mk('label'); sqL.title = 'After the quick jumps, presses Next one press at a time through every talk, and Back then Next at each stop edge, reading headings and tapping tab selectors. About doubles the steps of each talk.'; sqL.append(sq, 'Walk every press (slower)');
   const par = doc.createElement('input'); par.type = 'checkbox'; par.checked = flagValue('parallel') === '1';
   const parL = mk('label'); parL.title = 'All the sizes at once: much faster, but the frames share this computer, so frame rates and timings are NOT valid (layout, snaps, coverage and errors are).'; parL.append(par, 'All sizes at once (fps not valid)');
   let stop = false, running = false, last: Bundle | null = null;
   const btn = (label: string, on: () => void) => { const b = mk('button', '', label); b.type = 'button'; b.onclick = on; bar.append(b); return b; };
   const copy = (t: string, what: string) => { win.navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { status.textContent = 'The browser would not copy: select the text on the right.'; }); };
   /** the address follows the controls, so a copied link repeats this run */
-  const syncUrl = () => { try { win.history.replaceState(null, '', addressFor(win.location.search, { auto: flagValue('audit') === 'frames', sizes: ALL_SIZES.filter((id) => wanted.has(id)), depth, speed, noglass: ng.checked, parallel: par.checked })); } catch { /* an address that will not change */ } };
-  dsel.onchange = () => { depth = dsel.value as 'quick' | 'full'; syncUrl(); };
+  const syncUrl = () => { try { win.history.replaceState(null, '', addressFor(win.location.search, { auto: flagValue('audit') === 'frames', sizes: ALL_SIZES.filter((id) => wanted.has(id)), depth, speed, noglass: ng.checked, parallel: par.checked, sequence: sq.checked })); } catch { /* an address that will not change */ } };
+  dsel.onchange = () => { depth = dsel.value as 'quick' | 'full'; if (!seqTouched) sq.checked = sequenceOn(null, depth); syncUrl(); };
+  sq.onchange = () => { seqTouched = true; syncUrl(); };
   ssel.onchange = () => { speed = Number(ssel.value); showHint(); syncUrl(); };
   ng.onchange = syncUrl; par.onchange = syncUrl; for (const l of boxes) l.querySelector('input')!.addEventListener('change', syncUrl);
   showHint();
-  bar.append(...boxes, dsel, ssel, ngL, parL);
+  bar.append(...boxes, dsel, ssel, sqL, ngL, parL);
   const start = btn('Start', () => { void run(); });
   btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
@@ -87,7 +92,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   /** One size: a fresh frame in its own place, wait for its result, take it away. `of`: how many frames share the room. */
   const one = (id: string, of: number): Promise<{ data?: AuditData; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
-    const wrap = mk('div', 'ao-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`; frame.src = childSrc(win.location.pathname, searchNow(), depth, { speed, noglass: ng.checked });
+    const wrap = mk('div', 'ao-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`; frame.src = childSrc(win.location.pathname, searchNow(), depth, { speed, noglass: ng.checked, sequence: sq.checked });
     wrap.append(frame); room.append(wrap);
     const r = room.getBoundingClientRect(), k = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * k)}px`; wrap.style.height = `${Math.round(d.h * k)}px`; wrap.style.margin = '0 6px';

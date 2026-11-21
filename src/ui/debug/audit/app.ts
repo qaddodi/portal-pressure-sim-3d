@@ -20,7 +20,7 @@ import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
 import { renderStats } from '../../../debug/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
-import { estimateSteps } from './progress.ts';
+import { estimateSteps, sequenceOn } from './progress.ts';
 import { sequence, newProof, type Driver, type SequenceProof } from './sequence.ts';
 import { goToView } from '../../shell/view-actions.ts';
 
@@ -33,12 +33,28 @@ const until = async (cond: () => boolean, ms: number) => { const t = performance
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 
 /** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
-export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length), sequence: depth === 'full' && flagValue('sequence') !== '0' });
+export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length), sequence: sequenceOn(flagValue('sequence'), depth) });
 
 // ── the steps ──
 const SHEETS_QUICK = ['sheet:settings', 'sheet:help'];
 
 /** What the walk does, in the order a person would: the views, the sheets, the patients (the collaterals grow and collapse), then every talk slide by slide with Next. A generator, because how many presses a slide takes (beats, pages, a procedure's steps) is known only by pressing. */
+/** What counts as a selector: a tab, or anything that says `data-audit-select` (a chooser made of plain buttons opts in with that attribute), in a talk card or the Tests card (its instrument tabs). */
+export const SELECTOR_SEL = '[role="tab"]:not([aria-selected="true"]), [data-audit-select]:not([aria-selected="true"]):not([aria-pressed="true"]):not([data-on="true"])';
+const SELECTOR_ROOTS = '.dk-card[data-phase="in"], .t-card';
+/** Clicks each visible, not-selected selector once (at most 8); returns how many. */
+export async function clickSelectors(doc: Document = document): Promise<number> {
+  let n = 0;
+  const seenEl = new Set<Element>();
+  for (const t of Array.from(doc.querySelectorAll<HTMLElement>(SELECTOR_ROOTS)).flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>(SELECTOR_SEL)))) {
+    if (n >= 8 || seenEl.has(t)) continue; seenEl.add(t);
+    const r = t.getBoundingClientRect(), cs = getComputedStyle(t);
+    if (r.width < 1 || r.height < 1 || cs.visibility === 'hidden' || cs.display === 'none' || seen(window, t) < 0.5 || (t as HTMLButtonElement).disabled) continue;
+    t.click(); n++; await sleep(60);
+  }
+  return n;
+}
+
 /** The talk on screen as the sequential pass reads it: the presenter store for where it stands, Next and Back as the buttons press them, the cards' own headings and buttons from the DOM. */
 export function talkDriver(): Driver {
   const ui = () => useUi.getState();
@@ -50,11 +66,7 @@ export function talkDriver(): Driver {
     press: (m) => ui().move(m),
     headings: () => cards().flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>('h1, h2, h3, .pz-h, .pz-dtitle, [class*="title"]')).filter(visible).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean)),
     targets: () => cards().reduce((n, c) => n + Array.from(c.querySelectorAll('button, a[href], [role="tab"], [role="button"]')).filter(visible).length, 0),
-    selectors: async () => {
-      let n = 0;
-      for (const t of cards().flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>('[role="tab"]:not([aria-selected="true"])'))).filter(visible).slice(0, 6)) { t.click(); n++; await sleep(60); }
-      return n;
-    },
+    selectors: () => clickSelectors(),
     nameOf: (k) => { const st = ui().stops[k]; return st ? { kind: st.kind, name: st.kind === 'slide' ? st.slide.title : st.kind } : { kind: '?', name: '?' }; },
     go: (k) => ui().go(k),
   };
@@ -63,7 +75,7 @@ export function talkDriver(): Driver {
 export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, cover: (c: Coverage) => void = () => undefined, seq: (p: SequenceProof) => void = () => undefined): AsyncGenerator<Step> {
   const cat = liveCatalog();
   const entry = (id: string): Entry | undefined => cat.find((e) => e.id === id);
-  const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); } } : null; };
+  const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); if (id.startsWith('sheet:')) { await sleep(300); const k = await clickSelectors(); if (k) return `${e.label} (${k} selectors clicked)`; } } } : null; };
   const shell = useShell.getState();
   const keep = { collaterals: shell.figure.collaterals, patient: shell.patientId };
   const views = ['view:anatomic', 'view:lobule', 'view:sinusoid'].map(open);
@@ -102,7 +114,7 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
         yield { group: d.title, id: `${d.id}:beat:${k}:${tries}`, label: 'Next (beat)', run: () => { useUi.getState().move('next'); return where(d.title); } };
       }
     }
-    if (depth === 'full' && flagValue('sequence') !== '0') {
+    if (sequenceOn(flagValue('sequence'), depth)) {
       const proof = newProof(d.title); seq(proof);
       yield* sequence(talkDriver(), d.title, { edges: true }, proof);
       if (useShell.getState().mode !== 'deck') { const again = open(`slide:${d.id}:0`); if (again) yield { ...again, label: 'outline (reopening the talk)' }; }   // (the pass ended the talk with its last Next: reopen it so the leave step below has a talk to leave)

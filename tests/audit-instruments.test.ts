@@ -181,6 +181,7 @@ test('a generic pop names the element: selector, its words, three parents and th
 
 // ── the sequential pass (external review, finding 9) ──
 import { sequence, newProof, type Driver, type Where } from '../src/ui/debug/audit/sequence.ts';
+import { sequenceOn } from '../src/ui/debug/audit/progress.ts';
 import { estimateSteps as estSteps } from '../src/ui/debug/audit/progress.ts';
 
 /** A fake talk: `beats[i]` presses inside stop i, `bug` makes it misbehave. */
@@ -227,4 +228,14 @@ test('sequential pass: the report says intended, reached and skipped per talk an
   assert.match(t, /deployment SHA: 95029606abc/); assert.match(t, /SEQUENTIAL PASS iphone .*partial/);
   assert.match(t, /HVPG: intended 15, reached 3, skipped 2 \(stop 4, 5\)/); assert.match(t, /NEXT STUCK at stop 4/); assert.match(t, /Back failed at stop 3/);
   assert.ok(estSteps('full', { sheets: 2, presets: 4, decks: [10], sequence: true }) > estSteps('full', { sheets: 2, presets: 4, decks: [10] }));
+});
+
+test('walk every press: on for Full, off for Quick, the person can flip it, the address carries it and the progress total shows its effect', () => {
+  assert.equal(sequenceOn(null, 'full'), true); assert.equal(sequenceOn(null, 'quick'), false); assert.equal(sequenceOn('1', 'quick'), true); assert.equal(sequenceOn('0', 'full'), false);
+  const a = { sheets: 6, presets: 8, decks: [10, 20] };
+  const off = estSteps('full', a), on = estSteps('full', { ...a, sequence: true });
+  assert.ok(on > off * 1.5);   // (the toggle shows up in the total the bar counts to)
+  assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'quick', speed: 1, noglass: false, parallel: false, sequence: true }), '?audit&sizes=mac&depth=quick&sequence=1');
+  assert.equal(childSrc('/p/', '?audit&sequence=0', 'full', { sequence: true }), '/p/?audit=run&depth=full&sequence=1');
+  assert.equal(childSrc('/p/', '?audit', 'full'), '/p/?audit=run&depth=full');
 });

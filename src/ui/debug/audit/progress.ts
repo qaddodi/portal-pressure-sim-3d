@@ -27,3 +27,6 @@ export function combine(sizes: number, per: ReadonlyMap<string, { n: number; tot
   const avg = v.reduce((s, x) => s + x.total, 0) / v.length;
   return { n: v.reduce((s, x) => s + x.n, 0), total: Math.round(v.reduce((s, x) => s + x.total, 0) + avg * Math.max(0, sizes - v.length)) };
 }
+
+/** Whether the sequential pass (Next and Back one press at a time) runs: `sequence=1` or `0` says so, otherwise Full does and Quick does not. */
+export const sequenceOn = (v: string | null | undefined, depth: 'quick' | 'full'): boolean => (v === '1' ? true : v === '0' ? false : depth === 'full');
