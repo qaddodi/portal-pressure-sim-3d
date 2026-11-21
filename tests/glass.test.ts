@@ -55,3 +55,15 @@ test('the phone dock is one glass: 2D\'s opaque layers (::before, tab row face a
     /html:not\(\[data-noglass\]\) \.app\.thumb \.vdock:not\(\.mini\) \.thumb-bar::before \{ background: none; box-shadow: inset 0 1px 0 var\(--hairline\); \}/,
   ]) assert.match(bare, r);
 });
+
+// "When the search menu appears, it appears without blur then the blur comes in" (owner, 20 Nov). Root cause: a backdrop-filter sees only what is painted inside the nearest ancestor with opacity < 1
+// (a backdrop root), and 2D fades the wrappers .pal-back and .modal-back (crossfade) with the glass panel inside, so the panel was unblurred for the whole fade. The panel fades itself.
+test('no glass sits inside a fading wrapper: the palette and dialog wrappers do not animate, the panels fade with their own blur', () => {
+  assert.match(bare, /html:not\(\[data-noglass\]\) :is\(\.pal-back, \.pal-back\.leaving, \.modal-back\.show, \.modal-back\.leaving\) \{ animation: none !important; \}/);
+  const l = readFileSync('src/ui/css2d/app-03-layouts.css', 'utf8'), c = readFileSync('src/ui/css2d/app-02-controls.css', 'utf8');
+  assert.match(l, /\.pal \{[^}]*animation: scale-settle /); assert.match(l, /\.pal-back\.leaving \.pal \{ animation: scale-settle-out /);
+  assert.match(c, /\.modal \{[^}]*animation: scale-settle /); assert.match(c, /\.modal-back\.leaving \.modal \{ animation: scale-settle-out /);
+  // the same cause anywhere: every wrapper of a glass panel that 2D crossfades must be on that list (a new one fails here)
+  const wrappers = [...(l + c).matchAll(/^(\.[\w-]+-back)(?:\.\w+)? *\{[^}]*animation: crossfade/gm)].map((m) => m[1]!);
+  for (const w of new Set(wrappers)) assert.ok(bare.includes(w), `${w} fades a glass panel and is not neutralised in glass.css`);
+});
