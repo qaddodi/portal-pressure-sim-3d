@@ -194,7 +194,7 @@ export class Lobule3D {
   private readonly mouthBd: MicroPart;
   private readonly mouthLv: MicroPart;
   private readonly mouthCv: MicroPart;
-  /** SOS: the scar inside the central vein (2D's plug, lobule-zoom.js: from the wall in, the open lumen narrowing to 1 - CV_FILL of it), faded, with collagen strands across what is left open. */
+  /** SOS: the scar inside the central vein (2D's plug, lobule-zoom.js: from the wall in, the open lumen narrowing to 1 - CV_FILL of it), faded, one clean ring, nothing across the open lumen. */
   private readonly cvScar: MicroPart;
   private cvScarKey = -1;
   private readonly coloured: Coloured[] = [];
@@ -881,7 +881,7 @@ export class Lobule3D {
   }
 
   /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well but faded so it shows it's blocked"): from the host's eased fibPost, as 2D grows its plug (scarGrowth,
-   *  CV_FILL): a soft ring of scar from the wall in and strands of collagen across the lumen left open, see-through, coming in with the disease and going with it. */
+   *  CV_FILL): one soft ring of scar from the wall in, the middle of the lumen left clear, see-through, coming in with the disease and going with it. */
   private stepCvScar(fibPost: number, kcv: number): void {
     const grow = cvScarGrowth(fibPost), a = CV_SCAR_ALPHA * clamp((fibPost - 0.05) / 0.25, 0, 1);
     this.cvScar.setOpacity(a);
@@ -1056,34 +1056,24 @@ export function skipFirstFills(ctx: CanvasRenderingContext2D, n: number): Canvas
 
 /** SOS's scar in the central vein: how much of the lumen it takes at most (2D CV_FILL), how see-through it is at its fullest, and 2D's growth curve (lobule-paint.js scarGrowth). */
 export const CV_FILL = 0.55, CV_SCAR_ALPHA = 0.6;
+/** The scar's inner edge never comes nearer the centre than this share of the wall's radius, whatever the lobes: the middle of the lumen (and the node dot) stays clear. */
+export const CV_OPEN_MIN = 0.38;
 /** Just over the central vein's pool top (its mouth's top, buildVessels' POUR), under nothing else. */
 const CV_SCAR_Z = (): number => (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * 1.04 + 0.002;
 export const cvScarGrowth = (fibPost: number): number => clamp(fibPost, 0, 1) ** 1.1;
 
-/** The scar's mesh, flat at height z over a vein of radius rw: a ring from the wall in to the open lumen (its inner edge ragged, as scar is), and wavy strands of collagen across the open lumen,
- *  more of them as it grows. Seeded, so it never flickers as it grows. */
+/** The scar's mesh, flat at height z over a vein of radius rw: ONE ring of collagen from the wall in to the open lumen, its inner edge a soft lobed curve (organic, never jagged), and NOTHING across the lumen.
+ *  (Mohammad 21 Nov 2026, "the fibrosis inside the central vein is broken, it shouldn't cross the centre": the chords of collagen strands drawn across the open lumen, overlapping the ring and each other
+ *  in the same plane, stacked their see-through layers into blotches and ran over the node dot. The ring alone is what a narrowing is: the lumen narrows from the wall and its middle stays clear.)
+ *  One layer, no overlap, so the see-through scar is one even tone; its inner edge stays at least CV_OPEN_MIN of the wall's radius from the centre. Seeded, so it never flickers as it grows. */
 export function buildCvScar(geo: import('three').BufferGeometry, rw: number, grow: number, z: number): void {
-  const b = new MeshBuilder(), N = 72, open = rw * (1 - CV_FILL * grow);
-  const rag = (t: number) => 1 + 0.07 * Math.sin(t * 5 + 1.3) + 0.05 * Math.sin(t * 11 + 0.4) + 0.03 * Math.sin(t * 19 + 2.1);
+  const b = new MeshBuilder(), N = 96, open = rw * (1 - CV_FILL * grow);
+  const rag = (t: number) => 1 + 0.045 * Math.sin(t * 3 + 1.3) + 0.03 * Math.sin(t * 5 + 0.4) + 0.015 * Math.sin(t * 8 + 2.1);
   const outer: number[] = [], inner: number[] = [];
   for (let i = 0; i < N; i++) {
-    const t = (i / N) * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t), ri = Math.min(rw * 0.97, open * rag(t));
+    const t = (i / N) * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t), ri = clamp(open * rag(t), rw * CV_OPEN_MIN, rw * 0.97);
     outer.push(b.v(rw * 0.98 * c, rw * 0.98 * sn, z, 0, 0, 1)); inner.push(b.v(ri * c, ri * sn, z, 0, 0, 1));
   }
   for (let i = 0; i < N; i++) { const j = (i + 1) % N; b.quad(inner[i]!, outer[i]!, outer[j]!, inner[j]!); }
-  // the strands: chords across the vein at seeded angles, gently wavy, a ribbon each; the k-th comes in as grow passes its share
-  const M = 9, w = rw * 0.035;
-  for (let k = 0; k < M; k++) {
-    const on = clamp((grow - k / M) * M, 0, 1);
-    if (on <= 0) break;
-    const ang = 0.37 + k * 2.39996, off = (((k * 0.6180339) % 1) - 0.5) * 1.1 * open, L = Math.sqrt(Math.max(0, rw * rw * 0.94 - off * off)) * on;
-    const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux, S = 14, rows: number[] = [];
-    for (let i = 0; i <= S; i++) {
-      const u = -L + (2 * L * i) / S, wav = Math.sin(u / rw * 7 + k) * rw * 0.04, cx = ux * u + nx * (off + wav), cy = uy * u + ny * (off + wav);
-      const ww = w * (0.6 + 0.4 * Math.sin((i / S) * Math.PI));
-      rows.push(b.v(cx - nx * ww, cy - ny * ww, z + 0.0004, 0, 0, 1), b.v(cx + nx * ww, cy + ny * ww, z + 0.0004, 0, 0, 1));
-    }
-    for (let i = 0; i < S; i++) b.quad(rows[2 * i]!, rows[2 * i + 2]!, rows[2 * i + 3]!, rows[2 * i + 1]!);
-  }
   b.build(geo);
 }

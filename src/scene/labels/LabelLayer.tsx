@@ -195,6 +195,7 @@ export function LabelLayer() {
       vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
       circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
+      lobuleRing: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.ringEdge(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
     });
     const pushFigure = () => { const f = useFigure.getState(); figCards.set(f.cards, f.calipers, f.t0, f.spans); clock.invalidate('figure-cards'); };
     pushFigure();
