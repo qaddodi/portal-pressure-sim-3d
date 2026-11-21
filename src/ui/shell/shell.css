@@ -208,3 +208,14 @@ html.thumb-ui .sh-toast { left: 50%; max-width: min(420px, calc(100vw - 24px)); 
 
 /* 2D hides the credit while a message stands at the foot (app-01-chrome.css: #toastsFoot > .toast): its frost is in the figure's canvas, so the credit read through the note. The same here, for the note this shell shows (phone play-test, 20 Nov: the credit under the hint). */
 html.thumb-ui:has(.sh-toast[data-on="true"]) .stage-credit { visibility: hidden; }
+
+/* The safety nets fade in (never pop): the app and figure crash cards, a lazy part that did not load, the "Redrawing the figure" note. */
+@keyframes sh-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.sh-crash, .sh-lazyfail { animation: sh-fade-in 260ms ease-out both; }
+.sh-crash-figure { z-index: var(--z-stage, 1); }
+.sh-nogl .sh-crash-alt { background: transparent; color: var(--accent); border: 1px solid var(--edge); }
+.sh-lazyfail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px; color: var(--text-2); font: 14px / 1.4 var(--ui); }
+.sh-lazyfail button { min-height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); color: var(--text); font: 600 14px / 1 var(--ui); cursor: pointer; }
+.sh-glnote { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: var(--z-chrome, 20); display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 999px; background: var(--surface); border: 1px solid var(--edge); color: var(--text); font: 600 14px / 1.2 var(--ui); transition: opacity 260ms ease-out; }
+.sh-glnote button { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: 600 14px / 1 var(--ui); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .sh-crash, .sh-lazyfail { animation: none; } .sh-glnote { transition: none; } }

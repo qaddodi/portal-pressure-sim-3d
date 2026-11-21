@@ -2,16 +2,17 @@
 // `need(id)` asks for an instrument's code and answers null once it is in, else a promise that settles (it never rejects) when it has come or failed: a tab for an instrument still on its way waits for it, so
 // the pane it leaves stays up and no pane ever shows empty (copied holdUntilLoaded). Asked for as a finger or the pointer reaches a tab, when the card opens, and when the app is idle.
 import type { PaneId } from '../panes.ts';
+import { retryImport } from '../../../boot/lazy-retry.ts';
 // @ts-ignore plain JS copied from the 2D app
 import { holdUntilLoaded as holdUntilLoadedJs } from '../copied/hold-until-loaded.copied.js';
 
 export const LOADERS = {
-  profile: () => import('../profile/ProfilePane.tsx'),
-  hvpg: () => import('../ir/IrPane.tsx'),
-  doppler: () => import('../doppler/DopplerPane.tsx'),
-  endoscopy: () => import('../endo/EndoPane.tsx'),
-  fibroscan: () => import('../fibro/FibroPane.tsx'),
-  trials: () => import('../../trials/TrialsPane.tsx'),
+  profile: () => retryImport(() => import('../profile/ProfilePane.tsx')),
+  hvpg: () => retryImport(() => import('../ir/IrPane.tsx')),
+  doppler: () => retryImport(() => import('../doppler/DopplerPane.tsx')),
+  endoscopy: () => retryImport(() => import('../endo/EndoPane.tsx')),
+  fibroscan: () => retryImport(() => import('../fibro/FibroPane.tsx')),
+  trials: () => retryImport(() => import('../../trials/TrialsPane.tsx')),
 } as const;
 type Lazy = keyof typeof LOADERS;
 export const isLazy = (id: PaneId): id is Lazy => id in LOADERS;

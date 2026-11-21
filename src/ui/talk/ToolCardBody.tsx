@@ -45,7 +45,8 @@ import { evBounds } from '../charts/evgraph/data.ts';
 import { fitTrial, metricsOfFp, trialOf } from '../charts/trial/model.ts';
 import { useLapse } from '../../decks/hp/lapse.ts';
 import { useScope } from '../tests/endo/scope-state.ts';
-import { lazy, Suspense } from 'react';
+import { lazyRetry } from '../../boot/lazy-retry.ts';
+import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { useUi } from '../ui-store.ts';
 import { useToolRoomValue } from './tool-room.ts';
 import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
@@ -59,9 +60,9 @@ import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
-const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
-const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
-const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
+const DopplerPane = lazyRetry(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
+const FibroPane = lazyRetry(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
+const EndoPane = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
 
 /** The kinds that draw the live model's frames. */
 const FRAMED = new Set(['fluid', 'stent']);
@@ -200,9 +201,9 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
-      <Suspense fallback={null}>
+      <LazyBoundary>
         {kind === 'doppler' ? <DopplerPane {...p} options={opts} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
-      </Suspense>
+      </LazyBoundary>
     </div>
   );
 }

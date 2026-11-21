@@ -167,5 +167,6 @@ test('a tab that stays open asks for a newer build itself and takes it up out of
   assert.match(reg, /reg\.update\(\)/, 'the page asks the host for a newer worker');
   assert.match(reg, /addEventListener\('visibilitychange', ask\)/, 'when the tab comes to the front');
   assert.match(reg, /setInterval\(ask, CHECK_MS\)/, 'and while it stays open');
-  assert.match(reg, /reloadUrl\(/, 'the reload keeps what is on the screen');
+  assert.match(reg, /reloadKeepingState\(/, 'the reload keeps what is on the screen');
+  assert.match(readFileSync(new URL('../src/boot/reload.ts', import.meta.url), 'utf8'), /reloadUrl\(/, 'the shared reload keeps what is on the screen');
 });
