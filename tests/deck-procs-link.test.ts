@@ -53,7 +53,8 @@ test('every procedure of every slide resolves to a spec with steps, legs to its 
     if (PROCEDURE_PLAYS.has(base)) {
       const s = sp as unknown as { graft?: boolean; route?: string };
       if (plan.kind === 'eus' || plan.kind === 'eusglue') assert.ok(sp!.steps.every((st) => st[0] === 'pv' || st[0] === 'hv' || st[0]), `${where}: scope steps`);
-      else if (s.graft) assert.equal((sp!.apply({}) as { rex?: boolean }).rex, true, `${where}: the graft's model change`);
+      else if (s.graft && (sp as unknown as { morph?: boolean }).morph) assert.ok(sp!.can({}) === '' && !sp!.had({}), `${where}: a morph procedure's change is the engine's (the slide's own state), so it is never "had"`);
+      else if (s.graft) assert.ok(sp!.had(sp!.apply({ tips: {}, dips: {} })), `${where}: the graft's model change`);
       else assert.ok(route3d(s.route || plan.kind), `${where}: no route for "${plan.kind}"`);
     }
   }

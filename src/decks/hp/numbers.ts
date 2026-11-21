@@ -9,6 +9,7 @@ import { parseToken, type Fp } from '../../ui/text/tokens.ts';
 import { trailKeys } from '../../ui/charts/flowtime/model.ts';
 import { procKindOf } from '../../ui/charts/evgraph/model.ts';
 import { specOf } from '../../scene/procedures/copied/proc-anim.js';
+import '../../scene/procedures/instrument-specs.ts';   // (registers EVL, tamponade, DIPS, DSRS and paracentesis in the procedure table)
 import type { CopiedSlide, Json } from './types.ts';
 
 /** The fields of a slide that change the patient (tests/deck-states.js). */

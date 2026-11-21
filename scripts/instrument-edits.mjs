@@ -22,9 +22,34 @@ export const WORD_EDITS = [
 /** The flow-time chart of kidney/tense plots the APP and the IAP (its second line was the ascites volume). Matched by its shape, whatever the file's indent. */
 const TENSE_LINES = /("rpp",\s*)"asc"(\s*\],\s*"keepTiles": true,\s*"title": "APP and )(?:ascites|IAP)( over four months")/;
 
-/** The deck's JSON text with the instrument words put in. */
+// The slides that play a Treat order on the figure (R4: EVL, balloon tamponade, DIPS, DSRS, paracentesis; src/scene/procedures/instrument-specs.ts). Each already has the order's result as its state;
+// its `procedure` is what plays it. `deck/slide`: the kind.
+export const PROCEDURE_SLIDES = {
+  'variceal-bleed/band': 'evl', 'next-bleed/bands': 'evl', 'ten-years/bands': 'evl',
+  'variceal-bleed/bridge': 'tamponade',
+  'tips-complete/dips': 'dips',
+  'shunts/dsrs': 'dsrs',
+  'ascites/lvp': 'paracentesis', 'kidney/tap': 'paracentesis', 'albumin/tap': 'paracentesis',
+};
+
+/** Puts `procedure` on the slides above (a slide that has one keeps it); the JSON is written back with the indent it came in. */
+function procedureEdits(json) {
+  let deck;
+  try { deck = JSON.parse(json); } catch { return json; }
+  if (!deck || !Array.isArray(deck.slides) || typeof deck.id !== 'string') return json;
+  let hit = false;
+  for (const sl of deck.slides) {
+    const kind = PROCEDURE_SLIDES[`${deck.id}/${sl.id}`];
+    if (kind && sl.procedure == null) { sl.procedure = kind; hit = true; }
+  }
+  if (!hit) return json;
+  const indent = /^\{\n( +)"/.exec(json)?.[1].length ?? 1;
+  return JSON.stringify(deck, null, indent);
+}
+
+/** The deck's JSON text with the instrument words and procedures put in. */
 export function instrumentEdits(json) {
   let out = json;
   for (const [from, to] of WORD_EDITS) out = out.split(from).join(to);
-  return out.replace(TENSE_LINES, '$1"iap"$2IAP$3');
+  return procedureEdits(out.replace(TENSE_LINES, '$1"iap"$2IAP$3'));
 }

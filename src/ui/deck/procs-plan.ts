@@ -2,11 +2,12 @@
 // `stented` (veins shown with a stent in them), `layers` (the lobule's layers the slide turns on), `wash` and `cath`/`cathKeep`. procs-link.ts carries each out on the scene; the node
 // test (tests/deck-procs-link.test.ts) holds every slide of every deck to a procedure kind the layer can play and a scene call that exists.
 import { procKindOf, specOf } from '../../scene/procedures/copied/proc-anim.js';
+import '../../scene/procedures/instrument-specs.ts';   // (registers EVL, tamponade, DIPS, DSRS and paracentesis in the procedure table)
 import { stepShot } from './cath-shot.ts';
 import { lensDistance, type Shot } from '../../scene/camera/shots.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 
-type Spec = { name: string; T: { apply: number; end: number }; stops: number[]; steps: string[][]; graft?: boolean; route?: string; measure?: boolean; had(p: unknown): boolean; can(p: unknown, m?: unknown): string | false;
+type Spec = { name: string; T: { apply: number; end: number; back?: number }; stops: number[]; steps: string[][]; graft?: boolean; route?: string; measure?: boolean; had(p: unknown): boolean; can(p: unknown, m?: unknown): string | false;
   apply(p: unknown): unknown; undo(p: unknown): unknown };
 export const specFor = (kind: string): Spec | null => specOf(kind) as Spec | null;
 

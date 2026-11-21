@@ -14,6 +14,8 @@ import { viewAt } from './presenter-machine.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { currentParams, updateParams } from '../action/params.ts';
 import { latestMetrics } from '../../decks/hp/figure-engine.ts';
+import { useStates } from '../../decks/hp/calc.ts';
+import { engine } from '../../engine/index.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { route3d } from '../../scene/procedures/route3d.ts';
 import { CATH_END } from '../../scene/procedures/copied/cath-arrival.js';
@@ -38,6 +40,9 @@ const V = new Vector3();
 /** The kinds whose last step stands on the figure until the slide is left (2D holdEnd with a parked device): the glue slide's scope stays over the varix with its coil and cast in it, and fades as the slide moves on; its play ends at its last stop, not on the fade-out leg. */
 export const HOLD_KINDS: ReadonlySet<string> = new Set(['eusglue']);
 
+/** How long the engine takes to move from one state to the other when a procedure that is an engine action (a band, a tap) makes its change (the figure's own easing follows: the bands fade in one by one, the ascites and the IAP dial fall). */
+export const MORPH_MS = 2200, MORPH_BACK_MS = 900;
+
 export function linkProcs(): () => void {
   let key = '';                      // `${deck}/${slide}` of the slide whose features are on the figure
   let gen = 0;                       // a play's generation: a newer play or a slide change ends the older one's callbacks
@@ -55,7 +60,7 @@ export function linkProcs(): () => void {
   // `ctl` is the run on the figure: its kind, the card's index of its first step, how many steps it has, the step Next or Back has navigated to (`at`, the ring) and whether it is still going to that step's stop.
   // The first Next puts the catheter in (to step 1's stop), each Next after it plays the next step, Back runs the step before it backwards, and the Next after the last moves on. The figure's own clock runs
   // the sequence (scene/procedures/layer.ts drive/aimAt: a time that runs to a stop, turns round without a jump); this link only says which stop.
-  interface Ctl { kind: string; base: number; n: number; at: number; hold: boolean; applied: boolean; original: unknown; last: { name: string; at: number } }
+  interface Ctl { kind: string; base: number; n: number; at: number; hold: boolean; applied: boolean; original: unknown; last: { name: string; at: number }; snaps: { before: unknown; own: unknown } | null }
   let ctl: Ctl | null = null;
   let phase: ProcPhase = 'wait';
   let starting = false;              // the figure is turning to the anatomy before the first step: a Next waits with it
@@ -105,7 +110,10 @@ export function linkProcs(): () => void {
   /** Start one kind of the slide's procedure standing before its first step, then send it to a stop. `base` is the card's index of the kind's first step. */
   function begin(kind: string, base: number, g: number, onOver: (done: boolean) => void, params0: unknown): void {
     const sp = specFor(kind)!, eus = kind === 'eus', hold = HOLD_KINDS.has(kind), n = sp.steps.length;
-    const c: Ctl = { kind, base, n, at: -1, hold, applied: false, original: params0, last: { name: '', at: 0 } };
+    const morph = !!(sp as { morph?: boolean }).morph, scope = (sp as { scope?: 'band' }).scope ?? null, snaps = morph ? snapsOfSlide() : null;
+    const c: Ctl = { kind, base, n, at: -1, hold, applied: false, original: params0, last: { name: '', at: 0 }, snaps };
+    // (a morph procedure's change is the engine's: from the state before the slide to the slide's own, or back)
+    const change = (on: boolean): void => { if (c.snaps) engine().send({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };
     ctl = c; playing = true; phase = 'run';
     sceneApi.procedure.drive(kind, {
       keep: hold,
@@ -114,8 +122,9 @@ export function linkProcs(): () => void {
         if (rec.step >= 0 && base + rec.step !== useProc.getState().at) setProc({ at: base + rec.step });
         const t = sceneApi.procedure.driven?.t ?? 0;
         // the live model takes the change as the sequence passes the procedure's `apply` time, and gives it back going back past it
-        if (!c.applied && t >= sp.T.apply) { c.applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
-        else if (c.applied && t < sp.T.apply) { c.applied = false; updateParams((p) => sp.undo(p) as never, { history: false, label: `${sp.name} undone` }); }
+        if (!c.applied && t >= sp.T.apply) { c.applied = true; change(true); }
+        else if (c.applied && t < sp.T.apply) { c.applied = false; change(false); }
+        if (scope) { const e = useProbes.getState().endoscope, want = t < (sp.T.back ?? sp.T.end); if (e.on !== want || (want && e.mode !== scope)) useProbes.getState().setEndoscope({ on: want, mode: scope }); }
         if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
         camera(String(rec.shot || ''), c.last, kind);
       },
@@ -129,11 +138,13 @@ export function linkProcs(): () => void {
         playing = false; held = false; ctl = null; sceneApi.follow(null);
         if (rewound) {
           // Back from the first step: the slide as it was (the patient who had the result has it again)
-          if (c.original) updateParams(() => c.original as never, { history: false, label: sp.name });   // (the patient as he was, who may have had the result: unapply took it off as the sequence went back past it)
-          if (eus) useProbes.getState().setEndoscope({ on: false });   // (the scope goes out with the run it was part of)
+          if (c.snaps) engine().send({ type: 'morph', snap: c.snaps.own, ms: MORPH_BACK_MS });   // (the slide's own state, as it landed)
+          else if (c.original) updateParams(() => c.original as never, { history: false, label: sp.name });   // (the patient as he was, who may have had the result: unapply took it off as the sequence went back past it)
+          if (eus || scope) useProbes.getState().setEndoscope({ on: false });   // (the scope goes out with the run it was part of)
           phase = base > 0 ? 'between' : 'wait'; setProc({ phase: 'wait', at: base - 1, ring: base - 1 });
         } else if (done) {
-          if (!c.applied) { c.applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
+          if (!c.applied) { c.applied = true; change(true); }
+          if (scope) useProbes.getState().setEndoscope({ on: false });
         }
         const v = viewNow();
         if (v) sceneApi.goTo(v.shot, room());
@@ -161,6 +172,7 @@ export function linkProcs(): () => void {
     if (!s) return null;
     const sp = specFor(plan.kind);
     if (!sp) return null;
+    if ((sp as { morph?: boolean }).morph && !snapsOfSlide()) return null;   // (the deck's states are still being worked out: the slide moves on)
     const params = currentParams(), m = latestMetrics() as never;
     // (A patient who already has the result has it taken back first, and the play puts it back.)
     const had = !!params && sp.had(params);
@@ -181,8 +193,9 @@ export function linkProcs(): () => void {
     const go = (): void => {
       if (g !== gen) return;
       starting = false;
-      const had = !!params && sp.had(params);
-      if (had) updateParams((q) => sp.undo(q) as never, { history: false, label: `${sp.name} undone` });
+      const had = !!params && sp.had(params), sn = (sp as { morph?: boolean }).morph ? snapsOfSlide() : null;
+      if (sn) engine().send({ type: 'morph', snap: sn.before, ms: MORPH_BACK_MS });   // (an engine action cannot be taken back: the run starts from the state before the slide)
+      else if (had) updateParams((q) => sp.undo(q) as never, { history: false, label: `${sp.name} undone` });
       setProc({ why: '', phase: 'play', at: -1, ring: 0 });
       const then = r.p.then && specFor(r.p.then) ? r.p.then : null;
       begin(r.p.kind, 0, g, (done) => {
@@ -242,6 +255,15 @@ export function linkProcs(): () => void {
     const i = deck.slides.indexOf(st.slide);
     return i < 0 ? null : copiedOf(deck.id)?.slides[i] ?? null;
   };
+
+  /** The two states a morph procedure runs between: the one before the slide (the slide before it in the deck's chain) and the slide's own. */
+  function snapsOfSlide(): { before: unknown; own: unknown } | null {
+    const { deck, stops, pos } = useUi.getState(), st = stops[pos.stop];
+    if (!deck || st?.kind !== 'slide') return null;
+    const i = deck.slides.indexOf(st.slide), res = useStates.getState().results[deck.id];
+    const own = res?.[i]?.snap, before = i > 0 ? res?.[i - 1]?.snap : null;
+    return own && before ? { before, own } : null;
+  }
 
   // ── what a slide puts on the figure and what leaving it takes away ──
   function stopProbe(): void { probeOff?.(); probeOff = null; probeHold?.release(); probeHold = null; }
