@@ -547,7 +547,7 @@ void main() {
     for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); float wdI = armWedgeAt(i); if (wdI > -1000.0) { pwS += wi; dwS += wi * wdI; } }
     if (pwS > 0.001) {
       float waS = wedgeS.x * clamp(pwS, 0.0, 1.0) * wedgeCover(dwS / pwS, vec3(wedgeS.y, wedgeS.z, wedgeS.w));
-      c = mix(c, wedgeColS, 0.78 * waS);
+      c = mix(c, wedgeColS, WEDGE_A * waS * (1.0 - inkT));   // (under the outline: the vessel's line stays)
     }
   }
   gl_FragColor = vec4(c, alpha);

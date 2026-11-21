@@ -6,7 +6,11 @@
 // lag behind or jump ahead of its neighbour (Mohammad, 21 Nov: "the tubes filled, the join did NOT fill, then it filled all of a sudden").
 //
 // `wedgeCover(d, p)`: p = (behind, front, frontSoft): 1 from the balloon's edge to just behind the front, gone by the front, and softly gone just behind the balloon's edge (under its glass).
-export const WEDGE_GLSL = `float wedgeCover(float d, vec3 p) {
+//
+// `WEDGE_A`: the amber's strongest share over the vessel's own colour (0.5, it was 0.78 and hid the vessel: Mohammad, 21 Nov: "too opaque, a bit transparent, keeps the vessel outline visible"). The amber is laid UNDER the outline
+// (both shaders multiply it by one minus the ink), so the vessel's line stays whole at every share.
+export const WEDGE_GLSL = `const float WEDGE_A = 0.5;
+float wedgeCover(float d, vec3 p) {
   return smoothstep(-max(p.x, 1e-4), 0.0, d) * (1.0 - smoothstep(p.y - max(p.z, 1e-4), p.y, d));
 }
 `;

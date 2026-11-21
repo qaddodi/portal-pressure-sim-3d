@@ -116,3 +116,31 @@ test('the shaft inside the balloon is cleared and the glass is glossy', () => {
   assert.match(pc, /this\.shaft\.setHole\(\(ol\.dC - half\)/, 'the hole is the balloon\'s own span');
   assert.match(pc, /else this\.shaft\.setHole\(0, 0, 0\)/, 'and gone with it');
 });
+
+// 21 Nov, Mohammad: "the yellow/orange fill is still filling in segments, not really right to left into branches. Also it's too opaque, a bit transparent, keeps the vessel outline visible."
+// Roots: (1) the front was eased TWICE (the column is the procedure clock's quintic already, and the catheter then smoothstepped it again: the middle of the fill ran 3.5 x as fast and flooded whole vessels at once);
+// 2D's reach is linear in the column. (2) The other procedures' column (sclerosant) stopped at the end of the tip's own part. (3) The amber was laid OVER the outline at 0.78.
+test('the front is linear in the column (one ease, the clock\'s): equal steps of the column move it equal steps', () => {
+  const sc = new CelScene();
+  const fronts = [0.2, 0.4, 0.6, 0.8].map((col) => { sc.procs.showHvpgState(1, 1, 'wedge', 0, col); return sc.procs.wedgeTint()!.front; });
+  for (let i = 1; i < fronts.length; i++) assert.ok(Math.abs(fronts[i]! - fronts[i - 1]! - (fronts[1]! - fronts[0]!)) < 1e-6, `step ${i} of the front differs: ${fronts.join(', ')}`);
+  sc.procs.showHvpgState(1, 1, 'wedge', 0, 1);
+  const w = sc.procs.wedgeTint()!;
+  assert.ok(w.frontSoft >= w.behind * 4, 'a long gradient front, never a hard edge');
+  sc.dispose();
+});
+
+test('the amber is partly see-through and lies UNDER the outline, in the tubes and the skins; the sclerosant column runs on across the route\'s parts', () => {
+  const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const sk = readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
+  const wg = readFileSync(new URL('../src/scene/vessels/wedge-glsl.ts', import.meta.url), 'utf8');
+  const a = Number(wg.match(/const float WEDGE_A = (\d*\.?\d+);/)?.[1]);
+  assert.ok(a > 0.2 && a <= 0.55, `the amber's share is ${a}: see-through`);
+  assert.match(sh, /WEDGE_A \* wa \* \(1\.0 - inkT\)/, 'the tube lays it under its outline');
+  assert.match(sk, /WEDGE_A \* waS \* \(1\.0 - inkT\)/, 'the skin lays it under its outline');
+  const pc = readFileSync(new URL('../src/scene/devices/catheters/proc-catheter.ts', import.meta.url), 'utf8');
+  assert.match(pc, /reach = tipD \+ \(r\.total - tipD\) \* col/, 'one arc length over the whole route, as 2D\'s reach');
+  assert.doesNotMatch(pc, /smoother\(col\)/, 'the column is not eased a second time');
+  const m = pc.match(/WEDGE_COLUMN_ALPHA = (\d*\.?\d+);/);
+  assert.ok(m && Number(m[1]) <= 0.45, 'the sclerosant column is see-through too');
+});

@@ -92,8 +92,9 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
 }
 
 /** One vessel's line of the wedge's one field (wedge-glsl.ts): its route distance from the balloon's distal edge at u is `d0 + slope u` (route units, so `slope` is minus the vessel's drawn length), and `fade` how far (u) the tint thins toward a branch's tip, 0 for none. */
+/** The still column's body alpha on the procedures that draw it as a tube (the sclerosant): partly see-through, the vein's outline showing through (0.55 hid it). */
+export const WEDGE_COLUMN_ALPHA = 0.38;
 export interface WedgePiece { d0: number; slope: number; fade: number }
-const smoother = (k: number): number => { const x = clamp01(k); return x * x * x * (x * (x * 6 - 15) + 10); };
 
 export class ProcCatheter {
   readonly group = new Group();
@@ -206,7 +207,7 @@ export class ProcCatheter {
     // every vessel of the hepatic tree (the vein, its forks, the branch) is given the line `d0 + slope u` of its own drawn length, the junction skins blend their arms' seams' values, and the column's front is ONE
     // advancing distance with a soft edge, so it flows from the balloon through the vein, the join and out to every branch at one speed, and nothing lags or jumps (Mohammad, 21 Nov: "the tubes filled, the join did
     // NOT fill, then it filled all of a sudden"). At a full column the front is past the farthest tip by its own softness: everything is covered.
-    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 5, frontSoft = soft * 3;
+    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 5, frontSoft = soft * 5;   // (a long gradient front: the amber thins out ahead of the flow, never a hard edge)
     const pieces = new Map<string, WedgePiece>();
     let far = 0;
     const put = (id: string, dStart: number, uStart: number, fallbackLen: number, fade: number): void => {
@@ -234,8 +235,9 @@ export class ProcCatheter {
       put(br.id, hp && host?.id ? hp.d0 + hp.slope * uAt(host.id, br.d0, host.fb) : br.d0 - edgeD, 1, Math.max(1e-6, br.d1 - br.d0), 0.6);
     }
     if (!pieces.size) return null;
-    // the front: eased in the column, from the balloon (0) to past the farthest tip by its own softness
-    const front = smoother(col) * (far + frontSoft);
+    // the front: LINEAR in the column, from the balloon (0) to past the farthest tip by its own softness. The column is already eased once by the procedure's clock (2D's own `reach = a + (total - a) * col`);
+    // easing it a second time here (a smootherstep) made the middle of the fill 3.5 times as fast, so whole vessels flooded at once (Mohammad, 21 Nov: "filling in segments")
+    const front = col * (far + frontSoft);
     return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, front, frontSoft, behind: soft, pieces };
   }
   private readonly wedgeColor = new Color();
@@ -277,8 +279,9 @@ export class ProcCatheter {
     // (the HVPG's column is a tint on the vessels themselves, upstream of the balloon: wedgeTint, laid by the scene; the other procedures' columns are still this tube)
     this.column.group.visible = col > 0.001 && r.kind !== 'hvpg';
     if (col > 0.001 && r.kind !== 'hvpg') {
-      this.column.setTone(s.columnTone ?? 'trWedge'); this.column.setAlpha(0.55 * op);
-      const part = r.parts.find((q) => q.id && tipD <= q.d1 + 1e-6 && tipD >= q.d0 - 1e-6), end = part ? part.d1 : r.total, reach = tipD + (end - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
+      // (2D's `reach = a + (total - a) * col`, ONE arc length over the whole route: it flows out of the tip's vessel on into the next and its branches, never stopping at the end of the part the tip is in)
+      this.column.setTone(s.columnTone ?? 'trWedge'); this.column.setAlpha(WEDGE_COLUMN_ALPHA * op);
+      const reach = tipD + (r.total - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
       showRings(this.columnGeo, i0, i1, DEVICE_SIDES);
     }
 

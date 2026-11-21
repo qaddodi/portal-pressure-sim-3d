@@ -41,6 +41,7 @@ uniform vec4 fadeA;
 uniform vec2 cavaEnd;    // a hepatic vein: the share of its length at the cava end that eases to this alpha (fades.ts cavaEndSpan); 0 = none
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
+uniform vec3 mapFade;   // the Circuit's own fade of an artery's end: (from, to) along the map course, 1 in z if on (fades.ts MAP_ART_FADE); 0: none, the map holds every fade off
 uniform vec3 stump;   // a vein divided at surgery (2D divideLen / stumpPinch): x the divided stretch's length from its start (figure units, 0: whole), y where the tie pinches it (units from the start), z the pinch's share
 varying float vFade;
 varying vec2 vNbr;
@@ -225,6 +226,8 @@ void main() {
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
   float fa = 1.0;
+  // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
+  float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
   float rkE = mix(rk, rkc, circShare);   // (the tube's radius share here: on the map the course's own, not the body's tapers)
   if (fadeMode > 2.5) {
     // tube-geo.js tubeAlpha: the projection of the point on the line
@@ -236,12 +239,12 @@ void main() {
     } else {
       fa = mix(fadeA.z, fadeA.w, clamp((fv - fadeA.x) / max(1.0 - fadeA.x, 1e-4), 0.0, 1.0));
     }
-    fa = mix(fa, 1.0, circT);
+    fa = mix(fa, mapFa, circT);
   } else if (fadeMode > 0.5) {
     float fs = fadeMode < 1.5 ? uv.x : position.y;
     float ft = clamp((fs - fadeA.x) / (abs(fadeA.y - fadeA.x) < 1e-5 ? 1e-5 : fadeA.y - fadeA.x), 0.0, 1.0);
     fa = mix(fadeA.z, fadeA.w, ft);
-    fa = mix(fa, 1.0, circT);
+    fa = mix(fa, mapFa, circT);
   }
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
