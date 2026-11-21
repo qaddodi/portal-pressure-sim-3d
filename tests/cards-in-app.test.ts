@@ -9,7 +9,7 @@ const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'u
 test('the Tests dock is a child of .app (Shell.tsx), the Treat card and the action card go in through InApp', () => {
   const shell = read('src/ui/shell/Shell.tsx'), sheets = read('src/ui/shell/Sheets.tsx');
   const appOpen = shell.indexOf('id="app"'), appClose = shell.indexOf('</div>', shell.indexOf('<Dock '));
-  const at = shell.indexOf('<TestsLayer />');
+  const at = shell.indexOf('<TestsLayer');
   assert.ok(appOpen > 0 && at > appOpen && at < appClose, 'TestsLayer sits inside the .app element');
   assert.match(sheets, /<InApp><TreatCard \/><\/InApp>/);
   assert.match(sheets, /<InApp><ActionCard \/><\/InApp>/);

@@ -15,6 +15,10 @@ const VISIBLE = /^(opacity|transform|translate|scale|rotate|width|height|top|lef
 const SAME_FRAME_MS = 14;
 const SKIP = (el: Element) => !!el.closest('[data-debug], #boot') || el.tagName === 'CANVAS' || el.classList.contains('lb') || !!el.closest('.lb, .stage-root, .lb-layer');
 
+/** A node taken out was a pop only if what it held was still showing: a positioning wrapper (`.dk-pos`) is removed after the card inside it has faded out on the rail, its own opacity never moving,
+ *  so a descendant last seen under 0.9 means the thing the eye saw was eased out before the wrapper went. `descOps`: the last effective opacities seen of its descendants. */
+export function vanishedShowing(own: number, descOps: readonly number[]): boolean { return own >= 0.9 && !descOps.some((o) => o < 0.9); }
+
 export function startLedger(doc: Document = document, win: Window = window): Ledger {
   let t0 = performance.now(), recs: AnimRec[] = [], found: AuditFinding[] = [];
   const open = new Map<string, AnimRec>();
@@ -84,7 +88,7 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     }
     // an element put in where one just like it was taken out is a re-render (the same card, the same number): nothing appeared; one inside a newly added parent comes with its parent
     for (const n of addedRoots) if (!removed.has(sig(n)) && !(n.parentElement && addedRoots.has(n.parentElement)) && ![...addedRoots].some((a) => a !== n && a.contains(n))) { added.add(n); targets.add(n); }
-    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${describeEl(n)} vanished at full opacity in one frame (no fade)`, n); }
+    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && vanishedShowing(p.op, [...n.querySelectorAll('*')].map((d) => seen.get(d)?.op).filter((o): o is number => o !== undefined)) && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${describeEl(n)} vanished at full opacity in one frame (no fade)`, n); }
     let k = 0;
     for (const el of targets) { if (k++ >= 30) break; look(el, added.has(el)); }
   });

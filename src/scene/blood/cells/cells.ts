@@ -84,6 +84,7 @@ export class BloodCells {
   /** How much of the layer shows now, 0 to 1. */
   get shown(): number { return this.amount; }
 
+  private firstWaited = false;
   private reduceMotion(): boolean {
     if (this.reduced === undefined) this.reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
     return !!this.reduced?.matches;
@@ -93,7 +94,11 @@ export class BloodCells {
   step(dtMs: number, f: CellsFrame): boolean {
     const want = cellsWanted({ on: useSettings.getState().particles, reduceMotion: this.reduceMotion(), view: f.view, quiet: f.quiet });
     if (!want && this.amount === 0) { if (this.points) this.points.visible = false; this.deps.blood.streakAmt.value = 0; return false; }
-    if (want && (!this.points || this.builtPhone !== this.deps.phone())) this.build();
+    if (want && (!this.points || this.builtPhone !== this.deps.phone())) {
+      // (the first build is 10 ms: it waits one frame, so the first frame's update is not the one that pays for it. The streaks fade in from 0 anyway, so nothing shows the delay.)
+      if (!this.points && !this.firstWaited) { this.firstWaited = true; return true; }
+      this.build();
+    }
     const pts = this.points, mat = this.material;
     if (!pts || !mat) return false;
     const goal = want ? 1 : 0;

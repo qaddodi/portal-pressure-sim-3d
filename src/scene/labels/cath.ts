@@ -77,6 +77,10 @@ export function cathLook(look: string): Record<string, string> {
   return {
     '--cl-hv': t['tr-hv'], '--cl-wedge': t['tr-wedge'], '--cl-pv': (DEVICE_TOKENS as Record<string, { trPv: string }>)[look]?.trPv ?? t['tr-wedge'], '--cl-ivc': (DEVICE_TOKENS as Record<string, { trIvc: string }>)[look]?.trIvc ?? t['tr-hv'], '--cl-ok': t['ok'], '--cl-caution': t['caution'], '--cl-danger': t['danger'],
     '--cl-text': t['text'], '--cl-text3': t['text-3'], '--cl-edge': t['hairline'], '--cl-surface': t['surface'],
+    // the card's outline and fill, per look: the cel ink on a light look; on a dark look the ink would vanish into the scene, so the rim is a light line, and the fill is the surface lifted a step toward the text and nearly solid (a clear tint over a brown liver went murky)
+    ...(look === 'light' || look === 'soft'
+      ? { '--cl-rim': 'var(--ink, var(--cl-text))', '--cl-fill': 'color-mix(in srgb, var(--cl-surface) 94%, transparent)' }
+      : { '--cl-rim': 'color-mix(in srgb, var(--cl-text) 78%, transparent)', '--cl-fill': 'color-mix(in srgb, color-mix(in srgb, var(--cl-surface) 84%, var(--cl-text) 16%) 95%, transparent)' }),
     // the words' ink: the colour a step toward the text colour so it clears 4.5:1 (tokens.css --tr-hv-ink, --ok-ink… per look)
     ...inkVars(look),
   };
