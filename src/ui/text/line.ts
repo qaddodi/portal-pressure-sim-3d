@@ -81,7 +81,7 @@ export function plainLine(pieces: Piece[], read: (k: string, at?: string) => num
 }
 
 /** A piece with the stop that follows it. */
-export interface Glued { p: Piece; stop: string }
+export interface Glued { p: Piece; stop: string; /** the pill stands just inside an opening bracket */ open?: boolean }
 /** A pill keeps the word before it and the stop after it on its line (2D rich glue(), pill(), termPill()): the space before a value, cut-off, number or step marker becomes a no-break space,
  *  and a following , . ; : (for a figure term also a closing bracket) is taken out of the words and held with its pill, so the two never part across a line. */
 export function gluePieces(pieces: readonly Piece[]): Glued[] {
@@ -91,11 +91,12 @@ export function gluePieces(pieces: readonly Piece[]): Glued[] {
     if (!isTerm && !isPill) return;
     const next = items[i + 1];
     if (next && next.p.t === 'text') {
-      const m = (isTerm ? /^[),.;:]+/ : /^[,.;:]/).exec(next.p.text);
+      const m = (isTerm ? /^[),.;:]+/ : /^[),.;:]/).exec(next.p.text);   // (a closing bracket stays with its pill too: "(59.4 kPa)" never breaks before its ")")
       if (m) { it.stop = m[0]; next.p = { ...next.p, text: next.p.text.slice(m[0].length) }; }
     }
     const prev = items[i - 1];
     if (isPill && prev && prev.p.t === 'text') prev.p = { ...prev.p, text: prev.p.text.replace(/ $/, '\u00a0') };
+    if (isPill && prev && prev.p.t === 'text' && /\($/.test(prev.p.text)) it.open = true;
   });
   return items;
 }

@@ -28,8 +28,9 @@ export function Line({ text, read, slide, fp, pill }: { text: string; read: (k: 
   const set = typesetter(slide ?? {}, () => { const r = fp ? (rateShown('spleen', fp) as string[])[0] : null; return r && r !== 'ok' ? (TOKEN_OF_RATE as Record<string, string | undefined>)[r] ?? null : null; });
   const words = (t: string, k: string): ReactNode => nodes(set.set(t), k);
   const items = gluePieces(pieces);
-  const stopped = (el: ReactNode, stop: string, key: number): ReactNode => (stop ? <span key={key} className="pz-nw pz-stop">{el}{stop}</span> : <Fragment key={key}>{el}</Fragment>);
-  return items.map(({ p, stop }, i) => {
+  // (a pill's padding is its own room: beside a stop or inside a bracket the pill gives it up, so "2.2 g/dL." and "(59.4 kPa)" read as written, not "2.2 g/dL ." and "( 59.4 kPa )")
+  const stopped = (el: ReactNode, stop: string, key: number, open = false): ReactNode => (stop || open ? <span key={key} className={`pz-nw${stop ? ' pz-stop' : ''}${open ? ' pz-open' : ''}`}>{el}{stop}</span> : <Fragment key={key}>{el}</Fragment>);
+  return items.map(({ p, stop, open }, i) => {
     switch (p.t) {
       case 'text': {
         // (the line's one pill: the first value with a unit, in the first piece of plain words that holds it)
@@ -42,14 +43,14 @@ export function Line({ text, read, slide, fp, pill }: { text: string; read: (k: 
       case 'step': return stopped(<span className="pz-nw"><span className="pz-step" role="img" aria-label={`Step ${p.n}`}>{p.n}</span></span>, stop, i);
       case 'bold': return <b key={i}>{p.text}</b>;
       case 'term': return <Fragment key={i}>{stop ? <span className="pz-nw pz-stop">{node(set.term(p.label, p.term), 't')}{stop}</span> : node(set.term(p.label, p.term), 't')}</Fragment>;
-      case 'cutoff': return stopped(<b className="pz-nw">{p.text}</b>, stop, i);
-      case 'literal': return stopped(<b className="pz-nw">{p.text}</b>, stop, i);
+      case 'cutoff': return stopped(<b className="pz-nw">{p.text}</b>, stop, i, open);
+      case 'literal': return stopped(<b className="pz-nw">{p.text}</b>, stop, i, open);
       case 'value': {
         // a reading as its tile prints it, with its unit (the blood pressure beside its two numbers, the platelets in thousands)
         const v = read(p.key, p.at);
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
         const { tone, rate } = v == null ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
-        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} /></span></span>, stop, i);
+        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} /></span></span>, stop, i, open);
       }
     }
   });

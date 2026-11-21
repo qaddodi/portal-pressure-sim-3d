@@ -104,3 +104,12 @@ test('every plain line of A to G and R to W is typeset as 2D does', { skip: two.
   }
   assert.ok(lines > 20, `only ${lines} plain lines were compared`);
 });
+
+test('a closing bracket stays with its pill and an opening one is known, so a value never reads "( 59.4 kPa )" or "2.2 g/dL ."', () => {
+  const g = gluePieces(parseLine('or an SSM >55 kPa ({ssm}), decides.'));
+  const v = g.find((x) => x.p.t === 'value')!;
+  assert.equal(v.stop, ')');
+  assert.equal(v.open, true);
+  const g2 = gluePieces(parseLine('albumin {ssm}.'));
+  assert.equal(g2.find((x) => x.p.t === 'value')!.stop, '.');
+});

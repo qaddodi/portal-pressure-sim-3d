@@ -71,3 +71,12 @@ test('the solver places every caption of the open lobule, none on another', () =
     assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `${a.id} and ${b.id} overlap`);
   }
 });
+
+test('on a slide a lobule pressure carries its unit, in free play the legend says it once', async () => {
+  const { readingText, readingSig } = await import('../src/scene/lobule/captions.ts');
+  const m = { P1: 12.34, P2: 9.8, P3: 3.2, lymph: 1200 };
+  assert.equal(readingText('P1', m, false), '12.3');
+  assert.equal(readingText('P1', m, false, true), '12.3 mmHg');
+  assert.equal(readingText('P3', m, true, true), '?');
+  assert.notEqual(readingSig(m, true), readingSig(m, false), 'the layout is solved again for the wider words');
+});

@@ -11,6 +11,7 @@ import { resolveLook } from '../../looks/looks.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi, talkRects } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
+import { useLabels } from '../labels/store.ts';
 import { cel } from '../api.ts';
 import { type Box, leaderGeom, rectToBox } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
@@ -79,6 +80,8 @@ export function LobuleCaptions() {
       return e;
     };
 
+    /** a slide is on: its readings carry their unit */
+    const onSlide = () => useLabels.getState().presenting;
     const solveNow = () => {
       const { vp } = useUi.getState();
       const level = useShell.getState().figure.labelLevel;
@@ -87,7 +90,7 @@ export function LobuleCaptions() {
       const vw = view(), bl = blockers();
       const ROOM = 64;   // (a tract takes the names only with room round it for them: the venule at least this far inside the view)
       const inView = (x: number, y: number) => x > vw.x0 + ROOM && x < vw.x1 - ROOM && y > vw.y0 + ROOM && y < vw.y1 - ROOM && !bl.some((b) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1);
-      const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, hide: !m, inView });
+      const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, hide: !m, inView, unit: onSlide() });
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
       const out = solve({ items, view: vw, blockers: bl, lines: built.lines, keep: built.keep });
       placed = new Map(out.placed.map((p) => [p.id, p]));
@@ -110,7 +113,7 @@ export function LobuleCaptions() {
         if (e.text !== f.name) { e.text = f.name; e.name.textContent = f.name; e.name.style.display = f.name ? '' : 'none'; }
         e.root.setAttribute('aria-label', mt.label);
         if (e.val) {
-          const v = !f.value ? '' : m ? readingText(mt.read, m, false) : '?';
+          const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide()) : '?';
           if (e.valText !== v) { e.valText = v; e.val.textContent = v; }
         }
       }
@@ -124,7 +127,7 @@ export function LobuleCaptions() {
         const mt = metas.get(id), e = els.get(id);
         if (!mt || !e?.val) continue;
         const f = mt.forms[Math.min(p.form, mt.forms.length - 1)]!;
-        const v = !f.value ? '' : m ? readingText(mt.read, m, false) : '?';
+        const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide()) : '?';
         if (e.valText !== v) { e.valText = v; e.val.textContent = v; }
       }
     };
@@ -134,7 +137,7 @@ export function LobuleCaptions() {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = cel.lobule.inkContext()?.model;
       return [vp.w, vp.h, L.zones, L.lymph, useShell.getState().figure.labelLevel, boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
-        readingSig(m)].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
+        readingSig(m, onSlide()), onSlide()].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
     const boxesOf = () => {
       const out: { ax: number; ay: number; dx: number; dy: number; w: number; h: number }[] = [];

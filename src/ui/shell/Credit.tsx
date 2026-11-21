@@ -9,6 +9,8 @@ import { CREDIT } from './words.ts';
 import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
+import { layoutOf, margin } from '../layout/rules2d.ts';
+import { footCredit } from './credit-foot.ts';
 import { useShell } from './store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
 import { cel } from '../../scene/api.ts';
@@ -93,6 +95,7 @@ export function Credit() {
   const fps = useSettings((s) => s.showFps);
   const thumb = useThumb();
   const view = useShell((s) => s.view);
+  const talk = useUi((s) => !!s.deck);
   const slideKey = useUi((s) => `${s.pos.stop}.${s.pos.beat}.${s.page}`);   // (a talk's slide, beat or page: its cards, and so what the credit keeps clear of, change)
   useLayoutEffect(() => {
     const el = ref.current;
@@ -103,6 +106,15 @@ export function Credit() {
     const place = () => {
       if (cel.rig.isMoving) { el.classList.add('moving'); again(); return; }   // (the camera is flying: the figure's labels are not where they will stand; look again once it has landed)
       const vw = innerWidth, vh = innerHeight, h = M.creditFont * M.creditLine, w = el.offsetWidth || 220;
+      // A talk on a laptop, desktop or a landscape tablet: the credit has the one place, in the screen's foot band under the cards' left edge, the same on every slide, never a hunt for bare figure among labels and table
+      // rows that are still moving (Mac, 21 Nov: it sat on figure labels and table rows; the iPhone has its row in the words card's foot for the same reason)
+      const lay = layoutOf(vw, vh);
+      if (talk && (lay === 'wide' || lay === 'short')) {
+        const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
+        clearTimeout(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
+        el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true;
+        return;
+      }
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it
       const rise = fps ? M.fpsInset + M.fpsFont * M.fpsLine + 4 : 0;
       const fig = { l: vp.safe.left, t: vp.safe.top, r: vw - vp.safe.right, b: vh - vp.safe.bottom - rise };
@@ -133,6 +145,6 @@ export function Credit() {
     const mo = deck && typeof MutationObserver === 'function' ? new MutationObserver(changed) : null;
     mo?.observe(deck!, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-phase'] });
     return () => { clearTimeout(timer); clearTimeout(hop); clearTimeout(late); clearTimeout(settle); ro?.disconnect(); mo?.disconnect(); };
-  }, [view, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
+  }, [view, talk, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }

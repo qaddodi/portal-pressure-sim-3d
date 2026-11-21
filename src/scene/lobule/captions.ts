@@ -32,6 +32,8 @@ export interface CapCtx {
   inView?(x: number, y: number): boolean;
   /** every part of the lobule is unmeasured (the model has no pressures): the readings are '?' */
   hide?: boolean;
+  /** a slide is on: a pressure carries its unit ("12.3 mmHg"), as every label on a slide does (2D B2, 16 Nov: "Varices 14.4" with no unit on a slide), where in free play the legend says it once */
+  unit?: boolean;
 }
 
 const WORDS: Record<CapKey, { name: string; short: string; pri: number; tone: string; target: string }> = {
@@ -148,7 +150,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
   for (const k of keys) {
     const w = WORDS[k], at = stationAt(ctx.net, tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
     const reads = READ[k] !== null;
-    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? '0,000' : '00.0'), vp, measure); return form(name, b.w, b.h); };
+    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? '0,000' : ctx.unit ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
     const formsM: { name: string; value: boolean }[] = [{ name: w.name, value: reads }];
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }
@@ -164,22 +166,22 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
 }
 
 /** The reading a station carries, as text (the model's own numbers, one place so a test reads what the layer writes). */
-export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number }, hide: boolean): string {
+export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number }, hide: boolean, unit = false): string {
   if (!read) return '';
   if (hide) return '?';
   if (read === 'lymph') return lymphText(m.lymph);
   const v = m[read];
   if (!Number.isFinite(v)) return '—';
   const f = Math.abs(v).toFixed(1);
-  return (v < 0 && Number(f) !== 0 ? '−' : '') + f;
+  return (v < 0 && Number(f) !== 0 ? '−' : '') + f + (unit ? ' mmHg' : '');
 }
 
 /** What a reading changes about where the words may stand: only how wide each prints (its characters), never its value. A pressure that moves by a tenth between two frames must not send the words
  *  through a fade out, a new solve and a fade in (Mohammad, 20 Nov: "the labels in the lobule view are flashing"): the signature the layout is judged by holds these lengths, and the text itself is
  *  written again in place (LobuleCaptions refreshReadings). */
-export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number } | null | undefined): string {
+export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number } | null | undefined, unit = false): string {
   if (!m) return '-';
-  return (['P1', 'P2', 'P3', 'lymph'] as const).map((k) => readingText(k, m, false).length).join(',');
+  return (['P1', 'P2', 'P3', 'lymph'] as const).map((k) => readingText(k, m, false, unit).length).join(',');
 }
 
 /** The canvas the lobule's names may use: the screen inside its safe areas and under the top bar, down to the foot of the room the lobule is framed in plus 8 px (2D lobule-zoom.js liveFreeInto: the room
