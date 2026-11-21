@@ -17,6 +17,7 @@ import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
 import { weldOf } from '../src/scene/vessels/skin/plain.ts';
 import { SKIN_GROWERS, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { SKIN_FS as SKIN_FS_TEXT } from '../src/scene/vessels/skin/shaders.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 
@@ -281,6 +282,28 @@ test('no tube stretch is owned by two surfaces: a skin\'s cut and another skin\'
     const cava = owned.get('IVC_IS_1')!, ivci = cava.find((c) => c.node === 'IVCI')!, wall = cava.find((c) => c.node.startsWith('wall:IVC_IS_1:S_PC'))!;
     assert.ok(ivci && wall, 'both skins stand on the cava');
     assert.ok(Math.abs(ivci.hi - wall.lo) < 1e-9, 'one shared seam ring, no tube and no overlap between them');
+  } finally { done(b); }
+});
+
+test('every welded skin and its plain trunk are one complementary pair: modes +1 and -1 on the SAME share, never the draw-everything mode 0, so no pixel is covered by both (every node, not one)', () => {
+  const b = built();
+  try {
+    const plains = b.set.plainDraws();
+    assert.ok(plains.length >= 5, 'the real network has plain trunks');
+    // the welded skin of each plain trunk: the live draw whose node has one
+    for (const d of b.draws) {
+      const node = nodeOf(d), plain = b.set.plainOf(node);
+      if (!plain) continue;
+      const [mode, w] = d.weldOf();
+      assert.equal(mode, 1, `${node}: the welded skin keeps the pixels under the weld, never draws them all`);
+      const mate = plains.find((p) => b.set.armIdsOf(p).every((id) => meshOf(b, d).junction.arms.some((a) => a.vesselId === id)) && b.set.armIdsOf(p).length === plain.junction.arms.length && p.weldOf()[1] === w);
+      assert.ok(mate, `${node}: a plain trunk on the same share ${w}`);
+      assert.equal(mate!.weldOf()[0], -1, `${node}: the plain trunk keeps the pixels at or over the weld`);
+    }
+    // the two predicates of the fragment stage are exact opposites: a pixel is the welded skin's (hash under the share) or the plain trunk's (at or over it)
+    const welded = (h: number, w: number) => !(h >= w), plainP = (h: number, w: number) => !(h < w);
+    for (const w of [0, 0.1, 0.5, 0.9, 1]) for (let i = 0; i < 1000; i++) assert.notEqual(welded(i / 1000, w), plainP(i / 1000, w), `share ${w}, hash ${i / 1000}`);
+    assert.match(SKIN_FS_TEXT, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z\) discard/, 'the shader discards exactly the opposite pixels in the two modes');
   } finally { done(b); }
 });
 
