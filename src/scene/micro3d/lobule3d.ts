@@ -278,7 +278,8 @@ export class Lobule3D {
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
-  update(on: boolean, under = 0, now = 0, rate = 1): boolean {
+  /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden, so the first show costs a frame's worth. */
+  update(on: boolean, under = 0, now = 0, rate = 1, force = false): boolean {
     if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
     const f = this.flat, changed = on !== this.on;
     this.on = on;
@@ -293,8 +294,8 @@ export class Lobule3D {
     // (the ONE dissolve, written here and nowhere else: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at `fs`, the neighbours' ground fades at `1 - under`, and
     //  nothing else is scaled by either; the root group hands both to everything under it, lobule/one-fade.ts)
     f.group.setFade(fs, 1 - under > FADE_SNAP ? 1 : 1 - under);
-    const shown = on && f.isVisible && under < 1;
-    this.group.visible = shown;
+    const shown = force || (on && f.isVisible && under < 1);
+    this.group.visible = shown && !force;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
     const hide = on && under >= 1 && f.isVisible;
     if (hide !== this.hidLobule) { this.hidLobule = hide; f.group.visible = !hide && f.isVisible; }

@@ -82,9 +82,16 @@ test('easing the basement membrane or the microvilli rebuilds nothing; the activ
 // ---- the audit names the system that costs a frame (scene.systemMs, update and render laps, per step) ----
 test('render() laps its phases into systemMs, and the audit row carries the per-step delta into the LAGS line', () => {
   const sc = readFileSync('src/scene/scene.ts', 'utf8');
-  for (const n of ['render: setup (dof, band, blur frame)', 'render: organs pass', 'render: vessels pass', 'render: glow, blur, resolve']) assert.ok(sc.includes(`lap('${n}')`), n);
+  for (const n of ['render: setup (dof, band, blur frame)', 'render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)', 'render: pass 2, vessel layer', 'render: glow, blur, resolve']) assert.ok(sc.includes(`lap('${n}')`), n);
   const app = readFileSync('src/ui/debug/audit/app.ts', 'utf8'), rep = readFileSync('src/ui/debug/audit/report.ts', 'utf8');
   assert.match(app, /sys0 = \{ \.\.\.\(cel\.systemMs \?\? \{\}\) \}/);
   assert.match(app, /systemMs: Object\.entries\(cel\.systemMs/);
   assert.match(rep, /systems \(ms over the step\)/);
+});
+
+test('the idle slices prime the lobule and the sinusoid hidden, so the first shown frame builds nothing', () => {
+  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(sc, /this\.micro\.lobule\.update\(true, 0, 0, 1, true\)/);
+  assert.match(sc, /this\.micro\.sinus\.update\(true, 1, true\)/);
+  assert.match(sc, /get microPrimedNow/);
 });
