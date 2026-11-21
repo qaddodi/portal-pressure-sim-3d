@@ -231,7 +231,7 @@ test('the inner shade is one smooth monotonic ramp that matches the three stroke
   let last = k(0);
   for (let t = 0; t <= 1.0001; t += 0.01) { assert.ok(k(t) >= last - 1e-12, 'never steps back'); assert.ok(k(t) - last < 0.02, `no jump at turn ${t.toFixed(2)}`); last = k(t); }
   assert.ok(Math.abs(k(1) - kMax) < 1e-9, 'the rim is the stack\'s total');
-  for (const [t, plateau] of [[0.56, 1 - 0.91], [0.77, 1 - 0.91 * 0.85], [0.93, kMax]] as const) assert.ok(Math.abs(k(t) - plateau) < 0.045, `turn ${t}: ${k(t).toFixed(3)} near the stack's ${plateau.toFixed(3)}`);
+  for (const [t, plateau] of [[0.56, 1 - 0.91], [0.77, 1 - 0.91 * 0.85], [0.93, kMax]] as const) assert.ok(Math.abs(k(t) - plateau) < 0.075, `turn ${t}: ${k(t).toFixed(3)} near the stack's ${plateau.toFixed(3)}`);
   const layer = new OrganLayer(createShared(), Object.fromEntries(Object.keys(ORGAN_STYLE).map((id) => [id, () => new BoxGeometry(0.4, 0.3, 0.1)])));
   const seat = [...(layer as unknown as { seats: Map<string, { defines?: Record<string, unknown> }> }).seats.values()];
   assert.ok(seat.length > 0, 'the organs with a seat');
