@@ -117,3 +117,20 @@ test('a callout that is not on is gone, whatever its own element says (the audit
   assert.equal(labelAlpha(true, 1, [0.25, 0.6]), 0.6);
   assert.equal(labelAlpha(true, 0.7, []), 0.7);
 });
+
+test('the walk reads a press as progress when the slide\'s procedure took it, and a faded dock is not a bar (the audit called EUS-PPG stuck and every iPhone talk card covered)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { procKey } = await import('../src/ui/deck/procs-plan.ts');
+  // EUS-PPG has 4 steps: Next starts it, then steps 2, 3, 4, then the slide moves on, so the talk's stop stands still for 4 presses in a row (the walk gave up at 3)
+  let c = { phase: 'idle', run: false, at: -1, n: 4, moving: false } as never as Parameters<typeof procKey>[0];
+  const acts: string[] = [];
+  for (let i = 0; i < 5; i++) { const a = procKey(c, 1); acts.push(a.act); if (a.act === 'start') c = { ...c, run: true, at: 0 } as typeof c; else if (a.act === 'aim') c = { ...c, at: (a as { at: number }).at } as typeof c; }
+  assert.deepEqual(acts, ['start', 'aim', 'aim', 'aim', 'pass']);
+  const app = readFileSync(new URL('../src/ui/debug/audit/app.ts', import.meta.url), 'utf8');
+  assert.match(app, /export function progress\(\)[\s\S]*useProc\.getState\(\)/);
+  assert.match(app, /still = progress\(\) === before/);
+  // the dock's own box never fades (its face and bars do): the bar is its painted face, read through every ancestor's opacity
+  assert.doesNotMatch(app, /\['dock', '\.vdock'\]/);
+  assert.match(app, /\['dock', '\.vd-face'\]/);
+  assert.match(app, /seen\(win, el\) > 0\.5\) bars\.push/);
+});

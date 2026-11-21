@@ -5,6 +5,7 @@ import { builtinDecks } from '../../../decks/registry.ts';
 import { useShell } from '../../shell/store.ts';
 import { useUi, atEnd } from '../../ui-store.ts';
 import { leaveTalk } from '../../shell/talk.ts';
+import { useProc } from '../../deck/procs-state.ts';
 import { loadPatient } from '../../menu/patients.ts';
 import { clock } from '../../../clock/frame.ts';
 import { createRecorder } from '../watch/recorder.ts';
@@ -58,13 +59,12 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void):
     } else {
       let still = 0, presses = 0;
       while (presses < MAX_PRESSES * 4) {
-        const { pos, page } = useUi.getState();
         if (atEnd(useUi.getState())) break;
-        const before = `${pos.stop}:${pos.beat}:${String(page)}`;
+        const before = progress();
         presses++;
         yield { group: d.title, id: `${d.id}:next:${presses}`, label: 'Next', run: () => { useUi.getState().move('next'); return where(d.title); } };
         const u = useUi.getState();
-        still = `${u.pos.stop}:${u.pos.beat}:${String(u.page)}` === before ? still + 1 : 0;
+        still = progress() === before ? still + 1 : 0;
         if (still >= STUCK_AFTER) { note(`${d.title}: Next did not move on after stop ${u.pos.stop + 1} of ${u.stops.length} (${STUCK_AFTER} presses); the walk left the talk there`); break; }
       }
     }
@@ -72,6 +72,12 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void):
   }
   // put the app back as it was
   yield { group: 'Views', id: 'restore', label: 'put the app back', run: async () => { useShell.getState().setFigure({ collaterals: keep.collaterals }); await loadPatient(keep.patient); } };
+}
+
+/** Where the talk is, for "did that press do anything?": the stop, beat and page, and the slide's procedure (a Next on a guided procedure plays one of its steps and the slide stays: EUS-PPG takes start + 3 steps + 1 to leave, and was read as stuck). */
+export function progress(): string {
+  const { pos, page } = useUi.getState(), p = useProc.getState();
+  return `${pos.stop}:${pos.beat}:${String(page)}:${p.key}:${p.phase}:${p.at}:${p.ring}`;
 }
 
 /** Where a Next press landed: "<talk>: slide 4 of 12, beat 2". */
@@ -89,7 +95,13 @@ export interface Tap {
   stop(): void;
 }
 const r1 = (v: number) => Math.round(v * 10) / 10;
-const BARS: [string, string][] = [['presenter bar', '.dk-bar'], ['dock', '.vdock'], ['footer credit', '.stage-credit'], ['thumb bar', '.thumb-bar'], ['view pills', '#viewSeg']];
+const BARS: [string, string][] = [['presenter bar', '.dk-bar'], ['dock', '.vd-face'], ['footer credit', '.stage-credit'], ['thumb bar', '.thumb-bar'], ['view pills', '#viewSeg']];
+/** How much of an element a person can see: its own opacity times every ancestor's (a faded parent hides a child that reads 1). The dock's own box never fades, its face and bars do, so a bar is the painted part, read by this. */
+export function seen(win: Window, el: Element): number {
+  let a = 1;
+  for (let e: Element | null = el; e && e !== e.ownerDocument.documentElement; e = e.parentElement) a *= parseFloat(win.getComputedStyle(e).opacity);
+  return a;
+}
 const BAR_SEL = BARS.map((b) => b[1]).join(', ');
 const KID_SEL = 'button, [class*="pill"], [class*="chip"], [class*="tile"]';
 
@@ -115,7 +127,7 @@ export function readLayout(doc: Document = document, win: Window = window): Layo
   const cards = Array.from(doc.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]')).filter((el) => parseFloat(win.getComputedStyle(el).opacity) >= 0.95)
     .map((el) => ({ id: el.dataset.card ?? 'card', box: box(el), kids: kidsOf(win, el) }));
   const bars: LayoutRead['bars'] = [];
-  for (const [id, sel] of BARS) doc.querySelectorAll<HTMLElement>(sel).forEach((el) => { const b = box(el); if (b[2] - b[0] > 1 && b[3] - b[1] > 1 && parseFloat(win.getComputedStyle(el).opacity) > 0.5) bars.push({ id, box: b }); });
+  for (const [id, sel] of BARS) doc.querySelectorAll<HTMLElement>(sel).forEach((el) => { const b = box(el); if (b[2] - b[0] > 1 && b[3] - b[1] > 1 && seen(win, el) > 0.5) bars.push({ id, box: b }); });
   const labels: LayoutRead['labels'] = [];
   doc.querySelectorAll<HTMLElement>('.lb[data-on]').forEach((el) => labels.push({ name: (el.querySelector('.lb-name')?.textContent ?? '').trim(), box: box(el), alpha: parseFloat(win.getComputedStyle(el).opacity) || 0 }));
   return { vw: win.innerWidth, vh: win.innerHeight, cards, bars, labels };
