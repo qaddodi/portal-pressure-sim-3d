@@ -64,6 +64,8 @@ export class LobuleView {
   private ref: ArrayLike<number> | null = null;
   private model: LobuleModel | null = null;
   readonly cur: Cur = { ...REST };
+  /** The state the model asks for (what `cur` eases toward): the micro 3D lobule builds its tiles and marks for THIS once, and eases between the two builds, instead of rebuilding for every eased step. */
+  get goalState(): Readonly<Cur> { return this.goal; }
   private goal: Cur = { ...REST };
   private layers: LobuleLayers = { lymph: true, zones: false, bile: true };
   /** The layers' fades, 0..1 (each eases over FLOW_FADE_MS: nothing pops). */
