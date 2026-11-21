@@ -263,7 +263,7 @@ export class SkinSet {
       if (m.has(a.vesselId)) continue;
       const def = NETWORK_BY_ID.get(a.vesselId)!;
       const at = armTube(def, this.deps.stateOf(a.vesselId) ?? REST), b = buildTubes(at.courses, at.tubular, def.radius);   // (a braid's arm tube is its widest strand: braid-arm.ts)
-      m.set(a.vesselId, { geometry: b.geometry, tubular: b.runs[0]!.tubular });
+      m.set(a.vesselId, { geometry: b.geometry, tubular: b.runs[0]!.tubular, input: at.courses });
     }
     return m;
   }
