@@ -2,6 +2,7 @@
 // the one literal here is the kind filter (a permanent vessel is a vein, an artery, an arteriole or a liver bed). Nothing is drawn here; the scene reads this once and builds the skins from it.
 import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
+import { centrelineOf } from '../centreline.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 import { braidRootEnds } from './braid-arm.ts';
@@ -125,6 +126,14 @@ function hostSides(arms: SkinArm[], pts: readonly (readonly Vec3[])[], J: Vec3):
   return { arms: out, J: pointAtShare(pts[h]!, u) };
 }
 
+/** Each arm with the tube's radius where it meets the junction (types.ts `jointR`): at its end (u 0 or 1), or at `side.u` on the wall of a host. The blend width is a share of the NARROWEST of these, not of the vessels' nominal radii: a branch tapers to a third of its radius in places. */
+export function withJointR(arms: SkinArm[], state: ShapeState = REST): SkinArm[] {
+  return arms.map((a) => {
+    const c = centrelineOf(a.vesselId, state);
+    return c ? { ...a, jointR: c.radiusAt(a.side ? a.side.u : a.end) } : a;
+  });
+}
+
 /**
  * Every junction that gets a skin, in the network's order of nodes (spec 4.1). A node gets one when 3 or 4 permanent tube ends meet there, except:
  *   - (a node with an end drawn behind the organs (BACK_EDGES: the cava and its run-ons, the SVC's pieces) used to be left out, because one mesh on the vessel layer cannot be half behind an organ. Spec 10.4, Mohammad 20 Nov "all the junctions":
@@ -192,7 +201,7 @@ export function liverBranchJunctions(network: readonly NetVessel[] = NETWORK, st
     const m = isLiverBranch(v) ? branchMeet(v, state) : null;
     if (!m || m.fromNodeR <= SKIN_REACH) continue;
     const arm = (o: NetVessel, e: 0 | 1, side?: SkinArm['side']): SkinArm => ({ vesselId: o.id, end: e, courseIndex: 0, dataIndex: indexOf(o.lensId), lensIndex: indexOf(o.lensId), baseD: o.baseD, widthKind: o.widthKind, restR: o.radius, ...(side ? { side } : {}) });
-    out.push({ node: v.id, J: m.at, arms: [arm(m.host, 1, { u: m.u, dir: -1 }), arm(m.host, 0, { u: m.u, dir: 1 }), arm(v, m.end)] });
+    out.push({ node: v.id, J: m.at, arms: withJointR([arm(m.host, 1, { u: m.u, dir: -1 }), arm(m.host, 0, { u: m.u, dir: 1 }), arm(v, m.end)], state) });
   }
   return out;
 }

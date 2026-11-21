@@ -133,22 +133,26 @@ import { COURSES } from '../src/scene/circuit/course.ts';
 import { MAP_DROPPED, sewnEnds, weldedEnds } from '../src/scene/circuit/map-sewn.ts';
 import { findCircuitJunctions } from '../src/scene/circuit/skins.ts';
 
-test('every collateral, shunt and stent end on the map is welded by a skin or sunk and flared: none is left as a butt end', () => {
+test('every collateral, shunt and stent end on the map is sunk and flared, a growing arm\'s whether or not a skin welds it (the tube is what grows, the skin comes in over it at growth 0.9 to 1); only a permanent arm\'s end is taken whole by a skin', () => {
   const w = weldedEnds();
-  let nSewn = 0;
+  let nSewn = 0, growers = 0;
   for (const v of NETWORK) {
     if (!COURSES.has(v.id) || v.feeder || !(v.kind === 'collateral' || v.kind === 'shunt')) { assert.equal(sewnEnds(v), null, v.id); continue; }
     const s = sewnEnds(v);
     for (const e of [0, 1] as const) {
-      if (w.has(`${v.id}:${e}`)) { assert.ok(!s || s.ends[e] === null, `${v.id}:${e} is welded, not sewn`); continue; }
+      assert.ok(!w.has(`${v.id}:${e}`), `${v.id}:${e} is a growing arm's end, never a permanent arm's`);
       const x = s?.ends[e];
-      assert.ok(sewn(x ?? null), `${v.id}:${e} has neither a skin nor a sewn end`);
+      assert.ok(sewn(x ?? null), `${v.id}:${e} has no sewn end`);
       if (x) { assert.ok(endShareAt(x, s!.own, 0, 1) <= 0.35 * (1 + FLARE_K) + 1e-9, `${v.id}:${e} closes inside its host`); }
       nSewn++;
     }
   }
   assert.ok(nSewn >= 19, `${nSewn} sewn ends`);
-  // the refused arms are the ones the skins' build names (the table here and the build agree)
+  // the growing arms of the skins that build are sewn at the end they weld: their seam rings are rings of the sewn tube
+  for (const j of findCircuitJunctions()) for (const a of j.arms) if (a.grow) { growers++; assert.ok(sewnEnds(NETWORK.find((v) => v.id === a.vesselId)!)?.ends[a.end], `${j.node}:${a.vesselId}:${a.end} is sewn at the node it welds at`); }
+  assert.ok(growers >= 14, `${growers} growing arms`);
+  // the arms a skin refuses are named, and each is a node of the map
   const nodes = new Set(findCircuitJunctions().map((j) => j.node));
-  for (const d of MAP_DROPPED) { const [node, vessel] = d.split(':'); assert.ok(nodes.has(node!), d); assert.ok(!w.has(`${vessel}:0`) || !w.has(`${vessel}:1`), `${d}: one end of ${vessel} is not welded`); }
+  for (const d of MAP_DROPPED) { const [node] = d.split(':'); assert.ok(nodes.has(node!), d); }
+  assert.deepEqual([...MAP_DROPPED], [], 'the static full-size skins take every growing arm of the map');
 });
