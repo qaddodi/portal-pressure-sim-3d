@@ -154,3 +154,9 @@ test('the card\'s words, the tool room and the chart box measure after the obser
     assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
   }
 });
+
+test('a label fades over the camera\'s dive, so it is only "slow" past the dive\'s length, not the card limit (iPhone quick run: 876 labels at 2.1 to 3.0 s)', () => {
+  const j = src('src/ui/debug/audit/judge.ts');
+  assert.match(j, /SLOW_LABEL_MS = 3200/);
+  assert.match(j, /f\.kind === 'label' \? SLOW_LABEL_MS : SLOW_FADE_MS/);
+});
