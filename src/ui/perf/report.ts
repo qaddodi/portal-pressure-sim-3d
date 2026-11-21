@@ -2,13 +2,14 @@
 import type { SlowFrame } from '../../clock/frame.ts';
 import { SLOW_MS } from '../../clock/frame.ts';
 import type { RenderStats } from '../../debug/render-stats.ts';
+import type { Span } from '../../boot/spans.ts';
 
 export interface PerfStats { framesDrawn: number; windowFrames: number; p50: number; p95: number; max: number; slow: SlowFrame[]; awake: boolean; holds: string[]; boundCpu?: number; boundGpu?: number }
 
 const f1 = (n: number) => n.toFixed(1);
 const glLine = (g: unknown): string => { const r = g as RenderStats | null | undefined; return r && typeof r.calls === 'number' ? ` · ${r.calls} calls, ${r.triangles} tris` : ''; };
 
-export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: string; look: string; hash: string; shaders?: string; gl?: RenderStats | null; skin?: { rebuilds: number; worstMs: number } | null }): string {
+export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: string; look: string; hash: string; shaders?: string; gl?: RenderStats | null; skin?: { rebuilds: number; worstMs: number } | null; spans?: readonly Span[] }): string {
   const lines = [
     `Portal Pressure 3D ?perf · ${ctx.hash}`,
     ...(ctx.shaders ? [`!! ${ctx.shaders} (the device's driver refused a program; those parts are drawn plain; open ?gl for the log)`] : []),
@@ -25,5 +26,9 @@ export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: s
     const worst = (Object.entries(f.phases) as [string, number][]).sort((a, b) => b[1] - a[1])[0]!;
     lines.push(`  #${f.frame}  work ${f1(f.ms)} ms · gap ${f1(f.gap)} ms · most in ${worst[0]} (${f1(worst[1])} ms) · asked by ${f.tags.join(', ') || '–'}${f.bound ? ` · waited on ${f.bound}` : ''}${glLine(f.gl)}`);
   }
+  if (ctx.spans?.length) { lines.push('startup spans (ms, at ms since the page began):'); for (const p of ctx.spans.slice(0, 40)) lines.push(`  ${p.name} ${f1(p.ms)} @${p.at}`); }
   return lines.join('\n');
 }
+
+/** The one line the compact strip shows while timings are collected: the frame times (the slow-frame list stays in the Detail view). */
+export const perfStrip = (full: string): string => full.split('\n').find((l) => l.startsWith('frames drawn')) ?? full.split('\n', 1)[0] ?? '';

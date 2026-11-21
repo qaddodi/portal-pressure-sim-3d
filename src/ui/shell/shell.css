@@ -96,9 +96,11 @@
 .sh-lede { margin: 6px 12px 8px; color: var(--text); font: 500 16px / 1.45 var(--ui); }
 
 /* the toast: 2D's foot note (app-11 .toast.note, drawn by toast-gl.js there): a glass card with a dot, the words semibold at 14 px, above the dock and the view pill (--bot-occ, published on the root by the shell) */
-.sh-toast { position: absolute; left: 50%; width: max-content; bottom: calc(var(--safe-b, 0px) + var(--bot-occ, 120px) + 8px); transform: translate(-50%, 10px); max-width: min(420px, calc(100vw - 24px)); padding: 10px 14px 11px 32px; border-radius: var(--r-sheet, 16px);
+.sh-toast { position: absolute; left: calc(50% - var(--panel-w, 360px) / 2); width: max-content; bottom: calc(var(--safe-b, 0px) + var(--bot-occ, 120px) + 8px); transform: translate(-50%, 10px); max-width: min(420px, calc(100vw - var(--panel-w, 360px) - 24px)); padding: 10px 14px 11px 32px; border-radius: var(--r-sheet, 16px);
   background: var(--glass); color: var(--text); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--hairline); font: 600 var(--fs-14, 14px) / 1.25 var(--ui); text-align: left; text-wrap: balance;
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 220ms var(--sh-ease), transform 220ms var(--sh-ease), visibility 0s linear 220ms; z-index: 6; }
+/* wide screens: the side panel (--panel-w, 2D's .toast-wrap left: calc(50% - 180px)) takes the right of the page, so the note is centred in the figure room left of it, never under the panel; a phone or an upright iPad has no side panel */
+html.thumb-ui .sh-toast { left: 50%; max-width: min(420px, calc(100vw - 24px)); }
 .sh-toast::before { content: ''; position: absolute; left: 14px; top: 17px; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--accent); opacity: .8; }
 .sh-toast[data-on="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
 .sh-toast[data-tone="bad"] { background: var(--glass); color: var(--text); }
