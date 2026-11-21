@@ -10,7 +10,7 @@
 //   - DRAWING: skin-object.ts with `SKIN_CIRC` (skin/shaders.ts): the map's widths (the zoom's boost, the least width on the screen), its bolder line and inner line. It is in over the END of the change (SKIN_CIRC_IN .. 1) and the arm tubes' second cut
 //     (`skinCutC`, vessels/shaders.ts) takes their ends away over the same, by one screen pattern: the body's skins are gone by 0.35 and the tubes whole between, so a junction is never two skins at once and nothing pops.
 //   - BAKED at build time with the Anatomy's (scripts/bake-skins.mjs): the file `anatomy/circuit-skins.bin` carries these, so the page meshes nothing at load; a figure the file was not made for builds them live as before.
-// Left out, named in tests/circuit-skins.test.ts (`circuitOldJoins`, and the growing arms the build drops with the reason): the liver's branch trees, the caudate lane and the custom shunts are tubes of the map's own (circuit/tubes.ts), no vessel of the network, and keep their lines as they are.
+// Left out, named in tests/circuit-skins.test.ts (`circuitOldJoins`, and the growing arms the build drops with the reason): the liver's branch trees, the caudate lane and the custom shunts are tubes of the map's own (circuit/tubes.ts), no vessel of the network, and are not welded: their ends are sunk and flared as 2D draws them (circuit/map-ends.ts).
 // Meshed from the surface where the hull of the seam rings refuses (sheet.ts, `SkinJunction.surface`), and refused when a growing arm's closed shape folds (mesh.ts closedShapeFolds): that arm is dropped and named.
 import type { Group, Object3D } from 'three';
 import { Matrix4 } from 'three';
@@ -103,9 +103,9 @@ export function circuitFallbacks(network: readonly NetVessel[] = NETWORK): { nod
 export function circuitOldJoins(): { trees: string[]; caudate: string[]; custom: string[]; why: Readonly<Record<'trees' | 'caudate' | 'custom', string>> } {
   return {
     why: {
-      trees: 'map-only tubes (no network vessel, no ArmTube): each branch leaves its lane\'s side (a host hole on the map, a skinHoleC, does not exist) or ends in it within 1 radius of the cava end, and its width is the tree rule treeCircW, which the skin shader has no term for',
-      caudate: 'a map-only tube between CV_R and IVCS: IVCS and its run-on are one skin of six arms already (no seventh), and CV_R alone would weld one end only',
-      custom: 'routed on the map when a learner opens one (circuit/tubes.ts routeOpen), after the baked skins are laid in: a weld needs a live build of the node\'s skin (a stall of seconds) per shunt',
+      trees: 'map-only tubes (no network vessel, no ArmTube), not welded: each branch start is SUNK in the tube it leaves and FLARED as 2D draws it (circuit/map-ends.ts, tests/circuit-ends.test.ts), its width is the tree rule treeCircW, which the skin shader has no term for',
+      caudate: 'a map-only tube between CV_R and IVCS, not welded: both ends are SUNK in their vein and FLARED as 2D draws them (circuit/map-ends.ts); IVCS and its run-on are one skin of six arms already, no seventh',
+      custom: 'routed on the map when a learner opens one (circuit/tubes.ts routeOpen), after the baked skins are laid in, so not welded: both ends are SUNK and FLARED from numbers made at the route (circuit/map-ends.ts), no live skin build',
     },
     trees: Object.entries(CIRCUIT_TREES).flatMap(([lane, list]) => list.map((_, i) => `${lane}#${i}`)),
     caudate: CIRCUIT_D.CAUD ? ['CAUD'] : [],

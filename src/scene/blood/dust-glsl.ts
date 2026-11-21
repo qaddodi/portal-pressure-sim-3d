@@ -26,7 +26,7 @@ export const DUST_WALL_FROM = 0.90, DUST_WALL_TO = 0.96;
 export const dustWall = (e: number): number => { const t = Math.min(1, Math.max(0, (Math.abs(e) - DUST_WALL_FROM) / (DUST_WALL_TO - DUST_WALL_FROM))); return 1 - t * t * (3 - 2 * t); };
 
 /** A base with less saturation than DUST_GREY_FROM keeps its grey in the dust's tones (no hue shift, no added saturation); the shift is whole from DUST_GREY_TO (HSL saturation). */
-export const DUST_GREY_FROM = 0.02, DUST_GREY_TO = 0.12;
+export const DUST_GREY_FROM = 0.03, DUST_GREY_TO = 0.15;   // (the CHROMA, max - min of the rgb, over which a base counts as coloured)
 
 /** `D_<name>`: the uniform's place in the vec4 array. */
 export const DUST_MACROS: string = DUST_UNIFORMS.map((n, i) => `#define D_${n} dustP[${i >> 2}].${'xyzw'[i & 3]}`).join('\n');
@@ -61,10 +61,11 @@ vec3 dHsl2Rgb(vec3 h) {
   return vec3(dHue(p, q, h.x + 1.0 / 3.0), dHue(p, q, h.x), dHue(p, q, h.x - 1.0 / 3.0));
 }
 // the lab's shift(): hue by dh (a turn is 1), saturation by ds, lightness by dl
-// THE HUE STAYS IN THE VESSEL'S FAMILY (Mohammad, 20 Nov: brown flecks in the faded vessels): the hue of a near-grey colour is noise (HSL's hue is 0/0 at grey) and adding the lab's saturation to it paints an arbitrary hue, brown on a faded blue.
-// The hue shift and the saturation added are both scaled by how much colour the base has (dShiftK), so a grey base stays grey and only the lightness varies.
-float dShiftK(float s) { return smoothstep(${F(DUST_GREY_FROM)}, ${F(DUST_GREY_TO)}, s); }
-vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(h.y); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp(h.y + ds * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
+// THE HUE STAYS IN THE VESSEL'S FAMILY (Mohammad, 20 Nov: brown, yellow, periwinkle and white specks at the pale joints): HSL's hue and saturation are noise on a base with no colour in it, and HSL's saturation of a NEAR-WHITE one is
+// large (d / (2 - max - min): a pale blue-grey of chroma 0.04 has s 0.75), so a lightness shift of it gave a vivid pastel of an arbitrary hue. What a base is worth is its CHROMA (max - min), which no lightness changes: the hue shift,
+// the saturation added and the saturation itself are all scaled by how much chroma it has (dShiftK), so a grey or near-white base keeps only the lightness spread, and a coloured one is exactly as before.
+float dShiftK(vec3 c) { return smoothstep(${F(DUST_GREY_FROM)}, ${F(DUST_GREY_TO)}, max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b))); }
+vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(c); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp((h.y + ds * k) * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
 // THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
 struct DFrame {
   float across;   // the pixel across the lumen on screen (-1 .. 1)
@@ -403,8 +404,8 @@ export function dustShiftJs(c: readonly number[], dh: number, ds: number, dl: nu
     h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
     h /= 6;
   }
-  const t = Math.min(1, Math.max(0, (s - DUST_GREY_FROM) / (DUST_GREY_TO - DUST_GREY_FROM))), k = t * t * (3 - 2 * t);
-  const H = (((h + dh * k) % 1) + 1) % 1, S = Math.min(1, Math.max(0, s + ds * k)), L = Math.min(0.96, Math.max(0.04, l + dl));
+  const t = Math.min(1, Math.max(0, (d - DUST_GREY_FROM) / (DUST_GREY_TO - DUST_GREY_FROM))), k = t * t * (3 - 2 * t);
+  const H = (((h + dh * k) % 1) + 1) % 1, S = Math.min(1, Math.max(0, (s + ds * k) * k)), L = Math.min(0.96, Math.max(0.04, l + dl));
   if (S <= 1e-5) return [L, L, L];
   const q = L < 0.5 ? L * (1 + S) : L + S - L * S, p = 2 * L - q;
   const hue = (tt: number): number => { tt = ((tt % 1) + 1) % 1; return tt < 1 / 6 ? p + (q - p) * 6 * tt : tt < 0.5 ? q : tt < 2 / 3 ? p + (q - p) * (2 / 3 - tt) * 6 : p; };

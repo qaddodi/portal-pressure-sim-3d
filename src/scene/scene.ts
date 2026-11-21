@@ -87,6 +87,7 @@ import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
 import { flatOf, growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
+import { sewOnMap } from './circuit/map-sewn.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
 import { circuitBounds } from './circuit/shots.ts';
@@ -442,6 +443,7 @@ export class CelScene {
       if (!o) continue;
       const built = buildTubes(coursesOf(def, this.shapes.stateOf(def.id) ?? REST), tubularOf(def, slicesFor(def.id)), def.radius);
       withNeighbour(def.id, built.geometry);
+      sewOnMap(def.id, built.geometry, built.runs);   // (the map's sunk and flared ends, circuit/map-sewn.ts: the rebuilt tube's `rkc` carries them again)
       o.reshape(built.geometry, built.length);
       built.geometry.dispose();
       }
@@ -458,7 +460,7 @@ export class CelScene {
     const built = buildTubes(courses, tubularOf(def, slicesFor(def.id)), def.radius);
     withNeighbour(def.id, built.geometry);
     const circ = COURSES.get(def.id);
-    if (circ) attachRuns(built.geometry, built.runs, circ, def.radius);
+    if (circ) { attachRuns(built.geometry, built.runs, circ, def.radius); sewOnMap(def.id, built.geometry, built.runs); }   // (the ends no skin welds are sunk and flared on the map: circuit/map-sewn.ts)
     const q = STUB_Q[def.lensId] ?? 1;
     const o = new VesselObject(built.geometry, {
       tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
