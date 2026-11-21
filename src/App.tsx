@@ -13,6 +13,7 @@ import { BuildPill } from './ui/shell/BuildPill.tsx';
 import { AppBoundary } from './ui/shell/AppBoundary.tsx';
 import { CardBoundary } from './ui/cards/CardBoundary.tsx';
 import { useShell } from './ui/shell/store.ts';
+import { ErrorNote } from './ui/shell/ErrorNote.tsx';
 import { ContextNote } from './scene/ContextNote.tsx';
 
 export function App() {
@@ -30,6 +31,7 @@ export function App() {
         <ProteinLegend />
       </CardBoundary>
       <ContextNote />
+      <ErrorNote />
       <Shell />
       {import.meta.env.VITE_CHANNEL === 'preview' && <BuildPill />}
       {status === 'crashed' && <CrashNotice />}

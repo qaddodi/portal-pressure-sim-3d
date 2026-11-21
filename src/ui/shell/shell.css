@@ -218,4 +218,7 @@ html.thumb-ui:has(.sh-toast[data-on="true"]) .stage-credit { visibility: hidden;
 .sh-lazyfail button { min-height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); color: var(--text); font: 600 14px / 1 var(--ui); cursor: pointer; }
 .sh-glnote { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: var(--z-chrome, 20); display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 999px; background: var(--surface); border: 1px solid var(--edge); color: var(--text); font: 600 14px / 1.2 var(--ui); transition: opacity 260ms ease-out; }
 .sh-glnote button { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: 600 14px / 1 var(--ui); cursor: pointer; }
+/* (above the figure's note, so the two never overlap) */
+.sh-errnote { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+.sh-glnote .sh-glnote-alt { background: transparent; color: var(--accent); border: 1px solid var(--edge); }
 @media (prefers-reduced-motion: reduce) { .sh-crash, .sh-lazyfail { animation: none; } .sh-glnote { transition: none; } }

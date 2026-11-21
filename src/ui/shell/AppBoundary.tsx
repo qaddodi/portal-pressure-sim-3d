@@ -2,10 +2,9 @@ import { Component, useState, type ReactNode } from 'react';
 import './shell.css';
 import { APP_CRASH, NO_WEBGL } from './words.ts';
 import { reloadKeepingState } from '../../boot/reload.ts';
+import { crashDetails, detailsNow, noteFault } from '../../boot/crash-net.ts';
 
-/** What a bug report needs from a crash: the message, the build and the browser. */
-export const crashDetails = (message: string, build: string, ua: string): string => `${message}\nBuild: ${build}\nBrowser: ${ua}`;
-const detailsNow = (message: string): string => crashDetails(message, String(import.meta.env.VITE_BUILD ?? 'dev'), typeof navigator === 'undefined' ? '' : navigator.userAgent);
+export { crashDetails };
 
 function CopyDetails({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -35,6 +34,6 @@ interface Props { layer: 'figure' | 'root'; children: ReactNode }
 export class AppBoundary extends Component<Props, { failed: string | null }> {
   state = { failed: null as string | null };
   static getDerivedStateFromError(e: unknown) { return { failed: e instanceof Error ? e.message || e.name : String(e) }; }
-  componentDidCatch(e: unknown) { console.error(`[app] the ${this.props.layer} layer failed to render`, e); }
+  componentDidCatch(e: unknown) { noteFault(`react:${this.props.layer}`, e); console.error(`[app] the ${this.props.layer} layer failed to render`, e); }
   render() { return this.state.failed === null ? this.props.children : <CrashCard layer={this.props.layer} message={this.state.failed} />; }
 }

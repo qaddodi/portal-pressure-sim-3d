@@ -32,6 +32,8 @@ export const APP_CRASH = {
 } as const;
 /** The figure's graphics context was lost after the first picture (scene/context-loss.ts, ContextNote.tsx). */
 export const GL_LOSS = { redrawing: 'Redrawing the figure…', stuck: 'The figure could not be redrawn.', reload: 'Reload' } as const;
+/** The quiet note when the app is left broken by errors no boundary sees (ErrorNote.tsx, boot/crash-net.ts). */
+export const ERROR_NOTE = { text: 'Something went wrong behind the scenes.', reload: 'Reload', copy: 'Copy details', copied: 'Copied', keep: 'Keep going' } as const;
 /** Settings › Blur effect in the 3D app today */
 export const FIGURE_DETAIL_TITLE = 'Figure detail';
 

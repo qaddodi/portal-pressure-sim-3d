@@ -29,7 +29,7 @@ import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
 import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
-import { installCaught } from './ui/debug/caught.ts';
+import { installCrashNet } from './boot/crash-net.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
 import { isFrameRequest } from './ui/debug/frame/request.ts';
@@ -43,6 +43,7 @@ useSettings.subscribe(paint);
 applyGlass(useSettings.getState().blur);
 useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
 dark.addEventListener('change', paint);
+installCrashNet();   // errors no boundary sees (handlers, timers, promises, a clock system): kept for the reports, and a quiet recovery when the app is left broken (boot/crash-net.ts)
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 // A lazy part's file is gone (a tab open across two deploys) or the network failed: Vite fires this before the import rejects. The rejection is NOT swallowed: lazyRetry tries again and the pane says so (LazyBoundary);
 // here the page learns a newer build may be out, and, online, offers the update toast once.
@@ -103,7 +104,6 @@ async function start() {
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();
   if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
-  installCaught();
   if (isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
   holdSplash();   // the splash stays until the figure has drawn and its labels are placed (boot/ready.ts), then eases away over the app
   createRoot(document.getElementById('root')!).render(<StrictMode><AppBoundary layer="root"><App /></AppBoundary></StrictMode>);
