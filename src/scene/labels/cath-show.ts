@@ -172,14 +172,15 @@ export class CathShow {
   }
 
   /** The numbers on show change without a new place (a reading counting up keeps its box): written into what stands. */
-  setText(t: CathText): void {
+  setText(t: CathText, hold = false): void {
     const val = (r: Reading, v: string, tone = r.tone): Reading => (r.value === v && r.tone === tone ? r : { ...r, value: v, tone });
     const tf = (p: PillTarget) => { const v = p.id === 'f' ? t.f : t.w; if (p.reading.value !== v) p.reading = val(p.reading, v); };
-    for (const p of this.want.pills.values()) tf(p);
-    for (const r of this.pills.values()) tf(r.t);
     const ts = (u: SumTarget) => { u.rows = [val(u.rows[0], t.w), val(u.rows[1], t.f)]; u.calc = val(u.calc, t.h, toneOf(t.hv)); };
+    // A card that is leaving (the picture moves, the slide went, its stack took over) keeps the numbers it had: they belong to the patient it was measured on, not the one loading now.
+    // `want` is only dropped once the picture is still, so while it holds nothing is written. A card whose target was replaced is not the wanted object, so it is never written either.
+    if (hold) return;
+    for (const p of this.want.pills.values()) tf(p);
     if (this.want.sum) ts(this.want.sum);
-    if (this.sum) ts(this.sum.t);
   }
 
   /** Advance by `dt` ms. `hold`: the picture is moving or has not settled, so every card fades out where it stands. Returns true while anything is still moving. */
