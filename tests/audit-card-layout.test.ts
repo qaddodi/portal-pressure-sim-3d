@@ -173,3 +173,18 @@ test('the phone dock\'s readouts are never narrower than their tiles (a reading 
   assert.match(css, /\.app\.thumb \.vdock \.readouts:not\(\.all\) \{ width: auto; min-width: max-content;/);
   assert.match(css, /\.vdock:not\(\.mini\) \.readouts:not\(\.all\) \{ width: auto; min-width: max-content; \}/);
 });
+
+test('the audit reads a card only once its slide has landed (words 3 to 19 px past the right edge on Circulation 10, Encephalopathy 9, TIPS complete 16, Recompensation 3: the card was still sliding in)', async () => {
+  const src2 = src('src/ui/debug/audit/app.ts');
+  assert.match(src2, /!slidingX\(cs\.transform\)/);
+  const m = /export function slidingX\(t: string\): boolean \{[\s\S]*?\n\}/.exec(src2)![0].replace('export function', 'function').replace('(t: string): boolean', '(t)');
+  const slidingX = new Function(`${m}; return slidingX;`)() as (t: string) => boolean;
+  assert.equal(slidingX('none'), false); assert.equal(slidingX('matrix(1, 0, 0, 1, 0, 0)'), false); assert.equal(slidingX('matrix(1, 0, 0, 1, 16.4, 0)'), true);
+  assert.equal(slidingX('matrix(1, 0, 0, 1, -12, 3)'), true); assert.equal(slidingX('translateX(0.2px)'), false); assert.equal(slidingX('translateX(9px)'), true);
+});
+
+test('a table head that spills into its cell\'s own padding counts as too wide, so the heads stand upright before the table edge cuts it (Liver flow, 2 px, iPhone Quick run)', () => {
+  const t = src('src/ui/cards/TableCard.tsx');
+  assert.match(t, /export function headOver/); assert.match(t, /\.some\(\(t\) => headOver\(t\)\)/);
+  assert.match(t, /width > room \+ 0\.5/);
+});
