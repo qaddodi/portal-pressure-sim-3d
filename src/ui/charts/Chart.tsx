@@ -8,6 +8,7 @@ import { fitOf } from './fit.ts';
 import { paletteOf, type Palette } from './palette.ts';
 import { ChartPainter } from './painter.ts';
 import type { Frame } from './scene.ts';
+import { frameTable, tableKey, type DataTable } from './table.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 
 /** What a chart's model gets: the box's width, the colours of the look, the type of the device. */
@@ -51,6 +52,7 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
   const host = useRef<HTMLDivElement>(null);
   const painter = useRef<ChartPainter | null>(null);
   const [w, setW] = useState(0);
+  const [table, setTable] = useState<DataTable | null>(null);
   const [fit, setFit] = useState(1);   // (the zoom the box lives under, 2 decimals: it moves with the window, never with a frame)
   const env = useContext(ChartEnv);
   const appLook = useLookId();
@@ -93,10 +95,23 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     // a new width or look is set at once; the same chart with new numbers glides
     const key = `${w}|${look}|${device}|${type.sm}|${fit}`;
     p.show(frame, glide && !first.current && key === lastKey.current);
+    const t = frameTable(frame), k = tableKey(t);
+    setTable((o) => (o && tableKey(o) === k && o.caption === t.caption ? o : t));
     first.current = false;
     lastKey.current = key;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w, fit, look, type, device, ...deps]);
 
-  return <div ref={host} className={className} role="img" aria-label={label} style={{ position: 'relative', width: '100%' }} />;
+  // The picture is one image with a sentence; its numbers are in a hidden table beside it (table.ts): the image role would hide them from a screen reader, so the table is its sibling, out of the way, never in the Tab order.
+  return (
+    <>
+      <div ref={host} className={className} role="img" aria-label={label} style={{ position: 'relative', width: '100%' }} />
+      {table && table.rows.length > 0 ? (
+        <table className="sr-only" data-chart-data="">
+          <caption>{table.caption || label}</caption>
+          <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+        </table>
+      ) : null}
+    </>
+  );
 }
