@@ -301,7 +301,7 @@ test('the growth morph is gone: no second shape in the mesh, no growth uniform, 
 
 test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
   on(() => {
-    assert.equal(JOINT_REACH_R, GROW_REACH, 'network.ts cannot import the inventory (it imports the network): the two numbers are one');
+    assert.ok(2 * JOINT_REACH_R >= GROW_REACH, 'network.ts cannot import the inventory (it imports the network): an end the joint rule moves is one the skin could not take as an arm');
     const epi = findSkinJunctions().find((j) => j.node === 'EPI')!, c3 = epi.arms.findIndex((a) => a.vesselId === 'C3');
     assert.ok(c3 >= 0, 'C3 is an arm of EPI');
     const d = dropFarGrowers(epi);

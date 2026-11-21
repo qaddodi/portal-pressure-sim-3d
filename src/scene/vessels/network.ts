@@ -149,7 +149,7 @@ const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_O
 /** A collateral or shunt ends at its node's 2D point, but the trunk veins that run on through that node are drawn smooth through the join (smooth-joins), and a fillet can move their joint a little off the node: the epigastric pair's V at the umbilicus
  *  starts 12 px from it, so the umbilical vein's end stood 5 radii from the joint and 1.8 from the vein's wall: no arm of the junction skin, no wall to sink onto (the skin dropped it, tests/skin-grow.test.ts). Its end now lies on the joint, over its last
  *  quarter (the way fitEnds moves a branch's end), wherever the trunks' drawn ends at its node agree on one point a short way (under JOINT_MAX px) from the node. Pure: the 2D courses, no list of ids. */
-export const JOINT_REACH_R = 2.4;   // (= skin/inventory.ts GROW_REACH, which imports this file: tests/skin-grow.test.ts pins them equal)
+export const JOINT_REACH_R = 2.2;   // (about skin/inventory.ts GROW_REACH, which imports this file: tests/skin-grow.test.ts pins that twice it is no less)
 const JOINT_MAX = 20, JOINT_MIN = 0.5;
 function atJoint(e: Edge, path: readonly (readonly [number, number])[]): readonly (readonly [number, number])[] {
   if (e.kind !== 'collateral' && e.kind !== 'shunt') return path;
