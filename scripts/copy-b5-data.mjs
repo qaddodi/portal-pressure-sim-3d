@@ -49,7 +49,9 @@ function rewrite(file, text) {
     throw new Error(`${file}: an import this script does not know how to carry: ${spec}`);
   });
 }
-for (const f of FILES) put(`src/scene/procedures/copied/${f}`, HEAD(f) + rewrite(f, readFileSync(`${from}/src/ui/${f}`, 'utf8')));
+// ease.js and num.js are written once, by copy-chart-tokens.mjs, in src/ui/charts/looks2d/; here they re-export it
+const ONE = { 'ease.js': '../../../ui/charts/looks2d/ease.js', 'num.js': '../../../ui/charts/looks2d/num.js' };
+for (const f of FILES) put(`src/scene/procedures/copied/${f}`, HEAD(f) + (ONE[f] ? `export * from '${ONE[f]}';\n` : rewrite(f, readFileSync(`${from}/src/ui/${f}`, 'utf8'))));
 
 // ---------- the outlines the tamponade tube is fitted to ----------
 const A = await import(pathToFileURL(`${from}/src/ui/anatomy.js`).href);

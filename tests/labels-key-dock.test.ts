@@ -53,7 +53,7 @@ test('on the sideways phone a key that would reach under the centred card wraps 
 test('a key that does not fit beside the phone\'s pill takes two lines in the pill\'s row, then a row above it', () => {
   const vp = SCREENS['iphone-portrait'], words = null, bar = barOf(vp).rect, room = bar.x - (vp.safe.left + PHONE_SIDE) - 8;
   assert.equal(dockKey({ vp, words, natural: { w: room - 5, h: 28 } }).at, 'beside-pill');
-  const two = dockKey({ vp, words, natural: { w: room * 1.6, h: 22 } });
+  const two = dockKey({ vp, words, natural: { w: room * 1.6, h: 18 } });
   assert.equal(two.at, 'beside-pill'); assert.equal(two.wrap, room);
   assert.equal(dockKey({ vp, words, natural: { w: room * 1.6, h: 40 } }).at, 'above-pill', 'two lines too tall for the row: above it');
   assert.equal(dockKey({ vp, words, natural: { w: room * 3, h: 22 } }).at, 'above-pill');
@@ -85,5 +85,19 @@ test('the dock decides by the key on one line alone: the size it is drawn at nev
     assert.equal(drawnWide.wrap, a.wrap, `${natural.w}: wrap`);
     assert.equal(drawnNarrow.wrap, a.wrap, `${natural.w}: wrap (drawn narrow)`);
     assert.equal(drawnNarrow.at, a.at, `${natural.w}: place`);
+  }
+});
+
+test('the key beside the phone\'s pill never stands taller than the foot the words\' card keeps clear (it covered the last line, iPhone 21 Nov)', async () => {
+  const { cardPad } = await import('../src/ui/layout/rules2d.ts');
+  const { footReserve } = await import('../src/ui/layout/plan.ts');
+  for (const vp of [SCREENS['iphone-portrait'], { w: 375, h: 667, safe: S(20, 0, 0, 0) }, { w: 430, h: 932, safe: S(59, 0, 34, 0) }]) {
+    const bar = barOf(vp).rect, room = bar.x - (vp.safe.left + PHONE_SIDE) - 8;
+    for (const h of [14, 19, 24, 30, 40]) for (const w of [room - 5, room * 1.5, room * 2.5]) {
+      const d = dockKey({ vp, words: null, natural: { w, h } });
+      if (d.at !== 'beside-pill') continue;
+      const clear = cardPad(vp.w, vp.h).y + 50 + credRow(vp), top = (vp.h - footReserve(vp)) - d.box.y0;
+      assert.ok(top <= clear + 0.5, `${vp.w}x${vp.h} key ${w}x${h}: its top ${top} px above the card's foot, words end ${clear}`);
+    }
   }
 });

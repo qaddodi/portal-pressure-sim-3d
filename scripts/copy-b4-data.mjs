@@ -44,6 +44,8 @@ function copyModule(file, name = file) {
     if (!(spec in REWRITE)) throw new Error(`${file}: an import this script does not map: ${spec}`);
     return `${kw}${mid}from '${REWRITE[spec]}';`;
   });
+  // (num.js is written once, by copy-chart-tokens.mjs, in src/ui/charts/looks2d/; here it re-exports it)
+  if (file === 'num.js') text = "export * from '../../../ui/charts/looks2d/num.js';\n";
   put(`${DIR}/${name}`, `${HEAD(`src/ui/${file}`)}${text}`);
 }
 for (const f of ['sin-perfusion.js', 'stomach-lumen.js', 'num.js', 'clot-shape.js', 'cavernoma-strand.js', 'organ-ease.js', 'fluid-step.js', 'varix-look.js', 'varix-bead.js', 'liver-geo.js']) copyModule(f);
@@ -147,6 +149,31 @@ const fixture = {
   varixBead: [0, 2, 4.5, 7, 10].map((d) => [d, VB.varixBead(d)]),
   grey: { sat: OD.LENS_GREY.sat, dim: OD.LENS_GREY.dim },
 };
+// ---------- the liver's lower edge for the ascites' liver cut (stage-organs.js lowerEdge, stage.js FLUID_R / FLUID_COLS, liver-geo-data.js) ----------
+// The 2D keeps the straw off a congested liver: its lower edge, column by column across the fluid's rectangle, in the liver's own frame. The 3D pool needs the same table, so the
+// base outline (360 points and its length: the rest of the stored geometry is the nodules', which 3D does not use here) and the two sizes are copied, and 2D's own `lowerEdge` is run
+// (taken from its source text) on 2D's own `morphOutline` for the test's fixture, so the port is held to the 2D's numbers and not to a second transcription.
+{
+  const G = await import(pathToFileURL(`${from}/src/ui/liver-geo-data.js`).href);
+  const st = read('src/ui/stage.js'), m = st.match(/const FLUID_R = \[(\d+), (\d+), (\d+), (\d+)\], FLUID_COLS = (\d+);/);
+  if (!m) throw new Error('stage.js: FLUID_R / FLUID_COLS moved');
+  const FLUID_R = m.slice(1, 5).map(Number), FLUID_COLS = +m[5];
+  put(`${DIR}/liver-outline.js`, `${HEAD('liver-geo-data.js: the base outline; stage.js: the ascites rectangle')}/** The liver's base outline: its length and 360 points along it (x, y, x, y, ...), in the liver's own frame. */
+export const LIVER_OUTLINE = ${J({ L: G.LIVER_GEO.L, pts: G.LIVER_GEO.pts })};
+/** The GPU ascites' rectangle (world x, y, w, h) and its columns: the liver's lower edge is one number per column across it. */
+export const FLUID_R = ${J(FLUID_R)};
+export const FLUID_COLS = ${FLUID_COLS};
+`);
+  const org = read('src/ui/stage-organs.js'), a = org.indexOf('  function lowerEdge(P) {'), b = org.indexOf('\n  }\n', a);
+  if (a < 0 || b < 0) throw new Error('stage-organs.js: lowerEdge moved');
+  const lowerEdge2d = new Function('FLUID_COLS', 'FLUID_R', `const lowerEdgeOut = new Float32Array(FLUID_COLS);\n${org.slice(a, b + 4)}\nreturn lowerEdge;`)(FLUID_COLS, FLUID_R);
+  const n = 360, pts = []; for (let i = 0; i < n; i++) pts.push([G.LIVER_GEO.pts[i * 2], G.LIVER_GEO.pts[i * 2 + 1]]);
+  const base = { pts, nm: LM.outlineNormals(pts), nod: LM.contourNodules(G.LIVER_GEO.L, n) };
+  const cols = [0, 200, 420, 600, 800, 1000, 1200].filter((u) => u < FLUID_COLS);
+  const edge = (c, g) => { const f = lowerEdge2d(c + g > 0 ? LM.morphOutline(base, c, g).out : pts); return cols.map((u) => [u, f[u]]); };
+  put('tests/fixtures/liver-edge-2d.json', `${J({ cols, cases: [[0, 0], [0, 0.5], [0, 1], [0.6, 0], [0.6, 0.5], [1, 1], [0.3, 0.8]].map(([c, g]) => ({ c, g, edge: edge(c, g), scale: LM.liverShrink(c, g) })) })}\n`);
+}
+
 put('tests/fixtures/b4-2d.json', `${JSON.stringify(fixture)}\n`);
 
 if (check) {

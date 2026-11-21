@@ -68,7 +68,7 @@ export function timeline(samples: readonly Sample[]): Timeline {
   return { cardStartMs: cs, cardEndMs: ce, labelEndMs: le, settledMs: all.length ? Math.max(...all) : null };
 }
 
-export interface Fade { kind: 'card' | 'label'; key: string; dir: 'in' | 'out'; ms: number }
+export interface Fade { kind: 'card' | 'label'; key: string; dir: 'in' | 'out'; ms: number; /** sample times (ms from the step's mark) of the fade's first and last row */ from?: number; to?: number }
 /** Every complete fade in the rows: alpha from at most 0.1 to at least 0.9 (in), or back (out); `ms` is the time between the last row at the one end and the first at the other, so it can be one sampler step long at least. */
 export function fadeEpisodes(samples: readonly Sample[]): Fade[] {
   const out: Fade[] = [];
@@ -80,20 +80,34 @@ export function fadeEpisodes(samples: readonly Sample[]): Fade[] {
       const a = samples.map((s) => { const r = rowsOf(s, f).find((x) => keyOf(x) === key); return r ? +r[5]! : 0; });
       let lo = -1, hi = -1;
       for (let i = 0; i < a.length; i++) {
-        if (a[i]! <= 0.1) { if (hi >= 0 && lo < hi) { out.push({ kind, key, dir: 'out', ms: samples[i]!.t - samples[hi]!.t }); } lo = i; if (hi >= 0) hi = -1; }
-        else if (a[i]! >= 0.9) { if (lo >= 0 && hi < lo) { out.push({ kind, key, dir: 'in', ms: samples[i]!.t - samples[lo]!.t }); } hi = i; if (lo >= 0) lo = -1; }
+        if (a[i]! <= 0.1) { if (hi >= 0 && lo < hi) { out.push({ kind, key, dir: 'out', ms: samples[i]!.t - samples[hi]!.t, from: samples[hi]!.t, to: samples[i]!.t }); } lo = i; if (hi >= 0) hi = -1; }
+        else if (a[i]! >= 0.9) { if (lo >= 0 && hi < lo) { out.push({ kind, key, dir: 'in', ms: samples[i]!.t - samples[lo]!.t, from: samples[lo]!.t, to: samples[i]!.t }); } hi = i; if (lo >= 0) lo = -1; }
       }
     }
   }
   return out;
 }
 
-/** The fades that are not eased: instant ones (a snap) and ones that drag. */
-export function fadeFindings(fades: readonly Fade[]): AuditFinding[] {
+/** A stretch of the step (ms from its mark) in which the page did not draw or sample: a frame gap, or a hole between two sampler rows, over LONG_GAP_MS. */
+export interface Stall { from: number; to: number }
+/** Where the page stalled: the clock's frame gaps (`frames`: each frame's start and its gap) and the holes between the sampler's own rows (a main-thread stall delays the 33 ms timer too). */
+export function stallWindows(samples: readonly Sample[], frames: readonly { t: number; ms: number }[] = []): Stall[] {
+  const out: Stall[] = [];
+  for (const f of frames) if (f.ms > LONG_GAP_MS) out.push({ from: f.t - f.ms, to: f.t });
+  for (let i = 1; i < samples.length; i++) if (samples[i]!.t - samples[i - 1]!.t > LONG_GAP_MS) out.push({ from: samples[i - 1]!.t, to: samples[i]!.t });
+  return out;
+}
+
+/** The fades that are not eased: instant ones (a snap) and ones that drag. An instant one with a stall inside it (or one sampler step either side) is not called a snap: a stalled frame loop shows
+ *  a correct ease as one jump, so it is reported under the stall (`fade-under-stall`, a warning) and the stall finding names the cause. */
+export function fadeFindings(fades: readonly Fade[], stalls: readonly Stall[] = []): AuditFinding[] {
   const out: AuditFinding[] = [];
   for (const f of fades) {
-    if (f.ms < SNAP_MS) out.push({ kind: 'fade-instant', sev: 'fail', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms: it snaps instead of easing`, where: `${f.kind} ${f.key}` });
-    else if (f.ms > SLOW_FADE_MS) out.push({ kind: 'fade-slow', sev: 'warn', what: `${f.kind} "${f.key}" took ${r0(f.ms)} ms to ${f.dir === 'in' ? 'come in' : 'go'}`, where: `${f.kind} ${f.key}` });
+    if (f.ms < SNAP_MS) {
+      const hit = f.from != null && f.to != null ? stalls.find((s) => s.to >= f.from! - 33 && s.from <= f.to! + 33) : undefined;
+      if (hit) out.push({ kind: 'fade-under-stall', sev: 'warn', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms, but the page stalled ${r0(hit.to - hit.from)} ms at the same time: this may be the stall, not a missing ease`, where: `${f.kind} ${f.key}` });
+      else out.push({ kind: 'fade-instant', sev: 'fail', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms: it snaps instead of easing`, where: `${f.kind} ${f.key}` });
+    } else if (f.ms > SLOW_FADE_MS) out.push({ kind: 'fade-slow', sev: 'warn', what: `${f.kind} "${f.key}" took ${r0(f.ms)} ms to ${f.dir === 'in' ? 'come in' : 'go'}`, where: `${f.kind} ${f.key}` });
   }
   return out;
 }

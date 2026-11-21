@@ -7,6 +7,7 @@
 // (Mohammad, 20 Nov: "the labels should know we're tilting and still call out the correct thing"; audit 4.4: every slide's camera move hid every label until 180 ms after it landed). A dot
 // that jumps (a cut, a dive's far end) is not carried: everything fades and returns FADE.settleMs after the picture stops. A label that is wanted at another spot or with other words crosses
 // over from the old picture to the new (fade.ts); a label that comes to stand under a card or past the edge fades out whole and back once clear (roomFade, 2D ROOM_MS).
+import { anyMoving } from '../any-moving.ts';
 import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
 import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keepExtras, type LabelLevel } from './free-set.ts';
@@ -510,7 +511,7 @@ export class LabelController {
     // 3. fades (the catheter's cards have their own: the 2D app's timings)
     this.show.setText(this.cathText());
     this.show.ride(this.cTipPx, this.cAheadPx);
-    const busy = this.fader.step(dt, this.wants, hold) || this.show.step(dt, hold);
+    const busy = anyMoving(this.fader.step(dt, this.wants, hold), this.show.step(dt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 
     // 4. what to draw: each shown label at its spot, following its dot
     this.out.length = 0;

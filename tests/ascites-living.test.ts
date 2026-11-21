@@ -1,5 +1,5 @@
 // Ascites that looks like fluid (Mohammad, 20 Nov 2026: "ascites can look better. it has those lines on both sides"). The root causes this pins:
-//  - the pool ended in a hard cut along the belly wall (two near-straight lines, sharp wedges at the surface): it now fades out over FEATHER units, climbs the wall, and has a pale rim (Living fluid);
+//  - the pool ended in a hard cut along the belly wall (two near-straight lines, sharp wedges at the surface): it now fades out over FEATHER units and climbs the wall (Living fluid; the pale rim it first had inside the wall was dropped 21 Nov: tests/ascites-basin.test.ts);
 //  - the surface had no ripple (2D's is amp 2, the phase running with the model): it runs with the eased flow rate again;
 //  - a column outside the cavity was written at y = 0 (the top of the figure), leaving a sliver from there to the first real column: it takes its neighbour's surface now.
 import { test } from 'node:test';
@@ -24,7 +24,7 @@ test('Living fluid is a Figure depth switch, on by default', () => {
 test('the pool is one program with the wall distance and the depth per vertex, named so a refused shader hides it rather than greys the belly', () => {
   assert.match(POOL_VS, /attribute float aW;/); assert.match(POOL_VS, /attribute float aD;/);
   assert.match(POOL_FS, new RegExp(`smoothstep\\(0\\.0, ${FEATHER_PX}\\.0, wpx\\)`), 'the edge fades over FEATHER_PX screen pixels');
-  assert.doesNotMatch(POOL_FS, /pow\(/, 'pow of a negative base is undefined in GLSL (the rim is exp(-q*q))');
+  assert.doesNotMatch(POOL_FS, /pow\(/, 'pow of a negative base is undefined in GLSL (the sheen and the meniscus are exp(-x*x))');
   assert.equal(((new AscitesLayer().group.children[0] as unknown as { material: { name: string } }).material.name), 'pool');
   assert.match(readFileSync('src/debug/shader-guard.ts', 'utf8'), /m\.name === 'pool'/);
 });

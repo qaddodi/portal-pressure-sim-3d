@@ -9,7 +9,7 @@ export const app = (over: Partial<AppSnapshot> = {}): AppSnapshot => ({
   readings: { hvpg: 11.1, whvp: 16.2, fhvp: 5.1, pv: 17.6, ivc: 4.6, ra: 4 },
   camera: { moving: false, placed: true, orbitDeg: 0, zoom: 1, pan: [0, 0], stage: { w: 390, h: 844 } },
   engine: { status: 'ready', frames: 10, crash: null, running: false, day: 0 }, clock: { awake: false, framesDrawn: 5, worstMs: 8, p95Ms: 4, holds: [] },
-  free: { x: 0, y: 0, w: 390, h: 300 }, errors: { count: 0, last: [] }, memory: { gpuMB: 20, heapMB: 40, renderer: null },
+  free: { x: 0, y: 0, w: 390, h: 300 }, errors: { count: 0, last: [] }, memory: { gpuMB: 20, heapMB: 40, renderer: null, geometries: null, textures: null, programs: null },
   ...over,
 });
 

@@ -6,7 +6,7 @@ import type { Shape, TextShape } from './scene.ts';
 /** Inter's baseline sits this far down a line box whose height is the font size (ascent .969, descent .241, line-height 1). */
 export const BASELINE_EM = 0.864;
 
-interface Slot { el: HTMLSpanElement; style: string; text: string; t: string; o: string }
+interface Slot { el: HTMLSpanElement; style: string; text: string; t: string; o: string; c: string; h: string }
 
 export class TextLayer {
   readonly root: HTMLDivElement;
@@ -26,7 +26,7 @@ export class TextLayer {
     while (this.slots.length < words.length) {
       const el = this.root.ownerDocument.createElement('span');
       this.root.append(el);
-      this.slots.push({ el, style: '', text: '', t: '', o: '' });
+      this.slots.push({ el, style: '', text: '', t: '', o: '', c: '', h: '' });
     }
     while (this.slots.length > words.length) this.slots.pop()!.el.remove();
     words.forEach((w, i) => {
@@ -34,13 +34,17 @@ export class TextLayer {
       const style = [
         'position:absolute;left:0;top:0;white-space:pre;line-height:1;will-change:transform;transform-origin:0 0;',
         `font:${w.italic ? 'italic ' : ''}${w.weight ?? 500} ${w.size}px/1 var(${w.font === 'display' ? '--display' : '--ui'}, system-ui, sans-serif);`,
-        `color:${toCss(w.color)};`,
         w.upper ? 'text-transform:uppercase;' : '',
         w.ls ? `letter-spacing:${w.ls}em;` : '',
-        w.halo ? `-webkit-text-stroke:${w.halo.w}px ${toCss(w.halo.color)};paint-order:stroke fill;` : '',
+        w.halo ? 'paint-order:stroke fill;' : '',
         'font-variant-numeric:tabular-nums lining-nums;',
       ].join('');
-      if (style !== sl.style) { sl.el.style.cssText = style; sl.style = style; sl.t = ''; sl.o = ''; }
+      if (style !== sl.style) { sl.el.style.cssText = style; sl.style = style; sl.t = ''; sl.o = ''; sl.c = ''; sl.h = ''; }
+      // (the colours are written alone, and only when they differ: a colour glide rewrites one property, never the whole font and box style)
+      const c = toCss(w.color);
+      if (c !== sl.c) { sl.el.style.color = c; sl.c = c; }
+      const h = w.halo ? `${w.halo.w}px ${toCss(w.halo.color)}` : '';
+      if (h !== sl.h) { sl.el.style.setProperty('-webkit-text-stroke', h); sl.h = h; }
       if (w.s !== sl.text) { sl.el.textContent = w.s; sl.text = w.s; }
       const dx = w.anchor === 'end' ? -100 : w.anchor === 'middle' ? -50 : 0;
       // (a turned word turns about its anchor: the box's own corner moves to the anchor first, so the letters end where the point is, whichever way it is turned)

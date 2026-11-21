@@ -28,6 +28,8 @@ import {
 } from './cel3d.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
+/** Segments round a red cell's lathe (sinusoid3d: 16, was 40). */
+export const RBC_SEG = 16;
 export const REACH = 200;
 /** The traffic runs this far each way (µm): past the ends' blur, short of the scene's ends, so its density stays 2D's. */
 export const TRAFFIC_REACH = 150;
@@ -225,8 +227,9 @@ export class Sinusoid3D {
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL, rimK: this.rimKAlb });   // (its own ramp: a bead well under a micrometre is all line long before a red cell is)
-    // (40 round, not 22: a tumbling cell's outline crosses its lathe at a slant, and with 22 its faces ended before n.v reached 0 in places, a dashed line, eyes 20 Nov)
-    this.rbc = many('red-cells', unitRbc(40), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
+    // (RBC_SEG round. 40 was set against a dashed outline (22 segments, eyes 20 Nov) before the ink hull went DoubleSide and stopped culling by normal (6f7d101), which is what the dashes were;
+    //  the cell is a few px across, so 16 segments read round and cost 40% of the triangles: 2560 to 1024 a cell, review 21 Nov #12)
+    this.rbc = many('red-cells', unitRbc(RBC_SEG), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.bores, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
