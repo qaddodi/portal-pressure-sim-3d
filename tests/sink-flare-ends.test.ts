@@ -43,11 +43,11 @@ test('every sewn end: last ring inside its host or within half its radius of the
         dir = sg;
       }
       assert.ok(turns <= 1, `${v.id} end ${end}: the radius wobbles (${turns} turns)`);
-      // no ring crosses the next: the surface's slope along the tube stays under 1 (radius change less than the spacing), and the rings keep their order along the path
+      // no ring crosses the next (the end ring itself closes like a cap): the surface's slope along the tube stays under 1 (radius change less than the spacing), and the rings keep their order along the path
       for (let q = 0; q < Math.min(30, (run.tubular >> 1) - 1); q++) {
         const k = last + step * q, c0 = centre(k), c1 = centre(k + step), sp = Math.hypot(c1[0]! - c0[0]!, c1[1]! - c0[1]!, c1[2]! - c0[2]!);
         const dr = Math.abs(rk.getX(ring(k + step)) - rk.getX(ring(k))) * v.radius;
-        assert.ok(sp > 1e-9 && dr < sp, `${v.id} end ${end} ring ${k}: the radius changes ${dr.toFixed(5)} over ${sp.toFixed(5)} of path`);
+        assert.ok(sp > 1e-9 && (q === 0 || dr < sp), `${v.id} end ${end} ring ${k}: the radius changes ${dr.toFixed(5)} over ${sp.toFixed(5)} of path`);
       }
     });
   }
@@ -67,4 +67,28 @@ test('the strands of a braid (C1a, C2, C4, C7 and the caput fan) are sewn at the
     }
   }
   assert.ok(n >= 8, `${n} strands checked`);
+});
+
+test('no bulge: a generated end\'s flare never takes a ring wider than its host (or than the tube without the flare), and the end closes inside the wall, so no round cap is wider than the host\'s own width', () => {
+  setSmoothJoins(true);
+  let n = 0;
+  for (const v of NETWORK) {
+    const e = shuntEnds(v.id);
+    if (!e || !e.some((x) => x?.capped)) continue;
+    const c = coursesOf(v, REST)[0]!, seg = tubularOf(v, 32).slice(0, 1);
+    const plain = { ...c, sewn: c.sewn!.map((x) => (x ? { ...x, flare: false } : x)) as unknown as typeof c.sewn };
+    const a = buildTubes([c], seg, v.radius), b = buildTubes([plain], seg, v.radius), run = a.runs[0]!, ra = a.geometry.getAttribute('rk'), rb = b.geometry.getAttribute('rk');
+    for (let k = 0; k <= run.tubular; k++) {
+      const i = run.tubeStart + k * (run.radial + 1), flared = ra.getX(i) * v.radius, plainR = rb.getX(i) * v.radius;
+      const host = Math.max(...e.map((x, end) => (x?.capped && x.flare && (end ? k > run.tubular / 2 : k < run.tubular / 2) ? x.hostR : 0)));
+      assert.ok(flared <= Math.max(plainR, host) + 1e-6, `${v.id} ring ${k}: radius ${(flared * 1000).toFixed(2)} against the host's ${(host * 1000).toFixed(2)} and the plain tube's ${(plainR * 1000).toFixed(2)}`);
+      n++;
+    }
+    e.forEach((x, end) => {
+      if (!x?.capped) return;
+      const k = end ? run.tubular : 0;
+      assert.ok(ra.getX(run.tubeStart + k * (run.radial + 1)) * v.radius <= 0.5 * x.hostR, `${v.id} end ${end}: the end ring is closed to under half the host's radius, inside its wall`);
+    });
+  }
+  assert.ok(n > 300);
 });

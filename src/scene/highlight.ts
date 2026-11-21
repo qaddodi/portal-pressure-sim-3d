@@ -124,24 +124,44 @@ export class Highlight {
   /** Whether any vessel's glow is showing now (glow-fx.ts makes and lays the mask only then). */
   glowing = false;
 
+  /** The vessel asked for, whether or not its tube is registered yet (a custom shunt's tube is routed a frame after the shunt is made and selected): it lights the moment its tube arrives. */
+  private wanted: string | null = null;
+  /** Ids that may be picked before their tube exists (the custom shunts: their tubes come and go with the params, circuit/tubes.ts). */
+  expect: (id: string) => boolean = () => false;
+
   constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
     this.hostOf = hostOf;
     this.range = range;
     this.edges = [];
-    for (const o of objects) {
-      if (!o.isVessel || !o.edge) continue;
-      this.edges.push({ id: o.edge.id, from: o.edge.from, to: o.edge.to, length: o.edge.length });
-      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, boost: 0, boostTarget: 0, spec: null });
-      const u = o.ink.uniforms;
-      u.hiAhead.value = range.ahead;
-      u.hiBehind.value = range.behind;
-      u.hiPx.value = HI_PX;
-    }
+    for (const o of objects) this.register(o);
+  }
+
+  /** Make a vessel object pickable and lit like every other vessel (the tubes the map adds when a learner opens a custom shunt come after the constructor). Replaces the object of the same id; if that id is the pick, it lights now. */
+  register(o: CelObject): void {
+    if (!o.isVessel || !o.edge) return;
+    const id = o.edge.id;
+    this.edges = this.edges.filter((e) => e.id !== id);
+    this.edges.push({ id, from: o.edge.from, to: o.edge.to, length: o.edge.length });
+    this.tracks.set(id, { obj: o, on: 0, target: 0, boost: 0, boostTarget: 0, spec: null });
+    const u = o.ink.uniforms;
+    u.hiAhead.value = this.range.ahead;
+    u.hiBehind.value = this.range.behind;
+    u.hiPx.value = HI_PX;
+    if (this.wanted === id) this.set(id);
+  }
+
+  /** Let go of a vessel object that is being disposed (only if it is still the one registered for its id: a shunt closed and opened again has a newer tube). */
+  unregister(o: CelObject): void {
+    const id = o.edge?.id;
+    if (!id || this.tracks.get(id)?.obj !== o) return;
+    this.tracks.delete(id);
+    this.edges = this.edges.filter((e) => e.id !== id);
   }
 
   set(id: string | null): void {
-    this.picked = id && this.tracks.has(id) ? id : null;
-    const spec = this.picked ? computeHighlight(this.group(this.picked), this.edges, this.range) : new Map<string, HighlightSpec>();
+    this.wanted = id;
+    this.picked = id && (this.tracks.has(id) || this.expect(id)) ? id : null;
+    const spec = this.picked && this.tracks.has(this.picked) ? computeHighlight(this.group(this.picked), this.edges, this.range) : new Map<string, HighlightSpec>();
     for (const [eid, t] of this.tracks) {
       const s = spec.get(eid);
       t.spec = s ?? t.spec;
@@ -160,6 +180,7 @@ export class Highlight {
   /** Light exactly these vessels (and every piece of a vein the engine cuts), each outlined whole and nothing run on downstream: the shunt's targets. Clears the pick. */
   setOnly(ids: readonly string[]): void {
     this.picked = null;
+    this.wanted = null;
     const hosts = new Set(ids.map((id) => this.hostOf.get(id) ?? id));
     for (const [eid, t] of this.tracks) {
       const on = hosts.has(this.hostOf.get(eid) ?? eid);
