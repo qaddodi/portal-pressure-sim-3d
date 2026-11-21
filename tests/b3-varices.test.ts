@@ -6,6 +6,7 @@ import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, VARIX_THICK } from '../src/scene/vessels/shape.ts';
 import { factorSpan } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
+import { bundleShare } from '../src/scene/vessels/shape.ts';
 import { VARIX_BEAD_FLOOR } from '../src/scene/vessels/shape-track.ts';
 
 const strands = () => coursesOf(NETWORK_BY_ID.get('C1a')!, { ...REST, strandsOn: true }).filter((c) => c.radius > 0);
@@ -19,8 +20,10 @@ test('each varix strand starts exactly as wide as the coronary vein it comes fro
       const cs = strands();
       assert.ok(cs.length >= 3, 'three columns');
       for (const c of cs) {
-        assert.ok(Math.abs(endR(c, 0) - lgv) < 1e-9, `starts at the coronary vein's calibre (${endR(c, 0)} vs ${lgv})`);
-        assert.ok(Math.abs(endR(c, 1) - c1b) < 1e-9, 'ends at the trunk\'s calibre');
+        // (the strands land on one point and together make the trunk's width there: each takes 1/sqrt(n) of it, shape.ts bundleShare; before 21 Nov each took all of it, a bulb)
+        const w0 = bundleShare(c.sewn?.[0], cs.length), w1 = bundleShare(c.sewn?.[1], cs.length);
+        assert.ok(Math.abs(endR(c, 0) - lgv * w0) < 1e-9, `starts at the coronary vein's calibre shared among the strands (${endR(c, 0)} vs ${lgv * w0})`);
+        assert.ok(Math.abs(endR(c, 1) - c1b * w1) < 1e-9, 'ends at the trunk\'s calibre, shared');
         // monotone ease from the foot to the column's own width: never a dip below the column (a pinch)
         let prev = endR(c, 0);
         for (let u = 0.02; u <= 0.42; u += 0.02) { const r = endR(c, u); const lo = Math.min(endR(c, 0), c.radius), hi = Math.max(endR(c, 0), c.radius), up = c.radius > endR(c, 0); assert.ok(r >= lo - 1e-12 && r <= hi + 1e-12 && (up ? r >= prev - 1e-12 : r <= prev + 1e-12), `no pinch at ${u.toFixed(2)}`); prev = r; }
@@ -40,7 +43,10 @@ test('a collateral that runs into a thinner vessel narrows to that vessel\'s cal
   setSmoothJoins(true);
   const end = (id: string, e: 0 | 1) => { const c = coursesOf(NETWORK_BY_ID.get(id)!, { ...REST, strandsOn: true })[0]!; return c.radius * (c.taper?.[e] ?? 1); };
   assert.ok(Math.abs(end('C9', 1) - NETWORK_BY_ID.get('AZY_SVC')!.radius) < 1e-9, 'C9 meets the azygos at its calibre');
-  assert.ok(Math.abs(end('C3', 1) - NETWORK_BY_ID.get('EPI_ILI')!.radius) < 1e-9, 'C3 meets the epigastric vein at its calibre');
+  // (since 67ed12d1 the paraumbilical vein ends in the caput's hub and narrows to the widest root of the fan there, never wider than the epigastric vein it is mated to)
+  const fan = coursesOf(NETWORK_BY_ID.get('C3~F:caput')!, { ...REST, live: 1 }), hub = Math.max(...fan.filter((c) => c.lens && c.lens[0] === 0).map((c) => c.radius));
+  assert.ok(end('C3', 1) <= NETWORK_BY_ID.get('EPI_ILI')!.radius + 1e-9, 'C3 is never wider than the epigastric vein at its end');
+  assert.ok(Math.abs(end('C3', 1) - Math.min(hub, NETWORK_BY_ID.get('EPI_ILI')!.radius)) < 1e-9, 'C3 ends at the width of the fan\'s roots (one round hub)');
   assert.equal(end('C3', 0), NETWORK_BY_ID.get('C3')!.radius, 'and off the portal vein\'s wall');
   setSmoothJoins(false);
 });

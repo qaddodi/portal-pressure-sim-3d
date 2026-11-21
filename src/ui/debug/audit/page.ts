@@ -1,7 +1,8 @@
 // ?audit, the page: the panel (Run, Stop, Copy, Copy JSON) on the app itself, for `?audit=here` (this screen) and for `?audit=run` (the app inside a frame, which starts at once and posts
 // its progress and its result to the outer page, outer.ts). Loaded only when the address asks (debug/mount.ts); nothing runs until a button, or the frame's start.
 import { runAudit } from './run.ts';
-import { plan, startTaps, settle, QUIET_MS } from './app.ts';
+import { plan, planTotal, startTaps, settle, QUIET_MS } from './app.ts';
+import { pace } from './progress.ts';
 import { loadAllDecks } from '../page/live.ts';
 import { renderText, renderJson, type Bundle, type AuditData, type Coverage } from './report.ts';
 import { flagValue } from '../flags.ts';
@@ -10,7 +11,7 @@ import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
 import { speedOf, scaleTime, scaleTimers } from './speed.ts';
 
-export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
+export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
 const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);max-width:min(560px,94vw);font:500 12px/1.35 system-ui,-apple-system,sans-serif;color:#efefef;background:rgba(20,20,24,.92);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px}
 .au button{font:inherit;font-weight:600;color:inherit;min-height:32px;padding:0 10px;margin:0 6px 6px 0;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:transparent}
@@ -19,23 +20,24 @@ const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);ma
 const depthOf = (): 'quick' | 'full' => (flagValue('depth') === 'quick' ? 'quick' : 'full');
 
 /** One run of this screen: the data for its size. */
-export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string): void }): Promise<AuditData> {
+export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string, total: number): void }): Promise<AuditData> {
   const notes: string[] = [], coverage: Coverage[] = [];
   const { failed } = await loadAllDecks();   // (the registry holds only the HVPG talk until the rest are read in)
   if (failed.length) notes.push(`these talks would not load, so they are not walked: ${failed.join(', ')}`);
   const speed = speedOf(flagValue('speed'));
-  if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (performance.now, every timer and every CSS animation), so frame rates and stalls are not valid; fades, settle times, layout and words are.`);
+  if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (performance.now, every timer and every CSS animation), so frame rates are not valid (stalls are: they are real-time gaps); fades, settle times, layout and words are.`);
   const glassOff = flagValue('noglass') === '1';
   if (glassOff) { document.documentElement.setAttribute('data-noglass', ''); notes.push('NOGLASS: the frosted-glass blur was off for this run (&noglass=1). Compare its talk-open frame rates with a normal run to see what the glass costs.'); }
   const clockScale = scaleTime(speed, performance), timerScale = scaleTimers(speed, window as never);
   const taps = startTaps(window, speed);
+  const total = planTotal(depth);
   const w = innerWidth, h = innerHeight;
   const dev = ['iphone', 'iphone-landscape', 'ipad', 'ipad-portrait', 'mac', 'mac-short'].map((id) => deviceOf(id)!).find((d) => d.w === w && d.h === h);
   const size = { id: dev?.id ?? `${w}x${h}`, w, h, dpr: devicePixelRatio };
   try {
     const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c)), {
       size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => performance.now(), quietMs: QUIET_MS,
-    }, { depth, notes, coverage, shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`); } });
+    }, { depth, notes, coverage, shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`, total); } });
     return { ...data, build: buildInfo().badge, speed: speed > 1 ? speed : undefined };
   } finally { taps.stop(); clockScale.restore(); timerScale.restore(); if (glassOff) document.documentElement.removeAttribute('data-noglass'); }
 }
@@ -50,15 +52,21 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const root = document.createElement('div'); root.className = 'au'; root.id = 'au-root'; root.setAttribute('data-debug', '');
   const status = document.createElement('div'); status.setAttribute('role', 'status'); status.textContent = mode === 'run' ? 'Audit starting…' : 'Self-test ready. Keep this tab in front while it runs.';
+  const hash = buildInfo().badge || buildInfo().commit || 'dev';
+  const head = document.createElement('div'); head.textContent = `Self-test · build ${hash}`; head.style.cssText = 'font-weight:700;margin-bottom:4px';
+  const bar = document.createElement('progress'); bar.max = 100; bar.value = 0; bar.hidden = true; bar.style.cssText = 'width:100%;height:10px';
+  const pctLine = document.createElement('div'); pctLine.hidden = true;
+  let startedAt = 0;
   const out = document.createElement('pre'); out.hidden = true;
   const row = document.createElement('div');
   let stop = false, running = false, last: Bundle | null = null;
   const btn = (label: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = on; row.append(b); return b; };
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
   const go = async (depth: 'quick' | 'full') => {
-    if (running) return; running = true; stop = false; out.hidden = true; status.textContent = 'Starting…';
+    if (running) return; running = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = performance.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
     try {
-      const data = await runHere(depth, { status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label) => { if (mode === 'run') post({ audit: 'progress', n, label }); } });
+      const data = await runHere(depth, { status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, performance.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } });
+      bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, performance.now(), true).text;
       last = bundle([data], depth);
       out.textContent = renderText(last, { short: true }); out.hidden = false;
       status.textContent = `Done: ${data.rows.length} steps in ${Math.round(data.ms / 1000)} s${data.stopped ? ' (stopped early)' : ''}. Copy the report.`;
@@ -67,7 +75,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
   };
   if (mode === 'here') { btn('Run full', () => { void go('full'); }); btn('Run quick', () => { void go('quick'); }); btn('Stop', () => { stop = true; status.textContent = 'Stopping after this step…'; }); }
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
-  root.append(status, row, out);
+  root.append(head, status, bar, pctLine, row, out);
   document.body.append(root);
   attach('audit', { run: (d: 'quick' | 'full' = 'full') => go(d), text: () => (last ? renderText(last) : ''), json: () => (last ? renderJson(last) : ''), stop: () => { stop = true; } });
   if (mode === 'run') {

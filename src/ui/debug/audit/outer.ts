@@ -5,6 +5,8 @@ import { FRAME_DEVICES, fitScale } from '../frame/frame.ts';
 import { flagValue, queryWithout, searchNow } from '../flags.ts';
 import { renderText, renderJson, type Bundle, type AuditData } from './report.ts';
 import type { Msg } from './page.ts';
+import { buildInfo } from '../packet/sources.ts';
+import { pace, combine } from './progress.ts';
 
 export const DEFAULT_SIZES = ['iphone', 'ipad-portrait', 'ipad', 'mac'];
 export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad', 'mac-short', 'mac'];
@@ -36,6 +38,10 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const st = doc.createElement('style'); st.textContent = CSS; doc.head.append(st); doc.title = 'Self-test';
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
   const bar = mk('div', 'ao-bar'), main = mk('div', 'ao-main'), room = mk('div', 'ao-room'), out = mk('pre', 'ao-out');
+  const hash = buildInfo().badge || buildInfo().commit || 'dev';
+  const stamp = mk('strong', '', `build ${hash}`); stamp.title = 'The build this self-test is running';
+  const meter = doc.createElement('progress'); meter.max = 100; meter.value = 0; meter.hidden = true; meter.style.cssText = 'width:min(320px,40vw);height:12px';
+  const meterText = mk('span', '', ''); meterText.hidden = true;
   const status = mk('span', '', 'Pick the sizes and press Start; the app appears here.'); status.setAttribute('role', 'status');
   const note = mk('div', 'ao-note', 'Runs the app by itself in each size, one after the other, and measures layout, timing, fades, frame rate and errors; no AI, nothing is sent anywhere. Keep this tab in front until it ends (a hidden tab stops the clock). The frame rates are this computer\'s: run ?audit=here on the iPhone and iPad for theirs.');
   const wanted = new Set(sizesOf(flagValue('sizes')));
@@ -51,7 +57,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const start = btn('Start', () => { void run(); });
   btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
-  bar.append(status, note);
+  bar.prepend(stamp); bar.append(meter, meterText, status, note);
   main.append(room, out); doc.body.append(bar, main);
 
   /** One size: a fresh frame in its own place, wait for its result, take it away. `of`: how many frames share the room. */
@@ -69,23 +75,26 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
       const m = e.data as Msg | null; if (!m || typeof m !== 'object' || !('audit' in m)) return;
       wake();
-      if (m.audit === 'progress') progress.set(id, `${d.label}: step ${m.n}: ${m.label}`), status.textContent = [...progress.values()].join(' | ');
+      if (m.audit === 'progress') { progress.set(id, `${d.label}: step ${m.n}: ${m.label}`); status.textContent = [...progress.values()].join(' | '); counts.set(id, { n: m.n, total: m.total ?? m.n }); showPace(); }
       else if (m.audit === 'done') end({ data: m.data });
       else if (m.audit === 'failed') end({ why: m.why });
     };
     const poll = setInterval(() => { if (stop) { try { (frame.contentWindow as unknown as { pps?: { audit?: { stop(): void } } }).pps?.audit?.stop(); } catch { /* same origin: cannot happen */ } } }, 1000);
     win.addEventListener('message', on); wake();
   });
-  const progress = new Map<string, string>();
+  const progress = new Map<string, string>(), counts = new Map<string, { n: number; total: number }>(), prior = { n: 0, total: 0 };
+  let runStart = 0, sizesTotal = 1, finished = 0;
+  /** the whole run's bar: steps done in the sizes finished, plus the ones running now, over the estimate for all sizes */
+  const showPace = (done = false) => { const c = combine(sizesTotal - finished, counts), p = pace(prior.n + c.n, Math.max(prior.total + c.total, prior.n + c.n), runStart, performance.now(), done); meter.hidden = false; meterText.hidden = false; meter.value = p.pct; meterText.textContent = p.text; };
   async function run() {
-    if (running) return; running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear();
+    if (running) return; running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
     const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = performance.now(), together = par.checked;
     const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, parallel: together, speed: parts[0]?.speed, wallMs: Math.round(performance.now() - t0), parts, failed });
-    const take = (id: string, r: { data?: AuditData; why?: string }) => { if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };
-    status.textContent = 'Loading the app…';
+    const take = (id: string, r: { data?: AuditData; why?: string }) => { const c = counts.get(id); if (!together && c) { prior.n += r.data ? r.data.rows.length : c.n; prior.total += r.data ? r.data.rows.length : c.total; counts.delete(id); finished++; } if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };
+    sizesTotal = ids.length; status.textContent = 'Loading the app…';
     if (together) await Promise.all(ids.map(async (id) => take(id, await one(id, ids.length))));
     else for (const id of ids) { if (stop) break; take(id, await one(id, 1)); }
-    status.textContent = `Finished ${parts.length} of ${ids.length} sizes in ${((performance.now() - t0) / 60000).toFixed(1)} min${failed.length ? ` (${failed.length} did not finish)` : ''}. Copy the report.`;
+    showPace(true); status.textContent = `Finished ${parts.length} of ${ids.length} sizes in ${((performance.now() - t0) / 60000).toFixed(1)} min${failed.length ? ` (${failed.length} did not finish)` : ''}. Copy the report.`;
     running = false; start.disabled = false;
   }
   if (flagValue('audit') === 'frames' && flagValue('sizes') !== null) setTimeout(() => { void run(); }, 300);   // (an address that names its sizes starts itself)
