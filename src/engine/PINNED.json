@@ -2,18 +2,16 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "a9bf565ab4f4e1ddc83a54167bc04efa81a3e81b"
-  },
-  "host": {
-    "repo": "qaddodi/portal-pressure-simulator",
-    "commit": "b3058ef392d774f007b6f8a273f6e6915bef3631",
-    "file": "src/worker-core.js"
+    "commit": "47f74edd7e34734fe967e5272c65bb561edf46e2"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
     "hales/core/gap.js": "3aabfbb29bc150a8a87d8fe1dfce6c9cc1458a9f5ddf8b1073daa90c0f14bc2a",
     "hales/core/linalg.js": "4f20e14f7cd672004733371223debe801bfc81243c76226dae7b5d81556c86ba",
     "hales/core/physiology.js": "6b0ff3aa7550ade04f13177babfebee7ca81acc2da1406c84e556ba9b7a5286f",
+    "hales/host/protocol.d.ts": "c63374cd5bf9562547ef55a44221a665c1263dcee9626b00c90c048b1e622cf8",
+    "hales/host/worker-core.d.ts": "e4be08c47a7708663807a3a3dae456856275c2fff3a314452089e5a762e35c8f",
+    "hales/host/worker-core.js": "ac4a5d442be03de8bab1976d09ce9de2e17e33fabf5707f49f6b8b19f577d046",
     "hales/portal/ascites-cuts.js": "2c6d4c43ba48e1ccfdb98891bab2bbeff647b9e4cf8ff01996b82f458e0f9d4e",
     "hales/portal/bedside-mean.js": "cb58c2dca1688dc952e885df98d3b6347e44e401c4dbf31a3e804e90b6a3163e",
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",
@@ -45,7 +43,6 @@
     "hales/portal/trail-calm.js": "2c6799c883feda1a58edfe545f2b89306e2de712da7ce23af1bfefa9334855b1",
     "hales/portal/transfusion-cuts.js": "b71581e1c1f1d0955b61af7f30fcab6604cb59753b11145396563d470d90d360",
     "hales/portal/wall-read.js": "7ec9bf61d0efbfc815330621ec3d481bff9180aa1e34df9cffd8e62b4a996169",
-    "hales/portal/yours.js": "d4c61ba34a04c89a5b7d890a05f9321571008bdb3e38848c3538c365c2cc77c4",
-    "host/worker-core.js": "0009e6b76c04497aab5e8972f11603a63cccd2fad619d70b0e283b54b2de16b1"
+    "hales/portal/yours.js": "d4c61ba34a04c89a5b7d890a05f9321571008bdb3e38848c3538c365c2cc77c4"
   }
 }

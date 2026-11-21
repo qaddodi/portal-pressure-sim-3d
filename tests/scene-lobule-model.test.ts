@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { type HealthyRef, type LobuleModel, disseProfile, easeToward, lobuleModel, lymphProtein, lymphRate, lymphSeal, sinusoidTargets } from '../src/scene/lobule/model.ts';
 
 // The lobule reads the engine as the 2D app does (lobule-model.js, sinusoid-model.js): same inputs, same targets.

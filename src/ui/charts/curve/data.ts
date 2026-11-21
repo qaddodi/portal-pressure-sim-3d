@@ -1,5 +1,5 @@
 // What the curve and the course read from the engine (2D: tool-curve.js curveWork / aim, tool-course.js courseWork; the worker call is the presenter's ctx.run =
-// the engine's 'sequence' message, src/engine/host/worker-core.js). The pure part (the steps, the series, where the case sits) is the 2D code
+// the engine's 'sequence' message, src/engine/hales/host/worker-core.js). The pure part (the steps, the series, where the case sits) is the 2D code
 // (curve-pure.generated.js, course-pure.generated.js); this file only joins it to the engine and keeps what was worked out.
 import * as P from './curve-pure.generated.js';
 import * as C from './course-pure.generated.js';

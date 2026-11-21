@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Writes tests/fixtures/csph-fingerprint.json: the fingerprint (every reading the cards use) of the slice's patient as the pinned engine
 // and host produce it. Re-run only when sync:engine moves the pin on purpose; tests/engine-numbers.test.ts then guards it.
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 export async function csphFingerprint(preset = 'csph') {

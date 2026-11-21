@@ -2,7 +2,7 @@
 //  - `useEngine` (zustand): small, slow-changing facts React components read: status, preset, the headline metrics.
 //  - `latest`: the newest engine frame, held outside React (the clock's engine phase reads it every frame; nothing re-renders for it).
 import { create } from 'zustand';
-import type { EngineFrame, Metrics } from './protocol.ts';
+import type { EngineFrame, Metrics } from './hales/host/protocol.d.ts';
 
 export type EngineStatus = 'booting' | 'ready' | 'crashed';
 

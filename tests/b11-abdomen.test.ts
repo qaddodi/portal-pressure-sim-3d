@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { createCore } from '../src/engine/host/worker-core.js';
-import type { EngineFrame } from '../src/engine/protocol.ts';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
+import type { EngineFrame } from '../src/engine/hales/host/protocol.d.ts';
 import { rateText, abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminText, albuminTip } from '../src/ui/tests/abdomen/model.ts';
 import { paletteOf } from '../src/ui/charts/palette.ts';
 import { pinned2D } from './two-d-pin.ts';

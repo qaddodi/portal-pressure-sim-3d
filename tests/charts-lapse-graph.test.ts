@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { pinned2D } from './two-d-pin.ts';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { loadAgDeck, AG_IDS } from '../src/decks/ag/index.ts';
 import { loadHpDeck, HP_IDS } from '../src/decks/hp/index.ts';
 import { RW_IDS } from '../src/decks/rw/copied/index.ts';

@@ -7,7 +7,7 @@ import { dopplerVel, flowReversed } from '../../scene/lenses/vel-normal.copied.j
 import { oxygenSat, FLOW_FLOOR, LIVER_EXTRACTION } from '../../scene/lenses/blood-model.ts';
 import { lobuleModel, type LobuleModel } from '../../scene/lobule/model.ts';
 import { fmt } from '../charts/fmt.ts';
-import type { EngineFrame } from '../../engine/protocol.ts';
+import type { EngineFrame } from '../../engine/hales/host/protocol.d.ts';
 import type { HealthyRef } from '../../engine/store.ts';
 import type { Params } from './params.ts';
 
