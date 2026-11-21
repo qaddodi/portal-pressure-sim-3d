@@ -14,6 +14,7 @@ import { figureRowsOwner } from './room.ts';
 import { useUi } from '../ui-store.ts';
 import { useSettings } from '../../state/settings.ts';
 import { STREAKS_ROW } from '../settings/depth-rows.ts';
+import { talkOn } from '../../state/deck.ts';
 
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 const KEY: Record<string, keyof Figure> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
@@ -26,7 +27,7 @@ function Switch({ label, hint }: { label: string; hint?: string }) {
   const on = useShell((s) => s.figure[k] as boolean);
   const bloodOn = useBlood((s) => (blood ? (s[k as 'chevrons'] as boolean) : false));
   const checked = blood ? bloodOn : on;
-  const flip = () => { if (blood) { sceneApi.setBlood({ [k]: !bloodOn }, useShell.getState().mode === 'deck'); if (k === 'labels') useLabels.getState().set({ organNames: !bloodOn }); } else { useShell.getState().setFigure({ [k]: !on }); if (k === 'zones' || k === 'lymph' || k === 'bile') sceneApi.setLobuleLayers({ [k]: !on }); } };
+  const flip = () => { if (blood) { sceneApi.setBlood({ [k]: !bloodOn }, talkOn()); if (k === 'labels') useLabels.getState().set({ organNames: !bloodOn }); } else { useShell.getState().setFigure({ [k]: !on }); if (k === 'zones' || k === 'lymph' || k === 'bile') sceneApi.setLobuleLayers({ [k]: !on }); } };
   return (
     <button type="button" role="switch" className="sh-row" aria-checked={checked} onClick={flip}>
       <Icon n={ICON[label] ?? 'info'} /><span className="sh-t">{label}</span><span className="sh-sw" aria-hidden="true" />{hint && <span className="sh-d">{hint}</span>}
@@ -49,7 +50,7 @@ export const KEY_STREAKS_ROW = { label: 'Key streaks only', hint: 'Just the main
 function KeyStreaksSwitch() {
   const on = useBlood((s) => s.keyStreaks);
   return (
-    <button type="button" role="switch" className="sh-row" aria-checked={on} onClick={() => sceneApi.setBlood({ keyStreaks: !on }, useShell.getState().mode === 'deck')}>
+    <button type="button" role="switch" className="sh-row" aria-checked={on} onClick={() => sceneApi.setBlood({ keyStreaks: !on }, talkOn())}>
       <Icon n={STREAKS_ROW.icon} /><span className="sh-t">{KEY_STREAKS_ROW.label}</span><span className="sh-sw" aria-hidden="true" /><span className="sh-d">{KEY_STREAKS_ROW.hint}</span>
     </button>
   );

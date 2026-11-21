@@ -41,6 +41,7 @@ import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
 import { startHistory } from '../history/bind.ts';
 import { startActions } from '../action/boot.ts';
+import { useTalkOn } from '../../state/deck.ts';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
 function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
@@ -60,7 +61,7 @@ function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
 
 /** Free play frames the figure in the room the bars leave; a refit (second tap on the view, Fit, the 0 key) glides the hand's zoom and pan home. */
 function useFreeCamera() {
-  const mode = useShell((s) => s.mode);
+  const mode = useTalkOn() ? 'deck' : 'free';
   const refit = useShell((s) => s.refit);
   const vp = useUi((s) => s.vp);
   const thumb = useThumb();
@@ -127,7 +128,7 @@ const METRICS = metricVars() as CSSProperties;
 
 export function Shell() {
   const probe = useRef<HTMLDivElement>(null);
-  const mode = useShell((s) => s.mode);
+  const mode = useTalkOn() ? 'deck' : 'free';
   const device = useUi((s) => s.device);
   const view = useShell((s) => s.view);
   const appRef = useRef<HTMLDivElement>(null);

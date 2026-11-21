@@ -23,6 +23,7 @@ import { TipsView } from './TipsView.tsx';
 import { hvpgNote, useMeasured } from '../hidden.ts';
 import { usePaneHost } from '../Cv.tsx';
 import { OwnerNote, useBlocker } from '../OwnerNote.tsx';
+import { useTalkOn } from '../../../state/deck.ts';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
 const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whvp', 'WHVP'], ['hvpg', 'HVPG']];
@@ -32,7 +33,7 @@ function Measure({ h }: { h: number }) {
   // the readings follow the model while idle: a re-render only when a printed tenth changes
   useEngine((s) => { void s.frames; const m = latest.frame?.metrics; return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`; });
   useParamsTick((s) => s.tick);
-  const mode = useShell((s) => s.mode), measured = useMeasured((s) => s.hvpgMeasured);
+  const mode = useTalkOn() ? 'deck' : 'free', measured = useMeasured((s) => s.hvpgMeasured);
   const ph = phase(), running = hvpgRunning(), other = useBlocker('ir'), isBusy = busy() || !!other;
   const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(patient.params), v: values(), hasFrame: !!latest.frame });
   const ppg = ppgShown(), watch = watchButtons();

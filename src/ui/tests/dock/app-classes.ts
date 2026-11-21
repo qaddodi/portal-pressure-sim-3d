@@ -6,6 +6,7 @@ import { useTests } from '../store.ts';
 import { useShell } from '../../shell/store.ts';
 import { useTestsRoom } from '../room.ts';
 import type { PaneId } from '../panes.ts';
+import { useTalkOn } from '../../../state/deck.ts';
 
 /** The Tests panes that show the HVPG and the PPG themselves (the Over time chart's readings, the HVPG procedure's, the Readouts tiles): 2D dock.js GRADIENT_PANES. */
 export const GRADIENT_PANES: ReadonlySet<PaneId> = new Set<PaneId>(['scope', 'hvpg', 'readouts']);
@@ -18,7 +19,7 @@ export function appClasses(s: { open: boolean; pane: PaneId; second: PaneId | nu
 
 /** The Shell's hook: the string above for the card as it stands (re-renders only when the string changes). */
 export function useTestsAppClasses(): string {
-  const free = useShell((s) => s.mode === 'free');
+  const free = !useTalkOn();
   const open = useTests((s) => s.open && free), pane = useTests((s) => s.pane), second = useTests((s) => s.second), focus = useTests((s) => s.state === 'focus');
   const side = useTestsRoom((s) => s.place?.kind === 'side');
   return appClasses({ open, pane, second, focus, side });

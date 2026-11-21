@@ -17,6 +17,7 @@ import type { Problem } from './sweep.ts';
 import { screenNow } from '../packet/sources.ts';
 import { appSnapshot } from '../screen/app.ts';
 import { caughtCount } from '../caught.ts';
+import { talkOn } from '../../../state/deck.ts';
 
 const SHEETS: Sheet[] = ['settings', 'search', 'help', 'menu', 'history', 'guide', 'blood', 'layers', 'lens', 'speed', 'jump'];
 
@@ -35,7 +36,7 @@ export const liveCatalog = (): Entry[] => buildCatalog({
   patients: UI.presets.map((p) => ({ id: p.id, label: p.label, group: p.group })),
 });
 
-const leave = () => { if (useShell.getState().mode === 'deck') leaveTalk(); useShell.setState({ sheet: null, dialog: null }); };
+const leave = () => { if (talkOn()) leaveTalk(); useShell.setState({ sheet: null, dialog: null }); };
 export const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 
 /** Opens a specimen the way the app opens it: a view pill, a sheet, a talk at a stop, a patient. */
