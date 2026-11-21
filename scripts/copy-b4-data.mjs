@@ -44,6 +44,8 @@ function copyModule(file, name = file) {
     if (!(spec in REWRITE)) throw new Error(`${file}: an import this script does not map: ${spec}`);
     return `${kw}${mid}from '${REWRITE[spec]}';`;
   });
+  // (num.js is written once, by copy-chart-tokens.mjs, in src/ui/charts/looks2d/; here it re-exports it)
+  if (file === 'num.js') text = "export * from '../../../ui/charts/looks2d/num.js';\n";
   put(`${DIR}/${name}`, `${HEAD(`src/ui/${file}`)}${text}`);
 }
 for (const f of ['sin-perfusion.js', 'stomach-lumen.js', 'num.js', 'clot-shape.js', 'cavernoma-strand.js', 'organ-ease.js', 'fluid-step.js', 'varix-look.js', 'varix-bead.js', 'liver-geo.js']) copyModule(f);

@@ -60,7 +60,9 @@ function rewrite(name, src) {
     throw new Error(`${name}.js imports '${spec}', which is not in the copy list (add it, or the file is not pure)`);
   });
 }
-for (const n of FILES) put(`${n}.copied.js`, HEAD(`${n}.js`) + rewrite(n, read(`src/ui/${n}.js`)));
+// One copy of each 2D file that other copy scripts also write (src/ui/charts/looks2d/{ease,num}.js, src/scene/procedures/copied/balloon-eso.js): these names re-export it, so a 2D change lands once.
+const ONE = { ease: '../../charts/looks2d/ease.js', num: '../../charts/looks2d/num.js', 'balloon-eso': '../../../scene/procedures/copied/balloon-eso.js' };
+for (const n of FILES) put(`${n}.copied.js`, HEAD(`${n}.js`) + (ONE[n] ? `export * from '${ONE[n]}';\n` : rewrite(n, read(`src/ui/${n}.js`))));
 for (const [n, s] of Object.entries(SLICES)) {
   const lines = read(`src/ui/${s.file}.js`).split('\n');
   const take = s.lines.map((re) => { const l = lines.find((x) => re.test(x)); if (!l) throw new Error(`${s.file}.js has no line for ${re}`); return l.replace(/^const /, 'export const ').replace(/\s*\/\/ \(.*$/, ''); });
