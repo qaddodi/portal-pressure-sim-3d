@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

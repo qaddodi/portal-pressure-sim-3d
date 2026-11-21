@@ -7,6 +7,7 @@ import type { Measure } from '../flows/layout.ts';
 
 export { SAAG_PORTAL, TP_HIGH };
 export const SAAG_MAX = 3, TP_MAX = 5;
+/** AASLD 2021 ascites guidance, Table 4. Not drawn by default: Baveno VIII is the only guideline a talk names on screen (the source is in the speaker notes). */
 export const SOURCE = 'AASLD 2021 ascites guidance, Table 4.';
 export const ZONE_WORDS = { portal: 'Portal hypertension', none: 'No portal hypertension' };
 export const FLOOR = 12;
@@ -44,7 +45,7 @@ export interface GDot { cx: number; cy: number; r: number; look: string }
 export interface SaagLayout { texts: GText[]; rects: GRect[]; lines: GLine[]; dots: GDot[]; H: number; plot: { L: number; T: number; pw: number; ph: number } }
 
 /** The plane's drawing at width W and card type size f. Pure. plotH: the plot's height when the card's room asks for less than the width gives (never under 100). */
-export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt[], { read = null, source = true, plotH = 0 }: { read?: string | null; source?: boolean; plotH?: number } = {}): SaagLayout {
+export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt[], { read = null, source = false, plotH = 0 }: { read?: string | null; source?: boolean; plotH?: number } = {}): SaagLayout {
   const texts: GText[] = [], rects: GRect[] = [], lines: GLine[] = [], dots: GDot[] = [];
   const px = (look: string) => sizeOf(look, f), wt = (look: string) => TYPE[look]![0];
   const mt = (s: string, look: string) => meas(s, px(look), wt(look));

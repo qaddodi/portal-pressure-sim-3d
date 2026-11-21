@@ -3,7 +3,7 @@
 //  - each live reading, from the moment the procedure changes the patient, taken from the engine's frame as the tiles take theirs, toward the settled numbers at the end.
 // Pure apart from `feedFrame`'s reading of a frame; the presenter owns when the change happens (it calls run.start(), then feeds each frame it polls, every 100 ms).
 import { fingerprintOf } from '../../../engine/hales/portal/fingerprint.js';
-import type { EngineFrame } from '../../../engine/protocol.ts';
+import type { EngineFrame } from '../../../engine/hales/host/protocol.d.ts';
 import { EVENT_S, EvRun, evSample, type EvSpec } from './model.ts';
 
 export type Fp = Readonly<Record<string, number | null | undefined>>;

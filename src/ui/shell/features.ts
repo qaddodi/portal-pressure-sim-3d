@@ -8,15 +8,15 @@ export type FeatureId =
   | 'treat' | 'tests' | 'history' | 'compare' | 'undo' | 'redo' | 'dye' | 'advanced' | 'feedback' | 'lens' | 'blood' | 'rotate' | 'zoom-in' | 'zoom-out'
   | 'doppler' | 'endoscopy' | 'fibroscan' | 'ir' | 'shunt' | 'view:circuit' | 'view:lobule' | 'view:sinusoid' | 'guide-about' | 'guide-references' | 'guide-privacy' | 'figure-detail';
 
-const handlers = new Map<FeatureId, () => void>();
+const handlers = new Map<FeatureId, (o?: { hold?: boolean }) => void>();
 /** A batch hands over the work behind a control. Returns the remover. */
-export function registerFeature(id: FeatureId, run: () => void): () => void { handlers.set(id, run); return () => { if (handlers.get(id) === run) handlers.delete(id); }; }
+export function registerFeature(id: FeatureId, run: (o?: { hold?: boolean }) => void): () => void { handlers.set(id, run); return () => { if (handlers.get(id) === run) handlers.delete(id); }; }
 export const hasFeature = (id: FeatureId): boolean => handlers.has(id);
 
 /** Run a control's work, or say that it is not in the 3D app yet. */
-export function runFeature(id: FeatureId, name: string): boolean {
+export function runFeature(id: FeatureId, name: string, o?: { hold?: boolean }): boolean {
   const h = handlers.get(id);
-  if (h) { h(); return true; }
+  if (h) { h(o); return true; }
   useShell.getState().say(notYet(name));
   return false;
 }

@@ -4,6 +4,7 @@
 // from this table and never retype a word (parity plan section 2: "Words"). tests/ui-strings.test.ts fails when the committed file is not what this script gives.
 //   node scripts/gen-ui-strings.mjs [--check]
 import { readFileSync, writeFileSync } from 'node:fs';
+import { uiTextEdits } from './source-edits.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,7 +21,7 @@ export const unescapeSource = (v) => {
   return v;
 };
 
-export function render(raw) {
+function render0(raw) {
   const inventory = unescapeSource(raw);
   const { shell, presets, looks, lenses } = inventory;
   const data = {
@@ -35,6 +36,7 @@ export function render(raw) {
     + `// The 2D app's interface words. Every control, row and hint in the shell renders from here, so the 3D app says what the 2D app says.\n\n`
     + `export const UI = ${JSON.stringify(data, null, 1)} as const;\n`;
 }
+export const render = (raw) => uiTextEdits(render0(raw));
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const text = render(inv);

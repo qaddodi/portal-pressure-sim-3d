@@ -2,7 +2,6 @@
 // part, the Sweep and the Full check read the count; none of it runs per frame.
 interface Caught { site: string; message: string; at: number }
 const list: Caught[] = [];
-let installed = false;
 
 export function caught(site: string, e: unknown): void {
   list.push({ site, message: String((e as { message?: string } | null)?.message ?? e).slice(0, 240), at: Math.round(typeof performance !== 'undefined' ? performance.now() : 0) });
@@ -12,10 +11,4 @@ export const caughtCount = (): number => list.length;
 export const caughtList = (): readonly Caught[] => list.slice();
 export const resetCaught = (): void => { list.length = 0; };
 
-/** Start counting the page's own errors (once; the debug tools call it at boot). */
-export function installCaught(win: Window = window): void {
-  if (installed) return;
-  installed = true;
-  win.addEventListener('error', (e) => caught('window', e.error ?? e.message));
-  win.addEventListener('unhandledrejection', (e) => caught('promise', e.reason));
-}
+// (the window's `error` and `unhandledrejection` are heard by the crash net, src/boot/crash-net.ts, which calls caught() for each: one listener, one count)

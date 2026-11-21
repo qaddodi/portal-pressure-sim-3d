@@ -12,7 +12,7 @@ import { skinKOf, SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
 import { armR, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
 import { BULGE_MAX, worstBulge } from '../src/scene/vessels/skin/mesh.ts';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 
 /** the distance from a point to an arm's axis polyline (its three segments) and the arm's radius at that closest point */
 function toAxis(ax: ArmAxis, x: number, y: number, z: number): { d: number; r: number } {

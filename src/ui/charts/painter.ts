@@ -7,6 +7,9 @@ import { tessellate } from './geometry.ts';
 import { blend } from './morph.ts';
 import type { Frame } from './scene.ts';
 import { TextLayer } from './text-layer.ts';
+import { legible } from './legible.ts';
+import { paletteOf } from './palette.ts';
+import type { LookId } from '../../looks/looks.ts';
 
 export class ChartPainter {
   readonly box: HTMLDivElement;
@@ -48,6 +51,7 @@ export class ChartPainter {
 
   /** Show a frame. glide: blend from the one now shown (when there is one). */
   show(next: Frame, glide = true) {
+    next = this.legible(next);
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.box.style.height = `${Math.round(next.h)}px`;
     this.gl.size(next.w, next.h);
@@ -59,6 +63,17 @@ export class ChartPainter {
     }
     this.dirty = true;
     clock.invalidate(this.tag);
+  }
+
+  /** Every word reads at 4.5:1 on what it stands on in the look now showing (legible.ts); a chart with a picture under it is left as drawn (its backdrop is the picture's). */
+  private legible(f: Frame): Frame {
+    if (this.gl.under) return f;
+    try {
+      const look = this.box.ownerDocument.documentElement.dataset.look as LookId | undefined;
+      if (!look) return f;
+      const pal = paletteOf(look);
+      return legible(f, pal.tok('surface'), pal.tok('text'));
+    } catch { return f; }
   }
 
   private stopHold() { this.hold?.release(); this.hold = null; }

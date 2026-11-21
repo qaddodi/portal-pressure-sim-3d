@@ -1,7 +1,7 @@
 // The build pill says the 2D app's words and reloads as the 2D pill does (2D: scripts/preview-badge.mjs, tests/preview-badge.test.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLabel, cachePrefix, reloadUrl, BADGE_H } from '../src/ui/shell/build-pill.ts';
+import { buildLabel, buildChecks, cachePrefix, reloadUrl, BADGE_H } from '../src/ui/shell/build-pill.ts';
 
 test('the label is the short commit the deploy stamped in', () => {
   assert.equal(buildLabel('claude/project-thread-ge1swr@56cb768a'), '56cb768a');
@@ -42,4 +42,10 @@ test('the pill reads the screen\'s address when it leaves, through the one link 
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/ui/shell/BuildPill.tsx', import.meta.url), 'utf8');
   assert.match(src, /shareLinkNow\(\)/); assert.match(src, /reloadUrl\(location\.href, Date\.now\(\), state\)/);
+});
+
+test('the pill carries what the build\'s own checks found, and nothing when they were clean', () => {
+  assert.equal(buildChecks('types: 3 errors, lint failed'), 'types: 3 errors, lint failed');
+  assert.equal(buildChecks(''), '');
+  assert.equal(buildChecks(undefined), '');
 });

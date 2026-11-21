@@ -90,7 +90,6 @@ export const CATALOG: readonly CatalogEntry[] = [
   {"id":"path/psvdscope","family":"path","title":"Flowchart: PSVD scope","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"psvdscope","short":"PSVD scope"}},"deck":"card"},
   {"id":"path/pvtocc","family":"path","title":"Flowchart: Portal vein thrombosis","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"pvtocc","short":"Portal vein thrombosis"}},"deck":"card"},
   {"id":"path/pvtdur","family":"path","title":"Flowchart: Anticoagulation length","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"pvtdur","short":"Anticoagulation length"}},"deck":"card"},
-  {"id":"path/aasld","family":"path","title":"Flowchart: AASLD","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"aasld","short":"AASLD"}},"deck":"card"},
   {"id":"path/psvdscore","family":"path","title":"Flowchart: PSVD score","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"psvdscore","short":"PSVD score"}},"deck":"card"},
   {"id":"path/recomp","family":"path","title":"Flowchart: Recompensation","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"recomp","short":"Recompensation"}},"deck":"card"},
   {"id":"path/pvtgrid","family":"path","title":"Flowchart: Thrombosis grid","slide":{"preset":"cirr-decomp","cam":"fit","tool":{"kind":"path","of":"pvtgrid","short":"Thrombosis grid"}},"deck":"card"},

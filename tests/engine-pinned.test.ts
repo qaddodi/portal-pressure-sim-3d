@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-// The copy of hales-engine and the host is never edited by hand: every file must match the hash scripts/sync-engine.mjs recorded.
-const pinned = JSON.parse(readFileSync('src/engine/PINNED.json', 'utf8')) as { engine: { commit: string }; host: { commit: string }; files: Record<string, string> };
+// The copy of hales-engine (core, portal and the host) is never edited by hand: every file must match the hash scripts/sync-engine.mjs recorded.
+const pinned = JSON.parse(readFileSync('src/engine/PINNED.json', 'utf8')) as { engine: { commit: string }; files: Record<string, string> };
 
-test('the pin names a commit for the engine and for the host', () => {
+test('the pin names the engine commit (the simulation host is the engine itself: hales/host)', () => {
   assert.match(pinned.engine.commit, /^[0-9a-f]{40}$/);
-  assert.match(pinned.host.commit, /^[0-9a-f]{40}$/);
+  assert.ok(!('host' in pinned), 'no entry for the 2D app: the host is in hales-engine');
+  assert.ok('hales/host/worker-core.js' in pinned.files && 'hales/host/protocol.d.ts' in pinned.files);
 });
 
 test('every vendored file matches its recorded hash', () => {

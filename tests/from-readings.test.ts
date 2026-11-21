@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { TRY_CASES } from '../src/engine/hales/portal/inverse-try-cases.js';
 import { yoursRecord } from '../src/engine/hales/portal/yours.js';
 import { createInverseRemote } from '../src/ui/readings/copied/inverse-remote.copied.js';

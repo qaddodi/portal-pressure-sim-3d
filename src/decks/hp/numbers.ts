@@ -1,7 +1,7 @@
 // The numbers of a talk: the model each slide stands on, and the words that print them.
 //
 // The 2D presenter computes a deck's states in one engine 'sequence' off screen: preset → params → settle → actions → days, each slide from the one before
-// (worker-core.js). The 3D app runs the SAME engine copy (src/engine/host, the pinned hales-engine), so a number here is the number the 2D app shows
+// (worker-core.js). The 3D app runs the SAME engine copy (src/engine/hales/host, the pinned hales-engine), so a number here is the number the 2D app shows
 // for the same steps. This file builds those steps from the copied deck exactly as 2D does (decks.js withOverview, tests/deck-states.js stepsOf), reads
 // a slide's `{tokens}` (a reading, a reading at another slide, a cut-off, a typed number), and prints a reading as its tile does. It imports no engine:
 // tests feed it the host in node, the app feeds it the second engine worker (calc.ts).
