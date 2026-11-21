@@ -44,7 +44,7 @@ test('an open action card sheet takes its height off the figure\'s room, so the 
   const { roomAbove, takenBy } = await import('../src/ui/action/action-room-math.ts');
   const room = { x: 0, y: 100, w: 390, h: 600 };
   assert.deepEqual(roomAbove(room, 0), room, 'no card, no change');
-  assert.equal(roomAbove(room, 400).h, 600 - (400 - 8 + 6));
+  assert.equal(roomAbove(room, 300).h, 600 - (300 - 8 + 6));
   assert.equal(takenBy(1000, room), 330, 'a tall card never takes more than 55 % of the room');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
   assert.match(shell, /roomAbove\(panRoom\(base, testsPlace\), actionH\)/);
