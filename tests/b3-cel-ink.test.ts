@@ -129,7 +129,7 @@ test('the outline is continuous by construction: painted in the tube\'s own frag
   assert.match(VESSEL_FS, /float dLat = tl > 1e-3 \? abs\(dot\(dvPx, vec2\(-tS\.y, tS\.x\) \/ tl\)\) : length\(dvPx\);/, 'the exact lateral distance in device px');
   assert.match(VESSEL_FS, /float inkT = smoothstep\(rDevAx - 0\.5, rDevAx \+ 0\.5, dLat\) \* endK \* inkOn;/, 'half a pixel of antialiasing each side of the lumen\'s edge');
   assert.doesNotMatch(VESSEL_FS + VESSEL_VS, /gl_FrontFacing \|\| |attribute float hull|vHull|hullOn/, 'no hull');
-  assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
+  assert.match(read('../src/scene/Stage.tsx'), /stencil: !post/);   // (with the anti-aliasing pass on the figure draws into the pass's own target, which has the stencil: post-aa.ts)
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
   const s = new CelScene();
   s.dispose();

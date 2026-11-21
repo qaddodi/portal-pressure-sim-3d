@@ -54,6 +54,10 @@ const RING = 240;      // frames of history kept for ?perf
 const SLOW_KEEP = 40;  // slowest frames listed
 export const SLOW_MS = 20;   // done bar: no frame over 20 ms in a 10 s run of the deck
 
+let faultSink: ((phase: string, err: unknown) => void) | null = null;
+/** Who hears a system that throws (the crash net, boot/crash-net.ts): the loop still catches it so one system cannot stop the others. */
+export const setClockFaultSink = (fn: ((phase: string, err: unknown) => void) | null): void => { faultSink = fn; };
+
 export function createClock(env: Env) {
   const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System }[]])) as Record<Phase, { order: number; fn: System }[]>;
   const holds = new Map<symbol, string>();
@@ -90,7 +94,7 @@ export function createClock(env: Env) {
       const t0 = env.now();
       // (copy: a system may add or remove systems while it runs)
       for (const s of systems[p].slice()) {
-        try { s.fn(info); } catch (err) { console.error(`[clock] ${p} system threw`, err); }
+        try { s.fn(info); } catch (err) { console.error(`[clock] ${p} system threw`, err); try { faultSink?.(p, err); } catch { /* (the net must never stop a frame) */ } }
       }
       phases[p] = env.now() - t0;
     }

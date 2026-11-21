@@ -39,3 +39,8 @@ Portal Pressure Simulator, 3D build (updated 19 November 2026) · self-assessmen
 ## Contact
 
 Report an accessibility problem through Send feedback (Settings), or the repository's issue tracker; include the browser, assistive technology and the steps to reproduce.
+
+
+## Chart numbers (21 Nov 2026)
+
+A chart is a canvas with real words over it, wrapped in one `role="img"` with a one-sentence label. Its numbers are now also a visually hidden `<table>` beside the image (`charts/table.ts`, written by `Chart.tsx`): a caption (the chart's sentence), a row for each line of the chart, a cell for each word on it, derived from the same frame the chart draws so it cannot differ. `tests/charts-data-table.test.ts` checks every chart kind in every look. Not covered: the Tests panes that drive a `ChartPainter` themselves (Doppler, Endoscopy, FibroScan, the monitors), which still have only their sentence. Not yet read with VoiceOver.

@@ -7,7 +7,7 @@ how the pieces plug together.
 ## The bible (judge every change against all six before calling it done)
 1. production level 2. intuitive 3. elegant 4. beautiful 5. humanized 6. performant.
 Nothing pops in or out; cards never show before their content and fonts are ready; text never shrinks to fit; nothing scrolls inside a
-card. Clinical text is for US physicians: Baveno VIII (never VII) and AASLD.
+card. Clinical text is for US physicians: Baveno VIII (never VII) is the only guideline named on screen; other sources (AASLD, EASL) are named in the speaker notes only (`scripts/source-edits.mjs`, `tests/guideline-names.test.ts`).
 
 ## Rules that do not bend
 - **One clock.** `requestAnimationFrame` is called in `src/clock/frame.ts` and nowhere else (`tests/one-clock.test.ts`). Ask for frames

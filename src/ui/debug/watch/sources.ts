@@ -1,5 +1,6 @@
 // What the recorder reads each frame: where the camera is, every label, every card. DOM reads (getBoundingClientRect, computed opacity) on the debug path only; the app itself
 // never runs this (the live site does not load it), and it reads once per clock frame, in the tags phase, after everything else has moved.
+import { visibleSpan } from './visible.ts';
 import { cel } from '../../../scene/api.ts';
 import { sceneApi } from '../../../scene/api.ts';
 import type { Sources } from './recorder.ts';
@@ -46,8 +47,8 @@ export function domSources(doc: Document = document, win: Window = window): Sour
     cards() {
       const K: (string | number)[][] = [], W: number[] = [];
       doc.querySelectorAll<HTMLElement>('.dk-card').forEach((el) => {
-        const b = el.getBoundingClientRect();
-        K.push([cardSeries(el.dataset.card ?? 'card', el.dataset.phase), r1(b.left), r1(b.top), r1(b.width), r1(b.height), alpha(win, el)]);
+        const b = el.getBoundingClientRect(), [top, height] = visibleSpan(b.top, b.height, win.getComputedStyle(el).clipPath);   // (what is drawn: a glide is a clip-path, the layout box already jumped)
+        K.push([cardSeries(el.dataset.card ?? 'card', el.dataset.phase), r1(b.left), r1(top), r1(b.width), r1(height), alpha(win, el)]);
         W.push(hasContent(el) ? 1 : 0);
       });
       return { K, W };
