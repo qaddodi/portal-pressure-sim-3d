@@ -16,6 +16,7 @@ import { STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, makeProbePose, makeProbeGeom, probeGeomInto, probeSwing, probeTurn, probeFade } from './copied/dop-probe.copied.js';
 import { easeMove } from '../../../ui/tests/copied/ease.copied.js';
 import { smooth01 } from '../../../ui/tests/copied/num.copied.js';
+import type { Ring } from '../tube-rings.ts';
 import { ProbePart, TubeBuf, linePart, lookOf, type PartStyle } from './parts.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { LOOKS } from '../../../looks/looks.ts';
@@ -95,6 +96,7 @@ export class DopplerProbe {
   readonly parts: ProbePart[] = [];
   /** 0 to 1: how much of the probe shows (it eases in and out; a change of vessel eases out, moves, and eases in) */
   shown = 0;
+  private headA = 1;
   private placedKey = '';
   private readonly head: TubeBuf; private readonly face: TubeBuf; private readonly light: TubeBuf;
   private readonly bufs: TubeBuf[] = [];
@@ -266,6 +268,7 @@ export class DopplerProbe {
 
   /** Marks and head at their strengths (the whole probe's, the head's own) and the group visible while any shows. */
   private paint(a: number, headA: number): void {
+    this.headA = headA;
     const vis = a > 0.002;
     this.group.visible = vis;
     for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !this.overlay && !(this.shut && this.closing.includes(o)); }
@@ -418,6 +421,11 @@ export class DopplerProbe {
   }
   setPhone(phone: boolean): void { for (const o of this.parts) o.setPhone(phone); }
   /** The pose the probe is laid at now (for tests and tags). */
+  /** The head's outline on the screen for the label layer (labels/probe-cover.ts); null while it is not shown. */
+  coverRuns(): { runs: { rings: readonly Ring[]; from: number; to: number }[]; sc: number; alpha: number } | null {
+    const a = this.shown * this.headA;
+    return a > 0.01 && this.fr.U > 0 ? { runs: [{ rings: this.head.rings, from: 0, to: this.head.n - 1 }], sc: 1 / this.fr.U, alpha: a } : null;
+  }
   get placed(): DopplerPose | null { return this.shown > 0 ? this.pose : null; }
   /** True while the probe is drawn or swinging out (the layer keeps asking for frames). */
   get active(): boolean { return this.shown > 0 || this.on; }

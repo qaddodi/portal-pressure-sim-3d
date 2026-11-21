@@ -3,6 +3,7 @@
 // attributes with the body course set equal to the map course, so the map's quarter turn takes them along, and they are drawn only as the map comes in (the ramp of the change) -
 // the body never shows them. Each fades with the map and with its own presence (a branch with its parent; the caudate lane while a slide is about the caudate; a shunt while open).
 import { Group, Vector3 } from 'three';
+import { peelAt, peelRank } from './peel.ts';
 import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { indexOf, hasVessel } from '../../engine/vessel-data.ts';
@@ -144,7 +145,7 @@ function bodyPoints(d: string, n: number): Vector3[] {
 }
 
 export type TubeKind = 'tree' | 'caud' | 'custom';
-interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt's body course (scene points) and tube radius, for the finger's reach on the body */ body?: { pts: Vector3[]; radius: number }; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
+interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt's body course (scene points) and tube radius, for the finger's reach on the body */ body?: { pts: Vector3[]; radius: number }; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number]; /** where its map course lies in the flow (0 gut, 1 heart): a map-only tube comes in as its own stretch of the map lands */ rank: number }
 
 export interface TubesContext {
   /** the map's ramp of the change (0 the body, 1 the map) */
@@ -232,7 +233,7 @@ export class CircuitTubes {
     o.setPhone(this.phone);
     o.setUseData(this.useData);
     this.group.add(o.group);
-    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens, ...(bodyPts ? { body: { pts: bodyPts, radius } } : {}) };
+    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens, rank: peelRank(dense.reduce((m, p) => m + p[0], 0) / Math.max(1, dense.length)), ...(bodyPts ? { body: { pts: bodyPts, radius } } : {}) };
     this.entries.push(e);
     if (kind === 'custom') this.watch.add?.(o);   // (the scene makes it pickable and lights it like every other vessel, highlight.ts register)
     return e;
@@ -304,7 +305,7 @@ export class CircuitTubes {
       e.goal = want && (e.lens || c.t > 0) ? 1 : 0;
       if (e.amount !== e.goal) { e.amount = Math.abs(e.goal - e.amount) <= k ? e.goal : e.amount + Math.sign(e.goal - e.amount) * k; moving = true; }
       // a liver branch grows along its flow on the change's own clock (circuit/grow.ts) instead of fading in: the portal venules, then the sinusoids, never a pop
-      const f = grown != null ? e.amount * c.body : (e.lens ? 1 : c.ramp) * e.amount * c.body;
+      const f = grown != null ? e.amount * c.body : (e.lens ? 1 : c.ramp * peelAt(c.t, e.rank)) * e.amount * c.body;
       if (grown != null) { e.obj.setReveal(grown); e.obj.setFlat(flatOf(grown)); }
       // the flow marks keep their pitch in scene units: the vessel's length is its body course's, then the map course's (circuit/view.ts)
       if (e.lens) (e.obj.toon.uniforms.len as { value: number }).value = e.lens[0] + (e.lens[1] - e.lens[0]) * c.t;

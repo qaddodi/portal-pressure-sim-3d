@@ -1,4 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
+import { span } from '../boot/spans.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
@@ -161,6 +162,8 @@ function withNeighbour(id: string, g: BufferGeometry): void {
   g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
+/** How long one idle slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
+const SLICE_MS = 4;
 export class CelScene {
   readonly scene = new Scene();
   /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
@@ -199,14 +202,16 @@ export class CelScene {
   private micro: { sinus: Sinusoid3D; lobule: Lobule3D } | null = null;
   private microDpr = 0;
   private microIdle = false;
+  private microPrimed = false;
+  private microPrimed2 = false;
   onMicroBuilt: (() => void) | null = null;
   get microBuilt(): boolean { return this.micro !== null; }
   get sinus3d(): Sinusoid3D { return this.buildMicro().sinus; }
   get lobule3d(): Lobule3D { return this.buildMicro().lobule; }
   private buildMicro(): { sinus: Sinusoid3D; lobule: Lobule3D } {
     if (this.micro) return this.micro;
-    const sinus = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(sinus.group);
-    const lobule = new Lobule3D(this.lobule, this.shared);   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
+    const sinus = span('build:sinusoid3d', () => new Sinusoid3D(this.sinus, this.shared)); this.sinus.group.add(sinus.group);
+    const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
     if (this.microDpr) lobule.setDpr(this.microDpr);
     this.moving = true;
@@ -215,23 +220,38 @@ export class CelScene {
   }
   /** The 3D parts are built AND their shapes prepared (the sinusoid's passes, micro3d/sinusoid-shape.ts): only then are they updated, drawn or shown. */
   get microReady(): boolean { return this.micro !== null && this.micro.sinus.shapeReady; }
+  /** Ready and primed: the first shown frame builds nothing. */
+  get microPrimedNow(): boolean { return this.microReady && this.microPrimed && this.microPrimed2; }
   /** Builds the two 3D parts and prepares the sinusoid's shapes in slices of their own, each a task of its own in an idle slot (a timer where the browser has no idle callback: Safari), so no slice lands inside a
    *  drawn frame: the construction of the lobule, then each pass of the shapes. The view change asks for it too (a dive straight after the load) and never builds anything itself: the dive frame stays off until
    *  `microReady`. Once. */
   buildMicroIdle(): void {
-    if (this.microReady || this.microIdle || this.disposed) return;
+    if (this.microPrimedNow || this.microIdle || this.disposed) return;
     this.microIdle = true;
     const later = (f: () => void) => {
       const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
       if (ric) ric(f, { timeout: 300 }); else setTimeout(f, 60);
     };
+    // (a slice runs steps until it has used SLICE_MS, so the many small steps of the shapes are not one idle wait each; every step is itself small)
     const slice = () => {
-      if (this.disposed) return;
-      if (!this.micro) this.buildMicro(); else this.micro.sinus.prepareShapeStep();
-      if (this.microReady) { this.microIdle = false; this.moving = true; return; }
+      const t0 = performance.now();
+      do { if (this.microStep()) return; } while (!this.disposed && performance.now() - t0 < SLICE_MS);
       later(slice);
     };
     later(slice);
+  }
+  /** One small step of the micro views' preparation; true when everything is built and primed. */
+  private microStep(): boolean {
+    {
+      if (this.disposed) return true;
+      if (!this.micro) this.buildMicro();
+      else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
+      else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
+      else if (!this.microPrimed) { this.microPrimed = true; this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
+      else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
+      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; return true; }
+      return false;
+    }
   }
   private readonly micro3d = true;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
@@ -604,7 +624,9 @@ export class CelScene {
     this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
-    if (this.figureView !== 'body') this.feedViews(false);
+    // A new patient's numbers that arrive while the camera is in flight (the slide's zoom into the lobule or the sinusoid) are laid at once: the views are dissolved or far then, and an ease
+    // made every 1/32 of a step of it rebuild the cells and repaint the 2048 px marks plate on the main thread inside the zoom (HVPG talk, slide 6 to 7, iPhone: "significant lag").
+    if (this.figureView !== 'body') this.feedViews(this.rig.isMoving);
     this.moving = true;
   }
   private sawFrame = false;
@@ -1228,10 +1250,12 @@ export class CelScene {
     lap('micro views');
     const procMoving = this.procs.update(now);
     this.syncWedge();
+    lap('procedures+wedge');   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
     const diseaseMoving = this.disease.update(now, this.flowRate.value);
     if (diseaseMoving) this.tagOverOrgans();
+    lap('disease+organs');
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    lap('devices+disease');
+    lap('probes');
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
@@ -1260,7 +1284,7 @@ export class CelScene {
       this.pushFades();   // (the fades are composed in one place: the leaving objects, the fans' visibility)
       this.disease.setFade(Math.min(fade, this.fadeNow));
     }
-    this.mapLayer.set(mapRamp(t), this.circuit.rr);
+    this.mapLayer.set(mapRamp(t), this.circuit.rr, t);
     // the map's junction skins: drawn only over the end of the change, turned with the map (they are built on the unturned map; the tubes turn in their shader)
     if (this.circuitSkins) {
       const rot = this.circuit.shared.circRot.value, key = `${t > SKIN_CIRC_IN - 0.02 ? 1 : 0}|${rot.x}|${rot.y}`;
@@ -1270,7 +1294,7 @@ export class CelScene {
     const ramp = mapRamp(t);
     this.growLiver(t);
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
-    this.resistors.setAlpha(ramp);
+    this.resistors.setAlpha(ramp, t);
     let resMoving = false;
     if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); this.mapLayer.setScale(this.mapScale()); }
     let dots = false;
@@ -1425,12 +1449,12 @@ export class CelScene {
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
     gl.render(this.scene, cam);
-    lap('render: organs pass');
+    lap('render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)');
     gl.autoClear = false;
     if (!dof) { gl.clearDepth(); gl.clearStencil(); }   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
-    lap('render: vessels pass');
+    lap('render: pass 2, vessel layer');
     if (this.highlight.glowing) this.glowFx.run(gl, into, cam, this.scene, dpr);   // (the picked vessel's glow: its mask, blurred, over the figure outside it)
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     lap('render: glow, blur, resolve');

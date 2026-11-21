@@ -40,7 +40,9 @@ import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
-import { MAP_K } from '../../circuit/map.ts';
+import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
+import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
+import { VB_CIRC } from '../../circuit/data.copied.ts';
 import { SKIN_CIRC_IN } from './types.ts';
 import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
@@ -62,6 +64,10 @@ export const SKIN_SEAM_PAD_PX = 1.5;
 /** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */
 export const SKIN_HEAD_LAT_FROM = 1.1;
 export const SKIN_HEAD_LAT_TO = 1.7;
+/** A head is whole or it is not drawn (the smeared black blobs in the crotch of a fork, Mohammad 21 Nov). Root cause: a head was drawn by EVERY arm, scaled by that arm's soft share of its centre and by a lateral gate fading over 1.1 to 1.7 radii, so in the fillet two
+ *  half-strength copies of one head, each stretched over pixels outside its own frame's cylinder (a head lies within 0.6 of the axis), summed to a dark smear. Now its owner share is sharpened (SKIN_HEAD_OWN_FROM .. TO: 0 under, 1 over, so the two arms' shares still sum to 1) and the gate
+ *  closes at the head's own reach, not the wall's. */
+export const SKIN_HEAD_OWN_FROM = 0.3, SKIN_HEAD_OWN_TO = 0.7, SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
 const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
@@ -179,6 +185,16 @@ uniform vec2 skinMap;    // (x) the units in one scene unit: the figure's (300),
 uniform vec3 inkColor;
 uniform vec3 inkColorCirc;
 uniform float circT;
+float skinPeelShare(vec3 p) {
+  float mx = ${F(CIRC_C[0])} + (p.x - ${F(MAP_CENTRE.x)}) / ${F(MAP_K)};
+  float r = clamp((mx - ${F(VB_CIRC[0] + 30)}) / ${F(PEEL_SPAN)}, 0.0, 1.0);
+  if (circT <= 0.0) return 0.0;
+  if (circT >= 1.0) return 1.0;
+  float x = (circT - ${F(PEEL_DL)} * r) / ${F(1 - PEEL_DL)};
+  if (x <= 0.0) return 0.0;
+  if (x >= 1.0) return 1.0;
+  return x * x * (3.0 - 2.0 * x);
+}
 uniform vec2 res;
 uniform float dpr;
 uniform float projY;
@@ -375,7 +391,9 @@ void main() {
     if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
   }
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
-  float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);
+  // the map's skin comes in as the map POINT under it lands (the flow peel on its rank, from its place on the map), as the tubes' cut goes (vessels/shaders.ts keepC): the whole change's clock brought the heart end's skins in while its tubes were still on the way (floating bars, 21 Nov)
+  float skinShare = skinPeelShare(vPos);
+  float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, skinShare), skinCirc);
   float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
 #if SKIN_COPY == 2
   // THE COPIES SHARE ONE COVERAGE (a patch where the cava's lower edge meets the liver, Mohammad 21 Nov): at a junction of arms drawn over the organs (the front copy: the renal vein) and arms behind them (the veil copy: the cava) the weights split the pixel between the two copies, and
@@ -463,8 +481,8 @@ void main() {
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, relP = vPos - seamP;
         float latK = length(relP - tJA[i] * dot(relP, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4);
-        float gate = 1.0 - smoothstep(${F(SKIN_HEAD_LAT_FROM)}, ${F(SKIN_HEAD_LAT_TO)}, latK);
-        if (gate > 0.0 && abs(armArc[i].y) > 0.5) hI *= gate * skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx);
+        float gate = 1.0 - smoothstep(${F(SKIN_HEAD_GATE_FROM)}, ${F(SKIN_HEAD_GATE_TO)}, latK);
+        if (gate > 0.0 && abs(armArc[i].y) > 0.5) hI *= gate * smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx));
         else hI = vec4(0.0);
       }
       headAcc += hI;

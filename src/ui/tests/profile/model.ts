@@ -163,6 +163,7 @@ function stripShapes(inp: ProfileInput, path: ProfilePath, pal: Palette, look: s
     if (d.hide && hid?.has(d.hide)) continue;
     const a = STRIP.indexOf(d.hi), b = STRIP.indexOf(d.lo);
     if (a < 0 || b < 0) continue;
+    if (d.hiM && measuredTop(d, m) == null) continue;
     const v = gapOf(d, reading(d.hi), reading(d.lo))!;
     const sv = d.sev(v), col = sv === 'danger' ? danger : sv === 'caution' ? caution : muted;
     const yy = d.k === 'HVPG' ? rh : rp, bx0 = cx[a]!, bx1 = cx[b]!, name = DIM_NAME(d.k), num = fmt(v, 1);
@@ -179,6 +180,27 @@ function stripShapes(inp: ProfileInput, path: ProfilePath, pal: Palette, look: s
 }
 
 const LEAD_PIECES = 4;
+
+/** What a bracket's measured top end is called on the chart. */
+const MARK_NAME: Record<string, string> = { whvp: 'WHVP' };
+
+/** The measured value a bracket starts from (the HVPG's WHVP), or null when the frame has none: the bracket is then left out. */
+export function measuredTop(d: { hiM?: string }, m: Record<string, number | undefined> | null | undefined): number | null {
+  const v = d.hiM ? m?.[d.hiM] : undefined;
+  return v != null && Number.isFinite(v) ? v : null;
+}
+
+/** The sentence a screen reader gets after the stations: where the HVPG's two ends come from (empty when it is not drawn). */
+export function bracketSummary(inp: Pick<ProfileInput, 'metrics' | 'hidden' | 'pathId'>): string {
+  const out: string[] = [];
+  for (const d of curPath(inp.pathId).dims ?? []) {
+    if (!d.hiM || !d.loM || (d.hide && inp.hidden?.has(d.hide))) continue;
+    const hi = measuredTop(d, inp.metrics), lo = measuredTop({ hiM: d.loM }, inp.metrics);
+    if (hi == null || lo == null) continue;
+    out.push(`${d.k} ${fmt(tenthGap(hi, lo, hi - lo)!, 1)}: wedged hepatic venous pressure ${fmt(hi, 1)} minus free hepatic venous pressure ${fmt(lo, 1)}, measured at the catheter, not the sinusoid's own pressure`);
+  }
+  return out.length ? ` ${out.join('. ')}.` : '';
+}
 
 /** The stations a screen reader hears (2D speak): the path's venous stations and their pressures. */
 export function itemsOf(inp: Pick<ProfileInput, 'P' | 'pathId'>): { name: string; v: number }[] {
@@ -350,15 +372,38 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
     if (anyOverlap(taken, taken.length, bar) || anyOverlap(claimed, claimed.length, bar)) return false;
     return !withHealthy || !polyHealthy || !hitsLine(r, polyHealthy);
   };
-  const pills: { a: number; b: number; col: Rgba; txt: string; num: string; tw1: number; tw: number; x0: number; x1: number; ty: number; tx: number }[] = [];
+  const pills: { a: number; b: number; col: Rgba; txt: string; num: string; tw1: number; tw: number; x0: number; x1: number; ty: number; tx: number; mk: { x: number; y: number; s: string; lx: number; ly: number } | null }[] = [];
   for (let k = 0; k < dimN; k++) {
     const d = dims[k]!;
     const a = stations.indexOf(d.hi), b = stations.indexOf(d.lo);
     if (a < 0 || b < 0 || (d.hide && hid?.has(d.hide))) continue;
+    // (a bracket whose top end is a measured value, the HVPG's WHVP, is drawn from that value; with none measured it is left out, never drawn from the sinusoid's own pressure)
+    const wv = measuredTop(d, m);
+    if (d.hiM && wv == null) continue;
     const gapV = tenthGap(d.hiM && m[d.hiM] != null && Number.isFinite(m[d.hiM]) ? m[d.hiM]! : now[a]!, d.loM && m[d.loM] != null && Number.isFinite(m[d.loM]) ? m[d.loM]! : now[b]!, now[a]! - now[b]!)!;
     const sv = d.sev(gapV), col = sv === 'danger' ? danger : sv === 'caution' ? caution : muted;
     const txt = DIM_NAME(d.k), num = fmt(gapV, 1);
-    const tw1 = W(txt, 12, 600), tw2 = W(num, 12.5, 700), tw = tw1 + tw2 + 12, x0 = x(a), x1 = x(b);
+    const tw1 = W(txt, 12, 600), tw2 = W(num, 12.5, 700), tw = tw1 + tw2 + 12, x1 = x(b);
+    // the labelled marker of the measured value (a square, so it is not read as a station dot), nudged aside where it would sit on the station's own dot
+    let mk: { x: number; y: number; s: string; lx: number; ly: number } | null = null;
+    let x0 = x(a);
+    if (wv != null && !g.band) {
+      const my = y(wv), mx = x(a) + (Math.abs(my - dots[a]!.cy) < 13 ? 11 : 0), ms = `${MARK_NAME[d.hiM!] ?? d.hiM} ${fmt(wv, 1)}`, lw = W(ms, 12, 600);
+      const q: Rect = { x0: 0, x1: 0, y0: 0, y1: 0 };
+      let found = false;
+      for (let ci = 0; ci < 6 * CAND_KX.length && !found; ci++) {
+        const cj = ci % CAND_KX.length, kx = CAND_KX[cj]!, sx = lw / 2 + 11, dx = kx === 0 ? 0 : kx > 0 ? sx : -sx, dy = CAND_DY[cj]! * (1 + Math.floor(ci / CAND_KX.length) * 0.5);
+        const cx = mx + dx, yy = my + dy;
+        q.x0 = cx - lw / 2; q.x1 = cx + lw / 2; q.y0 = yy - 6; q.y1 = yy + 6;
+        if (q.y0 < 2 || q.y1 > hh - B - 2 || q.x0 < L - 4 || q.x1 > w - R + 4) continue;
+        if (anyOverlap(taken, taken.length, q, 3) || near(q, 4)) continue;
+        found = true;
+      }
+      if (!found) { fail = true; continue; }
+      taken.push({ ...q });
+      mk = { x: mx, y: my, s: ms, lx: (q.x0 + q.x1) / 2, ly: (q.y0 + q.y1) / 2 + 0.5 };
+      x0 = mx;
+    }
     const base = y(0) - 12 - (dimN - 1 - k) * 24;
     const lo = Math.max(L + 2, Math.min(x0, x1) + 8), hi = Math.min(w - R, Math.max(x0, x1) - 8) - tw;
     const cx = Math.max(L + 2, Math.min(w - R - tw, (x0 + x1) / 2 - tw / 2));
@@ -379,17 +424,17 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
     const spotFound = best !== null;
     if (!best) { fail = true; best = { yy: base, lx: cx }; }
     if (!(spotFound && g.band)) claimed.push({ x0: Math.min(x0, x1) - 3, x1: Math.max(x0, x1) + 3, y0: best.yy - 9, y1: best.yy + 9 });
-    pills.push({ a, b, col, txt, num, tw1, tw, x0, x1, ty: best.yy, tx: best.lx });
+    pills.push({ a, b, col, txt, num, tw1, tw, x0, x1, ty: best.yy, tx: best.lx, mk });
   }
   if (fail) return { shapes: out, fail, compared };
   for (const p of pills) {
-    const { a, b, col, txt, num, tw1, tw, x0, x1 } = p, yy = p.ty, lx = p.tx;
+    const { a, b, col, txt, num, tw1, tw, x0, x1, mk } = p, yy = p.ty, lx = p.tx;
     // faint leaders from the bracket ends to the two station dots, broken around any value label (none from the band: the brackets stand under their stations' names there)
     if (!g.band) {
       const lead = { color: withAlpha(col, 0.45), w: 1, dash: DASH_LEAD };
       for (let e = 0; e < 2; e++) {
         const px = e === 0 ? x0 : x1, st2 = e === 0 ? a : b;
-        const dy = dots[st2]!.cy, from = yy + (dy > yy ? 4 : -4), to = dy + (dy > yy ? -7 : 7);
+        const dy = e === 0 && mk ? mk.y : dots[st2]!.cy, from = yy + (dy > yy ? 4 : -4), to = dy + (dy > yy ? -(e === 0 && mk ? 6 : 7) : (e === 0 && mk ? 6 : 7));
         const fromLo = Math.min(from, to), fromHi = Math.max(from, to);
         const across: Rect[] = [];
         for (let j = nLbl; j < taken.length; j++) { const o = taken[j]!; if (px > o.x0 - 2 && px < o.x1 + 2 && o.y1 > fromLo && o.y0 < fromHi) across.push(o); }
@@ -410,6 +455,10 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
           out.push(pc ? { k: 'line', x1: px, y1: pc[0], x2: px, y2: pc[1], pen: lead } : { k: 'line', x1: px, y1: from, x2: px, y2: from, pen: { ...lead, color: withAlpha(col, 0) } });
         }
       }
+    }
+    if (mk) {
+      out.push({ k: 'rect', x: mk.x - 4.5, y: mk.y - 4.5, w: 9, h: 9, r: 1.5, fill: col, pen: { color: surface2, w: 1.5 } });
+      TX(mk.lx, mk.ly, mk.s, 12, 600, col === muted ? text : col, 'middle', 'middle');
     }
     const pen = { color: col, w: 1.5, cap: 'butt' as const };
     out.push({ k: 'line', x1: x0, y1: yy - 4, x2: x0, y2: yy + 4, pen }, { k: 'line', x1: x1, y1: yy - 4, x2: x1, y2: yy + 4, pen }, { k: 'line', x1: x0, y1: yy, x2: x1, y2: yy, pen });

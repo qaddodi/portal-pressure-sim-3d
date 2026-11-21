@@ -84,12 +84,12 @@ test('the ascites pool is painted as 2D\'s fluidAt paints it: see-through at the
   assert.deepEqual(deep.slice(0, 3).map((v) => +v.toFixed(3)), ink, 'and gone by the bottom row');
   assert.ok(fluidTone(ink, 0.4, ROW_DEPTHS[2]!)[3] < 0.4, 'the rows between lie on the ramp');
   const a = new AscitesLayer();
-  assert.equal(a.group.children.length, 1, 'one mesh: no second band lies over the first');
+  assert.equal(a.group.children.length, 2, 'one hull: its back sheet and its front sheet and lid, no second band over the first');
   for (const id of LOOK_IDS) {
     a.applyLook(id); a.set(6000);
-    const pos = (a.group.children[0] as unknown as { geometry: { getAttribute(n: string): { array: Float32Array } } }).geometry.getAttribute('position').array;
-    assert.ok(pos[52 * POOL_ROWS * 3 + 1]! !== 0 && pos[(52 * POOL_ROWS + POOL_ROWS - 1) * 3 + 1]! < pos[52 * POOL_ROWS * 3 + 1]!, `${id}: the columns reach the geometry (the pool was once written to a copy and never drawn), the surface above the floor`);
-    const u = ((a.group.children[0] as unknown as { material: { uniforms: { uInk: { value: { x: number; y: number; z: number } }; uInkA: { value: number } } } }).material).uniforms;
+    const pos = (a.group.children[1] as unknown as { geometry: { getAttribute(n: string): { array: Float32Array } } }).geometry.getAttribute('position').array, NT = 20;
+    assert.ok(pos[48 * NT * 3 + 1]! !== 0 && pos[(48 * NT + NT - 1) * 3 + 1]! < pos[48 * NT * 3 + 1]!, `${id}: the columns reach the geometry (the pool was once written to a copy and never drawn), the surface above the floor`);
+    const u = ((a.group.children[1] as unknown as { material: { uniforms: { uInk: { value: { x: number; y: number; z: number } }; uInkA: { value: number } } } }).material).uniforms;
     const [r, g, b] = rgbOf(ASCITES_INK[id].hex);
     assert.ok(Math.abs(u.uInk.value.x * 255 - r) < 1 && Math.abs(u.uInk.value.y * 255 - g) < 1 && Math.abs(u.uInk.value.z * 255 - b) < 1, `${id}: the straw is the look's`);
     assert.ok(Math.abs(u.uInkA.value - ASCITES_INK[id].a) < 1e-6, `${id}: at its alpha`);

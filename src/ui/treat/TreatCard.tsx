@@ -14,6 +14,8 @@ import { useThumb } from '../shell/thumb.ts';
 import { layoutClass, layoutVars } from '../shell/room.ts';
 import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
+import { useTestsRoom } from '../tests/room.ts';
+import { sheetPlace } from './sheet-place.ts';
 import { TABS, drugChips, fluids, giveFluid, procedures, pressChip, ranOn, type TabId } from './orders.ts';
 import { appEnv } from './env.ts';
 import { TREAT_WORDS } from './treat.generated.ts';
@@ -138,6 +140,17 @@ export function TreatCard() {
     for (const c of Array.from(pane.children)) ro.observe(c);
     return () => ro.disconnect();
   }, [spare]);
+  // a phone or an upright iPad's sheet tells the camera where it stands (the Tests sheet's own channel, tests/room.ts), at the height its words need, so the figure is framed in what the sheet leaves and eases
+  // as the sheet changes height (release review #15). The Tests card is never up with it (Treat closes it), so the one slot is free.
+  useEffect(() => {
+    const c = ref.current;
+    if (!open || !thumb || !c) return;
+    const put = () => { const h = c.offsetHeight; if (h > 0) useTestsRoom.setState({ place: sheetPlace(vp, parseFloat(layoutVars(vp, layoutClass(true))['--vdock-h']) + 14, h) }); };
+    put();
+    if (typeof ResizeObserver === 'undefined') return () => useTestsRoom.setState({ place: null });
+    const ro = new ResizeObserver(put); ro.observe(c);
+    return () => { ro.disconnect(); useTestsRoom.setState({ place: null }); };
+  }, [open, thumb, vp]);
   // the tab strip's one gliding piece (the 2D stylesheet draws it)
   useEffect(() => (ref.current ? startSegGlideOn(ref.current) : undefined), []);
   // Changes is remembered open across opens and visits (2D chart.js section(): `open`, pps.chartOpen3): the section the card makes finds it as it was left (a phone's page always shows it open)

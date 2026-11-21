@@ -33,7 +33,7 @@ test('flowHeads hands back the centre arc of the head it drew (blended with the 
 test('a skin draws every head whole by the owner of its centre, inside the arm\'s cylinder, and never weights it by the pixel\'s own weight', () => {
   const main = body(SKIN_FS, 'void main(');
   assert.match(main, /skinOwner\(i, seamP \+ tJA\[i\] \* \(\(chevCentreArc - armArc\[i\]\.x\) \/ \(armArc\[i\]\.y \* SKIN_U\)\), kPx\)/);
-  assert.match(main, /1\.0 - smoothstep\(SKIN_HEAD_LAT_FROM|1\.0 - smoothstep\([0-9.]+, [0-9.]+, latK\)/);
+  assert.match(main, /1\.0 - smoothstep\([0-9.]+, [0-9.]+, latK\)/);
   assert.ok(!/headAcc \+= wI \*/.test(main), 'no head is scaled by its pixel\'s weight any more (that is what sliced it)');
   // the head's own gate runs before the weight test that skips an absent arm, so an arm that owns a head's centre still draws it
   assert.ok(main.indexOf('flowHeads(') < main.indexOf('if (wI < 0.004 || vR <= 0.0) continue;'));
@@ -49,4 +49,12 @@ test('?joins=noheads still removes the heads from a skin', () => {
   const main = body(SKIN_FS, 'void main(');
   const at = main.indexOf('#ifndef SKIN_NOHEADS');
   assert.ok(at >= 0 && main.indexOf('headAcc += hI', at) > at && main.indexOf('#endif', at) > main.indexOf('headAcc += hI', at));
+});
+
+test('a head is whole or gone: its owner share is sharpened (the two arms still sum to 1) and its lateral gate closes at the head\'s own reach (smeared blobs in a fork\'s crotch, 21 Nov)', async () => {
+  const m = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.ok(m.SKIN_HEAD_OWN_FROM < 0.5 && m.SKIN_HEAD_OWN_TO === 1 - m.SKIN_HEAD_OWN_FROM, 'symmetric about one half, so two arms\' shares sum to 1');
+  assert.ok(m.SKIN_HEAD_GATE_TO <= 1.0 && m.SKIN_HEAD_GATE_TO < m.SKIN_HEAD_LAT_FROM, 'no head past the wall of its own cylinder');
+  const main = body(m.SKIN_FS, 'void main(');
+  assert.match(main, /smoothstep\([0-9.]+, [0-9.]+, skinOwner\(i, seamP/);
 });

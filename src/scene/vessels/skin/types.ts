@@ -16,6 +16,8 @@ export interface SkinArm {
   restR: number;             // def.radius (scene units)
   /** the tube's radius where the arm meets the junction (its end at the node, or at `side.u` on a host's wall), scene units, tapers and buried ends counted: `restR` is the vessel's NOMINAL radius, and a branch that thins toward its tip or a vein that tapers is far narrower than that at J. The blend width and the seam's clearance are sized from it (`armR`), so a thin joint never gets the fillet of a fat one (the bulb at the right hepatic vein's branch, 21 Nov). Absent: `restR`. */
   jointR?: number;
+  /** where this arm's axis starts when it is not the junction's J: a growing arm that lands on the host's wall inside this skin's reach (cuts.ts planSkins) starts at its own landing, so its capsule lies along its tube and not along a chord from J */
+  at?: Vec3;
   /** A SIDE-WALL arm (spec 10.1): the stretch of this vessel on one side of the point `u` along it (`dir` -1 the part below `u`, +1 the part above), where the junction lies on the vessel's side and not at a node. `end` is then 1 for dir -1 and 0 for dir +1
    *  (the rings run away from the junction the way an end's do), and the arm's walk starts at the ring nearest `u` instead of the tube's own end. Two side arms of one vessel (a virtual node mid-host) leave a HOLE in it (VesselObject.setSkinHole). */
   side?: { u: number; dir: -1 | 1 };

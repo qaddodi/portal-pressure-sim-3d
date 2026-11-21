@@ -25,6 +25,8 @@ export const CLEAR_K = 1;
 export const CLEAR_R = 0.5;
 /** Rule 1b: a seam may not lie farther than this share of its arm's own length from J (else the skin would eat the tube: SkinBuildError). */
 export const SEAM_MAX_SHARE = 0.85;
+/** The share an arm's seam may reach when no ring of it clears within `SEAM_MAX_SHARE` (a short through vein with a branch beside it and a collateral landing on it: the left portal vein's end, 17 rings, REX's mouth at ring 10 and the branch's clearance to ring 12): the tube's last rings stay. Only a retry, so no skin that has a ring within 85 % moves. */
+export const SEAM_FALLBACK_SHARE = 0.97;
 /** The tries the hull rule gets before the junction is given up (rule 3). */
 export const MAX_TRIES = 40;
 const RADIAL = TUBE_RADIAL;
@@ -57,8 +59,8 @@ export function armWalk(a: Pick<SkinArm, 'end' | 'side'>, tubular: number): { fr
 export const isThroughPair = (a: Pick<SkinArm, 'vesselId' | 'side'>, b: Pick<SkinArm, 'vesselId' | 'side'>): boolean => !!a.side && !!b.side && a.vesselId === b.vesselId && a.side.dir !== b.side.dir;
 
 /** The arm's capsule (spec 4.3): its axis from J outward, the tube's own ring centres, out to `CAPSULE_R` of its radii, with the radius the tube really has at each (tapers included). */
-function capsuleOf(j: SkinJunction, rings: readonly Ring[], restR: number): Capsule {
-  const pts: Vec3[] = [j.J], rad: number[] = [rings[0]!.r];
+function capsuleOf(from: Vec3, rings: readonly Ring[], restR: number): Capsule {
+  const pts: Vec3[] = [from], rad: number[] = [rings[0]!.r];
   let len = 0;
   for (const g of rings) {
     len += dist3(pts[pts.length - 1]!, g.centre);
@@ -97,14 +99,14 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     for (let s = 0; s < w.count; s++) out.push(ringAt(t, w.from + w.step * s));
     return out;
   });
-  const caps = j.arms.map((a, i) => capsuleOf(j, rings[i]!, a.restR));
+  const caps = j.arms.map((a, i) => capsuleOf(a.at ?? j.J, rings[i]!, a.restR));
   // the arc length from J to each ring's centre (the arm's own length is the last): rule 1b
-  const arc = rings.map((rs) => { let d = 0, prev: Vec3 = j.J; return rs.map((g) => { d += dist3(prev, g.centre); prev = g.centre; return d; }); });
+  const arc = rings.map((rs, i) => { let d = 0, prev: Vec3 = j.arms[i]!.at ?? j.J; return rs.map((g) => { d += dist3(prev, g.centre); prev = g.centre; return d; }); });
   /** why ring `s` (counted from J) of arm `i` is not eligible under rules 1, 1b and 2 (null: eligible), and for rule 1 which arm's capsule it is too near */
-  const why = (i: number, s: number): string | null => {
+  const why = (i: number, s: number, share: number = SEAM_MAX_SHARE): string | null => {
     const a = j.arms[i]!, g = rings[i]![s]!;
-    if (arc[i]![s]! > SEAM_MAX_SHARE * arc[i]![arc[i]!.length - 1]!) return 'too far (1b)';
-    if (dist3(g.centre, j.J) < SEAM_MIN_R * a.restR) return 'too near J (2)';
+    if (arc[i]![s]! > share * arc[i]![arc[i]!.length - 1]!) return 'too far (1b)';
+    if (dist3(g.centre, a.at ?? j.J) < SEAM_MIN_R * a.restR) return 'too near J (2)';
     const need = clear.k * k + clear.r * a.restR;
     for (let o = 0; o < n; o++) {
       if (o === i || isThroughPair(a, j.arms[o]!)) continue;
@@ -112,9 +114,8 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     }
     return null;
   };
-  const eligible = (i: number, s: number): boolean => why(i, s) === null;
   const next = (i: number, from: number): number => {
-    for (let s = from; s < rings[i]!.length; s++) if (eligible(i, s)) return s;
+    for (const share of [SEAM_MAX_SHARE, SEAM_FALLBACK_SHARE]) for (let s = from; s < rings[i]!.length; s++) if (why(i, s, share) === null) return s;
     const tally = new Map<string, number>();
     for (let s = from; s < rings[i]!.length; s++) { const w = why(i, s)!; tally.set(w, (tally.get(w) ?? 0) + 1); }
     throw new SkinBuildError(j.node, `${j.arms[i]!.vesselId} has no ring that clears the blend within 85 % of its length (rings refused: ${[...tally].map(([w, c]) => `${w} ${c}`).join(', ')})`);
@@ -126,7 +127,7 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     if (hullOk(cuts)) return cuts;
     // the seam nearest to the centre, in its own radii, moves out one eligible ring
     let m = 0, best = Infinity;
-    for (let i = 0; i < n; i++) { const d = dist3(rings[i]![at[i]!]!.centre, j.J) / j.arms[i]!.restR; if (d < best) { best = d; m = i; } }
+    for (let i = 0; i < n; i++) { const d = dist3(rings[i]![at[i]!]!.centre, j.arms[i]!.at ?? j.J) / j.arms[i]!.restR; if (d < best) { best = d; m = i; } }
     const blamed = hullOk.blame?.() ?? -1;
     if (blamed >= 0 && blamed < n) m = blamed;
     at[m] = next(m, at[m]! + 1);
@@ -201,6 +202,13 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
             const moved: SkinCut = { ...wc, ring: oc.ring, u: oc.u };
             out.push(otherPlan, { ...wallPlan, cuts: wallPlan.cuts.map((c) => (c === wc ? moved : c)) });
             break;
+          }
+          // ...or the landing is INSIDE the other skin's reach (REX on the left portal vein lands where LPV_A's skin, held 8 radii out the host by the branch beside it and the umbilical vein, is): its growing arm is an arm of that skin, starting at its own landing (`at`)
+          const grown = w.arms.filter((m) => m.grow);
+          if (grown.length && other.arms.filter((m) => m.grow).length + grown.length <= SKIN_GROWERS && other.arms.length + grown.length <= MERGED_MAX_ARMS) {
+            const mj: SkinJunction = { ...other, arms: [...other.arms, ...grown.map((g): SkinArm => ({ ...g, at: w.J }))] };
+            try { out.push({ ...otherPlan, junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), merged: [other.node, w.node] }); break; }
+            catch (e) { if (!(e instanceof SkinBuildError)) throw e; failures.push(new SkinBuildError(w.node, e.message)); out.push(otherPlan); break; }
           }
           failures.push(new SkinBuildError(w.node, `${w.node} crowds the skin of ${other.node} on ${ca.vesselId}`));
           out.push(otherPlan);

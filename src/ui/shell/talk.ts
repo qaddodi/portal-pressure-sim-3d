@@ -7,6 +7,7 @@ import { cel } from '../../scene/api.ts';
 import { openById, cancelOpen } from '../deck/deck-of.ts';
 import { W } from '../deck/words.ts';
 import type { Deck } from '../../decks/schema.ts';
+import { rememberFocus } from './talk-focus.ts';
 import { captureSaved, restoreSaved, type Saved } from '../talk/deck-model.ts';
 import { loadToolCard, toolCardReady } from '../talk/tool-card-load.ts';
 import { coverUp, coverDown } from './curtain.ts';
@@ -43,6 +44,7 @@ async function begin(deck: Deck, at: number): Promise<void> {
   const mine = ++startGen;
   await Promise.all([coverUp(deck.title), fontsIn()]);
   if (mine !== startGen) return;
+  rememberFocus(typeof document !== 'undefined' ? document.activeElement : null, useShell.getState().mode === 'deck');   // (focus returns here when the talk ends: talk-focus.ts)
   if (useShell.getState().mode !== 'deck') saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
   cel.setView('body');
   // (the cover lifts at the first landing the new talk makes; landing.ts begins it once the talk's stops are in)
@@ -85,7 +87,7 @@ export function stopTalk(): void {
         rail.leave(plate ? [c, plate] : [c], { dir: 1, par: 1, reduce });
       }
       // the presenter's bar and what else floats over the talk fade with them (2D fades the cards and their glass, then chrome comes back in)
-      for (const b of document.querySelectorAll<HTMLElement>('.dk-bar, .dk-bar-title, .pz-veil')) b.animate?.([{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], { duration: D_SMALL, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+      for (const b of document.querySelectorAll<HTMLElement>('.dk-bar, .pz-veil')) b.animate?.([{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], { duration: D_SMALL, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
       await wait(cards.length ? (reduce ? D_SMALL : OUT_DONE) + 40 : 0);
       const who = {}, s = saved;
       const dim = s ? dipIn(who) : null;   // (the dim begins with the talk's end, under the chrome coming back)

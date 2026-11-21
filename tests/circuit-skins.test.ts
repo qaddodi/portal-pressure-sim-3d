@@ -352,8 +352,8 @@ test('the map\'s turn is the skin\'s object matrix: the same quarter turn about 
 test('the shaders: the tube has a second cut that takes effect over the END of the change, the skin\'s program is the same source with the map\'s widths and lines, and it is in over the same stretch', () => {
   assert.match(VESSEL_FS, /uniform vec2 skinCutC;/);
   assert.match(VESSEL_FS, /bool skinPastC\(\) \{ return circT > 0\.0 && /);
-  assert.match(VESSEL_FS, new RegExp(`float keepC = 1\\.0 - smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, circT\\);`), 'the tube\'s map cut and the skin come in over the same stretch');
-  assert.match(SKIN_FS, new RegExp(`smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, circT\\), skinCirc\\)`));
+  assert.match(VESSEL_FS, new RegExp(`float keepC = 1\\.0 - smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, vCircShare\\);`), 'the tube\'s map cut and the skin come in over the same stretch');
+  assert.match(SKIN_FS, new RegExp(`smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, skinShare\\), skinCirc\\)`));
   assert.ok(!/#if(n?def)?\s+SKIN_CIRC\b/.test(SKIN_FS + SKIN_VS), 'the map\'s skins are the body\'s programs: skinCirc is a uniform, not a define (nothing new to compile)');
   assert.match(SKIN_FS, /uniform vec2 skinMap;/);
   assert.match(SKIN_FS, /mix\(1\.0 - smoothstep\(0\.0, [0-9.]+, circT\), smoothstep\(/);

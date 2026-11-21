@@ -25,11 +25,29 @@ export class LiverShape {
   private rest: Float32Array;
   private normals: Float32Array;
   private lastC = NaN;
+  /** What depends on a vertex's REST place only, never on the scarring (the nodule's height there, the share of it that goes sideways, the rim's scallop): found once, on the first frame that needs it, so a frame of the easing is arithmetic, not a height field per vertex (root cause of the 90 to 690 ms frames of a patient glide: 13.7 k vertices x a noise field, every frame). */
+  private nb: Float32Array | null = null; private nbk!: Float32Array; private rk!: Float32Array;
   readonly position: { array: Float32Array; needsUpdate: boolean };
   constructor(position: { array: Float32Array; needsUpdate: boolean }, normals: ArrayLike<number>) {
     this.position = position;
     this.rest = Float32Array.from(position.array);
     this.normals = Float32Array.from(normals);
+  }
+  private baked = 0;
+  /** Finds the rest-place numbers for vertices from where it stopped, for at most `ms` (0: all of them). True when every vertex has them. The organ layer calls it in idle slices after the liver is built, so the first scarred frame finds it done (apply finishes what is left if not). */
+  warm(ms = 0): boolean {
+    const r = this.rest, n = this.normals, cnt = r.length / 3;
+    if (!this.nb) { this.nb = new Float32Array(cnt); this.nbk = new Float32Array(cnt); this.rk = new Float32Array(cnt); }
+    const t0 = performance.now();
+    while (this.baked < cnt) {
+      for (let e = Math.min(cnt, this.baked + 256); this.baked < e; this.baked++) {
+        const v = this.baked, i = v * 3, x2 = x2d(r[i]!), y2 = y2d(r[i + 1]!), h = noduleBumpAt(x2, y2), k = edgeFree(Math.abs(n[i + 2]!)), m = Math.hypot(n[i]!, n[i + 1]!);
+        this.nb[v] = h; this.nbk[v] = h * k;
+        this.rk[v] = m > 1e-3 ? ((1 - k) * rimDomeAt(x2, y2)) / m : 0;
+      }
+      if (ms > 0 && performance.now() - t0 >= ms) break;
+    }
+    return this.baked >= cnt;
   }
   /** Writes the shape for scarring `c` (0..1) into the position buffer; false when nothing changed (the caller recomputes normals only on true). */
   apply(c: number): boolean {
@@ -37,21 +55,16 @@ export class LiverShape {
     this.lastC = c;
     const pos = this.position.array, r = this.rest, n = this.normals;
     const nodS = liverSurface(c).nod, bump = nodS * NODULE_HEIGHT;
-    for (let i = 0; i < r.length; i += 3) {
-      const x0 = r[i]!, y0 = r[i + 1]!;
-      const f = liverField(x2d(x0), y2d(y0), c);
+    if (bump > 0) this.warm();
+    const nb = this.nb!, nbk = this.nbk, rk = this.rk, rim = bump > 0 ? RIM_HEIGHT * rimScale() * nodS : 0;
+    for (let v = 0, i = 0; i < r.length; v++, i += 3) {
+      const f = liverField(x2d(r[i]!), y2d(r[i + 1]!), c);
       let x = x3(f[0]!), y = y3(f[1]!);
       if (bump > 0) {
-        const h = bump * noduleBumpAt(x2d(x0), y2d(y0));
-        // the bumps push along the normal, but not sideways at the edge: there the normal lies in the plane, the rim's samples (one every 2.5 units) would each be pushed by a different cell's bump, and the liver's outline came out as a saw-tooth
-        const k = edgeFree(Math.abs(n[i + 2]!));
-        x += n[i]! * h * k; y += n[i + 1]! * h * k;
-        // the outline is nodular too (Mohammad 20 Nov): at the rim the nodules stand out along the in-plane normal, by the same dome the surface has, so the edge is scalloped by the same cells. Outward only.
-        {
-          const m = Math.hypot(n[i]!, n[i + 1]!);
-          if (m > 1e-3) { const r = (1 - k) * RIM_HEIGHT * rimScale() * nodS * rimDomeAt(x2d(x0), y2d(y0)) / m; x += n[i]! * r; y += n[i + 1]! * r; }
-        }
-        pos[i + 2] = r[i + 2]! + n[i + 2]! * h;
+        // the bumps push along the normal, but not sideways at the edge (nbk: the nodule's height times the share of its sideways push, edgeFree), and the outline is nodular too (Mohammad 20 Nov): at the rim the nodules stand out along the in-plane normal by the same dome (rk), outward only
+        const hk = bump * nbk[v]!, rr = rim * rk[v]!;
+        x += n[i]! * (hk + rr); y += n[i + 1]! * (hk + rr);
+        pos[i + 2] = r[i + 2]! + n[i + 2]! * bump * nb[v]!;
       } else pos[i + 2] = r[i + 2]!;
       pos[i] = x; pos[i + 1] = y;
     }
