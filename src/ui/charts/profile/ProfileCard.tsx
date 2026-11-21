@@ -5,7 +5,7 @@ import type { ChartPainter } from '../painter.ts';
 import type { Frame } from '../scene.ts';
 import { profileFrame, type CellOpts } from './frame.ts';
 import { ProfileMotion } from './glide.ts';
-import { planProfile, profileWords, spansFor, layoutHeight, type Fp, type ProfilePlan } from './model.ts';
+import { planProfile, profileWords, spansFor, layoutHeight, heldToRoom, type Fp, type ProfilePlan } from './model.ts';
 import { useUi } from '../../ui-store.ts';
 import { layoutOf, isSideways } from '../../layout/rules2d.ts';
 import { pzhOf } from '../../layout/plan.ts';
@@ -29,13 +29,15 @@ export interface ProfileCardProps {
   height?: number;
   /** the ladder's cell variant (the instrument in a wide screen's grid cell) */
   cell?: CellOpts;
+  /** the room the data card leaves the chart, px (2D --pz-room; 0 or absent: none measured, or a stacked card): the chart is never taller than it */
+  room?: number;
 }
 
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const empty: Frame = { w: 0, h: 0, shapes: [], label: '' };
 
 /** The pressure from gut to heart through the circuit's eight stations, the healthy line dashed beneath it, the liver's stations on a tint, the HVPG and PPG (and the EUS-PPG) as brackets. */
-export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, height, cell }: ProfileCardProps) {
+export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, height, cell, room }: ProfileCardProps) {
   const vpNow = useUi((st) => st.vp);   // (the ladder's height is the window's: a new height redraws it)
   const inp = useMemo(() => profileInputs(fp, healthy, before), [fp, healthy, before]);
   const spans = useMemo(() => spansFor(want, fp), [want?.join(), fp]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,7 +70,7 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
     m.reduce = reduced();
     const f = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
     // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
-    const vp = useUi.getState().vp, own = height ?? (cell ? undefined : layoutHeight(c.w, f, layoutOf(vp.w, vp.h), isSideways(vp.w, vp.h), pzhOf(vp)));
+    const vp = useUi.getState().vp, own = height ?? (cell ? undefined : heldToRoom(layoutHeight(c.w, f, layoutOf(vp.w, vp.h), isSideways(vp.w, vp.h), pzhOf(vp)), room, f));
     const key = [c.w, f, own ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
     if (key !== planKey.current) {
       planKey.current = key;
@@ -92,7 +94,7 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
   if (!inp) return null;
   return (
     <div className="pz-prof">
-      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, cellKey, vpNow.w, vpNow.h]} label={profileWords(inp.goal, spans)} build={build} />
+      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, room, cellKey, vpNow.w, vpNow.h]} label={profileWords(inp.goal, spans)} build={build} />
     </div>
   );
 }

@@ -228,3 +228,11 @@ export function layoutHeight(w: number, f: number, layout: 'wide' | 'short' | 's
   if (sideways) return Math.round(Math.min(0.62 * w, Math.max(170, 48 * pzh)) - 1.6 * f);
   return Math.round(Math.min(Math.max(0.62 * w, 28 * pzh), 40 * pzh) - 1.6 * f);
 }
+
+/** The ladder's height held to the room its data card leaves it (2D app-11 `.pz:not(.stack) .pz-tool[data-kind="profile"] .pz-prof { max-height: var(--pz-room) }`, never under its 11 em least): the width-given
+ *  height (`layoutHeight`) knows nothing of the tiles above it, so on a Mac the chart stood 12 to 141 px past the card's foot on every slide whose header took more room than the card's cap left
+ *  (Where is the resistance? cases 1 to 6; the 3D port had dropped the rule when it made the chart's height the only one). No height (a stacked card), or no room measured yet: the height as it is. */
+export function heldToRoom(own: number | undefined, room: number | undefined, f: number): number | undefined {
+  if (own == null || !(room && room > 0)) return own;
+  return Math.max(Math.round(11 * f), Math.min(own, Math.floor(room)));
+}

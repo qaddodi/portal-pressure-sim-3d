@@ -138,6 +138,10 @@ export function cardPop(h: History): MFinding[] {
   return out;
 }
 
+/** The series a card's row belongs to. A card on its way out and the one coming in have the same id (`teach` on every slide), so the leaving one gets its own series: one series for both
+ *  jumped from the old card's height to the new one's, and card-size-snap read that as a card snapping (4 findings in the first full run, none of them a snap). */
+export const cardSeries = (id: string, phase: string | undefined): string => (phase === 'out' ? `${id}~out` : id);
+
 export function cardSizeSnap(h: History): MFinding[] {
   const out: MFinding[] = [], S = h.samples, N = S.length;
   const byKey = new Map<string, (number[] | null)[]>();

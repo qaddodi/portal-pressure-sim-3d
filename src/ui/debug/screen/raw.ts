@@ -19,13 +19,13 @@ export interface RawDom { cards: RawCard[]; readouts: RawReadout[]; strip: { x: 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const num = (s: string) => { const v = parseFloat(s); return Number.isFinite(v) ? v : 0; };
 
-function roleOf(el: Element): RawText['role'] {
+export function roleOf(el: Element): RawText['role'] {
   const c = el.classList;
   if (c.contains('dk-kicker')) return 'kicker';
-  // (the cards wear the 2D app's pz-* classes: the title is .pz-h (or the title card's .pz-dtitle), the words are the paragraph .pz-line or the case's .pz-case-p; a pill, a chip or a sub/superscript inside the words is smaller by design and is not the words' size)
+  // (the cards wear the 2D app's pz-* classes: the title is .pz-h (or the title card's .pz-dtitle), the words are the paragraph .pz-line or the case's .pz-case-p; a pill, a chip, a figure's step marker (.pz-step, 2D's max(12px, .68em) circle: {#1} in the words) or a sub/superscript inside the words is smaller by design and is not the words' size)
   if (c.contains('dk-title') || c.contains('pz-h') || c.contains('pz-dtitle')) return 'title';
   if (c.contains('dk-body') || el.closest('.dk-body, .dk-obj, .dk-q-text, .dk-a')) return 'body';
-  if (el.closest('.pz-line, .pz-case-p') && !el.closest('[class*="pill"], [class*="chip"], sub, sup, small, .pz-eq')) return 'body';
+  if (el.closest('.pz-line, .pz-case-p') && !el.closest('[class*="pill"], [class*="chip"], .pz-step, sub, sup, small, .pz-eq')) return 'body';
   if (el.closest('.dk-ladder, .dk-gap, .dk-data, .dk-pill')) return 'data';
   return 'other';
 }

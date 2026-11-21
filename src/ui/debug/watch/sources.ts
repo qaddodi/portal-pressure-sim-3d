@@ -3,6 +3,7 @@
 import { cel } from '../../../scene/api.ts';
 import { sceneApi } from '../../../scene/api.ts';
 import type { Sources } from './recorder.ts';
+import { cardSeries } from './motion-rules.ts';
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const alpha = (win: Window, el: Element) => { const v = parseFloat(win.getComputedStyle(el).opacity); return Number.isFinite(v) ? Math.round(v * 100) / 100 : 1; };
@@ -46,7 +47,7 @@ export function domSources(doc: Document = document, win: Window = window): Sour
       const K: (string | number)[][] = [], W: number[] = [];
       doc.querySelectorAll<HTMLElement>('.dk-card').forEach((el) => {
         const b = el.getBoundingClientRect();
-        K.push([el.dataset.card ?? 'card', r1(b.left), r1(b.top), r1(b.width), r1(b.height), alpha(win, el)]);
+        K.push([cardSeries(el.dataset.card ?? 'card', el.dataset.phase), r1(b.left), r1(b.top), r1(b.width), r1(b.height), alpha(win, el)]);
         W.push(hasContent(el) ? 1 : 0);
       });
       return { K, W };

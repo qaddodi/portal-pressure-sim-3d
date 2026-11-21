@@ -26,9 +26,9 @@ function Td({ c }: { c: Cell }) {
     case 'blank': return <td className="num blank" title={c.sr}><None /><span className="sr-only">{c.sr}</span></td>;
     case 'removed': return <td className="num none">Removed</td>;
     case 'none': return <td className="num none" colSpan={2}>None</td>;
-    case 'ref': return <td className="num ref" data-rate={c.rate ?? undefined}>{c.text}<span className="sr-only">{c.sr}</span></td>;
+    case 'ref': return <td className={c.k === 'map' ? 'num ref bp' : 'num ref'} data-rate={c.rate ?? undefined}>{c.text}<span className="sr-only">{c.sr}</span></td>;
     default: return (
-      <td className={`num dir${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
+      <td className={`num dir${c.k === 'map' ? ' bp' : ''}${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
         <Arrow n={c.arrow} />{c.miss ? <span className="pz-miss" aria-hidden="true">{c.miss}</span> : null}<span className="sr-only">{c.sr}</span>
       </td>
     );
