@@ -15,7 +15,7 @@ import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
 import { STENT_GLASS } from './stent-look.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
-import { endOf, endSiteOf, geomOf, kindOf } from '../../../engine/hales/portal/stent-geom.js';
+import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
 import { stentOpen } from '../../../engine/hales/portal/stent-ease.js';
 import { indexOf } from '../../../engine/vessel-data.ts';
 
@@ -47,6 +47,8 @@ export class StentDevice {
   /** what the last build was made of, for tests and the bracket */
   paths: StentPaths | null = null;
   private key = '';
+  private geom: StentSpec['geom'] | null = null;
+  private lastR = 0;
   private readonly curve: CatmullRomCurve3;
   private readonly L: number;
   private readonly fitOf: VesselFit;
@@ -109,6 +111,7 @@ export class StentDevice {
     // the shape: rebuilt only when it changes (diameter on the engine's own half-mm step, the waist and the end stenosis)
     const dq = Math.round(D * 4) / 4;
     const spec = this.specFor(params, dq);
+    this.geom = spec.geom; this.lastR = spec.R;   // (the waist's bracket follows the params at once, as the card's picture does)
     const key = [dq.toFixed(2), spec.geom.len, spec.geom.waist, spec.geom.trans, spec.geom.red.toFixed(4), spec.s.toFixed(4), spec.site.toFixed(3)].join('|');
     if (goal && key !== this.key) { this.key = key; this.rebuild(spec); moved = true; }
     if (moved) this.dirty = true;
@@ -153,6 +156,17 @@ export class StentDevice {
     if (!this.paths) return;
     // the vessel's own narrowing eases with the stent: it is only there while the stent is
     if (a < 0.999 && this.vessel) { /* the vessel keeps the narrowing while it fades; the stent leaves with the vessel */ }
+  }
+
+  /** The waist's bracket (labels/waist-bracket.ts): the scene points where its flat floor starts and ends on the stent's axis (written into `a` and `b`), the stent's radius, and how much shows
+   *  (the waist's own ramp times the stent's amount, so it eases with both). Null with no stent built. */
+  waistMark(a: Vector3, b: Vector3): { r: number; shown: number } | null {
+    const g = this.geom;
+    if (!g || !this.paths) return null;
+    const sp = waistSpan(g) as { a1: number; b1: number }, A = Math.max(0.01, this.L - 2 * INSET);
+    this.curve.getPointAt(Math.min(1, Math.max(0, (INSET + sp.a1 * A) / this.L)), a);
+    this.curve.getPointAt(Math.min(1, Math.max(0, (INSET + sp.b1 * A) / this.L)), b);
+    return { r: this.lastR, shown: this.amount * Math.min(1, Math.max(0, ((g.red || 0) - 0.004) / 0.03)) };
   }
 
   /** Eases the amount. True while it moves (or draws once more). */

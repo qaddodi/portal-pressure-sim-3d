@@ -27,6 +27,7 @@ import { bindLabelHits, labelNodeAt } from './hit.ts';
 import { useSelection } from '../../ui/action/selection.ts';
 import { buildCath } from './cath-dom.ts';
 import { ClampMarks } from './clamp-marks.ts';
+import { WaistBrackets } from './waist-bracket.ts';
 import { buildProbeLabels } from './probe-labels-dom.ts';
 import { addLabelBox, beginLabelBoxes } from './probe-boxes.ts';
 import { coverClip } from './probe-cover.ts';
@@ -230,6 +231,7 @@ export function LabelLayer() {
     const probeLabels = buildProbeLabels(probeRoot);
     // the stenosis's arrowheads, flat on the screen (disease/clamps.ts says where they stand)
     const clampMarks = new ClampMarks(root, deps.project);
+    const waistBrackets = new WaistBrackets(root, deps.project);
     const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '', say: '' };
     recs.set('key', keyRec);
 
@@ -283,6 +285,7 @@ export function LabelLayer() {
       for (const [id, r] of recs) if (!seen.has(id)) hide(r);
       cath.paint(ctl.cath);
       clampMarks.paint(cel.disease.clamps.marks());
+      waistBrackets.paint(cel.procs.stents);
       if (ctl.out.length > 1 && ctl.out.every((d) => d.alpha >= 0.999)) labelsShown();   // (the splash waits for the labels to be fully in, boot/ready.ts)
       // the boxes the Doppler probe keeps off, and the probes' own readings
       beginLabelBoxes();
@@ -294,7 +297,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { figCards.destroy(); offFigure(); cath.destroy(); clampMarks.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { figCards.destroy(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
