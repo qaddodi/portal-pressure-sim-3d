@@ -102,7 +102,7 @@ export function DeckUi() {
   return (
     <div ref={root} className={cls} tabIndex={-1} data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-      {deck && hasStops && <PresenterBar title={deck.title} />}
+      {deck && hasStops && <PresenterBar />}
       {deck && hasStops && <CardBoundary resetKey={`${deck.id}:${stopKey}`}><CardLayer deck={deck} /></CardBoundary>}
       {deck && hasStops && <JumpList />}
       {deck && <BlackScreen />}
