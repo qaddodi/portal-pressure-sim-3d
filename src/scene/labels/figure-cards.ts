@@ -214,7 +214,7 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
 }
 
 interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[] }
-interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; tx: string; key: string; ltx: string }
+interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; focus: HTMLElement; tx: string; key: string; ltx: string }
 interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
 interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
 interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
@@ -258,8 +258,10 @@ export class FigureCards {
       card.root.dataset.fig = 'callout';
       const root = document.createElement('div'); root.className = 'lz-co'; this.parent.appendChild(root);
       const ring = document.createElement('i'); ring.className = 'lz-co-ring'; const line = document.createElement('i'); line.className = 'lz-co-line';
-      root.append(line, ring);
-      rec.co = { root, ring, line, tx: '', key: '', ltx: '' };
+      // the soft focus inside the ring (the content under it blurred a little): the app's one glass (glass.css `.cl-glass`) with a light blur and no tint, so Settings > Blur effect turns it off with the rest
+      const focus = document.createElement('i'); focus.className = 'cl-glass lz-co-focus'; focus.setAttribute('aria-hidden', 'true');
+      root.append(focus, line, ring);
+      rec.co = { root, ring, line, focus, tx: '', key: '', ltx: '' };
     }
     if (spec.kind === 'step') {
       // the leader to the vessel the number names (2D: a dot on the vessel and a thin line to the chip; a group's number a line to each of its vessels)
@@ -484,7 +486,7 @@ export class FigureCards {
 
   private paintCard(r: Rec, t: CathType, a: { x: number; y: number } | undefined): void {
     const c = r.spec, box = r.box;
-    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.co) r.co.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
+    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.co) fadeRing(r.co, 0); if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
     show(r.card, true);
     // (opacity lives on a card's children, never on the card: a hidden card used to keep a root opacity of 0 for good, so a number that came back after the picture moved stood invisible beside its leader)
     if (c.kind !== 'split' && r.root.style.opacity !== '') r.root.style.removeProperty('opacity');
@@ -517,15 +519,15 @@ export class FigureCards {
    *  transform and opacity; the radius and the colour are written when they change, which is while the picture is moving and the card hidden. */
   private paintRing(r: Rec, box: CardOut, a: { x: number; y: number }, sz: { w: number; h: number }): void {
     const co = r.co!, rg = this.anchors.get(r.spec.id + '#r');
-    if (!rg) { co.root.style.opacity = '0'; return; }
+    if (!rg) { fadeRing(co, 0); return; }
     const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : 'accent';
     if (co.root.dataset.tone !== tone) co.root.dataset.tone = tone;
     if (r.root.dataset.co !== tone) r.root.dataset.co = tone;
     const key = String(rad);
-    if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; }
+    if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; co.focus.style.width = co.focus.style.height = `${rad * 2}px`; co.focus.style.margin = `${-rad}px 0 0 ${-rad}px`; }
     const round = (n: number) => Math.round(n * 100) / 100;
     const tx = `translate3d(${round(a.x)}px,${round(a.y)}px,0)`;
-    if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; }
+    if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; co.focus.style.transform = tx; }
     const seg = ringLeader(a, rad, { x0: box.x0, y0: box.y0, x1: box.x0 + sz.w, y1: box.y0 + sz.h });
     co.line.style.visibility = seg ? 'visible' : 'hidden';
     if (seg) {
@@ -533,7 +535,7 @@ export class FigureCards {
       const ltx = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${ang.toFixed(4)}rad) scaleX(${round(len)})`;
       if (ltx !== co.ltx) { co.ltx = ltx; co.line.style.transform = ltx; }
     }
-    co.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
+    fadeRing(co, r.a);
   }
 
   private paintSplit(r: Rec, box: CardOut, t: CathType): void {
@@ -617,6 +619,11 @@ export class FigureCards {
 }
 
 const fadeKids = (c: Card, a: number) => fade(c, a);
+/** A ring's opacity, written on its own pieces and never on their wrapper: a glass inside a fading ancestor is drawn unblurred until the fade ends (glass.css). */
+function fadeRing(co: Ring, a: number): void {
+  const o = String(Math.round(a * 1000) / 1000);
+  if (co.focus.style.opacity !== o) { co.focus.style.opacity = o; co.ring.style.opacity = o; co.line.style.opacity = o; }
+}
 
 /** A card tone: block is the danger red, treat the accent, note the quiet ink; any other token is a station colour. */
 export function toneOf(tone: string): { attr: string; css: string | null } {
