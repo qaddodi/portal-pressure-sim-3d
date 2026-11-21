@@ -58,3 +58,11 @@ test('a resumed walk skips the steps the killed page already walked and numbers 
   assert.deepEqual(ran, ['three', 'four']); assert.deepEqual(seen, [3, 4]);
   const all: string[] = []; await runCheck(walkJourneys(all), deps, {}); assert.equal(all.length, 4);
 });
+
+test('the audit ledger does not call a wrapper a pop when the card inside it faded out before the wrapper was removed', async () => {
+  const { vanishedShowing } = await import('../src/ui/debug/audit/ledger.ts');
+  assert.equal(vanishedShowing(1, [1, 0]), false);      // .dk-pos removed after its card eased to 0
+  assert.equal(vanishedShowing(1, []), true);            // nothing inside faded: gone at full opacity
+  assert.equal(vanishedShowing(1, [1, 1]), true);
+  assert.equal(vanishedShowing(0.3, []), false);
+});

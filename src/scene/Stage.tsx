@@ -5,7 +5,7 @@
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Raycaster } from 'three';
+import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
 import { clock } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
@@ -38,7 +38,7 @@ import { type Sel, selectStructure, useSelection } from '../ui/action/selection.
 import { tapSelect } from '../ui/action/tap-select.ts';
 import { labelHit } from '../ui/action/label-tap.ts';
 import { labelAt } from './labels/hit.ts';
-import { warmPrograms, type WarmRenderer } from './materials/warm.ts';
+import { GeometryUploader, warmPrograms, type UploadRenderer, type WarmRenderer } from './materials/warm.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -85,7 +85,16 @@ function SceneBridge() {
       warmed.current = true;
       const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined);
       const warm = () => { void warmP(); };   // (into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts)
-      cel.onMicroBuilt = warm;   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
+      cel.onMicroBuilt = warm;
+      // (then, once the views are built and primed: every geometry no frame has drawn is sent to the GPU one per idle slice, so a view's first frame uploads nothing: materials/warm.ts GeometryUploader)
+      cel.onMicroPrimed = () => {
+        const up = new GeometryUploader(gl as unknown as UploadRenderer, cel.rig.camera, new WebGLRenderTarget(1, 1));
+        for (const r of cel.uploadRoots) up.add(r);
+        const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+        const next = () => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (more) { if (ric) ric(next, { timeout: 300 }); else setTimeout(next, 60); } else up.dispose(); };
+        spanAsync('upload:geometries', () => Promise.resolve()).catch(() => undefined);
+        if (ric) ric(next, { timeout: 300 }); else setTimeout(next, 60);
+      };   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
       // One thing at a time (release review 21 Nov #8): the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in the same slot: on a low-budget device the two together were one long hitch.
       setTimeout(() => { void Promise.race([warmP(), new Promise((r) => setTimeout(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }

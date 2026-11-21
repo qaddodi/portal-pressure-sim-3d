@@ -48,17 +48,22 @@ export async function openEntry(e: Entry): Promise<void> {
   throw new Error(`do not know how to open ${e.id}`);
 }
 
-/** True while something is still arriving: the camera, a card leaving or not yet styled, fonts, a running animation that will end. */
-export function busy(doc: Document = document): boolean {
+/** What is still arriving, named: the camera, a card leaving or not yet styled, fonts, a running animation that will end; '' when nothing is. */
+export function busyWhy(doc: Document = document): string {
   try {
-    if (cel.rig.isMoving) return true;
-    if (doc.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return true;
-    if (doc.fonts && doc.fonts.status === 'loading') return true;
-    return doc.getAnimations().some((a) => a.playState === 'running' && Number.isFinite(a.effect?.getTiming().iterations) && !(a.effect as KeyframeEffect | null)?.target?.closest?.('[data-debug]'));
-  } catch { return false; }
+    if (cel.rig.isMoving) return 'camera moving';
+    const out = doc.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]');
+    if (out) return `card leaving (${out.className})`;
+    if (doc.fonts && doc.fonts.status === 'loading') return 'fonts loading';
+    const an = doc.getAnimations().find((a) => a.playState === 'running' && Number.isFinite(a.effect?.getTiming().iterations) && !(a.effect as KeyframeEffect | null)?.target?.closest?.('[data-debug]'));
+    if (an) { const t = (an.effect as KeyframeEffect | null)?.target as Element | null; return `animation ${(an as CSSAnimation).animationName ?? (an as CSSTransition).transitionProperty ?? ''} on ${t?.tagName?.toLowerCase() ?? '?'}.${String(t?.className ?? '').slice(0, 40)}`; }
+    return '';
+  } catch { return ''; }
 }
-export const settle = (o: { timeoutMs?: number; quietMs?: number; pollMs?: number } = {}): Promise<{ settled: boolean; ms: number }> =>
-  waitQuiet(busy, { timeoutMs: o.timeoutMs ?? 60000, quietMs: o.quietMs ?? QUIET_LONG_MS, pollMs: o.pollMs ?? POLL_MS });
+/** True while something is still arriving (see busyWhy). */
+export const busy = (doc: Document = document): boolean => busyWhy(doc) !== '';
+export const settle = (o: { timeoutMs?: number; quietMs?: number; pollMs?: number } = {}): Promise<{ settled: boolean; ms: number; why?: string }> =>
+  waitQuiet(busy, { timeoutMs: o.timeoutMs ?? 60000, quietMs: o.quietMs ?? QUIET_LONG_MS, pollMs: o.pollMs ?? POLL_MS }).then((r) => (r.settled ? r : { ...r, why: busyWhy() }));   // (an unsettled row says what was still moving)
 
 export const problems = (): Problem[] => (screenNow('summary').findings as { rule: string; what: string; where?: string }[] ?? []).map((f) => ({ kind: f.rule, text: f.what, where: f.where }));
 export const memoryMB = (): number | null => appSnapshot().memory.gpuMB;

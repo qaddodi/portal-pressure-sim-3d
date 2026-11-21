@@ -38,7 +38,7 @@ export interface AuditDeps {
   size: AuditSize;
   /** start of a step: clear the sampler, the frame gaps and the clock's stats, remember where the console stood; returns the mark's time */
   mark(): number;
-  settle(): Promise<{ settled: boolean; ms: number }>;
+  settle(): Promise<{ settled: boolean; ms: number; why?: string }>;
   read(t0: number): Reads;
   now(): number;
   /** the quiet window settle() waits after the last motion, ms (taken off the step's time) */
@@ -48,7 +48,7 @@ export interface AuditDeps {
 const FAMILIES = /^(fit|edge|label)/;
 
 /** The step's row, judged. `openMs` is how long the step took to hand back (a Next press is instant; opening a talk is its cover). */
-export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, settled: boolean): AuditRow {
+export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, settled: boolean, why = ''): AuditRow {
   const flags: AuditFinding[] = [];
   const tl = timeline(r.samples);
   const fades = fadeEpisodes(r.samples);
@@ -63,7 +63,7 @@ export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, s
   flags.push(...(r.generic ?? []));
   for (const p of r.problems) flags.push({ kind: p.kind, sev: FAMILIES.test(p.kind) ? 'fail' : 'warn', what: p.text, where: p.where ?? '' });
   const fs = frameStats(r.gaps, r.work);
-  if (!settled) flags.push({ kind: 'unsettled', sev: 'fail', what: `still moving after ${Math.round(busyMs / 1000)} s (the camera, a card or an animation never stopped)`, where: '' });
+  if (!settled) flags.push({ kind: 'unsettled', sev: 'fail', what: `still moving after ${Math.round(busyMs / 1000)} s (${why || 'the camera, a card or an animation never stopped'})`, where: '' });
   else if (busyMs > SLOW_BUSY_MS) flags.push({ kind: 'slow-load', sev: 'warn', what: `took ${(busyMs / 1000).toFixed(1)} s to settle (limit ${SLOW_BUSY_MS / 1000} s)`, where: '' });
   if (fs.fps != null && fs.frames >= 10 && fs.fps < LOW_FPS) flags.push({ kind: 'low-fps', sev: 'warn', what: `ran at ${fs.fps} fps while moving (under ${LOW_FPS})`, where: `worst gap ${fs.worstGap} ms` });
   const slowest = r.gpu?.slow[0];
@@ -90,7 +90,7 @@ export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps
     const st = await deps.settle();
     const busy = Math.max(0, deps.now() - s0 - (st.settled ? deps.quietMs : 0));
     const reads = deps.read(t0);
-    const row = judgeStep(step, label, reads, busy, st.settled);
+    const row = judgeStep(step, label, reads, busy, st.settled, st.why);
     if (step.flags?.length) row.flags.push(...step.flags);
     if (failed) row.flags.unshift({ kind: 'step-failed', sev: 'fail', what: failed, where: '' });
     rows.push(row); con.push(...reads.console.map((c) => ({ ...c, at: `${c.at}, during ${step.group} > ${label}` })));   // (a console line names the step it came in, so a message from one card's code can be traced)

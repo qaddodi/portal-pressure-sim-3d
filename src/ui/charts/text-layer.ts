@@ -1,16 +1,21 @@
 // A chart's words: real text over the picture (crisp at any zoom, selectable by a screen reader's virtual cursor via the chart's own label, in the app's
 // fonts), placed with transform and opacity only. Spans are made when the number of words changes, never per frame; a frame only moves them.
 import { toCss } from './colour.ts';
+import { ARRIVE_CSS } from '../../clock/tween.ts';
 import type { Shape, TextShape } from './scene.ts';
 
 /** Inter's baseline sits this far down a line box whose height is the font size (ascent .969, descent .241, line-height 1). */
 export const BASELINE_EM = 0.864;
 
-interface Slot { el: HTMLSpanElement; style: string; text: string; t: string; o: string; c: string; h: string }
+/** A word that joins a chart already showing words eases in (nothing pops: Mohammad, 20 Nov); the chart's own first words come with the chart. */
+export const WORD_IN_MS = 240;
+
+interface Slot { fresh: boolean; el: HTMLSpanElement; style: string; text: string; t: string; o: string; c: string; h: string }
 
 export class TextLayer {
   readonly root: HTMLDivElement;
   private slots: Slot[] = [];
+  private shown = false;
 
   constructor(doc: Document = document) {
     this.root = doc.createElement('div');
@@ -26,7 +31,7 @@ export class TextLayer {
     while (this.slots.length < words.length) {
       const el = this.root.ownerDocument.createElement('span');
       this.root.append(el);
-      this.slots.push({ el, style: '', text: '', t: '', o: '', c: '', h: '' });
+      this.slots.push({ fresh: this.shown, el, style: '', text: '', t: '', o: '', c: '', h: '' });
     }
     while (this.slots.length > words.length) this.slots.pop()!.el.remove();
     words.forEach((w, i) => {
@@ -54,7 +59,9 @@ export class TextLayer {
       if (t !== sl.t) { sl.el.style.transform = t; sl.t = t; }
       const o = String(Math.round((w.alpha ?? 1) * 1000) / 1000);
       if (o !== sl.o) { sl.el.style.opacity = o; sl.o = o; }
+      if (sl.fresh) { sl.fresh = false; sl.el.animate?.([{ opacity: 0 }, { opacity: +o }], { duration: WORD_IN_MS, easing: ARRIVE_CSS }); }
     });
+    this.shown = words.length > 0;
   }
 
   /** The words now shown, for a test or a screen reader's description. */
