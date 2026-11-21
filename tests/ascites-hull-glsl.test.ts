@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
-import { outlinePolygon, wallDistance, shellHalf, fluidTone } from '../src/scene/disease/ascites.ts';
+import { outlinePolygon, wallDistance, fluidTone } from '../src/scene/disease/ascites.ts';
 import { GRAZE_CAP, HEADON_FORM, HI_ALPHA, HULL_FS, HULL_MID, HULL_TB_MAX, HULL_TF_MAX, HULL_VS, hullAlpha, hullVertex, type HullUniforms } from '../src/scene/disease/ascites-hull-glsl.ts';
 import { FOV, SHOTS } from '../src/scene/camera/shots.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
@@ -72,7 +72,7 @@ test('Living fluid off is flat: thickness 0 puts every vertex on the middle plan
 test('head-on alpha is 2D\'s: the two layers stack to the pool\'s alpha, and the highlight adds at most 0.035 (exact with HEADON_FORM 0)', () => {
   for (const a2d of [0.1, 0.24, 0.4]) {
     const front = hullAlpha(a2d, 'front', 'front', 1), back = hullAlpha(a2d, 'back', 'back', 1);
-    assert.ok(Math.abs(front - shellHalf(a2d)) < 1e-12);
+    assert.ok(Math.abs(front - (1 - Math.sqrt(Math.max(0, 1 - a2d)))) < 1e-12);
     assert.ok(Math.abs(1 - (1 - front) * (1 - back) - a2d) < 1e-12, 'the pair stacks to 2D');
     const lit = hullAlpha(a2d, 'front', 'front', 1, 1, HEADON_FORM);
     assert.ok(lit - front <= HI_ALPHA * HEADON_FORM + 1e-12 && lit - front > 0);

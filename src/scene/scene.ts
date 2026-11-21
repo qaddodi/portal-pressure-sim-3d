@@ -162,6 +162,8 @@ function withNeighbour(id: string, g: BufferGeometry): void {
   g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
+/** How long one idle slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
+const SLICE_MS = 4;
 export class CelScene {
   readonly scene = new Scene();
   /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
@@ -209,7 +211,7 @@ export class CelScene {
   private buildMicro(): { sinus: Sinusoid3D; lobule: Lobule3D } {
     if (this.micro) return this.micro;
     const sinus = span('build:sinusoid3d', () => new Sinusoid3D(this.sinus, this.shared)); this.sinus.group.add(sinus.group);
-    const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
+    const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
     if (this.microDpr) lobule.setDpr(this.microDpr);
     this.moving = true;
@@ -230,16 +232,26 @@ export class CelScene {
       const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
       if (ric) ric(f, { timeout: 300 }); else setTimeout(f, 60);
     };
+    // (a slice runs steps until it has used SLICE_MS, so the many small steps of the shapes are not one idle wait each; every step is itself small)
     const slice = () => {
-      if (this.disposed) return;
-      if (!this.micro) this.buildMicro();
-      else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
-      else if (!this.microPrimed) { this.microPrimed = true; this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
-      else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
-      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; return; }
+      const t0 = performance.now();
+      do { if (this.microStep()) return; } while (!this.disposed && performance.now() - t0 < SLICE_MS);
       later(slice);
     };
     later(slice);
+  }
+  /** One small step of the micro views' preparation; true when everything is built and primed. */
+  private microStep(): boolean {
+    {
+      if (this.disposed) return true;
+      if (!this.micro) this.buildMicro();
+      else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
+      else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
+      else if (!this.microPrimed) { this.microPrimed = true; this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
+      else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
+      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; return true; }
+      return false;
+    }
   }
   private readonly micro3d = true;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
