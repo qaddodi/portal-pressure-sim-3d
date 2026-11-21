@@ -40,8 +40,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (21 Nov: PVH:DIPS and SVD:S_DSR drop on the integration branch as built here (the surface folds at a triangle; 3 seam loops for 4 arms) though their commits say welded: named, for the shunts threads to look at. wall:PVH_L_1:REX1 stays flared: REX meets the left portal vein at 36 degrees, its lower seam needs 6 radii of a host 10.7 long and LPV_A's skin has the first 2.5; a merged skin needs a seam-less capsule for the cut-away host, mesh.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 // (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside ATTACH_NEAR_R (2.6) that a node made a junction by its growing arm alone allows (inventory.ts dropFarGrowers), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS stays flared and named: no ring of the 4-radius stub PVH_R clears it.)
-const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS',
-  'wall:PVH_L_1:REX1:REX'];
+const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS', 'wall:PVH_L_1:REX1:REX'];
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
@@ -355,4 +354,15 @@ test('a collateral that ends off the joint of the trunks at its node (the epigas
     const end = c3plan.base[c3plan.base.length - 1]!, roots = fan.list.filter((f) => Math.hypot(f.pts[0]![0] - end[0], f.pts[0]![1] - end[1]) < 0.01);
     assert.ok(roots.length >= 1, 'a tributary of the caput fan starts on the umbilical vein\'s moved end');
   });
+});
+
+test('REX on the left portal vein (absent in Healthy) never moves the seams of the left portal vein\'s own skin: the arms that stay are the plain trunk, drawn whenever REX is not whole', () => {
+  const b = built();
+  try {
+    const lpv = b.set.skinOf('LPV_A')!, cut = (id: string): number => lpv.cuts[lpv.junction.arms.findIndex((a) => a.vesselId === id)]!.ring;
+    assert.ok(!lpv.junction.arms.some((a) => a.vesselId === 'REX'), 'REX is no arm of the skin (a merged one pushed the seams of PVH_L_1 and its branch from rings 12 and 9 to 14 and made the plain skin a big washed-out one)');
+    assert.ok(cut('PVH_L_1') <= 12 && cut('PVH_L_1~F:b') <= 9, `PVH_L_1 seam ${cut('PVH_L_1')}, branch seam ${cut('PVH_L_1~F:b')}`);
+    assert.ok(lpv.junction.arms.some((a) => a.vesselId === 'PVH_L_1~F:b'), 'the branch keeps its fork weld');
+    assert.ok(b.set.dropped.includes('wall:PVH_L_1:REX1:REX'), 'REX keeps the tube\'s own flared end, named');
+  } finally { done(b); }
 });

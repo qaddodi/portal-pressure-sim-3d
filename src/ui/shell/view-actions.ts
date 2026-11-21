@@ -8,7 +8,7 @@ import { notYet } from './words.ts';
 import { freeRoom, viewRoom } from './room.ts';
 import { cutRoom } from '../tests/room.ts';
 import { sceneApi } from '../../scene/api.ts';
-import { useCircuitTurn } from '../../scene/circuit/pref.ts';
+import { useCircuitTurn, screenPortrait } from '../../scene/circuit/pref.ts';
 import { registerFeature } from './features.ts';
 import { dropSelectionForView } from '../action/selection.ts';
 
@@ -36,6 +36,16 @@ export function turnCircuit(): void {
   sceneApi.setCircuitUpright(!useCircuitTurn.getState().upright, freeRoom(vp, device));
 }
 registerFeature('rotate', turnCircuit);
+/** The screen turned (portrait <-> landscape): the Circuit follows, eased on the turn's own clock; off the map the turn is just laid for the next entry. */
+export function followScreen(w: number, h: number, prev: { w: number; h: number } | null): void {
+  const on = screenPortrait(w, h);
+  if (prev && screenPortrait(prev.w, prev.h) === on) return;
+  if (useShell.getState().view !== 'circuit') { useCircuitTurn.getState().set(on); return; }
+  const { vp, device } = useUi.getState();
+  sceneApi.setCircuitUpright(on, freeRoom(vp, device));
+}
+let lastVp: { w: number; h: number } | null = null;
+useUi.subscribe((s) => { const v = s.vp; if (!v || (lastVp && lastVp.w === v.w && lastVp.h === v.h)) return; followScreen(v.w, v.h, lastVp); lastVp = { w: v.w, h: v.h }; });
 /** A second tap on the active view, Fit, and the 0 key: ask the camera to fit the figure into its room again. In the sinusoid, Fit and zoom out back out to the lobule (2D). */
 export function refitFigure(): void {
   if (useShell.getState().view === 'sinusoid') { goToView('lobule'); return; }

@@ -83,3 +83,20 @@ test('an emptied belly that is refilling says so: the balance is never a bare nu
   assert.equal(rateText(0, false), 'Steady');
   assert.equal(rateText(null, false), '');
 });
+
+// The dial's readout never overlaps itself (iPhone, 21 Nov: "19 mmHg is overlapping"): the unit stood at a fixed place while its size grows when the dial is drawn small, so it rode up into the digits.
+test('the dial\'s number, unit, word, key and the 12 and 20 marks keep clear of each other at every size and reading', () => {
+  type T = { k: string; s: string; x: number; y: number; size: number; key?: string };
+  for (const w of [50, 56, 60, 66, 70, 76, 90, 110]) for (const iap of [3, 12, 19, 20, 24, 30]) {
+    const f = dialFrame(iap, iap, w, Math.round((w * 128) / 76), paletteOf('light'));
+    const ts = f.shapes.filter((s) => s.k === 'text') as unknown as T[];
+    const box = (t: T) => { const hw = 0.5 * t.s.length * 0.58 * t.size, hh = 0.36 * t.size; return { l: t.x - hw, r: t.x + hw, t: t.y - hh, b: t.y + hh, n: t.key! }; };
+    const bs = ts.map(box);
+    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
+      const a = bs[i]!, b = bs[j]!;
+      assert.ok(a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t, `w ${w}, IAP ${iap}: ${a.n} overlaps ${b.n}`);
+    }
+    const n = bs.find((b) => b.n === 'n')!, u = bs.find((b) => b.n === 'unit')!;
+    assert.ok(u.t - n.b >= 1.5, `w ${w}: a clear gap under the digits (${(u.t - n.b).toFixed(1)} px)`);
+  }
+});

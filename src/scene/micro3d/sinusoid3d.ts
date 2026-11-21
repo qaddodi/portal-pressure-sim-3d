@@ -155,6 +155,7 @@ export class Sinusoid3D {
   /** The scene's one shape uniform (lumen, pinch, collagen, xs): sinusoid-shape.ts. */
   readonly shapeU = shapeUniform();
   /** The host's geometry functions while the shapes are built at a moved state (the rest's, and the rest's with H and D each one micrometre wider); null otherwise: the host's own. */
+  private shapeGen: Generator<void> | null = null;
   private shapeG: { halfW(x: number): number; wallIn(x: number): number; disseW(x: number): number; hepIn(x: number): number } | null = null;
   private shapePass = 0;
   private get anchored(): Set<MicroPart> { return new Set([this.cells, this.nuclei, this.nucleoli, this.bile]); }
@@ -162,6 +163,7 @@ export class Sinusoid3D {
   /** The shapes are built (at rest, with their `dH`, `dD`, `dH2` moves): until then the scene draws nothing, and the next `prepareShapeStep` does one more pass. */
   shapeReady = false;
   private lookKey = '';
+  private hscKey = -1;
   /** The wall's per-vertex colour weights (see sinusoid-wall.ts) and the palette they were last painted from. */
   private shellW: Weights = newWeights();
   private cutW: Weights = newWeights();
@@ -240,7 +242,7 @@ export class Sinusoid3D {
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
-    this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
+    this.villi = many('microvilli', unitRod(6), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL, rimK: this.rimKAlb });   // (its own ramp: a bead well under a micrometre is all line long before a red cell is)
     // (RBC_SEG round. 40 was set against a dashed outline (22 segments, eyes 20 Nov) before the ink hull went DoubleSide and stopped culling by normal (6f7d101), which is what the dashes were;
@@ -314,8 +316,12 @@ export class Sinusoid3D {
     const key = shapeKey(S, f.geo.xk);
     if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.buildTail(); this.kupT = Number.NaN; this.stepLife(true); this.gapKey = -1; }
     else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
-    const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}|${q(S.act)}`;
-    if (lk !== this.lookKey) { this.lookKey = lk; this.colour(P, S.act); }
+    // (the colours are the palette's: the stellate cell's activation tints only the stellate cell, `colourHsc`; before, an activation different from the one the idle priming saw repainted the whole wall's
+    //  per-vertex colours inside the first shown frame, 8 ms on a laptop, 100 ms and more on an iPhone)
+    const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}`;
+    if (lk !== this.lookKey) { this.lookKey = lk; this.hscKey = -1; this.colour(P); }
+    const ak = q(S.act);
+    if (ak !== this.hscKey) { this.hscKey = ak; this.colourHsc(P, S.act); }
     this.stepPores(S.por);
     this.stepLife();
     this.stepAlbumin();
@@ -395,7 +401,7 @@ export class Sinusoid3D {
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
 
-  private colour(P: Pal, act: number): void {
+  private colour(P: Pal): void {
     // the hepatocytes' line: their own colour darkened (2D's cleft tone), run round every microvillus too, the one thin line where two neighbours touch, and the ring round each canaliculus
     // (the ground under the cells takes the same tone: it shows only in that hair of contact and in the round gap; Mohammad 20 Nov 2026: "next to each other and just have like a circular
     // gap around the bile duct between them")
@@ -414,14 +420,18 @@ export class Sinusoid3D {
     this.endoNi.setTint(P.cEndoN); this.endoNi.setInk(inkOf(P.cEndoE));
     this.kup.setTint(mix3(P.cKup, P.cLumen, 0.45)); this.kup.setInk(deep(P.cKup, 0.55));   // (a little faded, outlined in its own colour, darker: Mohammad 20 Nov 2026)
     this.kupN.setTint(deep(P.cKup, 0.62));   // (the nucleus a deeper shade of the cell itself; it sat in the comment above, so the nucleus drew white, eyes 20 Nov)
-    const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
-    this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
     this.villi.setTint(P.cCell); this.villi.setInk(cellInk);   // (the hepatocyte's own colour, outlined: "outline the villi")
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(inkOf(P.cAlbE));
     // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
     this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(inkOf(P.cRbc));
+  }
+
+  /** The stellate cell's colour by its activation (a few uniforms). */
+  private colourHsc(P: Pal, act: number): void {
+    const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
+    this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
   }
 
   /** The wall's colours: per vertex, the lining's colour, the cell's lighter sheet by its share, and the blood's by the fade down the curve (cf. sinusoid-wall.ts Weights). */
@@ -432,9 +442,11 @@ export class Sinusoid3D {
       const col = part.geometry.getAttribute('color');
       if (!col || col.count !== w.cell.length) continue;
       const a = col.array as Float32Array;
+      // (no array per vertex: a lerp of a lerp, written straight in; the same numbers as mix3(mix3(endo, endoS, cell), lumen, lum))
+      const e = P.cEndo, es = P.cEndoS, lu = P.cLumen;
       for (let i = 0; i < w.cell.length; i++) {
-        const c = mix3(mix3(P.cEndo, P.cEndoS, w.cell[i]!), P.cLumen, w.lum[i]!);
-        a[i * 3] = c[0]; a[i * 3 + 1] = c[1]; a[i * 3 + 2] = c[2];
+        const c = w.cell[i]!, l = w.lum[i]!;
+        for (let k = 0; k < 3; k++) { const m = e[k]! + (es[k]! - e[k]!) * c; a[i * 3 + k] = m + (lu[k]! - m) * l; }
       }
       col.needsUpdate = true;
     }
@@ -442,7 +454,9 @@ export class Sinusoid3D {
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
 
-  private buildShape(): void {
+  private buildShape(): void { for (const _ of this.shapeSteps()); }
+  /** The shapes' build in sections: each `yield` is a place an idle slice may end (a pass is hundreds of ms on a phone, as one task). */
+  private *shapeSteps(): Generator<void> {
     const g = this.shapeG ?? this.flat.g;
     const X0 = -REACH, X1 = REACH, DX = 1;
     const xs: number[] = [];
@@ -450,6 +464,7 @@ export class Sinusoid3D {
 
     // the ground under everything (seen only in the clefts between cells)
     { const b = new MeshBuilder(); const a = b.v(X0 - 20, -ACROSS - 20, Z.ground, 0, 0, 1), c = b.v(X1 + 20, -ACROSS - 20, Z.ground, 0, 0, 1), e = b.v(X1 + 20, ACROSS + 20, Z.ground, 0, 0, 1), h = b.v(X0 - 20, ACROSS + 20, Z.ground, 0, 0, 1); b.quad(a, c, e, h); b.build(this.ground.geometry); }
+    yield;
 
     // the lumen: an open trough, an ellipse across (the lumen's half width wide, Z.trough of it deep)
     {
@@ -467,23 +482,26 @@ export class Sinusoid3D {
       for (let i = 0; i < rows.length - 1; i++) b.strip(rows[i]!, rows[i + 1]!, K + 1);
       b.build(this.trough.geometry);
     }
+    yield;
 
     // the wall (sinusoid-wall.ts): the shell round the lumen, its cut, and the nucleus's section on the cut. The colours are weights, painted in paintWall()
     {
       const wx = wallColumns(X0, X1);
       const sh = new MeshBuilder(), cu = new MeshBuilder(), nu = new MeshBuilder(), shW = newWeights(), cuW = newWeights();
       for (const side of [-1, 1] as (-1 | 1)[]) {
-        buildShell(sh, shW, g, wx, side, 'in', Z.disse);
-        buildShell(sh, shW, g, wx, side, 'out', Z.disse);
+        buildShell(sh, shW, g, wx, side, 'in', Z.disse); yield;
+        buildShell(sh, shW, g, wx, side, 'out', Z.disse); yield;
         buildCut(cu, cuW, g, wx, side);
         const nsd = side < 0 ? SEED.nucUp : SEED.nucDn;
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) buildNucleusSection(nu, g, side, nucAt(n, nsd));
       }
       sh.build(this.bead.geometry); cu.build(this.beadLine.geometry); nu.build(this.endoNi.geometry);
       this.shellW = shW; this.cutW = cuW;
+      yield;
       this.paintWall();
       this.gapKey = -1;   // (the bores follow the lumen's width: written again)
     }
+    yield;
 
     // Disse's floor, each side, and the beyond's (the next sinusoid's Disse and lumen, as flat as 2D draws its repeat)
     {
@@ -503,6 +521,7 @@ export class Sinusoid3D {
       }
       b.build(this.disse.geometry);
     }
+    yield;
     {
       const b = new MeshBuilder();
       for (let r = 0; r < BEYOND; r++) for (const s of [-1, 1] as Side[]) {
@@ -520,6 +539,7 @@ export class Sinusoid3D {
       }
       b.build(this.troughFar.geometry);
     }
+    yield;
 
     // the plates: hepatocytes as raised tiles (their borders 2D's own bent lines), each with its domed nucleus; the bile canaliculi on the borders
     {
@@ -549,11 +569,12 @@ export class Sinusoid3D {
       };
       const seeds: Record<Side, number> = { [-1]: SEED.plateUp, 1: SEED.plateDn } as Record<Side, number>;
       for (const s of [-1, 1] as Side[]) {
-        plate(seeds[s], s, (x) => g.hepIn(x));
-        for (let r = 1; r <= BEYOND; r++) plate(seeds[s] + 101 * r, s, (x) => g.hepIn(x) + r * PERIOD, r > 1, true);
+        plate(seeds[s], s, (x) => g.hepIn(x)); yield;
+        for (let r = 1; r <= BEYOND; r++) { plate(seeds[s] + 101 * r, s, (x) => g.hepIn(x) + r * PERIOD, r > 1, true); yield; }
       }
       cells.build(this.cells.geometry); nuc.build(this.nuclei.geometry); nol.build(this.nucleoli.geometry); bile.build(this.bile.geometry);
     }
+    yield;
 
   }
 
@@ -569,7 +590,11 @@ export class Sinusoid3D {
       halfW: (x) => restHalfW(x) + h + k * x, disseW: (x) => restDisseW(x) + d,
       wallIn: (x) => restHalfW(x) + h + k * x + UM.endo, hepIn: (x) => restHalfW(x) + h + k * x + UM.endo + restDisseW(x) + d,
     };
-    try { this.buildShape(); } finally { this.shapeG = null; }
+    this.shapeGen ??= this.shapeSteps();
+    let more = true;
+    try { more = !this.shapeGen.next().done; } catch (e) { this.shapeGen = null; this.shapeG = null; throw e; }
+    if (more) return false;   // (the next call goes on with the pass's next section)
+    this.shapeGen = null; this.shapeG = null;
     this.shapeSnaps.push(parts.map((p) => Float32Array.from(p.geometry.getAttribute('position').array)));
     this.shapePass++;
     if (this.shapePass < offs.length) return false;

@@ -23,7 +23,7 @@ import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './
 import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
-import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
+import { SKIN_CUT_NONE, armR, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { plainOf, weldOf } from './plain.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, wedgeSeamD, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
@@ -299,11 +299,20 @@ export class SkinSet {
    * (tests/skin-agreement.test.ts, the seam's ink). So the clearance is also judged on the drawn capsules: every vertex of a seam ring is at least the blend width `k` from every other arm's drawn capsule.
    */
   private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
-    const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
+    const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, a.at ?? j.J)));
     const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
       if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
       for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
+    }
+    // the same clearance in the figure's own view: the outline is a screen-space field (skin/shaders.ts skinPx), and the body is seen from the front, along z. An arm that leaves its node toward the viewer (the DIPS stent: 0.04 in z against 0.05 across) is 0.026 clear of the cava in 3D
+    // yet its silhouette lies 0.003 from the cava's, inside the blend: the skin's outline ran 3 px inside the tube's own at the seam (IVC_D, tests/skin-agreement.test.ts). So a seam must clear the others' flattened capsules by k too, where it can (a node whose arms all lie across the view clears at once).
+    // (only a three-arm node: on the four-arm nodes (IVCI, SMV) the same rule moves seams, which crowds the wall skins beside them (wall:IVC_IS_1:S_PC1,C90 lost its two growers to it); there the front-view kink stays, a known gap. A wall skin's arms always overlap the host in projection.)
+    if (j.arms.length > 3 || j.arms.some((a) => a.side)) return -1;
+    const flat = caps.map((c) => ({ ...c, pts: Float64Array.from(c.pts, (x, q) => (q % 3 === 2 ? 0 : x)) }));
+    for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
+      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
+      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(flat[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, 0) < k) return i;
     }
     return -1;
   }
@@ -365,6 +374,9 @@ export class SkinSet {
 
   /** The skin of one plan, made but not yet in the scene: its mesh, its drawing object and the handover links. Throws a SkinBuildError (or any error) the caller turns into a fallback. Null: an arm's vessel is not in this scene. */
   private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>, ready?: BakedSkin): Built | null {
+    // a wall skin's FILLET is sized from the radius its arms really have where they meet the host: the BUILT tube's ring there (a collateral narrows into the host: C9's neck is 0.0099 against its nominal 0.0227, and a fillet sized from the nominal width
+    // bulged 0.51 radii around it, wall:IVC_IS_1:S_PC1,C90; the centreline's radius, inventory.ts withJointR, does not see the taper the tube is built with). Only the blend width changes: the cuts were chosen on the nominal one, which is the wider, so
+    // every seam keeps its clearance, and the plan carries the narrower `blendR` (the layout rules keep reading `armR`), so the shader's blend (skinKOf of the mesh's junction) and a baked file agree with the mesh.
     const j = plan.junction;
     const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
@@ -372,7 +384,7 @@ export class SkinSet {
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
     // (a baked skin brings its axes and its mesh: the page plans nothing and remeshes nothing)
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1

@@ -13,7 +13,7 @@ import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
 import { stopTalk } from '../shell/talk.ts';
 import { useTreat } from '../treat/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
-import { triggerCardVerb, cardIsOpen } from '../action/ActionCard.tsx';
+import { triggerCardVerb, cardIsOpen, removeFromCard } from '../action/ActionCard.tsx';
 import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
@@ -76,6 +76,7 @@ export function carryOut(a: KeyAction): void {
     case 'compare': runFeature('compare', 'Compare'); break;
     case 'dye': runFeature('dye', 'Inject dye'); break;
     case 'card-verb': triggerCardVerb(a.n); break;
+    case 'card-remove': removeFromCard(); break;
     case 'ignore': break;
   }
 }
@@ -87,7 +88,7 @@ export function useKeys() {
       const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: sh.mode === 'deck', keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
       if (!a) return;
       if (a.type === 'ignore') { if (a.prevent) e.preventDefault(); return; }
-      if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help' || a.type === 'zoom' || a.type === 'step') e.preventDefault();
+      if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help' || a.type === 'zoom' || a.type === 'step' || (a.type === 'card-remove' && removeFromCard.available())) e.preventDefault();
       carryOut(a);
     };
     window.addEventListener('keydown', down);

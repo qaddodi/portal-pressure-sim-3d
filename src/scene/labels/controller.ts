@@ -511,7 +511,7 @@ export class LabelController {
     for (const [id, m] of next) this.metas.set(id, m);   // (the words the label says now; the place it was solved at is in the fader)
 
     // 3. fades (the catheter's cards have their own: the 2D app's timings)
-    this.show.setText(this.cathText());
+    this.show.setText(this.cathText(), hold || !(cathNow || procNow));   // (frozen on the outgoing slide's numbers while the cards fade: the next patient's do not belong on them)
     this.show.ride(this.cTipPx, this.cAheadPx);
     const busy = anyMoving(this.fader.step(dt, this.wants, hold), this.show.step(dt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 

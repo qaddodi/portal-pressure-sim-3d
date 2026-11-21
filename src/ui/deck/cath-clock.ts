@@ -45,8 +45,9 @@ export function poseAt(t: number, out: CathPose = { advance: 0, balloon: 0, colu
 /** How fast the script runs toward its goal now (signed, script ms per ms). Forward it is the script's own pace (1), so the balloon takes BALLOON_IN_MS and the trace reads the same t; the quiet stretch
  *  before the balloon (the free sweep, nothing moves on the figure) goes 3 times as fast once Next has asked for the wedge, and a jump of more than one step runs every stretch the figure does not change fast.
  *  Back, the balloon lets down over BALLOON_OUT_MS and the rest goes back at BACK_SPEED (the plateau at four times that: nothing on the figure changes there). */
-export function rateAt(c: StepClock, jump = false): number {
+export function rateAt(c: StepClock, jump = false, jumpRate = 0): number {
   if (c.t === c.goal) return 0;
+  if (jump && jumpRate > 0) return c.goal > c.t ? jumpRate : -jumpRate;   // (a landing, not a step: the whole way at the rate that arrives in JUMP_MS)
   if (c.goal > c.t) {
     if (c.t >= T.wedge && c.t < c.goal && jump) return 8;
     if (c.t >= T.travel1 && c.t < FREE_T && (c.goal > FREE_T || jump)) return jump ? 8 : 3;
@@ -57,17 +58,21 @@ export function rateAt(c: StepClock, jump = false): number {
 }
 
 /** The deck catheter's clock: the script time and where it is going. */
-export interface CathClock { clk: StepClock; jump: boolean }
-export const makeCathClock = (): CathClock => ({ clk: makeStepClock(0), jump: false });
+export interface CathClock { clk: StepClock; jump: boolean; jumpRate: number }
+export const makeCathClock = (): CathClock => ({ clk: makeStepClock(0), jump: false, jumpRate: 0 });
+
+/** How long the catheter takes to reach a slide's state when the talk lands there (a jump, the slide list, Back over several steps): it is derived from the slide, not replayed from the path, and eases there from wherever it stood. */
+export const JUMP_MS = 800;
 
 /** Send the clock to a catheter state. `jump`: the move is more than one step of the talk (a jump or a skip), so the quiet stretches run fast. */
 export function aimCath(c: CathClock, state: CathState | null, jump = false): void {
   c.clk.goal = targetT(state); c.clk.rush = false; c.jump = jump;
+  c.jumpRate = jump ? Math.abs(c.clk.goal - c.clk.t) / JUMP_MS : 0;
 }
 
 /** Advance by dt ms; returns whether it is still moving. */
 export function stepCath(c: CathClock, dt: number): boolean {
-  stepClock(c.clk, Math.min(dt, 64), rateAt(c.clk, c.jump));
+  stepClock(c.clk, Math.min(dt, 64), rateAt(c.clk, c.jump, c.jumpRate));
   return c.clk.t !== c.clk.goal;
 }
 

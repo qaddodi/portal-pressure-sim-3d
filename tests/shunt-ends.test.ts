@@ -12,7 +12,7 @@ test('the Warren and the portocaval shunt keep their own rows; a permanent vesse
   assert.equal(shuntEnds('IVC_IS'), null, 'a vein is no sewn vessel');
   for (const id of ['S_MC', 'REX', 'TIPS', 'DIPS', 'C3', 'C9']) assert.ok(shuntEnds(id), `${id} lands on a wall and is sewn there`);
   assert.ok(endProfile('C9', 0) && endProfile('C9', 1), 'C9 lands on the cava and on the azygos');
-  assert.equal(endProfile('C3', 1), null, 'C3\'s other end stands 1.7 radii off the epigastric vein: no wall to sew it to');
+  assert.ok(endProfile('C3', 1), 'C3\'s far end lands on the epigastric vein\'s wall (tests/skin-grow.test.ts moves it onto the trunks\' common joint, 1.7 radii it stood off before), so it is sewn there');
   assert.deepEqual(endProfile('S_PC', 1), shuntEnds('S_PC')![1]);
   const w = shuntEnds('S_DSR')!, pc = shuntEnds('S_PC')!;
   assert.ok(w && pc);

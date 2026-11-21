@@ -102,3 +102,12 @@ test('[ and ] step one ladder: the real-time speeds, then the time-lapse rates',
   assert.deepEqual(stepSpeed(sp, lp, { speed: 1, lapse: 7 }, 1), { value: 7, lapse: true });
   assert.deepEqual(stepSpeed(sp, lp, { speed: 0.25, lapse: 0 }, -1), { value: 0.25, lapse: false });
 });
+
+test('Delete and Backspace on an open card take its shunt or device down; nothing happens with no card, in a field or on a held key', () => {
+  for (const key of ['Delete', 'Backspace']) {
+    assert.deepEqual(decideKey(k(key), ctx({ cardOpen: true })), { type: 'card-remove' });
+    assert.equal(decideKey(k(key), ctx()), null);
+    assert.equal(decideKey(k(key), ctx({ cardOpen: true, target: 'text' })), null);
+    assert.equal(decideKey(k(key, { repeat: true }), ctx({ cardOpen: true })), null);
+  }
+});

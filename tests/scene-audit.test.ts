@@ -31,3 +31,8 @@ test('the audit\'s probes read a tributary fan by its reveal alone (its group is
   const src = readFileSync(new URL('../scripts/scene-audit.mjs', import.meta.url), 'utf8');
   assert.match(src, /o\.group\.visible \|\| v\.id\.includes\('~F'\)/);
 });
+
+test('the cells layer waits one frame before its first build (10 ms), so the first frame\'s update is not the one that pays for it', () => {
+  const src = readFileSync(new URL('../src/scene/blood/cells/cells.ts', import.meta.url), 'utf8');
+  assert.match(src, /if \(!this\.points && !this\.firstWaited\) \{ this\.firstWaited = true; return true; \}/);
+});

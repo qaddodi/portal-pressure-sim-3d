@@ -14,7 +14,7 @@
 // names, the taps and the clock. Flow marks: 2D's chevrons ride on the flat view's own tubes, which are hidden here, so this scene shows none (the blood's colour along each sinusoid
 // still runs from the portal's to the central vein's).
 import { useSettings } from '../../state/settings.ts';
-import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, type BufferAttribute } from 'three';
+import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, Texture, type BufferAttribute, type BufferGeometry } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { CelObject } from '../materials/cel.ts';
 import type { LobuleView } from '../lobule/view.ts';
@@ -30,6 +30,7 @@ import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
+import { PlateClient } from '../lobule/plate-client.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
 import { hexToRgb01 } from '../lenses/oklab.ts';
@@ -57,6 +58,8 @@ export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008,
 export const VESSEL_LINE = 2;
 /** Segments round a tube and round a mouth. */
 export const TUBE_SEG = 10, MOUTH_SEG = 64;
+/** The thin lymph tubes (terminal lymphatics and channels, a third of a sinusoid's width or less, a few pixels across under their outline) take 6 sides, as the bile's tubes do: the channels were 190k of the Lobule's 715k triangles, ink hull included. */
+export const THIN_SEG = 6;
 /** The share of a tile's short side its bevel takes. */
 const BEVEL = 0.28;
 const BILE_ID = 2_000_000;
@@ -93,6 +96,7 @@ interface Flat {
   /** The lobule root's one fade (lobule/one-fade.ts): this scene reads its `detail` uniform and writes both values through `group.setFade`. */
   fade: { readonly detail: { value: number } };
   group: Group & { setFade(detail: number, ground: number): void };
+  goalState: { congU: number; septU: number; fibSin: number; act: number; fibPre: number; fibPost: number };
   cur: { fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number; flow: number; portal: number; art: number; lymphRate: number; seal: number };
   layers: { lymph: boolean; zones: boolean; bile: boolean };
   lyFade: number; bileFade: number; zoneFade: number;
@@ -111,6 +115,11 @@ interface Coloured {
   /** Where a welded junction blends two colour families (a sinusoid leaving an inlet): the other segment, each vertex's place on it, and how much of it the vertex wears (0 to 1). */
   seg2?: Seg; w2?: Float32Array; m?: Float32Array;
 }
+
+const quant = (s: PlateState): PlateState => { const q = (x: number) => Math.round(clamp(x, 0, 1) * 32) / 32; return { congU: q(s.congU), septU: q(s.septU), fibSin: q(s.fibSin), act: q(s.act), fibPre: q(s.fibPre), fibPost: q(s.fibPost) }; };
+
+/** How long the tiles take to ease from one build to the next (ms). */
+const CELL_EASE_MS = 900, MARKS_DIP_MS = 260, PLATE_CROSS_MS = 700;
 
 /** The scene's fade below which a waiting weld plan may be laid in (nothing of it can be told). */
 const WELD_SWAP_FADE = 0.02;
@@ -145,6 +154,22 @@ export class Lobule3D {
   private on = false;
   private hidLobule = false;
   private cellKey = '';
+  private cellLook = '';
+  private cellGen: Generator<void> | null = null;
+  private cellNext: { cb: MeshBuilder; nb: MeshBuilder } | null = null;
+  private cellTween: { from: Float32Array[]; to: Float32Array[]; t: number } | null = null;
+  private cellAt = -1;
+  private marksFade = 1;
+  // the marks plate's second slot (a patient change is painted in a worker, and the new plate crossfades over the old: plate-client.ts)
+  private readonly plates = new PlateClient();
+  private marksB!: Mesh;
+  private marksMatB!: ShaderMaterial;
+  private texFront: Texture | null = null;
+  private texSpare: Texture | null = null;
+  private askedKey = '';
+  private plateReady: { key: string; bmp: ImageBitmap } | null = null;
+  private crossT = 0;
+  private marksAt = -1;
   private inkKey = '';
   private lookKey = '';
   private marksKey = '';
@@ -173,6 +198,24 @@ export class Lobule3D {
   /** The welded junctions laid into the vessels now (lobule/welds.ts), and a plan that has come from the worker and waits for the Lobule to be out of sight. */
   private weldPlan: WeldPlan | null = null;
   private pendingWelds: WeldPlan | null = null;
+  private vesselsBuilt = false;
+  /** One idle slice: the vessels' meshes (true when this call built them). */
+  prepareVessels(): boolean {
+    if (this.vesselsBuilt) return false;
+    if (!this.vgen) this.vgen = this.vesselSteps();
+    if (this.vgen.next().done) { this.vgen = null; this.vesselsBuilt = true; }
+    return true;
+  }
+  private vgen: Generator<void> | null = null;
+  private pumpVessels(): void {
+    setTimeout(() => {
+      if (this.disposed || this.vesselsBuilt) return;
+      this.prepareVessels();
+      if (this.vesselsBuilt) this.inkKey = '';
+      else this.pumpVessels();
+    }, 30);
+  }
+  get vesselsReady(): boolean { return this.vesselsBuilt; }
   private weldsAsked = false;
   private disposed = false;
   // the marks plate: 2D's painter with the cells left out
@@ -185,7 +228,8 @@ export class Lobule3D {
   /** How many times the marks were painted (tests: a state change paints once). */
   paints = 0;
 
-  constructor(flat: LobuleView, shared: CelShared) {
+  /** `lazy`: Scene's way, the vessels' meshes are left to its idle slices (prepareVessels); built here otherwise (tests, the debug page). */
+  constructor(flat: LobuleView, shared: CelShared, lazy = false) {
     this.flat = flat as unknown as Flat;
     this.fade = this.flat.fade.detail;   // (the lobule root's one dissolve: lobule/one-fade.ts)
     this.group.name = 'lobule3d';
@@ -225,6 +269,14 @@ export class Lobule3D {
     const side = 2 * PLATE_BOX * R;
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
+    this.texFront = this.tex;
+    this.marksMatB = new ShaderMaterial({
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: blank }, opacity: { value: 0 }, uDpr: MICRO_DPR, fade: this.fade },
+      transparent: true, depthWrite: false, depthTest: false, side: DoubleSide,
+      blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
+    });
+    this.marksB = new Mesh(this.marks.geometry, this.marksMatB);
+    this.marksB.position.z = LZ.marks; this.marksB.name = 'lobule3d/marks-next'; this.marksB.frustumCulled = false; this.marksB.visible = false; this.marksB.renderOrder = -2;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
     this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5;
     const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
@@ -243,8 +295,9 @@ export class Lobule3D {
     this.cvScar.renderOrder = 0;
     { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
     for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
-    this.group.add(this.marks);
-    this.buildVessels();
+    this.group.add(this.marks); this.group.add(this.marksB);
+    // (the vessels' meshes are the constructor's heavy part: Scene's idle slices build them in a slice of their own, prepareVessels, hidden; update() builds them at once if nobody has)
+    if (!lazy) this.buildVessels();
     this.group.visible = false;
     flat.group.add(this.group);   // (the Lobule's root takes everything under it into its one fade)
     this.askWelds();
@@ -266,20 +319,24 @@ export class Lobule3D {
   private layWelds(): void {
     // (out of sight, or so faded in or out that the swap cannot be told: the baked plan is here at boot, so a Lobule entered from the body comes in already welded)
     if (!this.pendingWelds || (this.group.visible && this.fade.value > WELD_SWAP_FADE)) return;
+    if (this.vgen) return;   // (mid-build: the plan waits and lays in after)
     this.weldPlan = this.pendingWelds; this.pendingWelds = null;
-    this.buildVessels();
-    this.inkKey = '';
+    if (!this.vesselsBuilt) return;   // (not built yet: the plan is simply used when they are)
+    // (rebuilt part by part in timer slices, never in one task: the welded plan comes from the worker at an arbitrary moment, and the whole rebuild was one long task that could land in a drawn frame)
+    this.vesselsBuilt = false; this.vgen = null; this.inkKey = '';
+    this.pumpVessels();
   }
   /** Welds laid in now (tests and the debug page). */
   get weldCount(): number { return this.weldPlan?.skins.length ?? 0; }
   /** Lays a plan in at once (tests). */
-  layWeldsForTest(plan: WeldPlan): void { this.pendingWelds = plan; this.group.visible = false; this.layWelds(); }
+  layWeldsForTest(plan: WeldPlan): void { this.pendingWelds = plan; this.group.visible = false; this.layWelds(); if (!this.vesselsBuilt) this.buildVessels(); this.inkKey = ""; }
 
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden, so the first show costs a frame's worth. */
   update(on: boolean, under = 0, now = 0, rate = 1, force = false): boolean {
+    if (!this.vesselsBuilt) this.buildVessels();
     if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
     const f = this.flat, changed = on !== this.on;
     this.on = on;
@@ -303,11 +360,15 @@ export class Lobule3D {
     if (!shown) return changed;
     const look = f.look, c = f.cur;
     const q = (x: number) => Math.round(clamp(x || 0, 0, 1) * 32);
-    const ck = `${look}|${q(c.congU)}|${q(c.septU)}`;
-    if (ck !== this.cellKey) { this.cellKey = ck; this.buildCells(look, c.congU, c.septU); }
+    // The tiles are built for the state the model ASKS for, once, in small steps across frames, and eased between the two builds on the CPU (no rebuild per eased step: 388 cells a step, a stall each on a phone).
+    // The first build, a look change, or a build that lands while the lobule is still dissolved (the zoom's far end) is laid at once.
+    const goal = f.goalState, ck = `${q(goal.congU)}|${q(goal.septU)}`, unseen = fs < 0.05;
+    if (look !== this.cellLook) { this.cellLook = look; this.cellKey = ck; this.cellGen = null; this.cellTween = null; this.buildCells(look, goal.congU, goal.septU); }
+    else if (ck !== this.cellKey) { this.cellKey = ck; this.cellGen = this.cellSteps(look, goal.congU, goal.septU); }
+    const cellsBusy = this.stepCells(unseen);
     if (look !== this.lookKey) { this.lookKey = look; this.applyLook(look); }
     this.stepInk();
-    this.stepMarks();
+    const marksBusy = this.stepMarks(unseen);
     // widths and layers as the state has them now: each sinusoid swells and shrinks with congestion and capillarization (inflate, the absolute change of its radius), the lymph and the bile
     // shrink away with their layers and only then hide
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
@@ -326,7 +387,8 @@ export class Lobule3D {
     this.stepCvScar(c.fibPost, kcv);
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
-    return this.stepFlow(now, rate, lymphOn, bileOn) || washing || changed;
+    const flowing = this.stepFlow(now, rate, lymphOn, bileOn);
+    return flowing || washing || changed || cellsBusy || marksBusy;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
@@ -434,11 +496,54 @@ export class Lobule3D {
 
   /** Every hepatocyte as 2D paints it (lobule-paint.js paintLobule): its colour by zone and tone, zone 3's cells dead in congestion, the plates thickening and losing order in cirrhosis. */
   private buildCells(look: LookId, cu: number, sj: number): void {
+    const g = this.cellSteps(look, cu, sj);
+    while (!g.next().done);
+    const { cb, nb } = this.cellNext!; this.cellNext = null;
+    cb.build(this.cells.geometry); nb.build(this.nuclei.geometry);
+    this.cells.setTint([1, 1, 1]); this.nuclei.setTint([1, 1, 1]);
+  }
+
+  private cellAttrs(): BufferAttribute[] {
+    const at = (g: BufferGeometry, k: string) => g.getAttribute(k) as BufferAttribute;
+    return [at(this.cells.geometry, 'position'), at(this.cells.geometry, 'normal'), at(this.cells.geometry, 'color'), at(this.nuclei.geometry, 'position'), at(this.nuclei.geometry, 'normal'), at(this.nuclei.geometry, 'color')];
+  }
+
+  /** One frame of the tiles' change: a few ms of the next build, then the ease between the old build and the new. True while either runs. */
+  private stepCells(unseen: boolean): boolean {
+    const nowMs = performance.now(), dt = this.cellAt < 0 ? 0 : Math.min(100, nowMs - this.cellAt);
+    this.cellAt = nowMs;
+    if (this.cellGen) {
+      while (performance.now() - nowMs < 3) {
+        if (!this.cellGen.next().done) continue;
+        this.cellGen = null;
+        const nx = this.cellNext!; this.cellNext = null;
+        const to = [nx.cb.p, nx.cb.n, nx.cb.c, nx.nb.p, nx.nb.n, nx.nb.c].map((a) => Float32Array.from(a)), at = this.cellAttrs();
+        if (to.some((a, i) => a.length !== at[i]!.array.length)) { nx.cb.build(this.cells.geometry); nx.nb.build(this.nuclei.geometry); this.cellTween = null; }
+        else if (unseen) { to.forEach((a, i) => { (at[i]!.array as Float32Array).set(a); at[i]!.needsUpdate = true; }); this.cellTween = null; }
+        else this.cellTween = { from: at.map((a) => Float32Array.from(a.array as Float32Array)), to, t: 0 };
+        break;
+      }
+    }
+    const tw = this.cellTween;
+    if (tw) {
+      tw.t = Math.min(1, tw.t + dt / CELL_EASE_MS);
+      const e = tw.t * tw.t * (3 - 2 * tw.t), at = this.cellAttrs();
+      for (let j = 0; j < at.length; j++) { const out = at[j]!.array as Float32Array, a = tw.from[j]!, b = tw.to[j]!; for (let i = 0; i < out.length; i++) out[i] = a[i]! + (b[i]! - a[i]!) * e; at[j]!.needsUpdate = true; }
+      if (tw.t >= 1) this.cellTween = null;
+    }
+    return !!this.cellGen || !!this.cellTween;
+  }
+
+  /** The tiles for a state, a slice of cells at a time (each `yield` is a place a frame's share may end); the finished builders are left in `cellNext`. A dead cell's nucleus is built collapsed, so every state has the same
+   *  vertices and the two builds can be eased between. */
+  private *cellSteps(look: LookId, cu: number, sj: number): Generator<void> {
     const L = lookColours(look), dark = L.dark, net = this.flat.net;
     const gap = L.rgb01('--og-liver-2'), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg'), ground = groundOf(bg, gap, dark);
     const base = cellBase(look), nucInk = L.rgb01('--lz-nodule-ink'), nucA = L.alpha('--lz-nodule-ink');
     const cb = new MeshBuilder(), nb = new MeshBuilder(), TONE: number[] = [0, 0, 0], CT: number[] = [0, 0, 0];
+    let n = 0;
     for (const k of net.cells) {
+      if (++n % 24 === 0) yield;
       const z3 = k.q < 0.4, dead = z3 && cu > 0.12 && k.drop < cu * (1.25 - k.q * 1.6);
       const t = 0.88 + 0.12 * k.tone;
       let fill: RGB, alpha: number;
@@ -450,16 +555,15 @@ export class Lobule3D {
       const outline = roundRect(cx, cy, lw, ww, Math.min(lw, ww) * 0.38, a);
       const top = dead ? LZ.cellTop * 0.4 : LZ.cellTop;
       pillow(cb, outline, top, LZ.cellBot, Math.min(lw, ww) * R * BEVEL, col, 3);
-      if (!dead) {
+      {
         // the nucleus: 2D's dot at nu along the cell, a low dome in the cell's colour under the nodule ink
-        const nr = Math.max(0.0023, ww * 0.16) * R, ca = Math.cos(a), sa = Math.sin(a);
+        const nr = dead ? 1e-6 : Math.max(0.0023, ww * 0.16) * R, ca = Math.cos(a), sa = Math.sin(a);
         const nx = cx + k.nu * lw * ca, ny = cy + k.nu * lw * sa;
         const nc = mix3(col, nucInk, Math.min(1, nucA * 2.4));
         ellipsoid(nb, nx * R, -ny * R, top - nr * 0.55, nr, nr, nr * 0.8, 0, nc, 12, 6);
       }
     }
-    cb.build(this.cells.geometry); nb.build(this.nuclei.geometry);
-    this.cells.setTint([1, 1, 1]); this.nuclei.setTint([1, 1, 1]);
+    this.cellNext = { cb, nb };
   }
 
   /** The hexagon's ground (2D: the lobule filled in the gap colour at 1.015), with a hole under every mouth so the openings go down into the slab. */
@@ -500,12 +604,60 @@ export class Lobule3D {
   // ---- the marks plate -----------------------------------------------------------------------------------------------------------
 
   /** 2D's painter with no cells: the nutmeg, the Zones, Disse's collagen, the stellate cells, the septa, the tracts' and the vein's collagen, the limiting plate. Painted once per state step. */
-  private stepMarks(): void {
-    const f = this.flat, c = f.cur;
+  private stepMarks(unseen: boolean): boolean {
+    const f = this.flat, c = f.goalState;
     const s: PlateState = { congU: c.congU, septU: c.septU, fibSin: c.fibSin, act: c.act, fibPre: c.fibPre, fibPost: c.fibPost };
     const zones = f.layers.zones;
     const key = `${plateKey(s, f.look)}|${zones ? 'z' : ''}`;
-    if (key === this.marksKey) return;
+    const nowMs = performance.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
+    this.marksAt = nowMs;
+    // A new state is painted ONCE, for where the model is going, in a worker (the 2048 px repaint is 100 to 300 ms on a phone: never on this thread), and the new plate crossfades over the old when it arrives.
+    // The first plate, and a page with no worker, are painted here (the old plate dips while the new is painted).
+    if (key !== this.marksKey && this.marksKey !== '' && this.plates.available) {
+      if (key !== this.askedKey) {
+        this.askedKey = key;
+        if (this.plateReady) { this.plateReady.bmp.close(); this.plateReady = null; this.crossT = 0; }
+        this.plates.ask({ look: f.look, s: quant(s), zones, skip: 2, cvR: DISC_R.cv }, (bmp) => {
+          if (!bmp) { this.askedKey = ''; return; }   // (no worker after all: the next step paints here)
+          if (this.askedKey !== key) { bmp.close(); return; }
+          this.plateReady = { key, bmp }; this.crossT = 0;
+        });
+      }
+    } else if (key !== this.marksKey) {
+      if (this.marksKey !== '' && !unseen && this.marksFade > 0) { this.marksFade = Math.max(0, this.marksFade - dt / MARKS_DIP_MS); this.marksMat.uniforms.opacity!.value = this.marksFade; return true; }
+      this.paintMarks(key, s);
+    }
+    const rd = this.plateReady;
+    if (rd) {
+      if (this.crossT === 0 && !this.marksB.visible) {
+        const t = this.texSpare ?? (this.texSpare = this.newPlateTexture());
+        const old = t.image as ImageBitmap | null; t.image = rd.bmp; t.needsUpdate = true; if (old && typeof old.close === 'function') old.close();
+        this.marksMatB.uniforms.map!.value = t; this.marksB.visible = true;
+      }
+      this.crossT = unseen ? 1 : Math.min(1, this.crossT + dt / PLATE_CROSS_MS);
+      const e = this.crossT * this.crossT * (3 - 2 * this.crossT);
+      this.marksMat.uniforms.opacity!.value = 1 - e; this.marksMatB.uniforms.opacity!.value = e;
+      if (this.crossT >= 1) {
+        // the new plate is the front one; the old one's texture is the spare for the next
+        const t = this.marksMatB.uniforms.map!.value as Texture, was = this.texFront;
+        this.marksMat.uniforms.map!.value = t; this.texFront = t; this.texSpare = was === this.tex ? this.tex : was;
+        this.marksMatB.uniforms.map!.value = this.texSpare; this.marksMat.uniforms.opacity!.value = 1; this.marksMatB.uniforms.opacity!.value = 0; this.marksB.visible = false;
+        this.marksKey = rd.key; this.plateReady = null; this.crossT = 0;
+        return false;
+      }
+      return true;
+    }
+    if (key !== this.marksKey && this.askedKey === key) return true;   // (the worker is painting)
+    if (this.marksFade < 1) { this.marksFade = unseen ? 1 : Math.min(1, this.marksFade + dt / (MARKS_DIP_MS * 2)); this.marksMat.uniforms.opacity!.value = this.marksFade; return this.marksFade < 1; }
+    return false;
+  }
+  private newPlateTexture(): Texture {
+    const t = new Texture();
+    t.flipY = false; t.premultiplyAlpha = false; t.generateMipmaps = true; t.minFilter = LinearMipmapLinearFilter; t.magFilter = LinearFilter; t.anisotropy = 4;
+    return t;
+  }
+  private paintMarks(key: string, s: PlateState): void {
+    const f = this.flat, zones = f.layers.zones;
     this.marksKey = key;
     this.paints++;
     if (!this.canvas || !this.tex) return;
@@ -522,7 +674,10 @@ export class Lobule3D {
 
   // ---- the vessels (built once; their widths follow the state through `inflate`, their colours through stepInk) -----------------
 
-  private buildVessels(): void {
+  /** The vessels' meshes in one go (what is left of them, when Scene's idle slices have begun). */
+  private buildVessels(): void { if (!this.vgen) this.vgen = this.vesselSteps(); while (!this.vgen.next().done); this.vgen = null; this.vesselsBuilt = true; }
+  /** The same, one part at a time: each `yield` is a place an idle slice may end. */
+  private *vesselSteps(): Generator<void> {
     const net = this.flat.net, plan = this.weldPlan;
     this.coloured.length = 0;
     const by = (...k: Course['kind'][]) => net.courses.filter((c) => k.includes(c.kind));
@@ -571,20 +726,20 @@ export class Lobule3D {
       for (let v = 0; v < 2 * capVerts; v++) FC.push(col, v < capVerts ? 0 : Lw, Lw, 3);
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
-    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube) => {
+    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube, SEG = TUBE_SEG) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>(), FC: number[] = [];
       for (const c of cs) {
         const pts = c.pts.map((p, i) => at3(p, typeof z === 'number' ? z : z(c, i)));
         const before = b.count;
-        tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], TUBE_SEG, true);
+        tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], SEG, true);
         // (tube() writes the rings in order, then the two caps: the first cap's rings are the first sample's, the last's the last's)
-        const ringVerts = c.pts.length * TUBE_SEG, capVerts = (b.count - before - ringVerts) / 2;
+        const ringVerts = c.pts.length * SEG, capVerts = (b.count - before - ringVerts) / 2;
         caps.set(c, capVerts);
-        for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < TUBE_SEG; s++) { W.push(w(c, i)); K.push(1); }
+        for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < SEG; s++) { W.push(w(c, i)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
-        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
-        dustFC(FC, b, before, ringVerts, capVerts, TUBE_SEG, pts, c.kind === 'ly' ? `ly${c.id}` : c.kind, radius(c, 0) * R);
+        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, SEG, END_HUSH_R * radius(c, 0) * R);
+        dustFC(FC, b, before, ringVerts, capVerts, SEG, pts, c.kind === 'ly' ? `ly${c.id}` : c.kind, radius(c, 0) * R);
       }
       return { b, W, K, caps, FC };
     };
@@ -613,13 +768,17 @@ export class Lobule3D {
         for (let v = 0; v < cap; v++) at(n - 1);
       }
       this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
+      yield;
     }
     if (plan) { const d = welded(by('in'), TUBE_SEG, false, sinW, (k) => k === 'in'); coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    yield;
     if (plan) { const d = welded(by('tw'), TUBE_SEG, false, null, () => false); coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    yield;
     // the terminal lymphatics along the edges
-    { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0, LZ.tube, THIN_SEG); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    yield;
     // the lymph channels (2D's `ly`, "a thin channel beside each sinusoid, between the sinusoid and its plate", geometry.ts): a thin lymph tube along the OUTSIDE of its sinusoid, from the limiting plate in, tapering
     // to a thread before the central vein (widths.ts lyTaper); it runs out against the blood, so the course is laid from the vein to the edge. Mohammad 20 Nov 2026: "those lymph vessels should be drawn like on the
     // outside of the blood vessels and taper to nothing closer to 90% of the way to the central vein". They were a flat sleeve centred ON each sinusoid, a third wider than the sinusoid each side: where two sinusoids
@@ -638,7 +797,7 @@ export class Lobule3D {
         ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
       ];
       const under = new Map(lym.map((c) => [c, lymphCover(c.pts, (i) => r(c, i), covers)]));
-      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!), sw: number[] = [], hg: number[] = [];
+      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!, THIN_SEG), sw: number[] = [], hg: number[] = [];
       for (const c of lym) {
         // (the tube hugs its sinusoid's wall: each vertex carries the plan direction out from the sinusoid's axis, the wall's radius and the place's share of congestion's widening, so the vertex shader moves it out by the
         //  wall's own growth, cel3d HUG: a swollen sinusoid takes its lymph with it instead of covering it)
@@ -653,13 +812,14 @@ export class Lobule3D {
           return [(q[0] - fx) / l, -(q[1] - fy) / l, bd < sinRadius(sib.kind as 's0', rho) + 3 * DUCT_R ? sinRadius(sib.kind as 's0', rho) * R : 0, congShare(rho)] as const;
         });
         const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); hg.push(...hug[i]!); };
-        for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
+        for (let i = 0; i < n; i++) for (let k = 0; k < THIN_SEG; k++) at(i);
         const cap = t.caps.get(c)!;
         for (let v = 0; v < cap; v++) at(0);
         for (let v = 0; v < cap; v++) at(n - 1);
       }
       coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2)); this.duct.geometry.setAttribute('hug', new Float32BufferAttribute(hg, 4));
     }
+    yield;
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
     // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule
     {
@@ -685,6 +845,7 @@ export class Lobule3D {
       this.bile.geometry.setAttribute('fcourse', new Float32BufferAttribute(FC, 4));
       }
     }
+    yield;
     // the lobule's dust routes, built once from every course that carries dust: the blood's, the lymph's and the bile's, each family joined only to itself (lobule-routes.ts)
     {
       const segs = lobuleRoutes(dustCourses, 0.004 * R);
@@ -692,6 +853,7 @@ export class Lobule3D {
       this.dustRoute.value.dispose();
       this.dustRoute.value = staticRouteTexture(Math.max(1, dustCourses.length), segs, (k) => rad.get(k) ?? 0.01 * R);
     }
+    yield;
     // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
     // and bile should not look like empty cyllindars, just filll them with the color")
     const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false, top?: number) => {
@@ -735,12 +897,12 @@ export class Lobule3D {
   /** The parts (tests). */
   get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
-  buildForTest(look: LookId, congU = 0, septU = 0): void { this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
+  buildForTest(look: LookId, congU = 0, septU = 0): void { if (!this.vesselsBuilt) this.buildVessels(); this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 
   dispose(): void {
     this.disposed = true;
     for (const p of this.partsForTest) p.dispose();
-    this.marks.geometry.dispose(); this.marksMat.dispose(); this.tex?.dispose();
+    this.marks.geometry.dispose(); this.marksMat.dispose(); this.marksMatB.dispose(); this.tex?.dispose(); this.texSpare?.dispose(); this.plates.dispose(); this.plateReady?.bmp.close();
   }
 }
 

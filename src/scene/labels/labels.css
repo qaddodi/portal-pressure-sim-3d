@@ -11,9 +11,9 @@
    the key itself fades (tests/deck-fade-blur.test.ts). */
 .lb-key-layer .lb-key { transition: opacity 240ms var(--ease, ease); }
 body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0; }
-.lb, .lb-lead, .lb-anchor, .cm { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
+.lb, .lb-lead, .lb-anchor, .cm, .wb { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
 .lb-key-wrap { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform; }   /* (it holds the key's glass: no opacity promotion, see above) */
-.lb[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on], .cm[data-on] { visibility: visible; }
+.lb[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on], .cm[data-on], .wb[data-on] { visibility: visible; }
 
 /* ── a station's label, as the 2D app draws it: no backing, a small name in the quiet ink, the reading large and bold, a halo round every
    letter, a thin leader to a small ring on the vessel. Sizes, weights, gaps, the halo and the look's ink are custom properties the layer
@@ -103,6 +103,15 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 /* the glass: its tint, blur and the browser's fallbacks are src/ui/glass.css's (.cl-glass is in its one list); the shape is the clip, the hairline the 2D app's .cl-hair rule */
 .lb-layer .cl-glass svg { position: absolute; left: 0; top: 0; overflow: visible; }
 .lb-layer .cl-glass path { fill: none; stroke: var(--glass-edge, var(--cl-edge)); stroke-width: 2; stroke-linejoin: miter; }
+/* Every callout card (the catheter's FHVP, WHVP and HVPG, a slide's marks and sites: they all come from makeCard) wears one outline and one fill, from the look (cath.ts cathLook: --cl-rim, --cl-fill).
+   The outline is its own element (.cl-ring), stroked inside the card's shape: inside the glass it was lost on some cards (a backdrop blur's layer), which is why the WHVP had none. A light look wears the
+   cel ink; a dark look a light rim, since the ink is the scene's own black. The fill is near solid and lifted, so the card reads over any organ. Mohammad, 21 Nov. */
+.lb-layer .cl-glass.cl-hair path { stroke: none; }
+.lb-layer .cl-ring { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lb-layer .cl-ring svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.lb-layer .cl-ring path { fill: none; stroke: var(--cl-rim, var(--ink)); stroke-width: 3.6; stroke-linejoin: round; }
+.cl[data-fig="step"] .cl-ring { display: none; }
+html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-fill, var(--glass-tint)) !important; }
 
 /* the result: both readings stacked, a bracket joining them, the HVPG they give beside it, a thin leader from each reading to its point */
 .cl-sum > .cl-row { position: absolute; left: 0; top: 0; will-change: transform; visibility: hidden; }
@@ -181,3 +190,9 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .cl-lead { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
 .cl-lead-line { position: absolute; left: 0; top: 0; width: 1px; height: 1.5px; margin-top: -0.75px; transform-origin: 0 50%; background: var(--text); will-change: transform; visibility: hidden; }
 .cl-lead-dot { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--text); will-change: transform; visibility: hidden; }
+
+/* The stent's waist bracket (waist-bracket.ts): a flat bar and two ticks in the label ink with the labels' halo, laid by transform and opacity; it fades with the waist and leaves the same way (visibility waits for the fade). */
+.wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s linear var(--d-small, 200ms); }
+.wb[data-on] { transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s; }
+.wb-bar { width: 100px; height: 1.5px; margin-top: -0.75px; background: var(--lb-val); box-shadow: 0 0 0 var(--lb-halo-w, 1px) var(--lb-halo); border-radius: 1px; }
+.wb-tick { width: 5px; height: 1.5px; margin-top: -0.75px; background: var(--lb-val); box-shadow: 0 0 0 var(--lb-halo-w, 1px) var(--lb-halo); border-radius: 1px; }

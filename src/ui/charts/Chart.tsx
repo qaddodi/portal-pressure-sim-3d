@@ -76,7 +76,13 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     const measure = () => { const z = fitOf(el); setW(Math.round(el.getBoundingClientRect().width / z)); setFit(Math.round(z * 100) / 100); };
     measure();
     const off = observeThenFit([el], measure);   // (a new width redraws the chart, which changes the height of the card around it: after the observer's delivery, never inside it)
-    return () => { off(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
+    // The card's fit (`--pz-fit`, written on the card's style) changes the zoom the box lives under WITHOUT changing the box's own size (the card's width is fixed): the observer above never fires, and a chart
+    // measured under a zoom of 0.88 stayed laid out 1.13 times too wide after the fit went (cut at the right edge, its height overblown, the card sized to it). Look again when the card's style changes.
+    const card = el.closest('.dk-card');
+    let again = 0;
+    const mo = card && typeof MutationObserver === 'function' ? new MutationObserver(() => { if (!again) again = window.setTimeout(() => { again = 0; measure(); }, 0); }) : null;
+    mo?.observe(card!, { attributes: true, attributeFilter: ['style'], subtree: true });
+    return () => { mo?.disconnect(); window.clearTimeout(again); off(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
   }, [tag]);
 
   const lastKey = useRef('');

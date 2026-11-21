@@ -96,6 +96,8 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
 export const WEDGE_COLUMN_ALPHA = 0.38;
 export interface WedgePiece { d0: number; slope: number; fade: number }
 
+/** How much of the shaft is cleared where it passes through the balloon's glass: 0, the whole shaft shows through (Mohammad, 21 Nov). */
+export const BALLOON_SHAFT_HOLE = 0;
 export class ProcCatheter {
   readonly group = new Group();
   readonly objects: DeviceObject[] = [];
@@ -227,7 +229,8 @@ export class ProcCatheter {
       put(sub.id, dRef, uRef, (sub.d1 - sub.d0) / Math.max(1e-6, Math.abs(sub.fb - sub.fa)), 0);
       // (a child starts where its parent's line says it is, so the field is one number across the seam, by construction)
       const mine = pieces.get(sub.id)!;
-      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) put(v.id, mine.d0, 1, Math.max(1e-6, r.total - sub.d1), 0.6);
+      // (a fork leaves its host WHERE ITS OWN END 1 TOUCHES IT, not at the host's outer end: it starts at the host's line there, so host and fork share one distance at the join and one front crosses both)
+      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) put(v.id, this.forkStartD(sub.id, v.id, mine), 1, Math.max(1e-6, r.total - sub.d1), 0.6);
     }
     const br = r.parts.find((q) => q.name === 'branch');
     if (br?.id && NETWORK_BY_ID.has(br.id)) {
@@ -239,6 +242,13 @@ export class ProcCatheter {
     // easing it a second time here (a smootherstep) made the middle of the fill 3.5 times as fast, so whole vessels flooded at once (Mohammad, 21 Nov: "filling in segments")
     const front = col * (far + frontSoft);
     return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, front, frontSoft, behind: soft, pieces };
+  }
+  /** The host's route-distance line (`d0 + slope u`) read where child `id`'s end (u = 1) touches the host's drawn centreline (the host's outer end when either has no drawn course). */
+  private forkStartD(hostId: string, id: string, host: WedgePiece): number {
+    const h = this.courseOf(hostId), c = this.courseOf(id);
+    if (!h || !c) return host.d0;
+    const p = c.pointAt(1);
+    return host.d0 + host.slope * h.nearestU(p);
   }
   private readonly wedgeColor = new Color();
   private readonly courses = new Map<string, Centreline | null>();
@@ -333,9 +343,10 @@ export class ProcCatheter {
     const e = bl * bl * (3 - 2 * bl);
     this.balloon.setAlphas(0.42 * Math.min(1, e * 2.2) * op, (0.45 + 0.5 * e) * op * Math.min(1, bl * 4));
     this.lay(ol.ol, rings, e, op);
-    // the shaft inside the glass is left clear (a ghost of 10%), ramping in and out over a few shaft radii: the balloon reads as clean glass, with nothing solid or inked in it (Mohammad, 21 Nov: "the balloon still has shit in it")
+    // the shaft is seen THROUGH the glass (Mohammad, 21 Nov: "why can't I see the catheter inside the balloon"). It had been cleared to a 10% ghost (BALLOON_SHAFT_HOLE 0.9) for "the balloon still has shit in it",
+    // which was the collars and dark bars, long gone; the shaft itself is a light polymer line and belongs in there. The hole stays as a mechanism (share 0 = whole shaft).
     const total = Math.max(1e-6, this.r3.route.total), half = ol.rx, soft = this.rc * U * 1.5 / total;
-    this.shaft.setHole((ol.dC - half) / total + soft, (ol.dC + half) / total - soft, 0.9 * e, soft);
+    this.shaft.setHole((ol.dC - half) / total + soft, (ol.dC + half) / total - soft, BALLOON_SHAFT_HOLE * e, soft);
   }
   private readonly gr = [makeRings(GLINT_N), makeRings(GLINT_N)];
   private readonly n1 = new Vector3(); private readonly n2 = new Vector3(); private readonly tt = new Vector3();

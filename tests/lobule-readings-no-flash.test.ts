@@ -18,7 +18,7 @@ test('a reading that gains a character does change it (the words need room again
 test('the caption layer reads no pressure into its layout signature, and writes the numbers in place', () => {
   const src = readFileSync('src/scene/lobule/LobuleCaptions.tsx', 'utf8');
   assert.doesNotMatch(src, /toFixed\(1\)/);
-  assert.match(src, /readingSig\(m\)/);
+  assert.match(src, /readingSig\(m, onSlide\(\)\)/);
   assert.match(src, /else if \(alpha > 0\) refreshReadings\(\)/);
 });
 

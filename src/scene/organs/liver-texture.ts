@@ -199,26 +199,40 @@ const RIM_MICRO = 0.4;
 /** The dome at a point (0..1): what the liver's outline follows. */
 export const domeAt = (x: number, y: number): number => surfaceAt(x, y).dome;
 
-/** The texture bytes (RGBA, TEX_PW x TEX_PH, row 0 at TEX_Y0): R the septum, G the nodule's tone, B the light (0.5 none), A 255. */
-export function bake(): Uint8Array {
-  const out = new Uint8Array(TEX_PW * TEX_PH * 4), cel = celLook();
-  if (cel?.height) {
-    // the height field once over the texture (and a texel's border), then each texel's slope from its neighbours: a fifth of the work of asking for the slope at every texel
-    const W = TEX_PW + 2, H = new Float32Array(W * (TEX_PH + 2));
-    for (let j = -1; j <= TEX_PH; j++) for (let i = -1; i <= TEX_PW; i++) H[(j + 1) * W + i + 1] = heightAt(TEX_X0 + (i + 0.5) / PX, TEX_Y0 + (j + 0.5) / PX, cel);
-    for (let j = 0; j < TEX_PH; j++) for (let i = 0; i < TEX_PW; i++) {
-      const c = (j + 1) * W + i + 1, h = H[c]!, hx = (H[c + 1]! - H[c - 1]!) * (PX / 2), hy = (H[c + W]! - H[c - W]!) * (PX / 2), o = (j * TEX_PW + i) * 4;
-      out[o] = 0; out[o + 1] = 128; out[o + 2] = Math.round((0.5 + 0.5 * slopeLight(hx, hy, h, !!cel.cartoon)) * 255); out[o + 3] = 255;
+/** The texture bytes (RGBA, TEX_PW x TEX_PH, row 0 at TEX_Y0): R the septum, G the nodule's tone, B the light (0.5 none), A 255. Made a few rows at a time (`step`), so it can be laid in idle slices: the whole of it is 0.7 s of arithmetic on a laptop
+ *  and was done inside the first frame that showed a scarred liver (the 690 ms stall of a patient glide, iPhone audit 21 Nov). */
+export class LiverBake {
+  readonly out = new Uint8Array(TEX_PW * TEX_PH * 4);
+  private readonly cel = celLook();
+  private readonly W = TEX_PW + 2;
+  private readonly H: Float32Array | null;
+  private phase = 0; private row = 0;
+  constructor() { this.H = this.cel?.height ? new Float32Array(this.W * (TEX_PH + 2)) : null; if (!this.H) this.phase = 1; else this.row = -1; }
+  /** Works for at most `ms` (0: to the end). True when the texture is whole. */
+  step(ms = 0): boolean {
+    const t0 = performance.now(), cel = this.cel, out = this.out, W = this.W, H = this.H;
+    for (;;) {
+      if (this.phase === 0) {
+        // the height field once over the texture (and a texel's border), then each texel's slope from its neighbours: a fifth of the work of asking for the slope at every texel
+        const j = this.row;
+        for (let i = -1; i <= TEX_PW; i++) H![(j + 1) * W + i + 1] = heightAt(TEX_X0 + (i + 0.5) / PX, TEX_Y0 + (j + 0.5) / PX, cel!);
+        if (++this.row > TEX_PH) { this.phase = 1; this.row = 0; }
+      } else if (this.row < TEX_PH) {
+        const j = this.row++;
+        if (H) for (let i = 0; i < TEX_PW; i++) {
+          const c = (j + 1) * W + i + 1, h = H[c]!, hx = (H[c + 1]! - H[c - 1]!) * (PX / 2), hy = (H[c + W]! - H[c - W]!) * (PX / 2), o = (j * TEX_PW + i) * 4;
+          out[o] = 0; out[o + 1] = 128; out[o + 2] = Math.round((0.5 + 0.5 * slopeLight(hx, hy, h, !!cel!.cartoon)) * 255); out[o + 3] = 255;
+        } else {
+          const y = TEX_Y0 + (j + 0.5) / PX;
+          for (let i = 0; i < TEX_PW; i++) {
+            const s = surfaceAt(TEX_X0 + (i + 0.5) / PX, y), o = (j * TEX_PW + i) * 4;
+            out[o] = Math.round(s.sep * 255); out[o + 1] = Math.round(s.tone * 255); out[o + 2] = Math.round((0.5 + 0.5 * s.light) * 255); out[o + 3] = 255;
+          }
+        }
+      } else return true;
+      if (ms > 0 && performance.now() - t0 >= ms) return false;
     }
-    return out;
   }
-  const f = surfaceAt;
-  for (let j = 0; j < TEX_PH; j++) {
-    const y = TEX_Y0 + (j + 0.5) / PX;
-    for (let i = 0; i < TEX_PW; i++) {
-      const s = f(TEX_X0 + (i + 0.5) / PX, y), o = (j * TEX_PW + i) * 4;
-      out[o] = Math.round(s.sep * 255); out[o + 1] = Math.round(s.tone * 255); out[o + 2] = Math.round((0.5 + 0.5 * s.light) * 255); out[o + 3] = 255;
-    }
-  }
-  return out;
 }
+/** The whole texture at once (the tests). */
+export function bake(): Uint8Array { const b = new LiverBake(); b.step(); return b.out; }

@@ -187,6 +187,8 @@ test('the sweep: text or a picture cut by a clipping ancestor, past the screen, 
   assert.deepEqual(k(scan({ items: [item({ what: 'Same', box: [20, 100, 120, 118] }), item({ what: 'Same', box: [21, 101, 121, 119] })] })), [], 'the same words twice is a halo, not an overlap');
   assert.deepEqual(k(scan({ items: [item({ what: 'tiny', box: [20, 100, 60, 108], px: 7 })] })), ['small-text']);
   assert.deepEqual(k(scan({ items: [item({ what: 'pale', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)' })] })), ['low-contrast']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'mid-fade', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5, fading: true })] })), [], 'text under a running fade is judged when it lands');
+  assert.deepEqual(k(scan({ items: [item({ what: 'dim at rest', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5 })] })), ['low-contrast'], 'text translucent at rest is still judged');
   assert.deepEqual(k(scan({ items: [item({ what: 'fine', box: [20, 100, 60, 118] })] })), []);
   assert.deepEqual(k(scan({ covered: [{ what: 'button "Next"', by: 'div.dock', points: 4 }], zero: [{ what: 'svg.plot', why: 'has no size' }], broken: [{ what: 'img logo.png' }] })), ['covered-by', 'zero-size', 'broken-image']);
   assert.ok(judgeScan(scan({ items: Array.from({ length: 40 }, (_, i) => item({ what: `t${i}`, box: [20, 100 + i * 20, 60, 118 + i * 20], px: 6 })) })).some((f) => f.sev === 'note'), 'a flood is capped and says how many more');
@@ -258,4 +260,12 @@ test('what stands under a faded-out part of a card is not seen, so a tucked data
 test('the on-device banner (?audit=here) has the same speed list as the frames page, chosen before the run', () => {
   const pg = readFileSync(new URL('../src/ui/debug/audit/page.ts', import.meta.url), 'utf8');
   assert.match(pg, /import \{ SPEEDS \} from '\.\/outer\.ts'/); assert.match(pg, /mode === 'here' \? speed : undefined/);
+});
+
+test('fade-slow is not judged above FRAME_LIMIT_SPEED (the sampler sees a fade as two ticks: about 2.08 s on 179 iPhone rows at 20x)', async () => {
+  const { FRAME_LIMITED_KINDS, FRAME_LIMIT_SPEED } = await import('../src/ui/debug/audit/speed.ts');
+  const { dropsFinding } = await import('../src/ui/debug/audit/report.ts');
+  assert.ok(FRAME_LIMITED_KINDS.has('fade-slow'));
+  assert.equal(dropsFinding({ speed: 20 } as never, 'fade-slow'), true);
+  assert.equal(dropsFinding({ speed: FRAME_LIMIT_SPEED } as never, 'fade-slow'), false);
 });

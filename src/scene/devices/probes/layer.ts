@@ -11,6 +11,9 @@ import { useProbes, type FibroOrgan } from './state.ts';
 import type { ScreenEnv } from './screen.ts';
 import type { OrganEdge } from './fibro-place.ts';
 import { probeLabel } from '../../labels/probe-labels.ts';
+import { addCover, beginCover } from '../../labels/probe-cover.ts';
+import { ringsOutline } from './cover.ts';
+import { basisAt, newBasis } from './screen.ts';
 
 /** What the layer asks of the scene: an organ's box in the figure (null while it is not built), and the stiffness the FibroScan reads (kPa). */
 export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; /** where an organ's silhouette is on a line (organ-edge.ts): the FibroScan tip rests there; tests leave it out */ organEdge?: OrganEdge; kpa(organ: FibroOrgan): number | null; /** the screen the devices keep clear of the cards on (the scene's; tests leave it out) */ screen?: ScreenEnv; /** the EUS-PPG's procedure frame while it plays (null otherwise): the echoendoscope follows it */ eus?(): EusDrive | null }
@@ -23,6 +26,8 @@ export class ProbeLayer {
   private last = -1;
   /** the scope is the glue slide's (a drive was given, or it is fading out where it stood) */
   private gluing = false;
+  private readonly pts: number[] = [];
+  private readonly cb = newBasis();
   private readonly env: ProbeEnv;
 
   constructor(shared: CelShared, env: ProbeEnv) {
@@ -57,8 +62,14 @@ export class ProbeLayer {
   /** What the label layer draws of the devices: the FibroScan probe's screen number (labels/probe-labels.ts). */
   private writeLabels(edge: string, seg: string | null): void {
     const sc = probeLabel.scan, fp = this.fibro, at = fp.screenAt;
-    sc.on = at.placed; sc.alpha = fp.shown * at.headOp; sc.x = at.x; sc.y = at.y; sc.turn = at.turn; sc.k = fp.reading;
+    sc.on = at.placed; sc.alpha = fp.shown * at.headOp; sc.x = at.x + at.dx; sc.y = at.y + at.dy; sc.turn = at.turn; sc.k = fp.reading;
     const dp = probeLabel.dop, dd = this.doppler;
+    // the bodies the label layer leaves the text out of: the probes are drawn over the names, not under them
+    const env = this.env.screen!;
+    beginCover();
+    for (const c of [this.fibro.coverRuns(), this.doppler.coverRuns()]) if (c) addCover(ringsOutline(env, c.runs, c.sc, this.pts), c.alpha);
+    const sp = this.scope.coverRuns();
+    if (sp) addCover(ringsOutline(env, sp.runs, basisAt(env, sp.at, this.cb).sc, this.pts), sp.alpha);
     dp.on = dd.overlay && dd.shown > 0; dp.alpha = dd.shown; dp.shut = dd.sampleShut; dp.lines.set(dd.lines);
   }
 

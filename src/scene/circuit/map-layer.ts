@@ -8,6 +8,33 @@ import { rawColor } from '../materials/cel.ts';
 import { VESSEL_LAYER } from '../layers.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, MAP_ZONE_X, VB_CIRC } from './data.copied.ts';
 import { CIRC_C, MAP_CENTRE, MAP_K, turnAngle } from './map.ts';
+import { COURSES } from './course.ts';
+import { peelAt, peelRank } from './peel.ts';
+import { MAPPED } from '../vessels/network.ts';
+
+/** A station's anatomy place (scene xyz): the end of a vessel that names it. A dot rides from here to its place on the map on the station's own share of the change (2D: nodePos). */
+function stationAnatomy(): Map<string, [number, number, number]> {
+  const m = new Map<string, [number, number, number]>();
+  for (const v of MAPPED) {
+    const c = COURSES.get(v.id);
+    if (!c) continue;
+    const a = c.A[0]!, b = c.A[c.A.length - 1]!;
+    if (!m.has(v.from)) m.set(v.from, [a.x, a.y, a.z]);
+    if (!m.has(v.to)) m.set(v.to, [b.x, b.y, b.z]);
+  }
+  return m;
+}
+/** Where a dot stands at the change's share t and the turn rr, in the layer's own frame (the layer is turned by rr about the map's centre, so the frame turns back): the flow peel's lerp
+ *  from the station's anatomy place to its (turned) place on the map. At t = 1 it is the unturned map place; before the dots show it is the anatomy's. Writes into out. */
+export function dotAt(anat: readonly [number, number, number] | undefined, final: readonly [number, number, number], t: number, rr: number, rank: number, out: [number, number, number] = [0, 0, 0]): [number, number, number] {
+  if (!anat || t >= 1) { out[0] = final[0]; out[1] = final[1]; out[2] = final[2]; return out; }
+  const w = peelAt(t, rank), a = turnAngle(rr), c = Math.cos(a), s = Math.sin(a);
+  const fx = c * final[0] - s * final[1], fy = s * final[0] + c * final[1];   // (the map place turned, relative to the map's centre)
+  const wx = anat[0] + ((MAP_CENTRE.x + fx) - anat[0]) * w - MAP_CENTRE.x, wy = anat[1] + ((MAP_CENTRE.y + fy) - anat[1]) * w - MAP_CENTRE.y;
+  out[0] = c * wx + s * wy; out[1] = -s * wx + c * wy;   // (turned back into the layer's frame)
+  out[2] = final[2] + (anat[2] - MAP_CENTRE.z) * (1 - w);
+  return out;
+}
 
 /** The map's own ramp (the 2D stage's `ma`): nothing over the first half of the change, then in over the second on a smoothstep. */
 export function mapRamp(t: number): number {
@@ -129,6 +156,11 @@ export class MapLayer {
   private readonly dotMat: ShaderMaterial;
   private readonly on: InstancedBufferAttribute;
   private readonly onNow = new Float32Array(DOT_IDS.length);
+  private readonly anat = stationAnatomy();
+  private readonly finals: [number, number, number][] = [];
+  private readonly ranks: number[] = [];
+  private readonly posAttr: InstancedBufferAttribute;
+  private dotKey = '';
 
   constructor() {
     const half = (PLATE_UNITS * 2 + Math.max(VB_CIRC[2], VB_CIRC[3])) * MAP_K / 2;
@@ -153,9 +185,11 @@ export class MapLayer {
     DOT_IDS.forEach((id, i) => {
       const s = CIRCUIT_NODES[id]!;
       pos[3 * i] = (s.at[0] - CIRC_C[0]) * MAP_K; pos[3 * i + 1] = -(s.at[1] - CIRC_C[1]) * MAP_K; pos[3 * i + 2] = 0.2;
+      this.finals.push([pos[3 * i]!, pos[3 * i + 1]!, 0.2]); this.ranks.push(peelRank(s.at[0]));
       ro[2 * i] = s.r; ro[2 * i + 1] = 0;
     });
-    g.setAttribute('iPos', new InstancedBufferAttribute(pos, 3));
+    this.posAttr = new InstancedBufferAttribute(pos, 3);
+    g.setAttribute('iPos', this.posAttr);
     this.on = new InstancedBufferAttribute(ro, 2);
     g.setAttribute('iRO', this.on);
     g.instanceCount = n;
@@ -191,11 +225,19 @@ export class MapLayer {
   setScale(px: number): void { this.dotMat.uniforms.unitPx!.value = px; }
 
   /** The layer's opacity (mapRamp of the change) and the turn's share. Nothing is drawn at 0. */
-  set(alpha: number, rr: number): void {
+  set(alpha: number, rr: number, t = 1): void {
     this.plateMat.uniforms.mapA!.value = alpha;
     this.dotMat.uniforms.mapA!.value = alpha;
     this.group.visible = alpha > 0.001;
     this.group.rotation.z = turnAngle(rr);
+    // the dots ride the flow peel with their vessels (they showed at their map places while the vessels were still on the way: dots and bars floating off the figure)
+    const key = `${t}|${rr}`;
+    if (alpha > 0.001 && key !== this.dotKey) {
+      this.dotKey = key;
+      const arr = this.posAttr.array as Float32Array, o: [number, number, number] = [0, 0, 0];
+      DOT_IDS.forEach((id, i) => { dotAt(this.anat.get(id), this.finals[i]!, t, rr, this.ranks[i]!, o); arr[3 * i] = o[0]; arr[3 * i + 1] = o[1]; arr[3 * i + 2] = o[2]; });
+      this.posAttr.needsUpdate = true;
+    }
   }
 
   /** Each station's dot fades in once a vessel is drawn at it and out with the last of them: `want(id)` says, `step` is the share of a fade this frame. Returns true while a dot moves. */
