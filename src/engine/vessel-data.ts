@@ -10,7 +10,7 @@
 // The vessel's name is its topology edge id (PV_TRUNK, SMV, SV…); `indexOf(id)` is the mapping from engine to mesh.
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { EDGES, NODES } from './hales/portal/topology.js';
-import type { EngineFrame } from './protocol.ts';
+import type { EngineFrame } from './hales/host/protocol.d.ts';
 import { easeInOutCubic } from '../clock/tween.ts';
 
 interface Edge { id: string; from: string; to: string }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-// "One clock": requestAnimationFrame is called in src/clock/frame.ts and nowhere else. (The worker host under src/engine/host runs in
+// "One clock": requestAnimationFrame is called in src/clock/frame.ts and nowhere else. (The worker host under src/engine/hales/host runs in
 // its own thread and has no animation frames; the copied engine is excluded.)
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => {
   const p = join(dir, n);

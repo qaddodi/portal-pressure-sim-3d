@@ -1,12 +1,12 @@
 // A slide's numbers: the model state each slide sets (the 2D presenter's step chain, exactly), and the words' {tokens} read from that state.
 // Deck-agnostic: any 2D deck (copied/*.ts) goes in. Numbers come from the engine, never typed: this file only decides WHICH state a slide is in and how a
-// reading is printed; the engine (src/engine/host, the host's `sequence`) computes it. The state of slide i is its own when it changes the model, else the last one that did.
+// reading is printed; the engine (src/engine/hales/host, the host's `sequence`) computes it. The state of slide i is its own when it changes the model, else the last one that did.
 import { fmt, NOT_SHOWN } from '../../ui/charts/fmt.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
-/** One step of the host's `sequence` chain (src/engine/host/worker-core.js): preset → params → settle → actions → days. */
+/** One step of the host's `sequence` chain (src/engine/hales/host/worker-core.js): preset → params → settle → actions → days. */
 export interface Step { preset?: string; presetDays?: number; params?: unknown; action?: unknown; days?: number; relax?: number; ramp?: unknown; fine?: boolean }
 /** The numbers of one state: the engine's fingerprint (the tiles' keys: hvpg, ppg, pv, spleen, plt, lsm …, engine units). */
 export type Fingerprint = Readonly<Record<string, number | null | undefined>> & { sbp?: number; dbp?: number };

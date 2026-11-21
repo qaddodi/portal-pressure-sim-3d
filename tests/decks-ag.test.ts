@@ -16,7 +16,7 @@ import { braces, valueText } from '../src/decks/ag/tokens.ts';
 import { TILE } from '../src/ui/charts/tiles.generated.ts';
 import { BATCH_NAMES } from '../src/parity/score.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { pinned2D } from './two-d-pin.ts';
 import { assertNear } from './close.ts';
 
@@ -139,7 +139,7 @@ for (const { deck, slide } of slides) {
 }
 
 test('the action kinds the decks use are the ones the engine host applies', () => {
-  const host = readFileSync(join(root, 'src/engine/host/worker-core.js'), 'utf8');
+  const host = readFileSync(join(root, 'src/engine/hales/host/worker-core.js'), 'utf8');
   for (const k of ACTION_KINDS) assert.ok(host.includes(`case '${k}'`), `the host has no action "${k}"`);
   for (const { slide } of slides) for (const a of (Array.isArray(slide.action) ? slide.action : slide.action ? [slide.action] : []) as { kind: string }[]) assert.ok((ACTION_KINDS as readonly string[]).includes(a.kind), a.kind);
 });

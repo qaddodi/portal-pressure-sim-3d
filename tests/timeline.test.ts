@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Timeline, DEBOUNCE_MS, fmtClock, captureFrame, type Snap, type TimelineHost } from '../src/ui/timeline/model.ts';
 import { removedLabel } from '../src/ui/timeline/removed-label.ts';
-import type { EngineFrame } from '../src/engine/protocol.ts';
+import type { EngineFrame } from '../src/engine/hales/host/protocol.d.ts';
 
 function rig() {
   let now = 0, id = 0;
