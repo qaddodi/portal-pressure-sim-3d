@@ -66,7 +66,7 @@ export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps
     const reads = deps.read(t0);
     const row = judgeStep(step, label, reads, busy, st.settled);
     if (failed) row.flags.unshift({ kind: 'step-failed', sev: 'fail', what: failed, where: '' });
-    rows.push(row); con.push(...reads.console);
+    rows.push(row); con.push(...reads.console.map((c) => ({ ...c, at: `${c.at}, during ${step.group} > ${label}` })));   // (a console line names the step it came in, so a message from one card's code can be traced)
     o.onStep?.(rows.length, row);
   }
   return { size: deps.size, ms: Math.round(deps.now() - t00), depth: o.depth, stopped, rows, console: con, notes, coverage: o.coverage };

@@ -9,9 +9,9 @@ import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 
 /** How far the strip is pushed from the tube's middle, and how much wider it is, as a share of the tube's radius; and the least a thin tube is pushed and blurred on screen (device px). */
-export const SHADOW_PUSH = { x: 0.74, y: -1.06 }, SHADOW_GROW = 0.85, SHADOW_MIN_PX = 1.5, SHADOW_BLUR_PX = 2.2;
+export const SHADOW_PUSH = { x: 0.9, y: -1.3 }, SHADOW_GROW = 1.7, SHADOW_MIN_PX = 1.5, SHADOW_BLUR_PX = 5;
 /** The strength at the middle of the strip, per scheme: a shade on the light grounds, a little more on the dark ones, where the same alpha of black reads less. */
-export const SHADOW_ALPHA = { light: 0.26, dark: 0.4 };
+export const SHADOW_ALPHA = { light: 0.13, dark: 0.22 };
 
 const VS = /* glsl */ `
 uniform vec2 res;
@@ -51,7 +51,7 @@ uniform float reveal;
 varying float vNV;
 varying float vU;
 void main() {
-  float soft = pow(clamp(vNV, 0.0, 1.0), 1.35);
+  float soft = pow(clamp(vNV, 0.0, 1.0), 2.2);
   float cut = reveal < 0.9999 ? 1.0 - smoothstep(reveal - 0.02, reveal, vU) : 1.0;
   float a = shadowA * shadowAmt * alpha * fade * tailK(vU) * soft * cut;
   if (a < 0.003) discard;
