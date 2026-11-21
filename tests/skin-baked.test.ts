@@ -59,7 +59,7 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     });
     const withPlain = made.skins.filter((x) => x.plain);
     assert.ok(withPlain.length >= 4, `${withPlain.length} skins bake a plain trunk (CONF, SV, RPV_T, IVCI at least)`);
-    assert.deepEqual(made.skins.filter((x) => x.plain === null).map((x) => x.plan.junction.node), ['LPV_A'], 'the plain trunks that do not build are named');
+    assert.deepEqual(made.skins.filter((x) => x.plain === null).map((x) => x.plan.junction.node), [], 'every plain trunk builds (LPV_A\'s too, since the forks\' sheets, 21 Nov); one that does not would be named here');
     assert.equal(decodeSkins(new ArrayBuffer(4)), null);
 
     // the page's build from the file: the same skins, the same cuts, a fraction of the time

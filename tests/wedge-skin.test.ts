@@ -26,8 +26,8 @@ test('the cover is whole from the balloon\'s edge to just behind the front, soft
 
 test('the skin blends its arms\' seam distances and tints with the tube\'s 0.78, in every skin and arm', () => {
   const sh = src('skin/shaders.ts'), obj = src('skin/skin-object.ts'), set = src('skin/skin-set.ts'), tube = src('shaders.ts');
-  assert.match(sh, /uniform float armWedge\[/);
-  assert.match(sh, /dwS \+= wi \* armWedge\[i\]/);
+  assert.match(sh, /uniform vec4 armWedge\[2\]/);
+  assert.match(sh, /dwS \+= wi \* wdI/);
   assert.match(sh, /mix\(c, wedgeColS, 0\.78 \* waS\)/);
   assert.match(tube, /mix\(c, wedgeCol, 0\.78 \* wa\)/, 'the same 0.78 as the tube');
   assert.match(obj, /armWedge: \{ value/);

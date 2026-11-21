@@ -258,6 +258,8 @@ export class CelScene {
   private readonly back: VesselObject[] = [];
   /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
   private occNow = 0; private occGoal = 0;
+  /** Settings > Figure depth > Device shadows: where the devices' shadow amount (shared.shadow) is going; it glides (stepShadow). */
+  private shadowGoal = 1;
   private cavaGoal = 0;
   private cavaWhole = 0;
   private lumbarGoal = 0; private lumbarWhole = 0;
@@ -285,7 +287,9 @@ export class CelScene {
     this.applyMates();
     this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
     for (const o of this.back) o.setOcclusion(this.occNow);
+    this.shadowGoal = this.shared.shadow.value = useSettings.getState().deviceShadow ? 1 : 0;
     this.unJoins = useSettings.subscribe((st, prev) => {
+      if (st.deviceShadow !== prev.deviceShadow) { this.shadowGoal = st.deviceShadow ? 1 : 0; this.moving = true; clock.invalidate('device-shadow'); }
       if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
@@ -705,6 +709,15 @@ export class CelScene {
     return true;
   }
 
+  /** Eases the devices' shadow amount toward the Settings switch (the same glide as the occlusion); true while it moves. */
+  private stepShadow(dtMs: number): boolean {
+    const s = this.shared.shadow;
+    if (s.value === this.shadowGoal) return false;
+    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.shadowGoal - s.value;
+    s.value = Math.abs(d) <= k ? this.shadowGoal : s.value + Math.sign(d) * k;
+    return true;
+  }
+
   /** Eases the cava toward whole or veiled; true while it moves. */
   private stepCava(dtMs: number): boolean {
     if (this.cavaWhole === this.cavaGoal && this.lumbarWhole === this.lumbarGoal) return false;
@@ -958,7 +971,7 @@ export class CelScene {
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
   private restKey = ''; private restD = 0.1;
   private lobuleRest(): number {
-    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}x${this.width}`;
+    const r = this.rig.fitRoom, key = `${r.w}x${r.h}x${this.height}x${this.width}`;
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
@@ -1136,7 +1149,7 @@ export class CelScene {
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
     const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
-    const occMoving = this.stepOcclusion(dt);
+    const occMoving = this.stepOcclusion(dt) || this.stepShadow(dt);
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || routesMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
     const dustMoving = dustTuner.step(dt);

@@ -17,6 +17,7 @@ import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
 import { weldOf } from '../src/scene/vessels/skin/plain.ts';
 import { SKIN_GROWERS, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { SKIN_FS as SKIN_FS_TEXT } from '../src/scene/vessels/skin/shaders.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 
@@ -263,6 +264,49 @@ test('copies: a growing arm is a plain arm\'s front copy, and a skin with no arm
   } finally { done(b); }
 });
 
+test('no tube stretch is owned by two surfaces: a skin\'s cut and another skin\'s hole on one vessel never overlap, the S_PC/C9 wall skin and IVCI\'s skin abut on ONE seam ring of the cava', () => {
+  const b = built();
+  try {
+    const owned = new Map<string, { node: string; lo: number; hi: number }[]>();
+    const claim = (id: string, node: string, lo: number, hi: number) => owned.set(id, [...(owned.get(id) ?? []), { node, lo, hi }]);
+    for (const d of b.draws) {
+      const m = meshOf(b, d), node = nodeOf(d);
+      m.junction.arms.forEach((a, i) => { const c = m.cuts[i]!; if (a.side) return; claim(a.vesselId, node, a.end === 0 ? 0 : c.u, a.end === 0 ? c.u : 1); });
+    }
+    for (const id of new Set(b.draws.flatMap((d) => meshOf(b, d).junction.arms.map((a) => a.vesselId)))) for (const h of b.set.holesOn(id)) claim(id, h.node, h.lo, h.hi);
+    for (const [id, cs] of owned) for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
+      if (cs[i]!.node === cs[j]!.node) continue;
+      const over = Math.min(cs[i]!.hi, cs[j]!.hi) - Math.max(cs[i]!.lo, cs[j]!.lo);
+      assert.ok(over <= 1e-9, `${id}: ${cs[i]!.node} and ${cs[j]!.node} both cover ${over.toFixed(4)} of it`);
+    }
+    const cava = owned.get('IVC_IS_1')!, ivci = cava.find((c) => c.node === 'IVCI')!, wall = cava.find((c) => c.node.startsWith('wall:IVC_IS_1:S_PC'))!;
+    assert.ok(ivci && wall, 'both skins stand on the cava');
+    assert.ok(Math.abs(ivci.hi - wall.lo) < 1e-9, 'one shared seam ring, no tube and no overlap between them');
+  } finally { done(b); }
+});
+
+test('every welded skin and its plain trunk are one complementary pair: modes +1 and -1 on the SAME share, never the draw-everything mode 0, so no pixel is covered by both (every node, not one)', () => {
+  const b = built();
+  try {
+    const plains = b.set.plainDraws();
+    assert.ok(plains.length >= 5, 'the real network has plain trunks');
+    // the welded skin of each plain trunk: the live draw whose node has one
+    for (const d of b.draws) {
+      const node = nodeOf(d), plain = b.set.plainOf(node);
+      if (!plain) continue;
+      const [mode, w] = d.weldOf();
+      assert.equal(mode, 1, `${node}: the welded skin keeps the pixels under the weld, never draws them all`);
+      const mate = plains.find((p) => b.set.armIdsOf(p).every((id) => meshOf(b, d).junction.arms.some((a) => a.vesselId === id)) && b.set.armIdsOf(p).length === plain.junction.arms.length && p.weldOf()[1] === w);
+      assert.ok(mate, `${node}: a plain trunk on the same share ${w}`);
+      assert.equal(mate!.weldOf()[0], -1, `${node}: the plain trunk keeps the pixels at or over the weld`);
+    }
+    // the two predicates of the fragment stage are exact opposites: a pixel is the welded skin's (hash under the share) or the plain trunk's (at or over it)
+    const welded = (h: number, w: number) => !(h >= w), plainP = (h: number, w: number) => !(h < w);
+    for (const w of [0, 0.1, 0.5, 0.9, 1]) for (let i = 0; i < 1000; i++) assert.notEqual(welded(i / 1000, w), plainP(i / 1000, w), `share ${w}, hash ${i / 1000}`);
+    assert.match(SKIN_FS_TEXT, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z\) discard/, 'the shader discards exactly the opposite pixels in the two modes');
+  } finally { done(b); }
+});
+
 test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the skin it stands on, once a frame, static again, with its plain trunk', () => {
   const b = built();
   try {
@@ -301,7 +345,7 @@ test('the growth morph is gone: no second shape in the mesh, no growth uniform, 
 
 test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
   on(() => {
-    assert.equal(JOINT_REACH_R, GROW_REACH, 'network.ts cannot import the inventory (it imports the network): the two numbers are one');
+    assert.ok(2 * JOINT_REACH_R >= GROW_REACH, 'network.ts cannot import the inventory (it imports the network): an end the joint rule moves is one the skin could not take as an arm');
     const epi = findSkinJunctions().find((j) => j.node === 'EPI')!, c3 = epi.arms.findIndex((a) => a.vesselId === 'C3');
     assert.ok(c3 >= 0, 'C3 is an arm of EPI');
     const d = dropFarGrowers(epi);

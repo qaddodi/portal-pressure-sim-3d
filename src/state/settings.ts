@@ -30,6 +30,8 @@ export interface Settings {
   hideBehind: boolean;
   /** Living fluid: the ascites pool's soft wall edges, climbing meniscus, slosh, pale rim and deeper amber (ascites.ts). Off: the pool as 2D draws it (hard wall edges, flat tint); the surface ripple is 2D's and stays. */
   fluidSurface: boolean;
+  /** Device shadows: a soft contact shadow under every catheter, balloon tube, stent sleeve and scope, on what lies beneath it (devices/contact-shadow.ts). Off: the devices as 2D draws them, with none. */
+  deviceShadow: boolean;
 }
 interface Store extends Settings {
   setLook(l: LookChoice): void; setBlur(on: boolean): void;
@@ -45,9 +47,9 @@ export const FIGURE_SETTINGS_VERSION = 4;   // (4: the blood streaks default on;
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
 /** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default except Free tilt (the 3D lobule and sinusoid are no longer a switch: everything is 3D, Mohammad 20 Nov 2026); the blood streaks went on by default on 20 Nov (play-test: "no laminar streak lanes are visible": the switch was off, so only the chevrons showed). */
-export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface'] as const;
+export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface', 'deviceShadow'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true };
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true, deviceShadow: true };
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
@@ -61,12 +63,12 @@ export function parseSettings(raw: string | null): Settings {
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), hideBehind: bool(fig.hideBehind, DEPTH_DEFAULTS.hideBehind), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface),
+      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), hideBehind: bool(fig.hideBehind, DEPTH_DEFAULTS.hideBehind), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, hideBehind: s.hideBehind, fluidSurface: s.fluidSurface });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, hideBehind: s.hideBehind, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({

@@ -203,8 +203,10 @@ uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm
 uniform vec3 skinKW;
 #define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
-uniform float armFlow[${SKIN_ARMS}];
-uniform float armWedge[${SKIN_ARMS}];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
+uniform vec4 armFlow[2];    // each arm tube's flowAmount, six floats PACKED in two vectors (a float array costs a whole vector a slot: the fragment stage is held to 120 vectors, tests/skin-shaders.test.ts); read with armFlowAt
+uniform vec4 armWedge[2];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
+float armFlowAt(int i) { return i < 4 ? armFlow[0][i] : armFlow[1][i - 4]; }
+float armWedgeAt(int i) { return i < 4 ? armWedge[0][i] : armWedge[1][i - 4]; }
 uniform vec3 wedgeColS;
 uniform vec4 wedgeS;   // the column (as every tube has it): x how much, y how softly it ends behind the balloon's edge, z the front, w how softly the front ends
 ${WEDGE_GLSL}
@@ -373,8 +375,14 @@ void main() {
     if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
   }
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4)
-    * mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
+  float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
+#if SKIN_COPY == 2
+  // THE COPIES SHARE ONE COVERAGE (a patch where the cava's lower edge meets the liver, Mohammad 21 Nov): at a junction of arms drawn over the organs (the front copy: the renal vein) and arms behind them (the veil copy: the cava) the weights split the pixel between the two copies, and
+  // two alpha blends in turn cover 1 - (1 - a0)(1 - a2), less than a0 + a2: the organ showed through the vessel across the mixing zone. The veil is drawn after the front copy, so its alpha is what is left of the pixel once the front has taken its share (the shares add to the pixel's coverage).
+  float alphaFront = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * armCopy[${i}][0] * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
+  alpha = min(1.0, alpha / max(1.0 - alphaFront, 1.0e-3));
+#endif   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
@@ -451,7 +459,7 @@ void main() {
 #ifndef SKIN_NOHEADS
     // THE HEADS: this arm's own, each drawn whole by the arm that owns its centre (skinOwner), within the arm's own cylinder (a head of this arm's frame is never drawn on another arm's wall, which the pixel's weight used to see to)
     if (vR > 0.0) {
-      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, relP = vPos - seamP;
         float latK = length(relP - tJA[i] * dot(relP, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4);
@@ -536,7 +544,7 @@ void main() {
   // of the place it is at, and the one front crosses the tubes and the skin at one speed
   if (skinCirc < 0.5 && wedgeS.x > 0.001) {
     float pwS = 0.0, dwS = 0.0;
-    for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); if (armWedge[i] > -1000.0) { pwS += wi; dwS += wi * armWedge[i]; } }
+    for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); float wdI = armWedgeAt(i); if (wdI > -1000.0) { pwS += wi; dwS += wi * wdI; } }
     if (pwS > 0.001) {
       float waS = wedgeS.x * clamp(pwS, 0.0, 1.0) * wedgeCover(dwS / pwS, vec3(wedgeS.y, wedgeS.z, wedgeS.w));
       c = mix(c, wedgeColS, 0.78 * waS);
