@@ -1,5 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
-import { anyMoving, lapTimer } from './any-moving';
+import { anyMoving, lapTimer } from './any-moving.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
