@@ -234,10 +234,21 @@ varying float vU;
 // own screen gradient is the distance in device pixels), so the edge is anti-aliased by arithmetic: half covered a pixel in from the raster edge, which is the line's true edge
 varying float vRd;
 #endif
+#ifdef INK_SEAT
+// an organ's AO seat (layer.ts): one soft halo that is strongest at the outline and falls away to nothing at the hull's outer edge, a single monotonic ramp. 2D's .org-ao is a flat 9-unit stroke at 0.09, which at 2D's size is a faint
+// halo; here its flat band, a hard step at the hull's rim, read as one more concentric band beside the outline and the inner shade (review 21 Nov, #16). Twice the flat alpha at the outline, so the halo holds the same total.
+uniform float px;
+uniform float dpr;
+#endif
 void main() {
   float cov = 1.0;
 #ifdef INK_EDGE
   cov = clamp(vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5) - 0.5, 0.0, 1.0);   // (the derivative before the discards: tests/no-derivative-after-discard.test.ts)
+#ifdef INK_SEAT
+  float dev = vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5);   // device pixels in from the hull's outer edge
+  float sk = clamp(dev / max((px + 1.0 / max(dpr, 1.0)) * max(dpr, 1.0), 1.0), 0.0, 1.0);
+  cov *= 2.0 * sk * sk * (3.0 - 2.0 * sk);
+#endif
 #endif
   if (frontOut(vU, reveal)) discard; if (fadedOut()) discard;
   gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * cov);

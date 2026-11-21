@@ -18,6 +18,7 @@ import { D_SMALL, D_SURFACE, EASE_MOVE, cssCurve } from '../../../ui/tests/copie
 import { LOOKS } from '../../../looks/looks.ts';
 import { SCAN_BODY_PX, mixHex } from '../edges.ts';
 import { basisAt, newBasis, toPlate, type Basis, type Box, type ScreenEnv } from './screen.ts';
+import type { RingRun } from './cover.ts';
 import { headCovered, scanTilt, scanTurnOf } from './fibro-place.ts';
 import type { FibroOrgan } from './state.ts';
 
@@ -173,6 +174,12 @@ export class FibroProbe {
       col.setW(i + 1, 0);
     }
     pos.needsUpdate = col.needsUpdate = true; this.beamGeo.computeBoundingSphere();
+  }
+
+  /** The body's outline on the screen for the label layer to leave the text out of (labels/probe-cover.ts); null while it is not shown. */
+  coverRuns(): { runs: RingRun[]; sc: number; alpha: number } | null {
+    const a = this.shown * this.headOp;
+    return a > 0.01 && this.screenAt.placed ? { runs: [{ rings: this.body.rings, from: 0, to: this.body.n - 1 }], sc: 1 / this.U, alpha: a } : null;
   }
 
   /** The pad (2D .sp-tip) along the axis, `tipX` px along it: the tap moves only this. */

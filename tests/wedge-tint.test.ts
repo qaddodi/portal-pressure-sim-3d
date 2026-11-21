@@ -82,7 +82,13 @@ test('ONE front: coverage only ever grows as the column fills, is continuous alo
   const w = sc.procs.wedgeTint()!, r = route3d('hvpg')!.route, hv = r.parts.find((p) => p.name === 'hv')!;
   for (const sub of hv.subs ?? []) {
     const parent = sub.id ? w.pieces.get(sub.id) : undefined; if (!parent) continue;
-    for (const [id, p] of w.pieces) if (id.startsWith(`${sub.id}~F`)) assert.ok(Math.abs(dAt(parent, 0) - dAt(p, 1)) < 1e-9, `${id} starts where ${sub.id} ends`);
+    // (21 Nov, "filling from left to right and right to left": a fork was started at its host's OUTER END although it leaves the host part-way along, so at the join the fork's distance was far ahead of the host's and the
+    // fork and the join filled out of step. A fork's start is its host's own line where the fork's end 1 touches the host.)
+    for (const [id, p] of w.pieces) if (id.startsWith(`${sub.id}~F`)) {
+      const uh = centrelineOf(sub.id!)!.nearestU(centrelineOf(id)!.pointAt(1));
+      assert.ok(Math.abs(dAt(parent, uh) - dAt(p, 1)) < 1e-9, `${id} starts where it touches ${sub.id}`);
+      assert.ok(dAt(p, 1) <= dAt(parent, 0) + 1e-9 && dAt(p, 1) >= dAt(parent, 1) - 1e-9, `${id} starts within its host's own run`);
+    }
   }
   sc.dispose();
 });
