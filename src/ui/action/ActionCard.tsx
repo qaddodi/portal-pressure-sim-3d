@@ -33,6 +33,9 @@ let keyed: (() => void)[] = [];
 let shownNow = false;
 /** Key n (1 to 9) on the open card: true when it did something. */
 export function triggerCardVerb(n: number): boolean { const a = shownNow ? keyed[n - 1] : undefined; if (!a) return false; a(); return true; }
+/** Delete or Backspace on the open card: its Remove button's own work (a shunt or a device comes down, the card eases out, Cmd Z brings it back). */
+let removeNow: (() => void) | null = null;
+export const removeFromCard = Object.assign((): boolean => { const r = shownNow ? removeNow : null; if (!r) return false; r(); return true; }, { available: (): boolean => shownNow && removeNow != null });
 /** Whether a card is up (the number keys mean something then). */
 export const cardIsOpen = (): boolean => shownNow;
 
@@ -154,6 +157,10 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
       else if (v.type === 'button' || v.type === 'dye') list.push(() => v.run(appAct));
     });
     onKeys(list.slice(0, 9));
+    const ri = verbs.findIndex((v, i) => v.type === 'button' && v.id === 'remove' && snap.verbs[i]!.show);
+    const rv = ri >= 0 ? verbs[ri]! : null;
+    removeNow = rv && rv.type === 'button' ? () => rv.run(appAct) : null;
+    return () => { removeNow = null; };
   }, [snap, verbs, onKeys]);
   if (!snap) return null;
   const st = snap.status;
@@ -190,7 +197,7 @@ export function ActionCard() {
   useEffect(() => { if (card) setHeld(card); }, [card]);
   useEffect(() => { if (!fonts) void document.fonts.ready.then(() => setFonts(true)); }, [fonts]);
   const shown = card ?? held, open = !!card && fonts;
-  useEffect(() => { shownNow = open; if (!open) keyed = []; return () => { shownNow = false; keyed = []; }; }, [open]);
+  useEffect(() => { shownNow = open; if (!open) { keyed = []; removeNow = null; } return () => { shownNow = false; keyed = []; removeNow = null; }; }, [open]);
   useEffect(() => { if (face === 'details') keyed = []; }, [face]);   // (the number keys run a card's controls; the Details face has none)
   const onKeys = useMemo(() => (list: (() => void)[]) => { keyed = list; }, []);
   const close = () => import('./selection.ts').then((m) => m.selectStructure(null));

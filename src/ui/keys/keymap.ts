@@ -33,7 +33,7 @@ export type KeyAction =
   | { type: 'play-pause'; prevent: boolean } | { type: 'step' } | { type: 'speed'; dir: 1 | -1 }
   | { type: 'zoom'; dir: 'in' | 'out' | 'fit' } | { type: 'view-toggle' }
   | { type: 'lens'; dir: 1 | -1 } | { type: 'settle' } | { type: 'help' } | { type: 'tests' } | { type: 'treat' } | { type: 'compare' } | { type: 'dye' }
-  | { type: 'card-verb'; n: number }
+  | { type: 'card-verb'; n: number } | { type: 'card-remove' }
   | { type: 'ignore'; prevent?: boolean };
 
 /** The letter a key stands for: its character where that is a Latin letter, else its place on the board (an Arabic or Russian layout has no A, L or Z to name,
@@ -69,6 +69,7 @@ export function decideKey(e: KeyEv, c: KeyCtx): KeyAction | null {
   if (e.altGraph ? !bracket : mod || (e.altKey && !bracket)) return null;
   if (spaceIsOurs) return { type: 'play-pause', prevent: true };
   if (/^[1-9]$/.test(e.key) && c.cardOpen) return { type: 'card-verb', n: Number(e.key) };
+  if ((e.key === 'Delete' || e.key === 'Backspace') && c.cardOpen) return { type: 'card-remove' };   // the open card's Remove (a shunt or a device), as its button
   if (e.key === '.') return { type: 'step' };
   if (e.key === '+' || e.key === '=') return c.inSinusoid ? null : { type: 'zoom', dir: 'in' };
   if (e.key === '-' || e.key === '_') return { type: 'zoom', dir: 'out' };
