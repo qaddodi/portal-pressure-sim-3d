@@ -8,7 +8,6 @@ import {
   COLS, DROP, DROP_NAMES, KEY, PANELS, TITLES, TR, VW, dropIn, dropLayout, keyCols, smooth01, stentSpan, ten, traceFit, traceFor, traceIn, traceLayout, xAt, type Panel, type StentState, type TraceIn,
 } from './model.ts';
 
-interface Span { c: number; a0: number; a1: number; b1: number; b0: number }
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const H = { host: 'stent' };
 const a = (c: Rgba, k: number): Rgba => [c[0], c[1], c[2], c[3] * k];
