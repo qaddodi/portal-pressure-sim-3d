@@ -12,6 +12,7 @@ import { hvpgFrame, type TraceSt } from '../tests/ir/hvpg.ts';
 import { T, newWave, syncWave } from '../tests/copied/hvpg-clock.copied.js';
 import { HVPG_STEPS, STEP_T, stepsOf, levelsOf, startAt } from './hvpg-plan.ts';
 import { setToolStep } from './tool-step.ts';
+import { claimSlide } from './slide-claim.ts';
 import { cathScript } from '../deck/cath-clock.ts';
 
 type Rec = Record<string, unknown>;
@@ -70,7 +71,7 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
     if (follow) { setToolStep(null); return; }
     const can = (dir: 1 | -1) => (dir > 0 ? at < 2 : stepped.current && at > 0);
     setToolStep({ can, step: (dir) => { if (!can(dir)) return false; stepped.current = true; setAt(at + dir); return true; } });
-    return () => setToolStep(null);
+    return claimSlide('step', () => setToolStep(null));   // (a leaving HVPG card never clears the arriving card's stepper: slide-claim.ts)
   }, [at, follow]);
   if (!lv) return null;
   return (
