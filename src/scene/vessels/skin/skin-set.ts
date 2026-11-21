@@ -145,7 +145,13 @@ const isLiverBranchId = (id: string): boolean => { const v = NETWORK_BY_ID.get(i
 export const BRIDGE_MIN_R = 0.1;
 /** How far (radians) a seam ring may lean off the heading the neighbouring rings give before the ring's own plane normal is the heading. */
 const TILT_MAX = 0.04;
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number): ArmAxis {
+// `whole` (a fraction, for a growing arm on a side-wall skin): the skin draws the arm as a static full-size shape (the weld), but the built tube is tapered into its host, so its END ring is far narrower than the arm (C9 on the cava's wall: 0.0099 against 0.0227 at the seam),
+// and the capsule necked down at J inside a fillet sized from the full arm (one vertex of 587 stood 0.51 radii out of the union, tests/skin-joint-bulge.test.ts). The capsule's radius at J is WHOLE_AT_J of the way from the end ring's radius to the seam ring's. The full seam radius
+// makes the sampled surface split into 5 seam loops for 4 arms and the skin drops both growers; closing 0.4 to 0.6 of the neck builds with every arm (0.5: the wall skin's worst vertex 0.38). The cuts are planned from the tubes' own rings (clearOfAxes) and stay as they were.
+// Skins without a side-wall arm keep their axes: widening theirs moves other fillets unpredictably (LRV_S creases at any fraction, IMV and RPV_T bulge at 0.5 and 0.2 to 0.35).
+/** How far from the tube's end ring to its seam ring a growing side-wall arm's capsule is widened at J (axisOf `whole`). */
+export const WHOLE_AT_J = 0.5;
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
@@ -167,7 +173,8 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
   const p1: Vec3 = [s.c[0] - tx * back, s.c[1] - ty * back, s.c[2] - tz * back];
   // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
   const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
-  return { pts: [bridged ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, a.r, s.r, f.r] };
+  const jr = a.r + whole * Math.max(0, s.r - a.r);
+  return { pts: [bridged ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [jr, jr, s.r, f.r] };
 }
 
 /** An arm's arc numbers for the skin's flow marks (the tube's `vUv.x * len * vU` at the seam, 300 figure units to the scene unit on the body): the arc at the seam, which way it grows toward the node, the vessel's length and its rest radius, all in figure units. */
@@ -375,7 +382,7 @@ export class SkinSet {
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
     // (a baked skin brings its axes and its mesh: the page plans nothing and remeshes nothing)
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow && sided ? WHOLE_AT_J : 0); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
