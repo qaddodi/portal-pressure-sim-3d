@@ -9,7 +9,7 @@ import { clock } from '../../clock/frame.ts';
 import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { BAR } from '../../ui/layout/plan.ts';
-import { useUi } from '../../ui/ui-store.ts';
+import { useUi, talkRects } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { cel } from '../api.ts';
 import { type Box, leaderGeom, rectToBox } from '../labels/geometry.ts';
@@ -58,7 +58,7 @@ export function LobuleCaptions() {
     };
     const view = (): Box => lobuleLabelView(useUi.getState().vp, BAR, cel.rig.targetRoom);
     const blockers = (): Box[] => {
-      const b = useUi.getState().boxes, out = [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), note = footBlocker(useFootNote.getState().rect);
+      const out = talkRects(useUi.getState().boxes).map(rectToBox), note = footBlocker(useFootNote.getState().rect);
       return note ? [...out, note] : out;   // (the foot note, while it shows: no name, reading or leader stands under it)
     };
 

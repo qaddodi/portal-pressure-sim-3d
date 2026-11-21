@@ -270,3 +270,8 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz-abb .ab-s { display: none; }
 .pz-ab[data-compact] .pz-abb .ab-f { display: none; }
 .pz-ab[data-compact] .pz-abb .ab-s { display: inline; }
+
+/* The wall-stress readout never overlaps itself (21 Nov). 2D lays "140 % of rupture threshold" (no-wrap) in a one-fraction column beside its state word ("Past rupture threshold"),
+   so the long number ran under the word on a roomy card. A wrapping row keeps both whole: side by side when they fit, the word on its own line when not. */
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress > .endo-bar { flex: 1 1 100%; }
