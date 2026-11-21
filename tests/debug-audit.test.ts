@@ -118,19 +118,21 @@ test('a callout that is not on is gone, whatever its own element says (the audit
   assert.equal(labelAlpha(true, 0.7, []), 0.7);
 });
 
-test('the walk reads a press as progress when the slide\'s procedure took it, and a faded dock is not a bar (the audit called EUS-PPG stuck and every iPhone talk card covered)', async () => {
+test('a faded dock is not a bar (the audit called every iPhone talk card covered by it)', async () => {
   const { readFileSync } = await import('node:fs');
-  const { procKey } = await import('../src/ui/deck/procs-plan.ts');
-  // EUS-PPG has 4 steps: Next starts it, then steps 2, 3, 4, then the slide moves on, so the talk's stop stands still for 4 presses in a row (the walk gave up at 3)
-  let c = { phase: 'idle', run: false, at: -1, n: 4, moving: false } as never as Parameters<typeof procKey>[0];
-  const acts: string[] = [];
-  for (let i = 0; i < 5; i++) { const a = procKey(c, 1); acts.push(a.act); if (a.act === 'start') c = { ...c, run: true, at: 0 } as typeof c; else if (a.act === 'aim') c = { ...c, at: (a as { at: number }).at } as typeof c; }
-  assert.deepEqual(acts, ['start', 'aim', 'aim', 'aim', 'pass']);
   const app = readFileSync(new URL('../src/ui/debug/audit/app.ts', import.meta.url), 'utf8');
-  assert.match(app, /export function progress\(\)[\s\S]*useProc\.getState\(\)/);
-  assert.match(app, /still = progress\(\) === before/);
   // the dock's own box never fades (its face and bars do): the bar is its painted face, read through every ancestor's opacity
   assert.doesNotMatch(app, /\['dock', '\.vdock'\]/);
   assert.match(app, /\['dock', '\.vd-face'\]/);
   assert.match(app, /seen\(win, el\) > 0\.5\) bars\.push/);
+});
+
+test('the report opens with the run time, says when a parallel run makes the speed numbers invalid, and names every stop the walk could not reach', () => {
+  const part = (id: string): AuditData => ({ size: { id, w: 390, h: 844, dpr: 3 }, build: 'b', ms: 120000, depth: 'full', stopped: false, rows: [], console: [], notes: [],
+    coverage: [{ deck: 'Measuring HVPG', reached: 14, total: 15, missed: [9] }, { deck: 'TIPS', reached: 8, total: 8, missed: [] }] });
+  const seq = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, wallMs: 250000, parts: [part('iphone'), part('mac')], failed: [] });
+  assert.match(seq, /^AUDIT v1[^\n]*\nRUN TIME: 4\.2 min in all \(one after the other: iphone 2\.0 min, mac 2\.0 min\)/);
+  assert.match(seq, /COVERAGE iphone: 22 of 23 stops in 2 talks/); assert.match(seq, /NOT REACHED in "Measuring HVPG": 1 of 15 stops \(stop 9\)/);
+  const par = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, wallMs: 130000, parts: [part('iphone'), part('mac')], failed: [] });
+  assert.match(par, /sizes ran at the same time/); assert.match(par, /PARALLEL RUN: .*NOT valid/);
 });

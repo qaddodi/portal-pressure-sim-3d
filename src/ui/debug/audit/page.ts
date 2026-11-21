@@ -2,7 +2,7 @@
 // its progress and its result to the outer page, outer.ts). Loaded only when the address asks (debug/mount.ts); nothing runs until a button, or the frame's start.
 import { runAudit } from './run.ts';
 import { plan, startTaps, settle, QUIET_MS } from './app.ts';
-import { renderText, renderJson, type Bundle, type AuditData } from './report.ts';
+import { renderText, renderJson, type Bundle, type AuditData, type Coverage } from './report.ts';
 import { flagValue } from '../flags.ts';
 import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
@@ -19,14 +19,14 @@ const depthOf = (): 'quick' | 'full' => (flagValue('depth') === 'quick' ? 'quick
 /** One run of this screen: the data for its size. */
 export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string): void }): Promise<AuditData> {
   const taps = startTaps();
-  const notes: string[] = [];
+  const notes: string[] = [], coverage: Coverage[] = [];
   const w = innerWidth, h = innerHeight;
   const dev = ['iphone', 'iphone-landscape', 'ipad', 'ipad-portrait', 'mac', 'mac-short'].map((id) => deviceOf(id)!).find((d) => d.w === w && d.h === h);
   const size = { id: dev?.id ?? `${w}x${h}`, w, h, dpr: devicePixelRatio };
   try {
-    const data = await runAudit(plan(depth, (s) => notes.push(s)), {
+    const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c)), {
       size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => performance.now(), quietMs: QUIET_MS,
-    }, { depth, notes, shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`); } });
+    }, { depth, notes, coverage, shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`); } });
     return { ...data, build: buildInfo().badge };
   } finally { taps.stop(); }
 }
