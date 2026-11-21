@@ -146,7 +146,38 @@ export const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !i
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, alongVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!));   // (the hepatic artery's end is the node its branches start at, as it is)
+/** A collateral or shunt ends at its node's 2D point, but the trunk veins that run on through that node are drawn smooth through the join (smooth-joins), and a fillet can move their joint a little off the node: the epigastric pair's V at the umbilicus
+ *  starts 12 px from it, so the umbilical vein's end stood 5 radii from the joint and 1.8 from the vein's wall: no arm of the junction skin, no wall to sink onto (the skin dropped it, tests/skin-grow.test.ts). Its end now lies on the joint, over its last
+ *  quarter (the way fitEnds moves a branch's end), wherever the trunks' drawn ends at its node agree on one point a short way (under JOINT_MAX px) from the node. Pure: the 2D courses, no list of ids. */
+export const JOINT_REACH_R = 2.2;   // (= skin/inventory.ts GROW_REACH, which imports this file: tests/skin-grow.test.ts pins them equal)
+const JOINT_MAX = 20, JOINT_MIN = 0.5;
+function atJoint(e: Edge, path: readonly (readonly [number, number])[]): readonly (readonly [number, number])[] {
+  if (e.kind !== 'collateral' && e.kind !== 'shunt') return path;
+  const out = path.map((p): [number, number] => [p[0], p[1]]);
+  for (const end of [0, 1] as const) {
+    const node = end ? e.to : e.from, art = isArteryEdge(e);
+    const ends: (readonly [number, number])[] = [], trunks: { p: readonly (readonly [number, number])[]; r: number }[] = [];
+    for (const h of edges) {
+      if (h === e || !isDrawnEdge(h) || h.kind === 'collateral' || h.kind === 'shunt' || isArteryEdge(h) !== art) continue;
+      const p = SMOOTH.get(h.id) ?? EDGE_PATH_2D[h.id];
+      if (p && (h.from === node || h.to === node)) { ends.push(h.from === node ? p[0]! : p[p.length - 1]!); trunks.push({ p, r: NETWORK_HOST_W(h) / 2 }); }
+    }
+    if (!ends.length) continue;
+    const J: [number, number] = [ends.reduce((s, p) => s + p[0], 0) / ends.length, ends.reduce((s, p) => s + p[1], 0) / ends.length];
+    if (ends.some((p) => Math.hypot(p[0] - J[0], p[1] - J[1]) > JOINT_MIN)) continue;   // (the trunks do not meet at one point: no joint to go to)
+    const own = end ? out[out.length - 1]! : out[0]!, d = Math.hypot(J[0] - own[0], J[1] - own[1]);
+    if (d < JOINT_MIN || d > JOINT_MAX) continue;
+    // (only an end the skin could not take as an arm: farther from the joint than twice JOINT_REACH_R radii of the widest trunk (a nearer one is an arm of its skin as it stands, or a landing on a wall, wall.ts))
+    if (d <= 2 * JOINT_REACH_R * Math.max(...trunks.map((t) => t.r))) continue;
+    const n = out.length;
+    for (let i = 0; i < n; i++) {
+      const u = (end ? n - 1 - i : i) / Math.max(1, n - 1), t = Math.min(1, Math.max(0, 1 - u / 0.25)), w = t * t * (3 - 2 * t);
+      out[i]![0] += (J[0] - own[0]) * w; out[i]![1] += (J[1] - own[1]) * w;
+    }
+  }
+  return out;
+}
+const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, atJoint(edgeById.get(id)!, alongVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!)));   // (the hepatic artery's end is the node its branches start at, as it is)
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];

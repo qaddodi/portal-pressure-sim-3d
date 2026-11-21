@@ -55,6 +55,22 @@ export function armWalk(a: Pick<SkinArm, 'end' | 'side'>, tubular: number): { fr
 /** The two side arms of one vessel (a junction in the middle of a vein, spec 10.1): they run on into each other through J as ONE straight tube, so neither is "another arm" to the other's seam (the union of their capsules is the vein itself, no blend lies between them). */
 export const isThroughPair = (a: Pick<SkinArm, 'vesselId' | 'side'>, b: Pick<SkinArm, 'vesselId' | 'side'>): boolean => !!a.side && !!b.side && a.vesselId === b.vesselId && a.side.dir !== b.side.dir;
 
+/** Two arms run ALONG one another when their axes leave J less than this far apart (degrees): PVH's DIPS lies 12 degrees from PVH_R (every other growing arm is 25 or more from a permanent one, tests/skin-grow.test.ts). */
+export const ALONG_DEG = 20;
+/**
+ * Whether permanent arm `i`'s seam need not clear growing arm `o` (21 Nov, "weld DIPS into the portal vein"): a growing arm that runs along a permanent one lies inside its blend for the whole of a short stub (PVH_R is 4 radii long), so no ring of the stub ever clears it and the node
+ * lost its DIPS. The seams of the arms that stay are then judged against the arms that stay alone (the plain trunk has no growing arm); where the growing arm's blend crosses the permanent seam the full-size skin starts from the tube's own ring all the same (mesh.ts). Pure.
+ */
+export function growAlong(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>): (i: number, o: number) => boolean {
+  const dirs = j.arms.map((a) => {
+    const t = tubes.get(a.vesselId); if (!t) return null;
+    const w = armWalk(a, t.tubular), c = ringAt(t, w.from + w.step * Math.min(3, w.count - 1)).centre, d = dist3(c, j.J) || 1;
+    return [(c[0] - j.J[0]) / d, (c[1] - j.J[1]) / d, (c[2] - j.J[2]) / d] as Vec3;
+  });
+  const cos = Math.cos((ALONG_DEG * Math.PI) / 180);
+  return (i, o) => { const a = dirs[i], b = dirs[o]; return !!a && !!b && !!j.arms[o]!.grow && !j.arms[i]!.grow && a[0] * b[0] + a[1] * b[1] + a[2] * b[2] > cos; };
+}
+
 /** The arm's capsule (spec 4.3): its axis from J outward, the tube's own ring centres, out to `CAPSULE_R` of its radii, with the radius the tube really has at each (tapers included). */
 function capsuleOf(j: SkinJunction, rings: readonly Ring[], restR: number): Capsule {
   const pts: Vec3[] = [j.J], rad: number[] = [rings[0]!.r];
@@ -96,7 +112,7 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     for (let s = 0; s < w.count; s++) out.push(ringAt(t, w.from + w.step * s));
     return out;
   });
-  const caps = j.arms.map((a, i) => capsuleOf(j, rings[i]!, a.restR));
+  const caps = j.arms.map((a, i) => capsuleOf(j, rings[i]!, a.restR)), along = growAlong(j, tubes);
   // the arc length from J to each ring's centre (the arm's own length is the last): rule 1b
   const arc = rings.map((rs) => { let d = 0, prev: Vec3 = j.J; return rs.map((g) => { d += dist3(prev, g.centre); prev = g.centre; return d; }); });
   /** why ring `s` (counted from J) of arm `i` is not eligible under rules 1, 1b and 2 (null: eligible), and for rule 1 which arm's capsule it is too near */
@@ -106,7 +122,7 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     if (dist3(g.centre, j.J) < SEAM_MIN_R * a.restR) return 'too near J (2)';
     const need = clear.k * k + clear.r * a.restR;
     for (let o = 0; o < n; o++) {
-      if (o === i || isThroughPair(a, j.arms[o]!)) continue;
+      if (o === i || isThroughPair(a, j.arms[o]!) || along(i, o)) continue;
       for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) < need) return `${j.arms[o]!.vesselId}${j.arms[o]!.side ? ' (side)' : ''}`;
     }
     return null;
@@ -192,7 +208,15 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
         const A = js[a]!, B = js[b]!;
         // a landing on a host's wall (a virtual `wall:` node, wall.ts) that crowds another skin is not merged into it (its side arm is no run-on between two nodes): the other skin stays as it was, the landing keeps the tube's own flared end (named)
         if (isWall(A) || isWall(B)) {
-          const [w, other, otherPlan] = isWall(A) ? [A, B, pb] : [B, A, pa];
+          const [w, other, otherPlan, wallPlan] = isWall(A) ? [A, B, pb, pa] : [B, A, pa, pb];
+          // ...unless the two seams can be ONE ring: the other skin's cut is a ring the wall's own seam may stand on (the wall's seam only moves AWAY from its centre, never nearer), so the skins abut on that ring (identical seam, no tube between them) and the host is
+          // skin all the way along (S_PC and C9 on the cava's first stretch, IVCI's seam and the wall node's own both at ring 3)
+          const [wc, oc] = wallPlan === pa ? [ca, cb] : [cb, ca];
+          if (wc.side !== undefined && (wc.end === 1 ? oc.ring <= wc.ring : oc.ring >= wc.ring)) {
+            const moved: SkinCut = { ...wc, ring: oc.ring, u: oc.u };
+            out.push(otherPlan, { ...wallPlan, cuts: wallPlan.cuts.map((c) => (c === wc ? moved : c)) });
+            break;
+          }
           failures.push(new SkinBuildError(w.node, `${w.node} crowds the skin of ${other.node} on ${ca.vesselId}`));
           out.push(otherPlan);
           break;

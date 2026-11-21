@@ -1,7 +1,7 @@
 // The free ends of the vessels fade as the 2D figure draws them (tables copied from the 2D app): the veins that end in the organ they drain, the hepatic artery's ends, the veins that leave the plate.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fadeOf, companionEnd, CAVA_RECEDE, cavaEndSpan } from '../src/scene/vessels/fades.ts';
+import { fadeOf, companionEnd, CAVA_RECEDE, MAP_ART_FADE, cavaEndSpan } from '../src/scene/vessels/fades.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
@@ -54,7 +54,7 @@ test('the vessels that have a free end in the 2D figure all have a fade in the s
 test('the shader carries the fade into both the body and the ink, and lets go of it in the Circuit', () => {
   assert.match(VESSEL_VS, /vFade = fa;/);
   assert.doesNotMatch(VESSEL_VS, /swell \*= mix\([^;]*fa\)/, 'a fade never thins the tube: full width to the end');
-  assert.match(VESSEL_VS, /fa = mix\(fa, 1\.0, circT\)/, "the Circuit lets go of every fade, the artery's too: no vessel is faint on the map");
+  assert.match(VESSEL_VS, /fa = mix\(fa, mapFa, circT\)/, "the Circuit lets go of every fade but the lobar arteries' ends (mapFade): no other vessel is faint on the map");
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the body fades by its alpha');
   assert.match(VESSEL_FS, /c = mix\(c, mix\(inkH, inkColorCirc, circT\), inkT\);[\s\S]*gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
 });
@@ -100,4 +100,17 @@ test('a lobar artery is gone where the portal branch it runs beside is gone: its
     assert.ok(Math.hypot(pa[0] - pv[0], pa[1] - pv[1]) < 20, `${a} ends beside ${host}'s fade end`);
     assert.equal(f.a1, 0, 'it fades to nothing, so what is left past it is not drawn (no dotted stub)');
   }
+});
+
+test('the Circuit lets the two lobar arteries\' ends fade to nothing before the lane tips (no blunt end); no other fade holds on the map', () => {
+  for (const id of ['A_HR', 'A_HL']) {
+    const f = fadeOf(id, true)!;
+    assert.deepEqual(f.mapFade, MAP_ART_FADE, id);
+    assert.ok(MAP_ART_FADE[0] > 0 && MAP_ART_FADE[1] < 1 && MAP_ART_FADE[0] < MAP_ART_FADE[1], 'gone before the end of the course, a long ease');
+  }
+  for (const id of ['A_HEP', 'RHV_IVC', 'C5', 'SIN_RR', 'PVH_R_2']) assert.equal(fadeOf(id, id === 'A_HEP')?.mapFade, undefined, `${id}: the map holds its fade off as before`);
+  const vs = VESSEL_VS;
+  assert.equal((vs.match(/mix\(fa, mapFa, circT\)/g) ?? []).length, 2, 'both fade paths ease to the map\'s fade, not to 1');
+  assert.doesNotMatch(vs, /mix\(fa, 1\.0, circT\)/);
+  assert.match(vs, /mapFa = mapFade\.z > 0\.5 \? 1\.0 - smoothstep\(mapFade\.x, mapFade\.y, uv\.x\) : 1\.0/);
 });

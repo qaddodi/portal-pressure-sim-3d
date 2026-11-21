@@ -5,6 +5,7 @@
 // The remesh then only has to even out the triangles: the sheet is already within a cell of the surface, so there is nothing to fold. Pure numbers in, numbers out (no scene, no three.js).
 import { SkinBuildError } from './types.ts';
 import { sdUnion, type Capsule } from './sdf.ts';
+import { capStrayLoops } from './sheet-caps.ts';
 
 /** The grid cell, as a share of the narrowest arm's radius, and the most cells the grid may have (a fine grid for a thin fork, a coarser one for a long cava). */
 export const SHEET_CELL = 0.15;
@@ -141,6 +142,7 @@ export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seam
     if (v !== start) throw new SkinBuildError(node, 'a seam loop of the sampled surface is not closed');
     loops.push(loop);
   }
+  loops.splice(0, loops.length, ...capStrayLoops(loops, tris, pos, cen, rad));   // (a small hole at no seam: sheet-caps.ts)
   if (loops.length !== A) throw new SkinBuildError(node, `the sampled surface has ${loops.length} seam loops for ${A} arms`);
 
   // each loop to the arm whose seam plane it lies nearest, then zipped to that arm's ring

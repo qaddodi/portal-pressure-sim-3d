@@ -355,6 +355,9 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
+  // THE ALPHA IS THE PRESENT ARMS' ONLY (Mohammad, 20 Nov: a dotted pink and blue patch left at the old end of both hepatic arteries, at the sinusoid nodes): the body does not draw the liver's beds, so at SIN_R and SIN_L the arteriole is the one arm that is there, and the skin is dithered
+  // by its share (pres). The alpha blended EVERY arm's fade by weight, the hidden beds' too (PRE_R whole, SIN_RR 0.8), so the skin kept an alpha and a colour from vessels that are not drawn at the pixels the artery's own dither let through, long after the artery had faded to nothing. The alpha is the weighted fade of the arms that are
+  // there (each arm's weight times its presence, over their sum), so an arm that is not drawn adds nothing, and where the one that is has faded the skin is gone with it.
   if (skinKW.y != 0.0) { float wh = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); if (skinKW.y > 0.0 ? wh >= skinKW.z : wh < skinKW.z) discard; }
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
@@ -370,7 +373,7 @@ void main() {
     if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
   }
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)}`).join(' + ')}) 
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4)
     * mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
