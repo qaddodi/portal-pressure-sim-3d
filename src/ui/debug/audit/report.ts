@@ -90,6 +90,34 @@ export function groupConsole(b: Bundle): { level: string; text: string; n: numbe
 
 const median = (xs: number[]) => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)]! : 0; };
 
+
+export interface Lag { where: string; transition: string; fps: number | null; worstGap: number; stalls: number; cause: string }
+/** What the step did, in a person's words: opening a talk, leaving it, or going from the stop before to this one. */
+export function transitionOf(rows: readonly AuditRow[], i: number): string {
+  const r = rows[i]!;
+  if (/^leave the talk/.test(r.label)) return 'LEAVING the talk';
+  if (/outline \(opening the talk\)/.test(r.label)) return 'ENTERING the talk (opening it)';
+  const m = /stop (\d+) of (\d+)/.exec(r.label);
+  const prev = i > 0 && rows[i - 1]!.group === r.group ? /stop (\d+) of/.exec(rows[i - 1]!.label) : null;
+  if (m) return prev ? `going from stop ${prev[1]} to stop ${m[1]} (leaving stop ${prev[1]}, entering stop ${m[1]})` : `ENTERING stop ${m[1]}`;
+  if (/Next \(beat\)/.test(r.label)) return 'a beat press (next step inside the stop)';
+  return r.group === 'Patients' ? 'changing the patient' : r.group === 'Views' ? 'changing the view or sheet' : 'this step';
+}
+/** Every step under LAG_FPS or with a gap over LAG_GAP_MS, worst first. Empty when frame timings are not valid (parallel or speed run). */
+export const LAG_FPS = 30, LAG_GAP_MS = 100;
+export function lags(b: Bundle): Lag[] {
+  if (dropsFinding(b, 'stall')) return [];
+  const out: (Lag & { rank: number })[] = [];
+  for (const p of b.parts) p.rows.forEach((r, i) => {
+    const f = r.frames, slowFps = f.fps != null && f.frames >= 10 && f.fps < LAG_FPS, bigGap = f.worstGap > LAG_GAP_MS || f.stalls > 0;   // (zero stalls is the rule: any frame gap over 50 ms is a lag)
+    if (!slowFps && !bigGap) return;
+    const top = r.gpu?.slow[0];
+    const cause = top ? `slowest frame: work ${top.ms} ms, gap ${top.gap} ms${top.bound ? `, waited on ${top.bound}` : ''}, asked by ${top.tags.join('/') || '-'}` : r.gpu ? 'no slow frame recorded' : 'no renderer data';
+    out.push({ where: where(p, { ...r, label: r.label }), transition: transitionOf(p.rows, i), fps: f.fps, worstGap: f.worstGap, stalls: f.stalls, cause, rank: Math.max(f.worstGap, f.fps != null && f.fps > 0 ? 1000 / f.fps * 3 : 0) });
+  });
+  return out.sort((a, b2) => b2.rank - a.rank).map(({ rank: _r, ...l }) => l);
+}
+
 /** What no run of this can see, first, so a clean report is not read as "all good". */
 export const CANNOT_SEE = [
   'Taste: whether anything looks ugly, un-2D or off is still your eye. Pixels are never read.',
@@ -129,6 +157,15 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   const wall = b.wallMs ?? b.parts.reduce((n, p) => n + p.ms, 0);
   L.push(`AUDIT v2 · build ${b.build} · ${b.at} · depth ${b.depth} · ${b.framed ? 'sized frames' : 'this screen'}${o.short ? ' · SHORT' : ''}`);
   L.push(`SUMMARY: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} console message${con.length === 1 ? '' : 's'}; ${steps} steps in ${b.parts.length} size${b.parts.length === 1 ? '' : 's'}; ${animTotal} CSS animations and transitions recorded; run time ${mins(wall)}${b.parallel ? ' (PARALLEL: fps and timings NOT valid)' : ''}${(b.speed ?? 1) > 1 ? ` (SPEED x${b.speed}: fps, stalls and GPU-bound NOT valid)` : ''}`);
+  const lg = lags(b);
+  const stallN = dropsFinding(b, 'stall') ? null : rows.reduce((n, { r }) => n + r.frames.stalls, 0), stallSteps = dropsFinding(b, 'stall') ? 0 : rows.filter(({ r }) => r.frames.stalls > 0).length;
+  L.push(`STALLS: ${stallN == null ? 'not measured (parallel or speed run)' : `${stallN} frame gap${stallN === 1 ? '' : 's'} over 50 ms in ${stallSteps} step${stallSteps === 1 ? '' : 's'}${stallN ? ' (each one fails; zero is the rule)' : ' (zero: good)'}`}`);
+  L.push(''); L.push(`LAGS (steps under ${LAG_FPS} fps, with a frame gap over ${LAG_GAP_MS} ms, or with ANY stall (a gap over 50 ms): zero stalls is the rule, so each is a failure; worst first; this is the list to read first)`);
+  if (dropsFinding(b, 'stall')) L.push('not available: frame timings are not valid in a parallel or speed run. Run once on its own, without speed.');
+  else if (!lg.length) L.push('none: every step stayed at or above 30 fps with no gap over 100 ms');
+  else for (const l of lg.slice(0, o.short ? 15 : 40)) L.push(`${l.fps != null ? `${l.fps} fps` : 'fps n/a'}, worst gap ${l.worstGap} ms, ${l.stalls} stall${l.stalls === 1 ? '' : 's'}  ${l.where}\n    ${l.transition}; ${l.cause}`);
+  if (lg.length > (o.short ? 15 : 40)) L.push(`and ${lg.length - (o.short ? 15 : 40)} more (all in the JSON rows)`);
+  L.push('');
   if (kinds.size) L.push(`FINDINGS BY KIND: ${[...kinds].sort((a, b2) => b2[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   if (b.parallel) L.push(`PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid, and ${rows.reduce((n, { r }) => n + r.flags.filter((f) => TIMING_KINDS.has(f.kind)).length, 0)} timing findings (stall, low-fps, slow-load, fade-slow, unsettled) are left out. Layout, snaps, coverage and console errors are valid.`);
   if ((b.speed ?? 1) > 1) L.push(`SPEED RUN x${b.speed}: the page's clock ran ${b.speed} times faster, so settle and fade lengths are in page time (valid), but frame rates, stalls, low-fps, gpu-bound and fade-under-stall findings are NOT valid and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => SPEED_INVALID.has(f.kind)).length, 0)} dropped). Layout, coverage and console errors are valid.${(b.speed ?? 1) > FRAME_LIMIT_SPEED ? ` ABOVE ${FRAME_LIMIT_SPEED}x the page draws only a frame or two of each ease, so fade, snap and pop findings (fade-instant, flash, card-pop, generic-pop...) are NOT valid either and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => FRAME_LIMITED_KINDS.has(f.kind)).length, 0)} dropped): use speed=${FRAME_LIMIT_SPEED} or less for those.` : ' Snaps and fades are valid up to 4x.'} Run once without speed for the real timings.`);

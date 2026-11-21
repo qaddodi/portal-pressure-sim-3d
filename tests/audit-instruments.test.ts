@@ -5,7 +5,7 @@ import { boundBy, readStats, frameBegin, frameEnd, renderStats, memoryClimb, typ
 import { createClock } from '../src/clock/frame.ts';
 import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/judge.ts';
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
-import { renderText, groupFindings, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
+import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
 import { speedOf, scaleTime, scaleTimers, sampleRealMs, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
@@ -121,4 +121,25 @@ test('speed 10: timers scale with the clock, the sampler never ticks faster than
   assert.ok(groupFindings(b(4)).some((x) => x.kind === 'fade-instant'));
   assert.ok(!groupFindings(b(10)).some((x) => x.kind === 'fade-instant'));
   assert.match(renderText(b(10)), /ABOVE 4x/); assert.doesNotMatch(renderText(b(4)), /ABOVE 4x/);
+});
+
+test('LAGS: steps under 30 fps or with a gap over 100 ms, worst first, with the talk, stop and the transition; at the top of the report', () => {
+  const mk = (label: string, group: string, fps: number, worst: number, gaps = 15): ReturnType<typeof judgeStep> => judgeStep({ group, id: label, label, run: () => undefined }, label, { samples: card([1, 1]), gaps: Array.from({ length: gaps }, (_, i) => (i === 0 ? worst : 1000 / fps)), work: { p95: 3, max: 4 }, layout: null, problems: [], console: [], hidden: false, gpu: gpu({ slow: [{ ms: 5, gap: worst, bound: 'gpu/compositor', tags: ['card-in'] }] }) }, 100, true);
+  const rows = [mk('stop 6 of 20', 'HVPG', 60, 20), mk('stop 7 of 20', 'HVPG', 16, 135), mk('leave the talk', 'HVPG', 55, 160), mk('stop 8 of 20', 'HVPG', 59, 18)];
+  const b: Bundle = { build: 'b', device: 'd', at: 'n', depth: 'full', framed: false, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: false, rows, console: [], notes: [] }], failed: [] };
+  const l = lags(b);
+  assert.equal(l.length, 2); assert.match(l[0]!.where, /stop 7 of 20/); assert.match(l[0]!.transition, /from stop 6 to stop 7/); assert.match(l[0]!.cause, /gpu\/compositor/);   // (16 fps with a 135 ms gap outranks a lone 160 ms gap at 55 fps)
+  assert.match(l[1]!.where, /leave the talk/); assert.match(l[1]!.transition, /LEAVING/);
+  assert.equal(transitionOf(rows, 0), 'ENTERING stop 6');
+  const t = renderText(b); assert.ok(t.indexOf('LAGS') < t.indexOf('FAILING') || !t.includes('FAILING')); assert.ok(t.indexOf('LAGS') < t.indexOf('FINDINGS BY KIND') || !t.includes('FINDINGS BY KIND'));
+  assert.match(renderText({ ...b, speed: 4 }), /LAGS[^\n]*\nnot available/);
+});
+
+test('zero stalls: any frame gap over 50 ms fails (never a warning), is counted in the headline and listed under LAGS; a speed run leaves it out', () => {
+  const one = judgeStep({ group: 'HVPG', id: 'a', label: 'stop 3 of 9', run: () => undefined }, 'stop 3 of 9', { samples: card([1, 1]), gaps: [16, 16, 16, 16, 60, 16], work: { p95: 3, max: 4 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
+  assert.equal(one.flags.find((f) => f.kind === 'stall')!.sev, 'fail');
+  const b: Bundle = { build: 'b', device: 'd', at: 'n', depth: 'full', framed: false, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: false, rows: [one], console: [], notes: [] }], failed: [] };
+  assert.equal(lags(b).length, 1);
+  assert.match(renderText(b), /STALLS: 1 frame gap over 50 ms in 1 step/);
+  assert.match(renderText({ ...b, speed: 4 }), /STALLS: not measured/);
 });
