@@ -350,5 +350,9 @@ test('a collateral that ends off the joint of the trunks at its node (the epigas
     assert.ok(c3 >= 0, 'C3 is an arm of EPI');
     const d = dropFarGrowers(epi);
     assert.deepEqual(d.far, [], 'C3 ends within reach of the joint (was 4.97 radii: dropped)');
+    // what hangs on the moved end moves with it: the caput fan's roots start where the umbilical vein now ends (tests/landing-positions.test.ts measures every tributary against its host)
+    const c3plan = NETWORK_BY_ID.get('C3')!.plan as { base: readonly (readonly [number, number])[] }, fan = NETWORK_BY_ID.get('C3~F:caput')!.plan as { list: readonly { pts: readonly (readonly [number, number])[] }[] };
+    const end = c3plan.base[c3plan.base.length - 1]!, roots = fan.list.filter((f) => Math.hypot(f.pts[0]![0] - end[0], f.pts[0]![1] - end[1]) < 0.01);
+    assert.ok(roots.length >= 1, 'a tributary of the caput fan starts on the umbilical vein\'s moved end');
   });
 });
