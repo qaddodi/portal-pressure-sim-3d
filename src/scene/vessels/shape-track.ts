@@ -26,6 +26,8 @@ const seamKeyOf = (s: ShapeState) => keyOf(seamState(s));
 /** The coil strengths a coiling vessel's shape is built at, and between which it is blended (the centres and radii are linear in the coil: 0.08 radii off at most from 0 to 5, 0.006 across one step). The target is 1.5 + 3.5 of its opening, so 5 is the most. */
 export const COIL_STEP = 1.25;
 const COIL_RUNGS = 4;
+/** The bead is kept to steps of 1 / BEAD_STEPS (0.05 of a strand's radius: under a fifth of a pixel at the figure's widest): each step is one build of the shape, so the easing of the varix's size costs 7 builds a strand, not 35. */
+export const BEAD_STEPS = 20;
 /** The most CPU time (ms) one frame spends rebuilding tubes for shapes that move (buildTubes + reshape, 1 to 7 ms for each coiling collateral): the rest wait for the next frame, so a preset that opens a dozen collaterals at once spreads the work over frames instead of making one long one. At least one is always rebuilt. */
 export const SHAPE_BUDGET_MS = 4;
 
@@ -92,7 +94,8 @@ export class ShapeTracks {
       const strandsChanged = it.state.strandsOn !== it.strandsOn;
       moving = it.coil.step(it.shown, it.spread, dtMs, instant) || strandsChanged;
       it.state.wig = it.coil.wig; it.state.spr = it.coil.spr; it.state.strandsOn = it.strandsOn;
-      if (it.state.bead !== it.bead) { it.state.bead = it.bead; moving = true; }
+      const bead = Math.round(it.bead * BEAD_STEPS) / BEAD_STEPS;   // (a beaded strand is built again at each new bead: 0.01 steps while the varix size eased were a rebuild of every beaded strand nearly every frame for seconds)
+      if (it.state.bead !== bead) { it.state.bead = bead; moving = true; }
       if (it.v.id === 'C1a' || it.v.id === 'C1b') { const b = Math.round((this.bandsShown ?? this.bandsGoal) * 20) / 20; if (b !== it.state.bands) { it.state.bands = b; moving = true; } }
       if (it.v.id === 'C8') { const r = Math.round(it.shown * 20) / 20; moving = moving || r !== it.state.rec; it.state.rec = r; }
     } else {

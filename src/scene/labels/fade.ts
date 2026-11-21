@@ -1,7 +1,9 @@
 // Labels fade, never slide (look-and-feel section 7; the 2D rule of 16 Nov). A label that is wanted somewhere else, or with other words, does not blink out and in: the old picture stays where
 // it stood and fades out while the new one fades in where it stands now, over FADE.moveMs, the weights easeMove(u) and 1 - easeMove(u) (2D label-gl.js moveFade; Mohammad, 20 Nov audit 4.5:
 // "a moved label blinks out and in": 120 ms out then 180 ms in, one after the other, with nothing shown between).
-// A move that leaves the old and the new box overlapping, with the same words, is taken at once (2D: a number whose width changes by a pixel must not be drawn twice).
+// A move that leaves the old and the new box overlapping, with the same words and the same spot on its vessel, is taken at once only while it stays within FADE.smallPx of where the picture last stood
+// (2D: a number whose width changes by a pixel must not be drawn twice). Further than that, or by many small steps adding up to it, it crosses over: a stream of re-solves (a card gliding, a vessel growing)
+// must never walk a label across the screen at full opacity, nor jump it along its vessel (audit, 21 Nov: "SMALL BOWEL" slid 38 px, "Portal vein" 28 px).
 // A label that must go (no longer wanted) or a picture that was cut (`hold`) fades out at once and nothing new starts until the hold is over. Linear fades, on the one clock.
 // Pure: no DOM; the layer reads `frame` and writes transform and opacity.
 import { FADE } from './alpha.ts';
@@ -22,6 +24,8 @@ export interface Ghost { p: Placement; key: string; snap: unknown }
 export interface Shown {
   /** The placement being drawn (the new one while a crossing runs). */
   p: Placement;
+  /** Where the picture last stood still or began to cross: small moves are measured from here, so they cannot add up to a slide. */
+  ref: Placement;
   key: string;
   snap: unknown;
   /** 0..1 */
@@ -57,7 +61,7 @@ export class LabelFader {
     let busy = false;
     const out = dt / FADE.outMs, inn = dt / FADE.inMs, dimStep = dt / FADE.dimMs, cross = dt / FADE.moveMs;
     for (const [id, w] of wants) {
-      if (!this.st.has(id) && !hold) this.st.set(id, { p: w.p, key: w.key ?? '', snap: w.snap, alpha: 0, dim: w.dim ? 1 : 0, from: null, mix: 1, u: 1 });
+      if (!this.st.has(id) && !hold) this.st.set(id, { p: w.p, ref: w.p, key: w.key ?? '', snap: w.snap, alpha: 0, dim: w.dim ? 1 : 0, from: null, mix: 1, u: 1 });
     }
     for (const [id, s] of this.st) {
       const w = wants.get(id);
@@ -68,12 +72,14 @@ export class LabelFader {
         const moved = !samePlace(s.p, w.p), reworded = key !== s.key;
         if (moved || reworded) {
           const invisible = s.alpha <= 0.001;
-          const small = !reworded && s.p.form === w.p.form && s.p.leader === w.p.leader && !apart(s.p, w.p);
-          if (invisible || small || s.p.form < 0) { s.p = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.u = 1; }
+          const small = !reworded && s.p.form === w.p.form && s.p.leader === w.p.leader && !apart(s.p, w.p) && Math.abs(s.p.au - w.p.au) < 0.01
+            && Math.abs(s.ref.dx - w.p.dx) <= FADE.smallPx && Math.abs(s.ref.dy - w.p.dy) <= FADE.smallPx;
+          if (small) { s.p = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.u = 1; }
+          else if (invisible || s.p.form < 0) { s.p = w.p; s.ref = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.u = 1; }
           else {
             // (begun from the picture that stands: one still crossing lets go of the old one it was leaving, which was only a part shown)
             s.from = s.from && s.mix < 0.5 ? s.from : { p: s.p, key: s.key, snap: s.snap };
-            s.p = w.p; s.key = key; s.snap = w.snap; s.u = 0; s.mix = 0;
+            s.p = w.p; s.ref = w.p; s.key = key; s.snap = w.snap; s.u = 0; s.mix = 0;
           }
         } else { s.snap = w.snap; }
       }

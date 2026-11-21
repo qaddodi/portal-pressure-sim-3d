@@ -1,5 +1,5 @@
 // The motion rules (the 2D app's watch/motion-rules.js, over the 3D app's recorder): each judges the recorder's last seconds of samples. A sample is
-//   { t, c: [k, x, y], L: [[name, x, y, w, h, alpha]...], K: [[id, x, y, w, h, alpha]...], W: [1 | 0 per card: has words] }
+//   { t, c: [k, x, y], L: [[name, x, y, w, h, alpha, crossing]...], K: [[id, x, y, w, h, alpha]...], W: [1 | 0 per card: has words] }
 // where c is the camera's mark (the hand's zoom k and where the figure's anchor lands on the stage, so a shot, an orbit or a pinch all move it). Pure: no DOM, no page.
 import { DIM_ALPHA } from '../limits.ts';
 
@@ -113,6 +113,7 @@ export function labelSlide(h: History): MFinding[] {
       const p = r.at[i - 1], q = r.at[i];
       if (!p || !q || !(p[5]! >= GONE) || !(q[5]! >= GONE)) { flush(); continue; }
       if (camMoved(S[i - 1], S[i]) > 0.05) { flush(); continue; }   // (the camera moves it: there is no telling)
+      if (p[6] || q[6]) { flush(); continue; }   // (a crossing: the label is changing place by a cross-fade, which is what it should do)
       const d = Math.hypot(q[1]! - p[1]!, q[2]! - p[2]!);
       if (d >= JUMP_PX) { flush(); out.push(finding('label-slide', `label "${r.key}"`, `jumped ${Math.round(d)} px in one frame at alpha ${r1(q[5]!)}, instead of fading`, S[i - 1]!.t, S[i]!.t)); continue; }
       if (d > 0.2) { if (run) { run.d += d; run.i1 = i; run.a = Math.min(run.a, q[5]!); run.quiet = 0; } else run = { i0: i - 1, i1: i, d, a: q[5]!, quiet: 0 }; }

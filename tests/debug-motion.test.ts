@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { flash, stuckMid, labelSlide, labelDimAlpha, cardPop, cardSizeSnap, cardEmpty, cameraStraight, judgeMotion, type Sample } from '../src/ui/debug/watch/motion-rules.ts';
 import { runRules } from '../src/ui/debug/core/rules.copied.js';
 import '../src/ui/debug/selfcheck/plugins.ts';
+import { labelRows } from '../src/ui/debug/watch/sources.ts';
 
 const frames = (n: number, f: (i: number) => Partial<Sample>): Sample[] => Array.from({ length: n }, (_, i) => ({ t: i * 16, c: [1, 100, 100], ...f(i) }));
 const card = (a: number, h = 300, w = 358) => [['teach', 16, 400, w, h, a]];
@@ -69,4 +70,23 @@ test('the motion rules run through the registry as the "motion" family and a thr
   assert.ok(found.some((f: { rule: string }) => f.rule === 'flash'));
   assert.deepEqual(runRules(null, { history: [], families: 'motion' }), []);
   assert.ok(judgeMotion({ samples: null as never }).filter((f) => /threw/.test(f.where)).length >= 6, 'a rule that throws is a finding, not silence');
+});
+
+test('a label crossing to a new spot is one label cross-fading: one row per name, seen as much as the two pictures together, no flash, no vanish, no jump', () => {
+  // the label's own picture (opacity m, at the new spot) and the one it is leaving (the ghost, 1 - m, at the old): m runs 0 to 1 over 15 frames, 240 ms
+  const run = frames(40, (i) => {
+    const u = Math.min(1, Math.max(0, (i - 10) / 15)), m = u * u * u * (u * (6 * u - 15) + 10), on = i >= 10 && i < 25;
+    return { L: labelRows([
+      { name: 'IVC', x: on || i >= 25 ? 300 : 40, y: 50, w: 40, h: 18, alpha: i < 10 ? 1 : on ? m : 1, ghost: false },
+      { name: 'IVC', x: 40, y: 50, w: 40, h: 18, alpha: on ? 1 - m : 0, ghost: true },
+    ]) as unknown as number[][] };
+  });
+  assert.equal(run[0]!.L!.length, 1, 'one row for the name');
+  assert.equal(run[15]!.L![0]!.length, 7);
+  assert.equal(run[15]!.L![0]![6], 1, 'flagged crossing while the old picture is drawn');
+  assert.ok(run.every((s) => (s.L![0]![5] as number) >= 0.7), 'never seen as less than the two together');
+  assert.equal(flash({ samples: run }).length, 0);
+  assert.equal(labelSlide({ samples: run }).length, 0, 'moving by a cross-fade is what a label should do');
+  // the same move with no crossing (the label taken at once) is a jump
+  assert.equal(labelSlide({ samples: frames(30, (i) => ({ L: labelRows([{ name: 'IVC', x: i < 15 ? 40 : 300, y: 50, w: 40, h: 18, alpha: 1, ghost: false }]) as unknown as number[][] })) }).length, 1);
 });

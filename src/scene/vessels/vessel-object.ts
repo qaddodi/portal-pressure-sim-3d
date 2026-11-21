@@ -2,7 +2,7 @@ import { CIRC_ARTERY, CIRC_BED, MIN_PX } from '../circuit/width.ts';
 import { vdbgDefines, vdbgUniforms } from './debug-view.ts';
 import { HI_NONE } from '../materials/shaders.ts';
 import { markBlends } from '../materials/warm.ts';
-import { BufferAttribute, BufferGeometry, Color, CustomBlending, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, MaxEquation, Mesh, NearestFilter, OneFactor, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Color, CustomBlending, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, MaxEquation, Mesh, Sphere, NearestFilter, OneFactor, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
@@ -174,24 +174,52 @@ export class VesselObject extends CelObject {
       dst.needsUpdate = true;
     }
     geo.computeBoundingSphere();
+    this.lerpPlan = null;   // (the arrays were written whole: a blend writes everything again first)
     this.toon.uniforms.len!.value = len;
   }
 
+  /** What a blend between two key frames touches (kept for as long as the pair stands): per attribute the stretch of values where the two differ (a held end, the uv, the Circuit's widths are the same in both and are never written again). */
+  private lerpPlan: { a: ReshapeFrame; b: ReshapeFrame; spans: { name: string; lo: number; hi: number; dir: boolean }[] } | null = null;
+
   /** The shape `t` of the way from key frame `a` to key frame `b` (shape-track.ts: the same tubes built at two coil strengths), written into the geometry's own arrays: no geometry is built, nothing is allocated. Centres and radii are exactly linear in the coil, the rings only turn a hair
-   *  between two keys (tests/shape-pin.test.ts pins the error), and a ring that is the same in both stays the same. */
+   *  between two keys (tests/shape-pin.test.ts pins the error), and a ring that is the same in both stays the same. Only the stretch of each attribute that differs between the two frames is written per blend, and the bounding sphere is worked out once for the pair
+   *  (the whole-array blend and a sphere per blend were 4 ms a frame for ten growing vessels: the 21 Nov audit's 18 to 26 fps while collaterals grew). */
   reshapeLerp(a: ReshapeFrame, b: ReshapeFrame, t: number): void {
     const geo = this.toonMesh.geometry;
-    for (const name of RESHAPE_ATTRIBUTES) {
-      const A = a.arrays.get(name), B = b.arrays.get(name), dst = geo.getAttribute(name);
-      if (!A || !B || !dst) continue;
-      const out = dst.array as Float32Array;
-      if (A.length !== out.length || B.length !== out.length) throw new Error(`reshape: ${name} has ${A.length} values, the vessel was built with ${out.length}`);
-      const dir = dst.itemSize === 3 && (name === 'normal' || name === 'tang');
-      for (let i = 0; i < out.length; i++) out[i] = A[i]! + (B[i]! - A[i]!) * t;
-      if (dir) for (let i = 0; i < out.length; i += 3) { const l = Math.hypot(out[i]!, out[i + 1]!, out[i + 2]!) || 1; out[i] = out[i]! / l; out[i + 1] = out[i + 1]! / l; out[i + 2] = out[i + 2]! / l; }
+    let plan = this.lerpPlan;
+    if (!plan || plan.a !== a || plan.b !== b) {
+      const spans: { name: string; lo: number; hi: number; dir: boolean }[] = [];
+      for (const name of RESHAPE_ATTRIBUTES) {
+        const A = a.arrays.get(name), B = b.arrays.get(name), dst = geo.getAttribute(name);
+        if (!A || !B || !dst) continue;
+        const out = dst.array as Float32Array;
+        if (A.length !== out.length || B.length !== out.length) throw new Error(`reshape: ${name} has ${A.length} values, the vessel was built with ${out.length}`);
+        out.set(A, 0);   // (what is the same in both frames is now written for good; the stretch that differs is written by each blend)
+        dst.needsUpdate = true;
+        const k = dst.itemSize;
+        let lo = -1, hi = -1;
+        for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) { if (lo < 0) lo = i; hi = i; }
+        if (lo >= 0) spans.push({ name, lo: lo - (lo % k), hi: hi - (hi % k) + k, dir: k === 3 && (name === 'normal' || name === 'tang') });
+      }
+      plan = this.lerpPlan = { a, b, spans };
+      // one sphere round the vertices of both shapes: culling and picking only need it to hold the shape wherever it is between them
+      const P = a.arrays.get('position'), Q = b.arrays.get('position');
+      if (P && Q) {
+        let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+        for (const F of [P, Q]) for (let i = 0; i < F.length; i += 3) { const x = F[i]!, y = F[i + 1]!, z = F[i + 2]!; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+        let r2 = 0;
+        for (const F of [P, Q]) for (let i = 0; i < F.length; i += 3) r2 = Math.max(r2, (F[i]! - cx) ** 2 + (F[i + 1]! - cy) ** 2 + (F[i + 2]! - cz) ** 2);
+        geo.boundingSphere ??= new Sphere();
+        geo.boundingSphere.center.set(cx, cy, cz); geo.boundingSphere.radius = Math.sqrt(r2);
+      }
+    }
+    for (const sp of plan.spans) {
+      const A = a.arrays.get(sp.name)!, B = b.arrays.get(sp.name)!, dst = geo.getAttribute(sp.name)!, out = dst.array as Float32Array;
+      for (let i = sp.lo; i < sp.hi; i++) out[i] = A[i]! + (B[i]! - A[i]!) * t;
+      if (sp.dir) for (let i = sp.lo; i < sp.hi; i += 3) { const l = Math.hypot(out[i]!, out[i + 1]!, out[i + 2]!) || 1; out[i] = out[i]! / l; out[i + 1] = out[i + 1]! / l; out[i + 2] = out[i + 2]! / l; }
       dst.needsUpdate = true;
     }
-    geo.computeBoundingSphere();
     this.toon.uniforms.len!.value = a.length + (b.length - a.length) * t;
   }
 
