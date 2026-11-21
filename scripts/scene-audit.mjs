@@ -44,7 +44,7 @@ const construct = { ms: Date.now() - t0, baked: !!bakedSkins() };
 /** The eased values that must never jump: [name, read]. Private fields are read on purpose; a renamed one reads undefined and is reported by `missing`. */
 const probes = new Map();
 // (what is DRAWN: the shader's reveal, which a driven vessel's own clock eases; `presence.amountOf` is only the state of those)
-for (const v of NETWORK) { const o = scene.vesselObject(v.id); if (o?.toon?.uniforms?.reveal) probes.set(`reveal:${v.id}`, () => (o.group.visible ? o.toon.uniforms.reveal.value : 0)); }
+for (const v of NETWORK) { const o = scene.vesselObject(v.id); if (o?.toon?.uniforms?.reveal) probes.set(`reveal:${v.id}`, () => (o.group.visible || v.id.includes('~F') ? o.toon.uniforms.reveal.value : 0)); }   // (a tributary fan's group is switched off at the change's half-way, where its shader has already faded it to nothing (scene.ts pushFades): the switch is no pop, only its reveal counts)
 probes.set('circuit.t', () => scene.circuit.t);
 probes.set('cavaWhole', () => scene.cavaWhole);
 probes.set('fadeNow', () => scene.fadeNow);
