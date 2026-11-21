@@ -1,7 +1,7 @@
 // The free ends of the vessels fade as the 2D figure draws them (tables copied from the 2D app): the veins that end in the organ they drain, the hepatic artery's ends, the veins that leave the plate.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fadeOf, CAVA_RECEDE, cavaEndSpan } from '../src/scene/vessels/fades.ts';
+import { fadeOf, companionEnd, CAVA_RECEDE, cavaEndSpan } from '../src/scene/vessels/fades.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
@@ -9,6 +9,8 @@ import { NETWORK } from '../src/scene/vessels/network.ts';
 import { HEP_FADE_IN } from '../src/scene/vessels/fades.ts';
 import { alongVeinStretch, startInOrganShare } from '../src/scene/vessels/starts.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
+import { treeOf } from '../src/scene/vessels/liver-branches.ts';
+import { alongVein } from '../src/scene/vessels/starts.ts';
 
 test('a vein that ends in its organ fades in from nothing over the 2D share of its length', () => {
   const spl = fadeOf('V_SPL', false)!;
@@ -23,7 +25,7 @@ test('a vein that ends in its organ fades in from nothing over the 2D share of i
 test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {
   const a = fadeOf('A_HEP', true)!, r = fadeOf('A_HR', true)!;
   assert.deepEqual([a.from, a.to, a.a0, a.a1, a.keep], [0, HEP_FADE_IN, 0, 1, true]);
-  assert.deepEqual([r.to, r.a0, r.a1, r.keep], [1, 1, 0, false]);
+  assert.deepEqual([r.a0, r.a1, r.keep], [1, 0, false]);
   // (the artery runs on to its bed's node: the fade starts where it did along the portal branch, 40% of the old course in, so at that share of the longer one)
   assert.ok(Math.abs(r.from - 0.4 * alongVeinStretch('A_HR', EDGE_PATH_2D)) < 1e-12 && r.from < 0.4 && r.from > 0.2, 'the right artery fades out over the last stretch, as the portal branch beside it does');
 });
@@ -86,4 +88,16 @@ test('the cava is a background vessel: faint everywhere but where the superior c
   for (let t = 0; t <= 3000; t += 16) s.update(t);
   assert.ok(u('IVC_IS').fadeA.value.z > 0.999 && u('IVC_IS').fadeA.value.w > 0.999 && u('RHV_IVC').cavaEnd.value.y > 0.999, 'named, the cava and the hepatic ends are whole');
   s.dispose();
+});
+
+test('a lobar artery is gone where the portal branch it runs beside is gone: its fade ends at its companion\'s end, not at its bed (Mohammad, 20 Nov: "fade them earlier")', () => {
+  for (const [a, host] of [['A_HR', 'PVH_R_2'], ['A_HL', 'PVH_L_1']] as const) {
+    const f = fadeOf(a, true)!, hf = fadeOf(host, false)!, art = alongVein(a, EDGE_PATH_2D)!, th = treeOf(host)!.through;
+    assert.equal(f.to, companionEnd(a));
+    assert.ok(f.to < 0.95 && f.to > f.from + 0.05, `${a} ends its fade before its bed's node (${f.to}), over a real stretch (from ${f.from})`);
+    // the artery's point at the end of its fade lies at the portal branch's point where it reaches nothing (within the gap the artery keeps beside the vein, 8 units, and its drift toward its bed), so neither outlives the other
+    const pa = art[Math.round(f.to * (art.length - 1))]!, pv = th[Math.round(hf.to * (th.length - 1))]!;
+    assert.ok(Math.hypot(pa[0] - pv[0], pa[1] - pv[1]) < 20, `${a} ends beside ${host}'s fade end`);
+    assert.equal(f.a1, 0, 'it fades to nothing, so what is left past it is not drawn (no dotted stub)');
+  }
 });
