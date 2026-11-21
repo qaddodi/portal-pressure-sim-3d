@@ -5,7 +5,7 @@ import { engine } from '../../engine/index.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
-import { useVariant } from './variant-words.ts';
+import { useVariant, type VariantState } from './variant-words.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
@@ -22,14 +22,14 @@ import { copiedOf } from '../../decks/hp/deck.ts';
 export const EASE_MS = 700, MORPH_MS = 1100, SLIDER_EASE_MS = 350;
 
 const stateOf = (deck: Deck, i: number) => useStates.getState().results[deck.id]?.[i];
-const presetSnaps = new Map<string, Promise<unknown>>();
+const presetSnaps = new Map<string, Promise<{ snap: unknown; fp: VariantState['fp'] | null; params: unknown }>>();
 /** A patient's state (2D xKey: the preset with the params, days and relax a button gives it), worked out off screen once. */
 const xKey = (o: { preset: string; params?: unknown; days?: number }): string => o.preset + (o.params || o.days ? JSON.stringify([o.params, o.days]) : '');
-const snapOfPatient = (o: CompareOpt): Promise<unknown> => {
+const snapOfPatient = (o: CompareOpt): Promise<{ snap: unknown; fp: VariantState['fp'] | null; params: unknown }> => {
   const key = xKey(o as { preset: string });
   let p = presetSnaps.get(key);
   if (!p) {
-    p = engine().sequence([{ preset: o.preset!, ...(o.params ? { params: o.params } : {}), ...(o.days ? { days: o.days } : {}) }]).then((r) => r[0]?.snap);
+    p = engine().sequence([{ preset: o.preset!, ...(o.params ? { params: o.params } : {}), ...(o.days ? { days: o.days } : {}) }]).then((r) => ({ snap: r[0]?.snap, fp: (r[0]?.fp as VariantState['fp'] | undefined) ?? null, params: r[0]?.params }));
     presetSnaps.set(key, p); p.catch(() => presetSnaps.delete(key));
   }
   return p;
@@ -60,9 +60,10 @@ export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise
     return;
   }
   const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
-  const snap = o.preset ? await snapOfPatient(o) : stateOf(deck, j)?.snap;
-  morph(snap);
-  useVariant.getState().set(key, words);
+  const got = o.preset ? await snapOfPatient(o) : (() => { const r = stateOf(deck, j); return { snap: r?.snap, fp: (r?.fp as VariantState['fp'] | undefined) ?? null, params: r?.params }; })();
+  morph(got.snap);
+  // (the chart of the slide reads the patient the model was just eased to: the slide's own fingerprint is for the slide's own button)
+  useVariant.getState().set(key, words, o.own || !got.fp ? null : { fp: got.fp, params: got.params });
 }
 
 /** The key a slide's instrument options are kept under. */
