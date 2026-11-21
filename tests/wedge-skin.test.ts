@@ -32,5 +32,5 @@ test('the skin blends its arms\' seam distances and tints with the tube\'s 0.78,
   assert.match(tube, /mix\(c, wedgeCol, 0\.78 \* wa\)/, 'the same 0.78 as the tube');
   assert.match(obj, /armWedge: \{ value/);
   assert.match(set, /wedgeSeamD\(/);
-  assert.match(set, /setWedge\?\.\(i, wsd/);
+  assert.match(set, /setWedge\?\.\(k, wsd/);
 });

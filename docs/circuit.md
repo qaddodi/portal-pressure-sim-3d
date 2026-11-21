@@ -41,8 +41,8 @@ Source of truth is the 2D app (`qaddodi/portal-pressure-simulator`, `claude/sett
 
 ## Junction skins on the map (`circuit/skins.ts`)
 The Anatomy's welds (`vessels/skin`, docs/junction-skin-spec.md) are on the map too: the same pipeline, the map's frame.
-- **Which junctions**: the body's permanent nodes, read on the map (`findCircuitJunctions`): twenty, HA, SIN_R, SIN_L, SMV, SV, SVD, CONF, PVT_L, PVH, RPV_T, CV_R, RHV_T, IVCS, IVCI, IVC_D, LRV_S, LRV, EPI, SVC_E, SVC. Every arm ends exactly on its station. The beds' arterioles
-  are carried on to the bed's station on the map (`course.ts` BED_REACH, as the body's `starts.ts` does: the 2D art stops them at the comb, 30 units short), so SIN_R and SIN_L are junctions. Pinned by `tests/circuit-skins.test.ts`.
+- **Which junctions**: the body's permanent nodes, read on the map (`findCircuitJunctions`): eighteen, HA, SMV, SV, SVD, CONF, PVT_L, PVH, RPV_T, CV_R, RHV_T, IVCS, IVCI, IVC_D, LRV_S, LRV, EPI, SVC_E, SVC. Every arm ends exactly on its station. SIN_R and SIN_L (the liver beds) are named fallbacks:
+  as in 2D the hepatic arteries stop at the tips of the bed's lanes, 30 map units short of the station, and never cross a lane (Mohammad, 21 Nov, "do it like 2D does it"; this undid the 20 Nov run-on, `BED_REACH`). Pinned by `tests/circuit-skins.test.ts`.
 - **The ladder** (`CircuitSkinSet.produce`): a junction the hull of its seam rings refuses is meshed from the surface itself (`SkinJunction.surface`, sheet.ts: SVD with S_DSR); a skin whose growing arms fold when closed (`mesh.ts` closedShapeFolds) is refused and loses its narrowest growing arm
   (`dropped`, with the reason in `why`: REX beside S_MC, DIPS on IVC_D). `mesh.ts` closes two growers together when closing them one by one folds (shares by weight).
 - **Rings** (`circuitTube`): the tube the vertex shader draws at circT 1 (circuit/shader.ts), computed on the CPU from the body tube's own mesh (map centre `cC`, offset `fr` in the frame fixed by `tC`, the map radius). Ring k is where a cut at u = k / tubular lies, so the
