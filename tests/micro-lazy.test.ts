@@ -46,3 +46,37 @@ test('the red cell has 16 segments and well under half its old triangles', () =>
   let maxR = 0, minR = 9; for (let i = 0; i < p.count; i++) { const r = Math.hypot(p.getX(i), p.getY(i)); maxR = Math.max(maxR, r); if (r > 0.99) minR = Math.min(minR, r); }
   assert.ok(Math.abs(maxR - 1) < 1e-6, 'unit radius kept');
 });
+
+// ---- the dive's stalls: what keys a rebuild of the 3D sinusoid ----
+import { createShared } from '../src/scene/materials/cel.ts';
+import { SinusoidView } from '../src/scene/sinusoid/view.ts';
+import { Sinusoid3D, shapeKey, tailKey } from '../src/scene/micro3d/sinusoid3d.ts';
+
+test('the shape key reads only the lumen, the pinch and the collagen; the tail key only the activation', () => {
+  const S = { lum: 1, pinch: 0.2, col: 0.1, act: 0.3, mv: 1, bm: 0 };
+  assert.equal(shapeKey({ ...S, act: 0.9, mv: 0.2, bm: 1 }, 5), shapeKey(S, 5), 'activation, microvilli and basement membrane are not shapes');
+  assert.notEqual(shapeKey({ ...S, lum: 1.2 }, 5), shapeKey(S, 5));
+  assert.notEqual(shapeKey({ ...S, col: 0.5 }, 5), shapeKey(S, 5));
+  assert.notEqual(shapeKey(S, 6), shapeKey(S, 5));
+  assert.equal(tailKey({ act: 0.3 }), tailKey({ ...S }));
+  assert.notEqual(tailKey({ act: 0.9 }), tailKey({ act: 0.3 }));
+});
+
+test('easing the basement membrane or the microvilli never remeshes; the activation remeshes only the tail', () => {
+  const shared = createShared(), flat = new SinusoidView(shared, { look: 'light' }), s3 = new Sinusoid3D(flat, shared);
+  flat.group.add(s3.group); flat.setVisible(true); flat.update(1000); flat.update(1016);
+  const p = s3 as unknown as { build(): void; buildTail(): void };
+  let full = 0, tail = 0; const b = p.build.bind(s3), t = p.buildTail.bind(s3);
+  p.build = () => { full++; b(); }; p.buildTail = () => { tail++; t(); };
+  s3.update(true);   // (the first: everything)
+  assert.equal(full, 1);
+  const cur = flat.cur as unknown as Record<string, number>;
+  for (let i = 0; i <= 64; i++) { cur.bm = i / 64; cur.mv = 1 - i / 64; s3.update(true); }
+  assert.equal(full, 1, 'bm and mv ease with no remesh'); 
+  const before = tail;
+  for (let i = 0; i <= 32; i++) { cur.act = i / 32; s3.update(true); }
+  assert.equal(full, 1, 'activation never remeshes the whole scene');
+  assert.ok(tail > before, 'activation redoes the tail');
+  cur.lum = cur.lum! * 1.3; s3.update(true);
+  assert.equal(full, 2, 'the lumen does remesh');
+});
