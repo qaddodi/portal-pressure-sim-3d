@@ -123,12 +123,7 @@ export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: rea
   const top = fromSurface(j) ? PACES.length : PACES.length - 1;
   for (let i = Math.min(memo?.get(j.node) ?? 0, top - 1); i < top; i++) {
     try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return m; }
-    catch (e) {
-      last = e;
-      // (a junction that may be meshed from the surface and whose seam rings the hull of the rings misses goes straight to that rung: the hull is the wrong start for it, the same schedules would only miss again)
-      if (e instanceof SkinBuildError && e.message.includes('hull misses') && fromSurface(j)) { i = top - 2; continue; }
-      if (!(e instanceof SkinBuildError) || !e.message.includes('folds')) throw e;
-    }
+    catch (e) { last = e; if (!(e instanceof SkinBuildError) || !(e.message.includes('folds') || (top === PACES.length && e.message.includes('the hull misses')))) throw e; }   // (a junction meshed from the surface falls to that rung when its hull misses the rings too: a plain trunk whose seams were placed with no hull)
   }
   throw last;
 }
