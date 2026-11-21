@@ -293,7 +293,7 @@ export function TestsLayer() {
   const slotOf = (id: PaneId) => (split && second && tabOf(second) === id ? 2 : 1);
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
-    <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} style={style}>
+    <div ref={posRef} className="t-pos" data-open={open} data-cold={open && swap.cold ? "true" : undefined} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} style={style}>
       <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
         <i className="sh-grabbar" aria-hidden="true" />

@@ -48,6 +48,9 @@ interface Props {
 
 /** 2D's markLong (presenter.js): a title that sets in more than 2.4 lines is a long one and takes the smaller step (`.pz-h.long`, --s-big), so a long title never fills the card.
  *  Judged at the full size each time (the class is taken off, measured, put back), so a resize or a new title is judged afresh. A phone's stacked card has its own small title. */
+/** The longest a leaving card waits for the cards replacing it before it goes anyway. */
+export const HOLD_OUT_MS = 700;
+
 export function markLong(root: HTMLElement | null, on: boolean): void {
   const ttl = root?.querySelector<HTMLElement>('.pz-h');
   if (!ttl) return;
@@ -185,6 +188,16 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   if (go && ready) gate.current = true;
   now.current.live = live || gate.current;   // (a card sliding in is on screen: a change of its height glides, it never snaps)
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
+  // A card that is going stays up, whole and readable, until the cards that replace it can come in (`go`: measured, fonts in), so no slide change shows an interval with nothing readable
+  // (the old title gone, the case not yet there: review #14). Never for long: past HOLD_OUT_MS it goes anyway, and a card with nothing coming (the talk closing) is not held (go is not false).
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!out) { setLate(false); return; }
+    if (go !== false) return;
+    const t = setTimeout(() => setLate(true), HOLD_OUT_MS);
+    return () => clearTimeout(t);
+  }, [out, go]);
+  const leave = out && (go !== false || late);
 
   // The rail (rail.ts, 2D's card throw): in from the side the talk comes from, out the way it goes, on the one clock; no CSS animation
   const dir: Dir = useUi((s) => s.dir);
@@ -194,16 +207,16 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!card || !plate) return;
     const els = [card, plate], reduce = reduced();
     if (phase === 'in') rail.enter(els, { dir, delay: data ? STAGGER : 0, par, reduce, fresh, done: () => setLive(true) });
-    else if (phase === 'out') rail.leave(els, { dir, par, reduce, done: () => onGone(entry.key) });
+    else if (phase === 'out' && leave) rail.leave(els, { dir, par, reduce, done: () => onGone(entry.key) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, leave]);
   useLayoutEffect(() => () => { const card = cardRef.current, plate = plateRef.current; if (card && plate) rail.forget([card, plate]); }, []);
   // (the net, if the clock never reports a landing)
   useEffect(() => {
-    if (!out) return;
+    if (!leave) return;
     const t = setTimeout(() => onGone(entry.key), RAIL_MS + 500);
     return () => clearTimeout(t);
-  }, [out, entry.key, onGone]);
+  }, [leave, entry.key, onGone]);
   // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
   const lay = layoutOf(vp.w, vp.h), stackCls = lay === 'stack' ? ' stack' : lay === 'tab' ? ' stack tab' : '';
   // the outline, the quick check and a case stand alone in the middle on 2D's own surfaces (`.pz-panel`, `.pz-case.on`); every other card is glass

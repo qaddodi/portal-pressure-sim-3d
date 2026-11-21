@@ -11,7 +11,8 @@ import { clock } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
-import { figureDrawn } from '../boot/ready.ts';
+import { figureDrawn, rendererFailed } from '../boot/ready.ts';
+import { firstDraw, spanAsync } from '../boot/spans.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
@@ -52,16 +53,26 @@ const wholeHome = () => (cel.view === 'body' ? cel.rig.wholeView(SHOTS.play) : c
 
 const isPhone = () => Math.min(innerWidth, innerHeight) < 500;
 
+/** The longest the first warm-up may hold the late build of the lobule and sinusoid back. */
+export const WARM_CAP_MS = 4000;
+
 function SceneBridge() {
   const gl = useThree((s) => s.gl);
   const size = useThree((s) => s.size);
   const raycaster = useRef(new Raycaster());
   const warmed = useRef(false);
+  // The renderer lost its context before the first picture: the splash cannot wait for a figure that will not come (boot/ready.ts says so, with Reload and the 2D link).
+  useEffect(() => {
+    const el = gl.domElement;
+    const lost = () => rendererFailed('The graphics context was lost before the first picture.');
+    el.addEventListener('webglcontextlost', lost);
+    return () => el.removeEventListener('webglcontextlost', lost);
+  }, [gl]);
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
     frameBegin(gl.info);
-    cel.render(gl);
+    firstDraw(cel.view, () => cel.render(gl));   // (the first drawn frame of each view is timed: boot/spans.ts, ?perf)
     frameEnd(gl.info);
     lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
@@ -72,9 +83,11 @@ function SceneBridge() {
     // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
     if (!warmed.current) {
       warmed.current = true;
-      const warm = () => { void warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl)).catch(() => undefined); };   // (into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts)
+      const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined);
+      const warm = () => { void warmP(); };   // (into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts)
       cel.onMicroBuilt = warm;   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
-      setTimeout(() => { warm(); cel.buildMicroIdle(); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
+      // One thing at a time (release review 21 Nov #8): the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in the same slot: on a low-budget device the two together were one long hitch.
+      setTimeout(() => { void Promise.race([warmP(), new Promise((r) => setTimeout(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }
   }, 1);
 

@@ -6,6 +6,7 @@ import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { renderStats } from '../../debug/render-stats.ts';
 import { cel } from '../../scene/api.ts';
+import { spans } from '../../boot/spans.ts';
 import { shaderFailureLine } from '../../debug/shader-fail.ts';
 
 export function mountPerf(): void {
@@ -23,7 +24,7 @@ export function mountPerf(): void {
   const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;margin-top:4px';
   const mk = (label: string, fn: () => void) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'font:11px ui-monospace,Menlo,monospace;padding:2px 8px;border-radius:6px;border:1px solid #fff6;background:#fff2;color:#fff'; b.onclick = fn; row.append(b); };
   const text = () => perfReport(clock.stats(), {
-    ua: navigator.userAgent, dpr: devicePixelRatio, size: `${innerWidth}×${innerHeight}`, look: resolveLook(useSettings.getState().look, matchMedia('(prefers-color-scheme: dark)').matches), hash: (import.meta.env.VITE_BUILD as string | undefined) ?? 'dev', shaders: shaderFailureLine(), gl: renderStats(), skin: cel.skinStats,
+    ua: navigator.userAgent, dpr: devicePixelRatio, size: `${innerWidth}×${innerHeight}`, look: resolveLook(useSettings.getState().look, matchMedia('(prefers-color-scheme: dark)').matches), hash: (import.meta.env.VITE_BUILD as string | undefined) ?? 'dev', shaders: shaderFailureLine(), gl: renderStats(), skin: cel.skinStats, spans: spans(),
   });
   mk('Copy', () => { void navigator.clipboard?.writeText(text()).catch(() => undefined); });
   mk('Reset', () => clock.resetStats());

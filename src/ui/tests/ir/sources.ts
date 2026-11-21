@@ -5,7 +5,7 @@ import { newWave, syncWave } from '../copied/hvpg-clock.copied.js';
 import type { MonSource } from './Monitor.tsx';
 import { hvpgFrame, type TraceSt } from './hvpg.ts';
 import { monitorFrame, type MonitorState } from './monitor.ts';
-import { R, phase, values, hvpgRunning, ppgMonitor, ppgScript } from './run.ts';
+import { R, phaseAt, values, hvpgRunning, ppgMonitor, ppgScript } from './run.ts';
 
 const hvKey = {}, hvWave = newWave();
 const hvSt: TraceSt = { ph: 'idle', t: 0, v: null, blocked: false, running: false, wave: hvWave };
@@ -14,7 +14,7 @@ export const hvpgSource: MonSource = {
   label: () => 'HVPG measurement: catheter pressure tracing',
   active: hvpgRunning,
   frame(w, h, sweeping) {
-    hvSt.ph = phase(); hvSt.t = R.t; hvSt.v = values(); hvSt.blocked = R.blocked; hvSt.running = R.t0 != null;
+    hvSt.ph = phaseAt(); hvSt.t = R.t; hvSt.v = values(); hvSt.blocked = R.blocked; hvSt.running = R.t0 != null;
     // the waves follow the model's clock only while the sweep runs; at rest, a resize redraws the trace with the waves it was last drawn with
     if (sweeping || !hvWave.on) syncWave(hvWave, latest.frame, R.t, performance.now());
     return hvpgFrame(hvKey, hvSt, w, h, this.label());

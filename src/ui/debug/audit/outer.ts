@@ -93,27 +93,28 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
     wrap.style.width = `${Math.round(d.w * k)}px`; wrap.style.height = `${Math.round(d.h * k)}px`; wrap.style.margin = '0 6px';
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${k})`;
     let silent: ReturnType<typeof setTimeout>, finished = false;
-    const end = (res: { data?: AuditData; why?: string }) => { if (finished) return; finished = true; clearTimeout(silent); win.removeEventListener('message', on); clearInterval(poll); wrap.remove(); done(res); };
+    const end = (res0: { data?: AuditData; why?: string }) => { if (finished) return; finished = true; const kept = partial.get(id); const res = !res0.data && kept ? { data: { ...kept, stopped: true, notes: [...kept.notes, `PARTIAL: this size did not finish (${res0.why ?? 'no result'}); these are the steps it got through`] } } : res0; clearTimeout(silent); win.removeEventListener('message', on); clearInterval(poll); wrap.remove(); done(res); };
     const wake = () => { clearTimeout(silent); silent = setTimeout(() => end({ why: `silent for ${SILENT_MS / 1000} s (the frame crashed or never booted)` }), SILENT_MS); };
     const on = (e: MessageEvent) => {
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
       const m = e.data as Msg | null; if (!m || typeof m !== 'object' || !('audit' in m)) return;
       wake();
       if (m.audit === 'progress') { progress.set(id, `${d.label}: step ${m.n}: ${m.label}`); status.textContent = [...progress.values()].join(' | '); counts.set(id, { n: m.n, total: m.total ?? m.n }); showPace(); }
+      else if (m.audit === 'partial') partial.set(id, m.data);
       else if (m.audit === 'done') end({ data: m.data });
       else if (m.audit === 'failed') end({ why: m.why });
     };
     const poll = setInterval(() => { if (stop) { try { (frame.contentWindow as unknown as { pps?: { audit?: { stop(): void } } }).pps?.audit?.stop(); } catch { /* same origin: cannot happen */ } } }, 1000);
     win.addEventListener('message', on); wake();
   });
-  const progress = new Map<string, string>(), counts = new Map<string, { n: number; total: number }>(), prior = { n: 0, total: 0 };
+  const partial = new Map<string, AuditData>(), progress = new Map<string, string>(), counts = new Map<string, { n: number; total: number }>(), prior = { n: 0, total: 0 };
   let runStart = 0, sizesTotal = 1, finished = 0;
   /** the whole run's bar: steps done in the sizes finished, plus the ones running now, over the estimate for all sizes */
   const showPace = (done = false) => { const c = combine(sizesTotal - finished, counts), p = pace(prior.n + c.n, Math.max(prior.total + c.total, prior.n + c.n), runStart, performance.now(), done); meter.hidden = false; meterText.hidden = false; meter.value = p.pct; meterText.textContent = p.text; };
   async function run() {
-    if (running) return; syncUrl(); running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
+    if (running) return; syncUrl(); running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); partial.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
     const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = performance.now(), together = par.checked;
-    const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, parallel: together, speed: parts[0]?.speed, wallMs: Math.round(performance.now() - t0), parts, failed });
+    const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, sha: buildInfo().commit || undefined, parallel: together, speed: parts[0]?.speed, wallMs: Math.round(performance.now() - t0), parts, failed });
     const take = (id: string, r: { data?: AuditData; why?: string }) => { const c = counts.get(id); if (!together && c) { prior.n += r.data ? r.data.rows.length : c.n; prior.total += r.data ? r.data.rows.length : c.total; counts.delete(id); finished++; } if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };
     sizesTotal = ids.length; status.textContent = 'Loading the app…';
     if (together) await Promise.all(ids.map(async (id) => take(id, await one(id, ids.length))));
