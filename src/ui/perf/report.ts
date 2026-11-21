@@ -27,3 +27,6 @@ export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: s
   }
   return lines.join('\n');
 }
+
+/** The one line the compact strip shows while timings are collected: the frame times (the slow-frame list stays in the Detail view). */
+export const perfStrip = (full: string): string => full.split('\n').find((l) => l.startsWith('frames drawn')) ?? full.split('\n', 1)[0] ?? '';

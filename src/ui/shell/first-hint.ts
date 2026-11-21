@@ -1,9 +1,10 @@
 // The first-run hint, as 2D's main.js showFirstHint has it: once per device, one note at the foot ("Click a vessel or the liver to change it.", "Tap" where the pointer is a finger),
-// sticky until the first vessel, organ or lobule part is picked or the person closes it; never over a talk or a phone sheet (it comes again on a later visit then, as 2D's does), never under
+// sticky until the first vessel, organ or lobule part is picked or the person closes it; never over a talk or any open tool (a sheet or the Treat card) (it comes again on a later visit then, as 2D's does), never under
 // automation (the browser checks start from a fresh browser every time). The shell starts it once the figure is up; its words are 2D's.
 import { STORAGE_PREFIX } from '../../state/settings.ts';
 import { useSelection } from '../action/selection.ts';
 import { useShell } from './store.ts';
+import { useTreat } from '../treat/store.ts';
 
 export const HINT_KEY = `${STORAGE_PREFIX}hint`;
 /** 2D's wording: Click where a mouse points, Tap where a finger does. */
@@ -18,13 +19,16 @@ const realEnv = (): Env => ({
   phone: () => typeof document !== 'undefined' && document.querySelector('.sh-root')?.getAttribute('data-device') === 'phone',
 });
 
+/** A tool is open (any sheet, on any screen, or the Treat card): the hint has done its job there and stands aside, unread, so it never shares the screen with a panel (release review #11). */
+const toolOpen = (s: { sheet: unknown }): boolean => !!s.sheet || useTreat.getState().open;
+
 /** Start the hint (after `delayMs`, 2D's 600). Returns the remover. */
 export function startFirstHint(env: Env = realEnv(), delayMs = 600): () => void {
   if (env.webdriver() || env.seen()) return () => {};
   let off: (() => void) | null = null, timer: ReturnType<typeof setTimeout> | undefined;
   const show = () => {
     const sh = useShell.getState();
-    if (useSelection.getState().sel || sh.mode !== 'free' || (env.phone() && sh.sheet)) return;
+    if (useSelection.getState().sel || sh.mode !== 'free' || toolOpen(sh)) return;
     const text = hintText(env.fine());
     sh.say(text, 'info', undefined, true);
     const mine = () => useShell.getState().toast?.text === text;
@@ -35,8 +39,9 @@ export function startFirstHint(env: Env = realEnv(), delayMs = 600): () => void 
     };
     const offSel = useSelection.subscribe((s) => { if (s.sel) close(true); });
     // a talk or a sheet over the figure takes it away without counting it read: it comes again on a later visit
-    const offShell = useShell.subscribe((s) => { if (s.mode !== 'free' || (env.phone() && s.sheet)) close(false); else if (!mine()) close(true); });
-    off = () => { offSel(); offShell(); };
+    const offShell = useShell.subscribe((s) => { if (s.mode !== 'free' || toolOpen(s)) close(false); else if (!mine()) close(true); });
+    const offTreat = useTreat.subscribe((t) => { if (t.open) close(false); });
+    off = () => { offSel(); offShell(); offTreat(); };
   };
   timer = setTimeout(show, delayMs);
   return () => { clearTimeout(timer); off?.(); off = null; };
