@@ -163,6 +163,7 @@ export interface SkinPlans { plans: SkinPlan[]; failures: SkinBuildError[] }
  * hidden whole. A junction that cannot be cut, or whose merge fails, is a failure (a named SkinBuildError) and is left out of the plans; the scene keeps today's method there. Never throws.
  * `hullFor(junction)` gives WP2's hull check for that junction's rings.
  */
+const isWall = (j: SkinJunction): boolean => j.node.startsWith('wall:');
 export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk, minBetween: number = MIN_RINGS_BETWEEN): SkinPlans {
   const failures: SkinBuildError[] = [];
   const attempt = (j: SkinJunction): SkinPlan | null => {
@@ -189,6 +190,13 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
         // two skins would crowd or cross on this vessel: one skin for both nodes
         merged = true; done.add(a); done.add(b);
         const A = js[a]!, B = js[b]!;
+        // a landing on a host's wall (a virtual `wall:` node, wall.ts) that crowds another skin is not merged into it (its side arm is no run-on between two nodes): the other skin stays as it was, the landing keeps the tube's own flared end (named)
+        if (isWall(A) || isWall(B)) {
+          const [w, other, otherPlan] = isWall(A) ? [A, B, pb] : [B, A, pa];
+          failures.push(new SkinBuildError(w.node, `${w.node} crowds the skin of ${other.node} on ${ca.vesselId}`));
+          out.push(otherPlan);
+          break;
+        }
         // the growing arms of both nodes ride along, but a skin morphs at most SKIN_GROWERS of them: the widest stay, the rest keep today's fork method (spec 10.2)
         const rest = [...A.arms, ...B.arms].filter((m) => m.vesselId !== ca.vesselId);
         const arms = [...rest.filter((m) => !m.grow).sort((x, y) => y.restR - x.restR), ...rest.filter((m) => m.grow).sort((x, y) => y.restR - x.restR).slice(0, SKIN_GROWERS)];

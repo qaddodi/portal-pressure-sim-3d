@@ -49,6 +49,7 @@ import { SKIN_CIRC_IN } from './types.ts';
 import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
+import { WEDGE_GLSL } from '../wedge-glsl.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -245,8 +246,10 @@ uniform vec3 skinKW;
 #define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
 uniform float armFlow[${SKIN_ARMS}];
-uniform float armWedge[${SKIN_ARMS}];   // each arm tube's wedge tint share at its seam (arm-twins.ts wedgeShareAt: the tube's own formula), blended by the arms' weights like every other per-arm value: ONE tint field through the join
+uniform float armWedge[${SKIN_ARMS}];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
 uniform vec3 wedgeColS;
+uniform vec4 wedgeS;   // the column (as every tube has it): x how much, y how softly it ends behind the balloon's edge, z the front, w how softly the front ends
+${WEDGE_GLSL}
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -568,10 +571,15 @@ void main() {
 #ifdef VDBG
   c = dbgEnd(c, armData[0].x + 0.5);
 #endif
-  // the wedge's amber column through the join: the tube's own tint (vessels/shaders.ts) at each seam, blended by the arms' weights, drawn last like the tube's
-  if (skinCirc < 0.5) {
-    float waS = clamp(${BLEND('armWedge')}, 0.0, 1.0);
-    c = mix(c, wedgeColS, 0.78 * waS);
+  // the wedge's amber column through the join: the SAME field the tubes carry (wedge-glsl.ts). The arms that carry it blend their seams' distances by the arms' weights, so a pixel in the join has the distance
+  // of the place it is at, and the one front crosses the tubes and the skin at one speed
+  if (skinCirc < 0.5 && wedgeS.x > 0.001) {
+    float pwS = 0.0, dwS = 0.0;
+    for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); if (armWedge[i] > -1000.0) { pwS += wi; dwS += wi * armWedge[i]; } }
+    if (pwS > 0.001) {
+      float waS = wedgeS.x * clamp(pwS, 0.0, 1.0) * wedgeCover(dwS / pwS, vec3(wedgeS.y, wedgeS.z, wedgeS.w));
+      c = mix(c, wedgeColS, 0.78 * waS);
+    }
   }
   gl_FragColor = vec4(c, alpha);
 }`;
