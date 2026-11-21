@@ -14,7 +14,7 @@ const px = (n: number) => Math.round(n * 100) / 100;
 const opacity = (n: number) => String(Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000);
 
 export interface Card {
-  root: HTMLElement; glass: HTMLElement; svg: SVGSVGElement; path: SVGPathElement; k: HTMLElement; n: HTMLElement; u: HTMLElement;
+  root: HTMLElement; glass: HTMLElement; svg: SVGSVGElement; path: SVGPathElement; /** the outline: its own element, never inside the glass (a backdrop blur's layer lost the stroke of some cards on a phone) */ ring: HTMLElement; rsvg: SVGSVGElement; rpath: SVGPathElement; k: HTMLElement; n: HTMLElement; u: HTMLElement;
   shape: string; tone: string; text: string; op: string; tx: string; size: string;
 }
 
@@ -31,8 +31,11 @@ export function makeCard(parent: Element, cls: string): Card {
   const glass = el('i', 'cl-glass cl-hair', root); glass.setAttribute('aria-hidden', 'true'); 
   const svg = svgEl('svg', glass); svg.setAttribute('preserveAspectRatio', 'none');
   const path = svgEl('path', svg);
+  const ring = el('i', 'cl-ring', root); ring.setAttribute('aria-hidden', 'true');
+  const rsvg = svgEl('svg', ring); rsvg.setAttribute('preserveAspectRatio', 'none');
+  const rpath = svgEl('path', rsvg);
   const k = el('small', 'cl-k', root), n = el('b', 'cl-n', root), u = el('span', 'cl-u', root);
-  return { root, glass, svg, path, k, n, u, shape: '', tone: '', text: '', op: '', tx: '', size: '' };
+  return { root, glass, svg, path, ring, rsvg, rpath, k, n, u, shape: '', tone: '', text: '', op: '', tx: '', size: '' };
 }
 
 /** The words of a card (written when they change). */
@@ -51,6 +54,9 @@ export function shape(c: Card, g: Glass, key: string): void {
   s.width = `${px(g.w)}px`; s.height = `${px(g.h)}px`; s.clipPath = `path('${g.d}')`;
   c.svg.setAttribute('viewBox', `0 0 ${px(g.w)} ${px(g.h)}`); c.svg.setAttribute('width', String(px(g.w))); c.svg.setAttribute('height', String(px(g.h)));
   c.path.setAttribute('d', g.d);
+  const r = c.ring.style; r.left = s.left; r.top = s.top; r.width = s.width; r.height = s.height; r.clipPath = s.clipPath;
+  c.rsvg.setAttribute('viewBox', `0 0 ${px(g.w)} ${px(g.h)}`); c.rsvg.setAttribute('width', String(px(g.w))); c.rsvg.setAttribute('height', String(px(g.h)));
+  c.rpath.setAttribute('d', g.d);
 }
 
 /** Opacity on the card's children (never the card). */
@@ -58,7 +64,7 @@ export function fade(c: Card, a: number): void {
   const o = opacity(a);
   if (o === c.op) return;
   c.op = o;
-  c.glass.style.opacity = o; c.k.style.opacity = o; c.n.style.opacity = o; c.u.style.opacity = o;
+  c.glass.style.opacity = o; c.ring.style.opacity = o; c.k.style.opacity = o; c.n.style.opacity = o; c.u.style.opacity = o;
 }
 export function place(c: Card, x: number, y: number): void {
   const t = `translate3d(${px(x)}px,${px(y)}px,0)`;
