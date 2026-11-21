@@ -15,10 +15,11 @@
 import type { BufferGeometry, Color, Object3D } from 'three';
 import { NETWORK_BY_ID } from '../network.ts';
 import { REST, type ShapeState } from '../shape.ts';
+import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
-import { armWalk, growAlong, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
+import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
@@ -239,6 +240,16 @@ export class SkinSet {
   weldOf(node: string): number { const b = this.drawn.find((x) => x.node === node); return b && b.arms.some((a) => a.grow) ? (Number.isNaN(b.w) ? 0 : b.w) : NaN; }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.mesh ?? undefined; }
+  /** The stretch of each arm vessel's course (share of its length, from its start and from its end) the seam of a skin stands on, with a margin: what ShapeTracks holds at rest, so the growth of a collateral never moves a seam (coil.ts `pinCourse`). */
+  pins(): Map<string, Pin> {
+    const m = new Map<string, [number, number]>();
+    for (const b of this.drawn) for (const c of b.mesh.cuts) {
+      if (c.side) continue;   // (a hole in a vessel's side wall, not a seam at its end)
+      const p = m.get(c.vesselId) ?? [0, 0], at = Math.min(1, (c.end === 0 ? c.u : 1 - c.u) + PIN_MARGIN);
+      p[c.end] = Math.max(p[c.end]!, at); m.set(c.vesselId, p);
+    }
+    return m;
+  }
   /** How many rebuilds ran, what the last and the worst cost (ms), and which node was the last. */
   get stats(): Readonly<SkinBuildStats> { return this.cost; }
   /** Whether a skin waits for its rebuild (the scene asks the clock for another frame while true). */
@@ -283,9 +294,9 @@ export class SkinSet {
    */
   private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
     const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
-    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts), along = growAlong(j, tubes);
+    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
-      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!) || along(i, o)) continue;
+      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
       for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
     return -1;

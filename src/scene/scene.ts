@@ -349,6 +349,7 @@ export class CelScene {
     this.presence.own(this.feeders.ids());
     for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
+    this.shapes.setPins(this.skins?.pins() ?? new Map());   // (the skins were built first, when the page had its baked file already: their seams stand still while the collaterals coil)
     this.shapes.onReshaped = (id) => this.skins?.markDirty(id);   // (an arm's course changed: the skin on it is rebuilt in the render phase, skins.step below)
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
@@ -396,6 +397,7 @@ export class CelScene {
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
+    this.shapes?.setPins(this.skins.pins());   // (the seams stand still while the collaterals coil: no skin is rebuilt for a growth)
     this.circuitSkins ??= new CircuitSkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
       make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms, true),

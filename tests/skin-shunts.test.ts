@@ -1,4 +1,4 @@
-// The shunts' nodes (FINAL-WELD-PLAN option A, 21 Nov 2026): the distal splenorenal shunt's two ends and the TIPS on the hepatic vein are STATIC full-size arms of their node's skin; the DIPS at the portal vein's hepatic end is too (its seam clearance ignores the growing arm that runs along PVH_R).
+// The shunts' nodes (FINAL-WELD-PLAN option A, 21 Nov 2026): the distal splenorenal shunt's two ends and the TIPS on the hepatic vein are STATIC full-size arms of their node's skin; the DIPS at the portal vein's hepatic end is not (and says why).
 // Node only, the real network. Run: node --test tests/skin-shunts.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,11 +40,13 @@ test('S_DSR is welded at both ends (SVD, LRV_S): a static full-size arm, no fold
   } finally { b.done(); }
 });
 
-test('PVH:DIPS is a welded static full-size arm of the portal vein\'s hepatic node, though it lies 12 degrees from PVH_R: the arms that stay are judged without it (cuts.ts growAlong)', () => {
+test('PVH:DIPS stays flared and named: PVH_R is shorter than the DIPS lies over it, so no ring of it clears the blend (rule 1), surface rung or not', () => {
   const b = built();
   try {
-    assert.ok(!b.set.dropped.includes('PVH:DIPS'));
-    assert.ok(armsOf(b.set.skinOf('PVH')).includes('DIPS:0'));
+    assert.ok(b.set.dropped.includes('PVH:DIPS'));
+    assert.match(b.set.why['PVH:DIPS'] ?? '', /PVH_R has no ring that clears the blend/);
+    assert.ok(b.set.skinOf('PVH'), 'the portal vein\'s hepatic end keeps its skin without the DIPS');
+    assert.ok(!armsOf(b.set.skinOf('PVH')).includes('DIPS:0'));
   } finally { b.done(); }
 });
 
