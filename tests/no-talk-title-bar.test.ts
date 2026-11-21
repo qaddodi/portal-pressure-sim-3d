@@ -10,3 +10,7 @@ test('no talk title bar: not in the markup, the styles, the fade-out or the bar 
   for (const p of ['src/ui/deck/PresenterBar.tsx', 'src/ui/deck-ui.css', 'src/ui/shell/talk.ts', 'src/ui/layout/plan.ts']) assert.ok(!/dk-bar-title/.test(readFileSync(p, 'utf8')), p);
   for (const s of VPS) assert.ok(!('title' in barOf(s)));
 });
+
+test('no beat strokes under the slide count', () => {
+  for (const p of ['src/ui/deck/PresenterBar.tsx', 'src/ui/deck-ui.css', 'src/ui/css2d/app-05-presenter-cards.css']) assert.ok(!/pzb-pips/.test(readFileSync(p, 'utf8')), p);
+});
