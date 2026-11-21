@@ -43,7 +43,8 @@ const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS',
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
-const PLAIN_FAILED = ['LPV_A'];
+/** The nodes whose plain trunk does not build (the welded skin then comes in over the tubes' cut ends alone): none now (LPV_A's builds since the forks' sheets, 21 Nov). */
+const PLAIN_FAILED: string[] = [];
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
 test('the growing arms are the single-tube collaterals and shunts, pinned by node; the braided collaterals are not arms; at most two per skin, after the permanent arms, widest first', () => {
