@@ -124,7 +124,7 @@ test('a blood pressure reading may break after its slash, so "114/68" never runs
 test('a bare number cut off or off screen names the element it is in, and the leak check takes its baseline after the lazily built views', () => {
   assert.match(src('src/ui/debug/audit/scan.ts'), /by: nameOf\(p\)/);
   assert.match(src('src/ui/debug/audit/scan-judge.ts'), /\(in \$\{i\.by\}\)/);
-  assert.match(src('src/debug/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
+  assert.match(src('../src/clock/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
 });
 
 test('a chart\'s own height shrinks with its card\'s fit (2D `.pz-curve { height: cv-h * var(--pz-fit) }`): at a fit under 1 the stent slides\' PPG chart stood 53 px past the card on an iPhone', async () => {

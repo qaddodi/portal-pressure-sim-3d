@@ -1,7 +1,7 @@
 // ?perf's text: pure, so a test can read it. The same text is what Copy puts on the clipboard (paste it into a thread).
 import type { SlowFrame } from '../../clock/frame.ts';
 import { SLOW_MS } from '../../clock/frame.ts';
-import type { RenderStats } from '../../debug/render-stats.ts';
+import type { RenderStats } from '../../clock/render-stats.ts';
 import type { Span } from '../../boot/spans.ts';
 
 export interface PerfStats { framesDrawn: number; windowFrames: number; p50: number; p95: number; max: number; slow: SlowFrame[]; awake: boolean; holds: string[]; boundCpu?: number; boundGpu?: number }

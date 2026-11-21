@@ -4,7 +4,7 @@ import { clock } from '../../clock/frame.ts';
 import { perfReport, perfStrip } from './report.ts';
 import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
-import { renderStats } from '../../debug/render-stats.ts';
+import { renderStats } from '../../clock/render-stats.ts';
 import { cel } from '../../scene/api.ts';
 import { spans } from '../../boot/spans.ts';
 import { shaderFailureLine } from '../../debug/shader-fail.ts';

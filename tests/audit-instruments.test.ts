@@ -1,7 +1,7 @@
 // The audit's renderer and stall instruments (code review 21 Nov, #4 #5 #6 #9 #10): pure, so Node reads them in a second.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boundBy, readStats, frameBegin, frameEnd, renderStats, memoryClimb, type InfoLike } from '../src/debug/render-stats.ts';
+import { boundBy, readStats, frameBegin, frameEnd, renderStats, memoryClimb, type InfoLike } from '../src/clock/render-stats.ts';
 import { createClock } from '../src/clock/frame.ts';
 import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/judge.ts';
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
