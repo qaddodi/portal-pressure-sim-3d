@@ -138,11 +138,14 @@ function ringPlaneNormal(g: BufferGeometry, ring: number): Vec3 | null {
  *  (the difference of the neighbouring ring centres), the first as far back toward the node as the arm's end ring is, the last `AXIS_REACH_R` radii from that end: a straight capsule through the seam never kinks against the tube's smooth curve at it, which a polyline of the
  *  tube's own, coarse, ring centres does (HA's left branch turns 45 degrees between two rings, a half pixel of ink off at the seam). Their radii are the end ring's and the tube's radius where the far point's ring is. */
 export const AXIS_REACH_R = 6;
+/** How far back from its seam (in the seam ring's radii) the heading line of a liver fork's branch arm is trusted (axisOf `backR`). */
+export const BACK_SIDE_R = 1.5;
+const isLiverBranchId = (id: string): boolean => { const v = NETWORK_BY_ID.get(id); return !!v && isLiverBranch(v); };
 /** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
 export const BRIDGE_MIN_R = 0.1;
 /** How far (radians) a seam ring may lean off the heading the neighbouring rings give before the ring's own plane normal is the heading. */
 const TILT_MAX = 0.04;
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false): ArmAxis {
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
@@ -158,7 +161,10 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
   let far = cut.ring, at = s.c;
   for (let k = cut.ring; k >= 0 && k <= last; k += out) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
   const f = ringCentre(tube.geometry, far);
-  const p1: Vec3 = [s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0];
+  // (a side-wall skin's arm: its end ring lies deep inside the host and the tube BENDS on the way out, so the heading line from the seam, run back all the way to where the end ring is, misses the tube's own course by a radius or more (the right hepatic vein's fork:
+  //  1.4 radii, the bridge from J then detoured behind the host and its capsule stood out of the wall as a knob). The line is only trusted for a radius back, as a run's halves are in through.ts; the bridge from J to it is straight)
+  const back = backR !== undefined ? Math.min(d0, backR * s.r) : d0;
+  const p1: Vec3 = [s.c[0] - tx * back, s.c[1] - ty * back, s.c[2] - tz * back];
   // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
   const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
   return { pts: [bridged ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, a.r, s.r, f.r] };
@@ -366,7 +372,7 @@ export class SkinSet {
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
     // (a baked skin brings its axes and its mesh: the page plans nothing and remeshes nothing)
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
