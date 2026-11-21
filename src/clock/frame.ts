@@ -73,9 +73,9 @@ export function createClock(env: Env) {
   let scale = 1, page0 = 0, real0 = 0;
   const now = () => (scale === 1 && page0 === real0 ? env.now() : page0 + (env.now() - real0) * scale);
   const sched = env.timer ?? ((cb, ms) => setTimeout(cb, ms));
-  const unsched = env.untimer ?? ((id) => clearTimeout(id as never));
+  const unsched = env.untimer ?? ((id) => clearTimeout(id as number));
   const repeat = env.every ?? ((cb, ms) => setInterval(cb, ms));
-  const unrepeat = env.unevery ?? ((id) => clearInterval(id as never));
+  const unrepeat = env.unevery ?? ((id) => clearInterval(id as number));
   let nextTimer = 1;
   const timers = new Map<number, { tag: string; cancel: () => void }>();   // waits made by after()/every() and not yet fired or cancelled
   const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System }[]])) as Record<Phase, { order: number; fn: System }[]>;
