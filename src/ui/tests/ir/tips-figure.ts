@@ -103,9 +103,17 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   };
   vein(0, x0 + 2, cy - L.pvH! / 2, L.pvH!);
   vein(x1 - 2, W, cy - L.hvH! / 2, L.hvH!);
-  if (o.card) {   // (the veins are drawn as tubes, with the stent's own thin ink on their two walls, so the figure reads as one cel drawing)
-    const wall = (xa: number, xb: number, hh: number) => { for (const y of [cy - hh / 2, cy + hh / 2]) p.line([xa, y, xb, y], 'stent.lumen', ex); };
-    wall(0, x0 + 2, L.pvH!); wall(x1 - 2, W, L.hvH!);
+  if (o.card) {   // (the cel veins: each a tube in its own tone, a pale band along its top and a faint shade under it, inked on both walls)
+    const tone = (n: string, fb: string): Rgba => c.pal.tok(c.pal.has(n) ? n : fb);
+    const tube = (xa: number, xb: number, hh: number, col: Rgba) => {
+      const y0 = cy - hh / 2, y1 = cy + hh / 2;
+      p.fillPoly([xa, y0, xb, y0, xb, y1, xa, y1], mul(col, 0.34));
+      p.fillPoly([xa, y0, xb, y0, xb, y0 + hh * 0.38, xa, y0 + hh * 0.38], [1, 1, 1, 0.16]);
+      p.fillPoly([xa, y1, xb, y1, xb, y1 - hh * 0.3, xa, y1 - hh * 0.3], [0, 0, 0, 0.07]);
+      for (const y of [y0, y1]) p.line([xa, y, xb, y], 'stent.lumen', 1);
+    };
+    tube(0, x0 + 2, L.pvH!, tone('tour-portal', 'text-3'));
+    tube(x1 - 2, W, L.hvH!, tone('tour-sys', 'text-3'));
   }
 
   // the lumen, to scale; its colours along the picture's width (velocity: the scanner's against the stent's range; pressure: absolute)
@@ -126,6 +134,7 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
     p.fillPoly([...top, ...bot], slice(a, b));
   }
   p.poly(edge, 'stent.lumen', ex);
+  if (o.card) p.poly(edge, 'stent.dim', ex);   // (the cel ink round the lumen)
   // a soft tube shading over the lumen's flat velocity colour: a pale band along its upper side and a faint shade along the lower, each fading toward the axis (the cel look's two soft tones, never a stripe)
   const side = (up: boolean, col: Rgba, reach: number) => {
     const edgePt = (i: number): [number, number] => { const q = up ? i : 2 * n + 1 - i; return [edge[2 * q]!, edge[2 * q + 1]!]; };

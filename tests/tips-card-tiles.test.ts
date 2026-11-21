@@ -27,7 +27,7 @@ test('the vessel card draws the stent figure with its brackets and numbers, with
 test('the vessel card\'s actions are one row of equal columns with their icons attached, and its figure has its height from the first paint', () => {
   assert.match(plate, /\.ac-panel:has\(> \.tv\) \+ \.ac-as \{[^}]*grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\)/);
   assert.match(plate, /\.ac-panel:has\(> \.tv\) \+ \.ac-as \.ac-dye \.ac-bl \{ min-width: 0; \}/);
-  assert.match(plate, /\.tv \.tf-card \{[^}]*min-height: calc\(41px \+ 12\.264cqi\)/);
+  assert.match(plate, /\.tv \.tf-card \{[^}]*height: calc\(27px \+ 12\.264cqi\)/);
   assert.match(plate, /\.tv \{[^}]*container-type: inline-size/);
 });
 test('the reserved figure height is the card figure\'s own: 20 + hvH + 13 + 8 = 41 px + a hepatic vein\'s 13 mm at the width\'s scale', () => {
@@ -47,4 +47,12 @@ test('an open action card sheet takes its height off the figure\'s room, so the 
   assert.equal(takenBy(1000, room), 330, 'a tall card never takes more than 55 % of the room');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
   assert.match(shell, /roomAbove\(panRoom\(base, testsPlace\), actionH\)/);
+});
+
+test('the bracket row eases the card figure\'s height and slides the picture with it, and the readings sit above it', () => {
+  assert.match(plate, /\.tv \.tf-card\[data-row="true"\] \{ height: calc\(41px \+ 12\.264cqi\); \}/);
+  assert.match(plate, /\.tv \.tf-card > \.tf-in \{ transform: translateY\(-14px\); transition: transform var\(--d-surface\)/);
+  assert.match(plate, /\.tv \.tf-card \{[^}]*transition: height var\(--d-surface\)/);
+  assert.match(panel, /data-row=\{open\}/);
+  assert.ok(panel.indexOf('<VesselKeys id={id} />') < panel.indexOf('<CardFigure id={id} />'), 'the readings come first');
 });
