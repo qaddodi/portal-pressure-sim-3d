@@ -284,3 +284,17 @@ test('the dust tones keep the vessel\'s hue family: a grey base stays grey, a bl
     }
   }
 });
+
+// Violet specks on the pale cava and confluence (Mohammad, 21 Nov): a dark tone of a PALE coloured base kept its HSL saturation (large near white) and came out vivid. The tone keeps the base's chroma.
+test('the dust tones never carry much more chroma than the base, however pale the base and however dark the tone', async () => {
+  const { dustShiftJs } = await import('../src/scene/blood/dust-glsl.ts');
+  const shifts: Array<[number, number, number]> = [[-0.2 * 40 / 360, 0.02, 0.24], [0.5 * 40 / 360, 0.04, 0.1], [-0.55 * 40 / 360, 0, 0.06], [0, 0.03, -0.14], [0, 0.03, -0.3]];
+  for (const pale of [[0.72, 0.82, 0.93], [0.78, 0.86, 0.95], [0.8, 0.88, 0.96], [0.66, 0.76, 0.9]]) {
+    const c0 = Math.max(...pale) - Math.min(...pale);
+    for (const [dh, ds, dl] of shifts) {
+      const o = dustShiftJs(pale, dh, ds, dl), c1 = Math.max(...o) - Math.min(...o);
+      assert.ok(c1 <= c0 + 0.12, `pale ${pale} -> ${o.map((x) => x.toFixed(3))}: chroma ${c1.toFixed(2)} against the base's ${c0.toFixed(2)}`);
+    }
+  }
+  assert.match(DUST_GLSL, /ch0 \/ max\(1\.0 - abs\(2\.0 \* l1 - 1\.0\), 0\.08\)/, 'the shader holds the same rule');
+});

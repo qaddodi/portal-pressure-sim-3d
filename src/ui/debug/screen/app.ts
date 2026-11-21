@@ -10,7 +10,7 @@ import { usePick, cel } from '../../../scene/api.ts';
 import { viewAt } from '../../deck/presenter-machine.ts';
 import { resolveLook } from '../../../looks/looks.ts';
 import { clock } from '../../../clock/frame.ts';
-import { renderStats } from '../../../debug/render-stats.ts';
+import { renderStats } from '../../../clock/render-stats.ts';
 import { caughtCount, caughtList } from '../caught.ts';
 
 export interface AppSnapshot {
