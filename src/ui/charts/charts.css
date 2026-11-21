@@ -60,3 +60,8 @@
 .pz-ghost { margin: 0 0 .4em; display: flex; gap: .5em; align-items: baseline; font: 500 max(12px, var(--fs-data, 13px))/1.2 var(--ui, system-ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
 .pz-ghost b { font-weight: 600; color: var(--text-2); }
 .pz-vitals { width: 100%; }
+
+/* A chart's box is never shorter than the picture drawn in it. The 2D sheet gives these wrappers a height of their own (`.pz-flowtime` max(60cqi, 15em), `.pz-curve`, `.pz-talk`, `.pz-shift`, `.pz-flows`: 2D's SVG is drawn
+   to that box); here the picture is drawn on the GPU at the height its frame says, so a box the CSS made shorter clipped it at the card's foot (the lower values, the lines and the last point of "HVPG and ascites over the
+   month" cut off, Mohammad 21 Nov). The CSS height stays the floor; the picture's own height is what the card (and its measured height) then sees. A changed height is the chart's box changing, which the card measures. */
+:is(.pz-flowtime, .pz-curve, .pz-talk, .pz-shift, .pz-flows) { min-height: min-content !important; }

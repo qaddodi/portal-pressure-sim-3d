@@ -5,13 +5,13 @@ import { look, type Look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { RX as RX0 } from '../plot/rx-bands.generated.js';
 import { yOf, decOf } from '../plot/scales.ts';
-import { MINUTES, clockTicks, cw, flowGeo, flowTimeHeight, headLeft, linesOf, legendOf, showsOf, startPlan, withUnit, xAt, rxGap, type FlowSeries, type Geo, type LineRow } from './model.ts';
+import { MINUTES, clockTicks, cw, flowGeo, flowTimeFit, headLeft, linesOf, legendOf, showsOf, startPlan, withUnit, xAt, rxGap, type FlowSeries, type Geo, type LineRow } from './model.ts';
 
 export const RX = RX0 as unknown as Record<string, [name: string, on: (params: unknown) => boolean, tone: string]>;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const tokOf = (v: string) => v.replace(/^--/, '');
 
-export interface FlowSpec { ser: FlowSeries; clock: 'meal' | 'days'; keys: readonly string[]; /** the treatments shown (rx-bands.js keys) */ rx?: readonly string[]; height?: number }
+export interface FlowSpec { ser: FlowSeries; clock: 'meal' | 'days'; keys: readonly string[]; /** the treatments shown (rx-bands.js keys) */ rx?: readonly string[]; height?: number; /** the room the card leaves the chart, px (2D --ft-room); 0: none */ room?: number; /** a phone's stacked card's one height, px (2D --ft-h); 0: none */ cap?: number }
 export interface FlowOut { frame: Frame; G: Geo }
 
 /** A line's colour as a word: its -ink form where the look has one (a trace colour is 3:1, a word needs 4.5:1). */
@@ -21,7 +21,7 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   const { pal } = c, f = c.type.sm, w = Math.max(160, c.w), { ser, clock, keys } = spec, rx = spec.rx ?? [];
   const H = { host: 'flowtime' };
   const lk = (key: string, state: Record<string, unknown> = {}, tone?: string, name = 'c'): Look => look(c, H, key, state, tone ? { [name]: tone } : {});
-  const ax = ser.ax, h = Math.round(spec.height ?? flowTimeHeight(w, f, keys, rx.length ? 1.4 + 0.32 * rx.length : 0).preferred);
+  const ax = ser.ax, h = Math.round(spec.height ?? flowTimeFit(w, f, keys, rx.length ? 1.4 + 0.32 * rx.length : 0, spec.room, spec.cap));
   const G = flowGeo(ser, clock, keys, rx.length, w, h, f), LINES: LineRow[] = linesOf(keys);
   const { L, R, T, B, meal } = G, X = (mm: number) => xAt(G, ax, mm);
   const surf2 = lk('plot.bg').fill!;
