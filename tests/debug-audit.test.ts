@@ -117,3 +117,13 @@ test('a callout that is not on is gone, whatever its own element says (the audit
   assert.equal(labelAlpha(true, 1, [0.25, 0.6]), 0.6);
   assert.equal(labelAlpha(true, 0.7, []), 0.7);
 });
+
+test('the report opens with the run time, says when a parallel run makes the speed numbers invalid, and names every stop the walk could not reach', () => {
+  const part = (id: string): AuditData => ({ size: { id, w: 390, h: 844, dpr: 3 }, build: 'b', ms: 120000, depth: 'full', stopped: false, rows: [], console: [], notes: [],
+    coverage: [{ deck: 'Measuring HVPG', reached: 14, total: 15, missed: [9] }, { deck: 'TIPS', reached: 8, total: 8, missed: [] }] });
+  const seq = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, wallMs: 250000, parts: [part('iphone'), part('mac')], failed: [] });
+  assert.match(seq, /^AUDIT v1[^\n]*\nRUN TIME: 4\.2 min in all \(one after the other: iphone 2\.0 min, mac 2\.0 min\)/);
+  assert.match(seq, /COVERAGE iphone: 22 of 23 stops in 2 talks/); assert.match(seq, /NOT REACHED in "Measuring HVPG": 1 of 15 stops \(stop 9\)/);
+  const par = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, wallMs: 130000, parts: [part('iphone'), part('mac')], failed: [] });
+  assert.match(par, /sizes ran at the same time/); assert.match(par, /PARALLEL RUN: .*NOT valid/);
+});

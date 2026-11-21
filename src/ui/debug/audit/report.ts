@@ -15,12 +15,18 @@ export interface AuditRow {
   flags: AuditFinding[];
 }
 export interface ConsoleLine { level: 'error' | 'warn' | 'window' | 'promise'; text: string; at: string }
+/** How much of a talk the walk reached: stops opened of the stops it has, and the numbers (1-based) of the ones the jump did not land on. */
+export interface Coverage { deck: string; reached: number; total: number; missed: number[] }
 export interface AuditData {
   size: AuditSize; build?: string; ms: number; depth: 'quick' | 'full'; stopped: boolean;
-  rows: AuditRow[]; console: ConsoleLine[]; notes: string[];
+  rows: AuditRow[]; console: ConsoleLine[]; notes: string[]; coverage?: Coverage[];
 }
 export interface Bundle {
   build: string; device: string; at: string; depth: 'quick' | 'full'; framed: boolean;
+  /** the sizes ran at the same time: frame rates and timings are not valid */
+  parallel?: boolean;
+  /** wall-clock ms of the whole run */
+  wallMs?: number;
   parts: AuditData[]; failed: { size: string; why: string }[];
 }
 
@@ -71,6 +77,9 @@ export function renderText(b: Bundle): string {
   const fails = groups.filter((g) => g.sev === 'fail'), warns = groups.filter((g) => g.sev === 'warn');
   const steps = b.parts.reduce((n, p) => n + p.rows.length, 0);
   L.push(`AUDIT v1 · build ${b.build} · ${b.at} · depth ${b.depth} · ${b.framed ? 'sized frames' : 'this screen'}`);
+  const wall = b.wallMs ?? b.parts.reduce((n, p) => n + p.ms, 0);
+  L.push(`RUN TIME: ${mins(wall)} in all${b.parts.length > 1 ? (b.parallel ? ' (sizes ran at the same time)' : ` (one after the other: ${b.parts.map((p) => `${p.size.id} ${mins(p.ms)}`).join(', ')})`) : ''}`);
+  if (b.parallel) L.push('PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid. Layout, snaps, coverage and console errors are.');
   L.push(`device: ${b.device}`);
   L.push(`sizes: ${b.parts.map((p) => `${p.size.id} ${p.size.w}x${p.size.h}@${p.size.dpr} (${p.rows.length} steps, ${mins(p.ms)}${p.stopped ? ', STOPPED' : ''})`).join('; ') || 'none'}`);
   L.push('');
@@ -78,6 +87,11 @@ export function renderText(b: Bundle): string {
   for (const c of CANNOT_SEE) L.push(`- ${c}`);
   if (b.failed.length) { L.push(''); L.push('SIZES THAT DID NOT FINISH'); for (const f of b.failed) L.push(`- ${f.size}: ${f.why}`); }
   for (const p of b.parts) for (const n of p.notes) L.push(`- NOTE ${p.size.id}: ${n}`);
+  for (const p of b.parts) if (p.coverage?.length) {
+    const miss = p.coverage.filter((c) => c.missed.length || c.reached < c.total);
+    L.push(''); L.push(`COVERAGE ${p.size.id}: ${p.coverage.reduce((n, c) => n + c.reached, 0)} of ${p.coverage.reduce((n, c) => n + c.total, 0)} stops in ${p.coverage.length} talks${miss.length ? '' : ' (all reached)'}`);
+    for (const c of miss) L.push(`- NOT REACHED in "${c.deck}": ${c.total - c.reached} of ${c.total} stops${c.missed.length ? ` (stop ${c.missed.join(', ')})` : ''}`);
+  }
   L.push('');
   L.push(`RESULT: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} distinct console message${con.length === 1 ? '' : 's'}, ${steps} steps measured`);
   const show = (gs: Group[], head: string) => {

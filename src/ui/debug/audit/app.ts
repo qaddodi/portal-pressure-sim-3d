@@ -3,21 +3,20 @@
 import { UI } from '../../strings.generated.ts';
 import { builtinDecks } from '../../../decks/registry.ts';
 import { useShell } from '../../shell/store.ts';
-import { useUi, atEnd } from '../../ui-store.ts';
+import { useUi } from '../../ui-store.ts';
 import { leaveTalk } from '../../shell/talk.ts';
 import { loadPatient } from '../../menu/patients.ts';
 import { clock } from '../../../clock/frame.ts';
 import { createRecorder } from '../watch/recorder.ts';
 import { domSources } from '../watch/sources.ts';
 import { liveCatalog, openEntry, settle as pageSettle, problems } from '../page/live.ts';
-import { QUIET_LONG_MS } from '../core/settle.copied.js';
 import type { Entry } from '../page/catalog.ts';
 import type { Step, Reads } from './run.ts';
 import type { Box, LayoutRead } from './judge.ts';
-import type { ConsoleLine } from './report.ts';
+import type { ConsoleLine, Coverage } from './report.ts';
 
 export const SAMPLE_MS = 33;
-export const QUIET_MS = QUIET_LONG_MS;
+export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
 export const settle = () => pageSettle({ timeoutMs: 45000, quietMs: QUIET_MS });
 const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 /** Waits (up to `ms`) for something an open starts asynchronously (a talk's cover, its charts, its first cards), so the walk's "is the page still?" never reads the instant before it begins. */
@@ -25,11 +24,10 @@ const until = async (cond: () => boolean, ms: number) => { const t = performance
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 
 // ── the steps ──
-const MAX_PRESSES = 60, STUCK_AFTER = 3;
 const SHEETS_QUICK = ['sheet:settings', 'sheet:help'];
 
 /** What the walk does, in the order a person would: the views, the sheets, the patients (the collaterals grow and collapse), then every talk slide by slide with Next. A generator, because how many presses a slide takes (beats, pages, a procedure's steps) is known only by pressing. */
-export async function* plan(depth: 'quick' | 'full', note: (s: string) => void): AsyncGenerator<Step> {
+export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, cover: (c: Coverage) => void = () => undefined): AsyncGenerator<Step> {
   const cat = liveCatalog();
   const entry = (id: string): Entry | undefined => cat.find((e) => e.id === id);
   const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); } } : null; };
@@ -47,25 +45,25 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void):
   yield { group: 'Patients', id: 'collaterals:on', label: 'collaterals on (grow)', run: () => useShell.getState().setFigure({ collaterals: true }) };
   yield pt('healthy', 'Healthy again (collaterals collapse)');
   if (depth === 'full') for (const p of UI.presets) { if (p.id !== 'healthy' && p.id !== 'cirr-decomp') yield pt(p.id, p.label); }
-  // the talks
+  // the talks: each one is opened straight at its outline, then every stop is jumped to by number (never by pressing Next from the one before, so a stop that will not advance cannot end the walk),
+  // and a stop with beats is pressed through them. A stop the jump did not land on is named in the coverage, never skipped quietly.
   for (const d of builtinDecks()) {
-    const first = open(`slide:${d.id}:1`);
+    const first = open(`slide:${d.id}:0`);
     if (!first) { note(`talk ${d.id} is not in the catalog`); continue; }
-    yield { ...first, label: `slide 1 (opening the talk)` };
-    if (depth === 'quick') {
-      yield { group: d.title, id: `${d.id}:next`, label: 'Next', run: () => { useUi.getState().move('next'); return where(d.title); } };
-      for (const n of [Math.ceil(d.slides.length / 2), d.slides.length]) { const s = open(`slide:${d.id}:${n}`); if (s) yield { ...s, label: `slide ${n} (jump)` }; }
-    } else {
-      let still = 0, presses = 0;
-      while (presses < MAX_PRESSES * 4) {
-        const { pos, page } = useUi.getState();
-        if (atEnd(useUi.getState())) break;
-        const before = `${pos.stop}:${pos.beat}:${String(page)}`;
-        presses++;
-        yield { group: d.title, id: `${d.id}:next:${presses}`, label: 'Next', run: () => { useUi.getState().move('next'); return where(d.title); } };
-        const u = useUi.getState();
-        still = `${u.pos.stop}:${u.pos.beat}:${String(u.page)}` === before ? still + 1 : 0;
-        if (still >= STUCK_AFTER) { note(`${d.title}: Next did not move on after stop ${u.pos.stop + 1} of ${u.stops.length} (${STUCK_AFTER} presses); the walk left the talk there`); break; }
+    yield { ...first, label: 'outline (opening the talk)' };
+    const total = useUi.getState().stops.length;
+    const cov: Coverage = { deck: d.title, reached: total ? 1 : 0, total: total || d.slides.length + 2, missed: [] };
+    cover(cov);
+    if (!total) { note(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
+    const want = depth === 'quick' ? Array.from(new Set([1, Math.ceil(total / 2), total - 2, total - 1])).filter((k) => k >= 1 && k < total).sort((x, y) => x - y) : Array.from({ length: total - 1 }, (_, i) => i + 1);
+    for (const k of want) {
+      yield { group: d.title, id: `${d.id}:go:${k}`, label: `stop ${k + 1} of ${total}`, run: async () => { useUi.getState().go(k); await until(() => useUi.getState().pos.stop === k, 4000); return where(d.title); } };
+      const u = useUi.getState();
+      if (u.pos.stop !== k) { cov.missed.push(k + 1); note(`${d.title}: the jump to stop ${k + 1} of ${total} landed on stop ${u.pos.stop + 1}`); continue; }
+      cov.reached++;
+      const st = u.stops[k], beats = st && st.kind === 'slide' ? st.beats : 1;
+      for (let tries = 0; depth === 'full' && tries < beats + 4 && useUi.getState().pos.stop === k && useUi.getState().pos.beat < beats - 1; tries++) {
+        yield { group: d.title, id: `${d.id}:beat:${k}:${tries}`, label: 'Next (beat)', run: () => { useUi.getState().move('next'); return where(d.title); } };
       }
     }
     yield { group: d.title, id: `${d.id}:leave`, label: 'leave the talk', run: async () => { leaveTalk(); await until(() => useShell.getState().mode !== 'deck', 15000); } };
