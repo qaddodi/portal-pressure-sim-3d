@@ -28,6 +28,8 @@ export interface SkinJunction {
   arms: SkinArm[];           // 3 or 4, sorted widest first
   /** meshed from the surface itself (sheet.ts, the last rung), its seams chosen with no hull of the rings: a junction whose seam rings the hull cannot cover (the Circuit's, circuit/skins.ts) */
   surface?: boolean;
+  /** the growing arms are built WHOLE and the skin is one static shape (no `GrowMorph`): the Anatomy's welds (skin-set.ts: the tube's flared end grows, then the skin takes over at growth 0.9 to 1). The Circuit's skins still morph until it follows. */
+  still?: boolean;
 }
 
 /** Where an arm's tube hands over to the skin. */

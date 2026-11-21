@@ -16,13 +16,13 @@ import type { BufferGeometry, Color, Object3D } from 'three';
 import { NETWORK_BY_ID } from '../network.ts';
 import { REST, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
-import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
-import { skinsDigest, type BakedSkin, type BakedSkins } from './baked.ts';
+import { PACES, buildSkinSteady, hullCovers } from './mesh.ts';
+import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
+import { plainOf, weldOf } from './plain.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, wedgeShareAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
@@ -41,6 +41,8 @@ export interface SkinDraw {
   setWedge?(i: number, share: number, colour?: Color): void;
   /** a growing arm's growth at its seam (0 gone, 1 whole): the skin's own shape eases with it (spec 10.2); an arm the skin does not morph ignores it */
   setGrow?(i: number, g: number): void;
+  /** this skin is one of a growing arm's pair (a welded skin, mode +1, or the plain trunk, mode -1): how far the weld is, 0 the flared tubes alone, 1 the welded skin; the pair draw complementary pixels (skin-object.ts) */
+  setWeld?(mode: 1 | -1, w: number): void;
   /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
   setArmCopy(i: number, front: number, solid: number, veil: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
@@ -77,10 +79,16 @@ export const SKIN_BUILD_TAG = 'skin-build';
 export interface SkinBuildStats { rebuilds: number; lastMs: number; worstMs: number; lastNode: string }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the arm is a growing one (a collateral or a shunt): it hands over its growth, not its presence */ grow: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge share last written (NaN before the first) */ wedge: number; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
+interface ArmLink { /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge share last written (NaN before the first) */ wedge: number; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
+/** The plain trunk of a skin with growing arms (plain.ts): the arms that stay, as a static skin of their own. */
+interface PlainBuilt { mesh: SkinMesh; draw: SkinDraw; keep: number[]; bake: PlainBake }
 interface Built {
   node: string; mesh: SkinMesh | null; draw: SkinDraw | null; arms: ArmLink[];
+  /** the skin of the arms that stay, drawn while a growing arm is not yet whole (null: none, or the skin has no growing arm) */
+  plain: PlainBuilt | null;
+  /** the weld share last written (NaN: not yet) */
+  w: number;
   /** the nodes (one, or two for a merged skin) and every vessel the skin stands on, hidden ones included: what a mark is matched against, and what a rebuild plans again */
   sources: readonly string[]; vessels: ReadonlySet<string>; hidden: readonly string[];
   /** an arm changed since the last rebuild; `slow`: that rebuild took over SKIN_BUILD_SLOW_MS; `at`: the step it ran in */
@@ -176,7 +184,7 @@ export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi:
 }
 
 /** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`), or lands on a host's wall (wall.ts): meshed from the surface, no hull of the rings. */
-const hasLiverBranch = (j: SkinJunction): boolean => onWall(j) || j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
+const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
 
 export class SkinSet {
   private built: Built[] = [];
@@ -215,11 +223,19 @@ export class SkinSet {
   /** The junction nodes that are skinned. */
   get nodes(): readonly string[] { return this.drawn.map((b) => b.node); }
   /** The vessel ids of a built skin's arms, in arm order (the draw returned by `make`). */
-  armIdsOf(draw: SkinDraw): readonly string[] { return this.built.find((b) => b.draw === draw)?.arms.map((a) => a.id) ?? []; }
+  armIdsOf(draw: SkinDraw): readonly string[] { const b = this.built.find((x) => x.draw === draw || x.plain?.draw === draw); return b ? (b.draw === draw ? b.arms.map((a) => a.id) : b.plain!.keep.map((i) => b.arms[i]!.id)) : []; }
   /** The drawing objects of the skins as they stand (the ones a retried plan took back are not among them). */
   liveDraws(): readonly SkinDraw[] { return this.drawn.map((b) => b.draw!).filter(Boolean); }
   /** The drawn skins' objects, each with the vessel ids of its arms (the inspector hides a skin when none of its arms is shown). */
-  drawnArms(): { object: Object3D; node: string; arms: readonly string[] }[] { return this.drawn.map((b) => ({ object: b.draw.object, node: b.node, arms: b.arms.map((a) => a.id) })); }
+  drawnArms(): { object: Object3D; node: string; arms: readonly string[] }[] {
+    return this.drawn.flatMap((b) => [{ object: b.draw.object, node: b.node, arms: b.arms.map((a) => a.id) }, ...(b.plain ? [{ object: b.plain.draw.object, node: `${b.node}~plain`, arms: b.plain.keep.map((i) => b.arms[i]!.id) }] : [])]);
+  }
+  /** The plain trunks standing beside the welded skins (a node with a growing arm and three or more arms that stay). */
+  plainDraws(): readonly SkinDraw[] { return this.drawn.flatMap((b) => (b.plain ? [b.plain.draw] : [])); }
+  /** The plain trunk's mesh of a node, or undefined. */
+  plainOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.plain?.mesh; }
+  /** The weld a node's skin shows now (1 whole, 0 the flared tubes alone), NaN for a skin without a growing arm. */
+  weldOf(node: string): number { const b = this.drawn.find((x) => x.node === node); return b && b.arms.some((a) => a.grow) ? (Number.isNaN(b.w) ? 0 : b.w) : NaN; }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.mesh ?? undefined; }
   /** How many rebuilds ran, what the last and the worst cost (ms), and which node was the last. */
@@ -316,7 +332,7 @@ export class SkinSet {
         if (m.sources.some((n) => next.some((x) => x.node === n))) continue;
         const src = m.sources.map((n) => latest.get(n)).filter((x): x is SkinJunction => !!x);
         if (!src.length || !src.some((sj) => next.some((x) => x.arms.some((p) => sj.arms.some((q) => q.vesselId === p.vesselId))))) continue;
-        made.splice(made.indexOf(m), 1); m.draw?.dispose();
+        made.splice(made.indexOf(m), 1); this.release(m, false);
         for (const sj of src) if (!next.some((x) => x.node === sj.node)) next.push(sj);
       }
       // a node of this round whose skin was made is not planned again
@@ -339,20 +355,37 @@ export class SkinSet {
     const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
-    const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
+    // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
+    const growing = j.arms.some((a) => a.grow);
+    const mesh = ready?.mesh ?? buildSkinSteady(growing ? { ...j, still: true } : j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (a baked mesh has had it done)
+    const pp = growing ? plainOf(plan) : null;
+    let plain: PlainBuilt | null = null;
+    if (pp && ready?.plain !== null) {
+      // (a failed plain trunk is no skin: the welded skin then comes in over the tubes' own cut ends alone, below; a baked skin says it failed with `plain: null`)
+      try {
+        const axesP = ready?.plain?.axes ?? pp.keep.map((i) => axes[i]!), key = pp.junction.node;
+        if (ready?.plain) this.paces.set(key, ready.plain.pace);
+        const meshP = ready?.plain?.mesh ?? buildSkinSteady(pp.junction, pp.cuts, pp.keep.map((i) => pos[i]!), pp.keep.map((i) => nor[i]!), axesP.map(capsuleOf), undefined, this.paces);
+        if (!ready?.plain) meshP.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { meshP.restR[v] = rest[pp.keep[a]!]![q]!; }));
+        plain = { mesh: meshP, draw: null as unknown as SkinDraw, keep: pp.keep, bake: { axes: axesP, mesh: meshP, pace: this.paces.get(key) ?? 0 } };
+      } catch { plain = null; }
+    }
+    // without a plain trunk the whole skin comes in over the tubes' cut ends, and a hole or a hidden vessel cannot be dithered back: such a skin takes no growing arm (the retry ladder drops it and names it)
+    if (growing && !plain && (holesOf(plan.cuts).length || plan.hidden.length)) throw new SkinBuildError(j.node, 'a growing arm on a skin with holes or a hidden vessel, and no plain trunk to weld from');
+    if (plain) plain.draw = this.deps.make(plain.mesh, plain.bake.axes, pp!.keep.map((i) => objs[i]!) as VesselObject[]);
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
     const arms: ArmLink[] = j.arms.map((a, i) => {
       const cut = plan.cuts[i]!, ring = pos[i]!;
       let x = 0, y = 0;
       for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      return { grow: !!a.grow && mesh.grow.some((m) => m.arm === i), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: NaN, cp: [NaN, NaN, NaN] };
+      return { grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: NaN, cp: [NaN, NaN, NaN] };
     });
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
     for (const a of j.arms) vessels.add(a.vesselId);
-    return { node: j.node, mesh, draw, arms, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes: holesOf(plan.cuts), bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0 } };
+    return { node: j.node, mesh, draw, arms, plain, w: NaN, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes: holesOf(plan.cuts), bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0, ...(growing && pp ? { plain: plain ? plain.bake : null } : {}) } };
   }
 
   /** Records a skin's cuts and skinned ends (its arms' ends, and every vessel it replaces whole), without touching the tubes. */
@@ -366,7 +399,7 @@ export class SkinSet {
     for (const a of b.arms) {
       if (b.holes.some((h) => h.id === a.id)) continue;   // (both sides of this host are arms of the skin: a hole, the host's own ends stay as they are)
       const c = this.cuts.get(a.id) ?? [SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]];
-      const cu = strandCutU(NETWORK_BY_ID.get(a.id)!, this.deps.stateOf(a.id) ?? REST, a.end, a.u);   // (a braid's strands are cut at the seam's distance on the longest of them)
+      const def = NETWORK_BY_ID.get(a.id), cu = def ? strandCutU(def, this.deps.stateOf(a.id) ?? REST, a.end, a.u) : a.u;   // (a braid's strands are cut at the seam's distance on the longest of them)
       if (a.end === 0) c[0] = cu; else c[1] = cu;
       this.cuts.set(a.id, c);
       const e = this.ends.get(a.id) ?? [false, false]; e[a.end] = true; this.ends.set(a.id, e);
@@ -378,6 +411,7 @@ export class SkinSet {
 
   /** Forgets a skin's cuts and skinned ends (only the ends it owns: a vessel two skins share keeps the other's), and puts the tubes' cuts as they are now. */
   private dropCuts(b: Built): void {
+    this.unweld(b);
     const touched = new Set<string>();
     this.dropHoles(b, touched);
     for (const a of b.arms) {
@@ -424,13 +458,7 @@ export class SkinSet {
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
     const farGone: { node: string; id: string }[] = [];
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
-    // ...and every growing vessel's end that is not an arm of a node's skin lands on a host's WALL (spec 10.1, wall.ts): each makes a virtual node on the host
-    const welded = new Set(near.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
-    const lands = phase === 2 ? attachNear(near, wallLandings(welded)) : { junctions: near, left: [] };
-    const walls = wallJunctions(lands.left);
-    near.length = 0; near.push(...lands.junctions, ...walls.junctions);
-    for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
-    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
+    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named: a far growing end is a landing on a wall, which keeps the tube's own sunk and flared end)
     all.length = 0; all.push(...near);
     const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
     for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);
@@ -453,7 +481,7 @@ export class SkinSet {
     for (const f of lost) { this.fail(f.node, f.message, warn); this.built.push(this.lost(f.node)); }
     const touched = new Set<string>();
     for (const b of made) {
-      this.deps.add(b.draw!.object);
+      this.place(b);
       this.built.push(b);
       // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
       for (const id of this.takeCuts(b)) touched.add(id);
@@ -472,7 +500,7 @@ export class SkinSet {
   private lost(node: string): Built {
     const sources = node.split('+');
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
-    return { node, mesh: null, draw: null, arms: [], sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [], bake: null };
+    return { node, mesh: null, draw: null, arms: [], plain: null, w: NaN, sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [], bake: null };
   }
 
   private fail(node: string, message: string, warn: (m: string) => void): void {
@@ -510,7 +538,7 @@ export class SkinSet {
       const { made, lost } = this.produce(js, tubes);
       if (lost.length) throw new Error(lost[0]!.message);
       nb = made.find((m) => m.node === b.node) ?? null;
-      for (const m of made) if (m !== nb) { m.draw?.dispose(); }   // (a skin the rebuild made for a node it was not asked about is not used)
+      for (const m of made) if (m !== nb) this.release(m, false);   // (a skin the rebuild made for a node it was not asked about is not used)
       if (!nb) throw new Error(`skin ${b.node}: the rebuild made ${made.map((m) => m.node).join(', ') || 'nothing'}`);
     } catch (e) { this.fail(b.node, (e as Error).message, warn); }
     for (const t of tubes.values()) t.geometry.dispose();
@@ -521,18 +549,18 @@ export class SkinSet {
       const gone = new Set<string>([...b.arms.map((a) => a.id), ...b.hidden]);
       if (old) this.dropCutsQuiet(b);
       for (const h of b.holes) gone.add(h.id);
-      this.deps.add(nb.draw!.object);
+      this.place(nb);
       this.built[i] = nb;
       for (const id of this.takeCuts(nb)) gone.add(id);
       for (const id of gone) { const c = this.cuts.get(id) ?? SKIN_CUT_NONE; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); this.putHoles(id); }
-      if (old) { this.deps.remove(old.object); old.dispose(); }
+      if (old) { this.release(b, true); }
       const fi = this.fellBack.indexOf(b.node); if (fi >= 0) this.fellBack.splice(fi, 1);
       if (!was) this.deps.endsChanged?.();
     } else if (was) {
       // the node cannot be built on this shape: today's joins until an arm changes again
-      this.deps.remove(b.draw!.object); b.draw!.dispose();
+      this.unweld(b); this.release(b, true);
       this.dropCuts(b);
-      b.draw = null; b.mesh = null; b.arms = [];
+      b.draw = null; b.plain = null; b.mesh = null; b.arms = [];
       this.deps.endsChanged?.();
     }
     const ms = this.now() - t0;
@@ -543,6 +571,7 @@ export class SkinSet {
 
   /** Forgets a skin's recorded cuts and ends before another skin takes them (the caller sets the tubes' cuts right after, so nothing is drawn between). */
   private dropCutsQuiet(b: Built): void {
+    this.unweld(b);
     this.dropHoles(b, new Set());
     for (const a of b.arms) {
       if (b.holes.some((h) => h.id === a.id)) continue; const c = this.cuts.get(a.id), e = this.ends.get(a.id); if (c) c[a.end] = SKIN_CUT_NONE[a.end]; if (e) e[a.end] = false; }
@@ -557,7 +586,7 @@ export class SkinSet {
     for (const id of held) this.putHoles(id);
     this.ends.clear();
     this.cuts.clear();
-    for (const b of this.built) if (b.draw) { this.deps.remove(b.draw.object); b.draw.dispose(); }
+    for (const b of this.built) { this.unweld(b); this.release(b, true); }
     this.built = [];
     this.fellBack.length = 0;
     this.dropped.length = 0;
@@ -565,12 +594,24 @@ export class SkinSet {
 
   dispose(): void { this.clear(); }
 
+  /** A built skin's objects into the scene (the plain trunk beside the welded skin). */
+  private place(b: Built): void { this.deps.add(b.draw!.object); if (b.plain) this.deps.add(b.plain.draw.object); }
+  /** A built skin's objects disposed, and out of the scene when they were in it. */
+  private release(b: Built, inScene: boolean): void {
+    for (const d of [b.draw, b.plain?.draw]) if (d) { if (inScene) this.deps.remove(d.object); d.dispose(); }
+  }
+  /** The tubes' cut ends a skin was dithering come back whole (the weld uniform's rest value 1). */
+  private unweld(b: Built): void {
+    for (const a of b.arms) if (a.weld) this.deps.vessel(a.id)?.setSkinWeld(a.end, 1);
+  }
+
   /** The live handover, once a frame after the vessels have moved: for each arm what its tube has at its seam, copied to the skin only when it changed. True when any skin's numbers changed (the scene draws a frame). */
   sync(): boolean {
     let changed = false;
     for (const b of this.drawn) {
-      let any = false, blend = false;
+      let any = false, blend = false, weld = 1;   // (weld: the least share of any growing arm's hand-over, plain.ts weldOf)
       b.arms.forEach((a, i) => {
+        const both = (fn: (d: SkinDraw, k: number) => void): void => { fn(b.draw, i); if (b.plain && a.pi >= 0) fn(b.plain.draw, a.pi); };
         const u = a.obj.toon.uniforms, v = (k: string) => u[k]!.value as { x: number; y: number; z: number; w: number };
         const fade: FadeState = { mode: u.fadeMode!.value as number, a: [v('fadeA').x, v('fadeA').y, v('fadeA').z, v('fadeA').w], line: [v('fadeLine').x, v('fadeLine').y, v('fadeLine').z, v('fadeLine').w], cavaEnd: [v('cavaEnd').x, v('cavaEnd').y], stumpCut: v('stump').x, len: u.len!.value as number, units: 300 };
         const hi: HiState = { on: u.hiOn!.value as number, dir: u.hiDir!.value as number, offset: u.hiOffset!.value as number, ahead: u.hiAhead!.value as number, behind: u.hiBehind!.value as number, ends: [v('hiEnds').x, v('hiEnds').y], fade: u.hiFade!.value as number, len: u.len!.value as number };
@@ -578,33 +619,39 @@ export class SkinSet {
         const col = u.color!.value as { r: number; g: number; b: number }, lu = (u.lensUse!.value as number) > 0.5 ? 1 : 0;
         const nar = a.obj.toonMesh.geometry.getAttribute('narrow')?.getX(a.vi) ?? 0;   // (the stenosis waist the tube has at its seam; disease/clamps.ts writes it, only for a vessel that is stenosed)
         if (a.last[0] !== f || a.last[1] !== h || a.last[2] !== l || a.last[3] !== col.r || a.last[4] !== col.g || a.last[5] !== col.b || a.last[6] !== lu || a.last[7] !== nar) {
-          a.last = [f, h, l, col.r, col.g, col.b, lu, nar, a.last[8] ?? NaN, a.last[9] ?? NaN, a.last[10] ?? NaN]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar); any = true;
+          a.last = [f, h, l, col.r, col.g, col.b, lu, nar, a.last[8] ?? NaN, a.last[9] ?? NaN, a.last[10] ?? NaN]; both((d, k) => d.setArm(k, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar)); any = true;
         }
         // the arm's presence: the skin is there as much as its tube is (visible, drawn on, dissolved)
         const pr = armPresenceAt(a.obj.group.visible, u.reveal!.value as number, u.fade!.value as number, a.u);
         if (a.grow) {
-          // a GROWING arm is not dithered away (that would punch holes in the trunk where its mouth was): its draw-on is the skin's own shape, eased between the closed and the open one (spec 10.2). A dotted thread (a closed potential collateral) counts as 0:
-          // its tube is not cut, and the trunk is a plain trunk
-          const gv = (u.dotted!.value as number) > 0.5 ? 0 : pr;
-          if (a.last[11] !== gv) { a.last[11] = gv; b.draw.setGrow?.(i, gv); any = true; }
-        } else if (a.last[10] !== pr) { a.last[10] = pr; b.draw.setPres(i, pr); any = true; }
+          // a GROWING arm: the skin does not morph with it (it is one static shape with the arm whole); the arm's tube grows with its own flared end and from growth 0.9 to 1 the welded skin comes in over it (the weld, below).
+          // Its presence dithers the skin as any arm's does (at most the weld's own share there, so it is never a second hole). A dotted thread (a closed potential collateral) counts 0: its tube is not cut, and the trunk is the plain trunk
+          weld = Math.min(weld, weldOf((u.dotted!.value as number) > 0.5 ? 0 : pr));
+        }
+        if (a.last[10] !== pr) { a.last[10] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
         // the wedge's amber at the seam, the tube's own formula: the tint runs on through the skin
         const wv = u.wedge!.value as { x: number; y: number; z: number; w: number }, wb = u.wedgeB!.value as { x: number; y: number; z: number };
         const ws = wedgeShareAt([wv.x, wv.y, wv.z, wv.w], [wb.x, wb.y, wb.z], a.u);
-        if (a.wedge !== ws) { a.wedge = ws; b.draw.setWedge?.(i, ws, u.wedgeCol!.value as Color); any = true; }
+        if (a.wedge !== ws) { a.wedge = ws; both((d, k) => d.setWedge?.(k, ws, u.wedgeCol!.value as Color)); any = true; }
         // the arm's flow marks ride on its arc (armArcOf: the tube's own u x len x figure units) and its tube's flowAmount
         const ln = u.len!.value as number, rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[8] !== ln || a.last[9] !== fl) {
           a.last[8] = ln; a.last[9] = fl;
-          const arc = armArcOf(a.end, a.u, ln, rd); b.draw.setArc(i, arc.seamArc, arc.dir, arc.length, arc.restR, fl); any = true;
+          const arc = armArcOf(a.end, a.u, ln, rd); both((d, k) => d.setArc(k, arc.seamArc, arc.dir, arc.length, arc.restR, fl)); any = true;
         }
         // the arm's three copies (spec 10.4): its tube's own shares of its front, solid and veil copies (a plain vessel (1, 0, 0)); how much of the tube is THERE at the seam is `armPres` above
         const sh = a.obj.copyShares();
-        if (a.cp[0] !== sh[0] || a.cp[1] !== sh[1] || a.cp[2] !== sh[2]) { a.cp = [sh[0], sh[1], sh[2]]; b.draw.setArmCopy(i, sh[0], sh[1], sh[2]); any = true; }
+        if (a.cp[0] !== sh[0] || a.cp[1] !== sh[1] || a.cp[2] !== sh[2]) { a.cp = [sh[0], sh[1], sh[2]]; both((d, k) => d.setArmCopy(k, sh[0], sh[1], sh[2])); any = true; }
         if (a.obj.toon.transparent || a.obj.behindOrgans) blend = true;   // (a skin copy is fractional wherever an arm's share of it is: it blends)
       });
+      if (b.arms.some((a) => a.grow) && b.w !== weld) {
+        // the weld: the welded skin keeps the pixels whose screen pattern is under `weld`, the plain trunk the rest, and a tube's cut end the pixels neither of them draws (no pixel is two skins; at 1 the cut is whole, at 0 the skin is not drawn)
+        b.w = weld; any = true;
+        b.draw.setWeld?.(1, weld); b.plain?.draw.setWeld?.(-1, weld);
+        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, weld);
+      }
       if (any) changed = true;
-      b.draw.setTransparent(blend);
+      b.draw.setTransparent(blend); b.plain?.draw.setTransparent(blend);
     }
     return changed;
   }

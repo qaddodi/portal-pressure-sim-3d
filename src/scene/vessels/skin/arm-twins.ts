@@ -23,7 +23,7 @@ export interface FadeState {
   len: number; units: number;
 }
 
-/** The wedge's amber share a tube has at `u` (vessels/shaders.ts, the tint block before gl_FragColor), from its `wedge` (amount, cut, fade, fadeOn) and `wedgeB` (edge, front, frontEdge) uniforms. 0..1; the colour is mixed in at 0.78 of it. The skin hands this over for each arm's seam, so the tint is ONE field through the join. */
+/** The wedge's amber share a tube has at `u` (vessels/shaders.ts, the tint block before the final colour write), from its `wedge` (amount, cut, fade, fadeOn) and `wedgeB` (edge, front, frontEdge) uniforms. 0..1; the colour is mixed in at 0.78 of it. The skin hands this over for each arm's seam, so the tint is ONE field through the join. */
 export function wedgeShareAt(w: readonly [number, number, number, number], b: readonly [number, number, number], u: number): number {
   if (w[0] <= 0.001) return 0;
   const ss = (a: number, c: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (c - a || 1e-9))); return t * t * (3 - 2 * t); };
