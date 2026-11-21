@@ -31,6 +31,8 @@ export const dockInset = (d: DeviceClass): number => (usesBottomBar(d) ? M.phone
 export function footHeight(d: DeviceClass): number {
   return dockInset(d) + dockHeight(d) + M.viewGapAbove + viewPillHeight();
 }
+/** The slot the view pill takes above the dock (its gap and its height): the open action card stands over it (the pill fades out underneath), so its foot sits this much lower. */
+export const pillSpace = (): number => M.viewGapAbove + viewPillHeight();
 export { botOcc };
 
 export function freeRoom(vp: Viewport, d: DeviceClass): Rect {

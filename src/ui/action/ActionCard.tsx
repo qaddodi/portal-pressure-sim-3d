@@ -10,7 +10,7 @@ import './action.css';
 import { OrderIcon } from './icons.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
-import { usesBottomBar, footHeight } from '../shell/room.ts';
+import { usesBottomBar, footHeight, pillSpace } from '../shell/room.ts';
 import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
@@ -209,11 +209,11 @@ export function ActionCard() {
   useLayoutEffect(() => {
     const el = ref.current, set = useActionRoom.getState().set;
     if (!el || !open || !bottom || typeof ResizeObserver !== 'function') { set(0); return; }
-    const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0]; set(b ? b.blockSize : es[0]?.contentRect.height ?? 0); });
+    const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0]; set(Math.max(0, (b ? b.blockSize : es[0]?.contentRect.height ?? 0) - pillSpace()), true); });   // (the card stands over the view pill's slot: that much of it is not over the figure)
     ro.observe(el);
     return () => { ro.disconnect(); set(0); };
   }, [open, bottom]);
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - (device === 'phone-landscape' ? 0 : 0)}px)` } : undefined;
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - pillSpace()}px)` } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <div className="ac-grab" aria-hidden="true"><i /></div>

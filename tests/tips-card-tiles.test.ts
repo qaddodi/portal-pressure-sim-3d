@@ -83,3 +83,13 @@ test('the readings stand in the card\'s header, between its name and its state',
   assert.ok(!/\{stent && <VesselKeys/.test(panel), 'no second copy of the readings under the title');
   assert.match(plate, /\.ac-nr > \.tv-keys \{ flex: 1 1 0; min-width: 0;/);
 });
+
+test('an open action card stands over the view pill\'s slot and the pill fades out under it, eased', () => {
+  const card = readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8');
+  const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
+  const dock = readFileSync(new URL('../src/ui/css2d/app-10-thumb-dock.css', import.meta.url), 'utf8');
+  assert.match(card, /footHeight\(device\) - 8 - pillSpace\(\)/, 'the card\'s foot sits a pill lower');
+  assert.match(card, /- pillSpace\(\)\), true\)/, 'and only what stands above the pill\'s slot takes room from the figure');
+  assert.match(shell, /cardOver \? ' ac-over-pill' : ''/);
+  assert.match(dock, /\.app\.thumb\.ac-over-pill \.vdock:not\(\.mini\) > \.nb-views \{ opacity: 0; pointer-events: none; transition: opacity var\(--d-small\) var\(--ease\); \}/);
+});

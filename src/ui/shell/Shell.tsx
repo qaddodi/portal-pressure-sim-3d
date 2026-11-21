@@ -143,6 +143,7 @@ export function Shell() {
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
   useEffect(() => { void applyDeepLink(location.search); }, []);
   const thumb = useThumb();
+  const cardOver = useActionRoom((s) => s.over);   // (an action card is up over the dock's view pill slot: the pill fades out under it)
   const sheetUp = useShell((s) => thumb && !!s.sheet && SHEETS_OVER_PILL.has(s.sheet));
   const testsCls = useTestsAppClasses();   // (dock-open, instrument-focus, tests-grad, dock-side: what the Tests card tells .app)
   usePublishedLayout(appRef, thumb);
@@ -151,7 +152,7 @@ export function Shell() {
       {mode === 'deck' && <DeckUi />}
       <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode} style={METRICS}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${sheetUp ? ' menu-sheet-open' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>
+        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${sheetUp ? ' menu-sheet-open' : ''}${cardOver ? ' ac-over-pill' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>
           <TopBar />
           <main className={`stage-wrap${view === 'circuit' ? ' cmap' : ''}`} id="stageWrap" aria-label="Figure">
             <div className={`stage-view${view === 'lobule' || view === 'sinusoid' ? ' in-lobule' : ''}`} id="stageView"><ZoomGroup /></div>
