@@ -9,7 +9,7 @@ import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
 import { slideSpanOf, stepOf, wholeViewOf, zoomShare } from './slide-time.ts';
-import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, TURN_LIMIT_DEG, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
 export const LENS_SWELL = false;
@@ -238,6 +238,12 @@ export class CameraRig {
   private height = 1;
   private dirty = true;
   private readonly pos = new Vector3();
+  /** Where the eye would be with the shot's own yaw and pitch only (no orbit, tilt or inspector turn): it follows every shot change and dolly on the camera's own easing; the hand's zoom and pan are projection changes and do not move it. */
+  readonly restEye = new Vector3();
+  /** How far the eye is turned off `restEye` about the target, 0 (at rest) to 1 (TURN_LIMIT_DEG or more). */
+  offRest = 0;
+  private readonly offA = new Vector3();
+  private readonly offB = new Vector3();
   /** What the hand's pan and zoom keep on screen: the body plate, or (inside the liver) the lobule's or the sinusoid's own box. Its corners, in scene units. */
   private subject: readonly Vec3[] | null = null;
   /** The hand's view on top of the shot: zoom k (the camera's own zoom, about the projection centre) and a pan in canvas px. Identity = the shot's framing. */
@@ -615,6 +621,10 @@ export class CameraRig {
     const [tx, ty, tz] = shot.target;
     this.pos.set(tx + Math.sin(yaw) * cp * r, ty + Math.sin(pitch) * r, tz + Math.cos(yaw) * cp * r);
     this.camera.position.copy(this.pos);
+    const cps = Math.cos(shot.pitch);
+    this.restEye.set(tx + Math.sin(shot.yaw) * cps * r, ty + Math.sin(shot.pitch) * r, tz + Math.cos(shot.yaw) * cps * r);
+    const a = this.offA.set(this.pos.x - tx, this.pos.y - ty, this.pos.z - tz), b = this.offB.set(this.restEye.x - tx, this.restEye.y - ty, this.restEye.z - tz), la = a.length(), lb = b.length();
+    this.offRest = la > 0 && lb > 0 ? Math.min(1, Math.acos(Math.min(1, Math.max(-1, a.dot(b) / (la * lb)))) / ((TURN_LIMIT_DEG * Math.PI) / 180)) : 0;
     this.camera.lookAt(tx, ty, tz);
     if (roll !== 0) this.camera.rotateZ(roll);   // (about its own view axis, after the aim: the whole picture turns, the lobule and the sinusoid with it)
     const off = viewOffset(room.w > 1 ? room : { x: 0, y: 0, w, h }, w, h);

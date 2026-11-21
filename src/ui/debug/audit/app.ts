@@ -208,7 +208,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
       } : null;
       return {
         stalls: stalls.slice(), gpu,
-        samples: rec.samples().filter((s) => s.t >= t0).map((s) => ({ ...s, t: s.t - t0 })), gaps: gaps.slice(), work: { p95: st.p95, max: st.max },
+        samples: rec.samples().filter((s) => s.t >= t0).map((s) => ({ ...s, t: s.t - t0 })), gaps: gaps.slice(), work: { p95: st.p95 / speed, max: st.max / speed },
         layout: safe(() => readLayout(win.document, win)), problems: safe(() => problems()) ?? [], console: lines.slice(markLine), hidden: hiddenSince || win.document.hidden,
         scan: safe(() => scanPage(win.document, win)), anims: led.anims, generic: led.findings,
       };

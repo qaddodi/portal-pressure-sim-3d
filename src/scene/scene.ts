@@ -213,13 +213,25 @@ export class CelScene {
     this.onMicroBuilt?.();
     return this.micro;
   }
-  /** Builds the two 3D parts in an idle slot (a timer where the browser has no idle callback: Safari), once. */
+  /** The 3D parts are built AND their shapes prepared (the sinusoid's passes, micro3d/sinusoid-shape.ts): only then are they updated, drawn or shown. */
+  get microReady(): boolean { return this.micro !== null && this.micro.sinus.shapeReady; }
+  /** Builds the two 3D parts and prepares the sinusoid's shapes in slices of their own, each a task of its own in an idle slot (a timer where the browser has no idle callback: Safari), so no slice lands inside a
+   *  drawn frame: the construction of the lobule, then each pass of the shapes. The view change asks for it too (a dive straight after the load) and never builds anything itself: the dive frame stays off until
+   *  `microReady`. Once. */
   buildMicroIdle(): void {
-    if (this.micro || this.microIdle || this.disposed) return;
+    if (this.microReady || this.microIdle || this.disposed) return;
     this.microIdle = true;
-    const go = () => { if (!this.disposed) this.buildMicro(); };
-    const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-    if (ric) ric(go, { timeout: 4000 }); else setTimeout(go, 800);
+    const later = (f: () => void) => {
+      const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+      if (ric) ric(f, { timeout: 300 }); else setTimeout(f, 60);
+    };
+    const slice = () => {
+      if (this.disposed) return;
+      if (!this.micro) this.buildMicro(); else this.micro.sinus.prepareShapeStep();
+      if (this.microReady) { this.microIdle = false; this.moving = true; return; }
+      later(slice);
+    };
+    later(slice);
   }
   private readonly micro3d = true;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
@@ -812,7 +824,7 @@ export class CelScene {
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
     // (the lobule is what lies between the body and the sinusoid: a move that has the sinusoid at either end passes through it, so it is on for the flight whichever view is the other end.
     //  Before, only a move TO the lobule turned it on: sinusoid <-> body (a talk's slide change) drew the sinusoid dissolving over nothing, a black gap, and then the body fading in from the dark)
-    if (v === 'lobule' || v === 'sinusoid') this.buildMicro();   // (the idle build normally has it done long before; a talk that opens straight onto a micro view builds it here, before the first draw)
+    if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle();   // (the idle slices normally finished long before; a dive straight after the load asks for them here, and waits: the dive frame is off until `microReady`, nothing is built in this frame)
     if (v === 'lobule' || v === 'sinusoid' || wasSinusoid) this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)
@@ -908,7 +920,7 @@ export class CelScene {
     const v = this.figureView;
     this.body.visible = v === 'body' || v === 'circuit' || this.fadeNow > 0;
     this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
-    this.dive.visible = v === 'lobule' || v === 'sinusoid';
+    this.dive.visible = (v === 'lobule' || v === 'sinusoid') && this.microReady;
     this.hideLeftBehind = false;
   }
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
@@ -918,7 +930,8 @@ export class CelScene {
     // the lobule and the sinusoid live inside the liver: drawn only once the body has begun to dissolve (the camera is through the surface) or when one of them is the view at rest.
     // Before, the dive frame was on for the whole flight, so the see-through liver showed the lobule on its surface and the two fought in the wash (the dive's flicker).
     const dv = this.figureView === 'lobule' || this.figureView === 'sinusoid' ? (!this.hideLeftBehind || f < 1) : this.hideLeftBehind && f < 1;
-    if (this.dive.visible !== dv) { this.dive.visible = dv; this.moving = true; }
+    const dvr = dv && this.microReady;   // (nothing of the dive is shown before its parts and their shapes are built: they are built in idle slices, never in a frame)
+    if (this.dive.visible !== dvr) { this.dive.visible = dvr; this.moving = true; }
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     this.pushFades();
@@ -1162,6 +1175,7 @@ export class CelScene {
     this.shared.time.value = (now / 1000) % 1000;
     const lap = lapTimer(this.systemMs);
     const camMoving = this.rig.update(now);
+    this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
     this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
@@ -1201,14 +1215,14 @@ export class CelScene {
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
-    if (this.micro) this.micro.sinus.pinTraffic(this.micro3d);
+    if (this.microReady) this.micro!.sinus.pinTraffic(this.micro3d);
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
     // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: the two dissolving at once let the page show through both, the pale washed frame of
     //  the Lobule -> Sinusoid handoff, eyes 20 Nov. The sinusoid is drawn over it, lifted, from SIN_SHOW_FROM, so nothing of the lobule shows once it is whole.)
     const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
-    const lob3 = this.micro !== null && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.micro !== null && this.sinus3d.update(this.micro3d, this.flowRate.value);
-    this.micro?.sinus.holdScale(this.rig.camera.position);
+    const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
+    if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     lap('micro views');
     const procMoving = this.procs.update(now);
@@ -1400,8 +1414,8 @@ export class CelScene {
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) && this.micro ? this.micro.sinus.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
-    this.post.dof.bandOpen = this.micro ? this.micro.sinus.focusOpen : 1;
+    const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) && this.microReady ? this.micro!.sinus.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    this.post.dof.bandOpen = this.microReady ? this.micro!.sinus.focusOpen : 1;
     let band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     // the Anatomy <-> Lobule move: the same one blur over the whole screen, from the camera's distance alone (post-dof.ts diveBlur), in and out; the sinusoid's own focus pull has the pass when it is drawn
     if (!band && into && this.figureView !== 'circuit' && this.inDive()) band = this.post.dof.uniformFrame(into.height, diveBlur(cam.position.distanceTo(this.livePoint), this.lobuleRest(), this.diveIn(), DIVE_OUT)) > 0;

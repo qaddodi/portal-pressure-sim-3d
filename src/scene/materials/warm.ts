@@ -28,10 +28,21 @@ export function markBlends<T extends Material>(m: T): T {
 /** The part of three's WebGLRenderer the warm-up uses (so a test can hand it a stand-in). */
 export interface WarmRenderer {
   compileAsync(scene: Object3D, camera: Camera, target?: Object3D): Promise<unknown>;
+  setRenderTarget?(target: unknown): void;
+  getRenderTarget?(): unknown;
 }
 
 /** Builds every program of the scene (`compileAsync`) once. Blend states share a program, so there is no second pass. */
-export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Camera): Promise<number> {
-  await gl.compileAsync(scene, camera);
+/** `target`: the render target the figure is drawn into (the post pass's, PostAA.target), or null when it is drawn straight to the canvas. three keys every program on the OUTPUT COLOUR SPACE
+ *  (WebGLPrograms.getParameters: the canvas's, sRGB, with no target; the working space, linear, into a render target), and `compile` reads the target at the moment it is called. Warmed with no target
+ *  while every frame draws into one, each program built here was a different program from the one the frame asked for: the whole warm-up was wasted, and the first show of every view (the lobule's 14, the
+ *  sinusoid's 8, a collateral's 5 ...) linked its programs inside the frame, seconds each on a phone (iPhone audit, 21 Nov: single frames of 1.6 to 3.6 s). The target is bound only for the synchronous
+ *  part of compileAsync (the compile call itself), then put back before any frame can see it. */
+export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Camera, target: unknown = null): Promise<number> {
+  const prev = target && gl.getRenderTarget ? gl.getRenderTarget() : null;
+  if (target && gl.setRenderTarget) gl.setRenderTarget(target);
+  let done: Promise<unknown>;
+  try { done = gl.compileAsync(scene, camera); } finally { if (target && gl.setRenderTarget) gl.setRenderTarget(prev); }
+  await done;
   return 1;
 }

@@ -20,6 +20,7 @@ import { linkStates } from '../decks/hp/link.ts';
 import { JumpList, BlackScreen } from './deck/JumpList.tsx';
 import { noteResume } from './deck/resume.ts';
 import { landOn } from './deck/deck-of.ts';
+import { observeThenFit } from './layout/fit-later.ts';
 
 /** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
 export function DeckUi() {
@@ -79,10 +80,9 @@ export function DeckUi() {
       setViewport({ w: Math.round(r.width), h: Math.round(r.height), safe: { top: px(cs.paddingTop), right: px(cs.paddingRight), bottom: px(cs.paddingBottom), left: px(cs.paddingLeft) } });
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    const off = observeThenFit([el], measure);   // (after the observer's delivery: what it sets changes the size of a box above it)
     window.addEventListener('orientationchange', measure);
-    return () => { ro.disconnect(); window.removeEventListener('orientationchange', measure); };
+    return () => { off(); window.removeEventListener('orientationchange', measure); };
   }, [setViewport]);
 
   const layout = layoutOf(vp.w, vp.h), sideways = isSideways(vp.w, vp.h);

@@ -233,6 +233,8 @@ export class LabelController {
   private keyNatural: { w: number; h: number } | null = null;
   /** The room each drawn label has now (0 under a card or past the edge, 1 clear), eased over FADE.roomMs (2D roomFade). */
   private readonly room = new RoomFade();
+  /** The boxes of the names drawn so far this frame (see step 4 of tick). */
+  private readonly taken: Box[] = [];
   /** The last change badge each station showed: the one a badge that has just gone is crossed out with, and what the layer writes while the box still has its room. */
   private readonly lastDelta = new Map<string, { text: string; up: boolean }>();
   private zoomedNow = false;
@@ -516,6 +518,10 @@ export class LabelController {
     // 4. what to draw: each shown label at its spot, following its dot
     this.out.length = 0;
     const roomBlk = [...d.blockers()];
+    // The names drawn so far this frame (highest rank first) stand in the way of the next: a name carried over another (a spleen that grows under STOMACH, a camera that moves one dot more than its neighbour) fades out whole
+    // and back once clear, as it does for a card. The solver keeps them apart at rest; this keeps them apart on the screen.
+    const nWalls = roomBlk.length;
+    this.taken.length = 0;
     let roomBusy = false;
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
@@ -534,7 +540,10 @@ export class LabelController {
       const ring = s.from ? d.project(pr, this.pt2) : a;
       const box = boxOf(s.p, ax, ay);
       // a label that comes to stand under a card or past the edge (carried by the camera, or a card sliding in) fades out whole and back once clear: never seen cut (2D roomFade)
+      roomBlk.length = nWalls;
+      for (const t of this.taken) roomBlk.push(t);
       const ra = this.room.of(id, box, view, roomBlk, dt);
+      if (ra > 0) this.taken.push(box);
       if (ra > 0 && ra < 1) roomBusy = true;
       if (ra <= 0) continue;   // (invisible: nothing to draw, the layer hides it)
       const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;

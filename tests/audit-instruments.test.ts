@@ -7,7 +7,8 @@ import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
 import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
 import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
-import { speedOf, scaleTime, scaleTimers, sampleRealMs, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
+import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
+import { speedOf, scaleTime, scaleTimers, sampleRealMs, scaledDelay, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
 
@@ -117,12 +118,13 @@ test('speed 10: timers scale with the clock, the sampler never ticks faster than
   const orig = g.setTimeout, t = scaleTimers(10, g);
   (g.setTimeout as unknown as (f: () => void, ms: number) => void)(() => undefined, 950); t.restore();
   assert.deepEqual(seen, [95]); assert.equal(g.setTimeout, orig);
-  assert.equal(sampleRealMs(33, 1), 33); assert.equal(sampleRealMs(33, 4), 8.25); assert.equal(sampleRealMs(33, 10), 8);
+  assert.equal(sampleRealMs(33, 1), 33); assert.equal(sampleRealMs(33, 2), 16.5); assert.equal(sampleRealMs(33, 10), 50); assert.equal(sampleRealMs(33, 20), 50);   // (never a layout read every few ms: that starved the page at 20x)
+  assert.equal(scaledDelay(950, 10), 95); assert.equal(scaledDelay(50, 20), 16); assert.equal(scaledDelay(8, 20), 8); assert.equal(scaledDelay(0, 20), 0);   // (a short poll never becomes a hot loop)
   const row = judgeStep({ group: 'g', id: 'x', label: 'x', run: () => undefined }, 'x', { samples: card([0, 0, 1, 1]), gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
   const b = (speed: number): Bundle => ({ build: 'b', device: 'd', at: 'n', depth: 'quick', framed: false, speed, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'quick', stopped: false, rows: [row], console: [], notes: [] }], failed: [] });
-  assert.ok(groupFindings(b(4)).some((x) => x.kind === 'fade-instant'));
+  assert.ok(groupFindings(b(2)).some((x) => x.kind === 'fade-instant'));
   assert.ok(!groupFindings(b(10)).some((x) => x.kind === 'fade-instant'));
-  assert.match(renderText(b(10)), /ABOVE 4x/); assert.doesNotMatch(renderText(b(4)), /ABOVE 4x/);
+  assert.match(renderText(b(10)), /ABOVE 2x/); assert.doesNotMatch(renderText(b(2)), /ABOVE 2x/);
 });
 
 test('LAGS: steps under 30 fps or with a gap over 100 ms, worst first, with the talk, stop and the transition; at the top of the report', () => {
@@ -158,4 +160,12 @@ test('progress: the step total is counted up front, the percentage stays under 1
   assert.equal(pace(130, 120, 0, 1).total, 131); assert.equal(pace(130, 120, 0, 1).pct, 99);   // (a run longer than the estimate grows the total and never shows 100 early)
   assert.equal(pace(130, 120, 0, 1, true).pct, 100);
   assert.deepEqual(combine(3, new Map([['a', { n: 10, total: 100 }]])), { n: 10, total: 300 });
+});
+
+test('the banner: each speed has a hint, the address follows the choices, and the frames get speed and glass without the URL being edited', () => {
+  assert.deepEqual(SPEEDS.map((x) => x.n), [1, 2, 10, 20]); assert.ok(SPEEDS.every((x) => x.hint.length > 20));
+  assert.equal(addressFor('?audit&look=dark&speed=4', { sizes: ['iphone', 'mac'], depth: 'quick', speed: 10, noglass: true, parallel: false }), '?audit&sizes=iphone,mac&depth=quick&speed=10&noglass=1&look=dark');
+  assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'full', speed: 1, noglass: false, parallel: true, auto: true }), '?audit=frames&sizes=mac&depth=full&parallel=1');
+  assert.equal(childSrc('/p/', '?audit&speed=2&noglass=1&look=dark', 'quick', { speed: 20, noglass: true }), '/p/?audit=run&depth=quick&speed=20&noglass=1&look=dark');
+  assert.equal(childSrc('/p/', '?audit&speed=2', 'full'), '/p/?audit=run&depth=full');
 });

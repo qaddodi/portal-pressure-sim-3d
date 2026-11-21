@@ -18,6 +18,7 @@ import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
+import { SHAPE_VS_APPLY, SHAPE_VS_DECL, shapeUniform } from './sinusoid-shape.ts';
 import { dustGlsl } from '../blood/dust-glsl.ts';
 import { staticRouteTexture } from '../blood/routes.ts';
 import { dustTuner } from '../blood/dust.ts';
@@ -45,6 +46,7 @@ uniform vec2 uSwell;
 attribute vec4 hug;
 uniform vec2 uHug;
 #endif
+${SHAPE_VS_DECL}
 varying vec3 vN;
 varying vec3 vVD;
 varying vec3 vC;
@@ -88,6 +90,7 @@ void main() {
 #ifdef HUG
   p.xy += hug.xy * hug.z * (uHug.x + uHug.y * hug.w);
 #endif
+${SHAPE_VS_APPLY}
   vC = vec3(1.0);
 #ifdef USE_COLOR
   vC *= color.rgb;
@@ -429,6 +432,7 @@ uniform vec2 uSwell;
 attribute vec4 hug;
 uniform vec2 uHug;
 #endif
+${SHAPE_VS_DECL}
 varying float vHy;
 varying vec2 vXY;
 varying vec3 vOwnC;
@@ -451,6 +455,7 @@ void main() {
 #ifdef HUG
   p.xy += hug.xy * hug.z * (uHug.x + uHug.y * hug.w);
 #endif
+${SHAPE_VS_APPLY}
   float infl = inflate;
 #ifdef SWELL
   infl += dot(uSwell, swell);
@@ -531,6 +536,8 @@ export interface MicroOptions {
   swell?: boolean;
   /** The part moves with its vessel's wall as the vessel swells (the geometry carries `hug`, see MICRO_VS), set with setHug. */
   hug?: boolean;
+  /** The part's shape follows the sinusoid's state on the GPU (the geometry carries `dH` and `dD`, and with `second` also `dH2`; sinusoid-shape.ts): `u` is the scene's one shape uniform. */
+  shape?: { u: { value: Vector4 }; second?: boolean; anchored?: boolean };
   /** The Anatomy's dust on a flowing tube (the geometry carries `fcourse`): the route table of its network and the dust's shared numbers (blood/dust.ts). */
   dust?: { routeTex: { value: Texture }; dustP: { value: Float32Array } };
 }
@@ -551,9 +558,9 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
     uniforms: {
-      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, uHug: { value: new Vector2(0, 0) }, fade,
+      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, uHug: { value: new Vector2(0, 0) }, uShape: o.shape?.u ?? shapeUniform(), fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
       uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uRimK: o.rimK ?? { value: 1 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
@@ -568,8 +575,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
-    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
-    uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
+    uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, uShape: toon.uniforms.uShape!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };

@@ -151,33 +151,77 @@ const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_O
  *  quarter (the way fitEnds moves a branch's end), wherever the trunks' drawn ends at its node agree on one point a short way (under JOINT_MAX px) from the node. Pure: the 2D courses, no list of ids. */
 export const JOINT_REACH_R = 2.2;   // (about skin/inventory.ts GROW_REACH, which imports this file: tests/skin-grow.test.ts pins that twice it is no less)
 const JOINT_MAX = 20, JOINT_MIN = 0.5;
-function atJoint(e: Edge, path: readonly (readonly [number, number])[]): readonly (readonly [number, number])[] {
-  if (e.kind !== 'collateral' && e.kind !== 'shunt') return path;
-  const out = path.map((p): [number, number] => [p[0], p[1]]);
+type P2 = readonly [number, number];
+/** The ends `atJoint` moves: which end, where it stood, the joint it goes to, and how far along the course (px) the move fades out. */
+function jointMoves(e: Edge): { end: 0 | 1; own: P2; J: P2; reach: number }[] {
+  const moves: { end: 0 | 1; own: P2; J: P2; reach: number }[] = [], path = EDGE_PATH_2D[e.id]!;   // (measured on the 2D course itself: what a start that leaves a wall does to the course does not change the move)
+  if (e.kind !== 'collateral' && e.kind !== 'shunt') return moves;
   for (const end of [0, 1] as const) {
     const node = end ? e.to : e.from, art = isArteryEdge(e);
-    const ends: (readonly [number, number])[] = [], trunks: { p: readonly (readonly [number, number])[]; r: number }[] = [];
+    const ends: P2[] = [], trunks: { r: number }[] = [];
     for (const h of edges) {
       if (h === e || !isDrawnEdge(h) || h.kind === 'collateral' || h.kind === 'shunt' || isArteryEdge(h) !== art) continue;
       const p = SMOOTH.get(h.id) ?? EDGE_PATH_2D[h.id];
-      if (p && (h.from === node || h.to === node)) { ends.push(h.from === node ? p[0]! : p[p.length - 1]!); trunks.push({ p, r: NETWORK_HOST_W(h) / 2 }); }
+      if (p && (h.from === node || h.to === node)) { ends.push(h.from === node ? p[0]! : p[p.length - 1]!); trunks.push({ r: NETWORK_HOST_W(h) / 2 }); }
     }
     if (!ends.length) continue;
-    const J: [number, number] = [ends.reduce((s, p) => s + p[0], 0) / ends.length, ends.reduce((s, p) => s + p[1], 0) / ends.length];
+    const J: P2 = [ends.reduce((s, p) => s + p[0], 0) / ends.length, ends.reduce((s, p) => s + p[1], 0) / ends.length];
     if (ends.some((p) => Math.hypot(p[0] - J[0], p[1] - J[1]) > JOINT_MIN)) continue;   // (the trunks do not meet at one point: no joint to go to)
-    const own = end ? out[out.length - 1]! : out[0]!, d = Math.hypot(J[0] - own[0], J[1] - own[1]);
+    const own = end ? path[path.length - 1]! : path[0]!, d = Math.hypot(J[0] - own[0], J[1] - own[1]);
     if (d < JOINT_MIN || d > JOINT_MAX) continue;
     // (only an end the skin could not take as an arm: farther from the joint than twice JOINT_REACH_R radii of the widest trunk (a nearer one is an arm of its skin as it stands, or a landing on a wall, wall.ts))
     if (d <= 2 * JOINT_REACH_R * Math.max(...trunks.map((t) => t.r))) continue;
-    const n = out.length;
-    for (let i = 0; i < n; i++) {
-      const u = (end ? n - 1 - i : i) / Math.max(1, n - 1), t = Math.min(1, Math.max(0, 1 - u / 0.25)), w = t * t * (3 - 2 * t);
-      out[i]![0] += (J[0] - own[0]) * w; out[i]![1] += (J[1] - own[1]) * w;
+    const n = path.length, k = Math.max(1, Math.floor(0.25 * (n - 1)));
+    let reach = 0;
+    for (let i = 0; i < k; i++) { const a = path[end ? n - 1 - i : i]!, b = path[end ? n - 2 - i : i + 1]!; reach += Math.hypot(a[0] - b[0], a[1] - b[1]); }
+    moves.push({ end, own, J, reach: reach || 1 });
+  }
+  return moves;
+}
+/** The share of a joint move a point at distance `d` (px) from the moved end takes: the whole at the end, none at `reach`, smooth between. */
+const jointFade = (d: number, reach: number): number => { const t = Math.min(1, Math.max(0, 1 - d / reach)); return t * t * (3 - 2 * t); };
+function atJoint(e: Edge, path: readonly P2[]): readonly P2[] {
+  const moves = jointMoves(e);
+  if (!moves.length) return path;
+  const out = path.map((p): [number, number] => [p[0], p[1]]), n = out.length;
+  for (const m of moves) {
+    let acc = 0;   // (by arc length from the end: the one rule for the course and for what hangs on it, feederPts)
+    for (let q = 0; q < n; q++) {
+      const i = m.end ? n - 1 - q : q;
+      if (q > 0) { const prev = path[m.end ? i + 1 : i - 1]!; acc += Math.hypot(path[i]![0] - prev[0], path[i]![1] - prev[1]); }
+      const w = jointFade(acc, m.reach);
+      if (w <= 0) break;
+      out[i]![0] += (m.J[0] - m.own[0]) * w; out[i]![1] += (m.J[1] - m.own[1]) * w;
     }
   }
   return out;
 }
-const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, atJoint(edgeById.get(id)!, alongVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!)));   // (the hepatic artery's end is the node its branches start at, as it is)
+const basePathOf = (id: string): readonly P2[] => alongVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!);
+const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, atJoint(edgeById.get(id)!, basePathOf(id)));   // (the hepatic artery's end is the node its branches start at, as it is)
+/** A vessel's 2D course as the figure draws its ends: `path` (its raw 2D course) with its end moved onto the trunks' joint, as `pathOf` does. For what measures a tributary against its host (tests/landing-positions.test.ts). */
+export const jointPath2D = (id: string): readonly P2[] => atJoint(edgeById.get(id)!, EDGE_PATH_2D[id]!);
+/** A host's tributaries (the caput fan hangs from the umbilical vein's end) follow the host's moved end: each point shifts by the move, faded by its distance from where the end stood, so the roots stay on the host and the tree stays one piece. */
+const feederPts = (host: string, pts: readonly P2[]): readonly P2[] => {
+  const path = basePathOf(host), moves = jointMoves(edgeById.get(host)!);
+  if (!moves.length) return pts;
+  // (a point's place along the host: the arc from the moved end to the nearest point of the host's course, and its distance from the course: on the course it moves exactly as the course does, off it the move fades by the same reach)
+  const place = (p: P2, end: 0 | 1): { arc: number; off: number } => {
+    const n = path.length;
+    let best = Infinity, arc = 0, run = 0;
+    for (let q = 1; q < n; q++) {
+      const i = end ? n - 1 - q : q, a = path[end ? i + 1 : i - 1]!, b = path[i]!, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), l2 = dx * dx + dy * dy;
+      const t = l2 ? Math.min(1, Math.max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0, d = Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+      if (d < best) { best = d; arc = run + t * l; }
+      run += l;
+    }
+    return { arc, off: best };
+  };
+  return pts.map((p): P2 => {
+    let x = p[0], y = p[1];
+    for (const m of moves) { const { arc, off } = place(p, m.end), w = jointFade(arc, m.reach) * jointFade(off, m.reach); x += (m.J[0] - m.own[0]) * w; y += (m.J[1] - m.own[1]) * w; }
+    return [x, y];
+  });
+};
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -196,7 +240,7 @@ function build(): NetVessel[] {
     if (NOT_DRAWN_FEEDERS.has(host)) continue;
     const e = edgeById.get(host)!, hv = NETWORK_HOST_W(e);
     for (const when of [...new Set(list.map((f) => f.when))]) {
-      const group = list.filter((f) => f.when === when);
+      const group = list.filter((f) => f.when === when).map((f) => ({ ...f, pts: feederPts(host, f.pts) as typeof f.pts }));
       const cfgK = FEEDER_K[host] ?? 1, baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
       out.push({
         id: `${host}~F${when ? `:${when}` : ''}`, host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * cfgK)), label: e.label ?? host,

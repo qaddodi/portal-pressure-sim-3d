@@ -159,4 +159,16 @@ test('a label fades over the camera\'s dive, so it is only "slow" past the dive\
   const j = src('src/ui/debug/audit/judge.ts');
   assert.match(j, /SLOW_LABEL_MS = 3200/);
   assert.match(j, /f\.kind === 'label' \? SLOW_LABEL_MS : SLOW_FADE_MS/);
+
+test('the Tests cards, the deck screen and the doppler measure after the observer\'s delivery too (ResizeObserver loop on Ascites 9 and Measuring HVPG 15)', () => {
+  for (const p of ['src/ui/tests/Cv.tsx', 'src/ui/tests/TestsLayer.tsx', 'src/ui/tests/doppler/DopplerPane.tsx', 'src/ui/DeckUi.tsx']) {
+    const s = src(p);
+    assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
+  }
+});
+
+test('the phone dock\'s readouts are never narrower than their tiles (a reading ran 14 to 21 px off the right edge after the Ascites, TIPS Doppler and Recompensation talks)', () => {
+  const css = src('src/ui/css2d/app-10-thumb-dock.css');
+  assert.match(css, /\.app\.thumb \.vdock \.readouts:not\(\.all\) \{ width: auto; min-width: max-content;/);
+  assert.match(css, /\.vdock:not\(\.mini\) \.readouts:not\(\.all\) \{ width: auto; min-width: max-content; \}/);
 });

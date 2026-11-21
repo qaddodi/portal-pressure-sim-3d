@@ -15,7 +15,7 @@
 import { staticRouteTexture } from '../blood/routes.ts';
 import { dustTuner } from '../blood/dust.ts';
 import { useSettings } from '../../state/settings.ts';
-import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
+import { DataTexture, Float32BufferAttribute, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
@@ -23,6 +23,7 @@ import { U } from '../sinusoid/view.ts';
 import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShell, newWeights, phiAt, wallColumns, type Weights } from './sinusoid-wall.ts';
 import { CEL_STYLE } from '../cel-style.ts';
+import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUniform } from './sinusoid-shape.ts';
 import {
   MeshBuilder, MicroMany, MicroPart, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
@@ -151,6 +152,15 @@ export class Sinusoid3D {
   private readonly haze = hazeUniforms();
   private builtKey = '';
   private tailKey = '';
+  /** The scene's one shape uniform (lumen, pinch, collagen, xs): sinusoid-shape.ts. */
+  readonly shapeU = shapeUniform();
+  /** The host's geometry functions while the shapes are built at a moved state (the rest's, and the rest's with H and D each one micrometre wider); null otherwise: the host's own. */
+  private shapeG: { halfW(x: number): number; wallIn(x: number): number; disseW(x: number): number; hepIn(x: number): number } | null = null;
+  private shapePass = 0;
+  private get anchored(): Set<MicroPart> { return new Set([this.cells, this.nuclei, this.nucleoli, this.bile]); }
+  private shapeSnaps: Float32Array[][] = [];
+  /** The shapes are built (at rest, with their `dH`, `dD`, `dH2` moves): until then the scene draws nothing, and the next `prepareShapeStep` does one more pass. */
+  shapeReady = false;
   private lookKey = '';
   /** The wall's per-vertex colour weights (see sinusoid-wall.ts) and the palette they were last painted from. */
   private shellW: Weights = newWeights();
@@ -200,8 +210,8 @@ export class Sinusoid3D {
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
     // (the Anatomy's dust in place of the lanes, in the blood's and the lymph's own colours: Mohammad 20 Nov, the same streaks everywhere. Each stream one lane table, its lattice's pitch its half width in µm)
     const dustOf = (half: number) => ({ routeTex: { value: staticRouteTexture(1, new Map(), () => half) }, dustP: dustTuner.uniform });
-    this.trough = mk('lumen', { ink: null, streaks: true, dust: dustOf(UM.lum) });
-    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true, dust: dustOf(UM.lum) });
+    this.trough = mk('lumen', { ink: null, streaks: true, dust: dustOf(UM.lum), shape: { u: this.shapeU } });
+    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true, dust: dustOf(UM.lum), shape: { u: this.shapeU } });
     // (the fenestrae are real gaps through the lining, the bead and its edges alike: one texel a 1 µm slot, each side; stepPores writes how open each is)
     const gaps = { tex: this.gapTex, x: new Vector4(GAP_X0, GAP_SLOTS, 0.5, 0) };
     // (the lining's two edges are its own line, drawn in its fill against the plate's up: its rounded bead turns square to the plate at the lumen's rim and at Disse's side. They were thin ribbons
@@ -209,17 +219,17 @@ export class Sinusoid3D {
     // (the wall is a shell round the lumen cut open at z = 0, sinusoid-wall.ts: its inner surface down the curve ('endothelium', the bores' second holes round gaps in it), the cut itself
     //  ('endothelium-cut', the first bore of each slot a full-width gap through it, so it shows the half-pipe below), and the bores' insides. Their colours are per-vertex weights, painted in colour(): the cell's
     //  lighter sheet melts into the wall's and the wall into the blood's, never a step or a line)
-    this.bead = mk('endothelium', { ink: null, gaps, holes: { s: WALL.s2, dx: WALL.dx2 }, rim: S.LINE_SMALL, vertexColors: true });
-    this.beadLine = mk('endothelium-cut', { ink: null, gaps, rim: S.LINE_SMALL, rimUp: true, rimUV: true, vertexColors: true });
+    this.bead = mk('endothelium', { ink: null, gaps, holes: { s: WALL.s2, dx: WALL.dx2 }, rim: S.LINE_SMALL, vertexColors: true, shape: { u: this.shapeU, second: true } });
+    this.beadLine = mk('endothelium-cut', { ink: null, gaps, rim: S.LINE_SMALL, rimUp: true, rimUV: true, vertexColors: true, shape: { u: this.shapeU } });
     this.bores = mk('endothelium-bores', { ink: null, vertexColors: true });
-    this.disse = mk('disse', { ink: null, streaks: true, dust: dustOf(UM.disse * 0.5 + 0.5) });
-    this.cells = mk('hepatocytes', { px: S.LINE });
+    this.disse = mk('disse', { ink: null, streaks: true, dust: dustOf(UM.disse * 0.5 + 0.5), shape: { u: this.shapeU } });
+    this.cells = mk('hepatocytes', { px: S.LINE, shape: { u: this.shapeU, anchored: true } });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
-    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE, rimUp: true });
-    this.nucleoli = mk('nucleoli', { ink: null });
-    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL, rimUp: true });
-    this.endoNi = mk('endothelial-nuclei', { ink: null, rim: S.LINE_SMALL, rimUp: true, rimUV: true });   // (the nucleus the cut passes through: its section on the cut)
+    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE, rimUp: true, shape: { u: this.shapeU, anchored: true } });
+    this.nucleoli = mk('nucleoli', { ink: null, shape: { u: this.shapeU, anchored: true } });
+    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL, rimUp: true, shape: { u: this.shapeU, anchored: true } });
+    this.endoNi = mk('endothelial-nuclei', { ink: null, rim: S.LINE_SMALL, rimUp: true, rimUV: true, shape: { u: this.shapeU } });   // (the nucleus the cut passes through: its section on the cut)
     this.kup = mk('kupffer', { ink: null, rim: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
     // (see-through: the body and its nucleus blend over the stream but still write depth and draw before the line, so the line behind the body never shows through it; colour premultiplied)
@@ -298,8 +308,10 @@ export class Sinusoid3D {
     const q = (x: number) => Math.round(x * 64);
     // (only what the SHAPES read keys the rebuild: the lumen, its pinch, the collagen's Disse (disseW) and the pores' slots. The basement membrane's share (`bm`, its opacity, set below) and the microvilli's (`mv`, read in
     //  colour()) are no geometry, so an ease of either no longer remeshes the whole scene 64 times; the stellate cell's activation redoes only the stellate cell, the basement and the collagen: buildTail. Review 21 Nov, the dive's stalls.)
+    while (!this.shapeReady) this.prepareShapeStep();   // (the idle slices have normally done this long before; a view shown first does the rest here)
+    this.shapeU.value.set(S.lum, S.pinch, S.col, f.geo.xs);   // (the shapes follow the state on the GPU: nothing is rebuilt for the lumen, the pinch or the collagen)
     const key = shapeKey(S, f.geo.xk);
-    if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.build(); }
+    if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.buildTail(); this.kupT = Number.NaN; this.stepLife(true); this.gapKey = -1; }
     else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
     const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}|${q(S.act)}`;
     if (lk !== this.lookKey) { this.lookKey = lk; this.colour(P, S.act); }
@@ -429,8 +441,8 @@ export class Sinusoid3D {
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
 
-  private build(): void {
-    const g = this.flat.g, geo = this.flat.geo, S = this.flat.cur;
+  private buildShape(): void {
+    const g = this.shapeG ?? this.flat.g;
     const X0 = -REACH, X1 = REACH, DX = 1;
     const xs: number[] = [];
     for (let x = X0; x <= X1 + 1e-6; x += DX) xs.push(x);
@@ -542,10 +554,57 @@ export class Sinusoid3D {
       cells.build(this.cells.geometry); nuc.build(this.nuclei.geometry); nol.build(this.nucleoli.geometry); bile.build(this.bile.geometry);
     }
 
-    // the Kupffer cell (its arms move on the scene's life: stepLife)
-    this.kupT = Number.NaN; this.stepLife(true);
+  }
 
-    this.buildTail();
+  /** The parts the shapes are built for (not the ground: it does not follow the state; not the Kupffer cell: its arms are rebuilt on the scene's life; not the tail). */
+  private shapedParts(): MicroPart[] { return [this.trough, this.troughFar, this.bead, this.beadLine, this.disse, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoNi]; }
+  /** One pass of the shapes' preparation (see sinusoid-shape.ts): they are built at the rest state, at the rest with D one micrometre wider, and at the rest with H moved to each of SHAPE_NODES, each pass a task
+   *  of its own so none lands in a drawn frame. Returns true when all are done. */
+  prepareShapeStep(): boolean {
+    if (this.shapeReady) return true;
+    const offs: [number, number, number][] = [...SHAPE_NODES.map((n) => [n, 0, 0] as [number, number, number]), [0, 1, 0], [1, 0, SHAPE_RAMP], [0, 0, 0]], parts = this.shapedParts();
+    const [h, d, k] = offs[this.shapePass]!;
+    this.shapeG = {
+      halfW: (x) => restHalfW(x) + h + k * x, disseW: (x) => restDisseW(x) + d,
+      wallIn: (x) => restHalfW(x) + h + k * x + UM.endo, hepIn: (x) => restHalfW(x) + h + k * x + UM.endo + restDisseW(x) + d,
+    };
+    try { this.buildShape(); } finally { this.shapeG = null; }
+    this.shapeSnaps.push(parts.map((p) => Float32Array.from(p.geometry.getAttribute('position').array)));
+    this.shapePass++;
+    if (this.shapePass < offs.length) return false;
+    const N = SHAPE_NODES.length, p0 = this.shapeSnaps[N + 2]!, pD = this.shapeSnaps[N]!, pR = this.shapeSnaps[N + 1]!, inv = shapeInverse();
+    parts.forEach((p, i) => {
+      const z = p0[i]!, c = pD[i]!, samples = SHAPE_NODES.map((_, k) => this.shapeSnaps[k]![i]!);
+      for (const smp of [c, pR[i]!, ...samples]) if (smp.length !== z.length) throw new Error(`sinusoid shape: ${p.toonMesh.name} changed its vertex count with the state`);
+      const second = p === this.bead, dd = new Float32Array(z.length);
+      for (let k = 0; k < z.length; k++) dd[k] = c[k]! - z[k]!;
+      p.geometry.setAttribute('dD', new Float32BufferAttribute(dd, 3));
+      if (!second) {
+        // (linear in H: one sample is the whole move)
+        const dh = new Float32Array(z.length), a = samples[0]!, n = SHAPE_NODES[0]!;
+        for (let k = 0; k < z.length; k++) dh[k] = (a[k]! - z[k]!) / n;
+        p.geometry.setAttribute('dH', new Float32BufferAttribute(dh, 3));
+        if (this.anchored.has(p)) {
+          // (the x each vertex follows: its move at H = rest + 1 + RAMP x is its slope times 1 + RAMP times that x)
+          const r = pR[i]!, ax = new Float32Array(z.length / 3);
+          for (let k = 0; k < ax.length; k++) {
+            const o = k * 3; let aa = 0, ar = 0;
+            for (let c = 0; c < 3; c++) { aa += dh[o + c]! * dh[o + c]!; ar += dh[o + c]! * (r[o + c]! - z[o + c]!); }
+            ax[k] = aa > 1e-6 ? (ar / aa - 1) / SHAPE_RAMP : z[o]!;
+          }
+          p.geometry.setAttribute('ax', new Float32BufferAttribute(ax, 1));
+        }
+        return;
+      }
+      // (the wall's shell lays its columns at equal arc length down an ellipse that scales with H: a polynomial of the fifth degree through the five samples, per vertex)
+      const co = [0, 1, 2, 3, 4].map(() => new Float32Array(z.length));
+      for (let k = 0; k < z.length; k++) for (let r = 0; r < N; r++) { let v = 0; for (let q = 0; q < N; q++) v += inv[r]![q]! * (samples[q]![k]! - z[k]!); co[r]![k] = v; }
+      ['dH', 'dH2', 'dH3', 'dH4', 'dH5'].forEach((nm, r) => p.geometry.setAttribute(nm, new Float32BufferAttribute(co[r]!, 3)));
+    });
+    this.shapeSnaps = [];
+    this.shapeReady = true;
+    this.builtKey = ''; this.tailKey = '';   // (the tail, the Kupffer cell and the pores are laid on the state at the next update)
+    return true;
   }
 
   /** The parts that follow the stellate cell's activation and the collagen: the stellate cells, the basement membrane and the fibres in Disse (built after the shapes they lie on). */
