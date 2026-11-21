@@ -29,6 +29,7 @@ import type { CircuitShared } from './uniforms.ts';
 import { createRouter, route as routeText } from './router.copied.js';
 import { applyEnds, sunkEnd } from './map-ends.ts';
 import type { ShuntEnd } from '../vessels/shunt-ends.ts';
+import { GLOW_LAYER } from '../glow.ts';
 
 type Edge = { id: string; from: string; to: string; kind: string; shunt?: string; portal?: boolean; d?: number; dMax?: number; label?: string; zone?: string };
 const edges = EDGES as Edge[];
@@ -143,7 +144,7 @@ function bodyPoints(d: string, n: number): Vector3[] {
 }
 
 export type TubeKind = 'tree' | 'caud' | 'custom';
-interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
+interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt's body course (scene points) and tube radius, for the finger's reach on the body */ body?: { pts: Vector3[]; radius: number }; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
 
 export interface TubesContext {
   /** the map's ramp of the change (0 the body, 1 the map) */
@@ -196,11 +197,11 @@ export class CircuitTubes {
   /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
   private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys' | 'artery', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number], host?: string, bury?: readonly [number, number], mapEnds?: MapEnds): Entry {
     const mapPts = scenePoints(dense);
-    let built, courseLens: readonly [number, number] | undefined;
+    let built, courseLens: readonly [number, number] | undefined, bodyPts: Vector3[] | undefined;
     if (body) {
       const curveC = mapCurve(dense), lenC = curveC.getLength();
       // as many slices as the map course's rounded corners need (geometry.ts slicesFor: 24 to a scene unit of the longer course)
-      const apts = bodyPoints(body, Math.max(12, Math.min(600, Math.ceil(lenC * 24))));
+      const apts = (bodyPts = bodyPoints(body, Math.max(12, Math.min(600, Math.ceil(lenC * 24)))));
       built = buildTube(apts, radius, true, Math.min(360, Math.max(16, Math.ceil(lenC * 24))));
       if (mapEnds) applyEnds(built.geometry, built.curve, built.tubular, built.radial, mapEnds.ends, mapEnds.own, lenC);
       attachCircuit(built, { curveA: built.curve, curveC, lenA: built.length, lenC } as never, radius);
@@ -226,18 +227,34 @@ export class CircuitTubes {
     if (kind === 'tree') { const a = built.curve.getPointAt(0); o.setStretchAnchors(a, a); }
     // drawn over the organs with the rest of the figure's vessels (scene.ts VESSEL_LAYER)
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
+    o.glowMesh?.layers.set(GLOW_LAYER);   // (the glow's mask has its own pass: glow-fx.ts; left on the vessels' layer it would draw as a solid tube when lit)
     if (this.palette) o.applyPalette(this.palette);
     o.setPhone(this.phone);
     o.setUseData(this.useData);
     this.group.add(o.group);
-    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens };
+    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens, ...(bodyPts ? { body: { pts: bodyPts, radius } } : {}) };
     this.entries.push(e);
+    if (kind === 'custom') this.watch.add?.(o);   // (the scene makes it pickable and lights it like every other vessel, highlight.ts register)
     return e;
   }
 
   applyPalette(p: Palette): void { this.palette = p; for (const e of this.entries) e.obj.applyPalette(p); }
   setPhone(phone: boolean): void { this.phone = phone; for (const e of this.entries) e.obj.setPhone(phone); }
   setUseData(on: boolean): void { this.useData = on; for (const e of this.entries) e.obj.setUseData(on); }
+
+  /** Who is told when a custom shunt's tube is made and when it is let go (the scene's highlight and pick lists: a tube made after the figure was built is a vessel like any other). */
+  readonly watch: { add?: (o: VesselObject) => void; drop?: (o: VesselObject) => void } = {};
+
+  /** Whether `id` is a custom shunt a learner can open (the pick may name it before its tube is routed). */
+  isCustom(id: string): boolean { return CUSTOM_EDGES.some((c) => c[0] === id); }
+
+  /** The custom shunts' tubes that can take a tap now: standing (open, not easing out), at least half in. */
+  pickable(): VesselObject[] { return this.entries.filter((e) => e.kind === 'custom' && !e.dead && e.goal === 1 && e.amount >= 0.5).map((e) => e.obj); }
+
+  /** The custom shunts as laid on the body (scene points, tube radius) and on the map (its routed course), for the finger's reach; only those standing now. */
+  pickCourses(): { id: string; body: { pts: Vector3[]; radius: number } | null; map: readonly [number, number][] | null }[] {
+    return this.entries.filter((e) => e.kind === 'custom' && !e.dead && e.goal === 1 && e.amount >= 0.5).map((e) => ({ id: e.id, body: e.body ?? null, map: this.routed.get(e.id) ?? null }));
+  }
 
   /** The routed course (map units) of a custom shunt, or null when none could be made. Kept: a shunt keeps its course while it is open, and nothing else on the map moves when another opens. */
   routeOf(id: string): readonly [number, number][] | null { return this.routed.get(id) ?? null; }
@@ -277,7 +294,7 @@ export class CircuitTubes {
     for (let i = this.entries.length - 1; i >= 0; i--) {
       const gone = this.entries[i]!;
       // a closed shunt's tube, once it has eased out and its route is forgotten (or a newer one stands for it), is let go
-      if (gone.kind === 'custom' && gone.amount === 0 && (gone.dead || !this.routed.has(gone.id))) { this.group.remove(gone.obj.group); gone.obj.dispose(); this.entries.splice(i, 1); }
+      if (gone.kind === 'custom' && gone.amount === 0 && (gone.dead || !this.routed.has(gone.id))) { if (gone.kind === 'custom') this.watch.drop?.(gone.obj); this.group.remove(gone.obj.group); gone.obj.dispose(); this.entries.splice(i, 1); }
     }
     for (const e of this.entries) {
       // (a liver branch is the map's alone and follows the change itself, so it draws back along its flow when the body returns, not a moment after the camera turns)
