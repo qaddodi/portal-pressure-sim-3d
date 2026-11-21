@@ -110,3 +110,10 @@ test('every page that is not the app lifts the loading cover and sets its own co
   assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = dark\.matches/); assert.match(main, /root\.style\.display = 'none'/);   // (the empty fixed #root otherwise sits over the page and takes its clicks)
   for (const call of ['bootFrame()', 'bootOuter()', 'bootLookBoard()']) assert.match(main, new RegExp(`plainPage\\(\\);\\s*${call.replace(/[()]/g, '\\$&')}`), `${call} is called after plainPage()`);
 });
+
+test('a callout that is not on is gone, whatever its own element says (the audit called hidden callouts f and w overlapping labels on every screen)', async () => {
+  const { labelAlpha } = await import('../src/ui/debug/screen/raw.ts');
+  assert.equal(labelAlpha(false, 1, [1, 1]), 0);   // (cath-dom hides a pill by removing data-on and fading its pieces: the element's own opacity stays 1)
+  assert.equal(labelAlpha(true, 1, [0.25, 0.6]), 0.6);
+  assert.equal(labelAlpha(true, 0.7, []), 0.7);
+});

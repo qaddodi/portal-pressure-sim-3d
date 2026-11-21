@@ -71,10 +71,18 @@ export function collectCards(doc: Document, win: Window): RawCard[] {
   });
 }
 
+/** How visible a label or callout is. A label that is not on (no data-on) is gone, whatever its element's opacity says; a callout's own element is never faded (cath-dom.ts fades the pieces inside it), so its alpha is the strongest of those pieces'. */
+export function labelAlpha(on: boolean, own: number, inner: number[]): number {
+  if (!on) return 0;
+  return inner.length ? Math.max(...inner) : own;
+}
+
 export function collectLabels(doc: Document, win: Window): RawLabel[] {
   const out: RawLabel[] = [];
   const read = (el: HTMLElement, kind: RawLabel['kind'], name: string) => {
-    const b = el.getBoundingClientRect(), op = num(win.getComputedStyle(el).opacity);
+    const b = el.getBoundingClientRect(), own = num(win.getComputedStyle(el).opacity);
+    const inner = kind === 'callout' ? Array.from(el.querySelectorAll<HTMLElement>('[style*="opacity"]')).map((c) => num(win.getComputedStyle(c).opacity)) : [];
+    const op = kind === 'key' ? own : labelAlpha(el.hasAttribute('data-on'), own, inner);
     out.push({ name, kind, x: r1(b.left), y: r1(b.top), w: r1(b.width), h: r1(b.height), opacity: Math.round(op * 100) / 100, on: el.hasAttribute('data-on'), tone: el.dataset.tone ?? '' });
   };
   doc.querySelectorAll<HTMLElement>('.lb').forEach((el) => read(el, 'label', (el.querySelector('.lb-name')?.textContent ?? '').trim()));
