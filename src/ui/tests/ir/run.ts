@@ -25,6 +25,7 @@ import { tipCloseShot } from '../../deck/cath-shot.ts';
 import { cutRoom } from '../room.ts';
 import type { MonitorState } from './monitor.ts';
 import { useMeasured } from '../hidden.ts';
+import { claim } from '../owner.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -35,7 +36,7 @@ const procOffered = procOfferedJs as (kind: string, p: unknown, m?: Obj | null) 
 /** The HVPG measurement's kept state (2D hvpg-proc.js: t0, t, result, snap, blocked). */
 export const R = {
   t0: null as number | null, t: 0, result: null as (Readings & { t?: number; day?: number }) | null, snap: null as Readings | null, blocked: false,
-  cam: '' as string,
+  cam: '' as string, ph: 'idle' as 'idle' | 'enter' | 'free' | 'wedge' | 'result' | 'abort', stage: 'idle|000',
   // a treatment played from the Watch row
   procKind: '', procStep: -1, procT: 0, procApplied: false, procCam: '', playT: 0,
   // the PPG by IR (ir-ppg.js): the kinds' clocks, the step, the phase of the takeover
@@ -48,7 +49,10 @@ export const busy = (): boolean => hvpgRunning() || !!R.procKind || R.ppg.run ||
 
 /** Bumps when a word on the pane changes (a phase, a step, a reading, a button's state). */
 export const useRun = create<{ n: number }>(() => ({ n: 0 }));
-const bump = () => useRun.setState((s) => ({ n: s.n + 1 }));
+const irPhase = (): string | null =>
+  R.ppg.run || R.ppg.take === 'run' ? `PPG by IR, step ${Math.max(0, R.ppg.step) + 1}` : R.procKind ? `${(PROCS as Record<string, { name: string }>)[R.procKind]!.name}, step ${Math.max(0, R.procStep) + 1}` : hvpgRunning() ? `HVPG, ${R.ph}` : null;
+/** Every change of a word is also a change of who holds the figure (owner.ts): the claim is published with it. */
+const bump = () => { useRun.setState((s) => ({ n: s.n + 1 })); claim('ir', irPhase()); };
 
 const say = (t: string) => useShell.getState().say(t);
 const metrics = (): Obj | null => (latest.frame?.metrics ?? null) as Obj | null;
@@ -80,10 +84,20 @@ function onBody(): void { if (useShell.getState().view !== 'anatomic') goToView(
 const live = (): Readings => { const m = metrics(); return { fhvp: m?.fhvp ?? 0, whvp: m?.whvp ?? 0, hvpg: m?.hvpg ?? 0 }; };
 /** The readings the HVPG pane shows now: the captured ones, the snapshot taken as the catheter started, else the live model's. */
 export const values = (): Readings => R.result || R.snap || live();
-export const phase = (): 'idle' | 'enter' | 'free' | 'wedge' | 'result' | 'abort' => {
+type Ph = 'idle' | 'enter' | 'free' | 'wedge' | 'result' | 'abort';
+/** The phase on the run clock, read exactly: the tracing's (it is drawn on the same clock, every frame). */
+export const phaseAt = (): Ph => {
   const t = R.t;
   return R.t0 == null && !R.result ? 'idle' : R.blocked ? (t < TB.abort ? 'enter' : 'abort') : t < T.free ? 'enter' : t < T.inflate ? 'free' : t < T.result ? 'wedge' : 'result';
 };
+/** The phase the pane's WORDS stand on (the step row, the caption, the readings, the buttons): published once at each boundary by `syncPhase`, never read off the mutable run clock at a render that
+ *  something else happened to cause (review #4: the trace sat in "Settling" while the step row still said "1 Catheter"). `R.stage` adds the boundaries inside a phase the words change at. */
+export const phase = (): Ph => R.ph;
+function syncPhase(): void {
+  const p = phaseAt(), t = R.t, stage = `${p}|${t >= T.callout ? 1 : 0}${t >= T.sum ? 1 : 0}${R.blocked && t >= TB.probe0 ? 1 : 0}`;
+  R.ph = p;
+  if (stage !== R.stage) { R.stage = stage; bump(); }
+}
 
 // ── the HVPG measurement ──
 let cards: CardRun | null = null;   // (the reading cards on the figure for the run that plays: the catheter's FHVP, WHVP and the HVPG; the PPG's IVC, portal vein and PPG)
@@ -93,6 +107,7 @@ export function startHvpg(): void {
   onBody();
   R.result = null; R.t0 = performance.now(); R.t = 0; R.cam = ''; R.blocked = hvBlocked(params());
   R.snap = { ...live() };
+  syncPhase();
   // the catheter on the figure: the whole procedure, or, for a thrombosed vein, as far as the ostium (2D figureBlocked: it probes and is withdrawn)
   cards?.end(); cards = R.blocked ? null : runCards('hvpgcath', { capture: true });
   if (R.blocked) sceneApi.procedure.play('hvpgcath', { to: T.zoom + 600, keep: true });
@@ -109,6 +124,7 @@ function finish(): void {
 function stepHvpg(): void {
   R.t = Math.min(tEnd(), performance.now() - (R.t0 as number));
   if (!R.result && !R.blocked && R.t >= T.result) finish();
+  syncPhase();
   // the camera: the route while the catheter travels, the tip close up for the readings, then back
   const t = R.t, want = t < T.zoom ? 'route' : (R.blocked ? t < TB.back + 1500 : t < T.back) ? 'tip' : 'home';
   if (want !== R.cam && (want !== 'route' || t > 250)) { R.cam = want; camTo(want); }
@@ -119,7 +135,7 @@ export function resetHvpg(): void {
   cards?.end(); cards = null;
   if (hvpgRunning()) sceneApi.procedure.stop();
   R.t0 = null; R.t = 0; R.result = null; R.snap = null; R.blocked = false; R.cam = '';
-  bump();
+  syncPhase(); bump();
 }
 
 // ── a treatment played on the anatomy (the Watch row) ──
