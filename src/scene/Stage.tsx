@@ -199,10 +199,13 @@ export function Stage() {
   const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
   // (the anti-aliasing pass, the default, does the canvas's job: the context is multisampled only when the address asks for `?aa=msaa`, and then at ANY pixel ratio: the post pass is off in that mode, so
   // refusing the samples at 2x left the figure with no anti-aliasing at all)
-  const msaa = aaMode() === 'msaa';
+  const mode = aaMode();
+  const msaa = mode === 'msaa';
+  const post = mode === 'fxaa';
+  // (with the anti-aliasing pass on, the figure is drawn into the pass's own target, which has its depth and stencil, and the canvas only receives the filtered picture: no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa` and `?aa=off` draw straight to the canvas and keep both)
   return (
     <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, stencil: true, powerPreference: 'high-performance' }}>
+      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: !post, stencil: !post, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

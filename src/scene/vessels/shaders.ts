@@ -652,7 +652,7 @@ void main() {
     // the distance from the balloon's distal edge at this point on this vessel (the same field the junction skins carry), against the one advancing front
     float wa = wedge.x * wedgeCover(wedgeD.x + wedgeD.y * vUv.x, vec3(wedge.y, wedgeD.z, wedgeD.w));
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
-    c = mix(c, wedgeCol, 0.78 * wa);
+    c = mix(c, wedgeCol, WEDGE_A * wa * (1.0 - inkT));   // (under the outline: the vessel's line stays)
   }
 #ifdef VDBG
   c = dbgEnd(c, vindex);

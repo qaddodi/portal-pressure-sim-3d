@@ -10,12 +10,13 @@
 //     the water's top (ascites-top.ts). There is no pale rim inside the wall: with the flank line and the feather it read as a second line on both sides (21 Nov).
 // ONE BELLY (21 Nov): the pool, the flank line (landmarks.ts) and the tap test all lie on the gut's own plane, `bellyZ()`. They had a depth each (pool 0.28, flank -0.4), so on a turn the pool slid off its wall.
 // Everything is a number the clock eases (the volume's spring, the flow rate, the living switch's own 0.45 s glide, the slosh's damping): nothing pops.
-import { BufferAttribute, BufferGeometry, Group, Mesh, ShaderMaterial, Vector2, Vector3, type Raycaster } from 'three';
+import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Group, Mesh, NearestFilter, RedFormat, ShaderMaterial, Vector2, Vector3, type Raycaster } from 'three';
 import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { fluidBase, fluidLevel, poolFade } from './copied/fluid-step.js';
 import { x3, y3, x2d, y2d } from '../frame2d.ts';
 import { ORGAN_Z } from '../organs/z.ts';
 import { AscitesTop } from './ascites-top.ts';
+import { EDGE_STEPS, FLUID_COLS, LIVER_CUT_FS, LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN, NO_LIVER, liverCut, liverEdgeTable, liverScaleOf } from './liver-edge.ts';
 import type { LookId } from '../../looks/looks.ts';
 
 /** The belly's one plane (scene units): the gut's own (organs/z.ts). The pool, the flank ribbon (landmarks.ts) and the tap test all lie on it, so they agree from every camera angle. The organ depth switch (Settings > Figure
@@ -188,6 +189,7 @@ ${POOL_COMMON_GLSL}
 varying float vD;
 varying float vW;
 varying float vPxu;
+${LIVER_CUT_VS_DECL}
 void main() {
   float pxu = poolPxu(position);
   float wx = position.x * 300.0 + 700.0;
@@ -197,10 +199,12 @@ void main() {
   vD = aD;
   vW = aW;
   vPxu = pxu;
+  ${LIVER_CUT_VS_MAIN}
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }`;
 export const POOL_FS = /* glsl */ `
 precision highp float;
+${LIVER_CUT_FS}
 uniform vec3 uInk;
 uniform float uInkA;
 uniform float uOpacity;
@@ -223,6 +227,8 @@ void main() {
   float wpx = vW * vPxu;
   float edge = mix(1.0, smoothstep(0.0, ${f(FEATHER_PX)}, wpx), uLiving);
   gl_FragColor = vec4(c, min(1.0, a * edge) * uOpacity);
+  // 2D's liver cut (veins-gl.js fluidAt): the straw is kept off a congested liver, above its lower edge
+  gl_FragColor.a *= liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
 }`;
 
 export class AscitesLayer {
@@ -237,7 +243,13 @@ export class AscitesLayer {
     uInk: { value: this.ink }, uInkA: { value: FLUID_RGBA[3] as number }, uOpacity: { value: 0 },
     uPhase: { value: 0 }, uAmp: { value: 0 }, uSlosh: { value: 0 }, uLiving: { value: 1 },
     uRes: { value: new Vector2(1, 1) } as { value: Vector2 },
+    // the liver's lower edge (one number per column across 2D's fluid rectangle), how far the straw is kept off it, and the liver's drawn scale: set by `setLiver`
+    uLiverEdge: { value: null as unknown as DataTexture }, uLiverCut: { value: 0 }, uLiverScale: { value: 1 },
   };
+  private readonly edge = new Float32Array(FLUID_COLS).fill(NO_LIVER);
+  private edgeKey = '';
+  /** What the organs are dimmed to apart from the lens's grey (2D: the selection's and a slide spotlight's dim; the Circuit's change is `body`): the organs' own eased value, handed over each frame. */
+  private dim = 1;
   /** The pool's level in 2D units at the middle of the belly (x 712), for the tests and the labels; null while there is no pool. */
   surface: number | null = null;
   /** Reduce Motion: the surface holds still (no ripple, no slosh); the soft edges are still. */
@@ -254,6 +266,9 @@ export class AscitesLayer {
     for (let c = 0; c < COLS - 1; c++) for (let r = 0; r < ROWS - 1; r++) { const a = c * ROWS + r, b = a + ROWS; idx.push(a, a + 1, b, a + 1, b + 1, b); }
     g.setIndex(idx);
     // (the colours are written as the figure's own numbers, the way materials/cel.ts rawColor does: the picture goes through the anti-aliasing pass as it is)
+    const tex = new DataTexture(this.edge, FLUID_COLS, 1, RedFormat, FloatType);
+    tex.minFilter = tex.magFilter = NearestFilter; tex.needsUpdate = true;
+    this.uniforms.uLiverEdge.value = tex;
     const mat = new ShaderMaterial({ name: 'pool', vertexShader: POOL_VS, fragmentShader: POOL_FS, uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: false });
     const m = new Mesh(g, mat);
     m.renderOrder = POOL_ORDER; m.frustumCulled = false; m.visible = false;
@@ -274,10 +289,23 @@ export class AscitesLayer {
   get living(): number { return this.uniforms.uLiving.value; }
   /** The body's dissolve (disease/index.ts setFade): the pool lies in the belly, so it fades with the anatomy. */
   setFade(f: number): void { this.body = f; this.apply(); }
+  /** The organs' dim (their selection and spotlight dim, already eased by the organs' own clock: no second timer here): the pool is never brighter than the belly it lies in (2D stage-transitions.js stepFluid). */
+  setDim(k: number): void { if (k !== this.dim) { this.dim = k; this.apply(); } }
+  /** The liver's shown cirrhosis and congestion (the organs' eased values): the straw is kept off the liver by 2D's cut, smooth01(congestion / 0.5), above the liver's lower edge in its drawn frame. True when the edge changed. */
+  setLiver(cirrhosis: number, congestion: number): boolean {
+    const u = this.uniforms, cut = liverCut(congestion);
+    u.uLiverCut.value = cut; u.uLiverScale.value = liverScaleOf(cirrhosis, congestion);
+    if (!(cut > 0)) return false;
+    const key = `${Math.round(Math.min(1, Math.max(0, cirrhosis)) * EDGE_STEPS)},${Math.round(Math.min(1, Math.max(0, congestion)) * EDGE_STEPS)}`;
+    if (key === this.edgeKey) return false;
+    this.edgeKey = key;
+    liverEdgeTable(cirrhosis, congestion, this.edge); u.uLiverEdge.value.needsUpdate = true;
+    return true;
+  }
   private apply(): void {
-    this.fill.visible = this.poolA > 0 && this.body > 0.001;
+    this.fill.visible = this.poolA > 0 && this.body > 0.001 && this.dim > 0.001;
     this.top.mesh.visible = this.fill.visible;
-    this.uniforms.uOpacity.value = this.poolA * this.body;
+    this.uniforms.uOpacity.value = this.poolA * this.body * this.dim;
   }
   /** One frame on the clock: the ripple's phase runs with the eased flow rate (0 paused .. 1), the slosh swings with the level's speed, the living switch glides. True while any of it still moves (the clock draws another frame). */
   step(dt: number, flowRate: number): boolean {

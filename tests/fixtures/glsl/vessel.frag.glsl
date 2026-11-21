@@ -9,6 +9,7 @@ bool frontOut(float u, float rv) {
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 
+const float WEDGE_A = 0.5;
 float wedgeCover(float d, vec3 p) {
   return smoothstep(-max(p.x, 1e-4), 0.0, d) * (1.0 - smoothstep(p.y - max(p.z, 1e-4), p.y, d));
 }
@@ -969,7 +970,7 @@ void main() {
     // the distance from the balloon's distal edge at this point on this vessel (the same field the junction skins carry), against the one advancing front
     float wa = wedge.x * wedgeCover(wedgeD.x + wedgeD.y * vUv.x, vec3(wedge.y, wedgeD.z, wedgeD.w));
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
-    c = mix(c, wedgeCol, 0.78 * wa);
+    c = mix(c, wedgeCol, WEDGE_A * wa * (1.0 - inkT));   // (under the outline: the vessel's line stays)
   }
 #ifdef VDBG
   c = dbgEnd(c, vindex);

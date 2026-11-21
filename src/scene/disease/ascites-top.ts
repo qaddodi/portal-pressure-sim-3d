@@ -5,12 +5,14 @@
 //   - It is seen only from above: the face winds upward and the material culls the rest, and its alpha rises with the camera's elevation over the surface (TOP_ELEV_FROM..TOP_ELEV_TO, the sine of the
 //     angle). That second part is what keeps the head-on figure as 2D has it: a perspective camera at the figure's middle already looks down a degree or three onto a low surface, and a strip a
 //     fraction of a unit deep would show as a 2 px band there. A tilt of 12 degrees or more brings it in whole; a tilt up never draws it. It glides with the tilt: nothing pops.
+//   - It is kept off a congested liver by the pool's own cut (liver-edge.ts liverKeep, the same uniforms) and dims with the figure (uOpacity carries package B's dim).
 //   - It fades with the water's depth under 20 units (a first film has no top), with the living switch (off is 2D's flat pool), with the volume and the body (uOpacity), and out over the feather at its
 //     two ends, where the swell, and so its width, is zero anyway.
 // Imports from ascites.ts are read lazily (inside functions) because ascites.ts builds the layer that owns this mesh: the two modules import each other.
 import { BufferAttribute, BufferGeometry, FrontSide, Mesh, ShaderMaterial, type IUniform } from 'three';
 import { x3, y3 } from '../frame2d.ts';
 import * as A from './ascites.ts';
+import { LIVER_CUT_FS, LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN } from './liver-edge.ts';
 
 /** The camera's elevation over the surface (sine of the angle) where the top starts to show and where it shows whole: about 5.7 and 11.5 degrees. */
 export const TOP_ELEV_FROM = 0.1, TOP_ELEV_TO = 0.2;
@@ -31,6 +33,7 @@ varying float vW;
 varying float vPxu;
 varying float vSpx;
 varying float vShow;
+${LIVER_CUT_VS_DECL}
 void main() {
   float pxu = poolPxu(position);
   float wx = position.x * 300.0 + 700.0;
@@ -46,11 +49,13 @@ void main() {
   vShow = smoothstep(${A.f(TOP_ELEV_FROM)}, ${A.f(TOP_ELEV_TO)}, toCam.y) * smoothstep(${A.f(TOP_DEPTH_FROM)}, ${A.f(TOP_DEPTH_TO)}, aH) * uLiving;
   vW = aW;
   vPxu = pxu;
+  ${LIVER_CUT_VS_MAIN}
   gl_Position = cp;
 }`;
 /** The top's colour is the pool's surface tone (2D's meniscus colour at d = 0: the ink 45 % toward white, the surface share of the alpha), with the pool's sheen and a crisp pale line along the front edge only. */
 export const topFS = (): string => /* glsl */ `
 precision highp float;
+${LIVER_CUT_FS}
 uniform vec3 uInk;
 uniform float uInkA;
 uniform float uOpacity;
@@ -64,6 +69,7 @@ void main() {
   c = mix(c, vec3(1.0), ${A.f(A.LINE_K)} * (1.0 - smoothstep(${A.f(A.LINE_FROM_PX)}, ${A.f(A.LINE_TO_PX)}, vSpx)));
   float edge = smoothstep(0.0, ${A.f(A.FEATHER_PX)}, vW * vPxu);
   gl_FragColor = vec4(c, uInkA * ${A.f(A.SURFACE_SHARE)} * edge * vShow * uOpacity);
+  gl_FragColor.a *= liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));   // (2D's liver cut, package B: the top is kept off a congested liver like the pool)
 }`;
 
 export class AscitesTop {

@@ -137,6 +137,9 @@ export class OrganLayer {
   private readonly spleenScale = new Eased(1, 0.25);
   private readonly ghost = new Eased(1, 0.24);
   private readonly dimmed = new Eased(1, 0.42);
+  /** What dims the organs apart from the lens's grey (2D: a selection's dim, a slide spotlight's), eased like the lens: 1 now (nothing in the 3D app dims them yet). The ascites' pool follows this same value. */
+  private readonly figureDimE = new Eased(1, 0.42);
+  private figureDimGoal = 1;
   /** quiet depth on a turn (camera/quiet.ts), in steps, set by the scene from the orbit */
   private quiet = 0;
   private readonly sat = new Eased(1, 0.42);
@@ -223,6 +226,11 @@ export class OrganLayer {
   applyLook(p: Palette): void { this.palette = p; this.art.applyLook(p); this.dirtyColours = true; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
   setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
+  /** The organs' dim besides the lens's, 0..1: its goal (eased by the clock in `update`), and the eased value the ascites' pool reads. */
+  setFigureDim(k: number): void { this.figureDimGoal = k; }
+  get figureDim(): number { return this.figureDimE.value; }
+  /** The liver's shown cirrhosis, congestion and tint (the eased values the organs are drawn from). */
+  get liverShown(): { readonly cirrhosis: number; readonly congestion: number } { return this.liverFollow.shown; }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
   setLensGrey(on: boolean): void { this.grey = on; }
   /** The turn's quiet depth (0..1 in steps): the organs' wash eases toward the page; repaints only when the step changes. */
@@ -260,6 +268,7 @@ export class OrganLayer {
       moving = this.infarct.to(t.splenicRx === 1 ? 1 : 0, dt, inst) || moving;
     }
     moving = this.dimmed.to(this.grey ? LENS_GREY.dim : 1, dt, inst) || moving;
+    moving = this.figureDimE.to(this.figureDimGoal, dt, inst) || moving;
     moving = this.sat.to(this.grey ? LENS_GREY.sat : 1, dt, inst) || moving;
     moving = this.blood.to(t.bleed.active ? 1 : 0, dt, inst) || moving;
     if (t.bleed.active) moving = this.pool.to(poolFill(t.bleed.total), dt, inst) || moving;
@@ -274,7 +283,7 @@ export class OrganLayer {
     const page = rgbOf(p.bg), dark = p.highlight === 'white';
     const k = { plate: page, dark, bleed: rgbOf('#8E1A20'), bg: page };
     for (const [id, o] of this.byId) {
-      const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value, quiet: this.quiet };
+      const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value * this.figureDimE.value, quiet: this.quiet };
       if (id === 'liver') { const ls = this.liverFollow.shown; s.congestion = ls.congestion; s.tint = ls.tint; s.cirrhosisNod = liverSurface(ls.cirrhosis).nod; }
       if (id === 'spleen') s.ghost = this.ghost.value;
       const st = ORGAN_STYLE[id]!, og = p.organs.tones[st.og];
