@@ -44,11 +44,30 @@ test('a move of 3 px or less is no move; a move that leaves the old and the new 
   f.step(16, want(P(12.5)), false);
   assert.equal(f.frame.get('a')!.from, null, '2.5 px: the same spot');
   assert.equal(f.frame.get('a')!.p.dx, 10);
+  f.step(16, want(P(16, 4)), false);
+  assert.equal(f.frame.get('a')!.from, null, 'overlapping boxes, a few px: taken at once');
+  assert.equal(f.frame.get('a')!.p.dx, 16);
   f.step(16, want(P(40, 6)), false);
-  assert.equal(f.frame.get('a')!.from, null, 'overlapping boxes: taken at once');
-  assert.equal(f.frame.get('a')!.p.dx, 40);
+  assert.ok(f.frame.get('a')!.from, 'overlapping boxes but 30 px: crossed over, never jumped');
   f.step(16, want(P(40 + 130, 6)), false);
   assert.ok(f.frame.get('a')!.from, 'a box away: crossed over');
+});
+
+test('many small steps never add up to a slide: a label walked 2 px a re-solve crosses over once it has drifted past smallPx, and a dot slid along its vessel (au) is a crossing', () => {
+  const f = new LabelFader();
+  run(f, 400, want(P(10)));
+  let crossed = false;
+  for (let i = 1; i <= 30; i++) {
+    f.step(16, want(P(10 + 2 * i)), false);
+    const s = f.frame.get('a')!;
+    if (s.from) crossed = true;
+    if (!crossed) assert.ok(Math.abs(s.p.dx - 10) <= FADE.smallPx, 'taken at once only inside smallPx of where it stood');
+  }
+  assert.ok(crossed, 'the walk became a crossing');
+  const g = new LabelFader();
+  run(g, 400, want(P(10)));
+  g.step(16, want(P(10, 0, { au: 0.6 })), false);
+  assert.ok(g.frame.get('a')!.from, 'same box, another point on the vessel: crossed over, not jumped');
 });
 
 test('new words (a unit, a change badge, a shorter name) cross over in place, and a label in the middle of a crossing keeps going to the newest place', () => {

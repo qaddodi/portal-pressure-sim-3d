@@ -13,6 +13,8 @@ export const FADE = {
   moveMs: 240,
   /** A move of this many px or less (dx and dy of the box against its dot) is not a move (2D MOVE_PX): a number's width changing by a pixel never draws the words twice. */
   movePx: 3,
+  /** A move this small (px, measured from where the picture last stood, not from the last frame) with the same words, the same spot on its vessel and overlapping boxes is taken at once; any more crosses over. */
+  smallPx: 8,
   /** A label that touches a card or the screen's edge fades out whole in this long, and back once it stands clear (2D label-gl.js roomFade, ROOM_MS 160): it is never seen cut. */
   roomMs: 160,
   /** Air kept between a label and a card or the edge before it fades out (px); once out it must stand this clear to come back (2D: 0 while shown, 4 px to return). */
