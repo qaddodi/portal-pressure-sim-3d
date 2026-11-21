@@ -203,8 +203,10 @@ uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm
 uniform vec3 skinKW;
 #define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
-uniform float armFlow[${SKIN_ARMS}];
-uniform float armWedge[${SKIN_ARMS}];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
+uniform vec4 armFlow[2];    // each arm tube's flowAmount, six floats PACKED in two vectors (a float array costs a whole vector a slot: the fragment stage is held to 120 vectors, tests/skin-shaders.test.ts); read with armFlowAt
+uniform vec4 armWedge[2];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
+float armFlowAt(int i) { return i < 4 ? armFlow[0][i] : armFlow[1][i - 4]; }
+float armWedgeAt(int i) { return i < 4 ? armWedge[0][i] : armWedge[1][i - 4]; }
 uniform vec3 wedgeColS;
 uniform vec4 wedgeS;   // the column (as every tube has it): x how much, y how softly it ends behind the balloon's edge, z the front, w how softly the front ends
 ${WEDGE_GLSL}
@@ -451,7 +453,7 @@ void main() {
 #ifndef SKIN_NOHEADS
     // THE HEADS: this arm's own, each drawn whole by the arm that owns its centre (skinOwner), within the arm's own cylinder (a head of this arm's frame is never drawn on another arm's wall, which the pixel's weight used to see to)
     if (vR > 0.0) {
-      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, relP = vPos - seamP;
         float latK = length(relP - tJA[i] * dot(relP, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4);
@@ -536,7 +538,7 @@ void main() {
   // of the place it is at, and the one front crosses the tubes and the skin at one speed
   if (skinCirc < 0.5 && wedgeS.x > 0.001) {
     float pwS = 0.0, dwS = 0.0;
-    for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); if (armWedge[i] > -1000.0) { pwS += wi; dwS += wi * armWedge[i]; } }
+    for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); float wdI = armWedgeAt(i); if (wdI > -1000.0) { pwS += wi; dwS += wi * wdI; } }
     if (pwS > 0.001) {
       float waS = wedgeS.x * clamp(pwS, 0.0, 1.0) * wedgeCover(dwS / pwS, vec3(wedgeS.y, wedgeS.z, wedgeS.w));
       c = mix(c, wedgeColS, 0.78 * waS);
