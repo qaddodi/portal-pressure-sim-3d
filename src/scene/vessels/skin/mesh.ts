@@ -250,7 +250,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
 
   /** Collapse edges shorter than COLLAPSE_AT targets, one vertex into the other (a free one into a seam vertex, or two free ones into their midpoint), where that keeps the mesh a closed
    *  manifold (the link condition) and flips no face. Vertices touched are locked for the pass so the data it reads stays true. Returns how many collapsed. */
-  const collapse = (force?: [number, number][]): number => {
+  const collapse = (force?: [number, number][], loose = false): number => {
     const V = pos.length / 3, vt: number[][] = Array.from({ length: V }, () => []);
     for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) vt[tris[i + s]!]!.push(i);
     const cand: [number, number, number][] = [], seen = new Set<number>();
@@ -285,8 +285,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       const old = [pos[3 * q]!, pos[3 * q + 1]!, pos[3 * q + 2]!];
       if (q >= S) { pos[3 * q] = (pos[3 * q]! + pos[3 * r]!) / 2; pos[3 * q + 1] = (pos[3 * q + 1]! + pos[3 * r + 1]!) / 2; pos[3 * q + 2] = (pos[3 * q + 2]! + pos[3 * r + 2]!) / 2; }
       let ok = true;
-      for (const x of nr) if (!nq.has(x) && x !== q && dist(q, x) > SPLIT_AT * target(q, x)) { ok = false; break; }   // (q has moved to the merge point already)
-      if (ok) for (const t of rt) {
+      if (!loose) for (const x of nr) if (!nq.has(x) && x !== q && dist(q, x) > SPLIT_AT * target(q, x)) { ok = false; break; }   // (q has moved to the merge point already)
+      if (ok && !loose) for (const t of rt) {
         if (both.includes(t)) continue;
         const [x, y, z] = [tris[t]!, tris[t + 1]!, tris[t + 2]!];
         triNormal(x, y, z, n0);
@@ -426,7 +426,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       }
       if (!bad.length) break;
       bad.sort((x, y) => dist(x[0], x[1]) - dist(y[0], y[1]));
-      if (!collapse(bad)) break;
+      // (a fold that no gentle collapse takes out, a triangle of the valley between two arms leaving a trunk side by side: its edges are collapsed without the neighbours' guard, and the sheet is judged whole afterwards by the fold check)
+      if (!collapse(bad) && !collapse(bad, true)) break;
       for (let r = 0; r < 2; r++) { flip(); smooth(1); }
     }
   }
