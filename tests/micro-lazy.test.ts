@@ -95,3 +95,29 @@ test('the idle slices prime the lobule and the sinusoid hidden, so the first sho
   assert.match(sc, /this\.micro\.sinus\.update\(true, 1, true\)/);
   assert.match(sc, /get microPrimedNow/);
 });
+
+test('a lazy Lobule3D builds its vessels in several slices, and a late weld plan rebuilds them in slices, never in one task', async () => {
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const { LobuleView } = await import('../src/scene/lobule/view.ts');
+  const { Lobule3D, THIN_SEG, TUBE_SEG } = await import('../src/scene/micro3d/lobule3d.ts');
+  const shared = createShared(), l3 = new Lobule3D(new LobuleView(shared), shared, true);
+  assert.equal(l3.vesselsReady, false, 'the constructor leaves the vessels to the idle slices');
+  let slices = 0;
+  while (l3.prepareVessels()) slices++;
+  assert.ok(slices >= 6, `built in ${slices} slices`);
+  assert.equal(l3.vesselsReady, true);
+  assert.ok(THIN_SEG < TUBE_SEG);
+  const src = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  assert.match(src, /this\.vesselsBuilt = false; this\.vgen = null; this\.inkKey = '';\n\s+this\.pumpVessels\(\);/);
+});
+
+test('the sinusoid shape passes are cut into sections: many small steps, then ready; the scene takes them in time-boxed slices', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const sc = new CelScene() as unknown as { buildMicro(): void; micro: { sinus: { prepareShapeStep(): boolean; shapeReady: boolean } } };
+  sc.buildMicro();
+  let steps = 0;
+  while (!sc.micro.sinus.prepareShapeStep()) steps++;
+  assert.ok(steps > 40, `${steps} steps for the passes (was 8, one pass each)`);
+  assert.equal(sc.micro.sinus.shapeReady, true);
+  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /do \{ if \(this\.microStep\(\)\) return; \} while \(!this\.disposed && performance\.now\(\) - t0 < SLICE_MS\)/);
+});
