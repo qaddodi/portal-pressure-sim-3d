@@ -3,6 +3,7 @@
 // A frame is a layout preview (the app inside sees that width; its hover and touch answers, pixel ratio and GPU are this computer's), so the frame rates here are the Mac's.
 import { FRAME_DEVICES, fitScale } from '../frame/frame.ts';
 import { flagValue, queryWithout, searchNow } from '../flags.ts';
+import { speedOf } from './speed.ts';
 import { renderText, renderJson, type Bundle, type AuditData } from './report.ts';
 import type { Msg } from './page.ts';
 import { buildInfo } from '../packet/sources.ts';
@@ -11,23 +12,25 @@ import { pace, combine } from './progress.ts';
 export const DEFAULT_SIZES = ['iphone', 'ipad-portrait', 'ipad', 'mac'];
 export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad', 'mac-short', 'mac'];
 /** A frame that says nothing for this long is taken to have died (a tab kill, a crash, a page that never booted). */
+/** The speeds the banner offers, each with what it is good for (the report says what a speed leaves out). */
+export const SPEEDS: { n: number; label: string; hint: string }[] = [
+  { n: 1, label: '1x real time', hint: 'Real frame rates, stalls and the glass cost. The slowest run; use it for the final numbers.' },
+  { n: 4, label: '4x faster', hint: 'Still judges fades and snaps, and every stall. About a quarter of the time; frame rates are not measured.' },
+  { n: 10, label: '10x fast', hint: 'Layout, words, coverage, errors and any lag (a real gap over 50 ms is a serious lag). Fades and snaps are not judged.' },
+  { n: 20, label: '20x quickest', hint: 'The quickest layout, words, coverage, errors and lag check. Fades and snaps are not judged.' },
+];
+/** The address the banner's choices make: the current one with sizes, depth, speed, glass and parallel set to match (the others, such as look, are kept). */
+export function addressFor(search: string, c: { auto?: boolean; sizes: string[]; depth: string; speed: number; noglass: boolean; parallel: boolean }): string {
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass']);
+  return `?audit${c.auto ? '=frames' : ''}&sizes=${c.sizes.join(',')}&depth=${c.depth}${c.speed > 1 ? `&speed=${c.speed}` : ''}${c.noglass ? '&noglass=1' : ''}${c.parallel ? '&parallel=1' : ''}${rest ? `&${rest}` : ''}`;
+}
 export const SILENT_MS = 150000;
 
 /** The address of the app inside a frame: the same path, `?audit=run`, the depth, and whatever else the outer address carried (the frame list and the old audit flags are dropped). */
-export function childSrc(pathname: string, search: string, depth: string, speed = 1): string {
-  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed']);
-  return `${pathname}?audit=run&depth=${depth}${speed > 1 ? `&speed=${speed}` : ''}${rest ? `&${rest}` : ''}`;
+export function childSrc(pathname: string, search: string, depth: string, o: { speed?: number; noglass?: boolean } = {}): string {
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass']);
+  return `${pathname}?audit=run&depth=${depth}${o.speed && o.speed > 1 ? `&speed=${o.speed}` : ''}${o.noglass ? '&noglass=1' : ''}${rest ? `&${rest}` : ''}`;
 }
-/** The speeds the banner offers, each with what it is good for and what it cannot judge (speed.ts: the page's clock runs N times faster; frames do not). */
-export const SPEEDS: readonly { n: number; label: string; hint: string }[] = [
-  { n: 1, label: 'Real time', hint: 'Slowest and the only run whose frame rates and stalls are valid. Use it for the final check.' },
-  { n: 2, label: '2× faster', hint: 'About half the time. Everything is valid except frame rates.' },
-  { n: 4, label: '4× faster (recommended for layout)', hint: 'About a quarter of the time. Layout, words, fades and snaps are valid; frame rates are not.' },
-  { n: 10, label: '10× very fast', hint: 'Layout, words, coverage and errors only: the fade and snap checks are left out of the report.' },
-  { n: 20, label: '20× fastest', hint: 'Layout, words, coverage and errors only, in a fraction of the time. Run again at 4× or real time for the rest.' },
-];
-/** The speed the address names, snapped to the nearest offered one (a hand-typed ?speed=3 picks 2). */
-export function speedChoice(v: string | null): number { const n = Number(v); return Number.isFinite(n) && n > 1 ? SPEEDS.reduce((a, b) => (Math.abs(b.n - n) < Math.abs(a.n - n) ? b : a)).n : 1; }
 /** The sizes the address names (a comma list of device ids), or the default four; unknown names are dropped. */
 export function sizesOf(v: string | null): string[] {
   const l = (v ?? '').split(',').map((s) => s.trim()).filter((s) => Object.hasOwn(FRAME_DEVICES, s));
@@ -57,28 +60,34 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const wanted = new Set(sizesOf(flagValue('sizes')));
   const boxes = ALL_SIZES.map((id) => { const l = mk('label'); const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = wanted.has(id); c.onchange = () => { if (c.checked) wanted.add(id); else wanted.delete(id); }; l.append(c, `${FRAME_DEVICES[id]!.label} ${FRAME_DEVICES[id]!.w}`); return l; });
   let depth: 'quick' | 'full' = flagValue('depth') === 'quick' ? 'quick' : 'full';
-  const dsel = doc.createElement('select'); for (const d of ['full', 'quick']) { const o = doc.createElement('option'); o.value = d; o.textContent = d === 'full' ? 'Full (everything)' : 'Quick (3 slides a talk)'; dsel.append(o); } dsel.value = depth; dsel.onchange = () => { depth = dsel.value as 'quick' | 'full'; };
-  let speed = speedChoice(flagValue('speed'));
-  const ssel = doc.createElement('select'); ssel.title = 'How fast the app runs while it is tested';
-  for (const sp of SPEEDS) { const o = doc.createElement('option'); o.value = String(sp.n); o.textContent = `Speed: ${sp.label}`; ssel.append(o); }
-  const speedHint = mk('span', 'ao-note', ''); const showHint = () => { speedHint.textContent = SPEEDS.find((x) => x.n === speed)!.hint; };
-  ssel.value = String(speed); showHint(); ssel.onchange = () => { speed = Number(ssel.value); showHint(); };
+  const dsel = doc.createElement('select'); dsel.title = 'How much to walk'; for (const d of ['full', 'quick']) { const o = doc.createElement('option'); o.value = d; o.textContent = d === 'full' ? 'Full: every slide' : 'Quick: 4 slides a talk'; dsel.append(o); } dsel.value = depth;
+  const wantSpeed = speedOf(flagValue('speed')); let speed = SPEEDS.reduce((best, s2) => (Math.abs(s2.n - wantSpeed) < Math.abs(best - wantSpeed) ? s2.n : best), 1);
+  const ssel = doc.createElement('select'); ssel.title = 'How fast the page runs during the test'; for (const sp of SPEEDS) { const o = doc.createElement('option'); o.value = String(sp.n); o.textContent = sp.label; ssel.append(o); } ssel.value = String(speed);
+  const hint = mk('div', 'ao-note', ''); const showHint = () => { hint.textContent = `Speed ${speed}x: ${SPEEDS.find((x) => x.n === speed)!.hint}`; };
+  const ng = doc.createElement('input'); ng.type = 'checkbox'; ng.checked = flagValue('noglass') === '1';
+  const ngL = mk('label'); ngL.title = 'Turns the frosted-glass blur off for the run. Run twice (glass on, then off) to see what the glass costs the frame rate.'; ngL.append(ng, 'No glass (blur off)');
   const par = doc.createElement('input'); par.type = 'checkbox'; par.checked = flagValue('parallel') === '1';
   const parL = mk('label'); parL.title = 'All the sizes at once: much faster, but the frames share this computer, so frame rates and timings are NOT valid (layout, snaps, coverage and errors are).'; parL.append(par, 'All sizes at once (fps not valid)');
   let stop = false, running = false, last: Bundle | null = null;
   const btn = (label: string, on: () => void) => { const b = mk('button', '', label); b.type = 'button'; b.onclick = on; bar.append(b); return b; };
   const copy = (t: string, what: string) => { win.navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { status.textContent = 'The browser would not copy: select the text on the right.'; }); };
-  bar.append(...boxes, dsel, ssel, parL);
+  /** the address follows the controls, so a copied link repeats this run */
+  const syncUrl = () => { try { win.history.replaceState(null, '', addressFor(win.location.search, { auto: flagValue('audit') === 'frames', sizes: ALL_SIZES.filter((id) => wanted.has(id)), depth, speed, noglass: ng.checked, parallel: par.checked })); } catch { /* an address that will not change */ } };
+  dsel.onchange = () => { depth = dsel.value as 'quick' | 'full'; syncUrl(); };
+  ssel.onchange = () => { speed = Number(ssel.value); showHint(); syncUrl(); };
+  ng.onchange = syncUrl; par.onchange = syncUrl; for (const l of boxes) l.querySelector('input')!.addEventListener('change', syncUrl);
+  showHint();
+  bar.append(...boxes, dsel, ssel, ngL, parL);
   const start = btn('Start', () => { void run(); });
   btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
-  bar.prepend(stamp); bar.append(meter, meterText, status, speedHint, note);
+  bar.prepend(stamp); bar.append(meter, meterText, status, note);
   main.append(room, out); doc.body.append(bar, main);
 
   /** One size: a fresh frame in its own place, wait for its result, take it away. `of`: how many frames share the room. */
   const one = (id: string, of: number): Promise<{ data?: AuditData; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
-    const wrap = mk('div', 'ao-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`; frame.src = childSrc(win.location.pathname, searchNow(), depth, speed);
+    const wrap = mk('div', 'ao-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`; frame.src = childSrc(win.location.pathname, searchNow(), depth, { speed, noglass: ng.checked });
     wrap.append(frame); room.append(wrap);
     const r = room.getBoundingClientRect(), k = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * k)}px`; wrap.style.height = `${Math.round(d.h * k)}px`; wrap.style.margin = '0 6px';
@@ -102,7 +111,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   /** the whole run's bar: steps done in the sizes finished, plus the ones running now, over the estimate for all sizes */
   const showPace = (done = false) => { const c = combine(sizesTotal - finished, counts), p = pace(prior.n + c.n, Math.max(prior.total + c.total, prior.n + c.n), runStart, performance.now(), done); meter.hidden = false; meterText.hidden = false; meter.value = p.pct; meterText.textContent = p.text; };
   async function run() {
-    if (running) return; running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
+    if (running) return; syncUrl(); running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = performance.now();
     const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = performance.now(), together = par.checked;
     const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, parallel: together, speed: parts[0]?.speed, wallMs: Math.round(performance.now() - t0), parts, failed });
     const take = (id: string, r: { data?: AuditData; why?: string }) => { const c = counts.get(id); if (!together && c) { prior.n += r.data ? r.data.rows.length : c.n; prior.total += r.data ? r.data.rows.length : c.total; counts.delete(id); finished++; } if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };

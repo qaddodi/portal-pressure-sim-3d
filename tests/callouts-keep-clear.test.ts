@@ -73,11 +73,3 @@ test('a name carried over a name drawn before it fades out whole and back once c
   const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
   assert.match(src, /for \(const t of this\.taken\) roomBlk\.push\(t\);\s*\n\s*const ra = this\.room\.of\(id, box, view, roomBlk, dt\);\s*\n\s*if \(ra > 0\) this\.taken\.push\(box\);/);
 });
-
-import { childSrc, speedChoice, SPEEDS } from '../src/ui/debug/audit/outer.ts';
-test('the audit banner offers a speed: the frame gets it, real time adds nothing, and an old ?speed address picks the nearest offer', () => {
-  assert.equal(childSrc('/p/', '?audit&sizes=iphone', 'full', 4), '/p/?audit=run&depth=full&speed=4');
-  assert.equal(childSrc('/p/', '?audit&speed=10', 'full'), '/p/?audit=run&depth=full');
-  assert.equal(speedChoice('3'), 2); assert.equal(speedChoice(null), 1); assert.equal(speedChoice('99'), 20);
-  assert.ok(SPEEDS.every((s) => s.hint.length > 20) && SPEEDS[0]!.n === 1);
-});

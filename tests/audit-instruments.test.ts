@@ -7,6 +7,7 @@ import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
 import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
 import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
+import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
 import { speedOf, scaleTime, scaleTimers, sampleRealMs, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
@@ -158,4 +159,12 @@ test('progress: the step total is counted up front, the percentage stays under 1
   assert.equal(pace(130, 120, 0, 1).total, 131); assert.equal(pace(130, 120, 0, 1).pct, 99);   // (a run longer than the estimate grows the total and never shows 100 early)
   assert.equal(pace(130, 120, 0, 1, true).pct, 100);
   assert.deepEqual(combine(3, new Map([['a', { n: 10, total: 100 }]])), { n: 10, total: 300 });
+});
+
+test('the banner: each speed has a hint, the address follows the choices, and the frames get speed and glass without the URL being edited', () => {
+  assert.deepEqual(SPEEDS.map((x) => x.n), [1, 4, 10, 20]); assert.ok(SPEEDS.every((x) => x.hint.length > 20));
+  assert.equal(addressFor('?audit&look=dark&speed=4', { sizes: ['iphone', 'mac'], depth: 'quick', speed: 10, noglass: true, parallel: false }), '?audit&sizes=iphone,mac&depth=quick&speed=10&noglass=1&look=dark');
+  assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'full', speed: 1, noglass: false, parallel: true, auto: true }), '?audit=frames&sizes=mac&depth=full&parallel=1');
+  assert.equal(childSrc('/p/', '?audit&speed=2&noglass=1&look=dark', 'quick', { speed: 20, noglass: true }), '/p/?audit=run&depth=quick&speed=20&noglass=1&look=dark');
+  assert.equal(childSrc('/p/', '?audit&speed=2', 'full'), '/p/?audit=run&depth=full');
 });
