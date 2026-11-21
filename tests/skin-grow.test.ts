@@ -25,7 +25,7 @@ const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(t
 const GROWERS: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
   IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
-  // (the braids' roots where the strands leave the node as one bundle, braid-arm.ts, tests/skin-strands.test.ts)
+  // (the braids' roots where the strands leave the node as one bundle: ONE stand-in arm, braid-arm.ts, tests/skin-strands.test.ts)
   SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
 /** The collaterals drawn as BRAIDS of strands (plan.strands): no tube of their own, three or six strands that part from the node and each end at the trunk's width, so at the node they are a bundle of identical overlapping tubes, not a branch. The ends where the strands leave the node as ONE bundle are arms of its skin (braid-arm.ts); the others keep today's fork method (tests/skin-strands.test.ts names both). */
@@ -37,6 +37,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 const DROPPED = ['EPI:C3', 'IMV:C4', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
 ];
+// (IMV:C4 stays flared: the static full-size shape of the varices' bundle 25 degrees from V_COL still folds, 'the surface folds at triangle 2154 (17 in all)'; its end is shunt-ends.ts's sunk and flared row for C4:0 until a build passes)
 // (the landings on a host's wall are no skin arms any more: wall.ts wallLandings only finds their hosts, and each keeps the tube's own sunk and flared end, shunt-ends.ts, tests/skin-wall.test.ts)
 
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
@@ -54,7 +55,7 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
       for (let i = 1; i < g.length; i++) assert.ok(g[i - 1]!.restR >= g[i]!.restR, `${j.node}: growing arms widest first`);
       for (const a of j.arms) {
         const v = NETWORK_BY_ID.get(a.vesselId)!;
-        if (a.grow) assert.ok((isGrower(v) || BRAIDS.includes(v.id)) && GROWER_KINDS.has(v.kind) && !isPermanent(v), `${a.vesselId} is a growing arm (a one-tube grower or a braid's bundle root)`);
+        if (a.grow) assert.ok((isGrower(v) || BRAIDS.includes(v.id)) && GROWER_KINDS.has(v.kind) && !isPermanent(v), `${a.vesselId} is a growing arm (a one-tube grower)`);
         else assert.ok(isPermanent(v) || isLiverBranch(v), `${a.vesselId} is a permanent arm (or a liver branch that leaves its host at the node)`);
       }
       // J is the widest PERMANENT arm's end, whatever the growing arms are
@@ -107,6 +108,8 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     assert.deepEqual(b.warnings, [], 'no skin falls back');
     assert.deepEqual([...b.set.fellBack].sort(), [], 'no node keeps the old join');
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
+    for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
+    assert.match(b.set.why['IMV:C4'] ?? '', /the surface folds/, 'IMV:C4 stays flared, named with the reason');
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
     for (const d of b.draws) assert.equal(meshOf(b, d).grow.length, 0, `${nodeOf(d)}: no growth morph, the skin is one static shape`);
     const want: Record<string, string[]> = {};
