@@ -4,6 +4,7 @@
 // The first install, with no worker before it, is not an update; and a page opened after a deploy is already on the new files, so nothing is offered to it.
 import { useShell } from '../ui/shell/store.ts';
 import { reloadKeepingState } from '../boot/reload.ts';
+import { talkOn } from '../state/deck.ts';
 
 export const UPDATE_TOAST = 'A new version of the simulator is ready.';
 /** How long a held offer waits before it asks again (a talk is on). */
@@ -37,7 +38,7 @@ function askFiles(sw: ServiceWorker): Promise<unknown> {
 /** The offer: one line at the foot with a Reload button; in a talk it waits and asks again. */
 export function offerReload(say = useShell.getState().say, retry = (fn: () => void) => { setTimeout(fn, RETRY_MS); }): void {
   const offer = () => {
-    if (useShell.getState().mode === 'deck') { retry(offer); return; }
+    if (talkOn()) { retry(offer); return; }
     say(UPDATE_TOAST, 'info', { label: 'Reload', run: () => location.reload() });
   };
   offer();
@@ -60,7 +61,7 @@ export function registerPwa(): void {
   // A newer build took over this tab's files: it is taken up as soon as the tab is out of sight (a tab left in the background, or a phone's app put away, comes back on the newest
   // build with nothing seen to change); while the tab is in front it is offered once, never forced. (Mohammad kept landing on old builds: 20 Nov.)
   let pending = false;
-  const takeOver = () => { if (takesOverNow({ pending, hidden: document.hidden, mode: useShell.getState().mode })) { pending = false; void reloadKeepingState(); } };
+  const takeOver = () => { if (takesOverNow({ pending, hidden: document.hidden, mode: talkOn() ? 'deck' : 'figure' })) { pending = false; void reloadKeepingState(); } };
   if (sw.controller) {
     let offered = false;
     sw.addEventListener('controllerchange', async () => {

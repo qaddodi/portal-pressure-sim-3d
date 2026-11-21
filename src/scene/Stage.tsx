@@ -15,7 +15,7 @@ import { figureDrawn, rendererFailed, splashHeld } from '../boot/ready.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
 import { firstDraw, spanAsync } from '../boot/spans.ts';
-import { useDeck } from '../state/deck.ts';
+import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
 import { aaMode } from './post-aa.ts';
@@ -184,8 +184,8 @@ function SceneBridge() {
       setOrbitPitch: (rad) => { const changed = cel.rig.setOrbitPitch(rad); if (changed) clock.invalidate('orbit'); return changed; },
       // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
       tap: (x, y, touch) => {
-        if (cel.view === 'sinusoid' && sinusoidTap(x, y, useDeck.getState().mode === 'deck')) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
-        if (useDeck.getState().mode !== 'free') return;
+        if (cel.view === 'sinusoid' && sinusoidTap(x, y, talkOn())) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
+        if (talkOn()) return;
         if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null, h); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
         // a station's label above the figure takes the tap first and opens the structure it stands for (2D's label is a button over the stage: src/ui/action/label-tap.ts)
         const node = cel.view === 'body' ? labelAt(x, y) : null;
@@ -200,7 +200,7 @@ function SceneBridge() {
       ask: frames.ask, cancel: frames.cancel,
       timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
-      locked: () => useDeck.getState().mode === 'deck',   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
+      locked: () => talkOn(),   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,
     }, window as unknown as GestureTarget);
     gesturesRef.current = g;
@@ -213,9 +213,9 @@ function SceneBridge() {
     const rig = cel.rig;
     // (owner, 20 Nov: no 'Tilt all around'. Every device turns and tilts within the limits in shots.ts (TURN_LIMIT, TILT_LIMIT), mouse drag or two fingers; one finger pans.
     //  Body and lobule turn; the Circuit's map and the flat sinusoid do not, and a talk's camera is the slide's.)
-    rig.freeGate = () => (cel.view === 'body' || cel.view === 'lobule') && useDeck.getState().mode !== 'deck';
+    rig.freeGate = () => (cel.view === 'body' || cel.view === 'lobule') && !talkOn();
     const offFree = () => {};
-    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || useDeck.getState().mode === 'deck' };
+    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || talkOn() };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },

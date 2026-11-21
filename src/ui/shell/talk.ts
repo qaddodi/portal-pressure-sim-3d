@@ -1,6 +1,6 @@
-// Starting and leaving a talk. The talk's own UI (src/ui/DeckUi.tsx) opens its deck when it mounts; leaving puts the deck store back to free play.
+// Starting and leaving a talk. The talk's own UI (src/ui/DeckUi.tsx) opens its deck when it mounts; leaving takes the deck out of `useUi`: that is the whole of "a talk is on" (state/deck.ts).
 // A talk is a built-in deck (src/decks/registry.ts) or one of your own (a script or an imported deck kept on this device, ui/deck/script-library.ts).
-import { useDeck } from '../../state/deck.ts';
+import { talkOn } from '../../state/deck.ts';
 import { useShell } from './store.ts';
 import { useUi } from '../ui-store.ts';
 import { cel } from '../../scene/api.ts';
@@ -44,13 +44,13 @@ async function begin(deck: Deck, at: number): Promise<void> {
   const mine = ++startGen;
   await Promise.all([coverUp(deck.title), fontsIn()]);
   if (mine !== startGen) return;
-  rememberFocus(typeof document !== 'undefined' ? document.activeElement : null, useShell.getState().mode === 'deck');   // (focus returns here when the talk ends: talk-focus.ts)
-  if (useShell.getState().mode !== 'deck') saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
+  rememberFocus(typeof document !== 'undefined' ? document.activeElement : null, talkOn());   // (focus returns here when the talk ends: talk-focus.ts)
+  if (!talkOn()) saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
   cel.setView('body');
   // (the cover lifts at the first landing the new talk makes; landing.ts begins it once the talk's stops are in)
   const off = onLanded(() => { off(); if (mine === startGen) void coverDown(); });
   useUi.getState().openDeck(deck, at);
-  useShell.setState({ mode: 'deck', view: 'anatomic', sheet: null, dialog: null });
+  useShell.setState({ view: 'anatomic', sheet: null, dialog: null });
 }
 
 /** The address of a talk that has ended carries no talk (2D stop: a reload, or a tab the phone discarded and brings back, must not start it again from the link that opened it). */
@@ -63,11 +63,14 @@ export function cleanAddress(): void {
   } catch { /* no history here */ }
 }
 
+/** The ONE place a talk ends: the deck goes (a talk is on while `useUi.deck` is set, state/deck.ts), its cards' boxes with it, and the sheet over it closes. */
+function closeTalk(): void { useUi.getState().openDeck(null); useShell.setState({ sheet: null }); }
+
 /** The talk is taken down at once (nothing eases here: `stopTalk` is the way a person leaves; this is what it ends with, and what a test or the debug page uses). */
 export function leaveTalk(): void {
   cancelOpen();   // (a talk still being read does not open over what the person went to instead)
   startGen++; void coverDown();
-  useDeck.getState().close(); useUi.getState().openDeck(null); useShell.setState({ mode: 'free', sheet: null });
+  closeTalk();
   cleanAddress();
   const s = saved; saved = null;
   if (s) void restoreSaved(s);
@@ -76,7 +79,7 @@ export function leaveTalk(): void {
 /** Leaving the talk, every way (Esc, ✕, Finish, a swipe past the last slide), as 2D's stop() and putHealthy: the cards and the presenter's bar fade out (D_SMALL, on the rail), then the talk is taken down
  *  and the figure dims to 22 % while the patient the person came with is put back and the view is fitted, then the dim lifts. Nothing snaps: the one path, so Esc and ✕ end a talk the way Finish does. */
 export function stopTalk(): void {
-  if (stopping || useShell.getState().mode !== 'deck') return;
+  if (stopping || !talkOn()) return;
   stopping = true; cancelOpen(); startGen++; void coverDown();
   void (async () => {
     try {
@@ -92,7 +95,7 @@ export function stopTalk(): void {
       const who = {}, s = saved;
       const dim = s ? dipIn(who) : null;   // (the dim begins with the talk's end, under the chrome coming back)
       cancelOpen();
-      useDeck.getState().close(); useUi.getState().openDeck(null); useShell.setState({ mode: 'free', sheet: null });
+      closeTalk();
       cleanAddress();
       saved = null;
       if (s) {

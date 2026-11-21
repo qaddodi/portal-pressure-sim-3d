@@ -11,6 +11,7 @@ import { WALK_ORGANS } from '../../ui/action/walk-organs.ts';
 import { selectStructure, useSelection } from '../../ui/action/selection.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { enterOn, rovingNext } from './walk-focus.ts';
+import { useTalkOn } from '../../state/deck.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as ({ id: string } | [string])[]).map((n, i) => [Array.isArray(n) ? n[0] : n.id, i]));
 
@@ -18,7 +19,7 @@ const isOrgan = (id: string) => id.startsWith('organ:');
 
 export function VesselWalk() {
   const root = useRef<HTMLDivElement>(null);
-  const talk = useShell((s) => s.mode === 'deck');   // (a talk hides the free-play figure's controls from the keyboard and the reader: inert, while its words stay)
+  const talk = useTalkOn();   // (a talk hides the free-play figure's controls from the keyboard and the reader: inert, while its words stay)
 
   useEffect(() => {
     const el = root.current!;

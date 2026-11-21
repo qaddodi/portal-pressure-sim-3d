@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Chart } from '../Chart.tsx';
-import { dropFrame, sideFrame, traceFrame } from './frame.ts';
+import { dropFrame, traceFrame } from './frame.ts';
+import { tipsFigureFrame, newKeep } from '../../tests/ir/tips-figure.ts';
 import { PANELS, stentState, stentTitle, ten, type Panel, type StentId } from './model.ts';
 import { stentGate } from '../../../engine/hales/portal/topology.js';
 import './stent.css';
@@ -62,18 +63,21 @@ export function StentCard({ vessel = 'TIPS', show: showIn = ['lumen'], lens: len
   const has = (k: string) => eff.includes(k);
   const color = isCard ? (lens === 'pressure' ? 'pressure' : 'velocity') : colorPick;
   const pick = isCard ? (lens === 'pressure' ? 'pressure' : 'velocity') : tracePick;
+  // (one stent figure for every card: the TIPS card's own, tests/ir/tips-figure.ts; its velocity or pressure chart rides under it on the same x, so a slide's trace is that chart)
+  const onFigure = has('trace') && pick !== 'energy';
+  const keep = useRef(newKeep());
   const gateOf = gate ? (stentGate(gate, params, id) as 'proximal' | 'mid' | 'distal') : null;
   const key = `${id}|${st.have}|${[st.s, st.site, st.d, st.flow, st.tract, st.wall, st.ends, st.jet, st.ppg, st.ivc, st.sh.len, st.sh.waist, st.sh.trans, st.sh.red, ...st.g].map((v) => (+v).toFixed(3)).join(',')}`;
   return (
     <div className="pz-stent" data-kind="stent" data-vessel={id}>
       {has('lumen') && (
-        <Chart tag="chart:stent-side" deps={[key, color, has('trace'), gateOf]} label={`${stentTitle({ vessel: id, show })}: ${st.have ? `flow ${ten(st.flow)} L/min` : 'no stent'}`}
-          build={(c) => sideFrame(st, c, { color, sites: has('trace'), gate: gateOf })} />
+        <Chart tag="chart:stent-side" deps={[key, color, onFigure, gateOf]} label={`${stentTitle({ vessel: id, show })}: ${st.have ? `flow ${ten(st.flow)} L/min` : 'no stent'}`}
+          build={(c) => tipsFigureFrame(st, c, { lens: color, labels: true, chart: onFigure, card: !onFigure, gate: gateOf, keep: keep.current })} />
       )}
       {isCard && <Switch<StentLens> label="What the stent shows" items={LENS_NAMES} value={lens} onPick={setLens} />}
       {!isCard && has('lumen') && colorSwitch && <Switch<"velocity" | "pressure"> label="Color the lumen by" items={[['velocity', 'Velocity'], ['pressure', 'Pressure']]} value={colorPick} onPick={setColor} />}
       {has('trace') && !isCard && offered.length > 1 && <Switch<Panel> label="Chart along the stent" items={offered.map((k): [Panel, string] => [k, PICK_NAMES[k]])} value={tracePick} onPick={setPick} />}
-      {has('trace') && (
+      {has('trace') && !onFigure && (
         <Chart tag="chart:stent-trace" deps={[key, pick]} label={`${id}: pressure, energy lost and velocity along the stent`} build={(c) => traceFrame(st, c, { pick })} />
       )}
       {has('loss') && (

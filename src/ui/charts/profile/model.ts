@@ -4,6 +4,7 @@
 // make in it, the gridlines, the brace, the hatching), each lifted from the 2D tool's model builder (buildModel / paintNow).
 import { measure } from '../measure.ts';
 import * as L from './layout.generated.js';
+import { hvpgSentence } from './wedge.ts';
 
 export const {
   STATIONS, SPANS, NO_SPANS, BRACE_NAME, FULL_NAMES, SHORT_NAMES, ZONES, BLOCK_FALL, NUM_PAD, BR_PAD, BR_GAP, PILL_GAP,
@@ -33,7 +34,7 @@ export type Fp = Record<string, unknown> & { at?: { P: ArrayLike<number> } | nul
 /** A profile: the eight stations' pressures in order, and the three gradients as the tiles give them. */
 export interface Prof { v: number[]; hvpg: number; eus: number; ppg: number }
 /** The profile the chart is aimed at, with the axis's top. */
-export interface Goal extends Prof { top: number }
+export interface Goal extends Prof { top: number; /** the measured wedged and free hepatic venous pressures (the Intra- and HV stations' readings), for the HVPG's sentence */ whvp?: number; fhvp?: number }
 export type Box = [number, number, number, number];
 export type Tw = (t: string, weight?: number) => number;
 export interface Side { s: number; dx: number; by: number; box: Box }
@@ -210,8 +211,9 @@ export function bracketGeom(G: Geo, f: number, tw: Tw, r: number, v: number): Br
 
 /** The chart in a sentence, as the 2D tool reads it aloud. */
 export function profileWords(goal: Prof, spans: readonly Span[]): string {
-  const labels = goal.v.map(whole);
-  return `Pressure from gut to heart: ${STATIONS.map((n, i) => `${SPOKEN[n]} ${labels[i]}`).join(', ')} mmHg.${spans.length ? ` ${spans.map(([k, name]) => `${name} ${whole((goal as unknown as Record<string, number>)[k]!)}`).join(', ')}.` : ''}`;
+  const labels = goal.v.map(whole), g = goal as Goal;
+  const hv = spans.some(([k]) => k === 'hvpg') ? hvpgSentence(g.whvp, g.fhvp) : null;   // (where the HVPG's two ends come from: the same sentence as Tests > Pressure)
+  return `Pressure from gut to heart: ${STATIONS.map((n, i) => `${SPOKEN[n]} ${labels[i]}`).join(', ')} mmHg.${spans.length ? ` ${spans.map(([k, name]) => `${name} ${whole((goal as unknown as Record<string, number>)[k]!)}`).join(', ')}.` : ''}${hv ? ` ${hv}.` : ''}`;
 }
 
 /** The brackets in force: the slide's, less the HVPG once a stent is in (2D setSpans). */
