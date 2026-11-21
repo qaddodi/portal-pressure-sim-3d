@@ -38,5 +38,5 @@ test('the skin shader, object and set carry the tint (every skin, every arm)', (
   assert.match(tube, /mix\(c, wedgeCol, 0\.78 \* wa\)/, 'the same 0.78 as the tube');
   assert.match(obj, /armWedge: \{ value/);
   assert.match(set, /wedgeShareAt\(/);
-  assert.match(set, /setWedge\?\.\(i, ws/);
+  assert.match(set, /setWedge\?\.\(k, ws/);
 });
