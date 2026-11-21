@@ -43,7 +43,7 @@ export function installShaderGuard(renderer: GuardRenderer, root: Object3D, afte
     for (const { mesh, m } of worn) {
       // a veil (the faint copy over the organs, and its depth-only pass) has no plain form worth drawing: the solid tube it veils is drawn
       const d = m.defines as Record<string, unknown> | undefined;
-      if (d?.VEIL || (m.name === 'skin' && d?.SKIN_COPY === 2) || m.name === 'pool' || m.name === 'pool-top') mesh.visible = false;   // (a skin's veil copy likewise; and the ascites pool, a grey slab over the belly if drawn plain: the 2D-flat figure without it is the lesser harm)
+      if (d?.VEIL || (m.name === 'skin' && d?.SKIN_COPY === 2) || m.name === 'pool' || m.name.startsWith('pool-')) mesh.visible = false;   // (a skin's veil copy likewise; and the ascites pool, a grey slab over the belly if drawn plain: the 2D-flat figure without it is the lesser harm)
       else mesh.material = plainFor(m);
     }
     reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : lent.length ? lent[0]!.name || 'post aa' : 'scene', meshes: worn.length + lent.length, log });

@@ -10,7 +10,7 @@ import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
 
 test('the shader\'s alpha is over the arms that are there: each arm\'s presence multiplies its term and the sum is divided by pres', () => {
   assert.match(SKIN_FS, /\* armCopy\[0\]\[SKIN_COPY\] \* armAF\[0\]\.w \+/);
-  assert.match(SKIN_FS, /\) \/ max\(pres, 1\.0e-4\)\s+\* mix\(1\.0 - smoothstep/);
+  assert.match(SKIN_FS, /\) \/ max\(pres, 1\.0e-4\) \* circK;/);   // (the Circuit's factor now follows the division; the division by pres is the rule)
   assert.match(SKIN_FS, /float pres = wAt\(0\) \* armAF\[0\]\.w/);
 });
 

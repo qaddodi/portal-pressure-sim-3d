@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pickFit, pickForm, barNeed, NAME_FORMS, NAME_FORMS_NARROW } from '../src/ui/shell/bar-fit.ts';
-import { shortName, COMPACT } from '../src/ui/shell/scenario-names.ts';
+import { shortName, COMPACT, linesOf } from '../src/ui/shell/scenario-names.ts';
 import { UI } from '../src/ui/strings.generated.ts';
 
 const widths = [1000, 900, 820, 760];   // the bar's need at fit 0..3
@@ -28,4 +28,7 @@ test('the name takes the first form that fits; a narrow phone starts at two line
 test('every patient has a short and a compact form, as in 2D', () => {
   for (const p of UI.presets) { const s = shortName(p.label); assert.ok(s.length > 0 && s.length <= p.label.length, p.label); assert.ok((COMPACT[s] ?? s).length > 0); }
   assert.equal(shortName('Decompensated cirrhosis + TIPS'), 'Cirrhosis + TIPS');
+});
+test('the compact form of every patient fits the pill in two lines: a name of three lines was cut at the foot on an iPhone (PSVD, reversed portal flow; iPhone audit 21 Nov)', () => {
+  for (const p of UI.presets) { const c = COMPACT[shortName(p.label)] ?? shortName(p.label); assert.ok(linesOf(c) <= 2, `${p.label}: "${c}" takes ${linesOf(c)} lines`); }
 });

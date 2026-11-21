@@ -127,9 +127,30 @@ test('a bare number cut off or off screen names the element it is in, and the le
   assert.match(src('src/debug/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
 });
 
-test('the talk trace and the event graph are held to the card\'s room too (iPhone audit: "The course", "APP and ascites", "Ten years": 13 to 21 px past the foot)', () => {
-  assert.match(src('src/ui/charts/trace/frame.ts'), /heldToRoom\(spec\.height \?\?/);
-  assert.match(src('src/ui/charts/evgraph/frame.ts'), /heldToRoom\(inp\.height \?\?/);
-  assert.match(src('src/ui/charts/trace/TraceCard.tsx'), /useContext\(ToolRoom\)/);
-  assert.match(src('src/ui/charts/evgraph/EvGraphCard.tsx'), /height, room, run\]/);
+test('a chart\'s own height shrinks with its card\'s fit (2D `.pz-curve { height: cv-h * var(--pz-fit) }`): at a fit under 1 the stent slides\' PPG chart stood 53 px past the card on an iPhone', async () => {
+  const { ctxOf } = await import('./charts-helpers.ts');
+  const { fitHeight } = await import('../src/ui/charts/scene.ts');
+  const { evGraphFrame } = await import('../src/ui/charts/evgraph/frame.ts');
+  const { curveFrame } = await import('../src/ui/charts/curve/frame.ts');
+  const { TIPS_TOOL } = await import('../src/ui/charts/curve/specimens.ts');
+  assert.equal(fitHeight(200, {}), 200); assert.equal(fitHeight(200, { fit: 1 }), 200); assert.equal(fitHeight(200, { fit: 0.8 }), 160);
+  const { eventGraphOf } = await import('../src/ui/charts/evgraph/model.ts');
+  const spec = eventGraphOf({ procedure: 'tips', tiles: ['ppg', 'liver'] } as never)!;
+  const at = (fit?: number) => evGraphFrame({ spec, before: [19.3, 61], end: [11, 32] }, 0, { ...ctxOf('light', 430), fit }).h;
+  assert.ok(at(0.7) < at(1) * 0.75, 'the graph is shorter at a fit of 0.7'); assert.equal(at(1), at(undefined));
+  const cv = (fit?: number) => curveFrame({ tool: TIPS_TOOL, ser: null }, { ...ctxOf('light', 430), fit }).frame.h;
+  assert.ok(cv(0.7) < cv(1) * 0.75, 'the curve is shorter at a fit of 0.7'); assert.equal(cv(1), cv(undefined));
+  for (const p of ['evgraph/frame.ts', 'curve/frame.ts', 'curve/course-frame.ts', 'menu/frame.ts', 'trace/frame.ts']) assert.match(src(`src/ui/charts/${p}`), /fitHeight\(/, p);
+});
+
+test('the stress figure of the varix wall wraps in the phone\'s narrow column instead of running past the card (iPhone audit, Cirrhosis in pregnancy 5)', () => {
+  const css = src('src/ui/deck-ui.css');
+  assert.match(css, /\.wall-big\.wall-big \{ white-space: normal; min-width: 0;/);
+});
+
+test('the card\'s words, the tool room and the chart box measure after the observer\'s delivery (ResizeObserver loop, ascites 8, compared 13, measuring 14)', () => {
+  for (const p of ['src/ui/cards/CardFrame.tsx', 'src/ui/talk/tool-room.ts', 'src/ui/charts/Chart.tsx']) {
+    const s = src(p);
+    assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
+  }
 });

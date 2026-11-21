@@ -6,7 +6,7 @@ import type { ChartCtx } from '../Chart.tsx';
 import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
 import { measure } from '../measure.ts';
-import type { Frame, Shape, TextShape } from '../scene.ts';
+import { fitHeight, type Frame, type Shape, type TextShape } from '../scene.ts';
 import * as P from './curve-pure.generated.js';
 import { minusFixed } from '../looks2d/num.js';
 import { heldToRoom } from '../profile/model.ts';
@@ -375,7 +375,7 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
 }
 
 export function curveFrame(spec: CurveSpec, c: ChartCtx): CurveOut {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? curveHeight(w, f), spec.room, f)!));
+  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? fitHeight(curveHeight(w, f), c), spec.room, f)!));
   let out = drawOnce(spec, c, w, h, f, false, false);
   // a crowd of names: numbers on the dots and a key under the chart, if the plot keeps its height
   if (out.crowded) { const g2 = drawOnce(spec, c, w, h, f, true, false); if (g2.G.B - g2.G.T >= 5 * f) out = g2; }
