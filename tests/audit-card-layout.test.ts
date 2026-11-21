@@ -114,3 +114,15 @@ test('the intra-abdominal pressure bar is named with its number and its word, an
   assert.match(src('src/ui/tests/abdomen/AbdomenPane.tsx'), /aria-label=\{`\$\{WORDS\.iapKey\} \$\{v\.iapNum\}, \$\{v\.iapWord\}`\}/);
   assert.match(src('src/ui/debug/screen/raw.ts'), /el\.closest\('\[role="img"\]\[aria-label\]'\)/);
 });
+
+test('a blood pressure reading may break after its slash, so "114/68" never runs under the next phone column (iPhone audit: kidney 12, albumin 12, tipping 10, 26 to 28% overlaps)', () => {
+  const t = src('src/ui/cards/TableCard.tsx');
+  assert.match(t, /export const bpBreaks/);
+  assert.match(t, /c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text/);
+});
+
+test('a bare number cut off or off screen names the element it is in, and the leak check takes its baseline after the lazily built views', () => {
+  assert.match(src('src/ui/debug/audit/scan.ts'), /by: nameOf\(p\)/);
+  assert.match(src('src/ui/debug/audit/scan-judge.ts'), /\(in \$\{i\.by\}\)/);
+  assert.match(src('src/debug/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
+});

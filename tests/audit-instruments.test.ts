@@ -52,10 +52,13 @@ test('leak check: counts that climb past the baseline are a finding, steady coun
   const leak = steady.map((r, i) => ({ geometries: 80 + i * 5, textures: 12 }));
   assert.ok(memoryClimb(leak)!.geometries > 30);
   assert.equal(memoryClimb(steady.slice(0, 3)), null);
+  // views built the first time they are shown stay built: a step up that does not go on climbing is not a leak (the iPhone run: 126 geometries at step 27, 189 at step 165, 255 at the end)
+  const lazy = Array.from({ length: 100 }, (_, i) => ({ geometries: 60 + (i > 5 ? 60 : 0) + (i > 40 ? 60 : 0) + (i > 70 ? 8 : 0), textures: 12 }));
+  assert.equal(memoryClimb(lazy), null);
   const flags = async () => {
     const steps: Step[] = Array.from({ length: 8 }, (_, i) => ({ group: 'g', id: `s${i}`, label: `s${i}`, run: () => undefined }));
     let n = 0;
-    const d = await runAudit(steps, { size: { id: 't', w: 1, h: 1, dpr: 1 }, mark: () => 0, settle: async () => ({ settled: true, ms: 0 }), now: () => 0, quietMs: 0, read: () => ({ samples: [], gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false, gpu: gpu({ geometries: 80 + 8 * n++ }) }) });
+    const d = await runAudit(steps, { size: { id: 't', w: 1, h: 1, dpr: 1 }, mark: () => 0, settle: async () => ({ settled: true, ms: 0 }), now: () => 0, quietMs: 0, read: () => ({ samples: [], gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false, gpu: gpu({ geometries: 80 + 20 * n++ }) }) });
     return d.rows[7]!.flags.map((f) => f.kind);
   };
   return flags().then((k) => assert.ok(k.includes('gpu-memory-climb')));
