@@ -101,3 +101,11 @@ export function armPresenceAt(visible: boolean, reveal: number, fade: number, u:
   const k = reveal >= 0.9999 ? 1 : clamp01((reveal * 1.1 - u) / 0.1);
   return k * clamp01(fade);
 }
+
+/** The skin's opacity at a pixel: the JS twin of the fragment stage's alpha. The weighted fade of the arms that are THERE only (each arm's weight times its presence, over their sum): an arm whose tube is not drawn (the liver's beds in the body) adds nothing, so a skin
+ *  beside one drawn arm that has faded out is gone with it, and not a dotted patch carrying the hidden arms' own fades. `shares` are the arms' shares of the copy drawn (1 for the front). */
+export function presentAlpha(w: readonly number[], fades: readonly number[], pres: readonly number[], shares?: readonly number[]): number {
+  let num = 0, den = 0;
+  for (let i = 0; i < w.length; i++) { num += (w[i] ?? 0) * (fades[i] ?? 0) * (shares?.[i] ?? 1) * (pres[i] ?? 0); den += (w[i] ?? 0) * (pres[i] ?? 0); }
+  return num / Math.max(den, 1e-4);
+}

@@ -73,3 +73,14 @@ test('the layer draws the leader (dot and line) with the number and places it wi
   assert.match(css, /\.cl-lead-line/);
   assert.match(css, /\.cl-lead-dot/);
 });
+
+test('step badges and their leaders share the same absolute origin', () => {
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]+)\}/g)];
+  const badgeRule = rules.find(([, selectors, body]) => selectors!.split(',').some((s) => s.trim() === '.cl-step') && /position:\s*absolute/.test(body!));
+  assert.ok(badgeRule, 'the badge must not add its normal-flow position to its translated coordinates');
+  assert.match(badgeRule[2]!, /left:\s*0/);
+  assert.match(badgeRule[2]!, /top:\s*0/);
+  assert.match(badgeRule[2]!, /visibility:\s*hidden/);
+  assert.ok(rules.some(([, selectors, body]) => selectors!.split(',').some((s) => s.trim() === '.cl-step[data-on]') && /visibility:\s*visible/.test(body!)));
+});
