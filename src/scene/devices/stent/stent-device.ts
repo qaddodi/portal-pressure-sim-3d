@@ -2,7 +2,7 @@
 // pinched where the engine says (the waist mid stent, the end stenosis at the portal or the hepatic-vein end), and in only while the shunt is as wide as a stent (stentOpen: D >= 3 mm), eased in and out.
 // The vessel itself narrows with it (the `narrow` attribute of the vessel's shader), so the lumen's colour shows the pinch exactly where the wires pinch. Rebuilt only when the stent's shape changes
 // (an edit, a patient), never per frame; `update` only eases the amount.
-import { BufferAttribute, type BufferGeometry, CatmullRomCurve3, Group, Mesh, Vector3 } from 'three';
+import { Color, BufferAttribute, type BufferGeometry, CatmullRomCurve3, Group, Mesh, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/network.ts';
@@ -12,7 +12,8 @@ import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { stentGraftEdge, stentGoldEdge, stentWireEdge } from './stent-look.ts';
 import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
-import { STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
+import { rawColor } from '../../materials/cel.ts';
+import { STENT_CHAMPAGNE, STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
@@ -81,7 +82,9 @@ export class StentDevice {
     if (!g.getAttribute('narrow')) g.setAttribute('narrow', new BufferAttribute(new Float32Array(g.getAttribute('position').count), 1));
   }
 
-  applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); this.paintCircuit(); }
+  applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); this.paintWire(); this.paintCircuit(); }
+  /** The front wires wear the one champagne in every look (stent-look.ts). */
+  private paintWire(): void { (this.wires.toon.uniforms.color!.value as Color).copy(rawColor(STENT_CHAMPAGNE)); }
   /** The Circuit draws this stent on the shunt's own tube: it takes the colours and strengths from the same table as the 3D device, so the two views cannot differ. */
   private paintCircuit(): void { if (this.vessel && this.lastPalette) { const l = stentCircuitLook(this.lastPalette); this.vessel.setStentLook(l.wire, l.wireA, l.gold, l.goldA); } }
   setPhone(phone: boolean): void { for (const o of this.objects) o.setPhone(phone); }
@@ -152,7 +155,7 @@ export class StentDevice {
     this.group.visible = a > 0.002 && !!this.paths;
     this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a * GOLD_ALPHA);
     this.graft.setShadowAlpha(a);   // (the sleeve is nearly clear, its shadow is not: it follows the stent's own share)
-    if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
+    if (this.lastPalette) { for (const o of this.objects) o.applyPalette(this.lastPalette); this.paintWire(); }
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
     this.vessel?.setStent(this.paths ? a : 0, INSET / this.L, 1 - INSET / this.L, this.paths ? (INSET + this.paths.bareEnd) / this.L : 0);
     if (!this.paths) return;
