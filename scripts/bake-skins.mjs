@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
+process.env.PPS_NO_BAKED = '1';   // (the bake builds live: it must never lay in the file it is about to replace)
 const out = fileURLToPath(new URL('../public/anatomy/skins.bin', import.meta.url));
 const outCircuit = fileURLToPath(new URL('../public/anatomy/circuit-skins.bin', import.meta.url));
 const { Group } = await import('three');
