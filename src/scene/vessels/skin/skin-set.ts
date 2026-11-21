@@ -19,7 +19,7 @@ import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
-import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
+import { armWalk, growAlong, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
@@ -236,6 +236,8 @@ export class SkinSet {
   plainDraws(): readonly SkinDraw[] { return this.drawn.flatMap((b) => (b.plain ? [b.plain.draw] : [])); }
   /** The plain trunk's mesh of a node, or undefined. */
   plainOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.plain?.mesh; }
+  /** The vessels a node's skin replaces whole (a merged skin's shared run: its tube is not drawn at all, the skin is all there is of it). */
+  hiddenOf(node: string): readonly string[] { return this.drawn.find((b) => b.node === node)?.hidden ?? []; }
   /** The weld a node's skin shows now (1 whole, 0 the flared tubes alone), NaN for a skin without a growing arm. */
   weldOf(node: string): number { const b = this.drawn.find((x) => x.node === node); return b && b.arms.some((a) => a.grow) ? (Number.isNaN(b.w) ? 0 : b.w) : NaN; }
   /** The built skin of a node, or undefined. */
@@ -294,9 +296,9 @@ export class SkinSet {
    */
   private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
     const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
-    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
+    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts), along = growAlong(j, tubes);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
-      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
+      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!) || along(i, o)) continue;
       for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
     return -1;
