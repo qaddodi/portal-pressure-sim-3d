@@ -13,6 +13,7 @@
 
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
+import { WEDGE_GLSL } from './wedge-glsl.ts';
 import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
 import { STREAK } from '../blood/streak-glsl.ts';
 import { DUST_GLSL } from '../blood/dust-glsl.ts';
@@ -236,6 +237,7 @@ ${CIRCUIT_VS_CALL}
 
 export const VESSEL_FS = /* glsl */ `
 ${FADE_GLSL}
+${WEDGE_GLSL}
 uniform float tubeDark;   // 1 on the dark looks: brighter tube caps (cel-glsl.ts celTubeBase)
 ${CEL_TUBE_GLSL}
 ${CEL_LIGHT_GLSL}
@@ -298,7 +300,7 @@ uniform vec2 skinCut;   // junction skins (skin/types.ts, WP4): the tube is draw
 uniform vec2 skinCutC;  // the same on the Circuit's MAP (circuit/skins.ts): the tube is cut at its map seams (u is the same share of the course in both views) and the map's own skin draws the junction; it takes effect over the end of the change (SKIN_CIRC_IN), the body's cut over its start. (-1, 2): none
 uniform vec2 skinHole;   // a side-wall junction's HOLE (skin/types.ts, spec 10.1): the tube is not drawn between u = skinHole.x and u = skinHole.y, the skin draws that stretch. (2, -1): no hole (never true for any u)
 uniform vec2 skinHole2; // a vessel has at most two
-uniform vec2 skinWeld;  // how much of the tube's CUT end the skin has taken over, per end (x the start's, y the end's): 1 the cut is whole (every skinned end but a growing one's), less and the cut part is still drawn at the pixels the skin does not draw (the same screen pattern: a pixel is the skin's where the pattern is under this), so a growing arm's flared end goes as its welded skin comes in
+uniform vec3 skinWeld;  // how much of the tube's CUT end the skin has taken over, per end (x the start's, y the end's, z a hole's): 1 the cut is whole (every skinned end but a growing one's), less and the cut part is still drawn at the pixels the skin does not draw (the same screen pattern: a pixel is the skin's where the pattern is under this), so a growing arm's flared end goes as its welded skin comes in
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
@@ -311,9 +313,9 @@ uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circ
 uniform vec3 inkColorCirc;
 uniform float circT;
 uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
-uniform vec4 wedge;       // the wedged vein's static column as a tint on the vessels themselves: x how much, y the share of the course (u) it reaches up to (2 = all of it), z how far the fade to the branch tip runs, w how much of it fades
+uniform vec4 wedge;       // the wedged vein's static column as a tint on the vessels themselves (wedge-glsl.ts): x how much, y how softly it ends behind the balloon's distal edge (route distance), z how far the fade to the branch tip runs (u), w how much of it fades
 uniform vec3 wedgeCol;
-uniform vec3 wedgeB;       // x how softly the tint ends on the balloon's side of the cut (u), y how far toward the outer end it has come (the column filling; -1: all the way), z how softly that front ends
+uniform vec4 wedgeD;       // the column's ONE field: x + y u is this vessel's route distance from the balloon's distal edge at u; z the front's distance (the column filling), w how softly it ends
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
@@ -348,7 +350,7 @@ bool inSkinHole(vec2 h) { return h.y > h.x && vUv.x > h.x + ${F(SKIN_CUT_EPS)} &
 // (a dotted thread, a closed potential collateral, is never cut: it runs on into the trunk's wall, and the skin there is a plain trunk, its growth 0: skin-set.ts sync, spec 10.2. A hole is the host's own and is never a dotted thread's)
 bool skinPastC() { return circT > 0.0 && dotted < 0.5 && ((skinCutC.x >= 0.0 && vUv.x < skinCutC.x - ${F(SKIN_CUT_EPS)}) || (skinCutC.y <= 1.0 && vUv.x > skinCutC.y + ${F(SKIN_CUT_EPS)})); }
 bool skinCutOn() { return dotted < 0.5 && (skinCut.x >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
-float skinWeldAt() { return (dotted < 0.5 && skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : 1.0; }
+float skinWeldAt() { return (dotted < 0.5 && skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
 bool skinPast() { return (dotted < 0.5 && ((skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -640,8 +642,8 @@ void main() {
   }
   // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
   if (wedge.x > 0.001 && circT < 0.001) {
-    // whole up to the cut (the balloon's distal edge), softly gone just behind it (under the glass); from the cut forward as far as the front has come
-    float wa = wedge.x * (1.0 - smoothstep(wedge.y, wedge.y + max(wedgeB.x, 0.001), vUv.x)) * smoothstep(wedgeB.y - max(wedgeB.z, 0.001), wedgeB.y, vUv.x);
+    // the distance from the balloon's distal edge at this point on this vessel (the same field the junction skins carry), against the one advancing front
+    float wa = wedge.x * wedgeCover(wedgeD.x + wedgeD.y * vUv.x, vec3(wedge.y, wedgeD.z, wedgeD.w));
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
     c = mix(c, wedgeCol, 0.78 * wa);
   }

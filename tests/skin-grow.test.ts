@@ -35,11 +35,12 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
 // (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as PVH's DIPS and the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
-const DROPPED = ['EPI:C3', 'IMV:C4', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
-];
-// (IMV:C4 stays flared: the static full-size shape of the varices' bundle 25 degrees from V_COL still folds, 'the surface folds at triangle 2154 (17 in all)'; its end is shunt-ends.ts's sunk and flared row for C4:0 until a build passes)
-// (the landings on a host's wall are no skin arms any more: wall.ts wallLandings only finds their hosts, and each keeps the tube's own sunk and flared end, shunt-ends.ts, tests/skin-wall.test.ts)
+const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS',
+  'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:S_PC1,C90:C9', 'wall:IVC_IS_1:S_PC1,C90:S_PC', 'wall:PVH_L_1:REX1:REX'];
+// (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
+/** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
+const PLAIN_FAILED = ['LPV_A'];
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
 test('the growing arms are the single-tube collaterals and shunts, pinned by node; the braided collaterals are not arms; at most two per skin, after the permanent arms, widest first', () => {
@@ -109,11 +110,13 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     assert.deepEqual([...b.set.fellBack].sort(), [], 'no node keeps the old join');
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
     for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
-    assert.match(b.set.why['IMV:C4'] ?? '', /the surface folds/, 'IMV:C4 stays flared, named with the reason');
+    assert.match(b.set.why['LRV_S:S_DSR'] ?? '', /seam loops/, 'LRV_S:S_DSR stays flared, named with the reason');
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
     for (const d of b.draws) assert.equal(meshOf(b, d).grow.length, 0, `${nodeOf(d)}: no growth morph, the skin is one static shape`);
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
+    // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
+    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1'];
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
@@ -128,6 +131,7 @@ test('the welded skin is the arms\' union at full size and the plain trunk is th
       const m = meshOf(b, d), node = nodeOf(d), grow = m.junction.arms.filter((a) => a.grow).length, stay = m.junction.arms.length - grow, plain = b.set.plainOf(node);
       if (!grow) { assert.equal(plain, undefined, `${node}: no growing arm, no plain trunk`); continue; }
       if (stay < 3) { assert.equal(plain, undefined, `${node}: a run-on pair has no junction of its own: the tubes' cut ends carry the weld`); continue; }
+      if (PLAIN_FAILED.includes(node)) { assert.equal(plain, undefined, `${node}: its plain trunk does not build, the welded skin comes in over the tubes' cut ends alone`); continue; }
       assert.ok(plain, `${node}: a plain trunk of the ${stay} arms that stay`); n++;
       assert.equal(plain!.junction.arms.length, stay);
       assert.ok(plain!.junction.arms.every((a) => !a.grow));
@@ -138,6 +142,27 @@ test('the welded skin is the arms\' union at full size and the plain trunk is th
       }
     }
     assert.ok(n >= 3, `${n} nodes have a plain trunk`);
+  } finally { done(b); }
+});
+
+test('IMV builds with the varices\' bundle C4 as a growing arm 25 degrees from V_COL: no fold, watertight (every edge on two faces that run opposite ways), seamed to all three tubes', () => {
+  const b = built();
+  try {
+    assert.ok(!b.set.dropped.includes('IMV:C4'), 'C4 is not dropped at IMV');
+    const m = b.set.skinOf('IMV')!;
+    assert.deepEqual(m.junction.arms.map(armKey), ['V_IMV:0', 'V_COL:1', 'C4:0'].map((k) => k), 'IMV: its two permanent arms, then the bundle');
+    assert.ok(m.junction.arms[2]!.grow);
+    assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, 'no fold');
+    const dir = new Map<number, number>();
+    for (let i = 0; i < m.index.length; i += 3) for (let s = 0; s < 3; s++) {
+      const a = m.index[i + s]!, c = m.index[i + (s + 1) % 3]!;
+      dir.set(a * 1e7 + c, (dir.get(a * 1e7 + c) ?? 0) + 1);
+    }
+    const seam = new Set<number>(m.seamVerts.flatMap((ids) => [...new Set(ids)]));   // (the open skin ends at the seam rings: a ring edge is on one face, every other edge on two)
+    let open = 0;
+    for (const [k, v] of dir) { const a = Math.floor(k / 1e7), c = k % 1e7; assert.equal(v, 1, `edge ${a}-${c} on one face this way`); if (seam.has(a) && seam.has(c) && !dir.has(c * 1e7 + a)) open++; else assert.equal(dir.get(c * 1e7 + a), 1, `edge ${a}-${c} has its mate`); }
+    assert.equal(open, 3 * 14, 'the three seam rings are the only open edges');
+    for (const ids of m.seamVerts) assert.ok(ids.length >= 14);
   } finally { done(b); }
 });
 

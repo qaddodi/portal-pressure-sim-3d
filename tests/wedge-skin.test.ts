@@ -1,42 +1,36 @@
-// The wedge's amber is ONE field: the junction skins carry it as the tubes do (root cause of the hard amber edge at the RHV/MHV join:
-// the skins had no wedge tint at all, so they stayed blue between amber tubes).
+// The wedge's amber is ONE field: the junction skins carry it as the tubes do (root cause of the hard amber edge at the RHV/MHV join: the skins had no wedge tint at all, so they stayed blue between amber tubes), and
+// a skin takes the distance of its arms' seams, so the one front runs through it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { wedgeShareAt } from '../src/scene/vessels/skin/arm-twins.ts';
+import { wedgeSeamD } from '../src/scene/vessels/skin/arm-twins.ts';
+import { WEDGE_ABSENT, wedgeCover } from '../src/scene/vessels/wedge-glsl.ts';
 
 const src = (p: string): string => readFileSync(new URL(`../src/scene/vessels/${p}`, import.meta.url), 'utf8');
 
-test('the seam share is the tube formula: whole up to the cut, a gradient past it, nothing beyond', () => {
-  const w = [1, 0.6, 0.3, 0] as const, b = [0.1, -1, 0.02] as const;
-  assert.equal(wedgeShareAt(w, b, 0.2), 1);
-  const mid = wedgeShareAt(w, b, 0.65);
-  assert.ok(mid > 0.05 && mid < 0.95, `a gradient across the cut, got ${mid}`);
-  assert.equal(wedgeShareAt(w, b, 0.9), 0);
-  assert.equal(wedgeShareAt([0, 0.6, 0, 0], b, 0.2), 0);
+test('an arm\'s seam value is its tube\'s own distance line; an arm with no wedge is absent', () => {
+  assert.equal(wedgeSeamD({ x: 1 }, { x: 10, y: -4 }, 0.25), 9);
+  assert.equal(wedgeSeamD({ x: 0 }, { x: 10, y: -4 }, 0.25), WEDGE_ABSENT);
 });
 
-test('the tint rises smoothly (no step) across the cut', () => {
-  const w = [1, 0.5, 0, 0] as const, b = [0.12, -1, 0.02] as const;
-  let prev = wedgeShareAt(w, b, 0.4), maxStep = 0;
-  for (let u = 0.401; u <= 0.7; u += 0.001) { const s = wedgeShareAt(w, b, u); maxStep = Math.max(maxStep, Math.abs(s - prev)); prev = s; }
+test('the cover is whole from the balloon\'s edge to just behind the front, softly gone behind the edge and by the front', () => {
+  assert.equal(wedgeCover(5, 2, 20, 4), 1);
+  assert.equal(wedgeCover(-3, 2, 20, 4), 0);
+  assert.equal(wedgeCover(21, 2, 20, 4), 0);
+  const edge = wedgeCover(18, 2, 20, 4);
+  assert.ok(edge > 0.05 && edge < 0.95, `a gradient at the front, ${edge}`);
+  let prev = wedgeCover(0, 2, 20, 4), maxStep = 0;
+  for (let d = 0.01; d <= 24; d += 0.01) { const c = wedgeCover(d, 2, 20, 4); maxStep = Math.max(maxStep, Math.abs(c - prev)); prev = c; }
   assert.ok(maxStep < 0.03, `step ${maxStep}`);
 });
 
-test('the filling front and the branch fade follow the tube', () => {
-  const b = [0.1, 0.4, 0.05] as const;
-  assert.equal(wedgeShareAt([1, 2, 0, 0], b, 0.6), 1);   // the column has come this far
-  assert.equal(wedgeShareAt([1, 2, 0, 0], b, 0.1), 0);   // the front has not reached the outer end yet
-  assert.ok(wedgeShareAt([1, 2, 0.5, 1], [0.1, -1, 0.02], 0.1) < 0.6, 'a branch tint thins toward its tip');
-});
-
-test('the skin shader, object and set carry the tint (every skin, every arm)', () => {
+test('the skin blends its arms\' seam distances and tints with the tube\'s 0.78, in every skin and arm', () => {
   const sh = src('skin/shaders.ts'), obj = src('skin/skin-object.ts'), set = src('skin/skin-set.ts'), tube = src('shaders.ts');
   assert.match(sh, /uniform float armWedge\[/);
-  assert.match(sh, /BLEND\('armWedge'\)/);
+  assert.match(sh, /dwS \+= wi \* armWedge\[i\]/);
   assert.match(sh, /mix\(c, wedgeColS, 0\.78 \* waS\)/);
   assert.match(tube, /mix\(c, wedgeCol, 0\.78 \* wa\)/, 'the same 0.78 as the tube');
   assert.match(obj, /armWedge: \{ value/);
-  assert.match(set, /wedgeShareAt\(/);
-  assert.match(set, /setWedge\?\.\(k, ws/);
+  assert.match(set, /wedgeSeamD\(/);
+  assert.match(set, /setWedge\?\.\(k, wsd/);
 });
