@@ -123,7 +123,9 @@ void main() {
   // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
   vec2 side = length(nw.xy) > 1e-4 ? normalize(nw.xy) : vec2(0.0);
   float lowerRight = smoothstep(-0.35, 0.65, dot(side, vec2(0.57, -0.82)));
-  float k = 1.0 - (1.0 - shadeSteps.x * smoothstep(0.45 - w, 0.45 + w, turn)) * (1.0 - shadeSteps.y * smoothstep(0.68 - w, 0.68 + w, turn)) * (1.0 - shadeSteps.z * smoothstep(0.86 - w, 0.86 + w, turn));
+  // (ONE monotonic ramp that reaches the three strokes' stacked total at the rim and passes through each plateau (2D's 30/18/8 px strokes, but blended as the owner's rule has it): three smoothsteps one pixel wide were three crisp concentric
+  //  bands at a close-up rim, review 21 Nov #16. The total is the same product of the strokes' alphas; the ramp's own value at turn .56 / .77 / .93 is within a hair of the plateaus .09 / .24 / .41 of the stack)
+  float k = (1.0 - (1.0 - shadeSteps.x) * (1.0 - shadeSteps.y) * (1.0 - shadeSteps.z)) * smoothstep(0.35, 1.0, turn);
   fill = mix(fill, ogDark.rgb, ogDark.a * k * lowerRight);
   // the rim light on the edge that faces the top left
   float lit = smoothstep(0.62, 0.8, turn) * clamp(dot(side, vec2(-0.6, 0.8)), 0.0, 1.0);

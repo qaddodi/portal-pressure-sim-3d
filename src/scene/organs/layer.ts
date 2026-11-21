@@ -116,6 +116,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res!,
       hiOn: { value: 0 }, hiPx: { value: 0 } },   // (every uniform the shader declares: a missing one keeps what the last material drawn with this program left in it, so a tapped spleen lit the stomach's seat and the esophagus)
   });
+  seat.defines = { INK_EDGE: '', INK_SEAT: '' };   // (a soft halo, not a flat band: INK_FS)
   const mesh = new Mesh(g, seat);
   mesh.renderOrder = 2 * i + 0.5;
   mesh.visible = false; mesh.name = 'org-ao';

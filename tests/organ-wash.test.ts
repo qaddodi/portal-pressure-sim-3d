@@ -11,6 +11,7 @@ import { BoxGeometry, type BufferGeometry } from 'three';
 import { readFileSync } from 'node:fs';
 import { OrganLayer } from '../src/scene/organs/layer.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
+import { INK_FS } from '../src/scene/materials/shaders.ts';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 
@@ -58,7 +59,7 @@ test('the copied tones equal the 2D app\'s at the pin (copy-organ-tones --check)
 // The visual review (19 Nov): 2D's inner shade strokes (.09/.15/.24 of og-dark) stack, so the darkest rim is og-dark at 1-(.91·.85·.76) ≈ .41 of its alpha:
 // .11 on Light (2D .12), .14 on Dark (2D .16); the earlier sum divided by .26 gave .48 and .65.
 test('the inner shade stacks as 2D\'s strokes, at og-dark\'s own alpha, on the lower right only', () => {
-  assert.match(ORGAN_FS, /1\.0 - \(1\.0 - shadeSteps\.x \* .*\) \* \(1\.0 - shadeSteps\.y \* .*\) \* \(1\.0 - shadeSteps\.z \* /);
+  assert.match(ORGAN_FS, /1\.0 - \(1\.0 - shadeSteps\.x\) \* \(1\.0 - shadeSteps\.y\) \* \(1\.0 - shadeSteps\.z\)\) \* smoothstep\(0\.35, 1\.0, turn\)/);
   for (const id of LOOK_IDS) assert.deepEqual(PALETTES[id].organs.shade, [0.09, 0.15, 0.24], `${id}: 2D's three strokes' opacities, copied`);
   assert.match(ORGAN_FS, /ogDark\.a \* k \* lowerRight/);
   assert.doesNotMatch(ORGAN_FS, /\/ 0\.26/);
@@ -220,4 +221,20 @@ test('WP1b: #ogVol and the AO seat: the terms are in the shader and the seat sho
   layer.applyLook(PALETTES.dark); layer.update(0);
   assert.ok(seatOf().visible && seatOf().material.uniforms.inkA!.value > 0.1, 'see-through: the seat shows');
   layer.dispose();
+});
+
+// Review 21 Nov, #16 (close-up organ rims read as concentric bands): the inner shade is ONE monotonic ramp reaching the strokes' stacked total at the rim, and the AO seat is one soft halo, not a flat band.
+test('the inner shade is one smooth monotonic ramp that matches the three strokes\' plateaus and total; the seat falls off from the outline to nothing at its outer edge', () => {
+  assert.doesNotMatch(ORGAN_FS, /smoothstep\(0\.45 - w/);
+  const ss = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const kMax = 1 - 0.91 * 0.85 * 0.76, k = (t: number) => kMax * ss(0.35, 1, t);
+  let last = k(0);
+  for (let t = 0; t <= 1.0001; t += 0.01) { assert.ok(k(t) >= last - 1e-12, 'never steps back'); assert.ok(k(t) - last < 0.02, `no jump at turn ${t.toFixed(2)}`); last = k(t); }
+  assert.ok(Math.abs(k(1) - kMax) < 1e-9, 'the rim is the stack\'s total');
+  for (const [t, plateau] of [[0.56, 1 - 0.91], [0.77, 1 - 0.91 * 0.85], [0.93, kMax]] as const) assert.ok(Math.abs(k(t) - plateau) < 0.045, `turn ${t}: ${k(t).toFixed(3)} near the stack's ${plateau.toFixed(3)}`);
+  const layer = new OrganLayer(createShared(), Object.fromEntries(Object.keys(ORGAN_STYLE).map((id) => [id, () => new BoxGeometry(0.4, 0.3, 0.1)])));
+  const seat = [...(layer as unknown as { seats: Map<string, { defines?: Record<string, unknown> }> }).seats.values()];
+  assert.ok(seat.length > 0, 'the organs with a seat');
+  for (const m of seat) assert.ok('INK_SEAT' in (m.defines ?? {}) && 'INK_EDGE' in (m.defines ?? {}), 'the seat is a soft halo');
+  assert.match(INK_FS, /#ifdef INK_SEAT[\s\S]*cov \*= 2\.0 \* sk \* sk \* \(3\.0 - 2\.0 \* sk\)/);
 });
