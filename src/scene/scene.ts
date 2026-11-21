@@ -1382,6 +1382,7 @@ export class CelScene {
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
+    const lap = lapTimer(this.systemMs);   // (the render phase's laps share update()'s record, named 'render: ...': the audit's per-step table names the system that costs a frame)
     gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
@@ -1407,13 +1408,17 @@ export class CelScene {
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
+    lap('render: setup (dof, band, blur frame)');
     gl.render(this.scene, cam);
+    lap('render: organs pass');
     gl.autoClear = false;
     if (!dof) { gl.clearDepth(); gl.clearStencil(); }   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
+    lap('render: vessels pass');
     if (this.highlight.glowing) this.glowFx.run(gl, into, cam, this.scene, dpr);   // (the picked vessel's glow: its mask, blurred, over the figure outside it)
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
+    lap('render: glow, blur, resolve');
     gl.autoClear = ac;
     cam.layers.mask = mask;
     inspectEnd?.();

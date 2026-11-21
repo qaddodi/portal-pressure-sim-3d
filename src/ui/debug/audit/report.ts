@@ -12,6 +12,8 @@ export interface AuditSize { id: string; w: number; h: number; dpr: number }
 export interface RowGpu {
   calls: number; triangles: number; programs: number; geometries: number; textures: number;
   skinRebuilds: number; boundCpu: number; boundGpu: number;
+  /** ms each scene system (update() and render() laps, `scene.systemMs`) cost over the step, biggest first, top 6: names the system when a step lags. */
+  systemMs?: [string, number][];
   slow: { ms: number; gap: number; bound: 'cpu' | 'gpu/compositor' | null; tags: string[]; calls?: number; triangles?: number }[];
 }
 export interface AuditRow {
@@ -112,7 +114,8 @@ export function lags(b: Bundle): Lag[] {
     const f = r.frames, slowFps = f.fps != null && f.frames >= 10 && f.fps < LAG_FPS, bigGap = f.worstGap > LAG_GAP_MS || f.stalls > 0;   // (zero stalls is the rule: any frame gap over 50 ms is a lag)
     if (!slowFps && !bigGap) return;
     const top = r.gpu?.slow[0];
-    const cause = top ? `slowest frame: work ${top.ms} ms, gap ${top.gap} ms${top.bound ? `, waited on ${top.bound}` : ''}, asked by ${top.tags.join('/') || '-'}` : r.gpu ? 'no slow frame recorded' : 'no renderer data';
+    const sys = r.gpu?.systemMs?.length ? `; systems (ms over the step): ${r.gpu.systemMs.map(([k, v]) => `${k} ${v}`).join(', ')}` : '';
+    const cause = (top ? `slowest frame: work ${top.ms} ms, gap ${top.gap} ms${top.bound ? `, waited on ${top.bound}` : ''}, asked by ${top.tags.join('/') || '-'}` : r.gpu ? 'no slow frame recorded' : 'no renderer data') + sys;
     out.push({ where: where(p, { ...r, label: r.label }), transition: transitionOf(p.rows, i), fps: f.fps, worstGap: f.worstGap, stalls: f.stalls, cause, rank: Math.max(f.worstGap, f.fps != null && f.fps > 0 ? 1000 / f.fps * 3 : 0) });
   });
   return out.sort((a, b2) => b2.rank - a.rank).map(({ rank: _r, ...l }) => l);

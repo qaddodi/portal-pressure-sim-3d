@@ -80,3 +80,13 @@ test('easing the basement membrane or the microvilli never remeshes; the activat
   cur.lum = cur.lum! * 1.3; s3.update(true);
   assert.equal(full, 2, 'the lumen does remesh');
 });
+
+// ---- the audit names the system that costs a frame (scene.systemMs, update and render laps, per step) ----
+test('render() laps its phases into systemMs, and the audit row carries the per-step delta into the LAGS line', () => {
+  const sc = readFileSync('src/scene/scene.ts', 'utf8');
+  for (const n of ['render: setup (dof, band, blur frame)', 'render: organs pass', 'render: vessels pass', 'render: glow, blur, resolve']) assert.ok(sc.includes(`lap('${n}')`), n);
+  const app = readFileSync('src/ui/debug/audit/app.ts', 'utf8'), rep = readFileSync('src/ui/debug/audit/report.ts', 'utf8');
+  assert.match(app, /sys0 = \{ \.\.\.\(cel\.systemMs \?\? \{\}\) \}/);
+  assert.match(app, /systemMs: Object\.entries\(cel\.systemMs/);
+  assert.match(rep, /systems \(ms over the step\)/);
+});

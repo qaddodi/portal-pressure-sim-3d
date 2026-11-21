@@ -175,7 +175,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
   const rec = createRecorder(domSources(win.document, win), { seconds: 120 });
   // (at speed N the page's clock runs N times faster, so the sampler ticks N times as often and its rows stay 33 ms of page time; the CSS animations are played N times faster here)
   const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, sampleRealMs(SAMPLE_MS, speed));
-  let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0;
+  let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0, sys0: Record<string, number> = {};
   // (`f.dt` is page time: at speed N the real gap is dt / N, which is what the frame rate is judged on)
   const off = clock.on('tags', (f) => { if (f.dt > 0) { gaps.push(f.dt / speed); if (f.dt > 50) stalls.push({ t: f.time - markAt, ms: f.dt }); } }, 2000);
   const lines: ConsoleLine[] = [];
@@ -192,13 +192,14 @@ export function startTaps(win: Window = window, speed = 1): Tap {
   const onVis = () => { if (win.document.hidden) hiddenSince = true; };
   win.document.addEventListener('visibilitychange', onVis);
   return {
-    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; markAt = performance.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
+    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; sys0 = { ...(cel.systemMs ?? {}) }; markAt = performance.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
     read(t0) {
       const st = clock.stats(), led = ledger.read();
       const rs = renderStats();
       const gpu: RowGpu | null = rs ? {
         calls: rs.calls, triangles: rs.triangles, programs: rs.programs, geometries: rs.geometries, textures: rs.textures, skinRebuilds: (cel.skinStats?.rebuilds ?? 0) - skin0,
         boundCpu: st.boundCpu, boundGpu: st.boundGpu,
+        systemMs: Object.entries(cel.systemMs ?? {}).map(([k, v]) => [k, r1(v - (sys0[k] ?? 0))] as [string, number]).filter(([, v]) => v > 0.5).sort((a, b) => b[1] - a[1]).slice(0, 6),
         slow: st.slow.slice(0, 3).map((f) => { const g = f.gl as { calls?: number; triangles?: number } | undefined; return { ms: r1(f.ms), gap: r1(f.gap), bound: f.bound, tags: f.tags, calls: g?.calls, triangles: g?.triangles }; }),
       } : null;
       return {
