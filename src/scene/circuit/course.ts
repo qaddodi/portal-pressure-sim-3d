@@ -98,19 +98,11 @@ function sampleCurve(c: CatmullRomCurve3, n: number): Vector3[] {
   return out;
 }
 
-/** The arteries that end at a lane's tip (2D: they run on under it, so no blunt end shows) and how they tuck: the last TUCK_RUN map units sink TUCK_Z scene units behind the lane's plane, so the lane, whatever its width at the zoom, is always drawn over the artery's end.
- *  The vessel shader sorts a tube by its AXIS (TUBE_DEPTH_SHARE), so a wider tube drew over a thinner one that lay at the same depth, and at some zooms the artery (3 map units) was the wider one: its round end showed over the lane tip. */
-export const TUCKED: ReadonlySet<string> = new Set(['A_HR', 'A_HL']);
-export const TUCK_Z = 0.003;
-export const TUCK_RUN = 14;
-/** The tuck at distance `d` map units from the end: 0 outside TUCK_RUN, one smoothstep to full at the end. */
-export const tuckAt = (d: number): number => { const u = Math.min(1, Math.max(0, 1 - d / TUCK_RUN)); return u * u * (3 - 2 * u); };
-
-/** The map course as a curve in the scene (dense enough that the rounded corners keep their shape). `tucked`: the end sinks behind the plane (TUCKED). */
-export function mapCurve(dense: [number, number][], tucked = false): CatmullRomCurve3 {
+/** The map course as a curve in the scene (dense enough that the rounded corners keep their shape). */
+export function mapCurve(dense: [number, number][]): CatmullRomCurve3 {
   const { total } = cumulative(dense);
   const n = Math.max(24, Math.min(600, Math.ceil(total / 2.5)));
-  const pts = resample(dense, n).map(([x, y], i) => { const p = mapToScene(x, y); return new Vector3(p[0], p[1], p[2] - (tucked ? TUCK_Z * tuckAt(total * (1 - i / (n - 1))) : 0)); });
+  const pts = resample(dense, n).map(([x, y]) => { const p = mapToScene(x, y); return new Vector3(p[0], p[1], p[2]); });
   return new CatmullRomCurve3(pts, false, 'centripetal');
 }
 
@@ -159,7 +151,7 @@ function build(): Map<string, CircuitCourse> {
   for (const v of MAPPED) {
     const dense = mapCourse(v.id);
     if (!dense) throw new Error(`no circuit course for ${v.id}`);
-    const curveA = bodyCurve(v), curveC = mapCurve(dense, TUCKED.has(v.id));
+    const curveA = bodyCurve(v), curveC = mapCurve(dense);
     const A = sampleCurve(curveA, N_TRACK), C = sampleCurve(curveC, N_TRACK);
     const rank = new Float32Array(N_TRACK);
     for (let i = 0; i < N_TRACK; i++) rank[i] = peelRank(sceneToMap(C[i]!.x, C[i]!.y)[0]);
