@@ -4,14 +4,10 @@ import type { ChartCtx } from '../Chart.tsx';
 import { look, type Look } from '../looks.ts';
 import type { Rgba } from '../colour.ts';
 import type { Frame, Shape, TextShape } from '../scene.ts';
-import { samplerFor } from '../../../scene/lenses/model.ts';
-import { lumenShown, profileAt, waistSpan, endSpan } from '../../../engine/hales/portal/stent-geom.js';
 import {
-  COLS, DROP, DROP_NAMES, KEY, N_PROFILE, PANELS, STENT_SPANS, TITLES, TR, VW, dropIn, dropLayout, gateIndex, int, keyCols, localVelocity, openVelocity, sideLayout, smooth01, stentNormal, stentOutline,
-  stentSpan, ten, traceFit, traceFor, traceIn, traceLayout, velPos, xAt, type Panel, type StentState, type TraceIn,
+  COLS, DROP, DROP_NAMES, KEY, PANELS, TITLES, TR, VW, dropIn, dropLayout, keyCols, smooth01, stentSpan, ten, traceFit, traceFor, traceIn, traceLayout, xAt, type Panel, type StentState, type TraceIn,
 } from './model.ts';
 
-interface Span { c: number; a0: number; a1: number; b1: number; b0: number }
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const H = { host: 'stent' };
 const a = (c: Rgba, k: number): Rgba => [c[0], c[1], c[2], c[3] * k];
@@ -58,98 +54,6 @@ function empty(p: Pic, hUnits: number, id: string, what: string): Frame {
 
 // ── the trace's curves, once per state ──
 const tOf = (st: StentState): TraceIn => traceIn(st);
-
-// ── the side view ──
-export interface SideOpts {
-  /** the lumen coloured by what: velocity (the figure's velocity ramp against the stent's usual range) or pressure */
-  color?: 'velocity' | 'pressure';
-  /** the five pressure sites as marks on the drawing (the chart under it shares their x) */
-  sites?: boolean;
-  /** the Doppler third this slide reads, a band behind it: 'proximal' | 'mid' | 'distal' (resolved by the caller from the slide's `gate`) */
-  gate?: 'proximal' | 'mid' | 'distal' | null;
-}
-const GATES = [1 / 6, 0.5, 5 / 6];
-const KEYW = 110, KX = (VW - KEYW) / 2, NKS = 11;
-
-export function sideFrame(st: StentState, c: ChartCtx, o: SideOpts = {}): Frame {
-  const { fs } = unitSize(c), S = sideLayout(fs), p = new Pic(c, fs), id = st.id;
-  const label = st.have ? `${id} side view: flow ${ten(st.flow)} L/min, peak velocity ${int(st.vel)} cm/s, lumen at the narrowest ${ten(st.lumen)} mm` : `${id}: no stent`;
-  const x0 = S.x0, L = S.span, x1 = x0 + L, cy = S.cy, sh = st.sh;
-  const pxMm = Math.min(3.3, L / sh.len / 10), d = st.d, dPx = d * pxMm, s = clamp(st.s, 0, 1), site = st.site;
-  const colorBy = o.color ?? 'velocity', pressure = colorBy === 'pressure';
-  // the two veins either side, open ended: a faint fill and their walls running up to the stent
-  p.rect(0, cy - S.stubH / 2, x0 + 0.5, S.stubH, 'stent.vein.p');
-  p.rect(x1 - 0.5, cy - S.stubH / 2, VW - x1 + 0.5, S.stubH, 'stent.vein.h');
-  const vh = S.stubH / 2;
-  p.line([0, cy - vh, x0, cy - vh], 'stent.vein.wall'); p.line([0, cy + vh, x0, cy + vh], 'stent.vein.wall');
-  p.line([x1, cy - vh, VW, cy - vh], 'stent.vein.wall'); p.line([x1, cy + vh, VW, cy + vh], 'stent.vein.wall');
-  if (!st.have) {
-    p.poly([x0, cy - dPx / 2, x1, cy - dPx / 2, x1, cy + dPx / 2, x0, cy + dPx / 2], 'stent.ghost');
-    p.text(VW / 2, cy, NO_STENT, 'stent.word', fs, 'middle');
-    return frameOf(p, S.h, label);
-  }
-  p.text(4, S.nameY, id === 'DIPS' ? 'PV' : 'RPV', 'tf.vein.name', fs, 'start');
-  p.text(VW - 4, S.nameY, id === 'DIPS' ? 'IVC' : 'RHV', 'tf.vein.name', fs, 'end');
-  // the Doppler's slide third, a band behind everything else on the stent
-  const span = o.gate ? STENT_SPANS[o.gate] : null;
-  if (span) p.rect(x0 + span[0] * L, S.bandY, (span[1] - span[0]) * L, S.bandH, 'stent.gate.band');
-  // the lumen, coloured along the stent: one slice to each of the outline's samples (a gradient of the velocity colours, or of the pressure along the trace)
-  const tr = traceFor(tOf(st));
-  const vel = samplerFor(c.look as never, 'velocity'), pres = samplerFor(c.look as never, 'pressure');
-  const v0 = openVelocity(st.flow, d, id), norm = stentNormal(id, d);
-  const colourAt = (u: number): Rgba => {
-    if (pressure) { const q = pres.at(clamp(st.ivc + tr.P[gateIndex(u, tOf(st).sh.len)]!, 0, 35)); return [q[0], q[1], q[2], 1]; }
-    const q = vel.at(velPos(localVelocity(v0, profileAt(sh, s, site, u)), norm)); return [q[0], q[1], q[2], 1];
-  };
-  const n = N_PROFILE, edge = stentOutline(x0, L, cy, dPx, 0, s, sh, site);
-  for (let i = 0; i < n; i++) {
-    const q0 = 2 * n + 1 - i, q1 = 2 * n + 1 - (i + 1);
-    // (a slice reaches half a sample past its ends so neighbours overlap and no seam shows)
-    const top = [edge[2 * i]!, edge[2 * i + 1]!, edge[2 * (i + 1)]!, edge[2 * (i + 1) + 1]!], bot = [edge[2 * q1]!, edge[2 * q1 + 1]!, edge[2 * q0]!, edge[2 * q0 + 1]!];
-    p.polyFill([...top, ...bot], colourAt((i + 0.5) / n));
-  }
-  p.poly(edge, 'stent.lumen');
-  // the dimension line: the narrowing's length and lumen in mm; with no narrowing the whole stent's length in cm, the same line moving out to the ends
-  const red = sh.red || 0, sMax = Math.max(s, red), wr = sMax > 1e-6 ? red / (red + s) : 0, wsp = waistSpan(sh) as Span, esp = endSpan(sh, site) as Span;
-  const kk = smooth01((sMax - 0.01) / 0.05), xa = x0 + ((esp.a1 + (wsp.a1 - esp.a1) * wr) * kk) * L, xb = x1 + (x0 + (esp.b1 + (wsp.b1 - esp.b1) * wr) * L - x1) * kk, ym = S.dimY;
-  p.line([xa, ym + 4, xa, ym, xb, ym, xb, ym + 4], 'stent.dim');
-  const lx = clamp((xa + xb) / 2, x0 + 24, x1 - 24);
-  p.text(lx, S.labY, `${ten(lumenShown(d * (1 - sMax)))} mm`, 'stent.word', fs, 'middle', kk);
-  p.text(lx, S.labY, `${ten(sh.len)} cm`, 'stent.word', fs, 'middle', 1 - kk);
-  // the flow's arrow, its size following the flow
-  const ak = clamp(0.55 + st.flow / 3, 0.55, 1.35), ax = Math.max(15, x0 / 2), AR = [-9, -3, 1, -3, 1, -7, 10, 0, 1, 7, 1, 3, -9, 3];
-  p.poly(AR.map((v, i) => (i % 2 ? cy + v * ak : ax + v * ak)), 'stent.arrow');
-  // the Doppler's three points: a tick down from the stent's wall, and the number under it (the velocity lens) or the pressure there (the pressure lens)
-  const yb = cy + dPx / 2;
-  for (let q = 0; q < 3; q++) {
-    const xg = x0 + GATES[q]! * L;
-    p.line([xg, yb, xg, S.gateTop], 'stent.gate.tick');
-    p.text(xg, S.numY, pressure ? ten(st.ivc + tr.P[gateIndex(GATES[q]!, sh.len)]!) : int(st.g[q]!), 'stent.num', fs, 'middle');
-  }
-  const capSize = Math.min(fs, 300 / (38 * 0.58));
-  const bHi = Number.isFinite(norm[1]) ? norm[1] : 190, bLo = norm[0];
-  p.text(VW / 2, S.capY, pressure ? 'Static pressure, mmHg' : `Peak at each gate, cm/s (usual ${Math.round(bLo)} to ${Math.round(bHi)})`, 'stent.cap', capSize, 'middle');
-  // the colour key: a strip of the ramp with its ends named (the velocity lens: 0 to twice the usual ceiling with the usual range's edges marked; the pressure lens: 0 to 30 mmHg)
-  const K = 44, kw = KEYW / K, ky = S.keyY - 2.5;
-  for (let i = 0; i < K; i++) {
-    const f = (i + 0.5) / K, q = pressure ? pres.at(clamp(30 * f, 0, 35)) : vel.at(velPos(2 * bHi * f, norm));
-    p.rectFill(KX + i * kw, ky, kw + 0.4, 5, [q[0], q[1], q[2], 1]);
-  }
-  p.rect(KX, ky, KEYW, 5, 'stent.key.bar');
-  p.text(KX - 5, S.keyY, pressure ? '0' : 'slower', 'stent.cap', fs, 'end');
-  p.text(KX + KEYW + 5, S.keyY, pressure ? '30' : 'faster', 'stent.cap', fs, 'start');
-  if (!pressure) for (const b of [bLo, bHi]) { const xk = KX + (KEYW * b) / (2 * bHi); p.line([xk, S.keyY - 4.5, xk, S.keyY + 4.5], 'stent.gate.tick'); }
-  // the five pressure sites as marks on the drawing, on the x the chart under it uses (a tick down to the lumen's top and its digit)
-  if (o.sites) {
-    const X0 = traceLayout(fs).X0, top = S.siteY + 5;
-    for (let k = 0; k < 5; k++) {
-      const cmK = tr.sites[k]!, xk = xAt(cmK, sh.len, x0, x1, X0), inside = cmK > 0 && cmK < sh.len, half = inside ? (dPx * profileAt(sh, s, site, cmK / sh.len)) / 2 : S.stubH / 2;
-      p.line([xk, top, xk, Math.max(top + 1, cy - half - 1)], 'stent.gate.tick');
-      p.text(xk, S.siteY, `${k + 1}`, 'stent.tr.siteNum', fs, 'middle');
-    }
-  }
-  return frameOf(p, S.h, label);
-}
 
 // ── the traces ──
 export interface TraceOpts { pick?: Panel }
