@@ -16,6 +16,11 @@ import { mountPerf } from './ui/perf/mount.ts';
 import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { BootCrash } from './ui/shell/BootCrash.tsx';
+import { AppBoundary } from './ui/shell/AppBoundary.tsx';
+import { markStale } from './boot/lazy-retry.ts';
+import { useShell } from './ui/shell/store.ts';
+import { UPDATE_TOAST } from './pwa/register.ts';
+import { reloadKeepingState } from './boot/reload.ts';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { holdSplash } from './boot/ready.ts';
 import { bakedReady } from './scene/vessels/skin/baked.ts';
@@ -39,6 +44,15 @@ applyGlass(useSettings.getState().blur);
 useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
 dark.addEventListener('change', paint);
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
+// A lazy part's file is gone (a tab open across two deploys) or the network failed: Vite fires this before the import rejects. The rejection is NOT swallowed: lazyRetry tries again and the pane says so (LazyBoundary);
+// here the page learns a newer build may be out, and, online, offers the update toast once.
+let preloadToast = false;
+window.addEventListener('vite:preloadError', () => {
+  markStale();
+  if (preloadToast || navigator.onLine === false) return;
+  preloadToast = true;
+  useShell.getState().say(UPDATE_TOAST, 'info', { label: 'Reload', run: () => { void reloadKeepingState(); } });
+});
 
 /** A page that is not the app (the device frame, the look board, the self-test) puts nothing in #root, so the loading cover (index.html #boot) would stay over it for 20 s and take every click, and the saved look's
  *  colour scheme would turn its form controls dark on its own light page. It lifts the cover at once, gives the page the browser's own scheme and takes the empty full-screen #root out of the way of its clicks (tests/debug-audit.test.ts holds the three callers). */
@@ -92,7 +106,7 @@ async function start() {
   installCaught();
   if (isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
   holdSplash();   // the splash stays until the figure has drawn and its labels are placed (boot/ready.ts), then eases away over the app
-  createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+  createRoot(document.getElementById('root')!).render(<StrictMode><AppBoundary layer="root"><App /></AppBoundary></StrictMode>);
   if (isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();

@@ -24,6 +24,14 @@ export const notYet = (what: string) => `${what} is not in the 3D app yet.`;
 export const NO_WEBGL = { title: 'The 3D app needs WebGL 2', body: 'This browser cannot draw it. The 2D simulator works here.', link: 'Open the 2D simulator', href: 'https://qaddodi.github.io/portal-pressure-simulator/' } as const;
 /** The engine could not start (src/main.tsx, BootCrash.tsx). 2D says "The model stopped. Reload, or restart this patient." once it runs; at start there is no patient to restart. */
 export const BOOT_CRASH = { title: 'The simulation could not start', body: 'Its engine did not load. Reload to try again.', reload: 'Reload' } as const;
+/** The app-level safety net (AppBoundary.tsx): a render error outside a card never blanks the app. */
+export const APP_CRASH = {
+  title: 'Something went wrong', body: 'The simulator hit an unexpected error. Reload to pick up where you were.',
+  figureTitle: 'The 3D figure stopped', figureBody: 'The controls still work. Reload to bring the figure back where you were.',
+  reload: 'Reload', copy: 'Copy details', copied: 'Copied', twoD: 'Open the 2D simulator',
+} as const;
+/** The figure's graphics context was lost after the first picture (scene/context-loss.ts, ContextNote.tsx). */
+export const GL_LOSS = { redrawing: 'Redrawing the figure…', stuck: 'The figure could not be redrawn.', reload: 'Reload' } as const;
 /** Settings › Blur effect in the 3D app today */
 export const FIGURE_DETAIL_TITLE = 'Figure detail';
 

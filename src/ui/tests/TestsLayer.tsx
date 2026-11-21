@@ -1,7 +1,7 @@
 // The Tests card (2D dock.js "Instruments card"): a card on the right of a wide screen, a sheet over the foot of a phone or an upright iPad, with a row of tabs (Pressure, IR,
 // Doppler, Endoscopy, Ascites, FibroScan, Readouts, Trials; Over time lives under Pressure). Always in the page and fading; the instrument on show is remembered on the device.
 // The Tests button, the I key and the search commands open it through the shell's `tests` feature.
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import './tests.css';
 import './trace/trace.css';
@@ -42,28 +42,30 @@ import { D_FLIP, D_SMALL, EASE_IN } from './copied/ease.copied.js';
 import { reduced } from '../a11y/motion.ts';
 import { M } from '../shell/metrics.ts';
 import { topBarH } from '../shell/room.ts';
+import { lazyRetry } from '../../boot/lazy-retry.ts';
+import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 // (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
-const IrPane = lazy(() => LOADERS.hvpg().then((m) => ({ default: m.IrPane })));
-const DopplerPane = lazy(() => LOADERS.doppler().then((m) => ({ default: m.DopplerPane })));
-const EndoPane = lazy(() => LOADERS.endoscopy().then((m) => ({ default: m.EndoPane })));
-const FibroPane = lazy(() => LOADERS.fibroscan().then((m) => ({ default: m.FibroPane })));
-const TrialsPane = lazy(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
+const IrPane = lazyRetry(() => LOADERS.hvpg().then((m) => ({ default: m.IrPane })));
+const DopplerPane = lazyRetry(() => LOADERS.doppler().then((m) => ({ default: m.DopplerPane })));
+const EndoPane = lazyRetry(() => LOADERS.endoscopy().then((m) => ({ default: m.EndoPane })));
+const FibroPane = lazyRetry(() => LOADERS.fibroscan().then((m) => ({ default: m.FibroPane })));
+const TrialsPane = lazyRetry(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
 export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number }
 const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
-  trials: () => <Suspense fallback={null}><TrialsPane /></Suspense>,
+  trials: () => <LazyBoundary><TrialsPane /></LazyBoundary>,
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
   abdomen: (p) => <AbdomenPane square={p.square} />,
   scope: (p) => <PressureTab own="scope" {...p} />,
   profile: (p) => <PressureTab own="profile" {...p} />,
-  hvpg: (p) => <Suspense fallback={null}><IrPane {...p} /></Suspense>,
-  doppler: (p) => <Suspense fallback={null}><DopplerPane {...p} /></Suspense>,
-  endoscopy: (p) => <Suspense fallback={null}><EndoPane {...p} /></Suspense>,
-  fibroscan: (p) => <Suspense fallback={null}><FibroPane {...p} /></Suspense>,
+  hvpg: (p) => <LazyBoundary><IrPane {...p} /></LazyBoundary>,
+  doppler: (p) => <LazyBoundary><DopplerPane {...p} /></LazyBoundary>,
+  endoscopy: (p) => <LazyBoundary><EndoPane {...p} /></LazyBoundary>,
+  fibroscan: (p) => <LazyBoundary><FibroPane {...p} /></LazyBoundary>,
 };
 export function registerPane(id: PaneId, render: (p: PaneProps) => ReactNode): void { BUILT[id] = render; }
 

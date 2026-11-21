@@ -10,7 +10,7 @@ import { holdsAll, loadedAssets, offerReload, UPDATE_TOAST } from '../src/pwa/re
 import { decideKey } from '../src/ui/keys/keymap.ts';
 import { radius, HOLD_MS, VEIL } from '../src/ui/deck/laser.ts';
 import { claims } from '../src/parity/b1.ts';
-import { useShell } from '../src/ui/shell/store.ts';
+import { useUi } from '../src/ui/ui-store.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const src = (f: string) => readFileSync(join(root, f), 'utf8');
@@ -26,18 +26,18 @@ test('an update is offered once, as a toast with a Reload button, and only to a 
     { getAttribute: (k: string) => (k === 'href' ? '/fonts/fonts.css' : null) },
   ] };
   assert.deepEqual(loadedAssets(doc as never), ['assets/index-AB12.js', 'assets/index-CD34.css']);
-  useShell.setState({ mode: 'free' });
+  useUi.getState().openDeck(null);
   const said: unknown[][] = [];
   offerReload((...a: unknown[]) => { said.push(a); }, () => { throw new Error('free play asks at once'); });
   assert.equal(said[0]![0], UPDATE_TOAST);
   assert.equal((said[0]![2] as { label: string }).label, 'Reload');
   // in a talk it waits and asks again once the talk is over
-  useShell.setState({ mode: 'deck' });
+  useUi.getState().openDeck({ id: 'x' } as never);
   const later: (() => void)[] = [];
   const said2: unknown[][] = [];
   offerReload((...a: unknown[]) => { said2.push(a); }, (fn) => { later.push(fn); });
   assert.equal(said2.length, 0, 'not over a slide');
-  useShell.setState({ mode: 'free' });
+  useUi.getState().openDeck(null);
   later[0]!();
   assert.equal(said2.length, 1);
 });
@@ -47,7 +47,7 @@ test('Shift C is the lens key too, ? in a talk opens the guide at While presenti
   assert.deepEqual(decideKey({ key: 'C', code: 'KeyC', shiftKey: true }, ctx), { type: 'lens', dir: 1 });
   assert.equal(decideKey({ key: 'c', code: 'KeyC' }, ctx), null, 'plain C is nothing');
   const keys = src('src/ui/keys/useKeys.ts');
-  assert.match(keys, /case 'help': openGuide\(sh\.mode === 'deck' \? 'present' : null\)/);
+  assert.match(keys, /case 'help': openGuide\(talkOn\(\) \? 'present' : null\)/);
   // Esc in the sinusoid (2D keyboard.js): with nothing else up it is the sinusoid step, which the key handler answers by going to the lobule; a selected structure's card goes first
   const none = { dialog: false, sheet: false, testsOpen: false, testsFocus: false, treatOpen: false, sinusoid: false, selection: false, talk: false };
   assert.equal(escStep({ ...none, sinusoid: true }), 'sinusoid');

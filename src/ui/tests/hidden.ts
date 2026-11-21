@@ -7,6 +7,7 @@ import { hvBlocked } from '../../engine/hales/portal/pressure-cuts.js';
 import { create } from 'zustand';
 import { useShell } from '../shell/store.ts';
 import { useEngine, patient } from '../../engine/index.ts';
+import { talkOn, useTalkOn } from '../../state/deck.ts';
 
 /** 2D store.js `showHvpg`: the HVPG shows without having been measured. Set false to bring the older rule back (hidden until the HVPG procedure has run, or Always show). */
 export const SHOW_HVPG = true;
@@ -45,10 +46,10 @@ export function hiddenOf({ base = null, presenting = false, measured = false, pa
 }
 
 /** The set for the patient now on show (outside React). */
-export const hiddenNow = (): ReadonlySet<string> | null => hiddenOf({ presenting: useShell.getState().mode === 'deck', measured: useMeasured.getState().hvpgMeasured, params: patient.params });
+export const hiddenNow = (): ReadonlySet<string> | null => hiddenOf({ presenting: talkOn(), measured: useMeasured.getState().hvpgMeasured, params: patient.params });
 /** The same, as a hook: a pane re-renders when the patient or the mode changes. */
 export function useHidden(): ReadonlySet<string> | null {
-  useEngine((s) => s.presetId); useShell((s) => s.mode); useMeasured((s) => s.hvpgMeasured);
+  useEngine((s) => s.presetId); useTalkOn(); useMeasured((s) => s.hvpgMeasured);
   return hiddenNow();
 }
 
