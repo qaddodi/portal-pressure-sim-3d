@@ -2,7 +2,7 @@
 // Pure geometry on the tubes `buildTubes` made; no scene objects. The hull rule (4.4 rule 3) is WP2's, called back through `hullOk`.
 import type { BufferGeometry } from 'three';
 import { TUBE_RADIAL } from '../tubes.ts';
-import { SKIN_GROWERS, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
+import { SKIN_GROWERS, armR, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
 export interface ArmTube { geometry: BufferGeometry; tubular: number }
@@ -88,7 +88,7 @@ function sdCapsule(p: ArrayLike<number>, o: number, c: Capsule): number {
  * Throws a `SkinBuildError` for the node when an arm runs out of rings or the tries; the scene keeps today's method for that node.
  */
 export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, hullOk: HullOk, clear: { k: number; r: number } = { k: CLEAR_K, r: CLEAR_R }): SkinCut[] {
-  const n = j.arms.length, k = CUT_SKIN_K * Math.min(...j.arms.map((a) => a.restR));
+  const n = j.arms.length, k = CUT_SKIN_K * Math.min(...j.arms.map(armR));
   const rings: Ring[][] = j.arms.map((a) => {
     const t = tubes.get(a.vesselId);
     if (!t) throw new SkinBuildError(j.node, `no tube for ${a.vesselId}`);
