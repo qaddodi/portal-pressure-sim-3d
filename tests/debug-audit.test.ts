@@ -261,3 +261,11 @@ test('the on-device banner (?audit=here) has the same speed list as the frames p
   const pg = readFileSync(new URL('../src/ui/debug/audit/page.ts', import.meta.url), 'utf8');
   assert.match(pg, /import \{ SPEEDS \} from '\.\/outer\.ts'/); assert.match(pg, /mode === 'here' \? speed : undefined/);
 });
+
+test('fade-slow is not judged above FRAME_LIMIT_SPEED (the sampler sees a fade as two ticks: about 2.08 s on 179 iPhone rows at 20x)', async () => {
+  const { FRAME_LIMITED_KINDS, FRAME_LIMIT_SPEED } = await import('../src/ui/debug/audit/speed.ts');
+  const { dropsFinding } = await import('../src/ui/debug/audit/report.ts');
+  assert.ok(FRAME_LIMITED_KINDS.has('fade-slow'));
+  assert.equal(dropsFinding({ speed: 20 } as never, 'fade-slow'), true);
+  assert.equal(dropsFinding({ speed: FRAME_LIMIT_SPEED } as never, 'fade-slow'), false);
+});
