@@ -19,6 +19,7 @@ import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
 import { renderStats } from '../../../debug/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
+import { estimateSteps } from './progress.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -27,6 +28,9 @@ const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 /** Waits (up to `ms`) for something an open starts asynchronously (a talk's cover, its charts, its first cards), so the walk's "is the page still?" never reads the instant before it begins. */
 const until = async (cond: () => boolean, ms: number) => { const t = performance.now(); while (!cond() && performance.now() - t < ms) await sleep(50); };
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
+
+/** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
+export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length) });
 
 // ── the steps ──
 const SHEETS_QUICK = ['sheet:settings', 'sheet:help'];
@@ -199,7 +203,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
       const gpu: RowGpu | null = rs ? {
         calls: rs.calls, triangles: rs.triangles, programs: rs.programs, geometries: rs.geometries, textures: rs.textures, skinRebuilds: (cel.skinStats?.rebuilds ?? 0) - skin0,
         boundCpu: st.boundCpu, boundGpu: st.boundGpu,
-        slow: st.slow.slice(0, 3).map((f) => { const g = f.gl as { calls?: number; triangles?: number } | undefined; return { ms: r1(f.ms), gap: r1(f.gap), bound: f.bound, tags: f.tags, calls: g?.calls, triangles: g?.triangles }; }),
+        slow: st.slow.slice(0, 3).map((f) => { const g = f.gl as { calls?: number; triangles?: number } | undefined; return { ms: r1(f.ms / speed), gap: r1(f.gap / speed), bound: f.bound, tags: f.tags, calls: g?.calls, triangles: g?.triangles }; }),
       } : null;
       return {
         stalls: stalls.slice(), gpu,

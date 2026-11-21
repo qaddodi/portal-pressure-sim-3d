@@ -6,6 +6,7 @@ import { createClock } from '../src/clock/frame.ts';
 import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/judge.ts';
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
 import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
+import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
 import { speedOf, scaleTime, scaleTimers, sampleRealMs, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
@@ -94,7 +95,8 @@ test('report: GPU-bound section, renderer line and per-step gl column; a speed r
   assert.match(t, /iphone RENDERER/); assert.match(t, /gl 100 calls 500000 tris/);
   assert.ok(groupFindings(b).some((g) => g.kind === 'gpu-bound'));
   const fast = { ...b, speed: 4 };
-  assert.ok(!groupFindings(fast).some((g) => ['gpu-bound', 'stall', 'low-fps'].includes(g.kind)));
+  assert.ok(!groupFindings(fast).some((g) => ['gpu-bound', 'low-fps'].includes(g.kind)));
+  assert.ok(groupFindings(fast).some((g) => g.kind === 'stall'));   // (a real-time frame gap is valid at any speed)
   assert.match(renderText(fast), /SPEED RUN x4/);
 });
 
@@ -132,7 +134,7 @@ test('LAGS: steps under 30 fps or with a gap over 100 ms, worst first, with the 
   assert.match(l[1]!.where, /leave the talk/); assert.match(l[1]!.transition, /LEAVING/);
   assert.equal(transitionOf(rows, 0), 'ENTERING stop 6');
   const t = renderText(b); assert.ok(t.indexOf('LAGS') < t.indexOf('FAILING') || !t.includes('FAILING')); assert.ok(t.indexOf('LAGS') < t.indexOf('FINDINGS BY KIND') || !t.includes('FINDINGS BY KIND'));
-  assert.match(renderText({ ...b, speed: 4 }), /LAGS[^\n]*\nnot available/);
+  assert.match(renderText({ ...b, parallel: true }), /LAGS[^\n]*\nnot available/);
 });
 
 test('zero stalls: any frame gap over 50 ms fails (never a warning), is counted in the headline and listed under LAGS; a speed run leaves it out', () => {
@@ -141,5 +143,19 @@ test('zero stalls: any frame gap over 50 ms fails (never a warning), is counted 
   const b: Bundle = { build: 'b', device: 'd', at: 'n', depth: 'full', framed: false, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: false, rows: [one], console: [], notes: [] }], failed: [] };
   assert.equal(lags(b).length, 1);
   assert.match(renderText(b), /STALLS: 1 frame gap over 50 ms in 1 step/);
-  assert.match(renderText({ ...b, speed: 4 }), /STALLS: not measured/);
+  assert.match(renderText({ ...b, speed: 4 }), /STALLS: 1 frame gap over 50 ms in 1 step.*real time at speed x4/);
+  assert.equal(lags({ ...b, speed: 20 }).length, 1); assert.ok(lags({ ...b, speed: 20 })[0]!.serious); assert.match(renderText({ ...b, speed: 20 }), /SERIOUS LAG: /); assert.ok(!lags(b)[0]!.serious);   // (a stall is still a lag at 20x)
+  assert.match(renderText({ ...b, parallel: true }), /STALLS: not measured/);
+});
+
+test('progress: the step total is counted up front, the percentage stays under 100 until done, the ETA comes from the pace, and sizes combine', () => {
+  const a = { sheets: 6, presets: 8, decks: [10, 20] };
+  assert.equal(estimateSteps('full', a), 4 + 6 + 1 + (5 + 6) + (1 + 11 + 1) + (1 + 21 + 1) + 1);
+  assert.equal(estimateSteps('quick', a), 4 + 2 + 1 + 5 + (1 + 4 + 1) * 2 + 1);
+  assert.equal(pace(0, 100, 0, 0).pct, 0);
+  const p = pace(30, 120, 0, 60000);   // 30 steps in a minute: 90 left is 3 minutes
+  assert.equal(p.pct, 25); assert.match(p.text, /step 30 of about 120 · 25% · about 3 min left/);
+  assert.equal(pace(130, 120, 0, 1).total, 131); assert.equal(pace(130, 120, 0, 1).pct, 99);   // (a run longer than the estimate grows the total and never shows 100 early)
+  assert.equal(pace(130, 120, 0, 1, true).pct, 100);
+  assert.deepEqual(combine(3, new Map([['a', { n: 10, total: 100 }]])), { n: 10, total: 300 });
 });

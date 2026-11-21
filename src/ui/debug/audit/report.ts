@@ -44,7 +44,7 @@ export interface Bundle {
   build: string; device: string; at: string; depth: 'quick' | 'full'; framed: boolean;
   /** the sizes ran at the same time: frame rates and timings are not valid */
   parallel?: boolean;
-  /** `?audit&speed=N` ran the page's clock N times faster: fades and settle times are page time, but frame rates and stalls are NOT valid */
+  /** `?audit&speed=N` ran the page's clock N times faster: fades and settle times are page time, but frame rates are NOT valid; stalls ARE (a frame gap is measured in real time) */
   speed?: number;
   /** wall-clock ms of the whole run */
   wallMs?: number;
@@ -64,7 +64,7 @@ export interface Group { kind: string; sev: Sev; what: string; places: string[] 
 /** Findings that are timings: a run with the sizes at the same time shares one computer, so these are not valid there and are left out (and counted). */
 export const TIMING_KINDS = new Set(['stall', 'low-fps', 'slow-load', 'fade-slow', 'unsettled', 'gpu-bound', 'fade-under-stall']);
 /** Frame-based timings are not valid at `?audit&speed=N` over 1: the frames do not run faster, only the page's clock does (settle and fade lengths stay valid, in page time). */
-export const SPEED_INVALID = new Set(['stall', 'low-fps', 'gpu-bound', 'fade-under-stall']);
+export const SPEED_INVALID = new Set(['low-fps', 'gpu-bound', 'fade-under-stall']);
 export const dropsFinding = (b: Bundle, kind: string): boolean => (!!b.parallel && TIMING_KINDS.has(kind)) || ((b.speed ?? 1) > 1 && SPEED_INVALID.has(kind)) || ((b.speed ?? 1) > FRAME_LIMIT_SPEED && FRAME_LIMITED_KINDS.has(kind));
 
 export function groupFindings(b: Bundle): Group[] {
@@ -91,7 +91,7 @@ export function groupConsole(b: Bundle): { level: string; text: string; n: numbe
 const median = (xs: number[]) => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)]! : 0; };
 
 
-export interface Lag { where: string; transition: string; fps: number | null; worstGap: number; stalls: number; cause: string }
+export interface Lag { /** a lag at speed N: the page ran N times faster and still froze, so it counts as serious */ serious?: boolean; where: string; transition: string; fps: number | null; worstGap: number; stalls: number; cause: string }
 /** What the step did, in a person's words: opening a talk, leaving it, or going from the stop before to this one. */
 export function transitionOf(rows: readonly AuditRow[], i: number): string {
   const r = rows[i]!;
@@ -109,11 +109,11 @@ export function lags(b: Bundle): Lag[] {
   if (dropsFinding(b, 'stall')) return [];
   const out: (Lag & { rank: number })[] = [];
   for (const p of b.parts) p.rows.forEach((r, i) => {
-    const f = r.frames, slowFps = f.fps != null && f.frames >= 10 && f.fps < LAG_FPS, bigGap = f.worstGap > LAG_GAP_MS || f.stalls > 0;   // (zero stalls is the rule: any frame gap over 50 ms is a lag)
+    const f = r.frames, slowFps = (b.speed ?? 1) <= 1 && f.fps != null && f.frames >= 10 && f.fps < LAG_FPS, bigGap = f.worstGap > LAG_GAP_MS || f.stalls > 0;   // (zero stalls is the rule: any frame gap over 50 ms is a lag)
     if (!slowFps && !bigGap) return;
     const top = r.gpu?.slow[0];
     const cause = top ? `slowest frame: work ${top.ms} ms, gap ${top.gap} ms${top.bound ? `, waited on ${top.bound}` : ''}, asked by ${top.tags.join('/') || '-'}` : r.gpu ? 'no slow frame recorded' : 'no renderer data';
-    out.push({ where: where(p, { ...r, label: r.label }), transition: transitionOf(p.rows, i), fps: f.fps, worstGap: f.worstGap, stalls: f.stalls, cause, rank: Math.max(f.worstGap, f.fps != null && f.fps > 0 ? 1000 / f.fps * 3 : 0) });
+    out.push({ serious: (b.speed ?? 1) > 1 ? true : undefined, where: where(p, { ...r, label: r.label }), transition: transitionOf(p.rows, i), fps: f.fps, worstGap: f.worstGap, stalls: f.stalls, cause, rank: Math.max(f.worstGap, f.fps != null && f.fps > 0 ? 1000 / f.fps * 3 : 0) });
   });
   return out.sort((a, b2) => b2.rank - a.rank).map(({ rank: _r, ...l }) => l);
 }
@@ -159,16 +159,16 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   L.push(`SUMMARY: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} console message${con.length === 1 ? '' : 's'}; ${steps} steps in ${b.parts.length} size${b.parts.length === 1 ? '' : 's'}; ${animTotal} CSS animations and transitions recorded; run time ${mins(wall)}${b.parallel ? ' (PARALLEL: fps and timings NOT valid)' : ''}${(b.speed ?? 1) > 1 ? ` (SPEED x${b.speed}: fps, stalls and GPU-bound NOT valid)` : ''}`);
   const lg = lags(b);
   const stallN = dropsFinding(b, 'stall') ? null : rows.reduce((n, { r }) => n + r.frames.stalls, 0), stallSteps = dropsFinding(b, 'stall') ? 0 : rows.filter(({ r }) => r.frames.stalls > 0).length;
-  L.push(`STALLS: ${stallN == null ? 'not measured (parallel or speed run)' : `${stallN} frame gap${stallN === 1 ? '' : 's'} over 50 ms in ${stallSteps} step${stallSteps === 1 ? '' : 's'}${stallN ? ' (each one fails; zero is the rule)' : ' (zero: good)'}`}`);
-  L.push(''); L.push(`LAGS (steps under ${LAG_FPS} fps, with a frame gap over ${LAG_GAP_MS} ms, or with ANY stall (a gap over 50 ms): zero stalls is the rule, so each is a failure; worst first; this is the list to read first)`);
-  if (dropsFinding(b, 'stall')) L.push('not available: frame timings are not valid in a parallel or speed run. Run once on its own, without speed.');
+  L.push(`STALLS: ${stallN == null ? 'not measured (the sizes ran at the same time on one computer, so no frame gap is real)' : `${stallN} frame gap${stallN === 1 ? '' : 's'} over 50 ms in ${stallSteps} step${stallSteps === 1 ? '' : 's'}${stallN ? ' (each one fails; zero is the rule)' : ' (zero: good)'}${(b.speed ?? 1) > 1 ? ` [measured in real time at speed x${b.speed}: a freeze is a long real gap at any speed; frames per second are not measured in a speed run]` : ''}`}`);
+  L.push(''); L.push(`LAGS (steps under ${LAG_FPS} fps, with a frame gap over ${LAG_GAP_MS} ms, or with ANY stall (a gap over 50 ms): zero stalls is the rule, so each is a failure; worst first;${(b.speed ?? 1) > 1 ? ` at speed x${b.speed} the real gap threshold is NOT relaxed: any real frame gap over 50 ms is a SERIOUS LAG;` : ''} this is the list to read first)`);
+  if (dropsFinding(b, 'stall')) L.push('not available: the sizes ran at the same time on one computer, so no frame gap is real. Run them one after the other.');
   else if (!lg.length) L.push('none: every step stayed at or above 30 fps with no gap over 100 ms');
-  else for (const l of lg.slice(0, o.short ? 15 : 40)) L.push(`${l.fps != null ? `${l.fps} fps` : 'fps n/a'}, worst gap ${l.worstGap} ms, ${l.stalls} stall${l.stalls === 1 ? '' : 's'}  ${l.where}\n    ${l.transition}; ${l.cause}`);
+  else for (const l of lg.slice(0, o.short ? 15 : 40)) L.push(`${l.serious ? 'SERIOUS LAG: ' : ''}${l.fps != null ? `${l.fps} fps` : 'fps n/a'}, worst gap ${l.worstGap} ms, ${l.stalls} stall${l.stalls === 1 ? '' : 's'}  ${l.where}\n    ${l.transition}; ${l.cause}`);
   if (lg.length > (o.short ? 15 : 40)) L.push(`and ${lg.length - (o.short ? 15 : 40)} more (all in the JSON rows)`);
   L.push('');
   if (kinds.size) L.push(`FINDINGS BY KIND: ${[...kinds].sort((a, b2) => b2[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   if (b.parallel) L.push(`PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid, and ${rows.reduce((n, { r }) => n + r.flags.filter((f) => TIMING_KINDS.has(f.kind)).length, 0)} timing findings (stall, low-fps, slow-load, fade-slow, unsettled) are left out. Layout, snaps, coverage and console errors are valid.`);
-  if ((b.speed ?? 1) > 1) L.push(`SPEED RUN x${b.speed}: the page's clock ran ${b.speed} times faster, so settle and fade lengths are in page time (valid), but frame rates, stalls, low-fps, gpu-bound and fade-under-stall findings are NOT valid and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => SPEED_INVALID.has(f.kind)).length, 0)} dropped). Layout, coverage and console errors are valid.${(b.speed ?? 1) > FRAME_LIMIT_SPEED ? ` ABOVE ${FRAME_LIMIT_SPEED}x the page draws only a frame or two of each ease, so fade, snap and pop findings (fade-instant, flash, card-pop, generic-pop...) are NOT valid either and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => FRAME_LIMITED_KINDS.has(f.kind)).length, 0)} dropped): use speed=${FRAME_LIMIT_SPEED} or less for those.` : ' Snaps and fades are valid up to 4x.'} Run once without speed for the real timings.`);
+  if ((b.speed ?? 1) > 1) L.push(`SPEED RUN x${b.speed}: the page's clock ran ${b.speed} times faster, so settle and fade lengths are in page time (valid), but frame rates (low-fps), gpu-bound and fade-under-stall findings are NOT valid and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => SPEED_INVALID.has(f.kind)).length, 0)} dropped). Layout, coverage, console errors and STALLS (real-time frame gaps over 50 ms) are valid.${(b.speed ?? 1) > FRAME_LIMIT_SPEED ? ` ABOVE ${FRAME_LIMIT_SPEED}x the page draws only a frame or two of each ease, so fade, snap and pop findings (fade-instant, flash, card-pop, generic-pop...) are NOT valid either and are left out (${rows.reduce((n, { r }) => n + r.flags.filter((f) => FRAME_LIMITED_KINDS.has(f.kind)).length, 0)} dropped): use speed=${FRAME_LIMIT_SPEED} or less for those.` : ' Snaps and fades are valid up to 4x.'} Run once without speed for the real timings.`);
   L.push(`device: ${b.device}`);
   L.push(`sizes: ${b.parts.map((p) => `${p.size.id} ${p.size.w}x${p.size.h}@${p.size.dpr} (${p.rows.length} steps, ${mins(p.ms)}${p.stopped ? ', STOPPED' : ''})`).join('; ') || 'none'}${b.parts.length > 1 ? (b.parallel ? ' (sizes ran at the same time)' : ` (ran one after the other, ${mins(wall)} in all)`) : ''}`);
   if (b.failed.length) { L.push(''); L.push('SIZES THAT DID NOT FINISH'); for (const f of b.failed) L.push(`- ${f.size}: ${f.why}`); }
