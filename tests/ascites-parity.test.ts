@@ -5,7 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { AscitesLayer, POOL_FS, POOL_VS } from '../src/scene/disease/ascites.ts';
+import { HULL_FS, HULL_VS } from '../src/scene/disease/ascites-hull-glsl.ts';
+import { AscitesLayer } from '../src/scene/disease/ascites.ts';
 import { FLUID_COLS, FLUID_R, LIVER_AT, NO_LIVER, liverCut, liverEdgeTable, liverKeep, lowerEdge } from '../src/scene/disease/liver-edge.ts';
 import { LiverFollow } from '../src/scene/disease/follow.ts';
 import { liverShrink } from '../src/scene/disease/copied/liver-morph.js';
@@ -57,10 +58,10 @@ test('the cut eases: over a 0 to 0.6 ramp of the liver\'s own congestion (LiverF
 });
 
 test('the pool\'s program carries 2D\'s liver frame map and the cut on the final alpha only; the vertex program writes the 2D position', () => {
-  assert.match(POOL_FS, /\(w - vec2\(560\.0, 350\.0\)\) \/ uLiverScale \+ vec2\(560\.0, 350\.0\)/, 'the liver\'s frame, exactly as veins-gl.js fluidAt');
-  assert.match(POOL_FS, /texelFetch\(uLiverEdge, ivec2\(l0, 0\), 0\)/);
-  assert.match(POOL_FS, /gl_FragColor\.a \*= liverKeep\(vW2d, /);
-  assert.match(POOL_VS, /varying vec2 vW2d;/); assert.match(POOL_VS, /vW2d = vec2\(position\.x \* 300\.0 \+ 700\.0, 556\.0 - position\.y \* 300\.0\);/);
+  assert.match(HULL_FS, /\(w - vec2\(560\.0, 350\.0\)\) \/ uLiverScale \+ vec2\(560\.0, 350\.0\)/, 'the liver\'s frame, exactly as veins-gl.js fluidAt');
+  assert.match(HULL_FS, /texelFetch\(uLiverEdge, ivec2\(l0, 0\), 0\)/);
+  assert.match(HULL_FS, /gl_FragColor\.a \*= liverKeep\(vW2d, /);
+  assert.match(HULL_VS, /varying vec2 vW2d;/); assert.match(HULL_VS, /vW2d = vec2\(position\.x \* 300\.0 \+ 700\.0, 556\.0 - position\.y \* 300\.0\);/);
 });
 
 test('setLiver: congestion 0 leaves the cut off and the table untouched; congestion past 0.5 turns it on, and the table moves with the liver', () => {

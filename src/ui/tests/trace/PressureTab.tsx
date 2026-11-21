@@ -1,5 +1,5 @@
-// The Pressure tab (2D dock.js): the chart along the circuit, or the same pressures over time. Where the card is roomy (a side card 600 px tall or more) the two read as one story, stacked
-// with no switch; elsewhere the tab keeps a small switch, "Along the circuit" / "Over time".
+// The Pressure tab (2D dock.js): the chart along the circuit, or the same pressures over time, under a small switch, "Along the circuit" / "Over time". One view at a time on every card size
+// (Mohammad, 21 Nov 2026: stacked, the two crammed the card and their readouts collided).
 import type { PaneId } from '../panes.ts';
 import { useTests } from '../store.ts';
 import { lazy, Suspense } from 'react';
@@ -11,13 +11,12 @@ const ProfilePane = lazy(() => import('../profile/ProfilePane.tsx').then((m) => 
 export const PRESSURE_VIEWS: readonly (readonly [PaneId, string])[] = [['profile', 'Along the circuit'], ['scope', 'Over time']];
 
 function View({ id, p }: { id: PaneId; p: PaneProps }) {
-  if (id === 'scope') return <OverTimePane plot={p.roomy ? Math.min(p.plot, 230) : p.plot} />;
+  if (id === 'scope') return <OverTimePane plot={p.plot} />;
   return <Suspense fallback={null}><ProfilePane {...p} /></Suspense>;
 }
 
 export function PressureTab({ own, ...p }: PaneProps & { own: PaneId }) {
   const show = useTests((s) => s.show);
-  if (p.roomy) return <><View id="profile" p={p} /><View id="scope" p={p} /></>;
   // 2D's own markup (dock.js pressureSwitch: the switch is the pane's first child, its view the next), so the 2D stylesheet's rules for a pane's view reach the view
   return (
     <>

@@ -227,7 +227,8 @@ export class ProcCatheter {
       put(sub.id, dRef, uRef, (sub.d1 - sub.d0) / Math.max(1e-6, Math.abs(sub.fb - sub.fa)), 0);
       // (a child starts where its parent's line says it is, so the field is one number across the seam, by construction)
       const mine = pieces.get(sub.id)!;
-      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) put(v.id, mine.d0, 1, Math.max(1e-6, r.total - sub.d1), 0.6);
+      // (a fork leaves its host WHERE ITS OWN END 1 TOUCHES IT, not at the host's outer end: it starts at the host's line there, so host and fork share one distance at the join and one front crosses both)
+      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) put(v.id, this.forkStartD(sub.id, v.id, mine), 1, Math.max(1e-6, r.total - sub.d1), 0.6);
     }
     const br = r.parts.find((q) => q.name === 'branch');
     if (br?.id && NETWORK_BY_ID.has(br.id)) {
@@ -239,6 +240,13 @@ export class ProcCatheter {
     // easing it a second time here (a smootherstep) made the middle of the fill 3.5 times as fast, so whole vessels flooded at once (Mohammad, 21 Nov: "filling in segments")
     const front = col * (far + frontSoft);
     return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, front, frontSoft, behind: soft, pieces };
+  }
+  /** The host's route-distance line (`d0 + slope u`) read where child `id`'s end (u = 1) touches the host's drawn centreline (the host's outer end when either has no drawn course). */
+  private forkStartD(hostId: string, id: string, host: WedgePiece): number {
+    const h = this.courseOf(hostId), c = this.courseOf(id);
+    if (!h || !c) return host.d0;
+    const p = c.pointAt(1);
+    return host.d0 + host.slope * h.nearestU(p);
   }
   private readonly wedgeColor = new Color();
   private readonly courses = new Map<string, Centreline | null>();

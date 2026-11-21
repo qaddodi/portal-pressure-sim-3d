@@ -1,14 +1,15 @@
 // The audit's renderer and stall instruments (code review 21 Nov, #4 #5 #6 #9 #10): pure, so Node reads them in a second.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boundBy, readStats, frameBegin, frameEnd, renderStats, memoryClimb, type InfoLike } from '../src/debug/render-stats.ts';
+import { boundBy, readStats, frameBegin, frameEnd, renderStats, memoryClimb, type InfoLike } from '../src/clock/render-stats.ts';
 import { createClock } from '../src/clock/frame.ts';
 import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/judge.ts';
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
 import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
 import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
 import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
-import { speedOf, scaleTime, scaleTimers, sampleRealMs, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
+import { describeEl } from '../src/ui/debug/audit/scan.ts';
+import { speedOf, scaleTime, scaleTimers, sampleRealMs, scaledDelay, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
 
@@ -118,12 +119,13 @@ test('speed 10: timers scale with the clock, the sampler never ticks faster than
   const orig = g.setTimeout, t = scaleTimers(10, g);
   (g.setTimeout as unknown as (f: () => void, ms: number) => void)(() => undefined, 950); t.restore();
   assert.deepEqual(seen, [95]); assert.equal(g.setTimeout, orig);
-  assert.equal(sampleRealMs(33, 1), 33); assert.equal(sampleRealMs(33, 4), 8.25); assert.equal(sampleRealMs(33, 10), 8);
+  assert.equal(sampleRealMs(33, 1), 33); assert.equal(sampleRealMs(33, 2), 16.5); assert.equal(sampleRealMs(33, 10), 50); assert.equal(sampleRealMs(33, 20), 50);   // (never a layout read every few ms: that starved the page at 20x)
+  assert.equal(scaledDelay(950, 10), 95); assert.equal(scaledDelay(50, 20), 16); assert.equal(scaledDelay(8, 20), 8); assert.equal(scaledDelay(0, 20), 0);   // (a short poll never becomes a hot loop)
   const row = judgeStep({ group: 'g', id: 'x', label: 'x', run: () => undefined }, 'x', { samples: card([0, 0, 1, 1]), gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
   const b = (speed: number): Bundle => ({ build: 'b', device: 'd', at: 'n', depth: 'quick', framed: false, speed, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'quick', stopped: false, rows: [row], console: [], notes: [] }], failed: [] });
-  assert.ok(groupFindings(b(4)).some((x) => x.kind === 'fade-instant'));
+  assert.ok(groupFindings(b(2)).some((x) => x.kind === 'fade-instant'));
   assert.ok(!groupFindings(b(10)).some((x) => x.kind === 'fade-instant'));
-  assert.match(renderText(b(10)), /ABOVE 4x/); assert.doesNotMatch(renderText(b(4)), /ABOVE 4x/);
+  assert.match(renderText(b(10)), /ABOVE 2x/); assert.doesNotMatch(renderText(b(2)), /ABOVE 2x/);
 });
 
 test('LAGS: steps under 30 fps or with a gap over 100 ms, worst first, with the talk, stop and the transition; at the top of the report', () => {
@@ -162,9 +164,78 @@ test('progress: the step total is counted up front, the percentage stays under 1
 });
 
 test('the banner: each speed has a hint, the address follows the choices, and the frames get speed and glass without the URL being edited', () => {
-  assert.deepEqual(SPEEDS.map((x) => x.n), [1, 4, 10, 20]); assert.ok(SPEEDS.every((x) => x.hint.length > 20));
+  assert.deepEqual(SPEEDS.map((x) => x.n), [1, 2, 10, 20]); assert.ok(SPEEDS.every((x) => x.hint.length > 20));
   assert.equal(addressFor('?audit&look=dark&speed=4', { sizes: ['iphone', 'mac'], depth: 'quick', speed: 10, noglass: true, parallel: false }), '?audit&sizes=iphone,mac&depth=quick&speed=10&noglass=1&look=dark');
   assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'full', speed: 1, noglass: false, parallel: true, auto: true }), '?audit=frames&sizes=mac&depth=full&parallel=1');
   assert.equal(childSrc('/p/', '?audit&speed=2&noglass=1&look=dark', 'quick', { speed: 20, noglass: true }), '/p/?audit=run&depth=quick&speed=20&noglass=1&look=dark');
   assert.equal(childSrc('/p/', '?audit&speed=2', 'full'), '/p/?audit=run&depth=full');
+});
+
+test('a generic pop names the element: selector, its words, three parents and the card', () => {
+  const el = (tag: string, cls: string, text: string, parent: unknown = null, card?: string) => { const e: Record<string, unknown> = { tagName: tag.toUpperCase(), id: '', className: cls, textContent: text, parentElement: parent, getAttribute: () => null, closest: () => (card ? { getAttribute: () => card } : null) }; return e as unknown as Element; };
+  const card = el('section', 'dk-card', '', el('div', 'stage', ''), 'teach'), data = el('div', 'pz-data', '', card, 'teach'), metric = el('div', 'metric inert', '', data, 'teach'), span = el('span', 'val big', '2.3  mmHg', metric, 'teach');
+  const d = describeEl(span);
+  assert.match(d, /^span\.val\.big "2\.3 mmHg" in div\.metric\.inert < div\.pz-data < section\.dk-card \[card teach\]$/);
+  assert.match(describeEl(el('span', 'x', '')), /\(no words\)/);
+});
+
+// ── the sequential pass (external review, finding 9) ──
+import { sequence, newProof, type Driver, type Where } from '../src/ui/debug/audit/sequence.ts';
+import { sequenceOn } from '../src/ui/debug/audit/progress.ts';
+import { estimateSteps as estSteps } from '../src/ui/debug/audit/progress.ts';
+
+/** A fake talk: `beats[i]` presses inside stop i, `bug` makes it misbehave. */
+function fakeTalk(beats: number[], bug: { stuckAt?: number; backWrong?: number; noHeadingAt?: number } = {}): Driver & { log: string[] } {
+  let stop = 0, beat = 0, ended = false; const log: string[] = [];
+  const w = (): Where => ({ stop, beat, page: 0, ended });
+  return {
+    log, total: beats.length,
+    now: w,
+    press(m) {
+      log.push(m);
+      if (m === 'next') { if (bug.stuckAt === stop && beat === beats[stop]! - 1) return; if (beat < beats[stop]! - 1) beat++; else if (stop < beats.length - 1) { stop++; beat = 0; } else ended = true; }
+      else if (beat > 0) beat--; else if (stop > 0) { stop = bug.backWrong === stop ? Math.max(0, stop - 2) : stop - 1; beat = bug.backWrong === stop + 1 ? 0 : beats[stop]! - 1; }
+    },
+    headings: () => (bug.noHeadingAt === stop ? [] : [`H${stop}`]), targets: () => 3, selectors: async () => 1,
+    nameOf: (k) => ({ kind: 'slide', name: `Slide ${k}` }), go: (k) => { stop = k; beat = 0; },
+  };
+}
+const walk = async (d: ReturnType<typeof fakeTalk>, edges = true) => { const p = newProof('T'); const steps = []; for await (const s of sequence(d, 'T', { edges }, p)) { await s.run(); steps.push(s); } return { p, steps }; };
+
+test('sequential pass: every stop is stood on by Next presses, with Back and Next at each edge, and intended/reached/skipped is said', async () => {
+  const { p, steps } = await walk(fakeTalk([1, 3, 1, 2]));
+  assert.equal(p.intended, 4); assert.deepEqual(p.reached, [0, 1, 2, 3]); assert.deepEqual(p.skipped, []);
+  assert.deepEqual(p.backFailed, []); assert.equal(p.stuckAt, null);
+  assert.ok(steps.some((s) => /Back at the edge of stop 2/.test(s.label))); assert.equal(p.selectorsClicked, 4);
+  assert.ok(steps.every((s) => !s.flags?.some((f) => f.sev === 'fail')));
+});
+
+test('sequential pass: a Next that does nothing, a Back that lands wrong and a slide with no heading are findings, and what was never reached is SKIPPED', async () => {
+  const stuck = await walk(fakeTalk([1, 2, 1, 1], { stuckAt: 1 }));
+  assert.equal(stuck.p.stuckAt, 2); assert.deepEqual(stuck.p.skipped, [3, 4]);
+  assert.ok(stuck.steps.some((s) => s.flags?.some((f) => f.kind === 'next-stuck')));
+  const back = await walk(fakeTalk([1, 1, 1, 1], { backWrong: 2 }));
+  assert.deepEqual(back.p.backFailed, [3]); assert.ok(back.steps.some((s) => s.flags?.some((f) => f.kind === 'back-edge')));
+  const nohead = await walk(fakeTalk([1, 1, 1], { noHeadingAt: 1 }));
+  assert.deepEqual(nohead.p.noHeading, [2]);
+  const fast = await walk(fakeTalk([1, 1, 1]), false); assert.ok(!fast.steps.some((s) => /Back at/.test(s.label)));
+});
+
+test('sequential pass: the report says intended, reached and skipped per talk and size, and stamps the deployment SHA', () => {
+  const proof = { ...newProof('HVPG'), intended: 15, reached: [0, 1, 2], skipped: [4, 5], presses: 20, backFailed: [3], stuckAt: 4 };
+  const b: Bundle = { build: 'b', sha: '95029606abc', device: 'd', at: 'n', depth: 'full', framed: true, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: true, rows: [], console: [], notes: [], sequence: [proof] }], failed: [] };
+  const t = renderText(b);
+  assert.match(t, /deployment SHA: 95029606abc/); assert.match(t, /SEQUENTIAL PASS iphone .*partial/);
+  assert.match(t, /HVPG: intended 15, reached 3, skipped 2 \(stop 4, 5\)/); assert.match(t, /NEXT STUCK at stop 4/); assert.match(t, /Back failed at stop 3/);
+  assert.ok(estSteps('full', { sheets: 2, presets: 4, decks: [10], sequence: true }) > estSteps('full', { sheets: 2, presets: 4, decks: [10] }));
+});
+
+test('walk every press: on for Full, off for Quick, the person can flip it, the address carries it and the progress total shows its effect', () => {
+  assert.equal(sequenceOn(null, 'full'), true); assert.equal(sequenceOn(null, 'quick'), false); assert.equal(sequenceOn('1', 'quick'), true); assert.equal(sequenceOn('0', 'full'), false);
+  const a = { sheets: 6, presets: 8, decks: [10, 20] };
+  const off = estSteps('full', a), on = estSteps('full', { ...a, sequence: true });
+  assert.ok(on > off * 1.5);   // (the toggle shows up in the total the bar counts to)
+  assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'quick', speed: 1, noglass: false, parallel: false, sequence: true }), '?audit&sizes=mac&depth=quick&sequence=1');
+  assert.equal(childSrc('/p/', '?audit&sequence=0', 'full', { sequence: true }), '/p/?audit=run&depth=full&sequence=1');
+  assert.equal(childSrc('/p/', '?audit', 'full'), '/p/?audit=run&depth=full');
 });

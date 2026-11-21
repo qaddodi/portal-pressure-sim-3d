@@ -9,10 +9,11 @@ import { flagValue } from '../flags.ts';
 import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
+import type { SequenceProof } from './sequence.ts';
 import { speedOf, scaleTime, scaleTimers } from './speed.ts';
 import { SPEEDS } from './outer.ts';
 
-export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
+export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'partial'; data: AuditData } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
 const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);max-width:min(560px,94vw);font:500 12px/1.35 system-ui,-apple-system,sans-serif;color:#efefef;background:rgba(20,20,24,.92);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px}
 .au button{font:inherit;font-weight:600;color:inherit;min-height:32px;padding:0 10px;margin:0 6px 6px 0;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:transparent}
@@ -21,8 +22,8 @@ const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);ma
 const depthOf = (): 'quick' | 'full' => (flagValue('depth') === 'quick' ? 'quick' : 'full');
 
 /** One run of this screen: the data for its size. */
-export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string, total: number): void }, speedIn?: number): Promise<AuditData> {
-  const notes: string[] = [], coverage: Coverage[] = [];
+export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): void; stop(): boolean; step?(n: number, label: string, total: number): void; /** the data so far, every few steps */ partial?(d: AuditData): void }, speedIn?: number): Promise<AuditData> {
+  const notes: string[] = [], coverage: Coverage[] = [], sequenceProofs: SequenceProof[] = [];
   const { failed } = await loadAllDecks();   // (the registry holds only the HVPG talk until the rest are read in)
   if (failed.length) notes.push(`these talks would not load, so they are not walked: ${failed.join(', ')}`);
   const speed = speedOf(speedIn !== undefined ? String(speedIn) : flagValue('speed'));
@@ -36,16 +37,16 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
   const dev = ['iphone', 'iphone-landscape', 'ipad', 'ipad-portrait', 'mac', 'mac-short'].map((id) => deviceOf(id)!).find((d) => d.w === w && d.h === h);
   const size = { id: dev?.id ?? `${w}x${h}`, w, h, dpr: devicePixelRatio };
   try {
-    const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c)), {
+    const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c), (p) => sequenceProofs.push(p)), {
       size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => performance.now(), quietMs: QUIET_MS,
-    }, { depth, notes, coverage, shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`, total); } });
+    }, { depth, notes, coverage, sequence: sequenceProofs, onPartial: (d) => ui.partial?.({ ...d, build: buildInfo().badge, speed: speed > 1 ? speed : undefined }), shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`, total); } });
     return { ...data, build: buildInfo().badge, speed: speed > 1 ? speed : undefined };
   } finally { taps.stop(); clockScale.restore(); timerScale.restore(); if (glassOff) document.documentElement.removeAttribute('data-noglass'); }
 }
 
 const bundle = (parts: AuditData[], depth: 'quick' | 'full', failed: Bundle['failed'] = []): Bundle => {
   const b = buildInfo();
-  return { build: b.badge || b.release || b.commit || 'dev', device: `${navigator.userAgent} · dpr ${devicePixelRatio} · ${innerWidth}x${innerHeight}`, at: new Date().toISOString(), depth, framed: false, speed: parts[0]?.speed, parts, failed };
+  return { build: b.badge || b.release || b.commit || 'dev', sha: b.commit || undefined, device: `${navigator.userAgent} · dpr ${devicePixelRatio} · ${innerWidth}x${innerHeight}`, at: new Date().toISOString(), depth, framed: false, speed: parts[0]?.speed, parts, failed };
 };
 
 export function mountAudit(mode: 'here' | 'run'): void {
@@ -74,9 +75,10 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const btn = (label: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = on; row.append(b); return b; };
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
   const go = async (depth: 'quick' | 'full') => {
+    const saveSoFar = (d: AuditData) => { last = bundle([d], depth); if (mode === 'run') post({ audit: 'partial', data: d }); };
     if (running) return; running = true; sel.disabled = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = performance.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
     try {
-      const data = await runHere(depth, { status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, performance.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
+      const data = await runHere(depth, { partial: saveSoFar, status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, performance.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
       bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, performance.now(), true).text;
       last = bundle([data], depth);
       out.textContent = renderText(last, { short: true }); out.hidden = false;

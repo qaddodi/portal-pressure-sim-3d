@@ -17,6 +17,9 @@ import { OrderIcon } from '../icons.tsx';
 import { Icon } from '../../shell/icons.tsx';
 import { runFeature } from '../../shell/features.ts';
 import { registerPanel } from '../panels.ts';
+import { Chart } from '../../charts/Chart.tsx';
+import { stentState } from '../../charts/stent/model.ts';
+import { newKeep, tipsFigureFrame } from '../../tests/ir/tips-figure.ts';
 import { stentControls } from './stent-controls.copied.ts';
 import { EDITOR_ROWS, CAPTION, LUMEN, lumLo, mm1, rowValue, tileWords } from './stent-rows.copied.ts';
 import { VESSEL_KEYS } from './vessel-keys.copied.ts';
@@ -217,11 +220,30 @@ function VesselKeys({ id }: { id: string }) {
   );
 }
 
+/** The stent drawn to scale in the vessel card (2D tips-vessel.js): its lumen coloured by velocity, the waist's and the end stenosis's brackets, the three Doppler gates' numbers and the two ends'. It
+ *  follows the engine's frame and the params as they are edited (a slider drag moves it at once; the brackets fade with their narrowing). The chart under it is Tests > IR's alone (`chart: false`). */
+function CardFigure({ id }: { id: string }) {
+  useEngine((s) => s.frames);
+  useParamsTick((s) => s.tick);
+  const keep = useRef(newKeep());
+  const sid = id === 'DIPS' ? 'DIPS' : 'TIPS';
+  const st = stentState(latest.frame, sid, currentParams() as never);
+  const r = (v: number, k = 10) => Math.round(v * k);
+  const sig = [st.have ? 1 : 0, r(st.flow, 100), r(st.dp), r(st.ppg), r(st.ivc), st.g.map((g) => r(g, 1)).join(), r(st.tract, 100), r(st.wall, 100), r(st.ends, 100), r(st.jet, 100), r(st.sh.len, 100), r(st.sh.waist, 100), r(st.sh.trans, 100), r(st.sh.red || 0, 1000), r(st.d), r(st.s, 1000), r(st.site, 1000)].join('|');
+  return (
+    <div className="tf tf-card">
+      <Chart tag="card-tips" deps={[sig, sid]} label={`${sid}, drawn to scale, with its pressures and velocities`}
+        build={(c) => tipsFigureFrame(stentState(latest.frame, sid, currentParams() as never), c, { lens: 'velocity', labels: true, chart: false, keep: keep.current })} />
+    </div>
+  );
+}
+
 /** The card's stent panel: for a TIPS or DIPS the numbers line and the editor; for a custom shunt the editor alone. */
 export function StentPanel({ id }: { id: string }) {
   const stent = id === 'TIPS' || id === 'DIPS';
   return (
     <div className="tv" style={{ ['--se-id' as string]: id } as CSSProperties}>
+      {stent && <CardFigure id={id} />}
       {stent && <VesselKeys id={id} />}
       <StentEditor id={id} />
     </div>

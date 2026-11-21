@@ -10,10 +10,12 @@ import { vesselFit, type VesselFit } from './fit.ts';
 import type { VesselObject } from '../../vessels/vessel-object.ts';
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
+import { stentGraftEdge, stentGoldEdge, stentWireEdge } from './stent-look.ts';
 import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
+import { STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
-import { endOf, endSiteOf, geomOf, kindOf } from '../../../engine/hales/portal/stent-geom.js';
+import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
 import { stentOpen } from '../../../engine/hales/portal/stent-ease.js';
 import { indexOf } from '../../../engine/vessel-data.ts';
 
@@ -22,9 +24,11 @@ const FADE_MS = 420;
 const WIRE_RADIAL = WIRE_SIDES, GRAFT_RADIAL = DEVICE_SIDES, GOLD_RADIAL = WIRE_SIDES;
 /** The 2D device's own alpha for the graft: nearly clear (stent-mesh.js graftAlpha, 0.86 lit, a tenth of that in the shade; the tube is lit from every side, so the mean). */
 /** (The 2D graft is white where the light falls, 0.86, and a tenth of that in the shade; here, lit from every side, a milky sleeve over the lumen: the cover reads as a cover.) */
-const GRAFT_ALPHA = 0.5;
+const GRAFT_ALPHA = 0.4;
 /** The far wires of the weave, thinner and half seen (the 2D draws the back half at 0.5 and 0.12 of the front's strength), and the bright core along the near ones (the 2D's glint). */
-const BACK_ALPHA = 0.28, FRONT_ALPHA = 0.8, GLINT_ALPHA = 0.6, BACK_R = 0.7, GLINT_R = 0.38;
+/** The band and tab, faded with the rest (owner, 21 Nov 2026: option 4, "a bit faded"). */
+const GOLD_ALPHA = STENT_GOLD_ALPHA;
+const BACK_ALPHA = 0.18, FRONT_ALPHA = STENT_FRONT_ALPHA, GLINT_ALPHA = 0.4, BACK_R = 0.7, GLINT_R = 0.38;
 
 interface Params { stentGeom?: unknown; stenosis?: unknown; thrombus?: unknown; stenosisSite?: unknown }
 interface Frame { D: ArrayLike<number> }
@@ -43,6 +47,8 @@ export class StentDevice {
   /** what the last build was made of, for tests and the bracket */
   paths: StentPaths | null = null;
   private key = '';
+  private geom: StentSpec['geom'] | null = null;
+  private lastR = 0;
   private readonly curve: CatmullRomCurve3;
   private readonly L: number;
   private readonly fitOf: VesselFit;
@@ -57,11 +63,12 @@ export class StentDevice {
     this.curve = new CatmullRomCurve3(pts, false, 'centripetal');
     this.L = this.curve.getLength();
     const empty = mergeTubes([], WIRE_RADIAL);
-    this.graft = new DeviceObject(empty.clone(), 'graft', shared, { px: 0.8, order: 1, spec: 0, shadow: 1 }, 'ink');
-    this.back = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.3, order: 2 }, 'ink');
-    this.wires = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.4, order: 3 }, 'ink');
+    this.graft = new DeviceObject(empty.clone(), 'graft', shared, { px: 0.8, order: 1, spec: 0, shadow: 1 }, stentGraftEdge);
+    this.graft.setGlass(STENT_GLASS.fill, STENT_GLASS.rim);
+    this.back = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.3, order: 2 }, 'none');
+    this.wires = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0.4, order: 3 }, stentWireEdge);
     this.glint = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0, order: 4, spec: 0 }, 'ink');
-    this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.6, order: 5 }, 'ink');
+    this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.6, order: 5 }, stentGoldEdge);
     this.objects = [this.graft, this.back, this.wires, this.glint, this.gold];
     for (const o of this.objects) this.group.add(o.group);
     this.group.visible = false;
@@ -69,12 +76,14 @@ export class StentDevice {
 
   /** The shunt's vessel: it carries the narrowing. */
   bindVessel(v: VesselObject): void {
-    this.vessel = v;
+    this.vessel = v; this.paintCircuit();
     const g = v.toonMesh.geometry;
     if (!g.getAttribute('narrow')) g.setAttribute('narrow', new BufferAttribute(new Float32Array(g.getAttribute('position').count), 1));
   }
 
-  applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); }
+  applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); this.paintCircuit(); }
+  /** The Circuit draws this stent on the shunt's own tube: it takes the colours and strengths from the same table as the 3D device, so the two views cannot differ. */
+  private paintCircuit(): void { if (this.vessel && this.lastPalette) { const l = stentCircuitLook(this.lastPalette); this.vessel.setStentLook(l.wire, l.wireA, l.gold, l.goldA); } }
   setPhone(phone: boolean): void { for (const o of this.objects) o.setPhone(phone); }
 
   /** The spec the stent is built from, for these params and this live diameter (mm). */
@@ -104,6 +113,7 @@ export class StentDevice {
     // the shape: rebuilt only when it changes (diameter on the engine's own half-mm step, the waist and the end stenosis)
     const dq = Math.round(D * 4) / 4;
     const spec = this.specFor(params, dq);
+    this.geom = spec.geom; this.lastR = spec.R;   // (the waist's bracket follows the params at once, as the card's picture does)
     const key = [dq.toFixed(2), spec.geom.len, spec.geom.waist, spec.geom.trans, spec.geom.red.toFixed(4), spec.s.toFixed(4), spec.site.toFixed(3)].join('|');
     if (goal && key !== this.key) { this.key = key; this.rebuild(spec); moved = true; }
     if (moved) this.dirty = true;
@@ -140,7 +150,7 @@ export class StentDevice {
   private apply(): void {
     const a = this.amount;
     this.group.visible = a > 0.002 && !!this.paths;
-    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a);
+    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a * GOLD_ALPHA);
     this.graft.setShadowAlpha(a);   // (the sleeve is nearly clear, its shadow is not: it follows the stent's own share)
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
@@ -148,6 +158,17 @@ export class StentDevice {
     if (!this.paths) return;
     // the vessel's own narrowing eases with the stent: it is only there while the stent is
     if (a < 0.999 && this.vessel) { /* the vessel keeps the narrowing while it fades; the stent leaves with the vessel */ }
+  }
+
+  /** The waist's bracket (labels/waist-bracket.ts): the scene points where its flat floor starts and ends on the stent's axis (written into `a` and `b`), the stent's radius, and how much shows
+   *  (the waist's own ramp times the stent's amount, so it eases with both). Null with no stent built. */
+  waistMark(a: Vector3, b: Vector3): { r: number; shown: number } | null {
+    const g = this.geom;
+    if (!g || !this.paths) return null;
+    const sp = waistSpan(g) as { a1: number; b1: number }, A = Math.max(0.01, this.L - 2 * INSET);
+    this.curve.getPointAt(Math.min(1, Math.max(0, (INSET + sp.a1 * A) / this.L)), a);
+    this.curve.getPointAt(Math.min(1, Math.max(0, (INSET + sp.b1 * A) / this.L)), b);
+    return { r: this.lastR, shown: this.amount * Math.min(1, Math.max(0, ((g.red || 0) - 0.004) / 0.03)) };
   }
 
   /** Eases the amount. True while it moves (or draws once more). */

@@ -48,3 +48,9 @@
 .t-card .dock-body { transition: opacity .22s var(--ease, cubic-bezier(.22, 1, .36, 1)); }
 .t-card[data-peek] .dock-body { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .t-card .dock-body { transition: none; } }
+
+/* a card opening cold stays hidden until its pane is built and drawn (dock/swap.ts cold), then fades in on its usual curve: no shell over an empty plot */
+#app .t-pos[data-open="true"][data-cold="true"] > .t-card.instrument-workspace.float-ui { opacity: 0; }
+/* the busy Measure button keeps its label readable while it runs (review #4): a disabled primary button is not a faded one */
+.hvpg-bar .btn.primary:disabled { opacity: 1; background: color-mix(in srgb, var(--accent) 78%, var(--surface, transparent)); color: var(--on-accent); }
+.tests-owner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 0; }

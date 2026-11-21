@@ -40,6 +40,9 @@ const text = (x: number, y: number, s: string, k: Look, o: Partial<TextShape> = 
   ({ k: 'text', x, y, s, size: k.size!, weight: k.weight, color: k.fill!, anchor: 'middle', ...(k.halo ? { halo: k.halo } : {}), ...o });
 
 /** The frame of `plan` as `view` shows it (a moment of a glide, or the chart at rest: restView). */
+/** Where the unit's baseline goes: just over the top gridline's number (the smallest y of the gridlines, less a line of the type). */
+export const profileUnitY = (ys: readonly number[], f: number): number => Math.min(...ys) - 0.75 * f;
+
 export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { cell?: CellOpts | null } = {}): Frame {
   const { G, f, tw, w, spans } = plan, sh = view.shown, top = sh.top, lk = profileLooks(c, f, o.cell);
   const shapes: Shape[] = [];
@@ -74,7 +77,8 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     shapes.push({ k: 'line', x1: G.L, x2: G.R, y1: g.y, y2: g.y, pen: { color: gl.stroke!, w: gl.width ?? 1 } });
     if (k) shapes.push(text(G.L - 6, g.y + 0.35 * f, words0(g.v), gt, { anchor: 'end' }));
   });
-  shapes.push(text(0, G.braceY + 1.55 * f, 'mmHg', lk('plot.unit'), { anchor: 'start' }));
+  // (The unit stands by the top gridline, over its number, not orphaned under the brace at the foot where 2D put it: Mohammad, 21 Nov, "the mmHg sits under the axis". profileUnitY, pinned by a test.)
+  shapes.push(text(0, profileUnitY(gridOf(G, f, top).map((g) => g.y), f), 'mmHg', lk('plot.unit'), { anchor: 'start' }));
 
   // The line's fill, closed down to the zero line, and the line: one piece a span of the gradient.
   const line = smooth(xs, py), np = line.length / 2, fillK = lk('prof.fill').opacity ?? 0.16;

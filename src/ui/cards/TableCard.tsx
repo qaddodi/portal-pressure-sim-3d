@@ -39,6 +39,14 @@ function Td({ c }: { c: Cell }) {
   }
 }
 
+/** A column head wider than its cell: its widest word past the cell's content box (a word that spills into the cell's own 2 px of padding is still cut by the table's edge on the last column: the Liver flow head, 2 px, iPhone Quick run), or the cell's scroll width past its width. */
+export function headOver(t: HTMLElement): boolean {
+  if (t.scrollWidth > t.clientWidth + 1) return true;
+  const cs = getComputedStyle(t), room = t.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const r = document.createRange(); r.selectNodeContents(t);
+  return r.getBoundingClientRect().width > room + 0.5;
+}
+
 export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const spec = slide.table!;
   const key = `${deck.id}:${slide.id}`;
@@ -61,7 +69,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
     const fit = () => {
       const was = tr.classList.contains('th-up');
       tr.classList.remove('th-up'); box.classList.remove('dk-up');
-      const over = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => t.scrollWidth > t.clientWidth + 1);
+      const over = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => headOver(t));
       if (was) { tr.classList.add('th-up'); box.classList.add('dk-up'); }
       if (over !== was) setUp(over);
     };

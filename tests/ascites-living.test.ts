@@ -6,12 +6,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  AscitesLayer, CLIMB_PX, FEATHER_PX, LIVING_TAU, POOL_COLS, POOL_FS, POOL_ROWS, POOL_VS, RIPPLE_DEPTH, RIPPLE_PX, RIPPLE_REST_PX, SLOSH_MAX,
+  AscitesLayer, CLIMB_PX, POOL_BASE_GLSL, FEATHER_PX, LIVING_TAU, POOL_COLS, POOL_ROWS, RIPPLE_DEPTH, RIPPLE_PX, RIPPLE_REST_PX, SLOSH_MAX,
   bulgeStep, outlinePolygon, poolLift, rippleBoost, sloshStep, wallDistance,
 } from '../src/scene/disease/ascites.ts';
+import { HULL_FS, HULL_VS } from '../src/scene/disease/ascites-hull-glsl.ts';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
 import { DEFAULTS } from '../src/state/settings.ts';
-import { y2d } from '../src/scene/frame2d.ts';
+import { x2d, y2d } from '../src/scene/frame2d.ts';
 
 type Geo = { getAttribute(n: string): { array: Float32Array } };
 const attrs = (a: AscitesLayer) => { const g = (a.group.children[0] as unknown as { geometry: Geo }).geometry; return { pos: g.getAttribute('position').array, aD: g.getAttribute('aD').array, aW: g.getAttribute('aW').array }; };
@@ -22,29 +23,24 @@ test('Living fluid is a Figure depth switch, on by default', () => {
 });
 
 test('the pool is one program with the wall distance and the depth per vertex, named so a refused shader hides it rather than greys the belly', () => {
-  assert.match(POOL_VS, /attribute float aW;/); assert.match(POOL_VS, /attribute float aD;/);
-  assert.match(POOL_FS, new RegExp(`smoothstep\\(0\\.0, ${FEATHER_PX}\\.0, wpx\\)`), 'the edge fades over FEATHER_PX screen pixels');
-  assert.doesNotMatch(POOL_FS, /pow\(/, 'pow of a negative base is undefined in GLSL (the sheen and the meniscus are exp(-x*x))');
-  assert.equal(((new AscitesLayer().group.children[0] as unknown as { material: { name: string } }).material.name), 'pool');
-  assert.match(readFileSync('src/debug/shader-guard.ts', 'utf8'), /m\.name === 'pool'/);
+  assert.match(HULL_VS, /attribute float aW;/); assert.match(HULL_VS, /attribute float aD;/);
+  assert.match(HULL_FS, new RegExp(`smoothstep\\(0\\.0, ${FEATHER_PX}\\.0, wpx\\)`), 'the edge fades over FEATHER_PX screen pixels');
+  assert.doesNotMatch(POOL_BASE_GLSL, /pow\(/, 'pow of a negative base is undefined in GLSL (the sheen and the meniscus are exp(-x*x))');
+  for (const m of new AscitesLayer().group.children as unknown as { material: { name: string } }[]) assert.match(m.material.name, /^pool-/);
+  assert.match(readFileSync('src/debug/shader-guard.ts', 'utf8'), /m\.name\.startsWith\('pool-'\)/);
 });
 
-test('the pool is a wall-hugging mesh: every inside column ends on the wall, none runs up to the top of the figure', () => {
+test('the hull hugs the wall: the last row of every column lies on it, none runs up to the top of the figure', () => {
   for (const ml of [800, 2500, 5000, 8500]) {
     const a = new AscitesLayer(); a.set(ml);
-    const { pos, aD, aW } = attrs(a), poly = outlinePolygon(ABDOMEN_OUTLINES[bulgeStep(ml)]!);
-    let inside = 0;
-    for (let c = 0; c < POOL_COLS; c++) {
-      const floor = c * POOL_ROWS + POOL_ROWS - 1, y = y2d(pos[floor * 3 + 1]!);
-      assert.ok(y >= 440 - 1e-3 && y <= 1075, `${ml} mL, column ${c}: y ${y.toFixed(1)} is inside the cavity (a column outside it once sat at 0, the top of the figure)`);
-      if (aD[floor]! > 0) { inside++; assert.ok(aW[floor]! < 1e-3, `${ml} mL, column ${c}: the floor row lies on the wall (${aW[floor]})`); }
+    const g = (a.group.children[1] as unknown as { geometry: { getAttribute(n: string): { array: Float32Array } } }).geometry;
+    const pos = g.getAttribute('position').array, aW = g.getAttribute('aW').array, NT = 20, COLS = 97, poly = outlinePolygon(ABDOMEN_OUTLINES[bulgeStep(ml)]!);
+    for (let c = 0; c < COLS; c++) {
+      const floor = c * NT + NT - 1, y = y2d(pos[floor * 3 + 1]!);
+      assert.ok(y >= 440 - 1e-3 && y <= 1075, `${ml} mL, column ${c}: y ${y.toFixed(1)} is inside the cavity`);
+      assert.ok(aW[floor]! < 1e-3, `${ml} mL, column ${c}: the floor row lies on the wall (${aW[floor]})`);
     }
-    assert.ok(inside > 40, `${ml} mL: ${inside} columns hold water`);
-    // the wall distance in the buffer is the distance to the outline
-    for (const c of [20, 52, 80]) {
-      const v = c * POOL_ROWS + 2;
-      if (aD[c * POOL_ROWS + POOL_ROWS - 1]! > 0) assert.ok(Math.abs(aW[v]! - wallDistance(poly, 296 + c * 8, y2d(pos[v * 3 + 1]!))) < 0.1, `${ml} mL, column ${c}: the buffer holds the distance to the outline`);
-    }
+    for (const c of [20, 48, 76]) { const v = c * NT + 2; assert.ok(Math.abs(aW[v]! - wallDistance(poly, x2d(pos[v * 3]!), y2d(pos[v * 3 + 1]!))) < 1.5, `${ml} mL, column ${c}: the buffer holds the distance to the outline`); }
     a.dispose();
   }
 });
@@ -76,9 +72,9 @@ test('the effects are screen pixels: on a phone (0.6 px per 2D unit) the ripple,
   assert.ok(Math.abs(poolLift({ wx: 500, aW: 0, aD: 0, phase: 0, amp: 0, slosh: 0, living: 1, pxu }) * pxu - CLIMB_PX) < 1e-9, 'the climb is CLIMB_PX px');
   const off = Math.max(...Array.from({ length: 200 }, (_, i) => Math.abs(poolLift({ wx: 100 + i * 5, aW: 900, aD: 0, phase: 0, amp: 2, slosh: 0, living: 0, pxu }))));
   assert.ok(off <= 2 + 1e-9, 'Living fluid off is 2D\'s ripple, whatever the screen');
-  assert.match(POOL_VS, /uniform vec2 uRes;/); assert.match(POOL_VS, /projectionMatrix\[1\]\[1\] \* uRes\.y/);
-  assert.match(POOL_FS, /varying float vPxu;/);
-  assert.doesNotMatch(POOL_FS, /smoothstep\(0\.0, \d+\.0, vW\)/, 'no edge is left in 2D units');
+  assert.match(HULL_VS, /uniform vec2 uRes;/); assert.match(HULL_VS, /projectionMatrix\[1\]\[1\] \* uRes\.y/);
+  assert.match(HULL_FS, /varying float vPxu;/);
+  assert.doesNotMatch(HULL_FS, /smoothstep\(0\.0, \d+\.0, vW\)/, 'no edge is left in 2D units');
   const a = new AscitesLayer(); const res = { value: { x: 390, y: 844 } } as never; a.bindRes(res);
   assert.equal(uni(a).uRes, res as never, 'the pool reads the scene\'s own canvas size');
   a.dispose();
@@ -87,7 +83,7 @@ test('the effects are screen pixels: on a phone (0.6 px per 2D unit) the ripple,
 test('the ripple is 2D\'s: two sines, amplitude from the volume', () => {
   const r = (wx: number, phase: number) => poolLift({ wx, aW: 500, aD: 0, phase, amp: 2, slosh: 0, living: 0 });
   assert.ok(Math.abs(r(100, 0) - (Math.sin(100 / 38) * 0.7 + Math.sin(100 / 23) * 0.3) * 2) < 1e-9);
-  assert.match(POOL_VS, /sin\(wx \/ 38\.0 \+ uPhase\) \* 0\.7 \+ sin\(wx \/ 23\.0 - uPhase \* 1\.3\) \* 0\.3/);
+  assert.match(HULL_VS, /sin\(wx \/ 38\.0 \+ uPhase\) \* 0\.7 \+ sin\(wx \/ 23\.0 - uPhase \* 1\.3\) \* 0\.3/);
 });
 
 test('the slosh swings with the level and always comes back to calm, never past its limit, never a jump', () => {

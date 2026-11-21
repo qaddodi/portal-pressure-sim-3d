@@ -33,6 +33,7 @@ import { useCardDrag, justDragged } from './useCardDrag.ts';
 import { cardZoom, emptyTap, zoomPlan } from './card-zoom.ts';
 import { reduced } from '../a11y/motion.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
+import { useDeckWheel } from '../deck/useDeckWheel.ts';
 import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
@@ -248,6 +249,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // anywhere brings it back; a tap on its handle too
   const dockable = (plan.layout === 'stack' || plan.layout === 'tab') && (!plan.strip || plan.docked) && !!dataShown && !!wordsShown && !alone;
   useDockSwipe({ enabled: dockable && !cardZoom.on, docked: plan.docked, onSettle: (closed) => setDocked(closed) });
+  // a Mac trackpad's two-finger sideways swipe: one slide a gesture (the glide after the fingers lift never skips another)
+  useDeckWheel(goTo);
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
   const swipe = useCardDrag({
     onEnd: (g, e) => {

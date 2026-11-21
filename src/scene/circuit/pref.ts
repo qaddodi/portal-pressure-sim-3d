@@ -1,20 +1,18 @@
-// The Circuit's turn, remembered across visits (the 2D app's `circ-turn` preference). With nothing stored, a phone held upright opens it standing (the 2D app's rule:
-// a tall screen wants the tall map); everything else opens wide.
+// The Circuit's turn follows the screen: upright when it is taller than wide, wide when it is wider (user, 21 Nov 2026). Every way in (view switch, talk slide, deep link)
+// asks `entryUpright()`; a turn of the screen while the map shows is followed by `followScreen` (view-actions.ts), eased. The turn button still changes it until the screen turns.
 import { create } from 'zustand';
-import { STORAGE_PREFIX } from '../../state/settings.ts';
 
-const KEY = `${STORAGE_PREFIX}circuitRot`;
-
-function read(): boolean {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v === '1') return true;
-    if (v === '0') return false;
-  } catch { /* no storage: the default */ }
-  try { return matchMedia('(max-width: 1100px) and (orientation: portrait)').matches; } catch { return false; }
-}
+/** True when the screen is taller than wide. */
+export function screenPortrait(w = typeof window === 'undefined' ? 0 : window.innerWidth, h = typeof window === 'undefined' ? 0 : window.innerHeight): boolean { return h > w; }
 
 export const useCircuitTurn = create<{ upright: boolean; set(on: boolean): void }>((set) => ({
-  upright: read(),
-  set: (on) => { set({ upright: on }); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* not remembered */ } },
+  upright: screenPortrait(),
+  set: (on) => set({ upright: on }),
 }));
+
+/** The turn to enter the Circuit with: the screen's own. */
+export function entryUpright(): boolean {
+  const on = screenPortrait();
+  if (useCircuitTurn.getState().upright !== on) useCircuitTurn.getState().set(on);
+  return on;
+}

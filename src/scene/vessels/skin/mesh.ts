@@ -48,6 +48,9 @@ export const NORMAL_BLEND_ROWS = 2;
 export const CREASE_DEG = 35;
 export const CREASE_EASE = 0.6;
 export const CREASE_ROUNDS = 8;
+/** A tight crotch (two arms leaving a trunk side by side: the shunts' nodes, LRV_S held a pair 92 degrees apart after the rounds above) is eased on, round after round, until no pair is past CREASE_STOP_DEG or CREASE_MAX_ROUNDS is spent. Stronger steps were tried: they turn faces against their normals (a fold) and the junction falls back, losing arms. */
+export const CREASE_STOP_DEG = 70;
+export const CREASE_MAX_ROUNDS = 80;
 /** The farthest a seam may be pushed out (spec 4.4). */
 export const MAX_TRIES = 40;
 /** A vertex of the second shape that is this close to the closing arm's axis (in that arm's radii) is on its thread, where the surface has no direction: it keeps the normal it had. */
@@ -496,14 +499,17 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   // rows blended from the tube's own normal stay exact, the positions (and with them the ink outline, which the fragment stage takes from the SDF) are not touched.
   {
     const cosMax = Math.cos((CREASE_DEG * Math.PI) / 180), cur = Float32Array.from(normal), nxt = new Float32Array(normal.length);
-    for (let it = 0; it < CREASE_ROUNDS; it++) {
+    const cosStop = Math.cos((CREASE_STOP_DEG * Math.PI) / 180);
+    for (let it = 0; it < CREASE_MAX_ROUNDS; it++) {
       nxt.set(cur);
+      let wide = false;
       for (let v = 0; v < V; v++) {
         if (row[v]! < NORMAL_BLEND_ROWS) continue;
         let mx = 0, my = 0, mz = 0, c = 0, sharp = false;
         for (let q = deg[v]!; q < deg[v + 1]!; q++) {
           const u = nbr[q]!, d = cur[3 * v]! * cur[3 * u]! + cur[3 * v + 1]! * cur[3 * u + 1]! + cur[3 * v + 2]! * cur[3 * u + 2]!;
           if (d < cosMax) sharp = true;
+          if (d < cosStop) wide = true;
           mx += cur[3 * u]!; my += cur[3 * u + 1]!; mz += cur[3 * u + 2]!; c++;
         }
         if (!sharp || !c) continue;
@@ -512,6 +518,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
         nxt[3 * v] = nx / l; nxt[3 * v + 1] = ny / l; nxt[3 * v + 2] = nz / l;
       }
       cur.set(nxt);
+      if (it + 1 >= CREASE_ROUNDS && !wide) break;
     }
     normal.set(cur);
   }

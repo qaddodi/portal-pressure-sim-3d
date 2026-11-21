@@ -14,6 +14,8 @@ export type Box = [number, number, number, number];   // left, top, right, botto
 export const HITCH_MS = 25, LONG_GAP_MS = 50;
 /** A card or label that goes from gone to shown (or back) in under this is a snap, not a fade; over SLOW it drags. The sampler steps every ~25 ms, so anything under two steps is instant to it. */
 export const INSTANT_MS = 70, SLOW_FADE_MS = 1600;
+/** A label's fade is the camera's dive's own length (1.8 s lobule to sinusoid, 2 s and a little over for the figure's views): it is only slow past that. */
+export const SLOW_LABEL_MS = 3200;
 /** A measured fade under this is a snap. The sampler's rows are 33 ms apart and a fade is measured from 0.1 to 0.9 (80% of its length), so a real 100 ms fade reads as 60 to 70 ms: one row to two rows is a snap, three is not. */
 export const SNAP_MS = 50;
 /** Words may stand this far past their card before it is a spill (sub-pixel rounding and the card's own shadow are not). */
@@ -107,7 +109,7 @@ export function fadeFindings(fades: readonly Fade[], stalls: readonly Stall[] = 
       const hit = f.from != null && f.to != null ? stalls.find((s) => s.to >= f.from! - 33 && s.from <= f.to! + 33) : undefined;
       if (hit) out.push({ kind: 'fade-under-stall', sev: 'warn', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms, but the page stalled ${r0(hit.to - hit.from)} ms at the same time: this may be the stall, not a missing ease`, where: `${f.kind} ${f.key}` });
       else out.push({ kind: 'fade-instant', sev: 'fail', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms: it snaps instead of easing`, where: `${f.kind} ${f.key}` });
-    } else if (f.ms > SLOW_FADE_MS) out.push({ kind: 'fade-slow', sev: 'warn', what: `${f.kind} "${f.key}" took ${r0(f.ms)} ms to ${f.dir === 'in' ? 'come in' : 'go'}`, where: `${f.kind} ${f.key}` });
+    } else if (f.ms > (f.kind === 'label' ? SLOW_LABEL_MS : SLOW_FADE_MS)) out.push({ kind: 'fade-slow', sev: 'warn', what: `${f.kind} "${f.key}" took ${r0(f.ms)} ms to ${f.dir === 'in' ? 'come in' : 'go'}`, where: `${f.kind} ${f.key}` });
   }
   return out;
 }
