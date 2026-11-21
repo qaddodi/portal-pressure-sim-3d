@@ -57,7 +57,7 @@ export class StentDevice {
     this.curve = new CatmullRomCurve3(pts, false, 'centripetal');
     this.L = this.curve.getLength();
     const empty = mergeTubes([], WIRE_RADIAL);
-    this.graft = new DeviceObject(empty.clone(), 'graft', shared, { px: 0.8, order: 1, spec: 0 }, 'ink');
+    this.graft = new DeviceObject(empty.clone(), 'graft', shared, { px: 0.8, order: 1, spec: 0, shadow: 1 }, 'ink');
     this.back = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.3, order: 2 }, 'ink');
     this.wires = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.4, order: 3 }, 'ink');
     this.glint = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0, order: 4, spec: 0 }, 'ink');
@@ -117,6 +117,7 @@ export class StentDevice {
     swap(this.back, mergeTubes(far.map((w) => w.map((r) => ({ ...r, r: wr * BACK_R }))), WIRE_RADIAL));
     swap(this.glint, mergeTubes(near.map((w) => w.map((r) => ({ ...r, r: wr * GLINT_R }))), WIRE_RADIAL));
     swap(this.graft, mergeTubes([p.graft], GRAFT_RADIAL));
+    this.graft.setShadowRadius(p.graft.reduce((s, r) => s + r.r, 0) / Math.max(1, p.graft.length));   // (the sleeve's mean radius: the shadow keeps its proportions)
     swap(this.gold, mergeTubes([p.band.map((r) => ({ ...r, r: wr * 2.2 })), p.tab.map((r) => ({ ...r, r: wr * 1.8 }))], GOLD_RADIAL));
     this.narrowVessel(spec, p);
     this.apply();
@@ -140,6 +141,7 @@ export class StentDevice {
     const a = this.amount;
     this.group.visible = a > 0.002 && !!this.paths;
     this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a);
+    this.graft.setShadowAlpha(a);   // (the sleeve is nearly clear, its shadow is not: it follows the stent's own share)
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
     this.vessel?.setStent(this.paths ? a : 0, INSET / this.L, 1 - INSET / this.L, this.paths ? (INSET + this.paths.bareEnd) / this.L : 0);

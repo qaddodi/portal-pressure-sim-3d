@@ -211,9 +211,11 @@ export class EndoScope {
     // The materials and the edges are 2D's (eus-scope.js, tokens.css): the insertion tube black polymer (--dev-scope) and the rigid tip grey (--dev-scope-tip), each in a faint hairline of the scope's own colour
     // (the edge moved 55 % to the body's, drawn at 0.26: devices/edges.ts), the needle's steel in the catheter's dark edge at 0.8, the transducer's face and the port as the device table has them. Not the look's ink.
     const SOFT: PartStyle = { edge: scopeEdge(), radial: SCOPE_RADIAL };
+    // (the insertion tube, the bending section and the silver housing cast a soft shadow on what they lie in: devices/contact-shadow.ts)
+    const CAST: PartStyle = { ...SOFT, shadow: R };
     // (the redesign, 20 Nov 2026, from the owner's photos of echoendoscopes: a black flexible tube with thin white depth rings; a bending section a shade lifted and grooved; a polished silver distal housing; the curvilinear transducer's
     //  cream cap with its dark acoustic face; a thin bright needle out of the port behind it. A forward-viewing endoscope has the bending section too, and a tip with a lens, two light guides and the working channel.)
-    const sh = mk('poly', (t) => SCOPE_TUBE(t), N, 1, 1, SOFT), bd = mk('poly', (t) => SCOPE_BEND(t), BEND_RINGS, 1, 1, SOFT), tp = mk('steel', (t) => SCOPE_SILVER(t), TIP_RINGS, 1, 2, { edge: scopeEdge(), radial: SCOPE_RADIAL }), ln = mk('poly', (t) => t.port, 2, 0.7, 3, SOFT);
+    const sh = mk('poly', (t) => SCOPE_TUBE(t), N, 1, 1, CAST), bd = mk('poly', (t) => SCOPE_BEND(t), BEND_RINGS, 1, 1, CAST), tp = mk('steel', (t) => SCOPE_SILVER(t), TIP_RINGS, 1, 2, { ...CAST }), ln = mk('poly', (t) => t.port, 2, 0.7, 3, SOFT);
     const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4, { edge: 'none' }), nd = mk('steel', SCOPE_NEEDLE, NEEDLE_RINGS, 0.6, 5, { edge: NEEDLE_EDGE, radial: 12 });
     // the transducer's cap (cream, curved, on the side that meets the wall), its dark face, and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port; the port has no outline)
     const fc = mk('graft', (t) => SCOPE_CREAM(t), CAP_RINGS, 0.6, 3, { edge: scopeEdge(), radial: SCOPE_RADIAL }), pt = mk('graft', (t) => t.port, 2, 0.4, 4, { edge: 'none' });

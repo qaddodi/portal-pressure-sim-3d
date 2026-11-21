@@ -40,7 +40,7 @@ export class Tamponade {
   private readonly v = new Vector3();
 
   constructor(shared: CelShared) {
-    this.tube = new DeviceObject(allocTube(TUBE_N, DEVICE_SIDES), 'poly', shared, { px: 0.8, order: 0 }, 'polyEdge');
+    this.tube = new DeviceObject(allocTube(TUBE_N, DEVICE_SIDES), 'poly', shared, { px: 0.8, order: 0, shadow: BALLOON.shaftR / U }, 'polyEdge');
     this.gas = new DeviceObject(allocTube(GAS_N, RADIAL), 'latex', shared, { px: 1, order: 1 }, 'latexEdge');
     this.eso = new DeviceObject(allocTube(ESO_N, RADIAL), 'latex', shared, { px: 1, order: 2 }, 'latexEdge');
     this.marks = [0, 1].map(() => new DeviceObject(allocTube(MARK_N, DEVICE_SIDES), 'platinum', shared, { px: 0.8, order: 3 }, 'ink')) as unknown as [DeviceObject, DeviceObject];
