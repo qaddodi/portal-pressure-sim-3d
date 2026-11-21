@@ -76,7 +76,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const btn = (label: string, on: () => void) => { const b = mk('button', '', label); b.type = 'button'; b.onclick = on; bar.append(b); return b; };
   const copy = (t: string, what: string) => { win.navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { status.textContent = 'The browser would not copy: select the text on the right.'; }); };
   /** the address follows the controls, so a copied link repeats this run */
-  const syncUrl = () => { try { win.history.replaceState(null, '', addressFor(win.location.search, { auto: flagValue('audit') === 'frames', sizes: ALL_SIZES.filter((id) => wanted.has(id)), depth, speed, noglass: ng.checked, parallel: par.checked, sequence: sq.checked })); } catch { /* an address that will not change */ } };
+  const syncUrl = () => { try { win.history.replaceState(null, '', addressFor(searchNow(), { auto: flagValue('audit') === 'frames', sizes: ALL_SIZES.filter((id) => wanted.has(id)), depth, speed, noglass: ng.checked, parallel: par.checked, sequence: sq.checked })); } catch { /* an address that will not change */ } };
   dsel.onchange = () => { depth = dsel.value as 'quick' | 'full'; if (!seqTouched) sq.checked = sequenceOn(null, depth); syncUrl(); };
   sq.onchange = () => { seqTouched = true; syncUrl(); };
   ssel.onchange = () => { speed = Number(ssel.value); showHint(); syncUrl(); };
