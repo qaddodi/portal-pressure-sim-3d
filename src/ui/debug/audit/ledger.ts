@@ -1,0 +1,79 @@
+// ?audit: the page's own motion, all of it. (1) every CSS animation and transition (a start, its planned length and easing, how it ended), from the browser's own events; (2) a mutation
+// ledger: when any element's class, style, hidden or data attributes change (or it is added or removed) its opacity, place and size are read, and a jump of one or two frames with no
+// animation or transition running on it is a snap, whichever element it is. Debug only; it exists for the length of a run.
+import type { AuditFinding } from './judge.ts';
+import { INSTANT_MS } from './judge.ts';
+import { nameOf } from './scan.ts';
+
+export interface AnimRec { sel: string; prop: string; kind: 'transition' | 'animation'; startMs: number; plannedMs: number | null; delayMs: number; easing: string | null; ended: 'end' | 'cancel' | 'running'; actualMs: number | null }
+export interface LedgerRead { anims: AnimRec[]; findings: AuditFinding[] }
+export interface Ledger { mark(): void; read(): LedgerRead; stop(): void }
+
+/** A property that changes what the eye sees; a very short animation on one of these is a snap by another name. */
+const VISIBLE = /^(opacity|transform|translate|scale|rotate|width|height|top|left|right|bottom|margin|inset|clip-path|filter|background-color|color|max-height|max-width|border-radius)/;
+const SKIP = (el: Element) => !!el.closest('[data-debug], #boot') || el.tagName === 'CANVAS' || el.classList.contains('lb') || !!el.closest('.lb, .stage-root, .lb-layer');
+
+export function startLedger(doc: Document = document, win: Window = window): Ledger {
+  let t0 = performance.now(), recs: AnimRec[] = [], found: AuditFinding[] = [];
+  const open = new Map<string, AnimRec>();
+  const key = (e: Event, prop: string) => `${(e.target as Element | null)?.tagName}|${prop}|${(e.target as Element & { __au?: number }).__au ?? ((e.target as Element & { __au?: number }).__au = Math.random())}`;
+  const plannedOf = (el: Element, prop: string, kind: 'transition' | 'animation'): { ms: number | null; delay: number; easing: string | null } => {
+    try {
+      const a = el.getAnimations().find((x) => (kind === 'transition' ? (x as CSSTransition).transitionProperty === prop : (x as CSSAnimation).animationName === prop));
+      if (!a?.effect) return { ms: null, delay: 0, easing: null };
+      const t = a.effect.getTiming();
+      return { ms: typeof t.duration === 'number' ? Math.round(t.duration) : null, delay: Math.round(Number(t.delay) || 0), easing: String(t.easing ?? '') };
+    } catch { return { ms: null, delay: 0, easing: null }; }
+  };
+  const begin = (kind: 'transition' | 'animation') => (e: Event) => {
+    const el = e.target as Element | null; if (!el || SKIP(el)) return;
+    const prop = kind === 'transition' ? (e as TransitionEvent).propertyName : (e as AnimationEvent).animationName;
+    const p = plannedOf(el, prop, kind);
+    const r: AnimRec = { sel: nameOf(el), prop, kind, startMs: Math.round(performance.now() - t0), plannedMs: p.ms, delayMs: p.delay, easing: p.easing, ended: 'running', actualMs: null };
+    recs.push(r); open.set(key(e, prop), r);
+    if (p.ms != null && p.ms > 0 && p.ms < INSTANT_MS && (kind === 'animation' || VISIBLE.test(prop))) found.push({ kind: 'anim-too-fast', sev: 'warn', what: `${r.sel} ${prop} ${kind} lasts ${p.ms} ms (under ${INSTANT_MS}): it reads as a snap`, where: r.sel });
+  };
+  const finish = (how: 'end' | 'cancel', kind: 'transition' | 'animation') => (e: Event) => {
+    const prop = kind === 'transition' ? (e as TransitionEvent).propertyName : (e as AnimationEvent).animationName;
+    const k = key(e, prop), r = open.get(k); if (!r) return;
+    r.ended = how; r.actualMs = Math.round(performance.now() - t0) - r.startMs; open.delete(k);
+  };
+  const L: [string, (e: Event) => void][] = [['transitionrun', begin('transition')], ['animationstart', begin('animation')], ['transitionend', finish('end', 'transition')], ['transitioncancel', finish('cancel', 'transition')], ['animationend', finish('end', 'animation')], ['animationcancel', finish('cancel', 'animation')]];
+  for (const [t, f] of L) doc.addEventListener(t, f, true);
+
+  // ── the mutation ledger ──
+  interface Seen { t: number; op: number; b: [number, number, number, number] }
+  const seen = new WeakMap<Element, Seen>();
+  const effOpacity = (el: Element): number => { let o = 1; for (let p: Element | null = el, d = 0; p && d < 14; p = p.parentElement, d++) { o *= parseFloat(win.getComputedStyle(p).opacity) || 0; if (o < 0.02) return 0; } return o; };
+  const animating = (el: Element): boolean => { try { return el.getAnimations().length > 0 || (!!el.parentElement && el.parentElement.getAnimations().length > 0); } catch { return false; } };
+  const snapSeen = new Set<string>();
+  const note = (kind: string, sev: AuditFinding['sev'], what: string, el: Element) => { const k = `${kind}|${nameOf(el)}`; if (snapSeen.has(k) || found.length > 120) return; snapSeen.add(k); found.push({ kind, sev, what, where: nameOf(el) }); };
+  const look = (el: Element, added: boolean) => {
+    if (SKIP(el) || !el.isConnected) return;
+    const now = performance.now(), r = el.getBoundingClientRect();
+    const cur: Seen = { t: now, op: effOpacity(el), b: [r.left, r.top, r.width, r.height] };
+    const prev = seen.get(el); seen.set(el, cur);
+    if (r.width * r.height < 400) return;
+    if (added && !prev) { if (cur.op >= 0.9 && !animating(el)) note('generic-pop', 'warn', `${nameOf(el)} appeared at full opacity in one frame (no fade or animation running)`, el); return; }
+    if (!prev || now - prev.t > 90) return;
+    if (Math.abs(cur.op - prev.op) >= 0.6 && !animating(el)) note('generic-pop', 'warn', `${nameOf(el)} went from opacity ${prev.op.toFixed(2)} to ${cur.op.toFixed(2)} in ${Math.round(now - prev.t)} ms with nothing easing it`, el);
+    const dx = Math.hypot(cur.b[0] - prev.b[0], cur.b[1] - prev.b[1]), ds = Math.hypot(cur.b[2] - prev.b[2], cur.b[3] - prev.b[3]);
+    if ((dx >= 60 || ds >= 60) && now - prev.t <= 50 && !animating(el)) note('generic-snap', 'warn', `${nameOf(el)} jumped ${Math.round(Math.max(dx, ds))} px in ${Math.round(now - prev.t)} ms with nothing easing it`, el);
+  };
+  const mo = new MutationObserver((list) => {
+    const targets = new Set<Element>(), added = new Set<Element>();
+    for (const m of list) {
+      if (m.type === 'attributes' && m.target instanceof Element) targets.add(m.target);
+      for (const n of Array.from(m.addedNodes)) if (n instanceof Element) { added.add(n); targets.add(n); }
+      for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= 400 && !SKIP(n)) note('generic-pop', 'warn', `${nameOf(n)} vanished at full opacity in one frame (no fade)`, n); }
+    }
+    let k = 0;
+    for (const el of targets) { if (k++ >= 30) break; look(el, added.has(el)); }
+  });
+  mo.observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden', 'data-on', 'data-phase', 'data-open', 'aria-hidden', 'data-state'] });
+  return {
+    mark() { t0 = performance.now(); recs = []; found = []; open.clear(); snapSeen.clear(); },
+    read() { const anims = recs.slice(0, 400); return { anims, findings: found.slice() }; },
+    stop() { for (const [t, f] of L) doc.removeEventListener(t, f, true); mo.disconnect(); },
+  };
+}

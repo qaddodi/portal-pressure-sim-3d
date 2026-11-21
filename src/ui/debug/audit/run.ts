@@ -2,6 +2,9 @@
 // sampler, the clock and the DOM saw, and judges it into one row. Judges: judge.ts (layout, fades, frames), the watch rules (flash, pop, size snap, label slide) and the screen's own rules (fit, edge, labels).
 import { judgeMotion, type Sample } from '../watch/motion-rules.ts';
 import { frameStats, timeline, fadeEpisodes, fadeFindings, layoutFindings, type AuditFinding, type LayoutRead } from './judge.ts';
+import { judgeScan } from './scan-judge.ts';
+import type { RawScan } from './scan.ts';
+import type { AnimRec } from './ledger.ts';
 import { SLOW_BUSY_MS, LOW_FPS, type AuditRow, type AuditData, type AuditSize, type ConsoleLine, type Coverage } from './report.ts';
 
 /** One move: open a view, a sheet, a patient, a slide, or press Next. It may return the label it learned by doing it (a Next press knows which slide it landed on). */
@@ -17,6 +20,11 @@ export interface Reads {
   problems: { kind: string; text: string; where?: string }[];
   console: ConsoleLine[];
   hidden: boolean;
+  /** the generic sweep of the whole page (scan.ts), null when it could not run */
+  scan?: RawScan | null;
+  /** every CSS animation and transition that ran since the mark, and the snaps the mutation ledger saw */
+  anims?: AnimRec[];
+  generic?: AuditFinding[];
 }
 export interface AuditDeps {
   size: AuditSize;
@@ -39,6 +47,12 @@ export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, s
   flags.push(...fadeFindings(fades));
   for (const f of judgeMotion({ samples: r.samples, events: [] })) flags.push({ kind: f.rule, sev: 'fail', what: `${f.what}: ${f.where}`, where: f.at });
   if (r.layout) flags.push(...layoutFindings(r.layout));
+  // the generic sweep: the same kinds can come from the card reader above (named by card); one line per thing, not two
+  const firstQuote = (w: string) => /"([^"]*)"/.exec(w)?.[1] ?? w;
+  const fam = (k: string) => (/^(clipped|spill|off-screen)$/.test(k) ? 'edge' : k);   // (a word past its card is one finding whichever reader saw it)
+  const have = new Set(flags.map((f) => `${fam(f.kind)}|${firstQuote(f.what)}`));
+  if (r.scan) for (const f of judgeScan(r.scan)) if (!have.has(`${fam(f.kind)}|${firstQuote(f.what)}`)) flags.push(f);
+  flags.push(...(r.generic ?? []));
   for (const p of r.problems) flags.push({ kind: p.kind, sev: FAMILIES.test(p.kind) ? 'fail' : 'warn', what: p.text, where: p.where ?? '' });
   const fs = frameStats(r.gaps, r.work);
   if (!settled) flags.push({ kind: 'unsettled', sev: 'fail', what: `still moving after ${Math.round(busyMs / 1000)} s (the camera, a card or an animation never stopped)`, where: '' });
@@ -50,6 +64,7 @@ export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, s
   return {
     group: step.group, id: step.id, label, busyMs: Math.round(busyMs), settled, cardsMs: tl.cardEndMs == null ? null : Math.round(tl.cardEndMs),
     fadeIn: ins.length ? Math.round(Math.max(...ins)) : null, fadeOut: outs.length ? Math.round(Math.max(...outs)) : null, frames: fs, flags,
+    anims: (r.anims ?? []).slice(0, 60), animN: (r.anims ?? []).length, scan: r.scan?.counts ?? null,
   };
 }
 

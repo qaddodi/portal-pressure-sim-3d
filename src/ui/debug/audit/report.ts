@@ -1,6 +1,8 @@
 // ?audit: the report. One AuditData per screen size (what a run produced), one Bundle for the whole session; `renderText` is what Copy puts on the clipboard (short: what failed, grouped,
 // with where, then the slowest and the choppiest), `renderJson` the whole table (every step, every size) for an agent to read. Pure: a Node test builds and reads them.
 import type { AuditFinding, FrameStats, Sev } from './judge.ts';
+import type { AnimRec } from './ledger.ts';
+import { CHECKS, GAPS } from './scan-judge.ts';
 
 export interface AuditSize { id: string; w: number; h: number; dpr: number }
 export interface AuditRow {
@@ -13,6 +15,10 @@ export interface AuditRow {
   fadeIn: number | null; fadeOut: number | null;
   frames: FrameStats;
   flags: AuditFinding[];
+  /** the CSS animations and transitions that ran in the step (the first 60), and how many there were in all */
+  anims?: AnimRec[]; animN?: number;
+  /** how much the page sweep read: words, pictures, covered-checks, and whether it was capped */
+  scan?: { texts: number; media: number; hit: number; capped: boolean } | null;
 }
 export interface ConsoleLine { level: 'error' | 'warn' | 'window' | 'promise'; text: string; at: string }
 /** How much of a talk the walk reached: stops opened of the stops it has, and the numbers (1-based) of the ones the jump did not land on. */
@@ -71,20 +77,39 @@ export const CANNOT_SEE = [
   'Fade lengths are known to about 33 ms; the page\'s own CSS fades under 70 ms read as a snap.',
 ];
 
-export function renderText(b: Bundle): string {
+const fmt = (v: number | null | undefined, unit = '') => (v == null ? '-' : `${v}${unit}`);
+
+/** One line per kind of CSS animation or transition seen anywhere: how many, how long it was planned to run (min / median / max), the easing and how they ended. */
+export function animInventory(b: Bundle): string[] {
+  const m = new Map<string, { sel: string; prop: string; kind: string; planned: number[]; actual: number[]; easing: Set<string>; end: number; cancel: number; running: number; n: number }>();
+  for (const p of b.parts) for (const r of p.rows) for (const a of r.anims ?? []) {
+    const k = `${a.kind}|${a.sel}|${a.prop}`;
+    const g = m.get(k) ?? { sel: a.sel, prop: a.prop, kind: a.kind, planned: [], actual: [], easing: new Set<string>(), end: 0, cancel: 0, running: 0, n: 0 };
+    g.n++; if (a.plannedMs != null) g.planned.push(a.plannedMs); if (a.actualMs != null) g.actual.push(a.actualMs); if (a.easing) g.easing.add(a.easing);
+    g[a.ended]++; m.set(k, g);
+  }
+  return [...m.values()].sort((a, b2) => b2.n - a.n).map((g) => {
+    const pl = g.planned.slice().sort((x, y) => x - y);
+    return `${g.n}x ${g.kind} ${g.sel} ${g.prop}: planned ${pl.length ? `${pl[0]}/${median(pl)}/${pl[pl.length - 1]} ms (min/median/max)` : 'unknown'}, ease ${[...g.easing].slice(0, 2).join(' | ') || 'unknown'}, ended ${g.end}, cancelled ${g.cancel}, still running ${g.running}${g.actual.length ? `, actual median ${median(g.actual)} ms` : ''}`;
+  });
+}
+
+/** `short`: the findings and the worst few only. The default is everything: the summary, what was checked, every finding, every animation kind and every step. */
+export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   const L: string[] = [];
   const groups = groupFindings(b), con = groupConsole(b);
   const fails = groups.filter((g) => g.sev === 'fail'), warns = groups.filter((g) => g.sev === 'warn');
   const steps = b.parts.reduce((n, p) => n + p.rows.length, 0);
-  L.push(`AUDIT v1 · build ${b.build} · ${b.at} · depth ${b.depth} · ${b.framed ? 'sized frames' : 'this screen'}`);
+  const rows = b.parts.flatMap((p) => p.rows.map((r) => ({ p, r })));
+  const animTotal = rows.reduce((n, { r }) => n + (r.animN ?? r.anims?.length ?? 0), 0);
+  const kinds = new Map<string, number>(); for (const g of groups) kinds.set(g.kind, (kinds.get(g.kind) ?? 0) + g.places.length);
   const wall = b.wallMs ?? b.parts.reduce((n, p) => n + p.ms, 0);
-  L.push(`RUN TIME: ${mins(wall)} in all${b.parts.length > 1 ? (b.parallel ? ' (sizes ran at the same time)' : ` (one after the other: ${b.parts.map((p) => `${p.size.id} ${mins(p.ms)}`).join(', ')})`) : ''}`);
+  L.push(`AUDIT v2 · build ${b.build} · ${b.at} · depth ${b.depth} · ${b.framed ? 'sized frames' : 'this screen'}${o.short ? ' · SHORT' : ''}`);
+  L.push(`SUMMARY: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} console message${con.length === 1 ? '' : 's'}; ${steps} steps in ${b.parts.length} size${b.parts.length === 1 ? '' : 's'}; ${animTotal} CSS animations and transitions recorded; run time ${mins(wall)}${b.parallel ? ' (PARALLEL: fps and timings NOT valid)' : ''}`);
+  if (kinds.size) L.push(`FINDINGS BY KIND: ${[...kinds].sort((a, b2) => b2[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   if (b.parallel) L.push('PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid. Layout, snaps, coverage and console errors are.');
   L.push(`device: ${b.device}`);
-  L.push(`sizes: ${b.parts.map((p) => `${p.size.id} ${p.size.w}x${p.size.h}@${p.size.dpr} (${p.rows.length} steps, ${mins(p.ms)}${p.stopped ? ', STOPPED' : ''})`).join('; ') || 'none'}`);
-  L.push('');
-  L.push('OPEN FIRST (what this report cannot tell you)');
-  for (const c of CANNOT_SEE) L.push(`- ${c}`);
+  L.push(`sizes: ${b.parts.map((p) => `${p.size.id} ${p.size.w}x${p.size.h}@${p.size.dpr} (${p.rows.length} steps, ${mins(p.ms)}${p.stopped ? ', STOPPED' : ''})`).join('; ') || 'none'}${b.parts.length > 1 ? (b.parallel ? ' (sizes ran at the same time)' : ` (ran one after the other, ${mins(wall)} in all)`) : ''}`);
   if (b.failed.length) { L.push(''); L.push('SIZES THAT DID NOT FINISH'); for (const f of b.failed) L.push(`- ${f.size}: ${f.why}`); }
   for (const p of b.parts) for (const n of p.notes) L.push(`- NOTE ${p.size.id}: ${n}`);
   for (const p of b.parts) if (p.coverage?.length) {
@@ -92,18 +117,15 @@ export function renderText(b: Bundle): string {
     L.push(''); L.push(`COVERAGE ${p.size.id}: ${p.coverage.reduce((n, c) => n + c.reached, 0)} of ${p.coverage.reduce((n, c) => n + c.total, 0)} stops in ${p.coverage.length} talks${miss.length ? '' : ' (all reached)'}`);
     for (const c of miss) L.push(`- NOT REACHED in "${c.deck}": ${c.total - c.reached} of ${c.total} stops${c.missed.length ? ` (stop ${c.missed.join(', ')})` : ''}`);
   }
-  L.push('');
-  L.push(`RESULT: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} distinct console message${con.length === 1 ? '' : 's'}, ${steps} steps measured`);
   const show = (gs: Group[], head: string) => {
     if (!gs.length) return;
     L.push(''); L.push(head);
     for (const g of gs) {
       L.push(`[${g.kind}] ${g.what} (${g.places.length} place${g.places.length === 1 ? '' : 's'})`);
-      L.push(`    ${g.places.slice(0, 6).join(' | ')}${g.places.length > 6 ? ` | and ${g.places.length - 6} more (all in the JSON)` : ''}`);
+      L.push(`    ${g.places.slice(0, o.short ? 4 : 8).join(' | ')}${g.places.length > (o.short ? 4 : 8) ? ` | and ${g.places.length - (o.short ? 4 : 8)} more (all in the JSON)` : ''}`);
     }
   };
   show(fails, 'FAILING (fix these)'); show(warns, 'WARNINGS');
-  const rows = b.parts.flatMap((p) => p.rows.map((r) => ({ p, r })));
   const slow = rows.slice().sort((a, b2) => b2.r.busyMs - a.r.busyMs).slice(0, 10);
   if (slow.length) { L.push(''); L.push('SLOWEST TO SETTLE'); for (const { p, r } of slow) L.push(`${sec(r.busyMs)}  ${where(p, r)}${r.settled ? '' : '  (never settled)'}`); }
   const choppy = rows.filter(({ r }) => r.frames.fps != null && r.frames.frames >= 10).sort((a, b2) => a.r.frames.fps! - b2.r.frames.fps!).slice(0, 10);
@@ -114,7 +136,25 @@ export function renderText(b: Bundle): string {
     L.push(''); L.push(`${p.size.id} SUMMARY: step settle median ${sec(median(p.rows.map((r) => r.busyMs)))}; card fade in median ${ins.length ? `${Math.round(median(ins))} ms (max ${Math.round(Math.max(...ins))})` : 'n/a'}, out median ${outs.length ? `${Math.round(median(outs))} ms (max ${Math.round(Math.max(...outs))})` : 'n/a'}; fps median ${fps.length ? median(fps) : 'n/a'}, lowest ${fps.length ? Math.min(...fps) : 'n/a'}`);
   }
   if (con.length) { L.push(''); L.push('CONSOLE (errors and warnings)'); for (const c of con.slice(0, 25)) L.push(`${c.n}x [${c.level}] ${c.text.slice(0, 300)}  (first: ${c.first})`); if (con.length > 25) L.push(`and ${con.length - 25} more (in the JSON)`); }
-  L.push(''); L.push('The whole table, every step and size, is in Copy JSON.');
+  if (!o.short) {
+    const inv = animInventory(b);
+    L.push(''); L.push(`ANIMATIONS (${animTotal} runs of ${inv.length} kinds; CSS animations and transitions only: the app's own clock tweens show up in the step table and the fade numbers)`);
+    for (const l of inv.slice(0, 80)) L.push(l); if (inv.length > 80) L.push(`and ${inv.length - 80} more kinds (in the JSON)`);
+    if (!inv.length) L.push('none recorded');
+    L.push(''); L.push('EVERY STEP (size | group > label | settle | cards done | fade in/out ms | fps, p95 gap, worst gap, hitches, stalls | css animations (longest ms) | page sweep words/media | findings f/w)');
+    for (const { p, r } of rows) {
+      const an = r.anims ?? [], longest = an.reduce((m2, a) => Math.max(m2, a.plannedMs ?? 0), 0), f = r.flags.filter((x) => x.sev === 'fail').length, w = r.flags.filter((x) => x.sev === 'warn').length;
+      L.push(`${where(p, r)} | ${sec(r.busyMs)}${r.settled ? '' : ' NEVER SETTLED'} | cards ${fmt(r.cardsMs, ' ms')} | fade ${fmt(r.fadeIn)}/${fmt(r.fadeOut)} | ${fmt(r.frames.fps, ' fps')}, p95 ${r.frames.p95Gap}, worst ${r.frames.worstGap}, ${r.frames.hitches} hitches, ${r.frames.stalls} stalls | anims ${r.animN ?? an.length}${longest ? ` (${longest})` : ''} | sweep ${r.scan ? `${r.scan.texts}/${r.scan.media}${r.scan.capped ? ' capped' : ''}` : 'n/a'} | ${f}f ${w}w`);
+    }
+    L.push(''); L.push(`CHECKS RUN ON EVERY STEP (${CHECKS.length})`);
+    for (const c of CHECKS) L.push(`- ${c.id}: ${c.what}`);
+    L.push(''); L.push('GAPS: WHAT NO CHECK HERE CAN SEE');
+    for (const g of GAPS) L.push(`- ${g}`);
+    for (const c of CANNOT_SEE) L.push(`- ${c}`);
+  } else {
+    L.push(''); L.push('OPEN FIRST: this report cannot judge taste or pixels, and frame rates in a frame are this computer\'s GPU. The full report lists every check and every step.');
+  }
+  L.push(''); L.push('The raw table (every step, every animation record, every size) is in Copy JSON.');
   return L.join('\n');
 }
 

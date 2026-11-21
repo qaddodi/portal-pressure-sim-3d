@@ -54,13 +54,13 @@ export function mountAudit(mode: 'here' | 'run'): void {
     try {
       const data = await runHere(depth, { status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label) => { if (mode === 'run') post({ audit: 'progress', n, label }); } });
       last = bundle([data], depth);
-      out.textContent = renderText(last); out.hidden = false;
+      out.textContent = renderText(last, { short: true }); out.hidden = false;
       status.textContent = `Done: ${data.rows.length} steps in ${Math.round(data.ms / 1000)} s${data.stopped ? ' (stopped early)' : ''}. Copy the report.`;
       if (mode === 'run') post({ audit: 'done', data });
     } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; }
   };
   if (mode === 'here') { btn('Run full', () => { void go('full'); }); btn('Run quick', () => { void go('quick'); }); btn('Stop', () => { stop = true; status.textContent = 'Stopping after this step…'; }); }
-  btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
+  btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
   root.append(status, row, out);
   document.body.append(root);
   attach('audit', { run: (d: 'quick' | 'full' = 'full') => go(d), text: () => (last ? renderText(last) : ''), json: () => (last ? renderJson(last) : ''), stop: () => { stop = true; } });

@@ -50,7 +50,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   bar.append(...boxes, dsel, parL);
   const start = btn('Start', () => { void run(); });
   btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
-  btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
+  btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
   bar.append(status, note);
   main.append(room, out); doc.body.append(bar, main);
 
@@ -81,7 +81,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
     if (running) return; running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear();
     const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = performance.now(), together = par.checked;
     const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, parallel: together, wallMs: Math.round(performance.now() - t0), parts, failed });
-    const take = (id: string, r: { data?: AuditData; why?: string }) => { if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last); };
+    const take = (id: string, r: { data?: AuditData; why?: string }) => { if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };
     status.textContent = 'Loading the app…';
     if (together) await Promise.all(ids.map(async (id) => take(id, await one(id, ids.length))));
     else for (const id of ids) { if (stop) break; take(id, await one(id, 1)); }

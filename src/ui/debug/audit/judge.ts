@@ -100,7 +100,11 @@ export function fadeFindings(fades: readonly Fade[]): AuditFinding[] {
 export interface LayoutRead {
   vw: number; vh: number;
   /** cards standing whole (phase in, opaque), with the boxes of every run of words and pill inside */
-  cards: { id: string; box: Box; kids: { what: string; box: Box }[] }[];
+  cards: { id: string; /** the card's heading, to name it in a finding */ title?: string; box: Box;
+    /** `clip`: the box the nearest clipping ancestors leave visible (overflow hidden, auto, scroll or clip), when there is one */
+    kids: { what: string; box: Box; clip?: Box | null }[];
+    /** a chart or plot (an svg or a canvas of some size), with the visible box its clipping ancestors leave it */
+    charts?: { what: string; box: Box; clip: Box | null }[] }[];
   /** the footer, the dock, the presenter bar, the top bar: whatever floats over the stage */
   bars: { id: string; box: Box }[];
   labels: { name: string; box: Box; alpha: number }[];
@@ -111,11 +115,23 @@ export function layoutFindings(r: LayoutRead): AuditFinding[] {
   const out: AuditFinding[] = [];
   const screen: Box = [0, 0, r.vw, r.vh];
   for (const c of r.cards) {
+    const name = c.title ? `"${c.title}"` : c.id;
+    // a chart whose picture runs past the edge of whatever clips it: the axis, the lines and the last point are cut off (the plot taller than the card's room)
+    for (const ch of c.charts ?? []) {
+      const clip = ch.clip ?? c.box;
+      if (area(ch.box) < 4 || within(ch.box, clip, SPILL_PX)) continue;
+      const cut = { bottom: ch.box[3] - clip[3], right: ch.box[2] - clip[2], top: clip[1] - ch.box[1], left: clip[0] - ch.box[0] };
+      const parts = (Object.entries(cut) as [string, number][]).filter(([, v]) => v > SPILL_PX).map(([k, v]) => `${r0(v)} px at the ${k}`);
+      out.push({ kind: 'chart-clipped', sev: 'fail', what: `${ch.what} in card ${name} is cut off by its card: ${parts.join(', ')} hidden`, where: `card ${c.id}, ${ch.what}` });
+    }
     for (const k of c.kids) {
       if (area(k.box) < 4) continue;
-      if (!within(k.box, c.box, SPILL_PX)) {
+      if (k.clip && !within(k.box, k.clip, SPILL_PX)) {
+        const by = Math.max(k.box[2] - k.clip[2], k.box[3] - k.clip[3], k.clip[0] - k.box[0], k.clip[1] - k.box[1]);
+        out.push({ kind: 'clipped', sev: 'fail', what: `"${k.what}" in card ${name} is cut off by its container: ${r0(by)} px hidden`, where: `card ${c.id}, ${k.what}` });
+      } else if (!within(k.box, c.box, SPILL_PX)) {
         const by = Math.max(k.box[2] - c.box[2], k.box[3] - c.box[3], c.box[0] - k.box[0], c.box[1] - k.box[1]);
-        out.push({ kind: 'spill', sev: 'fail', what: `"${k.what}" in card ${c.id} runs ${r0(by)} px past the card's edge`, where: `card ${c.id}, ${k.what}` });
+        out.push({ kind: 'spill', sev: 'fail', what: `"${k.what}" in card ${name} runs ${r0(by)} px past the card's edge`, where: `card ${c.id}, ${k.what}` });
       } else if (!within(k.box, screen, 1)) {
         out.push({ kind: 'off-screen', sev: 'fail', what: `"${k.what}" in card ${c.id} stands off the screen`, where: `card ${c.id}, ${k.what}` });
       }

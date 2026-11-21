@@ -1,0 +1,173 @@
+// ?audit, the generic sweep: every visible text, picture, chart and button on the page, read as plain numbers (scan-judge.ts judges them: clipped, overlapping, covered, small, low contrast,
+// zero size, broken). Not per case: it asks the whole document, so a thing nobody thought of is read the same as one somebody did. Debug only; one read per step, never a frame.
+import type { Box } from './judge.ts';
+
+export interface ScanItem {
+  kind: 'text' | 'svg' | 'canvas' | 'img' | 'control';
+  what: string;
+  box: Box;
+  /** the box the clipping ancestors leave visible (overflow hidden or clip, paint containment), or null */
+  clip: Box | null;
+  /** inside something that scrolls: out of view is normal there */
+  scrolls: boolean;
+  opacity: number;
+  /** text only */ px?: number; bold?: boolean; fg?: string; bg?: string | null;
+}
+export interface RawScan {
+  vw: number; vh: number; items: ScanItem[];
+  zero: { what: string; why: string }[];
+  broken: { what: string }[];
+  covered: { what: string; by: string; points: number }[];
+  /** how many of each were read, so the report can show what ran */
+  counts: { texts: number; media: number; hit: number; capped: boolean };
+}
+
+const r1 = (v: number) => Math.round(v * 10) / 10;
+const MAX_ITEMS = 1400, MAX_HIT = 700;
+
+/** A computed colour as 'rgba(r, g, b, a)' (0-255), or null for a form this cannot read (color-mix and friends come back as color(srgb r g b / a)). */
+export function normColour(c: string): string | null {
+  const m = /^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/i.exec(c.trim());
+  if (m) { const a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : +m[4]; return `rgba(${+m[1]!}, ${+m[2]!}, ${+m[3]!}, ${a})`; }
+  const s = /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/i.exec(c.trim());
+  if (s) { const a = s[4] === undefined ? 1 : s[4].endsWith('%') ? parseFloat(s[4]) / 100 : +s[4]; return `rgba(${Math.round(+s[1]! * 255)}, ${Math.round(+s[2]! * 255)}, ${Math.round(+s[3]! * 255)}, ${a})`; }
+  return null;
+}
+const alphaOf = (c: string): number => { const m = /,\s*([\d.]+)\)$/.exec(c); return m ? +m[1]! : 1; };
+
+interface Vis { ok: boolean; opacity: number; clip: Box | null; scrolls: boolean }
+const HIDDEN: Vis = { ok: false, opacity: 0, clip: null, scrolls: false };
+
+/** Short name of an element for a finding: tag, id, first two classes. */
+export function nameOf(el: Element, text = ''): string {
+  const c = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+  const t = text || (el.getAttribute('aria-label') ?? '');
+  return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${c ? `.${c}` : ''}${t ? ` "${t.replace(/\s+/g, ' ').trim().slice(0, 40)}"` : ''}`;
+}
+
+export function scanPage(doc: Document = document, win: Window = window): RawScan {
+  const vw = win.innerWidth, vh = win.innerHeight;
+  const memo = new Map<Element, Vis>();
+  const box = (b: DOMRect): Box => [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)];
+  const meet = (a: Box | null, b: Box): Box => (a ? [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])] : b);
+
+  /** Whether an element is drawn at all, how opaque it is with its ancestors, the box its clipping ancestors leave it. Memoised up the tree. */
+  const vis = (el: Element | null): Vis => {
+    if (!el || el === doc.documentElement) return { ok: true, opacity: 1, clip: null, scrolls: false };
+    const hit = memo.get(el); if (hit) return hit;
+    const up = vis(el.parentElement);
+    let v: Vis = HIDDEN;
+    if (up.ok) {
+      const cs = win.getComputedStyle(el);
+      const srOnly = cs.position === 'absolute' && /rect\(0(px)?,? 0(px)?,? 0(px)?,? 0(px)?\)|inset\(50%\)/.test(cs.clip + cs.clipPath) || (cs.overflow === 'hidden' && parseFloat(cs.width) <= 1 && parseFloat(cs.height) <= 1);
+      const off = cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' || el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden') || el.hasAttribute('inert') || el.hasAttribute('data-debug') || el.id === 'boot' || srOnly;
+      if (!off) {
+        const clips = (x: string) => x === 'hidden' || x === 'clip';
+        const scrolling = /auto|scroll|overlay/.test(cs.overflowX + cs.overflowY);
+        const cuts = clips(cs.overflowX) || clips(cs.overflowY) || /paint|strict|content/.test(cs.contain) || el.tagName.toLowerCase() === 'svg';
+        v = { ok: true, opacity: up.opacity * (parseFloat(cs.opacity) || 0), clip: cuts ? meet(up.clip, box(el.getBoundingClientRect())) : up.clip, scrolls: up.scrolls || scrolling };
+      }
+    }
+    memo.set(el, v);
+    return v;
+  };
+
+  /** The opaque colour an element's text stands on: the first ancestors' backgrounds laid over each other until one is opaque; null when an image, a gradient or the picture itself is behind it (the figure) or nothing is opaque. */
+  const bgOf = (el: Element): string | null => {
+    const layers: string[] = [];
+    for (let p: Element | null = el; p; p = p.parentElement) {
+      const cs = win.getComputedStyle(p);
+      if (cs.backgroundImage !== 'none') return null;
+      const c = normColour(cs.backgroundColor);
+      if (c === null) return null;
+      const a = alphaOf(c);
+      if (a > 0) layers.push(c);
+      if (a >= 0.98) break;
+      if (p === doc.documentElement) return null;
+    }
+    if (!layers.length || alphaOf(layers[layers.length - 1]!) < 0.98) return null;
+    let rgb = layers[layers.length - 1]!.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+    for (let i = layers.length - 2; i >= 0; i--) { const m = layers[i]!.match(/[\d.]+/g)!.map(Number); const a = m[3] ?? 1; rgb = rgb.map((v, k) => m[k]! * a + v * (1 - a)); }
+    return `rgba(${rgb.map((v) => Math.round(v)).join(', ')}, 1)`;
+  };
+
+  const items: ScanItem[] = [], zero: RawScan['zero'] = [], broken: RawScan['broken'] = [];
+  let capped = false, texts = 0, media = 0;
+  const holders: { el: Element; item: ScanItem }[] = [];
+
+  // ── text: every non-blank run of words ──
+  const walker = doc.createTreeWalker(doc.body, 4 /* SHOW_TEXT */);
+  const range = doc.createRange();
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const s = (n.nodeValue ?? '').replace(/\s+/g, ' ').trim();
+    const p = n.parentElement;
+    if (!s || !p || /^(script|style|noscript|title)$/i.test(p.tagName)) continue;
+    const v = vis(p);
+    if (!v.ok || v.opacity < 0.05) continue;
+    if (items.length >= MAX_ITEMS) { capped = true; break; }
+    range.selectNodeContents(n);
+    const rects = Array.from(range.getClientRects());
+    if (!rects.length) { zero.push({ what: nameOf(p, s), why: 'has words but no box at all' }); continue; }
+    const b: Box = [Math.min(...rects.map((r) => r.left)), Math.min(...rects.map((r) => r.top)), Math.max(...rects.map((r) => r.right)), Math.max(...rects.map((r) => r.bottom))].map(r1) as Box;
+    if (b.some((x) => !Number.isFinite(x))) { zero.push({ what: nameOf(p, s), why: 'its box is NaN' }); continue; }
+    if (b[2] - b[0] <= 0 || b[3] - b[1] <= 0) { zero.push({ what: nameOf(p, s), why: 'has words but zero width or height' }); continue; }
+    const cs = win.getComputedStyle(p);
+    let scale = 1;
+    if (p instanceof HTMLElement) { const ow = p.offsetWidth, rw = p.getBoundingClientRect().width; if (ow > 0 && rw > 0) scale = Math.min(5, Math.max(0.2, rw / ow)); }
+    else { const m = (p as unknown as SVGGraphicsElement).getScreenCTM?.(); if (m && m.a > 0) scale = m.a; }
+    const fg = normColour(cs.color), bg = fg ? bgOf(p) : null;
+    const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, px: r1(parseFloat(cs.fontSize) * scale), bold: parseInt(cs.fontWeight, 10) >= 700, fg: fg ?? undefined, bg };
+    items.push(item); holders.push({ el: p, item }); texts++;
+  }
+
+  // ── pictures, charts and controls ──
+  for (const el of Array.from(doc.querySelectorAll('svg, canvas, img, video, button, input, select, textarea, [role="img"]'))) {
+    const v = vis(el);
+    if (!v.ok || v.opacity < 0.05) continue;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'svg' && el.parentElement?.closest('svg')) continue;   // (an inner svg is part of its outer picture)
+    if (items.length >= MAX_ITEMS) { capped = true; break; }
+    const r = el.getBoundingClientRect(), b = box(r);
+    if (b.some((x) => !Number.isFinite(x))) { zero.push({ what: nameOf(el), why: 'its box is NaN' }); continue; }
+    const big = r.width >= 24 && r.height >= 24;
+    if ((tag === 'img' || tag === 'canvas' || tag === 'svg' || tag === 'video') && (r.width === 0 || r.height === 0) && el.parentElement && el.parentElement.getBoundingClientRect().width > 0) { zero.push({ what: nameOf(el), why: 'a picture with zero width or height inside a box that has size' }); continue; }
+    if (tag === 'img') { const im = el as HTMLImageElement; if (im.complete && im.naturalWidth === 0 && (im.currentSrc || im.src)) broken.push({ what: nameOf(el, im.alt || (im.currentSrc || im.src).split('/').pop() || '') }); }
+    if ((tag === 'svg' || tag === 'canvas') && !big) continue;   // (icons)
+    if (tag === 'canvas' && r.width >= vw * 0.9 && r.height >= vh * 0.9) continue;   // (the figure's own full-screen picture)
+    if (r.width < 4 || r.height < 4) continue;
+    const kind: ScanItem['kind'] = tag === 'svg' ? 'svg' : tag === 'canvas' ? 'canvas' : tag === 'img' || tag === 'video' ? 'img' : 'control';
+    const item: ScanItem = { kind, what: nameOf(el), box: b, clip: tag === 'svg' ? (el.parentElement ? vis(el.parentElement).clip : null) : v.clip, scrolls: v.scrolls, opacity: v.opacity };
+    items.push(item); holders.push({ el, item }); media++;
+  }
+
+  // ── covered: the thing standing on top of an item at its own points ──
+  const covered: RawScan['covered'] = [];
+  const paints = (top: Element): boolean => {
+    if (/^(svg|canvas|img|video|button|input)$/i.test(top.tagName)) return true;
+    if (Array.from(top.childNodes).some((c) => c.nodeType === 3 && (c.nodeValue ?? '').trim())) return true;
+    const cs = win.getComputedStyle(top);
+    const bg = normColour(cs.backgroundColor);
+    return cs.backgroundImage !== 'none' || (bg !== null && alphaOf(bg) > 0.1);
+  };
+  let hit = 0;
+  for (const { el, item } of holders) {
+    if (hit >= MAX_HIT) break;
+    if (item.opacity < 0.5) continue;
+    if (win.getComputedStyle(el).pointerEvents === 'none') continue;   // (elementFromPoint cannot see through it: not asked)
+    let [l, t, r, b] = item.box;
+    if (item.clip) { l = Math.max(l, item.clip[0]); t = Math.max(t, item.clip[1]); r = Math.min(r, item.clip[2]); b = Math.min(b, item.clip[3]); }
+    l = Math.max(l, 0); t = Math.max(t, 0); r = Math.min(r, vw - 1); b = Math.min(b, vh - 1);
+    if ((r - l) * (b - t) < 24 || r - l < 3 || b - t < 3) continue;
+    hit++;
+    const pts: [number, number][] = [[(l + r) / 2, (t + b) / 2], [l + (r - l) * 0.2, t + (b - t) * 0.5], [l + (r - l) * 0.8, t + (b - t) * 0.5], [(l + r) / 2, t + (b - t) * 0.25], [(l + r) / 2, t + (b - t) * 0.75]];
+    let n = 0, by = '';
+    for (const [x, y] of pts) {
+      const top = doc.elementFromPoint(x, y);
+      if (!top || top === el || el.contains(top) || top.contains(el) || top.closest('[data-debug]')) continue;
+      if (!paints(top)) continue;
+      n++; by = by || nameOf(top);
+    }
+    if (n >= 3) covered.push({ what: item.what || nameOf(el), by, points: n });
+  }
+  return { vw, vh, items, zero, broken, covered, counts: { texts, media, hit, capped } };
+}

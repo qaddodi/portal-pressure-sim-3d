@@ -11,6 +11,8 @@ import { createRecorder } from '../watch/recorder.ts';
 import { domSources } from '../watch/sources.ts';
 import { liveCatalog, openEntry, settle as pageSettle, problems } from '../page/live.ts';
 import type { Entry } from '../page/catalog.ts';
+import { scanPage } from './scan.ts';
+import { startLedger } from './ledger.ts';
 import type { Step, Reads } from './run.ts';
 import type { Box, LayoutRead } from './judge.ts';
 import type { ConsoleLine, Coverage } from './report.ts';
@@ -95,11 +97,44 @@ export function seen(win: Window, el: Element): number {
   return a;
 }
 const BAR_SEL = BARS.map((b) => b[1]).join(', ');
-const KID_SEL = 'button, [class*="pill"], [class*="chip"], [class*="tile"]';
+const KID_SEL = 'button, [class*="pill"], [class*="chip"], [class*="tile"], svg circle';
 
-/** Words and pills of one card, each with its box. */
-function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box }[] {
-  const out: { what: string; box: Box }[] = [];
+/** The box that stays visible for an element: the overlap of every ancestor that clips (overflow other than visible on either axis, or paint containment), or null when nothing clips it. An svg is its own clip (its overflow is hidden by default). */
+export function clipBox(win: Window, el: Element, stop: Element): Box | null {
+  let box: Box | null = null;
+  for (let p: Element | null = el; p && p !== stop.parentElement; p = p.parentElement) {
+    const cs = win.getComputedStyle(p);
+    const clips = (v: string) => v !== 'visible';
+    if (p === el && el.tagName.toLowerCase() !== 'svg') continue;   // (an element is not clipped by itself; an inner svg clips what it draws)
+    if (!(clips(cs.overflowX) || clips(cs.overflowY) || /paint|strict|content/.test(cs.contain))) continue;
+    const b = p.getBoundingClientRect(), q: Box = [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)];
+    box = box ? [Math.max(box[0], q[0]), Math.max(box[1], q[1]), Math.min(box[2], q[2]), Math.min(box[3], q[3])] : q;
+  }
+  return box;
+}
+
+/** A card's heading, to name it in a finding. */
+const titleOf = (card: HTMLElement): string => (card.querySelector('.pz-h, .pz-dtitle, h1, h2, h3, [class*="title"]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+
+/** Charts and plots of one card: an svg or a canvas big enough to be a picture, not an icon. */
+function chartsOf(win: Window, card: HTMLElement): { what: string; box: Box; clip: Box | null }[] {
+  const out: { what: string; box: Box; clip: Box | null }[] = [];
+  for (const el of Array.from(card.querySelectorAll<SVGElement | HTMLCanvasElement>('svg, canvas')).slice(0, 60)) {
+    if (el.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') && !el.closest('[role="img"]')) continue;
+    const b = el.getBoundingClientRect();
+    if (b.width < 60 || b.height < 40) continue;
+    const cs = win.getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    // the chart's clip is what clips its parents (its own overflow is the svg's, judged by the kids: its text and points)
+    const clip = el.parentElement ? clipBox(win, el.parentElement, card) : null;
+    out.push({ what: el.getAttribute('aria-label') || (el.tagName === 'CANVAS' ? 'canvas chart' : 'chart'), box: [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)], clip });
+  }
+  return out;
+}
+
+/** Words, pills, axis labels and data points of one card, each with its box and the box that clips it. */
+function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box; clip: Box | null }[] {
+  const out: { what: string; box: Box; clip: Box | null }[] = [];
   for (const el of Array.from(card.querySelectorAll<HTMLElement>('*')).slice(0, 600)) {
     if (el.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') || el.closest(BAR_SEL)) continue;
     const own = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.nodeValue ?? '').trim());
@@ -109,7 +144,7 @@ function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box }[] {
     const cs = win.getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.05) continue;
     const what = ((el.textContent ?? '').replace(/\s+/g, ' ').trim() || el.className.toString()).slice(0, 40);
-    out.push({ what, box: [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)] });
+    out.push({ what, box: [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)], clip: clipBox(win, el, card) });
   }
   return out;
 }
@@ -117,7 +152,7 @@ function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box }[] {
 export function readLayout(doc: Document = document, win: Window = window): LayoutRead {
   const box = (e: Element): Box => { const b = e.getBoundingClientRect(); return [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)]; };
   const cards = Array.from(doc.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]')).filter((el) => parseFloat(win.getComputedStyle(el).opacity) >= 0.95)
-    .map((el) => ({ id: el.dataset.card ?? 'card', box: box(el), kids: kidsOf(win, el) }));
+    .map((el) => ({ id: el.dataset.card ?? 'card', title: titleOf(el), box: box(el), kids: kidsOf(win, el), charts: chartsOf(win, el) }));
   const bars: LayoutRead['bars'] = [];
   for (const [id, sel] of BARS) doc.querySelectorAll<HTMLElement>(sel).forEach((el) => { const b = box(el); if (b[2] - b[0] > 1 && b[3] - b[1] > 1 && seen(win, el) > 0.5) bars.push({ id, box: b }); });
   const labels: LayoutRead['labels'] = [];
@@ -140,19 +175,21 @@ export function startTaps(win: Window = window): Tap {
   const onErr = (e: ErrorEvent) => lines.push({ level: 'window', text: `${e.message} (${e.filename ?? ''}:${e.lineno ?? ''})`.slice(0, 400), at: stamp() });
   const onRej = (e: PromiseRejectionEvent) => lines.push({ level: 'promise', text: text([e.reason]), at: stamp() });
   win.addEventListener('error', onErr); win.addEventListener('unhandledrejection', onRej);
+  const ledger = startLedger(win.document, win);
   let mark = 0, markLine = 0, hiddenSince = false;
   const onVis = () => { if (win.document.hidden) hiddenSince = true; };
   win.document.addEventListener('visibilitychange', onVis);
   return {
-    mark() { rec.clear(); gaps = []; clock.resetStats(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
+    mark() { rec.clear(); ledger.mark(); gaps = []; clock.resetStats(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
     read(t0) {
-      const st = clock.stats();
+      const st = clock.stats(), led = ledger.read();
       return {
         samples: rec.samples().filter((s) => s.t >= t0).map((s) => ({ ...s, t: s.t - t0 })), gaps: gaps.slice(), work: { p95: st.p95, max: st.max },
         layout: safe(() => readLayout(win.document, win)), problems: safe(() => problems()) ?? [], console: lines.slice(markLine), hidden: hiddenSince || win.document.hidden,
+        scan: safe(() => scanPage(win.document, win)), anims: led.anims, generic: led.findings,
       };
     },
-    stop() { clearInterval(timer); off(); cons.error = orig.error; cons.warn = orig.warn; win.removeEventListener('error', onErr); win.removeEventListener('unhandledrejection', onRej); win.document.removeEventListener('visibilitychange', onVis); void mark; },
+    stop() { clearInterval(timer); ledger.stop(); off(); cons.error = orig.error; cons.warn = orig.warn; win.removeEventListener('error', onErr); win.removeEventListener('unhandledrejection', onRej); win.document.removeEventListener('visibilitychange', onVis); void mark; },
   };
 }
 const safe = <T,>(f: () => T): T | null => { try { return f(); } catch { return null; } };

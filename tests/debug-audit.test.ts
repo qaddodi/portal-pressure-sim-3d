@@ -88,11 +88,12 @@ test('the report leads with what it cannot see, folds the same finding on many s
     rows: ids.map((id) => judgeStep(stepOf(id), id, reads({ layout: read({ cards: [{ id: 'teach', box: [16, 400, 374, 700], kids: [{ what: 'wide pill', box: [300, 410, 392, 430] }] }] }) }), 800, true)) });
   const b: Bundle = { build: 'b1', device: 'test', at: '2026-11-21T00:00:00Z', depth: 'full', framed: true, parts: [mk('iphone', ['s1', 's2', 's3']), mk('mac', ['s1'])], failed: [{ size: 'ipad', why: 'silent' }] };
   const t = renderText(b);
-  assert.ok(t.indexOf('OPEN FIRST') < t.indexOf('RESULT')); assert.match(t, /Taste/); assert.match(t, /SIZES THAT DID NOT FINISH/);
+  assert.ok(t.indexOf('SUMMARY:') < t.indexOf('FAILING') && t.indexOf('FAILING') < t.indexOf('EVERY STEP') && t.indexOf('EVERY STEP') < t.indexOf('CHECKS RUN')); assert.match(t, /Taste/); assert.match(t, /SIZES THAT DID NOT FINISH/);
   const g = groupFindings(b); assert.equal(g.length, 1); assert.equal(g[0]!.places.length, 4);
   assert.match(t, /\(4 places\)/); assert.match(t, /iphone Talk > s1/); assert.match(t, /2x \[error\] boom/);
   assert.equal((JSON.parse(renderJson(b)) as Bundle).parts[0]!.rows.length, 3);
-  assert.ok(t.length < 6000, 'short enough to paste');
+  assert.ok(renderText(b, { short: true }).length < 5000, 'the short one is short enough to paste'); assert.ok(!/EVERY STEP/.test(renderText(b, { short: true })));
+  assert.equal((t.match(/^iphone Talk > s\d \|/gm) ?? []).length, 3, 'the full report lists every step, not just failing ones');
 });
 
 test('the frames page: sizes from the address (unknown names dropped), the child address keeps the rest and drops the audit flags, bare ?audit is frames only where a mouse is', () => {
@@ -131,8 +132,8 @@ test('the report opens with the run time, says when a parallel run makes the spe
   const part = (id: string): AuditData => ({ size: { id, w: 390, h: 844, dpr: 3 }, build: 'b', ms: 120000, depth: 'full', stopped: false, rows: [], console: [], notes: [],
     coverage: [{ deck: 'Measuring HVPG', reached: 14, total: 15, missed: [9] }, { deck: 'TIPS', reached: 8, total: 8, missed: [] }] });
   const seq = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, wallMs: 250000, parts: [part('iphone'), part('mac')], failed: [] });
-  assert.match(seq, /^AUDIT v1[^\n]*\nRUN TIME: 4\.2 min in all \(one after the other: iphone 2\.0 min, mac 2\.0 min\)/);
-  assert.match(seq, /COVERAGE iphone: 22 of 23 stops in 2 talks/); assert.match(seq, /NOT REACHED in "Measuring HVPG": 1 of 15 stops \(stop 9\)/);
+  assert.match(seq, /^AUDIT v2[^\n]*\nSUMMARY: [^\n]*run time 4\.2 min/);
+  assert.match(seq, /one after the other, 4\.2 min in all/); assert.match(seq, /COVERAGE iphone: 22 of 23 stops in 2 talks/); assert.match(seq, /NOT REACHED in "Measuring HVPG": 1 of 15 stops \(stop 9\)/);
   const par = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, wallMs: 130000, parts: [part('iphone'), part('mac')], failed: [] });
   assert.match(par, /sizes ran at the same time/); assert.match(par, /PARALLEL RUN: .*NOT valid/);
 });
@@ -158,4 +159,55 @@ test('the registry holds one talk at boot and the rest lazily, so every tool tha
   assert.equal(builtinDecks().length, lazy.length + 1);
   const { readFileSync } = await import('node:fs');
   for (const f of ['src/ui/debug/audit/page.ts', 'src/ui/debug/page/page.ts']) assert.match(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'), /await loadAllDecks\(\)/, `${f} loads every talk first`);
+});
+
+// ── the generic sweep (scan.ts read the page; scan-judge.ts judges plain numbers) ──
+import { judgeScan, CHECKS, GAPS } from '../src/ui/debug/audit/scan-judge.ts';
+import { animInventory } from '../src/ui/debug/audit/report.ts';
+import type { RawScan, ScanItem } from '../src/ui/debug/audit/scan.ts';
+
+const item = (o: Partial<ScanItem> & { what: string; box: ScanItem['box'] }): ScanItem => ({ kind: 'text', clip: null, scrolls: false, opacity: 1, px: 14, bold: false, fg: 'rgba(20, 20, 20, 1)', bg: 'rgba(255, 255, 255, 1)', ...o });
+const scan = (o: Partial<RawScan> = {}): RawScan => ({ vw: 390, vh: 844, items: [], zero: [], broken: [], covered: [], counts: { texts: 0, media: 0, hit: 0, capped: false }, ...o });
+
+test('a chart that runs past its card is a failing finding named by the card\'s title (the "HVPG and ascites over the month" plot cut by the card\'s bottom edge)', () => {
+  const f = layoutFindings(read({ cards: [{ id: 'trend', title: 'HVPG and ascites over the month', box: [16, 100, 374, 600], kids: [], charts: [{ what: 'chart', box: [24, 300, 366, 640], clip: [16, 100, 374, 600] }] }] }));
+  assert.equal(f.length, 1); assert.equal(f[0]!.kind, 'chart-clipped'); assert.equal(f[0]!.sev, 'fail');
+  assert.match(f[0]!.what, /"HVPG and ascites over the month"/); assert.match(f[0]!.what, /40 px at the bottom/);
+  assert.deepEqual(layoutFindings(read({ cards: [{ id: 'trend', title: 'x', box: [16, 100, 374, 600], kids: [], charts: [{ what: 'chart', box: [24, 300, 366, 598], clip: [16, 100, 374, 600] }] }] })), []);
+});
+
+test('the sweep: text or a picture cut by a clipping ancestor, past the screen, overlapping other words, covered, too small, too pale, empty, broken', () => {
+  const k = (s: RawScan) => judgeScan(s).map((f) => f.kind);
+  assert.deepEqual(k(scan({ items: [item({ what: 'Ascites', box: [20, 90, 120, 130], clip: [16, 100, 374, 600] })] })), ['clipped']);
+  assert.deepEqual(k(scan({ items: [item({ kind: 'svg', what: 'chart', box: [20, 300, 360, 640], clip: [16, 100, 374, 600] })] })), ['clipped']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'Wide', box: [300, 100, 420, 120] })] })), ['off-screen']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'Inside a scroller', box: [20, 900, 120, 920], clip: [0, 0, 390, 844], scrolls: true })] })), []);
+  assert.deepEqual(k(scan({ items: [item({ what: 'Alpha', box: [20, 100, 120, 118] }), item({ what: 'Beta', box: [60, 104, 160, 122] })] })), ['text-overlap']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'Same', box: [20, 100, 120, 118] }), item({ what: 'Same', box: [21, 101, 121, 119] })] })), [], 'the same words twice is a halo, not an overlap');
+  assert.deepEqual(k(scan({ items: [item({ what: 'tiny', box: [20, 100, 60, 108], px: 7 })] })), ['small-text']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'pale', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)' })] })), ['low-contrast']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'fine', box: [20, 100, 60, 118] })] })), []);
+  assert.deepEqual(k(scan({ covered: [{ what: 'button "Next"', by: 'div.dock', points: 4 }], zero: [{ what: 'svg.plot', why: 'has no size' }], broken: [{ what: 'img logo.png' }] })), ['covered-by', 'zero-size', 'broken-image']);
+  assert.ok(judgeScan(scan({ items: Array.from({ length: 40 }, (_, i) => item({ what: `t${i}`, box: [20, 100 + i * 20, 60, 118 + i * 20], px: 6 })) })).some((f) => f.sev === 'note'), 'a flood is capped and says how many more');
+  assert.ok(CHECKS.length >= 15 && GAPS.length >= 4);
+});
+
+test('a step with a sweep: its findings join the row once (a card word the card reader already named is not named twice), the row keeps the animations and the sweep counts', () => {
+  const layout = read({ cards: [{ id: 'teach', title: 'Teach', box: [16, 400, 374, 700], kids: [{ what: 'wide pill', box: [300, 410, 392, 430] }] }] });
+  const sc = scan({ items: [item({ what: 'Wide', box: [300, 100, 420, 120] }), item({ what: 'wide pill', box: [300, 410, 392, 430], clip: [16, 400, 374, 700] })], counts: { texts: 2, media: 0, hit: 0, capped: false } });
+  const anims = [{ sel: 'div.dk-card', prop: 'opacity', kind: 'transition' as const, startMs: 10, plannedMs: 250, delayMs: 0, easing: 'ease', ended: 'end' as const, actualMs: 252 }];
+  const row = judgeStep(stepOf('x'), 'x', reads({ layout, scan: sc, anims, generic: [{ kind: 'generic-pop', sev: 'warn', what: 'div.x appeared at full opacity in one frame', where: 'div.x' }] }), 900, true);
+  const kinds = row.flags.map((f) => f.kind);
+  assert.ok(kinds.includes('generic-pop') && kinds.includes('off-screen'));
+  assert.equal(row.flags.filter((f) => /wide pill/.test(f.what)).length, 1);
+  assert.equal(row.animN, 1); assert.equal(row.scan!.texts, 2);
+});
+
+test('the report lists every kind of animation with its planned lengths and how it ended, so a snap shows in the inventory', () => {
+  const a = (sel: string, prop: string, plannedMs: number, ended: 'end' | 'cancel' = 'end') => ({ sel, prop, kind: 'transition' as const, startMs: 0, plannedMs, delayMs: 0, easing: 'ease', ended, actualMs: plannedMs });
+  const row = { ...judgeStep(stepOf('s'), 's', reads(), 800, true), anims: [a('div.dk-card', 'opacity', 250), a('div.dk-card', 'opacity', 30, 'cancel'), a('div.pill', 'transform', 400)], animN: 3 };
+  const b: Bundle = { build: 'b', device: 'd', at: 'x', depth: 'full', framed: false, parts: [{ size: { id: 'mac', w: 1440, h: 900, dpr: 2 }, ms: 1000, depth: 'full', stopped: false, console: [], notes: [], rows: [row] }], failed: [] };
+  const inv = animInventory(b);
+  assert.equal(inv.length, 2); assert.match(inv[0]!, /^2x transition div\.dk-card opacity: planned 30\/250\/250 ms/); assert.match(inv[0]!, /cancelled 1/);
+  assert.match(renderText(b), /ANIMATIONS \(3 runs of 2 kinds/);
 });
