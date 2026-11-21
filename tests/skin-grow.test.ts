@@ -145,6 +145,27 @@ test('the welded skin is the arms\' union at full size and the plain trunk is th
   } finally { done(b); }
 });
 
+test('IMV builds with the varices\' bundle C4 as a growing arm 25 degrees from V_COL: no fold, watertight (every edge on two faces that run opposite ways), seamed to all three tubes', () => {
+  const b = built();
+  try {
+    assert.ok(!b.set.dropped.includes('IMV:C4'), 'C4 is not dropped at IMV');
+    const m = b.set.skinOf('IMV')!;
+    assert.deepEqual(m.junction.arms.map(armKey), ['V_IMV:0', 'V_COL:1', 'C4:0'].map((k) => k), 'IMV: its two permanent arms, then the bundle');
+    assert.ok(m.junction.arms[2]!.grow);
+    assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, 'no fold');
+    const dir = new Map<number, number>();
+    for (let i = 0; i < m.index.length; i += 3) for (let s = 0; s < 3; s++) {
+      const a = m.index[i + s]!, c = m.index[i + (s + 1) % 3]!;
+      dir.set(a * 1e7 + c, (dir.get(a * 1e7 + c) ?? 0) + 1);
+    }
+    const seam = new Set<number>(m.seamVerts.flatMap((ids) => [...new Set(ids)]));   // (the open skin ends at the seam rings: a ring edge is on one face, every other edge on two)
+    let open = 0;
+    for (const [k, v] of dir) { const a = Math.floor(k / 1e7), c = k % 1e7; assert.equal(v, 1, `edge ${a}-${c} on one face this way`); if (seam.has(a) && seam.has(c) && !dir.has(c * 1e7 + a)) open++; else assert.equal(dir.get(c * 1e7 + a), 1, `edge ${a}-${c} has its mate`); }
+    assert.equal(open, 3 * 14, 'the three seam rings are the only open edges');
+    for (const ids of m.seamVerts) assert.ok(ids.length >= 14);
+  } finally { done(b); }
+});
+
 test('every static full-size skin has 0 folds: no triangle that counts is turned against its own vertex normals, the welded skins with their growing arms whole and the plain trunks', () => {
   const b = built();
   try {
