@@ -5,7 +5,7 @@
 import type { ChartCtx } from '../Chart.tsx';
 import { look, type Look } from '../looks.ts';
 import { measure } from '../measure.ts';
-import type { Shape, Frame, TextShape } from '../scene.ts';
+import { fitHeight, type Shape, type Frame, type TextShape } from '../scene.ts';
 import { cutsOf, fmtTick, namesCrowded, placeDotNames, placeWord, xAxisName } from '../curve/curve-pure.generated.js';
 import { baseName, dotRadius, geo, ratingTok } from './menu-pure.generated.js';
 import { curveHeight } from '../curve/frame.ts';
@@ -117,7 +117,7 @@ function drawOnce(spec: MenuSpec, c: ChartCtx, w: number, h: number, f: number, 
 export interface MenuOut { frame: Frame; G: Any; crowded: boolean }
 /** The menu at the card's width. Until the treatments are worked out (`dots` empty) the frame shows alone and the dots come in over it. */
 export function menuFrame(spec: MenuSpec, c: ChartCtx): MenuOut {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, spec.height ?? curveHeight(w, f)));
+  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, spec.height ?? fitHeight(curveHeight(w, f), c)));
   let out = drawOnce(spec, c, w, h, f, false);
   // a crowd of names: numbers on the dots and a key under the chart, if the plot keeps its height; else the names stay and any with no clear spot is left out
   if (out.crowded) { const o2 = drawOnce(spec, c, w, h, f, true); if (o2.G.B - o2.G.T >= 5 * f) out = o2; }
