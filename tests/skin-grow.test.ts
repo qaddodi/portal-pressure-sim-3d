@@ -117,7 +117,7 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
     // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
     want.LPV_A = ['C3:0']; delete want.RHV_T; want['RHV_T+IVCS'] = ['TIPS:1'];   // (21 Nov: TIPS at the right hepatic vein is welded: RHV_T and the cava's IVCS are ONE skin, meshed from the surface (cuts.ts keeps `surface` through the merge, mesh.ts goes to that rung when the hull of the rings misses))
-     want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1'];
+    want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1'];
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
