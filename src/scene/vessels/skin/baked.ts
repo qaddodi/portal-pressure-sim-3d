@@ -7,9 +7,12 @@ import { weldDigest } from '../../lobule/weld-codec.ts';
 import type { ArmTube, SkinPlan } from './cuts.ts';
 import type { ArmAxis } from './skin-object.ts';
 import type { SkinJunction, SkinMesh } from './types.ts';
+import { plainOf } from './plain.ts';
 
 /** One baked skin: the plan it was made from (its cuts, the vessels it hides whole, the node it merged with), the arms' drawn axes, the mesh, and the rung of the pace ladder (mesh.ts PACES) that closed it. */
-export interface BakedSkin { plan: SkinPlan; axes: ArmAxis[]; mesh: SkinMesh; pace: number }
+export interface BakedSkin { plan: SkinPlan; axes: ArmAxis[]; mesh: SkinMesh; pace: number; /** the plain trunk of a skin with growing arms (plain.ts): its axes, mesh and pace; null when it could not be built (the weld then runs over the tubes' cut ends alone); absent on a skin with no growing arm */ plain?: PlainBake | null }
+/** The plain trunk of one baked skin: the welded skin's axes of the arms that stay, its mesh and the rung of the pace ladder that closed it. */
+export interface PlainBake { axes: ArmAxis[]; mesh: SkinMesh; pace: number }
 /** What `SkinSet.build` makes of the junctions it is given: the skins, the nodes that could not be built (named, with why) and the growing arms it dropped to build the rest. */
 export interface BakedSkins { digest: string; skins: BakedSkin[]; lost: { node: string; message: string }[]; dropped: string[] }
 
@@ -39,7 +42,8 @@ export function encodeSkins(b: BakedSkins): Uint8Array {
     return v;
   };
   // (the mesh holds the plan's junction and cuts again: they are put back on unpacking, not written twice)
-  const skins = b.skins.map((s) => ({ plan: pack(s.plan), axes: pack(s.axes), pace: s.pace, mesh: pack({ ...s.mesh, junction: undefined, cuts: undefined }) }));
+  const skins = b.skins.map((s) => ({ plan: pack(s.plan), axes: pack(s.axes), pace: s.pace, mesh: pack({ ...s.mesh, junction: undefined, cuts: undefined }),
+    ...(s.plain === undefined ? {} : { plain: s.plain === null ? null : { axes: pack(s.plain.axes), pace: s.plain.pace, mesh: pack({ ...s.plain.mesh, junction: undefined, cuts: undefined }) } }) }));
   const head = new TextEncoder().encode(JSON.stringify({ digest: b.digest, lost: b.lost, dropped: b.dropped, skins }));
   const headPad = (4 - ((8 + head.length) % 4)) % 4, start = 8 + head.length + headPad;
   const out = new Uint8Array(start + bytes), dv = new DataView(out.buffer);
@@ -55,7 +59,7 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== MAGIC) return null;
   const hl = dv.getUint32(4, true), headPad = (4 - ((8 + hl) % 4)) % 4, start = 8 + hl + headPad;
-  let head: { digest: string; lost: BakedSkins['lost']; dropped: string[]; skins: { plan: unknown; axes: unknown; pace: number; mesh: unknown }[] };
+  let head: { digest: string; lost: BakedSkins['lost']; dropped: string[]; skins: { plan: unknown; axes: unknown; pace: number; mesh: unknown; plain?: { axes: unknown; pace: number; mesh: unknown } | null }[] };
   try { head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl))); } catch { return null; }
   const unpack = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(unpack);
@@ -70,9 +74,18 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
     const skins = head.skins.map((s) => {
       const plan = unpack(s.plan) as SkinPlan, mesh = unpack(s.mesh) as SkinMesh;
       mesh.junction = plan.junction; mesh.cuts = plan.cuts;
-      return { plan, axes: unpack(s.axes) as ArmAxis[], mesh, pace: s.pace };
+      const out: BakedSkin = { plan, axes: unpack(s.axes) as ArmAxis[], mesh, pace: s.pace };
+      if (s.plain === null) out.plain = null;
+      else if (s.plain) {
+        const pp = plainOf(plan), pm = unpack(s.plain.mesh) as SkinMesh;
+        if (!pp) return null;
+        pm.junction = pp.junction; pm.cuts = pp.cuts;
+        out.plain = { axes: unpack(s.plain.axes) as ArmAxis[], mesh: pm, pace: s.plain.pace };
+      }
+      return out;
     });
-    return { digest: head.digest, lost: head.lost, dropped: head.dropped, skins };
+    if (skins.some((k) => !k)) return null;
+    return { digest: head.digest, lost: head.lost, dropped: head.dropped, skins: skins as BakedSkin[] };
   } catch { return null; }
 }
 
