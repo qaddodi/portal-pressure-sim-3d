@@ -19,7 +19,7 @@ import { PAINTED, VertexPaint } from './vertex-paint.ts';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
-import { bake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
+import { LiverBake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
@@ -210,9 +210,14 @@ export class OrganLayer {
         (o.toon.uniforms.nodK!.value as Vector2).set(shadeNow(), TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
         this.liverGeometry = g;
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('hullN').array);   // the SMOOTHED rest normals: the raw per-vertex ones jag along the rim, and the nodules pushed along them (direction and weight) came out as teeth and notches
+        const shape = this.liverShape, ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+        const bk = this.liverBake ??= new LiverBake();
+        // (the nodules' rest-place heights and the surface texture, a few ms at a time in idle time: never inside a frame, never the first scarred frame)
+        const slice = (): void => { if (this.liverShape === shape && !(shape.warm(6) && bk.step(6))) { if (ric) ric(slice, { timeout: 1000 }); else setTimeout(slice, 30); } };
+        if (ric) ric(slice, { timeout: 3000 }); else setTimeout(slice, 500);
       }
     }
-    this.dirtyColours = true; this.instant = true;
+    this.dirtyColours = true; this.instant = true; this.shrinkWas = NaN;
   }
 
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
@@ -257,8 +262,7 @@ export class OrganLayer {
       if (this.liverShape?.apply(ls.cirrhosis)) { this.liverGeometry!.computeVertexNormals(); this.dirtyColours = true; }
       const s = liverShrink(ls.cirrhosis, ls.congestion);   // the figure's own, on the shown values
       const pv = pivot(LIVER_PIVOT);
-      liver.group.scale.setScalar(s); liver.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0);
-      this.dirtyColours = true;
+      if (s !== this.shrinkWas) { this.shrinkWas = s; liver.group.scale.setScalar(s); liver.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0); this.dirtyColours = true; }   // (repainted only when the liver's own size changed: every organ's colours and the liver's vertex paint were redone in every frame)
     }
     const sp = this.byId.get('spleen');
     if (sp) {
@@ -277,6 +281,8 @@ export class OrganLayer {
     return moving || eased;
   }
 
+  private liverBake: LiverBake | null = null;
+  private shrinkWas = NaN;
   private paint(): boolean {
     const p = this.palette;
     if (!p) return false;
@@ -300,7 +306,8 @@ export class OrganLayer {
       let on = false;
       if (id === 'liver') {
         if (s.cirrhosisNod > 0.004 && o.toon.uniforms.nodTex!.value === NO_TEX) {   // a healthy liver never pays for the texture
-          const tex = new DataTexture(bake(), TEX_PW, TEX_PH);
+          const bk = this.liverBake ??= new LiverBake(); bk.step();   // (laid in idle slices since the liver was built; this finishes what is left, if a scarred liver was asked for first)
+          const tex = new DataTexture(bk.out, TEX_PW, TEX_PH);
           tex.magFilter = LinearFilter; tex.minFilter = LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
           o.toon.uniforms.nodTex!.value = tex;
         }
