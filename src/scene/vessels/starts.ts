@@ -73,6 +73,8 @@ const ALONG_VEIN: Readonly<Record<string, { hosts: readonly string[]; minX?: num
   A_HL: { hosts: ['PVH_L', 'PVH_L_1'], minX: 632, maxX: 676, off: 8, above: true, fork: 40 },   // (it ends short of the umbilical vein, which leaves the left portal vein's wall just beyond it, below)
 };
 export const ALONG_VEIN_IDS: ReadonlySet<string> = new Set(Object.keys(ALONG_VEIN));
+/** The vein an artery runs beside to its end (the last of its hosts: the one that branches into the liver), whose fade the artery's out-fade is tied to (fades.ts companionEnd). */
+export const alongVeinCompanion = (id: string): string | null => { const h = ALONG_VEIN[id]?.hosts; return h ? h[h.length - 1]! : null; };
 
 function alongVeinBase(id: string, paths: Readonly<Record<string, readonly P2[]>>): P2[] | null {
   const a = ALONG_VEIN[id];

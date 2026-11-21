@@ -23,15 +23,17 @@ test('wedged: the vein beyond the tip and its branches are tinted, the stretch b
 // 20 Nov, Mohammad: "the yellow/orange highlighting should start basically from the balloon edge and move forward into the hepatic vein and branches to cover it"; "make the HVPG balloon less transparent".
 import { readFileSync } from 'node:fs';
 import { route3d } from '../src/scene/procedures/route3d.ts';
+import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 
 test('the tint is whole at the balloon\'s distal edge (no untinted gap, no 8% ramp) and its front travels forward as the column fills', () => {
   const sc = new CelScene();
   const r3 = route3d('hvpg')!, sub = (r3.route.parts.find((p) => p.name === 'hv') as unknown as { subs: { id: string; d0: number; d1: number; fa: number; fb: number }[] }).subs.find((q) => q.id === 'RHV_IVC_1')!;
-  const edgeD = r3.tipD(1) - r3.rc * 300 * 4.2, edgeU = sub.fa + (sub.fb - sub.fa) * ((edgeD - sub.d0) / (sub.d1 - sub.d0));
+  // (the balloon edge's place on the vein AS DRAWN, by projection on its drawn centreline: the shader's u is the drawn tube's own length, not the 2D course's share)
+  const edgeD = r3.tipD(1) - r3.rc * 300 * 4.2, ce = r3.centre(edgeD), edgeU = centrelineOf('RHV_IVC_1')!.nearestU([ce.x, ce.y, ce.z]);
   const at = (col: number) => { sc.procs.showHvpgState(1, 1, 'wedge', 0, col); return sc.procs.wedgeTint()?.pieces.get('RHV_IVC_1'); };
   const full = at(1)!;
-  assert.ok(Math.abs(full.cut - edgeU) < 1e-6, `the tint's cut is the balloon's distal edge: ${full.cut} against ${edgeU}`);
-  assert.ok(full.edge < 0.05, `it ends softly over a few shaft radii, never 0.08 of the course: ${full.edge}`);
+  assert.ok(Math.abs(full.cut - edgeU) < 2e-3, `the tint's cut is the balloon's distal edge: ${full.cut} against ${edgeU}`);
+  assert.ok(full.edge < 0.08 && full.edge > 0.005, `it ends softly over a few shaft radii, never a hard step and never 0.08 of the course: ${full.edge}`);
   assert.ok(full.front <= 0.0001, 'a full column covers the vein to its outer end');
   // the column filling: the front starts at the balloon and only ever moves forward (u falls toward the outer end), one eased number
   let was = Infinity;
@@ -58,4 +60,36 @@ test('the shader tints from the cut forward as far as the front has come; the ba
   const pc = readFileSync(new URL('../src/scene/devices/catheters/proc-catheter.ts', import.meta.url), 'utf8');
   const m = pc.match(/this\.balloon\.setAlphas\((\d*\.?\d+) \*/);
   assert.ok(m && Number(m[1]) >= 0.35, `the balloon's body alpha is ${m?.[1]}: solid enough to see`);
+});
+
+// 21 Nov, Mohammad: "the yellow/orange is not what we agreed upon" (a hard band well upstream of the balloon, plain vein between them). Root cause: the shader's u is the DRAWN tube's length share, and the tint's cut was the route's
+// linear share of the 2D course (fa to fb): on the right hepatic vein 0.65 where the balloon's edge really is at 0.755, a tenth of the vein away.
+import { Vector3 } from 'three';
+import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
+import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
+
+test('the tint\'s cut is where the balloon\'s distal edge stands on the drawn vein, within a shaft width, whichever piece it is on', () => {
+  setSmoothJoins(true);
+  const sc = new CelScene();
+  sc.procs.showHvpgState(1, 1, 'wedge', 0, 1);
+  const w = sc.procs.wedgeTint()!, r3 = route3d('hvpg')!, r = r3.route;
+  const edgeD = r3.tipD(1) - r3.rc * UNITS_PER_SCENE * 4.2;
+  let checked = 0;
+  for (const sub of (r.parts.find((p) => p.name === 'hv')!.subs ?? [])) {
+    const p = w.pieces.get(sub.id!);
+    if (!p || p.cut >= 2 || !(edgeD >= sub.d0 && edgeD <= sub.d1)) continue;
+    const c = centrelineOf(sub.id!)!, at = c.pointAt(p.cut), e = r3.centre(edgeD, new Vector3());
+    const dist = Math.hypot(at[0] - e.x, at[1] - e.y, at[2] - e.z);
+    assert.ok(dist < r3.rc * 2, `${sub.id}: the tint's edge is ${dist.toFixed(4)} from the balloon's edge (the shaft is ${r3.rc.toFixed(4)})`);
+    checked++;
+  }
+  assert.ok(checked >= 1, 'the piece the balloon is in was checked');
+  sc.dispose();
+});
+
+test('the balloon is glass with streaks of light and nothing solid in it: no collars, no ink round the glints', () => {
+  const src = readFileSync(new URL('../src/scene/devices/catheters/proc-catheter.ts', import.meta.url), 'utf8');
+  assert.match(src, /this\.balloonBands = \[\];/, 'no marker bands or collars inside the glass');
+  assert.match(src, /mk\(g, 'graft', 9, 'none'/, 'the glints have no outline (it read as a dark bar through the balloon)');
+  assert.match(src, /0\.95 \}, \{ phi: -0\.5/, 'a bright, soft specular streak');
 });
