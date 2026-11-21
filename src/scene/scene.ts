@@ -333,6 +333,10 @@ export class CelScene {
     this.body.add(this.shuntGuide.mesh);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
+    // a custom shunt's tube is made when a learner opens it, after the figure is built: it is a vessel like any other, so it is pickable and lit (and let go with its tube)
+    this.highlight.expect = (id) => this.tubes.isCustom(id);
+    this.tubes.watch.add = (o) => { this.highlight.register(o); this.moving = true; };
+    this.tubes.watch.drop = (o) => this.highlight.unregister(o);
     this.flow = new BloodMarks(this.vessels);
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
     dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); };
@@ -683,7 +687,7 @@ export class CelScene {
   private syncNamed(): void {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
-    if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
+    if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; if (host) for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
     // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
     this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
     this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
@@ -840,20 +844,21 @@ export class CelScene {
     const rr = this.circuit.rr, reach = this.phone ? 16 : 10;
     let best: string | null = null, bestD = reach * reach;
     const v3 = new Vector3(), a = { x: 0, y: 0 };
-    for (const v of MAPPED) {
-      if (this.presence.stateOf(v.id) !== 'shown') continue;
-      const pts = COURSES.get(v.id)!.mapPts;
+    const along = (id: string, pts: readonly (readonly [number, number])[]): void => {
       let px = NaN, py = NaN;
       for (let i = 0; i < pts.length; i += 2) {
         const m = mapToScene(pts[i]![0], pts[i]![1]), q = turnScenePt(m[0], m[1], rr);
         this.rig.project(v3.set(q[0], q[1], m[2]), a);
         if (!Number.isNaN(px)) {
           const dx = a.x - px, dy = a.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L)), ex = px + dx * u - x, ey = py + dy * u - y, d = ex * ex + ey * ey;
-          if (d < bestD) { bestD = d; best = v.id; }
+          if (d < bestD) { bestD = d; best = id; }
         }
         px = a.x; py = a.y;
       }
-    }
+    };
+    for (const v of MAPPED) if (this.presence.stateOf(v.id) === 'shown') along(v.id, COURSES.get(v.id)!.mapPts);
+    // (the custom shunts a learner opened: routed on the map, drawn with the rest, so a tap on one is a tap on a vessel)
+    for (const c of this.tubes.pickCourses()) if (c.map) along(c.id, c.map);
     return best;
   }
   private settleViews(): void {
@@ -988,9 +993,10 @@ export class CelScene {
     if (this.figureView !== 'body') return null;
     raycaster.layers.enable(VESSEL_LAYER); raycaster.layers.enable(FAINT_ONLY_LAYER);
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
-    const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
+    const all = [...this.vessels, ...this.tubes.pickable()];   // (a custom shunt's tube is a vessel too)
+    const hits = raycaster.intersectObjects(all.map((v) => v.toonMesh), false);
     for (const h of hits) {
-      const o = this.vessels.find((v) => v.toonMesh === h.object);
+      const o = all.find((v) => v.toonMesh === h.object);
       if (o && o.group.visible) return o.edge!.id;   // (a vessel not drawn, a collateral not yet open, takes no tap)
     }
     return null;
@@ -1032,6 +1038,21 @@ export class CelScene {
           const dx = pb.x - px, dy = pb.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L));
           const d = Math.hypot(px + dx * u - x, py + dy * u - y) - half;
           if (d < bestD) { bestD = d; best = v.id; }
+        }
+        px = pb.x; py = pb.y;
+      }
+    }
+    // the custom shunts a learner opened, on their own body course (circuit/tubes.ts)
+    for (const c of this.tubes.pickCourses()) {
+      if (!c.body) continue;
+      const half = c.body.radius * k;
+      let px = NaN, py = NaN;
+      for (const p of c.body.pts) {
+        this.rig.project(a.set(p.x, p.y, p.z), pb);
+        if (!Number.isNaN(px)) {
+          const dx = pb.x - px, dy = pb.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L));
+          const d = Math.hypot(px + dx * u - x, py + dy * u - y) - half;
+          if (d < bestD) { bestD = d; best = c.id; }
         }
         px = pb.x; py = pb.y;
       }
