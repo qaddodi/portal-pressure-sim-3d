@@ -24,10 +24,21 @@ const KINDS = { Float32Array, Uint32Array, Int32Array } as const;
 export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>): string {
   let h1 = 0x811c9dc5, h2 = 0x1b873593, n = 0;
   const mix = (x: number) => { h1 = Math.imul(h1 ^ x, 16777619) >>> 0; h2 = Math.imul(h2 + x, 0x85ebca6b) >>> 0; h2 ^= h2 >>> 13; n++; };
+  // what a tube was made FROM is hashed (the courses' points, radii and tapers, to 1e-4 of a unit): those are doubles that differ between engines by 1e-16 at most, so a boundary of the rounding is crossed with a chance of about 1e-12 a number.
+  // The vertices are not: they are float32, out of sin, cos and a Frenet frame, and an engine whose last bits differ (Safari's) moves some of the 200 000 across the rounding, so its page would never lay the baked file in.
+  const walk = (v: unknown): void => {
+    if (typeof v === 'number') mix(Math.round(v * 1e4) | 0);
+    else if (typeof v === 'string') { for (let i = 0; i < v.length; i++) mix(v.charCodeAt(i)); mix(0x7f); }
+    else if (Array.isArray(v)) { mix(0x5b); for (const x of v) walk(x); mix(0x5d); }
+    else if (v && typeof v === 'object') for (const k of Object.keys(v).sort()) { if ((v as Record<string, unknown>)[k] === undefined) continue; walk(k); walk((v as Record<string, unknown>)[k]); }
+    else mix(v === true ? 1 : v === false ? 2 : 3);
+  };
   for (const id of [...tubes.keys()].sort()) {
     for (let i = 0; i < id.length; i++) mix(id.charCodeAt(i));
-    const g = tubes.get(id)!.geometry.getAttribute('position');
-    mix(tubes.get(id)!.tubular);
+    const t = tubes.get(id)!;
+    mix(t.tubular);
+    if (t.input !== undefined) { walk(t.input); continue; }
+    const g = t.geometry.getAttribute('position');   // (a tube with no recorded input: its vertices, as before)
     for (let i = 0; i < g.count; i++) { mix(Math.round(g.getX(i) * 1e4) | 0); mix(Math.round(g.getY(i) * 1e4) | 0); mix(Math.round(g.getZ(i) * 1e4) | 0); }
   }
   return `${weldDigest(js)}/${h1.toString(16)}-${h2.toString(16)}-${n}`;

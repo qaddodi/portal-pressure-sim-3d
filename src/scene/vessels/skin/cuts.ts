@@ -5,7 +5,8 @@ import { TUBE_RADIAL } from '../tubes.ts';
 import { SKIN_GROWERS, armR, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
-export interface ArmTube { geometry: BufferGeometry; tubular: number }
+/** `input`: what the tube was built FROM (the courses' points, radii and tapers; the map's points), the digest of a baked file hashes it instead of the vertices: the vertices come out of sin, cos and a Frenet frame, and another engine's last bits could move one across the digest's rounding, so a phone would never find the file made for it. */
+export interface ArmTube { geometry: BufferGeometry; tubular: number; input?: unknown }
 /** WP2's check (mesh.ts `hullCovers`, spec 4.4 rule 3): with these cuts, is every seam ring vertex a vertex of the convex hull of all the rings? */
 export type HullOk = ((cuts: SkinCut[]) => boolean) & {
   /** after a refusal: the arm whose seam is the one to move out (the check knows which seam stands too near which arm); the seam nearest J when absent or -1 */
