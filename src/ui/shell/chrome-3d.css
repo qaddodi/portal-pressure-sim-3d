@@ -8,7 +8,13 @@
 .sh-root > .app :is(.topbar > *, .vdock, .zoom-pill, .stage-credit) { pointer-events: auto; }
 .sh-root > .app .stage-view { pointer-events: none; }
 .sh-root > .app .stage-credit { pointer-events: none; }
-.sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { opacity: 0; pointer-events: none !important; }
+.sh-root > .app .zoom-pill[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.zoom-pill, .stage-credit) { opacity: 0; }
+.sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { pointer-events: none !important; }
+/* The bar and the dock are away in a talk by their parts, never as wholes: a whole at opacity < 1 is a backdrop root and its faces lose their blur for the fade (shell/deck-fade.ts plays the way there and back). */
+.sh-root[data-mode="deck"] > .app :is(.topbar, .vdock):has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)),
+.sh-root[data-mode="deck"] > .app :is(.topbar, .vdock) :has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)),
+.sh-root > .app :is(.topbar, .vdock)[data-hidden="true"]:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)),
+.sh-root > .app :is(.topbar, .vdock)[data-hidden="true"] :has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg) > :not(:has(.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg)) { opacity: 0; }
 .sh-root[data-mode="deck"] > .app * { pointer-events: none !important; }
 .sh-root > .app .stage-credit.placed { opacity: 1; }
 /* The credit fades, never pops (2D's page shows and hides it at once; here the Sinusoid's vessel takes its corner away on a phone and it comes back when the view is left). The class is `.covered` (no bare spot) or `.moving` (a new spot: out, move, in). */

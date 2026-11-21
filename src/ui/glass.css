@@ -24,6 +24,10 @@
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
   }
+  /* A backdrop blur sees nothing past an ancestor that is fading (opacity < 1 makes it a backdrop root), so a glass inside a fading wrapper is drawn unblurred until the fade ends and the blur then
+     "comes in" (owner, 20 Nov: "when the search menu appears, it appears without blur then the blur comes in"). 2D fades .pal-back and .modal-back (crossfade) with the panel inside; the panel
+     fades itself too (scale-settle, scale-settle-out), and the veil is the panel's own shadow, so the wrappers carry nothing to fade: they stand still and the glass fades with its own blur. */
+  html:not([data-noglass]) :is(.pal-back, .pal-back.leaving, .modal-back.show, .modal-back.leaving) { animation: none !important; }
   /* the upright and wide teaching cards' split sheet: its own box is no glass, its two pieces are (2D app-09-tests.css: a third panel round them was a bug) */
   html:not([data-noglass]) :is(.pz.stack.stack .pz-data.pz-sheet, .pz.pz-wide.pz-wide .pz-data.pz-sheet)::before,
   html:not([data-noglass]) :is(.pz.stack.stack .pz-data.pz-sheet, .pz.pz-wide.pz-wide .pz-data.pz-sheet)::after {
