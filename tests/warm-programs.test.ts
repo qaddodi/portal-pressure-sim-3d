@@ -46,7 +46,7 @@ test('every material whose transparent flag is flipped while the page runs is ma
   assert.match(vo, /const mat = markBlends\(new ShaderMaterial\(\{ vertexShader: this\.toon\.vertexShader/, 'the veil copy');
   assert.match(so, /const material = markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/, 'the three skin copies (the Circuit\'s too: one class)');
   assert.match(so, /setTransparent\(on: boolean\)/);
-  assert.match(src('scene/Stage.tsx'), /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera\)/);
+  assert.match(src('scene/Stage.tsx'), /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
   assert.doesNotMatch(vo, /\.transparent = /, 'vessel-object flips only through setBlendState');
   assert.doesNotMatch(so, /\.transparent = /, 'skin-object flips only through setBlendState');
   // ... and no other file assigns it after construction: a new runtime flip must be marked (or listed here with why it is fixed)
@@ -54,4 +54,24 @@ test('every material whose transparent flag is flipped while the page runs is ma
   const walk = (d: string): string[] => readdirSync(new URL(`../src/${d}`, import.meta.url)).flatMap((f) => { const p = `${d}/${f}`; return statSync(new URL(`../src/${p}`, import.meta.url)).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(f) ? [p] : []; });
   const flippers = walk('scene').filter((p) => /\.transparent = /.test(src(p))).filter((p) => !FIXED.has(p));
   assert.deepEqual(flippers, [], 'a file that flips `transparent` at run time must mark its material (markBlends) and flip it with setBlendState');
+});
+
+test('warmPrograms compiles with the figure\'s render target bound (programs are keyed on the output colour space), and puts the previous target back before any frame', async () => {
+  const log: string[] = [], rt = { rt: 1 };
+  let cur: unknown = null;
+  const gl: WarmRenderer = {
+    getRenderTarget: () => cur,
+    setRenderTarget: (t) => { cur = t; log.push(t === rt ? 'bind rt' : 'bind none'); },
+    compileAsync: async () => { log.push(`compile with ${cur === rt ? 'rt' : 'none'}`); },
+  };
+  const p = warmPrograms(gl, new Group(), new PerspectiveCamera(), rt);
+  assert.deepEqual(log, ['bind rt', 'compile with rt', 'bind none'], 'the target is only held across the synchronous compile call');
+  await p;
+  const l2: string[] = [];
+  await warmPrograms({ compileAsync: async () => { l2.push('compile'); } }, new Group(), new PerspectiveCamera());
+  assert.deepEqual(l2, ['compile'], 'with no target nothing is bound');
+});
+
+test('Stage warms into the post pass\'s target', () => {
+  assert.match(src('scene/Stage.tsx'), /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
 });

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useUi, atEnd } from '../ui-store.ts';
 import { isFirst, isLast } from './presenter-machine.ts';
 import { SettingsMenu } from '../settings/SettingsMenu.tsx';
@@ -25,13 +25,18 @@ export function PresenterBar({ title }: { title: string }) {
   const first = isFirst(pos), end = useMemo(() => isLast(stops, pos), [stops, pos]);
   const beatsAt = (() => { const st = stops[pos.stop]; return st && st.kind === 'slide' ? st.beats : 1; })();
   const place = barOf(vp, colRight);
+  // The talk's title beside the bar is there only where the words' column leaves room, and that changes from stop to stop. It is always in the page and fades (a span put in at full opacity was a pop at 100+ stops of the
+  // 21 Nov Mac audit); where it has no room it keeps its last place and is at 0.
+  const titleAt = useRef(place.title);
+  if (place.title) titleAt.current = place.title;
+  const tp = place.title ?? titleAt.current;
   const sideways = vp.h <= 500 && vp.w > vp.h;
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   const phone = layoutOf(vp.w, vp.h) === 'stack';
   // the 2D app's own pill markup: `.pz-bar` with `.pzb-pill` on a wide screen, `.phone` stacked; `.ib` buttons, the count `.pzb-n` > `.pzb-nt`
   return (
     <>
-      {place.title && <span className="dk-bar-title" style={{ left: place.title.x, top: place.title.y, width: place.title.w, height: place.title.h }}>{title}</span>}
+      {tp && <span className="dk-bar-title" data-on={place.title ? '' : undefined} aria-hidden={place.title ? undefined : true} style={{ left: tp.x, top: tp.y, width: tp.w, height: tp.h }}>{title}</span>}
       <div className={`dk-bar pz-bar ${stacked ? 'phone' : 'pzb-pill'}`} data-edge={place.edge} role="toolbar" aria-label="Presenter" style={phone
         // an iPhone's pill is anchored by its lower right corner (its width is its buttons', never a guessed one), inside the words card
         ? { right: vp.w - (place.rect.x + place.rect.w), top: place.rect.y, left: 'auto', bottom: 'auto', height: place.rect.h, width: 'auto' }

@@ -5,8 +5,10 @@ import { boundBy, readStats, frameBegin, frameEnd, renderStats, memoryClimb, typ
 import { createClock } from '../src/clock/frame.ts';
 import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/judge.ts';
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
-import { renderText, groupFindings, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
-import { speedOf, scaleTime, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
+import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
+import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
+import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
+import { speedOf, scaleTime, scaleTimers, sampleRealMs, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
 
@@ -52,10 +54,13 @@ test('leak check: counts that climb past the baseline are a finding, steady coun
   const leak = steady.map((r, i) => ({ geometries: 80 + i * 5, textures: 12 }));
   assert.ok(memoryClimb(leak)!.geometries > 30);
   assert.equal(memoryClimb(steady.slice(0, 3)), null);
+  // views built the first time they are shown stay built: a step up that does not go on climbing is not a leak (the iPhone run: 126 geometries at step 27, 189 at step 165, 255 at the end)
+  const lazy = Array.from({ length: 100 }, (_, i) => ({ geometries: 60 + (i > 5 ? 60 : 0) + (i > 40 ? 60 : 0) + (i > 70 ? 8 : 0), textures: 12 }));
+  assert.equal(memoryClimb(lazy), null);
   const flags = async () => {
     const steps: Step[] = Array.from({ length: 8 }, (_, i) => ({ group: 'g', id: `s${i}`, label: `s${i}`, run: () => undefined }));
     let n = 0;
-    const d = await runAudit(steps, { size: { id: 't', w: 1, h: 1, dpr: 1 }, mark: () => 0, settle: async () => ({ settled: true, ms: 0 }), now: () => 0, quietMs: 0, read: () => ({ samples: [], gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false, gpu: gpu({ geometries: 80 + 8 * n++ }) }) });
+    const d = await runAudit(steps, { size: { id: 't', w: 1, h: 1, dpr: 1 }, mark: () => 0, settle: async () => ({ settled: true, ms: 0 }), now: () => 0, quietMs: 0, read: () => ({ samples: [], gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false, gpu: gpu({ geometries: 80 + 20 * n++ }) }) });
     return d.rows[7]!.flags.map((f) => f.kind);
   };
   return flags().then((k) => assert.ok(k.includes('gpu-memory-climb')));
@@ -91,12 +96,13 @@ test('report: GPU-bound section, renderer line and per-step gl column; a speed r
   assert.match(t, /iphone RENDERER/); assert.match(t, /gl 100 calls 500000 tris/);
   assert.ok(groupFindings(b).some((g) => g.kind === 'gpu-bound'));
   const fast = { ...b, speed: 4 };
-  assert.ok(!groupFindings(fast).some((g) => ['gpu-bound', 'stall', 'low-fps'].includes(g.kind)));
+  assert.ok(!groupFindings(fast).some((g) => ['gpu-bound', 'low-fps'].includes(g.kind)));
+  assert.ok(groupFindings(fast).some((g) => g.kind === 'stall'));   // (a real-time frame gap is valid at any speed)
   assert.match(renderText(fast), /SPEED RUN x4/);
 });
 
 test('speed (#10): parsed and capped; scaled time runs N times faster and restores; CSS animations are sped up once', () => {
-  assert.equal(speedOf(null), 1); assert.equal(speedOf('abc'), 1); assert.equal(speedOf('0.5'), 1); assert.equal(speedOf('4'), 4); assert.equal(speedOf('50'), MAX_SPEED);
+  assert.equal(speedOf(null), 1); assert.equal(speedOf('abc'), 1); assert.equal(speedOf('0.5'), 1); assert.equal(speedOf('4'), 4); assert.equal(speedOf('50'), MAX_SPEED); assert.equal(speedOf('10'), 10);
   let real = 1000; const perf = { now: () => real };
   const s = scaleTime(4, perf);
   const a = perf.now(); real += 100; assert.equal(perf.now() - a, 400);
@@ -105,4 +111,60 @@ test('speed (#10): parsed and capped; scaled time runs N times faster and restor
   const anims = [{ playbackRate: 1, calls: 0, updatePlaybackRate(r: number) { this.playbackRate = r; this.calls++; } }, { playbackRate: 4, calls: 0, updatePlaybackRate() { this.calls++; } }];
   speedAnimations({ getAnimations: () => anims }, 4); speedAnimations({ getAnimations: () => anims }, 4);
   assert.deepEqual(anims.map((x) => x.calls), [1, 0]);
+});
+
+test('speed 10: timers scale with the clock, the sampler never ticks faster than 8 ms, and above 4x the frame-limited findings are dropped and named', () => {
+  const seen: (number | undefined)[] = []; const g = { setTimeout: ((fn: unknown, ms?: number) => { seen.push(ms); return 0; }) as (...a: never[]) => unknown };
+  const orig = g.setTimeout, t = scaleTimers(10, g);
+  (g.setTimeout as unknown as (f: () => void, ms: number) => void)(() => undefined, 950); t.restore();
+  assert.deepEqual(seen, [95]); assert.equal(g.setTimeout, orig);
+  assert.equal(sampleRealMs(33, 1), 33); assert.equal(sampleRealMs(33, 4), 8.25); assert.equal(sampleRealMs(33, 10), 8);
+  const row = judgeStep({ group: 'g', id: 'x', label: 'x', run: () => undefined }, 'x', { samples: card([0, 0, 1, 1]), gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
+  const b = (speed: number): Bundle => ({ build: 'b', device: 'd', at: 'n', depth: 'quick', framed: false, speed, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'quick', stopped: false, rows: [row], console: [], notes: [] }], failed: [] });
+  assert.ok(groupFindings(b(4)).some((x) => x.kind === 'fade-instant'));
+  assert.ok(!groupFindings(b(10)).some((x) => x.kind === 'fade-instant'));
+  assert.match(renderText(b(10)), /ABOVE 4x/); assert.doesNotMatch(renderText(b(4)), /ABOVE 4x/);
+});
+
+test('LAGS: steps under 30 fps or with a gap over 100 ms, worst first, with the talk, stop and the transition; at the top of the report', () => {
+  const mk = (label: string, group: string, fps: number, worst: number, gaps = 15): ReturnType<typeof judgeStep> => judgeStep({ group, id: label, label, run: () => undefined }, label, { samples: card([1, 1]), gaps: Array.from({ length: gaps }, (_, i) => (i === 0 ? worst : 1000 / fps)), work: { p95: 3, max: 4 }, layout: null, problems: [], console: [], hidden: false, gpu: gpu({ slow: [{ ms: 5, gap: worst, bound: 'gpu/compositor', tags: ['card-in'] }] }) }, 100, true);
+  const rows = [mk('stop 6 of 20', 'HVPG', 60, 20), mk('stop 7 of 20', 'HVPG', 16, 135), mk('leave the talk', 'HVPG', 55, 160), mk('stop 8 of 20', 'HVPG', 59, 18)];
+  const b: Bundle = { build: 'b', device: 'd', at: 'n', depth: 'full', framed: false, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: false, rows, console: [], notes: [] }], failed: [] };
+  const l = lags(b);
+  assert.equal(l.length, 2); assert.match(l[0]!.where, /stop 7 of 20/); assert.match(l[0]!.transition, /from stop 6 to stop 7/); assert.match(l[0]!.cause, /gpu\/compositor/);   // (16 fps with a 135 ms gap outranks a lone 160 ms gap at 55 fps)
+  assert.match(l[1]!.where, /leave the talk/); assert.match(l[1]!.transition, /LEAVING/);
+  assert.equal(transitionOf(rows, 0), 'ENTERING stop 6');
+  const t = renderText(b); assert.ok(t.indexOf('LAGS') < t.indexOf('FAILING') || !t.includes('FAILING')); assert.ok(t.indexOf('LAGS') < t.indexOf('FINDINGS BY KIND') || !t.includes('FINDINGS BY KIND'));
+  assert.match(renderText({ ...b, parallel: true }), /LAGS[^\n]*\nnot available/);
+});
+
+test('zero stalls: any frame gap over 50 ms fails (never a warning), is counted in the headline and listed under LAGS; a speed run leaves it out', () => {
+  const one = judgeStep({ group: 'HVPG', id: 'a', label: 'stop 3 of 9', run: () => undefined }, 'stop 3 of 9', { samples: card([1, 1]), gaps: [16, 16, 16, 16, 60, 16], work: { p95: 3, max: 4 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
+  assert.equal(one.flags.find((f) => f.kind === 'stall')!.sev, 'fail');
+  const b: Bundle = { build: 'b', device: 'd', at: 'n', depth: 'full', framed: false, parts: [{ size: { id: 'iphone', w: 1, h: 1, dpr: 1 }, ms: 1, depth: 'full', stopped: false, rows: [one], console: [], notes: [] }], failed: [] };
+  assert.equal(lags(b).length, 1);
+  assert.match(renderText(b), /STALLS: 1 frame gap over 50 ms in 1 step/);
+  assert.match(renderText({ ...b, speed: 4 }), /STALLS: 1 frame gap over 50 ms in 1 step.*real time at speed x4/);
+  assert.equal(lags({ ...b, speed: 20 }).length, 1); assert.ok(lags({ ...b, speed: 20 })[0]!.serious); assert.match(renderText({ ...b, speed: 20 }), /SERIOUS LAG: /); assert.ok(!lags(b)[0]!.serious);   // (a stall is still a lag at 20x)
+  assert.match(renderText({ ...b, parallel: true }), /STALLS: not measured/);
+});
+
+test('progress: the step total is counted up front, the percentage stays under 100 until done, the ETA comes from the pace, and sizes combine', () => {
+  const a = { sheets: 6, presets: 8, decks: [10, 20] };
+  assert.equal(estimateSteps('full', a), 4 + 6 + 1 + (5 + 6) + (1 + 11 + 1) + (1 + 21 + 1) + 1);
+  assert.equal(estimateSteps('quick', a), 4 + 2 + 1 + 5 + (1 + 4 + 1) * 2 + 1);
+  assert.equal(pace(0, 100, 0, 0).pct, 0);
+  const p = pace(30, 120, 0, 60000);   // 30 steps in a minute: 90 left is 3 minutes
+  assert.equal(p.pct, 25); assert.match(p.text, /step 30 of about 120 · 25% · about 3 min left/);
+  assert.equal(pace(130, 120, 0, 1).total, 131); assert.equal(pace(130, 120, 0, 1).pct, 99);   // (a run longer than the estimate grows the total and never shows 100 early)
+  assert.equal(pace(130, 120, 0, 1, true).pct, 100);
+  assert.deepEqual(combine(3, new Map([['a', { n: 10, total: 100 }]])), { n: 10, total: 300 });
+});
+
+test('the banner: each speed has a hint, the address follows the choices, and the frames get speed and glass without the URL being edited', () => {
+  assert.deepEqual(SPEEDS.map((x) => x.n), [1, 4, 10, 20]); assert.ok(SPEEDS.every((x) => x.hint.length > 20));
+  assert.equal(addressFor('?audit&look=dark&speed=4', { sizes: ['iphone', 'mac'], depth: 'quick', speed: 10, noglass: true, parallel: false }), '?audit&sizes=iphone,mac&depth=quick&speed=10&noglass=1&look=dark');
+  assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'full', speed: 1, noglass: false, parallel: true, auto: true }), '?audit=frames&sizes=mac&depth=full&parallel=1');
+  assert.equal(childSrc('/p/', '?audit&speed=2&noglass=1&look=dark', 'quick', { speed: 20, noglass: true }), '/p/?audit=run&depth=quick&speed=20&noglass=1&look=dark');
+  assert.equal(childSrc('/p/', '?audit&speed=2', 'full'), '/p/?audit=run&depth=full');
 });

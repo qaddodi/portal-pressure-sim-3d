@@ -2,7 +2,7 @@
 // The layout and the word placing are the 2D functions (course-pure.generated.js: compose); here their numbers become shapes.
 import type { ChartCtx } from '../Chart.tsx';
 import { look, type Look } from '../looks.ts';
-import type { Frame, Shape, TextShape } from '../scene.ts';
+import { fitHeight, type Frame, type Shape, type TextShape } from '../scene.ts';
 import { measure } from '../measure.ts';
 import * as C from './course-pure.generated.js';
 import { curveHeight } from './frame.ts';
@@ -41,7 +41,7 @@ export function flattenPath(d: string, n = 14): number[] {
 }
 
 export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: Any; labels: Any } {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? curveHeight(w, f), spec.room, f)!));
+  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? fitHeight(curveHeight(w, f), c), spec.room, f)!));
   const co = C.courseOf(spec.tool), ser = spec.ser;
   const { G, labels, zoneNames } = C.compose(w, h, f, co, ser) as Any;
   const { L, R, B, X, Y } = G, r = Math.max(3.5, 0.3 * f);

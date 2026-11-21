@@ -107,7 +107,7 @@ test('the tube: no hole by default, setSkinHole writes the two slots and reports
 
 test('the set keeps a vessel\'s holes (two slots), writes them to the tube, and takes them back; a third hole is a SkinBuildError', () => {
   const calls: string[] = [], slots = new Map<string, [number, number][]>();
-  const rec = (id: string) => ({ setSkinCut: () => true, setSkinHole: (slot: number, lo: number, hi: number) => { const s = slots.get(id) ?? [[2, -1], [2, -1]]; s[slot] = [lo, hi]; slots.set(id, s); calls.push(`${id}:${slot}:${lo}:${hi}`); return true; } });
+  const rec = (id: string) => ({ setSkinCut: () => true, setSkinWeld: () => true, setSkinHole: (slot: number, lo: number, hi: number) => { const s = slots.get(id) ?? [[2, -1], [2, -1]]; s[slot] = [lo, hi]; slots.set(id, s); calls.push(`${id}:${slot}:${lo}:${hi}`); return true; } });
   const objs = new Map<string, ReturnType<typeof rec>>();
   const set = new SkinSet({ vessel: (id) => { if (!objs.has(id)) objs.set(id, rec(id)); return objs.get(id) as never; }, stateOf: () => undefined, make: () => ({}) as never, add: () => {}, remove: () => {} });
   const priv = set as unknown as { takeCuts(b: unknown): string[]; dropCuts(b: unknown): void; putHoles(id: string): void };
@@ -162,8 +162,9 @@ test('IVCS is welded: five arms, the cava cut below the hepatic veins and its en
     assert.equal(m.junction.arms.length, 5);
     const cut = m.cuts[m.junction.arms.findIndex((a) => a.vesselId === 'IVC_IS')]!;
     assert.equal(cut.side, -1);
-    assert.deepEqual([...scene.vesselObject('IVC_IS')!.skinCut()], [-1, cut.u], 'the cava is drawn only up to the seam: its end is inside the skin');
-    assert.deepEqual(set.endsOf('IVC_IS'), [false, true], 'its end is skinned (mate and bury off there)');
+    // (its START is the IVC_D junction's seam since the DIPS stent's skin: the IVCS end is what this test is about)
+    assert.deepEqual([...scene.vesselObject('IVC_IS')!.skinCut()], [set.skinOf('IVC_D') ? 0.25 : -1, cut.u], 'the cava is drawn only up to the seam: its end is inside the skin');
+    assert.equal(set.endsOf('IVC_IS')[1], true, 'its end is skinned (mate and bury off there)');
     assert.deepEqual(set.holesOn('IVC_IS'), [], 'one side only: a cut, not a hole');
     assert.ok(cut.u < 0.77 && cut.u > 0.2, `the cava's seam is ${cut.u.toFixed(2)} of its length`);
     assert.deepEqual(foldedTriangles(m.position, m.normal, m.index), []);

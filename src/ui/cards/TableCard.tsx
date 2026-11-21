@@ -20,6 +20,9 @@ const None = () => <span className="pz-nm" aria-hidden="true" />;
 /** A legend line with its symbols drawn as the table's own (2D withArrows): arrows, the dash and the ring. */
 export const withArrows = (t: string) => t.split(/(↑↑|↓↓|↑|↓|•|○)/).map((x, i) => (x === '↑↑' ? <Arrow key={i} n={2} /> : x === '↓↓' ? <Arrow key={i} n={-2} /> : x === '↑' ? <Arrow key={i} n={1} /> : x === '↓' ? <Arrow key={i} n={-1} /> : x === '•' ? <Arrow key={i} n={0} /> : x === '○' ? <None key={i} /> : x));
 
+/** "114/68 (83)" with a place to break after the slash: on a phone its column (a seventh of the row) is narrower than "114/68" itself, and a word that cannot break runs into the next cell. */
+export const bpBreaks = (t: string) => t.split('/').flatMap((x, i) => (i ? [<wbr key={i} />, '/' + x] : [x]));
+
 function Td({ c }: { c: Cell }) {
   switch (c.kind) {
     case 'wave': return <td className="num wave" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} /> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}<span className="sr-only">{c.sr}</span></td>;
@@ -27,7 +30,7 @@ function Td({ c }: { c: Cell }) {
     case 'blank': return <td className="num blank" title={c.sr}><None /><span className="sr-only">{c.sr}</span></td>;
     case 'removed': return <td className="num none">Removed</td>;
     case 'none': return <td className="num none" colSpan={2}>None</td>;
-    case 'ref': return <td className={c.k === 'map' ? 'num ref bp' : 'num ref'} data-rate={c.rate ?? undefined}>{c.text}<span className="sr-only">{c.sr}</span></td>;
+    case 'ref': return <td className={c.k === 'map' ? 'num ref bp' : 'num ref'} data-rate={c.rate ?? undefined}>{c.k === 'map' ? bpBreaks(c.text) : c.text}<span className="sr-only">{c.sr}</span></td>;
     default: return (
       <td className={`num dir${c.k === 'map' ? ' bp' : ''}${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
         <Arrow n={c.arrow} />{c.miss ? <span className="pz-miss" aria-hidden="true">{c.miss}</span> : null}<span className="sr-only">{c.sr}</span>

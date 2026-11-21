@@ -110,3 +110,17 @@ test('the build bakes the skins before the bundler, the scene builds nothing bef
   assert.match(text('../src/main.tsx'), /await Promise\.all\(\[fontsReady\(\), bootEngine\(\)[^\]]*bakedReady\]\)/, 'the first picture is after the file');
   assert.match(text('../.gitignore'), /public\/anatomy\/skins\.bin/, 'a built file is not committed (organs.bin beside it is)');
 });
+
+test('under node the baked files are read from disk, so a scene does not remesh its skins (about 35 s a scene before); the browser path keeps its fetch and node:fs stays out of the bundle', async () => {
+  const src = text('../src/scene/vessels/skin/baked.ts');
+  assert.match(src, /getBuiltinModule\('node:fs'\)/, 'read through getBuiltinModule, never an import of node:fs');
+  assert.doesNotMatch(src, /from 'node:/, 'no static node import in a file the page bundles');
+  assert.match(text('../scripts/bake-skins.mjs'), /PPS_NO_BAKED = '1'/, 'the bake itself builds live');
+  assert.match(text('../package.json'), /"pretest": "node scripts\/ensure-baked\.mjs"/, 'npm test bakes once when the files are missing');
+  const { existsSync } = await import('node:fs');
+  if (!existsSync(new URL('../public/anatomy/skins.bin', import.meta.url))) return;   // (a bare checkout run without npm test: the live path)
+  const { bakedSkins, bakedCircuitSkins } = await import('../src/scene/vessels/skin/baked.ts');
+  assert.ok(bakedSkins() && bakedCircuitSkins(), 'both files are held under node');
+  const t = Date.now(); new CelScene({ joins: 'old' });
+  assert.ok(Date.now() - t < 15000, `a scene laid in from the baked file in ${Date.now() - t} ms (live meshing is about 35 000)`);
+});

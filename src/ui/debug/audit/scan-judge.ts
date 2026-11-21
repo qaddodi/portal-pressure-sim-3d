@@ -67,10 +67,10 @@ export function judgeScan(s: RawScan): AuditFinding[] {
     // clipped by an ancestor: part of it is hidden and part is shown (wholly hidden is a collapsed thing, not a cut one); a scroller hides by design
     if (i.clip && !i.scrolls && inter(i.box, i.clip) > 0) {
       const p = past(i.box, i.clip);
-      if (p.length) add('clipped', 'fail', `${label(i)} is cut off by its container: ${p.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')} hidden`, i.what, n);
+      if (p.length) add('clipped', 'fail', `${label(i)} is cut off by its container: ${p.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')} hidden${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
     }
     const sp = past(i.box, screen);
-    if (!i.scrolls && sp.length && inter(i.box, screen) > 0) add('off-screen', 'fail', `${label(i)} runs past the screen: ${sp.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')}`, i.what, n);
+    if (!i.scrolls && sp.length && inter(i.box, screen) > 0) add('off-screen', 'fail', `${label(i)} runs past the screen: ${sp.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')}${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
     if (i.kind === 'text' && i.px != null) {
       if (i.px < WORDS_MIN_PX - 0.3) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})`, i.what, n);
       if (i.fg && i.bg) {

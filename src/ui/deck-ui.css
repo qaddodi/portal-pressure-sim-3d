@@ -136,7 +136,10 @@
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > .ib:first-child::after { left: calc(-1 * var(--tap-ox)); }
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > .ib:last-child::after { right: calc(-1 * var(--tap-ox)); }
 .dk-bar-title { position: absolute; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
+  font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); opacity: 0; transition: opacity 240ms var(--ease); }
+.dk-bar-title[data-on] { opacity: 1; animation: dk-title-in 240ms var(--ease); }   /* (the animation also covers the span's first mount, where a transition does not run) */
+@keyframes dk-title-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .dk-bar-title, .dk-bar-title[data-on] { transition-duration: 1ms; animation-duration: 1ms; } }
 
 /* Reduce Motion: src/ui/a11y/reduced.css (nothing travels, nothing pops: everything cross-fades) */
 
@@ -275,6 +278,12 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
    so the long number ran under the word on a roomy card. A wrapping row keeps both whole: side by side when they fit, the word on its own line when not. */
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress > .endo-bar { flex: 1 1 100%; }
+/* (A pressure's name stands in one of three equal columns: it wraps inside its column, in the word only when the word is wider than the column, never on past it into the next name: "Intravariceal" lay over "Intraluminal" on a phone, 21 Nov. The 2D sheet's rule is nowrap; this file is the 3D app's own.) */
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="scope"] .endo-read > .endo-pr > dt { white-space: normal; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+/* The stress figure wraps too (iPhone audit, Cirrhosis in pregnancy stop 5: "79" and "% of rupture threshold" cut at the card's right edge). 2D draws the number and its unit nowrap; in the narrow column beside the cross-section on a phone
+   that ran 289 px past what clipped it. The number and its % stay together, "of rupture threshold" wraps under them. */
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress > .wall-big.wall-big { white-space: normal; min-width: 0; flex: 1 1 0; }
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress > .wall-big.wall-big > span { white-space: nowrap; }
 
 /* A value's pill gives up its own padding beside punctuation (21 Nov): the pill's .45em side room read as a space, "2.2 g/dL ." and "( 59.4 kPa )". The stop (or bracket) sits at the pill's edge. */
 .pz-stop > :is(.pz-val, .pz-term) { padding-inline-end: .2em; margin-inline-end: .02em; }

@@ -7,6 +7,7 @@ import { Vector3 } from 'three';
 import { FADE } from './alpha.ts';
 import { type Box, hits, within } from './geometry.ts';
 import { PTR, PILL_GAP, cathType, pillGlass, pillSize, INTER, type CathType, type Reading, type Measure, type Glass } from './cath.ts';
+import { calloutClaims } from './callout-claims.ts';
 import { makeCard, words, shape, fade, place, size, show, type Card } from './cath-dom.ts';
 import { LS, type Vp } from './type.ts';
 import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
@@ -119,10 +120,34 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
       if (!best || cost < best.cost) best = { cost, o };
       if (cost < 1) break;
     }
+    // No clear spot in the sweep above (a talk's cards and the key leave only a pocket far from the point): the nearest clear place anywhere in the view, rather than the one under a card.
+    if (best!.cost >= 1e4) {
+      const f = freeSpot(it, view, blockers, placed);
+      if (f) best = { cost: 0, o: f };
+    }
     placed.push(best!.o.box);
     out.push(best!.o);
   }
   return out;
+}
+
+/** The clear place nearest a card's point: its box on a grid over the view, clear of every blocker and of the cards placed before it (the tail runs to the point). null when the view holds none. */
+export function freeSpot(it: CardIn, view: Box, blockers: readonly Box[], placed: readonly Box[]): CardOut | null {
+  const STEP = 8, AIR = 2;
+  let best: { d: number; x0: number; y0: number } | null = null;
+  for (let y0 = view.y0 + 4; y0 + it.h <= view.y1 - 4; y0 += STEP) {
+    for (let x0 = view.x0 + 4; x0 + it.w <= view.x1 - 4; x0 += STEP) {
+      const box: Box = { x0: x0 - AIR, y0: y0 - AIR, x1: x0 + it.w + AIR, y1: y0 + it.h + AIR };
+      const d = Math.hypot(x0 + it.w / 2 - it.x, y0 + it.h / 2 - it.y);
+      if (best && d >= best.d) continue;
+      if (blockers.some((b) => hits(box, b)) || placed.some((b) => hits(box, b))) continue;
+      best = { d, x0, y0 };
+    }
+  }
+  if (!best) return null;
+  const { x0, y0 } = best, x1 = x0 + it.w, y1 = y0 + it.h, above = y0 + it.h / 2 < it.y;
+  const reach: Box = above ? { x0, y0, x1, y1: Math.max(it.y, y1) } : { x0, y0: Math.min(it.y, y0), x1, y1 };
+  return { id: it.id, x0, y0, dir: above ? 'bottom' : 'top', ax: it.x - (x0 + it.w / 2), box: reach, ok: true };
 }
 
 export interface CardDeps {
@@ -330,6 +355,7 @@ export class FigureCards {
       for (const [id, r] of this.cals) r.box = by.get('cal:' + id) ?? null;
       for (const [id, r] of this.spanRecs) r.box = by.get('span:' + id) ?? null;
       this.boxes = outs.filter((o) => o.ok).map((o) => o.box);
+      calloutClaims.set(this.boxes);
     }
 
     // fades (linear, the label timings) and the paint
@@ -522,6 +548,7 @@ export class FigureCards {
     for (const r of this.cals.values()) { r.root.remove(); r.card.root.remove(); }
     for (const r of this.spanRecs.values()) { r.root.remove(); r.card.root.remove(); }
     this.recs.clear(); this.cals.clear(); this.spanRecs.clear();
+    calloutClaims.set([]);
   }
 }
 

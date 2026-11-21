@@ -20,6 +20,7 @@ import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 import { spectrumUnder } from './spectrum-gl.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { useSlidePin } from '../slide/pin.ts';
+import { observeThenFit } from '../../layout/fit-later.ts';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
 /** The chart canvas's pixel ratio (charts/gl.ts): a spectral line is one of its pixels wide. */
@@ -115,9 +116,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     };
     put();
     if (typeof ResizeObserver !== 'function') return;
-    const ro = new ResizeObserver(put);
-    ro.observe(rp); ro.observe(box);
-    return () => ro.disconnect();
+    return observeThenFit([rp, box], put);   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, [p.slide, stripKey, h]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [ovTop]);
 
@@ -130,9 +129,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   useEffect(() => {
     const el = trackRef.current;
     if (!el || typeof ResizeObserver !== 'function') return;
-    const ro = new ResizeObserver((es) => { const w = es[0]?.contentRect?.width || 0; if (w && Math.abs(w - trackW) > 0.5) setTrackW(w); });
-    ro.observe(el);
-    return () => ro.disconnect();
+    return observeThenFit([el], () => { const w = el.getBoundingClientRect().width || 0; if (w && Math.abs(w - trackW) > 0.5) setTrackW(w); });   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, [!!g, trackW]);  // eslint-disable-line react-hooks/exhaustive-deps
   const sw = g ? Math.max(0.001, (g.p1 - g.p0) / 100) : 1;
   const kMid = trackW > 8 ? Math.max(0, (sw * trackW - 8) / (trackW - 8)) : sw;

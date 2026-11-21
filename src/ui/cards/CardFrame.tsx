@@ -9,6 +9,7 @@ import { closedPx } from './dock.ts';
 import { CREDIT } from '../shell/words.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
+import { observeThenFit } from '../layout/fit-later.ts';
 
 interface Props {
   entry: Entry;
@@ -152,10 +153,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       onHeight(entry.key, Math.round(rect.w), h);
     };
     report();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(report);
-    ro.observe(el);
-    return () => ro.disconnect();
+    return observeThenFit([el], report);   // (the pass writes onto what it observes, its class and --pz-fit: never inside the observer's own delivery)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.key, Math.round(rect.w), remeasure]);
 

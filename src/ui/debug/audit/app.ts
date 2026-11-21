@@ -18,7 +18,8 @@ import type { Box, LayoutRead } from './judge.ts';
 import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
 import { renderStats } from '../../../debug/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
-import { speedAnimations } from './speed.ts';
+import { speedAnimations, sampleRealMs } from './speed.ts';
+import { estimateSteps } from './progress.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -27,6 +28,9 @@ const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 /** Waits (up to `ms`) for something an open starts asynchronously (a talk's cover, its charts, its first cards), so the walk's "is the page still?" never reads the instant before it begins. */
 const until = async (cond: () => boolean, ms: number) => { const t = performance.now(); while (!cond() && performance.now() - t < ms) await sleep(50); };
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
+
+/** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
+export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length) });
 
 // ── the steps ──
 const SHEETS_QUICK = ['sheet:settings', 'sheet:help'];
@@ -174,8 +178,8 @@ export function readLayout(doc: Document = document, win: Window = window): Layo
 export function startTaps(win: Window = window, speed = 1): Tap {
   const rec = createRecorder(domSources(win.document, win), { seconds: 120 });
   // (at speed N the page's clock runs N times faster, so the sampler ticks N times as often and its rows stay 33 ms of page time; the CSS animations are played N times faster here)
-  const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, SAMPLE_MS / speed);
-  let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0;
+  const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, sampleRealMs(SAMPLE_MS, speed));
+  let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0, sys0: Record<string, number> = {};
   // (`f.dt` is page time: at speed N the real gap is dt / N, which is what the frame rate is judged on)
   const off = clock.on('tags', (f) => { if (f.dt > 0) { gaps.push(f.dt / speed); if (f.dt > 50) stalls.push({ t: f.time - markAt, ms: f.dt }); } }, 2000);
   const lines: ConsoleLine[] = [];
@@ -192,14 +196,15 @@ export function startTaps(win: Window = window, speed = 1): Tap {
   const onVis = () => { if (win.document.hidden) hiddenSince = true; };
   win.document.addEventListener('visibilitychange', onVis);
   return {
-    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; markAt = performance.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
+    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; sys0 = { ...(cel.systemMs ?? {}) }; markAt = performance.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
     read(t0) {
       const st = clock.stats(), led = ledger.read();
       const rs = renderStats();
       const gpu: RowGpu | null = rs ? {
         calls: rs.calls, triangles: rs.triangles, programs: rs.programs, geometries: rs.geometries, textures: rs.textures, skinRebuilds: (cel.skinStats?.rebuilds ?? 0) - skin0,
         boundCpu: st.boundCpu, boundGpu: st.boundGpu,
-        slow: st.slow.slice(0, 3).map((f) => { const g = f.gl as { calls?: number; triangles?: number } | undefined; return { ms: r1(f.ms), gap: r1(f.gap), bound: f.bound, tags: f.tags, calls: g?.calls, triangles: g?.triangles }; }),
+        systemMs: Object.entries(cel.systemMs ?? {}).map(([k, v]) => [k, r1(v - (sys0[k] ?? 0))] as [string, number]).filter(([, v]) => v > 0.5).sort((a, b) => b[1] - a[1]).slice(0, 6),
+        slow: st.slow.slice(0, 3).map((f) => { const g = f.gl as { calls?: number; triangles?: number } | undefined; return { ms: r1(f.ms / speed), gap: r1(f.gap / speed), bound: f.bound, tags: f.tags, calls: g?.calls, triangles: g?.triangles }; }),
       } : null;
       return {
         stalls: stalls.slice(), gpu,

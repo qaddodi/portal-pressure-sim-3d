@@ -114,3 +114,56 @@ test('the intra-abdominal pressure bar is named with its number and its word, an
   assert.match(src('src/ui/tests/abdomen/AbdomenPane.tsx'), /aria-label=\{`\$\{WORDS\.iapKey\} \$\{v\.iapNum\}, \$\{v\.iapWord\}`\}/);
   assert.match(src('src/ui/debug/screen/raw.ts'), /el\.closest\('\[role="img"\]\[aria-label\]'\)/);
 });
+
+test('a blood pressure reading may break after its slash, so "114/68" never runs under the next phone column (iPhone audit: kidney 12, albumin 12, tipping 10, 26 to 28% overlaps)', () => {
+  const t = src('src/ui/cards/TableCard.tsx');
+  assert.match(t, /export const bpBreaks/);
+  assert.match(t, /c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text/);
+});
+
+test('a bare number cut off or off screen names the element it is in, and the leak check takes its baseline after the lazily built views', () => {
+  assert.match(src('src/ui/debug/audit/scan.ts'), /by: nameOf\(p\)/);
+  assert.match(src('src/ui/debug/audit/scan-judge.ts'), /\(in \$\{i\.by\}\)/);
+  assert.match(src('src/debug/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
+});
+
+test('a chart\'s own height shrinks with its card\'s fit (2D `.pz-curve { height: cv-h * var(--pz-fit) }`): at a fit under 1 the stent slides\' PPG chart stood 53 px past the card on an iPhone', async () => {
+  const { ctxOf } = await import('./charts-helpers.ts');
+  const { fitHeight } = await import('../src/ui/charts/scene.ts');
+  const { evGraphFrame } = await import('../src/ui/charts/evgraph/frame.ts');
+  const { curveFrame } = await import('../src/ui/charts/curve/frame.ts');
+  const { TIPS_TOOL } = await import('../src/ui/charts/curve/specimens.ts');
+  assert.equal(fitHeight(200, {}), 200); assert.equal(fitHeight(200, { fit: 1 }), 200); assert.equal(fitHeight(200, { fit: 0.8 }), 160);
+  const { eventGraphOf } = await import('../src/ui/charts/evgraph/model.ts');
+  const spec = eventGraphOf({ procedure: 'tips', tiles: ['ppg', 'liver'] } as never)!;
+  const at = (fit?: number) => evGraphFrame({ spec, before: [19.3, 61], end: [11, 32] }, 0, { ...ctxOf('light', 430), fit }).h;
+  assert.ok(at(0.7) < at(1) * 0.75, 'the graph is shorter at a fit of 0.7'); assert.equal(at(1), at(undefined));
+  const cv = (fit?: number) => curveFrame({ tool: TIPS_TOOL, ser: null }, { ...ctxOf('light', 430), fit }).frame.h;
+  assert.ok(cv(0.7) < cv(1) * 0.75, 'the curve is shorter at a fit of 0.7'); assert.equal(cv(1), cv(undefined));
+  for (const p of ['evgraph/frame.ts', 'curve/frame.ts', 'curve/course-frame.ts', 'menu/frame.ts', 'trace/frame.ts']) assert.match(src(`src/ui/charts/${p}`), /fitHeight\(/, p);
+});
+
+test('the stress figure of the varix wall wraps in the phone\'s narrow column instead of running past the card (iPhone audit, Cirrhosis in pregnancy 5)', () => {
+  const css = src('src/ui/deck-ui.css');
+  assert.match(css, /\.wall-big\.wall-big \{ white-space: normal; min-width: 0;/);
+});
+
+test('the card\'s words, the tool room and the chart box measure after the observer\'s delivery (ResizeObserver loop, ascites 8, compared 13, measuring 14)', () => {
+  for (const p of ['src/ui/cards/CardFrame.tsx', 'src/ui/talk/tool-room.ts', 'src/ui/charts/Chart.tsx']) {
+    const s = src(p);
+    assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
+  }
+});
+
+test('the Tests cards, the deck screen and the doppler measure after the observer\'s delivery too (ResizeObserver loop on Ascites 9 and Measuring HVPG 15)', () => {
+  for (const p of ['src/ui/tests/Cv.tsx', 'src/ui/tests/TestsLayer.tsx', 'src/ui/tests/doppler/DopplerPane.tsx', 'src/ui/DeckUi.tsx']) {
+    const s = src(p);
+    assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
+  }
+});
+
+test('the phone dock\'s readouts are never narrower than their tiles (a reading ran 14 to 21 px off the right edge after the Ascites, TIPS Doppler and Recompensation talks)', () => {
+  const css = src('src/ui/css2d/app-10-thumb-dock.css');
+  assert.match(css, /\.app\.thumb \.vdock \.readouts:not\(\.all\) \{ width: auto; min-width: max-content;/);
+  assert.match(css, /\.vdock:not\(\.mini\) \.readouts:not\(\.all\) \{ width: auto; min-width: max-content; \}/);
+});

@@ -18,6 +18,7 @@ import { cel, usePick } from '../api.ts';
 import { rectToBox, leaderGeom, within, hits, crosses, type Box } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { useLabels } from '../labels/store.ts';
+import { calloutClaims } from '../labels/callout-claims.ts';
 import { type Placement, solve } from '../labels/solver.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { COURSES } from './course.ts';
@@ -103,7 +104,9 @@ export function CircuitCaptions() {
     // (the figure key stands where it docks, over the Circuit too: it is a wall like the pills, read again when it comes, goes or changes its words; "Flow volume" sat on "Umbilicus" on a Mac)
     const keyMo = new MutationObserver(wallsLater);
     for (const k of document.querySelectorAll('.lb-key-wrap')) keyMo.observe(k, { attributes: true, attributeFilter: ['data-on'], childList: true });
-    const blockers = (): Box[] => { return [...talkRects(useUi.getState().boxes).map(rectToBox), ...uiWalls]; };
+    // (the figure's callouts stand first, at the points a slide names: the captions keep off them as they keep off the cards and bars)
+    const blockers = (): Box[] => { return [...talkRects(useUi.getState().boxes).map(rectToBox), ...uiWalls, ...calloutClaims.boxes]; };
+    const offClaims = calloutClaims.subscribe(() => { clock.invalidate('circuit-captions'); });
 
     const solveNow = () => {
       const { vp, boxes } = useUi.getState();
@@ -298,7 +301,7 @@ export function CircuitCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
     const measureReset = () => { gate.invalidate(); clock.invalidate('circuit-captions'); };
-    return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); keyMo.disconnect(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offClaims(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); keyMo.disconnect(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;
