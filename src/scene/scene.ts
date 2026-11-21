@@ -1280,7 +1280,7 @@ export class CelScene {
       this.pushFades();   // (the fades are composed in one place: the leaving objects, the fans' visibility)
       this.disease.setFade(Math.min(fade, this.fadeNow));
     }
-    this.mapLayer.set(mapRamp(t), this.circuit.rr);
+    this.mapLayer.set(mapRamp(t), this.circuit.rr, t);
     // the map's junction skins: drawn only over the end of the change, turned with the map (they are built on the unturned map; the tubes turn in their shader)
     if (this.circuitSkins) {
       const rot = this.circuit.shared.circRot.value, key = `${t > SKIN_CIRC_IN - 0.02 ? 1 : 0}|${rot.x}|${rot.y}`;
