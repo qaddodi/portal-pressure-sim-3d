@@ -2,6 +2,7 @@
 // the play bar and the bottom bar (a phone or an upright iPad), with the 2D app's words and behaviour. A talk: its own cards, wallet and presenter pill (src/ui/DeckUi.tsx).
 // The sheets, the toast and the diagnostics are the same in both.
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { fadeChrome } from './deck-fade.ts';
 import './shell.css';
 import './chrome-3d.css';
 import './tap-cells.css';
@@ -128,6 +129,8 @@ export function Shell() {
   const view = useShell((s) => s.view);
   const appRef = useRef<HTMLDivElement>(null);
   useViewport(probe);
+  const wasMode = useRef(mode);
+  useLayoutEffect(() => { if (wasMode.current === mode) return; const away = mode === 'deck'; wasMode.current = mode; if (appRef.current) fadeChrome(appRef.current, away); }, [mode]);   // (the bar and dock fade by their parts, deck-fade.ts)
   useKeys();
   useFreeCamera();
   useEffect(() => syncTransport(), []);
