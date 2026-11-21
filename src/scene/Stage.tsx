@@ -19,7 +19,7 @@ import { figureDpr } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
-import { frameBegin, frameEnd, renderStats } from '../debug/render-stats.ts';
+import { frameBegin, frameEnd, renderStats } from '../clock/render-stats.ts';
 import { sinusoidTap } from './sinusoid/explain-store.ts';
 import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';

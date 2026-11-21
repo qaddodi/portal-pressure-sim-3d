@@ -13,7 +13,7 @@
 // and when nothing asks, no frame is drawn and no timer runs ("0 frames drawn when nothing moves").
 // Every frame is timed; the slowest ones (with the tags that were asking for frames, and the phase that cost most) feed ?perf.
 
-import { boundBy, type Bound } from '../debug/render-stats.ts';
+import { boundBy, type Bound } from './render-stats.ts';
 
 export const PHASES = ['engine', 'tween', 'camera', 'render', 'tags'] as const;
 export type Phase = (typeof PHASES)[number];
