@@ -39,7 +39,7 @@ R3F: `<Canvas frameloop="never">` with `<ClockBridge/>` (`src/clock/r3f.tsx`) in
   Deck numbers (`{hvpg}`) come from `request({type:'metrics'})` / frames, as in the 2D app.
 - `VesselData` (`vessel-data.ts`): one float texture, one texel per vessel in topology edge order. Texel r = upstream pressure (mmHg), g = flow (mL/s, negative = reversed),
   b = diameter (mm), a = downstream pressure. `indexOf('PV_TRUNK')` is the texel; **a 3D vessel's name is its topology edge id**. `Stage.tsx` fills it in the clock's engine phase.
-- `src/engine/hales/` and `src/engine/host/` are copies (`npm run sync:engine`); never edit them. The host is the 2D app's `worker-core.js` until hales-engine ships its own.
+- `src/engine/hales/` is a copy of hales-engine, host included (`npm run sync:engine`); never edit it.
 
 ## State and settings
 

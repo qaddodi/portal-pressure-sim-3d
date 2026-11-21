@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import './css2d/index.css';   // the 2D app's own stylesheets, lifted unchanged (scripts/copy-2d-css.mjs); the shell imports the same file, loaded once
 import './deck-ui.css';
 import { useEngine } from '../engine/index.ts';
-import { useDeck } from '../state/deck.ts';
 import { useUi } from './ui-store.ts';
 import { stopsOf } from './deck/presenter-machine.ts';
 import { typeFor } from './layout/device.ts';
@@ -36,15 +35,14 @@ export function DeckUi() {
   useDeckInput();
   useEffect(() => { root.current?.focus({ preventScroll: true }); }, []);   // (the talk takes the keyboard when it opens; the free-play chrome under it is inert, shell/talk-focus.ts)
 
-  // the talk: its stops, mirrored into the deck store the scene reads (slide 0 is the title)
+  // the talk: its stops (slide 0 is the title); `useUi` is the one place the scene and the cards read where the talk is (state/deck.ts)
   useEffect(() => {
     if (!deck) return;
     const stops = stopsOf(deck);
     const at = landOn(deck.id, useUi.getState().startAt, stops.length);   // (a link's slide past the end opens the last one)
     useUi.getState().setStops(stops, at);
-    useDeck.getState().open(deck.id, stops.length - 1, at);
     const note = () => { const s = useUi.getState(); noteResume(deck.id, s.pos.stop, s.stops.length); };
-    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) { useDeck.getState().goto(s.pos.stop); note(); } });
+    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) note(); });
   }, [deck, nonce]);
 
   // "the slide has landed" (the camera still, its cards in): what waits for the end of a slide's move asks it (landing.ts)

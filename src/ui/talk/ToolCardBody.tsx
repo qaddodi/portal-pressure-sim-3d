@@ -33,8 +33,10 @@ import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
 import { WallsCard } from '../charts/walls/WallsCard.tsx';
 import { ghostOf } from './ghost.ts';
-import { useProbes } from '../../scene/devices/probes/state.ts';
+import { claimSlide, holdSlideDevices } from './slide-claim.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
+import { ScoresCard } from '../charts/scores/ScoresCard.tsx';
+import { SCORES_ON } from '../charts/scores/slides.ts';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
@@ -45,7 +47,8 @@ import { evBounds } from '../charts/evgraph/data.ts';
 import { fitTrial, metricsOfFp, trialOf } from '../charts/trial/model.ts';
 import { useLapse } from '../../decks/hp/lapse.ts';
 import { useScope } from '../tests/endo/scope-state.ts';
-import { lazy, Suspense } from 'react';
+import { lazyRetry } from '../../boot/lazy-retry.ts';
+import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { useUi } from '../ui-store.ts';
 import { useToolRoomValue } from './tool-room.ts';
 import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
@@ -59,9 +62,9 @@ import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
-const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
-const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
-const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
+const DopplerPane = lazyRetry(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
+const FibroPane = lazyRetry(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
+const EndoPane = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
 
 /** The kinds that draw the live model's frames. */
 const FRAMED = new Set(['fluid', 'stent']);
@@ -125,7 +128,12 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   const before = useMemo(() => beforeOf(tool.from as string | boolean | undefined, { slides: copied.slides, index: i, fp, fpOf }), [tool.from, copied, i, fp, results]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   switch (kind) {
-    case 'criteria': return <CriteriaCard tool={tool as never} fp={fp as never} />;
+    case 'criteria': {
+      // (the slides that give a case's liver function show its Child–Pugh and MELD under the criteria: charts/scores/slides.ts)
+      const sc = SCORES_ON[`${deck.id}/${slide.id}`];
+      return sc ? <><CriteriaCard tool={tool as never} fp={fp as never} /><ScoresCard facts={sc} albumin={(fp?.salb as number | null | undefined) ?? null} note={false} /></> : <CriteriaCard tool={tool as never} fp={fp as never} />;
+    }
+    case 'scores': return <ScoresCard facts={(tool.facts as never) ?? {}} albumin={(fp?.salb as number | null | undefined) ?? null} />;
     case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} room={room} />;
     case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} room={room} />;
     case 'curve': case 'course': return <CurveCard tool={tool as never} slide={slideState} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} room={room} />;
@@ -183,26 +191,23 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
     if (plan.doppler) { setDopplerProbe(plan.doppler.vessel); useDopplerProbe.getState().setGate((plan.doppler.gate as Gate | null) ?? null); }
     if (plan.view) useScope.getState().setView(plan.view);
     if (plan.organ) useTests.getState().setFibro(plan.organ);
-    return () => useToolPatch.getState().set('', null);
+    return claimSlide('options', () => useToolPatch.getState().set('', null));   // (a leaving card never clears the arriving card's options: slide-claim.ts)
   }, [plan, slideKey]);
   // the instrument's own device on the figure while its card is up: the ultrasound probe on the slide's vessel (none on the EUS slide, probe: 'scope': the scope is the probe), the FibroScan probe on
   // the organ, the scope down the esophagus. bind-tests.ts keeps them on whatever the Tests card does; they leave with the slide.
   const figure = !!plan.doppler?.figure, fibro = !!plan.organ, scope = !!plan.scope, points = !!plan.doppler?.points;
-  useEffect(() => {
-    const pr = useProbes.getState();
-    pr.setSlide({ doppler: figure, fibro, endoscope: scope }); pr.setDopplerPoints(points);
-    return () => { const q = useProbes.getState(); q.setSlide({ doppler: false, fibro: false, endoscope: false }); q.setDopplerPoints(false); };
-  }, [figure, fibro, scope, points]);
+  // (a card that is leaving unmounts after the one that came in has mounted: its cleanup must not take the new slide's device off the figure, slide-claim.ts)
+  useEffect(() => holdSlideDevices({ doppler: figure, fibro, endoscope: scope, points }), [figure, fibro, scope, points]);
   // the slide's own numbers for the pane (2D presenter-tools pin): the settled state its tiles and words show, not the beat-to-beat live value
   useEffect(() => { setSlidePin(fp); }, [fp]);
-  useEffect(() => () => setSlidePin(null), []);
+  useEffect(() => claimSlide('pin', () => setSlidePin(null)), []);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
-      <Suspense fallback={null}>
+      <LazyBoundary>
         {kind === 'doppler' ? <DopplerPane {...p} options={opts} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
-      </Suspense>
+      </LazyBoundary>
     </div>
   );
 }

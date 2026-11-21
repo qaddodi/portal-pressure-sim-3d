@@ -9,7 +9,7 @@ import { lintFiles, judge, RULES } from './lint-rules.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const problems = [];
 const pinned = JSON.parse(readFileSync(join(root, 'src/engine/PINNED.json'), 'utf8'));
-if (!pinned.engine?.commit || !pinned.host?.commit) problems.push('src/engine/PINNED.json has no pinned commits: run npm run sync:engine');
+if (!pinned.engine?.commit) problems.push('src/engine/PINNED.json has no pinned commits: run npm run sync:engine');
 for (const f of ['AGENTS.md', 'CLAUDE.md', 'index.html']) if (!existsSync(join(root, f))) problems.push(`missing ${f}`);
 
 const walk = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {

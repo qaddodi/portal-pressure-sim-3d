@@ -2,7 +2,7 @@
 // readings the tiles print (src/engine/hales/portal/fingerprint.js: pv, whvp, fhvp, ivc, ra, int, cv, hvpg, ppg, eus, `at.P` the node pressures, tipsFlow / dipsFlow):
 // the engine's 'sequence' answer carries one per slide (src/ui/talk/slide-states.ts), a live frame gives the same readings (fpFromFrame).
 import { tenthGap } from '../../../engine/hales/core/gap.js';
-import type { EngineFrame } from '../../../engine/protocol.ts';
+import type { EngineFrame } from '../../../engine/hales/host/protocol.d.ts';
 import { engine } from '../../../engine/index.ts';
 import { goalOf, profileOf, spansFor, type Fp, type Goal, type Prof, type Span } from './model.ts';
 
@@ -11,7 +11,8 @@ export function profileInputs(fp: Fp | null | undefined, healthy?: Fp | null, be
   const p = profileOf(fp);
   if (!p) return null;
   const hl = profileOf(healthy), bf = profileOf(before);
-  return { p, hl, bf, goal: goalOf(p, hl, bf) };
+  const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  return { p, hl, bf, goal: { ...goalOf(p, hl, bf), whvp: num(fp?.whvp), fhvp: num(fp?.fhvp) } };
 }
 
 /** The brackets of a slide for a state: the slide's `spans` option, less the HVPG once a stent is in. */

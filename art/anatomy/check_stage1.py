@@ -9,7 +9,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
-GLB = os.path.join(REPO, 'public', 'anatomy', 'body-stage1.glb')
+GLB = os.path.join(HERE, 'body-stage1.glb')
 VJS = os.path.join(REPO, 'public', 'anatomy', 'vessels.json')
 TOPO = sys.argv[1] if len(sys.argv) > 1 else '/workspace/hales-engine/src/portal/topology.js'
 

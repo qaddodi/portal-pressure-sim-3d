@@ -7,14 +7,14 @@ how the pieces plug together.
 ## The bible (judge every change against all six before calling it done)
 1. production level 2. intuitive 3. elegant 4. beautiful 5. humanized 6. performant.
 Nothing pops in or out; cards never show before their content and fonts are ready; text never shrinks to fit; nothing scrolls inside a
-card. Clinical text is for US physicians: Baveno VIII (never VII) and AASLD.
+card. Clinical text is for US physicians: Baveno VIII (never VII) is the only guideline named on screen; other sources (AASLD, EASL) are named in the speaker notes only (`scripts/source-edits.mjs`, `tests/guideline-names.test.ts`).
 
 ## Rules that do not bend
 - **One clock.** `requestAnimationFrame` is called in `src/clock/frame.ts` and nowhere else (`tests/one-clock.test.ts`). Ask for frames
   with `clock.hold(tag)` / `clock.invalidate(tag)` / `Tweened`; draw through the R3F canvas with `frameloop="never"` and `<ClockBridge/>`.
   Nothing is drawn when nothing moves.
 - **Per-frame DOM writes are `transform` and `opacity` only**, written by a clock system, never through React state.
-- **The engine copy is never edited.** `src/engine/hales/` and `src/engine/host/` come from `npm run sync:engine` (pinned commits in
+- **The engine copy is never edited.** `src/engine/hales/` (core, portal and the host with its typed protocol) comes from `npm run sync:engine` (pinned commits in
   `src/engine/PINNED.json`). Fix the engine in `qaddodi/hales-engine`, then re-sync.
 - **Numbers equal the 2D app's** for the same preset (`tests/engine-numbers.test.ts`).
 - **Root cause, everywhere, every time (rule #1, owner, 20 Nov).** Every bug the owner reports or you find is fixed at its root cause in the shared place, not at the symptom; then check every view, vessel and card for the same cause, fix those too, and add a test that pins it. Name the root cause in the report.

@@ -3,7 +3,7 @@
 Run with Python 3.13 and the `bpy` 5.3 module (see requirements.txt), from this folder:
     python build_stage1.py
 Writes  art/anatomy/body-stage1.blend
-        public/anatomy/body-stage1.glb
+        art/anatomy/body-stage1.glb
         public/anatomy/vessels.json
 Nothing is random: the same sources give the same files (apart from Blender's own file headers).
 """
@@ -26,7 +26,7 @@ import bmesh  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 OUT_BLEND = os.path.join(HERE, 'body-stage1.blend')
-OUT_GLB = os.path.join(REPO, 'public', 'anatomy', 'body-stage1.glb')
+OUT_GLB = os.path.join(HERE, 'body-stage1.glb')   # (art only: the app does not load it, so it is not in public/ and not in the download)
 OUT_JSON = os.path.join(REPO, 'public', 'anatomy', 'vessels.json')
 
 ORIGIN = A.N['CONF'].copy()          # scene origin: the portal confluence

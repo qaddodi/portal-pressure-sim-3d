@@ -11,6 +11,7 @@ import { fmt } from '../../charts/fmt.ts';
 import { measure } from '../../charts/measure.ts';
 import { NODES } from '../../../engine/hales/portal/topology.js';
 import { tenthGap } from '../../../engine/hales/core/gap.js';
+import { MARK_NAME, hvpgSentence, measuredTop } from '../../charts/profile/wedge.ts';
 import { sampler } from '../../../scene/lenses/oklab.ts';
 import { LENS_TOKENS } from '../../../scene/lenses/tokens.copied.ts';
 import { PROFILE_PATHS, SHORT } from './copied/anatomy.copied.js';
@@ -181,23 +182,13 @@ function stripShapes(inp: ProfileInput, path: ProfilePath, pal: Palette, look: s
 
 const LEAD_PIECES = 4;
 
-/** What a bracket's measured top end is called on the chart. */
-const MARK_NAME: Record<string, string> = { whvp: 'WHVP' };
-
-/** The measured value a bracket starts from (the HVPG's WHVP), or null when the frame has none: the bracket is then left out. */
-export function measuredTop(d: { hiM?: string }, m: Record<string, number | undefined> | null | undefined): number | null {
-  const v = d.hiM ? m?.[d.hiM] : undefined;
-  return v != null && Number.isFinite(v) ? v : null;
-}
-
-/** The sentence a screen reader gets after the stations: where the HVPG's two ends come from (empty when it is not drawn). */
+/** The sentence a screen reader gets after the stations: where the HVPG's two ends come from (empty when it is not drawn). (The words are charts/profile/wedge.ts's, shared with the slides' chart.) */
 export function bracketSummary(inp: Pick<ProfileInput, 'metrics' | 'hidden' | 'pathId'>): string {
   const out: string[] = [];
   for (const d of curPath(inp.pathId).dims ?? []) {
     if (!d.hiM || !d.loM || (d.hide && inp.hidden?.has(d.hide))) continue;
-    const hi = measuredTop(d, inp.metrics), lo = measuredTop({ hiM: d.loM }, inp.metrics);
-    if (hi == null || lo == null) continue;
-    out.push(`${d.k} ${fmt(tenthGap(hi, lo, hi - lo)!, 1)}: wedged hepatic venous pressure ${fmt(hi, 1)} minus free hepatic venous pressure ${fmt(lo, 1)}, measured at the catheter, not the sinusoid's own pressure`);
+    const s = hvpgSentence(measuredTop(d, inp.metrics), measuredTop({ hiM: d.loM }, inp.metrics), d.k);
+    if (s) out.push(s);
   }
   return out.length ? ` ${out.join('. ')}.` : '';
 }

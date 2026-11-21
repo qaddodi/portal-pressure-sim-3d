@@ -1,6 +1,6 @@
 {
   "name": "portal-pressure-sim-3d",
-  "version": "0.1.0",
+  "version": "1.0.0-beta.1",
   "description": "3D cel-shaded rebuild of the portal pressure simulator, consuming hales-engine.",
   "private": true,
   "type": "module",

@@ -36,7 +36,7 @@ test('the wiring: the page lifts its cover for the app only on the ready signal,
   const html = readFileSync('index.html', 'utf8');
   assert.match(html, /data-boot'\)==='wait'\)return false/);
   assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /if \(cel\.rig\.placed\) figureDrawn\(\);/);
-  assert.match(readFileSync('src/main.tsx', 'utf8'), /holdSplash\(\);[\s\S]{0,200}render\(<StrictMode><App \/>/);
+  assert.match(readFileSync('src/main.tsx', 'utf8'), /holdSplash\(\);[\s\S]{0,200}render\(<StrictMode><AppBoundary layer="root"><App \/>/);
 });
 
 test('index.html\'s inline boot script is valid JavaScript (a syntax error there takes the whole cover logic with it: the splash then never lifts, not even by its failsafe)', async () => {

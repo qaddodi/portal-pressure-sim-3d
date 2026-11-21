@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { readFileSync } from 'node:fs';
-import type { EngineFrame } from '../src/engine/protocol.ts';
+import type { EngineFrame } from '../src/engine/hales/host/protocol.d.ts';
 import { tileRows, vitalRows, readoutsSummary, SYSTEMIC } from '../src/ui/tests/readouts-model.ts';
 import { TILES } from '../src/ui/tests/copied/dock-tiles.copied.js';
 import { createShownState } from '../src/ui/tests/readouts/copied/display-state.copied.js';

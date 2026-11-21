@@ -8,7 +8,7 @@ import { pathWords } from './model.ts';
 import '../charts.css';
 
 export interface PathProps {
-  /** the algorithm: 'first-visit' | 'bleed' | 'gastric' | 'ascites' | 'stopcarv' | 'holdcarv' | 'secprop' | 'psvdscope' | 'pvtocc' | 'pvtdur' | 'aasld' | 'psvdscore' | 'recomp' | 'pvtgrid' | 'ladder' (2D: tool { kind: 'path', of }); an unknown name is the first-visit chart */
+  /** the algorithm: 'first-visit' | 'bleed' | 'gastric' | 'ascites' | 'stopcarv' | 'holdcarv' | 'secprop' | 'psvdscope' | 'pvtocc' | 'pvtdur' | 'psvdscore' | 'recomp' | 'pvtgrid' | 'ladder' (2D: tool { kind: 'path', of }); an unknown name is the first-visit chart */
   of?: string;
   /** the slide's own facts (2D: tool.patient): { lsm, plt, bmi, ant, ssm } | { src, cp, active, hvpg, ctrl, fit } | the answers of a score card, grid or ladder */
   patient?: Record<string, unknown> | null;

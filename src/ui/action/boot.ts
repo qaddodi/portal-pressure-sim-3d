@@ -32,7 +32,7 @@ export function startActions(): () => void {
     t.toggle();
   }));
   // the card buttons the other batches own: Inject dye (the J key too), and the lobule and sinusoid views a liver card opens
-  off.push(registerFeature('dye', () => injectDye({})));
+  off.push(registerFeature('dye', (o) => injectDye(o?.hold ? { hold: true } : {})));
   off.push(registerFeature('view:lobule', () => { goToView('lobule'); }));
   off.push(registerFeature('view:sinusoid', () => { goToView('sinusoid'); }));
   off.push(registerFeature('view:circuit', () => { goToView('circuit'); }));

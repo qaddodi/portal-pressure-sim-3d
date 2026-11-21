@@ -45,6 +45,7 @@ import { showNumber } from './roll.ts';
 import { StationExtras, NO_EXTRAS, type Extras } from './readings.ts';
 import { useLens } from '../lenses/store.ts';
 import { useCompare } from '../../ui/compare/store.ts';
+import { useBlood } from '../blood/options.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
@@ -157,6 +158,7 @@ export function LabelLayer() {
       reading: (k) => ui.getState().readings[k] ?? null,
       zoom: () => cel.rig.handZoom,
       level: () => useShell.getState().figure.labelLevel,
+      chips: () => useBlood.getState().chips,
       stenosed: () => stenosedNodes(),
       stents: () => stentView,
       extras: (node, P, flags) => {

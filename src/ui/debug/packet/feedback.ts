@@ -2,6 +2,7 @@
 // email, and the whole packet to copy. Loaded by the Settings row only when Send feedback is tapped (a lazy chunk; the live site never loads it otherwise). Reads the screen once,
 // on that tap; nothing is sent by the app.
 import { packetNow, stateNow, buildInfo } from './sources.ts';
+import { thisVersion } from '../../../boot/release.ts';
 import { stateLink, baseOf } from './state.ts';
 import { packetText } from '../core/packet.copied.js';
 import { shortReport } from '../core/short.copied.js';
@@ -13,6 +14,6 @@ export async function readFeedback(): Promise<Feedback | null> {
   try {
     const p = await packetNow();
     const b = buildInfo();
-    return { short: shortReport(p), full: packetText(p), findings: (p.findings as unknown[]).length, link: stateLink(stateNow(), baseOf(location)), build: `${b.badge} · ${b.release}` };
+    return { short: shortReport(p), full: packetText(p), findings: (p.findings as unknown[]).length, link: stateLink(stateNow(), baseOf(location)), build: `${thisVersion() ? `v${thisVersion()} · ` : ''}${b.badge} · ${b.release}` };
   } catch { return null; }
 }
