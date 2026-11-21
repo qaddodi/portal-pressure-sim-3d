@@ -235,7 +235,6 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const limit = vp.h - Math.max(cm, safe.bottom);
     const gap = pairGap(vp.w, vp.h, layout);
     const wh = words?.h ?? 0, dh = data?.h ?? 0;
-    bar = barOf(vp, x + w);
     const overBar = x + w > bar.rect.x - 12;   // the column reaches the pill: the pair ends above it
     const foot = overBar ? bar.rect.y - 8 : limit;
     const total = wh + dh + (words && data ? gap : 0);

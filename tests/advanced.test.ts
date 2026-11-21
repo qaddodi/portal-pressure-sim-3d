@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { defaultParams } from '../src/engine/hales/portal/scenario.js';
 import { ADV_ACTS, ADV_CONTROLS, ADV_SECTIONS, advChanged, advGet, advLabel, advSet, normalBand, type AdvSlider } from '../src/ui/settings/advanced.ts';
 import { actionLabel } from '../src/ui/action/send.ts';

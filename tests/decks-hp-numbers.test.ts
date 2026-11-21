@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { chainOf, sequencer, plainText, parseToken, tokensOf, valueText, stepOf, changes, type Fp } from '../src/decks/hp/numbers.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';

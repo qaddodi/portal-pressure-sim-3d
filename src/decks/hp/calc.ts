@@ -3,21 +3,12 @@
 // waiting for the last. One deck at a time; a second ask waits its turn.
 import { create } from 'zustand';
 import { chainOf, sequencer, type Fp, type StepResult } from './numbers.ts';
+import { enginePool } from '../../engine/pool.ts';
 import type { CopiedDeck } from './types.ts';
 
 import { clock } from '../../clock/frame.ts';
-interface Calc { post(msg: unknown): void; subscribe(cb: (m: never) => void): void; dispose(): void }
-
-let calc: Calc | null = null;
-function open(): Calc {
-  if (calc) return calc;
-  const w = new Worker(new URL('../../engine/worker.ts', import.meta.url), { type: 'module' });
-  let cb: ((m: never) => void) | null = null;
-  w.onmessage = (e) => cb?.(e.data as never);
-  w.postMessage({ type: 'init' });
-  w.postMessage({ type: 'run', running: false });   // (no live clock on a model nobody looks at)
-  return (calc = { post: (m) => w.postMessage(m), subscribe: (f) => { cb = f; }, dispose: () => { w.terminate(); calc = null; } });
-}
+// (the second engine, its start, its crash and its stall rule: engine/pool.ts)
+const calc = enginePool.sequence;
 
 /** The states of the decks computed so far: results[deck][i] is slide i's (the outline's step is not kept). */
 interface StatesStore { results: Record<string, (StepResult | undefined)[]>; failed: Record<string, string> }
@@ -34,7 +25,7 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
   started.add(deck.id);
   const steps = chainOf(deck.slides);
   queue = queue.then(async () => {
-    const c = open();
+    const c = calc;
     const reqId = nextReq++;
     const seq = sequencer(reqId);
     const out: (StepResult | undefined)[] = [];
@@ -47,7 +38,8 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
       }
     });
     c.post({ type: 'sequence', steps, reqId });
-    try { await seq.done; } catch (e) {
+    try { await seq.done; c.idle(); } catch (e) {
+      c.idle();
       useStates.setState((s) => ({ failed: { ...s.failed, [deck.id]: String((e as Error).message) } }));
       started.delete(deck.id);
       const n = retries.get(deck.id) ?? 0;

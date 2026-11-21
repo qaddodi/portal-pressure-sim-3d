@@ -7,6 +7,7 @@
 // --check writes nothing and exits 1 when a copy differs from the 2D file (tests/presenter-copy.test.ts runs it when a 2D checkout is at hand: P2D_CHECKOUT).
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { uiTextEdits } from './source-edits.mjs';
 import { resolve, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,7 +20,8 @@ const REWRITE = [["import { caught } from './caught.js';", "import { caught } fr
 /** table-marks.js reads the engine's cut-off tables: here they are the vendored copy (src/engine/hales/portal/, the same files). */
 const ENGINE = [/from '\.\.\/engine\/portal\//g, "from '../../../engine/hales/portal/"];
 
-export function render(src, name, commit) {
+export function render(src, name, commit) { return uiTextEdits(render0(src, name, commit)); }
+function render0(src, name, commit) {
   let t = src;
   for (const [from, to] of REWRITE) t = t.replace(from, to);
   t = t.replace(ENGINE[0], ENGINE[1]);

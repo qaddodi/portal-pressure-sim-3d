@@ -2,6 +2,8 @@
 
 /** The text after "PREVIEW · ": the commit of `VITE_BUILD` ("branch@commit"), or nothing in a local run. */
 export const buildLabel = (build: string | undefined): string => { const c = (build ?? '').split('@').pop() ?? ''; return c && c !== 'dev' && c !== 'local' ? c : ''; };
+/** What the build's own checks found (`VITE_CHECKS`, scripts/build.mjs: "types: 3 errors, lint failed"), or nothing when they were clean: the pill shows it so a broken branch is never a quiet one. */
+export const buildChecks = (raw: string | undefined): string => (raw ?? '').trim();
 export const BADGE_H = 16;
 
 /** This copy's service worker scope and cache-name prefix (2D: `pps@<scope path>@`; the 3D app's caches use `pps3d@`). */

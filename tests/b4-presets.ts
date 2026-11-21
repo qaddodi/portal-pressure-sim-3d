@@ -1,5 +1,5 @@
 // Real engine state for the B4 tests: the frame, the patient's parameters and the healthy pressures of a preset, run in node (no worker, no browser).
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import type { DiseaseFrame, DiseaseParams } from '../src/scene/disease/targets.ts';
 
 export type PresetFrame = DiseaseFrame & { Q: ArrayLike<number>; Qf?: ArrayLike<number>; D: ArrayLike<number> };

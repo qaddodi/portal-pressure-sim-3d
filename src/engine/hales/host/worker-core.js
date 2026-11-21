@@ -1,19 +1,18 @@
-// @ts-nocheck
 // Simulation host: owns the Engine, runs the clocks, streams frames (blueprint §13.4).
 // Used inside a Web Worker (src/worker.js) or on the main thread as a fallback.
 
-import { Engine } from '../hales/portal/engine.js';
-import { stentMix } from '../hales/portal/stent-ease.js';
-import { easeMove } from '../hales/core/ease-move.js';
-import { computeMetrics } from '../hales/portal/metrics.js';
-import { fingerprintOf } from '../hales/portal/fingerprint.js';
-import { detectEvents } from '../hales/portal/events.js';
-import { explain } from '../hales/portal/explain.js';
-import { healthyAtBedside, restingEngine } from '../hales/portal/bedside-rest.js';
-import { deepMerge, sanitizeParams, PRESETS } from '../hales/portal/scenario.js';
-import { EDGES } from '../hales/portal/topology.js';
-import { setYours } from '../hales/portal/yours.js';
-import { calmTrail } from '../hales/portal/trail-calm.js';
+import { Engine } from '../portal/engine.js';
+import { stentMix } from '../portal/stent-ease.js';
+import { easeMove } from '../core/ease-move.js';
+import { computeMetrics } from '../portal/metrics.js';
+import { fingerprintOf } from '../portal/fingerprint.js';
+import { detectEvents } from '../portal/events.js';
+import { explain } from '../portal/explain.js';
+import { healthyAtBedside, restingEngine } from '../portal/bedside-rest.js';
+import { deepMerge, sanitizeParams, PRESETS } from '../portal/scenario.js';
+import { EDGES } from '../portal/topology.js';
+import { setYours } from '../portal/yours.js';
+import { calmTrail } from '../portal/trail-calm.js';
 
 const SAMPLE_NODES = ['RA', 'IVCS', 'RHV', 'CONF', 'SIN_R', 'VAR', 'AO', 'SV', 'SMV'];
 

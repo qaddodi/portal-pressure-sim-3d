@@ -2,7 +2,7 @@
 
 How to report something that looks wrong, what the app can tell about itself, and what an agent does with your report. Written for Mohammad first (what to press, what comes back, what the tools can and cannot see); the last section is for agents. This is the 3D app's copy of the 2D app's `docs/debug.md`: the same report formats, the same rules and numbers where the 3D app has the same cards, and the places where it does not yet are named in section 11.
 
-Everything here is on the preview copy (`/preview/`) or a local run. The live site has only Send feedback (section 12) and `?perf`.
+Everything here is on the preview copy (`/preview/`) or a local run. The live site has only Send feedback (section 12), `?perf` and `?gl`: its build (`VITE_CHANNEL=live`) does not contain the other tools at all (`tests/live-no-debug.test.ts`).
 
 ## 1. The short version
 
@@ -169,9 +169,9 @@ Address flags, where each works (live site, or the preview and a local run only)
 | Flag | Where | Group | What it does |
 |---|---|---|---|
 | `?perf` | everywhere | Measure | The clock's frame panel: median, p95 and worst frame work, the frames over 20 ms with the phase and who asked for them; Copy (src/ui/perf). |
-| `?dust` | everywhere | Measure | Tunes the blood's dust (dust-panel.ts). |
-| `?joins` | everywhere | Measure | Vessel junctions as one merged mesh (docs/junction-skin-spec.md): on by default; ?joins=old is the old overlapping tubes, mesh only the SMV-SV confluence, mesh2 every junction; debug, nomarks, noink, nodust, noheads, dustblend: weld diagnostics (every one of them is a switch in the ?inspect panel, and debug opens it). |
-| `?inspect` | everywhere | Measure | The inspector (src/ui/debug/inspect; ?joins=debug opens it too): an on-screen panel that turns the figure all the way round and changes the joins mode, the junction diagnostics (debug tint, no marks, no ink), the shade mode, the flow marks, the ink, the colours and the wireframe of the tubes and of the skins, and which layers are drawn, live, with Copy. The programs carry its hooks only on a page that asks for it. |
+| `?dust` | preview and local run | Measure | Tunes the blood's dust (dust-panel.ts). |
+| `?joins` | preview and local run | Measure | Vessel junctions as one merged mesh (docs/junction-skin-spec.md): on by default; ?joins=old is the old overlapping tubes, mesh only the SMV-SV confluence, mesh2 every junction; debug, nomarks, noink, nodust, noheads, dustblend: weld diagnostics (every one of them is a switch in the ?inspect panel, and debug opens it). |
+| `?inspect` | preview and local run | Measure | The inspector (src/ui/debug/inspect; ?joins=debug opens it too): an on-screen panel that turns the figure all the way round and changes the joins mode, the junction diagnostics (debug tint, no marks, no ink), the shade mode, the flow marks, the ink, the colours and the wireframe of the tubes and of the skins, and which layers are drawn, live, with Copy. The programs carry its hooks only on a page that asks for it. |
 | `?gl` | everywhere | Measure | Every shader program the app can use, compiled on this device: one line each, green or red, with the driver's own log and Copy (src/debug/gl-check.tsx). Open it once per build on the iPhone, the iPad and the Mac. |
 | `?watch` | preview and local run | Measure | The motion recorder (preview copy or a local run): keeps 20 seconds of camera, label and card numbers, judges them with the motion rules and shows a red dot with the findings (src/ui/debug/watch). |
 | `?debug` | preview and local run | Pages | The debug page (the card gallery, with Report and Full check on its bar; the motion recorder is on by default). ?debug=check is the Phone check, ?debug=full its long walk, ?debug=frame the device frame. |
@@ -189,11 +189,11 @@ Address flags, where each works (live site, or the preview and a local run only)
 | `?twod` | preview and local run | Pages | The look board: a button per row opens the 2D app's preview of the same patient in the row. |
 | `?capture` | preview and local run | Open | One look-board state (the look board's own frame opens it): ?capture&look=dark&preset=cirr-decomp&view=circuit&chevrons=0&orbit=25 applies it in memory (nothing saved) and window.__look hands out the canvas (src/debug/look-app.ts). |
 | `?liver` | preview and local run | Open | The cirrhotic liver's cel mock-ups: ?liver=cel1 to cel15 (src/scene/organs/liver-texture.ts); none shows cel15, the standing surface (cel14 soft light, cel13 cobbled soft, cel7 cobbled); c2b the earlier pale-nodule one. |
-| `?only` | everywhere | Pages | The Phone check or the Sweep: just these journeys or specimens (comma list). |
-| `?steps` | everywhere | Pages | The Phone check: steps=0 leaves out the per-step rows. |
-| `?fresh` | everywhere | Pages | The Phone check: fresh=1 forgets a walk the browser was part way through. |
-| `?parity` | everywhere | Pages | The build's progress page: how much of the 2D app the 3D app has, per batch and area (src/parity). |
-| `?charts` | everywhere | Pages | The charts gallery (src/ui/charts/gallery). |
+| `?only` | preview and local run | Pages | The Phone check or the Sweep: just these journeys or specimens (comma list). |
+| `?steps` | preview and local run | Pages | The Phone check: steps=0 leaves out the per-step rows. |
+| `?fresh` | preview and local run | Pages | The Phone check: fresh=1 forgets a walk the browser was part way through. |
+| `?parity` | preview and local run | Pages | The build's progress page: how much of the 2D app the 3D app has, per batch and area (src/parity). |
+| `?charts` | preview and local run | Pages | The charts gallery (src/ui/charts/gallery). |
 | `?script` | everywhere | Open | Open this deck (with ?slide=N). |
 | `?slide` | everywhere | Open | Open this slide of ?script. |
 | `?preset` | everywhere | Open | Open this patient preset. |

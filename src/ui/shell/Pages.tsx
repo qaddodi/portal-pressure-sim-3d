@@ -8,10 +8,10 @@ import { registerFeature } from './features.ts';
 import { Icon } from './icons.tsx';
 import { STORAGE_PREFIX } from '../../state/settings.ts';
 import { resetUrl } from './reset.ts';
+import { thisRelease } from '../../boot/release.ts';
 
 import { clock } from '../../clock/frame.ts';
 const LEAVE_MS = 180;   // 2D --d-flip: the dialog sinks back, then is hidden (closeModal)
-const release = (): string => String(import.meta.env.VITE_BUILD ?? 'source').split('@').pop() ?? 'source';
 
 /** 2D clearRow(): "Clear my data on this device" asks in place, in the dialog's own words, and its two answers; Cancel brings the button back. */
 function ClearRow() {
@@ -67,7 +67,7 @@ export function PageDialog() {
   }, [want, section]);
   const page = shown ? pageOf(shown) : null;
   const close = () => useShell.setState({ dialog: null });
-  const sub = page?.sub && shown === 'about' ? `${page.sub} · ${release()}` : page?.sub ?? null;
+  const sub = page?.sub && shown === 'about' ? `${page.sub} · ${thisRelease()}` : page?.sub ?? null;
   return (
     <div className={`modal-back${shown ? (leaving ? ' leaving' : ' show') : ''}`} id="modalBack" onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div className="modal" id="modal" role="dialog" aria-modal="true" aria-label={page?.title ?? 'Dialog'} ref={modal} inert={!want} style={page?.wide ? { width: 'min(960px, 100%)' } : undefined}>

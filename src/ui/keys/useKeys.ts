@@ -15,9 +15,11 @@ import { useTreat } from '../treat/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
 import { triggerCardVerb, cardIsOpen, removeFromCard } from '../action/ActionCard.tsx';
 import { openGuide } from '../shell/HelpSheets.tsx';
+import { releaseDye } from '../action/dye.ts';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
 import { escStep } from './escape.ts';
+import { talkOn } from '../../state/deck.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -38,7 +40,7 @@ export function carryOut(a: KeyAction): void {
     case 'close': {
       const tests = useTests.getState();
       const step = escStep({ dialog: !!sh.dialog, sheet: !!sh.sheet, testsOpen: tests.open, testsFocus: tests.open && tests.state === 'focus', treatOpen: useTreat.getState().open,
-        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: sh.mode === 'deck' });
+        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: talkOn() });
       if (step === 'dialog') useShell.setState({ dialog: null });
       else if (step === 'sheet') sh.close();
       else if (step === 'tests-focus' || step === 'tests') tests.back();   // (the Tests card; its Why? is the shared sheet above, closed first)
@@ -70,28 +72,35 @@ export function carryOut(a: KeyAction): void {
       break;
     }
     case 'settle': settle(); sh.say(SETTLED); break;
-    case 'help': openGuide(sh.mode === 'deck' ? 'present' : null); break;   // (2D: ? in a talk opens the guide at While presenting)
+    case 'help': openGuide(talkOn() ? 'present' : null); break;   // (2D: ? in a talk opens the guide at While presenting)
     case 'tests': runFeature('tests', 'Tests'); break;
     case 'treat': runFeature('treat', 'Treat'); break;
     case 'compare': runFeature('compare', 'Compare'); break;
-    case 'dye': runFeature('dye', 'Inject dye'); break;
+    case 'dye': runFeature('dye', 'Inject dye', { hold: true }); dyeKey = true; break;   // (2D keyboard.js: J held keeps injecting; its release, or the window losing focus, lets go)
     case 'card-verb': triggerCardVerb(a.n); break;
     case 'card-remove': removeFromCard(); break;
     case 'ignore': break;
   }
 }
 
+/** J is down: its keyup (or the window blurring) lets the dye go. */
+let dyeKey = false;
+export const dyeKeyUp = (): void => { if (dyeKey) { dyeKey = false; releaseDye(); } };
+
 export function useKeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const sh = useShell.getState();
-      const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: sh.mode === 'deck', keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
+      const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: talkOn(), keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
       if (!a) return;
       if (a.type === 'ignore') { if (a.prevent) e.preventDefault(); return; }
       if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help' || a.type === 'zoom' || a.type === 'step' || (a.type === 'card-remove' && removeFromCard.available())) e.preventDefault();
       carryOut(a);
     };
+    const up = (e: KeyboardEvent) => { if (e.key.toLowerCase() === 'j' || e.code === 'KeyJ') dyeKeyUp(); };
     window.addEventListener('keydown', down);
-    return () => window.removeEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', dyeKeyUp);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', dyeKeyUp); };
   }, []);
 }

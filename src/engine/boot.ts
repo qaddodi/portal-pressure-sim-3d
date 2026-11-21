@@ -2,7 +2,8 @@
 import { EngineClient, type WorkerLike } from './client.ts';
 import { adoptFrame, patient, setParams, useEngine } from './store.ts';
 import { clock } from '../clock/frame.ts';
-import type { FromWorker } from './protocol.ts';
+import { enginePool } from './pool.ts';
+import type { FromWorker } from './hales/host/protocol.d.ts';
 
 export const START_PRESET = 'healthy';   // the patient a first run opens on, as the 2D app's store (presetId: 'healthy'); a ?preset= link or a saved share opens another after it
 
@@ -17,8 +18,8 @@ const crashed = (message: string) => useEngine.setState({ status: 'crashed', cra
  *  rejects and leaves the status 'crashed' with the reason: the boot never waits for ever (main.tsx then shows the reason with Reload). */
 export async function bootEngine(worker?: WorkerLike, preset = START_PRESET, waitMs = BOOT_WAIT_MS): Promise<EngineClient> {
   if (!worker) {
-    try { worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike; }
-    catch (e) { const message = `The simulation worker could not start: ${String((e as { message?: string } | null)?.message ?? e)}`; crashed(message); throw new Error(message); }
+    try { worker = enginePool.live(); }
+    catch (e) { crashed((e as Error).message); throw e; }
   }
   let loaded = false;   // (frames of the default patient, posted before the first patient is loaded, are never adopted)
   client = new EngineClient(worker, {

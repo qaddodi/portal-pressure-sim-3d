@@ -46,6 +46,8 @@ export interface SkinDraw {
   setWedge?(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void;
   /** this skin is one of a growing arm's pair (a welded skin, mode +1, or the plain trunk, mode -1): how far the weld is, 0 the flared tubes alone, 1 the welded skin; the pair draw complementary pixels (skin-object.ts) */
   setWeld?(mode: 1 | -1, w: number): void;
+  /** the weld mode and share a skin was last given (a test reads them) */
+  weldOf?(): readonly [number, number];
   /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
   setArmCopy(i: number, front: number, solid: number, veil: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */

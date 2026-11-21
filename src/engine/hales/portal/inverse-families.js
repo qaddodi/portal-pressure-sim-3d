@@ -42,7 +42,7 @@ const LESIONS = [
     settings: (u) => { const s = LES_SET.sinus(u); return [kv('Cirrhosis slider', pctText(s.scar)), kv('Albumin', `${s.alb} g/dL`, true)]; },
     days: (u) => (u > 0.8 ? 540 : 365), volume: () => 0,
     limits: 'The model has no histological stage and no etiology: one slider, 0 to 100%, sets the sinusoidal resistance, and the HVPG and LSM follow from it. Albumin falls with the slider from about 55%.',
-    ev: 'HVPG 10 mmHg or more is clinically significant portal hypertension (Baveno VIII; AASLD 2024).',
+    ev: 'HVPG 10 mmHg or more is clinically significant portal hypertension (Baveno VIII).',
     outside: 'Liver biopsy or elastography for the cause and stage; the model has neither.' },
   { id: 'presin', short: 'Presinusoidal', label: 'Presinusoidal block', sub: 'Narrowed portal venules and no cirrhosis. PSVD and schistosomiasis are one lesion to the model.', group: 'Presinusoidal', slot: 'pre', step: 0.1,
     set: (u) => ({ pre: r1(2 * 40 ** u) }),

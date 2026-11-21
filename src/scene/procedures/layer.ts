@@ -16,6 +16,7 @@ import { Bands } from '../devices/bands.ts';
 import { GlueCast } from '../devices/glue-cast.ts';
 import type { ScopeDrive } from '../devices/probes/scope.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
+import './instrument-specs.ts';   // (registers EVL, tamponade, DIPS, DSRS and paracentesis in the procedure table)
 import { CATH_END } from './copied/cath-arrival.js';
 import { type StepClock, makeStepClock, aim as aimClock, stepClock, landed } from './step-clock.ts';
 

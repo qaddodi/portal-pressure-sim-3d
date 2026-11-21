@@ -72,6 +72,8 @@ export interface LabelDeps {
   zoom?(): number;
   /** The Figure menu's label level (none, key, all). Absent: key. */
   level?(): LabelLevel;
+  /** The Blood menu's Pressure values (2D `layers.chips`): off, a station's label is its name only (2D `.chips-off .lb-val { display: none }`). Absent: on. */
+  chips?(): boolean;
   /** The stations either side of a narrowed vessel (the findings flag them). Absent: none. */
   stenosed?(): readonly string[];
   /** The TIPS and DIPS stents: where they stand drawn and settled, what a slide reads at their three Doppler points (stent-labels.ts). Absent: no stent labels. */
@@ -220,6 +222,10 @@ export class LabelController {
   private readonly tmp2 = new Vector3();
   private readonly cTip = new Vector3();
   private readonly show = new CathShow();
+  /** A cut's frozen picture (Mohammad's audit, 21 Nov: names moved 700 to 1,300 px in one frame while half faded): the names and cards that fade out because a dot jumped stay where they stood
+   *  (the dots' places before the cut) until they are gone and the picture has been still; only then do they ride the new picture again, placed afresh. Fade and move are tied. */
+  private cutAnchors: Map<string, { x: number; y: number }> | null = null;
+  private cutCard: { tip: [number, number] | null; ahead: [number, number] | null } | null = null;
   private cTipPx: [number, number] | null = null;
   private cAheadPx: [number, number] | null = null;
   private cGot: 0 | 1 | 2 = 0;
@@ -350,7 +356,7 @@ export class LabelController {
   }
 
   /** Whether a station's label carries a number (2D: the hepatic artery's is its name only: its pressure sits off the venous scale and says little). */
-  private hasNumber = (s: Station): boolean => (s.stent ? s.stent.pt !== 'geo' : !!s.node && s.id !== 'HA');
+  private hasNumber = (s: Station): boolean => (s.stent ? s.stent.pt !== 'geo' : !!s.node && s.id !== 'HA' && (this.deps.chips?.() ?? true));
 
   /** A stent's label (2D geomItem / velItem). Its stent: one label, a line each for the diameter, the waist and the end stenosis, shortened by whole lines. A point: its name and its velocity, one form (a point's name without its number says nothing). */
   private stentMeta(s: Station, v: StentView, all: boolean): Meta | null {
@@ -429,7 +435,7 @@ export class LabelController {
 
     // 1. where the dots are. A dot that jumped (a cut, a dive's far end) hides everything until the picture is still; a dot that moved by a little (a hand on the picture, the camera in flight) is carried:
     // every label keeps its place beside it, re-projected each frame.
-    let moved = this.firstTick;
+    let moved = this.firstTick, cutDot = false;
     let following = d.cameraMoving();   // (a slide's glide carries the labels exactly as a hand does: they ride it and are placed again where it lands)
     this.firstTick = false;
     const anchors = new Map<string, { x: number; y: number }>();
@@ -441,9 +447,10 @@ export class LabelController {
       anchors.set(m.id, a);
       const was = this.anchors.get(m.id);
       if (!was) this.dirty = true;   // (a station that comes in is placed when the picture is still; the others are not cut by it)
-      else if (Math.hypot(was.x - a.x, was.y - a.y) > FOLLOW_JUMP) moved = true;   // (a dot that jumped is a cut, not a hand: the names leave and return)
+      else if (Math.hypot(was.x - a.x, was.y - a.y) > FOLLOW_JUMP) { moved = true; cutDot = true; }   // (a dot that jumped is a cut, not a hand: the names leave and return)
       else if (Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) following = true;
     }
+    if (cutDot && !this.cutAnchors) this.cutAnchors = this.anchors;   // (the places the dots stood at before the cut: the fading names keep them)
     this.anchors = anchors;
     // zoomed in, the other stations stand where 80 px round their dot is free of every other (2D: they appear as the zoom makes room)
     let metas = all;
@@ -469,7 +476,7 @@ export class LabelController {
     // card fade out and come back, over and over (Mohammad, 20 Nov: the FHVP, WHVP, HVPG and EUS-PPG callouts "keep flashing in and out of existence").
     const cutPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && Math.hypot(a[0] - b[0], a[1] - b[1]) > FOLLOW_JUMP);
     const slidPt = (a: [number, number] | null, b: [number, number] | null) => !!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35);
-    if (cutPt(nowTip, this.cTipPx) || cutPt(nowAhead, this.cAheadPx) || got !== this.cGot) moved = true;
+    if (cutPt(nowTip, this.cTipPx) || cutPt(nowAhead, this.cAheadPx) || got !== this.cGot) { moved = true; if (!this.cutCard) this.cutCard = { tip: this.cTipPx, ahead: this.cAheadPx }; }
     else if (slidPt(nowTip, this.cTipPx) || slidPt(nowAhead, this.cAheadPx)) following = true;
     this.cTipPx = nowTip; this.cAheadPx = nowAhead; this.cGot = got;
     // A picture that moved places its labels again once it is still: the solve judges screen positions (cards, other labels, the vessels' lines), and none of them is in the signature below. Without
@@ -512,10 +519,13 @@ export class LabelController {
 
     // 3. fades (the catheter's cards have their own: the 2D app's timings)
     this.show.setText(this.cathText(), hold || !(cathNow || procNow));   // (frozen on the outgoing slide's numbers while the cards fade: the next patient's do not belong on them)
-    this.show.ride(this.cTipPx, this.cAheadPx);
+    if (!hold) this.cutCard = null;   // (still again: the cards ride the picture as it is now)
+    this.show.ride(this.cutCard ? this.cutCard.tip : this.cTipPx, this.cutCard ? this.cutCard.ahead : this.cAheadPx);
     const busy = anyMoving(this.fader.step(dt, this.wants, hold), this.show.step(dt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 
-    // 4. what to draw: each shown label at its spot, following its dot
+    // 4. what to draw: each shown label at its spot, following its dot (a cut's dots: where they stood, see cutAnchors)
+    if (!hold && resting) this.cutAnchors = null;
+    const frozen = this.cutAnchors;
     this.out.length = 0;
     const roomBlk = [...d.blockers()];
     // The names drawn so far this frame (highest rank first) stand in the way of the next: a name carried over another (a spleen that grows under STOMACH, a camera that moves one dot more than its neighbour) fades out whole
@@ -535,9 +545,9 @@ export class LabelController {
       const p = this.anchorOf(m, s.p.au, this.at);
       const pr = s.from ? this.anchorOf(m, au, this.at2) : p;
       if (!p || !pr) continue;
-      const a = d.project(p, this.pt);
+      const fz = frozen?.get(id), a = fz ?? d.project(p, this.pt);
       const ax = a.x, ay = a.y;
-      const ring = s.from ? d.project(pr, this.pt2) : a;
+      const ring = s.from && !fz ? d.project(pr, this.pt2) : a;
       const box = boxOf(s.p, ax, ay);
       // a label that comes to stand under a card or past the edge (carried by the camera, or a card sliding in) fades out whole and back once clear: never seen cut (2D roomFade)
       roomBlk.length = nWalls;

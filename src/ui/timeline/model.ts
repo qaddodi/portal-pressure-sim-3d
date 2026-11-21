@@ -2,7 +2,7 @@
 // DOM: the same entries, the same rules (a change is debounced into one entry, a jump or an action is its own, threshold events are entries, going back keeps the later
 // entries ahead until something new happens, Undo and Redo walk the restorable ones), so the History list, Undo and Compare behave as they do in 2D.
 // Pure: the engine, the clock and the screen reach it through `TimelineHost`, so a test drives it in Node.
-import type { EngineFrame } from '../../engine/protocol.ts';
+import type { EngineFrame } from '../../engine/hales/host/protocol.d.ts';
 import { removedLabel } from './removed-label.ts';
 
 export type EntryKind = 'start' | 'change' | 'jump' | 'event';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { bootEngine, engine } from '../src/engine/boot.ts';
 import { useEngine, patient, latest } from '../src/engine/store.ts';
 import type { WorkerLike } from '../src/engine/client.ts';

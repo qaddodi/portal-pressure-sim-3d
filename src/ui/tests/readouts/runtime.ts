@@ -8,6 +8,7 @@ import { reduceMotionMQ } from '../copied/motion.copied.js';
 import { hiddenNow, useMeasured } from '../hidden.ts';
 import { useShell } from '../../shell/store.ts';
 import { useCompare } from '../../compare/store.ts';
+import { useUi } from '../../ui-store.ts';
 
 const TAG = 'readouts';
 interface ShownApi { set(key: string, T: number, o?: { snap?: boolean; small?: number; eps?: number; across?: boolean }): number; or(key: string, fb: number): number; get(key: string): number | undefined; isMoving(key: string): boolean; delete(key: string): void; on(cb: () => void): () => void }
@@ -44,7 +45,8 @@ export function bindReadouts(): () => void {
   const offs = [
     useCompare.subscribe((s, p) => { if (s.snap !== p.snap) l.refresh(ctxNow() as never); }),
     useMeasured.subscribe(() => l.refresh(ctxNow() as never)),
-    useShell.subscribe((s, p) => { if (s.transport.running !== p.transport.running || s.mode !== p.mode) l.refresh(ctxNow() as never); }),
+    useShell.subscribe((s, p) => { if (s.transport.running !== p.transport.running) l.refresh(ctxNow() as never); }),
+    useUi.subscribe((s, p) => { if ((s.deck !== null) !== (p.deck !== null)) l.refresh(ctxNow() as never); }),
     useEngine.subscribe((s, p) => { if (s.presetId !== p.presetId) { noteJump(); l.reset(); feed(); } }),
   ];
   return () => { offFrame(); for (const o of offs) o(); l.unmount(); };

@@ -3,10 +3,11 @@
 // left, never for longer than FEEDBACK_READ_MS so the draft is not held up. The app sends nothing: the person sends the email, so the Privacy page stays true.
 import { feedbackHref, FEEDBACK_SHEET_MS, FEEDBACK_READ_MS } from './feedback.ts';
 import { useShell } from './store.ts';
+import { feedbackBuild } from '../../boot/release.ts';
 
 import { clock } from '../../clock/frame.ts';
 export async function sendFeedback(email: string): Promise<void> {
-  const plain = { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href };
+  const plain = { build: feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL), device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href };
   let fb: { short: string; full: string; link: string; build: string } | null = null;
   try {
     await new Promise((ok) => clock.after(ok, FEEDBACK_SHEET_MS));

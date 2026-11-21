@@ -29,8 +29,6 @@ export interface Toast { id: number; text: string; tone: 'info' | 'bad'; action?
 export interface Transport { running: boolean; speed: number; lapse: number; time: string; day: number }
 
 interface ShellState {
-  /** free play (the figure and the bars) or a talk; the app opens in free play, as the 2D app does */
-  mode: 'free' | 'deck';
   view: ViewId;
   /** the views the scene can draw (Anatomy now; the Circuit and the lobule batches turn theirs on with `markViewReady`) */
   ready: Record<ViewId, boolean>;
@@ -75,7 +73,6 @@ export const TOAST_MS = 3200;
 export const ACTION_MS = 9000;
 
 export const useShell = create<ShellState>((set, get) => ({
-  mode: 'free',
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
   sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,

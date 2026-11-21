@@ -194,7 +194,7 @@ export const UI = {
    "Line width follows vessel diameter (compressed, so the venae cavae do not dwarf the portal tree). Watch collaterals and varices swell.",
    "The circuit view is a transit map: pressure falls from left to right; collaterals and shunts run in their own lanes as bypasses."
   ],
-  "thresholds": "Baveno VIII consensus on portal hypertension (2026); AASLD guidance on risk stratification and management of portal hypertension and varices in cirrhosis (2024). Thresholds apply to gradients (HVPG, direct portal–systemic gradient), never to the pressure at a single vessel. Physiology after Guyton; Lautt (hepatic arterial buffer response); Bosch & Groszmann (HVPG).",
+  "thresholds": "Baveno VIII consensus on portal hypertension (2026). Thresholds apply to gradients (HVPG, direct portal–systemic gradient), never to the pressure at a single vessel. Physiology after Guyton; Lautt (hepatic arterial buffer response); Bosch & Groszmann (HVPG).",
   "disclaimer": "Educational simulation. The model is simplified and its values are illustrative; do not use it for diagnosis or treatment decisions."
  },
  "settings": [

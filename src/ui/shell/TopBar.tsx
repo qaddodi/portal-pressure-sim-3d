@@ -22,6 +22,7 @@ import { useBarFit } from './use-bar-fit.ts';
 import { shortName, COMPACT } from './scenario-names.ts';
 import { yoursName } from '../readings/yours.ts';
 import { startTopbarMotion } from './topbar-motion.ts';
+import { useTalkOn } from '../../state/deck.ts';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -108,7 +109,7 @@ function Act({ id, icon, feature, extra, className = '' }: { id: string; icon: s
 
 /** The top bar as index.html has it. A phone or an upright iPad (the 2D "thumb" layout) keeps the patient and the colour key here, the rest in the dock's tab row. */
 export function TopBar() {
-  const mode = useShell((s) => s.mode);
+  const mode = useTalkOn() ? 'deck' : 'free';
   const sheet = useShell((s) => s.sheet);
   const view = useShell((s) => s.view);
   const patientId = useShell((s) => s.patientId);

@@ -4,7 +4,7 @@
 // `onFrame` makes the next one from each live frame. A held frame of someone else (Compare) is never taken over. Switched off, the live frame goes back and everything eases away on the scene's own tracks, nothing pops.
 // While it is on the numbers, labels and lens colours of the figure are the forged frame's, not the patient's: the inspector's panel says so.
 import { EDGES } from './hales/portal/topology.js';
-import type { EngineFrame } from './protocol.ts';
+import type { EngineFrame } from './hales/host/protocol.d.ts';
 import { holdFrame, latest, live, onFrame } from './store.ts';
 
 export interface ForceState {

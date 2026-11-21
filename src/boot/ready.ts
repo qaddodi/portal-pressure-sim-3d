@@ -26,6 +26,9 @@ export function holdSplash(lifter?: Lift): void {
   timer = clock.after(release, BOOT_FAILSAFE_MS);
 }
 
+/** True from holdSplash() until the cover is released or failed: the figure has not been drawn yet, so a lost context is a boot failure, not something to recover from. */
+export const splashHeld = (): boolean => waiting && !done;
+
 /** The scene drew a frame. The first one starts the count; the frame after it has placed the labels, and the splash goes. */
 export function figureDrawn(): void {
   if (!waiting || done) return;

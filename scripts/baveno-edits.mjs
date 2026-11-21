@@ -1,6 +1,7 @@
 // Where the 3D app's deck words depart from the 2D copies on purpose (Mohammad, 21 Nov 2026: "we're good to depart from 2D, because this app is becoming better";
 // review findings 6 and 17, Baveno VIII 1.14 to 1.16 and 7.4). Every deck generator (copy-decks.mjs, copy-decks-ag.mjs, port-decks-hp.mjs, port-decks-rw.mjs) runs its
 // JSON through bavenoEdits() before it hashes and writes, so a re-copy from 2D keeps them. tests/baveno-wording.test.ts locks the result.
+import { sourceEdits } from './source-edits.mjs';
 const LSM_SCOPE = 'in viral or alcohol-related cACLD and in MASLD-related cACLD with a BMI <30';
 const LSM_SHORT = '(viral or alcohol-related cACLD, or MASLD-related cACLD with a BMI <30; otherwise the stiffness pathway)';
 const LSM_PAREN = '(only in viral or alcohol-related cACLD, or MASLD-related cACLD with a BMI <30; the stiffness pathway covers other cases)';
@@ -28,5 +29,5 @@ export const EDITS = [
 export function bavenoEdits(json) {
   let out = json;
   for (const [from, to] of EDITS) out = out.split(from).join(to);
-  return out;
+  return sourceEdits(out);
 }

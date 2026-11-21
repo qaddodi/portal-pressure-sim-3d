@@ -1,6 +1,6 @@
 {
   "name": "portal-pressure-sim-3d",
-  "version": "0.1.0",
+  "version": "1.0.0-beta.1",
   "description": "3D cel-shaded rebuild of the portal pressure simulator, consuming hales-engine.",
   "private": true,
   "type": "module",
@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "node scripts/lint.mjs",
     "check": "npm run typecheck && npm run lint && npm test",
+    "pre-push": "node scripts/pre-push.mjs",
+    "hooks": "git config core.hooksPath .githooks",
     "sync:engine": "node scripts/sync-engine.mjs",
     "gen:engine-fixture": "node scripts/gen-engine-fixture.mjs",
     "sync:inventory": "node scripts/sync-inventory.mjs",

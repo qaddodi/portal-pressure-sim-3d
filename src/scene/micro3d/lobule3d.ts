@@ -124,6 +124,8 @@ const CELL_EASE_MS = 900, MARKS_DIP_MS = 260, PLATE_CROSS_MS = 700;
 
 /** The scene's fade below which a waiting weld plan may be laid in (nothing of it can be told). */
 const WELD_SWAP_FADE = 0.02;
+/** How long after the Lobule is built the page waits before asking for the baked weld plan (it is not part of the first download: scripts/pwa.mjs LATE). */
+export const WELDS_ASK_MS = 3000;
 
 /** What the weld planner is given for a network (lobule/welds.ts): its courses as the scene draws them, and the discs of the vessels' mouths (a meeting inside a mouth is the pool's, not a junction). The same call
  *  makes the baked plan at build time (scripts/bake-welds.mjs) and asks for it at run time, so a baked file made for other numbers is known by its digest and never laid in. */
@@ -301,14 +303,15 @@ export class Lobule3D {
     if (!lazy) this.buildVessels();
     this.group.visible = false;
     flat.group.add(this.group);   // (the Lobule's root takes everything under it into its one fade)
-    this.askWelds();
+    // (on a page, the baked plan (1.8 MB) is asked for once the first picture is up, or at once when the Lobule is about to show: release review 21 Nov P1-6; off a page, a test, at once as before)
+    if (typeof window === 'undefined') this.askWelds(); else clock.after(() => this.askWelds(), WELDS_ASK_MS);
   }
 
   // ---- welded junctions (lobule/welds.ts) -------------------------------------------------------------------------------------------
 
   /** Asks the worker to plan the welds (once; never with `?joins=old` ). The plan is laid in while the Lobule is out of sight, so no junction changes in front of the eye. */
   private askWelds(): void {
-    if (this.weldsAsked || joinsMode() === 'old') return;
+    if (this.weldsAsked || this.disposed || joinsMode() === 'old') return;
     this.weldsAsked = true;
     void requestWelds(weldRequest(this.flat.net)).then((plan) => {
       if (!plan || this.disposed) return;
@@ -338,6 +341,7 @@ export class Lobule3D {
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden, so the first show costs a frame's worth. */
   update(on: boolean, under = 0, now = 0, rate = 1, force = false): boolean {
     if (!this.vesselsBuilt) this.buildVessels();
+    if (!this.weldsAsked && on && this.flat.isVisible) this.askWelds();   // (the Lobule is wanted before the timer: ask now)
     if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
     const f = this.flat, changed = on !== this.on;
     this.on = on;

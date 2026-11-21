@@ -31,7 +31,7 @@ export function useDeckInput() {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Tab') keyboardNav = true;
       const ui = useUi.getState(), sh = useShell.getState();
-      if (!ui.deck || !ui.stops.length || sh.mode !== 'deck') return;
+      if (!ui.deck || !ui.stops.length) return;
       if (e.defaultPrevented) return;
       if (sh.dialog || sh.sheet) return;   // (a dialog or a sheet over the talk keeps its keys: Esc closes it rather than ending the talk)
       if (useDialogOpen()) return;
