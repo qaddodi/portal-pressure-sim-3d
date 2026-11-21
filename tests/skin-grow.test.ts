@@ -265,6 +265,27 @@ test('copies: a growing arm is a plain arm\'s front copy, and a skin with no arm
   } finally { done(b); }
 });
 
+test('no tube stretch is owned by two surfaces: a skin\'s cut and another skin\'s hole on one vessel never overlap, the S_PC/C9 wall skin and IVCI\'s skin abut on ONE seam ring of the cava', () => {
+  const b = built();
+  try {
+    const owned = new Map<string, { node: string; lo: number; hi: number }[]>();
+    const claim = (id: string, node: string, lo: number, hi: number) => owned.set(id, [...(owned.get(id) ?? []), { node, lo, hi }]);
+    for (const d of b.draws) {
+      const m = meshOf(b, d), node = nodeOf(d);
+      m.junction.arms.forEach((a, i) => { const c = m.cuts[i]!; if (a.side) return; claim(a.vesselId, node, a.end === 0 ? 0 : c.u, a.end === 0 ? c.u : 1); });
+    }
+    for (const id of new Set(b.draws.flatMap((d) => meshOf(b, d).junction.arms.map((a) => a.vesselId)))) for (const h of b.set.holesOn(id)) claim(id, h.node, h.lo, h.hi);
+    for (const [id, cs] of owned) for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
+      if (cs[i]!.node === cs[j]!.node) continue;
+      const over = Math.min(cs[i]!.hi, cs[j]!.hi) - Math.max(cs[i]!.lo, cs[j]!.lo);
+      assert.ok(over <= 1e-9, `${id}: ${cs[i]!.node} and ${cs[j]!.node} both cover ${over.toFixed(4)} of it`);
+    }
+    const cava = owned.get('IVC_IS_1')!, ivci = cava.find((c) => c.node === 'IVCI')!, wall = cava.find((c) => c.node.startsWith('wall:IVC_IS_1:S_PC'))!;
+    assert.ok(ivci && wall, 'both skins stand on the cava');
+    assert.ok(Math.abs(ivci.hi - wall.lo) < 1e-9, 'one shared seam ring, no tube and no overlap between them');
+  } finally { done(b); }
+});
+
 test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the skin it stands on, once a frame, static again, with its plain trunk', () => {
   const b = built();
   try {
