@@ -12,6 +12,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 /** Every file under `dir` as a path relative to it, '/'-separated, without the worker itself, the build note the tester guides (two 2.6 MB PDFs testers open from a link: not worth holding offline)
  *  and the printed notes' pictures (brand/handout/, 14 MB, asked for only when a person prints a talk's notes: never part of the first load or of an install). */
@@ -38,12 +39,18 @@ function needsOf(file, text, files) {
   return out;
 }
 
+/** Files the first picture does not need, kept out of the install list whatever names them (a boot script's string or `new URL` names them, but the page asks for them only later, or never on most devices):
+ *  the Lobule's baked weld plan and the worker that plans it when there is none (asked ~3 s after the first picture, src/scene/micro3d/lobule3d.ts WELDS_ASK_MS), and the fonts' other alphabets
+ *  (the browser fetches one only when a character in its range is drawn). They are filled when the page is quiet, and a page that asks first is served from the network and keeps the copy. */
+export const LATE = [/^lobule\//, /^assets\/weld-worker-[^/]*\.js$/, /^fonts\/.*-(?:latin-ext|greek|greek-ext|cyrillic|cyrillic-ext|vietnamese)\.woff2$/];
+export const isLate = (f) => LATE.some((re) => re.test(f));
+
 /** The built files in the order the app needs them. `boot`: the page first, then everything it loads before the first picture, in the order met; `later`: the rest.
  *  `read(file)` gives a file's text (the build's own files; a test hands a table). */
 export function orderFiles(files, read, page = 'index.html') {
   const all = new Set(files), boot = [], seen = new Set();
   const visit = (f) => {
-    if (seen.has(f)) return;
+    if (seen.has(f) || isLate(f)) return;
     seen.add(f); boot.push(f);
     if (isText(f)) for (const n of needsOf(f, read(f), all)) visit(n);
   };
@@ -142,5 +149,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const { boot, later } = orderFiles(files, (f) => readFileSync(join(dist, f), 'utf8'));
   writeFileSync(join(dist, 'sw.js'), buildSw({ build, files, boot, later }));
   const kb = (list) => Math.round(list.reduce((a, f) => a + statSync(join(dist, f)).size, 0) / 1024);
-  console.log(`sw.js: ${files.length} files, build ${build}; held at install (before the first picture): ${boot.length} files, ${kb(boot)} kB; filled when quiet: ${later.length} files, ${kb(later)} kB`);
+  // what a first visit downloads: text is sent gzipped by the host (Pages); the .bin data is already compressed or int16, sent as it is
+  const wire = (list) => Math.round(list.reduce((a, f) => { const b = readFileSync(join(dist, f)); return a + (/\.(html|js|mjs|css|json|svg|webmanifest)$/.test(f) ? gzipSync(b).length : b.length); }, 0) / 1024);
+  console.log(`sw.js: ${files.length} files, build ${build}; held at install (before the first picture): ${boot.length} files, ${kb(boot)} kB on disk, about ${wire(boot)} kB on the wire; filled when quiet: ${later.length} files, ${kb(later)} kB on disk, about ${wire(later)} kB on the wire`);
 }

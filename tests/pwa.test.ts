@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { buildSw, listFiles, orderFiles } from '../scripts/pwa.mjs';
+import { buildSw, listFiles, orderFiles, isLate } from '../scripts/pwa.mjs';
 import { isUpdate, mayRegister, takesOverNow, CHECK_MS, CHECK_GAP_MS } from '../src/pwa/register.ts';
 import { cachePrefix } from '../src/ui/shell/build-pill.ts';
 import { hasWebGL2 } from '../src/boot/webgl.ts';
@@ -168,4 +168,31 @@ test('a tab that stays open asks for a newer build itself and takes it up out of
   assert.match(reg, /addEventListener\('visibilitychange', ask\)/, 'when the tab comes to the front');
   assert.match(reg, /setInterval\(ask, CHECK_MS\)/, 'and while it stays open');
   assert.match(reg, /reloadUrl\(/, 'the reload keeps what is on the screen');
+});
+
+// ---- what the first install leaves out (production review 21 Nov, P1-6) --------------------------------------------------------------------------------------------
+test('the Lobule\'s baked weld plan, its planner worker and the fonts\' other alphabets are filled later, not held at install, even when a boot script names them', () => {
+  const built: Record<string, string> = {
+    'index.html': '<script type="module" src="./assets/index-Zz.js"></script>',
+    'assets/index-Zz.js': 'fetch(`lobule/welds.bin`);new Worker(new URL(`weld-worker-Ww.js`,import.meta.url));fetch(`anatomy/organs.bin`);',
+    'assets/weld-worker-Ww.js': 'import"./only-for-worker-Oo.js";',
+    'assets/only-for-worker-Oo.js': '',
+    'lobule/welds.bin': '', 'anatomy/organs.bin': '',
+    'fonts/inter-latin.woff2': '', 'fonts/inter-latin-ext.woff2': '', 'fonts/inter-greek.woff2': '', 'fonts/source-serif-4-latin-ext.woff2': '',
+    'index.css': '', 'fonts/fonts.css': '@font-face{src:url(inter-latin.woff2)} @font-face{src:url(inter-latin-ext.woff2)} @font-face{src:url(inter-greek.woff2)}',
+  };
+  built['index.html'] += '<link rel="stylesheet" href="./fonts/fonts.css">';
+  const { boot, later } = orderFiles(Object.keys(built).sort(), (f) => built[f] ?? '');
+  for (const f of ['lobule/welds.bin', 'assets/weld-worker-Ww.js', 'fonts/inter-latin-ext.woff2', 'fonts/inter-greek.woff2', 'fonts/source-serif-4-latin-ext.woff2']) {
+    assert.ok(!boot.includes(f), `${f} must not be held at install`);
+    assert.ok(later.includes(f), `${f} is filled when quiet`);
+  }
+  for (const f of ['index.html', 'assets/index-Zz.js', 'anatomy/organs.bin', 'fonts/inter-latin.woff2']) assert.ok(boot.includes(f), `${f} stays in the install list`);
+  assert.ok(isLate('lobule/welds.bin') && !isLate('anatomy/skins.bin') && !isLate('fonts/inter-latin.woff2'));
+});
+
+test('the page asks for the weld plan after the first picture, not in the Lobule\'s constructor', () => {
+  const l = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  assert.match(l, /setTimeout\(\(\) => this\.askWelds\(\), WELDS_ASK_MS\)/);
+  assert.match(l, /if \(!this\.weldsAsked && on && this\.flat\.isVisible\) this\.askWelds\(\)/, 'a Lobule that is wanted before the timer asks at once');
 });
