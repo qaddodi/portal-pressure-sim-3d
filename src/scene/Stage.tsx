@@ -72,7 +72,7 @@ function SceneBridge() {
     // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
     if (!warmed.current) {
       warmed.current = true;
-      const warm = () => { void warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera).catch(() => undefined); };
+      const warm = () => { void warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl)).catch(() => undefined); };   // (into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts)
       cel.onMicroBuilt = warm;   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
       setTimeout(() => { warm(); cel.buildMicroIdle(); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }

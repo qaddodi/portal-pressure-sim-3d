@@ -42,6 +42,7 @@ import { D_FLIP, D_SMALL, EASE_IN } from './copied/ease.copied.js';
 import { reduced } from '../a11y/motion.ts';
 import { M } from '../shell/metrics.ts';
 import { topBarH } from '../shell/room.ts';
+import { observeThenFit } from '../layout/fit-later.ts';
 
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 // (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
@@ -105,9 +106,7 @@ export function TestsLayer() {
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el || typeof ResizeObserver !== 'function') return;
-    const ro = new ResizeObserver((es) => { const r = es[es.length - 1]?.contentRect; if (!r) return; bodyW.current = r.width; const h = Math.round(r.height); if (h && !peekRef.current) setBodyH((o) => (o === h ? o : h)); });
-    ro.observe(el);
-    return () => ro.disconnect();
+    return observeThenFit([el], () => { const r = el.getBoundingClientRect(); bodyW.current = r.width; const h = Math.round(r.height); if (h && !peekRef.current) setBodyH((o) => (o === h ? o : h)); });   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, []);
   const bodyNow = bodyH ?? Math.max(0, place.rect.h - HEAD_H);
 
@@ -166,9 +165,7 @@ export function TestsLayer() {
   useLayoutEffect(() => {
     const el = tabsRef.current;
     if (!el || typeof ResizeObserver !== 'function') return;
-    const ro = new ResizeObserver((es) => { const w = es[es.length - 1]?.contentRect.width ?? 0; if (w) refit(w); });
-    ro.observe(el);
-    return () => ro.disconnect();
+    return observeThenFit([el], () => { const w = el.getBoundingClientRect().width; if (w) refit(w); });   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (wRef.current) refit(wRef.current); }, [tab]);  // eslint-disable-line react-hooks/exhaustive-deps
   // in a tight row the open tab shows its name and the others give way at once; each slides from where it stood by translate (2D layout(): WAAPI, composite add)

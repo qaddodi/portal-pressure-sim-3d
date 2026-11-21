@@ -3,6 +3,7 @@
 // (copied/cv-2d.copied.css, scripts/copy-b11-panes.mjs: `canvas` rewritten to `.cv`). The chart inside takes its width from it as every chart does, and its height from `useCv`: the size the
 // stylesheet gave, read by an observer (never in a frame), so a box the card sizes (a share of the card's height, a shape) is drawn at that size and nothing is laid out twice.
 import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { observeThenFit } from '../layout/fit-later.ts';
 import './copied/cv-2d.copied.css';
 import { cvHeight } from './cv-size.ts';
 
@@ -18,9 +19,7 @@ export function useCv(fallback: number): { ref: RefObject<HTMLDivElement | null>
     const r = el.getBoundingClientRect();
     put(r.width, r.height);
     if (typeof ResizeObserver !== 'function') return;
-    const ro = new ResizeObserver((es) => { const c = es[es.length - 1]?.contentRect; if (c) put(c.width, c.height); });
-    ro.observe(el);
-    return () => ro.disconnect();
+    return observeThenFit([el], () => { const b = el.getBoundingClientRect(); put(b.width, b.height); });   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, []);
   return { ref, w: s.w, h: cvHeight(s.h, fallback), measured: s.h > 0 };
 }

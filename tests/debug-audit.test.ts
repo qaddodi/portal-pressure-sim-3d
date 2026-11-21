@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // ?audit, the self-test: its judges, the walk (driven by a fake app) and the report are pure, so this runs in Node in a second.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -252,4 +253,9 @@ test('what stands under a faded-out part of a card is not seen, so a tucked data
   const win = { getComputedStyle: (e: { op: number }) => ({ opacity: String(e.op) }) } as never;
   const vis = seenMemo(win);
   assert.equal(vis(chart as never), 0); assert.equal(vis(inner as never), 0); assert.equal(vis(shown as never), 1);
+});
+
+test('the on-device banner (?audit=here) has the same speed list as the frames page, chosen before the run', () => {
+  const pg = readFileSync(new URL('../src/ui/debug/audit/page.ts', import.meta.url), 'utf8');
+  assert.match(pg, /import \{ SPEEDS \} from '\.\/outer\.ts'/); assert.match(pg, /mode === 'here' \? speed : undefined/);
 });
