@@ -278,6 +278,8 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
    so the long number ran under the word on a roomy card. A wrapping row keeps both whole: side by side when they fit, the word on its own line when not. */
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress > .endo-bar { flex: 1 1 100%; }
+/* (A pressure's name stands in one of three equal columns: it wraps inside its column, in the word only when the word is wider than the column, never on past it into the next name: "Intravariceal" lay over "Intraluminal" on a phone, 21 Nov. The 2D sheet's rule is nowrap; this file is the 3D app's own.) */
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="scope"] .endo-read > .endo-pr > dt { white-space: normal; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
 
 /* A value's pill gives up its own padding beside punctuation (21 Nov): the pill's .45em side room read as a space, "2.2 g/dL ." and "( 59.4 kPa )". The stop (or bracket) sits at the pill's edge. */
 .pz-stop > :is(.pz-val, .pz-term) { padding-inline-end: .2em; margin-inline-end: .02em; }
