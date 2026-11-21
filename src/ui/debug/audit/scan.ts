@@ -53,6 +53,15 @@ export function nameOf(el: Element, text = ''): string {
   return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${c ? `.${c}` : ''}${t ? ` "${t.replace(/\s+/g, ' ').trim().slice(0, 40)}"` : ''}`;
 }
 
+/** Enough to find an element in the code: its selector, its own words, its parents (three up) and the card it is in. `span.val "2.3 mmHg" in div.metric < div.pz-data < section.dk-card [card teach]`. */
+export function describeEl(el: Element): string {
+  const own = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const up: string[] = [];
+  for (let p = el.parentElement, i = 0; p && i < 3 && p.tagName !== 'BODY' && p.tagName !== 'HTML'; p = p.parentElement, i++) up.push(nameOf(p));
+  const card = el.closest?.('[data-card]')?.getAttribute('data-card');
+  return `${nameOf(el)}${own ? ` "${own}"` : ' (no words)'}${up.length ? ` in ${up.join(' < ')}` : ''}${card ? ` [card ${card}]` : ''}`;
+}
+
 export function scanPage(doc: Document = document, win: Window = window): RawScan {
   const vw = win.innerWidth, vh = win.innerHeight;
   const memo = new Map<Element, Vis>();

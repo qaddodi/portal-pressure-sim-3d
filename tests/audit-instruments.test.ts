@@ -8,6 +8,7 @@ import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audi
 import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
 import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
 import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
+import { describeEl } from '../src/ui/debug/audit/scan.ts';
 import { speedOf, scaleTime, scaleTimers, sampleRealMs, scaledDelay, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
@@ -168,4 +169,12 @@ test('the banner: each speed has a hint, the address follows the choices, and th
   assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'full', speed: 1, noglass: false, parallel: true, auto: true }), '?audit=frames&sizes=mac&depth=full&parallel=1');
   assert.equal(childSrc('/p/', '?audit&speed=2&noglass=1&look=dark', 'quick', { speed: 20, noglass: true }), '/p/?audit=run&depth=quick&speed=20&noglass=1&look=dark');
   assert.equal(childSrc('/p/', '?audit&speed=2', 'full'), '/p/?audit=run&depth=full');
+});
+
+test('a generic pop names the element: selector, its words, three parents and the card', () => {
+  const el = (tag: string, cls: string, text: string, parent: unknown = null, card?: string) => { const e: Record<string, unknown> = { tagName: tag.toUpperCase(), id: '', className: cls, textContent: text, parentElement: parent, getAttribute: () => null, closest: () => (card ? { getAttribute: () => card } : null) }; return e as unknown as Element; };
+  const card = el('section', 'dk-card', '', el('div', 'stage'), 'teach'), data = el('div', 'pz-data', '', card, 'teach'), metric = el('div', 'metric inert', '', data, 'teach'), span = el('span', 'val big', '2.3  mmHg', metric, 'teach');
+  const d = describeEl(span);
+  assert.match(d, /^span\.val\.big "2\.3 mmHg" in div\.metric\.inert < div\.pz-data < section\.dk-card \[card teach\]$/);
+  assert.match(describeEl(el('span', 'x', '')), /\(no words\)/);
 });
