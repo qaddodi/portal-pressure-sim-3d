@@ -46,8 +46,8 @@ import { type Buried, type Course, tubularFor } from './tubes.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
 export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
-/** The shape a junction skin is meshed on at a vessel's end: for a vessel whose seam is held (`pin`), the rest shape with only what still reaches the seam, its bands (a band thins the tube everywhere) and its live share; coil, spread, bead, the strands being on or off and the recruitment never do (they are held off the seam, or the end is the same tube whether or not they are on). So the skin neither plans nor rebuilds for them. A vessel with no pin is meshed on its own shape. */
-export const seamState = (s: ShapeState | undefined): ShapeState => (!s || !s.pin ? (s ?? REST) : { ...REST, bands: s.bands, live: s.live, pin: s.pin });
+/** The shape a junction skin is meshed on at a vessel's end: for a vessel whose seam is held (`pin`), the rest shape with only what still reaches the seam, and its live share (the bands are held off it too: the tube keeps its rest width inside the held stretch, `held` r0, and thins past it); coil, spread, bead, the strands being on or off and the recruitment never do (they are held off the seam, or the end is the same tube whether or not they are on). So the skin neither plans nor rebuilds for them. A vessel with no pin is meshed on its own shape. */
+export const seamState = (s: ShapeState | undefined): ShapeState => (!s || !s.pin ? (s ?? REST) : { ...REST, live: s.live, pin: s.pin });
 
 const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 /** The course in the scene: x and y by the one linear map; depth is the vessel's tier between, easing over its first and last quarter to the depth of the node it meets, so
@@ -190,7 +190,9 @@ function restLensOf(v: NetVessel, s: ShapeState): number[] {
 /** A pinned vessel's courses carry their rest length and the held share at each end, so the tube spaces its rings from the ends as at rest (tubes.ts `hold`). */
 function held(v: NetVessel, s: ShapeState, cs: Course[]): Course[] {
   const lens = restLensOf(v, s), [a, b] = s.pin!;
-  return cs.map((c, i) => ({ ...c, hold: { len: lens[i] ?? lens[0]!, a, b } }));
+  // (the bands thin a course everywhere, so inside the held stretch the width stays as at rest: the seam, and the skin on it, never see a band)
+  const r0 = BANDED.has(v.id) && s.bands > 0 ? coursesOf(v, { ...s, bands: 0, pin: undefined }).map((c) => c.radius) : null;
+  return cs.map((c, i) => ({ ...c, hold: { len: lens[i] ?? lens[0]!, a, b, ...(r0 && r0[i] != null ? { r0: r0[i] } : {}) } }));
 }
 
 /** The courses (the vessel's own first) at `s`. */

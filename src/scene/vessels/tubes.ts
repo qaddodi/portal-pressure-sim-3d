@@ -31,7 +31,7 @@ export interface Course {
   lens?: readonly [number, number];
   /** a junction skin stands on this course's end(s) and the course is coiling (coil.ts pinCourse): `len` the course's length at rest, `a` and `b` the share of it, from its start and from its end, held as at rest. The rings there sit at the same distances from the end whatever the length now is
    *  (the rings are spaced along the arc, so a longer course would slide the skin's seam ring along its axis), and the varix's bead is not applied there; both ease in over PIN_RAMP of the course after it. */
-  hold?: { len: number; a: number; b: number };
+  hold?: { len: number; a: number; b: number; /** the course's radius at rest (no bands): held inside the held stretch, easing to `radius` past the ramp, so a band thins the tube but never the seam */ r0?: number };
 }
 /** A branch end buried in its trunk (smooth-joins.ts): `max` the radius its end ring and cap may take, held for `d0` of course from the end and easing back by `d1`; `ceil` the most its collar may reach anywhere (never wider than the trunk). */
 export interface Buried { max: number; d0: number; d1: number; ceil?: number }
@@ -126,7 +126,8 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg, ua = curve.at(u);   // (ua: the share of the arc the ring sits at: its distances to the ends are ua * clen)
-      let f = open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, ua * clen) + collar(1, (1 - ua) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (1 + ((beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) - 1) * (c.hold ? holdWeight(c.hold, u) : 1)) : 1) : 1;
+      const rr = open && c.hold?.r0 != null ? (c.hold.r0 + (c.radius - c.hold.r0) * holdWeight(c.hold, u)) / c.radius : 1;
+      let f = (open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, ua * clen) + collar(1, (1 - ua) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (1 + ((beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) - 1) * (c.hold ? holdWeight(c.hold, u) : 1)) : 1) : 1) * rr;
       curve.getPointAt(k / seg, P);
       if (open && c.sewn) {
         const f0 = f, a0 = sewnAt(c.sewn[0], 0, ua * clen), a1 = sewnAt(c.sewn[1], 1, (1 - ua) * clen);
@@ -163,6 +164,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
     const capRadius = (end: number): number => {
       let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) * sewnAt(c.sewn?.[end], end, 0) + collar(end, 0) : HAIR;
+      if (r > HAIR && c.hold?.r0 != null && (end ? c.hold.b : c.hold.a) > 0) r *= c.hold.r0 / c.radius;   // (a held end keeps its rest width: bands do not reach the seam)
       if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
       if (open && r > HAIR && c.point?.[end]) r *= TIP_K;
       return r;

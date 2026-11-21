@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
-import { REST, type ShapeState } from '../src/scene/vessels/shape.ts';
+import { REST, seamState, type ShapeState } from '../src/scene/vessels/shape.ts';
 import { pinCourse, PIN_MARGIN, type P2 } from '../src/scene/vessels/coil.ts';
 import { SHAPE_BUDGET_MS, ShapeTracks } from '../src/scene/vessels/shape-track.ts';
 import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
@@ -199,5 +199,26 @@ test('collapse: collaterals closing (coil easing back, strands off, bead and spr
     for (let f = 0; f < 200; f++) { const moving = shapes.step(16); skins.step(); assert.equal(skins.stats.rebuilds, before, `a skin was rebuilt at frame ${f}`); if (!moving) break; }
     assert.deepEqual(reshaped, [], 'no skinned seam moved');
     assert.ok(r.items.filter((it) => it.state.pin).every((it) => it.state.wig === 0), 'the collaterals are straight again');
+  } finally { r.done(); }
+});
+
+test('bands never reach the seam: the held rings of a banded vessel keep their rest width at 0 to 4 bands (so easing the bands remeshes no junction skin), and past the held stretch the band still thins it', () => {
+  const r = rig();
+  try {
+    const pins = r.inside.skins!.pins();
+    let checked = 0;
+    for (const id of ['C1a', 'C1b']) {
+      const pin = pins.get(id);
+      if (!pin) continue;
+      for (const bands of [1, 2, 3, 4]) {
+        const d = heldDrift(id, pin, { ...REST, pin }, { ...REST, bands, pin });
+        assert.ok(d < 0.01, `${id} at ${bands} bands: the held rings changed by ${d.toFixed(4)} radii`);
+      }
+      checked++;
+    }
+    assert.ok(checked >= 1, 'a banded vessel is pinned');
+    assert.deepEqual(seamState({ ...REST, bands: 3, pin: [0.1, 0.1] }), seamState({ ...REST, bands: 0, pin: [0.1, 0.1] }));
+    // (the check can fail: unpinned, bands do thin the same rings)
+    assert.ok(heldDrift('C1b', [0.1, 0.1], { ...REST }, { ...REST, bands: 3 }) > 0.1);
   } finally { r.done(); }
 });
