@@ -91,3 +91,18 @@ test('wiring: the net is installed before the app, feeds caught() once, and the 
   assert.match(readFileSync('src/ui/shell/ErrorNote.tsx', 'utf8'), /opacity: broken \? 1 : 0/);
   resetCaught(); assert.equal(caughtCount(), 0);
 });
+
+test('?gl Throw a fault: enough uncaught errors to trip the net, the last a rejected promise; the button is preview-only', async () => {
+  const { throwFaults, TEST_FAULT } = await import('../src/debug/gl-fault.ts');
+  const jobs: { fn: () => void; ms: number }[] = [];
+  assert.equal(throwFaults((fn, ms) => { jobs.push({ fn, ms }); }), BROKEN_COUNT);
+  assert.equal(jobs.length, BROKEN_COUNT);
+  assert.ok(jobs.at(-1)!.ms < BROKEN_WINDOW_MS, 'all inside the window');
+  for (const j of jobs.slice(0, -1)) assert.throws(j.fn, new RegExp(TEST_FAULT.replace('?', '\\?')));
+  const orig = process.listeners('unhandledRejection'); process.removeAllListeners('unhandledRejection');
+  let rej: unknown = null; process.once('unhandledRejection', (r) => { rej = r; });
+  jobs.at(-1)!.fn(); await new Promise((r) => setTimeout(r, 20));
+  for (const l of orig) process.on('unhandledRejection', l as never);
+  assert.match(String((rej as Error)?.message), new RegExp(TEST_FAULT.replace('?', '\\?')));
+  assert.match(readFileSync('src/debug/gl-check.tsx', 'utf8'), /isPreview\(\) && <button[\s\S]{0,400}Throw a fault/);
+});

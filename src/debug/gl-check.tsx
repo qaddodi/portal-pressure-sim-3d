@@ -8,6 +8,8 @@ import { cel } from '../scene/api.ts';
 import { type Limits, type Row, checkText, runGlCheck } from './gl-check-run.ts';
 import { renderer, whenRenderer } from './gl-ref.ts';
 import { loseContextFor, LOSE_MS } from './gl-lose.ts';
+import { throwFaults } from './gl-fault.ts';
+import { isPreview } from '../ui/debug/gate.ts';
 import { onShaderFailure, shaderFailureLine, shaderFailures } from './shader-fail.ts';
 
 const build = String(import.meta.env.VITE_BUILD ?? 'dev');
@@ -49,6 +51,8 @@ function GlCheck() {
           onClick={() => { void navigator.clipboard?.writeText(text).then(() => setCopied(true), () => undefined); }}>{copied ? 'Copied' : 'Copy'}</button>
         <button style={{ marginTop: 8, marginLeft: 8, font: `12px ${mono}`, padding: '3px 10px', borderRadius: 6, border: '1px solid #fff6', background: '#fff2', color: '#fff' }}
           onClick={() => { const r = renderer(); setLose(loseContextFor(r ? r.getContext() : null) ? `context lost; restored in ${LOSE_MS / 1000} s: the figure should come back as it was` : 'this browser has no WEBGL_lose_context'); }}>Lose context</button>
+        {isPreview() && <button style={{ marginTop: 8, marginLeft: 8, font: `12px ${mono}`, padding: '3px 10px', borderRadius: 6, border: '1px solid #fff6', background: '#fff2', color: '#fff' }}
+          onClick={() => { throwFaults(); setLose('5 test faults thrown over a second: the "Something went wrong" note should fade in above the figure'); }}>Throw a fault</button>}
         {lose && <div style={{ marginTop: 6, opacity: .8 }}>{lose}</div>}
       </>}
     </div>
