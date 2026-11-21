@@ -40,6 +40,13 @@ useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur
 dark.addEventListener('change', paint);
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 
+/** A page that is not the app (the device frame, the look board, the self-test) puts nothing in #root, so the loading cover (index.html #boot) would stay over it for 20 s and take every click, and the saved look's
+ *  colour scheme would turn its form controls dark on its own light page. It lifts the cover at once and gives the page the browser's own scheme (tests/debug-audit.test.ts holds the three callers). */
+function plainPage() {
+  (window as unknown as { ppsBootLift?: () => void }).ppsBootLift?.();
+  document.documentElement.style.colorScheme = dark.matches ? 'dark' : 'light';
+}
+
 async function start() {
   // ?parity: the build's progress page needs neither fonts nor the engine; it is its own small chunk.
   if (new URLSearchParams(location.search).has('parity')) {
@@ -56,18 +63,21 @@ async function start() {
   // ?debug=frame (the preview copy and a local run only): the device frame, an outer page that holds the app in one iframe at a phone's or iPad's size. It starts no app.
   if (isPreview() && isFrameRequest(location.search)) {
     const { bootFrame } = await import('./ui/debug/frame/frame.ts');
+    plainPage();
     bootFrame();
     return;
   }
   // ?audit on a Mac (the preview copy and a local run only): the self-test's outer page, which holds the app in sized frames one after the other. It starts no app itself.
   if (isPreview() && auditPage(undefined, matchMedia('(pointer: fine)').matches) === 'frames') {
     const { bootOuter } = await import('./ui/debug/audit/outer.ts');
+    plainPage();
     bootOuter();
     return;
   }
   // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.
   if (isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
     const { bootLookBoard } = await import('./debug/look-board.ts');
+    plainPage();
     bootLookBoard();
     return;
   }

@@ -103,3 +103,10 @@ test('the frames page: sizes from the address (unknown names dropped), the child
   assert.equal(auditPage(loc('?audit=here'), true), 'here'); assert.equal(auditPage(loc('?audit=run'), true), 'run'); assert.equal(auditPage(loc('?x'), true), null);
   assert.equal(auditPage({ search: '?audit', pathname: '/portal-pressure-sim-3d/', hostname: 'qaddodi.github.io' }, true), null);   // (the live site never runs it)
 });
+
+test('every page that is not the app lifts the loading cover and sets its own colour scheme (the cover took every click on ?audit; the saved look made its controls dark)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = dark\.matches/);
+  for (const call of ['bootFrame()', 'bootOuter()', 'bootLookBoard()']) assert.match(main, new RegExp(`plainPage\\(\\);\\s*${call.replace(/[()]/g, '\\$&')}`), `${call} is called after plainPage()`);
+});

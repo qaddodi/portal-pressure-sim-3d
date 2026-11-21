@@ -36,7 +36,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const st = doc.createElement('style'); st.textContent = CSS; doc.head.append(st); doc.title = 'Self-test';
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
   const bar = mk('div', 'ao-bar'), main = mk('div', 'ao-main'), room = mk('div', 'ao-room'), wrap = mk('div', 'ao-wrap'), out = mk('pre', 'ao-out');
-  const status = mk('span'); status.setAttribute('role', 'status');
+  const status = mk('span', '', 'Pick the sizes and press Start; the app appears here.'); status.setAttribute('role', 'status');
   const note = mk('div', 'ao-note', 'Runs the app by itself in each size, one after the other, and measures layout, timing, fades, frame rate and errors; no AI, nothing is sent anywhere. Keep this tab in front until it ends (a hidden tab stops the clock). The frame rates are this computer\'s: run ?audit=here on the iPhone and iPad for theirs.');
   const wanted = new Set(sizesOf(flagValue('sizes')));
   const boxes = ALL_SIZES.map((id) => { const l = mk('label'); const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = wanted.has(id); c.onchange = () => { if (c.checked) wanted.add(id); else wanted.delete(id); }; l.append(c, `${FRAME_DEVICES[id]!.label} ${FRAME_DEVICES[id]!.w}`); return l; });
