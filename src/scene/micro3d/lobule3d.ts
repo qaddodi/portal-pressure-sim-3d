@@ -57,6 +57,8 @@ export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008,
 export const VESSEL_LINE = 2;
 /** Segments round a tube and round a mouth. */
 export const TUBE_SEG = 10, MOUTH_SEG = 64;
+/** The thin lymph tubes (terminal lymphatics and channels, a third of a sinusoid's width or less, a few pixels across under their outline) take 6 sides, as the bile's tubes do: the channels were 190k of the Lobule's 715k triangles, ink hull included. */
+export const THIN_SEG = 6;
 /** The share of a tile's short side its bevel takes. */
 const BEVEL = 0.28;
 const BILE_ID = 2_000_000;
@@ -173,6 +175,24 @@ export class Lobule3D {
   /** The welded junctions laid into the vessels now (lobule/welds.ts), and a plan that has come from the worker and waits for the Lobule to be out of sight. */
   private weldPlan: WeldPlan | null = null;
   private pendingWelds: WeldPlan | null = null;
+  private vesselsBuilt = false;
+  /** One idle slice: the vessels' meshes (true when this call built them). */
+  prepareVessels(): boolean {
+    if (this.vesselsBuilt) return false;
+    if (!this.vgen) this.vgen = this.vesselSteps();
+    if (this.vgen.next().done) { this.vgen = null; this.vesselsBuilt = true; }
+    return true;
+  }
+  private vgen: Generator<void> | null = null;
+  private pumpVessels(): void {
+    setTimeout(() => {
+      if (this.disposed || this.vesselsBuilt) return;
+      this.prepareVessels();
+      if (this.vesselsBuilt) this.inkKey = '';
+      else this.pumpVessels();
+    }, 30);
+  }
+  get vesselsReady(): boolean { return this.vesselsBuilt; }
   private weldsAsked = false;
   private disposed = false;
   // the marks plate: 2D's painter with the cells left out
@@ -185,7 +205,8 @@ export class Lobule3D {
   /** How many times the marks were painted (tests: a state change paints once). */
   paints = 0;
 
-  constructor(flat: LobuleView, shared: CelShared) {
+  /** `lazy`: Scene's way, the vessels' meshes are left to its idle slices (prepareVessels); built here otherwise (tests, the debug page). */
+  constructor(flat: LobuleView, shared: CelShared, lazy = false) {
     this.flat = flat as unknown as Flat;
     this.fade = this.flat.fade.detail;   // (the lobule root's one dissolve: lobule/one-fade.ts)
     this.group.name = 'lobule3d';
@@ -244,7 +265,8 @@ export class Lobule3D {
     { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
     for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
     this.group.add(this.marks);
-    this.buildVessels();
+    // (the vessels' meshes are the constructor's heavy part: Scene's idle slices build them in a slice of their own, prepareVessels, hidden; update() builds them at once if nobody has)
+    if (!lazy) this.buildVessels();
     this.group.visible = false;
     flat.group.add(this.group);   // (the Lobule's root takes everything under it into its one fade)
     this.askWelds();
@@ -266,20 +288,24 @@ export class Lobule3D {
   private layWelds(): void {
     // (out of sight, or so faded in or out that the swap cannot be told: the baked plan is here at boot, so a Lobule entered from the body comes in already welded)
     if (!this.pendingWelds || (this.group.visible && this.fade.value > WELD_SWAP_FADE)) return;
+    if (this.vgen) return;   // (mid-build: the plan waits and lays in after)
     this.weldPlan = this.pendingWelds; this.pendingWelds = null;
-    this.buildVessels();
-    this.inkKey = '';
+    if (!this.vesselsBuilt) return;   // (not built yet: the plan is simply used when they are)
+    // (rebuilt part by part in timer slices, never in one task: the welded plan comes from the worker at an arbitrary moment, and the whole rebuild was one long task that could land in a drawn frame)
+    this.vesselsBuilt = false; this.vgen = null; this.inkKey = '';
+    this.pumpVessels();
   }
   /** Welds laid in now (tests and the debug page). */
   get weldCount(): number { return this.weldPlan?.skins.length ?? 0; }
   /** Lays a plan in at once (tests). */
-  layWeldsForTest(plan: WeldPlan): void { this.pendingWelds = plan; this.group.visible = false; this.layWelds(); }
+  layWeldsForTest(plan: WeldPlan): void { this.pendingWelds = plan; this.group.visible = false; this.layWelds(); if (!this.vesselsBuilt) this.buildVessels(); this.inkKey = ""; }
 
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden, so the first show costs a frame's worth. */
   update(on: boolean, under = 0, now = 0, rate = 1, force = false): boolean {
+    if (!this.vesselsBuilt) this.buildVessels();
     if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
     const f = this.flat, changed = on !== this.on;
     this.on = on;
@@ -522,7 +548,10 @@ export class Lobule3D {
 
   // ---- the vessels (built once; their widths follow the state through `inflate`, their colours through stepInk) -----------------
 
-  private buildVessels(): void {
+  /** The vessels' meshes in one go (what is left of them, when Scene's idle slices have begun). */
+  private buildVessels(): void { if (!this.vgen) this.vgen = this.vesselSteps(); while (!this.vgen.next().done); this.vgen = null; this.vesselsBuilt = true; }
+  /** The same, one part at a time: each `yield` is a place an idle slice may end. */
+  private *vesselSteps(): Generator<void> {
     const net = this.flat.net, plan = this.weldPlan;
     this.coloured.length = 0;
     const by = (...k: Course['kind'][]) => net.courses.filter((c) => k.includes(c.kind));
@@ -571,20 +600,20 @@ export class Lobule3D {
       for (let v = 0; v < 2 * capVerts; v++) FC.push(col, v < capVerts ? 0 : Lw, Lw, 3);
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
-    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube) => {
+    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube, SEG = TUBE_SEG) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>(), FC: number[] = [];
       for (const c of cs) {
         const pts = c.pts.map((p, i) => at3(p, typeof z === 'number' ? z : z(c, i)));
         const before = b.count;
-        tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], TUBE_SEG, true);
+        tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], SEG, true);
         // (tube() writes the rings in order, then the two caps: the first cap's rings are the first sample's, the last's the last's)
-        const ringVerts = c.pts.length * TUBE_SEG, capVerts = (b.count - before - ringVerts) / 2;
+        const ringVerts = c.pts.length * SEG, capVerts = (b.count - before - ringVerts) / 2;
         caps.set(c, capVerts);
-        for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < TUBE_SEG; s++) { W.push(w(c, i)); K.push(1); }
+        for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < SEG; s++) { W.push(w(c, i)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
-        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
-        dustFC(FC, b, before, ringVerts, capVerts, TUBE_SEG, pts, c.kind === 'ly' ? `ly${c.id}` : c.kind, radius(c, 0) * R);
+        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, SEG, END_HUSH_R * radius(c, 0) * R);
+        dustFC(FC, b, before, ringVerts, capVerts, SEG, pts, c.kind === 'ly' ? `ly${c.id}` : c.kind, radius(c, 0) * R);
       }
       return { b, W, K, caps, FC };
     };
@@ -613,13 +642,17 @@ export class Lobule3D {
         for (let v = 0; v < cap; v++) at(n - 1);
       }
       this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
+      yield;
     }
     if (plan) { const d = welded(by('in'), TUBE_SEG, false, sinW, (k) => k === 'in'); coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    yield;
     if (plan) { const d = welded(by('tw'), TUBE_SEG, false, null, () => false); coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    yield;
     // the terminal lymphatics along the edges
-    { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0, LZ.tube, THIN_SEG); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    yield;
     // the lymph channels (2D's `ly`, "a thin channel beside each sinusoid, between the sinusoid and its plate", geometry.ts): a thin lymph tube along the OUTSIDE of its sinusoid, from the limiting plate in, tapering
     // to a thread before the central vein (widths.ts lyTaper); it runs out against the blood, so the course is laid from the vein to the edge. Mohammad 20 Nov 2026: "those lymph vessels should be drawn like on the
     // outside of the blood vessels and taper to nothing closer to 90% of the way to the central vein". They were a flat sleeve centred ON each sinusoid, a third wider than the sinusoid each side: where two sinusoids
@@ -638,7 +671,7 @@ export class Lobule3D {
         ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
       ];
       const under = new Map(lym.map((c) => [c, lymphCover(c.pts, (i) => r(c, i), covers)]));
-      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!), sw: number[] = [], hg: number[] = [];
+      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!, THIN_SEG), sw: number[] = [], hg: number[] = [];
       for (const c of lym) {
         // (the tube hugs its sinusoid's wall: each vertex carries the plan direction out from the sinusoid's axis, the wall's radius and the place's share of congestion's widening, so the vertex shader moves it out by the
         //  wall's own growth, cel3d HUG: a swollen sinusoid takes its lymph with it instead of covering it)
@@ -653,13 +686,14 @@ export class Lobule3D {
           return [(q[0] - fx) / l, -(q[1] - fy) / l, bd < sinRadius(sib.kind as 's0', rho) + 3 * DUCT_R ? sinRadius(sib.kind as 's0', rho) * R : 0, congShare(rho)] as const;
         });
         const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); hg.push(...hug[i]!); };
-        for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
+        for (let i = 0; i < n; i++) for (let k = 0; k < THIN_SEG; k++) at(i);
         const cap = t.caps.get(c)!;
         for (let v = 0; v < cap; v++) at(0);
         for (let v = 0; v < cap; v++) at(n - 1);
       }
       coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2)); this.duct.geometry.setAttribute('hug', new Float32BufferAttribute(hg, 4));
     }
+    yield;
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
     // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule
     {
@@ -685,6 +719,7 @@ export class Lobule3D {
       this.bile.geometry.setAttribute('fcourse', new Float32BufferAttribute(FC, 4));
       }
     }
+    yield;
     // the lobule's dust routes, built once from every course that carries dust: the blood's, the lymph's and the bile's, each family joined only to itself (lobule-routes.ts)
     {
       const segs = lobuleRoutes(dustCourses, 0.004 * R);
@@ -692,6 +727,7 @@ export class Lobule3D {
       this.dustRoute.value.dispose();
       this.dustRoute.value = staticRouteTexture(Math.max(1, dustCourses.length), segs, (k) => rad.get(k) ?? 0.01 * R);
     }
+    yield;
     // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
     // and bile should not look like empty cyllindars, just filll them with the color")
     const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false, top?: number) => {
@@ -735,7 +771,7 @@ export class Lobule3D {
   /** The parts (tests). */
   get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
-  buildForTest(look: LookId, congU = 0, septU = 0): void { this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
+  buildForTest(look: LookId, congU = 0, septU = 0): void { if (!this.vesselsBuilt) this.buildVessels(); this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 
   dispose(): void {
     this.disposed = true;

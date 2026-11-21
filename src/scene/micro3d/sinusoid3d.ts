@@ -155,6 +155,7 @@ export class Sinusoid3D {
   /** The scene's one shape uniform (lumen, pinch, collagen, xs): sinusoid-shape.ts. */
   readonly shapeU = shapeUniform();
   /** The host's geometry functions while the shapes are built at a moved state (the rest's, and the rest's with H and D each one micrometre wider); null otherwise: the host's own. */
+  private shapeGen: Generator<void> | null = null;
   private shapeG: { halfW(x: number): number; wallIn(x: number): number; disseW(x: number): number; hepIn(x: number): number } | null = null;
   private shapePass = 0;
   private get anchored(): Set<MicroPart> { return new Set([this.cells, this.nuclei, this.nucleoli, this.bile]); }
@@ -442,7 +443,9 @@ export class Sinusoid3D {
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
 
-  private buildShape(): void {
+  private buildShape(): void { for (const _ of this.shapeSteps()); }
+  /** The shapes' build in sections: each `yield` is a place an idle slice may end (a pass is hundreds of ms on a phone, as one task). */
+  private *shapeSteps(): Generator<void> {
     const g = this.shapeG ?? this.flat.g;
     const X0 = -REACH, X1 = REACH, DX = 1;
     const xs: number[] = [];
@@ -450,6 +453,7 @@ export class Sinusoid3D {
 
     // the ground under everything (seen only in the clefts between cells)
     { const b = new MeshBuilder(); const a = b.v(X0 - 20, -ACROSS - 20, Z.ground, 0, 0, 1), c = b.v(X1 + 20, -ACROSS - 20, Z.ground, 0, 0, 1), e = b.v(X1 + 20, ACROSS + 20, Z.ground, 0, 0, 1), h = b.v(X0 - 20, ACROSS + 20, Z.ground, 0, 0, 1); b.quad(a, c, e, h); b.build(this.ground.geometry); }
+    yield;
 
     // the lumen: an open trough, an ellipse across (the lumen's half width wide, Z.trough of it deep)
     {
@@ -467,23 +471,26 @@ export class Sinusoid3D {
       for (let i = 0; i < rows.length - 1; i++) b.strip(rows[i]!, rows[i + 1]!, K + 1);
       b.build(this.trough.geometry);
     }
+    yield;
 
     // the wall (sinusoid-wall.ts): the shell round the lumen, its cut, and the nucleus's section on the cut. The colours are weights, painted in paintWall()
     {
       const wx = wallColumns(X0, X1);
       const sh = new MeshBuilder(), cu = new MeshBuilder(), nu = new MeshBuilder(), shW = newWeights(), cuW = newWeights();
       for (const side of [-1, 1] as (-1 | 1)[]) {
-        buildShell(sh, shW, g, wx, side, 'in', Z.disse);
-        buildShell(sh, shW, g, wx, side, 'out', Z.disse);
+        buildShell(sh, shW, g, wx, side, 'in', Z.disse); yield;
+        buildShell(sh, shW, g, wx, side, 'out', Z.disse); yield;
         buildCut(cu, cuW, g, wx, side);
         const nsd = side < 0 ? SEED.nucUp : SEED.nucDn;
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) buildNucleusSection(nu, g, side, nucAt(n, nsd));
       }
       sh.build(this.bead.geometry); cu.build(this.beadLine.geometry); nu.build(this.endoNi.geometry);
       this.shellW = shW; this.cutW = cuW;
+      yield;
       this.paintWall();
       this.gapKey = -1;   // (the bores follow the lumen's width: written again)
     }
+    yield;
 
     // Disse's floor, each side, and the beyond's (the next sinusoid's Disse and lumen, as flat as 2D draws its repeat)
     {
@@ -503,6 +510,7 @@ export class Sinusoid3D {
       }
       b.build(this.disse.geometry);
     }
+    yield;
     {
       const b = new MeshBuilder();
       for (let r = 0; r < BEYOND; r++) for (const s of [-1, 1] as Side[]) {
@@ -520,6 +528,7 @@ export class Sinusoid3D {
       }
       b.build(this.troughFar.geometry);
     }
+    yield;
 
     // the plates: hepatocytes as raised tiles (their borders 2D's own bent lines), each with its domed nucleus; the bile canaliculi on the borders
     {
@@ -549,11 +558,12 @@ export class Sinusoid3D {
       };
       const seeds: Record<Side, number> = { [-1]: SEED.plateUp, 1: SEED.plateDn } as Record<Side, number>;
       for (const s of [-1, 1] as Side[]) {
-        plate(seeds[s], s, (x) => g.hepIn(x));
-        for (let r = 1; r <= BEYOND; r++) plate(seeds[s] + 101 * r, s, (x) => g.hepIn(x) + r * PERIOD, r > 1, true);
+        plate(seeds[s], s, (x) => g.hepIn(x)); yield;
+        for (let r = 1; r <= BEYOND; r++) { plate(seeds[s] + 101 * r, s, (x) => g.hepIn(x) + r * PERIOD, r > 1, true); yield; }
       }
       cells.build(this.cells.geometry); nuc.build(this.nuclei.geometry); nol.build(this.nucleoli.geometry); bile.build(this.bile.geometry);
     }
+    yield;
 
   }
 
@@ -569,7 +579,11 @@ export class Sinusoid3D {
       halfW: (x) => restHalfW(x) + h + k * x, disseW: (x) => restDisseW(x) + d,
       wallIn: (x) => restHalfW(x) + h + k * x + UM.endo, hepIn: (x) => restHalfW(x) + h + k * x + UM.endo + restDisseW(x) + d,
     };
-    try { this.buildShape(); } finally { this.shapeG = null; }
+    this.shapeGen ??= this.shapeSteps();
+    let more = true;
+    try { more = !this.shapeGen.next().done; } catch (e) { this.shapeGen = null; this.shapeG = null; throw e; }
+    if (more) return false;   // (the next call goes on with the pass's next section)
+    this.shapeGen = null; this.shapeG = null;
     this.shapeSnaps.push(parts.map((p) => Float32Array.from(p.geometry.getAttribute('position').array)));
     this.shapePass++;
     if (this.shapePass < offs.length) return false;
