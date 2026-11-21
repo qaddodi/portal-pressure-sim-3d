@@ -4,8 +4,8 @@ import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, par
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
 test('the Figure depth switches: on by default, except Free tilt (the blood streaks are on: a play-test with the switch off saw none)', () => {
-  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true });
+  assert.deepEqual([...DEPTH_KEYS], ['organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface']);
+  assert.deepEqual(DEPTH_DEFAULTS, { organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 
@@ -25,7 +25,7 @@ test('the organs are always the see-through wash: there is no Organ fill setting
   assert.ok(V >= 3, 'the figure settings version moved on, so an older save (with organFill) reads as the defaults');
   const s = parseSettings(`{"look":"dark","lookChosen":true,"organFill":"solid","tilt":false,"smoothJoins":false,"figureV":2}`);
   assert.ok(!('organFill' in s));
-  assert.equal(s.tilt, true); assert.equal(s.smoothJoins, true); assert.equal(s.look, 'dark', 'the rest of the saved settings are kept');
+  assert.equal(s.tilt, true); assert.equal(s.look, 'dark', 'the rest of the saved settings are kept');
 });
 
 test('the lobule and the sinusoid are always 3D: no switch, no row, and a saved one is dropped (Mohammad, 20 Nov 2026: "remove the toggle for 3D or not 3D; everything 3D")', async () => {
@@ -36,4 +36,19 @@ test('the lobule and the sinusoid are always 3D: no switch, no row, and a saved 
   const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
   assert.match(scene, /private readonly micro3d = true;/);
   assert.doesNotMatch(scene, /useSettings\.getState\(\)\.micro3d/);
+});
+
+test('smooth vessel joins are always on: no switch, no row, a saved "off" is dropped, and the scene no longer reads a setting for it (Mohammad, 21 Nov 2026: "turning it off things look like shit")', async () => {
+  assert.ok(!('smoothJoins' in DEFAULTS));
+  assert.ok(!DEPTH_ROWS.some((r) => (r.key as string) === 'smoothJoins'));
+  const kept = parseSettings(`{"figureV":${V},"smoothJoins":false,"tilt":false}`);
+  assert.ok(!('smoothJoins' in kept), 'a saved "off" is not read back');
+  assert.equal(kept.tilt, false, 'the other switches are kept');
+  const { readFileSync } = await import('node:fs');
+  const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  for (const p of ['../src/scene/scene.ts', '../src/scene/micro3d/lobule3d.ts']) assert.doesNotMatch(src(p), /\.smoothJoins\b/, p);
+  assert.match(src('../src/scene/scene.ts'), /setSmoothJoins\(true\);/);
+  const { useSettings } = await import('../src/state/settings.ts');
+  assert.ok(!('smoothJoins' in useSettings.getState()));
+  assert.ok(!(await import('node:fs')).readFileSync(new URL('../src/state/settings.ts', import.meta.url), 'utf8').includes('smoothJoins: s.smoothJoins'), 'and it is not written back on the next save');
 });
