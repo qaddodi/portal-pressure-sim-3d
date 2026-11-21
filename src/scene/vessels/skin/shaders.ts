@@ -542,6 +542,9 @@ void main() {
   dustAcc *= dHold(alpha);   // (the dust follows this pixel's final alpha: blood/dust-glsl.ts dHold)
   // THE WALL RULE BY THE PIXEL'S OWN DISTANCE TO THE OUTLINE (skin/dust-wall.ts): the arms' gates in dustTube read the normal's across, true only inside an arm's cylinder, so in a fillet they stood open on the line itself (dashes at the seams and the crotch)
   dustAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
+  // (the HEADS keep the same wall: a head is gated by its arm's own cylinder, which at the fork's inner corner reaches past the union's lumen, so a chevron there was drawn up to and over the crotch's ink and clipped against it, white on
+  // the light look: Mohammad, 21 Nov. A head lies within 0.6 of its axis, so the wall (from 0.90 of the way to the ink) never touches one inside its own tube)
+  headAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;

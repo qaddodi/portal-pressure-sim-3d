@@ -22,3 +22,8 @@ test('the dust of a join is whole where an arm holds and fades to nothing where 
 test('the shader applies that hold after renormalising', () => {
   assert.match(SKIN_FS, /dust \/= aN;[\s\S]*dust \*= max\(a0 > 0\.004 \? inD0 : 0\.0, a1 > 0\.004 \? inD1 : 0\.0\);/);
 });
+
+// 21 Nov, Mohammad: the chevron in a fork's crotch was drawn white and clipped against the inner edge. The dust had the skin's wall rule; the heads had only their arm's cylinder, which at the inner corner reaches past the union's lumen.
+test('the skin\'s heads keep the same wall rule as its dust, by the pixel\'s own distance to the outline', () => {
+  assert.match(SKIN_FS, /dustAcc \*= dWall\(skinWall\(rCssAx \* dpr, sdPx, inkDev\)\);[\s\S]*headAcc \*= dWall\(skinWall\(rCssAx \* dpr, sdPx, inkDev\)\);/);
+});
