@@ -103,9 +103,15 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 /* the glass: its tint, blur and the browser's fallbacks are src/ui/glass.css's (.cl-glass is in its one list); the shape is the clip, the hairline the 2D app's .cl-hair rule */
 .lb-layer .cl-glass svg { position: absolute; left: 0; top: 0; overflow: visible; }
 .lb-layer .cl-glass path { fill: none; stroke: var(--glass-edge, var(--cl-edge)); stroke-width: 2; stroke-linejoin: miter; }
-/* Every callout card (the catheter's FHVP, WHVP and HVPG, a slide's marks, sites and splits: they all draw this one glass shape) wears the figure's cel outline: the look's ink, the width of the vessels' line.
-   Stroked inside the clip, so half of it shows. Mohammad, 21 Nov: "give those callouts an outline". The one rule, so a new callout has it too. */
-.lb-layer .cl-glass.cl-hair path { stroke: var(--ink, var(--cl-text)); stroke-width: 3.6; stroke-linejoin: round; }
+/* Every callout card (the catheter's FHVP, WHVP and HVPG, a slide's marks and sites: they all come from makeCard) wears one outline and one fill, from the look (cath.ts cathLook: --cl-rim, --cl-fill).
+   The outline is its own element (.cl-ring), stroked inside the card's shape: inside the glass it was lost on some cards (a backdrop blur's layer), which is why the WHVP had none. A light look wears the
+   cel ink; a dark look a light rim, since the ink is the scene's own black. The fill is near solid and lifted, so the card reads over any organ. Mohammad, 21 Nov. */
+.lb-layer .cl-glass.cl-hair path { stroke: none; }
+.lb-layer .cl-ring { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lb-layer .cl-ring svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.lb-layer .cl-ring path { fill: none; stroke: var(--cl-rim, var(--ink)); stroke-width: 3.6; stroke-linejoin: round; }
+.cl[data-fig="step"] .cl-ring { display: none; }
+html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-fill, var(--glass-tint)) !important; }
 
 /* the result: both readings stacked, a bracket joining them, the HVPG they give beside it, a thin leader from each reading to its point */
 .cl-sum > .cl-row { position: absolute; left: 0; top: 0; will-change: transform; visibility: hidden; }
