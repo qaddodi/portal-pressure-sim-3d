@@ -136,3 +136,15 @@ test('the report opens with the run time, says when a parallel run makes the spe
   const par = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, wallMs: 130000, parts: [part('iphone'), part('mac')], failed: [] });
   assert.match(par, /sizes ran at the same time/); assert.match(par, /PARALLEL RUN: .*NOT valid/);
 });
+
+test('words that only a screen reader hears are not words on the card (the iPhone summary table: every cell\'s sr-only text reaches past the card, so the report named an edge cut and words off the screen)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { clipsAway } = await import('../src/ui/debug/screen/raw.ts');
+  assert.equal(clipsAway(1, 1, 'hidden'), true);    // .sr-only: 1 px box, overflow hidden, its nowrap text laid out whole from the corner
+  assert.equal(clipsAway(1, 1, 'visible'), false);
+  assert.equal(clipsAway(120, 18, 'hidden'), false);   // a real label that clips is still read
+  const raw = readFileSync(new URL('../src/ui/debug/screen/raw.ts', import.meta.url), 'utf8');
+  assert.match(raw, /hiddenFromEyes\(win, p, card\)\) continue/);
+  // (every card's cells that carry the hidden words are the table's, drawn in TableCard)
+  assert.match(readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8'), /className="sr-only"/);
+});
