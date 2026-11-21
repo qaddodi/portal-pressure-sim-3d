@@ -1,10 +1,11 @@
 // A vessel's tubes at its present shape: its own course (coiled as it opens), the strands of a braided collateral, or a fan of tributaries. Built from the 2D
 // figure's own courses and rules (coil.ts, coil.copied.ts); the scene rewrites a vessel's positions in place when the shape moves (VesselObject.reshape).
+import { CatmullRomCurve3, Vector3 } from 'three';
 import { fanCaps, fanLensRanges } from './feeder-fan.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
-import { coilCourses } from './coil.ts';
+import { coilCourses, type Pin } from './coil.ts';
 import { NETWORK, NETWORK_BY_ID, NODE_Z, cutEnd, type NetVessel } from './network.ts';
 import { LIVER_BRANCH_HOSTS, SPLIT_AT, TIP } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
@@ -43,7 +44,7 @@ export const BANDED_CORD = 0.28;
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, tubularFor } from './tubes.ts';
 
-export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number }
+export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
 export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
 
 const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
@@ -51,10 +52,12 @@ const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
  *  joined vessels meet at one depth (a vessel in front and one behind it would otherwise stand apart in a turned view). */
 /** The steepest a vessel's depth may change along its course (rise per unit run, about 50 degrees at the steepest point of the ease): a tube diving at the camera is shaded by its normals, not by its colour. */
 export const DEPTH_SLOPE_CAP = 1.2;
-const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false, clear?: ClearProfile): Vec3[] => {
+const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false, clear?: ClearProfile, along?: readonly (readonly [number, number])[]): Vec3[] => {
   // (the easing runs over the share of the course's LENGTH, not of its point count: a course whose points are bunched (the umbilical vein's leave-the-wall bend) would otherwise climb to its tier within the bend, a tube
   //  diving at the camera, whose shading is a dark patch (20 Nov, the eyes' crops of 4089d1a))
-  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  // (`along`: the course the depth is spread over, when it is not `pts` itself: a coiling vessel's depth runs along its course AT REST, so a point of it keeps its depth as the course lengthens. Otherwise the coil moved every point's depth, and the held end
+  //  of a skinned collateral with it)
+  const lenOn = along ?? pts, cum = [0]; for (let i = 1; i < lenOn.length; i++) cum.push(cum[i - 1]! + Math.hypot(lenOn[i]![0] - lenOn[i - 1]![0], lenOn[i]![1] - lenOn[i - 1]![1]));
   const total = cum[cum.length - 1]! || 1;
   // (and a change of depth never runs steeper than DEPTH_SLOPE_CAP: a short course between far tiers eases over more of itself than a quarter)
   const wide = (dz: number, share: number): number => Math.min(0.5, Math.max(share, (1.5 * Math.abs(dz)) / (DEPTH_SLOPE_CAP * len3(total))));
@@ -164,11 +167,35 @@ function clearanceTable(): Map<string, ClearProfile> {
   return m;
 }
 
+const restCoils = new Map<string, ReturnType<typeof coilCourses>>();
+/** A coiling vessel's 2D courses at rest (no coil, no spread, no pin). */
+function restCoil(v: NetVessel): ReturnType<typeof coilCourses> {
+  let r = restCoils.get(v.id);
+  if (!r) { const p = v.plan as unknown as { base: [number, number][]; coils: boolean }; r = coilCourses(v.id, p.base, p.coils, 0, 1); restCoils.set(v.id, r); }
+  return r;
+}
+const restLens = new Map<string, number[]>();
+/** The courses' lengths with the vessel at rest (no coil, no pin), by course: what the held rings of a pinned course are spaced by (tubes.ts `hold`). */
+function restLensOf(v: NetVessel, s: ShapeState): number[] {
+  const key = `${v.id}|${s.strandsOn ? 1 : 0}|${s.rec.toFixed(2)}`;
+  let l = restLens.get(key);
+  if (!l) {
+    l = coursesOf(v, { ...s, wig: 0, spr: 1, bead: 0, pin: undefined }).map((c) => new CatmullRomCurve3(c.pts.map((p) => new Vector3(p[0], p[1], p[2]))).getLength());
+    restLens.set(key, l);
+  }
+  return l;
+}
+/** A pinned vessel's courses carry their rest length and the held share at each end, so the tube spaces its rings from the ends as at rest (tubes.ts `hold`). */
+function held(v: NetVessel, s: ShapeState, cs: Course[]): Course[] {
+  const lens = restLensOf(v, s), [a, b] = s.pin!;
+  return cs.map((c, i) => ({ ...c, hold: { len: lens[i] ?? lens[0]!, a, b } }));
+}
+
 /** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
   if (plan.kind === 'coil') {
-    const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
+    const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr, s.pin);
     const { main } = coiled;
     let { strands } = coiled;
     if (v.id === 'C8') {
@@ -184,7 +211,8 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       strands = ch.map((pts, i) => { const g = cavGrowth(i, s.rec); return { pts: meet(pts), k: CAV[i]!.k * g, ph: 0, live: Math.min(1, g * 4) }; });   // (grown whole and joined at both ends; its opacity over its first quarter: here its width)
     }
     const de = depthEnds(v), zf = de.zf, zt = de.zt;
-    let m = to3(main, z, zf, zt, de.sf, de.st, de.through, clearanceOf(v));
+    const atRest = restCoil(v);
+    let m = to3(main, z, zf, zt, de.sf, de.st, de.through, clearanceOf(v), atRest.main);
     // smooth joins: a branch's end onto its trunk, the ends' widths and caps by the pairs (smooth-joins.ts); off, the course is the 2D rule's own
     const sj = smoothJoinsOn() ? SMOOTH.get(v.id) : undefined;
     let buried: readonly [Buried | null, Buried | null] | undefined;
@@ -213,11 +241,11 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)
     if (bundle) own.radius = 0;
     const fit = bundle && FAN_IDS.has(v.id), thick = BANDED.has(v.id) ? VARIX_THICK : 1;
-    return [own, ...strands.map((c, i) => {
+    const out = [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands))) : 1) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
+        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, undefined, atRest.strands[i]?.pts), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping
         // ends, a hub the trunk did not cover once it was narrowed or clotted (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"). Each narrows to a fine point over its last few radii, so the bundle runs together into the vein
         // at the node (the same free-end taper every other tube's end has, tubes.ts `point`), and nothing is a ball.
@@ -228,6 +256,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];
+    return s.pin && (s.pin[0] > 0 || s.pin[1] > 0) ? held(v, s, out) : out;
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
   const fan = plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
