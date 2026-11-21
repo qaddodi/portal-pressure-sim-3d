@@ -39,6 +39,8 @@ const SPREAD: Readonly<Record<string, readonly [number, number | null]>> = { PVH
  *  heading on along the vein, then bends away downward. */
 export const SIDE_SHAPE: Readonly<Record<string, { ctrl: readonly (readonly [number, number])[]; z: number }>> = {
   RHV_IVC_1: { ctrl: [[0, 0], [12, 6], [30, 28], [46, 82]], z: 0.16 },
+  // (the right portal vein's second branch, the same way (Mohammad, 21 Nov, his sketch: the upper branch crossed out, the other drawn below the through branch): it leaves the underside and bends down into the liver)
+  PVH_R_2: { ctrl: [[0, 0], [12, 6], [30, 28], [46, 72]], z: 0.16 },
 };
 /** The width a branch narrows to at its tip, as a share of its vein's: gently, over the whole length, and it fades out before it could end. */
 export const TIP = 0.5;
