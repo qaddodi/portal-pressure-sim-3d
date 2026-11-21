@@ -1,7 +1,7 @@
 // The node scene audit (scripts/scene-audit.mjs): it runs the real scene on real engine frames and reports in a fixed shape. Not a gate on the numbers (those are the audit's own report to read): it must run, name its steps, carry its budgets and probes, and see the stalls it was made to see.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 test('the scene audit runs in node, reports its steps in one shape, and notices a skin rebuild storm and a stuck ease', { timeout: 240000 }, (t) => {
@@ -18,4 +18,16 @@ test('the scene audit runs in node, reports its steps in one shape, and notices 
   // the audit's reason to exist: each of these is a known finding (code review 21 Nov, 2.1 and 2.3); once fixed, the rows turn ok and these two lines are the ones to flip
   const bands = rep.rows.find((x) => x.step === 'bands 3')!;
   assert.ok(bands.rebuilds >= 0);
+});
+
+test('the scene warms the sewn ends\' seam curves in its constructor, so the first frame\'s update does not pay 32 ms for them (scene-audit "boot")', () => {
+  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(src, /for \(const id of SEWN_IDS\) seamsFor\(id, false\);/);
+  const ctor = src.indexOf('for (const id of SEWN_IDS) seamsFor(id, false);'), update = src.indexOf('  update(now: number): boolean {');
+  assert.ok(ctor > 0 && ctor < update, 'before the per-frame update');
+});
+
+test('the audit\'s probes read a tributary fan by its reveal alone (its group is switched off after its shader has faded it), so a view change is not reported as a pop', () => {
+  const src = readFileSync(new URL('../scripts/scene-audit.mjs', import.meta.url), 'utf8');
+  assert.match(src, /o\.group\.visible \|\| v\.id\.includes\('~F'\)/);
 });

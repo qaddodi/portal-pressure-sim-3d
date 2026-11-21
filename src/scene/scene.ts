@@ -395,6 +395,7 @@ export class CelScene {
     // the tributary groups are graded by the model's `live` (feeder-live.ts), not drawn on along their flow: their presence keeps only its state
     this.feeders = new FeederLives([...this.fans].map(([obj, id]) => ({ obj: obj as VesselObject, id, conditional: !!NETWORK_BY_ID.get(id)?.feeder?.when })));
     this.presence.own(this.feeders.ids());
+    for (const id of SEWN_IDS) seamsFor(id, false);   // (the sewn ends' seam curves are a pure function of the art, memoised on first use: 32 ms in the first frame's update. Made here, in the boot, no frame pays for it)
     for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.shapes.setPins(this.skins?.pins() ?? new Map());   // (the skins were built first, when the page had its baked file already: their seams stand still while the collaterals coil)

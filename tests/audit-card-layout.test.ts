@@ -155,6 +155,12 @@ test('the card\'s words, the tool room and the chart box measure after the obser
   }
 });
 
+test('a label fades over the camera\'s dive, so it is only "slow" past the dive\'s length, not the card limit (iPhone quick run: 876 labels at 2.1 to 3.0 s)', () => {
+  const j = src('src/ui/debug/audit/judge.ts');
+  assert.match(j, /SLOW_LABEL_MS = 3200/);
+  assert.match(j, /f\.kind === 'label' \? SLOW_LABEL_MS : SLOW_FADE_MS/);
+});
+
 test('the Tests cards, the deck screen and the doppler measure after the observer\'s delivery too (ResizeObserver loop on Ascites 9 and Measuring HVPG 15)', () => {
   for (const p of ['src/ui/tests/Cv.tsx', 'src/ui/tests/TestsLayer.tsx', 'src/ui/tests/doppler/DopplerPane.tsx', 'src/ui/DeckUi.tsx']) {
     const s = src(p);
@@ -166,4 +172,19 @@ test('the phone dock\'s readouts are never narrower than their tiles (a reading 
   const css = src('src/ui/css2d/app-10-thumb-dock.css');
   assert.match(css, /\.app\.thumb \.vdock \.readouts:not\(\.all\) \{ width: auto; min-width: max-content;/);
   assert.match(css, /\.vdock:not\(\.mini\) \.readouts:not\(\.all\) \{ width: auto; min-width: max-content; \}/);
+});
+
+test('the audit reads a card only once its slide has landed (words 3 to 19 px past the right edge on Circulation 10, Encephalopathy 9, TIPS complete 16, Recompensation 3: the card was still sliding in)', async () => {
+  const src2 = src('src/ui/debug/audit/app.ts');
+  assert.match(src2, /!slidingX\(cs\.transform\)/);
+  const m = /export function slidingX\(t: string\): boolean \{[\s\S]*?\n\}/.exec(src2)![0].replace('export function', 'function').replace('(t: string): boolean', '(t)');
+  const slidingX = new Function(`${m}; return slidingX;`)() as (t: string) => boolean;
+  assert.equal(slidingX('none'), false); assert.equal(slidingX('matrix(1, 0, 0, 1, 0, 0)'), false); assert.equal(slidingX('matrix(1, 0, 0, 1, 16.4, 0)'), true);
+  assert.equal(slidingX('matrix(1, 0, 0, 1, -12, 3)'), true); assert.equal(slidingX('translateX(0.2px)'), false); assert.equal(slidingX('translateX(9px)'), true);
+});
+
+test('a table head that spills into its cell\'s own padding counts as too wide, so the heads stand upright before the table edge cuts it (Liver flow, 2 px, iPhone Quick run)', () => {
+  const t = src('src/ui/cards/TableCard.tsx');
+  assert.match(t, /export function headOver/); assert.match(t, /\.some\(\(t\) => headOver\(t\)\)/);
+  assert.match(t, /width > room \+ 0\.5/);
 });
