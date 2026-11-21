@@ -1,7 +1,7 @@
 // The debug page's hands on the real app: the catalog from the app's own tables, opening a specimen the way the app opens it, "is the page still?", the screen's self-checks,
 // the journeys of the Phone check and the Full check. Debug only; every call is a tap or a step of a walk, never a frame.
 import { UI } from '../../strings.generated.ts';
-import { builtinDecks } from '../../../decks/registry.ts';
+import { builtinDecks, lazyDecks, loadBuiltin } from '../../../decks/registry.ts';
 import { useShell, type Sheet } from '../../shell/store.ts';
 import { goToView } from '../../shell/view-actions.ts';
 import { startTalk, leaveTalk } from '../../shell/talk.ts';
@@ -19,6 +19,14 @@ import { appSnapshot } from '../screen/app.ts';
 import { caughtCount } from '../caught.ts';
 
 const SHEETS: Sheet[] = ['settings', 'search', 'help', 'menu', 'history', 'guide', 'blood', 'layers', 'lens', 'speed', 'jump'];
+
+/** Every built-in talk, loaded. Only the HVPG talk is in the registry at boot; the rest are lazy (their data is read when they open), so `builtinDecks()` lists just the one until these are in:
+ *  the catalog, the Phone check, the Sweep and the audit all asked it and walked a single talk. Call (and wait for) this before reading the decks. A talk that will not load is returned in `failed`. */
+export async function loadAllDecks(): Promise<{ failed: string[] }> {
+  const failed: string[] = [];
+  await Promise.all(lazyDecks().map(async (l) => { try { if (!(await loadBuiltin(l.id))) failed.push(l.id); } catch { failed.push(l.id); } }));
+  return { failed };
+}
 
 export const liveCatalog = (): Entry[] => buildCatalog({
   views: UI.views.filter((v) => v.id !== 'circuit').map((v) => ({ id: v.id, label: v.label })),

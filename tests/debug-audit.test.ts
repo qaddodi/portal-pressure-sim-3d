@@ -136,3 +136,14 @@ test('the report opens with the run time, says when a parallel run makes the spe
   const par = renderText({ build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, wallMs: 130000, parts: [part('iphone'), part('mac')], failed: [] });
   assert.match(par, /sizes ran at the same time/); assert.match(par, /PARALLEL RUN: .*NOT valid/);
 });
+
+test('the registry holds one talk at boot and the rest lazily, so every tool that walks the talks loads them first (the audit, the Phone check and the Sweep walked one talk)', async () => {
+  const { builtinDecks, lazyDecks, loadBuiltin } = await import('../src/decks/registry.ts');
+  const lazy = lazyDecks();
+  assert.ok(lazy.length > 5, 'many talks are lazy');
+  assert.equal(builtinDecks().length, 1, 'only HVPG is in at boot, so builtinDecks() alone is not the list of talks');
+  await Promise.all(lazy.map((l) => loadBuiltin(l.id)));
+  assert.equal(builtinDecks().length, lazy.length + 1);
+  const { readFileSync } = await import('node:fs');
+  for (const f of ['src/ui/debug/audit/page.ts', 'src/ui/debug/page/page.ts']) assert.match(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'), /await loadAllDecks\(\)/, `${f} loads every talk first`);
+});
