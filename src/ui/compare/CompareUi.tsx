@@ -12,10 +12,11 @@ import { activeLabels } from './labels.ts';
 import { patientLabel } from '../timeline/index.ts';
 import { useClock } from './useTick.ts';
 import './compare.css';
+import { useTalkOn } from '../../state/deck.ts';
 
 export function CompareBanner() {
   const snap = useCompare((s) => s.snap), view = useCompare((s) => s.view);
-  const talk = useShell((s) => s.mode === 'deck');
+  const talk = useTalkOn();
   const on = !!snap && !talk;
   const when = snap?.when ?? '';
   const [nA, nB] = snap?.names ?? [CMP.then, CMP.now];

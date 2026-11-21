@@ -2,17 +2,18 @@
 // (Mohammad, 21 Nov 2026: stacked, the two crammed the card and their readouts collided).
 import type { PaneId } from '../panes.ts';
 import { useTests } from '../store.ts';
-import { lazy, Suspense } from 'react';
+import { lazyRetry } from '../../../boot/lazy-retry.ts';
+import { LazyBoundary } from '../../shell/LazyBoundary.tsx';
 import { OverTimePane } from './OverTimePane.tsx';
 import type { PaneProps } from '../TestsLayer.tsx';
 
-const ProfilePane = lazy(() => import('../profile/ProfilePane.tsx').then((m) => ({ default: m.ProfilePane })));
+const ProfilePane = lazyRetry(() => import('../profile/ProfilePane.tsx').then((m) => ({ default: m.ProfilePane })));
 
 export const PRESSURE_VIEWS: readonly (readonly [PaneId, string])[] = [['profile', 'Along the circuit'], ['scope', 'Over time']];
 
 function View({ id, p }: { id: PaneId; p: PaneProps }) {
   if (id === 'scope') return <OverTimePane plot={p.plot} />;
-  return <Suspense fallback={null}><ProfilePane {...p} /></Suspense>;
+  return <LazyBoundary><ProfilePane {...p} /></LazyBoundary>;
 }
 
 export function PressureTab({ own, ...p }: PaneProps & { own: PaneId }) {

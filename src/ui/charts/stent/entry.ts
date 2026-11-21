@@ -1,6 +1,7 @@
 // The registry entry of the stent pictures (2D: tool-stent.js; slides: tips-complete's stent card, the Tests card's stent tabs). Specimens are made-up numbers, not a patient.
 import type { ChartKind } from '../registry.ts';
-import { dropFrame, sideFrame, traceFrame } from './frame.ts';
+import { dropFrame, traceFrame } from './frame.ts';
+import { tipsFigureFrame } from '../../tests/ir/tips-figure.ts';
 import { stentState } from './model.ts';
 
 // a fingerprint's stent terms (mmHg, L/min, cm/s, mm, cm): a 10 mm TIPS, open; and the same with its distal end narrowed and a waist in the middle
@@ -11,13 +12,13 @@ const OPEN = stentState(FP_OPEN, 'TIPS', null), NARROW = stentState(FP_NARROW, '
 export const stentEntry: ChartKind = {
   kind: 'stent', what: 'Stent pictures: drop, trace, waist', slides: undefined, status: 'done',
   specimens: [
-    { id: 'side', label: 'The stent in side view, lumen coloured by velocity (specimen numbers)', build: (c) => sideFrame(OPEN, c, { gate: 'mid' }) },
-    { id: 'side-narrow', label: 'Side view with a narrowed distal end and a waist, coloured by pressure, with the five sites', build: (c) => sideFrame(NARROW, c, { color: 'pressure', sites: true }) },
+    { id: 'side', label: 'The stent drawn as the TIPS card draws it, lumen coloured by velocity (specimen numbers)', build: (c) => tipsFigureFrame(OPEN, c, { lens: 'velocity', labels: true, card: true, gate: 'mid' }) },
+    { id: 'side-narrow', label: 'The same figure with a narrowed distal end and a waist, coloured by pressure, with its chart under it', build: (c) => tipsFigureFrame(NARROW, c, { lens: 'pressure', labels: true, chart: true }) },
     { id: 'trace-pressure', label: 'The static pressure along the stent', build: (c) => traceFrame(NARROW, c, { pick: 'pressure' }) },
     { id: 'trace-energy', label: 'The energy lost so far along the stent', build: (c) => traceFrame(OPEN, c, { pick: 'energy' }) },
     { id: 'trace-velocity', label: 'The mean velocity along the stent', build: (c) => traceFrame(NARROW, c, { pick: 'velocity' }) },
     { id: 'drop-ppg', label: 'Where the pressure goes, from the PPG', build: (c) => dropFrame(NARROW, c, { to: 'ppg' }) },
     { id: 'drop-stent', label: 'Where the pressure goes, the stent\'s own drop', build: (c) => dropFrame(OPEN, c, { to: 'stent' }) },
-    { id: 'none', label: 'No stent in', build: (c) => sideFrame(NONE, c) },
+    { id: 'none', label: 'No stent in', build: (c) => tipsFigureFrame(NONE, c, { lens: 'velocity', labels: true, card: true }) },
   ],
 };

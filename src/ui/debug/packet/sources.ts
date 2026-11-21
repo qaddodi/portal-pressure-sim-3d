@@ -9,6 +9,7 @@ import { recorder } from '../watch/mount.ts';
 import { captureState, stateLink, baseOf, diffParams, type PacketState } from './state.ts';
 import { presetBase, currentParams } from '../../action/params.ts';
 import { caughtCount } from '../caught.ts';
+import { recentFaults } from '../../../boot/crash-net.ts';
 import { useShell } from '../../shell/store.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { readerList } from '../core/registry.copied.js';
@@ -73,6 +74,9 @@ export async function packetNow({ note = '' }: { note?: string } = {}): Promise<
   // a program this device's driver refused is the first thing a bug packet says: the parts that wore it are drawn plain (src/debug/shader-guard.ts)
   const refused = shaderFailures().map((f) => ({ rule: 'shader-failed', what: `A ${f.kind} shader was refused by this device's driver (${f.meshes} part${f.meshes === 1 ? '' : 's'} drawn plain)`, where: f.log.replace(/\s+/g, ' ').slice(0, 400), why: 'A GPU refuses a program no node test compiles; open ?gl for every program', owner: 'src/debug/shader-guard.ts', scope: 'gpu' }));
   if (refused.length) findings = [...refused, ...(findings ?? [])];
+  // the errors the page kept (handlers, timers, promises, a clock system, a boundary's catch: boot/crash-net.ts) go in the report as findings, so Send feedback carries them
+  const faults = recentFaults().slice(-5).map((f) => ({ rule: 'uncaught-error', what: `${f.site}: ${f.message}`, where: f.stack }));
+  if (faults.length) findings = [...(findings ?? []), ...faults];
   const mem = app.memory;
   return buildPacket({ state, link, screen, screenText: text, history, findings, watchFindings, device: deviceInfo(), build: buildInfo(), health: { errors: caughtCount(), ...(mem.gpuMB != null ? { gpuMB: Math.round(mem.gpuMB) } : {}) } }, { note });
 }

@@ -65,6 +65,8 @@ export class Ride {
   private lastRefs = '';
   private lastMove = -1e9;
   private cut = false;
+  /** The carry is held at the picture before a cut while the words fade out; released when they are placed again. */
+  private frozen = false;
   private readonly out: RideOut = { solve: false, alpha: 0, busy: false };
 
   /** Why the last re-place was asked for (a diagnostic: 'unsolved', 'cut', 'sig' or 'fits'), and the signature or references it changed from and to. */
@@ -114,16 +116,20 @@ export class Ride {
 
   step(i: RideIn): RideOut {
     const { now, dt, on, a, b } = i;
-    this.nowA.x = a.x; this.nowA.y = a.y; this.nowB.x = b.x; this.nowB.y = b.y;
-    this.nowC = i.c ? { x: i.c.x, y: i.c.y } : null; this.nowD = i.d ? { x: i.d.x, y: i.d.y } : null;
+    // A cut (a reference point that leaps more than FOLLOW_JUMP in one frame, in this view or on its way in or out) is not carried, and the words fading out because of it are not moved by it either:
+    // the carry is frozen at the picture before the cut until the words are placed again (Mohammad's audit 21 Nov: lobule names moved 700 to 1,300 px in one frame at alpha 0.5; fade and move are tied).
+    const jumped = !!this.lastA && Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y) > FOLLOW_JUMP;
+    if (jumped) this.frozen = true;
+    if (!this.frozen) {
+      this.nowA.x = a.x; this.nowA.y = a.y; this.nowB.x = b.x; this.nowB.y = b.y;
+      this.nowC = i.c ? { x: i.c.x, y: i.c.y } : null; this.nowD = i.d ? { x: i.d.x, y: i.d.y } : null;
+    }
+    this.lastA = this.lastA ?? { x: 0, y: 0 };
+    this.lastA.x = a.x; this.lastA.y = a.y;
     if (!on) {
       // another view (or this one on its way): the words fade out and are placed again when it stands
-      this.solved = false; this.sig = ''; this.lastA = null; this.cut = false;
-    } else {
-      if (this.lastA && Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y) > FOLLOW_JUMP) this.cut = true;   // (a cut is not carried)
-      this.lastA = this.lastA ?? { x: 0, y: 0 };
-      this.lastA.x = a.x; this.lastA.y = a.y;
-    }
+      this.solved = false; this.sig = ''; this.cut = false;
+    } else if (jumped) this.cut = true;   // (a cut is not carried)
     const refs = refsKey(a, b, i.c, i.d);
     if (i.moving || refs !== this.lastRefs) this.lastMove = now;
     this.lastRefs = refs;
@@ -140,7 +146,10 @@ export class Ride {
       else if (refs !== this.refsAtSolve() && refs !== this.kept) { if (i.fits(this.ride)) this.kept = refs; else { need = true; this.why = 'fits'; this.whySig = `${this.refsAtSolve()} => ${refs}`; } }
     }
     let solve = false;
-    if (need && this.alpha <= 0) { solve = true; this.solved = true; this.cut = false; this.sig = sig; this.rebase(); }
+    if (need && this.alpha <= 0) {
+      if (this.frozen) { this.frozen = false; this.nowA.x = a.x; this.nowA.y = a.y; this.nowB.x = b.x; this.nowB.y = b.y; this.nowC = i.c ? { x: i.c.x, y: i.c.y } : null; this.nowD = i.d ? { x: i.d.x, y: i.d.y } : null; }   // (the picture as it stands now: the words are placed on it)
+      solve = true; this.solved = true; this.cut = false; this.sig = sig; this.rebase();
+    }
 
     // what the words wear: in while they stand (carried or placed), out while a new place is waited for, a cut is waiting, or the view is not this one
     const to = on && this.solved && !this.cut && !(need && !solve) ? 1 : 0;
