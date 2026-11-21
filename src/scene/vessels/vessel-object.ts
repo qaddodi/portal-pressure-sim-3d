@@ -104,7 +104,7 @@ export class VesselObject extends CelObject {
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         glowK: { value: 1 }, veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeB: { value: new Vector3(0.02, -1, 0.02) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 0.02, 0.6, 0) }, wedgeD: { value: new Vector4(0, 0, -1, 0.02) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
         ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
@@ -238,11 +238,10 @@ export class VesselObject extends CelObject {
   }
 
   /** Quiet depth on a turn (camera/quiet.ts quietOf, 0..1): the back tier eases toward the page; for the vessels behind the organs only (the scene sets it). */
-  /** The wedge's amber column as a tint on this vessel: `amount` 0..1, `cut` the share of its course (from the outer end, 0) it reaches up to (2: all of it) and `edge` how softly it ends there (on the balloon's side), `front` how far toward the outer end it has come (the column filling; -1: all the way) and `frontEdge` how softly, `fade` the stretch from the outer end over which it comes to full (0: none). */
-  setWedge(amount: number, cut: number, fade: number, color?: Color, edge = 0.02, front = -1, frontEdge = 0.02): void {
-    const w = this.toon.uniforms.wedge!.value as Vector4;
-    w.set(amount, cut, fade, fade > 0 ? 1 : 0);
-    (this.toon.uniforms.wedgeB!.value as Vector3).set(edge, front, frontEdge);
+  /** The wedge's amber column as a tint on this vessel (wedge-glsl.ts): `amount` 0..1; its route distance from the balloon's distal edge at u is `d0 + slope u`; `front` is how far the column has come (the same number on every vessel) and `frontSoft` how softly it ends; `behind` how softly the tint ends behind the balloon's edge; `fade` how far it thins toward a branch's tip (u; 0 none). */
+  setWedge(amount: number, d0: number, slope: number, front: number, frontSoft: number, behind: number, fade: number, color?: Color): void {
+    (this.toon.uniforms.wedge!.value as Vector4).set(amount, behind, fade, fade > 0 ? 1 : 0);
+    (this.toon.uniforms.wedgeD!.value as Vector4).set(d0, slope, front, frontSoft);
     if (color) (this.toon.uniforms.wedgeCol!.value as Color).copy(color);
   }
   setQuiet(q: number): void { this.toon.uniforms.quietK!.value = q; }
