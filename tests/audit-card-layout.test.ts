@@ -126,3 +126,10 @@ test('a bare number cut off or off screen names the element it is in, and the le
   assert.match(src('src/ui/debug/audit/scan-judge.ts'), /\(in \$\{i\.by\}\)/);
   assert.match(src('src/debug/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
 });
+
+test('the talk trace and the event graph are held to the card\'s room too (iPhone audit: "The course", "APP and ascites", "Ten years": 13 to 21 px past the foot)', () => {
+  assert.match(src('src/ui/charts/trace/frame.ts'), /heldToRoom\(spec\.height \?\?/);
+  assert.match(src('src/ui/charts/evgraph/frame.ts'), /heldToRoom\(inp\.height \?\?/);
+  assert.match(src('src/ui/charts/trace/TraceCard.tsx'), /useContext\(ToolRoom\)/);
+  assert.match(src('src/ui/charts/evgraph/EvGraphCard.tsx'), /height, room, run\]/);
+});

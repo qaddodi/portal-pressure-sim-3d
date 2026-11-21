@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
 import type { ChartPainter } from '../painter.ts';
 import { headStep, HEAD_DT0 } from '../plot/follow.ts';
 import { evGraphFrame, type EvInput } from './frame.ts';
 import { evLabel, type EvRun, type EvSpec } from './model.ts';
+import { ToolRoom } from '../../talk/tool-room.ts';
 import '../charts.css';
 
 /**
@@ -17,7 +18,8 @@ export function EvGraphCard({ spec, before, end = null, run = null, height }: { 
   const painter = useRef<ChartPainter | null>(null);
   const ctx = useRef<ChartCtx | null>(null);
   const shown = useRef(0);
-  const input: EvInput = { spec, before, end, run, height };
+  const room = useContext(ToolRoom);
+  const input: EvInput = { spec, before, end, run, height, room };
   const inRef = useRef(input);
   inRef.current = input;
   const draw = () => { if (ctx.current) painter.current?.show(evGraphFrame(inRef.current, shown.current, ctx.current), false); };
@@ -49,7 +51,7 @@ export function EvGraphCard({ spec, before, end = null, run = null, height }: { 
 
   return (
     <div className="pz-flowtime pz-evgraph">
-      <Chart tag="chart:evgraph" painter={painter} deps={[spec, before[0], before[1], end?.[0], end?.[1], height, run]} label={evLabel(spec, before, before, false, 0)}
+      <Chart tag="chart:evgraph" painter={painter} deps={[spec, before[0], before[1], end?.[0], end?.[1], height, room, run]} label={evLabel(spec, before, before, false, 0)}
         build={(c) => { ctx.current = c; return evGraphFrame(inRef.current, shown.current, c); }} />
     </div>
   );

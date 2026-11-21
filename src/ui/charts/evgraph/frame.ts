@@ -1,6 +1,7 @@
 // The procedure's graph as a frame at t seconds after the change (the head of each line): its legend, its two axes (tints on the worse side of the left line's cut-offs, or the
 // goal's green band), the flat stretch before the change, the dashed line and the word of the event, each point the model gave, the heads and their values. Lifted from event-graph.js
 // build() and paint(); looks: chart-looks/time.js and plot.js (host 'flowtime', the time-lapse graph's own).
+import { heldToRoom } from '../profile/model.ts';
 import type { ChartCtx } from '../Chart.tsx';
 import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
@@ -20,11 +21,13 @@ export interface EvInput {
   /** the points after the change (null: before it) */
   run?: Pick<EvRun, 'pts' | 'n' | 'on'> | null;
   height?: number;
+  /** the room the data card leaves the chart, px (2D --pz-room): never taller than it */
+  room?: number;
 }
 
 /** The chart at t seconds after the change (t is where the heads stand; before the change, 0). */
 export function evGraphFrame(inp: EvInput, t: number, c: ChartCtx): Frame {
-  const { spec } = inp, f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, inp.height ?? evHeight(w, f)));
+  const { spec } = inp, f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(inp.height ?? evHeight(w, f), inp.room, f)!));
   const x = spec.lines.map((k) => LINE[k]?.[4] ?? 1);
   const before = [inp.before[0] * x[0]!, inp.before[1] * x[1]!] as const;
   const endv = inp.end?.every(Number.isFinite) ? ([inp.end[0] * x[0]!, inp.end[1] * x[1]!] as const) : null;

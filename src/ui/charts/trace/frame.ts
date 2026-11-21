@@ -1,4 +1,5 @@
 // The talk so far as a frame (2D: talk-trace.js draw() and drawMiles()); looks: chart-looks/talk.js and plot.js, host 'talk'. Every word is the chart's type size (12 px at least).
+import { heldToRoom } from '../profile/model.ts';
 import type { ChartCtx } from '../Chart.tsx';
 import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
@@ -20,6 +21,8 @@ export interface TraceSpec {
   style?: 'milestones' | null;
   /** the box's height: the card's (default: the height the chart wants) */
   height?: number;
+  /** the room the data card leaves the chart, px (2D --pz-room): never taller than it; 0 or absent: none measured */
+  room?: number;
 }
 export const gapNameOf = (gap: string | null | undefined) => (typeof gap === 'string' && gap.trim() ? gap.trim() : 'PV − WHVP');
 /** The treatments' runs over the states (rx-bands.js bandRuns). */
@@ -28,7 +31,7 @@ export const runsOf = (pts: readonly TalkPoint[], bands: readonly string[] | nul
 export function traceFrame(spec: TraceSpec, c: ChartCtx): Frame {
   const pts = spec.pts.filter((p) => p.fp), f = c.type.sm, W = Math.max(160, c.w), gapName = gapNameOf(spec.gap), runs = runsOf(pts, spec.bands);
   const miles = spec.style === 'milestones';
-  const HT = Math.round(spec.height ?? (miles ? milesHeight(pts, W, f, runs) : talkHeight(pts, W, f, runs, gapName)));
+  const HT = Math.round(heldToRoom(spec.height ?? (miles ? milesHeight(pts, W, f, runs) : talkHeight(pts, W, f, runs, gapName)), spec.room, f)!);
   return miles ? milesFrame(pts, runs, W, HT, f, c) : fullFrame(pts, runs, gapName, W, HT, f, c);
 }
 

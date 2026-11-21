@@ -1,4 +1,6 @@
+import { useContext } from 'react';
 import { Chart } from '../Chart.tsx';
+import { ToolRoom } from '../../talk/tool-room.ts';
 import { traceFrame, type TraceSpec } from './frame.ts';
 import type { TalkPoint } from './model.ts';
 import '../charts.css';
@@ -10,12 +12,13 @@ import '../charts.css';
  * height: the box's height; leave it out for the height the chart wants. A new chain glides in from the old one.
  */
 export function TraceCard({ chain, bands = null, gap = null, style = null, height }: { chain: readonly TalkPoint[] } & Omit<TraceSpec, 'pts'>) {
+  const room = useContext(ToolRoom);
   const pts = chain.filter((p) => p.fp);
   if (!pts.length) return null;
   const label = style === 'milestones' ? 'HVPG over the talk so far' : 'Pressures over the talk so far';
   return (
     <div className="pz-talk">
-      <Chart tag="chart:trace" deps={[chain, bands?.join(), gap, style, height]} label={label} build={(c) => traceFrame({ pts, bands, gap, style, height }, c)} />
+      <Chart tag="chart:trace" deps={[chain, bands?.join(), gap, style, height, room]} label={label} build={(c) => traceFrame({ pts, bands, gap, style, height, room }, c)} />
     </div>
   );
 }
