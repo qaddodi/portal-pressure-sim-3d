@@ -29,6 +29,7 @@ import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
 import { weldThrough } from './through.ts';
 import { armTube, strandCutU } from './braid-arm.ts';
+import { SurfaceRung } from './surface-rung.ts';
 
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
@@ -187,6 +188,8 @@ export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi:
 const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
 
 export class SkinSet {
+  /** the nodes whose failed growing arm is tried from the surface before it is dropped (surface-rung.ts) */
+  private readonly rung = new SurfaceRung();
   private built: Built[] = [];
   /** the ends that are skinned, by vessel id: [start, end] */
   private readonly ends = new Map<string, [boolean, boolean]>();
@@ -269,8 +272,8 @@ export class SkinSet {
     //  seams 8 radii out and a skin that crowds its neighbours)
     return planSkins(js, tubes, (j) => {
       let blamed = -1;
-      const ok: HullOk = (cs) => { blamed = -1; if (!(hasLiverBranch(j) || hullCovers(this.ringsFor(tubes, cs).pos))) return false; blamed = this.clearOfAxes(j, tubes, cs); return blamed < 0; };
-      ok.blame = () => (hasLiverBranch(j) ? blamed : -1);   // (the arm whose seam stands too near another arm moves out, not the seam nearest J)
+      const ok: HullOk = (cs) => { blamed = -1; if (!(hasLiverBranch(j) || this.rung.on(j) || hullCovers(this.ringsFor(tubes, cs).pos))) return false; blamed = this.clearOfAxes(j, tubes, cs); return blamed < 0; };
+      ok.blame = () => (hasLiverBranch(j) || this.rung.on(j) ? blamed : -1);   // (the arm whose seam stands too near another arm moves out, not the seam nearest J)
       return ok;
     });
   }
@@ -318,7 +321,9 @@ export class SkinSet {
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
+          if (this.rung.retry(n, j)) { again.set(n, f.message); next.push(j); continue; }   // (the surface rung first, surface-rung.ts)
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
+          this.rung.release(n);
           this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.set(n, f.message);
           if (arms.length >= MIN_ARMS) next.push({ ...j, arms });   // (a run-on pair with its collateral gone is no junction: it never had a skin, so it is not a fall back, only a dropped arm)
@@ -344,8 +349,8 @@ export class SkinSet {
   }
 
   /** The skin of one plan, made but not yet in the scene: its mesh, its drawing object and the handover links. Throws a SkinBuildError (or any error) the caller turns into a fallback. Null: an arm's vessel is not in this scene. */
-  private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>, ready?: BakedSkin): Built | null {
-    const j = plan.junction;
+  private makeBuilt(planned: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>, ready?: BakedSkin): Built | null {
+    const plan = ready ? planned : this.rung.mark(planned), j = plan.junction;
     const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
@@ -354,7 +359,7 @@ export class SkinSet {
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
     const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
-    if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
+    if (!ready && (hasLiverBranch(j) || j.surface)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
     const growing = j.arms.some((a) => a.grow);
     const mesh = ready?.mesh ?? buildSkinSteady(growing ? { ...j, still: true } : j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
@@ -451,7 +456,7 @@ export class SkinSet {
   /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
    *  built keeps today's joins, is named in `fellBack` and warned once. */
   build(phase: 1 | 2): void {
-    this.clear();
+    this.clear(); this.rung.clear();
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
     const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
