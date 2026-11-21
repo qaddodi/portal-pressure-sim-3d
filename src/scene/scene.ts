@@ -624,7 +624,9 @@ export class CelScene {
     this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
-    if (this.figureView !== 'body') this.feedViews(false);
+    // A new patient's numbers that arrive while the camera is in flight (the slide's zoom into the lobule or the sinusoid) are laid at once: the views are dissolved or far then, and an ease
+    // made every 1/32 of a step of it rebuild the cells and repaint the 2048 px marks plate on the main thread inside the zoom (HVPG talk, slide 6 to 7, iPhone: "significant lag").
+    if (this.figureView !== 'body') this.feedViews(this.rig.isMoving);
     this.moving = true;
   }
   private sawFrame = false;
