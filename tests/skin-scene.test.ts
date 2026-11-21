@@ -30,13 +30,13 @@ test('?joins=old builds no skin and every tube is the one it was: no cut, its ma
   } finally { s.dispose(); setSmoothJoins(was); }
 });
 
-test('mesh2 builds the skins, cuts every arm at its seam (a vessel that two skins share gets both cuts in one), turns its mate and burial off at the skinned ends, and takes it all back when Smooth vessel joins goes off, and again when it comes on', () => {
+test('mesh2 builds the skins, cuts every arm at its seam (a vessel that two skins share gets both cuts in one), turns its mate and burial off at the skinned ends, and takes it all back when the joins are switched off (scene method), and again when it comes on', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
-  useSettings.setState({ smoothJoins: true });
   const old = new CelScene({ joins: 'old' });
   const oldMates = new Map(NETWORK.map((v) => [v.id, mates(old, v.id)])), oldBury = new Map(NETWORK.map((v) => [v.id, bury(old, v.id)]));
   old.dispose();
   const s = new CelScene({ joins: 'mesh2' });
+  const toggle = (on: boolean) => (s as unknown as { useSmoothJoins(on: boolean): void }).useSmoothJoins(on);   // (no Settings switch any more: the scene's own method, kept for this check)
   try {
     assert.ok(s.skinNodes.length >= 4, `skins at ${s.skinNodes.join(', ')}`);
     const cut = [...cutsOf(s)].filter(([, c]) => c[0] !== SKIN_CUT_NONE[0] || c[1] !== SKIN_CUT_NONE[1]);
@@ -50,23 +50,21 @@ test('mesh2 builds the skins, cuts every arm at its seam (a vessel that two skin
       }
     }
     // the switch off: every tube back (restore is exact), the skins gone
-    useSettings.setState({ smoothJoins: false });
+    toggle(false);
     assert.deepEqual(s.skinNodes, []);
     for (const [id, c] of cutsOf(s)) assert.deepEqual([...c], [...SKIN_CUT_NONE], `${id} restored with the switch off`);
-    useSettings.setState({ smoothJoins: true });
+    toggle(true);
     assert.ok(s.skinNodes.length >= 4, 'and built again with it on');
-  } finally { s.dispose(); useSettings.setState({ smoothJoins: true }); setSmoothJoins(was); }
+  } finally { s.dispose(); setSmoothJoins(was); }
 });
 
 test('mesh (phase 1) is the SMV-SV confluence only', () => {
-  const was = smoothJoinsOn(); setSmoothJoins(true); useSettings.setState({ smoothJoins: true });
-  const s = new CelScene({ joins: 'mesh' });
+  const was = smoothJoinsOn(); setSmoothJoins(true);  const s = new CelScene({ joins: 'mesh' });
   try { assert.ok(s.skinNodes.length <= 1 && (s.skinNodes[0] ?? 'CONF').startsWith('CONF'), s.skinNodes.join()); } finally { s.dispose(); setSmoothJoins(was); }
 });
 
 test('a merged skin hides the vessel it replaces whole, and its cut is restored with the rest', () => {
-  const was = smoothJoinsOn(); setSmoothJoins(true); useSettings.setState({ smoothJoins: true });
-  const s = new CelScene({ joins: 'mesh2' });
+  const was = smoothJoinsOn(); setSmoothJoins(true);  const s = new CelScene({ joins: 'mesh2' });
   try {
     for (const [id, c] of cutsOf(s)) if (c[0] === SKIN_HIDDEN[0] && c[1] === SKIN_HIDDEN[1]) assert.ok(s.skinNodes.some((n) => n.includes('+')), `${id} hidden: a merged skin stands in its place`);
   } finally { s.dispose(); setSmoothJoins(was); }

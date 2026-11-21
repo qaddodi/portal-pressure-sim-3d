@@ -10,7 +10,7 @@ import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
-import { setSmoothJoins } from './vessels/join-mode.ts';
+import { setSmoothJoins, smoothJoinsOn } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { WHY_COLOUR, joinsReport, type JoinsReport } from './vessels/skin/join-report.ts';
 import { findOverlaps, type Overlap } from './vessels/overlaps.ts';
@@ -237,9 +237,9 @@ export class CelScene {
     if (w) for (const o of this.vessels) {
       const id = o.edge?.id, p = id ? w.pieces.get(id) : undefined;
       if (!id || !p) continue;
-      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color, p.edge, p.front, p.frontEdge); now.add(id);
+      (o as VesselObject).setWedge(w.amount, p.d0, p.slope, w.front, w.frontSoft, w.behind, p.fade, w.color); now.add(id);
     }
-    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0, undefined, 0.02, -1, 0.02);
+    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 0, 0, -1, 0.02, 0.02, 0);
     this.wedgeSet = now;
   }
   private bloodOpts = { chevrons: true, keyChevrons: false };
@@ -277,7 +277,7 @@ export class CelScene {
 
     this.scene.add(this.body);
 
-    setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
+    setSmoothJoins(true);   // (smooth vessel joins are always on, 21 Nov 2026: the Settings switch is gone; set before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
     // (junction skins: before the mates, which skip the ends a skin has taken over. On the page they are baked at build time and still on their way: the figure is not drawn before they are in, the boot waits for the same promise)
     if (bakedPending()) void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
@@ -286,7 +286,6 @@ export class CelScene {
     this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
     for (const o of this.back) o.setOcclusion(this.occNow);
     this.unJoins = useSettings.subscribe((st, prev) => {
-      if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins);
       if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
@@ -334,6 +333,10 @@ export class CelScene {
     this.body.add(this.shuntGuide.mesh);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
+    // a custom shunt's tube is made when a learner opens it, after the figure is built: it is a vessel like any other, so it is pickable and lit (and let go with its tube)
+    this.highlight.expect = (id) => this.tubes.isCustom(id);
+    this.tubes.watch.add = (o) => { this.highlight.register(o); this.moving = true; };
+    this.tubes.watch.drop = (o) => this.highlight.unregister(o);
     this.flow = new BloodMarks(this.vessels);
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
     dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); };
@@ -381,7 +384,7 @@ export class CelScene {
   /** The junction skins now drawn (the node names), for tests and the debug page. */
   get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
   private refreshSkins(): void {
-    const phase = useSettings.getState().smoothJoins ? joinsPhase(this.joins) : 0;
+    const phase = smoothJoinsOn() ? joinsPhase(this.joins) : 0;   // (always on in the app; only a test's useSmoothJoins(false) turns it off)
     if (!phase) { this.skins?.dispose(); this.skins = null; this.circuitSkins?.dispose(); this.circuitSkins = null; return; }
     this.skins ??= new SkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
@@ -405,9 +408,9 @@ export class CelScene {
     this.circuitSkins.build();
   }
 
-  /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
+  /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins are always on). */
   private applyMates(): void {
-    const on = useSettings.getState().smoothJoins;
+    const on = smoothJoinsOn();
     for (const def of NETWORK) {
       const o = this.byEdge.get(def.id) as VesselObject | undefined, sj = SMOOTH.get(def.id);
       if (!o) continue;
@@ -435,7 +438,7 @@ export class CelScene {
     }
   }
 
-  /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
+  /** Every tube is rewritten for a join mode (no Settings switch any more: smooth joins are always on; kept for the tests that look at the off drawing): every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
   private useSmoothJoins(on: boolean): void {
     if (!setSmoothJoins(on)) return;
     for (const def of NETWORK) {
@@ -684,7 +687,7 @@ export class CelScene {
   private syncNamed(): void {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
-    if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
+    if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; if (host) for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
     // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
     this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
     this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
@@ -841,20 +844,21 @@ export class CelScene {
     const rr = this.circuit.rr, reach = this.phone ? 16 : 10;
     let best: string | null = null, bestD = reach * reach;
     const v3 = new Vector3(), a = { x: 0, y: 0 };
-    for (const v of MAPPED) {
-      if (this.presence.stateOf(v.id) !== 'shown') continue;
-      const pts = COURSES.get(v.id)!.mapPts;
+    const along = (id: string, pts: readonly (readonly [number, number])[]): void => {
       let px = NaN, py = NaN;
       for (let i = 0; i < pts.length; i += 2) {
         const m = mapToScene(pts[i]![0], pts[i]![1]), q = turnScenePt(m[0], m[1], rr);
         this.rig.project(v3.set(q[0], q[1], m[2]), a);
         if (!Number.isNaN(px)) {
           const dx = a.x - px, dy = a.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L)), ex = px + dx * u - x, ey = py + dy * u - y, d = ex * ex + ey * ey;
-          if (d < bestD) { bestD = d; best = v.id; }
+          if (d < bestD) { bestD = d; best = id; }
         }
         px = a.x; py = a.y;
       }
-    }
+    };
+    for (const v of MAPPED) if (this.presence.stateOf(v.id) === 'shown') along(v.id, COURSES.get(v.id)!.mapPts);
+    // (the custom shunts a learner opened: routed on the map, drawn with the rest, so a tap on one is a tap on a vessel)
+    for (const c of this.tubes.pickCourses()) if (c.map) along(c.id, c.map);
     return best;
   }
   private settleViews(): void {
@@ -989,9 +993,10 @@ export class CelScene {
     if (this.figureView !== 'body') return null;
     raycaster.layers.enable(VESSEL_LAYER); raycaster.layers.enable(FAINT_ONLY_LAYER);
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
-    const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
+    const all = [...this.vessels, ...this.tubes.pickable()];   // (a custom shunt's tube is a vessel too)
+    const hits = raycaster.intersectObjects(all.map((v) => v.toonMesh), false);
     for (const h of hits) {
-      const o = this.vessels.find((v) => v.toonMesh === h.object);
+      const o = all.find((v) => v.toonMesh === h.object);
       if (o && o.group.visible) return o.edge!.id;   // (a vessel not drawn, a collateral not yet open, takes no tap)
     }
     return null;
@@ -1033,6 +1038,21 @@ export class CelScene {
           const dx = pb.x - px, dy = pb.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L));
           const d = Math.hypot(px + dx * u - x, py + dy * u - y) - half;
           if (d < bestD) { bestD = d; best = v.id; }
+        }
+        px = pb.x; py = pb.y;
+      }
+    }
+    // the custom shunts a learner opened, on their own body course (circuit/tubes.ts)
+    for (const c of this.tubes.pickCourses()) {
+      if (!c.body) continue;
+      const half = c.body.radius * k;
+      let px = NaN, py = NaN;
+      for (const p of c.body.pts) {
+        this.rig.project(a.set(p.x, p.y, p.z), pb);
+        if (!Number.isNaN(px)) {
+          const dx = pb.x - px, dy = pb.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L));
+          const d = Math.hypot(px + dx * u - x, py + dy * u - y) - half;
+          if (d < bestD) { bestD = d; best = c.id; }
         }
         px = pb.x; py = pb.y;
       }

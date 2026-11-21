@@ -20,8 +20,7 @@ interface Built { node: string; mesh: SkinMesh; draw: SkinObject; arms: { id: st
 interface Inner { skins: { built: Built[]; sync(): boolean; endsOf(id: string): [boolean, boolean] } }
 
 function withScene<T>(f: (s: CelScene, built: Built[]) => T): T {
-  const was = smoothJoinsOn(); setSmoothJoins(true); useSettings.setState({ smoothJoins: true });
-  const s = new CelScene({ joins: 'mesh2' });
+  const was = smoothJoinsOn(); setSmoothJoins(true);  const s = new CelScene({ joins: 'mesh2' });
   // (a node that fell back is listed with no draw: left out)
   try { return f(s, (s as unknown as Inner).skins.built.filter((b) => b.draw)); } finally { s.dispose(); setSmoothJoins(was); }
 }

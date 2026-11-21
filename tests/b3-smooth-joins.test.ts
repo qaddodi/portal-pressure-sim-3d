@@ -275,26 +275,25 @@ test('no vessel shares a stencil bit with another: every tube is one opaque draw
 });
 
 test('the switch applies live: toggling it rewrites every tube in place (same vertices), sets or clears the shader\'s mates and the colour path, and a free tube is drawn once', () => {
-  const was = useSettings.getState().smoothJoins;
   try {
-    useSettings.getState().set('smoothJoins', true);
     const s = new CelScene({ joins: 'old' }); // (the old method's rule: with ?joins=old every mate stays; the skin's rule is tests/skin-scene.test.ts)
-    assert.equal(smoothJoinsOn(), true, 'the scene took the setting');
+    assert.equal(smoothJoinsOn(), true, 'the scene sets smooth joins on');
+    const toggle = (on: boolean) => (s as unknown as { useSmoothJoins(on: boolean): void }).useSmoothJoins(on);
     const obj = (id: string) => s.vesselObject(id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array; count: number } } }; toon: { uniforms: Record<string, { value: { x: number } | number }> } };
     const posOn = Float32Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), nOn = obj('PVH_L').toonMesh.geometry.getAttribute('position').count;
     const rkOn = Float32Array.from(obj('SMV_CONF').toonMesh.geometry.getAttribute('rk').array);
     assert.ok((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x >= 0 && obj('PV_TRUNK').toon.uniforms.lensSmooth!.value === 1);
-    useSettings.getState().set('smoothJoins', false);
+    toggle(false);
     assert.equal(smoothJoinsOn(), false);
     assert.equal(obj('PVH_L').toonMesh.geometry.getAttribute('position').count, nOn, 'the same vertices');
     assert.notDeepEqual(Array.from(posOn), Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), 'the branch end moved back');
     assert.notDeepEqual(Array.from(rkOn), Array.from(obj('SMV_CONF').toonMesh.geometry.getAttribute('rk').array), 'the step is back');
     assert.equal((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x, -1);
     assert.equal(obj('PV_TRUNK').toon.uniforms.lensSmooth!.value, 0);
-    useSettings.getState().set('smoothJoins', true);
+    toggle(true);
     assert.deepEqual(Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), Array.from(posOn), 'and on again is the same drawing');
     s.dispose();
-  } finally { useSettings.getState().set('smoothJoins', was); setSmoothJoins(false); }
+  } finally { setSmoothJoins(false); }
 });
 
 test('a vein narrowing into a thin bed funnels over its whole length: its radius only ever falls toward the join, never swells into a bulb (it rises from the join to its widest and only falls after)', () => {
@@ -338,9 +337,7 @@ test('the centreline is the 2D course with smooth joins on too: snapping only mo
 });
 
 test('one outline rule at every junction: a vein that opens into the cava, and a liver branch that leaves a vein, hold their ink back where they lie inside the other vessel\'s lumen', () => {
-  const was = useSettings.getState().smoothJoins;
   try {
-    useSettings.getState().set('smoothJoins', true);
     const s = new CelScene();
     const bury = (id: string) => (s.vesselObject(id) as unknown as { toon: { uniforms: { bury: { value: { x: number; y: number } } } } }).toon.uniforms.bury.value;
     // (a hepatic vein's end at the cava is a skin's arm too since T3 (spec 10.1: the cava's side-wall junction IVCS): the tube stops at the skin's seam, outside the wall, so nothing is held back; with `?joins=old` it is held back inside the cava)
@@ -359,5 +356,5 @@ test('one outline rule at every junction: a vein that opens into the cava, and a
     assert.equal(bury('RHV_IVC_1~F:b').y, 0, 'a welded hepatic side branch: the tube ends at the skin\'s seam');
     assert.equal(bury('PVH_R_2').x, 0, 'a vein\'s own free end keeps its whole outline');
     s.dispose();
-  } finally { useSettings.getState().set('smoothJoins', was); setSmoothJoins(false); }
+  } finally { setSmoothJoins(false); }
 });

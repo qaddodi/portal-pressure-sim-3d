@@ -236,7 +236,9 @@
 .deck-ui .pz-zveil.on { opacity: 1; pointer-events: auto; transition-duration: var(--d-zoom-in, 520ms); }
 .deck-ui .dk-card[data-zoomable] { cursor: zoom-in; }
 body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
-body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--ease); }
+body[data-card-zoom] .lb-layer:not(.lb-key-layer) { opacity: 0; transition: opacity 240ms var(--ease); }
+.lb-key-layer .lb-key { transition: opacity 240ms var(--ease); }
+body[data-card-zoom] .lb-key-layer .lb-key { opacity: 0; }   /* (the key fades itself: its layer holds glass, deck-fade-blur.test.ts) */
 .dk-card { z-index: 2; }
 .dk-pos { z-index: 2; }
 

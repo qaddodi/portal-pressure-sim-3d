@@ -27,8 +27,9 @@ import { flatOf, growOf } from './grow.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import type { CircuitShared } from './uniforms.ts';
 import { createRouter, route as routeText } from './router.copied.js';
-import { applyEnds, sunkEnd } from './map-ends.ts';
+import { applyEnds, runOnEnd, sunkEnd } from './map-ends.ts';
 import type { ShuntEnd } from '../vessels/shunt-ends.ts';
+import { GLOW_LAYER } from '../glow.ts';
 
 type Edge = { id: string; from: string; to: string; kind: string; shunt?: string; portal?: boolean; d?: number; dMax?: number; label?: string; zone?: string };
 const edges = EDGES as Edge[];
@@ -85,11 +86,26 @@ export function treeHost(lane: string, i: number): { host: string; r: number; di
   }
   return best;
 }
+/** A liver branch whose start lies at the END of another tube carries on from it (the portal venules' tips run on into the sinusoid lanes at x = 800): a run-on, not a side branch. Its outline is held back nowhere (the shader's own rule: "never at a run-on's ring"; bury is for a branch inside its trunk, and a tube that ends there has no wall past its end to show the ink), and both rings run on a hair into each other (the mates). */
+export function treeRunOn(lane: string, i: number): boolean { return treeHost(lane, i)?.runOn === true; }
+/** For each liver branch (`lane#i`), whether its start and its end carry on into another branch's start/end: the rings the vessel shader runs on a hair, so two flat rings that meet exactly leave no light line or ink seam across the lane. */
+export function treeRunOns(): ReadonlyMap<string, readonly [boolean, boolean]> {
+  const out = new Map<string, [boolean, boolean]>();
+  for (const [lane, list] of Object.entries(CIRCUIT_TREES)) list.forEach((_, i) => out.set(`${lane}#${i}`, [false, false]));
+  for (const [lane, list] of Object.entries(CIRCUIT_TREES)) list.forEach((_, i) => {
+    const h = treeRunOn(lane, i) ? treeHost(lane, i) : null;
+    if (!h) return;
+    out.get(`${lane}#${i}`)![0] = true;
+    const prev = out.get(h.host);
+    if (prev) prev[1] = true;
+  });
+  return out;
+}
 /** A liver branch: its start sunk in the tube it leaves, its tip free in the bed. */
 export function treeEnds(lane: string, i: number): MapEnds | null {
   const own = treeOwn(lane, i), h = treeHost(lane, i);
   if (!h || !(own > 0)) return null;
-  return { ends: [h.runOn ? { ...sunkEnd(h.r), flare: false } : sunkEnd(h.r), null], own };
+  return { ends: [h.runOn ? runOnEnd(h.r) : sunkEnd(h.r), null], own };
 }
 /** What a node of the map is for a tube that ends at it: the widest permanent vessel there; a station of no vessel (the varices' VAR and GV) takes the tube's own caliber, so its end still sinks and flares there. */
 const hostAt = (node: string, own: number): ShuntEnd => sunkEnd(trunkRadius(node) || own);
@@ -128,7 +144,7 @@ function bodyPoints(d: string, n: number): Vector3[] {
 }
 
 export type TubeKind = 'tree' | 'caud' | 'custom';
-interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
+interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt's body course (scene points) and tube radius, for the finger's reach on the body */ body?: { pts: Vector3[]; radius: number }; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
 
 export interface TubesContext {
   /** the map's ramp of the change (0 the body, 1 the map) */
@@ -151,6 +167,9 @@ export function treeCircW(hostKind: 0 | 1 | 2, hostBaseD: number, fine: number, 
   return [host * k, hostKind === 1 ? 0 : 1, CIRC_BRANCH_MIN, MIN_PX.branch];
 }
 
+let runOnsMemo: ReadonlyMap<string, readonly [boolean, boolean]> | null = null;
+const RUN_ONS = { get(id: string) { return (runOnsMemo ??= treeRunOns()).get(id); } };
+
 export class CircuitTubes {
   readonly group = new Group();
   private readonly entries: Entry[] = [];
@@ -167,7 +186,7 @@ export class CircuitTubes {
     for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
       const parent = NETWORK_BY_ID.get(id);
       if (!parent) continue;
-      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1], undefined, buryOf(mapRadius(parent) * parentShare(list, i), 0), treeEnds(id, i) ?? undefined));
+      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1], undefined, buryOf(treeRunOn(id, i) ? 0 : mapRadius(parent) * parentShare(list, i), 0), treeEnds(id, i) ?? undefined));
     }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
@@ -178,11 +197,11 @@ export class CircuitTubes {
   /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
   private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys' | 'artery', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number], host?: string, bury?: readonly [number, number], mapEnds?: MapEnds): Entry {
     const mapPts = scenePoints(dense);
-    let built, courseLens: readonly [number, number] | undefined;
+    let built, courseLens: readonly [number, number] | undefined, bodyPts: Vector3[] | undefined;
     if (body) {
       const curveC = mapCurve(dense), lenC = curveC.getLength();
       // as many slices as the map course's rounded corners need (geometry.ts slicesFor: 24 to a scene unit of the longer course)
-      const apts = bodyPoints(body, Math.max(12, Math.min(600, Math.ceil(lenC * 24))));
+      const apts = (bodyPts = bodyPoints(body, Math.max(12, Math.min(600, Math.ceil(lenC * 24)))));
       built = buildTube(apts, radius, true, Math.min(360, Math.max(16, Math.ceil(lenC * 24))));
       if (mapEnds) applyEnds(built.geometry, built.curve, built.tubular, built.radial, mapEnds.ends, mapEnds.own, lenC);
       attachCircuit(built, { curveA: built.curve, curveC, lenA: built.length, lenC } as never, radius);
@@ -199,24 +218,43 @@ export class CircuitTubes {
       vessel: { index: indexOf(edge), len: built.length, stubSpeed: markSpeed(1), radius, baseD },
     }, shared, lens, blood, circuit);
     if (bury) o.setBury(bury[0], bury[1]);
+    // (tree lanes that run on into one another: the hair of overlap and nothing else, a width-1 mate of the bed kind swells nothing)
+    const ro = kind === 'tree' ? RUN_ONS.get(id) : undefined;
+    if (ro) { const m = { index: indexOf(edge), baseD, widthKind: 2 }; o.setMates(ro[0] ? m : null, ro[1] ? m : null); }
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
     if (kind === 'tree') { const a = built.curve.getPointAt(0); o.setStretchAnchors(a, a); }
     // drawn over the organs with the rest of the figure's vessels (scene.ts VESSEL_LAYER)
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
+    o.glowMesh?.layers.set(GLOW_LAYER);   // (the glow's mask has its own pass: glow-fx.ts; left on the vessels' layer it would draw as a solid tube when lit)
     if (this.palette) o.applyPalette(this.palette);
     o.setPhone(this.phone);
     o.setUseData(this.useData);
     this.group.add(o.group);
-    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens };
+    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens, ...(bodyPts ? { body: { pts: bodyPts, radius } } : {}) };
     this.entries.push(e);
+    if (kind === 'custom') this.watch.add?.(o);   // (the scene makes it pickable and lights it like every other vessel, highlight.ts register)
     return e;
   }
 
   applyPalette(p: Palette): void { this.palette = p; for (const e of this.entries) e.obj.applyPalette(p); }
   setPhone(phone: boolean): void { this.phone = phone; for (const e of this.entries) e.obj.setPhone(phone); }
   setUseData(on: boolean): void { this.useData = on; for (const e of this.entries) e.obj.setUseData(on); }
+
+  /** Who is told when a custom shunt's tube is made and when it is let go (the scene's highlight and pick lists: a tube made after the figure was built is a vessel like any other). */
+  readonly watch: { add?: (o: VesselObject) => void; drop?: (o: VesselObject) => void } = {};
+
+  /** Whether `id` is a custom shunt a learner can open (the pick may name it before its tube is routed). */
+  isCustom(id: string): boolean { return CUSTOM_EDGES.some((c) => c[0] === id); }
+
+  /** The custom shunts' tubes that can take a tap now: standing (open, not easing out), at least half in. */
+  pickable(): VesselObject[] { return this.entries.filter((e) => e.kind === 'custom' && !e.dead && e.goal === 1 && e.amount >= 0.5).map((e) => e.obj); }
+
+  /** The custom shunts as laid on the body (scene points, tube radius) and on the map (its routed course), for the finger's reach; only those standing now. */
+  pickCourses(): { id: string; body: { pts: Vector3[]; radius: number } | null; map: readonly [number, number][] | null }[] {
+    return this.entries.filter((e) => e.kind === 'custom' && !e.dead && e.goal === 1 && e.amount >= 0.5).map((e) => ({ id: e.id, body: e.body ?? null, map: this.routed.get(e.id) ?? null }));
+  }
 
   /** The routed course (map units) of a custom shunt, or null when none could be made. Kept: a shunt keeps its course while it is open, and nothing else on the map moves when another opens. */
   routeOf(id: string): readonly [number, number][] | null { return this.routed.get(id) ?? null; }
@@ -256,7 +294,7 @@ export class CircuitTubes {
     for (let i = this.entries.length - 1; i >= 0; i--) {
       const gone = this.entries[i]!;
       // a closed shunt's tube, once it has eased out and its route is forgotten (or a newer one stands for it), is let go
-      if (gone.kind === 'custom' && gone.amount === 0 && (gone.dead || !this.routed.has(gone.id))) { this.group.remove(gone.obj.group); gone.obj.dispose(); this.entries.splice(i, 1); }
+      if (gone.kind === 'custom' && gone.amount === 0 && (gone.dead || !this.routed.has(gone.id))) { if (gone.kind === 'custom') this.watch.drop?.(gone.obj); this.group.remove(gone.obj.group); gone.obj.dispose(); this.entries.splice(i, 1); }
     }
     for (const e of this.entries) {
       // (a liver branch is the map's alone and follows the change itself, so it draws back along its flow when the body returns, not a moment after the camera turns)

@@ -2,6 +2,7 @@
 // arm's own tube has at its seam ring. These are the JS twins of the tube's vertex stage (vessels/shaders.ts: `fa`, `vHi`) and of the lens span mapping (`lensOf`), read from the tube's own uniforms, so the two never disagree. Pure:
 // they read plain numbers, never a three.js object, so a node test pins them.
 
+import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { TUBE_SAG } from '../shaders.ts';
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
@@ -21,6 +22,11 @@ export interface FadeState {
   stumpCut: number;
   /** the vessel's length in scene units (`len`) and the figure's units in a scene unit (300) */
   len: number; units: number;
+}
+
+/** An arm's route distance from the balloon's distal edge at its seam (wedge-glsl.ts: the tube's own line `d0 + slope u`), or WEDGE_ABSENT when its tube carries no wedge. The skin blends these by its arms' weights, so the amber is one field through the join. */
+export function wedgeSeamD(wedge: { x: number }, wedgeD: { x: number; y: number }, u: number): number {
+  return wedge.x > 0.001 ? wedgeD.x + wedgeD.y * u : WEDGE_ABSENT;
 }
 
 /** The vertex stage's `fa` (the vFade a tube carries) at `u` along the vessel, for a point at scene (x, y), at rest on the body (no Circuit: the skin crossfades with the map on its own). */

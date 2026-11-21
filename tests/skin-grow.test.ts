@@ -1,21 +1,21 @@
-// Junction skins, growing arms (docs/junction-skin-spec.md 10.2, 10.6, 10.7; Mohammad, 20 Nov: "weld the collaterals, TIPS and DIPS to the vessels they come off, as one mesh, and ease it while they grow"). A collateral or a shunt comes and goes. It is an arm of the skin at its
-// node like any other, but the skin carries a SECOND SHAPE for it (mesh.ts GrowMorph: the same triangles with that arm at radius 0) and the live growth eases between the two, so the mouth on the trunk opens as the vessel draws on and the trunk is a plain trunk when it is
-// closed. Root cause this answers: a collateral landing on a vein was its own tube overlapping the vein's (the fork method, `nbr`/`bury`), with no surface joining them; and a surface that is only there part of the time cannot be one mesh unless the mesh itself grows.
+// Junction skins, growing arms (docs/junction-skin-spec.md 10.2, 10.6, 10.7; FINAL-WELD-PLAN.md option A, "Grow, then weld"). A collateral or a shunt comes and goes. It is an arm of the skin at its node like any other, and the skin is ONE STATIC SHAPE with it at full size:
+// nothing is morphed (the growth morph, a linear lerp between a closed and an open shape along a curved path, was the cause of the folds at growth 0.2 to 0.4). While the arm grows its end is the tube's own (flared) end and a plain static skin of the arms that stay
+// draws the junction; from growth 0.9 to 1 the welded skin comes in over the tube's cut end by the tubes' own screen dither (plain.ts weldOf, skin-set.ts sync), the plain trunk goes out on the complementary pixels.
 // Node only: the real network, the real scene's tubes, no browser. Run: node --test tests/skin-grow.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
+import { JOINT_REACH_R } from '../src/scene/vessels/network.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { GROW_REACH, GROWER_KINDS, dropFarGrowers, findSkinJunctions, isGrower, isPermanent, isLiverBranch, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
-import { SkinSet, axisOf } from '../src/scene/vessels/skin/skin-set.ts';
+import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
-import { SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
-import { armPresenceAt, grownLumen, grownShift, grownValue, normalShift } from '../src/scene/vessels/skin/arm-twins.ts';
-import { closestOnArm, sdUnion, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
+import { armPresenceAt } from '../src/scene/vessels/skin/arm-twins.ts';
+import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
+import { weldOf } from '../src/scene/vessels/skin/plain.ts';
 import { SKIN_GROWERS, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
-import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
@@ -26,19 +26,24 @@ const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(t
 const GROWERS: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
   IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
-  // (the braids' roots where the strands leave the node as one bundle, braid-arm.ts, tests/skin-strands.test.ts)
+  // (the braids' roots where the strands leave the node as one bundle: ONE stand-in arm, braid-arm.ts, tests/skin-strands.test.ts)
   SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
 /** The collaterals drawn as BRAIDS of strands (plan.strands): no tube of their own, three or six strands that part from the node and each end at the trunk's width, so at the node they are a bundle of identical overlapping tubes, not a branch. The ends where the strands leave the node as ONE bundle are arms of its skin (braid-arm.ts); the others keep today's fork method (tests/skin-strands.test.ts names both). */
 const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
-/** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: PVH's DIPS lies 12 degrees from PVH_R, SVD's S_DSR and LRV_S's S_DSR run along C6). */
-// (RHV_T:TIPS: the hepatic vein's run-on RHV_T lies on the piece RHV_IVC that the cava's IVCS skin takes 15 of 20 rings of, so the two skins crowd; they cannot merge (the hull refuses the seven rings), and the cava's weld is the one kept (Mohammad, 20 Nov: "did you weld the hepatic veins into the IVC?"). TIPS keeps the fork method at that end.)
-// (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
-// (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as PVH's DIPS and the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
+/** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: SVD's S_DSR and LRV_S's S_DSR run along C6). */
+// (21 Nov 2026: SVD:S_DSR and LRV_S:S_DSR now build as static full-size arms (RHV_T:TIPS builds too: the merged skin RHV_T+IVCS keeps the surface rung through the merge, cuts.ts planSkins). The skin set tries a failed growing arm from the surface before it drops it (skin-set.ts produce), a small hole of the sheet at no seam is fanned shut (sheet-caps.ts),
+//  and a plain trunk whose seams were placed with no hull falls to the surface rung when its hull misses (mesh.ts buildSkinSteady): the cava's merged skin RHV_T+IVCS had no plain trunk for that reason. tests/skin-shunts.test.ts pins the three.)
+// (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch.)
+// (IMV:C4 the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
-const DROPPED = ['EPI:C3', 'IMV:C4', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
-  'wall:AZY_SVC:C9', 'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:C9', 'wall:IVC_IS_1:S_PC1:S_PC', 'wall:PVH_L_1:REX1:REX'];
+// (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside GROW_REACH (2.4), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS is welded too: it lies 12 degrees from PVH_R, so no ring of that short stub clears its blend, and the arms that stay are judged without it (cuts.ts growAlong).)
+const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'RHV_T:TIPS',
+  'wall:PVH_L_1:REX1:REX'];
+// (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
+/** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
+const PLAIN_FAILED = ['LPV_A'];
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
 test('the growing arms are the single-tube collaterals and shunts, pinned by node; the braided collaterals are not arms; at most two per skin, after the permanent arms, widest first', () => {
@@ -54,7 +59,7 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
       for (let i = 1; i < g.length; i++) assert.ok(g[i - 1]!.restR >= g[i]!.restR, `${j.node}: growing arms widest first`);
       for (const a of j.arms) {
         const v = NETWORK_BY_ID.get(a.vesselId)!;
-        if (a.grow) assert.ok((isGrower(v) || BRAIDS.includes(v.id)) && GROWER_KINDS.has(v.kind) && !isPermanent(v), `${a.vesselId} is a growing arm (a one-tube grower or a braid's bundle root)`);
+        if (a.grow) assert.ok((isGrower(v) || BRAIDS.includes(v.id)) && GROWER_KINDS.has(v.kind) && !isPermanent(v), `${a.vesselId} is a growing arm (a one-tube grower)`);
         else assert.ok(isPermanent(v) || isLiverBranch(v), `${a.vesselId} is a permanent arm (or a liver branch that leaves its host at the node)`);
       }
       // J is the widest PERMANENT arm's end, whatever the growing arms are
@@ -96,194 +101,152 @@ const done = (b: { scene: CelScene; was: boolean }) => { b.scene.dispose(); setS
 const nodeOf = (d: SkinObject) => d.mesh.name.replace('skin:', '');
 const meshOf = (b: { set: SkinSet }, d: SkinObject): SkinMesh => b.set.skinOf(nodeOf(d))!;
 
-test('the real network builds the growing arms it can, names the ones it cannot, loses no skin it had before, and warns of nothing', () => {
+
+// ---- static full-size skins ----
+const drawOf = (b: ReturnType<typeof built>, node: string): SkinObject => b.draws.findLast((d) => nodeOf(d) === node)!;
+const nodeOfMesh = (m: SkinMesh): string => m.junction.node;
+
+test('the real network builds the growing arms it can as STATIC full-size arms, names the ones it cannot (they keep the tube\'s own flared end), loses no skin it had before, and warns of nothing', () => {
   const b = built();
   try {
     assert.deepEqual(b.warnings, [], 'no skin falls back');
-    assert.deepEqual([...b.set.fellBack].sort(), [], 'no node keeps the old join: the liver beds are welded since the hepatic arteries run on to them (starts.ts alongVein)');
+    assert.deepEqual([...b.set.fellBack].sort(), [], 'no node keeps the old join');
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
-    const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).grow.map((m) => armKey(meshOf(b, d).junction.arms[m.arm]!))]));
+    for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
+    assert.match(b.set.why['LRV_S:S_DSR'] ?? '', /seam loops/, 'LRV_S:S_DSR stays flared, named with the reason');
+    const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
+    for (const d of b.draws) assert.equal(meshOf(b, d).grow.length, 0, `${nodeOf(d)}: no growth morph, the skin is one static shape`);
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
-    // (the landings on a host's wall that build, wall.ts: S_MC and C3 land within 2.6 radii of a node's centre and are arms of that node's skin, the azygos C1b has a node of its own)
-    want.IVCI = ['S_MC:1']; want.LPV_A = ['C3:0']; want['wall:AZY_SVC:C1b1'] = ['C1b:1'];
+    // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
+    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1']; want['wall:IVC_IS_1:S_PC1,C90'] = ['S_PC:1', 'C9:0'];   // (S_PC and C9 land 5.9 and 8.9 radii up the cava from IVCI: their wall node and IVCI's skin abut on one seam ring, cuts.ts)
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
-    // the skins of the permanent junctions are all still there (the SVC's two are one: their seams were under 1.5 radii apart, cuts.ts MIN_STUB_R)
-    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
+    assert.deepEqual(grown.get('IVC_D'), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');
+    assert.deepEqual(grown.get('PVH'), ['DIPS:0'], 'PVH: DIPS is a static full-size growing arm of its node, welded though it runs 12 degrees from PVH_R');
+    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
   } finally { done(b); }
 });
 
-// ---- the second shape ----
-const RADIAL = TUBE_RADIAL;
-const capsOf = (ax: readonly ArmAxis[]): Capsule[] => ax.map((a) => ({ n: 4, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate }));
-const eachGrower = (b: ReturnType<typeof built>, f: (d: SkinObject, m: SkinMesh, g: SkinMesh['grow'][number], caps: Capsule[]) => void): number => {
-  let n = 0;
-  for (const d of b.draws) { const m = meshOf(b, d); for (const g of m.grow) { f(d, m, g, capsOf(b.axes.get(d)!)); n++; } }
-  return n;
-};
-
-test('morph, seam: at growth 1 the arm\'s seam ring is exactly the tube\'s ring; at 0 it lies on the plain trunk; the other arms\' seam rings never move (the growth leaves their vertices, normals, weights alone)', () => {
+test('the welded skin is the arms\' union at full size and the plain trunk is the arms that stay: same seam rings, three or more arms, meshed from the surface, no growing arm in it', () => {
   const b = built();
   try {
-    const cp = new Float64Array(7);
-    const n = eachGrower(b, (d, m, g, caps) => {
-      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), k = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
-      for (const sv of m.seamVerts[g.arm]!) {
-        for (let q = 0; q < 3; q++) assert.equal(grownValue(m.position[3 * sv + q]!, g.dPos[3 * sv + q]!, 1), m.position[3 * sv + q]);
-        const x = grownValue(m.position[3 * sv]!, g.dPos[3 * sv]!, 0), y = grownValue(m.position[3 * sv + 1]!, g.dPos[3 * sv + 1]!, 0), z = grownValue(m.position[3 * sv + 2]!, g.dPos[3 * sv + 2]!, 0);
-        assert.ok(Math.abs(sdUnion(others, k, x, y, z)) <= 0.05 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId}: the closed ring is on the trunk (${(sdUnion(others, k, x, y, z) / Rmin).toFixed(3)} R off)`);
+    let n = 0;
+    for (const d of b.draws) {
+      const m = meshOf(b, d), node = nodeOf(d), grow = m.junction.arms.filter((a) => a.grow).length, stay = m.junction.arms.length - grow, plain = b.set.plainOf(node);
+      if (!grow) { assert.equal(plain, undefined, `${node}: no growing arm, no plain trunk`); continue; }
+      if (stay < 3) { assert.equal(plain, undefined, `${node}: a run-on pair has no junction of its own: the tubes' cut ends carry the weld`); continue; }
+      if (PLAIN_FAILED.includes(node)) { assert.equal(plain, undefined, `${node}: its plain trunk does not build, the welded skin comes in over the tubes' cut ends alone`); continue; }
+      assert.ok(plain, `${node}: a plain trunk of the ${stay} arms that stay`); n++;
+      assert.equal(plain!.junction.arms.length, stay);
+      assert.ok(plain!.junction.arms.every((a) => !a.grow));
+      for (const a of plain!.junction.arms) {
+        const i = m.junction.arms.findIndex((x) => x.vesselId === a.vesselId && x.end === a.end), k = plain!.junction.arms.indexOf(a);
+        assert.ok(i >= 0);
+        assert.deepEqual(plain!.cuts[k], m.cuts[i], `${node}: ${a.vesselId} is cut at the same seam in both skins`);
       }
-      void cp;
-      arms.forEach((a, ai) => { if (ai === g.arm) return; for (const sv of m.seamVerts[ai]!) {
-        for (let q = 0; q < 3; q++) { assert.equal(g.dPos[3 * sv + q], 0, `${nodeOf(d)}: ${a.vesselId}'s ring is the tube's and never moves`); assert.ok(Math.abs(g.dNor[3 * sv + q]!) < 1e-6); }
-        for (let q = 0; q < 4; q++) assert.ok(Math.abs(g.dWeight[4 * sv + q]!) < 1e-6);
-      } });
-    });
-    assert.ok(n >= 7, `${n} growing arms checked`);
-  } finally { done(b); }
-});
-
-test('morph, closed: EVERY vertex of the closed shape is on the plain trunk (the union of the other arms, same blend) within 0.05 of the narrowest radius: no thread, no cone, nothing standing off the trunk (the "thorns" on the SMV, 20 Nov); its normals are unit, its weights sum to 1 with none on the arm', () => {
-  const b = built();
-  try {
-    const n = eachGrower(b, (d, m, g, caps) => {
-      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), k = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
-      const V = m.position.length / 3;
-      let worst = 0;
-      for (let v = 0; v < V; v++) {
-        const x = m.position[3 * v]! - g.dPos[3 * v]!, y = m.position[3 * v + 1]! - g.dPos[3 * v + 1]!, z = m.position[3 * v + 2]! - g.dPos[3 * v + 2]!;
-        assert.ok(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z), 'finite');
-        const nx = m.normal[3 * v]! - g.dNor[3 * v]!, ny = m.normal[3 * v + 1]! - g.dNor[3 * v + 1]!, nz = m.normal[3 * v + 2]! - g.dNor[3 * v + 2]!;
-        assert.ok(Math.abs(Math.hypot(nx, ny, nz) - 1) < 0.02, `${nodeOf(d)} vertex ${v}: the closed normal is a unit one (${Math.hypot(nx, ny, nz).toFixed(3)})`);
-        let ws = 0;
-        for (let q = 0; q < 4; q++) { const w = m.weight[4 * v + q]! - g.dWeight[4 * v + q]!; assert.ok(w > -1e-5); ws += w; }
-        for (let q = 0; q < 2; q++) { const w = m.weight2[2 * v + q]! - g.dWeight2[2 * v + q]!; assert.ok(w > -1e-5); ws += w; }
-        assert.ok(Math.abs(ws - 1) < 1e-4, `${nodeOf(d)} vertex ${v}: the weights of the closed shape sum to 1 (${ws})`);
-        const wg = g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!;
-        assert.ok(Math.abs(wg) < 1e-5, `${nodeOf(d)} vertex ${v}: the closed shape has no weight of the arm that is not there (${wg})`);
-        const own = v < arms.length * RADIAL ? Math.floor(v / RADIAL) : -1;   // (another arm's seam ring is that tube's own vertex, never moved: a curved or tapering host tube is not its capsule, so the ring is judged by the seam tests, not here)
-        const off = own >= 0 && own !== g.arm ? 0 : Math.abs(sdUnion(others, k, x, y, z)) / Rmin;
-        worst = Math.max(worst, off);
-        assert.ok(off <= 0.05, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${off.toFixed(3)} R off the plain trunk`);
-      }
-      assert.ok(worst >= 0, 'judged');
-    });
-    assert.ok(n >= 7);
-  } finally { done(b); }
-});
-
-test('morph, in between: nothing jumps (a vertex moves by delta x the growth, so a step of the growth moves it by at most the step of delta), and the whole shape at g = 1 is the mesh exactly', () => {
-  const b = built();
-  try {
-    eachGrower(b, (d, m, g) => {
-      const V = m.position.length / 3;
-      let maxDelta = 0;
-      for (let v = 0; v < V; v++) { maxDelta = Math.max(maxDelta, Math.hypot(g.dPos[3 * v]!, g.dPos[3 * v + 1]!, g.dPos[3 * v + 2]!)); for (let k = 0; k < 3; k++) assert.equal(grownValue(m.position[3 * v + k]!, g.dPos[3 * v + k]!, 1), m.position[3 * v + k]); }
-      const R = m.junction.arms[g.arm]!.restR;
-      assert.ok(maxDelta <= 4 * R, `${nodeOf(d)}: a vertex travels ${(maxDelta / R).toFixed(2)} radii between closed and whole`);
-      // the bud in between is a surface, not a tangle: at a quarter, half and three quarters of the growth, no more than one face in twelve is turned against its own vertex normals (the full skin has none: the build refuses a fold; the bud is drawn double sided and shaded by its vertex normals, so a few thin faces at the start of the growth show nothing)
-      for (const gr of [0.25, 0.5, 0.75]) {
-        const P = (v: number, k: number) => grownValue(m.position[3 * v + k]!, g.dPos[3 * v + k]!, gr), N = (v: number, k: number) => grownValue(m.normal[3 * v + k]!, g.dNor[3 * v + k]!, gr);
-        let flipped = 0; const T = m.index.length / 3;
-        for (let t = 0; t < T; t++) {
-          const a = m.index[3 * t]!, b2 = m.index[3 * t + 1]!, c = m.index[3 * t + 2]!;
-          const u = [0, 1, 2].map((k) => P(b2, k) - P(a, k)), w = [0, 1, 2].map((k) => P(c, k) - P(a, k));
-          const f = [u[1]! * w[2]! - u[2]! * w[1]!, u[2]! * w[0]! - u[0]! * w[2]!, u[0]! * w[1]! - u[1]! * w[0]!];
-          let dot = 0; for (const v of [a, b2, c]) dot += f[0]! * N(v, 0) + f[1]! * N(v, 1) + f[2]! * N(v, 2);
-          if (dot < 0) flipped++;
-        }
-        assert.ok(flipped <= T / 12, `${nodeOf(d)}: ${flipped} of ${T} faces turned at growth ${gr}`);
-      }
-      let prev = Infinity;
-      for (let s = 0; s <= 20; s++) {
-        const gr = s / 20; let step = 0;
-        for (let v = 0; v < V; v++) step = Math.max(step, Math.abs(grownValue(0, g.dPos[3 * v]!, gr) - grownValue(0, g.dPos[3 * v]!, Math.max(0, gr - 0.05))));
-        assert.ok(step <= 0.05 * maxDelta + 1e-9, 'a twentieth of the growth moves a vertex a twentieth of its way at most');
-        prev = step;
-      }
-      void prev;
-    });
-  } finally { done(b); }
-});
-
-test('the vertex stage\'s widths (the JS twin): at the seam, the skin\'s ring at growth g and width s is the tube\'s ring at width g x s, for every g and s, ink included', () => {
-  for (const R of [0.0194, 0.029]) for (const s of [0.6, 1, 1.4]) for (const g of [0, 0.1, 0.5, 1]) {
-    const ink = 0.0012;
-    // the tube's ring at width share g x s: centre + n (R + R (gs - 1) + ink + (R gs + ink) SAG); the skin's: centre + n (g R) + n (R (shift - 1) + ink + (lumen R + ink) SAG)
-    const tube = R + normalShift(R, g * s, 1, ink, 0);
-    const skin = g * R + normalShift(R, grownShift(s, g), 1, ink, 0) + (R * grownLumen(s, g) - R * grownShift(s, g)) * 0.0 /* (the lumen term below) */;
-    // normalShift uses `swell` for both the radius shift and the polygon sag; the skin's vertex stage uses the SHIFT for the first and the LUMEN for the sag: rebuilt here as the shader writes it
-    const shader = g * R + (R * (grownShift(s, g) - 1) + ink + (R * grownLumen(s, g) + ink) * (normalShift(0, 1, 1, 0, 0) /* 0 */ + sagOf()));
-    assert.ok(Math.abs(tube - shader) < 1e-12, `R ${R} s ${s} g ${g}: ${tube} vs ${shader}`);
-    void skin;
-  }
-  assert.equal(grownLumen(1.3, 1), 1.3); assert.equal(grownShift(1.3, 1), 1.3);
-  assert.equal(grownLumen(1.3, 0), 0); assert.equal(grownShift(1.3, 0), 1);
-  // the GLSL says the same
-  assert.match(SKIN_VS, /swT\[i\] = sw \* gi; swE\[i\] = 1\.0 \+ gi \* \(sw - 1\.0\);/);
-  assert.match(SKIN_VS, /vec3 p = pos \+ nor \* \(inflate \+ rst \* \(swellE - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\)/);
-  assert.match(SKIN_VS, /float lumenW = rst \* swell;/);
-  assert.match(SKIN_VS, /pos -= q \* gPosA0\.xyz; rst -= q \* gPosA0\.w; nor -= q \* gNorA0; wA -= q \* gWtA0; wB -= q \* gWt2A0;/);
-  assert.match(SKIN_VS, /float q = 1\.0 - growG\.y;/, 'the second growing arm too');
-  assert.match(SKIN_VS, /vSwell = vec4\(swT\[0\], swT\[1\], swT\[2\], swT\[3\]\);/, 'the outline\'s capsule is the LUMEN: it shrinks with the growth');
-});
-/** The tube's polygon sag, TUBE_SAG, as the vertex stage adds it. */
-import { TUBE_SAG } from '../src/scene/vessels/shaders.ts';
-const sagOf = (): number => TUBE_SAG;
-
-// ---- the live handover ----
-const seamU = (b: ReturnType<typeof built>, d: SkinObject, vessel: string): number => { const m = meshOf(b, d); return m.cuts[m.junction.arms.findIndex((a) => a.vesselId === vessel)]!.u; };
-const meshOf2 = (b: { set: SkinSet }, node: string): SkinMesh => b.set.skinOf(node)!;
-const drawOf = (b: ReturnType<typeof built>, node: string): SkinObject => b.draws.findLast((d) => nodeOf(d) === node)!;
-const armIndex = (b: ReturnType<typeof built>, d: SkinObject, vessel: string): number => b.set.armIdsOf(d).indexOf(vessel);
-
-test('the growth follows the vessel\'s own draw-on at the seam: 0 hidden, 0 until the front reaches the seam, 1 whole, eased between (the tube\'s frontOut), never a jump; the trunk\'s own presence is untouched', () => {
-  const b = built();
-  try {
-    const spc = b.scene.vesselObject('S_PC') as VesselObject, d = drawOf(b, 'CONF'), i = armIndex(b, d, 'S_PC'), u = seamU(b, d, 'S_PC');
-    assert.ok(d.grows(i) && i >= 3, 'S_PC is a growing arm of CONF, after the three portal pieces');
-    assert.ok(u < 0.4, `S_PC starts at CONF, so its seam is near its start (u ${u.toFixed(2)})`);
-    spc.group.visible = false;
-    b.set.sync();
-    assert.equal(d.growOf(i), 0, 'hidden: the trunk is a plain trunk');
-    spc.group.visible = true; spc.setReveal(0);
-    b.set.sync();
-    assert.equal(d.growOf(i), 0, 'drawing on: the front is at the start');
-    let last = 0, biggest = 0;
-    for (let s = 1; s <= 200; s++) {
-      spc.setReveal(s / 200);
-      b.set.sync();
-      const g = d.growOf(i);
-      assert.ok(Math.abs(g - armPresenceAt(true, s / 200, 1, u)) < 1e-12, 'the twin of the tube\'s dissolve front');
-      assert.ok(g >= last - 1e-12, 'growing never shrinks while the vessel draws on');
-      biggest = Math.max(biggest, g - last); last = g;
     }
-    assert.equal(last, 1, 'whole');
-    assert.ok(biggest < 0.12, `the biggest step of 200 is ${biggest.toFixed(3)}: it eases`);
-    spc.setReveal(u / 2); b.set.sync();   // (retracting to before the seam: the same curve backwards)
-    assert.ok(d.growOf(i) < 1);
-    // the trunk arms are never dithered by it, and never read as grown
-    for (let k = 0; k < 3; k++) assert.ok(!d.grows(k));
-    // a vessel the dive fades eases the growth with it
-    spc.setReveal(1); spc.setFade(0.5); b.set.sync();
-    assert.ok(Math.abs(d.growOf(i) - 0.5) < 1e-9);
+    assert.ok(n >= 3, `${n} nodes have a plain trunk`);
   } finally { done(b); }
 });
 
-test('a dotted thread (a closed potential collateral) is not a grown arm: growth 0 however far it is drawn, and its tube is never cut by the skin; hidden, it counts 0 too', () => {
+test('IMV builds with the varices\' bundle C4 as a growing arm 25 degrees from V_COL: no fold, watertight (every edge on two faces that run opposite ways), seamed to all three tubes', () => {
   const b = built();
   try {
-    const o = b.scene.vesselObject('S_PC') as VesselObject, d = drawOf(b, 'CONF'), i = armIndex(b, d, 'S_PC');
+    assert.ok(!b.set.dropped.includes('IMV:C4'), 'C4 is not dropped at IMV');
+    const m = b.set.skinOf('IMV')!;
+    assert.deepEqual(m.junction.arms.map(armKey), ['V_IMV:0', 'V_COL:1', 'C4:0'].map((k) => k), 'IMV: its two permanent arms, then the bundle');
+    assert.ok(m.junction.arms[2]!.grow);
+    assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, 'no fold');
+    const dir = new Map<number, number>();
+    for (let i = 0; i < m.index.length; i += 3) for (let s = 0; s < 3; s++) {
+      const a = m.index[i + s]!, c = m.index[i + (s + 1) % 3]!;
+      dir.set(a * 1e7 + c, (dir.get(a * 1e7 + c) ?? 0) + 1);
+    }
+    const seam = new Set<number>(m.seamVerts.flatMap((ids) => [...new Set(ids)]));   // (the open skin ends at the seam rings: a ring edge is on one face, every other edge on two)
+    let open = 0;
+    for (const [k, v] of dir) { const a = Math.floor(k / 1e7), c = k % 1e7; assert.equal(v, 1, `edge ${a}-${c} on one face this way`); if (seam.has(a) && seam.has(c) && !dir.has(c * 1e7 + a)) open++; else assert.equal(dir.get(c * 1e7 + a), 1, `edge ${a}-${c} has its mate`); }
+    assert.equal(open, 3 * 14, 'the three seam rings are the only open edges');
+    for (const ids of m.seamVerts) assert.ok(ids.length >= 14);
+  } finally { done(b); }
+});
+
+test('every static full-size skin has 0 folds: no triangle that counts is turned against its own vertex normals, the welded skins with their growing arms whole and the plain trunks', () => {
+  const b = built();
+  try {
+    let n = 0;
+    for (const d of b.draws) {
+      for (const m of [meshOf(b, d), b.set.plainOf(nodeOf(d))]) {
+        if (!m) continue;
+        const folds = foldedTriangles(m.position, m.normal, m.index);
+        assert.equal(folds.length, 0, `${nodeOfMesh(m)}: ${folds.length} folded triangles`);
+        n++;
+      }
+    }
+    assert.ok(n >= 20, `${n} skins checked`);
+  } finally { done(b); }
+});
+
+test('the weld follows the growing arm\'s own draw-on: 0 while it grows (the flared tube alone), the skin comes in from growth 0.9 to 1 by smoothstep, and never jumps; the trunk\'s presence is untouched', () => {
+  const b = built();
+  try {
+    const spc = b.scene.vesselObject('S_PC') as VesselObject, u = b.set.skinOf('CONF')!.cuts[b.set.skinOf('CONF')!.junction.arms.findIndex((a) => a.vesselId === 'S_PC')]!.u;
+    spc.group.visible = false; b.set.sync();
+    assert.equal(b.set.weldOf('CONF'), 0, 'hidden: the tubes alone, the plain trunk');
+    spc.group.visible = true; spc.setReveal(0); b.set.sync();
+    assert.equal(b.set.weldOf('CONF'), 0);
+    let last = 0, biggest = 0, firstOn = -1;
+    for (let s = 1; s <= 400; s++) {
+      spc.setReveal(s / 400); b.set.sync();
+      const w = b.set.weldOf('CONF'), g = armPresenceAt(true, s / 400, 1, u);
+      assert.ok(Math.abs(w - weldOf(g)) < 1e-12, 'the weld is the smoothstep of the arm\'s presence');
+      if (g < 0.9) assert.equal(w, 0, 'under 0.9 the skin is not drawn');
+      if (w > 0 && firstOn < 0) firstOn = g;
+      assert.ok(w >= last - 1e-12); biggest = Math.max(biggest, w - last); last = w;
+    }
+    assert.equal(last, 1, 'whole: the welded skin, the tube\'s cut whole');
+    assert.ok(biggest < 0.5, `the biggest step of 400 is ${biggest.toFixed(3)}`);   // (the arm's presence itself steps by up to a fifth a frame at the seam, and the weld is steeper than it: 1.5 per unit)
+    assert.ok(firstOn >= 0.9, `the skin starts at growth ${firstOn.toFixed(3)}`);
+    assert.equal(weldOf(0.9), 0); assert.equal(weldOf(1), 1); assert.equal(weldOf(0), 0);
+    // the draws: the welded skin keeps the pixels under the weld, the plain trunk the rest, the tube's cut end the pixels neither draws
+    const [bm, bw] = b.draws.findLast((d) => nodeOf(d) === 'CONF')!.weldOf();
+    assert.equal(bm, 1); assert.equal(bw, 1);
+    const plain = b.set.plainDraws().filter((p) => (p as SkinObject).mesh.name === 'skin:CONF~plain')[0] as SkinObject | undefined;
+    assert.ok(plain, 'CONF has a plain trunk'); assert.deepEqual(plain!.weldOf(), [-1, 1]);
+    spc.setReveal(1); spc.setFade(0.5); b.set.sync();
+    assert.equal(b.set.weldOf('CONF'), 0, 'a vessel the dive fades takes its weld with it');
+    assert.equal(spc.skinWeld(0) + spc.skinWeld(1) >= 0, true);
+  } finally { done(b); }
+});
+
+test('a dotted thread (a closed potential collateral) is never welded: weld 0 however far it is drawn, and its tube is never cut by the skin', () => {
+  const b = built();
+  try {
+    const o = b.scene.vesselObject('S_PC') as VesselObject;
     o.group.visible = true; o.setReveal(1); b.set.sync();
-    assert.equal(d.growOf(i), 1);
+    assert.equal(b.set.weldOf('CONF'), 1);
     o.setDotted(true); b.set.sync();
-    assert.equal(d.growOf(i), 0, 'dotted');
+    assert.equal(b.set.weldOf('CONF'), 0, 'dotted');
     assert.match(VESSEL_FS, /bool skinCutOn\(\) \{ return dotted < 0\.5 && /, 'and the tube is not cut: the thread runs on into the trunk\'s wall');
     o.setDotted(false); b.set.sync();
-    assert.equal(d.growOf(i), 1, 'solid again: whole, with no step in between (the track retracts the dotted one first)');
+    assert.equal(b.set.weldOf('CONF'), 1);
     o.group.visible = false; b.set.sync();
-    assert.equal(d.growOf(i), 0);
+    assert.equal(b.set.weldOf('CONF'), 0);
+  } finally { done(b); }
+});
+
+test('the tube\'s cut end at a growing arm is dithered with the weld, and whole once the skin is whole; a run-on pair\'s growing arm has no plain trunk, so the permanent arms\' cut ends are dithered too', () => {
+  const b = built();
+  try {
+    const o = b.scene.vesselObject('S_PC') as VesselObject;
+    o.group.visible = true; o.setReveal(1); b.set.sync();
+    assert.equal(o.skinWeld(0), 1, 'S_PC starts at CONF: whole once welded');
+    o.setReveal(0); b.set.sync();
+    assert.equal(o.skinWeld(0), 0, 'growing: the cut part of the tube is drawn');
+    // SMV is a run-on pair with two shunts on it: no plain trunk, so the trunk's own cut ends take the weld too
+    assert.equal(b.set.plainOf('SMV'), undefined);
+    assert.match(VESSEL_FS, /float skinWeldAt\(\)/);
+    assert.match(VESSEL_FS, /weldW > 0\.9999 \|\| cutH < weldW/);
   } finally { done(b); }
 });
 
@@ -292,69 +255,50 @@ test('copies: a growing arm is a plain arm\'s front copy, and a skin with no arm
   try {
     const d = drawOf(b, 'CONF'), ids = b.set.armIdsOf(d);
     b.set.sync();
-    assert.ok(d.copyShown(0), 'the trunk is there: the front copy');
+    assert.ok(d.copyShown(0) || b.set.plainDraws().some((p) => (p as SkinObject).copyShown(0)), 'the trunk is there: the front copy');
     for (const id of ids) (b.scene.vesselObject(id) as VesselObject).group.visible = false;
     b.set.sync();
     assert.ok(!d.copyShown(0), 'nothing there, nothing drawn');
-    // only the collateral there: the skin is its own part alone
     (b.scene.vesselObject('S_PC') as VesselObject).group.visible = true; (b.scene.vesselObject('S_PC') as VesselObject).setReveal(1);
     b.set.sync();
     assert.ok(d.copyShown(0));
   } finally { done(b); }
 });
 
-test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the skin it stands on, once a frame, with the same morph', () => {
+test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the skin it stands on, once a frame, static again, with its plain trunk', () => {
   const b = built();
   try {
-    const was = meshOf(b, drawOf(b, 'CONF'));
-    assert.deepEqual(was.grow.map((m) => was.junction.arms[m.arm]!.vesselId), ['S_PC']);
+    const was = meshOf(b, drawOf(b, 'CONF')), wasPlain = b.set.plainOf('CONF');
+    assert.deepEqual(was.junction.arms.filter((a) => a.grow).map((a) => a.vesselId), ['S_PC']);
+    assert.ok(wasPlain);
     b.set.markDirty('S_PC');
     assert.ok(b.set.pending);
+    b.set.step();   // (S_PC stands in two skins now, CONF's and its wall node's on the cava: one rebuild a frame, so two frames)
+    assert.ok(b.set.pending, 'the second skin waits for the next frame');
     b.set.step();
-    assert.ok(!b.set.pending, 'S_PC is an arm of one skin now (its other end, at IVCI, keeps the fork method): one rebuild, one frame');
+    assert.ok(!b.set.pending, 'one rebuild a frame');
     const now = b.set.skinOf('CONF')!;
     assert.notEqual(now, was, 'rebuilt');
-    assert.deepEqual(now.grow.map((g) => now.junction.arms[g.arm]!.vesselId), ['S_PC']);
+    assert.deepEqual(now.junction.arms.filter((a) => a.grow).map((a) => a.vesselId), ['S_PC']);
+    assert.equal(now.grow.length, 0);
+    assert.ok(b.set.plainOf('CONF') && b.set.plainOf('CONF') !== wasPlain);
     assert.equal(now.position.length, was.position.length, 'the same shape, built again on the same tubes');
-    assert.equal(b.set.stats.rebuilds, 1);
+    assert.equal(b.set.stats.rebuilds, 2);
   } finally { done(b); }
 });
 
-test('the axes a growing arm is drawn from end at the node: its capsule starts at J (spec 10.5), and the seam rings of the real tubes are the clear ones (axisOf is what the mesh, the ink and the cuts all judge)', () => {
-  const b = built();
-  try {
-    eachGrower(b, (d, m, g) => {
-      const ax = b.axes.get(d)!, J = m.junction.J;
-      for (const a of ax) assert.ok(a.pts.length === 4 && a.radii.every((r) => r > 0));
-      // the capsule of an arm that ends within a tenth of a radius of J starts at its own end, which is at J
-      void J; void g; void axisOf;
-    });
-  } finally { done(b); }
+test('the fragment outline of a static skin has no growth: no SKIN_GROW define, and the weld discard is the tubes\' own dither', async () => {
+  const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.match(SKIN_FS, /uniform vec3 skinKW;/);
+  assert.match(SKIN_FS, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z/);
 });
 
-// THE THORNS (Mohammad, 20 Nov: three thorn-like barbs on the SMV where a collateral or shunt branches off, a stalactite on the middle hepatic vein). Root cause: an absent growing arm was kept as a zero-width
-// capsule, in the closed shape (a horn along its axis, a free vertex near it pulled onto the horn) and in the fragment outline (a line whose band kept the cone from the arm's collapsed ring out to the wall). An absent arm
-// must contribute exactly nothing, and come in continuously as it grows.
-test('closed shape = the skin without the arm: EVERY free vertex of every growing skin lies on the union of the other arms, the arm\'s weight is nothing, and the closed ring is a point inside nothing but its own centre', () => {
-  const b = built();
-  try {
-    const n = eachGrower(b, (d, m, g, caps) => {
-      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), kAll = skinKOf(arms), kOthers = skinKOf(arms.filter((_, i) => i !== g.arm)), Rmin = Math.min(...arms.map((a) => a.restR));
-      const V = m.position.length / 3, S = arms.length * RADIAL;
-      void kOthers;   // (the closed shape keeps the skin's own blend, kAll: a narrow grower changes the blend, spec 10.2)
-      for (let v = S; v < V; v++) {
-        const x = m.position[3 * v]! - g.dPos[3 * v]!, y = m.position[3 * v + 1]! - g.dPos[3 * v + 1]!, z = m.position[3 * v + 2]! - g.dPos[3 * v + 2]!;
-        assert.ok(Math.abs(sdUnion(others, kAll, x, y, z)) <= 0.02 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${(sdUnion(others, kAll, x, y, z) / Rmin).toFixed(3)} R off the plain trunk (a thread's horn)`);
-        const wg = g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!;
-        assert.ok(Math.abs(wg) < 1e-6, `${nodeOf(d)} vertex ${v}: weight of the absent arm ${wg}`);
-      }
-    });
-    assert.ok(n >= 7);
-  } finally { done(b); }
-});
-
-test('the fragment outline holds an absent arm out of reach, smoothly (SKIN_ARM_ABSENT), so no thorn is drawn at growth 0', async () => {
-  const { SKIN_FS, SKIN_ARM_ABSENT } = await import('../src/scene/vessels/skin/shaders.ts');
-  assert.match(SKIN_FS, /\+ 2\.0 \* kPx \* \(1\.0 - smoothstep\(0\.0, 0\.3\d*, swAt\(i\)\)\)/);
-  assert.equal(SKIN_ARM_ABSENT, 0.3);
+test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
+  on(() => {
+    assert.equal(JOINT_REACH_R, GROW_REACH, 'network.ts cannot import the inventory (it imports the network): the two numbers are one');
+    const epi = findSkinJunctions().find((j) => j.node === 'EPI')!, c3 = epi.arms.findIndex((a) => a.vesselId === 'C3');
+    assert.ok(c3 >= 0, 'C3 is an arm of EPI');
+    const d = dropFarGrowers(epi);
+    assert.deepEqual(d.far, [], 'C3 ends within reach of the joint (was 4.97 radii: dropped)');
+  });
 });

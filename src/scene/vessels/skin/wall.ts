@@ -11,7 +11,7 @@ import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './type
 /** Two growing vessels that land on one host within this many of the host's radii of each other (along its axis) share one virtual node and one skin; farther apart, each has its own. */
 export const WALL_GROUP_R = 8;
 /** How many growing vessels one virtual node takes. */
-export const WALL_GROWERS = 1;
+export const WALL_GROWERS = 2;
 
 const armOf = (v: NetVessel, end: 0 | 1, extra: Partial<SkinArm>): SkinArm => ({
   vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius, ...extra,
@@ -56,7 +56,7 @@ export function wallJunctions(landings: readonly WallLanding[], state: ShapeStat
     const groups: WallLanding[][] = [];
     for (const l of sorted) {
       const g = groups[groups.length - 1];
-      // (a landing within reach of a full group is skipped, it keeps the fork method: two growers on one spot cannot each be closed on a trunk that holds the other open, tests/skin-closed-footprint.test.ts)
+      // (a landing within reach of a full group is skipped, it keeps the tube's own flared end)
       if (g && l.u - g[0]!.u <= reach) { if (g.length < WALL_GROWERS && !g.some((x) => x.v.id === l.v.id)) g.push(l); else skipped.push(l); } else groups.push([l]);
     }
     for (const g of groups) {

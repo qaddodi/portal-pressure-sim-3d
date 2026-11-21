@@ -252,9 +252,9 @@ export class Lobule3D {
 
   // ---- welded junctions (lobule/welds.ts) -------------------------------------------------------------------------------------------
 
-  /** Asks the worker to plan the welds (once; never with `?joins=old` or Smooth vessel joins off). The plan is laid in while the Lobule is out of sight, so no junction changes in front of the eye. */
+  /** Asks the worker to plan the welds (once; never with `?joins=old` ). The plan is laid in while the Lobule is out of sight, so no junction changes in front of the eye. */
   private askWelds(): void {
-    if (this.weldsAsked || joinsMode() === 'old' || !useSettings.getState().smoothJoins) return;
+    if (this.weldsAsked || joinsMode() === 'old') return;
     this.weldsAsked = true;
     void requestWelds(weldRequest(this.flat.net)).then((plan) => {
       if (!plan || this.disposed) return;

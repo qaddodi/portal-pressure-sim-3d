@@ -133,34 +133,5 @@ test('on the real network the arms\' own gates left the dust open on the outline
 test('the position the fragment stage reads is the position the vertex is drawn at, so every drawn skin vertex of an arm\'s own stretch is inside that arm\'s cylinder (the dust frames hold) at any growth', () => {
   assert.match(SKIN_VS, /vPos = pos;/, 'vPos is the morphed rest position');
   assert.doesNotMatch(SKIN_VS, /vPos = position;/);
-  const { scene, made, was } = built();
-  try {
-    let grown = 0, worstNow = 0, worstBuilt = 0, movedOut = 0, n = 0;
-    for (const m of made) {
-      if (m.mesh.grow.length === 0) continue;
-      grown++;
-      const rad = m.arms.map((o) => o.toon.uniforms.radius!.value as number), growing = new Set(m.mesh.grow.map((gm) => gm.arm));
-      for (const g of [0, 0.5]) {
-        for (let v = 0; v < m.mesh.position.length / 3; v++) {
-          for (let i = 0; i < m.axes.length; i++) {
-            if (growing.has(i)) continue;
-            // the vertex's weights as the vertex stage makes them: the mesh's less what each growing arm has still to grow (renormalised)
-            const wv = [0, 1, 2, 3].map((k) => m.mesh.weight[4 * v + k]! - m.mesh.grow.reduce((t, gm) => t + (1 - g) * gm.dWeight[4 * v + k]!, 0));
-            const sum = wv.reduce((t, x) => t + Math.max(x, 0), 0) || 1;
-            if (Math.max(wv[i]!, 0) / sum < 0.95) continue;
-            const ax = m.axes[i]!, tJ = unit([ax.pts[1][0] - ax.pts[2][0], ax.pts[1][1] - ax.pts[2][1], ax.pts[1][2] - ax.pts[2][2]]);
-            const lat = (q: (k: number) => number): number => { const rel: V3 = [q(0) - ax.pts[2][0], q(1) - ax.pts[2][1], q(2) - ax.pts[2][2]], al = dot(rel, tJ); return Math.hypot(rel[0] - tJ[0] * al, rel[1] - tJ[1] * al, rel[2] - tJ[2] * al) / rad[i]!; };
-            const built1 = lat((k) => m.mesh.position[3 * v + k]!);
-            const now = lat((k) => m.mesh.position[3 * v + k]! - m.mesh.grow.reduce((t, gm) => t + (1 - g) * gm.dPos[3 * v + k]!, 0));
-            n++; worstNow = Math.max(worstNow, now); worstBuilt = Math.max(worstBuilt, built1);
-            if (built1 > SKIN_HEAD_LAT_TO && now <= SKIN_HEAD_LAT_FROM) movedOut++;
-          }
-        }
-      }
-    }
-    assert.ok(grown >= 2, `${grown} skins with a growing arm`);
-    assert.ok(n > 500, `${n} arm-own vertices`);
-    assert.ok(worstNow < SKIN_HEAD_LAT_TO, `drawn where it is, the farthest an arm-own vertex lies from its arm's axis is ${worstNow.toFixed(2)} radii: inside the cylinder the dust frame holds in (gone by ${SKIN_HEAD_LAT_TO})`);
-    assert.ok(movedOut > 0 && worstBuilt >= SKIN_HEAD_LAT_TO, `at the mesh's built place ${movedOut} of them lay ${worstBuilt.toFixed(2)} radii out, beyond every frame: the block`);
-  } finally { scene.dispose(); setSmoothJoins(was); }
+  // (the Anatomy's skins are static full-size shapes now: no growth morph moves a vertex, so the built place is the drawn place; the Circuit's morph keeps the rule above until it follows)
 });
