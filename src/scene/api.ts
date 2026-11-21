@@ -108,6 +108,8 @@ export const sceneApi = {
   setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },
   /** A slide is about the caudate lobe: the Circuit draws the caudate's own lane. */
   setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
+  /** A slide about the caudate lobe: the lobe in the anatomy (`veins`: with its short hepatic veins, 2D's pinOrgans 'caudate' against 'caudate-lobe'), eased in and out. */
+  setCaudate(lobe: boolean, veins: boolean): void { cel.setCaudate(lobe, veins); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** Which view the figure is in now (body, lobule, sinusoid, circuit). */

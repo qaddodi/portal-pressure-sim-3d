@@ -7,6 +7,7 @@ import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
+import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
 
 /** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
  *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
@@ -19,11 +20,12 @@ const IVC_JOIN_LEN = 60;
  *  the cava: the rules for "a vein into the cava" (the end eased to the cava's alpha, the ink held back inside the cava, the part inside the lumen cut away) are keyed by where the vein ENDS, never by its name (root cause of the broken outline and the light line
  *  at the join of the two pieces in the Circuit, 20 Nov). */
 export function opensIntoCava(id: string): boolean {
+  if (id === CAUDATE_VEIN_ID) return true;   // (the caudate lobe's short veins open into the cava's left wall by the same rule: caudate-veins.ts)
   const e = edgeById.get(id);
   return HEPATIC_VEINS.has(id) && !!e && IVC_NODES.has(e.to);
 }
 /** The cava's piece a vein that opens into it meets: the inferior cava below the hepatic veins' node (the renal veins' side) or above it. */
-export const cavaPieceOf = (id: string): string => (edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
+export const cavaPieceOf = (id: string): string => (id === CAUDATE_VEIN_ID ? CAUDATE_HOST : edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
 /** The superior cava's two stretches are the cava itself, not a vein that joins it: they run on into the right atrium solid, as the inferior cava does (Mohammad, 20 Nov: "a hard colour step in the IVC at the right atrium": the SVC faded to 0.3 at the atrium where the IVC meets it whole). */
 const SVC_STRETCH: ReadonlySet<string> = new Set(['SVC_RA', 'SVC_RA_1']);
 /** Its alpha at the cava's wall: the cava's own (2D's IVC_JOIN was 0.3 against its veil of 0.4; the cava here is drawn at CAVA_RECEDE, and a vessel that merges into a faded one comes to the same fade at the junction: Mohammad, 20 Nov). */
@@ -145,6 +147,8 @@ export function companionEnd(id: string): number {
   return u;
 }
 function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
+  // the caudate lobe's veins rise out of the lobe's tissue: faint at their start, whole over their first half (their end takes the cava's fade at its wall by the shader's cava rule, opensIntoCava)
+  if (id === CAUDATE_VEIN_ID) return { mode: 1, from: 0, to: 0.5, a0: 0, a1: 1, keep: false, connect: [] };
   // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length, to nothing a little before their tip so no cut end is ever seen (a 3x look at the live build saw a flat pale end)
   if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: FORK_CLEAR, to: 0.92, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost && LIVER_FADE_IN[feederHost]) return { mode: 1, from: 0.08, to: 0.75, a0: 0, a1: 1, keep: false, connect: [] };

@@ -68,6 +68,7 @@ export function linkFigure(): () => void {
     sceneApi.pinOrgans(c.pins, c.normalSpleen);
     sceneApi.setResistors(c.res);
     sceneApi.setCaudatePin(c.caudate);
+    sceneApi.setCaudate(c.caudate, c.caudateVeins);
     t0 = clock.now();
     useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, t0 });
   };
