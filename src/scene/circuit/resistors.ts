@@ -9,6 +9,7 @@ import { COURSES } from './course.ts';
 import { CIRC_C, MAP_K } from './map.ts';
 import { CIRCUIT_D, NODE_CIRCUIT, RES_LIVER, RES_SIZES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
+import { peelAt, peelRank } from './peel.ts';
 import { type ResKey, RES_OUTLINE, RES_TEETH, resAmp, resHeat, resInk, resWidthFit, zigzag } from './res-model.ts';
 
 const VS = /* glsl */ `
@@ -86,6 +87,14 @@ export function resShape(key: ResKey, ratio: number, scQ: number): ResShape {
   return { key, polys: [zigzag(x - tx * 34, y - ty * 34, x + tx * 34, y + ty * 34, RES_TEETH, amp)], veil: [] };
 }
 
+/** A resistor's flow rank (0 gut to 1 heart) from where it sits on the map: it comes in as its own stretch of the map lands (the flow peel), not on the whole change's clock. */
+export function resRank(key: ResKey): number {
+  if (key === 'rLiver') return peelRank((RES_LIVER[0]! + RES_LIVER[2]!) / 2);
+  const lane = key === 'rGut' ? 'A_SMA' : 'C1b';
+  const pts = COURSES.get(lane)?.mapPts ?? (CIRCUIT_D[lane] ? courseOf(CIRCUIT_D[lane]!) : null);
+  return pts ? peelRank(pointAndTangent(pts, 0.5)[0]!) : 1;
+}
+
 /** The ribbons of polylines as geometry: four vertices to a segment, in the group's local scene units. */
 function ribbons(polys: readonly (readonly number[])[], z: number): BufferGeometry {
   let segs = 0;
@@ -117,7 +126,7 @@ function ribbons(polys: readonly (readonly number[])[], z: number): BufferGeomet
 
 interface Drawn {
   veil: Mesh | null; line: Mesh; ink: Mesh;
-  goal: number; amount: number; sig: string;
+  goal: number; amount: number; sig: string; rank: number;
 }
 
 export class ResistorLayer {
@@ -152,7 +161,8 @@ export class ResistorLayer {
   }
 
   /** The layer's opacity (the map's ramp). */
-  setAlpha(a: number): void { this.alpha = a; this.group.visible = a > 0.001; this.paintAlpha(); }
+  setAlpha(a: number, t = 1): void { this.alpha = a; this.t = t; this.group.visible = a > 0.001; this.paintAlpha(); }
+  private t = 1;
 
   /**
    * The resistors to show now and their ratios, at `scQ` px a map unit. A resistor not wanted (or with no ratio) fades out; a wanted one fades in.
@@ -166,7 +176,7 @@ export class ResistorLayer {
       if (r == null) { if (d) d.goal = 0; continue; }
       const sig = `${this.lookId}|${q}|${Math.round(r * 20) / 20}`;
       if (!d) {
-        d = { veil: null, line: this.mesh(new BufferGeometry(), 2), ink: this.mesh(new BufferGeometry(), 1), goal: 1, amount: 0, sig: '' };
+        d = { veil: null, line: this.mesh(new BufferGeometry(), 2), ink: this.mesh(new BufferGeometry(), 1), goal: 1, amount: 0, sig: '', rank: resRank(key) };
         if (key === 'rLiver') d.veil = this.mesh(new BufferGeometry(), 0);
         this.group.add(...[d.veil, d.ink, d.line].filter((m): m is Mesh => !!m));
         this.drawn.set(key, d);
@@ -222,7 +232,7 @@ export class ResistorLayer {
 
   private paintAlpha(): void {
     for (const d of this.drawn.values()) {
-      const a = this.alpha * d.amount, vis = a > 0.002;
+      const a = this.alpha * d.amount * peelAt(this.t, d.rank), vis = a > 0.002;
       for (const m of [d.veil, d.ink, d.line]) {
         if (!m) continue;
         m.visible = vis;

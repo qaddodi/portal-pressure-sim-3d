@@ -1290,7 +1290,7 @@ export class CelScene {
     const ramp = mapRamp(t);
     this.growLiver(t);
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
-    this.resistors.setAlpha(ramp);
+    this.resistors.setAlpha(ramp, t);
     let resMoving = false;
     if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); this.mapLayer.setScale(this.mapScale()); }
     let dots = false;

@@ -35,3 +35,10 @@ test('the map skin and the tubes\' map cut read the peel share', () => {
   assert.ok(/smoothstep\(\$\{F\(SKIN_CIRC_IN\)\}, 1\.0, vCircShare\)/.test(tb));
   assert.ok(!/SKIN_CIRC_IN\)\}, 1\.0, circT\)/.test(sk + tb));
 });
+
+test('a resistor comes in as its own stretch of the map lands: the heart end later than the gut end', async () => {
+  const { resRank } = await import('../src/scene/circuit/resistors.ts');
+  assert.ok(resRank('rGut') < resRank('rLiver'));
+  const src = readFileSync(new URL('../src/scene/circuit/resistors.ts', import.meta.url), 'utf8');
+  assert.ok(/peelAt\(this\.t, d\.rank\)/.test(src));
+});
