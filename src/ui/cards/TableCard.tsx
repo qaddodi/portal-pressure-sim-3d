@@ -9,6 +9,7 @@ import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
 import { WaveCell } from './WaveCell.tsx';
+import { observeThenFit } from '../layout/fit-later.ts';
 
 /** 2D's purpose-drawn arrow (css2d `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
 export const Arrow = ({ n }: { n: number }) => {
@@ -62,10 +63,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
       if (over !== was) setUp(over);
     };
     fit();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(fit);
-    ro.observe(box);
-    return () => ro.disconnect();
+    return observeThenFit([box], fit);   // (the pass writes `dk-up` on the box it observes: never inside the observer's own delivery)
   }, [colKey]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)

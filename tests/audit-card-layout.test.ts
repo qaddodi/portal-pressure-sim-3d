@@ -56,3 +56,31 @@ test('a card leaving and the one coming in are two series, so the swap of one fo
   const apart: Sample[] = [row(0, 'teach~out', 328), row(33, 'teach~out', 328), row(66, 'teach~out', 328), row(99, 'teach', 304), row(132, 'teach', 304), row(165, 'teach', 304)];
   assert.equal(cardSizeSnap({ samples: apart } as never).length, 0);
 });
+
+test('a fit pass that writes onto what it observes runs after the observer\'s delivery, once, and lets go cleanly ("ResizeObserver loop completed with undelivered notifications")', async () => {
+  const g = globalThis as Record<string, unknown>;
+  const saved = { ResizeObserver: g.ResizeObserver, window: g.window };
+  let deliver: () => void = () => undefined, watched = 0, off = 0;
+  g.ResizeObserver = class { constructor(cb: () => void) { deliver = cb; } observe() { watched++; } disconnect() { off++; } };
+  g.window = { setTimeout: (f: () => void, ms: number) => setTimeout(f, ms), clearTimeout: (t: number) => clearTimeout(t) };
+  try {
+    const { observeThenFit } = await import('../src/ui/layout/fit-later.ts');
+    let ran = 0;
+    const stop = observeThenFit([{} as Element, null, {} as Element], () => { ran++; });
+    assert.equal(watched, 2, 'a missing target is skipped');
+    deliver(); deliver(); deliver();
+    assert.equal(ran, 0, 'not inside the delivery');
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(ran, 1, 'once, however many notifications');
+    deliver(); stop();
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(ran, 1, 'a pass waiting when the card goes is dropped'); assert.equal(off, 1);
+  } finally { g.ResizeObserver = saved.ResizeObserver; g.window = saved.window; }
+});
+
+test('the fit passes that write onto the element they observe go through observeThenFit (table, tiles, the six ladders\' cells)', () => {
+  for (const p of ['src/ui/cards/TableCard.tsx', 'src/ui/cards/TilesCard.tsx', 'src/ui/charts/ladder/LaddersCard.tsx']) {
+    const s = src(p);
+    assert.match(s, /observeThenFit\(/, p); assert.doesNotMatch(s, /new ResizeObserver\(/, `${p} has a raw observer`);
+  }
+});

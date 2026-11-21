@@ -9,6 +9,7 @@ import { ensureStates } from '../../../decks/hp/calc.ts';
 import { ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
 import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
+import { observeThenFit } from '../../layout/fit-later.ts';
 import '../charts.css';
 
 const engineRun: RunSteps = (steps) => engine().sequence(steps).then((r) => r.map((x) => (x?.fp ?? {}) as never));
@@ -43,9 +44,7 @@ function CellHead({ r }: { r: LadderRow }) {
       row.classList.toggle('under', f.under);
     };
     run();
-    const ro = new ResizeObserver(run);
-    for (const e of [row, tt, tg, pills.current]) if (e) ro.observe(e);
-    return () => ro.disconnect();
+    return observeThenFit([row, tt, tg, pills.current], run);   // (the pass writes the cause's size and `under` on what it observes)
   }, [r.name, r.kicker, pl.length]);
   return (
     <div ref={k} className="pz-cell-k">
@@ -81,12 +80,7 @@ function LadderChart({ r, healthy, chart }: { r: LadderRow; healthy: Fp | null; 
     if (!el) return;
     const fit = () => { const s = fitLadderChart(el); if (s != null) setLad((o) => (o === s ? o : s)); };
     fit();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    const p = el.firstElementChild;
-    if (p) ro.observe(p);
-    return () => ro.disconnect();
+    return observeThenFit([el, el.firstElementChild], fit);   // (the pass writes --lad-k and --lad-s on the holder it observes)
   }, [r.f]);
   return <div ref={cc} className="pz-cc">{chart(r, healthy, lad)}</div>;
 }

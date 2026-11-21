@@ -24,7 +24,7 @@ test('every cell sets --lad-k and --lad-s on its holder from its own measure, an
   assert.match(card, /export function fitLadderChart/);
   assert.match(card, /setProperty\('--lad-k', ks\)/);
   assert.match(card, /setProperty\('--lad-s', ss\)/);
-  assert.match(card, /new ResizeObserver\(fit\)/, 'again when the cell\'s width changes (a resize, the zoom, a new card width)');
+  assert.match(card, /observeThenFit\(\[el, el\.firstElementChild\], fit\)/, 'again when the cell\'s width changes (a resize, the zoom, a new card width)');
   assert.match(card, /<LadderChart r=\{r\}/, 'every cell of the grid goes through it');
   assert.match(card, /cell=\{\{ lad \}\}/, 'a larger type is drawn again at that type');
   const fit = readFileSync('src/ui/charts/fit.ts', 'utf8');

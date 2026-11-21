@@ -2,6 +2,7 @@
 // (.pzt-vu > .pzt-v + small), the rating's word (.pzt-r), the line that says where it started (.pzt-d) and the scale bar (.pzt-bar: bands, cut-off ticks and numbers, a ring where it
 // started and a dot where it is). Which tiles, their words and their numbers are tiles-2d.ts, from the slide's own state in the engine; this file only draws them.
 // An instrument card's readings stand in its header row instead (.pz-dh > .pz-hr > .pz-hi) and its tiles card is not drawn (2D: .pz-data.tool-only .pz-tiles is hidden).
+import { observeThenFit } from '../layout/fit-later.ts';
 import { useLayoutEffect, useMemo, useRef, type MouseEvent, type RefObject } from 'react';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates } from '../../decks/hp/calc.ts';
@@ -118,10 +119,7 @@ export function useTileFit(row: RefObject<HTMLDivElement | null>, sig: string) {
       if (measured && bars.length) el.classList.toggle('pzb-nonum', !anyShown);
     };
     fit();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    return () => ro.disconnect();
+    return observeThenFit([el], fit);   // (the pass writes `pzb-nonum` on the row it observes: never inside the observer's own delivery)
   }, [row, sig]);
 }
 
