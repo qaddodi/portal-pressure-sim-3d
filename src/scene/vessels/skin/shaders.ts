@@ -375,8 +375,14 @@ void main() {
     if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
   }
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4)
-    * mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
+  float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT), skinCirc);
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
+#if SKIN_COPY == 2
+  // THE COPIES SHARE ONE COVERAGE (a patch where the cava's lower edge meets the liver, Mohammad 21 Nov): at a junction of arms drawn over the organs (the front copy: the renal vein) and arms behind them (the veil copy: the cava) the weights split the pixel between the two copies, and
+  // two alpha blends in turn cover 1 - (1 - a0)(1 - a2), less than a0 + a2: the organ showed through the vessel across the mixing zone. The veil is drawn after the front copy, so its alpha is what is left of the pixel once the front has taken its share (the shares add to the pixel's coverage).
+  float alphaFront = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * armCopy[${i}][0] * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
+  alpha = min(1.0, alpha / max(1.0 - alphaFront, 1.0e-3));
+#endif   // (the body's skin fades out as the map comes in; the map's own skin is in over the end of the change, as the arm tubes' map cut takes their ends away)
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
