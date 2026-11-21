@@ -311,7 +311,7 @@ export class CircuitSkinSet {
     else if (j.surface) this.paces.set(j.node, PACES.length - 1);   // (meshed from the surface from the start: no hull to fold)
     // a junction with growing arms is built STILL (as the Anatomy's, skin-set.ts): they are whole arms of one static shape, the arms that stay get a static plain trunk of their own, and the tube's own sunk and flared end is what grows; the weld hands over at growth 0.9 to 1
     const growing = j.arms.some((a) => a.grow);
-    const mesh = ready?.mesh ?? buildSkinSteady(growing ? { ...j, still: true } : j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
+    const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (the seam ring's rest radius is the tube's own, exactly)
     const pp = growing ? plainOf(plan) : null;
     let plain: PlainBuilt | null = null;

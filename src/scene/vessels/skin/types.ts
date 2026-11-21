@@ -19,7 +19,7 @@ export interface SkinArm {
   /** A SIDE-WALL arm (spec 10.1): the stretch of this vessel on one side of the point `u` along it (`dir` -1 the part below `u`, +1 the part above), where the junction lies on the vessel's side and not at a node. `end` is then 1 for dir -1 and 0 for dir +1
    *  (the rings run away from the junction the way an end's do), and the arm's walk starts at the ring nearest `u` instead of the tube's own end. Two side arms of one vessel (a virtual node mid-host) leave a HOLE in it (VesselObject.setSkinHole). */
   side?: { u: number; dir: -1 | 1 };
-  /** A GROWING arm (spec 10.2): a collateral or a shunt, which comes and goes. Its seam is chosen at full radius and never moves; the skin carries a second shape (`GrowMorph`) with this arm at radius 0, and the live growth eases between the two. */
+  /** A GROWING arm (spec 10.2): a collateral or a shunt, which comes and goes. Its seam is chosen at full radius and never moves; the skin is one static shape with the arm whole and the weld (plain.ts) hands the tube over to it at growth 0.9 to 1. */
   grow?: boolean;
 }
 
@@ -33,8 +33,6 @@ export interface SkinJunction {
   arms: SkinArm[];           // 3 or 4, sorted widest first
   /** meshed from the surface itself (sheet.ts, the last rung), its seams chosen with no hull of the rings: a junction whose seam rings the hull cannot cover (the Circuit's, circuit/skins.ts) */
   surface?: boolean;
-  /** the growing arms are built WHOLE and the skin is one static shape (no `GrowMorph`): the Anatomy's welds (skin-set.ts: the tube's flared end grows, then the skin takes over at growth 0.9 to 1). The Circuit's skins still morph until it follows. */
-  still?: boolean;
 }
 
 /** Where an arm's tube hands over to the skin. */
@@ -58,26 +56,10 @@ export interface SkinMesh {
   restR: Float32Array;                // 1 per vertex: the blended rest radius sum(w_i * R_i(at the nearest axis point))
   index: Uint32Array;                 // triangles
   seamVerts: Uint32Array[];           // per arm: the skin vertex ids of its seam ring, in the tube's ring order j = 0..RADIAL
-  /** one per growing arm, at most SKIN_GROWERS (spec 10.2): the difference between the skin with that arm at full radius (this mesh) and with it at radius 0 */
-  grow: GrowMorph[];
 }
 
-/** The most growing arms one skin morphs (spec 10.2: "at most 2 per skin; with more, the 2 widest are morphed and the rest keep today's fork method"). */
+/** The most growing arms one skin takes whole (spec 10.2: at most 2 per skin; with more, the 2 widest are welded and the rest keep their sunk and flared ends). */
 export const SKIN_GROWERS = 2;
-
-/**
- * The second shape of a skin for one growing arm (spec 10.2). `SkinMesh` is shape P1, every arm at full radius. P0 is the same topology with this arm's capsule at radius 0: the seam ring of the arm at its centre, the arm's own stretch a thread on its axis, every other vertex
- * projected onto the union without the arm's width. The mesh stores `delta = P1 - P0` for what the vertex stage needs, and the live growth `g` (0 gone, 1 whole) gives `value = P1 - (1 - g) * delta`: on the seam ring that is the tube's own ring at share g, and at g = 0 the trunk is a plain trunk.
- */
-export interface GrowMorph {
-  /** the arm (index into `junction.arms`) that grows */
-  arm: number;
-  dPos: Float32Array;     // 3 per vertex: P1 - P0
-  dNor: Float32Array;     // 3 per vertex: N1 - N0
-  dRest: Float32Array;    // 1 per vertex: restR1 - restR0
-  dWeight: Float32Array;  // 4 per vertex: weight1 - weight0 (arms 0 to 3)
-  dWeight2: Float32Array; // 2 per vertex: arms 4 and 5
-}
 
 /** The tube's `skinCut` uniform when nothing is cut: no u is below -1 or above 2, so every branch it guards is a no-op and the picture is today's (spec section 3, WP4). */
 export const SKIN_CUT_NONE: readonly [number, number] = [-1, 2];

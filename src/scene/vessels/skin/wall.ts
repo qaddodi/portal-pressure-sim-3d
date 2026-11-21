@@ -5,7 +5,7 @@
 import { NETWORK, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
-import { MAX_ARMS, SIDE_EDGE, SIDE_TOL_R, isGrower, isPermanent, nearestOnPolyline, pointAtShare } from './inventory.ts';
+import { ATTACH_NEAR_R, MAX_ARMS, SIDE_EDGE, SIDE_TOL_R, isGrower, isPermanent, nearestOnPolyline, pointAtShare } from './inventory.ts';
 import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './types.ts';
 
 /** Two growing vessels that land on one host within this many of the host's radii of each other (along its axis) share one virtual node and one skin; farther apart, each has its own. */
@@ -69,8 +69,7 @@ export function wallJunctions(landings: readonly WallLanding[], state: ShapeStat
   return { junctions: out, skipped };
 }
 
-/** A growing end that lands within this many radii (of the junction's widest arm) of an existing junction's centre is an arm of THAT junction, whatever node the network names for it (S_MC lands 1.5 radii from IVCI's centre, on the iliac vein's end). */
-export const ATTACH_NEAR_R = 2.6;
+export { ATTACH_NEAR_R };
 
 /** The landings that are near an existing junction's centre become arms of it (at most `SKIN_GROWERS` growing arms and `MAX_ARMS` in all per junction, the nearest first); the junctions come back with them, and the landings left over are the walls. */
 export function attachNear(js: readonly SkinJunction[], landings: readonly WallLanding[], state: ShapeState = REST): { junctions: SkinJunction[]; left: WallLanding[] } {

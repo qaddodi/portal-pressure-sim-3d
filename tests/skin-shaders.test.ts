@@ -51,10 +51,9 @@ test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () 
   assert.equal(v.get('armAF')?.array, SKIN_ARMS, 'and their highlight');
 });
 
-test('the vertex attributes are the spec\'s (cen, weight, restR, sagK) on top of three\'s position and normal, and a growing arm\'s second shape (spec 10.2: 4 per arm, 2 arms: 14 with position and normal, inside the 16 every WebGL2 device has)', () => {
+test('the vertex attributes are the spec\'s (cen, weight, restR, sagK) on top of three\'s position and normal, and no growth second shape any more (spec 10.2: 6 with position and normal, inside the 16 every WebGL2 device has)', () => {
   const a = declarations(SKIN_VS).filter((d) => d.storage === 'attribute').map((d) => `${d.type} ${d.name}`).sort();
-  const grow = ['A0', 'A1'].flatMap((k) => [`vec4 gPos${k}`, `vec3 gNor${k}`, `vec4 gWt${k}`, `vec2 gWt2${k}`]);
-  assert.deepEqual(a, ['float restR', 'float sagK', 'vec2 weight2', 'vec3 cen', 'vec4 weight', ...grow].sort());
+  assert.deepEqual(a, ['float restR', 'float sagK', 'vec2 weight2', 'vec3 cen', 'vec4 weight'].sort());
     assert.ok(a.length + 2 <= 16, `${a.length} attributes + position + normal`);
 });
 

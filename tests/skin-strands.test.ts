@@ -95,7 +95,6 @@ test('every welded braid root is a growing arm of a built skin, none is dropped,
       const ai = m.junction.arms.findIndex((a) => a.vesselId === id && a.end === Number(end));
       assert.ok(ai >= 0, `${key} is an arm of ${nodes[0]}`);
       assert.ok(m.junction.arms[ai]!.grow, `${key} is a growing arm of its skin: whole in the static skin, the tube's flared end grows and the weld hands over at growth 0.9 to 1`);
-      assert.equal(m.grow.length, 0, `${nodes[0]}: no growth morph`);
       n++;
     }
     assert.equal(n, Object.keys(WELDED).length);

@@ -19,7 +19,7 @@ import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
-import { armWalk, growAlong, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
+import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
@@ -41,8 +41,6 @@ export interface SkinDraw {
   setPres(i: number, p: number): void;
   /** arm `i`'s tube's route distance from the balloon's distal edge at its seam, and the column (the tint is ONE field through the join: wedge-glsl.ts) */
   setWedge?(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void;
-  /** a growing arm's growth at its seam (0 gone, 1 whole): the skin's own shape eases with it (spec 10.2); an arm the skin does not morph ignores it */
-  setGrow?(i: number, g: number): void;
   /** this skin is one of a growing arm's pair (a welded skin, mode +1, or the plain trunk, mode -1): how far the weld is, 0 the flared tubes alone, 1 the welded skin; the pair draw complementary pixels (skin-object.ts) */
   setWeld?(mode: 1 | -1, w: number): void;
   /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
@@ -296,9 +294,9 @@ export class SkinSet {
    */
   private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
     const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
-    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts), along = growAlong(j, tubes);
+    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
-      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!) || along(i, o)) continue;
+      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
       for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
     return -1;
@@ -373,7 +371,7 @@ export class SkinSet {
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
     const growing = j.arms.some((a) => a.grow);
-    const mesh = ready?.mesh ?? buildSkinSteady(growing ? { ...j, still: true } : j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
+    const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (a baked mesh has had it done)
     const pp = growing ? plainOf(plan) : null;
