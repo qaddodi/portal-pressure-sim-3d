@@ -17,7 +17,7 @@ import type { ConsoleLine, Coverage } from './report.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
-export const settle = () => pageSettle({ timeoutMs: 45000, quietMs: QUIET_MS });
+export const settle = () => pageSettle({ timeoutMs: 45000, quietMs: QUIET_MS, pollMs: 50 });
 const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 /** Waits (up to `ms`) for something an open starts asynchronously (a talk's cover, its charts, its first cards), so the walk's "is the page still?" never reads the instant before it begins. */
 const until = async (cond: () => boolean, ms: number) => { const t = performance.now(); while (!cond() && performance.now() - t < ms) await sleep(50); };

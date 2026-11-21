@@ -57,8 +57,8 @@ export function busy(doc: Document = document): boolean {
     return doc.getAnimations().some((a) => a.playState === 'running' && Number.isFinite(a.effect?.getTiming().iterations) && !(a.effect as KeyframeEffect | null)?.target?.closest?.('[data-debug]'));
   } catch { return false; }
 }
-export const settle = (o: { timeoutMs?: number; quietMs?: number } = {}): Promise<{ settled: boolean; ms: number }> =>
-  waitQuiet(busy, { timeoutMs: o.timeoutMs ?? 60000, quietMs: o.quietMs ?? QUIET_LONG_MS, pollMs: POLL_MS });
+export const settle = (o: { timeoutMs?: number; quietMs?: number; pollMs?: number } = {}): Promise<{ settled: boolean; ms: number }> =>
+  waitQuiet(busy, { timeoutMs: o.timeoutMs ?? 60000, quietMs: o.quietMs ?? QUIET_LONG_MS, pollMs: o.pollMs ?? POLL_MS });
 
 export const problems = (): Problem[] => (screenNow('summary').findings as { rule: string; what: string; where?: string }[] ?? []).map((f) => ({ kind: f.rule, text: f.what, where: f.where }));
 export const memoryMB = (): number | null => appSnapshot().memory.gpuMB;
