@@ -24,9 +24,11 @@ const FADE_MS = 420;
 const WIRE_RADIAL = WIRE_SIDES, GRAFT_RADIAL = DEVICE_SIDES, GOLD_RADIAL = WIRE_SIDES;
 /** The 2D device's own alpha for the graft: nearly clear (stent-mesh.js graftAlpha, 0.86 lit, a tenth of that in the shade; the tube is lit from every side, so the mean). */
 /** (The 2D graft is white where the light falls, 0.86, and a tenth of that in the shade; here, lit from every side, a milky sleeve over the lumen: the cover reads as a cover.) */
-const GRAFT_ALPHA = 0.5;
+const GRAFT_ALPHA = 0.4;
 /** The far wires of the weave, thinner and half seen (the 2D draws the back half at 0.5 and 0.12 of the front's strength), and the bright core along the near ones (the 2D's glint). */
-const BACK_ALPHA = 0.28, FRONT_ALPHA = 0.8, GLINT_ALPHA = 0.6, BACK_R = 0.7, GLINT_R = 0.38;
+/** The band and tab, faded with the rest (owner, 21 Nov 2026: option 4, "a bit faded"). */
+const GOLD_ALPHA = 0.6;
+const BACK_ALPHA = 0.18, FRONT_ALPHA = 0.55, GLINT_ALPHA = 0.4, BACK_R = 0.7, GLINT_R = 0.38;
 
 interface Params { stentGeom?: unknown; stenosis?: unknown; thrombus?: unknown; stenosisSite?: unknown }
 interface Frame { D: ArrayLike<number> }
@@ -62,7 +64,7 @@ export class StentDevice {
     this.graft = new DeviceObject(empty.clone(), 'graft', shared, { px: 0.8, order: 1, spec: 0, shadow: 1 }, stentGraftEdge);
     this.graft.setGlass(STENT_GLASS.fill, STENT_GLASS.rim);
     this.back = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.3, order: 2 }, 'none');
-    this.wires = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.4, order: 3 }, stentWireEdge);
+    this.wires = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0.4, order: 3 }, stentWireEdge);
     this.glint = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0, order: 4, spec: 0 }, 'ink');
     this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.6, order: 5 }, stentGoldEdge);
     this.objects = [this.graft, this.back, this.wires, this.glint, this.gold];
@@ -143,7 +145,7 @@ export class StentDevice {
   private apply(): void {
     const a = this.amount;
     this.group.visible = a > 0.002 && !!this.paths;
-    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a);
+    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a * GOLD_ALPHA);
     this.graft.setShadowAlpha(a);   // (the sleeve is nearly clear, its shadow is not: it follows the stent's own share)
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock

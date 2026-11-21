@@ -6,9 +6,9 @@ import { mixHex } from '../edges.ts';
 
 /** The covered part's glass: how much firmer its fill is toward the rim (device-object setGlass `fill`), and the width of the rim its outline keeps (n.v). */
 export const STENT_GLASS = { fill: 0.7, rim: 0.42 } as const;
-/** Front wire edge: the wire's dark brown moved 35 % toward the gold, at 0.55 strength. */
-export const stentWireEdge: EdgeFn = { colour: ({ t }) => mixHex(t.stentWire, t.stentGold, 0.35), a: 0.55 };
+/** Front wire edge: the wire's dark brown moved 55 % toward the gold, at a quarter strength (owner, 21 Nov 2026: option 4, ink-light and faded). */
+export const stentWireEdge: EdgeFn = { colour: ({ t }) => mixHex(t.stentWire, t.stentGold, 0.55), a: 0.25 };
 /** Band and tab edge: the same brown, firmer (they are the one solid mark on the stent). */
-export const stentGoldEdge: EdgeFn = { colour: ({ t }) => mixHex(t.stentWire, t.stentGold, 0.2), a: 0.8 };
+export const stentGoldEdge: EdgeFn = { colour: ({ t }) => mixHex(t.stentWire, t.stentGold, 0.4), a: 0.5 };
 /** Graft rim: the sleeve's own cool grey (the metal token) moved toward the ink, so the clear cover is edged by a soft line in the vessel's colours, not black. */
 export const stentGraftEdge: EdgeFn = { colour: ({ t, ink }) => mixHex(t.stentMetal, ink, 0.4), a: 0.55 };
