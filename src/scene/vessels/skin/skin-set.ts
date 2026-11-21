@@ -299,7 +299,7 @@ export class SkinSet {
    * (tests/skin-agreement.test.ts, the seam's ink). So the clearance is also judged on the drawn capsules: every vertex of a seam ring is at least the blend width `k` from every other arm's drawn capsule.
    */
   private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
-    const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
+    const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, a.at ?? j.J)));
     const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
       if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
@@ -372,7 +372,7 @@ export class SkinSet {
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
     // (a baked skin brings its axes and its mesh: the page plans nothing and remeshes nothing)
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
