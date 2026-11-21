@@ -30,7 +30,8 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
     if (typeof v === 'number') mix(Math.round(v * 1e4) | 0);
     else if (typeof v === 'string') { for (let i = 0; i < v.length; i++) mix(v.charCodeAt(i)); mix(0x7f); }
     else if (Array.isArray(v)) { mix(0x5b); for (const x of v) walk(x); mix(0x5d); }
-    else if (v && typeof v === 'object') for (const k of Object.keys(v).sort()) { if ((v as Record<string, unknown>)[k] === undefined) continue; walk(k); walk((v as Record<string, unknown>)[k]); }
+    else if (v && typeof v === 'object') for (const k of Object.keys(v).sort()) { if (k === 'hold' || (v as Record<string, unknown>)[k] === undefined) continue;   // (`hold`: how a pinned course spaces its rings, the same tube at rest)
+      walk(k); walk((v as Record<string, unknown>)[k]); }
     else mix(v === true ? 1 : v === false ? 2 : 3);
   };
   for (const id of [...tubes.keys()].sort()) {

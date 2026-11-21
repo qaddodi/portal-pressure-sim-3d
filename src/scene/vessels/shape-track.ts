@@ -4,23 +4,28 @@ import { type NetVessel, type PresenceFrame, collateralOpen, feederLive, recruit
 import { CoilState, LOOK_SITE, type Pin, varixGrowth, varixSize, varixSpreadK } from './coil.ts';
 /** The least beading of the esophageal varices (share of a strand's radius), at their full size; the 2D figure's own (varix-bead.js BEAD_MAX 0.35) takes over once it is larger. */
 export const VARIX_BEAD_FLOOR = 0.16;
-import { REST, type ShapeState, coursesOf, tubularOf } from './shape.ts';
+import { REST, type ShapeState, coursesOf, seamState, tubularOf } from './shape.ts';
 import { buildTubes } from './tubes.ts';
 import { BEAD_SITE, varixBead } from './varix-bead.copied.js';
 import { bandsStep } from './band-ease.copied.js';
 import { slicesFor } from '../circuit/geometry.ts';
-import type { VesselObject } from './vessel-object.ts';
+import { RESHAPE_ATTRIBUTES, type ReshapeFrame, type VesselObject } from './vessel-object.ts';
 
 const VARIX_CHANNELS: Record<string, 'VAR' | 'GV'> = { C1a: 'VAR', C1b: 'VAR', C2: 'GV' };
 const VARIX_MEAN_MS = 2000, VARIX_JUMP_MM = 1.5;
 
 export interface ShapeFrame extends PresenceFrame { metrics?: { varix?: { d?: number; present?: boolean }; gastricVarix?: { d?: number; present?: boolean } }; bands?: number }
 
-interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; live: number; strandsOn: boolean; bead: number; built: string; seam: string; /** the tick of its last rebuild (the one waiting longest goes first) */ at: number }
+/** The two key frames of one coil bracket: `lo` and `hi` rung (the coil strength is rung * COIL_STEP), built for the shape's other parts `base`; a frame is built when it is first needed. */
+interface KeyFrames { base: string; lo: number; a: ReshapeFrame | null; b: ReshapeFrame | null }
+interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; live: number; strandsOn: boolean; bead: number; built: string; seam: string; /** the key frames the coil blends between (null: none built yet) */ kf: KeyFrames | null; /** the tick of its last rebuild (the one waiting longest goes first) */ at: number }
 
 const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.rec.toFixed(2)}|${s.bead.toFixed(2)}|${s.bands.toFixed(2)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}|${s.pin ? s.pin.map((x) => x.toFixed(3)).join(',') : ''}`;
 /** What of a shape reaches the seam of a skin standing on the vessel's end: everything but the coil (wig, spr), which the pin holds off the seam (coil.ts pinCourse). A vessel with no pin moves its seam with the coil too. */
-const seamKeyOf = (s: ShapeState) => (s.pin ? keyOf({ ...s, wig: 0, spr: 1 }) : keyOf(s));
+const seamKeyOf = (s: ShapeState) => keyOf(seamState(s));
+/** The coil strengths a coiling vessel's shape is built at, and between which it is blended (the centres and radii are linear in the coil: 0.08 radii off at most from 0 to 5, 0.006 across one step). The target is 1.5 + 3.5 of its opening, so 5 is the most. */
+export const COIL_STEP = 1.25;
+const COIL_RUNGS = 4;
 /** The most CPU time (ms) one frame spends rebuilding tubes for shapes that move (buildTubes + reshape, 1 to 7 ms for each coiling collateral): the rest wait for the next frame, so a preset that opens a dozen collaterals at once spreads the work over frames instead of making one long one. At least one is always rebuilt. */
 export const SHAPE_BUDGET_MS = 4;
 
@@ -41,7 +46,7 @@ export class ShapeTracks {
       if (!obj || !p) continue;
       if (p.kind === 'coil' && !p.coils && !LOOK_SITE[v.id] && !p.strands) continue;
       if (p.kind === 'coil' && !p.coils && !p.strands) continue;
-      this.items.push({ v, obj, coil: new CoilState(), state: { ...REST }, tubular: tubularOf(v, slicesFor(v.id)), shown: 0, spread: 1, live: 1, strandsOn: false, bead: 0, built: keyOf(REST), seam: seamKeyOf(REST), at: 0 });
+      this.items.push({ v, obj, coil: new CoilState(), state: { ...REST }, tubular: tubularOf(v, slicesFor(v.id)), shown: 0, spread: 1, live: 1, strandsOn: false, bead: 0, built: keyOf(REST), seam: seamKeyOf(REST), kf: null, at: 0 });
     }
   }
 
@@ -99,12 +104,46 @@ export class ShapeTracks {
   }
 
   /** Rebuilds a vessel's tubes at its present shape when the shape changed since they were built. True when it did. */
+  /** How many shapes were built (a tube geometry made) and how many were blended from key frames: the tests read these, and ?perf can. */
+  readonly stats = { builds: 0, blends: 0 };
+
+  private frameAt(it: Item, wig: number): ReshapeFrame {
+    const { geometry, length } = buildTubes(coursesOf(it.v, { ...it.state, wig }), it.tubular, it.v.radius);
+    const arrays = new Map<string, Float32Array>();
+    for (const name of RESHAPE_ATTRIBUTES) { const a = geometry.getAttribute(name); if (a) arrays.set(name, (a.array as Float32Array).slice()); }
+    geometry.dispose();
+    this.stats.builds++;
+    return { arrays, length };
+  }
+
+  /** A coiling vessel is drawn by blending two key frames of its shape, built at the coil strengths on either side of the present one: the coil easing for a second moves 1 or 2 brackets, so it costs 1 to 4 builds, not one a frame (a build is 3 to 6 ms). */
+  private blend(it: Item): void {
+    const w = it.state.wig, base = keyOf({ ...it.state, wig: 0 });
+    const lo = Math.min(COIL_RUNGS - 1, Math.max(0, Math.floor(w / COIL_STEP + 1e-9))), t = Math.min(1, Math.max(0, (w - lo * COIL_STEP) / COIL_STEP));
+    let kf = it.kf;
+    if (!kf || kf.base !== base) kf = it.kf = { base, lo, a: null, b: null };
+    else if (kf.lo !== lo) {
+      const up = lo === kf.lo + 1, down = lo === kf.lo - 1;
+      kf = it.kf = { base, lo, a: up ? kf.b : null, b: down ? kf.a : null };
+    }
+    if (t < 1 - 1e-9) kf.a ??= this.frameAt(it, lo * COIL_STEP);
+    if (t > 1e-9) kf.b ??= this.frameAt(it, (lo + 1) * COIL_STEP);
+    // (at a key itself only that frame is needed: the other is the same one)
+    const a = kf.a ?? kf.b!, b = kf.b ?? kf.a!;
+    it.obj.reshapeLerp(a, b, kf.a && kf.b ? t : 0);
+    this.stats.blends++;
+  }
+
   private rebuild(it: Item): boolean {
     const key = keyOf(it.state);
     if (key === it.built) return false;
-    const { geometry, length } = buildTubes(coursesOf(it.v, it.state), it.tubular, it.v.radius);
-    it.obj.reshape(geometry, length);
-    geometry.dispose();
+    if (it.v.plan!.kind === 'coil') this.blend(it);
+    else {
+      const { geometry, length } = buildTubes(coursesOf(it.v, it.state), it.tubular, it.v.radius);
+      it.obj.reshape(geometry, length);
+      geometry.dispose();
+      this.stats.builds++;
+    }
     it.built = key;
     // the skin standing on this vessel's end is rebuilt only when its seam moved: a coil is held off the seam by the pin, so the growth of a collateral costs it nothing (a rebuild is 0.1 to 2 s of CPU)
     const seam = seamKeyOf(it.state);

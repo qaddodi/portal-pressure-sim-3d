@@ -148,3 +148,56 @@ import { coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { slicesFor } from '../src/scene/circuit/geometry.ts';
 const armTubeCourses = (id: string, s: ShapeState) => coursesOf(NETWORK_BY_ID.get(id)!, s);
 const tubularOfId = (id: string) => tubularOf(NETWORK_BY_ID.get(id)!, slicesFor(id));
+
+test('a collateral easing open is BLENDED between key frames of its shape, not rebuilt each frame: a handful of builds for a whole growth, the blend itself is checked against a fresh build in the next test', () => {
+  const r = rig();
+  try {
+    const shapes = r.inside.shapes, coils = r.items.filter((it) => NETWORK_BY_ID.get(it.v.id)?.plan?.kind === 'coil');
+    for (const it of r.items) { it.shown = 1; it.spread = 1; it.strandsOn = true; }
+    const b0 = shapes.stats.builds, w0 = shapes.stats.blends;
+    for (let f = 0; f < 120; f++) {
+      const moving = shapes.step(16);
+      if (!moving && f > 3) break;
+    }
+    const builds = shapes.stats.builds - b0, blends = shapes.stats.blends - w0;
+    assert.ok(blends > builds * 4, `${blends} blends from ${builds} builds`);
+    assert.ok(builds <= coils.length * 6, `${builds} builds for ${coils.length} coiling vessels`);
+  } finally { r.done(); }
+});
+
+test('between two key frames the blend is the shape built afresh to within 0.03 of the vessel\'s radius, for every coiling vessel and every step of the ladder', () => {
+  const r = rig();
+  try {
+    const shapes = r.inside.shapes;
+    for (const it of r.items) {
+      const v = NETWORK_BY_ID.get(it.v.id)!;
+      if (v.plan?.kind !== 'coil') continue;
+      for (const w of [0.4, 1.9, 3.1, 4.4]) {
+        const st: ShapeState = { ...REST, ...it.state, wig: w, spr: 1, strandsOn: true };
+        it.state.wig = w; it.state.spr = 1; it.state.strandsOn = true;
+        (shapes as unknown as { rebuild(i: unknown): boolean }).rebuild(it);
+        const want = buildTubes(coursesOf(v, st), tubularOf(v, slicesFor(it.v.id)), v.radius).geometry.getAttribute('position').array as Float32Array;
+        const got = (r.scene.vesselObject(it.v.id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array } } } }).toonMesh.geometry.getAttribute('position').array;
+        let worst = 0;
+        for (let i = 0; i < want.length; i += 3) worst = Math.max(worst, Math.hypot(got[i]! - want[i]!, got[i + 1]! - want[i + 1]!, got[i + 2]! - want[i + 2]!) / v.radius);
+        assert.ok(worst < 0.03, `${it.v.id} at coil ${w}: ${worst.toFixed(4)} radii off`);
+      }
+    }
+  } finally { r.done(); }
+});
+
+
+test('collapse: collaterals closing (coil easing back, strands off, bead and spread gone) rebuild no skin and report no seam moving either', () => {
+  const r = rig();
+  try {
+    const skins = r.inside.skins!, shapes = r.inside.shapes, pins = skins.pins();
+    for (const it of r.items) { it.shown = 1; it.spread = 1; it.strandsOn = true; }
+    for (let f = 0; f < 200 && shapes.step(16); f++);
+    const before = skins.stats.rebuilds, reshaped: string[] = [], was = shapes.onReshaped;
+    shapes.onReshaped = (id) => { if (pins.has(id)) reshaped.push(id); was?.(id); };
+    for (const it of r.items) { it.shown = 0; it.spread = 1; it.strandsOn = false; (it as unknown as { bead: number }).bead = 0; }
+    for (let f = 0; f < 200; f++) { const moving = shapes.step(16); skins.step(); assert.equal(skins.stats.rebuilds, before, `a skin was rebuilt at frame ${f}`); if (!moving) break; }
+    assert.deepEqual(reshaped, [], 'no skinned seam moved');
+    assert.ok(r.items.filter((it) => it.state.pin).every((it) => it.state.wig === 0), 'the collaterals are straight again');
+  } finally { r.done(); }
+});

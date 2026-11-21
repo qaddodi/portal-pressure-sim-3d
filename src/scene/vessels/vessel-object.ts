@@ -75,6 +75,11 @@ export function withRk(g: BufferGeometry): BufferGeometry {
   return out;
 }
 
+/** The attributes `reshape` and `reshapeLerp` write. */
+export const RESHAPE_ATTRIBUTES = ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr'] as const;
+/** A key frame of a vessel's shape: its reshape attributes and the course's length. */
+export interface ReshapeFrame { arrays: Map<string, Float32Array>; length: number }
+
 /** The camera layer nothing is drawn from: the cava's solid mesh, kept only to be picked. */
 export const FAINT_ONLY_LAYER = 2;
 /** The copies' shares of a vessel that is not behind the organs, or one that is shown whole: its front copy alone (`copyShares`). */
@@ -160,7 +165,7 @@ export class VesselObject extends CelObject {
   /** Swaps in a new shape of the same vertex count (a collateral coiling, a fan changing width): the positions are written in place, so nothing is rebuilt. */
   reshape(g: BufferGeometry, len: number): void {
     const geo = this.toonMesh.geometry;
-    for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr']) {
+    for (const name of RESHAPE_ATTRIBUTES) {
       const src = g.getAttribute(name), dst = geo.getAttribute(name);
       if (!src || !dst) continue;
       const a = src.array as Float32Array, b = dst.array as Float32Array;
@@ -170,6 +175,24 @@ export class VesselObject extends CelObject {
     }
     geo.computeBoundingSphere();
     this.toon.uniforms.len!.value = len;
+  }
+
+  /** The shape `t` of the way from key frame `a` to key frame `b` (shape-track.ts: the same tubes built at two coil strengths), written into the geometry's own arrays: no geometry is built, nothing is allocated. Centres and radii are exactly linear in the coil, the rings only turn a hair
+   *  between two keys (tests/shape-pin.test.ts pins the error), and a ring that is the same in both stays the same. */
+  reshapeLerp(a: ReshapeFrame, b: ReshapeFrame, t: number): void {
+    const geo = this.toonMesh.geometry;
+    for (const name of RESHAPE_ATTRIBUTES) {
+      const A = a.arrays.get(name), B = b.arrays.get(name), dst = geo.getAttribute(name);
+      if (!A || !B || !dst) continue;
+      const out = dst.array as Float32Array;
+      if (A.length !== out.length || B.length !== out.length) throw new Error(`reshape: ${name} has ${A.length} values, the vessel was built with ${out.length}`);
+      const dir = dst.itemSize === 3 && (name === 'normal' || name === 'tang');
+      for (let i = 0; i < out.length; i++) out[i] = A[i]! + (B[i]! - A[i]!) * t;
+      if (dir) for (let i = 0; i < out.length; i += 3) { const l = Math.hypot(out[i]!, out[i + 1]!, out[i + 2]!) || 1; out[i] = out[i]! / l; out[i + 1] = out[i + 1]! / l; out[i + 2] = out[i + 2]! / l; }
+      dst.needsUpdate = true;
+    }
+    geo.computeBoundingSphere();
+    this.toon.uniforms.len!.value = a.length + (b.length - a.length) * t;
   }
 
   /** Smooth joins: the lens colour runs through the ramp along the vessel (shaders.ts `lensOf`). */

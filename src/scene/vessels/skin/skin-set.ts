@@ -14,7 +14,7 @@
 // `skin-build` is the name the scene gives the clock for the frames this asks for (?perf lists it among the askers), and `stats` keeps the cost of the last and the worst rebuild.
 import type { BufferGeometry, Color, Object3D } from 'three';
 import { NETWORK_BY_ID } from '../network.ts';
-import { REST, type ShapeState } from '../shape.ts';
+import { REST, seamState, type ShapeState } from '../shape.ts';
 import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
@@ -262,7 +262,7 @@ export class SkinSet {
     for (const j of js) for (const a of j.arms) {
       if (m.has(a.vesselId)) continue;
       const def = NETWORK_BY_ID.get(a.vesselId)!;
-      const at = armTube(def, this.deps.stateOf(a.vesselId) ?? REST), b = buildTubes(at.courses, at.tubular, def.radius);   // (a braid's arm tube is its widest strand: braid-arm.ts)
+      const at = armTube(def, seamState(this.deps.stateOf(a.vesselId))), b = buildTubes(at.courses, at.tubular, def.radius);   // (a braid's arm tube is its widest strand: braid-arm.ts)
       m.set(a.vesselId, { geometry: b.geometry, tubular: b.runs[0]!.tubular, input: at.courses });
     }
     return m;
@@ -413,7 +413,7 @@ export class SkinSet {
     for (const a of b.arms) {
       if (b.holes.some((h) => h.id === a.id)) continue;   // (both sides of this host are arms of the skin: a hole, the host's own ends stay as they are)
       const c = this.cuts.get(a.id) ?? [SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]];
-      const def = NETWORK_BY_ID.get(a.id), cu = def ? strandCutU(def, this.deps.stateOf(a.id) ?? REST, a.end, a.u) : a.u;   // (a braid's strands are cut at the seam's distance on the longest of them)
+      const def = NETWORK_BY_ID.get(a.id), cu = def ? strandCutU(def, seamState(this.deps.stateOf(a.id)), a.end, a.u) : a.u;   // (a braid's strands are cut at the seam's distance on the longest of them)
       if (a.end === 0) c[0] = cu; else c[1] = cu;
       this.cuts.set(a.id, c);
       const e = this.ends.get(a.id) ?? [false, false]; e[a.end] = true; this.ends.set(a.id, e);
