@@ -119,7 +119,7 @@ export class ProcCatheter {
     this.r3 = r3; this.span = span;
     const r = r3.route, rc = (this.rc = r3.rc);
     const nS = (this.n = Math.max(24, Math.ceil(r.total / 2.4)));
-    const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: EdgeRule = 'ink', px = 0.9, more: { bands?: 2 | 3; tubeTones?: boolean; fat?: number } = {}): DeviceObject => {
+    const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: EdgeRule = 'ink', px = 0.9, more: { bands?: 2 | 3; tubeTones?: boolean; fat?: number; shadow?: number } = {}): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order, ...more }, edge);
       this.group.add(o.group); this.objects.push(o); return o;
     };
@@ -143,7 +143,7 @@ export class ProcCatheter {
     const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
     // (lit by the world with a highlight, three bands: a round polymer line, not the vessels' flat screen tones, which read as a ribbon)
-    this.shaft = mk(sg, 'poly', 4, CATH_EDGE, 0.7, { bands: 3, tubeTones: false, fat: 0.7 });
+    this.shaft = mk(sg, 'poly', 4, CATH_EDGE, 0.7, { bands: 3, tubeTones: false, fat: 0.7, shadow: rc });
     // the lead-in above the figure fades out as a gradient (the catheter's free end), shaft, needle and wire alike
     for (const o of [this.shaft, this.needle, this.wire]) o.setTailFade(Math.min(0.5, TAIL_UNITS / r.total));
     // (no marker ring behind the tip: the only rings are the two collars at the balloon's ends)
