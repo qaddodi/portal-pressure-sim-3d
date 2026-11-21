@@ -45,7 +45,17 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
       assert.equal(b.mesh.junction, b.plan.junction, 'the mesh and its plan share one junction, as they do when built live'); assert.equal(b.mesh.cuts, b.plan.cuts);
       for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.mesh[k], a.mesh[k], `${a.plan.junction.node} ${k}`);
       assert.deepEqual(b.mesh.seamVerts, a.mesh.seamVerts); assert.deepEqual(b.mesh.grow, a.mesh.grow);
+      // the plain trunk of a skin with growing arms (plain.ts) ships baked too: its axes, mesh and pace, or the null that says it could not be built
+      assert.equal(b.plain === undefined, a.plain === undefined, `${a.plan.junction.node}: the plain trunk is carried`);
+      if (a.plain && b.plain) {
+        assert.deepEqual(b.plain.axes, a.plain.axes); assert.equal(b.plain.pace, a.plain.pace);
+        for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.plain.mesh[k], a.plain.mesh[k], `${a.plan.junction.node}~plain ${k}`);
+        assert.equal(b.plain.mesh.junction.node, `${a.plan.junction.node}~plain`); assert.equal(b.plain.mesh.cuts.length, b.plain.mesh.junction.arms.length);
+      } else assert.equal(b.plain, a.plain);
     });
+    const withPlain = made.skins.filter((x) => x.plain);
+    assert.ok(withPlain.length >= 4, `${withPlain.length} skins bake a plain trunk (CONF, SV, RPV_T, IVCI at least)`);
+    assert.deepEqual(made.skins.filter((x) => x.plain === null).map((x) => x.plan.junction.node), ['LPV_A'], 'the plain trunks that do not build are named');
     assert.equal(decodeSkins(new ArrayBuffer(4)), null);
 
     // the page's build from the file: the same skins, the same cuts, a fraction of the time
@@ -56,6 +66,7 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     assert.deepEqual(baked.set.fellBack, live.set.fellBack); assert.deepEqual(baked.set.dropped, live.set.dropped);
     assert.deepEqual(baked.meshes.map((m) => m.position.length), live.meshes.map((m) => m.position.length));
     for (const m of baked.meshes) assert.ok(back.skins.some((b) => b.mesh === m), `${m.junction.node}: the skin drawn is the baked mesh itself, not a new one`);
+    for (const x of back.skins) if (x.plain) assert.equal(baked.set.plainOf(x.plan.junction.node), x.plain.mesh, `${x.plan.junction.node}: the plain trunk drawn is the baked mesh itself`);
     assert.ok(bakedMs < liveMs / 4 && bakedMs < 2000, `baked ${Math.round(bakedMs)} ms against ${Math.round(liveMs)} ms live`);
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
