@@ -1,6 +1,7 @@
 // Junction skins, WP6 (docs/junction-skin-spec.md section 5): the skin and the tubes it joins AGREE where they meet, on the REAL network at rest. A seam is where one arm's tube hands over to the skin, so every number the two stages
 // make there (the vertex's place, the colour's ramp position, the ink's distance, the alpha) must be the same, or a crack, a step or a kink shows. These read the JS twins of the two vertex stages (vessels/skin/arm-twins.ts normalShift)
 // and of the fragment's ink rule; the GLSL itself is compiled by tests/glsl-compile.test.ts and tests/skin-shaders.test.ts.
+import { isBraid } from '../src/scene/vessels/skin/braid-arm.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BufferAttribute, PerspectiveCamera, Vector4 } from 'three';
@@ -53,6 +54,7 @@ test('every skinned arm\'s seam, on the real network: the skin\'s vertex stage l
     let n = 0;
     for (const { mesh } of b.draws) {
       mesh.junction.arms.forEach((arm, ai) => {
+        if (isBraid(NETWORK_BY_ID.get(arm.vesselId)!)) return;   // (a braid's stand-in arm is cut by its strands' own distance, braid-arm.ts strandCutU, tests/skin-strands.test.ts)
         const cut = mesh.cuts[ai]!, { v, b: tb, run } = tubeOf(arm.vesselId);
         const pos = tb.geometry.getAttribute('position'), nor = tb.geometry.getAttribute('normal'), rk = tb.geometry.getAttribute('rk');
         for (let j = 0; j < RADIAL; j++) {
@@ -84,6 +86,7 @@ test('the seam\'s colour: the ramp position the skin reads for an arm is the one
   const b = built();
   try {
     for (const { mesh } of b.draws) mesh.junction.arms.forEach((arm, ai) => {
+      if (isBraid(NETWORK_BY_ID.get(arm.vesselId)!)) return;
       const cut = mesh.cuts[ai]!, { v, b: tb, run } = tubeOf(arm.vesselId);
       const uv = tb.geometry.getAttribute('uv');
       for (let j = 0; j < RADIAL; j++) assert.ok(Math.abs(uv.getX(run.tubeStart + cut.ring * (RADIAL + 1) + j) - cut.u) < 1e-6, `${arm.vesselId}: the ring's uv.x is the cut's u`);
@@ -185,6 +188,7 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
       const { mesh } = draw, J = mesh.junction.J;
       const cam = new PerspectiveCamera(30, 1, 0.01, 100); cam.position.set(J[0], J[1], J[2] + 1.2); cam.lookAt(J[0], J[1], J[2]);
       mesh.junction.arms.forEach((arm, ai) => {
+        if (isBraid(NETWORK_BY_ID.get(arm.vesselId)!)) return;
         const tb = tubeOf(arm.vesselId), cut = mesh.cuts[ai]!;
         // the three axis points the shader draws from: the tube's own ring centres, as the set builds them
         const sided = mesh.junction.arms.some((a) => !!a.side);

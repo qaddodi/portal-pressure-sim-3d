@@ -16,7 +16,6 @@ import { findSkinJunctions, growerEndsByNode, isGrower } from '../src/scene/vess
 import { braidRootEnds, isBraid, strandCutU } from '../src/scene/vessels/skin/braid-arm.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
-import { grownValue } from '../src/scene/vessels/skin/arm-twins.ts';
 import { sdUnion, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
@@ -82,7 +81,7 @@ function built() {
 const skinOf = (d: SkinObject): string[] => d.mesh.name.replace('skin:', '').split('+');
 const capsOf = (ax: readonly ArmAxis[]): Capsule[] => ax.map((a) => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate }));
 
-test('every welded braid root is a growing arm of a built skin, none is dropped, nothing falls back; closed (growth 0) its mouth lies on the plain trunk and the seam at growth 1 is the arm tube\'s own ring', () => {
+test('every welded braid root is a growing arm of a built skin, none is dropped, nothing falls back; its skin is static with the arm whole', () => {
   const b = built();
   try {
     assert.deepEqual(b.warnings, []);
@@ -96,14 +95,8 @@ test('every welded braid root is a growing arm of a built skin, none is dropped,
       const m: SkinMesh = b.set.skinOf(d.mesh.name.replace('skin:', ''))!;
       const ai = m.junction.arms.findIndex((a) => a.vesselId === id && a.end === Number(end));
       assert.ok(ai >= 0, `${key} is an arm of ${nodes[0]}`);
-      const g = m.grow.find((x) => x.arm === ai);
-      assert.ok(g, `${key} is a morphed (growing) arm: the mouth opens with the vessel`);
-      const caps = capsOf(b.axes.get(d)!), others = caps.filter((_, i) => i !== ai), k = skinKOf(m.junction.arms), Rmin = Math.min(...m.junction.arms.map((a) => a.restR));
-      for (const sv of m.seamVerts[ai]!) {
-        for (let q = 0; q < 3; q++) assert.equal(grownValue(m.position[3 * sv + q]!, g.dPos[3 * sv + q]!, 1), m.position[3 * sv + q]);
-        const p: number[] = [0, 1, 2].map((q: number): number => grownValue(m.position[3 * sv + q]!, g.dPos[3 * sv + q]!, 0));
-        assert.ok(Math.abs(sdUnion(others, k, p[0]!, p[1]!, p[2]!)) <= 0.05 * Rmin, `${key}: the closed mouth is on the trunk`);
-      }
+      assert.ok(m.junction.arms[ai]!.grow, `${key} is a growing arm of its skin: whole in the static skin, the tube's flared end grows and the weld hands over at growth 0.9 to 1`);
+      assert.equal(m.grow.length, 0, `${nodes[0]}: no growth morph`);
       n++;
     }
     assert.equal(n, Object.keys(WELDED).length);
