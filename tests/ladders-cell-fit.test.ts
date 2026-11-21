@@ -42,3 +42,17 @@ test('the first row\'s fit writes the size and the under class to the DOM on eve
   assert.doesNotMatch(head, /useState|setFit/, 'a stripped class or size would stay stripped when the state came out the same');
   assert.doesNotMatch(head, /className=\{`pz-cell-k\$\{/, 'the class is the pass\'s, not React\'s');
 });
+
+// Mohammad, 21 Nov (iPhone, 11/14): the card showed only its header for seconds before the six rows came. Root cause: the grid worked the whole deck out again in a worker of its own (rw/numbers.ts deckFingerprints) for numbers the talk
+// already holds (decks/hp/calc.ts useStates, which every other card of the slide reads). It reads those, so only the few patients no slide shows are run.
+test('the ladders read the deck\'s states from the talk, not a second run of the whole deck', async () => {
+  const { useStates } = await import('../src/decks/hp/calc.ts');
+  const { deckStates } = await import('../src/ui/charts/ladder/data.ts');
+  useStates.setState({ results: { 'talk-x': [{ fp: { a: 1 } }, { fp: { a: 2 } }] as never } });
+  let ran = 0;
+  const fps = await deckStates({ id: 'talk-x', slides: [] } as never, (async () => { ran++; return []; }) as never);
+  assert.equal(ran, 0, 'no second run of the deck');
+  assert.deepEqual(fps.map((f) => f.a), [1, 1, 2], 'entry 0 the outline (the first slide\'s), then slide i at i + 1');
+  const card = readFileSync('src/ui/charts/ladder/LaddersCard.tsx', 'utf8');
+  assert.match(card, /ensureStates\(deck as never\)/, 'it waits for the talk\'s own states');
+});

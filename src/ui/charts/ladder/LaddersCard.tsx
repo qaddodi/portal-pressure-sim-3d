@@ -5,6 +5,7 @@ import type { CopiedDeck } from '../../../decks/rw/types.ts';
 import type { RunSteps } from '../../../decks/rw/numbers.ts';
 import { ProfileCard } from '../profile/ProfileCard.tsx';
 import { chartScale } from '../profile/model.ts';
+import { ensureStates } from '../../../decks/hp/calc.ts';
 import { ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
 import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
@@ -98,7 +99,8 @@ export function LaddersCard({ slide, deck, data: given, run = engineRun, chart =
   useEffect(() => {
     if (given !== undefined) return;
     let live = true;
-    ladderData(slide, deck, run).then((d) => { if (live) setGot(d); }, () => undefined);
+    // (the talk's states for this deck first: working the whole deck out again for these six rows is what held the card at its header for seconds)
+    (run === engineRun ? ensureStates(deck as never).catch(() => undefined) : Promise.resolve()).then(() => ladderData(slide, deck, run)).then((d) => { if (live) setGot(d); }, () => undefined);
     return () => { live = false; };
   }, [slide, deck, given, run]);
   const data = given !== undefined ? given : got;
