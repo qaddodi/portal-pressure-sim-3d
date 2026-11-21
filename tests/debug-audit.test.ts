@@ -147,6 +147,7 @@ test('words that only a screen reader hears are not words on the card (the iPhon
   assert.match(raw, /hiddenFromEyes\(win, p, card\)\) continue/);
   // (every card's cells that carry the hidden words are the table's, drawn in TableCard)
   assert.match(readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8'), /className="sr-only"/);
+});
 
 test('the registry holds one talk at boot and the rest lazily, so every tool that walks the talks loads them first (the audit, the Phone check and the Sweep walked one talk)', async () => {
   const { builtinDecks, lazyDecks, loadBuiltin } = await import('../src/decks/registry.ts');
