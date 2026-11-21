@@ -12,15 +12,19 @@ import { SHUNT_END_MIN, type ShuntEnd } from '../vessels/shunt-ends.ts';
 export const END_SPAN = 0.3;
 const smooth = (u: number): number => u * u * (3 - 2 * u);
 
-/** An end sunk into a host of radius `hostR` (scene units, on the map) and flared toward its wall. */
-export const sunkEnd = (hostR: number): ShuntEnd => ({ hostR, inside: true, sink: true, flare: true });
+/** An end sewn onto a host of radius `hostR` (scene units, on the map) the way the body sews every generated end (shunt-ends.ts `sewnEndAt`): narrowed to the host's width, closing to 0.35 of it inside the wall (so no round cap shows past it: a sphere there was the bulge), flared at the heel but never wider than the host. */
+export const sunkEnd = (hostR: number): ShuntEnd => ({ hostR, inside: true, sink: false, flare: true, capped: true });
+/** A start that carries on from the end of another tube of the map (a sinusoid branch from the tip of a portal venule): sunk in it without narrowing or flare, so the two run on at one width with no waist. */
+export const runOnEnd = (hostR: number): ShuntEnd => ({ hostR, inside: true, sink: true, flare: false });
 
 /** The share of the tube's own radius at distance `d` (scene units) from an end: the host's caliber (stage-tubes.js tubeHostW: at most 1, at least SHUNT_END_MIN of its own) eased in over END_SPAN of the course, then the 2D sink and flare. */
 export function endShareAt(e: ShuntEnd | null, own: number, d: number, len: number): number {
   if (!e || !(own > 0) || !(len > 0)) return 1;
   const t = Math.min(1, Math.max(SHUNT_END_MIN, e.hostR / own)), u = d / len;
   const narrow = u < END_SPAN ? t + (1 - t) * smooth(Math.max(0, u) / END_SPAN) : 1;
-  return narrow * (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (e.flare ? (flareScale(d, e.hostR) as number) : 1);
+  const base = narrow * (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1), fl = e.flare ? (flareScale(d, e.hostR) as number) : 1;
+  // a generated end's flare never takes the tube wider than its host (vessels/tubes.ts: the heel was a bulge): the narrowing stays, the flare is cut at the host's radius
+  return e.capped && fl > 1 ? Math.min(base * fl, Math.max(base, e.hostR / own)) : base * fl;
 }
 
 /** The share at ring `u` (0 to 1 along a course of `len` scene units) of a tube with these two ends. Where the two narrowings overlap (a short tube) the narrower holds, as the body's tubes do (tubes.ts factorSpan). */
