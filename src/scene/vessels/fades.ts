@@ -5,8 +5,8 @@ import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
-import { alongVeinStretch, startInOrganShare } from './starts.ts';
-import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare } from './liver-branches.ts';
+import { alongVein, alongVeinCompanion, alongVeinStretch, startInOrganShare } from './starts.ts';
+import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 
 /** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
  *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
@@ -117,6 +117,29 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
   if (k == null) return f;
   return f ? { ...f, a0: f.a0 * k, a1: f.a1 * k } : { mode: 1, from: 0, to: 1, a0: k, a1: k, keep: false, connect: [] };
 }
+/** A lobar artery runs on to its bed's node, past where the portal branch it travels with has faded out into the liver (Mohammad, 20 Nov: "the hepatic artery branches are extending way too much; fade them earlier"; the dotted tip was the dithered end of a fade that
+ *  still had alpha where the vein's was gone). Its fade ENDS where its companion's does: the share of the artery's course nearest to the point where the portal branch (the last vein it runs beside) reaches nothing, so both vanish together and the rest of
+ *  the artery is fully faded (not drawn). 1 for an artery with no branching companion. */
+const COMPANION_END = new Map<string, number>();
+export function companionEnd(id: string): number {
+  const hit = COMPANION_END.get(id); if (hit != null) return hit;
+  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = alongVein(id, EDGE_PATH_2D);
+  let u = 1;
+  if (f && tree && art && art.length > 1) {
+    const th = tree.through, k = Math.min(th.length - 1, Math.max(0, f.to * (th.length - 1))), i = Math.floor(k), j = Math.min(th.length - 1, i + 1), w = k - i;
+    const px = th[i]![0] + (th[j]![0] - th[i]![0]) * w, py = th[i]![1] + (th[j]![1] - th[i]![1]) * w;
+    // (the nearest point on the artery's polyline, as a share of its length)
+    let total = 0, best = Infinity, at = 0;
+    for (let n = 1; n < art.length; n++) {
+      const [ax, ay] = art[n - 1]!, [bx, by] = art[n]!, dx = bx - ax, dy = by - ay, sl = Math.hypot(dx, dy), t = sl > 0 ? Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / (sl * sl))) : 0, d = Math.hypot(ax + dx * t - px, ay + dy * t - py);
+      if (d < best) { best = d; at = total + sl * t; }
+      total += sl;
+    }
+    u = total > 0 ? Math.min(1, at / total) : 1;
+  }
+  COMPANION_END.set(id, u);
+  return u;
+}
 function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length, to nothing a little before their tip so no cut end is ever seen (a 3x look at the live build saw a flat pale end)
   if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: FORK_CLEAR, to: 0.92, a0: 1, a1: 0, keep: false, connect: [] };
@@ -133,7 +156,7 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   // (the lobar arteries fade out with the portal branch they run beside, over the same share of their length: Mohammad, 20 Nov, "the right branch doesn't fade at the end")
   // (the artery runs on to its bed's node now, starts.ts alongVein: the fade starts where it always did along the portal branch)
-  if (art?.out) return { mode: 1, from: (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D), to: 1, a0: 1, a1: 0, keep: false, connect: [] };
+  if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, connect: [] }; }
   const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const tip = TIP_FADE_2D[id] ?? FREE_START_FADE[id];
