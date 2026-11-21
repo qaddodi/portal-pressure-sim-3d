@@ -320,9 +320,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
     sum += w;
     if (k == arm) mine = w;
   }
-  // (a head whose centre sits in the crotch, where two arms are about as near, was drawn by BOTH at half strength: two chevrons of different headings laid over each other, a pale smear (Mohammad, 21 Nov). The share is steepened by a
-  // symmetric ease, 0 up to a quarter and whole from three quarters: a head is still handed over smoothly (nothing pops), but the stretch where two arms share one is a quarter of what it was, and two arms' shares of a pair still add to 1)
-  return smoothstep(0.25, 0.75, mine / max(sum, 1.0e-6));
+  return mine / max(sum, 1e-6);
 }
 void main() {
   // (a welded skin's normal is interpolated between vertices whose normals can face apart at a crease: its length can come to nothing, and normalize() of nothing is NaN, which the flow marks turned into
