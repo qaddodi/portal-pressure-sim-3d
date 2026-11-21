@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { hintText, startFirstHint } from '../src/ui/shell/first-hint.ts';
 import { useShell } from '../src/ui/shell/store.ts';
+import { useTreat } from '../src/ui/treat/store.ts';
 import { useSelection } from '../src/ui/action/selection.ts';
 
 const env = (o: { seen?: boolean; fine?: boolean; webdriver?: boolean; phone?: boolean } = {}) => {
@@ -50,14 +51,27 @@ test('a talk takes it away without counting it read; a device that has seen it, 
   reset();
 });
 
-test('a phone sheet over the figure closes it unread', async () => {
+test('any open sheet (laptop or phone) closes it unread', async () => {
   reset();
-  const a = env({ phone: true });
+  const a = env({ phone: false });
   const stop = startFirstHint(a.e, 1);
   await wait(15);
   assert.ok(useShell.getState().toast);
   useShell.setState({ sheet: 'history' as never });
   assert.equal(useShell.getState().toast, null);
   assert.deepEqual(a.marks, []);
+  stop(); reset();
+});
+
+test('opening the Treat card closes it unread', async () => {
+  reset();
+  const a = env({});
+  const stop = startFirstHint(a.e, 1);
+  await wait(15);
+  assert.ok(useShell.getState().toast);
+  useTreat.setState({ open: true });
+  assert.equal(useShell.getState().toast, null);
+  assert.deepEqual(a.marks, []);
+  useTreat.setState({ open: false });
   stop(); reset();
 });

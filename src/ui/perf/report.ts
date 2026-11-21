@@ -29,3 +29,6 @@ export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: s
   if (ctx.spans?.length) { lines.push('startup spans (ms, at ms since the page began):'); for (const p of ctx.spans.slice(0, 40)) lines.push(`  ${p.name} ${f1(p.ms)} @${p.at}`); }
   return lines.join('\n');
 }
+
+/** The one line the compact strip shows while timings are collected: the frame times (the slow-frame list stays in the Detail view). */
+export const perfStrip = (full: string): string => full.split('\n').find((l) => l.startsWith('frames drawn')) ?? full.split('\n', 1)[0] ?? '';

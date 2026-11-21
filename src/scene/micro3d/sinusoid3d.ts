@@ -287,14 +287,15 @@ export class Sinusoid3D {
   /** The same for the albumin beads, whole from ALB_RIM_FULL_PX. */
   private readonly rimKAlb = { value: 1 };
 
-  update(on: boolean, rate = 1): boolean {
+  /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden. */
+  update(on: boolean, rate = 1, force = false): boolean {
     const f = this.flat;
     const changed = on !== this.on;
     this.on = on;
-    const shown = on && f.isVisible;
+    const shown = force || (on && f.isVisible);
     // (paused, the blood stands still: the red cells, the albumin and the streaks stop with the simulation, Mohammad 20 Nov 2026; `rate` is the scene's one eased pause/play rate, so they ease to a stop and back up)
     f.trafficSpeed = Math.min(1, Math.max(0, rate)) * (on ? PACE : 1);
-    this.group.visible = shown;
+    this.group.visible = shown && !force;
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;

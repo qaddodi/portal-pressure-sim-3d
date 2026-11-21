@@ -216,8 +216,9 @@ void main() {
   ${LIVER_CUT_VS_MAIN}
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }`;
-export const POOL_FS = /* glsl */ `
-precision highp float;
+/** The pool's colour and alpha at a point, as a chunk the hull's program (ascites-hull-glsl.ts) shares: `poolBase(d, lineD, lineW)` writes gl_FragColor as 2D's fluidAt with the Living sheen, the crisp line, the rich amber, the wall feather and the liver cut.
+ *  `d` is the depth under the surface (2D units: tone, alpha, richness), `lineD` the distance the sheen and the line fall off over (2D units: the same as `d` on the pool), `lineW` how much of the sheen and line shows (1 on the pool). */
+export const POOL_BASE_GLSL = /* glsl */ `
 ${LIVER_CUT_FS}
 uniform vec3 uInk;
 uniform float uInkA;
@@ -226,15 +227,14 @@ uniform float uLiving;
 varying float vD;
 varying float vW;
 varying float vPxu;
-void main() {
-  float d = max(vD, 0.0);
-  float px = d * vPxu;   // depth under the surface in CSS px
+void poolBase(float d, float lineD, float lineW) {
+  float px = lineD * vPxu;   // distance from the line's edge in CSS px
   // 2D's fluidAt: ${SURFACE_SHARE} of the ink at the surface, the whole of it by ${DEEP_AT} units under, a soft pale meniscus
   float a = uInkA * (${f(SURFACE_SHARE)} + ${f(1 - SURFACE_SHARE)} * smoothstep(0.0, ${f(DEEP_AT)}, d));
   vec3 c = mix(uInk, mix(uInk, vec3(1.0), ${f(MENISCUS)}), exp(-d * d / ${f(MENISCUS_FALL)}));
   // Living fluid: a glassy sheen over the top of the water and a crisp pale line on the surface (both in px), richer amber far under it, and the edge fading out over the last ${FEATHER_PX} px
-  c = mix(c, vec3(1.0), ${f(SHEEN_K)} * (1.0 - smoothstep(0.0, ${f(SHEEN_PX)}, px)) * uLiving);
-  c = mix(c, vec3(1.0), ${f(LINE_K)} * (1.0 - smoothstep(${f(LINE_FROM_PX)}, ${f(LINE_TO_PX)}, px)) * uLiving);
+  c = mix(c, vec3(1.0), ${f(SHEEN_K)} * (1.0 - smoothstep(0.0, ${f(SHEEN_PX)}, px)) * uLiving * lineW);
+  c = mix(c, vec3(1.0), ${f(LINE_K)} * (1.0 - smoothstep(${f(LINE_FROM_PX)}, ${f(LINE_TO_PX)}, px)) * uLiving * lineW);
   float lum = dot(c, vec3(0.299, 0.587, 0.114));
   vec3 rich = clamp(vec3(lum) + (c - vec3(lum)) * ${f(RICH_SAT)}, 0.0, 1.0) * ${f(RICH_VAL)};
   c = mix(c, rich, ${f(RICH_K)} * smoothstep(${f(RICH_FROM)}, ${f(RICH_TO)}, d) * uLiving);
@@ -247,6 +247,13 @@ void main() {
   gl_FragColor = vec4(c, min(1.0, a * edge) * uOpacity);
   // 2D's liver cut (veins-gl.js fluidAt): the straw is kept off a congested liver, above its lower edge
   gl_FragColor.a *= liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
+}`;
+export const POOL_FS = /* glsl */ `
+precision highp float;
+${POOL_BASE_GLSL}
+void main() {
+  float d = max(vD, 0.0);
+  poolBase(d, d, 1.0);
   // the body: a ray crosses two layers (back, front), each takes the half of the alpha that stacks to 2D's one (shellHalf); the front glides from the whole to the half with the living switch, the back parts glide in from nothing
   float halfA = 1.0 - sqrt(max(1.0 - gl_FragColor.a, 0.0));
 #if defined(POOL_BACK) || defined(POOL_WALL)
