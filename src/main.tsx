@@ -41,10 +41,12 @@ dark.addEventListener('change', paint);
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 
 /** A page that is not the app (the device frame, the look board, the self-test) puts nothing in #root, so the loading cover (index.html #boot) would stay over it for 20 s and take every click, and the saved look's
- *  colour scheme would turn its form controls dark on its own light page. It lifts the cover at once and gives the page the browser's own scheme (tests/debug-audit.test.ts holds the three callers). */
+ *  colour scheme would turn its form controls dark on its own light page. It lifts the cover at once, gives the page the browser's own scheme and takes the empty full-screen #root out of the way of its clicks (tests/debug-audit.test.ts holds the three callers). */
 function plainPage() {
   (window as unknown as { ppsBootLift?: () => void }).ppsBootLift?.();
   document.documentElement.style.colorScheme = dark.matches ? 'dark' : 'light';
+  // (#root is position:fixed over the whole screen (global.css): empty, it still paints above the page's own unpositioned content and takes every click)
+  const root = document.getElementById('root'); if (root) root.style.display = 'none';
 }
 
 async function start() {
