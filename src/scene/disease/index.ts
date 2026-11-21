@@ -94,6 +94,8 @@ export class DiseaseLayer {
     if (!t || !f || !ctx) return this.organs.update(now) || moving;
     const inst = this.instant; this.instant = false;
     moving = this.organs.update(now) || moving;
+    this.ascites.setDim(this.organs.figureDim);   // (the pool dims with the organs, on their own eased value)
+    { const ls = this.organs.liverShown; this.ascites.setLiver(ls.cirrhosis, ls.congestion); }   // (2D's liver cut: the straw stays off a congested liver)
     moving = this.fluid.follow(t.ascites, dt, inst) || moving;
     this.ascites.set(this.fluid.shown);
     moving = this.ascites.step(dt, flowRate) || moving;   // (the ripple runs with the eased flow rate, the slosh with the level's speed, the Living fluid switch glides)
