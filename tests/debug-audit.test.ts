@@ -211,3 +211,45 @@ test('the report lists every kind of animation with its planned lengths and how 
   assert.equal(inv.length, 2); assert.match(inv[0]!, /^2x transition div\.dk-card opacity: planned 30\/250\/250 ms/); assert.match(inv[0]!, /cancelled 1/);
   assert.match(renderText(b), /ANIMATIONS \(3 runs of 2 kinds/);
 });
+
+// ── the false positives of the first full run (Mohammad's v2 report: 5764 failing) ──
+import { lineBoxes } from '../src/ui/debug/audit/scan-judge.ts';
+import { TIMING_KINDS } from '../src/ui/debug/audit/report.ts';
+
+test('words are judged line by line, so a number standing in a paragraph\'s gap is not "over" the paragraph (text-overlap 7597: one box for a whole wrapped paragraph held every inline number in it)', () => {
+  // a 3-line paragraph 300 wide; the union box is [0,0,300,60]; a number sits at the end of line 1 (x 250-290, y 2-18)
+  const lines = lineBoxes([{ left: 0, top: 0, right: 300, bottom: 20 }, { left: 0, top: 20, right: 300, bottom: 40 }, { left: 0, top: 40, right: 120, bottom: 60 }]);
+  assert.equal(lines.length, 3);
+  const number = item({ what: '12 mmHg', box: lineBoxes([{ left: 250, top: 22, right: 290, bottom: 40 }])[0]! });
+  const para = lines.map((b, i) => item({ what: 'paragraph', box: b }));
+  assert.deepEqual(judgeScan(scan({ items: [...para.slice(0, 1), para[2]!, number] })).map((f) => f.kind), [], 'the number is on line 2 only; lines 1 and 3 do not touch it');
+  assert.equal(lineBoxes([{ left: 0, top: 0, right: 0, bottom: 10 }, { left: NaN, top: 0, right: 5, bottom: 5 }]).length, 0, 'no size, or NaN: no box');
+  const b = lineBoxes([{ left: 0, top: 0, right: 50, bottom: 20 }])[0]!; assert.ok(b[1] > 2 && b[3] < 18, 'trimmed to the letters, not the font\'s whole content area');
+  // a line box that pokes 2 px past a clip at its top and foot (tight line-height) is not words cut off
+  assert.deepEqual(judgeScan(scan({ items: [item({ what: '11.1', box: lineBoxes([{ left: 20, top: 98, right: 60, bottom: 122 }])[0]!, clip: [16, 100, 374, 120] })] })), []);
+});
+
+test('a measured fade of 66 ms is two sampler rows, not a snap; one row (33 ms) is', () => {
+  const two = fadeEpisodes(card([0, 0, 0.5, 1, 1])), one = fadeEpisodes(card([0, 0, 1, 1]));
+  assert.equal(two[0]!.ms, 66); assert.deepEqual(fadeFindings(two), []);
+  assert.equal(fadeFindings(one)[0]!.kind, 'fade-instant');
+});
+
+test('a run with the sizes at the same time leaves its timing findings out of the findings (and says how many)', () => {
+  const rowOf = (k: string) => ({ ...judgeStep(stepOf('s'), 's', reads(), 800, true), flags: [{ kind: k, sev: 'fail' as const, what: `${k} here`, where: '' }] });
+  const b: Bundle = { build: 'b', device: 'd', at: 'x', depth: 'full', framed: true, parallel: true, parts: [{ size: { id: 'mac', w: 1440, h: 900, dpr: 2 }, ms: 1000, depth: 'full', stopped: false, console: [], notes: [], rows: [rowOf('stall'), rowOf('low-fps'), rowOf('text-overlap')] }], failed: [] };
+  assert.deepEqual(groupFindings(b).map((g) => g.kind), ['text-overlap']);
+  assert.ok(TIMING_KINDS.has('stall') && TIMING_KINDS.has('slow-load') && !TIMING_KINDS.has('generic-snap'));
+  assert.match(renderText(b), /2 timing findings .* are left out/);
+  assert.equal(groupFindings({ ...b, parallel: false }).length, 3);
+});
+
+test('what stands under a faded-out part of a card is not seen, so a tucked data card\'s chart and table are not "cut off by the card" (every chart-clipped finding of the first run was in the ladder card: its inner part is opacity 0 while it is docked)', async () => {
+  const { seenMemo } = await import('../src/ui/debug/audit/app.ts');
+  const root = { parentElement: null, ownerDocument: { documentElement: {} } } as never, doc = (root as { ownerDocument: { documentElement: unknown } }).ownerDocument;
+  const mk = (op: number, parent: unknown) => ({ op, parentElement: parent, ownerDocument: doc });
+  const card = mk(1, null), inner = mk(0, card), chart = mk(1, inner), shown = mk(1, card);
+  const win = { getComputedStyle: (e: { op: number }) => ({ opacity: String(e.op) }) } as never;
+  const vis = seenMemo(win);
+  assert.equal(vis(chart as never), 0); assert.equal(vis(inner as never), 0); assert.equal(vis(shown as never), 1);
+});

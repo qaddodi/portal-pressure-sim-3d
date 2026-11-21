@@ -11,6 +11,8 @@ export interface Ledger { mark(): void; read(): LedgerRead; stop(): void }
 
 /** A property that changes what the eye sees; a very short animation on one of these is a snap by another name. */
 const VISIBLE = /^(opacity|transform|translate|scale|rotate|width|height|top|left|right|bottom|margin|inset|clip-path|filter|background-color|color|max-height|max-width|border-radius)/;
+/** Two reads closer than this were taken inside one frame. */
+const SAME_FRAME_MS = 14;
 const SKIP = (el: Element) => !!el.closest('[data-debug], #boot') || el.tagName === 'CANVAS' || el.classList.contains('lb') || !!el.closest('.lb, .stage-root, .lb-layer');
 
 export function startLedger(doc: Document = document, win: Window = window): Ledger {
@@ -48,25 +50,38 @@ export function startLedger(doc: Document = document, win: Window = window): Led
   const animating = (el: Element): boolean => { try { return el.getAnimations().length > 0 || (!!el.parentElement && el.parentElement.getAnimations().length > 0); } catch { return false; } };
   const snapSeen = new Set<string>();
   const note = (kind: string, sev: AuditFinding['sev'], what: string, el: Element) => { const k = `${kind}|${nameOf(el)}`; if (snapSeen.has(k) || found.length > 120) return; snapSeen.add(k); found.push({ kind, sev, what, where: nameOf(el) }); };
+  /** Something the eye can see changing by itself: it draws words, a picture or a fill of its own. A positioning wrapper or a layout box that only holds other things is not (its children fade or do not). */
+  const paints = (el: Element): boolean => {
+    if (/^(svg|canvas|img|video|input|button)$/i.test(el.tagName)) return true;
+    if (Array.from(el.childNodes).some((c) => c.nodeType === 3 && (c.nodeValue ?? '').trim())) return true;
+    const cs = win.getComputedStyle(el), bg = /,\s*([\d.]+)\)$/.exec(cs.backgroundColor)?.[1];
+    return cs.backgroundImage !== 'none' || (cs.backgroundColor !== 'transparent' && (bg === undefined || +bg > 0.1)) || parseFloat(cs.borderTopWidth) > 0;
+  };
+  const MIN_AREA = 1600;   // (a 40 x 40 box: under it a change is a digit, a dot or a caret, not a thing popping)
   const look = (el: Element, added: boolean) => {
     if (SKIP(el) || !el.isConnected) return;
     const now = performance.now(), r = el.getBoundingClientRect();
     const cur: Seen = { t: now, op: effOpacity(el), b: [r.left, r.top, r.width, r.height] };
     const prev = seen.get(el); seen.set(el, cur);
-    if (r.width * r.height < 400) return;
+    if (r.width * r.height < MIN_AREA || !paints(el)) return;
     if (added && !prev) { if (cur.op >= 0.9 && !animating(el)) note('generic-pop', 'warn', `${nameOf(el)} appeared at full opacity in one frame (no fade or animation running)`, el); return; }
     if (!prev || now - prev.t > 90) return;
     if (Math.abs(cur.op - prev.op) >= 0.6 && !animating(el)) note('generic-pop', 'warn', `${nameOf(el)} went from opacity ${prev.op.toFixed(2)} to ${cur.op.toFixed(2)} in ${Math.round(now - prev.t)} ms with nothing easing it`, el);
-    const dx = Math.hypot(cur.b[0] - prev.b[0], cur.b[1] - prev.b[1]), ds = Math.hypot(cur.b[2] - prev.b[2], cur.b[3] - prev.b[3]);
-    if ((dx >= 60 || ds >= 60) && now - prev.t <= 50 && !animating(el)) note('generic-snap', 'warn', `${nameOf(el)} jumped ${Math.round(Math.max(dx, ds))} px in ${Math.round(now - prev.t)} ms with nothing easing it`, el);
+    // two reads under a frame apart (one 60 Hz frame is 16.7 ms) were taken in the same frame: nothing was drawn between them, so a jump between them is not seen
+    const dx = Math.hypot(cur.b[0] - prev.b[0], cur.b[1] - prev.b[1]), ds = Math.hypot(cur.b[2] - prev.b[2], cur.b[3] - prev.b[3]), dt = now - prev.t;
+    if ((dx >= 60 || ds >= 60) && dt >= SAME_FRAME_MS && dt <= 50 && !animating(el)) note('generic-snap', 'warn', `${nameOf(el)} jumped ${Math.round(Math.max(dx, ds))} px in ${Math.round(dt)} ms with nothing easing it`, el);
   };
+  const sig = (e: Element) => `${e.tagName}.${typeof e.className === 'string' ? e.className : ''}`;
   const mo = new MutationObserver((list) => {
-    const targets = new Set<Element>(), added = new Set<Element>();
+    const targets = new Set<Element>(), added = new Set<Element>(), removed = new Set<string>(), addedRoots = new Set<Element>();
     for (const m of list) {
+      for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { removed.add(sig(n)); n.querySelectorAll('*').forEach((d) => { if (removed.size < 300) removed.add(sig(d)); }); }
       if (m.type === 'attributes' && m.target instanceof Element) targets.add(m.target);
-      for (const n of Array.from(m.addedNodes)) if (n instanceof Element) { added.add(n); targets.add(n); }
-      for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= 400 && !SKIP(n)) note('generic-pop', 'warn', `${nameOf(n)} vanished at full opacity in one frame (no fade)`, n); }
+      for (const n of Array.from(m.addedNodes)) if (n instanceof Element) addedRoots.add(n);
     }
+    // an element put in where one just like it was taken out is a re-render (the same card, the same number): nothing appeared; one inside a newly added parent comes with its parent
+    for (const n of addedRoots) if (!removed.has(sig(n)) && !(n.parentElement && addedRoots.has(n.parentElement)) && ![...addedRoots].some((a) => a !== n && a.contains(n))) { added.add(n); targets.add(n); }
+    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size) note('generic-pop', 'warn', `${nameOf(n)} vanished at full opacity in one frame (no fade)`, n); }
     let k = 0;
     for (const el of targets) { if (k++ >= 30) break; look(el, added.has(el)); }
   });

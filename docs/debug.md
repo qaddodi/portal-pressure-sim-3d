@@ -98,7 +98,7 @@ Each rule reads the screen as the app itself describes it. The tables are genera
 
 | Rule | Looks at | Why | Owner file |
 |---|---|---|---|
-| `wording-em-dash` | the screen now | No em-dash in learner text (owner) | `src/decks/` |
+| `wording-em-dash` | the screen now | No em-dash in learner text (owner); a lone dash standing for an empty table value is a placeholder, not text | `src/decks/` |
 | `wording-older-baveno` | the screen now | The guideline is Baveno VIII only, never VII (owner, 18 Nov 2026) | `src/decks/` |
 | `wording-british` | the screen now | American spelling (US physicians) | `src/decks/` |
 | `wording-no-number` | the screen now | A value that was never worked out never reaches the page (production) | `src/decks/` |

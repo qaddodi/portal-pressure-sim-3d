@@ -96,6 +96,12 @@ export function seen(win: Window, el: Element): number {
   for (let e: Element | null = el; e && e !== e.ownerDocument.documentElement; e = e.parentElement) a *= parseFloat(win.getComputedStyle(e).opacity);
   return a;
 }
+/** `seen`, remembered up the tree for one read (a card's 600 elements share their ancestors). */
+export function seenMemo(win: Window): (el: Element) => number {
+  const m = new Map<Element, number>();
+  const f = (el: Element): number => { const hit = m.get(el); if (hit !== undefined) return hit; const up = el.parentElement && el.parentElement !== el.ownerDocument.documentElement ? f(el.parentElement) : 1; const v = up * (parseFloat(win.getComputedStyle(el).opacity) || 0); m.set(el, v); return v; };
+  return f;
+}
 const BAR_SEL = BARS.map((b) => b[1]).join(', ');
 const KID_SEL = 'button, [class*="pill"], [class*="chip"], [class*="tile"], svg circle';
 
@@ -114,17 +120,17 @@ export function clipBox(win: Window, el: Element, stop: Element): Box | null {
 }
 
 /** A card's heading, to name it in a finding. */
-const titleOf = (card: HTMLElement): string => (card.querySelector('.pz-h, .pz-dtitle, h1, h2, h3, [class*="title"]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+const titleOf = (card: HTMLElement): string => (card.querySelector('.pz-h, .pz-dtitle, .pz-dh > span:first-child, h1, h2, h3, [class*="title"]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
 
 /** Charts and plots of one card: an svg or a canvas big enough to be a picture, not an icon. */
-function chartsOf(win: Window, card: HTMLElement): { what: string; box: Box; clip: Box | null }[] {
+function chartsOf(win: Window, card: HTMLElement, vis: (el: Element) => number): { what: string; box: Box; clip: Box | null }[] {
   const out: { what: string; box: Box; clip: Box | null }[] = [];
   for (const el of Array.from(card.querySelectorAll<SVGElement | HTMLCanvasElement>('svg, canvas')).slice(0, 60)) {
     if (el.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') && !el.closest('[role="img"]')) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 60 || b.height < 40) continue;
     const cs = win.getComputedStyle(el);
-    if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    if (cs.visibility === 'hidden' || cs.display === 'none' || vis(el) < 0.05) continue;   // (a card whose inner part is faded out, a docked data card, holds charts nobody sees: they are not cut off)
     // the chart's clip is what clips its parents (its own overflow is the svg's, judged by the kids: its text and points)
     const clip = el.parentElement ? clipBox(win, el.parentElement, card) : null;
     out.push({ what: el.getAttribute('aria-label') || (el.tagName === 'CANVAS' ? 'canvas chart' : 'chart'), box: [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)], clip });
@@ -133,7 +139,7 @@ function chartsOf(win: Window, card: HTMLElement): { what: string; box: Box; cli
 }
 
 /** Words, pills, axis labels and data points of one card, each with its box and the box that clips it. */
-function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box; clip: Box | null }[] {
+function kidsOf(win: Window, card: HTMLElement, vis: (el: Element) => number): { what: string; box: Box; clip: Box | null }[] {
   const out: { what: string; box: Box; clip: Box | null }[] = [];
   for (const el of Array.from(card.querySelectorAll<HTMLElement>('*')).slice(0, 600)) {
     if (el.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') || el.closest(BAR_SEL)) continue;
@@ -142,7 +148,7 @@ function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box; clip:
     const b = el.getBoundingClientRect();
     if (b.width < 1 || b.height < 1) continue;
     const cs = win.getComputedStyle(el);
-    if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.05) continue;
+    if (cs.visibility === 'hidden' || cs.display === 'none' || vis(el) < 0.05) continue;
     const what = ((el.textContent ?? '').replace(/\s+/g, ' ').trim() || el.className.toString()).slice(0, 40);
     out.push({ what, box: [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)], clip: clipBox(win, el, card) });
   }
@@ -151,8 +157,9 @@ function kidsOf(win: Window, card: HTMLElement): { what: string; box: Box; clip:
 
 export function readLayout(doc: Document = document, win: Window = window): LayoutRead {
   const box = (e: Element): Box => { const b = e.getBoundingClientRect(); return [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)]; };
+  const vis = seenMemo(win);
   const cards = Array.from(doc.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]')).filter((el) => parseFloat(win.getComputedStyle(el).opacity) >= 0.95)
-    .map((el) => ({ id: el.dataset.card ?? 'card', title: titleOf(el), box: box(el), kids: kidsOf(win, el), charts: chartsOf(win, el) }));
+    .map((el) => ({ id: el.dataset.card ?? 'card', title: titleOf(el), box: box(el), kids: kidsOf(win, el, vis), charts: chartsOf(win, el, vis) }));
   const bars: LayoutRead['bars'] = [];
   for (const [id, sel] of BARS) doc.querySelectorAll<HTMLElement>(sel).forEach((el) => { const b = box(el); if (b[2] - b[0] > 1 && b[3] - b[1] > 1 && seen(win, el) > 0.5) bars.push({ id, box: b }); });
   const labels: LayoutRead['labels'] = [];

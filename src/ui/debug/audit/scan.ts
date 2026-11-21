@@ -1,6 +1,7 @@
 // ?audit, the generic sweep: every visible text, picture, chart and button on the page, read as plain numbers (scan-judge.ts judges them: clipped, overlapping, covered, small, low contrast,
 // zero size, broken). Not per case: it asks the whole document, so a thing nobody thought of is read the same as one somebody did. Debug only; one read per step, never a frame.
 import type { Box } from './judge.ts';
+import { lineBoxes } from './scan-judge.ts';
 
 export interface ScanItem {
   kind: 'text' | 'svg' | 'canvas' | 'img' | 'control';
@@ -23,7 +24,9 @@ export interface RawScan {
 }
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
-const MAX_ITEMS = 1400, MAX_HIT = 700;
+const MAX_ITEMS = 2600, MAX_HIT = 900;
+/** A layer that covers the page on purpose (a sheet, a menu, the cover): what it hides is not a bug. */
+const MODAL = '[role="dialog"], [aria-modal="true"], .sh-pop, .pz-cover, #preview-badge';
 
 /** A computed colour as 'rgba(r, g, b, a)' (0-255), or null for a form this cannot read (color-mix and friends come back as color(srgb r g b / a)). */
 export function normColour(c: string): string | null {
@@ -91,6 +94,18 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     return `rgba(${rgb.map((v) => Math.round(v)).join(', ')}, 1)`;
   };
 
+  /** How much the page draws this element's lettering bigger or smaller than its CSS size: the transforms and zoom of it and its ancestors multiplied (memoised). Not a width ratio: offsetWidth is rounded and that read 12 px lettering as 11.6. */
+  const scales = new Map<Element, number>();
+  const scaleOf = (el: Element | null): number => {
+    if (!el || el === doc.documentElement) return 1;
+    const hit = scales.get(el); if (hit !== undefined) return hit;
+    const cs = win.getComputedStyle(el);
+    let k = 1;
+    if (cs.transform && cs.transform !== 'none') { try { const m = new DOMMatrixReadOnly(cs.transform); k = Math.hypot(m.a, m.b) || 1; } catch { k = 1; } }
+    const z = parseFloat((cs as unknown as { zoom?: string }).zoom ?? '1'); if (z > 0 && Number.isFinite(z)) k *= z;
+    const out = k * scaleOf(el.parentElement); scales.set(el, out); return out;
+  };
+
   const items: ScanItem[] = [], zero: RawScan['zero'] = [], broken: RawScan['broken'] = [];
   let capped = false, texts = 0, media = 0;
   const holders: { el: Element; item: ScanItem }[] = [];
@@ -106,18 +121,26 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     if (!v.ok || v.opacity < 0.05) continue;
     if (items.length >= MAX_ITEMS) { capped = true; break; }
     range.selectNodeContents(n);
-    const rects = Array.from(range.getClientRects());
-    if (!rects.length) { zero.push({ what: nameOf(p, s), why: 'has words but no box at all' }); continue; }
-    const b: Box = [Math.min(...rects.map((r) => r.left)), Math.min(...rects.map((r) => r.top)), Math.max(...rects.map((r) => r.right)), Math.max(...rects.map((r) => r.bottom))].map(r1) as Box;
-    if (b.some((x) => !Number.isFinite(x))) { zero.push({ what: nameOf(p, s), why: 'its box is NaN' }); continue; }
-    if (b[2] - b[0] <= 0 || b[3] - b[1] <= 0) { zero.push({ what: nameOf(p, s), why: 'has words but zero width or height' }); continue; }
+    const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0);
+    if (!rects.length) {
+      // words with no box are collapsed on purpose (a long and a short name, one of them shut): only a NaN box is a fault
+      if (Array.from(range.getClientRects()).some((r) => !Number.isFinite(r.left + r.top + r.width + r.height))) zero.push({ what: nameOf(p, s), why: 'its box is NaN' });
+      continue;
+    }
     const cs = win.getComputedStyle(p);
     let scale = 1;
-    if (p instanceof HTMLElement) { const ow = p.offsetWidth, rw = p.getBoundingClientRect().width; if (ow > 0 && rw > 0) scale = Math.min(5, Math.max(0.2, rw / ow)); }
-    else { const m = (p as unknown as SVGGraphicsElement).getScreenCTM?.(); if (m && m.a > 0) scale = m.a; }
+    if (p instanceof SVGElement) { const m = (p as unknown as SVGGraphicsElement).getScreenCTM?.(); if (m && m.a > 0) scale = Math.hypot(m.a, m.b) || m.a; }
+    else scale = scaleOf(p);
     const fg = normColour(cs.color), bg = fg ? bgOf(p) : null;
-    const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, px: r1(parseFloat(cs.fontSize) * scale), bold: parseInt(cs.fontWeight, 10) >= 700, fg: fg ?? undefined, bg };
-    items.push(item); holders.push({ el: p, item }); texts++;
+    const px = r1(parseFloat(cs.fontSize) * scale), bold = parseInt(cs.fontWeight, 10) >= 700;
+    // one item per line: a paragraph's one box is the union of its lines, and a number standing in the next line's gap is not over the words
+    for (const r of rects) {
+      if (items.length >= MAX_ITEMS) { capped = true; break; }
+      const b = lineBoxes([r])[0]; if (!b) continue;
+      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, px, bold, fg: fg ?? undefined, bg };
+      items.push(item); holders.push({ el: p, item });
+    }
+    texts++;
   }
 
   // ── pictures, charts and controls ──
@@ -153,7 +176,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
   for (const { el, item } of holders) {
     if (hit >= MAX_HIT) break;
     if (item.opacity < 0.5) continue;
-    if (win.getComputedStyle(el).pointerEvents === 'none') continue;   // (elementFromPoint cannot see through it: not asked)
+    if (win.getComputedStyle(el).pointerEvents === 'none' || el.closest('#preview-badge')) continue;   // (elementFromPoint cannot see through it: not asked)
     let [l, t, r, b] = item.box;
     if (item.clip) { l = Math.max(l, item.clip[0]); t = Math.max(t, item.clip[1]); r = Math.min(r, item.clip[2]); b = Math.min(b, item.clip[3]); }
     l = Math.max(l, 0); t = Math.max(t, 0); r = Math.min(r, vw - 1); b = Math.min(b, vh - 1);
@@ -164,6 +187,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     for (const [x, y] of pts) {
       const top = doc.elementFromPoint(x, y);
       if (!top || top === el || el.contains(top) || top.contains(el) || top.closest('[data-debug]')) continue;
+      const layer = top.closest(MODAL); if (layer && !layer.contains(el)) continue;   // (an open sheet, a menu or the cover over the page is the point of them)
       if (!paints(top)) continue;
       n++; by = by || nameOf(top);
     }

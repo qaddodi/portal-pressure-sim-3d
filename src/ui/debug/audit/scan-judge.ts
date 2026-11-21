@@ -10,9 +10,9 @@ export const CHECKS: { id: string; what: string }[] = [
   { id: 'off-screen', what: 'anything partly past the edge of the screen' },
   { id: 'text-overlap', what: 'any two visible runs of words standing over each other' },
   { id: 'covered-by', what: 'anything covered by another painted element, found by asking the page what is on top at five points of it (elementFromPoint)' },
-  { id: 'small-text', what: `any lettering under ${WORDS_MIN_PX} px as drawn (scale included)` },
+  { id: 'small-text', what: `any lettering under ${WORDS_MIN_PX} px as drawn (every ancestor's transform and zoom included; 0.3 px of rounding allowed)` },
   { id: 'low-contrast', what: `text against the solid background behind it, under ${CONTRAST_TEXT}:1 (3:1 for large text); skipped where the figure or an image is behind` },
-  { id: 'zero-size', what: 'words, pictures or charts that are in the page but have no size, or a NaN size' },
+  { id: 'zero-size', what: 'pictures or charts that are in the page but have no size inside a box that has, and anything with a NaN size (words with no box are collapsed on purpose and are not judged)' },
   { id: 'broken-image', what: 'images that did not load' },
   { id: 'chart-clipped', what: 'a chart or plot whose picture runs past its card (named by the card\'s title)' },
   { id: 'spill / covered / off-screen (cards)', what: 'words and pills past their card, off screen or under the footer, dock or presenter bar' },
@@ -34,6 +34,18 @@ export const GAPS: string[] = [
   'Animations the app drives from its own clock (tweens) are seen through the 33 ms rows and the mutation ledger, not as CSS animations.',
   'A thing that is wrong in a state the walk never opens (a hover, a pinned label, a Settings toggle) is not reached.',
 ];
+
+/** A text line's rect is the font's whole content area (about 1.2 em): the letters are inside it, so a clip or a neighbour that touches only the outer 12% each way is not touching words. */
+export const GLYPH_INSET = 0.12;
+/** One box per line of a run of words (a paragraph's single box is the union of its lines, and a number standing in the next line's gap is not over the words), each trimmed to where the letters are; boxes with no size or a NaN are dropped. */
+export function lineBoxes(rects: readonly { left: number; top: number; right: number; bottom: number }[]): Box[] {
+  const out: Box[] = [];
+  for (const r of rects) {
+    const h = (r.bottom - r.top) * GLYPH_INSET, b: Box = [r.left, r.top + h, r.right, r.bottom - h].map((v) => Math.round(v * 10) / 10) as Box;
+    if (b.every(Number.isFinite) && b[2] - b[0] > 0 && b[3] - b[1] > 0) out.push(b);
+  }
+  return out;
+}
 
 const area = (b: Box) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
 const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
@@ -60,7 +72,7 @@ export function judgeScan(s: RawScan): AuditFinding[] {
     const sp = past(i.box, screen);
     if (!i.scrolls && sp.length && inter(i.box, screen) > 0) add('off-screen', 'fail', `${label(i)} runs past the screen: ${sp.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')}`, i.what, n);
     if (i.kind === 'text' && i.px != null) {
-      if (i.px < WORDS_MIN_PX - 0.05) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})`, i.what, n);
+      if (i.px < WORDS_MIN_PX - 0.3) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})`, i.what, n);
       if (i.fg && i.bg) {
         try {
           const large = i.px >= 24 || (i.bold && i.px >= 18.66), need = large ? 3 : CONTRAST_TEXT;

@@ -46,9 +46,13 @@ const mins = (ms: number) => (ms >= 90000 ? `${(ms / 60000).toFixed(1)} min` : `
 
 export interface Group { kind: string; sev: Sev; what: string; places: string[] }
 /** Every finding of every step, the same finding on many steps folded into one line with its places. Failures first, then the commonest. */
+/** Findings that are timings: a run with the sizes at the same time shares one computer, so these are not valid there and are left out (and counted). */
+export const TIMING_KINDS = new Set(['stall', 'low-fps', 'slow-load', 'fade-slow', 'unsettled']);
+
 export function groupFindings(b: Bundle): Group[] {
   const m = new Map<string, Group>();
   for (const p of b.parts) for (const r of p.rows) for (const f of r.flags) {
+    if (b.parallel && TIMING_KINDS.has(f.kind)) continue;
     const k = `${f.kind}|${f.what}`;
     const g = m.get(k) ?? { kind: f.kind, sev: f.sev, what: f.what, places: [] };
     g.places.push(where(p, r)); m.set(k, g);
@@ -107,7 +111,7 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   L.push(`AUDIT v2 · build ${b.build} · ${b.at} · depth ${b.depth} · ${b.framed ? 'sized frames' : 'this screen'}${o.short ? ' · SHORT' : ''}`);
   L.push(`SUMMARY: ${fails.length} failing finding${fails.length === 1 ? '' : 's'}, ${warns.length} warning${warns.length === 1 ? '' : 's'}, ${con.length} console message${con.length === 1 ? '' : 's'}; ${steps} steps in ${b.parts.length} size${b.parts.length === 1 ? '' : 's'}; ${animTotal} CSS animations and transitions recorded; run time ${mins(wall)}${b.parallel ? ' (PARALLEL: fps and timings NOT valid)' : ''}`);
   if (kinds.size) L.push(`FINDINGS BY KIND: ${[...kinds].sort((a, b2) => b2[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
-  if (b.parallel) L.push('PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid. Layout, snaps, coverage and console errors are.');
+  if (b.parallel) L.push(`PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid, and ${rows.reduce((n, { r }) => n + r.flags.filter((f) => TIMING_KINDS.has(f.kind)).length, 0)} timing findings (stall, low-fps, slow-load, fade-slow, unsettled) are left out. Layout, snaps, coverage and console errors are valid.`);
   L.push(`device: ${b.device}`);
   L.push(`sizes: ${b.parts.map((p) => `${p.size.id} ${p.size.w}x${p.size.h}@${p.size.dpr} (${p.rows.length} steps, ${mins(p.ms)}${p.stopped ? ', STOPPED' : ''})`).join('; ') || 'none'}${b.parts.length > 1 ? (b.parallel ? ' (sizes ran at the same time)' : ` (ran one after the other, ${mins(wall)} in all)`) : ''}`);
   if (b.failed.length) { L.push(''); L.push('SIZES THAT DID NOT FINISH'); for (const f of b.failed) L.push(`- ${f.size}: ${f.why}`); }

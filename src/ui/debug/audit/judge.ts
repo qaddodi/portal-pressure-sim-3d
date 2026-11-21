@@ -14,6 +14,8 @@ export type Box = [number, number, number, number];   // left, top, right, botto
 export const HITCH_MS = 25, LONG_GAP_MS = 50;
 /** A card or label that goes from gone to shown (or back) in under this is a snap, not a fade; over SLOW it drags. The sampler steps every ~25 ms, so anything under two steps is instant to it. */
 export const INSTANT_MS = 70, SLOW_FADE_MS = 1600;
+/** A measured fade under this is a snap. The sampler's rows are 33 ms apart and a fade is measured from 0.1 to 0.9 (80% of its length), so a real 100 ms fade reads as 60 to 70 ms: one row to two rows is a snap, three is not. */
+export const SNAP_MS = 50;
 /** Words may stand this far past their card before it is a spill (sub-pixel rounding and the card's own shadow are not). */
 export const SPILL_PX = 2;
 /** Share of a word box a bar may cover before the words count as covered. */
@@ -90,7 +92,7 @@ export function fadeEpisodes(samples: readonly Sample[]): Fade[] {
 export function fadeFindings(fades: readonly Fade[]): AuditFinding[] {
   const out: AuditFinding[] = [];
   for (const f of fades) {
-    if (f.ms < INSTANT_MS) out.push({ kind: 'fade-instant', sev: 'fail', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms: it snaps instead of easing`, where: `${f.kind} ${f.key}` });
+    if (f.ms < SNAP_MS) out.push({ kind: 'fade-instant', sev: 'fail', what: `${f.kind} "${f.key}" ${f.dir === 'in' ? 'appeared' : 'vanished'} in ${r0(f.ms)} ms: it snaps instead of easing`, where: `${f.kind} ${f.key}` });
     else if (f.ms > SLOW_FADE_MS) out.push({ kind: 'fade-slow', sev: 'warn', what: `${f.kind} "${f.key}" took ${r0(f.ms)} ms to ${f.dir === 'in' ? 'come in' : 'go'}`, where: `${f.kind} ${f.key}` });
   }
   return out;
