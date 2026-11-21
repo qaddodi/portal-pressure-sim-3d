@@ -7,6 +7,7 @@ import type { ChartCtx } from '../../charts/Chart.tsx';
 import { look, type Look } from '../../charts/looks.ts';
 import type { Rgba } from '../../charts/colour.ts';
 import type { Frame, Shape } from '../../charts/scene.ts';
+import { STENT_SPANS } from '../../../engine/hales/portal/topology.js';
 import { samplerFor } from '../../../scene/lenses/model.ts';
 import { waistSpan, endSpan, profileAt, lumenShown, waistShown } from '../../../engine/hales/portal/stent-geom.js';
 import { stentCutD, bareOf } from '../../../scene/procedures/copied/stent-mesh.js';
@@ -49,7 +50,7 @@ export function subPaths(d: string): { pts: number[]; closed: boolean }[] {
 }
 
 /** What the frame is made from, and what it is told about the figure's kind (a vessel card's is the stent alone; Tests > IR > TIPS has the chart). */
-export interface FigOpts { lens: TipsLens; labels?: boolean; chart?: boolean; keep?: FigKeep; /** the vessel card's compact figure: the rows packed tighter (CARD_TOP, CARD_GATE) and the veins outlined as the stent is */ card?: boolean }
+export interface FigOpts { lens: TipsLens; labels?: boolean; chart?: boolean; keep?: FigKeep; /** the vessel card's compact figure: the rows packed tighter (CARD_TOP, CARD_GATE) and the veins outlined as the stent is */ card?: boolean; /** the Doppler third a slide reads: a band behind it from the brackets' row down to the gates' ticks (2D `gate`) */ gate?: 'proximal' | 'mid' | 'distal' | null }
 /** The card figure's rows: the word row 7 px down and its bracket 15, the stent from 20, the gates' ticks 13 under it and 8 px under their numbers (the full figure keeps 9, 21, 26, 15 and 10). Its height is 20 + hvH + 13 + 8 = 41 + hvH. */
 export const CARD_ROWS = { labY: 7, brY: 15, top: 20, gate: 13, foot: 8 } as const;
 
@@ -90,6 +91,10 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   const label = st.have
     ? `${id}, drawn to scale: ${ten(d)} mm, ${ten(len)} cm. PPG ${ten(st.ppg)} mmHg, ${ten(st.dp)} mmHg across the stent, flow ${ten(st.flow)} L/min.${chart ? ` The chart under it shows ${o.lens === 'pressure' ? 'the pressure' : 'the peak velocity'} along it.` : ''}`
     : `${id}: no stent`;
+
+  // the Doppler's slide third, a band behind everything else on the stent
+  const band = o.gate ? STENT_SPANS[o.gate] : null;
+  if (band) p.rect(x0 + band[0] * span, L.brY! + 5, (band[1] - band[0]) * span, L.gateY! - 8 - (L.brY! + 5), 'stent.gate.band', ex);
 
   // the veins either side, neutral; in the pressure lens their own pressure fades in over them
   p.rect(0, cy - L.pvH! / 2, x0 + 2, L.pvH!, 'stent.vein.p');

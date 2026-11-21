@@ -330,7 +330,10 @@ export class DopplerProbe {
     const next = { ang: pose.ang, d: pose.D - Math.max(0, rPx), k: pose.k, ax: pose.ang + pose.phi, r: rPx, sw: probeSwing(pose.side, O.away === pose.rev) as number };
     let sig = hMix(key, pose.side); sig = hMix(sig, pose.reach); sig = hMix(sig, +pose.rev); sig = hMix(sig, Math.round(pose.k * 1000)); sig = hMix(sig, Math.round(pose.ang / 5)); sig = hMix(sig, Math.round(gx / 4)); sig = hMix(sig, Math.round(gy / 4));
     this.searchGap = sig === this.lastSig ? Math.min(600, this.searchGap * 2) : 150; this.lastSig = sig;
-    const act = this.mind.act({ pose, tgt: next, on: this.on, cur: this.has ? this.cur : null, sig, now, instant: reduce, swing }) as 'go' | 'hide' | 'hold' | 'restart' | 'wait' | 'jump';
+    // (what a fresh show waits to see hold still is the PLACE it would take: side, end, size, vessel. `sig` also holds the plate's map, the gate to 4 px and the turn to 5 degrees, which the gentle tilt
+    //  changes every frame in free play, so a probe not yet shown waited for ever: the same fresh-show wait, keyed on the place only)
+    const holds = hMix(hMix(hMix(hMix(hMix(hStr(edge), hStr(seg ?? '')), pose.side), pose.reach), +pose.rev), Math.round(pose.k * 1000));
+    const act = this.mind.act({ pose, tgt: next, on: this.on, cur: this.has ? this.cur : null, sig: holds, now, instant: reduce, swing }) as 'go' | 'hide' | 'hold' | 'restart' | 'wait' | 'jump';
     if (act === 'hold') return 'hold';
     // (While the view is being moved it never goes: the figure under the hand is a layout that changes every frame, and "no place" there is not an answer yet. It is asked again, and if there is still none
     //  450 ms after the view settles it hides then: the 2D app's own rule, whose camera never turned under the hand.)
