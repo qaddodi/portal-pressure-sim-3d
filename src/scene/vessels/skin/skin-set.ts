@@ -79,7 +79,7 @@ export const SKIN_BUILD_TAG = 'skin-build';
 export interface SkinBuildStats { rebuilds: number; lastMs: number; worstMs: number; lastNode: string }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
+interface ArmLink { /** a growing arm is there now (not dotted, presence above 0): only such an arm holds the node's weld */ here?: boolean; /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 /** The plain trunk of a skin with growing arms (plain.ts): the arms that stay, as a static skin of their own. */
 interface PlainBuilt { mesh: SkinMesh; draw: SkinDraw; keep: number[]; bake: PlainBake }
@@ -646,7 +646,7 @@ export class SkinSet {
   sync(): boolean {
     let changed = false;
     for (const b of this.drawn) {
-      let any = false, blend = false, weld = 1;   // (weld: the least share of any growing arm's hand-over, plain.ts weldOf)
+      let any = false, blend = false, weld = 1, heldBy = 0;   // (weld: the least share of any PRESENT growing arm's hand-over, plain.ts weldOf; a growing arm that is not there (a closed shunt) holds nothing back, weldHeld below)
       b.arms.forEach((a, i) => {
         const both = (fn: (d: SkinDraw, k: number) => void): void => { fn(b.draw, i); if (b.plain && a.pi >= 0) fn(b.plain.draw, a.pi); };
         const u = a.obj.toon.uniforms, v = (k: string) => u[k]!.value as { x: number; y: number; z: number; w: number };
@@ -663,7 +663,10 @@ export class SkinSet {
         if (a.grow) {
           // a GROWING arm: the skin does not morph with it (it is one static shape with the arm whole); the arm's tube grows with its own flared end and from growth 0.9 to 1 the welded skin comes in over it (the weld, below).
           // Its presence dithers the skin as any arm's does (at most the weld's own share there, so it is never a second hole). A dotted thread (a closed potential collateral) counts 0: its tube is not cut, and the trunk is the plain trunk
-          weld = Math.min(weld, weldOf((u.dotted!.value as number) > 0.5 ? 0 : pr));
+          // (a growing arm that is not THERE at all (a closed shunt, its thread dotted) never holds the weld of the one beside it: S_PC closed kept C9's skin at weld 0 on the lower IVC in Budd-Chiari, the flat-capped tube with no join)
+          const here = (u.dotted!.value as number) < 0.5 && pr > 0;
+          a.here = here;
+          if (here) { weld = Math.min(weld, weldOf(pr)); heldBy++; }
         }
         if (a.last[10] !== pr) { a.last[10] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
         // the wedge's one field at the seam (the tube's own distance line there), with the column's numbers: the amber runs on through the skin at the same front
@@ -685,11 +688,12 @@ export class SkinSet {
         if (a.cp[0] !== sh[0] || a.cp[1] !== sh[1] || a.cp[2] !== sh[2]) { a.cp = [sh[0], sh[1], sh[2]]; both((d, k) => d.setArmCopy(k, sh[0], sh[1], sh[2])); any = true; }
         if (a.obj.toon.transparent || a.obj.behindOrgans) blend = true;   // (a skin copy is fractional wherever an arm's share of it is: it blends)
       });
+      if (b.arms.some((a) => a.grow) && !heldBy) weld = 0;   // (no growing arm is there: the plain trunk alone, as before)
       if (b.arms.some((a) => a.grow) && b.w !== weld) {
         // the weld: the welded skin keeps the pixels whose screen pattern is under `weld`, the plain trunk the rest, and a tube's cut end the pixels neither of them draws (no pixel is two skins; at 1 the cut is whole, at 0 the skin is not drawn)
         b.w = weld; any = true;
         b.draw.setWeld?.(1, weld); b.plain?.draw.setWeld?.(-1, weld);
-        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, weld);
+        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, a.grow && !a.here ? 0 : weld);   // (an absent growing arm's own thread keeps its end)
         if (!b.plain) for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, weld);   // (a host's hole is dithered back with the weld when no plain trunk stands in for it)
       }
       if (any) changed = true;

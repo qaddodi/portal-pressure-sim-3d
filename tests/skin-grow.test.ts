@@ -366,3 +366,18 @@ test('REX on the left portal vein (absent in Healthy) never moves the seams of t
     assert.ok(b.set.dropped.includes('wall:PVH_L_1:REX1:REX'), 'REX keeps the tube\'s own flared end, named');
   } finally { done(b); }
 });
+
+test('a growing arm that is not there never holds back the weld of the one beside it: S_PC closed (dotted) with C9 whole welds the lower cava\'s wall skin (Budd-Chiari: C9 ended in a flat cap with no join)', () => {
+  const b = built();
+  try {
+    const wall = 'wall:IVC_IS_1:S_PC1,C90';
+    const spc = b.scene.vesselObject('S_PC') as VesselObject, c9 = b.scene.vesselObject('C9') as VesselObject;
+    c9.group.visible = true; c9.setReveal(1); c9.setDotted(false);
+    spc.group.visible = true; spc.setReveal(1); spc.setDotted(true); b.set.sync();
+    assert.equal(b.set.weldOf(wall), 1, 'C9 whole, S_PC a closed thread: the skin is welded');
+    spc.group.visible = false; b.set.sync();
+    assert.equal(b.set.weldOf(wall), 1, 'S_PC hidden: the same');
+    c9.setDotted(true); b.set.sync();
+    assert.equal(b.set.weldOf(wall), 0, 'both closed: no weld');
+  } finally { done(b); }
+});
