@@ -237,9 +237,9 @@ export class CelScene {
     if (w) for (const o of this.vessels) {
       const id = o.edge?.id, p = id ? w.pieces.get(id) : undefined;
       if (!id || !p) continue;
-      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color, p.edge, p.front, p.frontEdge); now.add(id);
+      (o as VesselObject).setWedge(w.amount, p.d0, p.slope, w.front, w.frontSoft, w.behind, p.fade, w.color); now.add(id);
     }
-    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0, undefined, 0.02, -1, 0.02);
+    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 0, 0, -1, 0.02, 0.02, 0);
     this.wedgeSet = now;
   }
   private bloodOpts = { chevrons: true, keyChevrons: false };

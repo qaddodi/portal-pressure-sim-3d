@@ -1,7 +1,7 @@
 // The junction skin's shape (spec section 4.3): each arm is a tapered capsule along its own axis, out from the junction centre J, and the fillet is the polynomial
 // smooth union of the arms, the same blend 2D draws its forks with (fork-joins.copied.js). Plain number arrays and one scratch buffer: nothing here allocates
 // inside a loop, because mesh.ts calls these a few hundred thousand times for one junction.
-import type { SkinArm, Vec3 } from './types.ts';
+import { armR, type SkinArm, type Vec3 } from './types.ts';
 
 /** The smooth-min blend width as a share of the narrowest arm's radius (spec 4.3): a thin branch on a fat trunk gets a small fillet and never a bulb. */
 export const SKIN_K = 0.8;
@@ -87,8 +87,8 @@ export function sdArmGrad(c: Capsule, x: number, y: number, z: number, g: Float6
 /** The most arms a skin blends (spec 10.1): the weights are two attributes, `weight` (arms 0 to 3) and `weight2` (arms 4 and 5). */
 export const MAX_SKIN_ARMS = 6;
 
-/** The blend width of a junction: `SKIN_K` times the narrowest arm's rest radius (spec 4.3). */
-export const skinKOf = (arms: readonly Pick<SkinArm, 'restR'>[]): number => SKIN_K * Math.min(...arms.map((a) => a.restR));
+/** The blend width of a junction: `SKIN_K` times the narrowest arm's radius AT THE JUNCTION (spec 4.3; `armR`: a tapered arm is narrower there than its nominal radius, and a fillet sized from the nominal one swells to a bulb around it). */
+export const skinKOf = (arms: readonly Pick<SkinArm, 'restR' | 'jointR'>[]): number => SKIN_K * Math.min(...arms.map(armR));
 
 /** The polynomial smooth-min (spec 4.3): `h = clamp(0.5 + 0.5 (b - a) / k, 0, 1); mix(b, a, h) - k h (1 - h)`. */
 export function smin(a: number, b: number, k: number): number {
