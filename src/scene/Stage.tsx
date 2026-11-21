@@ -18,6 +18,7 @@ import { figureDpr } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
+import { frameBegin, frameEnd, renderStats } from '../debug/render-stats.ts';
 import { sinusoidTap } from './sinusoid/explain-store.ts';
 import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
@@ -59,7 +60,9 @@ function SceneBridge() {
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
+    frameBegin(gl.info);
     cel.render(gl);
+    frameEnd(gl.info);
     lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
@@ -84,8 +87,9 @@ function SceneBridge() {
   useEffect(() => {
     if (gl.domElement.style.opacity !== '1') gl.domElement.style.opacity = '0';   // (comes in with the first drawn frame, below)
     setRenderer(gl);
+    clock.setProbe(renderStats);
     const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material, ...cel.post.dof.materials]);
-    return () => { off(); setRenderer(null); };
+    return () => { off(); clock.setProbe(null); setRenderer(null); };
   }, [gl]);
 
   // the colour lens's healthy reference loads once the engine is up; the Blood menu's choices apply from the first frame

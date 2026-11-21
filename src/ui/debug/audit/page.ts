@@ -8,6 +8,7 @@ import { flagValue } from '../flags.ts';
 import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
+import { speedOf, scaleTime } from './speed.ts';
 
 export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
@@ -22,7 +23,12 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
   const notes: string[] = [], coverage: Coverage[] = [];
   const { failed } = await loadAllDecks();   // (the registry holds only the HVPG talk until the rest are read in)
   if (failed.length) notes.push(`these talks would not load, so they are not walked: ${failed.join(', ')}`);
-  const taps = startTaps();
+  const speed = speedOf(flagValue('speed'));
+  if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (performance.now and every CSS animation), so frame rates and stalls are not valid; fades, settle times, layout and words are.`);
+  const glassOff = flagValue('noglass') === '1';
+  if (glassOff) { document.documentElement.setAttribute('data-noglass', ''); notes.push('NOGLASS: the frosted-glass blur was off for this run (&noglass=1). Compare its talk-open frame rates with a normal run to see what the glass costs.'); }
+  const clockScale = scaleTime(speed, performance);
+  const taps = startTaps(window, speed);
   const w = innerWidth, h = innerHeight;
   const dev = ['iphone', 'iphone-landscape', 'ipad', 'ipad-portrait', 'mac', 'mac-short'].map((id) => deviceOf(id)!).find((d) => d.w === w && d.h === h);
   const size = { id: dev?.id ?? `${w}x${h}`, w, h, dpr: devicePixelRatio };
@@ -30,13 +36,13 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
     const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c)), {
       size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => performance.now(), quietMs: QUIET_MS,
     }, { depth, notes, coverage, shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`); } });
-    return { ...data, build: buildInfo().badge };
-  } finally { taps.stop(); }
+    return { ...data, build: buildInfo().badge, speed: speed > 1 ? speed : undefined };
+  } finally { taps.stop(); clockScale.restore(); if (glassOff) document.documentElement.removeAttribute('data-noglass'); }
 }
 
 const bundle = (parts: AuditData[], depth: 'quick' | 'full', failed: Bundle['failed'] = []): Bundle => {
   const b = buildInfo();
-  return { build: b.badge || b.release || b.commit || 'dev', device: `${navigator.userAgent} · dpr ${devicePixelRatio} · ${innerWidth}x${innerHeight}`, at: new Date().toISOString(), depth, framed: false, parts, failed };
+  return { build: b.badge || b.release || b.commit || 'dev', device: `${navigator.userAgent} · dpr ${devicePixelRatio} · ${innerWidth}x${innerHeight}`, at: new Date().toISOString(), depth, framed: false, speed: parts[0]?.speed, parts, failed };
 };
 
 export function mountAudit(mode: 'here' | 'run'): void {

@@ -15,7 +15,10 @@ import { scanPage } from './scan.ts';
 import { startLedger } from './ledger.ts';
 import type { Step, Reads } from './run.ts';
 import type { Box, LayoutRead } from './judge.ts';
-import type { ConsoleLine, Coverage } from './report.ts';
+import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
+import { renderStats } from '../../../debug/render-stats.ts';
+import { cel } from '../../../scene/api.ts';
+import { speedAnimations } from './speed.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -168,11 +171,13 @@ export function readLayout(doc: Document = document, win: Window = window): Layo
 }
 
 /** Starts listening: the sampler (cards and labels every 33 ms), the clock's frame gaps, the console and the window's errors. One call per run; `stop()` lets go of all of it. */
-export function startTaps(win: Window = window): Tap {
+export function startTaps(win: Window = window, speed = 1): Tap {
   const rec = createRecorder(domSources(win.document, win), { seconds: 120 });
-  const timer = setInterval(() => rec.sample(performance.now()), SAMPLE_MS);
-  let gaps: number[] = [];
-  const off = clock.on('tags', (f) => { if (f.dt > 0) gaps.push(f.dt); }, 2000);
+  // (at speed N the page's clock runs N times faster, so the sampler ticks N times as often and its rows stay 33 ms of page time; the CSS animations are played N times faster here)
+  const timer = setInterval(() => { speedAnimations(win.document, speed); rec.sample(performance.now()); }, SAMPLE_MS / speed);
+  let gaps: number[] = [], stalls: { t: number; ms: number }[] = [], skin0 = 0, markAt = 0;
+  // (`f.dt` is page time: at speed N the real gap is dt / N, which is what the frame rate is judged on)
+  const off = clock.on('tags', (f) => { if (f.dt > 0) { gaps.push(f.dt / speed); if (f.dt > 50) stalls.push({ t: f.time - markAt, ms: f.dt }); } }, 2000);
   const lines: ConsoleLine[] = [];
   const stamp = () => `at ${Math.round(performance.now() / 1000)} s`;
   const cons = console, orig = { error: cons.error, warn: cons.warn };
@@ -187,10 +192,17 @@ export function startTaps(win: Window = window): Tap {
   const onVis = () => { if (win.document.hidden) hiddenSince = true; };
   win.document.addEventListener('visibilitychange', onVis);
   return {
-    mark() { rec.clear(); ledger.mark(); gaps = []; clock.resetStats(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
+    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; markAt = performance.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = performance.now(); return mark; },
     read(t0) {
       const st = clock.stats(), led = ledger.read();
+      const rs = renderStats();
+      const gpu: RowGpu | null = rs ? {
+        calls: rs.calls, triangles: rs.triangles, programs: rs.programs, geometries: rs.geometries, textures: rs.textures, skinRebuilds: (cel.skinStats?.rebuilds ?? 0) - skin0,
+        boundCpu: st.boundCpu, boundGpu: st.boundGpu,
+        slow: st.slow.slice(0, 3).map((f) => { const g = f.gl as { calls?: number; triangles?: number } | undefined; return { ms: r1(f.ms), gap: r1(f.gap), bound: f.bound, tags: f.tags, calls: g?.calls, triangles: g?.triangles }; }),
+      } : null;
       return {
+        stalls: stalls.slice(), gpu,
         samples: rec.samples().filter((s) => s.t >= t0).map((s) => ({ ...s, t: s.t - t0 })), gaps: gaps.slice(), work: { p95: st.p95, max: st.max },
         layout: safe(() => readLayout(win.document, win)), problems: safe(() => problems()) ?? [], console: lines.slice(markLine), hidden: hiddenSince || win.document.hidden,
         scan: safe(() => scanPage(win.document, win)), anims: led.anims, generic: led.findings,

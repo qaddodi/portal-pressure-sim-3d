@@ -10,6 +10,7 @@ import { usePick, cel } from '../../../scene/api.ts';
 import { viewAt } from '../../deck/presenter-machine.ts';
 import { resolveLook } from '../../../looks/looks.ts';
 import { clock } from '../../../clock/frame.ts';
+import { renderStats } from '../../../debug/render-stats.ts';
 import { caughtCount, caughtList } from '../caught.ts';
 
 export interface AppSnapshot {
@@ -23,7 +24,7 @@ export interface AppSnapshot {
   clock: { awake: boolean; framesDrawn: number; worstMs: number; p95Ms: number; holds: string[] };
   free: { x: number; y: number; w: number; h: number };
   errors: { count: number; last: string[] };
-  memory: { gpuMB: number | null; heapMB: number | null; renderer: string | null };
+  memory: { gpuMB: number | null; heapMB: number | null; renderer: string | null; geometries: number | null; textures: number | null; programs: number | null };
 }
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -32,13 +33,14 @@ const r1 = (v: number) => Math.round(v * 10) / 10;
 function memoryNow(): AppSnapshot['memory'] {
   let gpuMB: number | null = null;
   const renderer: string | null = null;
+  const rs = renderStats();   // (three's gl.info.memory as of the last frame: live geometries and textures, which the canvas size above cannot show)
   try {
     // The canvas's own size only: asking it for a context here would make a second one (tests/webgl-budget.test.ts).
     const c = document.querySelector('canvas');
     if (c) gpuMB = r1((c.width * c.height * 4 * 3) / 1048576);
   } catch { /* a page that will not say */ }
   const heap = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
-  return { gpuMB, heapMB: heap ? r1(heap.usedJSHeapSize / 1048576) : null, renderer };
+  return { gpuMB, heapMB: heap ? r1(heap.usedJSHeapSize / 1048576) : null, renderer, geometries: rs?.geometries ?? null, textures: rs?.textures ?? null, programs: rs?.programs ?? null };
 }
 
 export function appSnapshot(): AppSnapshot {

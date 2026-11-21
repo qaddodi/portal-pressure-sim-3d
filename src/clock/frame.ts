@@ -13,6 +13,8 @@
 // and when nothing asks, no frame is drawn and no timer runs ("0 frames drawn when nothing moves").
 // Every frame is timed; the slowest ones (with the tags that were asking for frames, and the phase that cost most) feed ?perf.
 
+import { boundBy, type Bound } from '../debug/render-stats.ts';
+
 export const PHASES = ['engine', 'tween', 'camera', 'render', 'tags'] as const;
 export type Phase = (typeof PHASES)[number];
 
@@ -36,6 +38,10 @@ export interface SlowFrame {
   gap: number;
   phases: Record<Phase, number>;
   tags: string[];
+  /** what the frame was waiting on: its scripts, or the GPU / compositor (a long gap after short work); null when neither stood out */
+  bound: Bound | null;
+  /** the renderer's numbers for the frame (draw calls, triangles, programs, geometries, textures), when a probe is set */
+  gl?: unknown;
 }
 
 export interface Env {
@@ -58,6 +64,8 @@ export function createClock(env: Env) {
   const gaps = new Float32Array(RING);
   let ringAt = 0, drawn = 0, wokeAt = 0;
   const slow: SlowFrame[] = [];
+  let probe: (() => unknown) | null = null;   // (?perf and ?audit hand in a reader of the renderer's numbers: read only for a slow frame)
+  let boundCpu = 0, boundGpu = 0;           // (frames that waited on the scripts / on the GPU or compositor, since the last reset)
   const listeners = new Set<(awake: boolean) => void>();
 
   const wanted = () => holds.size > 0 || asked.size > 0 || nextAsked.size > 0;
@@ -90,8 +98,10 @@ export function createClock(env: Env) {
     const gap = lastStart ? start - lastStart : 0;
     lastStart = start;
     ring[ringAt] = ms; gaps[ringAt] = gap; ringAt = (ringAt + 1) % RING; drawn++;
+    const bound = boundBy(ms, gap);
+    if (bound === 'cpu') boundCpu++; else if (bound === 'gpu/compositor') boundGpu++;
     if (ms > SLOW_MS || gap > 50) {
-      slow.push({ frame: info.frame, at: start, ms, gap, phases, tags: [...new Set(tags)] });
+      slow.push({ frame: info.frame, at: start, ms, gap, phases, tags: [...new Set(tags)], bound, gl: probe ? probe() : undefined });
       slow.sort((a, b) => Math.max(b.ms, b.gap) - Math.max(a.ms, a.gap));
       if (slow.length > SLOW_KEEP) slow.length = SLOW_KEEP;
     }
@@ -131,9 +141,11 @@ export function createClock(env: Env) {
     stats() {
       const n = Math.min(drawn, RING), times = Array.from(ring.subarray(0, n)).sort((a, b) => a - b);
       const q = (p: number) => (n ? times[Math.min(n - 1, Math.floor(p * n))]! : 0);
-      return { framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], wokeAt };
+      return { framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], wokeAt, boundCpu, boundGpu };
     },
-    resetStats() { ring.fill(0); gaps.fill(0); ringAt = 0; drawn = 0; slow.length = 0; },
+    resetStats() { ring.fill(0); gaps.fill(0); ringAt = 0; drawn = 0; slow.length = 0; boundCpu = 0; boundGpu = 0; },
+    /** A reader of the renderer's numbers, called only for a frame kept as slow. */
+    setProbe(fn: (() => unknown) | null) { probe = fn; },
   };
 }
 export type Clock = ReturnType<typeof createClock>;

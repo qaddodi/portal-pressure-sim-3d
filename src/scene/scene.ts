@@ -397,6 +397,8 @@ export class CelScene {
 
   /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
   private skins: SkinSet | null = null;
+  /** What the junction-skin rebuilds have cost so far (?perf and ?audit read it; null while no skins are built). */
+  get skinStats(): Readonly<{ rebuilds: number; lastMs: number; worstMs: number; lastNode: string }> | null { return this.skins?.stats ?? null; }
   /** The Circuit's own junction skins (circuit/skins.ts): the same welds on the map, built with the Anatomy's, drawn over the end of the change. */
   private circuitSkins: CircuitSkinSet | null = null;
   private circuitSkinKey = '';
