@@ -167,3 +167,15 @@ test('the phone dock\'s readouts are never narrower than their tiles (a reading 
   assert.match(css, /\.app\.thumb \.vdock \.readouts:not\(\.all\) \{ width: auto; min-width: max-content;/);
   assert.match(css, /\.vdock:not\(\.mini\) \.readouts:not\(\.all\) \{ width: auto; min-width: max-content; \}/);
 });
+
+test('a patient glide remeshes the sinusoid at most once per REMESH_MS and ends on the exact shape (Ascites 9: every 1/64 step rebuilt ~800 000 triangles in its own frame, 0.4 to 0.7 s frames)', async () => {
+  const { remeshDue, REMESH_MS } = await import('../src/scene/micro3d/remesh.ts');
+  assert.equal(remeshDue(5, null), true, 'the first build is at once');
+  assert.equal(remeshDue(100, 0), false); assert.equal(remeshDue(REMESH_MS - 1, 0), false); assert.equal(remeshDue(REMESH_MS, 0), true);
+  assert.equal(remeshDue(10, 500), true, 'a clock that went back never holds a rebuild for ever');
+  // a glide of 40 key steps in 1.6 s at 60 fps: far fewer builds than steps, and the last key is built once the glide has stopped
+  let builtAt: number | null = null, built = 0, held = 0;
+  for (let f = 0; f < 150; f++) { const t = f * 16.7, moving = f < 96; if (moving || f < 150) { const stepNow = moving; if (stepNow || held) { if (remeshDue(t, builtAt)) { built++; builtAt = t; held = 0; } else held = 1; } } }
+  assert.ok(built <= 9, `${built} builds for a 1.6 s glide`); assert.equal(held, 0, 'the newest key is built after the glide');
+  assert.match(src('src/scene/micro3d/sinusoid3d.ts'), /remeshDue\(t, this\.builtAt\)/);
+});

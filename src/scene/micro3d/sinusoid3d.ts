@@ -15,6 +15,7 @@
 import { staticRouteTexture } from '../blood/routes.ts';
 import { dustTuner } from '../blood/dust.ts';
 import { useSettings } from '../../state/settings.ts';
+import { remeshDue } from './remesh.ts';
 import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
@@ -150,6 +151,7 @@ export class Sinusoid3D {
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
   private readonly haze = hazeUniforms();
   private builtKey = '';
+  private builtAt: number | null = null;
   private tailKey = '';
   private lookKey = '';
   /** The wall's per-vertex colour weights (see sinusoid-wall.ts) and the palette they were last painted from. */
@@ -299,8 +301,10 @@ export class Sinusoid3D {
     // (only what the SHAPES read keys the rebuild: the lumen, its pinch, the collagen's Disse (disseW) and the pores' slots. The basement membrane's share (`bm`, its opacity, set below) and the microvilli's (`mv`, read in
     //  colour()) are no geometry, so an ease of either no longer remeshes the whole scene 64 times; the stellate cell's activation redoes only the stellate cell, the basement and the collagen: buildTail. Review 21 Nov, the dive's stalls.)
     const key = shapeKey(S, f.geo.xk);
-    if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.build(); }
-    else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
+    if (key !== this.builtKey) {
+      const t = performance.now();
+      if (remeshDue(t, this.builtAt)) { this.builtKey = key; this.builtAt = t; this.tailKey = tailKey(S); this.build(); }   // (else a glide's step waits: at most one remesh per REMESH_MS, the newest taken on a later frame, remesh.ts)
+    } else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
     const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}|${q(S.act)}`;
     if (lk !== this.lookKey) { this.lookKey = lk; this.colour(P, S.act); }
     this.stepPores(S.por);
@@ -310,7 +314,7 @@ export class Sinusoid3D {
     this.stepStreaks(P);
     this.stepArrows(P);
     this.bm.setOpacity(clamp(S.bm, 0, 1) * (dark ? 0.6 : 0.8));
-    return true;
+    return true;   // (always moving while shown: a remesh that waited is taken on a later frame)
   }
 
   // ---- the cells' slow life ----------------------------------------------------------------------------------------------------------
