@@ -17,7 +17,7 @@ import { CAVA_RECEDE, opensIntoCava } from '../src/scene/vessels/fades.ts';
 test('the skin\'s ramp is the tube\'s: 0 at CAVA_RAMP_R trunk radii out, 1 at the wall, and the shader reads the arms that open into the trunk (-2) against the arms of the run (>= 0)', () => {
   assert.match(SKIN_FS, /float wRamp = hasTrunk \? 1\.0 - smoothstep\(0\.0, 2\.5 \* max\(radTrunk, 1\.0e-5\), sdTrunk\) : 0\.0;/);
   assert.equal(CAVA_RAMP_R, 2.5);
-  assert.match(SKIN_FS, /armCopy\[\d\]\.w < -1\.5 \? mix\(armAF\[\d\]\.y, aTrunk, wRamp\)/);
+  assert.match(SKIN_FS, /armCopy\[\d\]\.w < -1\.5 \? mix\(fadeOf\(\d\), aTrunk, wRamp\)/);
   assert.match(SKIN_FS, /if \(armData\[k\]\.x < 0\.0 \|\| armCopy\[k\]\.w < -0\.5\) continue;/);   // (the trunk: the arms that run through the node)
   // the tube's own, which a skinned vein keeps (cavaCut 2: the ramp alone)
   assert.match(VESSEL_FS, /fadeHere = mix\(vFade, cavaA, wA\);\s+\/\/ \(cavaCut 2:[^\n]*\n\s+if \(cavaCut < 1\.5\) \{/);

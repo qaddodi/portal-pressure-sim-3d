@@ -90,7 +90,7 @@ export class SkinObject implements SkinDraw {
   readonly glow: Mesh;
   /** the group the copies stand in (it is what the scene adds) */
   readonly object: Object3D;
-  private readonly armAF: Vector4[]; private readonly armCopy: Vector4[];
+  private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
   private readonly kw = new Vector3(0, 0, 1);   // (x the blend width skinK, y the mode, z the share: skinKW in the fragment stage)
@@ -118,6 +118,7 @@ export class SkinObject implements SkinDraw {
     const armAxisP = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector4());
     axes.forEach((ax, i) => ax.pts.forEach((p, k) => armAxisP[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2], ax.radii[k]!)));
     this.armAF = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 0, 1));
+    this.armFade = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, -1, -1));   // (z < 0: no u-fade, the seam's alpha stands)
     this.armCopy = Array.from({ length: SKIN_ARMS }, (_, i) => new Vector4(0, 0, 0, axes[i]?.mate ?? (skin.junction.arms[i] && opensIntoCava(skin.junction.arms[i]!.vesselId) && skin.junction.arms[i]!.end === 1 ? -2 : -1)));   // (an arm no arm fills has no share of any copy; w is the arm it runs through the node with, -1 none, -2 none and it opens into the side of the trunk: its opacity eases to the trunk's, the fade rule)
     // ONE uniforms object for the three programs (as the tube's veil shares the tube's): a value written once reaches every copy
     const uniforms: Record<string, IUniform> = {
@@ -125,7 +126,7 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4()] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4()] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       
@@ -166,6 +167,9 @@ export class SkinObject implements SkinDraw {
     const c = o.toon.uniforms.color!.value as Color;
     this.armColor[i]!.set(c.r, c.g, c.b, (o.toon.uniforms.lensUse!.value as number) > 0.5 ? 1 : 0);
   }
+
+  /** Arm `i`'s tube fade by its length share (arm-twins.ts uFadeOf), or null for the seam's alpha alone. */
+  setFade(i: number, p: readonly [number, number, number, number] | null): void { if (p) this.armFade[i]!.set(p[0], p[1], p[2], p[3]); else this.armFade[i]!.set(0, 1, -1, -1); }
 
   setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour, narrow = 0): void {
     const u = this.material.uniforms;

@@ -24,7 +24,7 @@ test('the varyings stay within 12 vec4s (an iPhone must have room: the floor is 
   const b = budget(program);
   assert.ok(b.varyings <= 12, `${b.varyings} varying vectors`);
   const names = declarations(SKIN_VS).filter((d) => d.storage === 'varying').map((d) => d.name).sort();
-  assert.deepEqual(names, ['vCenW', 'vN', 'vPos', 'vRest', 'vSwell', 'vSwell2', 'vV', 'vW', 'vWeight', 'vWeight2'], 'the vertex stage hands the fragment stage exactly these');
+  assert.deepEqual(names, ['vCenW', 'vFadeA', 'vFadeB', 'vN', 'vPos', 'vRest', 'vSwell', 'vSwell2', 'vV', 'vW', 'vWeight', 'vWeight2'], 'the vertex stage hands the fragment stage exactly these');
   const fs = declarations(SKIN_FS).filter((d) => d.storage === 'varying').map((d) => d.name).sort();
   assert.deepEqual(fs, names, 'the fragment stage declares the same varyings');
 });

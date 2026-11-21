@@ -48,6 +48,19 @@ export function liveFadeAt(f: FadeState, u: number, x: number, y: number): numbe
   return fa;
 }
 
+/**
+ * The tube's fade by its length share, as the skin's vertex stage reads it (skin/shaders.ts `armFade`): (a0, 1 / (a1 - a0), a2, a3) of the vessel's own `u` ramp (fade mode 1), for an arm whose seam is NOT whole. The skin then takes the tube's alpha at each vertex's own place
+ * along the arm and not its value at the seam, so a seam far out on a fading vein does not wash the whole skin. Null (the seam's value stands, as before): a whole seam (every skin that has not been moved out into a fade is as it was), a fade by place on the page (modes 2 to 4)
+ * or a stump or a cava end, which the seam value carries.
+ */
+export function uFadeOf(f: FadeState, seamFade: number): readonly [number, number, number, number] | null {
+  if (!(f.mode > 0.5 && f.mode < 1.5) || f.stumpCut > 0 || f.cavaEnd[0] > 0 || seamFade >= 1 - 1e-4) return null;
+  const span = Math.abs(f.a[1] - f.a[0]) < 1e-5 ? 1e-5 : f.a[1] - f.a[0];
+  return [f.a[0], 1 / span, f.a[2], f.a[3]];
+}
+/** The vertex stage's fade of an arm at length share `u`, from `uFadeOf`'s numbers (the twin of `armFade` in skin/shaders.ts). */
+export const uFadeAt = (p: readonly [number, number, number, number], u: number): number => mix(p[2], p[3], clamp01((u - p[0]) * p[1]));
+
 /** The uniform values the highlight weight reads (hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiEnds, hiFade, len). */
 export interface HiState { on: number; dir: number; offset: number; ahead: number; behind: number; ends: readonly [number, number]; fade: number; len: number }
 
