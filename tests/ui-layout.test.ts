@@ -60,17 +60,17 @@ test('Mac: a pair a few px too tall rises into its top margin (never nearer than
   assert.ok(tall.overflow.length, 'the room it lacks is reported, so the words page rather than shrink');
 });
 
-test('the Back / Next pill: lower right of a wide screen with the talk\'s title to its left; inside the foot of the words card on an iPhone and an upright iPad; lower right sideways', () => {
-  const mac = barOf(SCREENS.mac.vp, 500);
-  assert.equal(mac.edge, 'foot'); assert.equal(mac.rect.h, 44); assert.ok(mac.title && mac.title.x + mac.title.w < mac.rect.x);
+test('the Back / Next pill: lower right of a wide screen inside the foot of the words card on an iPhone and an upright iPad; lower right sideways', () => {
+  const mac = barOf(SCREENS.mac.vp);
+  assert.equal(mac.edge, 'foot'); assert.equal(mac.rect.h, 44);
   assert.equal(mac.rect.x + mac.rect.w, SCREENS.mac.vp.w - margin(1280, 800, 'short'));
   const ph = barOf(SCREENS['iphone-portrait'].vp);
-  assert.equal(ph.edge, 'card'); assert.equal(ph.title, null);
+  assert.equal(ph.edge, 'card');
   assert.equal(ph.rect.x + ph.rect.w, 393 - 8 - PILL_CORNER, 'the card\'s lower right corner, inside it'); assert.ok(ph.rect.h < 44 && ph.rect.w < PILL_W, 'a phone\'s pill is smaller');
   const ip = barOf(SCREENS['ipad-portrait'].vp);
   assert.equal(ip.edge, 'card'); assert.ok(ip.rect.x + ip.rect.w <= 820 * 0.85 + 0.5, 'the right of the 70 % card');
   const sw = barOf(SCREENS['iphone-landscape'].vp);
-  assert.equal(sw.edge, 'foot'); assert.equal(sw.title, null);
+  assert.equal(sw.edge, 'foot');
 });
 
 test('iPhone upright: data card on top, words at the foot (the pill stands in it), the figure between', () => {
@@ -158,9 +158,3 @@ test('type floors on every screen the 2D app has: body 17 px floating and 16 sta
   assert.ok(checkTypeScale(1440, 900, { ...typeFor(1440, 900), slideTitle: 22 }).length, 'a title under 1.4× is caught');
 });
 
-test('a deck on a laptop: the title beside the pill is a blocker too, so the figure is never framed under it (Mac 5/19 overprint)', () => {
-  const p = planLayout(SCREENS.mac.vp, needs(300, 260));
-  if (!p.bar.title) return;
-  const t = p.bar.title, f = p.free;
-  assert.ok(f.y + f.h <= t.y || f.x >= t.x + t.w || f.x + f.w <= t.x, `free ${JSON.stringify(f)} overlaps the title ${JSON.stringify(t)}`);
-});

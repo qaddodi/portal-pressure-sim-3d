@@ -1,4 +1,4 @@
-// Release review #11, #15, #18: transient notices stand clear of the side panel, the presenter title is backed, ?perf is a capped strip, and the Treat sheet rests at its content's height.
+// Release review #11, #15, #18: transient notices stand clear of the side panel, ?perf is a capped strip, and the Treat sheet rests at its content's height.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -13,10 +13,6 @@ test('the toast is centred in the room left of the side panel and capped to it (
   assert.match(css, /html\.thumb-ui \.sh-toast \{ left: 50%/);
 });
 
-test('the presenter title has a backing', () => {
-  const css = read('src/ui/deck-ui.css');
-  assert.match(css, /\.dk-bar-title \{[^}]*background: color-mix/);
-});
 
 test('?perf is a one-line safe-area strip with a capped detail view and Hide', () => {
   const src = read('src/ui/perf/mount.ts');
