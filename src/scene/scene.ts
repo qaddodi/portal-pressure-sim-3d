@@ -58,9 +58,8 @@ import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, live, patient } from '../engine/store.ts';
-import { x2d, x3, y2d, y3 } from './frame2d.ts';
+import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
-import { FLUID_Z } from './disease/ascites.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
@@ -1034,8 +1033,8 @@ export class CelScene {
     if (this.figureView !== 'body' || this.circuit.t > 0.5 || this.bodyShown < 0.5) return null;
     const o = this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
     if (o) return organHit(o.id, x2d(o.x));
-    const at = raycaster.ray.intersectPlane(new Plane(new Vector3(0, 0, 1), -FLUID_Z), new Vector3());
-    if (at && this.disease.ascites.holds(x2d(at.x), y2d(at.y))) return organHit('abdomen', x2d(at.x));
+    const wet = this.disease.ascites.pick(raycaster);   // (the drawn pool and its top, by ray: no plane of its own)
+    if (wet) return organHit('abdomen', wet.x);
     return null;
   }
 
