@@ -42,3 +42,8 @@ test('a resistor comes in as its own stretch of the map lands: the heart end lat
   const src = readFileSync(new URL('../src/scene/circuit/resistors.ts', import.meta.url), 'utf8');
   assert.ok(/peelAt\(this\.t, d\.rank\)/.test(src));
 });
+
+test('the caudate lane and map-only shunts come in on their own stretch of the flow', () => {
+  const src = readFileSync(new URL('../src/scene/circuit/tubes.ts', import.meta.url), 'utf8');
+  assert.ok(/c\.ramp \* peelAt\(c\.t, e\.rank\)/.test(src) && /rank: peelRank\(/.test(src));
+});
