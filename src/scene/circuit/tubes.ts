@@ -85,6 +85,21 @@ export function treeHost(lane: string, i: number): { host: string; r: number; di
   }
   return best;
 }
+/** A liver branch whose start lies at the END of another tube carries on from it (the portal venules' tips run on into the sinusoid lanes at x = 800): a run-on, not a side branch. Its outline is held back nowhere (the shader's own rule: "never at a run-on's ring"; bury is for a branch inside its trunk, and a tube that ends there has no wall past its end to show the ink), and both rings run on a hair into each other (the mates). */
+export function treeRunOn(lane: string, i: number): boolean { return treeHost(lane, i)?.runOn === true; }
+/** For each liver branch (`lane#i`), whether its start and its end carry on into another branch's start/end: the rings the vessel shader runs on a hair, so two flat rings that meet exactly leave no light line or ink seam across the lane. */
+export function treeRunOns(): ReadonlyMap<string, readonly [boolean, boolean]> {
+  const out = new Map<string, [boolean, boolean]>();
+  for (const [lane, list] of Object.entries(CIRCUIT_TREES)) list.forEach((_, i) => out.set(`${lane}#${i}`, [false, false]));
+  for (const [lane, list] of Object.entries(CIRCUIT_TREES)) list.forEach((_, i) => {
+    const h = treeRunOn(lane, i) ? treeHost(lane, i) : null;
+    if (!h) return;
+    out.get(`${lane}#${i}`)![0] = true;
+    const prev = out.get(h.host);
+    if (prev) prev[1] = true;
+  });
+  return out;
+}
 /** A liver branch: its start sunk in the tube it leaves, its tip free in the bed. */
 export function treeEnds(lane: string, i: number): MapEnds | null {
   const own = treeOwn(lane, i), h = treeHost(lane, i);
@@ -151,6 +166,9 @@ export function treeCircW(hostKind: 0 | 1 | 2, hostBaseD: number, fine: number, 
   return [host * k, hostKind === 1 ? 0 : 1, CIRC_BRANCH_MIN, MIN_PX.branch];
 }
 
+let runOnsMemo: ReadonlyMap<string, readonly [boolean, boolean]> | null = null;
+const RUN_ONS = { get(id: string) { return (runOnsMemo ??= treeRunOns()).get(id); } };
+
 export class CircuitTubes {
   readonly group = new Group();
   private readonly entries: Entry[] = [];
@@ -167,7 +185,7 @@ export class CircuitTubes {
     for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
       const parent = NETWORK_BY_ID.get(id);
       if (!parent) continue;
-      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1], undefined, buryOf(mapRadius(parent) * parentShare(list, i), 0), treeEnds(id, i) ?? undefined));
+      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1], undefined, buryOf(treeRunOn(id, i) ? 0 : mapRadius(parent) * parentShare(list, i), 0), treeEnds(id, i) ?? undefined));
     }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
@@ -199,6 +217,9 @@ export class CircuitTubes {
       vessel: { index: indexOf(edge), len: built.length, stubSpeed: markSpeed(1), radius, baseD },
     }, shared, lens, blood, circuit);
     if (bury) o.setBury(bury[0], bury[1]);
+    // (tree lanes that run on into one another: the hair of overlap and nothing else, a width-1 mate of the bed kind swells nothing)
+    const ro = kind === 'tree' ? RUN_ONS.get(id) : undefined;
+    if (ro) { const m = { index: indexOf(edge), baseD, widthKind: 2 }; o.setMates(ro[0] ? m : null, ro[1] ? m : null); }
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
