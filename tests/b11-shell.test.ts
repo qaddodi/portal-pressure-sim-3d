@@ -96,7 +96,7 @@ test('.app wears what the card tells it: dock-open, instrument-focus, tests-grad
   assert.deepEqual([...GRADIENT_PANES].sort(), ['hvpg', 'readouts', 'scope']);
   const shell = read('src/ui/shell/Shell.tsx');
   assert.ok(shell.includes('useTestsAppClasses()') && shell.includes('${testsCls}'), 'the shell puts them on .app');
-  assert.ok(layer.includes('publishSideWidth(app, open && side ? place.rect.w : null)'), '--side-ws-w follows the card\'s width');
+  assert.ok(layer.includes('publishSideWidth(app, open && !away && side ? place.rect.w : null)'), '--side-ws-w follows the card\'s width');
 });
 
 test('the head\'s status and the Doppler\'s vessel: nothing while it runs, Paused, the day count (2D dayText); the vessel beside the title only when the Doppler is alone', () => {

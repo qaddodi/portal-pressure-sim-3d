@@ -15,11 +15,13 @@ const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:]
 const files = walk('src').filter((f) => !f.startsWith(join('src', 'engine', 'hales')) && !f.startsWith(join('src', 'engine', 'host')));
 const CHARTS_GL = join('src', 'ui', 'charts', 'gl.ts');
 const PROBE = join('src', 'boot', 'webgl.ts');   // the no-WebGL2 check: one throwaway context, lost at once
+const PLATE_WORKER = join('src', 'scene', 'lobule', 'plate-worker.ts');   // the lobule's marks plate painted off the page: a 2D OffscreenCanvas in a worker, no GL context
 
 test('only the charts\' drawer asks a canvas for a WebGL context, or makes an OffscreenCanvas', () => {
   const bad: string[] = [];
   for (const f of files) {
     if (f === CHARTS_GL || f === PROBE) continue;
+    if (f === PLATE_WORKER) { assert.ok(!/getContext\(\s*['"`](webgl|experimental)/.test(readFileSync(f, 'utf8')), 'the plate worker\'s canvas is 2D only'); continue; }
     const t = strip(readFileSync(f, 'utf8'));
     if (/getContext\(\s*['"`](webgl2?|experimental-webgl)['"`]/.test(t) || /new\s+(THREE\.)?WebGL(2)?Renderer\b/.test(t) || /new\s+OffscreenCanvas\b/.test(t)) bad.push(f);
   }
