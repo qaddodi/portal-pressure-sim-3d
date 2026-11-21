@@ -214,3 +214,23 @@ test('a card opened mid-dive in the scene keeps the views and the window consist
   assert.equal(visible(s), 'L--'); assert.equal(s.rig.isMoving, false);
   s.dispose();
 });
+
+test('sinusoid <-> body (a talk\'s slide change) passes through the lobule: it is drawn all the way, so there is never a black gap between the sinusoid dissolving and the body coming in (Mohammad 21 Nov)', () => {
+  const s = new CelScene(); s.resize(1000, 700);
+  s.rig.goTo('play', room, 0); s.update(0);
+  let t = flyTo(s, 'sinusoid', sinusoidShot(), 100, diveMs('body', 'sinusoid')!);
+  for (const [from, to, shot] of [['sinusoid', 'body', 'play'], ['body', 'sinusoid', sinusoidShot()]] as const) {
+    s.setView(to, t); s.goTo(shot, room, t, diveMs(from, to)!);
+    let frames = 0;
+    for (let k = 0; k < 400 && s.rig.isMoving; k++) {
+      t += 16; s.update(t);
+      if (!s.rig.isMoving) break;
+      frames++;
+      assert.ok(s.lobule.isVisible, `${from} -> ${to}: the lobule is drawn at every frame of the flight (frame ${frames})`);
+    }
+    assert.ok(frames > 10, 'the move really flew');
+    t += 100;
+    if (to === 'sinusoid') { for (let k = 0; k < 8; k++) { t += 16; s.update(t); } }
+  }
+  s.dispose();
+});

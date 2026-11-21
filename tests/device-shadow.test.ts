@@ -33,10 +33,10 @@ test('a part with a shadow radius draws its tube once more, under every device, 
 test('it is soft: alpha falls to nothing at the tube edge (n.v), is capped low, and the strip is blurred and pushed away from the upper-left light', () => {
   const sh = createShared(), o = new DeviceObject(tube(), 'poly', sh, { shadow: 0.5 });
   const m = o.shadow!.material;
-  assert.match(m.fragmentShader, /pow\(clamp\(vNV, 0\.0, 1\.0\), 1\.35\)/, 'the edge falls off by n.v');
+  assert.match(m.fragmentShader, /pow\(clamp\(vNV, 0\.0, 1\.0\), 2\.2\)/, 'the edge falls off by n.v');
   assert.match(m.vertexShader, /fatN \* blurPx/, 'blurred in screen px');
   assert.doesNotMatch(m.fragmentShader, /\bstep\(/, 'no hard step in the shadow');
-  assert.ok(SHADOW_ALPHA.light <= 0.3 && SHADOW_ALPHA.dark <= 0.45, 'low opacity');
+  assert.ok(SHADOW_ALPHA.light <= 0.15 && SHADOW_ALPHA.dark <= 0.25, 'low opacity');
   const push = m.uniforms.push!.value as { x: number; y: number };
   assert.ok(push.x > 0 && push.y < 0, 'down and to the right on screen, away from the light at the upper left');
   assert.ok(m.uniforms.grow!.value as number > 0 && (m.uniforms.blurPx!.value as number) > 0);

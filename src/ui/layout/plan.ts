@@ -245,8 +245,12 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     // a pair a few px too tall rises into the top margin, never nearer than 4 px; past that it stays stacked (2D shrinks the data card's blocks, here the words page)
     const rise = Math.max(0, Math.min(top0 + total - foot, top0 - 4));
     const y0 = rise > 0 ? top0 - rise : pairTop(vp.h, total, top0, foot);
-    maxH.words = Math.round(foot - y0 - (data ? gap + dh : 0));
-    maxH.data = Math.round(foot - y0 - (words ? gap + wh : 0));
+    // The room a card has is what the pair could take standing at its highest (the top margin, or where it rose to), NOT where it stands now: the pair is centred by its own height, so
+    // a cap measured from the centred top shrank with the data card (a chart that had drawn its small map left less room, which kept it the small map: the algorithm cards showed the iPhone
+    // map on a Mac, 21 Nov). 2D's cap is `foot - top0 - the other card`, whatever the pair's height.
+    const capTop = rise > 0 ? y0 : top0;
+    maxH.words = Math.round(foot - capTop - (data ? gap + dh : 0));
+    maxH.data = Math.round(foot - capTop - (words ? gap + wh : 0));
     if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y0), w, h: wh } });
     if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
     bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - 8 };
