@@ -22,3 +22,11 @@ test('the dust of a join is whole where an arm holds and fades to nothing where 
 test('the shader applies that hold after renormalising', () => {
   assert.match(SKIN_FS, /dust \/= aN;[\s\S]*dust \*= max\(a0 > 0\.004 \? inD0 : 0\.0, a1 > 0\.004 \? inD1 : 0\.0\);/);
 });
+
+// 21 Nov, Mohammad: a pale smear at the chevron in the crotch: a head whose centre sat where two arms are equally near was drawn by both at half strength, two chevrons over each other. The ownership is steepened by a symmetric ease.
+test('a head\'s ownership is eased steeply and symmetrically: a pair of arms still shares one head (the shares add to 1), and the shared stretch is narrow', () => {
+  const ss = (x: number): number => { const t = Math.min(1, Math.max(0, (x - 0.25) / 0.5)); return t * t * (3 - 2 * t); };
+  for (let k = 0; k <= 20; k++) { const s = k / 20; assert.ok(Math.abs(ss(s) + ss(1 - s) - 1) < 1e-12, `a pair adds to 1 at ${s}`); }
+  assert.equal(ss(0.2), 0); assert.equal(ss(0.8), 1);
+  assert.match(SKIN_FS, /return smoothstep\(0\.25, 0\.75, mine \/ max\(sum, 1\.0e-6\)\);/);
+});
