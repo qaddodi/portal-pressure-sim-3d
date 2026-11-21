@@ -36,7 +36,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as PVH's DIPS and the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS',
-  'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:S_PC1,C90:C9', 'wall:IVC_IS_1:S_PC1,C90:S_PC', 'wall:PVH_L_1:REX1:REX'];
+  'wall:IVC_IS:DIPS1:DIPS', 'wall:PVH_L_1:REX1:REX'];
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
@@ -116,7 +116,7 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
     // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
-    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1'];
+    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1']; want['wall:IVC_IS_1:S_PC1,C90'] = ['S_PC:1', 'C9:0'];   // (S_PC and C9 land 5.9 and 8.9 radii up the cava from IVCI: their wall node and IVCI's skin abut on one seam ring, cuts.ts)
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
@@ -268,15 +268,17 @@ test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the 
     assert.ok(wasPlain);
     b.set.markDirty('S_PC');
     assert.ok(b.set.pending);
+    b.set.step();   // (S_PC stands in two skins now, CONF's and its wall node's on the cava: one rebuild a frame, so two frames)
+    assert.ok(b.set.pending, 'the second skin waits for the next frame');
     b.set.step();
-    assert.ok(!b.set.pending, 'one rebuild, one frame');
+    assert.ok(!b.set.pending, 'one rebuild a frame');
     const now = b.set.skinOf('CONF')!;
     assert.notEqual(now, was, 'rebuilt');
     assert.deepEqual(now.junction.arms.filter((a) => a.grow).map((a) => a.vesselId), ['S_PC']);
     assert.equal(now.grow.length, 0);
     assert.ok(b.set.plainOf('CONF') && b.set.plainOf('CONF') !== wasPlain);
     assert.equal(now.position.length, was.position.length, 'the same shape, built again on the same tubes');
-    assert.equal(b.set.stats.rebuilds, 1);
+    assert.equal(b.set.stats.rebuilds, 2);
   } finally { done(b); }
 });
 
