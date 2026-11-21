@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { planLayout, barOf, footReserve, footRadius, screenRadius, CARD_INSET, PILL_W_PHONE, BAR_H_PHONE, PILL_CORNER, type Need } from '../src/ui/layout/plan.ts';
+import { planLayout, barOf, credRow, footReserve, footRadius, screenRadius, CARD_INSET, PILL_W_PHONE, BAR_H_PHONE, PILL_CORNER, type Need } from '../src/ui/layout/plan.ts';
 
 const S = (w: number, h: number, safe: [number, number, number, number]) => ({ vp: { w, h, safe: { top: safe[0], right: safe[1], bottom: safe[2], left: safe[3] } } });
 const SCREENS = { 'iphone-portrait': S(393, 852, [59, 0, 34, 0]), 'ipad-portrait': S(820, 1180, [24, 0, 20, 0]), mac: S(1440, 900, [0, 0, 0, 0]) };
@@ -19,7 +19,7 @@ test('an iPhone with a home bar: the words card ends CARD_INSET from the screen 
   const b = barOf(vp).rect;
   assert.equal(b.x + b.w, w.x + w.w - PILL_CORNER, 'the pill in the card\'s lower right corner');
   assert.equal(b.w, PILL_W_PHONE); assert.equal(b.h, BAR_H_PHONE);
-  assert.equal(b.y + b.h, w.y + w.h - PILL_CORNER, 'the same inset below it'); assert.ok(b.y >= w.y, 'inside the card');
+  assert.equal(b.y + b.h, w.y + w.h - PILL_CORNER - credRow(vp), 'the same inset below it, and the credit row under it'); assert.ok(b.y >= w.y, 'inside the card');
 });
 
 test('screens with no rounded bottom keep their margin and radius', () => {

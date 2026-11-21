@@ -7,7 +7,7 @@
 //   - iPad upright: left of the nav pill at the card's left (15 % + 13 px), 29 px from the foot; too long for the room beside the pill, a row above it (73 px).
 // Pure: node judges it on every screen.
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
-import { barOf, footDrop } from '../../ui/layout/plan.ts';
+import { barOf, footDrop, credRow } from '../../ui/layout/plan.ts';
 import { clamp, isSideways, layoutOf, pzh } from '../../ui/layout/rules2d.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { hits, type Box } from './geometry.ts';
@@ -78,7 +78,7 @@ export function dockKey(i: DockIn): Dock {
       const s = sized(w, h, wrap), hh = Math.max(s.h, minH);
       return { box: { x0: left, y0: vp.h - bottom - hh, x1: left + s.w, y1: vp.h - bottom }, wrap, minH, at };
     };
-    const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop;
+    const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop + (tab ? 0 : credRow(vp));   // (the phone's credit row stands under the pill's row)
     if (natural.w <= room) return place(natural.w, natural.h, rowBottom, null, 'beside-pill');
     if (!tab && natural.w <= 2 * room && room > 0 && natural.h * TWO_LINES <= D.pillH + 1.5) return place(room, natural.h * TWO_LINES, rowBottom, room, 'beside-pill');
     // too long for the pill's row: a row of its own ABOVE the words' card (2D: "somewhere else above the card if it doesn't fit"), clear of the card's name tab; never over the card's words

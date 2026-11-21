@@ -6,6 +6,7 @@ import { ARRIVE_CSS } from '../../clock/tween.ts';
 import { rail, GLIDE_MS, STAGGER, PARALLAX, RAIL_MS, IN_MS, OUT_DONE, RAIL_CSS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { closedPx } from './dock.ts';
+import { CREDIT } from '../shell/words.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
 
@@ -216,6 +217,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
         role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(anchor === 'mid' && ready ? { top: -(animH ?? rect.h) / 2 } : null), ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'} style={tuck ? { opacity: 0 } : undefined}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away. Every data card has it (the summary table's too: it docks the same way) */}
+        {/* An iPhone's credit: one line in the foot of the words card, in the same place on every slide, never over its words (2D `.pz-cred`; the foot's padding and the pill's place leave its row, plan.ts CRED_ROW) */}
+        {lay === 'stack' && !data && surface.startsWith('pz-shade') && <span className="pz-cred" aria-hidden="true">{CREDIT}</span>}
         {(entry.id === 'ladder' || entry.id === 'table') && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}
       </div>
     </div>
