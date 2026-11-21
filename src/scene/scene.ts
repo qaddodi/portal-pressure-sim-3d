@@ -1,4 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
+import { anyMoving, lapTimer } from './any-moving';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
@@ -1127,10 +1128,14 @@ export class CelScene {
   }
 
   /** Steps everything on the clock. Returns true while the scene moves, so the clock asks for another frame; false means draw nothing. */
+  /** Running total of ms per update() system since the scene was made (read it for ?perf and the audit; lapTimer fills it). */
+  readonly systemMs: Record<string, number> = {};
+
   update(now: number): boolean {
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
+    const lap = lapTimer(this.systemMs);
     const camMoving = this.rig.update(now);
     this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
@@ -1141,6 +1146,7 @@ export class CelScene {
     // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
     if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
     this.highlight.setGlowShown(glowGate(this.circuit.t));   // (it eases away over the change's first 15 %, never snaps at the switch)
+    lap('camera+circuit');
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
@@ -1151,19 +1157,22 @@ export class CelScene {
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
     const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
-    const occMoving = this.stepOcclusion(dt) || this.stepShadow(dt);
-    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || routesMoving || this.stepCava(dt) || occMoving;
+    const occMoving = anyMoving(this.stepOcclusion(dt), this.stepShadow(dt));   // (both run every frame: `||` would skip the shadow while the occlusion eases)
+    const flowActive = anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving, this.stepCava(dt), occMoving);   // (the cava eases while blood flows)
+    lap('flow');
     const lensMoving = this.lens.step(now);
     const dustMoving = dustTuner.step(dt);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
-    const presMoving = this.presence.step(dt) || this.feeders.step(dt, () => this.pushFades());
+    const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
     this.syncStumps();
     this.updateCaps();
+    lap('cells+presence');
     const shapeMoving = this.shapes.step(dt);
     // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
     const skinPending = this.skins?.step() ?? false;
     if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
-    const skinMoving = (this.skins?.sync() ?? false) || skinPending || (this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+    const skinMoving = anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+    lap('shapes+skins');
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
@@ -1176,11 +1185,13 @@ export class CelScene {
     const lob3 = this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.sinus3d.update(this.micro3d, this.flowRate.value);
     this.sinus3d.holdScale(this.rig.camera.position);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
+    lap('micro views');
     const procMoving = this.procs.update(now);
     this.syncWedge();
     const diseaseMoving = this.disease.update(now, this.flowRate.value);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
+    lap('devices+disease');
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
