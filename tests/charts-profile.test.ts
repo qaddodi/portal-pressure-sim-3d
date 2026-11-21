@@ -344,3 +344,14 @@ test('the phone grid\'s strips: a case on one line with its blocks, and the name
   const names = profileNamesFrame(ctxOf('light', 390)).shapes.filter((x): x is TextShape => x.k === 'text').map((x) => x.s);
   assert.ok(names.includes('sinusoidal') && names.includes('Pre-') && names.includes('Intra-') && names.includes('Post-'));
 });
+
+test('the unit stands by the top gridline, over its number, not under the brace at the foot (Mohammad, 21 Nov: "the mmHg sits orphaned under the axis")', async () => {
+  const healthy = profileOf(await fpOf('healthy'))!;
+  for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop'], [430, 'tablet-portrait'], [720, 'desktop']] as const) {
+    const c = ctxOf('light', w, d), f = Math.max(12, c.type.sm), plan = planProfile(w, 0, f, goalOf(healthy, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
+    const unit = fr.shapes.find((s) => s.k === 'text' && s.s === 'mmHg') as { y: number; x: number };
+    const lines = fr.shapes.filter((s) => s.k === 'line' && (s as { y1: number; y2: number }).y1 === (s as { y2: number }).y2 && (s as { x1: number }).x1 > 0) as unknown as { y1: number }[];
+    const topLine = Math.min(...lines.map((l) => l.y1));
+    assert.ok(unit.y < topLine, `${w}: the unit (${unit.y}) is over the top gridline (${topLine})`); assert.ok(unit.y > 0, 'and inside the box'); assert.equal(unit.x, 0);
+  }
+});
