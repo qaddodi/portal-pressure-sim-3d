@@ -64,8 +64,6 @@ export const FOOT_ZONE = 62;
  *  the pill and the key stand this much higher, and the card's foot padding (deck-ui.css) is this much deeper. A short phone (600 px tall or less) has no room for the row: there the credit floats (shell/Credit.tsx). */
 export const CRED_ROW = 20;
 export const credRow = (vp: Viewport): number => (layoutOf(vp.w, vp.h) === 'stack' && vp.h > 600 ? CRED_ROW : 0);
-/** The least room for the talk's title to the left of the pill (a wide screen). */
-const TITLE_MIN_W = 220;
 /** The corner radius of an iPhone's own screen (a phone whose page reaches the home-bar inset has rounded corners; the older models, whose page has no bottom inset, are square). */
 export const screenRadius = (vp: Viewport): number => (layoutOf(vp.w, vp.h) === 'stack' && vp.safe.bottom > 0 ? (vp.w <= 376 ? 44 : vp.w <= 390 ? 47 : 55) : 0);
 /** The gap an iPhone's bottom card keeps from the screen's edge on its three sides: its corners are the screen's own, inset by this (concentric). */
@@ -77,9 +75,9 @@ export const footReserve = (vp: Viewport) => (screenRadius(vp) > 0 ? CARD_INSET 
 /** How far the card's foot is lower than the safe-area rule had it (what things standing beside the pill follow). */
 export const footDrop = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8 - footReserve(vp);
 
-export interface BarPlace { edge: 'foot' | 'card'; rect: Rect; /** where the deck's title stands (a wide screen, when it has room), left of the pill */ title: Rect | null }
+export interface BarPlace { edge: 'foot' | 'card'; rect: Rect }
 /** Where the pill stands: lower right of a wide screen (2D `pzb-pill`), centred in the foot of the words' card on a phone, at its lower right on an upright iPad. */
-export function barOf(vp: Viewport, colRight = 0): BarPlace {
+export function barOf(vp: Viewport): BarPlace {
   const { safe } = vp;
   const layout = layoutOf(vp.w, vp.h);
   if (layout === 'stack' || layout === 'tab') {
@@ -89,13 +87,12 @@ export function barOf(vp: Viewport, colRight = 0): BarPlace {
     const w = Math.round(vp.w * (layout === 'tab' ? 0.7 : 1) - (layout === 'tab' ? 0 : 16));
     const left = layout === 'tab' ? Math.round((vp.w - w) / 2) : Math.max(8, safe.left);
     // the lower right corner of the words card, inside it (an iPhone, as an upright iPad: Mohammad, 20 Nov)
-    return { edge: 'card', rect: { x: left + w - inset - bw, y, w: bw, h: bh }, title: null };
+    return { edge: 'card', rect: { x: left + w - inset - bw, y, w: bw, h: bh } };
   }
   const sideways = isSideways(vp.w, vp.h);
   const cm = margin(vp.w, vp.h, layout), w = sideways ? PILL_W_SIDE : PILL_W;
   const x = vp.w - Math.max(safe.right, cm) - w, y = vp.h - Math.max(cm, safe.bottom + 8) - BAR_H;
-  const tx = colRight + 24, tw = x - 16 - tx;
-  return { edge: 'foot', rect: { x, y, w, h: BAR_H }, title: !sideways && tw >= TITLE_MIN_W ? { x: tx, y, w: tw, h: BAR_H } : null };
+  return { edge: 'foot', rect: { x, y, w, h: BAR_H } };
 }
 
 /** The cards that stand alone in the middle of the screen (2D: the outline's and the quick check's `.pz-panel`, a case's `.pz-case`): they have no data card beside them and the page behind them is veiled.
@@ -255,8 +252,6 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
     bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - 8 };
     extra.push(bar.rect);
-    // (the deck's title beside the pill is drawn over the figure too: it is a blocker like the pill. Without it the free room ran under the title and the figure printed under it, Mac 5/19)
-    if (bar.title) extra.push(bar.title);
   }
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);

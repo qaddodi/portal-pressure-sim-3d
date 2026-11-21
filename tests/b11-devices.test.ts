@@ -225,6 +225,7 @@ test('the FibroScan probe on a screen: it turns, fades its head under a card (th
   run(1200);
   assert.equal(f.shown, 1); assert.equal(f.screenAt.headOp, 1);
   assert.ok(f.reading != null && Math.abs(f.reading - 12) < 0.5, 'the reading reached the model\'s number');
+  assert.ok(Number.isFinite(f.screenAt.dx) && Number.isFinite(f.screenAt.dy), 'the lifted display\'s offset from the tip is known (the number printed on it stands there: iPhone play-test, 21 Nov, the kPa out of line with its orange screen)');
   const open = f.deg, at = { x: f.screenAt.x, y: f.screenAt.y };
   // a card over the body: the probe turns to clear it, or fades its head where nothing clears
   const q = scanBody(at.x, at.y, f.screenAt.turn);

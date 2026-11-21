@@ -89,6 +89,7 @@ export class FibroProbe {
   // the screen
   private readonly B: Basis = newBasis();
   private U = len3(1);
+  private readonly lifted = new Vector3(); private readonly liftPt = { x: 0, y: 0 };
   private turn = 0; private turnGoal = 0; private headGoal = 1; private headAt = 0; private shapeKey = '';
   /** the probe's fade, and its head's and cable's, each eased as 2D's are (ArriveTrack) */
   private readonly opT = new ArriveTrack(0); private readonly headT = new ArriveTrack(1);
@@ -96,7 +97,7 @@ export class FibroProbe {
   /** the tilt below the level the probe stands at (2D scan.deg) and its turn on the screen (scan.turn), degrees */
   deg = 45;
   /** the tip on the screen now (px), the probe's turn there (degrees clockwise from +x, y down), and its body's box: what the reading's labels stand by */
-  readonly screenAt = { x: 0, y: 0, turn: 45, placed: false, headOp: 1 };
+  readonly screenAt = { x: 0, y: 0, turn: 45, placed: false, headOp: 1, /** how far the lifted display stands from the tip's own place on the screen (px): the display is drawn lifted off the body, so a tilted camera moves it, and its number with it */ dx: 0, dy: 0 };
   /** the stiffness the probe's screen reads (kPa), eased to the model's over 0.6 s as 2D scan.k is; null before the model has one */
   reading: number | null = null;
 
@@ -260,6 +261,9 @@ export class FibroProbe {
       this.headT.go(this.headGoal, HEAD_MS, nowMs);
       if (this.headT.step(nowMs)) moving = true;
       this.screenAt.x = B.ox; this.screenAt.y = B.oy; this.screenAt.turn = this.turn; this.screenAt.headOp = this.headOp;
+      // (the display is drawn `lift` above the body's plane in shape(): under a tilted camera it stands off the tip's own spot on the screen, and the number printed on it must stand there too)
+      const R = (SCAN.BODY as [number, number, number, number, number])[3] / 2, up = this.lifted.copy(this.place.tip); up.z += R * 0.9 * this.U;
+      const q = env.project(up, this.liftPt); this.screenAt.dx = q.x - B.ox; this.screenAt.dy = q.y - B.oy;
     } else { this.U = len3(1); this.turn = this.turnGoal = SCAN.TURN[this.organ] as number; this.screenAt.turn = this.turn; }
     const key = `${this.U.toFixed(6)}|${this.turn.toFixed(2)}|${this.B.a.toFixed(3)}|${this.B.b.toFixed(3)}|${this.B.c.toFixed(3)}|${this.B.d.toFixed(3)}`;
     if (key !== this.shapeKey) { this.shapeKey = key; this.shape(env); }

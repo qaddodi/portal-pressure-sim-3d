@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useUi, atEnd } from '../ui-store.ts';
 import { isFirst, isLast } from './presenter-machine.ts';
 import { SettingsMenu } from '../settings/SettingsMenu.tsx';
@@ -14,29 +14,22 @@ const Chevron = ({ dir }: { dir: 'l' | 'r' }) => (
 );
 
 /** The 2D app's pill: Back, where you are, Next (and the settings). Lower right of a wide screen; inside the foot of the words' card on a phone or an upright iPad.
- *  The talk's title stands to its left where a wide screen has the room. */
-export function PresenterBar({ title }: { title: string }) {
+ */
+export function PresenterBar() {
   const stops = useUi((s) => s.stops);
   const pos = useUi((s) => s.pos);
   const vp = useUi((s) => s.vp);
-  const colRight = useUi((s) => { const w = s.boxes.words, d = s.boxes.data; return Math.max(w ? w.x + w.w : 0, d ? d.x + d.w : 0); });
   const move = useUi((s) => s.move);
   const jump = useUi((s) => s.jump);
   const first = isFirst(pos), end = useMemo(() => isLast(stops, pos), [stops, pos]);
   const beatsAt = (() => { const st = stops[pos.stop]; return st && st.kind === 'slide' ? st.beats : 1; })();
-  const place = barOf(vp, colRight);
-  // The talk's title beside the bar is there only where the words' column leaves room, and that changes from stop to stop. It is always in the page and fades (a span put in at full opacity was a pop at 100+ stops of the
-  // 21 Nov Mac audit); where it has no room it keeps its last place and is at 0.
-  const titleAt = useRef(place.title);
-  if (place.title) titleAt.current = place.title;
-  const tp = place.title ?? titleAt.current;
+  const place = barOf(vp);
   const sideways = vp.h <= 500 && vp.w > vp.h;
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   const phone = layoutOf(vp.w, vp.h) === 'stack';
   // the 2D app's own pill markup: `.pz-bar` with `.pzb-pill` on a wide screen, `.phone` stacked; `.ib` buttons, the count `.pzb-n` > `.pzb-nt`
   return (
     <>
-      {tp && <span className="dk-bar-title" data-on={place.title ? '' : undefined} aria-hidden={place.title ? undefined : true} style={{ left: tp.x, top: tp.y, width: tp.w, height: tp.h }}>{title}</span>}
       <div className={`dk-bar pz-bar ${stacked ? 'phone' : 'pzb-pill'}`} data-edge={place.edge} role="toolbar" aria-label="Presenter" style={phone
         // an iPhone's pill is anchored by its lower right corner (its width is its buttons', never a guessed one), inside the words card
         ? { right: vp.w - (place.rect.x + place.rect.w), top: place.rect.y, left: 'auto', bottom: 'auto', height: place.rect.h, width: 'auto' }
