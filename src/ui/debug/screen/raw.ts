@@ -30,6 +30,17 @@ function roleOf(el: Element): RawText['role'] {
   return 'other';
 }
 
+/** A box that holds words only for a reader: a 2 px box (or less) that clips its overflow (`.sr-only`, `.lb-sr`). Its text is laid out whole, from the box's corner, so its range reaches far past the card
+ *  (every cell of the summary table carries one): the screen report called a line "past the card's edge" and "off the screen" on an iPhone's last table slide (21 Nov) for words nobody sees. */
+export const clipsAway = (w: number, h: number, overflow: string): boolean => w <= 2 && h <= 2 && overflow !== 'visible';
+function hiddenFromEyes(win: Window, el: Element, card: Element): boolean {
+  for (let e: Element | null = el; e && e !== card; e = e.parentElement) {
+    const b = e.getBoundingClientRect();
+    if (b.width <= 2 && b.height <= 2 && clipsAway(b.width, b.height, win.getComputedStyle(e).overflow)) return true;
+  }
+  return false;
+}
+
 /** A card's texts: every visible run of words with its size and the box it stands in. */
 function textsOf(win: Window, card: Element): RawText[] {
   const doc = card.ownerDocument;
@@ -41,7 +52,7 @@ function textsOf(win: Window, card: Element): RawText[] {
     const p = n.parentElement;
     if (!text || !p) continue;
     const cs = win.getComputedStyle(p);
-    if (cs.visibility === 'hidden' || cs.display === 'none' || p.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out')) continue;
+    if (cs.visibility === 'hidden' || cs.display === 'none' || p.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') || hiddenFromEyes(win, p, card)) continue;
     range.selectNodeContents(n);
     const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0);
     if (!rects.length) continue;
