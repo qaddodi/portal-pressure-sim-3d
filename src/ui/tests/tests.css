@@ -54,3 +54,4 @@
 /* the busy Measure button keeps its label readable while it runs (review #4): a disabled primary button is not a faded one */
 .hvpg-bar .btn.primary:disabled { opacity: 1; background: color-mix(in srgb, var(--accent) 78%, var(--surface, transparent)); color: var(--on-accent); }
 .tests-owner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 0; }
+.t-pos[data-away="true"] { visibility: hidden; pointer-events: none; }   /* (a talk is on: the layer stays mounted so leaving it mounts nothing, tests/leave-talk-cost.test.ts) */
