@@ -201,7 +201,6 @@ test('every diagnostic the skin\'s program can carry is one the inspector switch
 test('solo and mute by vessel id: only the soloed are drawn for the frame, a skin stays while any of its arms is, and every flag is put back', async () => {
   const { CelScene } = await import('../src/scene/scene.ts');
   const { useSettings } = await import('../src/state/settings.ts');
-  useSettings.setState({ smoothJoins: true });
   const s = new CelScene({ joins: 'mesh2' });
   const priv = s as unknown as { inspectBegin(): (() => void) | null; skins: { drawnArms(): { object: { visible: boolean }; arms: readonly string[] }[] } };
   const begin = () => priv.inspectBegin();

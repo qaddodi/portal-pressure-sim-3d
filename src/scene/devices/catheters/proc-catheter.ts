@@ -8,9 +8,11 @@ import { PALETTES, type LookId, type Palette } from '../../palette.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
 import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
+import { type Centreline, centrelineOf } from '../../vessels/centreline.ts';
+import { smoothJoinsOn } from '../../vessels/join-mode.ts';
 import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
-import { BALLOON_EDGE, CATH_EDGE, MARKER_EDGE, type EdgeRule } from '../edges.ts';
+import { BALLOON_EDGE, CATH_EDGE, type EdgeRule } from '../edges.ts';
 import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
 import { balloonOutline, balloonRy } from '../../procedures/copied/hvpg-balloon.js';
@@ -151,9 +153,10 @@ export class ProcCatheter {
     this.balloonGeo = allocTube(BALLOON_N + 1, BALLOON_RADIAL);
     this.balloon = mk(this.balloonGeo, 'nylon', 7, BALLOON_EDGE, 0.7);
     this.balloon.setGlass(1.4, 0.4);
-    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, GLINT_SIDES); return { g, o: mk(g, 'graft', 9, 'ink', 0) }; });
+    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, GLINT_SIDES); return { g, o: mk(g, 'graft', 9, 'none', 0, { fat: 0.4 }) }; });   // (a specular streak of light: no ink round it, or it read as a dark bar inside the glass)
     // the two small dark collars where the balloon is bonded to the shaft
-    this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.16, rc * 1.16, rc * 0.5, DEVICE_SIDES, 1, true).rotateZ(Math.PI / 2)), 'platinum', 8, MARKER_EDGE, 0.4));
+    // (no collars or marker bands inside the glass: the solid dark bars Mohammad saw through the balloon, 21 Nov; the balloon is glass, the shaft seen through it, and its streaks of light)
+    this.balloonBands = [];
     for (let i = 0; i < 2; i++) {
       this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'trPv', 9, 'ink', 0));
       this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'monFree', 9, 'ink', 0));
@@ -203,12 +206,22 @@ export class ProcCatheter {
     // fills (Mohammad, 20 Nov: "the yellow/orange highlighting should start basically from the balloon edge and move forward into the hepatic vein and branches to cover it"). The front is one distance along the route,
     // so it crosses the vein's pieces and runs on into the branch in order; at a full column it covers all of it. The tint is whole at the edge (it was 0 there and rose over 8% of the vein's course, so an
     // untinted stretch of about ten shaft radii stood between the balloon and the amber).
-    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 2;
+    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 5;
     const front = edgeD + smoother(col) * Math.max(1e-6, r.total - edgeD) * 1.02;
     const pieces = new Map<string, WedgePiece>();
     // (u runs 1 at a piece's start on the route to 0 at its outer end: a piece is tinted from the front's u to the cut's u)
-    const uAt = (sub: { d0: number; d1: number; fa: number; fb: number }, d: number) => sub.fa + (sub.fb - sub.fa) * clamp01((d - sub.d0) / Math.max(1e-6, sub.d1 - sub.d0));
-    const edgeU = (sub: { d0: number; d1: number; fa: number; fb: number }) => soft * Math.abs(sub.fb - sub.fa) / Math.max(1e-6, sub.d1 - sub.d0);
+    // WHERE a distance along the route is on the vein AS DRAWN: the shader's u is the share of the DRAWN tube's own length, and the vein's drawn course is not the 2D course the route was laid on (eased in depth, cut where the
+    // branches leave it, joined to its neighbours), so the route's share of the piece (fa to fb, linear in distance) put the tint's edge up to a tenth of the vein away from the balloon (a band of plain vein between them; Mohammad,
+    // 21 Nov). The route's own point there lies ON the drawn centreline: its place on that centreline is the u.
+    const uAt = (sub: { id: string | null; d0: number; d1: number; fa: number; fb: number }, d: number): number => {
+      if (d <= sub.d0) return sub.fa;
+      if (d >= sub.d1) return sub.fb;
+      const c = sub.id ? this.courseOf(sub.id) : null;
+      if (!c) return sub.fa + (sub.fb - sub.fa) * clamp01((d - sub.d0) / Math.max(1e-6, sub.d1 - sub.d0));
+      const p = r3.centre(d, this.v);
+      return c.nearestU([p.x, p.y, p.z]);
+    };
+    const edgeU = (sub: { id: string | null; d0: number; d1: number; fa: number; fb: number }) => { const c = sub.id ? this.courseOf(sub.id) : null; return c ? soft / U / Math.max(1e-6, c.length) : soft * Math.abs(sub.fb - sub.fa) / Math.max(1e-6, sub.d1 - sub.d0); };
     const hv = r.parts.find((q) => q.name === 'hv');
     for (const sub of hv?.subs?.length ? hv.subs : hv ? [hv] : []) {
       if (!sub.id || edgeD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
@@ -223,6 +236,13 @@ export class ProcCatheter {
     return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, pieces };
   }
   private readonly wedgeColor = new Color();
+  private readonly courses = new Map<string, Centreline | null>();
+  /** The drawn centreline of vessel `id` (kept: the wedge tint asks every frame while the column is up). */
+  private courseOf(id: string): Centreline | null {
+    const key = `${id}|${smoothJoinsOn()}`;
+    if (!this.courses.has(key)) this.courses.set(key, centrelineOf(id));
+    return this.courses.get(key)!;
+  }
 
   set(s: CatheterState): void {
     this.last = s;
@@ -301,23 +321,18 @@ export class ProcCatheter {
     // it swells on a smootherstep of the model's own 0..1, so it starts and ends gently and never jumps (owner, 20 Nov 2026: "easing as it inflates")
     const sw = bl * bl * bl * (bl * (bl * 6 - 15) + 10);
     const ol = balloonFit(r3, rc, Math.max(sw, 1e-4), tipD, this.span, (this.ballRings ||= makeRings(BALLOON_N + 1)));
-    const rings = this.ballRings!, dC = ol.dC, rx = ol.rx;
+    const rings = this.ballRings!;
     writeRings(this.balloonGeo, rings, BALLOON_RADIAL);
     // a solid-looking latex balloon: a body that reads against the vein (0.42, it was a barely-there 0.12 and the balloon vanished into the vessel; Mohammad, 20 Nov: "make the HVPG balloon less transparent") with a firm outline that eases in with the swelling
     const e = bl * bl * (3 - 2 * bl);
     this.balloon.setAlphas(0.42 * Math.min(1, e * 2.2) * op, (0.45 + 0.5 * e) * op * Math.min(1, bl * 4));
     this.lay(ol.ol, rings, e, op);
-    // its two collars, where the glass meets the shaft
-    [-1, 1].forEach((side, i) => {
-      const b = this.balloonBands[i]!, d = dC + side * rx * 0.97;
-      b.setAlpha(op); b.group.position.copy(r3.point(d, this.v)); this.orient(b, d);
-    });
   }
   private readonly gr = [makeRings(GLINT_N), makeRings(GLINT_N)];
   private readonly n1 = new Vector3(); private readonly n2 = new Vector3(); private readonly tt = new Vector3();
   /** Two white curved highlights on the glass's near side (the figure's front is +z): arcs a hair inside the balloon's surface, one long above the shaft and one short below it, as a Fogarty's light curves round its barrel. */
   private lay(ol: { s: number }[], rings: ReturnType<typeof makeRings>, e: number, op: number): void {
-    const arcs = [{ phi: 0.62, s0: -0.62, s1: 0.5, a: 0.8 }, { phi: -0.5, s0: 0.12, s1: 0.62, a: 0.5 }];
+    const arcs = [{ phi: 0.62, s0: -0.62, s1: 0.5, a: 0.95 }, { phi: -0.5, s0: 0.12, s1: 0.62, a: 0.6 }];
     arcs.forEach((arc, k) => {
       const out = this.gr[k]!;
       for (let i = 0; i < GLINT_N; i++) {
@@ -329,7 +344,7 @@ export class ProcCatheter {
         // up on the screen is -n1, toward the viewer is -n2
         const c = Math.cos(arc.phi), sn = Math.sin(arc.phi), r = out[i]!;
         r.c.copy(q.c).addScaledVector(this.n2, -c * q.r * 0.9).addScaledVector(this.n1, -sn * q.r * 0.9);
-        r.t.copy(tt); r.r = Math.max(this.rc * 0.075 * Math.sin(Math.PI * (i / (GLINT_N - 1))) + this.rc * 0.01, 0.0003);
+        r.t.copy(tt); r.r = Math.max(this.rc * 0.13 * Math.pow(Math.sin(Math.PI * (i / (GLINT_N - 1))), 0.8) + this.rc * 0.01, 0.0003);
       }
       writeRings(this.glints[k]!.g, out, GLINT_SIDES);
       this.glints[k]!.o.setAlpha(arc.a * e * op);

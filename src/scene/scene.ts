@@ -10,7 +10,7 @@ import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
-import { setSmoothJoins } from './vessels/join-mode.ts';
+import { setSmoothJoins, smoothJoinsOn } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { WHY_COLOUR, joinsReport, type JoinsReport } from './vessels/skin/join-report.ts';
 import { findOverlaps, type Overlap } from './vessels/overlaps.ts';
@@ -277,7 +277,7 @@ export class CelScene {
 
     this.scene.add(this.body);
 
-    setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
+    setSmoothJoins(true);   // (smooth vessel joins are always on, 21 Nov 2026: the Settings switch is gone; set before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
     // (junction skins: before the mates, which skip the ends a skin has taken over. On the page they are baked at build time and still on their way: the figure is not drawn before they are in, the boot waits for the same promise)
     if (bakedPending()) void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
@@ -286,7 +286,6 @@ export class CelScene {
     this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
     for (const o of this.back) o.setOcclusion(this.occNow);
     this.unJoins = useSettings.subscribe((st, prev) => {
-      if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins);
       if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
@@ -381,7 +380,7 @@ export class CelScene {
   /** The junction skins now drawn (the node names), for tests and the debug page. */
   get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
   private refreshSkins(): void {
-    const phase = useSettings.getState().smoothJoins ? joinsPhase(this.joins) : 0;
+    const phase = smoothJoinsOn() ? joinsPhase(this.joins) : 0;   // (always on in the app; only a test's useSmoothJoins(false) turns it off)
     if (!phase) { this.skins?.dispose(); this.skins = null; this.circuitSkins?.dispose(); this.circuitSkins = null; return; }
     this.skins ??= new SkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
@@ -405,9 +404,9 @@ export class CelScene {
     this.circuitSkins.build();
   }
 
-  /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
+  /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins are always on). */
   private applyMates(): void {
-    const on = useSettings.getState().smoothJoins;
+    const on = smoothJoinsOn();
     for (const def of NETWORK) {
       const o = this.byEdge.get(def.id) as VesselObject | undefined, sj = SMOOTH.get(def.id);
       if (!o) continue;
@@ -435,7 +434,7 @@ export class CelScene {
     }
   }
 
-  /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
+  /** Every tube is rewritten for a join mode (no Settings switch any more: smooth joins are always on; kept for the tests that look at the off drawing): every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
   private useSmoothJoins(on: boolean): void {
     if (!setSmoothJoins(on)) return;
     for (const def of NETWORK) {
