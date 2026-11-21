@@ -18,6 +18,7 @@ import { TreatCard } from '../treat/TreatCard.tsx';
 import { InApp } from './InApp.tsx';
 import { PageDialog } from './Pages.tsx';
 import { ActionCard } from '../action/ActionCard.tsx';
+import { useTalkOn } from '../../state/deck.ts';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -39,7 +40,7 @@ function ResetDialog() {
 }
 
 export function Sheets() {
-  const talk = useShell((s) => s.mode === 'deck');
+  const talk = useTalkOn();
   const device = useUi((s) => s.device);
   return (
     <>

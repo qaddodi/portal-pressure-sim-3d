@@ -355,3 +355,22 @@ test('the unit stands by the top gridline, over its number, not under the brace 
     assert.ok(unit.y < topLine, `${w}: the unit (${unit.y}) is over the top gridline (${topLine})`); assert.ok(unit.y > 0, 'and inside the box'); assert.equal(unit.x, 0);
   }
 });
+
+test('the slides\' HVPG bracket stands on the measured WHVP and FHVP, and a screen reader hears where they come from (one module with Tests > Pressure)', async () => {
+  const { hvpgSentence, measuredTop } = await import('../src/ui/charts/profile/wedge.ts');
+  const { bracketSummary } = await import('../src/ui/tests/profile/model.ts');
+  for (const id of ['schisto', 'csph']) {   // (a presinusoidal case, where the wedge is far under the portal pressure, and a sinusoidal one)
+    const fp = await fpOf(id), inp = profileInputs(fp)!, v = inp.p.v;
+    assert.equal(v[STATIONS.indexOf('SIN_R')], fp.whvp, `${id}: the bracket's top end (the Intra- station) is the WHVP`);
+    assert.equal(v[STATIONS.indexOf('RHV')], fp.fhvp, `${id}: its foot is the FHVP`);
+    assert.equal(inp.goal.whvp, fp.whvp);
+    const words = profileWords(inp.goal, SPANS), sentence = hvpgSentence(fp.whvp as number, fp.fhvp as number);
+    assert.ok(sentence && words.includes(sentence), `${id}: the chart's words carry the HVPG sentence`);
+    assert.equal(` ${sentence}.`, bracketSummary({ metrics: { whvp: fp.whvp as number, fhvp: fp.fhvp as number } }), 'the same sentence as the Tests chart reads');
+  }
+  assert.equal(measuredTop({ hiM: 'whvp' }, { whvp: 6.9 }), 6.9);
+  assert.equal(measuredTop({ hiM: 'whvp' }, {}), null);
+  const fp = await fpOf('csph'), inp = profileInputs(fp)!;
+  assert.ok(!profileWords(inp.goal, spansOf(['ppg'])).includes('wedged'), 'no HVPG bracket, no HVPG sentence');
+  assert.ok(!profileWords(inp.goal, spansStented(SPANS)).includes('wedged'), 'a stent in takes the HVPG and its sentence out');
+});

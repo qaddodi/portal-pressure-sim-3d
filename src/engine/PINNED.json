@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "c2bfa393c217978d8ad93e4c10fd33062958f595"
+    "commit": "fd6b85696e9bfd0d3caf14a6d01670c8533dc097"
   },
   "host": {
     "repo": "qaddodi/portal-pressure-simulator",
@@ -23,7 +23,7 @@
     "hales/portal/events.js": "fe0ce02f0d8b61dae46388e60a5a26673d8658b93b0b486d333e295b40add72f",
     "hales/portal/explain-ids.js": "326c21384fb0757403a9fb924d7aff0395e970dbb09a11d2aff3f5c5c09a70d4",
     "hales/portal/explain.js": "a5b5b97b53b13c6df89a6e1a12ed89bc79d0d2725d53657ed886dbed05104840",
-    "hales/portal/fingerprint.js": "f825482f143cef23e40fa38c140c4cfd7d64f2487b651824628cbbaa6412e3d2",
+    "hales/portal/fingerprint.js": "caa55bdc585e6e2caae1d525a538ef2f1e5bb9d79a152584e64401a3411a0116",
     "hales/portal/flow-cuts.js": "2a664f63054e736a9c0e709f6a93957849f0335190b118c44510eab4b91f4867",
     "hales/portal/inverse-families.js": "b119268289136febea5983aa02c30c709fd78e5dea1bfc38c9f3cc2641cba970",
     "hales/portal/inverse-library.js": "57a5fca03ed93327e0737c0f2196ec1ed9c394e99e4b7ac85911821aabbc9fd8",
@@ -36,6 +36,7 @@
     "hales/portal/lymph.js": "e6bb115903b5ae7c8e28b58c4653fd0e2d1b97c106ffc5a56b47ce0cbc381e3c",
     "hales/portal/metrics.js": "3a14d3688e166d08936408db9f30337e5c6777caf9916e493ca9c059991a74b0",
     "hales/portal/pressure-cuts.js": "7f96e7d40a3584ba0aa0dad13da019b22b00bcc9164a76d657501347d656e990",
+    "hales/portal/risk-scores.js": "623e2f926b510e0f32d2cc80bd00ca16aac41a10314af4d4b58e6a9307c87bf3",
     "hales/portal/scenario.js": "d7122e950865b91fcd93994a675014c7ead9a5ab01fbd044207133d21cf36f6a",
     "hales/portal/ssm-cuts.js": "86a2a77662721a8b2c0c8150f97492716fa80a8ff69fba9d0f390c08646f52a2",
     "hales/portal/stent-ease.js": "371c7231827ac20ebe9a94bd9ebe061ca3e4477e0740f70e6e33298911ac715e",

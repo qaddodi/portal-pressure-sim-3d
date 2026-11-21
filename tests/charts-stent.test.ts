@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   COLS, dropIn, dropLayout, dropTop, gateIndex, keyCols, printedParts, readStent, sideLayout, stentOutline, stentSpan, stentState, stentTitle, ten, traceFit, traceFor, traceIn, traceLayout, xAt,
 } from '../src/ui/charts/stent/model.ts';
-import { dropFrame, sideFrame, traceFrame, unitSize } from '../src/ui/charts/stent/frame.ts';
+import { dropFrame, traceFrame, unitSize } from '../src/ui/charts/stent/frame.ts';
+import { tipsFigureFrame } from '../src/ui/tests/ir/tips-figure.ts';
 import { stentEntry } from '../src/ui/charts/stent/entry.ts';
 import { stentWaist, lossShares, stenosisText, waistText } from '../src/ui/charts/stent/stent-waist.generated.js';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
@@ -99,7 +100,7 @@ test('every look and width: the side view, the traces and the staircase are soun
     eachLook((look) => {
       for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop'], [330, 'phone-landscape'], [430, 'tablet-portrait'], [240, 'phone-portrait']] as const) {
         const c = ctxOf(look, w, d);
-        const frames = [sideFrame(st, c), sideFrame(st, c, { color: 'pressure', sites: true, gate: 'mid' }), ...(['pressure', 'energy', 'velocity'] as const).map((pick) => traceFrame(st, c, { pick })), dropFrame(st, c, { to: 'ppg' }), dropFrame(st, c, { to: 'stent', max: 16 })];
+        const frames = [tipsFigureFrame(st, c, { lens: 'velocity', labels: true, card: true }), tipsFigureFrame(st, c, { lens: 'pressure', labels: true, chart: true, gate: 'mid' }), ...(['pressure', 'energy', 'velocity'] as const).map((pick) => traceFrame(st, c, { pick })), dropFrame(st, c, { to: 'ppg' }), dropFrame(st, c, { to: 'stent', max: 16 })];
         for (const f of frames) { judge(f, look, { onCard: false }); assert.ok(f.h > 30 && f.h < 600, `${look} ${w}: height ${f.h}`); }
       }
     });
@@ -107,12 +108,26 @@ test('every look and width: the side view, the traces and the staircase are soun
   // the words are the 2D words
   const c = ctxOf('light', 330);
   const say = (f: { shapes: readonly { k: string }[] }) => (f.shapes as TextShape[]).filter((s) => s.k === 'text').map((s) => s.s);
-  const side = say(sideFrame(open, c, { sites: true }));
-  for (const s of ['RPV', 'RHV', '126', '188', '301', '5.0 mm', '8.0 cm', 'slower', 'faster', 'Peak at each gate, cm/s (usual 90 to 190)', '1', '5']) assert.ok(side.includes(s), `the side view says "${s}": ${side.join(' | ')}`);
+  const side = say(tipsFigureFrame(open, c, { lens: 'velocity', labels: true, card: true }));
+  for (const s of ['RPV', 'RHV', '126', '188', '301']) assert.ok(side.includes(s), `the stent figure says "${s}": ${side.join(' | ')}`);
+  assert.ok(side.some((w) => w.includes('5.0 mm')), 'the figure names the narrowed lumen');
   const drop = say(dropFrame(open, c, { to: 'ppg' }));
   for (const s of ['PPG 11.8', 'Portal vein', 'Stent', 'IVC', 'Outside', 'Tract', 'In and out', 'Friction', 'Jet', '6.2', '2.6', 'Across the stent 5.6 mmHg']) assert.ok(drop.includes(s), `the staircase says "${s}": ${drop.join(' | ')}`);
   const trace = say(traceFrame(open, c, { pick: 'pressure' }));
   for (const s of ['Pressure, mmHg (absolute)', '1 Portal  2 Inlet  3 Waist  4 Outlet  5 IVC', 'IVC 4.5']) assert.ok(trace.includes(s), `the trace says "${s}": ${trace.join(' | ')}`);
   assert.ok(unitSize(ctxOf('light', 240)).fs * (240 / 320) >= 12 - 1e-9, 'a narrow card still sets its words at 12 px');
   assert.equal(stentEntry.status, 'done');
+});
+
+test('one stent figure everywhere: the slides\' stent card draws the TIPS card\'s tipsFigureFrame, never a picture of its own', async () => {
+  const { readFileSync } = await import('node:fs');
+  const card = readFileSync(new URL('../src/ui/charts/stent/StentCard.tsx', import.meta.url), 'utf8');
+  assert.match(card, /tipsFigureFrame\(/, 'the stent card draws the shared figure');
+  assert.doesNotMatch(card, /sideFrame/, 'no second side view');
+  const frame = readFileSync(new URL('../src/ui/charts/stent/frame.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(frame, /export function sideFrame/, 'the old side view is gone');
+  // a slide\'s gate band is drawn behind the figure, and only when the slide names a third
+  const c = ctxOf('light', 330), open = stentState(FP, 'TIPS', null);
+  const bands = (g: 'mid' | null) => tipsFigureFrame(open, c, { lens: 'velocity', labels: true, card: true, gate: g }).shapes.length;
+  assert.equal(bands('mid'), bands(null) + 1, 'the Doppler third adds one band');
 });

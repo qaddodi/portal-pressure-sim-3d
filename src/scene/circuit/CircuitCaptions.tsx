@@ -14,6 +14,7 @@ import { BAR } from '../../ui/layout/plan.ts';
 import { useUi, talkRects } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
+import { useBlood } from '../blood/options.ts';
 import { cel, usePick } from '../api.ts';
 import { rectToBox, leaderGeom, within, hits, crosses, type Box } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
@@ -218,7 +219,7 @@ export function CircuitCaptions() {
         const e = els.get(id);
         if (!e?.val) continue;
         const i = NODE_AT.get(m.node!), v = f && i !== undefined ? fmtPressure(f.Pf[i] ?? null, 1, false) : '';
-        const show = m.forms[Math.min(p.form, m.forms.length - 1)]!.value ? v : '';
+        const show = m.forms[Math.min(p.form, m.forms.length - 1)]!.value && useBlood.getState().chips ? v : '';   // (Pressure values off: the name only, as 2D's `.chips-off .lb-val`)
         if (e.valText !== show) { e.valText = show; e.val.textContent = show; }
       }
     };

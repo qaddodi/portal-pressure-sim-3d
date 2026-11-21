@@ -11,7 +11,8 @@ export function profileInputs(fp: Fp | null | undefined, healthy?: Fp | null, be
   const p = profileOf(fp);
   if (!p) return null;
   const hl = profileOf(healthy), bf = profileOf(before);
-  return { p, hl, bf, goal: goalOf(p, hl, bf) };
+  const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  return { p, hl, bf, goal: { ...goalOf(p, hl, bf), whvp: num(fp?.whvp), fhvp: num(fp?.fhvp) } };
 }
 
 /** The brackets of a slide for a state: the slide's `spans` option, less the HVPG once a stent is in. */

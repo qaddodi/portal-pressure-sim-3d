@@ -21,6 +21,7 @@ import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, type Row } from './rows.ts';
 import { Advanced } from './Advanced.tsx';
 import { FromReadings, FR_WORDS, openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
+import { useTalkOn } from '../../state/deck.ts';
 
 const ICON: Record<string, string> = { 'Send feedback': 'mail', History: 'clock', Help: 'help', 'Enter full screen': 'fullscreen', 'Blur effect': 'layers', 'Sharp while moving': 'layers', 'Keyboard shortcuts': 'grid', 'Advanced physiology': 'sliders', 'Show frame rate': 'gauge', 'Show frame breakdown': 'gauge', 'Reset everything…': 'reset' };
 const SWITCH: Record<string, 'blur' | 'sharpMoving' | 'keys' | 'showFps' | 'showBreakdown'> = { 'Blur effect': 'blur', 'Sharp while moving': 'sharpMoving', 'Keyboard shortcuts': 'keys', 'Show frame rate': 'showFps', 'Show frame breakdown': 'showBreakdown' };
@@ -118,7 +119,7 @@ function DepthSwitch({ row }: { row: (typeof DEPTH_ROWS)[number] }) {
 }
 
 export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
-  const talk = useShell((s) => s.mode === 'deck');
+  const talk = useTalkOn();
   const phone = usesBottomBar(useUi((s) => s.device));
   const label = UI.topbar.find((t) => t.id === 'btnSettings')!.label!;
   // History and Help are pages inside this menu (2D menu recs P4): they slide in over the rows with a back row, and the menu stays open

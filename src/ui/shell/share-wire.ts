@@ -1,7 +1,7 @@
 // The share link on the real app: what it reads (the stores, the scene's camera) and what a link acts on (share.ts holds the rules, as the 2D share-flow.js does).
 import { useShell } from './store.ts';
 import { useUi } from '../ui-store.ts';
-import { useDeck } from '../../state/deck.ts';
+import { talkOn, talkId } from '../../state/deck.ts';
 import { useEngine } from '../../engine/index.ts';
 import { UI } from '../strings.generated.ts';
 import { cel, sceneApi } from '../../scene/api.ts';
@@ -16,7 +16,7 @@ import type { Cam } from '../debug/packet/state.ts';
 export function shareNow(): ShareNow {
   const sh = useShell.getState(), hand = cel.rig.handView, orbit = Math.round(((cel.rig.orbitAngle * 180) / Math.PI) * 10) / 10;
   const moved = orbit !== 0 || hand.k !== 1 || hand.x !== 0 || hand.y !== 0;
-  const deckId = sh.mode === 'deck' ? useDeck.getState().deckId : null;
+  const deckId = talkOn() ? talkId() : null;
   return {
     preset: useEngine.getState().presetId ?? sh.patientId, params: currentParams(), view: sh.view, sel: useSelection.getState().sel,
     cam: moved ? { orbit, k: hand.k, x: hand.x, y: hand.y } : null,
@@ -55,7 +55,6 @@ export async function openSharedFromAddress(hash: string = location.hash): Promi
   if (!hasShare(hash)) return false;
   const s = readShare(hash, presetIds());
   if (!s) { useShell.getState().say(SHARE_WORDS.unread, 'bad'); return false; }
-  useShell.setState({ mode: 'free' });
   await loadShared(s, deps);
   return true;
 }
@@ -68,7 +67,7 @@ export function watchSharedAddress(): () => void {
     last = location.hash;
     const s = readShare(location.hash, presetIds());
     if (!s) { useShell.getState().say(SHARE_WORDS.unreadOpen, 'bad'); return; }
-    if (useShell.getState().mode !== 'free') return;   // (a talk is running: the link waits for the next load, the talk is not thrown away)
+    if (talkOn()) return;   // (a talk is running: the link waits for the next load, the talk is not thrown away)
     void loadShared(s, deps);
   };
   window.addEventListener('hashchange', on);

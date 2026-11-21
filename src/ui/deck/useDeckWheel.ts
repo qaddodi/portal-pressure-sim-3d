@@ -14,7 +14,7 @@ export function useDeckWheel(onMove: (m: Move) => void): void {
     let g: WheelG | null = null;
     const onWheel = (e: WheelEvent) => {
       const ui = useUi.getState(), sh = useShell.getState();
-      if (!ui.deck || !ui.stops.length || sh.mode !== 'deck' || ui.jump || sh.dialog || sh.sheet || useDialogs.getState().dialog) return;
+      if (!ui.deck || !ui.stops.length || ui.jump || sh.dialog || sh.sheet || useDialogs.getState().dialog) return;
       if (e.ctrlKey || e.metaKey) return;
       if (ownsTouch(e.target as Element | null)) return;
       const now = e.timeStamp > 0 ? e.timeStamp : performance.now();

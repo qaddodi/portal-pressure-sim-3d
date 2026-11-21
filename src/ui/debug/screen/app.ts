@@ -3,7 +3,7 @@
 import { latest, useEngine } from '../../../engine/index.ts';
 import { useShell } from '../../shell/store.ts';
 import { useUi } from '../../ui-store.ts';
-import { useDeck } from '../../../state/deck.ts';
+import { talkOn, talkId } from '../../../state/deck.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { useLens } from '../../../scene/lenses/store.ts';
 import { usePick, cel } from '../../../scene/api.ts';
@@ -44,15 +44,15 @@ function memoryNow(): AppSnapshot['memory'] {
 }
 
 export function appSnapshot(): AppSnapshot {
-  const sh = useShell.getState(), ui = useUi.getState(), eng = useEngine.getState(), deck = useDeck.getState(), st = clock.stats();
-  const talk = sh.mode === 'deck' && ui.stops.length;
+  const sh = useShell.getState(), ui = useUi.getState(), eng = useEngine.getState(), st = clock.stats();
+  const talk = talkOn() && ui.stops.length;
   const view = talk ? viewAt(ui.stops, ui.pos) : null;
   const hand = cel.rig.handView;
   return {
     build: String(import.meta.env.VITE_BUILD ?? 'dev'), look: resolveLook(useSettings.getState().look, matchMedia('(prefers-color-scheme: dark)').matches),
     device: ui.device, vp: ui.vp, dpr: devicePixelRatio,
-    mode: sh.mode, view: sh.view, sheet: sh.sheet, patient: eng.presetId ?? sh.patientId, lens: useLens.getState().lens, picked: usePick.getState().picked,
-    deck: view ? { id: deck.deckId, number: view.number, of: view.of, words: view.words, data: view.data, title: view.slide?.title ?? null, page: ui.page, pages: ui.pageCount } : null,
+    mode: talkOn() ? 'deck' : 'free', view: sh.view, sheet: sh.sheet, patient: eng.presetId ?? sh.patientId, lens: useLens.getState().lens, picked: usePick.getState().picked,
+    deck: view ? { id: talkId(), number: view.number, of: view.of, words: view.words, data: view.data, title: view.slide?.title ?? null, page: ui.page, pages: ui.pageCount } : null,
     readings: { hvpg: eng.hvpg, whvp: eng.whvp, fhvp: eng.fhvp, pv: eng.pv, ivc: eng.ivc, ra: eng.ra },
     camera: { moving: cel.rig.isMoving, placed: cel.rig.placed, orbitDeg: r1((cel.rig.orbitAngle * 180) / Math.PI), zoom: Math.round(hand.k * 1000) / 1000, pan: [Math.round(hand.x), Math.round(hand.y)], stage: cel.rig.stageSize },
     engine: { status: eng.status, frames: eng.frames, crash: eng.crash, running: !!latest.frame?.running, day: latest.frame ? Math.round(latest.frame.day * 10) / 10 : null },
