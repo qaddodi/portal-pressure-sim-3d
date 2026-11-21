@@ -24,6 +24,8 @@ export interface Boxes {
   words: Rect | null;
   data: Rect | null;
   strip: Rect | null;
+  /** The presenter bar and, on a wide screen, the deck's title beside it: drawn over the figure, so the figure's room keeps clear of them (plan.ts) and so must every name. */
+  bars: Rect[];
   /** The figure's room: the largest rectangle the cards leave free (CSS px, the camera shifts its projection into it). */
   free: Rect;
 }
@@ -74,7 +76,10 @@ export interface UiState {
 
 const emptyFree: Rect = { x: 0, y: 0, w: 0, h: 0 };
 /** No card is up: what free play has (and a fresh page). */
-export const noBoxes = (): Boxes => ({ words: null, data: null, strip: null, free: emptyFree });
+export const noBoxes = (): Boxes => ({ words: null, data: null, strip: null, bars: [], free: emptyFree });
+/** Everything the talk draws over the figure, as one list: the cards, the wallet strip, the presenter bar and the deck's title. The one place the labels, the Circuit's and the lobule's
+ *  captions and the probes' labels read what to keep off (before 21 Nov each listed words, data and strip itself, so none kept clear of the bar or the title). */
+export const talkRects = (b: Boxes): Rect[] => [b.words, b.data, b.strip, ...b.bars].filter((r): r is Rect => !!r && r.w > 0 && r.h > 0);
 const sameRect = (a: Rect | null, b: Rect | null) => (a === b) || (!!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
 export const useUi = create<UiState>((set, get) => ({
@@ -155,8 +160,9 @@ export const useUi = create<UiState>((set, get) => ({
     const words = plan.cards.find((c) => c.slot === 'words')?.rect ?? null;
     const data = plan.cards.find((c) => c.slot === 'data')?.rect ?? null;
     const strip = plan.strip?.rect ?? null;
+    const bars = [plan.bar?.rect, plan.bar?.title].filter((r): r is Rect => !!r);
     const b = get().boxes;
-    if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && sameRect(b.free, plan.free) && get().dockShown === plan.docked) return;
-    set({ boxes: { words, data, strip, free: plan.free }, dockShown: plan.docked });
+    if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && b.bars.length === bars.length && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && get().dockShown === plan.docked) return;
+    set({ boxes: { words, data, strip, bars, free: plan.free }, dockShown: plan.docked });
   },
 }));

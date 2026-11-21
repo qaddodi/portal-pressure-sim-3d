@@ -35,8 +35,9 @@ export function placeStarts({ f, area, texts, own, circles, lines, rects = [], s
       for (let j = 0; j < own.length; j++) if (j !== i && Math.hypot(mx - own[j]![0], my - own[j]![1]) < Math.hypot(mx - cx, my - cy)) cost += 60;
       out.push({ x, y, box, cost });
     };
-    for (const dx of [-3, r + 3, 2 * f, 4 * f, 6 * f, 9 * f]) {
-      for (let k = 0; k < 10; k++) { add(cx + dx, cy - r - gap - 0.5 - down - k * 0.35 * f); add(cx + dx, cy + r + gap + 0.5 + up + k * 0.35 * f); }
+    // (the places left of and centred on the ring too, and taller columns: with only the right-hand ones a start in a crowded corner had no clear place and its value stood on its own ring, 21 Nov)
+    for (const dx of [-3, r + 3, 2 * f, 4 * f, 6 * f, 9 * f, -w - r - 3, -w / 2]) {
+      for (let k = 0; k < 16; k++) { add(cx + dx, cy - r - gap - 0.5 - down - k * 0.35 * f); add(cx + dx, cy + r + gap + 0.5 + up + k * 0.35 * f); }
       for (let k = -3; k <= 3; k++) add(cx + dx, cy + 0.35 * f + k * 0.35 * f);
     }
     return out.sort((a, b) => a.cost - b.cost).slice(0, 48);
