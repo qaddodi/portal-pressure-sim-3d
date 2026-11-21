@@ -3,7 +3,7 @@
 // animation or transition running on it is a snap, whichever element it is. Debug only; it exists for the length of a run.
 import type { AuditFinding } from './judge.ts';
 import { INSTANT_MS } from './judge.ts';
-import { nameOf } from './scan.ts';
+import { nameOf, describeEl } from './scan.ts';
 
 export interface AnimRec { sel: string; prop: string; kind: 'transition' | 'animation'; startMs: number; plannedMs: number | null; delayMs: number; easing: string | null; ended: 'end' | 'cancel' | 'running'; actualMs: number | null }
 export interface LedgerRead { anims: AnimRec[]; findings: AuditFinding[] }
@@ -67,12 +67,12 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     const cur: Seen = { t: now, op: effOpacity(el), b: [r.left, r.top, r.width, r.height] };
     const prev = seen.get(el); seen.set(el, cur);
     if (r.width * r.height < MIN_AREA || !paints(el)) return;
-    if (added && !prev) { if (cur.op >= 0.9 && !animating(el)) note('generic-pop', 'warn', `${nameOf(el)} appeared at full opacity in one frame (no fade or animation running)`, el); return; }
+    if (added && !prev) { if (cur.op >= 0.9 && !animating(el)) note('generic-pop', 'warn', `${describeEl(el)} appeared at full opacity in one frame (no fade or animation running)`, el); return; }
     if (!prev || now - prev.t > 90) return;
-    if (Math.abs(cur.op - prev.op) >= 0.6 && !animating(el)) note('generic-pop', 'warn', `${nameOf(el)} went from opacity ${prev.op.toFixed(2)} to ${cur.op.toFixed(2)} in ${Math.round(now - prev.t)} ms with nothing easing it`, el);
+    if (Math.abs(cur.op - prev.op) >= 0.6 && !animating(el)) note('generic-pop', 'warn', `${describeEl(el)} went from opacity ${prev.op.toFixed(2)} to ${cur.op.toFixed(2)} in ${Math.round(now - prev.t)} ms with nothing easing it`, el);
     // two reads under a frame apart (one 60 Hz frame is 16.7 ms) were taken in the same frame: nothing was drawn between them, so a jump between them is not seen
     const dx = Math.hypot(cur.b[0] - prev.b[0], cur.b[1] - prev.b[1]), ds = Math.hypot(cur.b[2] - prev.b[2], cur.b[3] - prev.b[3]), dt = now - prev.t;
-    if ((dx >= 60 || ds >= 60) && dt >= SAME_FRAME_MS && dt <= 50 && !animating(el)) note('generic-snap', 'warn', `${nameOf(el)} jumped ${Math.round(Math.max(dx, ds))} px in ${Math.round(dt)} ms with nothing easing it`, el);
+    if ((dx >= 60 || ds >= 60) && dt >= SAME_FRAME_MS && dt <= 50 && !animating(el)) note('generic-snap', 'warn', `${describeEl(el)} jumped ${Math.round(Math.max(dx, ds))} px in ${Math.round(dt)} ms with nothing easing it`, el);
   };
   const sig = (e: Element) => `${e.tagName}.${typeof e.className === 'string' ? e.className : ''}`;
   const mo = new MutationObserver((list) => {
@@ -84,7 +84,7 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     }
     // an element put in where one just like it was taken out is a re-render (the same card, the same number): nothing appeared; one inside a newly added parent comes with its parent
     for (const n of addedRoots) if (!removed.has(sig(n)) && !(n.parentElement && addedRoots.has(n.parentElement)) && ![...addedRoots].some((a) => a !== n && a.contains(n))) { added.add(n); targets.add(n); }
-    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${nameOf(n)} vanished at full opacity in one frame (no fade)`, n); }
+    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${describeEl(n)} vanished at full opacity in one frame (no fade)`, n); }
     let k = 0;
     for (const el of targets) { if (k++ >= 30) break; look(el, added.has(el)); }
   });

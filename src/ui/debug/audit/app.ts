@@ -162,10 +162,18 @@ function kidsOf(win: Window, card: HTMLElement, vis: (el: Element) => number): {
   return out;
 }
 
+/** Whether a computed transform still carries the card sideways (a matrix's translateX, or a translateX(…) written as is): the rail's slide has not landed. */
+export function slidingX(t: string): boolean {
+  const m = /^matrix\(([^)]*)\)$/.exec(t.trim()), w = /translateX\((-?[\d.]+)px\)/.exec(t);
+  const v = m ? Number((m[1] ?? '').split(',')[4]) : w ? Number(w[1]) : 0;
+  return Math.abs(v || 0) > 0.5;
+}
+
 export function readLayout(doc: Document = document, win: Window = window): LayoutRead {
   const box = (e: Element): Box => { const b = e.getBoundingClientRect(); return [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)]; };
   const vis = seenMemo(win);
-  const cards = Array.from(doc.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]')).filter((el) => parseFloat(win.getComputedStyle(el).opacity) >= 0.95)
+  // (a card still sliding in is not standing: its words are read where they will be, not 3 to 19 px short of it on the way. The rail writes the card's translateX every frame until it lands: iPhone Quick run, Circulation 10, Encephalopathy 9)
+  const cards = Array.from(doc.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]')).filter((el) => { const cs = win.getComputedStyle(el); return parseFloat(cs.opacity) >= 0.95 && !slidingX(cs.transform); })
     .map((el) => ({ id: el.dataset.card ?? 'card', title: titleOf(el), box: box(el), kids: kidsOf(win, el, vis), charts: chartsOf(win, el, vis) }));
   const bars: LayoutRead['bars'] = [];
   for (const [id, sel] of BARS) doc.querySelectorAll<HTMLElement>(sel).forEach((el) => { const b = box(el); if (b[2] - b[0] > 1 && b[3] - b[1] > 1 && seen(win, el) > 0.5) bars.push({ id, box: b }); });

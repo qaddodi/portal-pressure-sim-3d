@@ -17,14 +17,14 @@ test('the scene does not construct the 3D parts in its constructor', () => {
 });
 
 test('a view change to the lobule or sinusoid builds them before anything draws', () => {
-  assert.match(scene, /if \(v === 'lobule' \|\| v === 'sinusoid'\) this\.buildMicro\(\);/);
+  assert.match(scene, /if \(v === 'lobule' \|\| v === 'sinusoid'\) this\.buildMicroIdle\(\);/);
   assert.match(scene, /get sinus3d\(\): Sinusoid3D \{ return this\.buildMicro\(\)\.sinus; \}/);
   assert.match(scene, /get lobule3d\(\): Lobule3D \{ return this\.buildMicro\(\)\.lobule; \}/);
 });
 
 test('the per-frame paths never force the build', () => {
-  assert.match(scene, /this\.micro !== null && this\.lobule3d\.update\(/);
-  assert.match(scene, /this\.micro !== null && this\.sinus3d\.update\(/);
+  assert.match(scene, /this\.microReady && this\.lobule3d\.update\(/);
+  assert.match(scene, /this\.microReady && this\.sinus3d\.update\(/);
   assert.match(scene, /this\.micro\?\.lobule\.setDpr\(dpr\)/);
   assert.doesNotMatch(scene.replace(/get (sinus|lobule)3d\(\)[^\n]*/g, ''), /this\.(sinus3d|lobule3d)\.(dispose|setDpr|focusBand|focusOpen|pinTraffic|holdScale)/);
 });
@@ -62,23 +62,21 @@ test('the shape key reads only the lumen, the pinch and the collagen; the tail k
   assert.notEqual(tailKey({ act: 0.9 }), tailKey({ act: 0.3 }));
 });
 
-test('easing the basement membrane or the microvilli never remeshes; the activation remeshes only the tail', () => {
+test('easing the basement membrane or the microvilli rebuilds nothing; the activation redoes only the tail', () => {
   const shared = createShared(), flat = new SinusoidView(shared, { look: 'light' }), s3 = new Sinusoid3D(flat, shared);
   flat.group.add(s3.group); flat.setVisible(true); flat.update(1000); flat.update(1016);
-  const p = s3 as unknown as { build(): void; buildTail(): void };
-  let full = 0, tail = 0; const b = p.build.bind(s3), t = p.buildTail.bind(s3);
-  p.build = () => { full++; b(); }; p.buildTail = () => { tail++; t(); };
-  s3.update(true);   // (the first: everything)
-  assert.equal(full, 1);
+  const p = s3 as unknown as { buildShape(): void; buildTail(): void };
+  s3.update(true);   // (the first: the shapes are prepared, the tail laid)
+  let full = 0, tail = 0; const b = p.buildShape.bind(s3), t = p.buildTail.bind(s3);
+  p.buildShape = () => { full++; b(); }; p.buildTail = () => { tail++; t(); };
   const cur = flat.cur as unknown as Record<string, number>;
   for (let i = 0; i <= 64; i++) { cur.bm = i / 64; cur.mv = 1 - i / 64; s3.update(true); }
-  assert.equal(full, 1, 'bm and mv ease with no remesh'); 
-  const before = tail;
+  assert.equal(full + tail, 0, 'bm and mv ease with no rebuild');
   for (let i = 0; i <= 32; i++) { cur.act = i / 32; s3.update(true); }
-  assert.equal(full, 1, 'activation never remeshes the whole scene');
-  assert.ok(tail > before, 'activation redoes the tail');
+  assert.equal(full, 0, 'activation never rebuilds a shape');
+  assert.ok(tail > 0, 'activation redoes the tail');
   cur.lum = cur.lum! * 1.3; s3.update(true);
-  assert.equal(full, 2, 'the lumen does remesh');
+  assert.equal(full, 0, 'nor does the lumen: the shader follows it (tests/sinusoid-shape.test.ts)');
 });
 
 // ---- the audit names the system that costs a frame (scene.systemMs, update and render laps, per step) ----
