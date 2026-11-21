@@ -38,8 +38,8 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (IMV:C4 the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (21 Nov: PVH:DIPS and SVD:S_DSR drop on the integration branch as built here (the surface folds at a triangle; 3 seam loops for 4 arms) though their commits say welded: named, for the shunts threads to look at. wall:PVH_L_1:REX1 stays flared: REX meets the left portal vein at 36 degrees, its lower seam needs 6 radii of a host 10.7 long and LPV_A's skin has the first 2.5; a merged skin needs a seam-less capsule for the cut-away host, mesh.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
-// (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside GROW_REACH (2.4), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS is welded too: it lies 12 degrees from PVH_R, so no ring of that short stub clears its blend, and the arms that stay are judged without it (cuts.ts growAlong).)
-const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
+// (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside ATTACH_NEAR_R (2.6) that a node made a junction by its growing arm alone allows (inventory.ts dropFarGrowers), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS stays flared and named: no ring of the 4-radius stub PVH_R clears it.)
+const DROPPED = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS',
   'wall:PVH_L_1:REX1:REX'];
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
@@ -115,7 +115,6 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
     for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
-    for (const d of b.draws) assert.equal(meshOf(b, d).grow.length, 0, `${nodeOf(d)}: no growth morph, the skin is one static shape`);
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
     // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
@@ -123,7 +122,6 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     assert.deepEqual(grown.get('IVC_D'), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');
-    assert.deepEqual(grown.get('PVH'), ['DIPS:0'], 'PVH: DIPS is a static full-size growing arm of its node, welded though it runs 12 degrees from PVH_R');
     for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
   } finally { done(b); }
 });
@@ -280,7 +278,6 @@ test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the 
     const now = b.set.skinOf('CONF')!;
     assert.notEqual(now, was, 'rebuilt');
     assert.deepEqual(now.junction.arms.filter((a) => a.grow).map((a) => a.vesselId), ['S_PC']);
-    assert.equal(now.grow.length, 0);
     assert.ok(b.set.plainOf('CONF') && b.set.plainOf('CONF') !== wasPlain);
     assert.equal(now.position.length, was.position.length, 'the same shape, built again on the same tubes');
     assert.equal(b.set.stats.rebuilds, 2);
@@ -291,6 +288,15 @@ test('the fragment outline of a static skin has no growth: no SKIN_GROW define, 
   const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
   assert.match(SKIN_FS, /uniform vec3 skinKW;/);
   assert.match(SKIN_FS, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z/);
+});
+
+test('the growth morph is gone: no second shape in the mesh, no growth uniform, attribute or define in the skin program, no setGrow on a skin, nothing in the Circuit\'s set', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const gone = /GrowMorph|closeGrowers|closedShapeFolds|CLOSED_SHAPE_GROWTH|SKIN_GROW\b|armGrow|growG|gPosA|gNorA|gWtA|setGrow|growArms|\bstill\?:/;
+  for (const f of ['../src/scene/vessels/skin/mesh.ts', '../src/scene/vessels/skin/types.ts', '../src/scene/vessels/skin/shaders.ts', '../src/scene/vessels/skin/skin-object.ts', '../src/scene/vessels/skin/skin-set.ts', '../src/scene/circuit/skins.ts']) assert.ok(!gone.test(src(f)), `${f} has no growth morph`);
+  const { SKIN_VS } = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.ok(!/SKIN_GROW|growG|armGrow/.test(SKIN_VS));
 });
 
 test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
