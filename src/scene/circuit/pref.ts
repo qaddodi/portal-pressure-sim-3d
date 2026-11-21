@@ -1,20 +1,21 @@
-// The Circuit's turn, remembered across visits (the 2D app's `circ-turn` preference). With nothing stored, a phone held upright opens it standing (the 2D app's rule:
-// a tall screen wants the tall map); everything else opens wide.
+// The Circuit's turn. A phone (upright or sideways) always opens the map standing; everything else opens it wide. The turn button still changes it for the visit, but
+// nothing is remembered across loads, so a Mac never opens upright and a phone never opens wide. Every way in (view switch, talk slide, deep link) asks `entryUpright()`.
 import { create } from 'zustand';
-import { STORAGE_PREFIX } from '../../state/settings.ts';
+import { deviceClass, isPhone } from '../../ui/layout/device.ts';
 
-const KEY = `${STORAGE_PREFIX}circuitRot`;
-
-function read(): boolean {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v === '1') return true;
-    if (v === '0') return false;
-  } catch { /* no storage: the default */ }
-  try { return matchMedia('(max-width: 1100px) and (orientation: portrait)').matches; } catch { return false; }
+/** True on an iPhone-sized screen, held either way. */
+export function phoneScreen(): boolean {
+  try { return isPhone(deviceClass(window.innerWidth, window.innerHeight)); } catch { return false; }
 }
 
 export const useCircuitTurn = create<{ upright: boolean; set(on: boolean): void }>((set) => ({
-  upright: read(),
-  set: (on) => { set({ upright: on }); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* not remembered */ } },
+  upright: phoneScreen(),
+  set: (on) => set({ upright: on }),
 }));
+
+/** The turn to enter the Circuit with: a phone is always upright (this also puts a manual wide turn back); elsewhere what the person last chose, wide to begin with. */
+export function entryUpright(): boolean {
+  const st = useCircuitTurn.getState();
+  if (phoneScreen() && !st.upright) st.set(true);
+  return useCircuitTurn.getState().upright;
+}
