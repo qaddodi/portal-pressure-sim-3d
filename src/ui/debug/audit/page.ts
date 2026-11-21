@@ -9,7 +9,8 @@ import { flagValue } from '../flags.ts';
 import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
-import { speedOf, scaleTime, scaleTimers, SPEED_CHOICES, speedChoiceOf, speedWhy } from './speed.ts';
+import { speedOf, scaleTime, scaleTimers } from './speed.ts';
+import { SPEEDS } from './outer.ts';
 
 export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
@@ -61,12 +62,14 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const row = document.createElement('div');
   let stop = false, running = false, last: Bundle | null = null;
   // the speed of the walk, chosen here (an address's &speed=N is the starting choice): what each speed is good for is written under the list
-  let speed = speedChoiceOf(speedOf(flagValue('speed')));
+  const nearest = (n: number) => SPEEDS.reduce((best, c) => (Math.abs(c.n - n) < Math.abs(best - n) ? c.n : best), SPEEDS[0]!.n);
+  const hintOf = (n: number) => `Speed ${n}x: ${SPEEDS.find((x) => x.n === n)!.hint}`;
+  let speed = nearest(speedOf(flagValue('speed')));
   const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Speed of the test');
-  for (const c of SPEED_CHOICES) { const o = document.createElement('option'); o.value = String(c.v); o.textContent = c.label; sel.append(o); }
+  for (const c of SPEEDS) { const o = document.createElement('option'); o.value = String(c.n); o.textContent = c.label; sel.append(o); }
   sel.value = String(speed);
-  const why = document.createElement('div'); why.style.cssText = 'opacity:.75;margin:4px 0'; why.textContent = speedWhy(speed);
-  sel.onchange = () => { speed = Number(sel.value); why.textContent = speedWhy(speed); };
+  const why = document.createElement('div'); why.style.cssText = 'opacity:.75;margin:4px 0'; why.textContent = hintOf(speed);
+  sel.onchange = () => { speed = Number(sel.value); why.textContent = hintOf(speed); };
   const speedRow = document.createElement('label'); speedRow.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0'; speedRow.append('Speed', sel);
   const btn = (label: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = on; row.append(b); return b; };
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };

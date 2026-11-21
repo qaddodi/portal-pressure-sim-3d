@@ -35,15 +35,3 @@ export function scaleTimers(n: number, g: { setTimeout: (...a: never[]) => unkno
   (g as { setTimeout: unknown }).setTimeout = (fn: unknown, ms?: number, ...a: unknown[]) => orig.call(g, fn, typeof ms === 'number' ? ms / n : ms, ...a);
   return { restore() { (g as { setTimeout: unknown }).setTimeout = orig; } };
 }
-
-/** The speeds the banner offers, with what each is good for in plain words (the address `&speed=N` still takes any number up to MAX_SPEED). */
-export const SPEED_CHOICES: readonly { v: number; label: string; why: string }[] = [
-  { v: 1, label: 'Real time', why: 'Real speed: frame rates and stalls are valid. The slowest walk (about 20 to 30 minutes for one size).' },
-  { v: 2, label: 'Fast x2', why: 'Twice as fast. Layout, words, fades and stalls are valid; frame rates are not.' },
-  { v: 4, label: 'Faster x4', why: 'Four times as fast, the most that still judges fades frame by frame. Frame rates are not valid. Good for everyday testing.' },
-  { v: 8, label: 'Very fast x8', why: 'Eight times as fast: layout, words, coverage and errors only. Fades and frame rates are not judged.' },
-  { v: 20, label: 'Fastest x20', why: 'Twenty times as fast: layout, words, coverage and errors only. A slide that never settles can be a speed artefact: confirm it at x4.' },
-];
-/** The choice nearest to a speed (an address may carry any number). */
-export const speedChoiceOf = (n: number): number => SPEED_CHOICES.reduce((a, c) => (Math.abs(c.v - n) < Math.abs(a - n) ? c.v : a), 1);
-export const speedWhy = (n: number): string => SPEED_CHOICES.find((c) => c.v === speedChoiceOf(n))!.why;
