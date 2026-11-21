@@ -11,6 +11,7 @@ import { createRecorder } from '../watch/recorder.ts';
 import { domSources } from '../watch/sources.ts';
 import { liveCatalog, openEntry, settle as pageSettle, problems } from '../page/live.ts';
 import type { Entry } from '../page/catalog.ts';
+import { flagValue } from '../flags.ts';
 import { scanPage } from './scan.ts';
 import { startLedger } from './ledger.ts';
 import type { Step, Reads } from './run.ts';
@@ -20,6 +21,8 @@ import { renderStats } from '../../../debug/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
 import { estimateSteps } from './progress.ts';
+import { sequence, newProof, type Driver, type SequenceProof } from './sequence.ts';
+import { goToView } from '../../shell/view-actions.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -30,20 +33,44 @@ const until = async (cond: () => boolean, ms: number) => { const t = performance
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 
 /** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
-export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length) });
+export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length), sequence: depth === 'full' && flagValue('sequence') !== '0' });
 
 // ── the steps ──
 const SHEETS_QUICK = ['sheet:settings', 'sheet:help'];
 
 /** What the walk does, in the order a person would: the views, the sheets, the patients (the collaterals grow and collapse), then every talk slide by slide with Next. A generator, because how many presses a slide takes (beats, pages, a procedure's steps) is known only by pressing. */
-export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, cover: (c: Coverage) => void = () => undefined): AsyncGenerator<Step> {
+/** The talk on screen as the sequential pass reads it: the presenter store for where it stands, Next and Back as the buttons press them, the cards' own headings and buttons from the DOM. */
+export function talkDriver(): Driver {
+  const ui = () => useUi.getState();
+  const visible = (el: Element) => { const r = (el as HTMLElement).getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== 'hidden' && cs.display !== 'none' && seen(window, el) > 0.5; };
+  const cards = () => Array.from(document.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]'));
+  return {
+    get total() { return ui().stops.length; },
+    now: () => { const u = ui(); return { stop: u.pos.stop, beat: u.pos.beat, page: u.page, ended: useShell.getState().mode !== 'deck' }; },
+    press: (m) => ui().move(m),
+    headings: () => cards().flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>('h1, h2, h3, .pz-h, .pz-dtitle, [class*="title"]')).filter(visible).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean)),
+    targets: () => cards().reduce((n, c) => n + Array.from(c.querySelectorAll('button, a[href], [role="tab"], [role="button"]')).filter(visible).length, 0),
+    selectors: async () => {
+      let n = 0;
+      for (const t of cards().flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>('[role="tab"]:not([aria-selected="true"])'))).filter(visible).slice(0, 6)) { t.click(); n++; await sleep(60); }
+      return n;
+    },
+    nameOf: (k) => { const st = ui().stops[k]; return st ? { kind: st.kind, name: st.kind === 'slide' ? st.slide.title : st.kind } : { kind: '?', name: '?' }; },
+    go: (k) => ui().go(k),
+  };
+}
+
+export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, cover: (c: Coverage) => void = () => undefined, seq: (p: SequenceProof) => void = () => undefined): AsyncGenerator<Step> {
   const cat = liveCatalog();
   const entry = (id: string): Entry | undefined => cat.find((e) => e.id === id);
   const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); } } : null; };
   const shell = useShell.getState();
   const keep = { collaterals: shell.figure.collaterals, patient: shell.patientId };
-  const views = ['view:anatomic', 'view:lobule', 'view:sinusoid', 'view:anatomic'].map(open);
+  const views = ['view:anatomic', 'view:lobule', 'view:sinusoid'].map(open);
   for (const s of views) if (s) yield s;
+  // the Circuit is a free-play view too (the catalog leaves it out): the body's vessels fly onto the map, then back
+  yield { group: 'Figure views', id: 'view:circuit', label: 'Circuit', run: () => { leaveTalk(); if (!goToView('circuit')) throw new Error('the Circuit view is not drawn yet'); } };
+  const home = open('view:anatomic'); if (home) yield home;
   for (const id of (depth === 'quick' ? SHEETS_QUICK : cat.filter((e) => e.section === 'sheet').map((e) => e.id))) { const s = open(id); if (s) yield s; }
   yield { group: 'Views', id: 'sheet:close', label: 'close the sheet', run: () => { useShell.setState({ sheet: null, dialog: null }); } };
   // the patients: the collaterals grow (healthy to decompensated), collapse (switched off) and grow back, then come away again
@@ -74,6 +101,11 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
       for (let tries = 0; depth === 'full' && tries < beats + 4 && useUi.getState().pos.stop === k && useUi.getState().pos.beat < beats - 1; tries++) {
         yield { group: d.title, id: `${d.id}:beat:${k}:${tries}`, label: 'Next (beat)', run: () => { useUi.getState().move('next'); return where(d.title); } };
       }
+    }
+    if (depth === 'full' && flagValue('sequence') !== '0') {
+      const proof = newProof(d.title); seq(proof);
+      yield* sequence(talkDriver(), d.title, { edges: true }, proof);
+      if (useShell.getState().mode !== 'deck') { const again = open(`slide:${d.id}:0`); if (again) yield { ...again, label: 'outline (reopening the talk)' }; }   // (the pass ended the talk with its last Next: reopen it so the leave step below has a talk to leave)
     }
     yield { group: d.title, id: `${d.id}:leave`, label: 'leave the talk', run: async () => { leaveTalk(); await until(() => useShell.getState().mode !== 'deck', 15000); } };
   }

@@ -5,11 +5,14 @@ import { frameStats, timeline, fadeEpisodes, fadeFindings, stallWindows, layoutF
 import { judgeScan } from './scan-judge.ts';
 import type { RawScan } from './scan.ts';
 import type { AnimRec } from './ledger.ts';
+import type { SequenceProof } from './sequence.ts';
 import { memoryClimb } from '../../../debug/render-stats.ts';
 import { SLOW_BUSY_MS, LOW_FPS, type RowGpu, type AuditRow, type AuditData, type AuditSize, type ConsoleLine, type Coverage } from './report.ts';
 
 /** One move: open a view, a sheet, a patient, a slide, or press Next. It may return the label it learned by doing it (a Next press knows which slide it landed on). */
-export interface Step { group: string; id: string; label: string; run(): Promise<string | void> | string | void }
+export interface Step { group: string; id: string; label: string; run(): Promise<string | void> | string | void;
+  /** findings the step itself made (the sequential pass's: Next did nothing, Back did not come back); added to its row */
+  flags?: AuditFinding[] }
 export interface Reads {
   /** the sampler's rows since the mark, `t` in ms from the mark */
   samples: Sample[];
@@ -76,7 +79,7 @@ export function judgeStep(step: Step, label: string, r: Reads, busyMs: number, s
   };
 }
 
-export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps: AuditDeps, o: { depth: 'quick' | 'full'; notes?: string[]; coverage?: Coverage[]; shouldStop?: () => boolean; onStep?: (n: number, row: AuditRow) => void } = { depth: 'full' }): Promise<AuditData> {
+export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps: AuditDeps, o: { depth: 'quick' | 'full'; notes?: string[]; coverage?: Coverage[]; shouldStop?: () => boolean; onStep?: (n: number, row: AuditRow) => void; /** every few steps, the data so far: a run that is stopped or killed still exports what it did */ onPartial?: (d: AuditData) => void; sequence?: SequenceProof[] } = { depth: 'full' }): Promise<AuditData> {
   const t00 = deps.now(), rows: AuditRow[] = [], con: ConsoleLine[] = [], notes = o.notes ?? [];
   let stopped = false;
   for await (const step of steps) {
@@ -88,12 +91,14 @@ export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps
     const busy = Math.max(0, deps.now() - s0 - (st.settled ? deps.quietMs : 0));
     const reads = deps.read(t0);
     const row = judgeStep(step, label, reads, busy, st.settled);
+    if (step.flags?.length) row.flags.push(...step.flags);
     if (failed) row.flags.unshift({ kind: 'step-failed', sev: 'fail', what: failed, where: '' });
     rows.push(row); con.push(...reads.console.map((c) => ({ ...c, at: `${c.at}, during ${step.group} > ${label}` })));   // (a console line names the step it came in, so a message from one card's code can be traced)
     o.onStep?.(rows.length, row);
+    if (o.onPartial && rows.length % 15 === 0) o.onPartial({ size: deps.size, ms: Math.round(deps.now() - t00), depth: o.depth, stopped: true, rows: rows.slice(), console: con.slice(), notes: notes.slice(), coverage: o.coverage?.map((c) => ({ ...c })), sequence: o.sequence?.map((x) => ({ ...x })) });
   }
   // a leak: geometries or textures still alive at the end well past what the views held once built (a view or card that does not free what it made)
   const climb = memoryClimb(rows.map((r) => r.gpu));
   if (climb && rows.length) rows[rows.length - 1]!.flags.push({ kind: 'gpu-memory-climb', sev: 'fail', what: `the renderer holds +${climb.geometries} geometries and +${climb.textures} textures more than after step ${climb.from + 1}: something is not freed (three's gl.info.memory)`, where: `steps ${climb.from + 1} to ${climb.to + 1}` });
-  return { size: deps.size, ms: Math.round(deps.now() - t00), depth: o.depth, stopped, rows, console: con, notes, coverage: o.coverage };
+  return { size: deps.size, ms: Math.round(deps.now() - t00), depth: o.depth, stopped, rows, console: con, notes, coverage: o.coverage, sequence: o.sequence };
 }
