@@ -44,7 +44,7 @@ test('this page asks for no inspector: no define, no uniforms on any material; t
   assert.deepEqual(vdbgUniforms('tube'), {}); assert.deepEqual(vdbgUniforms('skin'), {});
   assert.equal(inspectOn('?inspect'), true); assert.equal(inspectOn('?joins=debug'), true); assert.equal(inspectOn('?joins=old'), false); assert.equal(inspectOn(''), false);
   assert.equal(inspectRequested('?inspect=1'), true); assert.equal(flagOn('inspect', '?inspect'), true);
-  assert.ok(knownFlags().some((f) => f.id === 'inspect' && f.gate === 'live'));
+  assert.ok(knownFlags().some((f) => f.id === 'inspect' && f.gate === 'local'));
 });
 
 test('a part\'s view writes its uniforms (tubes and skins apart), and back to as drawn', () => {
