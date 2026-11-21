@@ -16,7 +16,9 @@ export class WaistBrackets {
   private seen = new Set<string>();
   private a = new Vector3(); private b = new Vector3(); private m = new Vector3(); private nrm = new Vector3();
   private pa = { x: 0, y: 0 }; private pb = { x: 0, y: 0 }; private pm = { x: 0, y: 0 }; private pn = { x: 0, y: 0 };
-  constructor(private readonly root: HTMLElement, private readonly project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }) {}
+  private readonly root: HTMLElement;
+  private readonly project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number };
+  constructor(root: HTMLElement, project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }) { this.root = root; this.project = project; }
 
   private el(cls: string): HTMLElement { const e = document.createElement('i'); e.className = `wb ${cls}`; this.root.appendChild(e); return e; }
 

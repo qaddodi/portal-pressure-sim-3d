@@ -804,3 +804,7 @@
 /* The vessel card's head sits close over its figure: the card's own 6 px gap is the only space between them. */
 .ac-body:has(> .ac-panel > .tv) { gap: 4px; }
 .ac-body:has(> .ac-panel > .tv) > .ac-nr { margin-bottom: 0; }
+
+/* The readings in the card's header line (name · PPG · flow · peak velocity · state): the line takes what the name and the state leave, its three readings spread across it. */
+.ac-nr > .tv-keys { flex: 1 1 0; min-width: 0; margin: 0; padding: 0; justify-content: space-between; }
+.ac-nr > .tv-keys .ir-kv b { margin: 0 2px; }

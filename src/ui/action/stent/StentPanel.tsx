@@ -16,7 +16,7 @@ import { currentParams, updateParams, useParamsTick } from '../params.ts';
 import { OrderIcon } from '../icons.tsx';
 import { Icon } from '../../shell/icons.tsx';
 import { runFeature } from '../../shell/features.ts';
-import { registerPanel } from '../panels.ts';
+import { registerPanel, registerHead } from '../panels.ts';
 import { Chart } from '../../charts/Chart.tsx';
 import { stentState } from '../../charts/stent/model.ts';
 import { newKeep, tipsFigureFrame } from '../../tests/ir/tips-figure.ts';
@@ -245,7 +245,6 @@ export function StentPanel({ id }: { id: string }) {
   const stent = id === 'TIPS' || id === 'DIPS';
   return (
     <div className="tv" style={{ ['--se-id' as string]: id } as CSSProperties}>
-      {stent && <VesselKeys id={id} />}
       {stent && <CardFigure id={id} />}
       <StentEditor id={id} />
     </div>
@@ -253,3 +252,5 @@ export function StentPanel({ id }: { id: string }) {
 }
 
 registerPanel('stent', StentPanel);
+/** The TIPS and DIPS card's three readings stand in its header, between the name and the state (a custom shunt's card has none). */
+registerHead('stent', ({ id }: { id: string }) => (id === 'TIPS' || id === 'DIPS' ? <VesselKeys id={id} /> : null));

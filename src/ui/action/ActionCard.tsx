@@ -16,7 +16,7 @@ import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
 import { appAct } from './act.ts';
 import { injectDye, releaseDye } from './dye.ts';
-import { panelFor } from './panels.ts';
+import { panelFor, headFor } from './panels.ts';
 import { currentParams, updateParams, useParamsTick } from './params.ts';
 import { envNow } from './env.ts';
 import { detailsFor } from './details.ts';
@@ -167,10 +167,11 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
   const st = snap.status;
   const rows = { read: [] as ReactNode[], about: [] as ReactNode[], ctl: [] as ReactNode[], act: [] as ReactNode[], panel: [] as ReactNode[] };
   verbs.forEach((v, i) => { if (snap.verbs[i]!.show) rows[kindOf(v)].push(<VerbView key={i} card={card} v={v} vs={snap.verbs[i]!} index={i} setRef={setRef} />); });
+  const panelVerb = verbs.find((v) => v.type === 'panel') as { id?: string } | undefined, Head = panelVerb ? headFor(panelVerb.id ?? 'stent') : undefined;
   return (
     <div className="ac-body" data-key={card.key}>
       <div className="ac-nr">
-        {onDetails ? <button type="button" className="ac-name ac-name-btn" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><Icon n="chev-right" className="ac-chev" /></button> : <span className="ac-name">{card.title}</span>}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
+        {onDetails ? <button type="button" className="ac-name ac-name-btn" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><Icon n="chev-right" className="ac-chev" /></button> : <span className="ac-name">{card.title}</span>}{Head && <Head id={card.edge ?? ''} />}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
       {card.span && snap.span ? <SpanBar card={card} snap={snap} />
         : snap.value && !card.noValue ? (
           <div className="ac-value"><span className="ac-num"><b><SwitchNum text={snap.value.v} /></b><span className="unit">{snap.value.u}</span></span>{snap.value.d && <span className={`ac-delta ${snap.value.up ? 'up' : 'down'}`}>{snap.value.d}</span>}</div>
