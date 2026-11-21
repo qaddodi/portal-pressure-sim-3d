@@ -29,11 +29,15 @@ import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
 import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
-import { installCaught } from './ui/debug/caught.ts';
+import { installCrashNet } from './boot/crash-net.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
 import { isFrameRequest } from './ui/debug/frame/request.ts';
 import { flagOn, flagValue, debugPage, inspectRequested, auditPage } from './ui/debug/flags.ts';
+
+/** False in the live site's build (VITE_CHANNEL=live, set by the Pages workflow for main): the bundler then drops every branch below that opens a debug tool, so the debug chunks are not built, not downloaded and not held offline.
+ *  On the preview copy and in a local run it is true, and each tool still asks isPreview()/its flag's gate. Only ?gl and ?perf (and the open-a-slide links) work on the live site. tests/live-no-debug.test.ts holds this. */
+const DEBUG = import.meta.env.VITE_CHANNEL !== 'live';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's applier is Stage's)
@@ -43,6 +47,7 @@ useSettings.subscribe(paint);
 applyGlass(useSettings.getState().blur);
 useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
 dark.addEventListener('change', paint);
+installCrashNet();   // errors no boundary sees (handlers, timers, promises, a clock system): kept for the reports, and a quiet recovery when the app is left broken (boot/crash-net.ts)
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 // A lazy part's file is gone (a tab open across two deploys) or the network failed: Vite fires this before the import rejects. The rejection is NOT swallowed: lazyRetry tries again and the pane says so (LazyBoundary);
 // here the page learns a newer build may be out, and, online, offers the update toast once.
@@ -65,7 +70,7 @@ function plainPage() {
 
 async function start() {
   // ?parity: the build's progress page needs neither fonts nor the engine; it is its own small chunk.
-  if (new URLSearchParams(location.search).has('parity')) {
+  if (DEBUG && isPreview() && flagOn('parity')) {
     const { ParityPage } = await import('./parity/ParityPage.tsx');
     createRoot(document.getElementById('root')!).render(<StrictMode><ParityPage /></StrictMode>);
     return;
@@ -77,21 +82,21 @@ async function start() {
     return;
   }
   // ?debug=frame (the preview copy and a local run only): the device frame, an outer page that holds the app in one iframe at a phone's or iPad's size. It starts no app.
-  if (isPreview() && isFrameRequest(location.search)) {
+  if (DEBUG && isPreview() && isFrameRequest(location.search)) {
     const { bootFrame } = await import('./ui/debug/frame/frame.ts');
     plainPage();
     bootFrame();
     return;
   }
   // ?audit on a Mac (the preview copy and a local run only): the self-test's outer page, which holds the app in sized frames one after the other. It starts no app itself.
-  if (isPreview() && auditPage(undefined, matchMedia('(pointer: fine)').matches) === 'frames') {
+  if (DEBUG && isPreview() && auditPage(undefined, matchMedia('(pointer: fine)').matches) === 'frames') {
     const { bootOuter } = await import('./ui/debug/audit/outer.ts');
     plainPage();
     bootOuter();
     return;
   }
   // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.
-  if (isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
+  if (DEBUG && isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
     const { bootLookBoard } = await import('./debug/look-board.ts');
     plainPage();
     bootLookBoard();
@@ -103,19 +108,19 @@ async function start() {
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();
   if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
-  installCaught();
-  if (isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
+  if (DEBUG && isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
   holdSplash();   // the splash stays until the figure has drawn and its labels are placed (boot/ready.ts), then eases away over the app
   createRoot(document.getElementById('root')!).render(<StrictMode><AppBoundary layer="root"><App /></AppBoundary></StrictMode>);
-  if (isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));
+  if (DEBUG && isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
-  if (flagOn('dust')) void import('./ui/debug/dust-panel.ts').then((m) => m.mountDust());   // ?dust: the hidden tuning panel for the blood's dust
-  if (inspectRequested()) void import('./ui/debug/inspect/panel.ts').then((m) => m.mountInspect());   // ?inspect, ?joins=debug: the inspector's panel (turn the figure, switch shaders, passes and layers live)
+  if (DEBUG && flagOn('dust')) void import('./ui/debug/dust-panel.ts').then((m) => m.mountDust());   // ?dust: the hidden tuning panel for the blood's dust
+  if (DEBUG && inspectRequested()) void import('./ui/debug/inspect/panel.ts').then((m) => m.mountInspect());   // ?inspect, ?joins=debug: the inspector's panel (turn the figure, switch shaders, passes and layers live)
   if (flagOn('gl')) void import('./debug/gl-check.tsx').then((m) => m.mountGl());   // ?gl: every shader program, compiled on this device (WP10)
-  void mountDebug();   // ?watch / ?debug on the preview copy only (batch B14)
-  mountCharts();   // ?charts: the charts gallery (batch B10)
-  mountTrials();   // ?trials: the Trials pane on its own (batch B12; the Tests card mounts the same pane)
+  if (DEBUG) {
+    void mountDebug();   // ?watch / ?debug / ?audit on the preview copy only (batch B14)
+    if (isPreview()) { mountCharts(); mountTrials(); }   // ?charts: the charts gallery (batch B10); ?trials: the Trials pane on its own (batch B12; the Tests card mounts the same pane)
+  }
   registerPwa();   // offline: after the first picture, once the page is idle (src/pwa/register.ts)
   warmLater();     // a talk's charts are read in once the page is idle (src/boot/warm.ts)
 }

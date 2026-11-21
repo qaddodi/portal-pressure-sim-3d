@@ -18,5 +18,5 @@
     "types": ["vite/client", "node"]
   },
   "include": ["src", "tests", "scripts/gen-engine-fixture.mjs"],
-  "exclude": ["src/engine/hales", "src/engine/host"]
+  "exclude": ["src/engine/hales"]
 }

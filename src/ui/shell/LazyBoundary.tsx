@@ -2,6 +2,7 @@ import { Component, Suspense, type ReactNode } from 'react';
 import './shell.css';
 import { chunkProblem, retryFailedChunks } from '../../boot/lazy-retry.ts';
 import { reloadKeepingState } from '../../boot/reload.ts';
+import { noteFault } from '../../boot/crash-net.ts';
 import { APP_CRASH } from './words.ts';
 
 /** Around every lazily loaded part (an instrument's pane, a card's pane): Suspense with nothing shown while it comes, and when it cannot come after three tries, one line in its place with Try again and (when a newer build
@@ -9,7 +10,7 @@ import { APP_CRASH } from './words.ts';
 export class LazyBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: unknown; failed: boolean }> {
   state = { error: null as unknown, failed: false };
   static getDerivedStateFromError(error: unknown) { return { error, failed: true }; }
-  componentDidCatch(e: unknown) { console.warn('[lazy] a part failed to load or render', e); window.addEventListener('online', this.again, { once: true }); }
+  componentDidCatch(e: unknown) { noteFault('react:lazy', e); console.warn('[lazy] a part failed to load or render', e); window.addEventListener('online', this.again, { once: true }); }
   componentDidUpdate(prev: { resetKey?: string }) { if (this.state.failed && prev.resetKey !== this.props.resetKey) this.again(); }
   componentWillUnmount() { window.removeEventListener('online', this.again); }
   again = () => { window.removeEventListener('online', this.again); retryFailedChunks(); this.setState({ error: null, failed: false }); };

@@ -1,6 +1,6 @@
 // Real engine frames for the B3 tests: the pinned engine, run in node (no worker, no browser), the way tests/engine-numbers.test.ts does it.
-import { createCore } from '../src/engine/host/worker-core.js';
-import type { EngineFrame } from '../src/engine/protocol.ts';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
+import type { EngineFrame } from '../src/engine/hales/host/protocol.d.ts';
 
 export interface Healthy { P: number[]; Q: number[]; D: number[] }
 

@@ -2,24 +2,23 @@ import { Component, useState, type ReactNode } from 'react';
 import './shell.css';
 import { APP_CRASH, NO_WEBGL } from './words.ts';
 import { reloadKeepingState } from '../../boot/reload.ts';
+import { crashDetails, detailsNow, noteFault } from '../../boot/crash-net.ts';
 
-/** What a bug report needs from a crash: the message, the build and the browser. */
-export const crashDetails = (message: string, build: string, ua: string): string => `${message}\nBuild: ${build}\nBrowser: ${ua}`;
-const detailsNow = (message: string): string => crashDetails(message, String(import.meta.env.VITE_BUILD ?? 'dev'), typeof navigator === 'undefined' ? '' : navigator.userAgent);
+export { crashDetails };
 
 function CopyDetails({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return <button type="button" className="sh-crash-alt" onClick={() => { void navigator.clipboard?.writeText(text).then(() => setDone(true), () => undefined); }}>{done ? APP_CRASH.copied : APP_CRASH.copy}</button>;
 }
 
-/** The fallback card of either layer. It fades in (shell.css `.sh-crash`), never pops. */
-export function CrashCard({ layer, message, onReload = () => { void reloadKeepingState(); } }: { layer: 'figure' | 'root'; message: string; onReload?: () => void }) {
-  const figure = layer === 'figure';
+/** The fallback card of either layer, and of the engine stopping after the app is up (App.tsx: the same card, words and Reload as the others, never a frozen figure). It fades in (shell.css `.sh-crash`), never pops. */
+export function CrashCard({ layer, message, onReload = () => { void reloadKeepingState(); } }: { layer: 'figure' | 'root' | 'engine'; message: string; onReload?: () => void }) {
+  const figure = layer === 'figure', engine = layer === 'engine';
   return (
     <main className={`sh-nogl sh-crash sh-crash-${layer}`} role="alert">
       <div>
-        <h1>{figure ? APP_CRASH.figureTitle : APP_CRASH.title}</h1>
-        <p>{figure ? APP_CRASH.figureBody : APP_CRASH.body}</p>
+        <h1>{figure ? APP_CRASH.figureTitle : engine ? APP_CRASH.engineTitle : APP_CRASH.title}</h1>
+        <p>{figure ? APP_CRASH.figureBody : engine ? APP_CRASH.engineBody : APP_CRASH.body}</p>
         <p className="sh-nogl-why selectable">{message}</p>
         <button type="button" onClick={onReload}>{APP_CRASH.reload}</button>{' '}
         <CopyDetails text={detailsNow(message)} />{' '}
@@ -35,6 +34,6 @@ interface Props { layer: 'figure' | 'root'; children: ReactNode }
 export class AppBoundary extends Component<Props, { failed: string | null }> {
   state = { failed: null as string | null };
   static getDerivedStateFromError(e: unknown) { return { failed: e instanceof Error ? e.message || e.name : String(e) }; }
-  componentDidCatch(e: unknown) { console.error(`[app] the ${this.props.layer} layer failed to render`, e); }
+  componentDidCatch(e: unknown) { noteFault(`react:${this.props.layer}`, e); console.error(`[app] the ${this.props.layer} layer failed to render`, e); }
   render() { return this.state.failed === null ? this.props.children : <CrashCard layer={this.props.layer} message={this.state.failed} />; }
 }

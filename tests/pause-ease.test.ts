@@ -13,7 +13,7 @@ import { Lobule3D } from '../src/scene/micro3d/lobule3d.ts';
 import { bootEngine, engine } from '../src/engine/boot.ts';
 import { live } from '../src/engine/store.ts';
 import { togglePlay } from '../src/ui/shell/transport.ts';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import type { WorkerLike } from '../src/engine/client.ts';
 
 const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');

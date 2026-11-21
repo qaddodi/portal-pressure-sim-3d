@@ -176,12 +176,12 @@ test('the tuner eases: a new target is glided to (never snapped), a select cross
 });
 
 test('the hidden panel: a flag, the lab\'s controls, Copy and Apply; it writes targets (no per-frame DOM); the main entry opens it only on ?dust', () => {
-  assert.ok(FLAGS.some((f) => f.id === 'dust' && f.gate === 'live'), '?dust works on the live site and the preview');
+  assert.ok(FLAGS.some((f) => f.id === 'dust' && f.gate === 'local'), '?dust works on the preview and a local run, not the live site (tests/live-no-debug.test.ts)');
   assert.match(read('../docs/debug.md'), /\| `\?dust` \|/, 'documented (npm run debug -- doc)');
   const panel = read('../src/ui/debug/dust-panel.ts');
   for (const m of [/Copy settings/, /textContent: 'Apply'/, /Keep on this device/, /DUST_PRESETS/, /dustTuner\.set\(/, /dustTuner\.applyText\(/, /flagOn\('dust'\)/]) assert.match(panel, m);
   assert.doesNotMatch(panel, /location\.search/, 'the flags module is the one reader of the address');
-  assert.match(read('../src/main.tsx'), /if \(flagOn\('dust'\)\) void import\('\.\/ui\/debug\/dust-panel\.ts'\)/);
+  assert.match(read('../src/main.tsx'), /if \(DEBUG && flagOn\('dust'\)\) void import\('\.\/ui\/debug\/dust-panel\.ts'\)/);
   assert.ok(DUST_SPEC.length >= 30, 'the lab\'s sliders that mean something on a real vessel (all but its scenario, vessel and camera)');
 });
 

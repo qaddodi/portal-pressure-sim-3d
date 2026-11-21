@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { ASCITES } from '../src/decks/ag/ascites.copied.ts';
 import { AMEND, amendAscites } from '../src/decks/ag/ascites-amend.ts';
 import { chainOf } from '../src/decks/hp/numbers.ts';
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { tableModel, type ResolvedRow } from '../src/ui/talk/table-model.ts';
 import { pointsOf, saagLayout } from '../src/ui/charts/saag/model.ts';
 import { measure } from '../src/ui/charts/measure.ts';

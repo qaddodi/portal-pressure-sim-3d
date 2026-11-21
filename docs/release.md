@@ -1,0 +1,30 @@
+# Release
+
+How a build gets its version, what the live site ships, and the checklist for a release. The merge to `main` is Mohammad's call alone.
+
+## Version and build
+- The version is `package.json` `version` (now `1.0.0-beta.1`). `scripts/build.mjs` stamps it as `VITE_RELEASE`; the commit is `VITE_BUILD` (`branch@commit`).
+- Settings > Help > About shows "Updated <month> · Version 1.0.0-beta.1 · build 7e5d6f99". The Send feedback draft's `Build:` line is "v1.0.0-beta.1 · PREVIEW · 7e5d6f99" on the preview copy and "v1.0.0-beta.1 · 7e5d6f99" on the live site; the report packet carries it too. `dist/build-info.txt` has it.
+- To release: change `version` in `package.json` and `package-lock.json` (both top entries), commit, tag `v<version>` on the merge commit.
+
+## The feedback address
+It is never in the repository (`tests/release.test.ts` greps `src`, `scripts`, `public`, `index.html` and `.github` for a mail address). The workflow passes the repository variable `FEEDBACK_EMAIL` to both builds as `VITE_FEEDBACK_EMAIL`: GitHub repo Settings > Secrets and variables > Actions > Variables > New repository variable `FEEDBACK_EMAIL`. Unset, the Send feedback row and the Privacy paragraph about it are absent. The address is necessarily in the shipped JavaScript (a mailto link); the rule is only that it is not in the repo.
+
+## What each copy ships
+- `/preview/` (integration branch, `VITE_CHANNEL=preview`): everything, with the orange build pill and every debug tool (`?audit`, `?inspect`, `?joins`, `?dust`, `?look`, `?charts`, `?trials`, `?parity`, `?debug`, `?watch`).
+- `/` (main, `VITE_CHANNEL=live`): no build pill, and no debug tool: `src/main.tsx` `DEBUG` is false at build time, so those chunks are not built, not downloaded, not held offline. Only `?perf`, `?gl` and the links that open a talk, slide, patient or the menu work. `tests/live-no-debug.test.ts`.
+- Both: a Content-Security-Policy meta (`scripts/csp.mjs`, written into `index.html` by the build) that allows only this origin and the page's own boot script by hash, and `referrer: strict-origin-when-cross-origin`. Privacy is Help > Privacy (the 2D app's page, copied).
+
+## Size
+`npm run build` prints what a first visit holds ("held at install ... about N kB on the wire": text counted gzipped as the host sends it, data files as they are). The install list leaves out the Lobule's weld plan and its planner worker (asked about 3 s after the first picture), and the fonts' other alphabets (`scripts/pwa.mjs` `LATE`). The built stylesheet drops the rules that name a class the app never makes (`scripts/css-unused.mjs`; `PPS_NO_CSS_PRUNE=1` skips it). Not done: quantising the baked `.bin` files (about half their size, but it changes vertices: needs a look on the devices first).
+
+## Old links
+`tests/fixtures/links-v1.json` froze every talk id and slide count and one share link per patient (21 Nov 2026). A rename needs an alias in `src/ui/deck/deck-of.ts` `DECK_ALIAS`; the test fails without it. Never edit the fixture to pass.
+
+## Release checklist
+1. The review's P0 items (error boundaries, lazy-load retry, context loss) pushed and seen by Mohammad.
+2. Stall work (`rebuild-3d/code-review-21nov.md` items 1 to 5) closed, or listed as known.
+3. Version bumped; `FEEDBACK_EMAIL` variable set; tester guides updated to the live address (they still say `/preview/` and the PREVIEW tab).
+4. Device pass on the exact commit: `docs/device-checklist.md`.
+5. Mohammad says merge: merge the integration branch into `main`; `/` becomes the app and `/preview/` equals it.
+6. Tag `v<version>`; the previous tag's commit is the rollback (revert the merge on `main`).

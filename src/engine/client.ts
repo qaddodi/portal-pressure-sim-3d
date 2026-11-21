@@ -1,6 +1,6 @@
 // The page's end of the simulation worker. It owns the worker, sends actions, matches answers to requests by reqId, and hands every
 // engine frame to `onFrame`. A WorkerLike can be a real Worker or (in tests, and as the fallback) the host running on this thread.
-import type { FromWorker, ToWorker, EngineFrame } from './protocol.ts';
+import type { FromWorker, ToWorker, EngineFrame } from './hales/host/protocol.d.ts';
 
 export interface WorkerLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;

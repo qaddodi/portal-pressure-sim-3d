@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGES } from '../src/engine/hales/portal/topology.js';
-import type { EngineFrame } from '../src/engine/protocol.ts';
+import type { EngineFrame } from '../src/engine/hales/host/protocol.d.ts';
 import { adoptFrame, holdFrame, latest, live } from '../src/engine/store.ts';
 import { COLLATERAL_IDS, FORCE_FLOW, FORCE_SHUNTS, forceState, forgeFrame, forcing, setForce } from '../src/engine/force-all.ts';
 import { SHUNT_IDS, presenceOf } from '../src/scene/vessels/network.ts';

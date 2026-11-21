@@ -7,7 +7,7 @@
 // Run `node scripts/scene-audit.mjs [--presets healthy,csph,...] [--steps presets,collaterals,bands,pick,views,play] [--seconds 2.5] [--json] [--strict]`.
 // Needs the baked skins (`node scripts/bake-skins.mjs` once; `npm test` does it): without them the scene remeshes live, ~35 s. Exits 1 under --strict when any step fails.
 // Node CPU only: multiply update times by 2 to 4 for a phone; nothing here sees the GPU or the compositor (docs/code review 2.4).
-import { createCore } from '../src/engine/host/worker-core.js';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { adoptFrame } from '../src/engine/store.ts';
 import { forgeFrame } from '../src/engine/force-all.ts';
 import { CelScene } from '../src/scene/scene.ts';

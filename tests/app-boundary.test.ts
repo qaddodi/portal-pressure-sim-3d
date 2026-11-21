@@ -77,3 +77,11 @@ test('the fallbacks fade in (never pop) and respect reduced motion', () => {
   assert.match(css, /\.sh-crash, \.sh-lazyfail \{ animation: sh-fade-in/);
   assert.match(css, /prefers-reduced-motion: reduce\) \{ \.sh-crash, \.sh-lazyfail \{ animation: none/);
 });
+
+test('the engine stopping AFTER the app is up shows the same card with Reload, not a frozen figure (R12)', () => {
+  const stopped = html(m.CrashCard({ layer: 'engine', message: 'The simulation did not answer.' }));
+  assert.match(stopped, /The simulation stopped/); assert.match(stopped, /The simulation did not answer\./); assert.match(stopped, />Reload</); assert.match(stopped, /role="alert"/);
+  const app = readFileSync('src/App.tsx', 'utf8');
+  assert.match(app, /status === 'crashed' && <EngineStopped \/>/, 'App shows it when the engine store says crashed');
+  assert.ok(!/location\.reload\(\)/.test(app), 'Reload keeps the talk or the patient (boot/reload.ts)');
+});
