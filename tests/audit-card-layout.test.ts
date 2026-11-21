@@ -124,7 +124,7 @@ test('a blood pressure reading may break after its slash, so "114/68" never runs
 test('a bare number cut off or off screen names the element it is in, and the leak check takes its baseline after the lazily built views', () => {
   assert.match(src('src/ui/debug/audit/scan.ts'), /by: nameOf\(p\)/);
   assert.match(src('src/ui/debug/audit/scan-judge.ts'), /\(in \$\{i\.by\}\)/);
-  assert.match(src('src/debug/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
+  assert.match(src('../src/clock/render-stats.ts'), /Math\.floor\(\(have\.length - 1\) \* 0\.6\)/);
 });
 
 test('a chart\'s own height shrinks with its card\'s fit (2D `.pz-curve { height: cv-h * var(--pz-fit) }`): at a fit under 1 the stent slides\' PPG chart stood 53 px past the card on an iPhone', async () => {
@@ -187,4 +187,9 @@ test('a table head that spills into its cell\'s own padding counts as too wide, 
   const t = src('src/ui/cards/TableCard.tsx');
   assert.match(t, /export function headOver/); assert.match(t, /\.some\(\(t\) => headOver\(t\)\)/);
   assert.match(t, /width > room \+ 0\.5/);
+});
+
+test('a chart looks at its zoom again when its card\'s style changes, not only when its own box resizes (the card\'s fit changes the zoom and not the box: the chart stayed laid out 1.13 times too wide, cut at the right edge, its card sized to it)', () => {
+  const s = src('src/ui/charts/Chart.tsx');
+  assert.match(s, /new MutationObserver\(/); assert.match(s, /attributeFilter: \['style'\]/); assert.match(s, /el\.closest\('\.dk-card'\)/);
 });

@@ -168,3 +168,33 @@ test('the measured flag (2D lastHVPG, hvpgMeasured): the IR measurement sets it,
   assert.equal(hvpgNote(true, false), 'The same numbers as the HVPG tile.');
   assert.equal(hvpgNote(false, false), 'The HVPG readouts are always shown.', '(2D showHvpg is on)');
 });
+
+test('the HVPG bracket runs from a labelled WHVP marker at the measured value to the FHVP; the sinusoid keeps its dot and value (Mohammad, 21 Nov 2026)', () => {
+  const m = { ...metrics, whvp: 6.9, fhvp: 4.6, hvpg: 2.3 };
+  const P = pressures({ SIN_R: 7.3, RHV: 4.6 });
+  const o = profileFrame(input({ P, metrics: m }), { w: 700, h: 300, pal }, newLock());
+  assert.equal(o.form, 'plot');
+  const w = words(o.frame).map((t) => t.s);
+  assert.ok(w.includes('WHVP 6.9'), `the marker is named: ${w.join('|')}`);
+  assert.ok(w.includes('7.3'), 'the sinusoid keeps its own value label');
+  assert.ok(w.includes('2.3'), 'the bracket reads WHVP − FHVP');
+  assert.ok(o.frame.shapes.some((s) => s.k === 'rect' && (s as { w: number }).w === 9), 'a square marker, not a station dot');
+});
+
+test('with no WHVP measured the HVPG bracket and its marker are left out in every form; PPG stays', () => {
+  const m = { ...metrics, whvp: undefined } as unknown as Record<string, number | undefined>;
+  for (const [w, h] of [[700, 300], [700, 120], [300, 112]] as const) {
+    const o = profileFrame(input({ metrics: m }), { w, h, pal }, newLock());
+    const t = words(o.frame).map((x) => x.s);
+    assert.ok(!t.includes('HVPG ') && !t.some((s) => s.startsWith('WHVP')), `${w}x${h} (${o.form}): ${t.join('|')}`);
+    assert.ok(t.includes('PPG '));
+  }
+});
+
+test('the screen reader hears where the HVPG comes from, and nothing when the bracket is not drawn', async () => {
+  const { bracketSummary } = await import('../src/ui/tests/profile/model.ts');
+  const s = bracketSummary({ metrics: { whvp: 6.9, fhvp: 4.6 } });
+  assert.match(s, /wedged hepatic venous pressure 6\.9 minus free hepatic venous pressure 4\.6/);
+  assert.equal(bracketSummary({ metrics: { fhvp: 4.6 } }), '');
+  assert.equal(bracketSummary({ metrics: { whvp: 6.9, fhvp: 4.6 }, hidden: new Set(['trueHVPG']) }), '');
+});

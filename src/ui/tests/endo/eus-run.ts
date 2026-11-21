@@ -18,6 +18,7 @@ import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { EUS, type Reads } from './eus-words.ts';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
 import { useScope } from './scope-state.ts';
+import { claim } from '../owner.ts';
 import { M, eusAt, pinLive, resetMonitor } from './eus-source.ts';
 
 const readsRef = READS as unknown as { eus: Reads };
@@ -28,7 +29,7 @@ export const reads = (): Reads => ({ ...readsRef.eus });
 export const E = { run: false, step: -1, done: false, got: -1, playT: 0, stop: null as (() => void) | null };
 /** Bumps when a word on the card changes: a reading taken, a step, a phase. */
 export const useEus = create<{ n: number }>(() => ({ n: 0 }));
-const bump = () => useEus.setState((s) => ({ n: s.n + 1 }));
+const bump = () => { useEus.setState((s) => ({ n: s.n + 1 })); claim('eus', E.run ? `EUS-PPG, step ${Math.max(0, E.step) + 1}` : null); };
 
 /** The takeover's clock (monitor-takeover.js): its phase is the scope store's `eus`. */
 export const tk = createTakeover({ onChange: (p: string) => { const ph = p as 'idle' | 'run' | 'hold'; useScope.getState().setEus(ph, ph === 'run' ? E.step : -1); bump(); } }) as {

@@ -49,11 +49,6 @@
 .pz-bar.pzb-pill .ib { width: 44px; height: 44px; }
 /* The views of a slide with several (presenter-scales.js): short strokes under the slide count (no dots, his rule), the one on show full. Opacity only. */
 .pz-bar .pzb-n { position: relative; }
-.pzb-pips { position: absolute; left: 0; right: 0; bottom: 5px; display: flex; justify-content: center; gap: 4px; opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
-.pzb-pips[data-n="2"], .pzb-pips[data-n="3"] { opacity: 1; }
-.pzb-pips[data-n="2"] i:nth-child(3) { display: none; }
-.pzb-pips i { width: 11px; height: 3px; border-radius: 2px; background: currentColor; opacity: .3; transition: opacity var(--d-small) var(--ease); }
-.pzb-pips[data-at="0"] i:nth-child(1), .pzb-pips[data-at="1"] i:nth-child(2), .pzb-pips[data-at="2"] i:nth-child(3) { opacity: 1; }
 .pz-bar.pzb-pill .pzb-n { font-size: clamp(14px, calc(1.6 * var(--pzh)), 17px); }
 /* The pill's hover, pressed and current highlights follow its curve: each button's box is the pill's 44 px (its tap target, 1 px over the border on each side), a 4 px clear border keeps the highlight 4 px inside the pill's edge, and the highlight's radius is the pill's less that 4 (concentric), so it never touches or crosses the curve. */
 .pz-bar.pzb-pill > :is(.ib, button.pzb-n), .pz.stack .pz-bar > :is(.ib, button.pzb-n) { border: 4px solid transparent; background-clip: padding-box !important; border-radius: var(--r-sheet); }   /* (!important: the buttons' background shorthands would reset the clip) */

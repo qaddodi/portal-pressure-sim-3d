@@ -34,6 +34,7 @@ export function DeckUi() {
   const hasStops = useUi((s) => s.stops.length > 0);
   const stopKey = useUi((s) => JSON.stringify(s.pos) + ':' + String(s.page));
   useDeckInput();
+  useEffect(() => { root.current?.focus({ preventScroll: true }); }, []);   // (the talk takes the keyboard when it opens; the free-play chrome under it is inert, shell/talk-focus.ts)
 
   // the talk: its stops, mirrored into the deck store the scene reads (slide 0 is the title)
   useEffect(() => {
@@ -99,9 +100,9 @@ export function DeckUi() {
   const stacked = layout === 'stack' || layout === 'tab';
   const cls = ['deck-ui', 'pz', stacked && 'stack', layout === 'tab' && 'tab', layout === 'short' && 'short', !stacked && 'pz-card pz-wide'].filter(Boolean).join(' ');
   return (
-    <div ref={root} className={cls} data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
+    <div ref={root} className={cls} tabIndex={-1} data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-      {deck && hasStops && <PresenterBar title={deck.title} />}
+      {deck && hasStops && <PresenterBar />}
       {deck && hasStops && <CardBoundary resetKey={`${deck.id}:${stopKey}`}><CardLayer deck={deck} /></CardBoundary>}
       {deck && hasStops && <JumpList />}
       {deck && <BlackScreen />}

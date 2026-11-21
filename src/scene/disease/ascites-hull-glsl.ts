@@ -8,12 +8,13 @@
 //   - Shading is the pool's own (POOL_BASE_GLSL, 2D's fluidAt) split between the two layers a ray crosses, plus ONE soft glossy highlight from the app's one world light (uLight = shared.light) on the front sheet and the
 //     lid, and a grazing-depth tint that exists only when turned. No bands, no rim, no new outline: the flank line stays the one ink line.
 // One mesh, two materials from these two programs: BackSide (define HULL_BACK: the back sheet, drawn before the organs) and FrontSide (the front sheet and the lid, after them).
-// The constants of the hull's layout (HULL_MID, HULL_TF_MAX, HULL_TB_MAX) are written here too because the program needs them; the layout module (ascites-hull.ts) must agree (its test pins it).
-import { CLIMB_FALL_PX, CLIMB_PX, FEATHER_PX, POOL_BASE_GLSL, POOL_COMMON_GLSL, RICH_SAT, RIPPLE_AMP2D, RIPPLE_DEPTH, RIPPLE_PX, f, poolLift } from './ascites.ts';
+// The constants of the hull's layout (HULL_MID, HULL_TF_MAX, HULL_TB_MAX) are ascites-hull.ts's HULL set, once (tests/ascites-hull-integration.test.ts pins it). This file imports ascites-pool.ts and ascites-hull.ts, never ascites.ts (which imports it).
+import { CLIMB_FALL_PX, CLIMB_PX, FEATHER_PX, POOL_BASE_GLSL, POOL_COMMON_GLSL, RICH_SAT, RIPPLE_AMP2D, RIPPLE_DEPTH, RIPPLE_PX, f, poolLift } from './ascites-pool.ts';
+import { HULL } from './ascites-hull.ts';
 import { LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN } from './liver-edge.ts';
 
 /** The hull's middle plane (the gut's middle) and how far its front and back reach from it at a full belly (scene units). */
-export const HULL_MID = -0.09, HULL_TF_MAX = 0.16, HULL_TB_MAX = 0.17;
+export const HULL_MID: number = HULL.MID, HULL_TF_MAX: number = HULL.TF_MAX, HULL_TB_MAX: number = HULL.TB_MAX;
 /** The face highlight: the share of it kept head-on (the one deliberate head-on change; 0 keeps head-on pure 2D), its strength, its tightness, and the share of the alpha it adds. */
 export const HEADON_FORM = 0.35, HI_MIX = 0.45, HI_ALPHA = 0.10, HI_POWER = 24;
 /** The grazing tint (only when turned): how far toward the rich amber, how much more alpha, and the most alpha as a share of the ink's. */

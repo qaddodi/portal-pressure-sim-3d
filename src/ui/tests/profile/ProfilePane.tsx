@@ -11,7 +11,7 @@ import { useCompare } from '../../compare/store.ts';
 import { readings } from './readings.ts';
 import { profileLabel } from '../copied/instrument-aria.copied.js';
 import { NOTE, LEGEND } from './copied/consts.copied.js';
-import { itemsOf, newLock, profileFrame, type ProfileInput } from './model.ts';
+import { bracketSummary, itemsOf, newLock, profileFrame, type ProfileInput } from './model.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { metricsOf } from '../frame.ts';
 import { hiddenNow, useHidden } from '../hidden.ts';
@@ -53,7 +53,7 @@ export function ProfilePane({ plot }: PaneProps) {
     const c = ctx.current, p = painter.current, inp = inputOf();
     if (!c || !p || !inp) return;
     const out = profileFrame(inp, { w: c.w, h, pal: c.pal }, lock.current);
-    out.frame.label = profileLabel(out.items, !!(inp.hidden?.has('pv')));
+    out.frame.label = profileLabel(out.items, !!(inp.hidden?.has('pv'))) + (out.items.length && !inp.hidden?.has('pv') ? bracketSummary(inp) : '');
     p.show(out.frame, glide);
     last.current = keyOf(inp);
   };
@@ -66,7 +66,7 @@ export function ProfilePane({ plot }: PaneProps) {
       const k = keyOf(inp);
       if (k !== last.current) { draw(true); clock.invalidate('profile'); }
       const now = performance.now();
-      if (now - spoke > 1000) { spoke = now; const items = profileLabel(itemsOf(inp), !!inp.hidden?.has('pv')); setLabel((o) => (o === items ? o : items)); }
+      if (now - spoke > 1000) { spoke = now; const items = profileLabel(itemsOf(inp), !!inp.hidden?.has('pv')) + (!inp.hidden?.has('pv') ? bracketSummary(inp) : ''); setLabel((o) => (o === items ? o : items)); }
     });
     return off;
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps

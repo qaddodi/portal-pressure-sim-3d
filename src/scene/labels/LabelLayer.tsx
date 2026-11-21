@@ -29,6 +29,7 @@ import { buildCath } from './cath-dom.ts';
 import { ClampMarks } from './clamp-marks.ts';
 import { buildProbeLabels } from './probe-labels-dom.ts';
 import { addLabelBox, beginLabelBoxes } from './probe-boxes.ts';
+import { coverClip } from './probe-cover.ts';
 import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
@@ -110,6 +111,7 @@ interface Rec {
 
 export function LabelLayer() {
   const layer = useRef<HTMLDivElement>(null);
+  const probeLayer = useRef<HTMLDivElement>(null);
   const keyHost = useRef<HTMLDivElement>(null);
   const keyLayer = useRef<HTMLDivElement>(null);
   const probeHost = useRef<HTMLDivElement>(null);
@@ -133,7 +135,7 @@ export function LabelLayer() {
   }, []);
 
   useEffect(() => {
-    const root = layer.current!;
+    const root = layer.current!, probeRoot = probeLayer.current!;
     const ui = useUi;
     const readings = new StationExtras();
     const stentView = stentReads(() => lookRef.current);
@@ -225,7 +227,7 @@ export function LabelLayer() {
     // the catheter's reading cards: built once, written by cath-dom.ts as transform and opacity
     const cath = buildCath(root);
     // the Tests devices' readings (the FibroScan probe's screen, the Doppler gate's callout)
-    const probeLabels = buildProbeLabels(root);
+    const probeLabels = buildProbeLabels(probeRoot);
     // the stenosis's arrowheads, flat on the screen (disease/clamps.ts says where they stand)
     const clampMarks = new ClampMarks(root, deps.project);
     const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '', say: '' };
@@ -272,6 +274,7 @@ export function LabelLayer() {
     let hold: { release(): void } | null = null;
     const hide = (r: Rec) => { if (r.shown) { r.shown = false; r.root.style.opacity = '0'; r.root.removeAttribute('data-on'); r.op = '0'; r.lead?.removeAttribute('data-on'); r.anchor?.removeAttribute('data-on'); if (r.lead) r.lead.style.opacity = '0'; if (r.anchor) r.anchor.style.opacity = '0'; } };
     const seen = new Set<string>();
+    let lastClip = '';
     const offTags = clock.on('tags', () => {
       const cardFrames = figCards.tick();
       const wantFrames = ctl.tick() || cardFrames;
@@ -285,6 +288,8 @@ export function LabelLayer() {
       beginLabelBoxes();
       for (const d of ctl.out) if (d.kind === 'station' && !d.ghost && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);
       probeLabels.paint();
+      const clip = coverClip();   // (the devices' bodies cut out of the labels' layer: a probe is over the text; the probes' own readings are in their own layer above)
+      if (clip !== lastClip) { lastClip = clip; root.style.clipPath = clip; }
       if (wantFrames && !hold) hold = clock.hold('labels');
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
@@ -296,6 +301,7 @@ export function LabelLayer() {
     <>
       <div ref={layer} className="lb-layer" aria-hidden="true">
       </div>
+      <div ref={probeLayer} className="lb-layer lb-probe-layer" aria-hidden="true" />
       {/* the key has a layer of its own, over the cards: it docks in the words card's foot (2D: the legend stands in the teaching card's bottom left), and the labels' layer is under the cards */}
       <div ref={keyLayer} className="lb-layer lb-key-layer" aria-hidden="true">
         <div ref={keyHost} className="lb-key-wrap">

@@ -53,7 +53,7 @@ const FibroPane = lazy(() => LOADERS.fibroscan().then((m) => ({ default: m.Fibro
 const TrialsPane = lazy(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
-export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number; /** a card with room for two instruments at once (a side card 600 px tall or more) */ roomy: boolean }
+export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number }
 const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
   trials: () => <Suspense fallback={null}><TrialsPane /></Suspense>,
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
@@ -113,8 +113,6 @@ export function TestsLayer() {
   // two instruments at once where there is room for both (2D canSplit: the side card is one short height, so two never share it there; a card 1000 px wide or more, or in focus, may)
   const canSplit = focus || (side ? place.maxH >= 620 && bodyNow >= 600 : place.rect.w >= 1000);
   const split = !!second && canSplit;
-  // Pressure and Over time read as one story where the card is roomy: they open together, stacked, with no switch (2D roomy)
-  const roomy = side && !focus && canSplit && bodyNow >= 600 && !split;
   const vars = side ? sideVars(place.rect.w, bodyNow, split ? 2 : 1) : place.vars;
 
   // the model's samples are kept from the first frame, open or not (2D: the Over time and Doppler traces record every frame from the start)
@@ -280,7 +278,7 @@ export function TestsLayer() {
   const render = (id: PaneId) => {
     const body = BUILT[id];
     // (no element between the pane and its view: 2D's child rules, .dock-pane > .instrument-view, reach it; the provider says this is the dock, where the 2D stylesheet sizes every box)
-    return body ? <PaneHost.Provider value="dock">{body({ narrow, plot: vars.plot, square: vars.square, roomy })}</PaneHost.Provider> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
+    return body ? <PaneHost.Provider value="dock">{body({ narrow, plot: vars.plot, square: vars.square })}</PaneHost.Provider> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
   };
 
   const style = {
@@ -293,7 +291,7 @@ export function TestsLayer() {
   const slotOf = (id: PaneId) => (split && second && tabOf(second) === id ? 2 : 1);
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
-    <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} style={style}>
+    <div ref={posRef} className="t-pos" data-open={open} data-cold={open && swap.cold ? "true" : undefined} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} style={style}>
       <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
         <i className="sh-grabbar" aria-hidden="true" />

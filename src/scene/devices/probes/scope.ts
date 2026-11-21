@@ -16,6 +16,7 @@ import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.t
 import { BAND } from '../../procedures/copied/band-ring.js';
 import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
 import { TAIL_UNITS } from '../device-object.ts';
+import type { Ring } from '../tube-rings.ts';
 import { ProbePart, TubeBuf, linePart, lookOf, type PartColour, type PartStyle } from './parts.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { NEEDLE_EDGE, mixHex, scopeEdge, scopeSoftHex } from '../edges.ts';
@@ -197,6 +198,14 @@ export class EndoScope {
   private dirty = true;
   /** the bending section is laid (turning, or straight behind the rigid tip) */
   private bendOn = false;
+  /** The tube's outline on the screen for the label layer (labels/probe-cover.ts): shaft, bending section and rigid tip in order; null while the scope is not out. */
+  coverRuns(): { runs: { rings: readonly Ring[]; from: number; to: number }[]; alpha: number; at: Vector3 } | null {
+    if (!(this.d > 0.5) && this.gone === 0) return null;
+    const runs: { rings: readonly Ring[]; from: number; to: number }[] = [{ rings: this.shaft.rings, from: 0, to: Math.min(this.shaft.n - 1, this.pose.shaftRings + 1) }];
+    if (this.bendOn) runs.push({ rings: this.bend.rings, from: 0, to: this.bend.n - 1 });
+    runs.push({ rings: this.tip.rings, from: 0, to: this.tip.n - 1 });
+    return { runs, alpha: this.opacity * (1 - this.gone), at: this.pose.tip };
+  }
   /** the last pose laid, for tests and tags */
   readonly pose = { tip: new Vector3(), dir: new Vector3(), needleEnd: new Vector3(), shaftRings: 0 };
 

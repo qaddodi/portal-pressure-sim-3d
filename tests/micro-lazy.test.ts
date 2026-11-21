@@ -35,7 +35,7 @@ test('the dpr seen before the build is applied when it happens', () => {
 
 test('Stage compiles the programs when they appear, and asks for the idle build after the first warm', () => {
   assert.match(stage, /cel\.onMicroBuilt = warm/);
-  assert.match(stage, /warm\(\); cel\.buildMicroIdle\(\)/);
+  assert.match(stage, /warmP\(\)[\s\S]{0,160}cel\.buildMicroIdle\(\)/);   // (serialised 21 Nov: the build follows the warm-up's compile)
 });
 
 test('the red cell has 16 segments and well under half its old triangles', () => {
@@ -82,9 +82,42 @@ test('easing the basement membrane or the microvilli rebuilds nothing; the activ
 // ---- the audit names the system that costs a frame (scene.systemMs, update and render laps, per step) ----
 test('render() laps its phases into systemMs, and the audit row carries the per-step delta into the LAGS line', () => {
   const sc = readFileSync('src/scene/scene.ts', 'utf8');
-  for (const n of ['render: setup (dof, band, blur frame)', 'render: organs pass', 'render: vessels pass', 'render: glow, blur, resolve']) assert.ok(sc.includes(`lap('${n}')`), n);
+  for (const n of ['render: setup (dof, band, blur frame)', 'render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)', 'render: pass 2, vessel layer', 'render: glow, blur, resolve']) assert.ok(sc.includes(`lap('${n}')`), n);
   const app = readFileSync('src/ui/debug/audit/app.ts', 'utf8'), rep = readFileSync('src/ui/debug/audit/report.ts', 'utf8');
   assert.match(app, /sys0 = \{ \.\.\.\(cel\.systemMs \?\? \{\}\) \}/);
   assert.match(app, /systemMs: Object\.entries\(cel\.systemMs/);
   assert.match(rep, /systems \(ms over the step\)/);
+});
+
+test('the idle slices prime the lobule and the sinusoid hidden, so the first shown frame builds nothing', () => {
+  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(sc, /this\.micro\.lobule\.update\(true, 0, 0, 1, true\)/);
+  assert.match(sc, /this\.micro\.sinus\.update\(true, 1, true\)/);
+  assert.match(sc, /get microPrimedNow/);
+});
+
+test('a lazy Lobule3D builds its vessels in several slices, and a late weld plan rebuilds them in slices, never in one task', async () => {
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const { LobuleView } = await import('../src/scene/lobule/view.ts');
+  const { Lobule3D, THIN_SEG, TUBE_SEG } = await import('../src/scene/micro3d/lobule3d.ts');
+  const shared = createShared(), l3 = new Lobule3D(new LobuleView(shared), shared, true);
+  assert.equal(l3.vesselsReady, false, 'the constructor leaves the vessels to the idle slices');
+  let slices = 0;
+  while (l3.prepareVessels()) slices++;
+  assert.ok(slices >= 6, `built in ${slices} slices`);
+  assert.equal(l3.vesselsReady, true);
+  assert.ok(THIN_SEG < TUBE_SEG);
+  const src = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  assert.match(src, /this\.vesselsBuilt = false; this\.vgen = null; this\.inkKey = '';\n\s+this\.pumpVessels\(\);/);
+});
+
+test('the sinusoid shape passes are cut into sections: many small steps, then ready; the scene takes them in time-boxed slices', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const sc = new CelScene() as unknown as { buildMicro(): void; micro: { sinus: { prepareShapeStep(): boolean; shapeReady: boolean } } };
+  sc.buildMicro();
+  let steps = 0;
+  while (!sc.micro.sinus.prepareShapeStep()) steps++;
+  assert.ok(steps > 40, `${steps} steps for the passes (was 8, one pass each)`);
+  assert.equal(sc.micro.sinus.shapeReady, true);
+  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /do \{ if \(this\.microStep\(\)\) return; \} while \(!this\.disposed && performance\.now\(\) - t0 < SLICE_MS\)/);
 });
