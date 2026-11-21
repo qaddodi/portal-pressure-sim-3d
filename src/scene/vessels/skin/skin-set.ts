@@ -20,7 +20,7 @@ import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
+import { BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, armR, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -149,8 +149,8 @@ const TILT_MAX = 0.04;
 // and the capsule necked down at J inside a fillet sized from the full arm (one vertex of 587 stood 0.51 radii out of the union, tests/skin-joint-bulge.test.ts). The capsule's radius at J is WHOLE_AT_J of the way from the end ring's radius to the seam ring's. The full seam radius
 // makes the sampled surface split into 5 seam loops for 4 arms and the skin drops both growers; closing 0.4 to 0.6 of the neck builds with every arm (0.5: the wall skin's worst vertex 0.38). The cuts are planned from the tubes' own rings (clearOfAxes) and stay as they were.
 // Skins without a side-wall arm keep their axes: widening theirs moves other fillets unpredictably (LRV_S creases at any fraction, IMV and RPV_T bulge at 0.5 and 0.2 to 0.35).
-/** How far from the tube's end ring to its seam ring a growing side-wall arm's capsule is widened at J (axisOf `whole`). */
-export const WHOLE_AT_J = 0.5;
+/** The shares of the way from a growing arm's end ring to its seam ring its capsule may be widened at J (axisOf `whole`), tried in this order: 0 is the tube as built. */
+export const NECK_FRACTIONS = [0, 0.25, 0.4, 0.5, 0.6, 0.35, 0.7] as const;
 export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
@@ -382,12 +382,30 @@ export class SkinSet {
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
     // (a baked skin brings its axes and its mesh: the page plans nothing and remeshes nothing)
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow && sided ? WHOLE_AT_J : 0); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    // A growing arm is drawn full-size in the skin (the weld), but the tube is tapered into its host, so its END ring is far narrower than the arm (C9 0.0099 against 0.0227, C6 0.0084 against 0.0239): the capsule then necks down at J inside a fillet sized
+    // from the whole arm, and a vertex of the fillet stands out of the union (wall:IVC_IS_1:S_PC1,C90 0.51, SVD 0.45+ radii; BULGE_MAX). How far to widen the neck is not one number for every skin (the fillets are chaotic in it: 0.7 and the wall skin
+    // fails to build, 0.55 makes IMV bulge): each skin with growing arms is built at the least widening in NECK_FRACTIONS whose mesh builds and stays inside BULGE_MAX; one that none satisfies keeps the least bulging that built. A skin that is within the limit
+    // at no widening (every one but those two today) is built once, as before.
+    const axesAt = (f: number): ArmAxis[] => weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? f : 0); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
     const growing = j.arms.some((a) => a.grow);
-    const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
+    let axes: ArmAxis[], mesh: SkinMesh;
+    if (ready) { axes = ready.axes; mesh = ready.mesh; }
+    else {
+      axes = axesAt(0); mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
+      if (growing) {
+        let best = worstBulge(mesh, axes);
+        for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
+          const ax = axesAt(NECK_FRACTIONS[q]!);
+          let m: SkinMesh;
+          try { m = buildSkinSteady(j, plan.cuts, pos, nor, ax.map(capsuleOf), undefined, this.paces); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
+          const b = worstBulge(m, ax);
+          if (b < best) { best = b; axes = ax; mesh = m; }
+        }
+      }
+    }
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (a baked mesh has had it done)
     const pp = growing ? plainOf(plan) : null;

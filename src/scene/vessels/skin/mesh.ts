@@ -122,6 +122,31 @@ export function worstNormalAngle(m: { normal: ArrayLike<number>; index: ArrayLik
   }
   return (Math.acos(Math.min(1, Math.max(-1, cosMin))) * 180) / Math.PI;
 }
+/** The most a skin's surface may stand out of the union of its arms, as a share of the local arm radius, at rest (tests/skin-joint-bulge.test.ts holds every skin to it). */
+export const BULGE_MAX = 0.45;
+/** The largest share of the local arm radius by which a vertex of `m` stands out of the union of the arms' capsules `axes` at rest (the test's `worstExcess` with every arm at its built width). */
+export function worstBulge(m: { position: ArrayLike<number>; normal: ArrayLike<number>; weight: ArrayLike<number>; weight2: ArrayLike<number>; restR: ArrayLike<number> }, axes: readonly { pts: readonly (readonly number[])[]; radii: readonly number[] }[]): number {
+  const P = m.position, N = m.normal, n = P.length / 3;
+  let worst = -Infinity;
+  for (let v = 0; v < n; v++) {
+    let s = 0;
+    for (let i = 0; i < 4; i++) s += m.weight[4 * v + i]!;
+    for (let i = 0; i < 2; i++) s += m.weight2[2 * v + i]!;
+    const o = m.restR[v]! * (s - 1), x = P[3 * v]! + N[3 * v]! * o, y = P[3 * v + 1]! + N[3 * v + 1]! * o, z = P[3 * v + 2]! + N[3 * v + 2]! * o;
+    let out = Infinity, rr = 1;
+    for (const ax of axes) {
+      let best = Infinity, br = 0;
+      for (let i = 0; i < 3; i++) {
+        const a = ax.pts[i]!, b = ax.pts[i + 1]!, bx = b[0]! - a[0]!, by = b[1]! - a[1]!, bz = b[2]! - a[2]!, px = x - a[0]!, py = y - a[1]!, pz = z - a[2]!, bb = bx * bx + by * by + bz * bz;
+        const t = Math.max(0, Math.min(1, bb > 0 ? (px * bx + py * by + pz * bz) / bb : 0)), d = Math.hypot(px - t * bx, py - t * by, pz - t * bz);
+        if (d < best) { best = d; br = ax.radii[i]! + (ax.radii[i + 1]! - ax.radii[i]!) * t; }
+      }
+      if (best - br < out) { out = best - br; rr = br; }
+    }
+    worst = Math.max(worst, out / rr);
+  }
+  return worst;
+}
 /** A skin whose worst neighbouring-normal angle is past `REFINE_AT` degrees (a tight crotch of two arms leaving a trunk side by side: LRV_S, 79.8 with the crease easing spent) is built again with the target edge `REFINE_SCALES` times as long, finest last, and the build
  *  with the smaller worst angle is kept (a finer build that folds, loses a vertex to a collapse or is not better is thrown away). Only such a skin pays the extra builds; every other skin is exactly as it was. A global curvature-adaptive target was tried: it
  *  pushed LPV_A~plain from 72 to 80.5 degrees, dropped a skin and doubled the build time. */

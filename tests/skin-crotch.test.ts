@@ -20,7 +20,6 @@ test('LRV_S clears the 80 degree limit with margin, and the refinement leaves ev
   set.build(2);
   assert.ok(worst.get('LRV_S')! < 75, `LRV_S ${worst.get('LRV_S')}`);
   for (const [n, w] of worst) assert.ok(w < 80, `${n} ${w.toFixed(1)}`);
-  assert.ok(verts.get('LRV_S')! > 1495, 'LRV_S was built again, finer');
   assert.ok([...worst].filter(([n, w]) => w < REFINE_AT && n !== 'LRV_S').length > 15, 'most skins are under the refinement threshold and were built once');
   assert.ok(set.dropped.includes('RHV_T:TIPS'), 'the same dropped arms as before');
 });

@@ -11,6 +11,7 @@ import { SkinObject, type ArmAxis } from '../src/scene/vessels/skin/skin-object.
 import { skinKOf, SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
 import { armR, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
+import { BULGE_MAX, worstBulge } from '../src/scene/vessels/skin/mesh.ts';
 import { createCore } from '../src/engine/host/worker-core.js';
 
 /** the distance from a point to an arm's axis polyline (its three segments) and the arm's radius at that closest point */
@@ -78,10 +79,11 @@ test('every skin is blended at the radius its arms really have at the junction, 
     axes.forEach((ax, i) => { if (!j.arms[i]!.grow) atJ = Math.min(atJ, toAxis(ax, j.J[0], j.J[1], j.J[2]).r); });
     if (branch) assert.ok(k <= SKIN_K * atJ * 1.12, `${name}: blend ${k.toExponential(2)} against 0.8 x ${atJ.toExponential(2)}, the narrowest arm's radius at the junction (a fillet that wide is a bulb)`);
     // (3) at rest, and at each HVPG patient's widths: no vertex stands farther out of the arms' union than half the local radius (the worst of all the skins at rest was 0.44 before)
-    // (a growing arm on a side-wall skin is drawn full-size, but its built tube is tapered into the host: its capsule at J is never the tube's narrow end ring alone, half way to the seam's radius at least (WHOLE_AT_J), or it necks down inside the fillet: C9 on the cava's wall was 0.0099 against 0.0227, the one vertex of 587 that bulged 0.51)
-    if (j.arms.some((a) => a.side)) axes.forEach((ax, i) => { if (j.arms[i]!.grow) { grown++; assert.ok(ax.radii[0]! >= 0.5 * ax.radii[2]! * 0.999, `${name}: ${j.arms[i]!.vesselId} necks to ${ax.radii[0]!.toFixed(4)} at J against ${ax.radii[2]!.toFixed(4)} at its seam`); } });
+    // (a growing arm is drawn full-size but its built tube is tapered into the host, so its capsule necks at J: the skin builds at the least neck widening whose mesh is inside BULGE_MAX (skin-set.ts NECK_FRACTIONS); the source's own measure is this test's)
+    if (j.arms.some((a) => a.side)) axes.forEach((_, i) => { if (j.arms[i]!.grow) grown++; });
+    assert.ok(Math.abs(worstBulge(mesh, axes) - worstExcess(mesh, axes, j.arms.map(() => 1))) < 1e-9, `${name}: mesh.ts worstBulge is the test's worstExcess`);
     const rest = j.arms.map(() => 1);
-    assert.ok(worstExcess(mesh, axes, rest) <= 0.45, `${name}: bulges ${worstExcess(mesh, axes, rest).toFixed(2)} radii at rest`);
+    assert.ok(worstExcess(mesh, axes, rest) <= BULGE_MAX, `${name}: bulges ${worstExcess(mesh, axes, rest).toFixed(2)} radii at rest`);
     if (!live.size) continue;
     for (const [id, D] of Object.entries(patients)) {
       // (the growing arms are left at their built width here: a collateral's live swell runs to 8 and its normal-offset shape is a separate, open question: SMV 1.18 radii at csph with S_MC and REX swollen)
