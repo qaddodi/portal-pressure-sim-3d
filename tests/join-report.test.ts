@@ -2,6 +2,7 @@
 // so the debug page can mark it. The pure part runs on the real network with stand-in answers; the real part builds the real skins (as tests/skin-grow.test.ts does) and holds the report to what they say.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
@@ -9,7 +10,7 @@ import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { GROWER_KINDS } from '../src/scene/vessels/skin/inventory.ts';
-import { WHY_COLOUR, WHY_TEXT, joinsReport, splitDropped, unweldedEnds } from '../src/scene/vessels/skin/join-report.ts';
+import { WHY_COLOUR, WHY_TEXT, droppedAt, joinsReport, splitDropped, unweldedEnds } from '../src/scene/vessels/skin/join-report.ts';
 
 test('a dropped arm is "NODE:VESSEL" and a vessel id may hold a colon', () => {
   assert.deepEqual(splitDropped('IVCI:S_PC'), { node: 'IVCI', id: 'S_PC' });
@@ -44,10 +45,24 @@ test('the real skins: every growing arm they leave out is named "dropped", the n
     assert.deepEqual(r.dropped.map((d) => `${d.node}:${d.id}`).sort(), [...set.dropped].sort());
     for (const d of set.dropped) {
       const { node, id } = splitDropped(d);
-      assert.ok(r.unwelded.some((u) => u.node === node && u.id === id && u.why === 'dropped'), `${d} is listed as dropped`);
+      // (a growing arm one skin drops can be welded by another: S_PC and C9 above IVCI are arms of a wall node's skin, so that end is skinned and not unwelded; a wall node is a virtual node of the host's wall, named by the key)
+      const ends = ([0, 1] as const).filter((e) => droppedAt(d, node, id, e) || (NETWORK_BY_ID.get(id) && node === (e === 0 ? NETWORK_BY_ID.get(id)!.from : NETWORK_BY_ID.get(id)!.to)));
+      assert.ok(ends.length, `${d}: an end of ${id} is named by the key`);
+      for (const e of ends) {
+        if (set.endsOf(id)[e]) assert.ok(!r.unwelded.some((u) => u.id === id && u.end === e), `${d} is dropped here but welded by another skin: not listed as unwelded`);
+        else assert.ok(r.unwelded.some((u) => u.id === id && u.end === e && u.why === 'dropped'), `${d} is listed as dropped`);
+      }
     }
     for (const n of set.fellBack) assert.ok(r.unwelded.some((u) => u.node === n && u.why === 'fell-back'), `${n} fell back and its tubes are listed`);
     assert.deepEqual(r.unwelded.filter((u) => u.why === 'no-skin').map((u) => `${u.id}/${u.end}@${u.node}`), [], 'every junction of three permanent tubes has a skin or a named reason');
     for (const u of r.unwelded) assert.ok(!set.endsOf(u.id)[u.end], `${u.id} end ${u.end} is skinned, so it is welded`);
   } finally { scene.dispose(); setSmoothJoins(was); }
+});
+
+test('a dropped key splits at its vessel: a wall node (wall:host:arms) and a fork child (~F:b) keep their colons', () => {
+  assert.deepEqual(splitDropped('IVCI:S_PC'), { node: 'IVCI', id: 'S_PC' });
+  assert.deepEqual(splitDropped('wall:PVH_L_1:REX1:REX'), { node: 'wall:PVH_L_1:REX1', id: 'REX' });
+  assert.deepEqual(splitDropped('RPV_T:PVH_R_2~F:b'), { node: 'RPV_T', id: 'PVH_R_2~F:b' });
+  assert.deepEqual(splitDropped('N:A:B'), { node: 'N', id: 'A:B' });
+  assert.ok(droppedAt('wall:IVC_IS_1:S_PC1,C90:C9', 'IVCI', 'C9', 0) && !droppedAt('wall:IVC_IS_1:S_PC1,C90:C9', 'IVCI', 'C9', 1));
 });
