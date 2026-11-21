@@ -12,7 +12,7 @@ import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { stentGraftEdge, stentGoldEdge, stentWireEdge } from './stent-look.ts';
 import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
-import { STENT_GLASS } from './stent-look.ts';
+import { STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
@@ -27,8 +27,8 @@ const WIRE_RADIAL = WIRE_SIDES, GRAFT_RADIAL = DEVICE_SIDES, GOLD_RADIAL = WIRE_
 const GRAFT_ALPHA = 0.4;
 /** The far wires of the weave, thinner and half seen (the 2D draws the back half at 0.5 and 0.12 of the front's strength), and the bright core along the near ones (the 2D's glint). */
 /** The band and tab, faded with the rest (owner, 21 Nov 2026: option 4, "a bit faded"). */
-const GOLD_ALPHA = 0.6;
-const BACK_ALPHA = 0.18, FRONT_ALPHA = 0.55, GLINT_ALPHA = 0.4, BACK_R = 0.7, GLINT_R = 0.38;
+const GOLD_ALPHA = STENT_GOLD_ALPHA;
+const BACK_ALPHA = 0.18, FRONT_ALPHA = STENT_FRONT_ALPHA, GLINT_ALPHA = 0.4, BACK_R = 0.7, GLINT_R = 0.38;
 
 interface Params { stentGeom?: unknown; stenosis?: unknown; thrombus?: unknown; stenosisSite?: unknown }
 interface Frame { D: ArrayLike<number> }
@@ -76,12 +76,14 @@ export class StentDevice {
 
   /** The shunt's vessel: it carries the narrowing. */
   bindVessel(v: VesselObject): void {
-    this.vessel = v;
+    this.vessel = v; this.paintCircuit();
     const g = v.toonMesh.geometry;
     if (!g.getAttribute('narrow')) g.setAttribute('narrow', new BufferAttribute(new Float32Array(g.getAttribute('position').count), 1));
   }
 
-  applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); }
+  applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); this.paintCircuit(); }
+  /** The Circuit draws this stent on the shunt's own tube: it takes the colours and strengths from the same table as the 3D device, so the two views cannot differ. */
+  private paintCircuit(): void { if (this.vessel && this.lastPalette) { const l = stentCircuitLook(this.lastPalette); this.vessel.setStentLook(l.wire, l.wireA, l.gold, l.goldA); } }
   setPhone(phone: boolean): void { for (const o of this.objects) o.setPhone(phone); }
 
   /** The spec the stent is built from, for these params and this live diameter (mm). */

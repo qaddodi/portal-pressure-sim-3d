@@ -3,6 +3,10 @@
 // the graft is glass: faint in the middle, firmer and outlined only at its rim, so the covered part has a round body over the lumen; the gold band and tab carry the same warm edge.
 import type { EdgeFn } from '../edges.ts';
 import { mixHex } from '../edges.ts';
+import { Color } from 'three';
+import { rawColor } from '../../materials/cel.ts';
+import { PALETTES, type LookId, type Palette } from '../../palette.ts';
+import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 
 /** The covered part's glass: how much firmer its fill is toward the rim (device-object setGlass `fill`), and the width of the rim its outline keeps (n.v). */
 export const STENT_GLASS = { fill: 0.7, rim: 0.42 } as const;
@@ -12,3 +16,11 @@ export const stentWireEdge: EdgeFn = { colour: ({ t }) => mixHex(t.stentWire, t.
 export const stentGoldEdge: EdgeFn = { colour: ({ t }) => mixHex(t.stentWire, t.stentGold, 0.4), a: 0.5 };
 /** Graft rim: the sleeve's own cool grey (the metal token) moved toward the ink, so the clear cover is edged by a soft line in the vessel's colours, not black. */
 export const stentGraftEdge: EdgeFn = { colour: ({ t, ink }) => mixHex(t.stentMetal, ink, 0.4), a: 0.55 };
+
+/** How strongly the front wires and the gold band show (the faded look): the 3D device's alphas and the Circuit's wire strengths are these. */
+export const STENT_FRONT_ALPHA = 0.55, STENT_GOLD_ALPHA = 0.6;
+/** The Circuit's stent (drawn on the shunt's tube by the vessel shader) in the Anatomy stent's own colours: the champagne wire (the glint token) and the gold band, each at the device's strength. */
+export function stentCircuitLook(p: Palette): { wire: Color; wireA: number; gold: Color; goldA: number } {
+  const look = ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light'), t = DEVICE_TOKENS[look];
+  return { wire: rawColor(t.stentGlint), wireA: STENT_FRONT_ALPHA, gold: rawColor(t.stentGold), goldA: STENT_GOLD_ALPHA };
+}
