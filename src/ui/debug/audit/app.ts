@@ -11,6 +11,7 @@ import { createRecorder } from '../watch/recorder.ts';
 import { domSources } from '../watch/sources.ts';
 import { liveCatalog, openEntry, settle as pageSettle, problems } from '../page/live.ts';
 import type { Entry } from '../page/catalog.ts';
+import { flagValue } from '../flags.ts';
 import { scanPage } from './scan.ts';
 import { startLedger } from './ledger.ts';
 import type { Step, Reads } from './run.ts';
@@ -19,7 +20,9 @@ import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
 import { renderStats } from '../../../clock/render-stats.ts';
 import { cel } from '../../../scene/api.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
-import { estimateSteps } from './progress.ts';
+import { estimateSteps, sequenceOn } from './progress.ts';
+import { sequence, newProof, type Driver, type SequenceProof } from './sequence.ts';
+import { goToView } from '../../shell/view-actions.ts';
 
 export const SAMPLE_MS = 33;
 export const QUIET_MS = 300;   // (the page must be still this long before a step counts as settled: the shortest the checks can use; the copied 2D default for a replay is 600)
@@ -30,20 +33,56 @@ const until = async (cond: () => boolean, ms: number) => { const t = performance
 const talkUp = () => useShell.getState().mode === 'deck' && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 
 /** How many steps plan() will yield (about: a full run's beat presses are known only by pressing). */
-export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length) });
+export const planTotal = (depth: 'quick' | 'full'): number => estimateSteps(depth, { sheets: liveCatalog().filter((e) => e.section === 'sheet').length, presets: UI.presets.length, decks: builtinDecks().map((d) => d.slides.length), sequence: sequenceOn(flagValue('sequence'), depth) });
 
 // ── the steps ──
 const SHEETS_QUICK = ['sheet:settings', 'sheet:help'];
 
 /** What the walk does, in the order a person would: the views, the sheets, the patients (the collaterals grow and collapse), then every talk slide by slide with Next. A generator, because how many presses a slide takes (beats, pages, a procedure's steps) is known only by pressing. */
-export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, cover: (c: Coverage) => void = () => undefined): AsyncGenerator<Step> {
+/** What counts as a selector: a tab, or anything that says `data-audit-select` (a chooser made of plain buttons opts in with that attribute), in a talk card or the Tests card (its instrument tabs). */
+export const SELECTOR_SEL = '[role="tab"]:not([aria-selected="true"]), [data-audit-select]:not([aria-selected="true"]):not([aria-pressed="true"]):not([data-on="true"])';
+const SELECTOR_ROOTS = '.dk-card[data-phase="in"], .t-card';
+/** Clicks each visible, not-selected selector once (at most 8); returns how many. */
+export async function clickSelectors(doc: Document = document): Promise<number> {
+  let n = 0;
+  const seenEl = new Set<Element>();
+  for (const t of Array.from(doc.querySelectorAll<HTMLElement>(SELECTOR_ROOTS)).flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>(SELECTOR_SEL)))) {
+    if (n >= 8 || seenEl.has(t)) continue; seenEl.add(t);
+    const r = t.getBoundingClientRect(), cs = getComputedStyle(t);
+    if (r.width < 1 || r.height < 1 || cs.visibility === 'hidden' || cs.display === 'none' || seen(window, t) < 0.5 || (t as HTMLButtonElement).disabled) continue;
+    t.click(); n++; await sleep(60);
+  }
+  return n;
+}
+
+/** The talk on screen as the sequential pass reads it: the presenter store for where it stands, Next and Back as the buttons press them, the cards' own headings and buttons from the DOM. */
+export function talkDriver(): Driver {
+  const ui = () => useUi.getState();
+  const visible = (el: Element) => { const r = (el as HTMLElement).getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== 'hidden' && cs.display !== 'none' && seen(window, el) > 0.5; };
+  const cards = () => Array.from(document.querySelectorAll<HTMLElement>('.dk-card[data-phase="in"]'));
+  return {
+    get total() { return ui().stops.length; },
+    now: () => { const u = ui(); return { stop: u.pos.stop, beat: u.pos.beat, page: u.page, ended: useShell.getState().mode !== 'deck' }; },
+    press: (m) => ui().move(m),
+    headings: () => cards().flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>('h1, h2, h3, .pz-h, .pz-dtitle, [class*="title"]')).filter(visible).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean)),
+    targets: () => cards().reduce((n, c) => n + Array.from(c.querySelectorAll('button, a[href], [role="tab"], [role="button"]')).filter(visible).length, 0),
+    selectors: () => clickSelectors(),
+    nameOf: (k) => { const st = ui().stops[k]; return st ? { kind: st.kind, name: st.kind === 'slide' ? st.slide.title : st.kind } : { kind: '?', name: '?' }; },
+    go: (k) => ui().go(k),
+  };
+}
+
+export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, cover: (c: Coverage) => void = () => undefined, seq: (p: SequenceProof) => void = () => undefined): AsyncGenerator<Step> {
   const cat = liveCatalog();
   const entry = (id: string): Entry | undefined => cat.find((e) => e.id === id);
-  const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); } } : null; };
+  const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); if (id.startsWith('sheet:')) { await sleep(300); const k = await clickSelectors(); if (k) return `${e.label} (${k} selectors clicked)`; } } } : null; };
   const shell = useShell.getState();
   const keep = { collaterals: shell.figure.collaterals, patient: shell.patientId };
-  const views = ['view:anatomic', 'view:lobule', 'view:sinusoid', 'view:anatomic'].map(open);
+  const views = ['view:anatomic', 'view:lobule', 'view:sinusoid'].map(open);
   for (const s of views) if (s) yield s;
+  // the Circuit is a free-play view too (the catalog leaves it out): the body's vessels fly onto the map, then back
+  yield { group: 'Figure views', id: 'view:circuit', label: 'Circuit', run: () => { leaveTalk(); if (!goToView('circuit')) throw new Error('the Circuit view is not drawn yet'); } };
+  const home = open('view:anatomic'); if (home) yield home;
   for (const id of (depth === 'quick' ? SHEETS_QUICK : cat.filter((e) => e.section === 'sheet').map((e) => e.id))) { const s = open(id); if (s) yield s; }
   yield { group: 'Views', id: 'sheet:close', label: 'close the sheet', run: () => { useShell.setState({ sheet: null, dialog: null }); } };
   // the patients: the collaterals grow (healthy to decompensated), collapse (switched off) and grow back, then come away again
@@ -74,6 +113,11 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
       for (let tries = 0; depth === 'full' && tries < beats + 4 && useUi.getState().pos.stop === k && useUi.getState().pos.beat < beats - 1; tries++) {
         yield { group: d.title, id: `${d.id}:beat:${k}:${tries}`, label: 'Next (beat)', run: () => { useUi.getState().move('next'); return where(d.title); } };
       }
+    }
+    if (sequenceOn(flagValue('sequence'), depth)) {
+      const proof = newProof(d.title); seq(proof);
+      yield* sequence(talkDriver(), d.title, { edges: true }, proof);
+      if (useShell.getState().mode !== 'deck') { const again = open(`slide:${d.id}:0`); if (again) yield { ...again, label: 'outline (reopening the talk)' }; }   // (the pass ended the talk with its last Next: reopen it so the leave step below has a talk to leave)
     }
     yield { group: d.title, id: `${d.id}:leave`, label: 'leave the talk', run: async () => { leaveTalk(); await until(() => useShell.getState().mode !== 'deck', 15000); } };
   }

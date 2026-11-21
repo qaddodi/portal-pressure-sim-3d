@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { OrderIcon } from '../../action/icons.tsx';
 import { hvpgSev } from '../../../engine/hales/portal/pressure-cuts.js';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
+import { OwnerNote, useBlocker } from '../OwnerNote.tsx';
 import { Monitor } from '../ir/Monitor.tsx';
 import { useScope } from './scope-state.ts';
 import { E, tk, reads, playEus, resetEus, useEus } from './eus-run.ts';
@@ -26,16 +27,17 @@ export function useEusReset(preset: unknown): void {
 export function EusPpg({ width }: { width: number }) {
   const phase = useScope((s) => s.eus), step = useScope((s) => s.step);
   useEus((s) => s.n);
-  const rd = reads(), run = phase === 'run', sev = Number.isFinite(rd.ppg) ? hvpgSev(rd.ppg) : '';
+  const other = useBlocker('eus'), rd = reads(), run = phase === 'run', sev = Number.isFinite(rd.ppg) ? hvpgSev(rd.ppg) : '';
   const tip = !tk.shown() && E.done && Number.isFinite(rd.ppg) ? `Last EUS-PPG ${word(rd.ppg)}${W.eusLast[0]}${word(rd.pv)}${W.eusLast[1]}${word(rd.hv)}${W.eusLast[2]}` : TECHNIQUE;
   const h = monitorHeight(width);
   return (
     <div className="eus-ppg" data-eus="" data-state={phase}>
       <div className="hvpg-procs" role="group" aria-label="EUS-guided portal pressure gradient">
         <span className="hvpg-procs-k">{W.measure}</span>
-        <button type="button" className="btn sm hvpg-proc-btn" aria-label={W.eusAria} aria-pressed={run} title={tip} disabled={run} onClick={playEus} onPointerUp={(e) => touch(e, playEus, run)}>
+        <button type="button" className="btn sm hvpg-proc-btn" aria-label={W.eusAria} aria-pressed={run} title={tip} disabled={run || !!other} onClick={playEus} onPointerUp={(e) => touch(e, playEus, run || !!other)}>
           <OrderIcon n="needle" className="ac-ic" /><span>{W.eusName}</span>
         </button>
+        <OwnerNote me="eus" />
       </div>
       <div className="eus-panel" aria-hidden={phase === 'idle' ? true : undefined} onClick={() => tk.close()}
         onKeyDown={(e) => { if (phase === 'hold' && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tk.close(); } }}
