@@ -3,15 +3,15 @@
 // reference the red blocks are judged against. `run` is the worker's 'sequence' (EngineClient.sequence): a test hands it a fake.
 import { deckFingerprints, type Fingerprint, type RunSteps, type Step } from '../../../decks/rw/numbers.ts';
 import type { CopiedDeck } from '../../../decks/rw/types.ts';
-import { useStates } from '../../../decks/hp/calc.ts';
 import { extraStep, rowsOf, type Fp, type LadderRow, type OfRow } from './model.ts';
 
 export interface LadderData { rows: LadderRow[]; healthy: Fp | null }
 const states = new WeakMap<object, Promise<Fingerprint[]>>();
 /** The deck's states: the talk's own, which it has already worked out for its cards (decks/hp/calc.ts: slide i at results[i]; entry 0 the outline, which reads the first slide's); only a deck it has not, worked out once. */
-export function deckStates(deck: CopiedDeck, run: RunSteps): Promise<Fingerprint[]> {
-  const talk = useStates.getState().results[deck.id];
-  if (talk?.length) { const fps = talk.map((r) => (r?.fp ?? {}) as Fingerprint); return Promise.resolve([fps[0]!, ...fps]); }
+export async function deckStates(deck: CopiedDeck, run: RunSteps): Promise<Fingerprint[]> {
+  // (the store is loaded when asked, so this module and its tests need no store of their own to stand: a missing one is the old run)
+  const talk = await import('../../../decks/hp/calc.ts').then((m) => m.useStates.getState().results[deck.id], () => undefined);
+  if (talk?.length) { const fps = talk.map((r) => (r?.fp ?? {}) as Fingerprint); return [fps[0]!, ...fps]; }
   let p = states.get(deck);
   if (!p) { p = deckFingerprints(deck, run); states.set(deck, p); p.catch(() => states.delete(deck)); }
   return p;

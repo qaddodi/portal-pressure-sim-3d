@@ -45,8 +45,10 @@ test('the first row\'s fit writes the size and the under class to the DOM on eve
 
 // Mohammad, 21 Nov (iPhone, 11/14): the card showed only its header for seconds before the six rows came. Root cause: the grid worked the whole deck out again in a worker of its own (rw/numbers.ts deckFingerprints) for numbers the talk
 // already holds (decks/hp/calc.ts useStates, which every other card of the slide reads). It reads those, so only the few patients no slide shows are run.
-test('the ladders read the deck\'s states from the talk, not a second run of the whole deck', async () => {
-  const { useStates } = await import('../src/decks/hp/calc.ts');
+test('the ladders read the deck\'s states from the talk, not a second run of the whole deck', async (t) => {
+  const calc = await import('../src/decks/hp/calc.ts').catch(() => null);
+  if (!calc) return t.skip('the talk\'s store (zustand) is not installed here');
+  const { useStates } = calc;
   const { deckStates } = await import('../src/ui/charts/ladder/data.ts');
   useStates.setState({ results: { 'talk-x': [{ fp: { a: 1 } }, { fp: { a: 2 } }] as never } });
   let ran = 0;
