@@ -265,6 +265,8 @@ export class SkinSet {
     }
     return m;
   }
+  /** The skins none of NECK_FRACTIONS brought inside BULGE_MAX (kept at their least bulging build): empty when every skin is inside it; tests/skin-joint-bulge.test.ts fails on any. */
+  readonly bulgeOver: { node: string; bulge: number }[] = [];
   /** How many rebuilds ran, what the last and the worst cost (ms), and which node was the last. */
   get stats(): Readonly<SkinBuildStats> { return this.cost; }
   /** Whether a skin waits for its rebuild (the scene asks the clock for another frame while true). */
@@ -406,6 +408,7 @@ export class SkinSet {
           const b = worstBulge(m, ax);
           if (b < best) { best = b; axes = ax; mesh = m; }
         }
+        if (best > BULGE_MAX) this.bulgeOver.push({ node: j.node, bulge: best });   // (no widening satisfies it: kept as built, and named here so a test fails on it)
       }
     }
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)

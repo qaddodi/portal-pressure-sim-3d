@@ -93,6 +93,7 @@ test('every skin is blended at the radius its arms really have at the junction, 
     }
   }
   assert.ok(built.some((b) => b.mesh.junction.node === 'wall:IVC_IS_1:S_PC1,C90'), 'the cava wall skin with S_PC and C9 is built (its growers were dropped when the neck was closed all the way)');
+  assert.deepEqual(set.bulgeOver, [], 'no skin is left over the bulge limit by the neck-widening search (it kept its least bulging build and named itself)');
   assert.ok(grown >= 2, `growing side-wall arms checked: ${grown}`);
   assert.ok(tapered >= 2, `the right hepatic vein's branch skin has tapered joints (${tapered} arms found): the case this pins`);
 });
