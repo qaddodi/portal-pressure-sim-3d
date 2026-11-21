@@ -44,6 +44,9 @@ function useFontsReady(): boolean {
   return ok;
 }
 
+/** The card of a slot that is standing (not on its way out): the one the ladder's measures are about. */
+const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
+
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean }
 
@@ -144,14 +147,15 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (ladBusy) {
       // the first measure at the full size gives the ladder its sizes (the title's, the words', the tiles' names), read where they stand; each step after it is the next index
       if (!ladBase[pagesKey]) {
-        const px = (sel: string) => { const e = document.querySelector<HTMLElement>(sel); return e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0; };
-        setLadBase((m) => ({ ...m, [pagesKey]: { titlePx: px('.dk-pos[data-slot="words"] .pz-h'), bodyPx: px('.dk-pos[data-slot="words"] .pz-line, .dk-pos[data-slot="words"] p'), labelPx: px('.dk-pos[data-slot="data"] .pz-tiles .pzt-k') } }));
+        // (from the cards now standing, never one leaving: during a slide change the old card is still first in the page, and its sizes gave a wrong floor, a title at 1.24 times its words)
+        const px = (slot: string, sel: string) => { const e = liveCard(slot)?.querySelector<HTMLElement>(sel); return e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0; };
+        setLadBase((m) => ({ ...m, [pagesKey]: { titlePx: px('words', '.pz-h'), bodyPx: px('words', '.pz-line, p'), labelPx: px('data', '.pz-tiles .pzt-k') } }));
       } else setLadMap((m) => ({ ...m, [pagesKey]: lad + 1 }));
       return;
     }
     if (fitBusy) {
       // the data card's zoom, from its measured height against its cap, never so far that its smallest words go under 12 px (2D: the card's floor)
-      const card = document.querySelector<HTMLElement>('.dk-pos[data-slot="data"] .dk-in');
+      const card = liveCard('data')?.querySelector<HTMLElement>('.dk-in') ?? null;
       let minPx = Infinity;
       if (card) { const w = document.createTreeWalker(card, NodeFilter.SHOW_TEXT); let n = 0; for (let t = w.nextNode(); t && n < 400; t = w.nextNode(), n++) { if (t.textContent?.trim() && t.parentElement) minPx = Math.min(minPx, parseFloat(getComputedStyle(t.parentElement).fontSize) || Infinity); } }
       const k = dataFitOf(dataHit?.h ?? 0, plan.maxH.data, minPx);

@@ -60,3 +60,14 @@ test('the data card\'s own fit is the last step: to its room, never under 12 px'
   assert.match(layer, /vars=\{\(slot === 'data' \? dataVars : ladVars\) as never\}/, 'the fit is the data card\'s alone: the words never zoom');
   assert.match(layer, /!ladBusy && !fitBusy;/, 'the words page only when the fit is spent too');
 });
+
+// Root of the Mac audit's card-fit findings (21 Nov, e93a825a): the ladder read its base sizes with the first match in the page, which during a slide change is the card still leaving,
+// so the title's floor came from the wrong card (a title at 1.24 times its words), and a card sliding in snapped to a new height because only a landed card glided.
+test('the ladder measures the standing card, and a card sliding in glides a height change', () => {
+  const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+  const layer = src('ui/cards/CardLayer.tsx'), frame = src('ui/cards/CardFrame.tsx');
+  assert.match(layer, /const liveCard = /);
+  assert.doesNotMatch(layer, /document\.querySelector<HTMLElement>\('\.dk-pos\[data-slot/, 'no ladder measure reads the first card in the page');
+  assert.match(frame, /now\.current\.live = live \|\| gate\.current/);
+  assert.match(frame, /!\(live \|\| gate\.current\)/);
+});

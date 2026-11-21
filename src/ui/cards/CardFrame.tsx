@@ -169,7 +169,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const prev = shownH.current;
     shownH.current = rect.h;
     if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
-    if (prev == null || prev === rect.h || !live) return;
+    if (prev == null || prev === rect.h || !(live || gate.current)) return;
     if (typeof card.animate !== 'function' || reduced()) return;
     const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
     if (rect.h > prev) {
@@ -185,6 +185,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // once let in it stays in, whatever the group does after
   const gate = useRef(false);
   if (go && ready) gate.current = true;
+  now.current.live = live || gate.current;   // (a card sliding in is on screen: a change of its height glides, it never snaps)
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
 
   // The rail (rail.ts, 2D's card throw): in from the side the talk comes from, out the way it goes, on the one clock; no CSS animation
