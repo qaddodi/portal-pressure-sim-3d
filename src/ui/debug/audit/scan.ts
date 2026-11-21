@@ -14,6 +14,8 @@ export interface ScanItem {
   opacity: number;
   /** inside an open sheet, menu or the cover: it stands over the page on purpose */
   modal?: boolean;
+  /** text only: the element it is in (tag, id, two classes), so a bare number in a finding can be found */
+  by?: string;
   /** text only */ px?: number; bold?: boolean; fg?: string; bg?: string | null;
 }
 export interface RawScan {
@@ -140,7 +142,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     for (const r of rects) {
       if (items.length >= MAX_ITEMS) { capped = true; break; }
       const b = lineBoxes([r])[0]; if (!b) continue;
-      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, modal: !!p.closest(MODAL) || undefined, px, bold, fg: fg ?? undefined, bg };
+      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, modal: !!p.closest(MODAL) || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
       items.push(item); holders.push({ el: p, item });
     }
     texts++;

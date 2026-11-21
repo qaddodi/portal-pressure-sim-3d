@@ -40,7 +40,9 @@ export interface MemoryClimb { geometries: number; textures: number; from: numbe
 export function memoryClimb(rows: readonly (Pick<RenderStats, 'geometries' | 'textures'> | null | undefined)[]): MemoryClimb | null {
   const have = rows.map((r, i) => ({ r, i })).filter((x): x is { r: Pick<RenderStats, 'geometries' | 'textures'>; i: number } => !!x.r);
   if (have.length <= LEAK_BASELINE_STEPS) return null;
-  const base = have[LEAK_BASELINE_STEPS - 1]!, last = have[have.length - 1]!;
+  // (the baseline is the count three fifths of the way through, never before the fourth step: the lobule, the circuit, the scope and each patient's vessels are built the first time they are shown and kept, so
+  //  a count taken after four steps called every one of them a leak; a real one keeps climbing in the last two fifths too)
+  const base = have[Math.max(LEAK_BASELINE_STEPS - 1, Math.floor((have.length - 1) * 0.6))]!, last = have[have.length - 1]!;
   const g = last.r.geometries - base.r.geometries, t = last.r.textures - base.r.textures;
   return g > LEAK_GEOMETRIES || t > LEAK_TEXTURES ? { geometries: g, textures: t, from: base.i, to: last.i } : null;
 }
