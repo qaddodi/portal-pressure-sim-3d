@@ -149,7 +149,9 @@ export function LobuleCaptions() {
       last = now;
       const on = cel.view === 'lobule' && cel.lobule.group.visible;
       // (four corners of a square on the plate: the dots ride the plate's own perspective, exact under a tilt, ride.ts)
-      if (on) { const a = proj(0, 0), b = proj(1, 0), c = proj(1, 1), d = proj(0, 1); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; pc.x = c[0]; pc.y = c[1]; pd.x = d[0]; pd.y = d[1]; } else { pa.x = pa.y = pb.x = pb.y = pc.x = pc.y = pd.x = pd.y = 0; }
+      // (Off: the corners stay where they were last read. They were set to 0, so a name still fading out as the view went away was carried by a collapsed quad to the screen's corner, 700 to 1300 px in one
+      //  frame at half opacity: Presinusoidal stop 7, 21 Nov audit.)
+      if (on) { const a = proj(0, 0), b = proj(1, 0), c = proj(1, 1), d = proj(0, 1); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; pc.x = c[0]; pc.y = c[1]; pd.x = d[0]; pd.y = d[1]; }
       const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, a: pa, b: pb, c: pc, d: pd, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
       if (g.solve) { solveNow(); if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] re-placed:', gate.why, gate.whySig); } else if (alpha > 0) refreshReadings();
       alpha = g.alpha;

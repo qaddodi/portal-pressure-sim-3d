@@ -43,3 +43,29 @@ test('the dock glide refits the camera, and the dive\'s framing distance reads t
   const scene = readFileSync('src/scene/scene.ts', 'utf8');
   assert.match(scene, /lobuleRest\(\): number \{\s*const r = this\.rig\.fitRoom/);
 });
+
+test('a dock that lands with no glide (a drag let go fully shut or open) still refits: the link refits on any change of the dock the plan publishes, not only on a hint', () => {
+  const link = readFileSync('src/ui/deck/scene-link.ts', 'utf8');
+  assert.match(link, /const dockMoved = dockShown !== dockWas; dockWas = dockShown;/);
+  assert.match(link, /if \(dockMoved && !stepped\) sceneApi\.setRoom\(room, DOCK_MS, false, true, easeArrive\)/);
+});
+
+test('tuck, untuck, a reversal mid-glide and the landing sync all end at the framing a fresh fit in that room gives (zoom and pan, so the callouts keep their vessels)', () => {
+  const open = { x: 8, y: 330, w: 374, h: 380 }, shut = { x: 8, y: 120, w: 374, h: 590 };
+  const ease = (k: number) => 1 - Math.pow(1 - k, 3);
+  const fresh = (room: typeof open) => { const r = new CameraRig('play', room); r.resize(390, 844); r.goTo('play', room, 0); settle(r, 0); return r; };
+  const same = (a: CameraRig, b: CameraRig, why: string) => {
+    assert.ok(a.camera.position.distanceTo(b.camera.position) < 1e-3, `${why}: camera`);
+    assert.ok(Math.abs(a.camera.projectionMatrix.elements[5]! - b.camera.projectionMatrix.elements[5]!) < 1e-6, `${why}: lens`);
+    assert.deepEqual([a.fitRoom.w, a.fitRoom.h, a.targetRoom.y], [b.fitRoom.w, b.fitRoom.h, b.targetRoom.y], `${why}: rooms`);
+  };
+  const refOpen = fresh(open), refShut = fresh(shut);
+  let rig = fresh(open), t = 3000;
+  rig.setRoom(shut, t, 300, false, true, ease); t = settle(rig, t); same(rig, refShut, 'tucked');
+  rig.setRoom(open, t, 380, false, true, ease); t = settle(rig, t); same(rig, refOpen, 'untucked');
+  // untuck while the tuck's glide is still going, then the landing sync (same room, no time)
+  rig = fresh(open); t = 3000;
+  rig.setRoom(shut, t, 300, false, true, ease); for (let u = 0; u < 120; u += 16) rig.update(t += 16);
+  rig.setRoom(open, t, 380, false, true, ease); t = settle(rig, t);
+  rig.setRoom(open, t); t = settle(rig, t); same(rig, refOpen, 'reversed mid-glide');
+});

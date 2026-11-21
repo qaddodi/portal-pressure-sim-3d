@@ -47,7 +47,10 @@ export function startLedger(doc: Document = document, win: Window = window): Led
   interface Seen { t: number; op: number; b: [number, number, number, number] }
   const seen = new WeakMap<Element, Seen>();
   const effOpacity = (el: Element): number => { let o = 1; for (let p: Element | null = el, d = 0; p && d < 14; p = p.parentElement, d++) { o *= parseFloat(win.getComputedStyle(p).opacity) || 0; if (o < 0.02) return 0; } return o; };
-  const animating = (el: Element): boolean => { try { return el.getAnimations().length > 0 || (!!el.parentElement && el.parentElement.getAnimations().length > 0); } catch { return false; } };
+  // (A card or sheet that fades its paper and words and never itself, the Treat card, has its fade on its children: the subtree counts. While the talk's cover is up (shell/curtain.ts: the whole screen under it)
+  //  nothing under it is seen, so what is put in or taken out there is not a pop: the talk's bar, cards and the Treat card are set up under it when a talk opens.)
+  const animating = (el: Element): boolean => { try { return el.getAnimations({ subtree: true }).length > 0 || (!!el.parentElement && el.parentElement.getAnimations().length > 0); } catch { return false; } };
+  const covered = (): boolean => !!doc.querySelector('.pz-cover.on') || doc.documentElement.classList.contains('pz-covered');
   const snapSeen = new Set<string>();
   const note = (kind: string, sev: AuditFinding['sev'], what: string, el: Element) => { const k = `${kind}|${nameOf(el)}`; if (snapSeen.has(k) || found.length > 120) return; snapSeen.add(k); found.push({ kind, sev, what, where: nameOf(el) }); };
   /** Something the eye can see changing by itself: it draws words, a picture or a fill of its own. A positioning wrapper or a layout box that only holds other things is not (its children fade or do not). */
@@ -59,7 +62,7 @@ export function startLedger(doc: Document = document, win: Window = window): Led
   };
   const MIN_AREA = 1600;   // (a 40 x 40 box: under it a change is a digit, a dot or a caret, not a thing popping)
   const look = (el: Element, added: boolean) => {
-    if (SKIP(el) || !el.isConnected) return;
+    if (SKIP(el) || !el.isConnected || covered()) return;
     const now = performance.now(), r = el.getBoundingClientRect();
     const cur: Seen = { t: now, op: effOpacity(el), b: [r.left, r.top, r.width, r.height] };
     const prev = seen.get(el); seen.set(el, cur);
@@ -81,7 +84,7 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     }
     // an element put in where one just like it was taken out is a re-render (the same card, the same number): nothing appeared; one inside a newly added parent comes with its parent
     for (const n of addedRoots) if (!removed.has(sig(n)) && !(n.parentElement && addedRoots.has(n.parentElement)) && ![...addedRoots].some((a) => a !== n && a.contains(n))) { added.add(n); targets.add(n); }
-    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size) note('generic-pop', 'warn', `${nameOf(n)} vanished at full opacity in one frame (no fade)`, n); }
+    for (const m of list) for (const n of Array.from(m.removedNodes)) if (n instanceof Element) { const p = seen.get(n); if (p && p.op >= 0.9 && performance.now() - p.t <= 90 && p.b[2] * p.b[3] >= MIN_AREA && !SKIP(n) && paints(n) && !addedRoots.size && !covered()) note('generic-pop', 'warn', `${nameOf(n)} vanished at full opacity in one frame (no fade)`, n); }
     let k = 0;
     for (const el of targets) { if (k++ >= 30) break; look(el, added.has(el)); }
   });

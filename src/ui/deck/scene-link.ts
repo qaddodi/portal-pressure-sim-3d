@@ -6,6 +6,7 @@ import { sceneApi } from '../../scene/api.ts';
 import { clock, type Hold } from '../../clock/frame.ts';
 import { easeArrive } from '../../clock/tween.ts';
 import { useUi } from '../ui-store.ts';
+import { DOCK_MS } from '../cards/dock.ts';
 import { viewAt, cathPlace } from './presenter-machine.ts';
 import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, type CathPose } from './cath-clock.ts';
 import { tipCloseShot, closeUpOf } from './cath-shot.ts';
@@ -36,8 +37,11 @@ export function linkScene(): () => void {
     if (!moving && hold) { hold.release(); hold = null; }
   }, -10);
 
+  // the data card's dock as the last sync saw it: a change of it is a room change that refits, whether or not a glide announced it (a drag that lands fully shut or open has no glide, so no hint)
+  let dockWas = useUi.getState().dockShown;
   const sync = (stepped = false) => {
-    const { stops, pos, boxes } = useUi.getState();
+    const { stops, pos, boxes, dockShown } = useUi.getState();
+    const dockMoved = dockShown !== dockWas; dockWas = dockShown;
     if (!stops.length) return;
     const v = viewAt(stops, pos);
     const at = cathPlace(stops, pos);
@@ -60,7 +64,7 @@ export function linkScene(): () => void {
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
       if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
       else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room, want === v.shot);   // (the slide's own framing takes a slide's time; the catheter's tip close-ups keep the hand's glide)
-    } else if (stepped || !sceneApi.roomIs(room)) sceneApi.setRoom(room, undefined, stepped);   // (a step on to a slide with the same shot still brings the viewer's turn home; a dock glide that has landed where it told the camera to go asks for nothing more)
+    } else if (stepped || !sceneApi.roomIs(room)) { if (dockMoved && !stepped) sceneApi.setRoom(room, DOCK_MS, false, true, easeArrive); else sceneApi.setRoom(room, undefined, stepped); }   // (a step on to a slide with the same shot still brings the viewer's turn home; a dock glide that has landed where it told the camera to go asks for nothing more)
   };
 
   sync();
