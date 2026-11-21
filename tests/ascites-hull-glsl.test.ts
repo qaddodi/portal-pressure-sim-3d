@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
 import { outlinePolygon, wallDistance, fluidTone } from '../src/scene/disease/ascites.ts';
-import { GRAZE_CAP, HEADON_FORM, HI_ALPHA, HULL_FS, HULL_MID, HULL_TB_MAX, HULL_TF_MAX, HULL_VS, hullAlpha, hullVertex, type HullUniforms } from '../src/scene/disease/ascites-hull-glsl.ts';
+import { GRAZE_CAP, HEADON_FORM, OUTLINE_A, OUTLINE_DARK, OUTLINE_PX, HI_ALPHA, HULL_FS, HULL_MID, HULL_TB_MAX, HULL_TF_MAX, HULL_VS, hullAlpha, hullVertex, type HullUniforms } from '../src/scene/disease/ascites-hull-glsl.ts';
+import { FEATHER_PX } from '../src/scene/disease/ascites-pool.ts';
 import { FOV, SHOTS } from '../src/scene/camera/shots.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 
@@ -69,17 +70,26 @@ test('Living fluid off is flat: thickness 0 puts every vertex on the middle plan
   assert.equal(hullAlpha(0.4, 'front', 'front', 0, 0), 0.4, 'the front sheet is 2D\'s whole alpha');
 });
 
-test('head-on alpha is 2D\'s: the two layers stack to the pool\'s alpha, and the highlight adds at most 0.035 (exact with HEADON_FORM 0)', () => {
+test('head-on alpha is 2D\'s: the front sheet carries the whole alpha (so the organs under it are tinted as in 2D), the back sheet adds only when turned, the highlight adds at most 0.035', () => {
   for (const a2d of [0.1, 0.24, 0.4]) {
-    const front = hullAlpha(a2d, 'front', 'front', 1), back = hullAlpha(a2d, 'back', 'back', 1);
-    assert.ok(Math.abs(front - (1 - Math.sqrt(Math.max(0, 1 - a2d)))) < 1e-12);
-    assert.ok(Math.abs(1 - (1 - front) * (1 - back) - a2d) < 1e-12, 'the pair stacks to 2D');
+    const front = hullAlpha(a2d, 'front', 'front', 1);
+    assert.equal(front, a2d, 'the front sheet is 2D\'s whole alpha, living or not');
+    assert.equal(hullAlpha(a2d, 'back', 'back', 1), 0, 'head-on the back sheet adds nothing');
+    const turned = hullAlpha(a2d, 'back', 'back', 1, 0, HEADON_FORM, 1);
+    assert.ok(Math.abs(turned - (1 - Math.sqrt(1 - a2d))) < 1e-12 && turned > 0, 'turned it adds depth');
     const lit = hullAlpha(a2d, 'front', 'front', 1, 1, HEADON_FORM);
     assert.ok(lit - front <= HI_ALPHA * HEADON_FORM + 1e-12 && lit - front > 0);
     assert.equal(hullAlpha(a2d, 'front', 'front', 1, 1, 0), front, 'with form 0 it is exact');
   }
   assert.ok(Math.abs(HI_ALPHA * HEADON_FORM - 0.035) < 1e-12);
   assert.ok(fluidTone([1, 1, 1], 0.4, 0)[3] > 0);
+});
+
+test('a crisp cel edge: the water is full to a 2 px anti-aliased edge and an ink line lies on the wall (and on the silhouette when turned)', () => {
+  assert.ok(FEATHER_PX <= 3, 'no soft glow: the old 22 px fade left the flanks, where the colon lies, without water');
+  assert.ok(OUTLINE_PX >= 1.5 && OUTLINE_DARK < 0.6 && OUTLINE_A > 0.5);
+  assert.match(HULL_FS, /float onWall = 1\.0 - smoothstep\(/); assert.match(HULL_FS, /uInk \* /);
+  assert.match(HULL_FS, /#ifndef HULL_BACK\n  \/\/ the cel ink line/, 'the line is drawn once, with the front pass');
 });
 
 test('the programs: the world light, no rim, no hard step of colour, the rest eye and the grazing term only when turned', () => {

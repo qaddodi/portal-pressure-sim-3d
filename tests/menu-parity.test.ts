@@ -103,7 +103,7 @@ test('the swipe and the pushed page are driven by the one clock, in transform an
 });
 
 test('the sheet comes in as 2D rides it: a translate from its own height in --d-small, no fade, 8 px behind the thumb dock for a menu', () => {
-  const css = src('src/ui/shell/chrome-3d.css');
+  const css = src('src/ui/shell/menu-motion.css');
   assert.ok(/@keyframes mn-sheet-in \{ from \{ translate: 0 calc\(100% \+ var\(--ride-extra, 0px\)\); \} to \{ translate: 0 0; \} \}/.test(css));
   assert.ok(!/mn-sheet-in \{[^}]*opacity/.test(css), 'a sheet does not fade in');
   assert.ok(/\.umenu\.sheet \{ animation: mn-sheet-in var\(--d-small/.test(css) && /\.umenu\.sheet\.out \{ animation: mn-sheet-out var\(--d-small/.test(css));

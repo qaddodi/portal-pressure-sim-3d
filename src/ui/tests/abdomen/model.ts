@@ -71,6 +71,10 @@ export const RATE_ARROW = { up: '▲', down: '▼', steady: '' } as const;
 const sevTok = (s: string): string => (s === 'danger' ? 'danger' : s === 'caution' ? 'caution' : 'ok');
 const ink = (pal: Palette, tok: string): Rgba => (pal.has(`${tok}-ink`) ? pal.tok(`${tok}-ink`) : pal.tok(tok));
 
+/** The dial's readout stack, in the drawing's own units (76 × 128): the number's centre, half the height its digits take (25 u type, digits about 0.85 of the em), and the gap under it before the unit.
+ *  The unit's place is worked from the number's bottom edge, never from a fixed number: the small words grow when the dial is drawn small (the 12 px floor), and the old fixed 74 put them over the digits (Mohammad, iPhone, 21 Nov: "19 mmHg is overlapping"). */
+export const DIAL_NUM_Y = 63, DIAL_NUM_HALF = 0.5 * 25 * 0.85, DIAL_GAP = 3.5;
+
 /** The abdominal pressure as the left half of a dial: 0 at the bottom, 30 mmHg at the top, green below 12, amber to 20, red above; the coloured arc fills to the reading and a knob rides the ring.
  *  One drawing in a 76 × 128 box (2D iapDial), scaled to the box. `shown` is the knob's value as it glides, the reading otherwise. */
 export function dialFrame(iap: number, shown: number, w: number, h: number, pal: Palette): Frame {
@@ -100,8 +104,8 @@ export function dialFrame(iap: number, shown: number, w: number, h: number, pal:
   shapes.push({ k: 'circle', cx: X(kx), cy: Y(ky), r: 4.6 * k, fill: pal.tok('surface'), pen: { color: pal.tok(sevTok(sev)), w: 2.6 * k } });
   const sizeK = f / k;
   shapes.push({ k: 'text', x: X(TX), y: Y(43), s: 'IAP', size: Math.max(8.5, sizeK) * k, weight: 600, color: pal.tok('text-3'), anchor: 'middle', baseline: 'middle', ls: 0.12, key: 'key' });
-  shapes.push({ k: 'text', x: X(TX), y: Y(70), s: String(n), size: 25 * k, weight: 600, color: pal.tok('text'), anchor: 'middle', baseline: 'middle', ls: -0.02, key: 'n' });
-  const yu = 74 + 0.72 * Math.max(8.5, sizeK);
+  shapes.push({ k: 'text', x: X(TX), y: Y(DIAL_NUM_Y), s: String(n), size: 25 * k, weight: 600, color: pal.tok('text'), anchor: 'middle', baseline: 'middle', ls: -0.02, key: 'n' });
+  const yu = DIAL_NUM_Y + DIAL_NUM_HALF + DIAL_GAP + 0.5 * Math.max(8.5, sizeK);   // (the unit stands under the number's own bottom edge, whatever size the small words are drawn at)
   shapes.push({ k: 'text', x: X(TX), y: Y(yu), s: 'mmHg', size: Math.max(8.5, sizeK) * k, weight: 500, color: pal.tok('text-3'), anchor: 'middle', baseline: 'middle', key: 'unit' });
   const yw = yu + 3.5 + 0.72 * Math.max(9, sizeK);
   const word = (IAP_WORD as Record<string, string>)[sev]!, fw = Math.max(9, sizeK) * k;

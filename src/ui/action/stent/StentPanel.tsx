@@ -16,7 +16,7 @@ import { currentParams, updateParams, useParamsTick } from '../params.ts';
 import { OrderIcon } from '../icons.tsx';
 import { Icon } from '../../shell/icons.tsx';
 import { runFeature } from '../../shell/features.ts';
-import { registerPanel } from '../panels.ts';
+import { registerPanel, registerHead } from '../panels.ts';
 import { Chart } from '../../charts/Chart.tsx';
 import { stentState } from '../../charts/stent/model.ts';
 import { newKeep, tipsFigureFrame } from '../../tests/ir/tips-figure.ts';
@@ -230,10 +230,12 @@ function CardFigure({ id }: { id: string }) {
   const st = stentState(latest.frame, sid, currentParams() as never);
   const r = (v: number, k = 10) => Math.round(v * k);
   const sig = [st.have ? 1 : 0, r(st.flow, 100), r(st.dp), r(st.ppg), r(st.ivc), st.g.map((g) => r(g, 1)).join(), r(st.tract, 100), r(st.wall, 100), r(st.ends, 100), r(st.jet, 100), r(st.sh.len, 100), r(st.sh.waist, 100), r(st.sh.trans, 100), r(st.sh.red || 0, 1000), r(st.d), r(st.s, 1000), r(st.site, 1000)].join('|');
+  // the bracket row (the waist's and the end stenosis's brackets, 14 px) is there while a narrowing is: the card's figure eases its height by that much, and the picture slides with it
+  const open = (st.have && ((st.sh.red || 0) > 0.004 || st.s > 0.004)) ? 'true' : 'false';
   return (
-    <div className="tf tf-card">
-      <Chart tag="card-tips" deps={[sig, sid]} label={`${sid}, drawn to scale, with its pressures and velocities`}
-        build={(c) => tipsFigureFrame(stentState(latest.frame, sid, currentParams() as never), c, { lens: 'velocity', labels: true, chart: false, keep: keep.current })} />
+    <div className="tf tf-card" data-row={open}>
+      <div className="tf-in"><Chart tag="card-tips" deps={[sig, sid]} label={`${sid}, drawn to scale, with its pressures and velocities`}
+        build={(c) => tipsFigureFrame(stentState(latest.frame, sid, currentParams() as never), c, { lens: 'velocity', labels: true, chart: false, card: true, keep: keep.current })} /></div>
     </div>
   );
 }
@@ -244,10 +246,11 @@ export function StentPanel({ id }: { id: string }) {
   return (
     <div className="tv" style={{ ['--se-id' as string]: id } as CSSProperties}>
       {stent && <CardFigure id={id} />}
-      {stent && <VesselKeys id={id} />}
       <StentEditor id={id} />
     </div>
   );
 }
 
 registerPanel('stent', StentPanel);
+/** The TIPS and DIPS card's three readings stand in its header, between the name and the state (a custom shunt's card has none). */
+registerHead('stent', ({ id }: { id: string }) => (id === 'TIPS' || id === 'DIPS' ? <VesselKeys id={id} /> : null));

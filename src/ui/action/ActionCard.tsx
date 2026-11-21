@@ -4,18 +4,20 @@
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { SwitchNum } from '../patients/SwitchNum.tsx';
-import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { useActionRoom } from './action-room.ts';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import './action.css';
 import { OrderIcon } from './icons.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
-import { usesBottomBar, footHeight } from '../shell/room.ts';
+import { usesBottomBar, footHeight, pillSpace, topBarH } from '../shell/room.ts';
+import { cardMaxHeight } from './action-room-math.ts';
 import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
 import { appAct } from './act.ts';
 import { injectDye, releaseDye } from './dye.ts';
-import { panelFor } from './panels.ts';
+import { panelFor, headFor } from './panels.ts';
 import { currentParams, updateParams, useParamsTick } from './params.ts';
 import { envNow } from './env.ts';
 import { detailsFor } from './details.ts';
@@ -166,10 +168,11 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
   const st = snap.status;
   const rows = { read: [] as ReactNode[], about: [] as ReactNode[], ctl: [] as ReactNode[], act: [] as ReactNode[], panel: [] as ReactNode[] };
   verbs.forEach((v, i) => { if (snap.verbs[i]!.show) rows[kindOf(v)].push(<VerbView key={i} card={card} v={v} vs={snap.verbs[i]!} index={i} setRef={setRef} />); });
+  const panelVerb = verbs.find((v) => v.type === 'panel') as { id?: string } | undefined, Head = panelVerb ? headFor(panelVerb.id ?? 'stent') : undefined;
   return (
     <div className="ac-body" data-key={card.key}>
       <div className="ac-nr">
-        {onDetails ? <button type="button" className="ac-name ac-name-btn" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><Icon n="chev-right" className="ac-chev" /></button> : <span className="ac-name">{card.title}</span>}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
+        {onDetails ? <button type="button" className="ac-name ac-name-btn" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><Icon n="chev-right" className="ac-chev" /></button> : <span className="ac-name">{card.title}</span>}{Head && <Head id={card.edge ?? ''} />}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
       {card.span && snap.span ? <SpanBar card={card} snap={snap} />
         : snap.value && !card.noValue ? (
           <div className="ac-value"><span className="ac-num"><b><SwitchNum text={snap.value.v} /></b><span className="unit">{snap.value.u}</span></span>{snap.value.d && <span className={`ac-delta ${snap.value.up ? 'up' : 'down'}`}>{snap.value.d}</span>}</div>
@@ -186,6 +189,7 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
 export function ActionCard() {
   const sel = useSelection((s) => s.sel);
   const device = useUi((s) => s.device);
+  const vp = useUi((s) => s.vp);
   const bottom = usesBottomBar(device);
   const card = useMemo(() => cardFor(sel), [sel]);
   const [held, setHeld] = useState<Card | null>(null);   // the card on show, kept while it fades out
@@ -203,7 +207,15 @@ export function ActionCard() {
   const close = () => import('./selection.ts').then((m) => m.selectStructure(null));
   // a phone's sheet follows a pull down from anywhere on it and closes past a short pull or a flick (2D swipeSheet; shell/sheet-swipe.ts)
   useSheetSwipe(ref, () => { void close(); }, () => bottom);
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - (device === 'phone-landscape' ? 0 : 0)}px)` } : undefined;
+  // the card's height (from its own resize observer, no layout read) is the room it takes from the figure while it stands over it as a sheet
+  useLayoutEffect(() => {
+    const el = ref.current, set = useActionRoom.getState().set;
+    if (!el || !open || !bottom || typeof ResizeObserver !== 'function') { set(0); return; }
+    const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0]; set(Math.max(0, (b ? b.blockSize : es[0]?.contentRect.height ?? 0) - pillSpace()), true); });   // (the card stands over the view pill's slot: that much of it is not over the figure)
+    ro.observe(el);
+    return () => { ro.disconnect(); set(0); };
+  }, [open, bottom]);
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - pillSpace()}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, footHeight(device), pillSpace()) } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <div className="ac-grab" aria-hidden="true"><i /></div>

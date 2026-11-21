@@ -7,3 +7,11 @@ export function registerPanel(kind: string, view: ComponentType<{ id: string }>)
   return () => { if (panels.get(kind) === view) panels.delete(kind); };
 }
 export const panelFor = (kind: string): ComponentType<{ id: string }> | undefined => panels.get(kind);
+
+/** A panel's line for the card's header (the TIPS and DIPS card's three readings stand between its name and its state): a component registered with the panel's own kind. */
+const heads = new Map<string, ComponentType<{ id: string }>>();
+export function registerHead(kind: string, view: ComponentType<{ id: string }>): () => void {
+  heads.set(kind, view);
+  return () => { if (heads.get(kind) === view) heads.delete(kind); };
+}
+export const headFor = (kind: string): ComponentType<{ id: string }> | undefined => heads.get(kind);

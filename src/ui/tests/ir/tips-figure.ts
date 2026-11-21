@@ -49,7 +49,9 @@ export function subPaths(d: string): { pts: number[]; closed: boolean }[] {
 }
 
 /** What the frame is made from, and what it is told about the figure's kind (a vessel card's is the stent alone; Tests > IR > TIPS has the chart). */
-export interface FigOpts { lens: TipsLens; labels?: boolean; chart?: boolean; keep?: FigKeep }
+export interface FigOpts { lens: TipsLens; labels?: boolean; chart?: boolean; keep?: FigKeep; /** the vessel card's compact figure: the rows packed tighter (CARD_TOP, CARD_GATE) and the veins outlined as the stent is */ card?: boolean }
+/** The card figure's rows: the word row 7 px down and its bracket 15, the stent from 20, the gates' ticks 13 under it and 8 px under their numbers (the full figure keeps 9, 21, 26, 15 and 10). Its height is 20 + hvH + 13 + 8 = 41 + hvH. */
+export const CARD_ROWS = { labY: 7, brY: 15, top: 20, gate: 13, foot: 8 } as const;
 
 class Pic {
   shapes: Shape[] = [];
@@ -79,6 +81,7 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   const labels = o.labels !== false, chart = !!o.chart, keep = o.keep ?? newKeep();
   const W = Math.max(200, c.w);
   const L = figLayout(W, { labels, chart }) as Record<string, number>;
+  if (o.card && labels && !chart) { const half = L.hvH! / 2; L.labY = CARD_ROWS.labY; L.brY = CARD_ROWS.brY; L.cy = CARD_ROWS.top + half; L.gateY = L.cy + half + CARD_ROWS.gate; L.heroH = L.gateY + CARD_ROWS.foot; L.h = L.heroH; }
   const p = new Pic(c), id = st.id, ex = st.have ? 1 : 0, cm = o.lens === 'pressure' ? 1 : 0;
   const sh = st.sh, len = sh.len, s = st.s, site = st.site, d = st.d, k = L.k!, cy = L.cy!, x0 = L.x0!, x1 = L.x1!, span = x1 - x0, dPx = d * k, ivc = st.ivc;
   const rec = makeTrace(), tin = traceIn(st), t = traceFor(tin, rec);
@@ -100,6 +103,18 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   };
   vein(0, x0 + 2, cy - L.pvH! / 2, L.pvH!);
   vein(x1 - 2, W, cy - L.hvH! / 2, L.hvH!);
+  if (o.card) {   // (the cel veins: each a tube in its own tone, a pale band along its top and a faint shade under it, inked on both walls)
+    const tone = (n: string, fb: string): Rgba => c.pal.tok(c.pal.has(n) ? n : fb);
+    const tube = (xa: number, xb: number, hh: number, col: Rgba) => {
+      const y0 = cy - hh / 2, y1 = cy + hh / 2;
+      p.fillPoly([xa, y0, xb, y0, xb, y1, xa, y1], mul(col, 0.34));
+      p.fillPoly([xa, y0, xb, y0, xb, y0 + hh * 0.38, xa, y0 + hh * 0.38], [1, 1, 1, 0.16]);
+      p.fillPoly([xa, y1, xb, y1, xb, y1 - hh * 0.3, xa, y1 - hh * 0.3], [0, 0, 0, 0.07]);
+      for (const y of [y0, y1]) p.line([xa, y, xb, y], 'stent.lumen', 1);
+    };
+    tube(0, x0 + 2, L.pvH!, tone('tour-portal', 'text-3'));
+    tube(x1 - 2, W, L.hvH!, tone('tour-sys', 'text-3'));
+  }
 
   // the lumen, to scale; its colours along the picture's width (velocity: the scanner's against the stent's range; pressure: absolute)
   const edge = stentOutline(x0, span, cy, dPx, 0, s, sh, site), n = N_PROFILE;
@@ -119,6 +134,17 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
     p.fillPoly([...top, ...bot], slice(a, b));
   }
   p.poly(edge, 'stent.lumen', ex);
+  if (o.card) p.poly(edge, 'stent.dim', ex);   // (the cel ink round the lumen)
+  // a soft tube shading over the lumen's flat velocity colour: a pale band along its upper side and a faint shade along the lower, each fading toward the axis (the cel look's two soft tones, never a stripe)
+  const side = (up: boolean, col: Rgba, reach: number) => {
+    const edgePt = (i: number): [number, number] => { const q = up ? i : 2 * n + 1 - i; return [edge[2 * q]!, edge[2 * q + 1]!]; };
+    const midPt = (i: number): [number, number] => { const a = edgePt(i), j = 2 * n + 1 - (up ? i : 2 * n + 1 - i), b: [number, number] = [edge[2 * j]!, edge[2 * j + 1]!]; return [a[0] + (b[0] - a[0]) * reach, a[1] + (b[1] - a[1]) * reach]; };
+    const out: number[] = [];
+    for (let i = 0; i <= n; i++) out.push(...edgePt(i));
+    for (let i = n; i >= 0; i--) out.push(...midPt(i));
+    p.fillPoly(out, col);
+  };
+  if (ex > 0.01) { side(true, [1, 1, 1, 0.2 * ex], 0.42); side(false, [0, 0, 0, 0.09 * ex], 0.38); }
 
   // The stent as a cut view (stent-mesh.js stentCutD): only its wall on each side, the cover's thin bands and the rings along them, so the lumen shows whole and a narrowing pinches the wall with it.
   const frameAt = (a: number, side: number): [number, number] => { const u = a / span; return [x0 + a, cy + (side * (dPx * profileAt(sh, s, site, u))) / 2]; };

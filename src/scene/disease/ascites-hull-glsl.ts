@@ -9,7 +9,7 @@
 //     lid, and a grazing-depth tint that exists only when turned. No bands, no rim, no new outline: the flank line stays the one ink line.
 // One mesh, two materials from these two programs: BackSide (define HULL_BACK: the back sheet, drawn before the organs) and FrontSide (the front sheet and the lid, after them).
 // The constants of the hull's layout (HULL_MID, HULL_TF_MAX, HULL_TB_MAX) are ascites-hull.ts's HULL set, once (tests/ascites-hull-integration.test.ts pins it). This file imports ascites-pool.ts and ascites-hull.ts, never ascites.ts (which imports it).
-import { CLIMB_FALL_PX, CLIMB_PX, FEATHER_PX, POOL_BASE_GLSL, POOL_COMMON_GLSL, RICH_SAT, RIPPLE_AMP2D, RIPPLE_DEPTH, RIPPLE_PX, f, poolLift } from './ascites-pool.ts';
+import { CLIMB_FALL_PX, CLIMB_PX, POOL_BASE_GLSL, POOL_COMMON_GLSL, RICH_SAT, RIPPLE_AMP2D, RIPPLE_DEPTH, RIPPLE_PX, f, poolLift } from './ascites-pool.ts';
 import { HULL } from './ascites-hull.ts';
 import { LIVER_CUT_VS_DECL, LIVER_CUT_VS_MAIN } from './liver-edge.ts';
 
@@ -18,6 +18,8 @@ export const HULL_MID: number = HULL.MID, HULL_TF_MAX: number = HULL.TF_MAX, HUL
 /** The face highlight: the share of it kept head-on (the one deliberate head-on change; 0 keeps head-on pure 2D), its strength, its tightness, and the share of the alpha it adds. */
 export const HEADON_FORM = 0.35, HI_MIX = 0.45, HI_ALPHA = 0.10, HI_POWER = 24;
 /** The grazing tint (only when turned): how far toward the rich amber, how much more alpha, and the most alpha as a share of the ink's. */
+/** The cel ink line of the water: its width in CSS px on the wall line, how dark (a share of the straw, kept amber), its opacity, and the silhouette's share when turned. The highlight keeps the old soft 22 px fade from the wall. */
+export const OUTLINE_PX = 2.2, OUTLINE_DARK = 0.42, OUTLINE_A = 0.8, HI_FEATHER_PX = 22;
 export const GRAZE_TINT = 0.5, GRAZE_ALPHA = 0.35, GRAZE_CAP = 1.4;
 
 export const HULL_VS = /* glsl */ `
@@ -96,12 +98,12 @@ void main() {
   poolBase(max(vD, 0.0), max(vE, 0.0), lid ? mix(0.5, 1.0, (vK + 1.0) * 0.5) : 1.0);
   vec3 c = gl_FragColor.rgb;
   float a0 = gl_FragColor.a;
-  // each of the two layers a ray crosses takes the half of the alpha that stacks to 2D's one
+  // the front sheet carries 2D's WHOLE alpha, so over the organs (opaque: they hide the back sheet) the water is exactly 2D's tint, the colon and the gut included; the back sheet and the lid add depth only as the view turns (uOff), eased by the camera
   float halfA = 1.0 - sqrt(max(1.0 - a0, 0.0));
 #ifdef HULL_BACK
-  float a = lid ? 0.0 : halfA * uLiving;
+  float a = lid ? 0.0 : halfA * uLiving * uOff;
 #else
-  float a = frontSheet ? mix(a0, halfA, uLiving) : halfA * uLiving;
+  float a = frontSheet ? a0 : halfA * uLiving;
 #endif
   vec3 N = normalize(vN);
   vec3 V = normalize(vV);
@@ -109,7 +111,7 @@ void main() {
   // one soft glossy highlight from the world light: a faint sheen head-on, sliding across the swell as it turns
   float sp = pow(max(dot(N, normalize(uLight + V)), 0.0), ${f(HI_POWER)});
   float form = mix(${f(HEADON_FORM)}, 1.0, uOff);
-  float hk = sp * form * uOpacity * uLiving * mix(1.0, smoothstep(0.0, ${f(FEATHER_PX)}, vW * vPxu), uLiving) * liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
+  float hk = sp * form * uOpacity * uLiving * mix(1.0, smoothstep(0.0, ${f(HI_FEATHER_PX)}, vW * vPxu), uLiving) * liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
   c = mix(c, vec3(1.0), ${f(HI_MIX)} * hk);
   a += ${f(HI_ALPHA)} * hk * (1.0 - a);
 #endif
@@ -121,6 +123,14 @@ void main() {
     c = mix(c, rich, ${f(GRAZE_TINT)} * g * uOff);
     a = min(a * (1.0 + ${f(GRAZE_ALPHA)} * g * uOff), max(a, ${f(GRAZE_CAP)} * uInkA * uOpacity));
   }
+#ifndef HULL_BACK
+  // the cel ink line: along the wall line (the flank) and, turned, along the curved silhouette; the water's own amber, darkened, over a crisp edge
+  float onWall = 1.0 - smoothstep(${f(OUTLINE_PX * 0.5)}, ${f(OUTLINE_PX)}, vW * vPxu);
+  float onSil = (1.0 - smoothstep(0.12, 0.3, abs(dot(N, V)))) * uOff;
+  float ol = max(onWall, onSil) * uLiving * (lid ? 0.0 : 1.0) * liverKeep(vW2d, 1.0 / max(vPxu, 1e-3));
+  c = mix(c, uInk * ${f(OUTLINE_DARK)}, ol);
+  a = mix(a, max(a, ${f(OUTLINE_A)} * uOpacity), ol);
+#endif
   gl_FragColor = vec4(c, a);
 }`;
 /** One program, two materials (the GLSL compile test builds both): the BackSide one is built with `HULL_BACK` defined. */
@@ -145,9 +155,9 @@ export function hullVertex(v: HullVertexIn, u: HullUniforms): [number, number, n
   return [ex + (v.x - ex) * s, ey + (y - ey) * s, z];
 }
 /** The fragment program's alpha (the part the tests judge): `a2d` is the pool's one alpha, `kind` the piece, `pass` the material; `hk` the highlight's strength 0..1 (before its form share), `form` its share (HEADON_FORM at rest). */
-export function hullAlpha(a2d: number, kind: 'front' | 'back' | 'lid', pass: 'front' | 'back', living: number, hk = 0, form = HEADON_FORM): number {
+export function hullAlpha(a2d: number, kind: 'front' | 'back' | 'lid', pass: 'front' | 'back', living: number, hk = 0, form = HEADON_FORM, off = 0): number {
   const half = 1 - Math.sqrt(Math.max(0, 1 - a2d));
-  let a = pass === 'back' ? (kind === 'lid' ? 0 : half * living) : kind === 'front' ? a2d + (half - a2d) * living : half * living;
+  let a = pass === 'back' ? (kind === 'lid' ? 0 : half * living * off) : kind === 'front' ? a2d : half * living;
   if (pass === 'front') a += HI_ALPHA * hk * form * living * (1 - a);
   return a;
 }

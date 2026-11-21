@@ -74,8 +74,8 @@ export const hexTo01 = (hex: string): [number, number, number] => { const n = pa
 // SIZES ARE SCREEN PIXELS, not 2D units (the 3D pool's first pass set them in 2D units and nothing read on an iPhone: the figure is about 0.6 CSS px per unit there, so a 2-unit
 // ripple, a 2-unit pale line and a 4-unit climb were each about a pixel, owner's phone shot of 20 Nov: "a flat muddy wash"). The vertex shader finds the pixels per 2D unit where it
 // is drawn (`pxu`, from the projection and the canvas height in CSS px) and converts, so the effects are the same weight on every screen and figure size.
-/** CSS px from the wall over which the pool fades out, and over which the surface's ripple is rested against the wall. */
-export const FEATHER_PX = 22, RIPPLE_REST_PX = 30;
+/** CSS px from the wall over which the pool fades out (22 until 21 Nov: a soft glow with no edge, and the water missing along the flanks where the colon lies; now just an anti-aliased edge, the ink line is the hull's: ascites-hull-glsl.ts OUTLINE_PX), and over which the surface's ripple is rested against the wall. */
+export const FEATHER_PX = 2, RIPPLE_REST_PX = 30;
 /** The surface climbs the wall by CLIMB_PX at the wall, falling off by exp(-distance / CLIMB_FALL_PX); only the top RIPPLE_DEPTH 2D units of the water move with the surface. */
 export const CLIMB_PX = 7, CLIMB_FALL_PX = 9, RIPPLE_DEPTH = 16;
 /** The ripple's crest-to-mean at 2D's full amplitude (2 units): never less than 2D's own units, and at least this many CSS px (so it reads on a phone). */
