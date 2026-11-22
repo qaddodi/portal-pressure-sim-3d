@@ -108,7 +108,8 @@ uniform sampler2D map;
 uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
 uniform float mixB;
 uniform float opacity;
-uniform sampler2D mapC;    // the collagen layer (collagen-paint.ts: the septa, the tracts and the vein's wall at their fullest), and mapCB its twin for a crossfade (the same texture when only the tissue changed)
+uniform sampler2D mapC;    // the collagen layer (collagen-paint.ts: the septa, the tracts and the vein's wall at their fullest)
+uniform sampler2D mapCB;   // its twin for a crossfade (the same texture when only the tissue changed); sampled in plateAt, so it must be declared (Plan 28: it was not, and the device refused the program)
 uniform sampler2D mapT;    // its arrival times (collagen-tau.ts): R septa, G tracts, B the vein's cuff and ring; 255 never
 uniform vec3 uP;           // the growth of the three channels now (growth.ts: eased on the clock, so a change of fibrosis shows more or less of the one layer and repaints nothing)
 uniform vec3 uBase;     // the tissue the plate lies on (the cells' tone): the scar of the central vein, which lies over a pool and not over cells, takes the collagen over it

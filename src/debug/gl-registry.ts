@@ -96,6 +96,7 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('skin (inspector)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_DEBUG: 1 }),
     lateMaterialProgram('skin (inspector, no marks)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOMARKS: 1 }),
     lateMaterialProgram('skin (inspector, no ink)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOINK: 1 }),   // (spec 10.4: one source, three programs: the front copy is the one above)
+    lateMaterialProgram('lobule plate', LOBULE_PLATE_VS, LOBULE_PLATE_FS),   // (the plate is mounted only with the lobule view: Plan 28, an undeclared mapCB reached a phone because no node run ever held this program)
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),
     lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),
