@@ -17,6 +17,7 @@ import { useTestsRoom } from '../../ui/tests/room.ts';
 import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { scopeClaims } from './scope-claims.ts';
+import { creditClaim } from './credit-claim.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { labelsShown } from '../../boot/ready.ts';
 import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.ts';
@@ -148,7 +149,7 @@ export function LabelLayer() {
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
       view: () => labelView(ui.getState().vp, BAR, useTestsRoom.getState().place),
-      blockers: () => { return [...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes, ...scopeClaims.boxes]; },
+      blockers: () => { return [...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes, ...scopeClaims.boxes, ...creditClaim.boxes]; },
       measure: makeMeasure(),
       drawn: (v) => { const f = latest.frame; return f ? presenceOf(v as never, f as unknown as PresenceFrame, { collaterals: false }) === 'shown' : v.kind !== 'collateral' && v.kind !== 'shunt'; },
       figureH: () => { const a = sceneApi.project(plateTop, plateA), b = sceneApi.project(plateBottom, plateB); return Math.abs(b.y - a.y); },

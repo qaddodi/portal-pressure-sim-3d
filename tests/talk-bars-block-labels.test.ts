@@ -1,5 +1,5 @@
 // 21 Nov, review of "Collaterals and varices": the STOMACH name stood behind the presenter bar and the left gastric vein's name on the deck's title. Root cause: the plan keeps the figure's room
-// clear of the bar and the title (plan.ts), but the store published only words, data and strip, and each label layer listed those three itself. One list now (`talkRects`), bar and title in it.
+// clear of the bar (plan.ts; the deck's title stands inside the words card since the BarPlace had no title of its own, c9c09d9f, so it is one of the cards' own rects), but the store published only words, data and strip, and each label layer listed those three itself. One list now (`talkRects`), bar and title in it.
 // Also: a first value on a time-lapse chart never stands on its own ring while a clear place exists (plot/labels.ts had no place left of or centred on the ring).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,13 +9,13 @@ import { placeStarts } from '../src/ui/charts/plot/labels.ts';
 
 const r = (x: number, y: number, w: number, h: number) => ({ x, y, w, h });
 
-test('the presenter bar and the deck title are published and are blockers with the cards', () => {
+test('the presenter bar is published and are blockers with the cards', () => {
   const ui = useUi.getState();
   ui.openDeck({ id: 'x' } as never);
-  ui.publishPlan({ cards: [{ slot: 'words', rect: r(20, 120, 360, 300) }], strip: null, free: r(380, 0, 520, 800), docked: false, bar: { edge: 'foot', rect: r(900, 740, 300, 48), title: r(500, 740, 380, 48) } } as never);
+  ui.publishPlan({ cards: [{ slot: 'words', rect: r(20, 120, 360, 300) }], strip: null, free: r(380, 0, 520, 800), docked: false, bar: { edge: 'foot', rect: r(900, 740, 300, 48) } } as never);
   const b = useUi.getState().boxes;
-  assert.equal(b.bars.length, 2);
-  assert.deepEqual(talkRects(b), [r(20, 120, 360, 300), r(900, 740, 300, 48), r(500, 740, 380, 48)]);
+  assert.equal(b.bars.length, 1);
+  assert.deepEqual(talkRects(b), [r(20, 120, 360, 300), r(900, 740, 300, 48)]);
   useUi.getState().openDeck(null);
   assert.deepEqual(talkRects(useUi.getState().boxes), []);
 });
