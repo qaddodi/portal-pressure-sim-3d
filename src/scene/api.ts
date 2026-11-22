@@ -145,6 +145,7 @@ export const sceneApi = {
     if (homeTurn) gesturesRef.current?.turnOff();
     // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
     if (cel.view === 'sinusoid' && stagePortrait() !== cel.isPortrait) { this.goTo(sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)), room, ms); return; }
+    cel.holdRoom(room);   // (a dive waiting for the lobule's parts lands in the room the cards leave now)
     cel.rig.setRoom(room, clock.now(), ms, homeTurn, refit, ease ?? null);
     clock.invalidate('room');
   },

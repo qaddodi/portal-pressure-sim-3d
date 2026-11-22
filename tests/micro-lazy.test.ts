@@ -12,12 +12,12 @@ const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
 test('the scene does not construct the 3D parts in its constructor', () => {
   assert.equal((scene.match(/new Sinusoid3D\(/g) ?? []).length, 1);
   assert.equal((scene.match(/new Lobule3D\(/g) ?? []).length, 1);
-  const build = scene.slice(scene.indexOf('private buildMicro()'), scene.indexOf('buildMicroIdle()'));
+  const build = scene.slice(scene.indexOf('private buildMicro()'), scene.indexOf('buildMicroIdle(urgent'));
   assert.match(build, /this\.makeSinus\(\)/); assert.match(build, /new Lobule3D\(/);   // (the sinusoid's constructor is a step of its own: makeSinus)
 });
 
 test('a view change to the lobule or sinusoid builds them before anything draws', () => {
-  assert.match(scene, /if \(v === 'lobule' \|\| v === 'sinusoid'\) this\.buildMicroIdle\(\);/);
+  assert.match(scene, /if \(v === 'lobule' \|\| v === 'sinusoid'\) this\.buildMicroIdle\(true\);/);
   assert.match(scene, /get sinus3d\(\): Sinusoid3D \{ return this\.buildMicro\(\)\.sinus; \}/);
   assert.match(scene, /get lobule3d\(\): Lobule3D \{ return this\.buildMicro\(\)\.lobule; \}/);
 });
