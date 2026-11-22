@@ -76,7 +76,7 @@ test('the marks run on through the junction: each arm\'s dust and heads, in its 
   assert.match(shade, /hd \+= clamp\(hdB, 0\.0, 1\.0\) \* jGateB \* \(1\.0 - hd\.a\);/);
   // the second arm's state is loaded for its marks and the first's put back
   assert.equal(shade.match(/loadEdgeFS\(int\(jRowB \+ 0\.5\)\);/g)?.length, 2);
-  assert.equal(shade.match(/loadEdgeFS\(int\(vEdge\.x \+ 0\.5\)\);/g)?.length, 2);
+  assert.equal(n(shade, /loadEdgeFS\(int\(vEdge\.x \+ 0\.5\)\);/g), n(NET_FS, /loadEdgeFS\(int\(vEdge\.x \+ 0\.5\)\);/g) + 2);
   // the gates and the second arm are set by the march before netShade runs
   const main = JUNC_FS.slice(JUNC_FS.lastIndexOf('void main() {'));
   assert.ok(main.indexOf('vMarkE = vec2(1.0 - smoothstep(0.0, gate, dA), rowA);') < main.indexOf('netShade();'));
