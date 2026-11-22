@@ -1,5 +1,6 @@
 // The HVPG's amber column is a tint on the vessels themselves (20 Nov 2026: "highlight everything beyond the wedge including all branches of the right hepatic vein and fade out with them"): every vessel
 // upstream of the balloon in the vein the tip is in, never a separate tube that can leave the vein.
+import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
@@ -94,7 +95,7 @@ test('ONE front: coverage only ever grows as the column fills, is continuous alo
 });
 
 test('the tube and the skin shaders read the same field and the same cover function', () => {
-  const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const sh = VESSEL_FS;   // (the assembled program: the wedge's cover rule lives in a shared chunk, which the vessel and net shaders both splice in)
   const sk = readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
   assert.match(sh, /wedge\.x \* wedgeCover\(wedgeD\.x \+ wedgeD\.y \* vUv\.x, vec3\(wedge\.y, wedgeD\.z, wedgeD\.w\)\)/);
   assert.match(sk, /wedgeS\.x \* clamp\(pwS, 0\.0, 1\.0\) \* wedgeCover\(dwS \/ pwS, vec3\(wedgeS\.y, wedgeS\.z, wedgeS\.w\)\)/);
@@ -138,7 +139,7 @@ test('the front is linear in the column (one ease, the clock\'s): equal steps of
 });
 
 test('the amber is partly see-through and lies UNDER the outline, in the tubes and the skins; the sclerosant column runs on across the route\'s parts', () => {
-  const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const sh = VESSEL_FS;   // (the assembled program: the wedge's cover rule lives in a shared chunk, which the vessel and net shaders both splice in)
   const sk = readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
   const wg = readFileSync(new URL('../src/scene/vessels/wedge-glsl.ts', import.meta.url), 'utf8');
   const a = Number(wg.match(/const float WEDGE_A = (\d*\.?\d+);/)?.[1]);
