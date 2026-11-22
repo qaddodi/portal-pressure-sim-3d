@@ -61,3 +61,8 @@ export function keyModel(lens: string | null, look: LookId): KeyModel | null {
 }
 
 export const KEY_LENSES: readonly string[] = Object.keys(LABEL_NAMES.LENS_KEY);
+
+/** Where a lens's key stands (Mohammad, 22 Nov: "just choose best location"). The stream lenses name the same things the instrument card beside them counts (Origin: the inflows, First pass: the clearance), so
+ *  their key is the first row of that card and comes and goes with it; a ramp (pressure, drop, flow, heat) explains the figure's colouring, so it stands in the foot of the story card (key-dock.ts). docs/HUMANIZED-DESIGN.md has the rule. */
+export const CARD_KEY_LENSES: readonly string[] = ['origin', 'firstpass'];
+export const keyPlace = (lens: string): 'card' | 'dock' => (CARD_KEY_LENSES.includes(lens) ? 'card' : 'dock');
