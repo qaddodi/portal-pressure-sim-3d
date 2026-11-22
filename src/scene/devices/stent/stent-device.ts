@@ -13,7 +13,7 @@ import { DeviceObject } from '../device-object.ts';
 import { stentGraftEdge, stentGoldEdge, stentWireEdge } from './stent-look.ts';
 import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
 import { rawColor } from '../../materials/cel.ts';
-import { STENT_CHAMPAGNE, STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
+import { bareHalfWidths, STENT_CHAMPAGNE, STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
