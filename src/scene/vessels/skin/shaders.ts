@@ -75,9 +75,9 @@ const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ lengt
 const COPY_OF = (i: number): string => `armCopy[${i}][SKIN_COPY]`;
 
 export const SKIN_VS = /* glsl */ `
-uniform vec2 skinMap;    // (x) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1); (y) 1 on the Circuit's own skins (circuit/skins.ts): the map's widths, its bolder line and inner line, in over the end of the change. A uniform, not a define: the map's skins share the body's programs (skin-object.ts)
-#define SKIN_U skinMap.x
-#define skinCirc skinMap.y
+uniform vec4 skinKW;     // (x, y, z: the blend width and the weld pair, below) (w) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1) with its SIGN flipped: negative is the Circuit's own skins (circuit/skins.ts: the map's widths, its bolder line and inner line, in over the end of the change). A uniform, not a define: the map's skins share the body's programs (skin-object.ts). One slot for both: the fragment stage is held under 120 uniform vectors (tests/skin-shaders.test.ts)
+#define SKIN_U abs(skinKW.w)
+#define skinCirc (skinKW.w < 0.0 ? 1.0 : 0.0)
 attribute vec3 cen;      // the nearest point on the nearest arm's axis: the depth and the lumen's centre, as a tube's ring centre is
 attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 to 3; the six sum to 1, arm order)
 attribute vec2 weight2;  // arms 4 and 5
@@ -199,9 +199,9 @@ ${CEL_LIGHT_GLSL}
 ${VDBG_GLSL}
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
-uniform vec2 skinMap;    // (x) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1); (y) 1 on the Circuit's own skins (circuit/skins.ts): the map's widths, its bolder line and inner line, in over the end of the change. A uniform, not a define: the map's skins share the body's programs (skin-object.ts)
-#define SKIN_U skinMap.x
-#define skinCirc skinMap.y
+uniform vec4 skinKW;     // (x, y, z: the blend width and the weld pair, below) (w) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1) with its SIGN flipped: negative is the Circuit's own skins (circuit/skins.ts: the map's widths, its bolder line and inner line, in over the end of the change). A uniform, not a define: the map's skins share the body's programs (skin-object.ts). One slot for both: the fragment stage is held under 120 uniform vectors (tests/skin-shaders.test.ts)
+#define SKIN_U abs(skinKW.w)
+#define skinCirc (skinKW.w < 0.0 ? 1.0 : 0.0)
 uniform vec3 inkColor;
 uniform vec3 inkColorCirc;
 uniform float circT;
@@ -219,7 +219,7 @@ uniform vec2 res;
 uniform float dpr;
 uniform float projY;
 uniform float hiPx;
-uniform float lensUse;
+#define lensUse 1.0   // (the skin's own lens flag was a uniform that was always 1; the per-arm flag is multiplied in: armColor.a. A slot saved: tests/skin-shaders.test.ts)
 uniform float lensMix;
 uniform float lensTail;
 uniform float lensSmooth;
@@ -238,7 +238,6 @@ uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres)
 uniform vec4 armCopy[${SKIN_ARMS}];   // each arm's shares of the three copies (xyz: front, solid, veil: vessel-object.ts copyShares; this program is ONE of them, SKIN_COPY) and in w the arm it runs THROUGH the node with (through.ts), or -1: their union is a plain minimum (one vec4, because a float array costs a whole vector a slot)
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
-uniform vec3 skinKW;
 #define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
 uniform vec4 armFlow[2];    // each arm tube's flowAmount, six floats PACKED in two vectors (a float array costs a whole vector a slot: the fragment stage is held to 120 vectors, tests/skin-shaders.test.ts); read with armFlowAt

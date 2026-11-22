@@ -331,7 +331,7 @@ test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the 
 
 test('the fragment outline of a static skin has no growth: no SKIN_GROW define, and the weld discard is the tubes\' own dither', async () => {
   const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
-  assert.match(SKIN_FS, /uniform vec3 skinKW;/);
+  assert.match(SKIN_FS, /uniform vec4 skinKW;/);
   assert.match(SKIN_FS, /skinKW\.y > 0\.0 \? wh >= skinKW\.z : wh < skinKW\.z/);
 });
 

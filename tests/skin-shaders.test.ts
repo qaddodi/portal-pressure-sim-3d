@@ -38,7 +38,7 @@ test('the skin asks no more of the GPU than the floor, and the fragment stage le
 test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () => {
   const u = new Map(declarations(SKIN_FS).filter((d) => d.storage === 'uniform').map((d) => [d.name, d]));
   const want: Array<[string, string, number]> = [
-    ['armData', 'vec4', SKIN_ARMS], ['armAF', 'vec4', SKIN_ARMS], ['armAxisP', 'vec4', SKIN_ARMS * 4], ['skinKW', 'vec3', 1],
+    ['armData', 'vec4', SKIN_ARMS], ['armAF', 'vec4', SKIN_ARMS], ['armAxisP', 'vec4', SKIN_ARMS * 4], ['skinKW', 'vec4', 1],
   ];
   for (const [name, type, n] of want) {
     const d = u.get(name);
