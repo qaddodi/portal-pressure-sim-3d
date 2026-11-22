@@ -122,7 +122,7 @@ test('every file that holds GLSL is compiled: on the closed hand list, or giving
   assert.ok(hand.length > 20, 'the hand list is still found by the scan');
   for (const f of Object.keys(GL_FILES)) assert.ok(statSync(join('src', f)).isFile(), `${f} is listed but does not exist`);
   assert.ok(fresh.includes('scene/glow-fx.ts'), 'the glow\'s passes are found by the scan, not listed by hand');
-  assert.ok(programs.some((p) => p.name === 'glow blur') && programs.some((p) => p.name === 'glow lay'), 'and compiled');
+  assert.ok(programs.some((p) => p.name === 'glow blur') && programs.some((p) => p.name.startsWith('glow lay')), 'and compiled');
 });
 
 test('the ?gl page reads the same scan: the build makes `virtual:gl-modules` from scripts/gl-scan.mjs and the check imports it, so a new shader file is checked on the device with nothing registered', () => {

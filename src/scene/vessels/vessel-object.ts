@@ -88,6 +88,8 @@ export interface ReshapeFrame { arrays: Map<string, Float32Array>; length: numbe
 
 /** The camera layer nothing is drawn from: the cava's solid mesh, kept only to be picked. */
 export const FAINT_ONLY_LAYER = 2;
+/** The draw order of a vessel's veil copy (over the organs, after the vessels): what a clot in a vein behind the organs follows (disease/clots.ts). */
+export const VEIL_ORDER = 2;
 /** The copies' shares of a vessel that is not behind the organs, or one that is shown whole: its front copy alone (`copyShares`). */
 const COPIES_FRONT: readonly [number, number, number] = [1, 0, 0];
 
@@ -400,7 +402,7 @@ export class VesselObject extends CelObject {
     const mat = markBlends(new ShaderMaterial({ name: 'vessel veil', vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } }));
     if (this.tip) setBlendState(mat, true);   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
-    mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;
+    mesh.matrixAutoUpdate = true; mesh.renderOrder = VEIL_ORDER; mesh.frustumCulled = false;
     mesh.layers.set(overLayer);
     this.group.add(mesh);
     this.veil = { mesh, mat, overLayer, faint, whole: false };

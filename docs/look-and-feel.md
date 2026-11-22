@@ -142,7 +142,7 @@ Safe areas are always respected (59 px at the sides in landscape, 59 top and 34 
 A selection is a **glow, not an outline** (owner, 20 Nov: "instead of an outline, make it a glow"): a soft halo in the item's own tone (lifted on the dark looks), brightest at its edge and thinning to nothing a short way
 out. The picked vein, shunt or TIPS (every piece the engine cuts it into) glows along its own course and **fades away toward both ends** (nothing but the tapped vessel; 2.4 scene units downstream once lit the cava, the shunts
 and every collateral); a tapped organ, a slide's pinned organ and a tapped lobule part glow the same way. It eases in and out, and the vessel lifts a hair. Nothing is outlined thicker or recoloured. `src/scene/glow.ts` (vessels),
-`highlight.ts` ORGAN_GLOW (organs, a few hulls of growing width), `lobule/mark.ts` (the lobule's ribbon). The Circuit lays the vessels out afresh and shows no glow. **Nothing else is dimmed.** The data card
+`organs/glow-mask.ts` (organs: a mask of the organ, blurred by the same glow-fx.ts pipeline at the same sigma, laid behind the vessels), `lobule/mark.ts` (the lobule's ribbon). The Circuit lays the vessels out afresh and shows no glow. **Nothing else is dimmed.** The data card
 names the vessel, its pressure and flow, and the gradient with words ("PPG 14 · high").
 
 ## 10. Contrast

@@ -14,6 +14,7 @@ import { RES_FS, RES_VS, RESISTOR_FLAGS } from '../circuit/resistors.ts';
 import { JET_INK_FLAGS, JET_INK_FS, JET_INK_VS } from '../disease/bleed.ts';
 import { ClotObject, clotGeometry } from '../disease/clots.ts';
 import { HALO_FLAGS } from '../highlight.ts';
+import { ORGAN_MASK_FLAGS, ORGAN_MASK_FS, ORGAN_MASK_VS } from '../organs/glow-mask.ts';
 
 /** One triangle with the attributes any of these shaders declares (a program's compile reads none of them). */
 const triangle = (extra: readonly [string, number][] = []): BufferGeometry => {
@@ -39,6 +40,8 @@ export function programPrototypes(shared: CelShared): Group {
   add('circuit resistors', triangle(), new ShaderMaterial({ name: 'circuit resistors', vertexShader: RES_VS, fragmentShader: RES_FS, ...RESISTOR_FLAGS, uniforms: {} }));
   // the blood streaks (Settings > Figure depth, made when first switched on)
   add('blood streaks', triangle([['aB', 4]]), new ShaderMaterial({ name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, ...STREAK_FLAGS, uniforms: {} }), true);
+  // an organ's glow mask (made when an organ is first lit: organs/glow-mask.ts)
+  add('organ glow mask', triangle(), new ShaderMaterial({ name: 'organ glow mask', vertexShader: ORGAN_MASK_VS, fragmentShader: ORGAN_MASK_FS, ...ORGAN_MASK_FLAGS, uniforms: {} }));
   // the bleed jet's ink (made when a bleed first shows; its fill is the device toon the scene holds)
   add('bleed jet ink', triangle([['tang', 3], ['ik', 1]]), new ShaderMaterial({ name: 'bleed jet ink', vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, ...JET_INK_FLAGS, uniforms: {} }));
   // a clot (made when a thrombus first shows): the real class on the real geometry function (a tube of rings: its program has the vessels' tube tones)
@@ -48,7 +51,7 @@ export function programPrototypes(shared: CelShared): Group {
   return root;
 }
 
-/** The organs' glow shells and the spleen's normal-range ring (made when an organ is first highlighted): the organ's own ink shaders, blended and drawn on the back faces. The organs arrive after their
+/** The spleen's normal-range ring (made when it is first shown): the organ's own ink shaders, blended and drawn on the back faces. The organs arrive after their
  *  geometry and art files do, so these are added to the stand-ins then (scene.ts organsBuilt), and the warm-up that waits for the organs compiles them with the organs' own programs. */
 export function addOrganHalos(root: Group, organs: readonly CelObject[]): void {
   const seen = new Set(root.children.filter((c) => c.name.startsWith('prototype/organ halo')).map((c) => c.userData.key as string));
