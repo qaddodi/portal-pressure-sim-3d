@@ -29,11 +29,11 @@ function septumPath(o: BandOpt, u: number, out: number[]): void {
 
 /** Every septum of the lobule at full cirrhosis (su 1: paintLobule's widths 0.045 + 0.075 su, the bridges' 0.6 + 0.3 g, the spurs' length 0.25 + 0.3), in the painter's drawing order. */
 export function septaBands(G: CollagenShape, rgb: ArrayLike<number> | null = null): BandSpec[] {
-  const R = G.R, w = R * 0.12, crn = G.lobules[0]!.corners, out: BandSpec[] = [];
+  const R = G.R, w = R * 0.12, wHex = R * 0.2, wPC = R * 0.14, crn = G.lobules[0]!.corners, out: BandSpec[] = [];
   const opt = (ww: number, a: number, e1: number, amp: number, seed: number, pts: P2[] | null): BandOpt => ({ w: ww, rgb, a, e0: 1.5, e1, amp, seed, pts, path: pts ? septumPath : null });
-  for (let i = 0; i < crn.length; i++) out.push({ kind: 'hex', A: crn[i]!, B: crn[(i + 1) % 6]!, o: opt(w, 1, 1.5, R * 0.025, 11 + i, null) });
-  for (let k = 0; k < G.septaPC.length; k++) { const pts = G.septaPC[k]!.pts; out.push({ kind: 'pc', A: pts[0]!, B: pts[pts.length - 1]!, o: opt(w * 0.9, 0.95, 0.9, 0, 31 + k, pts) }); }
-  for (let k = 0; k < 3; k++) { const A = crn[SPURS[k]!]!; out.push({ kind: 'spur', A, B: [lerp(A[0], G.cx, 0.55), lerp(A[1], G.cy, 0.55)], o: opt(w * 0.55, 0.6, 0.15, R * 0.03, 41 + k, null) }); }
+  for (let i = 0; i < crn.length; i++) out.push({ kind: 'hex', A: crn[i]!, B: crn[(i + 1) % 6]!, o: opt(wHex, 1, 1.5, R * 0.025, 11 + i, null) });
+  for (let k = 0; k < G.septaPC.length; k++) { const pts = G.septaPC[k]!.pts; out.push({ kind: 'pc', A: pts[0]!, B: pts[pts.length - 1]!, o: opt(wPC, 1, 0.9, 0, 31 + k, pts) }); }
+  for (let k = 0; k < 3; k++) { const A = crn[SPURS[k]!]!; out.push({ kind: 'spur', A, B: [lerp(A[0], G.cx, 0.55), lerp(A[1], G.cy, 0.55)], o: opt(w * 0.55, 0.8, 0.15, R * 0.03, 41 + k, null) }); }
   return out;
 }
 
@@ -54,7 +54,8 @@ export function paintCollagen(c: CanvasRenderingContext2D, P: CollagenInput): vo
   const { G, dark, rgb } = P, COL = rgb.col, PRE = dark ? PRE_DARK : PRE_LIGHT;
   c.save();
   c.shadowColor = P.shadow; c.shadowBlur = G.R * 0.06;   // (nodules bulge beside the bands)
-  for (const b of septaBands(G, COL)) fibrousBand(c, b.A, b.B, b.o);
+  // (Plan 31: each band twice, the second without the shade and the fibres, so the core is as dense as the bands' width is wide: coverage 0.67 to 0.89)
+  for (const b of septaBands(G, COL)) { c.shadowBlur = G.R * 0.06; fibrousBand(c, b.A, b.B, b.o); c.shadowBlur = 0; fibrousBand(c, b.A, b.B, { ...b.o, detail: 0 } as BandOpt); }
   c.restore();
   c.globalAlpha = 1;
   const rt = G.rt * 1.7;

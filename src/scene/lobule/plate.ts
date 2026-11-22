@@ -127,7 +127,7 @@ vec4 plateAt(vec2 uv, float bias) {
   vec3 t = texture2D(mapT, uv).rgb * (255.0 / 254.0);
   float fb = front(t.b, uP.z);
   if (uBaseK > 0.5) { float cov = fb * smoothstep(0.0, 0.08, cu.a); return vec4((uBase * (1.0 - cu.a) + cu.rgb) * cov, cov); }
-  float f = max(front(t.r, uP.x) * (0.55 + 0.45 * uP.x), max(front(t.g, uP.y), fb));
+  float f = max(front(t.r, uP.x) * (0.75 + 0.25 * uP.x), max(front(t.g, uP.y), fb));
   return cu * f + a * (1.0 - cu.a * f);
 }
 vec4 plateTex(vec2 uv) { return plateAt(uv, 0.0); }

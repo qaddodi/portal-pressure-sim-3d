@@ -28,6 +28,7 @@ test('the collagen layer over the tissue with none of it equals today\'s one-pas
   const cmp = (a: { alpha: Float32Array; rgb: Float32Array }, b: { alpha: Float32Array; rgb: Float32Array }, over: typeof layer | null) => {
     let ok = 0, bad = 0; const worst = { d: 0, at: 0 };
     for (let i = 0; i < a.alpha.length; i++) {
+      if (tau[4 * i] !== NEVER) { ok++; continue; }   // (Plan 31 widened and doubled the septa on purpose: the pixels they reach are judged by septa-dominant.test.ts; every other pixel is still 2D's painting)
       const ca = over ? over.alpha[i]! : 0, ba = b.alpha[i]! * (1 - ca) + ca;
       let d = Math.abs(a.alpha[i]! - ba) * 255;
       for (let c = 0; c < 3; c++) d = Math.max(d, Math.abs(a.rgb[3 * i + c]! - (b.rgb[3 * i + c]! * (1 - ca) + (over ? over.rgb[3 * i + c]! : 0))));
@@ -138,7 +139,7 @@ test('no repaint: easing the model from healthy to cirrhosis 100 % and fibrosis,
     const mid = [...a.grow];
     assert.ok(mid.every((v) => v > 0 && v < 1), `growing, not jumped (${mid.map((v) => v.toFixed(2))})`);
     run(200);
-    assert.deepEqual([...a.grow].map((v) => Math.round(v * 100) / 100), [1, 1, 1], 'fully grown');
+    assert.deepEqual([...a.grow].map((v) => Math.round(v * 100) / 100), [1, 0.35, 0.3], 'fully grown (Plan 31: the tracts and the vein yield to the septa)');
     flat.setModel(model());
     run(20);
     assert.ok(a.grow.every((v) => v > 0 && v < 1), 'and falling back the same way');
@@ -152,13 +153,14 @@ test('no repaint: easing the model from healthy to cirrhosis 100 % and fibrosis,
 test('the growth goals come from the lobule\'s own values with the painter\'s onsets', () => {
   assert.deepEqual(growGoal({ septU: 0.5, fibPre: 0.03, fibPost: 0.05 }), [0.5, 0, 0]);
   const g = growGoal({ septU: 1, fibPre: 1, fibPost: 1 });
-  assert.deepEqual(g, [1, 1, 1]);
+  assert.deepEqual(g.map((v) => Math.round(v * 1000) / 1000), [1, 0.35, 0.3], 'Plan 31: at full cirrhosis the tracts and the vein yield to the septa');
+  assert.deepEqual(growGoal({ septU: 0, fibPre: 1, fibPost: 1 }), [0, 1, 1], 'and with no cirrhosis (schisto, SOS) nothing changes');
 });
 
 test('GLSL: the plate shader parses and carries the growth rule', async () => {
   assert.match(LOBULE_PLATE_FS, new RegExp(`const float GROW_H = ${GROW_H.toFixed(3)};`));
   assert.match(LOBULE_PLATE_FS, /smoothstep\(t - GROW_H, t \+ GROW_H, p\)/);
-  assert.match(LOBULE_PLATE_FS, /0\.55 \+ 0\.45 \* uP\.x/, 'the septa\'s strength is today\'s aa');
+  assert.match(LOBULE_PLATE_FS, /0\.75 \+ 0\.25 \* uP\.x/, 'the septa\'s strength (Plan 31)');
   let parse: ((s: string) => unknown) | null = null;
   const name = '@shaderfrog/glsl-parser';
   try { const m = await import(name); parse = (s) => m.parser.parse(s, { quiet: true }); } catch { /* not installed */ }
