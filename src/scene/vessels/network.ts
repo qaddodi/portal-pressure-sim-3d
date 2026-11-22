@@ -398,6 +398,10 @@ export function collateralOpen(id: string, f: PresenceFrame): boolean {
   return recruitFrac(id, f) > OPEN_FRAC || (SEGMENT_OF.get(id) ?? [id]).some((m) => Math.abs((f.Qf ?? f.Q)[indexOf.get(m)!]!) > OPEN_Q);
 }
 
+/** The shunts an operation sews in (not the stents): with one in place the closed potential collaterals are not drawn as dotted threads, which stood as stray stubs beside the shunt's ends (Mohammad, 22 Nov: "stray dotted stub"). */
+export const SURGICAL_SHUNT_IDS: readonly string[] = ['S_PC', 'S_MC', 'S_DSR', 'REX'];
+const surgicalShuntIn = (f: PresenceFrame): boolean => SURGICAL_SHUNT_IDS.some((id) => { const k = indexOf.get(id); return k != null && (f.D[k]! > 0 || drawnDiameter(id) > 0); });
+
 /** The 2D rules of stage-frame.js edgeVisible: a collateral is solid once open, a dotted thread while closed when potential collaterals are on, and nothing
  *  otherwise; the epigastric veins appear with the paraumbilical collateral; an arterioportal shunt only while it carries flow. */
 export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: PresenceFrame, o: PresenceOptions, healthyQ?: ArrayLike<number>): Presence {
@@ -410,7 +414,7 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
   // and the liver tissue implies the sinusoids between (Mohammad, 20 Nov). They stay in the network (the flows, the labels and the Lobule read them), only never shown.
   // (the Circuit draws them: 2D's map shows the portal venules dividing and the sinusoids gathering, and Mohammad wants them there, 20 Nov)
   if (v.kind === 'liver') return o.circuit ? 'shown' : 'hidden';
-  if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' ? 'ghost' : 'hidden';
+  if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' && !surgicalShuntIn(f) ? 'ghost' : 'hidden';
   if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 || drawnDiameter(v.id) > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
   return 'shown';

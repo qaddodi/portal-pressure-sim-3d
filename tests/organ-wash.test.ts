@@ -237,5 +237,5 @@ test('the inner shade is one smooth monotonic ramp that matches the three stroke
   const seat = [...(layer as unknown as { seats: Map<string, { defines?: Record<string, unknown> }> }).seats.values()];
   assert.ok(seat.length > 0, 'the organs with a seat');
   for (const m of seat) assert.ok('INK_SEAT' in (m.defines ?? {}) && 'INK_EDGE' in (m.defines ?? {}), 'the seat is a soft halo');
-  assert.match(INK_FS, /#ifdef INK_SEAT[\s\S]*cov \*= 2\.0 \* sk \* sk \* \(3\.0 - 2\.0 \* sk\)/);
+  assert.match(INK_FS, /#ifdef INK_SEAT\s+cov \*= 2\.0 \* sk \* sk \* \(3\.0 - 2\.0 \* sk\)/);
 });
