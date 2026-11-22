@@ -37,7 +37,7 @@ test('a hairline arteriole is unchanged: under the taper\'s start there is no li
   assert.equal(inkWidthCss(0.0, true), 0);
   const base: [number, number, number] = [0.8, 0.12, 0.2];
   for (const rDev of [0.2, 0.6, CEL_STYLE.TONES_FROM]) {
-    const v = celTubeColor(base, 0.9, 1e-4, rDev), a = celTubeColor(base, 0.9, 1e-4, rDev, true);
+    const v = celTubeColor(base, 0.9, 1e-4, rDev), a = celTubeColor(base, 0.9, 1e-4, rDev, false, true);
     assert.deepEqual(a, v, `radius ${rDev} device px: the same colour as a vein's`);
   }
 });
@@ -45,7 +45,7 @@ test('a hairline arteriole is unchanged: under the taper\'s start there is no li
 test('a vein is exactly what it was: the default arguments change nothing', () => {
   for (const r of RADII) { assert.equal(inkWidthCss(r, false), inkWidthCss(r)); for (const dpr of [1, 2, 3]) assert.equal(inkWidthDev(r * dpr, dpr, false), inkWidthDev(r * dpr, dpr)); }
   const base: [number, number, number] = [0.4, 0.5, 0.9];
-  for (const s of [-0.8, 0, 0.3, 0.9]) for (const rDev of [0.5, 1.5, 4, 20]) assert.deepEqual(celTubeColor(base, s, 1e-4, rDev, false), celTubeColor(base, s, 1e-4, rDev));
+  for (const s of [-0.8, 0, 0.3, 0.9]) for (const rDev of [0.5, 1.5, 4, 20]) assert.deepEqual(celTubeColor(base, s, 1e-4, rDev, false, false), celTubeColor(base, s, 1e-4, rDev));
   // the shader's ink for a vein is the old text exactly (the materials' strands and every non-artery program read it)
   assert.equal(inkPxGlsl('r', 't'), `clamp(${F(CEL_STYLE.LINE_R)} * r, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, t)`);
 });
@@ -55,19 +55,19 @@ test('the lumen is one tone step lighter: both tones lifted by LIFT_L in OKLab l
   for (const look of ['light', 'soft', 'dark', 'navy', 'black'] as const) {
     const base = hexToRgb01(LENS_TOKENS[look].artery);
     for (const s of [0.9, -0.6]) {   // lit and shade tone
-      const v = celTubeColor(base, s, 1e-4, 6), a = celTubeColor(base, s, 1e-4, 6, true);
+      const v = celTubeColor(base, s, 1e-4, 6), a = celTubeColor(base, s, 1e-4, 6, false, true);
       const [Lv, av, bv] = toOklab(v), [La, aa, ba] = toOklab(a);
       assert.ok(Math.abs(La - Lv - LIFT_L) < 0.012, `${look} s=${s}: lightness up by ${LIFT_L} (got ${(La - Lv).toFixed(4)})`);
       assert.ok(Math.hypot(aa - av, ba - bv) < 0.03, `${look} s=${s}: hue and chroma kept (${Math.hypot(aa - av, ba - bv).toFixed(4)})`);
     }
     // still a two-tone tube: the lit and the shade differ by the same step as before
-    const dv = toOklab(celTubeColor(base, 0.9, 1e-4, 6))[0] - toOklab(celTubeColor(base, -0.6, 1e-4, 6))[0], da = toOklab(celTubeColor(base, 0.9, 1e-4, 6, true))[0] - toOklab(celTubeColor(base, -0.6, 1e-4, 6, true))[0];
+    const dv = toOklab(celTubeColor(base, 0.9, 1e-4, 6))[0] - toOklab(celTubeColor(base, -0.6, 1e-4, 6))[0], da = toOklab(celTubeColor(base, 0.9, 1e-4, 6, false, true))[0] - toOklab(celTubeColor(base, -0.6, 1e-4, 6, false, true))[0];
     assert.ok(Math.abs(da - dv) < 0.02, `${look}: the step between the two tones is kept`);
   }
   // it eases with the radius (no pop as the vessel grows into its tones)
   const base = hexToRgb01(LENS_TOKENS.light.artery);
   let last = 0;
-  for (let rDev = 0.9; rDev <= 2.1; rDev += 0.05) { const l = toOklab(celTubeColor(base, 0.9, 1e-4, rDev, true))[0] - toOklab(celTubeColor(base, 0.9, 1e-4, rDev))[0]; assert.ok(l >= last - 1e-6 && l - last < 0.02, `lift eases at ${rDev.toFixed(2)}`); last = l; }
+  for (let rDev = 0.9; rDev <= 2.1; rDev += 0.05) { const l = toOklab(celTubeColor(base, 0.9, 1e-4, rDev, false, true))[0] - toOklab(celTubeColor(base, 0.9, 1e-4, rDev))[0]; assert.ok(l >= last - 1e-6 && l - last < 0.02, `lift eases at ${rDev.toFixed(2)}`); last = l; }
   const lifted = celTubeLift([0.5, 0.2, 0.3], 0.07), plain = celTubeLift([0.5, 0.2, 0.3], 0);
   assert.ok(toOklab(lifted)[0] > toOklab(plain)[0]);
 });

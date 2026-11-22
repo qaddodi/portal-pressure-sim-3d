@@ -7,6 +7,7 @@ import { LENS_SHARED, LENS_TOKENS, type LensTokens } from './tokens.copied.ts';
 import { type Rgb, type Sampler, delta3, hexToRgb01, sampler } from './oklab.ts';
 import { ORIGIN_N, OXY_MIN, originFractions, oxygenSat } from './blood-model.ts';
 import type { LookId } from '../palette.ts';
+import { PRESSURE_RAMP } from './pressure-ramp.ts';
 
 /** The twelve lenses: the ten of the Layers menu, plus the two a deck asks for ('system', 'since'), and 'neutral' (Anatomy: no colouring). */
 export const LENS_IDS = ['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass', 'system', 'since'] as const;
@@ -62,7 +63,7 @@ const samplers = new Map<string, Sampler>();
 export const samplerFor = (look: LookId, name: keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>): Sampler => {
   const key = `${look}|${name}`;
   let s = samplers.get(key);
-  if (!s) { s = sampler(LENS_TOKENS[look][name]); samplers.set(key, s); }
+  if (!s) { s = sampler(name === 'pressure' ? PRESSURE_RAMP[look] : LENS_TOKENS[look][name]); samplers.set(key, s); }   // (pressure: pressure-ramp.ts, the one source; the others are the 2D ramps)
   return s;
 };
 

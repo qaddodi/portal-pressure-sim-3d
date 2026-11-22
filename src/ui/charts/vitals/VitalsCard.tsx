@@ -91,7 +91,7 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
     let hd: { release(): void } | null = null;
     const sync = () => {
       const f = latest.frame, run = !!f?.running;
-      if (run && !hd) hd = clock.hold('vitals'); else if (!run && hd) { hd.release(); hd = null; }
+      if (run && !hd) hd = clock.hold('vitals', { steady: true }); else if (!run && hd) { hd.release(); hd = null; }
     };
     const off = onFrame(() => { wall.current = clock.now(); sync(); clock.invalidate('vitals'); });
     const tick = clock.on('tween', () => { if (hd || moving.current || dirty.current) { dirty.current = false; draw(); } });
