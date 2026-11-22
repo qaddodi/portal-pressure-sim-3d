@@ -16,6 +16,21 @@ const GROUP_OF: Record<string, string> = { 'heart-ra': 'heart', caudate: 'liver'
 
 export interface DepthPart { pos: ArrayLike<number>; normal: ArrayLike<number>; index: ArrayLike<number> }
 
+/** Empty cells kept round the grid: the trilinear read reaches two cells past a vertex's own. */
+const PAD = 3;
+/** The mean edge length the two smoothing passes were made for (0.02: the organ files' 6 units); a finer mesh takes more passes so the smoothing is the same distance. */
+const H_REF = 0.02;
+/** Smoothing passes for a mesh: 2 at the organ file's own spacing, in proportion to (H_REF / mean edge)^2 below it (a pass is a diffusion step: its reach grows as the edge times the root of the passes). */
+export function smoothPasses(part: DepthPart): number {
+  return Math.min(16, Math.max(2, Math.round(2 * (H_REF / meanEdge(part)) ** 2)));
+}
+/** The mesh's mean edge length (each edge counted at both its ends). */
+export function meanEdge(part: DepthPart): number {
+  const { cnt, len } = rings(part.pos, part.index, part.pos.length / 3);
+  let s = 0, c = 0; for (let i = 0; i < cnt.length; i++) { s += len[i]!; c += cnt[i]!; }
+  return c ? s / c : H_REF;
+}
+
 /** Weight of a neighbouring cell by squared cell distance 0..3 (the cell itself, a face, an edge, a corner). */
 const W = [1, 0.55, 0.3, 0.15];
 /** What a flat contact (a whole plane of cells of another organ across the neighbourhood) sums to: 1 + 4*.55 + 4*.3, and a little more for the cells in front and behind. */
@@ -36,7 +51,7 @@ function rings(pos: ArrayLike<number>, index: ArrayLike<number>, n: number) {
 }
 
 /** Averages `v` over each vertex's neighbours `passes` times. */
-function smooth(v: Float32Array, index: ArrayLike<number>, passes: number): Float32Array {
+export function smooth(v: Float32Array, index: ArrayLike<number>, passes: number): Float32Array {
   const n = v.length;
   let cur = v;
   for (let p = 0; p < passes; p++) {
@@ -84,27 +99,49 @@ export function bakeOrganDepth(parts: Record<string, DepthPart>): Record<string,
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
     }
   }
-  const nx = Math.ceil((x1 - x0) / CELL) + 3, ny = Math.ceil((y1 - y0) / CELL) + 3, nz = Math.ceil((z1 - z0) / CELL) + 3;
+  const nx = Math.ceil((x1 - x0) / CELL) + 2 * PAD + 1, ny = Math.ceil((y1 - y0) / CELL) + 2 * PAD + 1, nz = Math.ceil((z1 - z0) / CELL) + 2 * PAD + 1;
   const cells = new Uint16Array(nx * ny * nz);
-  const cellOf = (x: number, y: number, z: number) => (Math.floor((x - x0) / CELL) + 1) + nx * ((Math.floor((y - y0) / CELL) + 1) + ny * (Math.floor((z - z0) / CELL) + 1));
-  for (const id of ids) { const p = parts[id]!.pos, b = bit(id); for (let i = 0; i < p.length; i += 3) cells[cellOf(p[i]!, p[i + 1]!, p[i + 2]!)]! |= b; }
+  const at = (cx: number, cy: number, cz: number) => cx + nx * (cy + ny * cz);
+  const cellOf = (x: number, y: number, z: number) => at(Math.floor((x - x0) / CELL) + PAD, Math.floor((y - y0) / CELL) + PAD, Math.floor((z - z0) / CELL) + PAD);
+  // Which organs occupy each cell: from the SURFACE (points on every triangle, no farther apart than half a cell), never from the mesh's vertices alone, so the grid is the same whatever the mesh's density
+  // (a coarse mesh left holes in it, and a mesh with more points filled them: the contact shade followed the vertices).
+  for (const id of ids) {
+    const part = parts[id]!, p = part.pos, ix = part.index, b = bit(id);
+    const mark = (x: number, y: number, z: number) => { cells[cellOf(x, y, z)]! |= b; };
+    for (let t = 0; t + 2 < ix.length; t += 3) {
+      const a = ix[t]! * 3, c1 = ix[t + 1]! * 3, c2 = ix[t + 2]! * 3;
+      const ax = p[a]!, ay = p[a + 1]!, az = p[a + 2]!, bx = p[c1]!, by = p[c1 + 1]!, bz = p[c1 + 2]!, cx = p[c2]!, cy = p[c2 + 1]!, cz = p[c2 + 2]!;
+      const L = Math.max(Math.hypot(ax - bx, ay - by, az - bz), Math.hypot(bx - cx, by - cy, bz - cz), Math.hypot(cx - ax, cy - ay, cz - az));
+      const n = Math.min(12, Math.max(1, Math.ceil(L / (CELL * 0.5))));
+      for (let i = 0; i <= n; i++) for (let j = 0; i + j <= n; j++) { const u = i / n, v = j / n, w = 1 - u - v; mark(w * ax + u * bx + v * cx, w * ay + u * by + v * cy, w * az + u * bz + v * cz); }
+    }
+  }
   const out: Record<string, Uint8Array> = {};
   for (const id of ids) {
     const part = parts[id]!, p = part.pos, n = p.length / 3, mine = ~bit(id) & 0xffff;
+    // the contact field: a cell's weighted count of the other organs' cells round it (W by distance), worked out once a cell, and read by TRILINEAR blend at the vertex, so it is a continuous field. A vertex used to take its own
+    // cell's value, a staircase one cell (9 units) wide, and the three steps of the shade (organ-shader.ts tuck) drew that staircase as saw-teeth along the organ's shadow.
+    const field = new Float32Array(cells.length).fill(-1);
+    const cellVal = (cx: number, cy: number, cz: number): number => {
+      const k = at(cx, cy, cz), v = field[k]!;
+      if (v >= 0) return v;
+      let s = 0;
+      for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (cells[at(cx + dx, cy + dy, cz + dz)]! & mine) s += W[dx * dx + dy * dy + dz * dz]!;
+      return (field[k] = s);
+    };
     const contact = new Float32Array(n);
     for (let i = 0; i < n; i++) {
-      const cx = Math.floor((p[i * 3]! - x0) / CELL) + 1, cy = Math.floor((p[i * 3 + 1]! - y0) / CELL) + 1, cz = Math.floor((p[i * 3 + 2]! - z0) / CELL) + 1;
+      const fx = (p[i * 3]! - x0) / CELL + PAD - 0.5, fy = (p[i * 3 + 1]! - y0) / CELL + PAD - 0.5, fz = (p[i * 3 + 2]! - z0) / CELL + PAD - 0.5;   // (cell k's centre is at k + 0.5)
+      const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz), tx = fx - ix, ty = fy - iy, tz = fz - iz;
       let s = 0;
-      for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) {
-        const row = nx * (cy + dy + ny * (cz + dz));
-        for (let dx = -1; dx <= 1; dx++) if (cells[row + cx + dx]! & mine) s += W[dx * dx + dy * dy + dz * dz]!;
-      }
+      for (let dz = 0; dz <= 1; dz++) for (let dy = 0; dy <= 1; dy++) for (let dx = 0; dx <= 1; dx++) s += (dx ? tx : 1 - tx) * (dy ? ty : 1 - ty) * (dz ? tz : 1 - tz) * cellVal(ix + dx, iy + dy, iz + dz);
       contact[i] = clamp01(s / FULL);
     }
-    // crease and contact joined (a tuck is a tuck), then smoothed over two rings so neither the mesh's noise nor the contact grid's cells show
+    // crease and contact joined (a tuck is a tuck), then smoothed over the mesh so neither the mesh's noise nor the contact grid's cells show. The smoothing is a radius in the figure, not a number of rings: a mesh with
+    // more points has shorter edges, so it takes more passes (a pass moves a value one edge), else the shade is less smooth on the finer mesh.
     const cr = creaseOf(part, 0), bytes = new Uint8Array(n);
     for (let i = 0; i < n; i++) contact[i] = 1 - (1 - 0.85 * cr[i]!) * (1 - 0.9 * contact[i]!);
-    const tuck = smooth(contact, part.index, 2);
+    const tuck = smooth(contact, part.index, smoothPasses(part));
     for (let i = 0; i < n; i++) bytes[i] = Math.round(255 * clamp01(tuck[i]!));
     out[id] = bytes;
   }

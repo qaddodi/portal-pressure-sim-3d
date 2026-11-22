@@ -63,7 +63,7 @@ test('a crease is tucked more than a flat or a bulge; where one organ meets anot
   const sheet = (z: number): DepthPart => { const pos: number[] = [], nor: number[] = [], idx: number[] = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { pos.push(i * 0.02, j * 0.02, z); nor.push(0, 0, 1); } for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const a = j * 4 + i; idx.push(a, a + 1, a + 4, a + 1, a + 5, a + 4); } return { pos, normal: nor, index: idx }; };
   const r = bakeOrganDepth({ liver: sheet(0), stomach: sheet(0.01), far: sheet(1), heart: sheet(2), 'heart-ra': sheet(2.01) });
   const avg = (v: Uint8Array) => v.reduce((s, x) => s + x, 0) / v.length;
-  assert.ok(avg(r.liver!) > 100 && avg(r.stomach!) > 100, 'two organs that meet darken each other');
+  assert.ok(avg(r.liver!) > 60 && avg(r.stomach!) > 60, 'two organs that meet darken each other (a 2-cell sheet: the contact is a continuous field now, read between cells)');
   assert.equal(avg(r.far!), 0, 'an organ with nothing near it has no contact shade');
   assert.equal(avg(r.heart!), 0, 'the atrium is part of the heart: no contact between them');
 });

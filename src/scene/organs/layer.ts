@@ -69,8 +69,8 @@ export const GUT_GROUP: ReadonlySet<string> = new Set(['bowel', 'colon']);
 /** The gut's draw order in the organ layer: fills first (the colon, which covers, then the bowel), then the outlines (the bowel's, then the colon's over it). */
 export const GUT_RENDER: Readonly<Record<string, { fill: number; ink: number }>> = { colon: { fill: 14, ink: 15.6 }, bowel: { fill: 14.5, ink: 15.4 } };
 
-/** The organs whose shade steps are cut by the smoothed normal (organ-shader.ts shadeN); the gut's folds are its relief, so it keeps its own. */
-const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver']);
+/** The organs whose shade steps are cut by the smoothed normal (organ-shader.ts shadeN); the small bowel's folds are its relief, so it keeps its own (the colon is a plain pillow: its own normals were only the triangulation's noise). */
+const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'colon']);
 
 /** The 1x1 texture an organ with no liver look samples (its nodAmt is 0, so it is never read). */
 const NO_TEX = new DataTexture(new Uint8Array([0, 0, 128, 255]), 1, 1);
@@ -87,8 +87,10 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
     poolA: { value: new Vector4() }, poolLand: { value: new Vector4() }, poolDelta: { value: new Vector3() },   // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
+    rimP0: { value: new Vector4(...((g.userData.rimProfile as number[] | undefined)?.slice(0, 4) ?? [0, 0, 0, 0]) as [number, number, number, number]) }, rimP1: { value: new Vector4(...((g.userData.rimProfile as number[] | undefined)?.slice(4, 8) ?? [0, 0, 0, 0]) as [number, number, number, number]) }, rimW: { value: g.userData.rimProfile ? 1 : 0 },
     shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
   });
+  m.userData.hasRim = !!g.userData.rimProfile;
   m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
   const ink = o.ink;
@@ -340,7 +342,8 @@ export class OrganLayer {
         if (cel) wall = mix(c, rgbOf(og[2]), 0.8 * s.cirrhosisNod * cel.ink);   // the cel's line is the organ's own ink tone, bold
         (o.toon.uniforms.sepDelta!.value as Vector3).set(wall[0] - c[0], wall[1] - c[1], wall[2] - c[2]);
         o.toon.uniforms.nodAmt!.value = s.cirrhosisNod;
-        o.toon.uniforms.shadeK!.value = 1 - s.cirrhosisNod * rawNormalShare();   // (the scarred liver's own bumps light it, as much as the look says; eases with the scarring)
+        o.toon.uniforms.shadeK!.value = 1 - s.cirrhosisNod * rawNormalShare();
+        if (o.toon.userData.hasRim) o.toon.uniforms.rimW!.value = o.toon.uniforms.shadeK!.value;   // (the strip follows the smooth normal's share: the scarred liver's bumps are its own)   // (the scarred liver's own bumps light it, as much as the look says; eases with the scarring)
       }
       if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c); on = true; }
       else if (id === 'spleen' && this.infarct.value > 0.004) {

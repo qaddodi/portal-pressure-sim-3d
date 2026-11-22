@@ -214,3 +214,29 @@ export function tailFade(g: BufferGeometry, stomach: BufferGeometry, share = 0.4
   for (let v = 0; v < w.n; v++) { const t = Math.min(1, Math.max(0, dFree[v]! / L)), a = t * t * (3 - 2 * t); for (const i of w.verts[v]!) out[i] = a; }
   return out;
 }
+
+/** Each vertex's true distance in the figure's plane to the silhouette (the nearest point on the rim ring's polyline), scene units, held at `cap`. Unlike `ringDistance` (steps along the mesh's edges, which jitter with the
+ *  triangulation) this is a smooth field that interpolates linearly across a triangle. A mesh with no ring reads `cap` everywhere. */
+export function rimDistance(g: BufferGeometry, cap: number): Float32Array {
+  const w = weld(g), ring = silhouetteRing(g, w), pos = g.getAttribute('position'), n = pos.count, out = new Float32Array(n).fill(cap);
+  if (ring.size < 8) return out;
+  const at = (v: number): [number, number] => { const i = w.verts[v]![0]!; return [pos.getX(i), pos.getY(i)]; };
+  const segs: [number, number, number, number][] = [], cells = new Map<string, number[]>(), cell = (x: number) => Math.floor(x / cap);
+  for (const [u, [a, b]] of ring) for (const v of [a, b]) if (u < v || !ring.get(v)?.includes(u)) { const p = at(u), q = at(v); segs.push([p[0], p[1], q[0], q[1]]); }
+  segs.forEach((s, k) => {
+    for (let cx = cell(Math.min(s[0], s[2]) - cap); cx <= cell(Math.max(s[0], s[2]) + cap); cx++) for (let cy = cell(Math.min(s[1], s[3]) - cap); cy <= cell(Math.max(s[1], s[3]) + cap); cy++) {
+      const key = `${cx},${cy}`; (cells.get(key) ?? cells.set(key, []).get(key)!).push(k);
+    }
+  });
+  for (let i = 0; i < n; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    let best = cap;
+    for (const k of cells.get(`${cell(x)},${cell(y)}`) ?? []) {
+      const [ax, ay, bx, by] = segs[k]!, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+      best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+    }
+    out[i] = best;
+  }
+  return out;
+}

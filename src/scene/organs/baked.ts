@@ -14,7 +14,7 @@ const SNORM = 32767;
 /** The organs kept as the organs file has them, besides the finished ones: the scope fits its esophagus to the raw stomach (devices/probes/scope.ts), and with the file laid in the page never fetches organs.bin. */
 export const RAW_IDS: readonly string[] = ['stomach'];
 
-interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number }[]; raw: { id: string; verts: number; indices: number }[] }
+interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[] }[]; raw: { id: string; verts: number; indices: number }[] }
 const pad4 = (n: number) => (n + 3) & ~3;
 
 /** A unit vector as two snorm16 (octahedral: the sphere folded onto a square; error under 1e-4, 4 bytes where snorm16 x3 is 6). */
@@ -52,10 +52,12 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
     if (parent && parent.length * 4 === idx.length) put(Uint16Array.from(parent)); else put(wide ? new Uint32Array(idx) : new Uint16Array(idx));
     put(g.getAttribute('depthAo').array as Uint8Array);
     put(Uint8Array.from(g.getAttribute('ringD').array, (v) => v));
+    const prof = g.userData.rimProfile as number[] | undefined;   // (rim-profile.ts: two whole bytes a vertex and the organ's eight-point profile)
+    if (prof) for (const k of ['rimD', 'rimC']) put(Uint8Array.from(g.getAttribute(k).array, (v) => Math.round(v * 255)));
     for (const k of ['shadeN', 'hullN']) { const s = new Int16Array(n * 2); octEncode(g.getAttribute(k).array, s); put(s); }
     const eso = g.getAttribute('esoA');
     if (eso) put(eso.array as Float32Array);
-    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}) });
+    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}) });
   }
   for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; ORGAN_MESHES.stomach in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);
@@ -94,6 +96,7 @@ export function decodeOrgans(buf: ArrayBuffer): BakedOrgans | null {
       g.computeVertexNormals();
       g.setAttribute('depthAo', new BufferAttribute(take(Uint8Array, n).slice(), 1, true));
       g.setAttribute('ringD', new Float32BufferAttribute(Float32Array.from(take(Uint8Array, n)), 1));
+      if (o.prof) { for (const k of ['rimD', 'rimC']) g.setAttribute(k, new Float32BufferAttribute(Float32Array.from(take(Uint8Array, n), (v) => v / 255), 1)); g.userData.rimProfile = o.prof; }
       for (const k of ['shadeN', 'hullN']) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute(k, new Float32BufferAttribute(f, 3)); }
       if (o.eso) g.setAttribute('esoA', new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
       g.computeBoundingBox(); g.boundingSphere = null;

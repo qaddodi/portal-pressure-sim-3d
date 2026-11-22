@@ -17,6 +17,11 @@ varying vec3 vInk;
 // organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
 attribute float depthAo;
 varying float vAo;
+// the rim strip (rim-profile.ts): this vertex's distance from the silhouette over RIM_ZONE (0..1) and its region's offset from the organ's tilt profile (0.5 none); a geometry without them reads 0 and the strip is off (rimW 0)
+attribute float rimD;
+attribute float rimC;
+varying float vRimS;
+varying float vRimC;
 // the normal the shade steps, the lit patch and the soft light are cut by: the mesh's own normal jags over a mesh that is a vertex every 2.5 units (and its slivers), and every contour cut by it wobbles
 // (the dark crescent on the spleen, the lit patch on the liver, Mohammad 20 Nov: "jagged edges"). shadeN is the rest normal smoothed over the surface (normal-smooth.ts), shadeK how much of it (1 at rest;
 // the scarred liver takes back some of its own bumpy normal, the gut keeps all of its own: its folds are the relief)
@@ -38,6 +43,8 @@ void main() {
   vNw = normalize(mat3(modelMatrix) * sn);
   vV = normalize(-mv.xyz);
   vAo = depthAo;
+  vRimS = rimD;
+  vRimC = rimC - 0.5;
   vRest = restUV;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
   vBox = vec2((position.x - box.x) / max(box.z, 1e-5), (box.y - position.y) / max(box.w, 1e-5));
@@ -89,12 +96,28 @@ varying vec3 vNw;
 varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
+varying float vRimS;
+varying float vRimC;
+uniform vec4 rimP0;   // the organ's tilt profile (rim-profile.ts): the normal's z at eight points from the silhouette (0) to RIM_ZONE in (1)
+uniform vec4 rimP1;
+uniform float rimW;   // how much of the strip's own tilt the organ takes: 1, less as the scarred liver takes back its own bumpy normal, 0 with no strip
+// the shade normal: the interpolated one, but in the rim strip its TILT is the profile's at the pixel's interpolated distance from the rim, so the crescent's edge follows the rim whatever the triangulation (rim-profile.ts rimShadeNormal, the JS twin)
+vec3 rimShadeNormal(vec3 n) {
+  float f = clamp(vRimS, 0.0, 1.0) * 7.0;
+  vec4 wa = max(vec4(0.0), 1.0 - abs(f - vec4(0.0, 1.0, 2.0, 3.0))), wb = max(vec4(0.0), 1.0 - abs(f - vec4(4.0, 5.0, 6.0, 7.0)));
+  float nzP = clamp(dot(rimP0, wa) + dot(rimP1, wb) + vRimC, 0.0, 1.0);
+  float k = (1.0 - smoothstep(0.75, 1.0, vRimS)) * rimW;
+  float hl = length(n.xy);
+  vec2 dir = hl > 1e-4 ? n.xy / hl : vec2(0.0);
+  return normalize(mix(n, vec3(dir * sqrt(max(0.0, 1.0 - nzP * nzP)), nzP), k));
+}
 const vec3 LIGHT = vec3(${ORGAN_LIGHT.map((v) => num(v)).join(', ')});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
 void main() {
   // (the derivatives first, before the window's discard: a quad whose other pixels were dropped gives a garbage fwidth on a device that drops the lane, tests/no-derivative-after-discard.test.ts)
-  float turn = 1.0 - clamp(normalize(vNw).z, 0.0, 1.0);
+  vec3 nws = rimShadeNormal(normalize(vNw));
+  float turn = 1.0 - clamp(nws.z, 0.0, 1.0);
   float w = max(fwidth(turn), 1e-4);
-  float fwLam = fwidth(dot(normalize(vNw), LIGHT));
+  float fwLam = fwidth(dot(nws, LIGHT));
   float fwPool = fwidth(vBox.y) * poolA.y;
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
@@ -149,7 +172,7 @@ void main() {
   // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
   // (the turn is measured against the figure's own facing axis (+z in the world), not the camera's: tilting or orbiting must never change an organ's shading, Mohammad 20 Nov 2026
   //  "when i tilt, the organs and everything loses shading or becomes darker"; at the rest view the eye is on that axis, so the look there is exactly 2D's)
-  vec3 nw = normalize(vNw);
+  vec3 nw = nws;
   float ndv = clamp(nw.z, 0.0, 1.0);
   // the steps stack as 2D's strokes do (each over the last), at og-dark's own alpha, and sit on the lower right edge: 2D moves its shade
   // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
@@ -169,7 +192,7 @@ void main() {
     float ao = clamp(vAo, 0.0, 1.0);
     float wa = 0.12;
     float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
-    float lam = dot(normalize(vNw), LIGHT);   // n.L in the world: the camera never changes it
+    float lam = dot(nws, LIGHT);   // n.L in the world: the camera never changes it
     float wl = 0.08 + fwLam;
     float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
     float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);

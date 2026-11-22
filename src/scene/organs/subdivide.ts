@@ -32,6 +32,16 @@ export function splitIndex(idx: ArrayLike<number>): { index: Uint32Array; edges:
   return { index: out, edges, added: edges.length };
 }
 
+/** The middle of the cubic through a and b with the tangent plane of each end's normal: the chord's middle less an eighth of the chord's length along each normal, as much as the chord leaves the surface there;
+ *  held within MAX_BOW of the edge from the chord's middle. */
+function bendPoint(pa: V3, pb: V3, na: V3, nb: V3): V3 {
+  const d = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]], len = Math.hypot(d[0]!, d[1]!, d[2]!);
+  const wa = d[0]! * na[0] + d[1]! * na[1] + d[2]! * na[2], wb = -(d[0]! * nb[0] + d[1]! * nb[1] + d[2]! * nb[2]);
+  const m: V3 = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, (pa[2] + pb[2]) / 2];
+  const dx = -(wa * na[0] + wb * nb[0]) / 8, dy = -(wa * na[1] + wb * nb[1]) / 8, dz = -(wa * na[2] + wb * nb[2]) / 8, l = Math.hypot(dx, dy, dz), s = l > MAX_BOW * len ? (MAX_BOW * len) / l : 1;
+  return [m[0] + dx * s, m[1] + dy * s, m[2] + dz * s];
+}
+
 /** One round of subdivision of `g` (a closed or open welded triangle mesh), in place: new points appended, every triangle split in four, normals recomputed. The silhouette's rim edges take the rim rule.
  *  Returns how many points were added (0 when the mesh is not welded or has no triangles: the caller keeps `refineRim`). */
 export function subdivideOrgan(g: BufferGeometry): number {
@@ -44,11 +54,7 @@ export function subdivideOrgan(g: BufferGeometry): number {
   const nrm = smoothRestNormals(pos.array, g.getAttribute('normal').array, g.index.array, NORMAL_PASSES);
   const N = (v: number): V3 => { const i = w.verts[v]![0]!; return [nrm[3 * i]!, nrm[3 * i + 1]!, nrm[3 * i + 2]!]; };
   /** The middle of the cubic through a and b with the tangent plane of each end's normal: the chord's middle less an eighth of the chord's length along each normal, as much as the chord leaves the surface there. */
-  const bend = (a: number, b: number): V3 => {
-    const pa = P(a), pb = P(b), na = N(a), nb = N(b), d = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
-    const wa = d[0]! * na[0] + d[1]! * na[1] + d[2]! * na[2], wb = -(d[0]! * nb[0] + d[1]! * nb[1] + d[2]! * nb[2]);
-    return [(pa[0] + pb[0]) / 2 - (wa * na[0] + wb * nb[0]) / 8, (pa[1] + pb[1]) / 2 - (wa * na[1] + wb * nb[1]) / 8, (pa[2] + pb[2]) / 2 - (wa * na[2] + wb * nb[2]) / 8];
-  };
+  const bend = (a: number, b: number): V3 => bendPoint(P(a), P(b), N(a), N(b));
   const parent = g.index.array, { index, edges } = splitIndex(parent), px: number[] = Array.from(pos.array);
   for (const [a, b] of edges) {
     const pa = P(a), pb = P(b);
@@ -59,9 +65,6 @@ export function subdivideOrgan(g: BufferGeometry): number {
       q = rimPoint(P(before), pa, pb, P(after));
     } else {
       q = bend(a, b);
-      const m: V3 = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, (pa[2] + pb[2]) / 2];
-      const len = Math.hypot(pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]), dx = q[0] - m[0], dy = q[1] - m[1], dz = q[2] - m[2], d = Math.hypot(dx, dy, dz);
-      if (d > MAX_BOW * len) { const s = (MAX_BOW * len) / d; q = [m[0] + dx * s, m[1] + dy * s, m[2] + dz * s]; }
     }
     px.push(q[0], q[1], q[2]);
   }

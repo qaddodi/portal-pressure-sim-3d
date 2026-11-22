@@ -3,9 +3,10 @@
 // only when that file is missing or not for this build. One function, so the live path and the bake can never differ.
 import { BufferAttribute, Float32BufferAttribute, type BufferGeometry } from 'three';
 import { ORGAN_STYLE } from './layer.ts';
-import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
+import { refineRim, ringDistance, rimDistance, smoothSilhouette, tailFade } from './contour.ts';
 import { COARSE_VERTS, subdivideOrgan } from './subdivide.ts';
-import { bakeOrganDepth } from './organ-depth.ts';
+import { bakeOrganDepth, meanEdge, smooth } from './organ-depth.ts';
+import { RIM_ZONE, fitRimProfile, rimOffsetByte, rimProfileAt } from './rim-profile.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
 import { ORGAN_Z } from './z.ts';
 
@@ -30,6 +31,44 @@ export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [st
     g.setAttribute('shadeN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : [], SHADE_PASSES), 3));
     g.setAttribute('ringD', new Float32BufferAttribute(ringDistance(g), 1));
     g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
+    rimStrip(g);
   }
   return made;
+}
+
+/** Where in a triangle the profile is sampled (barycentric): the middle and three points toward the corners. */
+const SAMPLES: readonly (readonly [number, number, number])[] = [[1 / 3, 1 / 3, 1 / 3], [0.6, 0.2, 0.2], [0.2, 0.6, 0.2], [0.2, 0.2, 0.6]];
+
+/** The shade's rim strip (rim-profile.ts): `rimD` (each vertex's distance to the silhouette, over RIM_ZONE, one byte) and `rimC` (its region's offset from the organ's profile, one byte, 0.5 none), as the attributes the organ shader reads, and the
+ *  organ's profile itself in `userData.rimProfile`. Both are whole bytes' worth of value so the baked file holds them exactly. The profile and the offsets are measured the way the shader sees the mesh: at points INSIDE the front
+ *  triangles of the strip (the smoothed normal interpolated, the distance interpolated), not at the vertices, so the look it gives is the look the interpolated normal gave on average, without the triangles' saw-teeth. */
+function rimStrip(g: BufferGeometry): void {
+  const pos = g.getAttribute('position'), n = pos.count, idx = g.index ? g.index.array : [], d = rimDistance(g, RIM_ZONE), sn = g.getAttribute('shadeN').array, zone = RIM_ZONE - 1e-6;
+  const sd: number[] = [], sz: number[] = [], sv: number[] = [];   // the samples: interpolated distance, interpolated normal's z, and the triangle's corners
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    const a = idx[t]!, b = idx[t + 1]!, c = idx[t + 2]!;
+    if (Math.min(d[a]!, d[b]!, d[c]!) >= zone) continue;
+    if ((pos.getX(b) - pos.getX(a)) * (pos.getY(c) - pos.getY(a)) - (pos.getX(c) - pos.getX(a)) * (pos.getY(b) - pos.getY(a)) <= 0) continue;   // (the back faces are never drawn)
+    for (const [wa, wb, wc] of SAMPLES) {
+      const x = wa * sn[3 * a]! + wb * sn[3 * b]! + wc * sn[3 * c]!, y = wa * sn[3 * a + 1]! + wb * sn[3 * b + 1]! + wc * sn[3 * c + 1]!, z = wa * sn[3 * a + 2]! + wb * sn[3 * b + 2]! + wc * sn[3 * c + 2]!;
+      sd.push(wa * d[a]! + wb * d[b]! + wc * d[c]!); sz.push(z / (Math.hypot(x, y, z) || 1)); sv.push(a, b, c);
+    }
+  }
+  const prof = fitRimProfile(sd, sz), e = new Float32Array(n), mask = new Float32Array(n);
+  for (let k = 0; k < sd.length; k++) {
+    if (sd[k]! >= zone) continue;
+    const r = sz[k]! - rimProfileAt(prof, sd[k]! / RIM_ZONE), [wa, wb, wc] = SAMPLES[k % SAMPLES.length]!;
+    for (const [v, w] of [[sv[3 * k]!, wa], [sv[3 * k + 1]!, wb], [sv[3 * k + 2]!, wc]] as const) { e[v] += r * w; mask[v] += w; }
+  }
+  // the regional offset: a masked low-pass over the surface (the same radius on any mesh: a pass moves a value one edge)
+  const h = meanEdge({ pos: pos.array, normal: g.getAttribute('normal').array, index: idx }), passes = Math.min(40, Math.max(4, Math.round((0.04 / h) ** 2)));
+  const num = smooth(e, idx, passes), den = smooth(mask, idx, passes);
+  const rd = new Float32Array(n), rc = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    rd[i] = Math.round(255 * Math.min(1, d[i]! / RIM_ZONE)) / 255;
+    rc[i] = rimOffsetByte(den[i]! > 0.02 ? num[i]! / den[i]! : 0) / 255;
+  }
+  g.setAttribute('rimD', new Float32BufferAttribute(rd, 1));
+  g.setAttribute('rimC', new Float32BufferAttribute(rc, 1));
+  g.userData.rimProfile = prof;
 }
