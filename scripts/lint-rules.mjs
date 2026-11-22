@@ -51,6 +51,11 @@ export const RULES = {
     visit: (n) => n.type === 'NewExpression' && n.callee.type === 'Identifier' && (n.callee.name === 'ShaderMaterial' || n.callee.name === 'RawShaderMaterial')
       && !(n.arguments[0]?.type === 'ObjectExpression' && n.arguments[0].properties.some((q) => q.type === 'Property' && !q.computed && (q.key.name === 'name' || q.key.value === 'name'))),
   },
+  /** One way to change the patient's parameters: src/engine/params-send.ts (sendParams). A raw `{ type: 'setParams' }` message reaches the worker but not the page's copy the figure draws from. */
+  'raw-setparams': {
+    applies: (p) => !under(p, 'src/engine/hales') && p !== 'src/engine/params-send.ts',
+    visit: (n) => n.type === 'Property' && !n.computed && (n.key.name === 'type' || n.key.value === 'type') && n.value.type === 'Literal' && n.value.value === 'setParams',
+  },
   /** An R3F <Canvas> never runs its own loop: frameloop="never" and the clock's bridge inside it. */
   'canvas-own-loop': {
     applies: (p) => !vendored(p) && p.endsWith('.tsx'),

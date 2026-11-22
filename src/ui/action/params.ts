@@ -3,8 +3,8 @@
 // entry with its label (what History and Undo list). The engine owns the numbers: nothing here computes a pressure.
 import { deepMerge } from '../../engine/hales/portal/scenario.js';
 import { migratePieceKeys } from './piece-keys.ts';
-import { engine } from '../../engine/boot.ts';
-import { patient, setParams } from '../../engine/store.ts';
+import { sendParams } from '../../engine/params-send.ts';
+import { patient } from '../../engine/store.ts';
 import { create } from 'zustand';
 
 /** The model's parameter record (engine/hales/portal/scenario.js defaultParams), as a loose tree: the engine is JavaScript. */
@@ -47,8 +47,7 @@ export function updateParams(patchOrFn: Record<string, unknown> | ((p: Params) =
   if (!next) return false;
   next = migratePieceKeys(next);
   if (history) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
-  setParams(next);
-  try { engine().send({ type: 'setParams', params: next, settle: opts.settle ?? false }); } catch { /* the engine is not up (a test): the local copy is the change */ }
+  sendParams(next, { settle: opts.settle ?? false, replace: true });
   bump();
   for (const h of hooks) h({ label, history });
   return true;
@@ -62,7 +61,7 @@ export const historyNow = (): readonly Entry[] => past;
 export const canUndo = (): boolean => past.length > 0;
 export const canRedo = (): boolean => future.length > 0;
 
-function jump(params: Params): void { params = migratePieceKeys(params); setParams(params); try { engine().send({ type: 'setParams', params, settle: false }); } catch { /* no engine */ } bump(); }
+function jump(params: Params): void { sendParams(migratePieceKeys(params), { replace: true }); bump(); }
 /** Back one change; returns its label (or true when it had none), false when there is nothing to undo. */
 export function undo(): string | true | false {
   const h = past.pop();

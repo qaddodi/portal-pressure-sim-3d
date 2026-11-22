@@ -6,5 +6,6 @@
   "unsafe-cast": 338,
   "raw-idle": 0,
   "unnamed-shader": 0,
+  "raw-setparams": 0,
   "canvas-own-loop": 0
 }

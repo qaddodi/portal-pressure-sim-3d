@@ -2,6 +2,7 @@
 // a treatment or a response is `setParams` eased in, a patient or another slide's state is a `morph` to a state worked out off screen, a lens is the scene's lens,
 // a scale is the scene's view. The slide's own state comes back whenever the slide is shown again (hp/link.ts morphs to it).
 import { engine } from '../../engine/index.ts';
+import { sendParams } from '../../engine/params-send.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
@@ -49,7 +50,7 @@ export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise
   const seq: Seq = (steps, base) => engine().sequence(steps, base);
   const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
   if (o.how === 'params') {
-    engine().send({ type: 'setParams', params: o.params ?? {}, settle: false, ease: EASE_MS });
+    sendParams(o.params ?? {}, { settle: false, ease: EASE_MS });
     // (only a row where some button speaks brings words: a row of plain parameter buttons keeps the slide's)
     const w = speaks(slide.controls?.compare?.opts ?? []) ? words : null;
     useVariant.getState().set(key, w);
@@ -76,7 +77,7 @@ export const toolOptionStart = (deck: Deck, i: number, name: string, min: number
 const SLIDER_REST_MS = 250;
 let dragTimer: TimerId | null = null, dragN = 0;
 export function dragWhatIf(deck: Deck, i: number, paths: readonly string[], x: number): void {
-  engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS });
+  sendParams(patchOf(paths, x), { settle: false, ease: SLIDER_EASE_MS });
   const key = slideKey(deck, i), n = ++dragN;
   if (dragTimer != null) clock.cancel(dragTimer);
   dragTimer = clock.after(() => {
