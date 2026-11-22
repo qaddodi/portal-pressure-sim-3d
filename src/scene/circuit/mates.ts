@@ -7,7 +7,7 @@
 //   - the pair was found by the body's rule (smooth-joins.ts), which leaves out a node with a collateral or a shunt hanging on it and every end a junction skin has taken over, so the left portal node, where the
 //     vein meets its bed under the umbilical collateral and the REX shunt, had no pair and no ease at all: a square shoulder.
 // Now the pair is found by the map's own rule (every node where exactly two permanent vessels of one kind meet, plus the body's run-ons), and the two widths are joined by ONE smoothstep through the node over `CIRC_EASE` map units each way.
-import { NETWORK, NETWORK_BY_ID, type NetVessel } from '../vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID, sameSegment, type NetVessel } from '../vessels/network.ts';
 import { SMOOTH } from '../vessels/smooth-joins.ts';
 import { isPermanent } from '../vessels/skin/inventory.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
@@ -51,6 +51,13 @@ function build(): ReadonlyMap<string, [CircuitMate | null, CircuitMate | null]> 
     for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const k = `${n}|${v.tone === 'artery' ? 1 : 0}`; const l = at.get(k) ?? []; l.push({ id: v.id, end }); at.set(k, l); }
   }
   for (const l of at.values()) if (l.length === 2) pair(l[0]!, l[1]!);
+  // 3. one segment (network.ts SEGMENT_OF): the engine's halves of one collateral route (the coronary vein and the varices' drain to the azygos) carry on into one another at their station, as one lane
+  const stations = new Map<string, { id: string; end: 0 | 1 }[]>();
+  for (const v of NETWORK) {
+    if (v.feeder || v.kind !== 'collateral' || !COURSES.has(v.id)) continue;
+    for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const l = stations.get(n) ?? []; l.push({ id: v.id, end }); stations.set(n, l); }
+  }
+  for (const l of stations.values()) if (l.length === 2 && sameSegment(l[0]!.id, l[1]!.id)) pair(l[0]!, l[1]!);
   return out;
 }
 

@@ -40,6 +40,12 @@ const narrowTo = (v: NetVessel, end: 0 | 1): number => {
 export const VARIX_THICK = 1.22;
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
+/** How far strand `i` of `n` has opened at the varix's spread `spr` (coil.ts varixSpreadK: 0.55 for a resting vein to 1 for a full varix), 0 to 1: the strands open one after another (V2, Mohammad 22 Nov), the last of the list first (the bands close the first), each over
+ *  45% of the growth, and never all at once; a full varix has them all open, as at rest. */
+export const strandOpen = (i: number, n: number, spr: number): number => {
+  const size = Math.min(1, Math.max(0, (spr - 0.55) / 0.45)), start = n > 1 ? 0.55 * (1 - i / (n - 1)) : 0;
+  return smooth((size - start) / 0.45);
+};
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, tubularFor } from './tubes.ts';
@@ -248,16 +254,19 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     const fit = bundle && FAN_IDS.has(v.id), thick = BANDED.has(v.id) ? VARIX_THICK : 1;
     const out = [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
-      const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands))) : 1) * (c.live ?? 1);
+      // (the strands open one after another as the varix grows and close one after another as it shrinks: the strand the bands close first is the last to open; a banded one stays a cord, whatever its size)
+      const open = fit ? strandOpen(i, strands.length, s.spr) : 1;
+      const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands)) * open) : 1) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, undefined, atRest.strands[i]?.pts), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
+        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, undefined, atRest.strands[i]?.pts).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p)), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping
         // ends, a hub the trunk did not cover once it was narrowed or clotted (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"). Each narrows to a fine point over its last few radii, so the bundle runs together into the vein
         // at the node (the same free-end taper every other tube's end has, tubes.ts `point`), and nothing is a ball.
         // each strand's two ends are sewn onto the host as the trunk's would be (shunt-ends.ts: narrowed to the host's width above, sunk and flared here); the cavernoma's channels end in a point instead
         ...(bundle && v.id !== 'C8' && own.sewn ? { sewn: own.sewn } : {}),
         ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: [true, true] as const } : {}),
-        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick) * bundleShare(own.sewn?.[0], strands.length), (own.taper?.[1] ?? 1) / (c.k * thick) * bundleShare(own.sewn?.[1], strands.length)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
+        // (the ends keep the trunk's calibre however far a strand has closed (banded, or not yet open): a cord that met its trunk at the cord's own width left a step at the station of the one segment, where the azygos' drain begins at its full width)
+        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[0], strands.length), (own.taper?.[1] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[1], strands.length)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];
