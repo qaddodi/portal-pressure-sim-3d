@@ -115,7 +115,7 @@ const browser = typeof window !== 'undefined' && typeof fetch !== 'undefined' &&
 /** The fetch and the decode are each bounded (release review 21 Nov #1): a pending file must not hold the boot for ever; past this the scene plans its skins live (slower, never blank) and says why in the console. */
 export const BAKED_FETCH_MS = 8000;
 export const BAKED_DECODE_MS = 8000;
-const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> => new Promise<T>((ok, no) => { const t = clock.after(() => no(new Error(`${what} took over ${ms} ms`)), ms); p.then((v) => { clock.cancel(t); ok(v); }, (e) => { clock.cancel(t); no(e); }); });
+const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> => new Promise<T>((ok, no) => { const t = clock.afterReal(() => no(new Error(`${what} took over ${ms} ms`)), ms); p.then((v) => { clock.cancel(t); ok(v); }, (e) => { clock.cancel(t); no(e); }); });
 async function fetchSkins(name: string): Promise<BakedSkins | null> {
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   try {

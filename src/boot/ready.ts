@@ -5,6 +5,9 @@
 // mild zoom (`html[data-reveal]`, global.css). Only the main app's path holds the cover (`data-boot="wait"` on <html>); every other page
 // (the crash and no-WebGL notes, the parity and debug pages) lifts it as soon as React has put something in #root, as before. A start that never gets there lifts it anyway.
 import { clock, type TimerId } from '../clock/frame.ts';
+import { stamp } from './timeline.ts';
+import { armLateWatch } from './late-programs.ts';
+import { startLongTasks } from './longtasks.ts';
 
 export const BOOT_FAILSAFE_MS = 8000;
 /** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame it lifts. */
@@ -15,25 +18,31 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false;
+let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
-  waiting = true; done = false; frames = -1; labels = false;
+  waiting = true; done = false; frames = -1; labels = false; compiled = false;
   document.documentElement.dataset.boot = 'wait';
   clock.cancel(timer);
-  timer = clock.after(release, BOOT_FAILSAFE_MS);
+  timer = clock.afterReal(release, BOOT_FAILSAFE_MS);
 }
 
 /** True from holdSplash() until the cover is released or failed: the figure has not been drawn yet, so a lost context is a boot failure, not something to recover from. */
 export const splashHeld = (): boolean => waiting && !done;
 
-/** The scene drew a frame. The first one starts the count; the frame after it has placed the labels, and the splash goes. */
+/** Every program the figure can ask for is compiled (Stage's warm-up under the splash: materials/prototypes.ts), or the warm-up's cap ran out. The cover never lifts before this, except by the failsafe: the
+ *  splash is the one place allowed to be slow, and a program that compiles after the lift is a stall in front of the viewer (L3, 21 Nov). */
+export function compileDone(): void { compiled = true; }
+/** Whether the programs are compiled (tests, and Stage's first frame). */
+export const programsCompiled = (): boolean => compiled;
+
+/** The scene drew a frame. The first one starts the count; the frame after it has placed the labels, and the splash goes. A frame before `compileDone()` does not count. */
 export function figureDrawn(): void {
-  if (!waiting || done) return;
+  if (!waiting || done || !compiled) return;
   if (frames < 0) {
-    frames = 0; firstAt = clock.now();
+    frames = 0; firstAt = clock.now(); stamp('first-draw');
     off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
     clock.invalidate('boot-ready');
   }
@@ -48,13 +57,14 @@ export function rendererFailed(reason: string): void {
 }
 
 /** Every label the figure shows is fully in (LabelLayer, each frame it is true). */
-export function labelsShown(): void { if (waiting) labels = true; }
+export function labelsShown(): void { if (waiting) { if (!labels) stamp('labels'); labels = true; } }
 
 export function release(): void {
   if (done || !waiting) return;
   done = true; waiting = false;
   clock.cancel(timer); off?.(); off = null;
   delete document.documentElement.dataset.boot;
+  stamp('lift'); armLateWatch(); startLongTasks();   // (from here a program built, or a main-thread task over 50 ms, is counted and named: boot/late-programs.ts, boot/longtasks.ts)
   const root = document.documentElement;
   root.dataset.reveal = '1';   // (the figure and its labels settle in from a mild zoom as the cover fades)
   clock.after(() => { delete root.dataset.reveal; }, REVEAL_MS);

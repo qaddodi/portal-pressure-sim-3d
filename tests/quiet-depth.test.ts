@@ -18,13 +18,16 @@ test('nothing up to 8 degrees, full at 25, smooth between, the same either way',
   assert.ok(Number.isInteger(quietOf(rad(13)) * QUIET_STEPS), 'in steps, so a drag does not repaint every frame');
 });
 
-test('the wash goes toward the plate by a quarter at most; the face-on colour is unchanged', () => {
+test('the organs\' wash does not change on a turn (owner, 20 Nov: "when I move the camera the organs become really dark"); if the wash is ever brought back it goes toward the plate by a quarter at most', () => {
+  assert.equal(QUIET_WASH, 0, 'an organ\'s tone is the look\'s and never the camera\'s');
+  assert.ok(QUIET_WASH >= 0 && QUIET_WASH <= 0.25);
   const base: [number, number, number] = [0.2, 0.2, 0.2];
   assert.deepEqual(organColour(base, { ...PLAIN, quiet: 0 }, K), base);
-  const full = organColour(base, { ...PLAIN, quiet: 1 }, K);
+  // the formula still follows QUIET_WASH (so a value above 0 would be felt), and at 0 every quiet gives the face-on colour
+  const full = organColour(base, { ...PLAIN, quiet: 1 }, K), half = organColour(base, { ...PLAIN, quiet: 0.5 }, K);
   assert.ok(Math.abs(full[0] - (0.2 + 0.8 * QUIET_WASH)) < 1e-9, String(full[0]));
-  const half = organColour(base, { ...PLAIN, quiet: 0.5 }, K);
-  assert.ok(half[0] > base[0] && half[0] < full[0]);
+  assert.ok(half[0] >= base[0] && half[0] <= full[0]);
+  assert.deepEqual(full, base); assert.deepEqual(half, base);
 });
 
 test('the scene feeds the organ layer from the orbit', () => {

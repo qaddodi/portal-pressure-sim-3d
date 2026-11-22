@@ -1,4 +1,4 @@
-// A chart's box is never shorter than the picture drawn in it (Mohammad, 21 Nov: the "HVPG and ascites over the month" card cut the chart off at its foot: lower values, lines and the last point gone).
+// A chart's box is exactly as tall as the picture drawn in it (Mohammad, 21 Nov: the "HVPG and ascites over the month" card cut the chart off at its foot: lower values, lines and the last point gone).
 // Root: the 2D sheet gives the chart's wrapper a height of its own (`.pz-flowtime` max(60cqi, 15em)), 2D's SVG is drawn to that box; the 3D frame draws at its own height, so the card measured the box and clipped the picture.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,10 +10,10 @@ import { ctxOf } from './charts-helpers.ts';
 
 const css = readFileSync(new URL('../src/ui/charts/charts.css', import.meta.url), 'utf8');
 
-test('every chart wrapper that 2D gives a fixed height keeps the picture whole: the box is never shorter than its content', () => {
-  const m = /:is\(([^)]+)\)\s*\{\s*min-height:\s*min-content\s*!important/.exec(css);
-  assert.ok(m, 'charts.css holds the min-content floor');
-  for (const k of ['.pz-flowtime', '.pz-curve', '.pz-talk', '.pz-shift', '.pz-flows']) assert.ok(m![1]!.includes(k), `${k} has the floor`);
+test('every chart wrapper that 2D gives a fixed height takes the height of its picture: the box is never shorter than its content', () => {
+  const m = /:is\(([^)]+)\)\s*\{\s*height:\s*auto\s*!important;\s*min-height:\s*0\s*!important/.exec(css);
+  assert.ok(m, 'charts.css gives the wrappers the height of their picture');
+  for (const k of ['.pz-flowtime', '.pz-curve', '.pz-talk', '.pz-shift', '.pz-flows']) assert.ok(m![1]!.includes(k), `${k} is held to its picture`);
 });
 
 test('the flow-time chart is drawn no taller than the room its card leaves it, and a phone keeps 2D\'s one height', () => {

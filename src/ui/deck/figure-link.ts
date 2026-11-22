@@ -61,7 +61,7 @@ export function linkFigure(): () => void {
     const late = c.named.some((g) => g.at > 0);
     if (late) { seq = { named: c.named, shown: -1, hold: clock.hold('figure-glow-seq') }; clock.invalidate('figure-glow-seq'); } else setLayer('talk', { named: c.named.map((g) => g.id) });
     setLayer('talk', { marked: c.marked });
-    setLayer('talk', { pins: c.pins, normalSpleen: c.normalSpleen, resistors: c.res, caudate: c.caudate });
+    setLayer('talk', { pins: c.pins, normalSpleen: c.normalSpleen, resistors: c.res, caudate: c.caudate, caudateVeins: c.caudateVeins });
     t0 = clock.now();
     useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, t0 });
   };

@@ -31,8 +31,15 @@ const rhoOf = (pts: readonly P2[]) => pts.map(([x, y]) => Math.hypot(x, y));
 
 type LanePt = P2 & { bx?: number; by?: number; hug?: number };
 
-/** The bile's courses for a lobule (2D's addBile, the same rules and numbers). */
+const bileMemo = new WeakMap<LobuleNet, BileCourse[]>();
+/** The bile's courses for a lobule (2D's addBile, the same rules and numbers). Worked out once per net: the flat view, the 3D lobule's unwelded build and the weld courses all ask for it, and each time was
+ *  about 30 ms of the vessels' steps (L4, 21 Nov). The result is read only. */
 export function buildBile(net: LobuleNet): BileCourse[] {
+  let out = bileMemo.get(net);
+  if (!out) { out = layBile(net); bileMemo.set(net, out); }
+  return out;
+}
+function layBile(net: LobuleNet): BileCourse[] {
   const R = 1, cx = 0, cy = 0, rsN = net.rsN, rs0 = net.rs0, tubes = net.courses, triads = net.triads, C = net.corners;
   const L0 = tubes.filter((c) => c.kind === 's0'), inlets = tubes.filter((c) => c.kind === 'in');
   const out: BileCourse[] = [];

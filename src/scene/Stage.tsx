@@ -7,14 +7,17 @@ import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
+import { whenQuiet } from '../clock/idle.ts';
 import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
-import { figureDrawn, rendererFailed, splashHeld } from '../boot/ready.ts';
+import { compileDone, figureDrawn, rendererFailed, splashHeld } from '../boot/ready.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
 import { firstDraw, spanAsync } from '../boot/spans.ts';
+import { stamp } from '../boot/timeline.ts';
+import { lateProgramCheck, rebaseLateWatch } from '../boot/late-programs.ts';
 import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
@@ -35,6 +38,7 @@ import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { installTilt } from './camera/tilt-input.ts';
 import { reduced } from '../ui/a11y/motion.ts';
+import { D_SMALL, EASE_ARRIVE } from '../ui/motion.ts';
 import { K_MAX, zoomLimits } from './gesture/view.ts';
 import { SHOTS } from './camera/shots.ts';
 import { circuitShot } from './circuit/shots.ts';
@@ -82,6 +86,24 @@ function SceneBridge() {
     restored: () => { setGlLoss('ok'); clock.invalidate('context-restored'); },
   }), [gl]);
 
+  // Under the splash, before the first frame (L3, 21 Nov): the 3D lobule and sinusoid are constructed (their materials, no geometry) and every program of the scene graph, those two views, the hidden devices and the
+  // stand-ins for what is made later (materials/prototypes.ts) is compiled, into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts. three builds
+  // them in parallel where the driver can. The first frame waits for this (capped at WARM_CAP_MS), and so does the cover's lift (boot/ready.ts compileDone), so nothing compiles in front of the viewer.
+  const compiled = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    cel.constructMicro();
+    const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined).finally(() => stamp('compile'));
+    rewarm.current = () => { rebaseLateWatch(); void warmP().then(rebaseLateWatch); cel.onMicroPrimed?.(); };   // (what a restore rebuilds is not late)   // (after a lost context: the programs and the geometry again, off the frame)
+    // (the organs arrive after their geometry and art files do, and are the largest set of programs: the compile waits for them, within the cap; one that comes in after the cap is compiled when it does)
+    const all = cel.organsBuilt.then(() => warmP());
+    void Promise.race([all, new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => {
+      if (!alive || compiled.current) return;
+      compiled.current = true; compileDone(); clock.invalidate('compiled');
+    });
+    return () => { alive = false; };
+  }, [gl]);
+
   // Copy / Save figure (ui/shell/figure-image-dom.ts): the stage drawn once at `want` times its CSS size, in this task (the canvas is read before anything else can clear it), then put back at the pixel
   // ratio it rests at and drawn again in the same task, so the screen never shows the other size. The size is kept inside what the device can draw (figure-image.ts pictureScale).
   useEffect(() => {
@@ -101,36 +123,30 @@ function SceneBridge() {
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
+    if (!compiled.current) return;   // (the first frame waits for the compile above)
     frameBegin(gl.info);
+    const drawAt = clock.now();
     firstDraw(cel.view, () => cel.render(gl));   // (the first drawn frame of each view is timed: boot/spans.ts, ?perf)
     frameEnd(gl.info);
+    lateProgramCheck(gl.info.programs, cel.view, clock.now() - drawAt, drawAt);   // (a program built after the splash lifted is named here: boot/late-programs.ts)
     lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
-    if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
+    if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : `opacity ${D_SMALL}ms ${EASE_ARRIVE}`; el.style.opacity = '1'; }
     if (cel.rig.placed) figureDrawn();   // (the splash waits for this: the first frame WITH the figure, then the labels it places; boot/ready.ts. A frame that only cleared (the camera has no room yet) is not the figure)
-    // every program of every view (the lobule, the sinusoid, the Circuit, the devices, the hidden ones) is built once, off the frame, a moment after the first picture, so the first show of a view never stalls on a driver
-    // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
     if (!warmed.current) {
       warmed.current = true;
-      const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined);
-      const warm = () => { void warmP(); };   // (into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts)
-      rewarm.current = () => { warm(); cel.onMicroPrimed?.(); };   // (after a lost context: the programs and the geometry again, off the frame)
-      cel.onMicroBuilt = warm;
-      // (then, once the views are built and primed: every geometry no frame has drawn is sent to the GPU one per idle slice, so a view's first frame uploads nothing: materials/warm.ts GeometryUploader)
+      // (the micro views' meshes are built in the idle slices after the first picture, one small step at a time, L4; once built and primed, every geometry no frame has drawn is sent to the GPU,
+      // one per idle slice, so a view's first frame uploads nothing: materials/warm.ts GeometryUploader)
       cel.onMicroPrimed = () => {
+        stamp('micro');
         const up = new GeometryUploader(gl as unknown as UploadRenderer, cel.rig.camera, new WebGLRenderTarget(1, 1));
         for (const r of cel.uploadRoots) up.add(r);
-        const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-        const next = () => {
-          let more = false;
-          try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ }
-          if (more) { if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60); } else up.dispose(); };
         spanAsync('upload:geometries', () => Promise.resolve()).catch(() => undefined);
-        if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60);
-      };   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
-      // One thing at a time: the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in one slot (docs/decisions.md "Warm-up before the micro views").
-      clock.after(() => { void Promise.race([warmP(), new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
+        // (one geometry per step in the background slot, as many as fit its budget: never while anything moves)
+        whenQuiet(() => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (!more) up.dispose(); return !more; }, { tag: 'upload' });
+      };
+      clock.after(() => cel.buildMicroIdle(), 400);   // (the programs are all compiled already: nothing to wait for but the reveal's first moments)
     }
   }, 1);
 

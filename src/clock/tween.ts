@@ -1,6 +1,7 @@
 // Eased values on the one clock. A Tweened value holds a number; to() glides it to a new target from wherever it is now (a move that
 // is interrupted retargets without a jump). While any value moves, the clock is held awake; when all have landed it is released.
 import { clock, type Clock, type Hold } from './frame.ts';
+import { EASE_ARRIVE } from '../ui/motion.ts';
 
 export type Ease = (t: number) => number;
 
@@ -37,7 +38,7 @@ export const MOTION = {
 } as const;
 export const easeInOutCubic: Ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 /** 2D's --ease-arrive (tokens.css, ease.js EASE_ARRIVE), the one curve for what comes in: the CSS string and the function are the same curve. */
-export const ARRIVE_CSS = 'cubic-bezier(.2, .8, .2, 1)';
+export const ARRIVE_CSS = EASE_ARRIVE;
 export const easeArrive: Ease = cubicBezier(0.2, 0.8, 0.2, 1);
 export const linear: Ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t);
 

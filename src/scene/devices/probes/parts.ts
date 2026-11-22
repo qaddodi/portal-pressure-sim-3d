@@ -27,19 +27,20 @@ export class ProbePart extends DeviceObject {
     super(geometry, tone, shared, { ...o, ...(style.fat != null ? { fat: style.fat } : {}), ...(style.spec != null ? { spec: style.spec } : {}), ...(style.shadow != null ? { shadow: style.shadow } : {}), ...(style.flat ? { tubeTones: false } : {}) }, style.edge ?? 'ink');
     this.colour = colour;
     this.style = style;
-    this.group.visible = false;
+    this.park();
   }
-  /** Changes the colour the part wears (a ring that is the portal vein's, then the hepatic vein's) and paints it in the look it is in. */
-  recolour(c: PartColour): void { if (c === this.colour) return; this.colour = c; if (this.pal) this.applyPalette(this.pal); }
-  override applyPalette(p: Palette): void {
-    super.applyPalette(p);
-    this.pal = p;
-    if (!this.colour) return;
+  /** Changes the colour the part wears (a ring that is the portal vein's, then the hepatic vein's): it glides there (a part that is not drawn takes it at once). */
+  recolour(c: PartColour): void { if (c === this.colour) return; this.colour = c; if (this.pal) this.applyPalette(this.pal, true); }
+  protected override colours(p: Palette, out: { base: Color; shade: Color }): void {
+    if (!this.colour) { super.colours(p, out); return; }
     const look = lookOf(p), hex = typeof this.colour === 'function' ? this.colour(DEVICE_TOKENS[look], look) : this.colour;
-    const base = rawColor(hex);
-    (this.toon.uniforms.color!.value as Color).copy(base);
-    (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(this.style.flat ? 1 : p.shade);
-    if (this.style.rim) (this.ink.uniforms.color!.value as Color).copy(rawColor(this.style.rim));
+    out.base.copy(rawColor(hex));
+    out.shade.copy(out.base).multiplyScalar(this.style.flat ? 1 : p.shade);
+  }
+  override applyPalette(p: Palette, glide = false): void {
+    super.applyPalette(p, glide);
+    this.pal = p;
+    if (this.colour && this.style.rim) (this.ink.uniforms.color!.value as Color).copy(rawColor(this.style.rim));
   }
 }
 

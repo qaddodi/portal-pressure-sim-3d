@@ -3,5 +3,5 @@
    heads, 44 px chips, round-cornered rows, a rules list), which won over 2D's: the folds read as small caps with a right chevron and no chips, and the rows looked nothing like 2D's, 20 Nov 2026. It holds
    only what 2D does with script: the Model line's words come in with a fade (2D swapFade). */
 @keyframes tr-in { from { opacity: 0; } to { opacity: 1; } }
-.tr-model .v { animation: tr-in 240ms var(--ease-arrive, ease) both; }
+.tr-model .v { animation: tr-in var(--d-small) var(--ease-arrive) both; }
 @media (prefers-reduced-motion: reduce) { .tr-model .v { animation: none; } }

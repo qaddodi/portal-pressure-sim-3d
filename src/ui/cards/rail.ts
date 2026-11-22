@@ -14,6 +14,7 @@
 import { clock as theClock, type Clock, type FrameInfo, type Hold } from '../../clock/frame.ts';
 import { cubicBezier } from '../../clock/tween.ts';
 import { D_SMALL } from '../a11y/motion.ts';
+import { EASE_RAIL } from '../motion.ts';
 
 /** The most one frame may count toward a move: a stalled frame holds the cards where they were and the move goes on from there, never jumps to its end (2D card-throw.js easeNow). */
 export const MAX_DT = 50;
@@ -24,7 +25,7 @@ export const RAIL_MS = 560, OUT_MS = 340, IN_MS = 520, RAIL_GAP = 24, THROW_IN =
 export const PARALLAX = { words: 1, data: 0.82 } as const;
 export const easeRail = cubicBezier(0.32, 0.72, 0, 1);
 /** The curve as CSS, and when the old cards are wholly gone (their fade ends at 80 % of their move): a card the talk keeps glides to its new place then, with the new cards. */
-export const RAIL_CSS = 'cubic-bezier(0.32, 0.72, 0, 1)';
+export const RAIL_CSS = EASE_RAIL;
 export const OUT_DONE = Math.round(0.8 * OUT_MS);
 
 export type Kind = 'out' | 'in' | 'back';

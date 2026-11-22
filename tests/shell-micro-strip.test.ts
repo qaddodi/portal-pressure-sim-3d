@@ -30,7 +30,7 @@ test('the tile reads as 2D\'s: "%" with " of healthy" in .u-x', () => {
 });
 
 test('the hint stands above the dock and the view pill: the toast reads --bot-occ, which the shell publishes on the root (the toast is outside .app)', () => {
-  assert.match(shell, /\.sh-toast \{[^}]*bottom: calc\(var\(--safe-b, 0px\) \+ var\(--bot-occ, 120px\) \+ 8px\)/);
+  assert.match(shell, /\.sh-toast \{[^}]*bottom: calc\(var\(--safe-b, 0px\) \+ var\(--bot-occ, 0px\) \+ var\(--sheet-gap\)\)/);
   assert.match(sh, /root\.style\.setProperty\('--bot-occ'/);
   for (const [w, h] of [[1024, 768], [800, 600], [1440, 900]]) {
     const v = layoutVars({ w, h, safe: { top: 0, right: 0, bottom: 0, left: 0 } } as never, layoutClass(false));

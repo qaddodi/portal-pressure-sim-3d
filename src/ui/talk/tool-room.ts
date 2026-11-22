@@ -16,7 +16,7 @@ const px = (v: string) => parseFloat(v) || 0;
 
 /** The room of the card `box` stands in: measured from the card, never from the instrument's own height (it never enters its own budget). Pure on the numbers it is handed. */
 export function roomOfBox(box: HTMLElement, cap: number): number {
-  const card = box.closest<HTMLElement>('.pz-data'), inner = box.parentElement;
+  const card = box.closest<HTMLElement>('.pz-data, .pz-panel'), inner = box.parentElement;
   if (!card || !inner || !(cap > 0)) return 0;
   const parts: number[] = [];
   let rows = 0;
@@ -38,7 +38,7 @@ export function useToolRoom(): [RefObject<HTMLDivElement | null>, number] {
   useLayoutEffect(() => {
     const box = ref.current;
     if (!box) return;
-    const card = box.closest<HTMLElement>('.pz-data');
+    const card = box.closest<HTMLElement>('.pz-data, .pz-panel');
     const apply = () => {
       const r = roomOfBox(box, cap);
       setRoom((was) => (was === r ? was : r));

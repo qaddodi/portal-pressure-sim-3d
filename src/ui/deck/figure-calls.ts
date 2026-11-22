@@ -34,6 +34,8 @@ export interface FigureCalls {
   marked: string[];
   res: ResKey[];
   caudate: boolean;
+  /** with its short hepatic veins (plan.caudateVeins) */
+  caudateVeins: boolean;
   cards: FigCard[];
   calipers: FigCaliper[];
   /** The Circuit's brackets, each with its words filled from the slide's numbers. */
@@ -42,7 +44,7 @@ export interface FigureCalls {
   notDrawn: string[];
 }
 
-export const EMPTY_CALLS: FigureCalls = { named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, cards: [], calipers: [], spans: [], notDrawn: [] };
+export const EMPTY_CALLS: FigureCalls = { named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], notDrawn: [] };
 
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
 export function clotWords(v: number | undefined): string | null {
@@ -60,7 +62,8 @@ export function liveLabel(label: string, fp: Fp | null | undefined): string {
   });
 }
 
-const pinsOf = (organs: readonly { id: string }[]): string[] => organs.map((o) => o.id).filter((id) => id in ORGAN_STYLE);
+/** (the caudate lobe is in the organ layer but is shown by `caudate`, not outlined: 2D's lobe has its own line and no pin glow) */
+const pinsOf = (organs: readonly { id: string }[]): string[] => organs.map((o) => o.id).filter((id) => id in ORGAN_STYLE && id !== 'caudate');
 
 export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   const fp = r.fp ?? null, notDrawn: string[] = [];
@@ -130,7 +133,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   const spans: FigSpan[] = plan.spans.map((sp, i) => ({ id: `span:${i}`, from: sp.from, to: sp.to, text: liveLabel(sp.label, fp) }));
 
   if (plan.ripple) notDrawn.push('ripple (2D draws no halo: stage-glow.js, 13 Nov 2026)');
-  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, cards, calipers, spans, notDrawn };
+  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, notDrawn };
 }
 
 export { toneCss };

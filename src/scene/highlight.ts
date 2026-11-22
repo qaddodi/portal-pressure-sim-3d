@@ -128,6 +128,9 @@ export class Highlight {
   private wanted: string | null = null;
   /** Ids that may be picked before their tube exists (the custom shunts: their tubes come and go with the params, circuit/tubes.ts). */
   expect: (id: string) => boolean = () => false;
+  /** Told whenever `picked` changes, from any path (a pick, the lit set clearing it, a late tube lighting the wanted id): the ONE writer of the page's pick store (scene/api.ts). Integration review I6. */
+  onPicked: (id: string | null) => void = () => {};
+  private tellPicked(was: string | null): void { if (this.picked !== was) this.onPicked(this.picked); }
 
   constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
     this.hostOf = hostOf;
@@ -156,9 +159,11 @@ export class Highlight {
     if (!id || this.tracks.get(id)?.obj !== o) return;
     this.tracks.delete(id);
     this.edges = this.edges.filter((e) => e.id !== id);
+    if (this.picked === id && !this.expect(id)) { this.picked = null; this.onPicked(null); }   // (its tube is gone: nothing is picked; `wanted` keeps it for a tube that comes back)
   }
 
   set(id: string | null): void {
+    const was = this.picked;
     this.wanted = id;
     this.picked = id && (this.tracks.has(id) || this.expect(id)) ? id : null;
     const spec = this.picked && this.tracks.has(this.picked) ? computeHighlight(this.group(this.picked), this.edges, this.range) : new Map<string, HighlightSpec>();
@@ -175,11 +180,14 @@ export class Highlight {
         u.hiFade!.value = s.fade ?? 1;
       }
     }
+    this.tellPicked(was);
   }
 
   /** Light exactly these vessels (and every piece of a vein the engine cuts), each outlined whole and nothing run on downstream: the shunt's targets. Clears the pick. */
   setOnly(ids: readonly string[]): void {
+    const was = this.picked;
     this.picked = null;
+    this.tellPicked(was);
     this.wanted = null;
     const hosts = new Set(ids.map((id) => this.hostOf.get(id) ?? id));
     for (const [eid, t] of this.tracks) {
@@ -240,6 +248,9 @@ export const PIN_FADE_MS = 300;
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
 export const PIN_PX = 0, SELECT_PX = 0;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
 /** An organ's glow as hulls from the widest (drawn first) to the narrowest: how far past the organ's line each reaches (figure units, as the organ's line is) and the alpha it adds. They stack to a bright rim and a long soft tail. */
+/** What an organ's glow shells and the spleen's normal-range ring are built with besides the organ's own ink shaders (the program stand-in, materials/prototypes.ts, wears the same). */
+export const HALO_FLAGS = { side: BackSide, transparent: true, depthWrite: false } as const;
+
 export const ORGAN_GLOW: readonly { out: number; alpha: number }[] = [{ out: 26, alpha: 0.05 }, { out: 19, alpha: 0.07 }, { out: 13, alpha: 0.1 }, { out: 8, alpha: 0.14 }, { out: 4, alpha: 0.2 }];
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
@@ -273,7 +284,7 @@ export class OrganPins {
       const ink = o.group.children.find((c) => (c as Mesh).material === o.ink) as Mesh | undefined, base = ink ? ink.renderOrder - 0.45 : 0;
       shells = ORGAN_GLOW.map((g, j) => {
         const u = o.ink.uniforms;
-        const mat = new ShaderMaterial({ vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, side: BackSide, transparent: true, depthWrite: false,
+        const mat = new ShaderMaterial({ vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS,
           uniforms: { ...u, px: { value: 0 }, color: { value: new Color() }, hiColor: { value: new Color() }, inkA: { value: 0 }, hiOn: { value: 0 }, hiPx: { value: 0 } } });
         const m = new Mesh(ink?.geometry ?? o.toonMesh.geometry, mat);
         m.frustumCulled = false; m.renderOrder = base + 0.05 * j; m.visible = false; m.name = `highlight/glow/${id}/${j}`;
@@ -312,7 +323,7 @@ export class OrganPins {
     if (sp && (this.normal || this.normalAmt > 0)) {
       if (!this.normalMesh && sp.group.parent) {
         const u = sp.ink.uniforms;
-        const mat = new ShaderMaterial({ vertexShader: sp.ink.vertexShader, fragmentShader: sp.ink.fragmentShader, side: BackSide, transparent: true, depthTest: false, depthWrite: false,
+        const mat = new ShaderMaterial({ vertexShader: sp.ink.vertexShader, fragmentShader: sp.ink.fragmentShader, ...HALO_FLAGS, depthTest: false,
           uniforms: { ...u, px: { value: NORMAL_LINE.px }, inflate: { value: 0 }, hiOn: { value: 0 }, inkA: { value: 0 } } });
         this.normalMesh = new Mesh(sp.toonMesh.geometry, mat); this.normalMesh.frustumCulled = false;
         this.normalMesh.renderOrder = 20;

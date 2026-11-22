@@ -9,7 +9,8 @@ import { type Box, hits, within } from './geometry.ts';
 import { PTR, PILL_GAP, cathType, pillGlass, pillSize, INTER, type CathType, type Reading, type Measure, type Glass } from './cath.ts';
 import { calloutClaims } from './callout-claims.ts';
 import { makeCard, words, shape, fade, place, size, show, type Card } from './cath-dom.ts';
-import { LS, type Vp } from './type.ts';
+import { restyle } from './roll.ts';
+import { LS, RING_STROKE, type Vp } from './type.ts';
 import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
 import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
@@ -49,7 +50,8 @@ export interface FigCaliper {
 }
 
 /** A slide's ring on the figure (2D lobule-zoom-labels.js RING_STROKE, RING_GAP): its stroke, the air a label keeps off it, its least radius, px. */
-export const RING_STROKE = 4, RING_AIR = RING_STROKE / 2 + 8;
+export { RING_STROKE };
+export const RING_AIR = RING_STROKE / 2 + 8;
 const ringPx = (r: number) => Math.max(10, Math.round(r * 10) / 10);
 /** The label of a ring stands this far (px) off the leader's end, so the line never runs in under the letters (2D CALL_GAP). */
 export const RING_LABEL_GAP = 7;
@@ -213,9 +215,9 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
   try { return out.set(x3(p[0]), y3(p[1]), nodeZ(a.node)); } catch { return null; }
 }
 
-interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[] }
-interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; focus: HTMLElement; tx: string; key: string; ltx: string }
-interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
+interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[]; /** each leader's presence 0..1, eased: a leader that goes shrinks to nothing, it is never switched off */ k: number[]; kd: number[]; /** the translate and turn, and the length, each line last stood at (it shrinks in place) */ at: string[]; len: number[] }
+interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; focus: HTMLElement; tx: string; key: string; ltx: string; /** the leader's presence 0..1, eased */ k: number; /** where the leader last stood (translate and turn), so it shrinks in place */ at: string; len: number }
+interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; /** the colour the card was last written in */ look?: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
 interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
 interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
 
@@ -231,6 +233,9 @@ export class FigureCards {
   private last = -1;
   private sig = '';
   private dirty = true;
+  /** This frame's step, and whether a leader is still easing (the clock keeps frames coming for it). */
+  private dt = 16;
+  private easing = false;
   private readonly p = new Vector3();
   private readonly q = new Vector3();
   private readonly pt = { x: 0, y: 0 };
@@ -261,12 +266,12 @@ export class FigureCards {
       // the soft focus inside the ring (the content under it blurred a little): the app's one glass (glass.css `.cl-glass`) with a light blur and no tint, so Settings > Blur effect turns it off with the rest
       const focus = document.createElement('i'); focus.className = 'cl-glass lz-co-focus'; focus.setAttribute('aria-hidden', 'true');
       root.append(focus, line, ring);
-      rec.co = { root, ring, line, focus, tx: '', key: '', ltx: '' };
+      rec.co = { root, ring, line, focus, tx: '', key: '', ltx: '', k: 0, at: 'translate3d(0,0,0)', len: 0 };
     }
     if (spec.kind === 'step') {
       // the leader to the vessel the number names (2D: a dot on the vessel and a thin line to the chip; a group's number a line to each of its vessels)
       const root = document.createElement('div'); root.className = 'cl-lead'; this.parent.appendChild(root);
-      rec.lead = { root, lines: [], dots: [], tx: [] };
+      rec.lead = { root, lines: [], dots: [], tx: [], k: [], kd: [], at: [], len: [] };
     }
     if (split) {
       // the 2D portal-blood label, its own markup (stage-sites-paint.js SPLIT_B): the number and "bypasses the liver", the caption, the bar split into the liver's and the shunts' share
@@ -306,7 +311,7 @@ export class FigureCards {
   /** One frame (the clock's tags phase). Returns true while cards still need frames (fading, or waiting to return). */
   tick(): boolean {
     const d = this.deps, now = d.now(), dt = this.last < 0 ? 16 : Math.min(100, now - this.last);
-    this.last = now;
+    this.last = now; this.dt = dt; this.easing = false;
     const vp = d.vp(), t = cathType(vp), view = d.view();
     // the cards of this slide: made once each, gone with the slide
     const want = new Set(this.cards.map((c) => c.id));
@@ -427,7 +432,7 @@ export class FigureCards {
     }
     // a step that has not come yet keeps frames coming until it does
     for (const c of this.cards) if ((c.at ?? 0) > age) busy = true;
-    return busy || hold || this.dirty;
+    return busy || hold || this.dirty || this.easing;
   }
 
   /** How near its point a step's number may stand (2D STEP_LEAD_GAP and 4 + half the vessel's width): room for the dot's ring and a leader to the chip. An organ's, or a group's, stands close (4). */
@@ -451,16 +456,20 @@ export class FigureCards {
     const circle = { cx: box.x0 + dia / 2, cy: box.y0 + dia / 2, r: dia / 2 };
     while (lead.lines.length < pts.length) {
       const l = document.createElement('i'); l.className = 'cl-lead-line'; const dt = document.createElement('i'); dt.className = 'cl-lead-dot';
-      lead.root.append(l, dt); lead.lines.push(l); lead.dots.push(dt); lead.tx.push('');
+      lead.root.append(l, dt); lead.lines.push(l); lead.dots.push(dt); lead.tx.push(''); lead.k.push(0); lead.kd.push(0); lead.at.push('translate3d(0,0,0)'); lead.len.push(0);
     }
     lead.lines.forEach((l, i) => {
       const p = pts[i], seg = p ? stepLeader(circle, p) : null;
-      const on = !!p && r.box?.ok !== false;
-      lead.dots[i]!.style.visibility = on ? 'visible' : 'hidden'; l.style.visibility = on && seg ? 'visible' : 'hidden';
-      if (!p) return;
-      const round = (n: number) => Math.round(n * 100) / 100;
-      lead.dots[i]!.style.transform = `translate3d(${round(p.x)}px,${round(p.y)}px,0)`;
-      if (seg) { const len = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]), ang = Math.atan2(seg[3] - seg[1], seg[2] - seg[0]); const tx = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${ang.toFixed(4)}rad) scaleX(${round(len)})`; if (tx !== lead.tx[i]) { lead.tx[i] = tx; l.style.transform = tx; } }
+      const on = !!p && r.box?.ok !== false, round = (n: number) => Math.round(n * 100) / 100;
+      // (a leader or its dot that is not wanted shrinks to nothing by its scale and is never switched off: it eases out as it came in)
+      const kd = (lead.kd[i] = this.ease(lead.kd[i]!, on)), kl = (lead.k[i] = this.ease(lead.k[i]!, on && !!seg));
+      lead.dots[i]!.style.transform = `${p ? `translate3d(${round(p.x)}px,${round(p.y)}px,0)` : 'translate3d(0,0,0)'} scale(${round(kd)})`;
+      if (seg) {
+        lead.len[i] = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]);
+        lead.at[i] = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${Math.atan2(seg[3] - seg[1], seg[2] - seg[0]).toFixed(4)}rad)`;
+      }
+      const tx = `${lead.at[i]} scaleX(${round(lead.len[i]! * kl)})`;
+      if (tx !== lead.tx[i]) { lead.tx[i] = tx; l.style.transform = tx; }
     });
     lead.root.style.opacity = String(Math.round(a * 1000) / 1000);
   }
@@ -484,6 +493,13 @@ export class FigureCards {
     return [a.x - nx * half, a.y - ny * half, a.x + nx * half, a.y + ny * half];
   }
 
+  /** A leader's presence one step toward `on` (linear in time at the labels' own fade, drawn as the scale of its length). */
+  private ease(k: number, on: boolean): number {
+    const next = on ? Math.min(1, k + this.dt / FADE.inMs) : Math.max(0, k - this.dt / FADE.outMs);
+    if (next !== (on ? 1 : 0)) this.easing = true;
+    return next;
+  }
+
   private paintCard(r: Rec, t: CathType, a: { x: number; y: number } | undefined): void {
     const c = r.spec, box = r.box;
     if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.co) fadeRing(r.co, 0); if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
@@ -492,21 +508,24 @@ export class FigureCards {
     if (c.kind !== 'split' && r.root.style.opacity !== '') r.root.style.removeProperty('opacity');
     if (c.kind === 'split') { this.paintSplit(r, box, t); return; }
     const sz = cardSize(c, t, this.deps.measure);
-    size(r.card, sz.w, sz.h);
     const key = `${c.kind}|${c.text}|${c.value ?? ''}|${c.unit ?? ''}|${c.tone}|${box.dir}|${Math.round(box.ax)}|${sz.w}`;
     if (r.sig !== key) {
       r.sig = key;
-      const tone = toneOf(c.tone);
-      if (c.kind === 'step') {
-        r.card.k.textContent = String(c.n ?? ''); r.card.n.style.display = 'none'; r.card.u.style.display = 'none';
-        r.root.style.setProperty('--cl-tone', 'var(--text)');
-      } else {
-        words(r.card, { kicker: c.text, value: c.value ?? '', unit: c.unit ?? '', tone: 'free' } as Reading);
-        r.card.n.style.display = c.value ? '' : 'none'; r.card.u.style.display = c.unit ? '' : 'none';
-        r.card.root.dataset.tone = tone.attr;
-        if (tone.css) r.card.root.style.setProperty('--cl-tone', tone.css); else r.card.root.style.removeProperty('--cl-tone');
+      const tone = toneOf(c.tone), step = c.kind === 'step';
+      const k = step ? String(c.n ?? '') : c.text, n = step ? '' : c.value ?? '', u = step ? '' : c.unit ?? '';
+      const text = `${k}|${n}|${u}`, look = step ? 'step' : `${tone.attr}|${tone.css ?? ''}`;
+      const g: Glass = step ? circleGlass(sz.w) : pillGlass(sz.w, sz.h, t.radius, box.dir === 'none' ? 'none' : box.dir, box.ax);
+      // (a card that is showing crosses over to its new words and colour, one crossing for both; the glass takes its new shape beside it. An empty number or unit takes no room: labels.css `:empty`)
+      if (r.card.text !== text || r.look !== look) {
+        restyle(r.card.root, () => {
+          r.card.text = text; r.look = look;
+          r.card.k.textContent = k; r.card.n.textContent = n; r.card.u.textContent = u;
+          r.card.root.dataset.tone = step ? 'free' : tone.attr;
+          if (step) r.root.style.setProperty('--cl-tone', 'var(--text)');
+          else if (tone.css) r.card.root.style.setProperty('--cl-tone', tone.css); else r.card.root.style.removeProperty('--cl-tone');
+        }, r.a);
       }
-      const g: Glass = c.kind === 'step' ? circleGlass(sz.w) : pillGlass(sz.w, sz.h, t.radius, box.dir === 'none' ? 'none' : box.dir, box.ax);
+      size(r.card, sz.w, sz.h);
       shape(r.card, g, key);
     }
     place(r.card, box.x0, box.y0);
@@ -521,20 +540,23 @@ export class FigureCards {
     const co = r.co!, rg = this.anchors.get(r.spec.id + '#r');
     if (!rg) { fadeRing(co, 0); return; }
     const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : 'accent';
-    if (co.root.dataset.tone !== tone) co.root.dataset.tone = tone;
-    if (r.root.dataset.co !== tone) r.root.dataset.co = tone;
+    // (the colour of the ring, its leader and its words changes while they show: they cross over to it)
+    if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, r.a);
+    if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, r.a);
     const key = String(rad);
     if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; co.focus.style.width = co.focus.style.height = `${rad * 2}px`; co.focus.style.margin = `${-rad}px 0 0 ${-rad}px`; }
     const round = (n: number) => Math.round(n * 100) / 100;
     const tx = `translate3d(${round(a.x)}px,${round(a.y)}px,0)`;
     if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; co.focus.style.transform = tx; }
     const seg = ringLeader(a, rad, { x0: box.x0, y0: box.y0, x1: box.x0 + sz.w, y1: box.y0 + sz.h });
-    co.line.style.visibility = seg ? 'visible' : 'hidden';
+    // (no leader, when the words stand too close to the ring for one: it shrinks to nothing by its scale and eases out with the ring, never switched off)
+    co.k = this.ease(co.k, !!seg);
     if (seg) {
-      const len = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]), ang = Math.atan2(seg[3] - seg[1], seg[2] - seg[0]);
-      const ltx = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${ang.toFixed(4)}rad) scaleX(${round(len)})`;
-      if (ltx !== co.ltx) { co.ltx = ltx; co.line.style.transform = ltx; }
+      co.len = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]);
+      co.at = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${Math.atan2(seg[3] - seg[1], seg[2] - seg[0]).toFixed(4)}rad)`;
     }
+    const ltx = `${co.at} scaleX(${round(co.len * co.k)})`;
+    if (ltx !== co.ltx) { co.ltx = ltx; co.line.style.transform = ltx; }
     fadeRing(co, r.a);
   }
 
@@ -571,12 +593,11 @@ export class FigureCards {
     }
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);   // (a changed caption crosses over: cath-dom.ts words)
     const w = ceil2(this.deps.measure(r.spec.text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h = ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name));
     size(r.card, w, h);
     const key = `${r.spec.text}|${r.box.dir}|${Math.round(r.box.ax)}|${w}`;
     if (r.card.shape !== key) {
-      words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'free' } as Reading);
-      r.card.n.style.display = 'none'; r.card.u.style.display = 'none'; r.card.root.dataset.tone = 'note';
       shape(r.card, pillGlass(w, h, t.radius, r.box.dir === 'none' ? 'none' : r.box.dir, r.box.ax), key);
     }
     place(r.card, r.box.x0, r.box.y0);
@@ -597,12 +618,11 @@ export class FigureCards {
     });
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);
     const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
     const key = `${r.spec.text}|${r.box.dir}|${Math.round(r.box.ax)}|${w}`;
     if (r.card.shape !== key) {
-      words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'free' } as Reading);
-      r.card.n.style.display = 'none'; r.card.u.style.display = 'none'; r.card.root.dataset.tone = 'note';
       shape(r.card, pillGlass(w, h, t.radius, r.box.dir === 'none' ? 'none' : r.box.dir, r.box.ax), key);
     }
     place(r.card, r.box.x0, r.box.y0);

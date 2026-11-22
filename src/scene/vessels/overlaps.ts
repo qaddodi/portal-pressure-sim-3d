@@ -72,8 +72,12 @@ export function overlapRuns(A: Sampled, B: Sampled, limit: number): Run[] {
     out.push({ ...cur, length, junction: (ownEnd && length <= JUNCTION_RUN * limit) || (mateEnd && mateLen <= JUNCTION_RUN * limit && length <= JUNCTION_RUN * limit * 2) });
     cur = null;
   };
+  // (a sample of A farther than `limit` from B's box in any one axis is farther than `limit` from every sample of B: it is never near, so it skips the search over B's samples. Only the few samples
+  //  where the two tubes come together are searched: this was the biggest piece of the figure's start-up, the clearance pass over every pair of vessels, about 0.4 s)
+  const bx0 = B.lo[0]! - limit, by0 = B.lo[1]! - limit, bz0 = B.lo[2]! - limit, bx1 = B.hi[0]! + limit, by1 = B.hi[1]! + limit, bz1 = B.hi[2]! + limit;
   for (let p = 0; p < A.pts.length; p++) {
     const a = A.pts[p]!;
+    if (a[0] < bx0 || a[0] > bx1 || a[1] < by0 || a[1] > by1 || a[2] < bz0 || a[2] > bz1) { flush(); continue; }
     let d = Infinity, q = -1;
     for (let r = 0; r < B.pts.length; r++) { const b = B.pts[r]!, dd = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); if (dd < d) { d = dd; q = r; } }
     if (q < 0 || d >= limit) { flush(); continue; }

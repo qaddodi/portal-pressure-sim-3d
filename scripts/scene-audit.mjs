@@ -46,7 +46,7 @@ const probes = new Map();
 // (what is DRAWN: the shader's reveal, which a driven vessel's own clock eases; `presence.amountOf` is only the state of those)
 for (const v of NETWORK) { const o = scene.vesselObject(v.id); if (o?.toon?.uniforms?.reveal) probes.set(`reveal:${v.id}`, () => (o.group.visible || v.id.includes('~F') ? o.toon.uniforms.reveal.value : 0)); }   // (a tributary fan's group is switched off at the change's half-way, where its shader has already faded it to nothing (scene.ts pushFades): the switch is no pop, only its reveal counts)
 probes.set('circuit.t', () => scene.circuit.t);
-probes.set('cavaWhole', () => scene.cavaWhole);
+probes.set('cavaWhole', () => scene.cavaE.value);   // (the cava's whole-ness is the Ease `cavaE` since R7a: .value is drawn, .target is where it is heading)
 probes.set('fadeNow', () => scene.fadeNow);
 const missing = ['circuit.t', 'cavaWhole', 'fadeNow'].filter((k) => typeof probes.get(k)() !== 'number');
 
@@ -91,10 +91,10 @@ if (base && STEPS.includes('bands')) {
   rows.push(run('bands 0', () => adopt({ ...base, bands: 0 })));
 }
 if (STEPS.includes('pick')) {
-  rows.push(run('pick the cava', () => scene.pick('IVC_IS') ?? scene.setNamedVessels(['IVC_IS']), { goals: () => [['cavaWhole', scene.cavaGoal, scene.cavaWhole]] }));
+  rows.push(run('pick the cava', () => scene.pick('IVC_IS') ?? scene.setNamedVessels(['IVC_IS']), { goals: () => [['cavaWhole', scene.cavaE.target, scene.cavaE.value]] }));
   // the same with the model PLAYING (a new frame every 100 ms: the blood streams move every frame): the case a short-circuit `||` hides
   rows.push(run('pick the cava, playing', () => { scene.pick(null); scene.setNamedVessels([]); }, { each: (t) => { if (t % 96 === 0) adopt({ ...base, running: true, gen: (base.gen ?? 0) + 1 + t }); } }));
-  rows.push(run('pick the cava, playing (2)', () => scene.setNamedVessels(['IVC_IS']), { each: (t) => { if (t % 96 === 0) adopt({ ...base, running: true, gen: (base.gen ?? 0) + 1000 + t }); }, goals: () => [['cavaWhole (playing)', scene.cavaGoal, scene.cavaWhole]] }));
+  rows.push(run('pick the cava, playing (2)', () => scene.setNamedVessels(['IVC_IS']), { each: (t) => { if (t % 96 === 0) adopt({ ...base, running: true, gen: (base.gen ?? 0) + 1000 + t }); }, goals: () => [['cavaWhole (playing)', scene.cavaE.target, scene.cavaE.value]] }));
   scene.setNamedVessels([]); scene.pick(null);
 }
 if (STEPS.includes('views')) for (const v of ['circuit', 'body', 'lobule', 'sinusoid', 'body']) rows.push(run(`view -> ${v}`, () => scene.setView(v, clockNow)));

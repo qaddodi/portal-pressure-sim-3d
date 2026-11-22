@@ -268,7 +268,7 @@ test('Save-Data or a 2g link: the fill of the parts opened later is skipped, in 
     await w.fire('message', { data: 'pps:fill', ports: [] });
     assert.equal(w.fetched.includes('https://x.test/app/assets/late.js'), filled, JSON.stringify(conn));
   }
-  assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /if \(!lowData\(\)\) idle\(\(\) => r\.active\?\.postMessage\('pps:fill'\)\)/, 'the page does not even ask');
+  assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /if \(!lowData\(\)\) whenQuietOnce\(\(\) => askFill\(r\.active\)/, 'the page does not even ask');
 });
 
 test('storage.persist() is asked once per device, after the install, and a refusal or a missing API is harmless', async () => {
