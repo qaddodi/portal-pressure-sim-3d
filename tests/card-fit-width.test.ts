@@ -46,7 +46,7 @@ test('a chart measures its box in its own pixels: the card\'s fit zoom is divide
   assert.equal(fitOf(host as never), 0.65);
   assert.equal(fitOf(el('1', el('normal')) as never), 1);
   assert.ok(Math.abs(fitOf(el('0.5', el('0.5')) as never) - 0.25) < 1e-9, 'nested zooms multiply');
-  assert.match(read('src/ui/charts/Chart.tsx'), /const z = fitOf\(el\); setW\(Math\.round\(el\.getBoundingClientRect\(\)\.width \/ z\)\)/, 'the box is measured in the chart\'s own pixels: width divided by the fit zoom');
+  assert.match(read('src/ui/charts/Chart.tsx'), /const z = fitOf\(el\); setW\(ownWidth\(el, z\)\)/, 'the box is measured in the chart\'s own pixels: width divided by the fit zoom (and the card zoom: ownWidth, fit.ts)');
   assert.doesNotMatch(read('src/ui/charts/Chart.tsx'), /setW\(Math\.round\(el\.getBoundingClientRect\(\)\.width\)\)/);
 });
 

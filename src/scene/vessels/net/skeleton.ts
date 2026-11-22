@@ -2,17 +2,22 @@
 // map), and every edge a centreline of 64 bones that starts and ends exactly on its nodes, so continuity is true by construction and no runtime code has to keep it true.
 //
 // The courses are read as they are (vessels/network.ts for the body, circuit/course.ts for the two poses sampled at the same 64 steps of arc length); nothing is redrawn. What this
-// file adds: (1) a node's position, the radius-weighted mean of the ends that meet there (in the map the ends already agree, 2D's stations); (2) each end's last stretch eased onto
-// its node, by the one fade the course code already uses for a joint (network.ts `jointFade`); (3) where two vessels carry straight on into each other (network.ts RUN_PAIRS) one shared
-// tangent at the node and one shared radius (the pair rule's taper); (4) a parallel-transport frame along every edge that runs on across those joins.
+// file adds, by the plan owner's rulings of 22 Nov: (1) a node's place is where the TRUNKS meet (the pair that runs on into one another, else the widest veins), radius-weighted, per pose;
+// (2) a branch whose end lies on a trunk's wall is a SIDE-WALL LANDING: the host is split there into two edges at its own bone and the branch ends on that bone, the short way from where it was drawn;
+// where the map draws that branch at the host's end instead, the host's map bones between the landing and that end are laid at the station (as the 2D diagram has one meeting point);
+// (3) any other end eases onto its node (an end in a fully faded tail bends only inside it, hiddenTail) over its last stretch by the one fade the course code already uses (network.ts `jointFade`), and every move past 25 % of its course or 3 radii must be named (KNOWN_BIG_MOVES);
+// (4) where two vessels carry straight on into each other (network.ts RUN_PAIRS) one shared tangent at the node and one shared radius, and where the MAP turns there (IVCS to RA, the epigastric vein, the hepatic artery) the corner is
+// rounded as the map rounds its own (course.ts CORNER_R, a quadratic through the corner, the node on the curve); (5) a parallel-transport frame along every edge that runs on across those joins.
 //
 // The skeleton is pure data: nothing here is read by the old path (the default), and nothing in the scene imports it until WP4 (`?geom=net`).
 import type { Vec3 } from '../../anatomy/vessels.ts';
-import { COURSES, N_TRACK } from '../../circuit/course.ts';
+import { CORNER_R, COURSES, N_TRACK } from '../../circuit/course.ts';
 import { frameN } from '../../circuit/frame.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { circuitWidthMap } from '../../circuit/width.ts';
-import { MAPPED, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
+import { fadeOf } from '../fades.ts';
+import { tipAlpha } from '../fade-alpha.ts';
+import { MAPPED, NETWORK_BY_ID, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
 import { radiusAtU } from '../tubes.ts';
 import type { Bone, SkelEdge, SkelNode, Skeleton } from './types.ts';
 
@@ -23,9 +28,8 @@ export const REACH_MIN = 0.12, REACH_MAX = 0.45, REACH_PER_MOVE = 6;
 /** Two courses run on into one another when their outward directions at the node are within this of opposite (network.ts `joined`: cos < -0.9, about 25 degrees). */
 export const RUN_COS = -0.9;
 
-export interface SkelEnd { edge: string; end: 0 | 1; node: string; pose: 0 | 1; /** how far the end moved onto its node (scene units) */ move: number; /** the length it eased over (scene units) */ reach: number; /** the move as a share of the whole course */ share: number }
-/** What building the skeleton found: every end that had to move (to read the cost of the snap), and which run-ons carry straight on in each pose. */
-export interface SkeletonReport { ends: SkelEnd[]; runOns: { node: string; a: string; b: string; opposed: [boolean, boolean] }[] }
+export interface SkelEnd { edge: string; end: 0 | 1; node: string; pose: 0 | 1; /** how far the end moved onto its node (scene units) */ move: number; /** the length it eased over (scene units) */ reach: number; /** the move as a share of the whole course */ share: number; /** the move in radii of the widest vessel at the node */ radii: number; /** the part of it across the plane (x and y), in the same radii: the rest is depth, which the drawn tubes ease to their node's depth too (NODE_Z) */ planar: number }
+/** What building the skeleton found: every end that had to move (to read the cost), the landings that split a host, the map's rounded corners, and which run-ons carry straight on in each pose. */
 
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -45,6 +49,21 @@ function arcOf(P: readonly Vec3[]): number[] {
   for (let i = 1; i < P.length; i++) a.push(a[i - 1]! + len(sub(P[i]!, P[i - 1]!)));
   return a;
 }
+/** How far from `end` the course is still fully faded (resting alpha at most FADE_SEEN, fades.ts / fade-alpha.ts): the end's bend may run this far and no further, so the part anyone sees never moves. 0 when the end itself is drawn. */
+export const FADE_SEEN = 0.02;
+export function hiddenTail(id: string, P: readonly Vec3[], arc: readonly number[], end: 0 | 1): number {
+  const n = P.length, total = arc[n - 1]!, art = NETWORK_BY_ID.get(id)?.tone === 'artery';
+  const f = fadeOf(id, art);
+  if (!f || f.mode !== 2) return 0;   // (the down-the-figure fade: the tails below the plate; the others fade along the vessel and stay as they were)
+  let d = 0;
+  for (let q = 0; q < n; q++) {
+    const i = end ? n - 1 - q : q;
+    if (tipAlpha(f, i / (n - 1), P[i]![0], P[i]![1]) > FADE_SEEN) break;
+    d = end ? total - arc[i]! : arc[i]!;
+  }
+  return d;
+}
+
 /** The reach an end eases over, from how far it moves and the course's length. */
 export const reachOf = (move: number, courseLen: number): number => Math.min(REACH_MAX * courseLen, Math.max(REACH_PER_MOVE * move, REACH_MIN * courseLen));
 
@@ -107,74 +126,227 @@ function transport(P: readonly Vec3[], from: 0 | 1, n0: Vec3 | null): [Vec3, Vec
   return out;
 }
 
+/** An end that lies within this many radii of another incident course (and nearer to it than to the node) lands on its wall: the host is split there into a real node (the plan's side-wall rule) and the landing course stays as drawn. */
+export const LAND_RADII = 3;
+/** The fewest bones a landing keeps from its host's ends and from another landing. */
+const MIN_PIECE = 5, MIN_GAP = 3;
+/** The most an end may move onto its node: a share of its course, and a count of radii. A move past either fails the skeleton test unless `KNOWN_BIG_MOVES` names it with a reason. */
+/** The fewest bones a rounded map corner spreads over on each side of its node. */
+export const FILLET_BONES = 5;
+export const MAX_MOVE_SHARE = 0.25, MAX_MOVE_RADII = 3;
+
+/** Ends whose move is past the limits because the DATA puts them there, each named with its kind and reason; the test fails on any other end past the limits and on any named here that is not past them any more, and checks each reason against the build's own report
+ *  ('fade': the end lies in the faded tail below the plate, past 2D's FADE_DOWN_Y start;
+ *  'depth': the move is the depth the drawn tubes ease to their node's too (NODE_Z), not a bend across the plate; 'fillet': the node sits on a rounded map corner, not on the corner point the branch ends at; 'data': none of these, named as an open gap). Key: `edge|end|pose`. */
+export const KNOWN_BIG_MOVES: Readonly<Record<string, { why: 'fade' | 'depth' | 'fillet' | 'data'; reason: string }>> = {
+  'EPI_ILI|1|0': { why: 'fade', reason: "the epigastric vein's end is 100 figure units from the iliac trunk's start, in the tail 2D fades out below the plate (fade 870 to 925, its end at 950): the bend runs only inside the fully faded stretch (hiddenTail, alpha at most 0.02), so the drawn part does not move (tests/net-skeleton.test.ts); a steep hairpin there (about 64 degrees between bones), invisible" },
+  'C4|1|0': { why: 'fade', reason: "the rectal collateral's end (y 1010) is 0.6 from the iliac node, in the tail the 3D fade takes out below the plate (fade 940 to 1005): the bend runs only inside the fully faded stretch (hiddenTail), so the drawn part does not move; a steep hairpin there (over 100 degrees between bones), invisible" },
+  'C3|1|0': { why: 'depth', reason: 'the paraumbilical vein runs at the forward tier (z 0.2) and reaches the umbilicus node at the plate: the move is all depth' },
+  'C3|0|0': { why: 'data', reason: "the paraumbilical vein's start is 8.8 radii across the plane from the left portal vein's node (the old path leaves it on the wall, starts.ts); no landing fits; open gap" },
+  'C3|1|1': { why: 'fillet', reason: "the epigastric node sits on the rounded corner of the map's EPI run-on (wide because the epigastric-SVC edge is long and its bones far apart); the paraumbilical vein's map end is at the corner point" },
+  'C7|0|0': { why: 'data', reason: "the retroperitoneal collateral's start is 3.1 radii (0.036) from the mesenteric node, 13 % of its course: over the radii limit only; open gap" },
+  'S_MC|1|0': { why: 'data', reason: 'a short surgical shunt (0.25) 2.8 radii from the cava node: under the radii limit, over the share; shunts are WP5' },
+};
+
+export interface SkelLanding { host: string; branch: string; branchEnd: 0 | 1; /** the host's bone the node sits on */ bone: number; node: string }
+/** A host whose map course is re-laid so that a landing the body has and the map does not stays whole: the map draws the branch ending at the host's end `hostEnd` (its station), so on the map the host's bones from `bone` to that end are all at the station (the pieces between the landings have no length there, as in the 2D diagram, where the branches meet in one point) and the rest of the course is spread over its whole length. */
+export interface SkelCollapse { host: string; hostEnd: 0 | 1; bone: number }
+export interface SkeletonReport { ends: SkelEnd[]; collapses: SkelCollapse[]; landings: SkelLanding[]; runOns: { node: string; a: string; b: string; opposed: [boolean, boolean] }[]; fillets: { node: string; a: string; b: string; reach: number }[] }
+
+const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+/** The point at fractional bone `f` of the samples. */
+const atBone = (P: readonly Vec3[], f: number): Vec3 => { const i = Math.min(P.length - 2, Math.max(0, Math.floor(f))); return lerp3(P[i]!, P[i + 1]!, f - i); };
+/** The nearest point of the samples to `q`: its distance and fractional bone. */
+function nearest(P: readonly Vec3[], q: Vec3): { d: number; f: number } {
+  let best = Infinity, f = 0;
+  for (let i = 0; i < P.length - 1; i++) {
+    const a = P[i]!, ab = sub(P[i + 1]!, a), l2 = dot(ab, ab), t = l2 > 0 ? Math.min(1, Math.max(0, dot(sub(q, a), ab) / l2)) : 0, d = dist(add(a, scale(ab, t)), q);
+    if (d < best) { best = d; f = i + t; }
+  }
+  return { d: best, f };
+}
+const dist = (a: Vec3, b: Vec3): number => len(sub(a, b));
+/** The point at arc length `s` from an end of the samples (`arc`: their running length). */
+function atArcFromEnd(P: readonly Vec3[], arc: readonly number[], end: 0 | 1, s: number): Vec3 {
+  const n = P.length, total = arc[n - 1]!, at = end ? total - s : s;
+  for (let i = 1; i < n; i++) if (arc[i]! >= at) { const span = arc[i]! - arc[i - 1]!; return lerp3(P[i - 1]!, P[i]!, span > 0 ? (at - arc[i - 1]!) / span : 0); }
+  return P[n - 1]!;
+}
+
 /** Builds the skeleton from the drawn network (the vessels with a map course; the fans of tributaries have none and join the skeleton in WP5, with their presence). */
 export function buildSkeletonWithReport(): { skeleton: Skeleton; report: SkeletonReport } {
+  const order: NetVessel[] = [...MAPPED], byId = new Map(order.map((v) => [v.id, v]));
   const work = new Map<string, Work>();
-  const order: NetVessel[] = [...MAPPED];
-  order.forEach((v) => {
-    const g = COURSES.get(v.id)!;
-    work.set(v.id, { v, P: [g.A.map((p): Vec3 => [p.x, p.y, p.z]), g.C.map((p): Vec3 => [p.x, p.y, p.z])], arc: [[], []], r: [[], []] });
-  });
-  for (const w of work.values()) { w.arc = [arcOf(w.P[0]), arcOf(w.P[1])]; }
-
-  // ---- nodes: every end that meets another at one place, per network
-  const ends = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
-  for (const v of order) for (const end of [0, 1] as const) { const id = nodeIdOf(v, end), l = ends.get(id) ?? []; l.push({ v, end }); ends.set(id, l); }
-  const weight = (v: NetVessel, pose: 0 | 1): number => (pose ? mapRadiusOf(v) : v.radius);
-  const nodePos = new Map<string, [Vec3, Vec3]>();
-  for (const [id, l] of ends) {
-    const pos = [0, 1].map((pose): Vec3 => {
-      let s: Vec3 = [0, 0, 0], tot = 0;
-      for (const { v, end } of l) { const P = work.get(v.id)!.P[pose]!, wt = weight(v, pose as 0 | 1); s = add(s, scale(P[end ? P.length - 1 : 0]!, wt)); tot += wt; }
-      return scale(s, 1 / tot);
-    }) as [Vec3, Vec3];
-    nodePos.set(id, pos);
+  for (const v of order) {
+    const g = COURSES.get(v.id)!, P: [Vec3[], Vec3[]] = [g.A.map((p): Vec3 => [p.x, p.y, p.z]), g.C.map((p): Vec3 => [p.x, p.y, p.z])];
+    work.set(v.id, { v, P, arc: [arcOf(P[0]), arcOf(P[1])], r: [[], []] });
   }
+  const report: SkeletonReport = { ends: [], collapses: [], landings: [], runOns: [], fillets: [] };
+  const radius = (v: NetVessel, pose: 0 | 1): number => (pose ? mapRadiusOf(v) : v.radius);
+  const endOf = (w: Work, end: 0 | 1, pose: 0 | 1): Vec3 => w.P[pose][end ? BONES_PER_EDGE - 1 : 0]!;
+  const keyOf = (v: NetVessel, end: 0 | 1): string => `${v.id}|${end}`;
 
-  // ---- ease each end onto its node
-  const report: SkeletonReport = { ends: [], runOns: [] };
-  const reachOfEnd = new Map<string, number>();
-  for (const [id, l] of ends) {
-    if (l.length < 2) continue;
-    for (const { v, end } of l) {
-      const w = work.get(v.id)!;
-      for (const pose of [0, 1] as const) {
-        const P = w.P[pose], at = P[end ? P.length - 1 : 0]!, delta = sub(nodePos.get(id)![pose], at), move = len(delta);
-        if (move <= 0) continue;
-        const total = w.arc[pose][P.length - 1]!, reach = reachOf(move, total);
-        easeEnd(P, w.arc[pose], end, delta, reach);
-        reachOfEnd.set(`${v.id}|${end}|${pose}`, reach);
-        report.ends.push({ edge: v.id, end, node: id, pose, move, reach, share: move / total });
-      }
-    }
-  }
-  // exactly on the node (the fade is 1 at the end, to the last bit)
-  for (const [id, l] of ends) for (const { v, end } of l) for (const pose of [0, 1] as const) { const P = work.get(v.id)!.P[pose]; P[end ? P.length - 1 : 0] = nodePos.get(id)![pose]; }
+  // ---- the ends that meet, per network
+  const groups = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
+  for (const v of order) for (const end of [0, 1] as const) { const id = nodeIdOf(v, end), l = groups.get(id) ?? []; l.push({ v, end }); groups.set(id, l); }
 
-  // ---- run-ons: one shared direction at the node (each pose that carries straight on), one shared radius
-  const byId = new Map(order.map((v) => [v.id, v]));
-  const runOnAt = new Map<string, { a: string; ea: 0 | 1; b: string; eb: 0 | 1; opposed: [boolean, boolean] }>();
+  // ---- the trunks of each node: the pair that runs on into one another, else the widest veins (a collateral, a shunt and a liver bed are branches). Only a branch moves onto the node.
+  const pairsAt = new Map<string, typeof RUN_PAIRS>();
   for (const p of RUN_PAIRS) {
     const va = byId.get(p.a), vb = byId.get(p.b);
     if (!va || !vb) continue;
-    const opposed: [boolean, boolean] = [false, false];
-    for (const pose of [0, 1] as const) {
-      const wa = work.get(p.a)!, wb = work.get(p.b)!;
-      opposed[pose] = dot(intoOf(wa.P[pose], p.ea), intoOf(wb.P[pose], p.eb)) < RUN_COS;
-    }
-    const node = nodeIdOf(va, p.ea);
-    report.runOns.push({ node, a: p.a, b: p.b, opposed });
-    if (opposed[0] && nodeIdOf(vb, p.eb) === node && !runOnAt.has(node)) runOnAt.set(node, { ...p, opposed });
-    for (const pose of [0, 1] as const) {
-      if (!opposed[pose]) continue;
-      const wa = work.get(p.a)!, wb = work.get(p.b)!;
-      const oa = intoOf(wa.P[pose], p.ea), ob = intoOf(wb.P[pose], p.eb), m = unit(sub(oa, ob));
-      const move = (w: Work, end: 0 | 1) => reachOfEnd.get(`${w.v.id}|${end}|${pose}`) ?? reachOf(0, w.arc[pose][w.P[pose].length - 1]!);
-      aimEnd(wa.P[pose], wa.arc[pose], p.ea, m, move(wa, p.ea));
-      aimEnd(wb.P[pose], wb.arc[pose], p.eb, scale(m, -1), move(wb, p.eb));
+    const id = nodeIdOf(va, p.ea);
+    if (nodeIdOf(vb, p.eb) === id) (pairsAt.get(id) ?? pairsAt.set(id, []).get(id)!).push(p);
+  }
+  const trunk = new Set<string>();
+  for (const [id, l] of groups) {
+    if (l.length < 2) { for (const e of l) trunk.add(keyOf(e.v, e.end)); continue; }
+    const pr = pairsAt.get(id);
+    if (pr?.length) { for (const p of pr) { trunk.add(`${p.a}|${p.ea}`); trunk.add(`${p.b}|${p.eb}`); } continue; }
+    const main = l.filter((e) => e.v.kind !== 'collateral' && e.v.kind !== 'shunt' && e.v.kind !== 'liver'), pool = main.length ? main : l, top = Math.max(...pool.map((e) => e.v.radius));
+    for (const e of pool) if (e.v.radius >= 0.9 * top) trunk.add(keyOf(e.v, e.end));
+  }
+
+  // ---- the node's place: the trunks' radius-weighted mean, per pose
+  const nodePos = new Map<string, [Vec3, Vec3]>();
+  for (const [id, l] of groups) {
+    const t = l.filter((e) => trunk.has(keyOf(e.v, e.end)));
+    nodePos.set(id, [0, 1].map((pose): Vec3 => {
+      let s: Vec3 = [0, 0, 0], tot = 0;
+      for (const { v, end } of t) { const wt = radius(v, pose as 0 | 1); s = add(s, scale(endOf(work.get(v.id)!, end, pose as 0 | 1), wt)); tot += wt; }
+      return scale(s, 1 / tot);
+    }) as [Vec3, Vec3]);
+  }
+
+  // ---- map corners are real: a run-on that turns on the map (IVCS to RA, the epigastric vein, the hepatic artery) is rounded as the map's own corners are (course.ts CORNER_R, a quadratic through the corner), and the node sits on the rounded curve
+  const filleted = new Set<string>();
+  for (const [id, pr] of pairsAt) {
+    const p = pr[0]!, wa = work.get(p.a)!, wb = work.get(p.b)!;
+    if (dot(intoOf(wa.P[1], p.ea), intoOf(wb.P[1], p.eb)) < RUN_COS) continue;
+    const c = nodePos.get(id)![1], la = wa.arc[1][BONES_PER_EDGE - 1]!, lb = wb.arc[1][BONES_PER_EDGE - 1]!, d = Math.min(REACH_MAX * la, REACH_MAX * lb, Math.max(CORNER_R * MAP_K, FILLET_BONES * Math.max(la, lb) / (BONES_PER_EDGE - 1)));   // (a long edge's bones are far apart: the fillet takes at least FILLET_BONES of them, or it is a corner again)
+    const p0 = atArcFromEnd(wa.P[1], wa.arc[1], p.ea, d), p1 = atArcFromEnd(wb.P[1], wb.arc[1], p.eb, d);
+    const bez = (t: number): Vec3 => add(add(scale(p0, (1 - t) * (1 - t)), scale(c, 2 * (1 - t) * t)), scale(p1, t * t));
+    nodePos.get(id)![1] = bez(0.5);
+    const lay = (w: Work, end: 0 | 1, t0: number, t1: number) => {
+      const n = BONES_PER_EDGE, total = w.arc[1][n - 1]!, old = w.arc[1];
+      for (let q = 0; q < n; q++) {
+        const i = end ? n - 1 - q : q, s = end ? total - old[i]! : old[i]!;
+        if (s >= d) break;
+        w.P[1][i] = bez(t0 + (t1 - t0) * (1 - s / d));   // (s = 0 is the node, t = 0.5; s = d is the course's own point, t = 0 or 1)
+      }
+    };
+    lay(wa, p.ea, 0, 0.5); lay(wb, p.eb, 1, 0.5);
+    filleted.add(keyOf(wa.v, p.ea)); filleted.add(keyOf(wb.v, p.eb));
+    report.fillets.push({ node: id, a: p.a, b: p.b, reach: d });
+  }
+
+  // ---- side-wall landings: a branch whose end lies on a trunk's wall (nearer to the trunk's course than to the node) splits that trunk there, at the trunk's own bone: the trunk is kept as drawn and the branch's end goes the short way to it
+  const landings: (SkelLanding & { collapse?: 0 | 1 })[] = [], landed = new Set<string>();
+  for (const [id, l] of groups) {
+    if (l.length < 2) continue;
+    for (const { v, end } of l) {
+      if (trunk.has(keyOf(v, end))) continue;
+      const q = endOf(work.get(v.id)!, end, 0), toNode = dist(q, nodePos.get(id)![0]);
+      let best: { h: NetVessel; d: number; f: number } | null = null;
+      for (const t of l) {
+        if (!trunk.has(keyOf(t.v, t.end)) || t.v === v) continue;
+        const r = nearest(work.get(t.v.id)!.P[0], q);
+        if (!best || r.d < best.d) best = { h: t.v, d: r.d, f: r.f };
+      }
+      if (!best || best.f < MIN_PIECE || best.f > BONES_PER_EDGE - 1 - MIN_PIECE) continue;
+      // (the node is the host's own bone, the host as drawn: the branch's end goes to it, a short way (under LAND_RADII radii and a quarter of the branch), where the host passes it)
+      const bone = Math.round(best.f), hw = work.get(best.h.id)!, bw = work.get(v.id)!, dBone = dist(q, hw.P[0][bone]!);
+      if (dBone > LAND_RADII * Math.max(best.h.radius, v.radius) || dBone > MAX_MOVE_SHARE * bw.arc[0][BONES_PER_EDGE - 1]! || dBone + 0.5 * best.h.radius >= toNode) continue;
+      // (the map takes the landing too, at the host's same bone. Where the map draws the branch at the host's end instead (its station), the host's map bones from the landing to that end are laid at the station, so the map keeps its one meeting point: `collapse`)
+      const mapMove = dist(endOf(bw, end, 1), hw.P[1][bone]!), mapShare = mapMove / bw.arc[1][BONES_PER_EDGE - 1]!, mapRadii = mapMove / Math.max(mapRadiusOf(best.h), mapRadiusOf(v));
+      let collapse: 0 | 1 | undefined;
+      if (mapShare > MAX_MOVE_SHARE || mapRadii > MAX_MOVE_RADII) {
+        const d0 = dist(endOf(bw, end, 1), hw.P[1][0]!), d1 = dist(endOf(bw, end, 1), hw.P[1][BONES_PER_EDGE - 1]!), e: 0 | 1 = d1 < d0 ? 1 : 0;
+        if (Math.min(d0, d1) > MAX_MOVE_RADII * Math.max(mapRadiusOf(best.h), mapRadiusOf(v))) continue;   // (the map draws it nowhere near the host's end: no landing, its end eases onto the node)
+        if (landings.some((x) => x.host === best!.h.id && x.collapse != null && x.collapse !== e)) continue;
+        collapse = e;
+      }
+      // (two branches within MIN_GAP bones of one another share one node)
+      const near = landings.find((x) => x.host === best!.h.id && Math.abs(x.bone - bone) < MIN_GAP);
+      const rec = { host: best.h.id, branch: v.id, branchEnd: end, bone: near ? near.bone : bone, node: near ? near.node : `${best.h.id}@${v.id}`, ...(collapse != null ? { collapse } : {}) };
+      landings.push(rec); landed.add(keyOf(v, end));
     }
   }
 
+  // ---- ease each end onto its node
+  const reachOfEnd = new Map<string, number>();
+  const note = (v: NetVessel, end: 0 | 1, node: string, pose: 0 | 1, delta: Vec3, total: number, reach: number, rad: number) =>
+    report.ends.push({ edge: v.id, end, node, pose, move: len(delta), reach, share: len(delta) / total, radii: len(delta) / rad, planar: Math.hypot(delta[0], delta[1]) / rad });
+  const nodeRadius = (l: { v: NetVessel }[], pose: 0 | 1): number => Math.max(...l.map((e) => radius(e.v, pose)));
+  for (const [id, l] of groups) {
+    if (l.length < 2) continue;
+    for (const { v, end } of l) {
+      const w = work.get(v.id)!, key = keyOf(v, end);
+      for (const pose of [0, 1] as const) {
+        if (landed.has(key)) continue;   // (a landing's branch is eased onto the host's bone below, once the host is final)
+        if (pose === 1 && filleted.has(key)) continue;
+        const P = w.P[pose], delta = sub(nodePos.get(id)![pose], endOf(w, end, pose)), move = len(delta);
+        if (move <= 0) continue;
+        let reach = reachOf(move, w.arc[pose][P.length - 1]!);
+        if (pose === 0) { const hid = hiddenTail(v.id, P, w.arc[0], end); if (hid > 0) reach = Math.min(reach, hid); }   // (an end in a faded tail bends only inside it)
+        easeEnd(P, w.arc[pose], end, delta, reach);
+        reachOfEnd.set(`${key}|${pose}`, reach);
+        note(v, end, id, pose, delta, w.arc[pose][P.length - 1]!, reach, nodeRadius(l, pose));
+      }
+    }
+  }
+  // ---- run-ons: one shared direction at the node (the body; the map where its course carries straight on), one shared radius
+  const runOnAt = new Map<string, { a: string; ea: 0 | 1; b: string; eb: 0 | 1 }>();
+  for (const [id, pr] of pairsAt) for (const p of pr) {
+    const wa = work.get(p.a)!, wb = work.get(p.b)!, opposed: [boolean, boolean] = [false, false];
+    for (const pose of [0, 1] as const) {
+      opposed[pose] = dot(intoOf(wa.P[pose], p.ea), intoOf(wb.P[pose], p.eb)) < RUN_COS;
+      if (pose === 1 && !opposed[1]) opposed[1] = filleted.has(keyOf(wa.v, p.ea));   // (a rounded corner: its tangent is shared by construction)
+    }
+    report.runOns.push({ node: id, a: p.a, b: p.b, opposed });
+    // a node's one run-on: the first opposed in the body
+    if (dot(intoOf(wa.P[0], p.ea), intoOf(wb.P[0], p.eb)) < RUN_COS && !runOnAt.has(id)) runOnAt.set(id, p);
+    for (const pose of [0, 1] as const) {
+      if (pose === 1 && filleted.has(keyOf(wa.v, p.ea))) continue;
+      if (dot(intoOf(wa.P[pose], p.ea), intoOf(wb.P[pose], p.eb)) >= RUN_COS) continue;
+      const oa = intoOf(wa.P[pose], p.ea), ob = intoOf(wb.P[pose], p.eb), m = unit(sub(oa, ob));
+      const reach = (w: Work, end: 0 | 1) => reachOfEnd.get(`${keyOf(w.v, end)}|${pose}`) ?? reachOf(0, w.arc[pose][w.P[pose].length - 1]!);
+      aimEnd(wa.P[pose], wa.arc[pose], p.ea, m, reach(wa, p.ea));
+      aimEnd(wb.P[pose], wb.arc[pose], p.eb, scale(m, -1), reach(wb, p.eb));
+    }
+  }
+
+  // the landings: the host is final (its ends eased and aimed): each landing branch's end eases onto the host's bone, in both poses
+  const landNode = new Map<string, [Vec3, Vec3]>(), landedAt = new Map<string, string>();
+  for (const host of new Set(landings.filter((x) => x.collapse != null).map((x) => x.host))) {
+    const mine = landings.filter((x) => x.host === host && x.collapse != null), e = mine[0]!.collapse!, hw = work.get(host)!, orig = hw.P[1].slice(), n = BONES_PER_EDGE;
+    const at = e ? Math.min(...mine.map((x) => x.bone)) : Math.max(...mine.map((x) => x.bone));
+    for (let k = 0; k < n; k++) {
+      if (e ? k >= at : k <= at) { hw.P[1][k] = orig[e ? n - 1 : 0]!; continue; }
+      hw.P[1][k] = atBone(orig, e ? (k / at) * (n - 1) : (n - 1) - ((n - 1 - k) / (n - 1 - at)) * (n - 1));
+    }
+    hw.arc[1] = arcOf(hw.P[1]);
+    report.collapses.push({ host, hostEnd: e, bone: at });
+  }
+  for (const L of landings) {
+    landedAt.set(keyOf(byId.get(L.branch)!, L.branchEnd), L.node);
+    const hw = work.get(L.host)!, bw = work.get(L.branch)!, pos = landNode.get(L.node) ?? ([hw.P[0][L.bone]!, hw.P[1][L.bone]!] as [Vec3, Vec3]);
+    landNode.set(L.node, pos);
+    for (const pose of [0, 1] as const) {
+      const P = bw.P[pose], delta = sub(pos[pose], endOf(bw, L.branchEnd, pose)), move = len(delta);
+      if (move <= 0) continue;
+      const total = bw.arc[pose][P.length - 1]!, reach = reachOf(move, total);
+      easeEnd(P, bw.arc[pose], L.branchEnd, delta, reach);
+      note(bw.v, L.branchEnd, L.node, pose, delta, total, reach, Math.max(pose ? mapRadiusOf(hw.v) : hw.v.radius, pose ? mapRadiusOf(bw.v) : bw.v.radius));
+    }
+    report.landings.push({ host: L.host, branch: L.branch, branchEnd: L.branchEnd, bone: L.bone, node: L.node });
+  }
+  // exactly on the node (the fade is 1 at the end, to the last bit)
+  for (const [id, l] of groups) for (const { v, end } of l) for (const pose of [0, 1] as const) {
+    const P = work.get(v.id)!.P[pose], L = landings.find((x) => x.branch === v.id && x.branchEnd === end);
+    if (l.length < 2 && !L) continue;
+    P[end ? P.length - 1 : 0] = L ? landNode.get(L.node)![pose] : nodePos.get(id)![pose];
+  }
   // ---- radii: the body's own rule (taper to the shared width), the map's likewise with the map's widths
   const mapTaper = new Map<string, [number, number]>();
   for (const p of RUN_PAIRS) {
@@ -186,15 +358,12 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
     mapTaper.set(p.a, ta); mapTaper.set(p.b, tb);
   }
   for (const w of work.values()) {
-    const g = COURSES.get(w.v.id)!;
-    w.r = [bodyRadii(w.v, g.lenA, w.v.taper), (() => {
-      const r0 = mapRadiusOf(w.v), tp = mapTaper.get(w.v.id), out: number[] = [];
-      for (let i = 0; i < BONES_PER_EDGE; i++) out.push(radiusAtU({ pts: w.v.pts, radius: r0, ...(tp ? { taper: tp } : {}) }, i / (BONES_PER_EDGE - 1), g.lenC));
-      return out;
-    })()];
+    const g = COURSES.get(w.v.id)!, r0 = mapRadiusOf(w.v), tp = mapTaper.get(w.v.id), rm: number[] = [];
+    for (let i = 0; i < BONES_PER_EDGE; i++) rm.push(radiusAtU({ pts: w.v.pts, radius: r0, ...(tp ? { taper: tp } : {}) }, i / (BONES_PER_EDGE - 1), g.lenC));
+    w.r = [bodyRadii(w.v, g.lenA, w.v.taper), rm];
   }
 
-  // ---- frames: parallel transport in the body, carried across the run-ons so a chain of vessels is framed as one
+  // ---- frames: parallel transport in the body, carried across the run-ons so a chain of vessels is framed as one (a split host is framed whole, then cut)
   const frames = new Map<string, [Vec3, Vec3, Vec3][]>();
   const partner = new Map<string, { id: string; end: 0 | 1; at: 0 | 1 }[]>();   // edge -> run-on partners (its own end, theirs)
   for (const r of runOnAt.values()) {
@@ -209,30 +378,50 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
       const cur = queue.shift()!, fr = frames.get(cur)!;
       for (const p of partner.get(cur) ?? []) {
         if (frames.has(p.id)) continue;
-        const n0 = fr[p.at ? fr.length - 1 : 0]![1];
-        frames.set(p.id, transport(work.get(p.id)!.P[0], p.end, n0));
+        frames.set(p.id, transport(work.get(p.id)!.P[0], p.end, fr[p.at ? fr.length - 1 : 0]![1]));
         queue.push(p.id);
       }
     }
   }
 
-  // ---- assemble
-  const edges: SkelEdge[] = [], bones: Bone[] = [], edgeIndex = new Map<string, number>();
-  order.forEach((v, e) => {
-    const w = work.get(v.id)!, fr = frames.get(v.id)!;
-    edgeIndex.set(v.id, e);
-    edges.push({ id: v.id, from: nodeIdOf(v, 0), to: nodeIdOf(v, 1), bones: [bones.length, BONES_PER_EDGE], tone: v.tone, tier: v.tier });
-    for (let i = 0; i < BONES_PER_EDGE; i++) bones.push({ edge: e, u: i / (BONES_PER_EDGE - 1), pos: [w.P[0][i]!, w.P[1][i]!], r: [w.r[0][i]!, w.r[1][i]!], frame: fr[i]! });
-  });
+  // ---- split the hosts at their landings: each piece is a stretch of the host's own bones, the two pieces sharing the bone at the node
+  const cuts = new Map<string, number[]>();
+  for (const L of landings) { const c = cuts.get(L.host) ?? []; if (!c.includes(L.bone)) c.push(L.bone); cuts.set(L.host, c.sort((a, b) => a - b)); }
+  const nodeAt = new Map<string, string>(), pieceIds = new Map<string, string[]>();   // landing bone -> node id (per host); host -> piece ids
+  for (const L of landings) nodeAt.set(`${L.host}|${L.bone}`, L.node);
+  const edges: SkelEdge[] = [], bones: Bone[] = [], first = new Map<string, number>(), last = new Map<string, number>();
+  for (const v of order) {
+    const w = work.get(v.id)!, fr = frames.get(v.id)!, c = cuts.get(v.id) ?? [], marks = [0, ...c, BONES_PER_EDGE - 1], ids: string[] = [];
+    for (let j = 0; j + 1 < marks.length; j++) {
+      const i0 = marks[j]!, i1 = marks[j + 1]!, idx = edges.length, id = c.length ? `${v.id}#${j}` : v.id;
+      ids.push(id);
+      edges.push({ id, from: j ? nodeAt.get(`${v.id}|${i0}`)! : landedAt.get(keyOf(v, 0)) ?? nodeIdOf(v, 0), to: j + 2 < marks.length ? nodeAt.get(`${v.id}|${i1}`)! : landedAt.get(keyOf(v, 1)) ?? nodeIdOf(v, 1), bones: [bones.length, i1 - i0 + 1], tone: v.tone, tier: v.tier });
+      for (let i = i0; i <= i1; i++) bones.push({ edge: idx, u: (i - i0) / (i1 - i0), pos: [w.P[0][i]!, w.P[1][i]!], r: [w.r[0][i]!, w.r[1][i]!], frame: fr[i]! });
+      if (j === 0) first.set(v.id, idx);
+      if (j + 2 === marks.length) last.set(v.id, idx);
+    }
+    pieceIds.set(v.id, ids);
+  }
+  const edgeIdx = (id: string): number => edges.findIndex((e) => e.id === id);
+  const pieceAt = (v: string, end: 0 | 1): number => (end ? last : first).get(v)!;
+
+  // ---- nodes
   const nodes: SkelNode[] = [];
-  for (const [id, l] of ends) {
-    const node: SkelNode = { id, pos: nodePos.get(id)!, edges: l.map(({ v, end }) => ({ edge: edgeIndex.get(v.id)!, end })) };
+  for (const [id, l] of groups) {
+    const ls = l.filter(({ v, end }) => !landed.has(keyOf(v, end)));
+    if (!ls.length) continue;
+    const node: SkelNode = { id, pos: nodePos.get(id)!, edges: ls.map(({ v, end }) => ({ edge: pieceAt(v.id, end), end })) };
     const r = runOnAt.get(id);
     if (r) {
-      const ia = node.edges.findIndex((x) => x.edge === edgeIndex.get(r.a) && x.end === r.ea), ib = node.edges.findIndex((x) => x.edge === edgeIndex.get(r.b) && x.end === r.eb);
+      const ia = node.edges.findIndex((x) => x.edge === pieceAt(r.a, r.ea) && x.end === r.ea), ib = node.edges.findIndex((x) => x.edge === pieceAt(r.b, r.eb) && x.end === r.eb);
       if (ia >= 0 && ib >= 0) node.runOn = [ia, ib];
     }
     nodes.push(node);
+  }
+  for (const [nid, pos] of landNode) {
+    const mine = landings.filter((L) => L.node === nid), host = mine[0]!.host, ids = pieceIds.get(host)!, j = cuts.get(host)!.indexOf(mine[0]!.bone);
+    const a = edgeIdx(ids[j]!), b = edgeIdx(ids[j + 1]!);
+    nodes.push({ id: nid, pos, edges: [{ edge: a, end: 1 }, { edge: b, end: 0 }, ...mine.map((L) => ({ edge: pieceAt(L.branch, L.branchEnd), end: L.branchEnd }))], runOn: [0, 1] });
   }
   return { skeleton: { nodes, edges, bones }, report };
 }

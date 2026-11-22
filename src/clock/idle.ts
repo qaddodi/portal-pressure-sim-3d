@@ -178,8 +178,8 @@ function postTask(): (fn: () => void) => void {
   const mc = new MessageChannel(), q: (() => void)[] = [];
   // (under node, an open port with a handler keeps the process alive for ever, so a test file that built a scene never exited: the port holds the process only while a task is waiting on it. A browser's port has no ref/unref.)
   const hold = mc.port1 as MessagePort & { ref?: () => void; unref?: () => void };
-  hold.unref?.();
   mc.port1.onmessage = () => { const f = q.shift(); if (!q.length) hold.unref?.(); f?.(); };
+  hold.unref?.();   // (after the handler: setting onmessage refs the port again, so an unref before it is undone and a port never posted to held node open)
   return (fn) => { q.push(fn); hold.ref?.(); mc.port2.postMessage(0); };
 }
 
