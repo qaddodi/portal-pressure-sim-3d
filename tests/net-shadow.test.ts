@@ -23,7 +23,7 @@ test('the hull is the tube and its line made shadowPx wider, laid behind its own
 });
 
 test('a fillet and the arms\' extensions cast no shadow, a joined end fades its band out, and the band is the old program\'s: feathered past the line, in the look\'s tone', () => {
-  assert.match(NET_VS, /if \(region > -0\.5 \|\| region < -1\.5\) vDraw = 0\.0;/);
+  assert.match(NET_VS, /if \(region > -0\.5 \|\| region < -1\.5\) vOff = 1\.0;/);
   assert.ok(NET_FS_COLUMNS.includes('shadowEnd') && EDGE_LAYOUT.has('shadowEnd'));
   assert.match(NET_FS, /float endS = \(shadowEnd\.x > 0\.0 \? smoothstep\(0\.5 \* shadowEnd\.x \* rS, shadowEnd\.x \* rS, d0S\) : 1\.0\)/);
   assert.ok(NET_FS.includes(`smoothstep(${SHADOW_FEATHER} * shadowPx, shadowPx, sS)`));

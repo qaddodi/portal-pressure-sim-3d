@@ -144,7 +144,8 @@ varying vec3 vZf;
 varying vec4 vPackA;   // vW, vR, vU, vArcLen: the clip depth, the lumen's half width and the figure's units in a scene unit here, and the length along the course drawn now (shaders.ts vArcLen)
 varying vec4 vPackB;   // vFade, vCircShare, circStay, vHi
 varying vec2 vMarkE;   // the marks' weight in a fillet (the dominant edge's bone weight, eased: 1 in a tube) and the vertex's dominant edge row: a fragment whose edge row is not its triangle's (flat vEdge.x) is in a mixed triangle, where the phase of two edges would blend
-varying float vDraw;   // a junction region's fillet: the share of its pixels the screen dither keeps; 1 for everything else
+varying float vDraw;   // a junction region's fillet: the share of its pixels the screen dither keeps; 1 for everything else (a vertex that is OFF has 1 here too, and 1 in vOff)
+varying float vOff;    // 1 at a vertex that is not drawn (a fillet with no share, an extension its fillet hides), 0 elsewhere: a triangle with such a vertex is discarded WHOLE (an interpolated vDraw of 1 against 0 dithered the whole strip between them: the checker noise at a confluence)
 varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
 flat varying vec2 vEdge;   // the edge of the bone that holds the vertex most, and the second's: the fragment stage's discrete state (flat: one per triangle)
@@ -363,7 +364,7 @@ float netUnion(vec3 p, float k, int nc, out vec3 g) {
 void main() {
   // A JUNCTION REGION'S FILLET dissolves in and out by the screen dither (regions.ts regionFades): the arms' tubes run through to the node, so without the fillet the junction is still whole. The share is smoothstep(in) * (1 - smoothstep(out)) of t;
   // where it is 0 the mesh is a point (no work, no fragments)
-  vDraw = 1.0;
+  vDraw = 1.0; vOff = 0.0;
   // (the vertex attribute is the region's row, plus ${KEY_RIDX} x the vertex's key slot when its region has keys)
   // AN EXTENSION VERTEX (region <= -2: -2 - the row of its node's first fillet): hidden while its node's fillet (the body's plus the map's share) is whole, inset below the fillet's surface while it dissolves
   float extF = 1.0;
@@ -375,7 +376,7 @@ void main() {
     int pr = int(texelFetch(regionTex, ivec2(4, er), 0).z + 0.5) - 1;
     if (pr >= 0) { vec4 e1 = texelFetch(regionTex, ivec2(3, pr), 0); esh += smoothstep(e1.x, e1.y, circT) * (1.0 - smoothstep(e1.z, e1.w, circT)); }
     // (hidden by the discard, not moved: its triangles at the seam ring share vertices with the fillet's)
-    if (esh >= 0.999) vDraw = 0.0;
+    if (esh >= 0.999) vOff = 1.0;
     extF = mix(1.0, ${F(EXT_INSET)}, esh);
   }
   int regionAttr = region > -0.5 ? int(region + 0.5) : 0;
@@ -386,7 +387,7 @@ void main() {
     float share = smoothstep(fd.x, fd.y, circT) * (1.0 - smoothstep(fd.z, fd.w, circT));
     // (a fillet triangle at a seam ring has its other vertices on the plain tube, so a vertex is never moved away alone: with no share it keeps its bone-blend start, the projection is skipped and every fragment is discarded)
     if (share <= 0.0) fillOff = true;
-    vDraw = share;
+    vDraw = max(share, 1.0e-3); if (share <= 0.0) vOff = 1.0;
   }
   vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
   float mapDepthAcc = 0.0;
@@ -519,7 +520,7 @@ void main() {
 #ifdef SHADOW
   c.z += mix(shadowDepth, shadowDepthC, circT) * (-projectionMatrix[3][2]) / c.w;   // (the hull lies behind its own tube: a neighbour at the same tier is nearer, so it is never shadowed)
   // (a junction's fillet and the arms' extensions are one surface with their neighbours: they cast no shadow)
-  if (region > -0.5 || region < -1.5) vDraw = 0.0;
+  if (region > -0.5 || region < -1.5) vOff = 1.0;
 #endif
   vPackA = vec4(c.w, lumenAcc, unitAcc, arcAcc);
   vPackB = vec4(fadeAcc, shareAcc, stayAcc, hiAcc);
@@ -592,6 +593,7 @@ varying vec4 vPackA;
 varying vec4 vPackB;
 varying vec2 vMarkE;
 varying float vDraw;
+varying float vOff;
 varying vec4 vPackC;
 varying vec2 vPackD;
 flat varying vec2 vEdge;
@@ -651,6 +653,7 @@ void main() {
   // a part with no map course fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve
   if (circStay < 0.999 && ${SCREEN_DITHER_GLSL} >= circStay) discard;
   // a junction region's fillet dissolves in the same pattern: it keeps the pixels whose pattern value is below its share
+  if (vOff > 0.001) discard;
   if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;
   if (vFade < 0.004) discard;
   vec3 n = normalize(vN);

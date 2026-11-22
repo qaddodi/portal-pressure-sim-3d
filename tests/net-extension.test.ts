@@ -43,7 +43,7 @@ for (const fx of fixtures()) {
 test('the extension is inset below the fillet by more than the flats\' sag (0.05 R), the ring corners\' (TUBE_SAG) and a depth margin; the vertex stage hides it at share >= 1 and insets it by the share otherwise', () => {
   assert.ok(EXT_INSET <= 1 - (0.05 + TUBE_SAG + 0.02), `${EXT_INSET}`);
   assert.match(NET_VS, /if \(region < -1\.5\) \{/);
-  assert.match(NET_VS, /if \(esh >= 0\.999\) vDraw = 0\.0;/, 'hidden by the discard, never moved: its triangles at the seam ring share vertices with the fillet\'s');
+  assert.match(NET_VS, /if \(esh >= 0\.999\) vOff = 1\.0;/, 'hidden by the discard, never moved: its triangles at the seam ring share vertices with the fillet\'s');
   assert.ok(!/gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\); return;/.test(NET_VS), 'no vertex is moved off the screen alone: a triangle at a seam ring would stretch to it');
   assert.ok(NET_VS.includes(`extF = mix(1.0, ${EXT_INSET}, esh);`));
   assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen \* extF;/);
