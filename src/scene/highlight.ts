@@ -1,4 +1,5 @@
-import { BackSide, Color, Mesh, ShaderMaterial } from 'three';
+import { BackSide, Mesh, ShaderMaterial } from 'three';
+import { organMask } from './organs/glow-mask.ts';
 import type { CelObject } from './materials/cel.ts';
 import { HI_NONE } from './materials/shaders.ts';
 
@@ -247,11 +248,9 @@ export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
 export const PIN_PX = 0, SELECT_PX = 0;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
-/** An organ's glow as hulls from the widest (drawn first) to the narrowest: how far past the organ's line each reaches (figure units, as the organ's line is) and the alpha it adds. They stack to a bright rim and a long soft tail. */
-/** What an organ's glow shells and the spleen's normal-range ring are built with besides the organ's own ink shaders (the program stand-in, materials/prototypes.ts, wears the same). */
+/** What the spleen's normal-range ring is built with besides the organ's own ink shaders (the program stand-in, materials/prototypes.ts, wears the same). (The organs' glow is no hulls any more: organs/glow-mask.ts.) */
 export const HALO_FLAGS = { side: BackSide, transparent: true, depthWrite: false } as const;
 
-export const ORGAN_GLOW: readonly { out: number; alpha: number }[] = [{ out: 26, alpha: 0.05 }, { out: 19, alpha: 0.07 }, { out: 13, alpha: 0.1 }, { out: 8, alpha: 0.14 }, { out: 4, alpha: 0.2 }];
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the
@@ -274,32 +273,26 @@ export class OrganPins {
   /** The normal-sized spleen's outline inside an enlarged one (2D `normalOutline`). */
   setNormalOutline(on: boolean): void { this.normal = on; }
 
-  private glows = new Map<string, Mesh[]>();
+  private masks = new Map<string, Mesh>();
+  /** Whether any organ's glow shows now (scene.ts runs the organ glow's mask and blur only then). */
+  glowing = false;
+  /** Where the organ glow's lay stands in the organs' draw order: just before the line of the first lit organ in that order, so it lies over the organs drawn before it and under the ones drawn after, never over its own line. */
+  glowOrder = 0;
 
-  /** The organ's glow: ORGAN_GLOW's hulls, each wider and fainter than the last, round the organ's own line, in the organ's selection colour, eased in with `amount`. Made the first time the organ is lit. */
+  /** The organ's glow: its mask (organs/glow-mask.ts), one weight over the organ as it is drawn, eased in with `amount`; the screen-space blur (glow-fx.ts) makes the fall-off. Made the first time the organ is lit. */
   private glowOf(id: string, o: CelObject, amount: number): void {
-    let shells = this.glows.get(id);
-    if (!shells) {
+    let m = this.masks.get(id);
+    if (!m) {
       if (amount <= 0 || !o.group.parent) return;
-      const ink = o.group.children.find((c) => (c as Mesh).material === o.ink) as Mesh | undefined, base = ink ? ink.renderOrder - 0.45 : 0;
-      shells = ORGAN_GLOW.map((g, j) => {
-        const u = o.ink.uniforms;
-        const mat = new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS,
-          uniforms: { ...u, px: { value: 0 }, color: { value: new Color() }, hiColor: { value: new Color() }, inkA: { value: 0 }, hiOn: { value: 0 }, hiPx: { value: 0 } } });
-        const m = new Mesh(ink?.geometry ?? o.toonMesh.geometry, mat);
-        m.frustumCulled = false; m.renderOrder = base + 0.05 * j; m.visible = false; m.name = `highlight/glow/${id}/${j}`;
-        o.group.add(m);
-        return m;
-      });
-      this.glows.set(id, shells);
+      m = organMask(id, o);
+      const ink = o.group.children.find((c) => (c as Mesh).material === o.ink) as Mesh | undefined;
+      m.userData.order = (ink ? ink.renderOrder : o.toonMesh.renderOrder + 1) - 0.25;
+      o.group.add(m);
+      this.masks.set(id, m);
     }
-    const e = amount * amount * (3 - 2 * amount), hi = o.ink.uniforms.hiColor!.value as Color, px = o.ink.uniforms.px!.value as number;
-    shells.forEach((m, j) => {
-      const u = (m.material as ShaderMaterial).uniforms, g = ORGAN_GLOW[j]!;
-      u.px!.value = px + g.out; u.inkA!.value = g.alpha * e;
-      (u.color!.value as Color).copy(hi); (u.hiColor!.value as Color).copy(hi);
-      m.visible = e > 0.001;
-    });
+    const e = amount * amount * (3 - 2 * amount);
+    (m.material as ShaderMaterial).uniforms.amt!.value = e;
+    m.visible = e > 0.001;
   }
 
   step(dtMs: number, byId: ReadonlyMap<string, CelObject>): boolean {
@@ -317,6 +310,9 @@ export class OrganPins {
       }
       this.glowOf(id, o, this.on.get(id) ?? 0);
     }
+    let glowing = false, order = Infinity;
+    for (const m of this.masks.values()) if (m.visible) { glowing = true; order = Math.min(order, m.userData.order as number); }
+    this.glowing = glowing; this.glowOrder = glowing ? order : 0;
     // an organ asked for that the layer has not built: keep asking for frames until it is in
     for (const id of [...this.want, ...this.chosen]) if (!byId.has(id)) moving = true;
     const sp = byId.get('spleen');

@@ -114,7 +114,7 @@ import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
 import { diveBlur } from './post-dof.ts';
 import { GlowFx } from './glow-fx.ts';
-import { GLOW_LAYER } from './glow.ts';
+import { GLOW_LAYER, ORGAN_GLOW_LAYER } from './glow.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
 import { MAP_CENTRE, MAP_K, circBoostOf, mapPxPerUnit } from './circuit/map.ts';
@@ -320,6 +320,8 @@ export class CelScene {
   readonly post = new PostAA();
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();
+  /** The organs' glow (a tapped or pinned organ): the same pipeline, its own mask and textures; its lay is a quad of the figure's first pass (see `render`), not a pass over the finished figure. */
+  readonly organGlowFx = new GlowFx(ORGAN_GLOW_LAYER);
   private readonly dive = new Group();
   private readonly sinFrame = new Group();
   private fadeNow = 1;
@@ -472,6 +474,7 @@ export class CelScene {
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
     this.protos = programPrototypes(this.shared);
+    this.scene.add(this.organGlowFx.figure);   // (hidden until an organ is lit; drawn with the organs, behind the vessels' pass)
     this.scene.add(this.protos);   // (hidden stand-ins for the programs nothing holds yet: compiled with the rest under the splash, materials/prototypes.ts)
     this.applyLook(this.look);
   }
@@ -1634,6 +1637,10 @@ export class CelScene {
     // the Anatomy <-> Lobule move: the same one blur over the whole screen, from the camera's distance alone (post-dof.ts diveBlur), in and out; the sinusoid's own focus pull has the pass when it is drawn
     if (!band && into && this.figureView !== 'circuit' && this.inDive()) band = this.post.dof.uniformFrame(into.height, diveBlur(cam.position.distanceTo(this.livePoint), this.lobuleRest(), this.diveIn(), DIVE_OUT)) > 0;
     if (!band) this.post.dof.bandShare = 0;
+    // an organ's glow: its mask and blur are made BEFORE the figure's first pass, because its lay is a quad inside that pass (behind the vessels, at the organ's own place in the organs' order), gated by the sharp mask so the organ itself is never tinted
+    const og = this.pins.glowing, ogQuad = this.organGlowFx.figure;
+    if (og) { this.organGlowFx.prepare(gl, cam, this.scene, dpr); ogQuad.renderOrder = this.pins.glowOrder; }
+    ogQuad.visible = og;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
@@ -1667,7 +1674,7 @@ export class CelScene {
     this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
-    this.tubes.dispose(); this.resistors.dispose(); this.post.dispose(); this.glowFx.dispose();
+    this.tubes.dispose(); this.resistors.dispose(); this.post.dispose(); this.glowFx.dispose(); this.organGlowFx.dispose();
   }
 }
 

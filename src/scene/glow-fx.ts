@@ -6,7 +6,10 @@
 //   3. LAY    one quad over the figure: the blurred colour (un-premultiplied) at GLOW_GAIN of the blurred weight held to GLOW_A_MAX, times one minus the sharp mask, so the vessel itself is never tinted.
 //
 // Runs only while a glow is showing (highlight.ts `glowing`): nothing is made or drawn otherwise, and the textures are made the first time and kept (freed with the scene).
-import { AddEquation, Color, CustomBlending, HalfFloatType, LinearFilter, Mesh, NoBlending, OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, SrcAlphaFactor, UnsignedByteType, Vector2, WebGLRenderTarget, ZeroFactor, type Camera, type TextureDataType, type WebGLRenderer } from 'three';
+//
+// Two instances, one pipeline. The vessels' (`run`, GLOW_LAYER): mask, blur and lay after the figure's two passes, over the figure. The organs' (ORGAN_GLOW_LAYER, `prepare` before the figure's first pass, and `figure`, the
+// lay as a quad IN the figure at the organ's own place in its draw order, behind the vessels): the same blur, so the organ's glow is a true distance fall-off (a Gaussian of the organ's silhouette), not stacked hulls.
+import { AddEquation, Color, CustomBlending, DataTexture, HalfFloatType, LinearFilter, Mesh, NoBlending, OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, SrcAlphaFactor, UnsignedByteType, Vector2, WebGLRenderTarget, ZeroFactor, type Camera, type TextureDataType, type WebGLRenderer } from 'three';
 import { BLUR_TAPS, GLOW_A_MAX, GLOW_GAIN, GLOW_LAYER, GLOW_SIGMA, blurTaps } from './glow.ts';
 import { glslNum as F } from './cel-glsl.ts';
 
@@ -45,6 +48,10 @@ void main() {
 /** The glow's two passes, compiled by the GLSL compile test and the ?gl page (src/debug/gl-auto.ts reads this). */
 export const GL_PROGRAMS = [{ name: 'glow blur', vs: GLOW_FX_VS, fs: BLUR_FS }, { name: 'glow lay', vs: GLOW_FX_VS, fs: LAY_FS }] as const;
 
+/** What the lay's two samplers hold until the first mask is made (the lay quad of the figure is on the scene graph from the start, hidden: a sampler with no value is a bug the uniform check names). */
+const NO_MASK = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+NO_MASK.needsUpdate = true;
+
 export class GlowFx {
   private mask: WebGLRenderTarget | null = null;
   private a: WebGLRenderTarget | null = null;
@@ -56,18 +63,26 @@ export class GlowFx {
   private readonly lay = new ShaderMaterial({ name: 'glow lay',
     vertexShader: GLOW_FX_VS, fragmentShader: LAY_FS, transparent: true, depthTest: false, depthWrite: false,
     blending: CustomBlending, blendEquation: AddEquation, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: ZeroFactor, blendDstAlpha: OneFactor,   // (the figure's own alpha is left as it is)
-    uniforms: { tBlur: { value: null }, tMask: { value: null } },
+    uniforms: { tBlur: { value: NO_MASK }, tMask: { value: NO_MASK } },
   });
   /** The two passes' materials: the warm-up compiles them under the splash (materials/warm.ts passWarmScene) and the shader guard watches them. */
   get materials(): readonly ShaderMaterial[] { return [this.blur, this.lay]; }
   private readonly size = new Vector2();
   private type: TextureDataType = UnsignedByteType;
   private typeChecked = false;
+  private readonly layer: number;
+  /** The lay as an object of the figure (not of this class's own quad scene): a full-screen quad, hidden until the owner asks for it, whose draw order is the owner's to set. Shares the lay material, so no second program. */
+  readonly figure: Mesh;
 
-  constructor() {
-    this.quad = new Mesh(new PlaneGeometry(2, 2), this.blur);
+  constructor(layer: number = GLOW_LAYER) {
+    this.layer = layer;
+    const plane = new PlaneGeometry(2, 2);
+    this.quad = new Mesh(plane, this.blur);
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
+    this.figure = new Mesh(plane, this.lay);
+    this.figure.frustumCulled = false; this.figure.visible = false; this.figure.name = 'glow lay';
+    this.figure.raycast = () => {};   // (a full-screen quad is never a pick)
   }
 
   /** Whether the device can draw into half-float textures (a soft tail needs more than 8 bits); otherwise bytes, with the noise to hide the steps. */
@@ -86,15 +101,15 @@ export class GlowFx {
     if (!this.mask || this.mask.width !== w || this.mask.height !== h) { this.mask?.dispose(); this.a?.dispose(); this.b?.dispose(); this.mask = make(w, h); this.a = make(hw, hh); this.b = make(hw, hh); }
   }
 
-  /** Make the glow over the figure drawn into `into` (the canvas's texture, or null for the canvas itself). The renderer's state (target, clear colour, auto clear, the camera's layers) is put back. */
-  run(gl: WebGLRenderer, into: WebGLRenderTarget | null, cam: Camera, figure: Scene, dpr: number): void {
+  /** The mask and the blur (steps 1 and 2): after it, `blurred` and `masked` hold the glow. The renderer's state (target, clear colour, auto clear, the camera's layers, the figure's background) is put back. */
+  prepare(gl: WebGLRenderer, cam: Camera, figure: Scene, dpr: number): void {
     this.ensure(gl);
     const mask = this.mask!, a = this.a!, b = this.b!;
-    const clear = gl.getClearColor(new Color()), clearA = gl.getClearAlpha(), ac = gl.autoClear, layers = cam.layers.mask, bg = figure.background;
+    const target = gl.getRenderTarget(), clear = gl.getClearColor(new Color()), clearA = gl.getClearAlpha(), ac = gl.autoClear, layers = cam.layers.mask, bg = figure.background;
     gl.autoClear = false; figure.background = null;
     // 1. the mask
     gl.setRenderTarget(mask); gl.setClearColor(0x000000, 0); gl.clear(true, false, false);
-    cam.layers.set(GLOW_LAYER);
+    cam.layers.set(this.layer);
     gl.render(figure, cam);
     cam.layers.mask = layers; figure.background = bg;
     // 2. the blur: half size, the mask read with its own linear filter
@@ -105,11 +120,23 @@ export class GlowFx {
     gl.setRenderTarget(a); gl.clear(true, false, false); gl.render(this.scene, this.cam);
     this.blur.uniforms.tSrc!.value = a.texture; (this.blur.uniforms.stepUv!.value as Vector2).set(0, spacing / b.height);
     gl.setRenderTarget(b); gl.clear(true, false, false); gl.render(this.scene, this.cam);
-    // 3. over the figure
-    this.quad.material = this.lay;
     this.lay.uniforms.tBlur!.value = b.texture; this.lay.uniforms.tMask!.value = mask.texture;
+    gl.setRenderTarget(target); gl.setClearColor(clear, clearA); gl.autoClear = ac;
+  }
+
+  /** Step 3: the lay over what `into` holds now (the canvas's texture, or null for the canvas itself), after `prepare`. */
+  layOver(gl: WebGLRenderer, into: WebGLRenderTarget | null): void {
+    const target = gl.getRenderTarget(), ac = gl.autoClear;
+    gl.autoClear = false;
+    this.quad.material = this.lay;
     gl.setRenderTarget(into); gl.render(this.scene, this.cam);
-    gl.setClearColor(clear, clearA); gl.autoClear = ac;
+    gl.setRenderTarget(target); gl.autoClear = ac;
+  }
+
+  /** Make the glow over the figure drawn into `into` (the canvas's texture, or null for the canvas itself): the vessels' glow, after the figure's passes. */
+  run(gl: WebGLRenderer, into: WebGLRenderTarget | null, cam: Camera, figure: Scene, dpr: number): void {
+    this.prepare(gl, cam, figure, dpr);
+    this.layOver(gl, into);
   }
 
   dispose(): void { this.mask?.dispose(); this.a?.dispose(); this.b?.dispose(); this.mask = this.a = this.b = null; this.blur.dispose(); this.lay.dispose(); this.quad.geometry.dispose(); }
