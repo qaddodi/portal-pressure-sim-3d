@@ -12,6 +12,9 @@ import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
 /** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
  *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
 export const CAVA_RECEDE = 0.45;
+/** The opacity a cava vessel's end comes to when the cava is shown whole (selected or named), from its resting opacity `rest` (its own fade times CAVA_RECEDE): the recede is taken away and nothing else, so an end that rests at nothing (the lower cava's
+ *  fade down the figure, ILI_IVC) stays nothing and the vessel still fades out there. Before, whole raised every end to 1: the fade was let go and the picked cava ended in a round cap with a hard ink rim (Mohammad, 22 Nov: "when selected the end of the IVC should just be fade"). */
+export const cavaWholeAlpha = (rest: number): number => Math.min(1, rest / CAVA_RECEDE);
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
 const IVC_NODES: ReadonlySet<string> = new Set(['IVCS', 'IVCI', 'RA', 'IVC_D', 'ILI_R']);
 export const HEPATIC_VEINS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC', 'RRV_IVC']);

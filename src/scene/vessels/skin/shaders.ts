@@ -286,6 +286,8 @@ ${CHEV_ONE_GLSL}
 ${CHEV_CREAM_GLSL}
 ${FLOW_MARKS_GLSL}
 ${SKIN_WALL_GLSL}
+// (the arms' exact 3D distances come first: the outline's depth hold-out below reads them)
+${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`)}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
@@ -298,9 +300,9 @@ vec4 skinPx(vec3 p, float R, float swell) {
 }
 // signed distance, in device px, from this pixel to the live capsule of one arm: the least over its two segments of (the distance to the segment, less the radius interpolated at the closest point).
 // DEPTH (the seam's ink): the outline is a screen-space field, and a WALL skin's arm leaves its host's wall, so from the front its silhouette lies over the host's though the two are a whole radius apart in depth: the blend then pulled the arm's own outline in
-// (3 px at the seam of S_PC on wall:IVC_IS_1:S_PC1,C90; the front-view kink at the four-arm nodes). So an arm whose surface at its nearest point lies out of the pixel's own depth (fragW, the pixel's view depth; below 0: no judgement) is held out of the blend as an absent
-// arm is, by how far out it is, in px, past the tube's radius there: nothing within a quarter k of the pixel's depth, all of it from k. Continuous in the depth, never a step
-float skinArmPx(vec2 frag, int arm, float swell, float fragW, float kPx, float inkPx) {
+// (3 px at the seam of S_PC on wall:IVC_IS_1:S_PC1,C90; the front-view kink at the four-arm nodes). So an arm whose capsule lies out of reach of the pixel's own place in the figure (fragP, the lumen's rest surface at the pixel; fragW its view depth, below 0: no judgement) is held out of the blend as an absent
+// arm is, by how far out it is, in px at the pixel's depth: nothing within a quarter k of the arm's wall, all of it from k. Continuous in the distance, never a step; the distance is the exact one in 3D, so it does not change with the camera
+float skinArmPx(vec2 frag, int arm, float swell, float fragW, vec3 fragP, float kPx) {
   // the axis: J (the bridge over the art's gap), the start of the straight line through the seam, the seam, the far point
   vec4 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
   vec4 p1 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 1].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 1].w, swell);
@@ -315,18 +317,20 @@ float skinArmPx(vec2 frag, int arm, float swell, float fragW, float kPx, float i
   float d2 = length(frag - p2.xy - c * t2) - mix(p2.z, p3.z, t2);
   float d = min(d0, min(d1, d2));
   if (fragW < 0.0) return d;
-  float wNear = d0 <= d1 && d0 <= d2 ? mix(p0.w, p1.w, t0) : (d1 <= d2 ? mix(p1.w, p2.w, t1) : mix(p2.w, p3.w, t2));
-  float rNear = d0 <= d1 && d0 <= d2 ? mix(p0.z, p1.z, t0) : (d1 <= d2 ? mix(p1.z, p2.z, t1) : mix(p2.z, p3.z, t2));
-  float gap = abs(fragW - wNear) / max(${wpcGlsl('wNear', 'projY', '1.0')}, 1e-9) * dpr - rNear - inkPx;   // (the mesh is built INK wider than the lumen, so its surface lies a radius PLUS the line from the axis: the line is a fixed number of CSS px, a growing share of a small vessel, so a tolerance of the radius alone held every arm out at a phone's scale)
+  // THE HOLD-OUT IS JUDGED IN 3D (Mohammad, 22 Nov: holes in the junctions when the figure is turned). ROOT CAUSE: the depth rule compared the pixel's depth with the axis' depth at the arm's nearest point ON THE SCREEN. An arm that runs along the view is foreshortened to a few
+  // pixels, so the pixels over it lie at every depth along it, the nearest screen point is the wrong one, the arm was held out of the union at pixels that are its own, and past the band the pixel was dropped; the tube is already cut there, so the figure had a hole (5 to 50 % of a skin's pixels
+  // at a quarter turn). The pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of the arm it is, whatever the camera does. In px at the pixel's depth.
+  vec3 g3; float r3;
+  float gap = skinArmSd3(fragP, arm, swell, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
   return d + 2.0 * kPx * smoothstep(0.25 * kPx, kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
-float skinSdPx(float kPx, float inkPx) {
+float skinSdPx(float kPx) {
   float dArm[${SKIN_ARMS}];
   // an arm that is not there (a collateral not yet grown, a vessel closed to nothing) is not in the outline: a capsule of no width is a LINE, its smooth union with the trunk a horn along it, and the cone of the arm's collapsed
   // ring out to the wall stayed inside its band as a thorn (Mohammad, 20 Nov). It is held out of reach (the blend sees nothing of it past k) and comes in as its width does: continuous, never a pop
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i), 1.0 / gl_FragCoord.w, kPx, inkPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
+  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i), 1.0 / gl_FragCoord.w, vPos, kPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -340,7 +344,6 @@ float skinSdPx(float kPx, float inkPx) {
   }
   return d;
 }
-${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`)}
 // WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
 // A head now belongs to the arm that owns its CENTRE, whole: the centre is the point of the arm's axis at the head's arc (the axis line through the seam, the arc growing along it as the marks' own arc does), its owner the mesh's own rule
 // (a softmax of the arms' distances, sharpened to the fourth power, sdf.ts weights) taken in device px at that point
@@ -349,7 +352,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   float d[${SKIN_ARMS}];
   float lo = 1.0e9;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
-    d[k] = armData[k].x < 0.0 ? 1.0e9 : skinArmPx(fc, k, swAt(k), -1.0, kPx, 0.0) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
+    d[k] = armData[k].x < 0.0 ? 1.0e9 : skinArmPx(fc, k, swAt(k), -1.0, vec3(0.0), kPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
     lo = min(lo, d[k]);
   }
   float mine = 0.0, sum = 0.0;
@@ -455,7 +458,7 @@ void main() {
   float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);
   float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
-  float sdPx = skinSdPx(kPx, inkDev);
+  float sdPx = skinSdPx(kPx);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
   // trimmed, where the tube past the seam is cut and no longer there to cover it). The ring is the tube's exact polygon stood out by its sag, the outline a smooth capsule: they differ by about a pixel. Where one arm's weight
   // is nearly 1 the band is wider by that pixel and a half, fading out over the weights 0.75 .. 0.97, so the outline rules the free skin and the mesh rules the seam

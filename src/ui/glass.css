@@ -11,8 +11,8 @@
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   html:not([data-noglass]) :is(
-    /* the figure's chrome (2D main.js CHROME): the patient and figure pills' faces, the actions pill, the zoom pill, the dock's face, the view pill's face, the sinusoid legend */
-    .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face, .sv-legend,
+    /* the figure's chrome (2D main.js CHROME): the patient and figure pills' faces, the actions pill, the zoom pill, the dock's face, the view pill's face */
+    .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face,
     /* menus, sheets, dialogs and popovers (the shell's, and 2D's own names for the same) */
     .sh-sheet, .sh-pop, .sh-dialog, .dk-jump, .menu, .umenu, .why-pop, .um-pv.on, .modal, .pal, .tooltip, .toast,
     /* cards: Treat (its sheet plate, 2D .sheet-plate: the card itself is clear so its height glide can scale the paper, card-glide.js), the action cards, the Tests card, the Compare banner, the teaching, data, case and check cards, the figure key, the catheter's reading cards (.cl-glass: one shape, the card and its pointer, clipped from one path) */
@@ -51,7 +51,7 @@
   html:not([data-noglass]) .app.thumb .vdock:not(.mini) .thumb-bar::before { background: none; box-shadow: inset 0 1px 0 var(--hairline); }
   @media (prefers-reduced-transparency: reduce) {
     html:not([data-noglass]) :is(
-      .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face, .sv-legend,
+      .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face,
       .sh-sheet, .sh-pop, .sh-dialog, .dk-jump, .menu, .umenu, .why-pop, .um-pv.on, .modal, .pal, .tooltip, .toast,
       .tr-card > .sheet-plate, .ac-card > .sheet-plate, .t-card, .cmp-banner, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
     ), html:not([data-noglass]) .dk-bar::before {

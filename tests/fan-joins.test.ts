@@ -50,6 +50,7 @@ test('the paraumbilical vein narrows to the hub roots', () => {
 
 test('a braid landing on a host: the strands together make the trunk width there, not each of them (no bulb)', async () => {
   const { radiusAtU } = await import('../src/scene/vessels/tubes.ts');
+  const { WEAVE } = await import('../src/scene/vessels/coil.ts');
   for (const id of ['C7', 'C2', 'C1a']) {
     const v = NETWORK_BY_ID.get(id)!, cs = coursesOf(v, { ...REST, strandsOn: true, wig: 3, spr: 1, rec: 1 }), strands = cs.slice(1), n = strands.length;
     assert.ok(n > 1, id);
@@ -57,7 +58,7 @@ test('a braid landing on a host: the strands together make the trunk width there
     assert.ok(sewn.length, `${id} lands on a host`);
     for (const c of strands) {
       const len = c.pts.reduce((a, p, k) => (k ? a + d3(p, c.pts[k - 1]!) : 0), 0);
-      for (const e of sewn) assert.ok(radiusAtU(c, e, len) * Math.sqrt(n) <= v.radius * (1 + 1e-9), `${id} strand end ${e} is its share of the trunk`);
+      for (const e of sewn) assert.ok(radiusAtU(c, e, len) * (WEAVE[id] ? 1 : Math.sqrt(n)) <= v.radius * (1 + 1e-9), `${id} strand end ${e} is its share of the trunk`);   // (woven strands meet on one axis: their union is one strand wide, so each is the whole trunk, coil.ts WEAVE)
     }
   }
 });

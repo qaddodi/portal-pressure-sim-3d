@@ -9,7 +9,7 @@
 .cmp-seg button b { font-weight: 600; }
 .cmp-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
 .cmp-table-btn { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; font: 600 var(--t-lab) / 1 var(--ui); }
-.cmp-badge { position: absolute; left: 50%; width: max-content; max-width: calc(100vw - 24px); top: calc(var(--sh-pad-top) + 96px); transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: var(--text); color: var(--surface); font: 600 var(--t-cap) / 1.2 var(--ui); pointer-events: none; opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
+.cmp-badge { position: absolute; left: 50%; width: max-content; max-width: calc(100vw - 24px); top: calc(var(--sh-pad-top) + 96px); transform: translateX(-50%); padding: 0; background: none; color: var(--text); -webkit-text-stroke: 4px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; font: 600 var(--t-cap) / 1.2 var(--ui); pointer-events: none; opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
 .cmp-badge[data-on="true"] { opacity: 1; }
 .sh-root[data-mode="deck"] .cmp-badge, .sh-root[data-mode="deck"] .cmp-banner { display: none; }
 @media (max-width: 520px) { .cmp-label { display: none; } .cmp-banner { padding-left: 6px; } }

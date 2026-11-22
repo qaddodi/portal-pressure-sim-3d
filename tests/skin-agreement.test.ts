@@ -4,7 +4,8 @@
 import { isBraid } from '../src/scene/vessels/skin/braid-arm.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BufferAttribute, PerspectiveCamera, Vector4 } from 'three';
+import { BufferAttribute, PerspectiveCamera, Vector3, Vector4 } from 'three';
+import { sd3 } from './skin-gate-lib.ts';
 import { SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
 import { armWalk } from '../src/scene/vessels/skin/cuts.ts';
 import { axisOf } from '../src/scene/vessels/skin/skin-set.ts';
@@ -180,7 +181,10 @@ function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number
     };
     const best = [seg(a, b), seg(b, c), seg(c, d)].reduce((m, x) => (x.d < m.d ? x : m));
     if (fragW < 0) return best.d;
-    const gap = Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * DPR - best.r;
+    // the hold-out in 3D (skin/shaders.ts skinArmPx): the pixel's place at its depth, against the arm's capsule over the four axis points
+    const ndcZ = ((cam.far + cam.near) / (cam.far - cam.near) * fragW - 2 * cam.far * cam.near / (cam.far - cam.near)) / fragW;
+    const P = new Vector3(((frag[0]! / (RES * DPR)) - 0.5) * 2, ((frag[1]! / (RES * DPR)) - 0.5) * 2, ndcZ).unproject(cam);
+    const gap = sd3(ax, [P.x, P.y, P.z]) / Math.max(wpc(fragW), 1e-9) * DPR;
     return best.d + 2 * kPx * smooth(0.25 * kPx, kPx, gap);
   };
   const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
