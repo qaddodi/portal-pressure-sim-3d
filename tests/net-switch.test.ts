@@ -14,7 +14,7 @@ const mid: Region = { node: 'N', vertStart: 20, vertCount: 5, arms: 1, caps, var
 
 test('the region row: variant in texel 0, the fade ramps in texel 3, the bones from REGION_HEAD', () => {
   const t = regionTexture([body, map], 20), W = 4 * REGION_TEXELS;
-  assert.equal(t.width, REGION_TEXELS); assert.equal(REGION_HEAD, 4);
+  assert.equal(t.width, REGION_TEXELS); assert.equal(REGION_HEAD, 5);
   assert.deepEqual([t.data[2], t.data[W + 2]], [0, 1]);
   assert.deepEqual(Array.from(t.data.slice(12, 16)).map((x) => Math.round(x * 1e6) / 1e6), [-2, -1, 0.4, 0.5], 'body: always in, out over [a - 0.1, a]');
   assert.deepEqual(Array.from(t.data.slice(W + 12, W + 16)).map((x) => Math.round(x * 1e6) / 1e6), [0.3, 0.35, 2, 3], 'map: in over [b, b + 0.05], never out');

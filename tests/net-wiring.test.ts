@@ -36,7 +36,7 @@ test('without the flag a scene has no network figure and its old tubes are drawn
 
 test('every uniform the network programs declare is supplied by the figure (shared from the old vessels, or its own)', { skip }, async () => {
   const { net } = await figure();
-  const own = new Set(Object.keys(net.uniforms).concat(['regionTex', 'capTex', 'capRows']));
+  const own = new Set(Object.keys(net.uniforms).concat(['regionTex', 'capTex', 'capRows', 'keyTex']));
   const declared = new Set([...shaderUniforms(NET_VS), ...shaderUniforms(NET_FS)]);
   const BUILTIN = new Set(['projectionMatrix', 'modelViewMatrix', 'normalMatrix']);
   const dbg = (n: string): boolean => n.startsWith('dbg');   // (the inspector's: present only with ?inspect)

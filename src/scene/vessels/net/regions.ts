@@ -7,8 +7,8 @@ import type { Skeleton } from './types.ts';
 
 /** The most capsules of a region (the ruling says 6 arms; the short edges of a merged region and a run capsule come on top) and the bones along each. */
 export const REGION_CAPS = 8, REGION_PTS = 8;
-/** A region's row in the region texture: texel 0 (capsule count, arm count, variant), two of mates, texel 3 the fade ramps (in0, in1, out0, out1), then from REGION_HEAD the bone indices four to a texel. */
-export const REGION_HEAD = 4;
+/** A region's row in the region texture: texel 0 (capsule count, arm count, variant), two of mates, texel 3 the fade ramps (in0, in1, out0, out1), texel 4 the keys (count, header slot; 0 for none), then from REGION_HEAD the bone indices four to a texel. */
+export const REGION_HEAD = 5;
 export const REGION_TEXELS = REGION_HEAD + Math.ceil((REGION_CAPS * REGION_PTS) / 4);
 /** A region is drawn as plain tubes plus a FILLET mesh that dissolves in and out (plan owner, 22 Nov): the arms' tubes run through their seams to the node, so with no fillet the junction is still whole. A region's fillet is built at the body layout (variant 0),
  *  at the map layout (variant 1) and, where those share no t, at the middle of the Circuit (variant 2); each is drawn by the screen dither with a share of the pixels: the body fillet dissolves over [a - 0.1, a], the map fillet comes in over [b, b + 0.05],
@@ -62,7 +62,7 @@ export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[
 }
 
 /** The region texture (RGBA32F, REGION_TEXELS wide, one row per region) and the region index of each mesh vertex (-1: a tube vertex, bones only), as the vertex attribute the shader reads. */
-export function regionTexture(regions: readonly Region[], vertexCount: number): { data: Float32Array; width: number; height: number; vertexRegion: Float32Array } {
+export function regionTexture(regions: readonly Region[], vertexCount: number, keys?: KeyPlan): { data: Float32Array; width: number; height: number; vertexRegion: Float32Array } {
   const height = Math.max(1, regions.length), data = new Float32Array(4 * REGION_TEXELS * height), vertexRegion = new Float32Array(vertexCount).fill(-1);
   regions.forEach((rg, ri) => {
     const o = 4 * REGION_TEXELS * ri;
@@ -71,7 +71,56 @@ export function regionTexture(regions: readonly Region[], vertexCount: number): 
       data[o + 4 * 1 + ci] = c.mate;   // texels 1 and 2: the mates
       for (let q = 0; q < REGION_PTS; q++) data[o + 4 * REGION_HEAD + ci * REGION_PTS + q] = c.bones[q]!;
     });
-    for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) vertexRegion[v] = ri;
+    const kr = keys?.region[ri];
+    if (kr) { data[o + 4 * 4] = kr.nk; data[o + 4 * 4 + 1] = kr.header; }
+    // a vertex with keys carries its key slot above the region's 6 bits (the shader reads `region` as row + 64 * slot)
+    for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) vertexRegion[v] = ri + (kr ? KEY_RIDX * (kr.first + v - rg.vertStart) : 0);
   });
   return { data, width: REGION_TEXELS, height, vertexRegion };
+}
+
+
+// ---- THE KEYED START of a wide junction (plan owner, 22 Nov; net/keys.ts bakes the keys): the fillet vertex starts from the NORMALISED BLEND OF THE KEYS' offsets (weights 1 / (distance + 0.001)^2, the distance in log space between the arms' live lumens and each key's), then the projection as always.
+// A key's offsets are in the bones' frames over the radius the key was baked at, so each is multiplied by its arm's swell over the bake scale (the key's radius over the mesh's) per bone: the blend is then one more offset set, and the vertex stage's start is unchanged.
+// keyTex (RGBA32F, KEY_W wide): one SLOT per row quarter (KEY_COLS slots across), a slot is KEY_MAX keys x KEY_TEX texels (the body offsets over 3 texels, the map's over 3). A region's header slot holds the ln lumen of each (key, arm) four to a texel (1e9: the arm is not one of the key's).
+export const KEY_MAX = 6, KEY_TEX = 6, KEY_COLS = 4, KEY_W = KEY_MAX * KEY_TEX * KEY_COLS, KEY_RIDX = 64, KEY_NONE = 1e9;
+/** The keys of one region as the bake stores them (net/keys.ts RegionKeys, the part read here). */
+export interface RegionKeysIn { node: string; variant: 0 | 1; vertStart: number; vertCount: number; arms: readonly number[]; keys: readonly { swell: readonly number[]; offset: Float32Array; offsetMap: Float32Array }[] }
+export interface KeyPlan { data: Float32Array; width: number; height: number; /** per region: the key count, the header slot and the slot of its first vertex (null: no keys) */ region: ({ nk: number; header: number; first: number } | null)[] }
+/** keyTex (the plan's data), from the skeleton (its own radii: a key's lumen is the bone's radius times the key's swell), the regions, the bake's keys and the mesh's bone blend and bake scale. */
+export function keyPlan(skel: { bones: readonly { edge: number; r: readonly number[] }[] }, regions: readonly Region[], keys: readonly RegionKeysIn[] | undefined, mesh: { bone: ArrayLike<number>; weight: ArrayLike<number> }, bakeScale: ArrayLike<number>): KeyPlan {
+  const region: KeyPlan['region'] = regions.map(() => null), rows: { slot: number; fill: (d: Float32Array, x0: number, y: number) => void }[] = [];
+  let slot = 1;   // (slot 0 means no keys: the vertex attribute carries slot >= 1)
+  regions.forEach((rg, ri) => {
+    const rk = keys?.find((k) => k.node === rg.node && k.variant === rg.variant && k.vertStart === rg.vertStart && k.vertCount === rg.vertCount);
+    if (!rk || !rk.keys.length) return;
+    const nk = Math.min(KEY_MAX, rk.keys.length), header = slot++, first = slot;
+    slot += rg.vertCount;
+    region[ri] = { nk, header, first };
+    // the ln lumen of (key, arm): the arm's first bone's radius times the key's swell (= the baked radius times the swell over the bake scale)
+    const lnKey = new Float32Array(KEY_MAX * 8).fill(KEY_NONE);
+    for (let k = 0; k < nk; k++) for (let a = 0; a < Math.min(rg.arms, 8); a++) {
+      const b = rg.caps[a]!.bones[0]!, e = skel.bones[b]!.edge, ai = rk.arms.indexOf(e);
+      if (ai >= 0) lnKey[k * 8 + a] = Math.log(skel.bones[b]!.r[0]! * rk.keys[k]!.swell[ai]!);
+    }
+    rows.push({ slot: header, fill: (d, x0, y) => { for (let i = 0; i < KEY_MAX * 8; i++) d[4 * ((y) * KEY_W + x0 + (i >> 2)) + (i & 3)] = lnKey[i]!; } });
+    for (let v = 0; v < rg.vertCount; v++) rows.push({ slot: first + v, fill: (d, x0, y) => {
+      const gv = rg.vertStart + v;
+      for (let k = 0; k < nk; k++) for (const [src, tex0] of [[rk.keys[k]!.offset, 0], [rk.keys[k]!.offsetMap, 3]] as const) for (let j = 0; j < 4; j++) {
+        const wb = mesh.weight[4 * gv + j]!, e = skel.bones[mesh.bone[4 * gv + j]!]!.edge, ai = rk.arms.indexOf(e);
+        const f = wb > 0 && ai >= 0 ? rk.keys[k]!.swell[ai]! / (bakeScale[e] ?? 1) : 1;
+        for (let q = 0; q < 3; q++) { const idx = 3 * j + q; d[4 * (y * KEY_W + x0 + k * KEY_TEX + tex0 + (idx >> 2)) + (idx & 3)] = f * src[12 * v + idx]!; }
+      }
+    } });
+  });
+  const height = Math.max(1, Math.ceil(slot / KEY_COLS)), data = new Float32Array(4 * KEY_W * height);
+  for (const r of rows) r.fill(data, (r.slot % KEY_COLS) * KEY_MAX * KEY_TEX, Math.floor(r.slot / KEY_COLS));
+  return { data, width: KEY_W, height, region };
+}
+/** The weights of the keys at the arms' live ln lumens (what the vertex stage computes): 1 / (distance + 0.001)^2 over the arms the key has, normalised. */
+export function keyWeights(lnLive: ArrayLike<number>, lnKey: ArrayLike<number>, nk: number, arms: number): number[] {
+  const w: number[] = [];
+  for (let k = 0; k < nk; k++) { let d2 = 0; for (let a = 0; a < arms; a++) { const lk = lnKey[k * 8 + a]!; if (lk < 1e8) d2 += (lnLive[a]! - lk) ** 2; } w.push(1 / (Math.sqrt(d2) + 0.001) ** 2); }
+  const s = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => x / s);
 }

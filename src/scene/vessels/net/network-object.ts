@@ -11,7 +11,7 @@ import { VESSEL_LAYER } from '../../layers.ts';
 import { NET_CAP_FS, NET_CAP_VS, NET_FS, NET_GLOBALS, NET_RING_SAG, NET_SEWN_FS, NET_SEWN_VS, NET_VS, capPointIds, sewnPointIds } from './shaders.ts';
 import { BoneTable } from './bones.ts';
 import { EdgeStateTable } from './edge-state.ts';
-import { REGION_CAPS, REGION_PTS, regionTexture, regionsOf, type Region } from './regions.ts';
+import { REGION_CAPS, REGION_PTS, keyPlan, regionTexture, regionsOf, type Region } from './regions.ts';
 import { NetRows, type RowSource } from './rows.ts';
 import type { NetData, NetMeshData } from './load.ts';
 import type { NodeReport } from './mesh.ts';
@@ -146,7 +146,7 @@ export class NetFigure {
     const skel = this.skel, u = this.uniforms;
     const mesh = nets.length === 1 ? nets[0]!.mesh : mergeMeshes(nets.map((n) => n.mesh));
     const regions: Region[] = nets.length === 1 && nets[0]!.nodes.length ? regionsOf(skel, nets[0]!.nodes as NodeReport[]) : [];
-    const V = mesh.position.length / 3, rt = regionTexture(regions, V);
+    const V = mesh.position.length / 3, kp = regions.length && mesh.keys?.length ? keyPlan(skel, regions, mesh.keys, mesh, mesh.bakeScale ?? []) : undefined, rt = regionTexture(regions, V, kp);
     const edges = nets.flatMap((n) => n.edges);
     const vEdge = vertexEdges(skel, mesh);
     const organsSet = new Set(edges.filter((e) => behind.has(e)));
@@ -154,9 +154,10 @@ export class NetFigure {
     const full = geometryOf(mesh, rt.vertexRegion, mesh.index), organs = organsIndex && organsIndex.length ? geometryOf(mesh, rt.vertexRegion, organsIndex, full) : null;
     this.geometries.push(full); if (organs) this.geometries.push(organs);
     const regionTex = dataTexture(rt.data, rt.width, rt.height); this.textures.push(regionTex);
+    const keyTex = kp ? dataTexture(kp.data, kp.width, kp.height) : blankTex; if (kp) this.textures.push(keyTex);
     const capTarget = regions.length ? floatTarget(REGION_CAPS * REGION_PTS, regions.length) : null;
     if (capTarget) this.targets.push(capTarget);
-    const own: Record<string, IUniform> = { ...u, regionTex: { value: regionTex }, capTex: { value: capTarget ? capTarget.texture : blankTex }, capRows: { value: Math.max(1, regions.length) } };
+    const own: Record<string, IUniform> = { ...u, regionTex: { value: regionTex }, keyTex: { value: keyTex }, capTex: { value: capTarget ? capTarget.texture : blankTex }, capRows: { value: Math.max(1, regions.length) } };
     // the two programs of the figure: the organs-pass copy (the program as it is: solidK) and the vessel-pass copy (VEIL: veilK)
     const mk = (defines: Record<string, number>): ShaderMaterial => { const m = markBlends(new ShaderMaterial({ vertexShader: NET_VS, fragmentShader: NET_FS, precision: 'highp', side: DoubleSide, uniforms: own, defines: { ...defines, ...vdbgDefines() } })); setBlendState(m, true); this.materials.push(m); return m; };
     const meshes: Mesh[] = [];
