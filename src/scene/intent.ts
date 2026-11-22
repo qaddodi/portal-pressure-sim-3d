@@ -9,6 +9,7 @@
 //
 // The fields here are the set-like ones the talk drives (R5a, first part). The rest of R5a/R5b (lens, layers, blood, camera, the timed procedures) move in as they are ready.
 import { create } from 'zustand';
+import type { ResKey } from './circuit/res-model.ts';
 
 export interface FigureIntent {
   /** vessels (edge ids) named: they carry the flow marks and the glow */
@@ -23,9 +24,13 @@ export interface FigureIntent {
   marked: readonly string[];
   /** the vessel picked (a topology edge id): free play's tap, the keyboard walk, a link; null: none */
   picked: string | null;
+  /** the Circuit's resistors a slide asks for (zigzags and "R liver x2.3" readings) */
+  resistors: readonly ResKey[];
+  /** the Circuit draws the caudate lobe's own lane */
+  caudate: boolean;
 }
 
-export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null };
+export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null, resistors: [], caudate: false };
 
 /** Lowest first: a higher layer decides a field it says anything about. */
 export const LAYER_ORDER = ['base', 'talk', 'tool'] as const;
