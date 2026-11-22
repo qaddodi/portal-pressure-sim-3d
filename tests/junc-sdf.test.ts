@@ -2,7 +2,7 @@
 // (so a change there reaches it or fails loudly), that silencing a region's fillet keeps its share at 0 over the whole Circuit move, and that the flag is the trial's alone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JUNC_FS, JUNC_INFO_A_VS, JUNC_INFO_B_VS, NO_FILLET, juncSdf, netShadeOf, rowsOf, silenceFillets } from '../src/scene/vessels/net/junc-sdf.ts';
+import { JUNC_FS, JUNC_INFO_A_VS, JUNC_INFO_B_VS, NO_FILLET, juncSdf, netShadeOf, marchRows, edgeRegions, silenceFillets, JUNC_GEOM_VS, JUNC_VS } from '../src/scene/vessels/net/junc-sdf.ts';
 import { NET_FS } from '../src/scene/vessels/net/shaders.ts';
 import { REGION_TEXELS, type Region } from '../src/scene/vessels/net/regions.ts';
 
@@ -45,9 +45,20 @@ test('a silenced fillet has share 0 at every t, the other rows are untouched, an
   assert.deepEqual([...old.subarray(4, 8)], ramp(2));
 });
 
-test('the rows of a node: every mesh of it (body and map built)', () => {
-  const rg = (node: string): Region => ({ node } as Region);
-  assert.deepEqual(rowsOf({ regions: [rg('CONF'), rg('SV'), rg('CONF')] }, 'CONF'), [0, 2]);
+test('every junction node is marched once (its body-built row when it has one), and each edge knows the marched regions it is an arm of', () => {
+  const rg = (node: string, variant: number): Region => ({ node, variant } as Region);
+  assert.deepEqual(marchRows([rg('CONF', 1), rg('SV', 0), rg('CONF', 0), rg('CONF', 2), rg('IVC', 2)]), [1, 2, 4]);
+  // bones 0,1 on edge 0; bone 2 on edge 1; bone 3 on edge 2; edge 3 is no region's arm
+  const skel = { bones: [{ edge: 0 }, { edge: 0 }, { edge: 1 }, { edge: 2 }], edges: [{}, {}, {}, {}] } as unknown as Parameters<typeof edgeRegions>[0];
+  const regions = [{ caps: [{ bones: [0, 1] }, { bones: [2] }] }, { caps: [{ bones: [2] }, { bones: [3] }] }] as unknown as Parameters<typeof edgeRegions>[1];
+  assert.deepEqual([...edgeRegions(skel, regions, [0, 1])], [0, -1, -1, -1, 0, 1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1]);
+});
+
+test('the cut and the proxy are per region row: no single-region uniform is left', () => {
+  assert.doesNotMatch(JUNC_FS + JUNC_GEOM_VS + JUNC_VS, /juncRow/);
+  assert.match(JUNC_VS, /texelFetch\(juncGeom, ivec2\(0, int\(juncRegion \+ 0\.5\)\), 0\)/);
+  assert.match(JUNC_FS, /int rr = int\(vJuncRow \+ 0\.5\);/);
+  assert.match(NET_FS, /texelFetch\(juncEdge, ivec2\(int\(row \+ 0\.5\), 0\), 0\)/);
 });
 
 test('the flag is ?junc=sdf only', () => {

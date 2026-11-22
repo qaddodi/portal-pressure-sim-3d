@@ -84,7 +84,7 @@ export const NET_GLOBALS: Readonly<Record<string, string>> = {
   toneColor: 'vec3[3]', tubeDark: 'float', inkColor: 'vec3', inkColorCirc: 'vec3', shadeK: 'float', light: 'vec3', bands: 'float', spec: 'float', time: 'float', projY: 'float', dpr: 'float',
   markDark: 'vec3', markLight: 'vec3', markRev: 'vec3', lensMix: 'float', lensTail: 'float', lensGradA: 'sampler2D', lensLaneA: 'sampler2D', lensGradB: 'sampler2D', lensLaneB: 'sampler2D',
   lensModeA: 'float', lensModeB: 'float', lensRawA: 'float', lensRawB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
-  wedgeCol: 'vec3', pageCol: 'vec3', juncGeom: 'sampler2D', juncOn: 'float', dustP: 'vec4[]', routeTex: 'sampler2D',
+  wedgeCol: 'vec3', pageCol: 'vec3', juncGeom: 'sampler2D', juncEdge: 'sampler2D', juncOn: 'float', dustP: 'vec4[]', routeTex: 'sampler2D',
   // the inspector's (VDBG), as the old program's
   dbgShade: 'float', dbgDust: 'float', dbgHeads: 'float', dbgInk: 'float', dbgTint: 'float', dbgCol: 'vec4',
 };

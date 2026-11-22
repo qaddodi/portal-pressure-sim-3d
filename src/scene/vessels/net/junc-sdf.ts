@@ -1,5 +1,5 @@
-// THE JUNCTION SDF TRIAL (?geom=net&junc=sdf; Mohammad 22 Nov, memo /mnt/project-files/recs-22nov/vessel-sdf-options.md, option D). One junction region (the portal confluence first) is drawn
-// by ray-marching the LIVE smooth union of its capsules in the fragment stage, instead of by its fillet mesh. The surface is the one the fillet's projection already aims at (the same capsules from the
+// THE RAY-MARCHED JUNCTIONS (?geom=net&junc=sdf; Mohammad 22 Nov, memo /mnt/project-files/recs-22nov/vessel-sdf-options.md, option D; rollout recs-22nov/sdf-junctions-rollout.md J2). EVERY junction
+// region of every network, at every Circuit t, is drawn by ray-marching the LIVE smooth union of its capsules in the fragment stage, instead of by its fillet meshes. The surface is the one the fillet's projection already aims at (the same capsules from the
 // capsule pass, the same blend width SKIN_K x the narrowest arm, the same smooth minimum), so it cannot fold at any swell, presence or Circuit t: there is no mesh to fold.
 //
 // HOW IT FITS THE NETWORK FIGURE, WITHOUT CHANGING IT:
@@ -10,9 +10,10 @@
 // - the colour is the network's own fragment stage (NET_FS), run as a function: the varyings it reads are filled per pixel from the nearest capsule's bones (two small passes write each capsule
 //   point's edge row, place, fade, morph share, stay, highlight, units and arc length: the same netBone the vertex stage runs), so the tones, the lens colours, the fade, the dust and the marks are
 //   the tubes' rules, not copies. The outline: a ray that misses the union but passes within the line's width of it (CSS px, the tubes' inkPx rule) is ink.
-// LIMITS of the trial, said plainly: one region; no crossing shadow; the organs-pass copy is not drawn (the portal confluence is in the vessel pass); the Circuit's inner rim and the flow marks run on
+// One proxy draw per network (an icosphere instanced per marched region); a region with a body-built and a map-built mesh is marched once (its first row: the capsules are the same).
+// LIMITS, said plainly: sewn ends (collaterals, shunts, stents) are not regions yet (J3); no crossing shadow; the organs-pass copy is not drawn (the portal confluence is in the vessel pass); the Circuit's inner rim and the flow marks run on
 // the nearest arm's place, like the fillet's. NOT YET SEEN ON A DEVICE: cost per frame is what the trial is for (?perf on the iPhone, whole figure and a dive into the confluence).
-import { BackSide, BufferAttribute, BufferGeometry, DataTexture, DoubleSide, FloatType, IcosahedronGeometry, Matrix3, Matrix4, Mesh, NearestFilter, NoBlending, OrthographicCamera, Points, RGBAFormat, Scene, ShaderMaterial, Vector3, WebGLRenderTarget, type IUniform, type WebGLRenderer } from 'three';
+import { BackSide, BufferAttribute, BufferGeometry, DataTexture, DoubleSide, FloatType, Group, IcosahedronGeometry, InstancedBufferAttribute, InstancedBufferGeometry, Matrix3, Matrix4, Mesh, NearestFilter, NoBlending, OrthographicCamera, Points, RGBAFormat, Scene, ShaderMaterial, Vector3, WebGLRenderTarget, type IUniform, type WebGLRenderer } from 'three';
 import { markBlends, setBlendState } from '../../materials/warm.ts';
 import { vdbgDefines } from '../debug-view.ts';
 import { VESSEL_LAYER } from '../../layers.ts';
@@ -25,14 +26,14 @@ import { SKIN_K } from './junction/sdf.ts';
 import { SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { NET_CAP_VS, NET_FS } from './shaders.ts';
 import { REGION_CAPS, REGION_PTS } from './regions.ts';
-import { JUNC_CUT_TEXELS } from './junc-cut-glsl.ts';
+import { JUNC_CUT_TEXELS, JUNC_EDGE_REGIONS } from './junc-cut-glsl.ts';
+import type { Skeleton } from './types.ts';
+import type { Region } from './regions.ts';
 import type { NetDraw } from './network-object.ts';
 import { flagValue } from '../../../ui/debug/flags.ts';
 
 /** Whether the address asks for the trial (only with ?geom=net). A test passes its own search string. */
 export const juncSdf = (search?: string): boolean => flagValue('junc', search ?? undefined) === 'sdf';
-/** The region the trial draws: the portal confluence (splenic + SMV into the portal vein). */
-export const JUNC_NODE = 'CONF';
 /** The most steps a ray takes through the proxy, the share of a step it moves (the smooth minimum is not an exact distance: a full step can overshoot), and the hit tolerance in blend widths. */
 /** The marks' gate: an arm's chevrons and streaks fade out over this many blend widths outside its capsule (inside the crotch both arms' run on and overlap). */
 export const JUNC_MARK_GATE = 0.5;
@@ -40,7 +41,7 @@ export const JUNC_STEPS = 48, JUNC_STEP_K = 0.9, JUNC_EPS_K = 0.003;
 /** A fade ramp that keeps a fillet at share 0 for every t (regions.ts regionFades: in over [2, 3] never starts inside [0, 1]). */
 export const NO_FILLET: readonly [number, number, number, number] = [2, 3, 2, 3];
 
-const PTS = REGION_PTS, CAPS = REGION_CAPS, W = CAPS * PTS;
+const PTS = REGION_PTS, CAPS = REGION_CAPS, W = CAPS * PTS, JUNC_CUT_TEXELS_N = JUNC_CUT_TEXELS;
 
 // ---- the info passes: NET_CAP_VS with the full netBone, writing what the fragment stage needs of each capsule point instead of its centre and lumen ----
 const CAP_OUT = /NetBone nb = netBone\(([^;]*), true\);\s*vCapOut = vec4\(nb\.cen, nb\.lumen\);/;
@@ -60,12 +61,12 @@ export const JUNC_GEOM_VS = /* glsl */ `
 uniform sampler2D regionTex;
 uniform sampler2D capTex;
 uniform sampler2D juncInfoA;
-uniform float juncRow;
-attribute float geomId;
+uniform float capRows;   // the region texture's rows (the cut texture's height)
+attribute float geomId;   // region row * JUNC_CUT_TEXELS + texel
 varying vec4 vCapOut;
 vec4 capAt(int c, int q, int rr) { return texelFetch(capTex, ivec2(c * ${PTS} + q, rr), 0); }
 void main() {
-  int rr = int(juncRow + 0.5), id = int(geomId + 0.5);
+  int gid = int(geomId + 0.5), rr = gid / ${JUNC_CUT_TEXELS_N}, id = gid - rr * ${JUNC_CUT_TEXELS_N};
   int nc = int(texelFetch(regionTex, ivec2(0, rr), 0).x + 0.5);
   vec3 lo = vec3(1.0e20), hi = vec3(-1.0e20);
   float rmax = 0.0;
@@ -92,17 +93,20 @@ void main() {
   }
   vCapOut = o;
   gl_PointSize = 1.0;
-  gl_Position = vec4((float(id) + 0.5) / ${F(JUNC_CUT_TEXELS)} * 2.0 - 1.0, 0.0, 0.0, 1.0);
+  gl_Position = vec4((float(id) + 0.5) / ${F(JUNC_CUT_TEXELS)} * 2.0 - 1.0, (float(rr) + 0.5) / capRows * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
 // ---- the proxy: a sphere round every capsule point of the region (plus the blend's bulge and the line), drawn back faces so a camera inside it still marches ----
 export const JUNC_VS = /* glsl */ `
 uniform sampler2D juncGeom;
 uniform vec2 res;
+attribute float juncRegion;   // the instance's region row
 varying vec3 vJuncP;
 flat varying vec4 vJuncBound;
+flat varying float vJuncRow;
 void main() {
-  vec4 S = texelFetch(juncGeom, ivec2(0, 0), 0);
+  vJuncRow = juncRegion;
+  vec4 S = texelFetch(juncGeom, ivec2(0, int(juncRegion + 0.5)), 0);
   vec3 cen = S.xyz;
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cen, 1.0));
   // the cut's bound and the line (LINE_MAX CSS px at the centre's depth, doubled for depth spread)
@@ -157,13 +161,13 @@ uniform sampler2D regionTex;
 uniform sampler2D capTex;
 uniform sampler2D juncInfoA;
 uniform sampler2D juncInfoB;
-uniform float juncRow;
 uniform mat4 juncMV;
 uniform mat4 juncP;
 uniform mat3 juncN;
 uniform vec3 juncEye;
 varying vec3 vJuncP;
 flat varying vec4 vJuncBound;
+flat varying float vJuncRow;
 vec4 jP[${W}];
 float jMate[${CAPS}];
 int jNc = 0;
@@ -222,17 +226,17 @@ vec3 juncGrad(vec3 p, float k, float e) {
 }
 vec4 jPl[${CAPS}];
 int jArms = 0;
-void juncPlanes() {
+void juncPlanes(int rr) {
   jArms = 0;
-  for (int c = 0; c < ${CAPS}; c++) { if (texelFetch(juncGeom, ivec2(1 + ${CAPS} + c, 0), 0).z < 0.5) break; jPl[c] = texelFetch(juncGeom, ivec2(1 + c, 0), 0); jArms = c + 1; }
+  for (int c = 0; c < ${CAPS}; c++) { if (texelFetch(juncGeom, ivec2(1 + ${CAPS} + c, rr), 0).z < 0.5) break; jPl[c] = texelFetch(juncGeom, ivec2(1 + c, rr), 0); jArms = c + 1; }
 }
 // beyond an arm's cut plane: the tube draws there, not the march
 bool juncBeyond(vec3 p) { for (int c = 0; c < ${CAPS}; c++) { if (c >= jArms) break; if (dot(jPl[c].xyz, p) - jPl[c].w > 0.0) return true; } return false; }
 float juncNdc(vec3 p) { vec4 c = juncP * (juncMV * vec4(p, 1.0)); return c.z / c.w; }
 void main() {
-  int rr = int(juncRow + 0.5);
+  int rr = int(vJuncRow + 0.5);
   juncLoad(rr);
-  juncPlanes();
+  juncPlanes(rr);
   float kU = ${F(SKIN_K)} * jKMin;
   vec3 ro = juncEye, rd = normalize(vJuncP - juncEye);
   vec3 oc = ro - vJuncBound.xyz;
@@ -336,7 +340,7 @@ void main() {
 
 /** The programs for the compile test and the ?gl page. */
 export const GL_PROGRAMS = [
-  { name: 'junction SDF trial', vs: JUNC_VS, fs: JUNC_FS, defines: { VEIL: 1 } },
+  { name: 'junction SDF', vs: JUNC_VS, fs: JUNC_FS, defines: { VEIL: 1 } },
   { name: 'junction SDF info A', vs: JUNC_INFO_A_VS, fs: JUNC_INFO_FS },
   { name: 'junction SDF info B', vs: JUNC_INFO_B_VS, fs: JUNC_INFO_FS },
   { name: 'junction SDF cut', vs: JUNC_GEOM_VS, fs: JUNC_INFO_FS },
@@ -344,8 +348,23 @@ export const GL_PROGRAMS = [
 
 const floatTarget = (w: number, h: number): WebGLRenderTarget => new WebGLRenderTarget(w, Math.max(1, h), { type: FloatType, format: RGBAFormat, minFilter: NearestFilter, magFilter: NearestFilter, depthBuffer: false, generateMipmaps: false });
 
-/** The rows of `node`'s regions in a draw (a region can have a body-built and a map-built mesh: one row each); the first is the one the march reads (the capsules are the same). */
-export const rowsOf = (draw: Pick<NetDraw, 'regions'>, node: string): number[] => draw.regions.flatMap((r, i) => (r.node === node ? [i] : []));
+/** The rows a draw marches: one per junction node (a region with a body-built and a map-built mesh has a row each: the first, the body's when there is one, is marched; the capsules are the same). */
+export function marchRows(regions: readonly Pick<Region, 'node' | 'variant'>[]): number[] {
+  const best = new Map<string, number>();
+  regions.forEach((r, i) => { const b = best.get(r.node); if (b === undefined || (regions[b]!.variant !== 0 && r.variant === 0)) best.set(r.node, i); });
+  return [...best.values()].sort((x, y) => x - y);
+}
+
+/** Which marched regions each edge is an arm of (juncEdge: up to JUNC_EDGE_REGIONS rows per edge, -1 for none): the edges of the bones that carry a region's capsules. */
+export function edgeRegions(skel: Pick<Skeleton, 'bones' | 'edges'>, regions: readonly Pick<Region, 'caps'>[], rows: readonly number[]): Float32Array {
+  const out = new Float32Array(4 * skel.edges.length).fill(-1), n = new Uint8Array(skel.edges.length);
+  for (const r of rows) {
+    const edges = new Set<number>();
+    for (const c of regions[r]!.caps) for (const b of c.bones) edges.add(skel.bones[b]!.edge);
+    for (const e of edges) { if (n[e]! >= JUNC_EDGE_REGIONS) throw new Error(`junc-sdf: edge ${e} is an arm of more than ${JUNC_EDGE_REGIONS} marched regions`); out[4 * e + n[e]!] = r; n[e]!++; }
+  }
+  return out;
+}
 
 /** Writes NO_FILLET into the fade ramps (texel 3) of `rows` in a region texture's data; returns the old ramps so they can be put back. */
 export function silenceFillets(data: Float32Array, texelsPerRow: number, rows: readonly number[]): Float32Array {
@@ -354,66 +373,53 @@ export function silenceFillets(data: Float32Array, texelsPerRow: number, rows: r
   return old;
 }
 
-/** The trial's objects for one network draw: the info passes and the proxy. */
-export class JuncSdf {
+/** One network draw's marched junctions: the info passes, the cut and the proxy (an icosphere instanced per marched region). */
+class JuncNet {
   readonly mesh: Mesh;
-  private readonly targets: WebGLRenderTarget[];
-  private readonly passes: Points[];
-  private readonly passScene = new Scene();
-  private readonly passCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  readonly targets: WebGLRenderTarget[];
+  readonly passes: Points[];
   private readonly disposables: { dispose(): void }[] = [];
   private readonly mv = new Matrix4();
   private readonly inv = new Matrix4();
-  private readonly nm = new Matrix3();
-  private readonly eye = new Vector3();
   private readonly restore: () => void;
-  private own: Record<string, IUniform> | null = null;
+  private readonly unCut: () => void;
 
-  /** null when no draw has the node (the badge then says so through `why`). */
-  static build(draws: readonly NetDraw[], node = JUNC_NODE): JuncSdf | { why: string } {
-    for (const d of draws) {
-      const rows = rowsOf(d, node);
-      const veil = d.meshes.find((m) => m.layers.mask === 1 << VESSEL_LAYER) ?? d.meshes[d.meshes.length - 1];
-      if (rows.length && veil) return new JuncSdf(d, rows, (veil.material as ShaderMaterial).uniforms);
-    }
-    return { why: `no junction region named ${node}` };
-  }
-
-  private constructor(draw: NetDraw, rows: number[], own: Record<string, IUniform>) {
+  constructor(skel: Skeleton, draw: NetDraw, own: Record<string, IUniform>) {
     const regionTex = own.regionTex!.value as DataTexture, data = regionTex.image.data as Float32Array, perRow = regionTex.image.width;
-    const old = silenceFillets(data, perRow, rows); regionTex.needsUpdate = true;
-    this.restore = () => { rows.forEach((r, i) => data.set(old.subarray(4 * i, 4 * i + 4), 4 * (perRow * r + 3))); regionTex.needsUpdate = true; };
-    const regions = draw.regions.length, row = rows[0]!;
-    // the info passes: this region's W points into two float targets the size of the capsule texture
+    const all = draw.regions.map((_, i) => i), rows = marchRows(draw.regions), regions = draw.regions.length;
+    const old = silenceFillets(data, perRow, all); regionTex.needsUpdate = true;   // (every fillet of a marched node, body and map built)
+    this.restore = () => { all.forEach((r, i) => data.set(old.subarray(4 * i, 4 * i + 4), 4 * (perRow * r + 3))); regionTex.needsUpdate = true; };
+    // the info passes: the marched rows' capsule points into two float targets the size of the capsule texture
     this.targets = [floatTarget(W, regions), floatTarget(W, regions)];
-    const ids = Float32Array.from({ length: W }, (_, j) => row * W + j);
-    this.passes = [JUNC_INFO_A_VS, JUNC_INFO_B_VS].map((vs, k) => {
-      const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * W), 3)); g.setAttribute('capId', new BufferAttribute(ids, 1));
-      const m = new ShaderMaterial({ name: `junc-info-${k}`, vertexShader: vs, fragmentShader: JUNC_INFO_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...own }, defines: vdbgDefines() });
+    const ids = Float32Array.from(rows.flatMap((r) => Array.from({ length: W }, (_, j) => r * W + j)));
+    const points = (name: string, vs: string, idName: string, idv: Float32Array, uniforms: Record<string, IUniform>): Points => {
+      const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * idv.length), 3)); g.setAttribute(idName, new BufferAttribute(idv, 1));
+      const m = new ShaderMaterial({ name, vertexShader: vs, fragmentShader: JUNC_INFO_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms, defines: vdbgDefines() });
       this.disposables.push(g, m);
       const p = new Points(g, m); p.frustumCulled = false; return p;
-    });
+    };
+    this.passes = [points('junc-info-0', JUNC_INFO_A_VS, 'capId', ids, { ...own }), points('junc-info-1', JUNC_INFO_B_VS, 'capId', ids, { ...own })];
     // the cut (junc-cut-glsl.ts): written after the info passes (it reads the arms' edge rows from the first), read by this network's tubes and by the march
-    {
-      const geom = floatTarget(JUNC_CUT_TEXELS, 1); this.targets.push(geom);
-      const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * JUNC_CUT_TEXELS), 3)); g.setAttribute('geomId', new BufferAttribute(Float32Array.from({ length: JUNC_CUT_TEXELS }, (_, i) => i), 1));
-      const m = new ShaderMaterial({ name: 'junc-cut', vertexShader: JUNC_GEOM_VS, fragmentShader: JUNC_INFO_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...own, juncRow: { value: row }, juncInfoA: { value: this.targets[0]!.texture } } });
-      this.disposables.push(g, m);
-      const p = new Points(g, m); p.frustumCulled = false; this.passes.push(p);
-      own.juncGeom = { value: geom.texture }; own.juncOn = { value: 1 };   // (the network's own uniforms, by reference: its tubes cut from now on)
-      this.own = own;
-      for (const m of draw.meshes) (m.material as ShaderMaterial).needsUpdate = true;   // (a program already linked lists its uniforms once: the two new ones must be in that list)
-    }
+    const geom = floatTarget(JUNC_CUT_TEXELS, regions); this.targets.push(geom);
+    const gids = Float32Array.from(rows.flatMap((r) => Array.from({ length: JUNC_CUT_TEXELS }, (_, j) => r * JUNC_CUT_TEXELS + j)));
+    this.passes.push(points('junc-cut', JUNC_GEOM_VS, 'geomId', gids, { ...own, juncInfoA: { value: this.targets[0]!.texture } }));
+    const er = edgeRegions(skel, draw.regions, rows);
+    const edgeTex = new DataTexture(er, skel.edges.length, 1, RGBAFormat, FloatType); edgeTex.minFilter = edgeTex.magFilter = NearestFilter; edgeTex.generateMipmaps = false; edgeTex.needsUpdate = true;
+    this.disposables.push(edgeTex);
+    const blankG = own.juncGeom!.value, blankE = own.juncEdge!.value;
+    this.unCut = () => { own.juncOn!.value = 0; own.juncGeom!.value = blankG; own.juncEdge!.value = blankE; };
+    own.juncGeom!.value = geom.texture; own.juncEdge!.value = edgeTex; own.juncOn!.value = 1;   // (the network's own uniforms, shared by its programs and declared with their defaults in network-object.ts: its tubes cut from now on)
     const u: Record<string, IUniform> = {
-      ...own, juncRow: { value: row }, juncInfoA: { value: this.targets[0]!.texture }, juncInfoB: { value: this.targets[1]!.texture },
+      ...own, juncInfoA: { value: this.targets[0]!.texture }, juncInfoB: { value: this.targets[1]!.texture },
       juncMV: { value: new Matrix4() }, juncP: { value: new Matrix4() }, juncN: { value: new Matrix3() }, juncEye: { value: new Vector3() },
     };
     const mat = markBlends(new ShaderMaterial({ name: 'junc-sdf', vertexShader: JUNC_VS, fragmentShader: JUNC_FS, precision: 'highp', side: BackSide, uniforms: u, defines: { VEIL: 1, ...vdbgDefines() } }));
     setBlendState(mat, true);
-    const geo = new IcosahedronGeometry(1, 2);
-    this.disposables.push(mat, geo);
+    const ico = new IcosahedronGeometry(1, 2), geo = new InstancedBufferGeometry();
+    geo.index = ico.index; geo.setAttribute('position', ico.getAttribute('position')); geo.setAttribute('juncRegion', new InstancedBufferAttribute(Float32Array.from(rows), 1)); geo.instanceCount = rows.length;
+    this.disposables.push(mat, geo, ico);
     this.mesh = new Mesh(geo, mat);
-    this.mesh.name = `net:junc-sdf:${draw.regions[row]!.node}`;
+    this.mesh.name = `net:junc-sdf:${draw.name}`;
     this.mesh.renderOrder = 1; this.mesh.frustumCulled = false; this.mesh.layers.set(VESSEL_LAYER);
     this.mesh.raycast = () => {};
     this.mesh.onBeforeRender = (_r, _s, cam) => {
@@ -426,21 +432,49 @@ export class JuncSdf {
     };
   }
 
-  /** The info passes, once per drawn frame, after the network's own (the capsule texture is the frame's). */
+  dispose(): void {
+    this.restore();
+    this.unCut();
+    this.mesh.removeFromParent();
+    for (const d of this.disposables) d.dispose();
+    for (const t of this.targets) t.dispose();
+  }
+}
+
+/** Every network draw's marched junctions, as one group in the figure. */
+export class JuncSdf {
+  readonly group = new Group();
+  private readonly nets: JuncNet[] = [];
+  private readonly passScene = new Scene();
+  private readonly passCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  /** The figure's draws with junction regions; `why` when none has one. */
+  static build(skel: Skeleton, draws: readonly NetDraw[]): JuncSdf | { why: string } {
+    const withRegions = draws.filter((d) => d.regions.length);
+    if (!withRegions.length) return { why: 'no network has a junction region' };
+    const j = new JuncSdf();
+    for (const d of withRegions) {
+      const veil = d.meshes.find((m) => m.layers.mask === 1 << VESSEL_LAYER) ?? d.meshes[d.meshes.length - 1];
+      if (!veil) continue;
+      const n = new JuncNet(skel, d, (veil.material as ShaderMaterial).uniforms);
+      j.nets.push(n); j.group.add(n.mesh);
+    }
+    j.group.name = 'net:junc-sdf';
+    return j;
+  }
+
+  /** The info and cut passes, once per drawn frame, after the network's own (the capsule texture is the frame's). */
   prepass(gl: WebGLRenderer): void {
-    if (!this.mesh.visible) return;
+    if (!this.group.visible || !this.nets.length) return;
     const prev = gl.getRenderTarget(), ac = gl.autoClear;
     gl.autoClear = false;
-    this.passes.forEach((p, k) => { this.passScene.clear(); this.passScene.add(p); gl.setRenderTarget(this.targets[k]!); gl.render(this.passScene, this.passCam); });
+    for (const n of this.nets) n.passes.forEach((p, k) => { this.passScene.clear(); this.passScene.add(p); gl.setRenderTarget(n.targets[k]!); gl.render(this.passScene, this.passCam); });
     this.passScene.clear();
     gl.setRenderTarget(prev); gl.autoClear = ac;
   }
 
   dispose(): void {
-    this.restore();
-    if (this.own?.juncOn) this.own.juncOn.value = 0;
-    this.mesh.removeFromParent();
-    for (const d of this.disposables) d.dispose();
-    for (const t of this.targets) t.dispose();
+    for (const n of this.nets) n.dispose();
+    this.group.removeFromParent();
   }
 }

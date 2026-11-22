@@ -687,7 +687,7 @@ export class CelScene {
     }, behind);
     this.body.add(this.net.group);
     const js = await import('./vessels/net/junc-sdf.ts');
-    if (js.juncSdf()) { const j = js.JuncSdf.build(this.net.draws); if (j instanceof js.JuncSdf) { this.junc = j; this.net.group.add(j.mesh); } else console.warn(`junc-sdf: ${j.why}`); }
+    if (js.juncSdf()) { const j = js.JuncSdf.build(this.net.skel, this.net.draws); if (j instanceof js.JuncSdf) { this.junc = j; this.net.group.add(j.group); } else console.warn(`junc-sdf: ${j.why}`); }
     // The tubes hold the state and the picking, and stay DRAWN until the figure has been seen to put a pixel of an object on the screen (probe.ts): a figure that draws nothing must never leave vessels missing.
     this.netIds = new Set(); this.netUndecided = [...this.net.draws]; this.netIdle = []; this.netFailed = []; this.netSteps = 0;
     if (assumeDrawn) { this.netUndecided = []; for (const d of this.net.draws) this.netOwn(d, true); }
@@ -1732,7 +1732,7 @@ export class CelScene {
     lap('render: setup (dof, band, blur frame)');
     this.netGl = gl;
     this.net?.prepass(gl);   // (?geom=net: the sewn hosts' radii and each junction region's live capsules, once per drawn frame)
-    this.junc?.prepass(gl);   // (?junc=sdf: what the ray-marched junction reads of its capsule points)
+    this.junc?.prepass(gl);   // (?junc=sdf: what the ray-marched junctions read of their capsule points, and the cut)
     lap('render: network passes');
     gl.render(this.scene, cam);
     lap('render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)');
