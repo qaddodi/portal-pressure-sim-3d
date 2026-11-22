@@ -445,9 +445,9 @@ export class EndoScope {
   /**
    * Steps the scope toward what is asked; true while it moves. `u` and `needleSet` override the scope's own pace (a pane that plays the steps). `drive`: for mode 'eus' the EUS-PPG's procedure frame (an
    * EusDrive, 2D proc-anim.js eusFrame): the scope then goes where the frame puts it, the way in, the aim and the station, the sector, the needle, the hit's rings and the ripples, and has no pace of its own;
-   * for mode 'glue' the glue slide's frame (a ScopeDrive): how far in, the port, the sector and the needle. `now`: the clock's ms, for the ripples' cycle.
+   * for mode 'glue' the glue slide's frame (a ScopeDrive): how far in, the port, the sector and the needle. `now`: the clock's ms, for the ripples' cycle. `place`: the scope appears at its station (see ProbeState.endoscope.place).
    */
-  update(dtMs: number, on: boolean, mode: ScopeMode, station: 'pv' | 'hv', u?: number, needleSet?: number, drive: EusDrive | ScopeDrive | null = null, now = 0): boolean {
+  update(dtMs: number, on: boolean, mode: ScopeMode, station: 'pv' | 'hv', u?: number, needleSet?: number, drive: EusDrive | ScopeDrive | null = null, now = 0, place = false): boolean {
     const dt = Math.max(0, dtMs) / 1000;
     let moving = false;
     const driven = !!drive && on && mode === 'eus', glued = !!drive && mode === 'glue';
@@ -472,6 +472,8 @@ export class EndoScope {
       }
       if (glued && this.gone > 0) this.restore();
       const goal = on ? (u == null ? workD(this.mode, this.station, this.way) : Math.min(1, Math.max(0, u)) * workD(this.mode, this.station, this.way)) : 0;
+      // (`place`: a slide's procedure stands the scope at its station; it is not yet drawn, so it is laid there at once and its parts fade in (never travelling in along the esophagus: owner, 22 Nov, the scope never moves))
+      if (place && on) { if (this.gone > 0) this.restore(); if (this.d < goal - 1e-3) { this.d = goal; this.dirty = true; } }
       const was = this.d;
       if (Math.abs(goal - this.d) > 1e-3) { this.d += Math.sign(goal - this.d) * Math.min(Math.abs(goal - this.d), SCOPE_SPEED * dt); }
       const there = Math.abs(goal - this.d) < 1e-3 && on;

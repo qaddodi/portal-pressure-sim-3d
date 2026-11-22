@@ -39,7 +39,7 @@ const float RUN_ON_PX = 0.75;   // CSS px
 attribute vec3 tang;
 // a stent narrows its shunt's lumen (waist, end stenosis): the share of the tube taken off at this vertex, 0 on every vessel that has none (a missing attribute reads 0)
 attribute float narrow;
-attribute vec2 nbr;   // a fork's other tube: this vertex's signed distance from its axis and its radius there, scene units (0: none; neighbour.ts)
+attribute vec3 nbr;   // a fork's other tube: this vertex's distance from its axis, its radius there, and how far it lies past the tube's nearer end (negative inside its length), scene units (0: none; neighbour.ts)
 attribute float tipK;   // a fan's free tip: the share of the alpha taken off here, 0 to 1 (a missing attribute reads 0)
 attribute vec2 lensR;   // a fan's course: the stretch of the host's colour ramp it wears, (from, span) (0, 0: the vessel's own lensSpan)
 attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk; a run-on eases to its neighbour's width)
@@ -89,7 +89,7 @@ uniform vec3 mapFade;   // the Circuit's own fade of an artery's end: (from, to)
 uniform vec3 stump;   // a vein divided at surgery (2D divideLen / stumpPinch): x the divided stretch's length from its start (figure units, 0: whole), y where the tie pinches it (units from the start), z the pinch's share
 varying float vFade;
 varying float vCircShare;   // this vertex's own share of the change (the flow peel on its rank): the map's cut takes the tube's end away as THIS point lands, not as the whole change ends
-varying vec2 vNbr;
+varying vec3 vNbr;
 varying vec3 vCen;   // the tube's centreline point at this fragment, in clip space (x, y, w): the exact lateral distance to the axis, in device pixels, for the outline
 varying vec3 vN;
 varying vec3 vV;
@@ -187,7 +187,7 @@ ${FADE_ALPHA_GLSL}
   fa *= 1.0 - tipK;   // (a fan's free tip eases to transparent: body and outline together)
   vFade = fa;
   // the other tube's radius is the one it is DRAWN at: its built radius times its own live swell (the engine's diameter). Its built radius put the cut and the union's outline inside the real wall wherever the engine widens it (Mohammad, 20 Nov: "a big gaping hole" at the hepatic veins' mouths)
-  vNbr = vec2(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0));
+  vNbr = vec3(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0), nbr.z);   // (the swell is the mate's width; its end plane does not move with it)
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two widths in CSS px (never device px: a device-px clamp drew
   // the line a third as heavy on a 3x iPhone as on a 1x screen), the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone; thinned with a lumen under LINE_MIN CSS px of radius (cel-ink.ts inkTaper), so the smallest branches keep their colour.
@@ -361,7 +361,7 @@ float markK(float d0, float d1) {
 varying float vFade;
 varying float vCircShare;
 varying float circStay;
-varying vec2 vNbr;
+varying vec3 vNbr;
 varying vec3 vCen;
 varying float vHi;
 varying vec3 vN;
@@ -484,7 +484,8 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
-  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
+  // (past the other tube's open end nothing of it is drawn: the ink and the drop give way over half a pixel either side of its end plane, by vNbr.z, which the GPU blends exactly where the radius ramped to 0 over a whole triangle)
+  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT) * (1.0 - smoothstep(-0.5, 0.5, vNbr.z / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -546,7 +547,7 @@ void main() {
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
-  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
+  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
   vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG

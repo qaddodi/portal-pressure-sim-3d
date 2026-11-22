@@ -3,7 +3,7 @@ const float RUN_ON_PX = 0.75;   // CSS px
 attribute vec3 tang;
 // a stent narrows its shunt's lumen (waist, end stenosis): the share of the tube taken off at this vertex, 0 on every vessel that has none (a missing attribute reads 0)
 attribute float narrow;
-attribute vec2 nbr;   // a fork's other tube: this vertex's signed distance from its axis and its radius there, scene units (0: none; neighbour.ts)
+attribute vec3 nbr;   // a fork's other tube: this vertex's distance from its axis, its radius there, and how far it lies past the tube's nearer end (negative inside its length), scene units (0: none; neighbour.ts)
 attribute float tipK;   // a fan's free tip: the share of the alpha taken off here, 0 to 1 (a missing attribute reads 0)
 attribute vec2 lensR;   // a fan's course: the stretch of the host's colour ramp it wears, (from, span) (0, 0: the vessel's own lensSpan)
 attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk; a run-on eases to its neighbour's width)
@@ -53,7 +53,7 @@ uniform vec3 mapFade;   // the Circuit's own fade of an artery's end: (from, to)
 uniform vec3 stump;   // a vein divided at surgery (2D divideLen / stumpPinch): x the divided stretch's length from its start (figure units, 0: whole), y where the tie pinches it (units from the start), z the pinch's share
 varying float vFade;
 varying float vCircShare;   // this vertex's own share of the change (the flow peel on its rank): the map's cut takes the tube's end away as THIS point lands, not as the whole change ends
-varying vec2 vNbr;
+varying vec3 vNbr;
 varying vec3 vCen;   // the tube's centreline point at this fragment, in clip space (x, y, w): the exact lateral distance to the axis, in device pixels, for the outline
 varying vec3 vN;
 varying vec3 vV;
@@ -277,7 +277,7 @@ void main() {
   fa *= 1.0 - tipK;   // (a fan's free tip eases to transparent: body and outline together)
   vFade = fa;
   // the other tube's radius is the one it is DRAWN at: its built radius times its own live swell (the engine's diameter). Its built radius put the cut and the union's outline inside the real wall wherever the engine widens it (Mohammad, 20 Nov: "a big gaping hole" at the hepatic veins' mouths)
-  vNbr = vec2(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0));
+  vNbr = vec3(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0), nbr.z);   // (the swell is the mate's width; its end plane does not move with it)
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two widths in CSS px (never device px: a device-px clamp drew
   // the line a third as heavy on a 3x iPhone as on a 1x screen), the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone; thinned with a lumen under LINE_MIN CSS px of radius (cel-ink.ts inkTaper), so the smallest branches keep their colour.

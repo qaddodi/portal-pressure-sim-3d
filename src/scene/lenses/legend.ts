@@ -3,11 +3,11 @@
 // 2D app's (tests/lens-legend.test.ts finds every one in main.js when PPS_2D_REPO is set). Pure data: Legend.tsx draws it.
 import { LENS_SHARED, LENS_TOKENS } from './tokens.copied.ts';
 import { LENS_WORDS } from './words.copied.ts';
-import { type LensId, HEAT_MAX, flowPos, oxygenPos } from './model.ts';
+import { type LensId, HEAT_MAX, flowPos, oxygenPos, rampOf } from './model.ts';
 import { type Rgb, delta3, hexToRgb01, rgb01ToHex, sampler } from './oklab.ts';
 import type { LookId } from '../palette.ts';
 import { figureHex } from '../vessels/cel-ink.ts';
-import { PRESSURE_RAMP, RAW_LENSES } from './pressure-ramp.ts';
+import { RAW_LENSES } from './pressure-ramp.ts';
 
 export interface LegendNum { at: number; text: string; optional?: boolean }
 export interface LegendDot { colour: string; name: string; title: string }
@@ -46,8 +46,8 @@ export function refWords(ref: string) {
  *  cel-ink.ts celTubeBase: saturated, deep, capped) AFTER the ramp is read, so a key never shows a colour the vessels do not wear (the pale end of the pressure ramp, the dark looks' brighter caps): ONE place for the bar,
  *  the lens menu's swatch and the action card's strip. */
 export function rampStops(look: LookId, name: 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen', max: number, n = 11): [string, number][] {
-  const raw = RAW_LENSES.has(name);   // (the pressure ramp is authored as drawn: pressure-ramp.ts, no transform)
-  const s = sampler(raw ? PRESSURE_RAMP[look] : LENS_TOKENS[look][name]);
+  const raw = RAW_LENSES.has(name);   // (the pressure and velocity ramps are authored as drawn: pressure-ramp.ts, velocity-ramp.ts, no transform)
+  const s = sampler(rampOf(look, name));
   return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(s.at((i / (n - 1)) * max, [0, 0, 0])), look, raw), (i / (n - 1)) * 100]);
 }
 /** The Change lens's bar: the figure's own three-colour scale (sRGB, as delta3), read at 11 steps and put through the same transform as the vessels (the three stops alone would be blended AFTER the caps). */
@@ -77,7 +77,7 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
     case 'velocity':
       return { lens, name: lensTitle('velocity'), title: ['Velocity', 'vs normal'], caption: ['Velocity', 'vs normal'],
         bar: { stops: rampStops(look, 'velocity', 1), nums: [{ at: 0, text: 'Slow' }, { at: 100, text: 'Fast' }], ticks: [33.3, 66.7] },
-        aria: "Legend: each vessel's mean velocity against its normal range: a continuous scale from sand (slower than normal) through teal (normal) to violet (faster), stronger the further from normal; collaterals stay gray" };
+        aria: "Legend: each vessel's mean velocity against its normal range: a continuous scale from indigo (slower than normal) through teal (normal) to coral (faster), stronger the further from normal; collaterals stay gray" };
     case 'heat':
       return { lens, name: lensTitle('heat'), title: ['Congestion', w.heatUnit], caption: ['Congestion', 'mmHg'],
         bar: { stops: rampStops(look, 'heat', 1), nums: [[0, '0'], [5, '5'], [10, '10', 1], [15, '≥15']].map(([v, t, o]) => ({ at: ((v as number) / HEAT_MAX) * 100, text: t as string, optional: !!o })), ticks: [] },

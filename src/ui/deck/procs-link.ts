@@ -41,7 +41,7 @@ export const PROBE_MS = 3600;
 
 const V = new Vector3();
 /** The kinds whose last step stands on the figure until the slide is left (2D holdEnd with a parked device): the glue slide's scope stays over the varix with its coil and cast in it, and fades as the slide moves on; its play ends at its last stop, not on the fade-out leg. */
-export const HOLD_KINDS: ReadonlySet<string> = new Set(['eusglue']);
+export const HOLD_KINDS: ReadonlySet<string> = new Set(['eusglue', 'evl']);   // (the EVL slide's plain scope stands at its station for the whole slide, the scope view open beside it: owner, 22 Nov 2026)
 
 /** How long the engine takes to move from one state to the other when a procedure that is an engine action (a band, a tap) makes its change (the figure's own easing follows: the bands fade in one by one, the ascites and the IAP dial fall). */
 export const MORPH_MS = 2200, MORPH_BACK_MS = 900;
@@ -138,8 +138,9 @@ export function linkProcs(): () => void {
         // the live model takes the change as the sequence passes the procedure's `apply` time, and gives it back going back past it
         if (!c.applied && t >= sp.T.apply) { c.applied = true; change(true); }
         else if (c.applied && t < sp.T.apply) { c.applied = false; change(false); }
-        if (scope) { const e = useProbes.getState().endoscope, want = t < (sp.T.back ?? sp.T.end); if (e.on !== want || (want && e.mode !== scope)) useProbes.getState().setEndoscope({ on: want, mode: scope }); }
-        if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
+        // (the scope of a kind that holds stands from the run's first frame until the slide is left, laid at its station and faded in there: `place`; another kind's goes out on the way-out leg)
+        if (scope) { const e = useProbes.getState().endoscope, want = hold || t < (sp.T.back ?? sp.T.end); if (e.on !== want || (want && (e.mode !== scope || (hold && !e.place)))) useProbes.getState().setEndoscope(want ? { on: true, mode: scope, ...(hold ? { place: true } : {}) } : { on: false }); }
+        if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', place: false, station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
         camera(String(rec.shot || ''), c.last, kind);
       },
       onArrive: () => {
@@ -149,7 +150,7 @@ export function linkProcs(): () => void {
       },
       onEnd: ({ done, rewound }) => {
         if (g !== gen || ctl !== c) return;
-        playing = false; held = false; ctl = null; sceneApi.follow(null);
+        playing = false; held = c.hold && done; ctl = null; sceneApi.follow(null);   // (a kind that holds leaves its last frame up: the slide's leaving takes it off, stopPlay)
         if (rewound) {
           // Back from the first step: the slide as it landed, before its procedure (the sequence going back past `apply` has already taken the result off: change(false))
           resetEvRun(key);
@@ -157,7 +158,7 @@ export function linkProcs(): () => void {
           phase = base > 0 ? 'between' : 'wait'; setProc({ phase: 'wait', at: base - 1, ring: base - 1 });
         } else if (done) {
           if (!c.applied) { c.applied = true; change(true); }
-          if (scope) useProbes.getState().setEndoscope({ on: false });
+          if (scope && !c.hold) useProbes.getState().setEndoscope({ on: false });
         }
         const v = viewNow();
         if (v) sceneApi.goTo(v.shot, room());
@@ -348,6 +349,8 @@ export function linkProcs(): () => void {
         // Going forward the first Next starts it; `auto` starts it as the slide lands, after the camera and the cards have settled.
         phase = done ? 'done' : 'wait';
         if (done) { const spec = eventGraphOf(s); if (spec) restoreEvRun(k, spec); }
+        // (a slide whose scope stands for the whole slide shows it standing when it lands played through, too)
+        if (done && sp && HOLD_KINDS.has(plan.kind) && (sp as { scope?: 'scope' }).scope) useProbes.getState().setEndoscope({ on: true, mode: 'scope', place: true });
         if (!done && sp && plan.auto) { auto = { g: gen, key: k }; tryAuto(); }
       }
     }
