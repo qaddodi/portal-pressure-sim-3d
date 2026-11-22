@@ -127,8 +127,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   useEffect(() => { if (open) needAll(); }, [open]);
   useEffect(() => {
     const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
-    const t = idle ? idle(needAll) : clock.after(needAll, 4000);
-    return () => { if (!idle) clock.cancel(t); };
+    const t = idle ? (idle(needAll), null) : clock.after(needAll, 4000);
+    return () => { clock.cancel(t); };
   }, []);
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);

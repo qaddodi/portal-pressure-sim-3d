@@ -9,7 +9,7 @@ import { patient } from '../../../engine/index.ts';
 import { useDopplerProbe } from '../../../ui/tests/doppler/probe-state.ts';
 import { useUi } from '../../../ui/ui-store.ts';
 import { useTestsRoom } from '../../../ui/tests/room.ts';
-import { clock } from '../../../clock/frame.ts';
+import { clock, type TimerId } from '../../../clock/frame.ts';
 
 /** Starts following the Tests card; returns the remover. */
 export function bindTests(): () => void {
@@ -29,7 +29,7 @@ export function bindTests(): () => void {
     if (p.edge !== d.probe || p.seg !== seg) useProbes.getState().setDoppler({ edge: d.probe, seg });
   };
   // the Endoscopy pane's work: a band press loads and fires the ligator for a few seconds; the EUS measurement sends the needle to the station its step names
-  let bandUntil = 0, lastTick = useScope.getState().bandTick, timer: number | undefined;
+  let bandUntil = 0, lastTick = useScope.getState().bandTick, timer: TimerId | undefined;
   const syncScope = (): void => {
     const e = useScope.getState(), p = useProbes.getState().endoscope;
     if (e.bandTick !== lastTick) { lastTick = e.bandTick; bandUntil = clock.now() + 3000; clock.cancel(timer); timer = clock.after(syncScope, 3050); }

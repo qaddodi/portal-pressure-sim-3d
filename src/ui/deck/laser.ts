@@ -1,4 +1,4 @@
-import { clock } from '../../clock/frame.ts';
+import { clock, type Clock, type TimerId } from '../../clock/frame.ts';
 // The laser pointer of a talk (2D ink-gl.js: L switches it on and off; on an iPad, press and hold on the figure). In 2D it is a spotlight: the figure is as it is inside a window round
 // the pointer and steps back under a veil of the stage's own colour outside it ("keep the figure lit as normal, and dim everything not laser", owner, 5 Nov), with a faint thin ring at
 // the window's edge in the pen's colour; no dot and no glow; the mouse arrow is hidden while it is on. It stays on from slide to slide (2D clears only the pen's strokes on a new slide)
@@ -30,13 +30,13 @@ export const onFigure = (t: { closest?(sel: string): unknown } | null): boolean 
 export interface Laser { toggle(): boolean; set(on: boolean): void; readonly on: boolean; dispose(): void }
 export interface LaserOptions { /** the talk can show it now (2D active(): not under the black screen) */ active?(): boolean }
 
-export function createLaser(o: LaserOptions = {}, doc: Document = document, win: Window = window): Laser {
-  let on = false, x = 0, y = 0, has = false, hold = 0, holdId = -1, hx = 0, hy = 0, touchSpot = false, eat = 0, R = 0, W = 0, H = 0;
+export function createLaser(o: LaserOptions = {}, doc: Document = document, win: Window = window, c: Clock = clock): Laser {
+  let on = false, x = 0, y = 0, has = false, hold: TimerId | null = null, holdId = -1, hx = 0, hy = 0, touchSpot = false, eat = 0, R = 0, W = 0, H = 0;
   const active = () => o.active?.() ?? true;
   const touches = new Set<number>();
-  // The press-and-hold is a human wait in real time, so it is a window timer set and cleared as a pair (never the page clock's: clock.cancel() does not know a window timer's id, so a tap
-  // left it running and the laser came on 500 ms after any touch on the figure, held or not; and the page clock is scaled at audit speed, which would shorten the hold).
-  const unhold = () => { if (hold) win.clearTimeout(hold); hold = 0; };
+  // The press-and-hold is a human wait, so it runs in REAL time (afterReal: the audit's speed mode must not shorten it) and is cancelled by the clock that made it: the handle is opaque, so a
+  // timer of another source cannot be cancelled here by mistake (the iPhone bug of c2ed15a3: a window timer cancelled with clock.cancel stayed armed and lit the laser 500 ms after any touch).
+  const unhold = () => { c.cancel(hold); hold = null; };
   const mk = (cls: string) => { const e = doc.createElement('i'); e.className = cls; return e; };
   const group = doc.createElement('div'), hole = mk('laser-hole'), top = mk('laser-plate'), bottom = mk('laser-plate'), left = mk('laser-plate'), right = mk('laser-plate');
   group.className = 'laser'; group.setAttribute('aria-hidden', 'true');
@@ -75,7 +75,7 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
     if (touches.size > 1) return;   // (a pinch or a two-finger pan: no laser)
     if (!active() || !onFigure(e.target as Element | null)) return;
     holdId = e.pointerId; hx = e.clientX; hy = e.clientY;
-    hold = win.setTimeout(() => { hold = 0; if (!active() || !touches.has(holdId)) return;   // (only while that finger is still down)
+    hold = c.afterReal(() => { hold = null; if (!active() || !touches.has(holdId)) return;   // (only while that finger is still down)
       touchSpot = true; x = hx; y = hy; has = true; if (on) place(); else set(true); }, HOLD_MS);
   };
   const onUp = (e: PointerEvent) => {
@@ -83,7 +83,7 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
     if (e.pointerId === holdId) unhold();
     if (touchSpot && e.pointerId === holdId) release();
   };
-  const release = () => { touchSpot = false; set(false); eat = clock.now() + EAT_MS; };   // (the click a lifted hold can leave must not also open a label)
+  const release = () => { touchSpot = false; set(false); eat = c.now() + EAT_MS; };   // (the click a lifted hold can leave must not also open a label)
   // iOS can end a touch with touchend or touchcancel and no pointerup: when no finger is left on the screen nothing is held
   const onTouchEnd = (e: TouchEvent) => {
     const n = e.touches ? e.touches.length : 0;
@@ -91,7 +91,7 @@ export function createLaser(o: LaserOptions = {}, doc: Document = document, win:
   };
   const onTouch = (e: TouchEvent) => { if (touchSpot) { if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation(); } };
   const onMenu = (e: Event) => { if (touchSpot || hold) e.preventDefault(); };   // (an iPad's own press-and-hold menu)
-  const onClick = (e: MouseEvent) => { if (eat && clock.now() < eat) { e.preventDefault(); e.stopImmediatePropagation(); } };
+  const onClick = (e: MouseEvent) => { if (eat && c.now() < eat) { e.preventDefault(); e.stopImmediatePropagation(); } };
   // (only the window's own blur: a button or a field losing focus reaches a capture listener on the window too)
   const onBlur = (e: Event) => { if (e.target !== win) return; touches.clear(); unhold(); touchSpot = false; set(false); };
   const onSize = () => { if (on) { size(); place(); } };
