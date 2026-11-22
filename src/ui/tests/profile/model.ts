@@ -453,7 +453,7 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
     }
     const pen = { color: col, w: 1.5, cap: 'butt' as const };
     out.push({ k: 'line', x1: x0, y1: yy - 4, x2: x0, y2: yy + 4, pen }, { k: 'line', x1: x1, y1: yy - 4, x2: x1, y2: yy + 4, pen }, { k: 'line', x1: x0, y1: yy, x2: x1, y2: yy, pen });
-    out.push({ k: 'rect', x: lx, y: yy - 8, w: tw, h: 16, r: 8, fill: surface, pen: { color: withAlpha(col, 0.5), w: 1 } });
+    out.push({ k: 'rect', x: lx, y: yy - 8, w: tw, h: 16, r: 3, fill: surface });   // (the card's colour behind the words, so the bracket's line does not run through them: no outlined capsule)
     TX(lx + 6, yy + 0.5, txt, 12, 600, muted, 'start', 'middle');
     TX(lx + 6 + tw1, yy + 0.5, num, 12.5, 700, col === muted ? text : col, 'start', 'middle');
   }

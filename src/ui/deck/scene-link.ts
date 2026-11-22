@@ -21,6 +21,12 @@ let reframe: (() => void) | null = null;
 /** The camera was taken by someone else during the talk (a Tests run that gave it back, integration review I4): the slide's own framing comes back, eased. False when no talk is linked. */
 export function reframeSlide(): boolean { if (!reframe) return false; reframe(); return true; }
 
+/** THE one way a talk gives the camera a room (Mohammad, 22 Nov: the slide arriving, the card tucked and untucked, a resize and a turn of the phone must all frame the figure the same, and so label it the same).
+ *  Always a refit: the zoom is a pure function of the shot and the room the cards leave NOW. A room change that only panned kept the zoom of whichever room the slide's own move had been fitted to, and
+ *  the cards of a slide settle after that move (they arrive one at a time, the data card's height lands a beat late), so the slide came up fitted to a room it no longer had (larger, cropped, other names)
+ *  while an untuck, which refits, framed it right. Free play's cards and sheets still only pan (Shell.tsx, 20 Nov: opening a card never zooms the figure out). */
+export function frameRoom(room: Parameters<typeof sceneApi.setRoom>[0], ms?: number, ease?: (k: number) => number, homeTurn = false): void { sceneApi.setRoom(room, ms, homeTurn, true, ease); }
+
 export function linkScene(): () => void {
   const cc = makeCathClock(), pose: CathPose = { advance: 0, balloon: 0, column: 0 };
   let readWas = false, place: CathState | null = null, drawn = false, hold: Hold | null = null;
@@ -45,6 +51,7 @@ export function linkScene(): () => void {
 
   // the data card's dock as the last sync saw it: a change of it is a room change that refits, whether or not a glide announced it (a drag that lands fully shut or open has no glide, so no hint)
   let dockWas = useUi.getState().dockShown;
+  let owed = false;   // a step on to a new slide waited for its cards' final room and is still to be told to the camera
   const sync = (stepped = false) => {
     const { stops, pos, boxes, dockShown } = useUi.getState();
     const dockMoved = dockShown !== dockWas; dockWas = dockShown;
@@ -62,6 +69,9 @@ export function linkScene(): () => void {
     if (wantLens !== lens) { lens = wantLens; sceneApi.setLens(lens); }
     const room = boxes.free;
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
+    // the room belongs to another slide (its cards are still being measured, stepped down or fitted): the slide's move waits for its own final room, so the camera goes there once, never to an early one and on to the final
+    if (boxes.stop != null && boxes.stop !== pos.stop) { owed = owed || stepped; return; }
+    if (owed) { stepped = true; owed = false; }
     // The catheter's own shots: the tip close up, the balloon just behind it and the vein ahead (2D cathFocus 'tip', both). The route step keeps the slide's own (the whole way in).
     const view = v.scene ? v.scene.view : 'body', close = view === 'body' && !v.slide?.visual ? closeUpOf(at) : null;
     const want = (close ? tipCloseShot(close) : null) ?? v.shot;
@@ -70,14 +80,14 @@ export function linkScene(): () => void {
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
       if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
       else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room, want === v.shot);   // (the slide's own framing takes a slide's time; the catheter's tip close-ups keep the hand's glide)
-    } else if (stepped || !sceneApi.roomIs(room)) { if (dockMoved && !stepped) sceneApi.setRoom(room, DOCK_MS, false, true, easeArrive); else sceneApi.setRoom(room, undefined, stepped); }   // (a step on to a slide with the same shot still brings the viewer's turn home; a dock glide that has landed where it told the camera to go asks for nothing more)
+    } else if (stepped || !sceneApi.roomIs(room)) { if (dockMoved && !stepped) frameRoom(room, DOCK_MS, easeArrive); else frameRoom(room, undefined, undefined, stepped); }   // (a step on to a slide with the same shot still brings the viewer's turn home; a dock glide that has landed where it told the camera to go asks for nothing more)
   };
 
   sync();
   reframe = () => { shot = null; sync(); };   // (forget the shot it last sent: the camera is no longer on it)
   // a dock glide has set off: the figure reframes for where the card is going, in the glide's own time, not once it has landed (2D presenter-zoom.js dockTo: layout() then reframe(ms))
-  const offHint = useUi.subscribe((s, prev) => { const h = s.roomHint; if (h && h !== prev.roomHint && h.free.w > 0 && h.free.h > 0) sceneApi.setRoom(h.free, h.ms, false, true, easeArrive); });   // (refit: the card tucked or came back, so the figure is fitted to the room it now has, in or out, as 2D's reframe(ms))
-  const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
+  const offHint = useUi.subscribe((s, prev) => { const h = s.roomHint; if (h && h !== prev.roomHint && h.free.w > 0 && h.free.h > 0) frameRoom(h.free, h.ms, easeArrive); });   // (refit: the card tucked or came back, so the figure is fitted to the room it now has, in or out, as 2D's reframe(ms))
+  const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.boxes.stop !== prev.boxes.stop || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
   return () => { reframe = null; off(); offHint(); offClock(); hold?.release(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }

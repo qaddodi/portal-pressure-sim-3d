@@ -69,3 +69,12 @@ test('the History row has no dot and the Legend key has no round swatch', () => 
   assert.doesNotMatch(readFileSync('src/ui/history/HistoryList.tsx', 'utf8'), /hist-dot/);
   assert.doesNotMatch(readFileSync('src/scene/lenses/legend.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''), /\.lg-dots i\s*\{[^}]*border-radius:\s*50%/);
 });
+
+// Charts draw their own shapes (src/ui/charts frames, the Tests panes' models): a rectangle rounded to half its height is a capsule, and a capsule round words is a pill.
+test('no chart frame draws a capsule (a rectangle rounded to half its height) round words', () => {
+  const frames = files.filter((f) => /(charts\/.*frame|tests\/.*(model|frame))\.ts$/.test(f));
+  assert.ok(frames.length > 5);
+  const bad: string[] = [];
+  for (const f of frames) readFileSync(f, 'utf8').split('\n').forEach((l, i) => { if (/k: 'rect'/.test(l) && /\br: [^,}]*\/ 2/.test(l) && !/\/\/ ?\(capsule ok/.test(l)) bad.push(`${f}:${i + 1}`); });
+  assert.deepEqual(bad, [], 'a capsule: draw the words alone in their colour (docs/HUMANIZED-DESIGN.md section 0)');
+});
