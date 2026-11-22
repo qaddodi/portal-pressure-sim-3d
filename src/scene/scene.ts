@@ -1613,6 +1613,7 @@ export class CelScene {
     const lap = lapTimer(this.systemMs);   // (the render phase's laps share update()'s record, named 'render: ...': the audit's per-step table names the system that costs a frame)
     gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
+    this.shared.dpr.value = dpr;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
     dustTuner.setView(this.phone, this.width * this.height * dpr * dpr);   // (the dust's samples a pixel follow the device and the canvas: blood/dust-spec.ts dustBudget)
     this.microDpr = dpr; this.micro?.lobule.setDpr(dpr);

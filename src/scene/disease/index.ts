@@ -15,6 +15,7 @@ import { Landmarks } from './landmarks.ts';
 import { ScopeRing } from './scope-ring.ts';
 import { varixWale } from './copied/varix-bead.js';
 import { ClotLayer } from './clots.ts';
+import { VEIL_ORDER } from '../vessels/vessel-object.ts';
 import { DyeLayer } from './dye.ts';
 import { Eased, FluidFollow } from './follow.ts';
 import { StrandLayer } from './strands.ts';
@@ -68,6 +69,8 @@ export class DiseaseLayer {
     this.ascites.bindShared(shared);   // (the pool's sizes are screen pixels; the hull reads the light and the rest eye)
     this.clamps = new ClampLayer();
     for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
+    // a clot draws in its vein's slot: just after the vein's own copy, which is the veil copy (VEIL_ORDER) for a vein behind the organs
+    { const behind = new Map<string, boolean>(); for (const v of vessels) if (v.edge) behind.set(v.edge.id, (v as { behindOrgans?: boolean }).behindOrgans === true); this.clots.bindHosts((id) => (behind.get(id) ? VEIL_ORDER : 0)); }
     this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));
     this.group.add(this.organs.group, this.landmarks.group, this.scopeRing.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
   }

@@ -15,6 +15,8 @@ export function rawColor(hex: string, out = new Color()): Color {
 /** Uniforms shared by every cel object: one clock value, one light, one screen size, one data texture. */
 export interface CelShared {
   res: { value: Vector2 };
+  /** The device pixel ratio (the scene writes it each frame): what a part that sets its edge in device px needs (a clot's cut along the cava's wall). */
+  dpr: { value: number };
   time: { value: number };
   light: { value: Vector3 };
   vdata: { value: Texture };
@@ -32,6 +34,7 @@ export function createShared(): CelShared {
   blank.needsUpdate = true;
   return {
     res: { value: new Vector2(1, 1) },
+    dpr: { value: 1 },
     time: { value: 0 },
     // the one fixed WORLD light, upper left front (cel-style.ts LIGHT; look-and-feel.md section 2)
     light: { value: new Vector3(...CEL_LIGHT_UNIT) },
