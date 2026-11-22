@@ -7,7 +7,7 @@
 // rule (its vertices carry `nbr` against the cava, fill and outline both), so the clot and the vein end on one line. It is drawn in its vein's own slot (the vein's layer and draw order, just after it: one pass, one wash), depth-tested at the depth rule the tube draws
 // at (the axis's depth and the same share of the bulge) less a bias, so it ties with its vein and loses to a vessel on a nearer tier;  (Its outline weight is not touched here: the clot's style is its own plan.)
 // A clot thickens and thins with its parameter in a moment (lesion-ease.js) and never pops: a new clot grows from nothing, a lysed one shrinks to nothing.
-import { BufferGeometry, Float32BufferAttribute, Group, Vector3 } from 'three';
+import { BufferGeometry, Color, Float32BufferAttribute, Group, Vector3 } from 'three';
 import { NBR_STRIDE, neighbourAttr } from '../vessels/neighbour.ts';
 import { TUBE_DEPTH_SHARE } from '../vessels/shaders.ts';
 import { opensIntoCava } from '../vessels/fades.ts';
@@ -18,11 +18,20 @@ import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { type Host, type HostPoint, type Swells, cavaWallShare, drawnHost, hostAt, swellsOf } from './host.ts';
 import { lesionStep } from './follow.ts';
-import { clotColour, recolour } from './paint.ts';
+import { clotTokens, paintClot } from './paint.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 import { ringTube } from './tube.ts';
 
-/** The widest the clot may be against the lumen, as a share of its live width: a little inside it, so its soft edge never spills onto the wall (2D stage-clamps.js: W = width * 0.9). */
-export const CLOT_INSIDE = 0.9;
+/** MURAL CAST (plan 11): the cast lies against its wall, so its wall side reaches the lumen's edge, which is the INNER edge of the vein's ink band (the vein's line is a hull grown OUTSIDE the tube's radius). The clot's wall side ends at this share of the live lumen
+ *  radius: the whole of it less a hair for the 12-sided ring's chords against the vein's own facets (under 0.3 px on a 20 px vein), so it never covers the vein's ink. It replaces 2D's 0.9 (stage-clamps.js: W = width * 0.9), which left a gap of vein colour between the cast and its wall. */
+export const CLOT_INSIDE = 0.97;
+/** A clot's ends fade by a gradient (never a cap) over at least this many lumen diameters. */
+export const CLOT_END_FADE_DIAMETERS = 1;
+/** How far round the cast the ink thins out, as n.wall (the surface normal against the direction of its wall): full ink at or below FREE_FULL (the face toward the lumen), none at or above FREE_NONE (the face against the wall). A smoothstep between, never a step. */
+export const CLOT_FREE_FULL = -0.75;
+export const CLOT_FREE_NONE = 0.0;
+/** The weight of the clot's ink on a surface whose normal makes `nw` (cosine) with the direction of the clot's wall: 1 on the free face, 0 on the wall face, continuous between. */
+export function clotFreeInk(nw: number): number { const t = Math.min(1, Math.max(0, (nw - CLOT_FREE_NONE) / (CLOT_FREE_FULL - CLOT_FREE_NONE))); return t * t * (3 - 2 * t); }
 export const CLOT_RINGS = 28;
 /** The draw order the device base class is given (a clot's real order is its vein's: `placeAfter`). */
 export const CLOT_ORDER = -20;
@@ -38,13 +47,24 @@ export const clotBiasOf = (lumenMax: number): number => TUBE_DEPTH_SHARE * lumen
 export const CLOT_VS_GLSL = /* glsl */ `
 attribute vec3 ringC;
 attribute vec3 nbr;
+attribute float free0;   // the ink's weight at this vertex (1 on the face toward the lumen, 0 on the face against the wall; smooth between)
+attribute float endA;    // the end fade's alpha at this ring (a gradient over at least a lumen diameter from a free end; 1 at the cava, where the cut ends it)
+attribute float lumR;    // the vein's live lumen radius at this ring, scene units
 varying vec2 vNbr;
 varying float vUpx;
+varying float vFree;
+varying float vEnd;
 uniform float clotBias;
+float clotInk = 0.0;     // the ink's width here, CSS px
+
 // the cava's cut needs the scene units under one CSS px here (the fragment stage turns the pixel's distance from the wall into px with it) and the vertex's place against the cava
 void clotVary() {
   vec4 ca = projectionMatrix * modelViewMatrix * vec4(ringC, 1.0);
   vUpx = max(2.0 * ca.w / (res.y * projectionMatrix[1][1]), 1e-9);
+  vFree = free0; vEnd = endA;
+  // the figure's own line (cel-style LINE_R of the radius held between LINE_MIN and LINE_MAX, CSS px), and never more than half the lumen: on a hairline vein the cast's ink must not double the vein's into one thick line
+  float rCss = lumR / vUpx;
+  clotInk = min(clamp(${CEL_STYLE.LINE_R.toFixed(3)} * rCss, ${CEL_STYLE.LINE_MIN.toFixed(3)}, ${CEL_STYLE.LINE_MAX.toFixed(3)}), 0.5 * rCss);
   vNbr = nbr.xy;   // (the vein's own cava cut reads only the distance and the radius: z, the end plane, is NBR_NO_END against the cava)
 }
 // the tube's depth rule (vessels/shaders.ts TUBE_DEPTH_SHARE): the clot's own axis's depth plus the same share of the bulge (never farther than the axis: a back face is no deeper), toward the viewer by clotBias
@@ -58,6 +78,8 @@ float clotDepth(vec4 c) {
 export const CLOT_FS_GLSL = /* glsl */ `
 varying vec2 vNbr;
 varying float vUpx;
+varying float vFree;
+varying float vEnd;
 uniform float dpr;
 float clotCut() {
   if (vNbr.y <= 0.0) return 1.0;
@@ -65,27 +87,37 @@ float clotCut() {
   return 1.0 - smoothstep(-0.5, 0.5, cdPx);
 }`;
 
+/** The cast's fill: THREE flat cel bands lit from the one world light (upper left, celLightView: turning the figure never changes them), shade / base / lift from the look's clot tokens (paint.ts), an edge EDGE_PX device px wide between two. */
+export const CLOT_LIFT_AT = 0.3;
+export const CLOT_SHADE_AT = -0.2;
+export const CLOT_BANDS_GLSL = /* glsl */ `float etC = max(0.5 * ${CEL_STYLE.EDGE_PX.toFixed(3)} * fwS0, 1e-4);
+  vec3 c = mix(mix(clotShade, clotBase, smoothstep(${CLOT_SHADE_AT.toFixed(3)} - etC, ${CLOT_SHADE_AT.toFixed(3)} + etC, sT0)), clotLift, smoothstep(${CLOT_LIFT_AT.toFixed(3)} - etC, ${CLOT_LIFT_AT.toFixed(3)} + etC, sT0));`;
+
 /** The slot in the vein's layer where a clot draws: just after the vein's own copy (a vein behind the organs has a veil copy at VEIL_ORDER, which the clot follows; any other vein is at 0). */
 export const CLOT_AFTER_VEIN = 0.25;
 
 /** A clot's vertices carry the vein's opacity there (`lumA`): the fill and the outline both multiply it. */
 export class ClotObject extends DeviceObject {
   constructor(geometry: BufferGeometry, shared: CelShared) {
-    super(geometry, 'poly', shared, { bands: 3, spec: 0, px: 0.9, order: CLOT_ORDER, fat: 0 }, 'ink');
+    super(geometry, 'poly', shared, { bands: 3, spec: 0, px: 0.9, order: CLOT_ORDER, fat: 0, tubeTones: true }, 'ink');
     const tv = this.toon.vertexShader, iv = this.ink.vertexShader;
     this.toon.vertexShader = 'attribute float lumA;\nvarying float vLumA;\n'
       + withAlpha(withAlpha(withAlpha(tv, 'void main() {', CLOT_VS_GLSL + '\nvoid main() {'),
         'vUv = uv;', 'vUv = uv;\n  vLumA = lumA;\n  clotVary();'),
         'gl_Position = gp;', 'gp.z = clotDepth(gp);\n  gl_Position = gp;');
-    this.toon.fragmentShader = 'varying float vLumA;\n' + CLOT_FS_GLSL + '\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float cutK = clotCut();\n  if (cutK < 0.004) discard;\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x) * vLumA * cutK);');
+    this.toon.fragmentShader = 'varying float vLumA;\nuniform vec3 clotShade;\nuniform vec3 clotBase;\nuniform vec3 clotLift;\n' + CLOT_FS_GLSL + '\n'
+      + withAlpha(withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float cutK = clotCut();\n  if (cutK < 0.004) discard;\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x) * vLumA * cutK * vEnd);'),
+        'vec3 c = celTubeTone(base, sT0, fwS0, rDev0);', CLOT_BANDS_GLSL);
     this.ink.vertexShader = 'attribute float lumA;\nvarying float vLumA;\n'
-      + withAlpha(withAlpha(withAlpha(iv, 'void main() {', CLOT_VS_GLSL + '\nvoid main() {'),
+      + withAlpha(withAlpha(withAlpha(withAlpha(iv, 'void main() {', CLOT_VS_GLSL + '\nvoid main() {'),
         'vU = uv.x;', 'vU = uv.x;\n  vLumA = lumA;\n  clotVary();'),
-        'gl_Position = c;', 'c.z = clotDepth(c);\n  gl_Position = c;');
+        'gl_Position = c;', 'c.z = clotDepth(c);\n  gl_Position = c;'),
+        '(px + fatPx + hiPx * vHi)', 'clotInk');   // (the figure's line on the cast's free edge: the fragment stage takes the line away round the corner, vFree)
     this.ink.fragmentShader = 'varying float vLumA;\n' + CLOT_FS_GLSL + '\n' + withAlpha(this.ink.fragmentShader, 'gl_FragColor = vec4(mix(color, hiColor', 'float cutK = clotCut();\n  if (cutK < 0.004) discard;\n  gl_FragColor = vec4(mix(color, hiColor');
-    this.ink.fragmentShader = withAlpha(this.ink.fragmentShader, ' * edgeA', ' * edgeA * vLumA * cutK');
+    this.ink.fragmentShader = withAlpha(this.ink.fragmentShader, ' * edgeA', ' * edgeA * vLumA * cutK * vFree * vEnd');
     this.toon.uniforms.clotBias = this.ink.uniforms.clotBias = { value: clotBiasOf(0.02) };
     this.toon.uniforms.dpr = this.ink.uniforms.dpr = shared.dpr;
+    for (const k of ['clotShade', 'clotBase', 'clotLift']) this.toon.uniforms[k] = { value: new Color() };
     // The clot is IN its vein: depth-tested (at the vein's depth rule, less the bias), drawn into no depth, in the vein's own layer just after its copy; the device's no-depth-test draw put a solid clot over a faint vein and over whatever stood in front of it.
     for (const m of [this.toon, this.ink]) { m.depthTest = true; m.depthWrite = false; m.needsUpdate = true; }
     this.placeAfter(0);
@@ -104,6 +136,8 @@ export interface ClotShape {
   centres: Vector3[]; radii: number[]; alpha: number[];
   /** the lumen's live radius at each ring */ lumen: number[];
   /** the vein's own axis at each ring (the clot's offset is from it) */ axis?: Vector3[];
+  /** the unit direction from the axis toward the wall the clot lies against, at each ring (the ink thins out toward it) */ wall?: Vector3[];
+  /** the clot's last ring is at the cava, where the cut ends it: no end fade there */ cavaEnd?: boolean;
 }
 
 /** The shares of the drawn vein's arc length the clot's rings lie at: 2D's span (clot-shape.js clotSpan), and for a vein that opens into the cava it runs on to the cava's wall, to the junction (Mohammad, 20 Nov: "the clots stop well short of the junction"). */
@@ -120,7 +154,7 @@ export function clotShares(host: Host, v: number, cavaSwell = 1): number[] {
 export function clotShapeOf(host: Host, swells: readonly number[] & { cava?: number }, v: number, id: string): ClotShape {
   const seed = hashSeed(id), side = clotSide(seed), shares = clotShares(host, v, swells.cava ?? 1);
   const on: HostPoint[] = hostAt(host, swells, shares);
-  const centres: Vector3[] = [], radii: number[] = [], alpha: number[] = [], lumen: number[] = [], axis: Vector3[] = [];
+  const centres: Vector3[] = [], radii: number[] = [], alpha: number[] = [], lumen: number[] = [], axis: Vector3[] = [], wall: Vector3[] = [];
   const n = new Vector3(), up = new Vector3(0, 1, 0);
   for (let i = 0; i < on.length; i++) {
     const q = on[i]!, W = 2 * q.r * CLOT_INSIDE;
@@ -133,9 +167,9 @@ export function clotShapeOf(host: Host, swells: readonly number[] & { cava?: num
     // (the taper runs over the clot's own rings; the rings past the cava's wall hold the last one's width)
     const r = clotRadius(v, W, Math.min(1, i / (CLOT_RINGS - 1)), seed), sh = clotShift(W, r, side);
     centres.push(q.p.clone().addScaledVector(n, sh));
-    radii.push(Math.max(1e-5, r)); alpha.push(q.a); lumen.push(q.r); axis.push(q.p.clone());
+    radii.push(Math.max(1e-5, r)); alpha.push(q.a); lumen.push(q.r); axis.push(q.p.clone()); wall.push(n.clone().multiplyScalar(side));
   }
-  return { centres, radii, alpha, lumen, axis };
+  return { centres, radii, alpha, lumen, axis, wall, cavaEnd: cavaWallShare(host, swells.cava ?? 1) != null };
 }
 
 /** The cava a clot's vertices are cut against: the vein's last piece (the one that opens into it) and the cava piece's live swell (its drawn width over the width it was built at). */
@@ -143,18 +177,35 @@ export interface ClotCut { piece: string; swell: number }
 
 /** The clot's geometry: the tube along its rings, each vertex carrying the vein's opacity at its ring, the ring's own centre (the depth rule's axis) and, in a vein that opens into the cava, `nbr`: its place against the cava, as the vein's own vertices carry it. */
 export function clotGeometry(shape: ClotShape, cut: ClotCut | null = null): BufferGeometry {
-  const radial = 12, g = ringTube(shape.centres, shape.radii, radial, true);
+  const radial = 12, g = ringTube(shape.centres, shape.radii, radial, false);   // (no caps: the ends fade by a gradient, below)
   const n = shape.centres.length;
-  const a: number[] = [], rc: number[] = [];
-  const put = (i: number): void => { const c = shape.centres[i]!; a.push(shape.alpha[i]!); rc.push(c.x, c.y, c.z); };
-  for (let i = 0; i < n; i++) for (let j = 0; j <= radial; j++) put(i);
-  put(0); put(n - 1);   // (the two end caps, one vertex each)
+  const a: number[] = [], rc: number[] = [], fr: number[] = [], ea: number[] = [], lr: number[] = [];
+  const nor = g.getAttribute('normal'), end = clotEndAlpha(shape);
+  const dir = new Vector3(0, 1, 0);
+  const put = (i: number, j: number): void => {
+    const c = shape.centres[i]!, w = shape.wall?.[i] ?? dir, k = i * (radial + 1) + j;
+    a.push(shape.alpha[i]!); rc.push(c.x, c.y, c.z); ea.push(end[i]!); lr.push(shape.lumen[i]!);
+    fr.push(clotFreeInk(nor.getX(k) * w.x + nor.getY(k) * w.y + nor.getZ(k) * w.z));
+  };
+  for (let i = 0; i < n; i++) for (let j = 0; j <= radial; j++) put(i, j);
   g.setAttribute('lumA', new Float32BufferAttribute(a, 1));
   g.setAttribute('ringC', new Float32BufferAttribute(rc, 3));
+  g.setAttribute('free0', new Float32BufferAttribute(fr, 1));
+  g.setAttribute('endA', new Float32BufferAttribute(ea, 1));
+  g.setAttribute('lumR', new Float32BufferAttribute(lr, 1));
   const nb = (cut && neighbourAttr(cut.piece, g.getAttribute('position').array)) || new Float32Array(g.getAttribute('position').count * NBR_STRIDE);
   if (cut) for (let i = 1; i < nb.length; i += NBR_STRIDE) nb[i] = nb[i]! * cut.swell;   // (the cava as it is DRAWN: its built radius times its live swell, as the vein's vertex stage does it)
   g.setAttribute('nbr', new Float32BufferAttribute(nb, NBR_STRIDE));
   return g;
+}
+
+/** The end fade's alpha at each ring: a smoothstep from nothing at a free end up to whole over CLOT_END_FADE_DIAMETERS lumen diameters of the clot's own length (the widest lumen it lies in), never a cap. The end at the cava has none: the cut along the wall ends it, as it ends the vein. */
+export function clotEndAlpha(shape: ClotShape): number[] {
+  const n = shape.centres.length, d = [0];
+  for (let i = 1; i < n; i++) d.push(d[i - 1]! + shape.centres[i]!.distanceTo(shape.centres[i - 1]!));
+  const L = d[n - 1]!, ramp = Math.max(1e-6, CLOT_END_FADE_DIAMETERS * 2 * Math.max(...shape.lumen));
+  const ss = (x: number): number => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+  return d.map((di) => ss(di / ramp) * (shape.cavaEnd ? 1 : ss((L - di) / ramp)));
 }
 
 export class ClotLayer {
@@ -169,7 +220,7 @@ export class ClotLayer {
   constructor(shared: CelShared) { this.shared = shared; }
   bindHosts(veinOrder: (pieceId: string) => number): void { this.veinOrder = veinOrder; }
 
-  applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; for (const c of this.clots.values()) if (c.obj) { c.obj.applyPalette(p); recolour(c.obj, clotColour(look, p), p); } }
+  applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; for (const c of this.clots.values()) if (c.obj) { c.obj.applyPalette(p); paintClot(c.obj, clotTokens(look)); } }
   setPhone(phone: boolean): void { for (const c of this.clots.values()) c.obj?.setPhone(phone); }
   /** The body's dissolve (disease/index.ts setFade): a clot is part of the anatomy, so the Circuit does not keep it. */
   setFade(f: number): void { this.fade = f; for (const c of this.clots.values()) if (c.obj) { c.obj.setFade(f); c.obj.group.visible = c.cur > 0.003 && f > 0.001; } }
@@ -198,7 +249,7 @@ export class ClotLayer {
     if (!c.obj) {
       c.obj = new ClotObject(g, this.shared);
       this.group.add(c.obj.group);
-      if (this.palette) { c.obj.applyPalette(this.palette); recolour(c.obj, clotColour(this.look, this.palette), this.palette); }
+      if (this.palette) { c.obj.applyPalette(this.palette); paintClot(c.obj, clotTokens(this.look)); }
       c.obj.setFade(this.fade);
     } else {
       const old = new Set<BufferGeometry>();
