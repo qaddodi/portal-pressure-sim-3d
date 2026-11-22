@@ -5,6 +5,9 @@
 // mild zoom (`html[data-reveal]`, global.css). Only the main app's path holds the cover (`data-boot="wait"` on <html>); every other page
 // (the crash and no-WebGL notes, the parity and debug pages) lifts it as soon as React has put something in #root, as before. A start that never gets there lifts it anyway.
 import { clock, type TimerId } from '../clock/frame.ts';
+import { stamp } from './timeline.ts';
+import { armLateWatch } from './late-programs.ts';
+import { startLongTasks } from './longtasks.ts';
 
 export const BOOT_FAILSAFE_MS = 8000;
 /** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame it lifts. */
@@ -39,7 +42,7 @@ export const programsCompiled = (): boolean => compiled;
 export function figureDrawn(): void {
   if (!waiting || done || !compiled) return;
   if (frames < 0) {
-    frames = 0; firstAt = clock.now();
+    frames = 0; firstAt = clock.now(); stamp('first-draw');
     off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
     clock.invalidate('boot-ready');
   }
@@ -54,13 +57,14 @@ export function rendererFailed(reason: string): void {
 }
 
 /** Every label the figure shows is fully in (LabelLayer, each frame it is true). */
-export function labelsShown(): void { if (waiting) labels = true; }
+export function labelsShown(): void { if (waiting) { if (!labels) stamp('labels'); labels = true; } }
 
 export function release(): void {
   if (done || !waiting) return;
   done = true; waiting = false;
   clock.cancel(timer); off?.(); off = null;
   delete document.documentElement.dataset.boot;
+  stamp('lift'); armLateWatch(); startLongTasks();   // (from here a program built, or a main-thread task over 50 ms, is counted and named: boot/late-programs.ts, boot/longtasks.ts)
   const root = document.documentElement;
   root.dataset.reveal = '1';   // (the figure and its labels settle in from a mild zoom as the cover fades)
   clock.after(() => { delete root.dataset.reveal; }, REVEAL_MS);

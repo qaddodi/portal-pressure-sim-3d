@@ -14,7 +14,7 @@ test('the palette is never hidden while open, and the field is focused in a layo
 test('every way in goes through the one sheet: the top bar button, the thumb bar, "/" and Ctrl/Cmd K open `search` in the shell store', () => {
   const keys = readFileSync('src/ui/keys/useKeys.ts', 'utf8');
   assert.match(keys, /case 'search-open': sh\.open\('search'\)/);
-  assert.match(keys, /a\.type === 'search-open'[\s\S]{0,80}e\.preventDefault\(\)/, 'the "/" is not typed into the field');
+  assert.match(keys, /a\.type === 'search-open'[^\n]*\) e\.preventDefault\(\)/, 'the "/" is not typed into the field');
   assert.match(readFileSync('src/ui/shell/TopBar.tsx', 'utf8'), /data-opens="search"/);
   assert.match(readFileSync('src/ui/shell/ThumbBar.tsx', 'utf8'), /'search'/);
 });

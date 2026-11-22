@@ -1,47 +1,63 @@
-// "Copy figure" and "Save figure" (Figure menu): the figure as a picture, for a slide, a handout or a message. The pure part is here and is tested in node (tests/figure-image.test.ts):
-// what the labels look like on the screen (`Seen`, read from the label layer's elements by figure-image-dom.ts) becomes the drawing commands for the picture, scaled to the canvas's own pixels,
-// with everything hidden, faded out or off the stage left out. The canvas is read in the task that draws it (src/debug/look-hook.ts), so no `preserveDrawingBuffer` is kept.
+// "Copy figure" and "Save figure" (Figure menu): the figure as a picture, for a slide, a handout or a message. The pure part is here and is tested in node (tests/figure-image.test.ts): what the label
+// layers look like on the screen (`Item`s, read from their elements by figure-image-dom.ts: names, leaders, the colour key, the catheter's and slides' cards, the probes' screens) becomes the
+// ordered drawing list for the picture, in CSS pixels (the painter scales the whole picture), with everything hidden, faded out or off the stage left out.
 
 /** CSS pixels. */
 export interface Box { x: number; y: number; w: number; h: number }
-export interface SeenFont { size: number; weight: string; family: string }
-/** A piece of text as it stands on the screen: `x` the left of its box and `y` the middle of its line. */
-export interface SeenText { text: string; x: number; y: number; font: SeenFont; fill: string; halo: string; haloW: number; alpha: number }
-export interface SeenLine { x1: number; y1: number; x2: number; y2: number; w: number; color: string; alpha: number }
-export interface SeenRing { x: number; y: number; r: number; w: number; stroke: string; fill: string; alpha: number }
-export interface Seen { texts: SeenText[]; lines: SeenLine[]; rings: SeenRing[] }
-
-export type Cmd =
-  | { op: 'line'; x1: number; y1: number; x2: number; y2: number; w: number; color: string; alpha: number }
-  | { op: 'ring'; x: number; y: number; r: number; w: number; stroke: string; fill: string; alpha: number }
-  | { op: 'text'; text: string; x: number; y: number; font: string; fill: string; halo: string; haloW: number; alpha: number };
+/** A CSS colour, or a linear gradient as the key's bar has (stops as 0..1 along the line; `angle` in degrees, CSS's: 0 up, 90 right, 180 down). */
+export type Paint = string | { angle: number; stops: [number, string][] };
+/** A `clip-path: path()` (the cards' one-shape glass): its path data and where its origin stands. */
+export interface Clip { d: string; x: number; y: number }
+interface Common { /** opacity as the eye sees it: the element's own times every ancestor's */ alpha: number; clip?: Clip }
+export type Item =
+  | ({ k: 'box'; x: number; y: number; w: number; h: number; r: number; fill: Paint | null; bw: number; bc: string } & Common)
+  | ({ k: 'path'; d: string; m: [number, number, number, number, number, number]; fill: string | null; stroke: string | null; sw: number; join: string; cap: string } & Common)
+  | ({ k: 'line'; x1: number; y1: number; x2: number; y2: number; w: number; color: string } & Common)
+  | ({ k: 'text'; text: string; x: number; y: number; w: number; font: string; fill: string; halo: string; haloW: number; spacing: number; rot: number } & Common);
 
 /** Below this opacity a label is on its way in or out and is left out (the picture shows what is settled). */
 export const MIN_ALPHA = 0.5;
 
-const inside = (b: Box, x: number, y: number) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
-const cssFont = (f: SeenFont, scale: number) => `${f.weight} ${Math.round(f.size * scale * 100) / 100}px ${f.family}`;
+const inside = (b: Box, x: number, y: number, pad = 0) => x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad;
+const meets = (b: Box, x: number, y: number, w: number, h: number) => x + w >= b.x && x <= b.x + b.w && y + h >= b.y && y <= b.y + b.h;
 
-/** The drawing commands of a picture of `stage` (CSS px) made `scale` times as large: leaders, then rings, then text (each text's halo first, as the labels' own paint-order). */
-export function figureCmds(seen: Seen, stage: Box, scale: number): Cmd[] {
-  const at = (x: number, y: number) => [(x - stage.x) * scale, (y - stage.y) * scale] as const;
-  const out: Cmd[] = [];
-  for (const l of seen.lines) {
-    if (l.alpha < MIN_ALPHA || !(inside(stage, l.x1, l.y1) || inside(stage, l.x2, l.y2))) continue;
-    const [x1, y1] = at(l.x1, l.y1), [x2, y2] = at(l.x2, l.y2);
-    out.push({ op: 'line', x1, y1, x2, y2, w: Math.max(1, l.w * scale), color: l.color, alpha: l.alpha });
+/** What to draw, in order (a card's glass before its words): the items that are settled and on the stage. Paths are kept whole (a bracket may start off the stage and end on it). */
+export function figureItems(items: Item[], stage: Box): Item[] {
+  return items.filter((i) => {
+    if (i.alpha < MIN_ALPHA) return false;
+    if (i.k === 'box') return i.w > 0 && i.h > 0 && meets(stage, i.x, i.y, i.w, i.h);
+    if (i.k === 'line') return inside(stage, i.x1, i.y1) || inside(stage, i.x2, i.y2);
+    if (i.k === 'text') return !!i.text.trim() && inside(stage, i.x + i.w / 2, i.y);
+    return true;
+  });
+}
+
+/** The picture's size: `want` times the stage (2x), kept inside what the device can draw (one side no longer than `maxSide`, no more than `maxPixels` in all). */
+export function pictureScale(stage: { w: number; h: number }, want: number, maxSide: number, maxPixels = 16e6): number {
+  if (stage.w <= 0 || stage.h <= 0) return 1;
+  return Math.max(1, Math.min(want, maxSide / Math.max(stage.w, stage.h), Math.sqrt(maxPixels / (stage.w * stage.h))));
+}
+
+const top = (s: string): string[] => { const out: string[] = []; let d = 0, at = 0; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '(') d++; else if (c === ')') d--; else if (c === ',' && d === 0) { out.push(s.slice(at, i).trim()); at = i + 1; } } out.push(s.slice(at).trim()); return out; };
+const SIDES: Record<string, number> = { 'to top': 0, 'to right': 90, 'to bottom': 180, 'to left': 270 };
+/** A computed `background-image` that is one `linear-gradient(...)`: its angle and stops; null for anything else. Stops without a position are spread evenly; pixel positions are not supported (null). */
+export function parseGradient(css: string): Paint | null {
+  const m = css.trim().match(/^linear-gradient\((.*)\)$/s);
+  if (!m) return null;
+  const parts = top(m[1]!);
+  let angle = 180;
+  const first = parts[0]!.toLowerCase();
+  if (/^-?[\d.]+deg$/.test(first)) { angle = parseFloat(first); parts.shift(); } else if (first in SIDES) { angle = SIDES[first]!; parts.shift(); }
+  const raw: [string, number | null][] = [];
+  for (const p of parts) {
+    const pos = p.match(/\s(-?[\d.]+)(%|px)$/);
+    if (pos && pos[2] === 'px') return null;
+    raw.push([pos ? p.slice(0, pos.index).trim() : p, pos ? parseFloat(pos[1]!) / 100 : null]);
   }
-  for (const r of seen.rings) {
-    if (r.alpha < MIN_ALPHA || !inside(stage, r.x, r.y)) continue;
-    const [x, y] = at(r.x, r.y);
-    out.push({ op: 'ring', x, y, r: r.r * scale, w: r.w * scale, stroke: r.stroke, fill: r.fill, alpha: r.alpha });
-  }
-  for (const t of seen.texts) {
-    if (!t.text.trim() || t.alpha < MIN_ALPHA || !inside(stage, t.x, t.y)) continue;
-    const [x, y] = at(t.x, t.y);
-    out.push({ op: 'text', text: t.text, x, y, font: cssFont(t.font, scale), fill: t.fill, halo: t.halo, haloW: t.haloW * scale, alpha: t.alpha });
-  }
-  return out;
+  if (raw.length < 2) return null;
+  const n = raw.length;
+  const stops = raw.map(([c, at], i): [number, string] => [at ?? i / (n - 1), c]);
+  return { angle, stops };
 }
 
 /** The file's name: what the picture shows, so a folder of them reads. */

@@ -11,7 +11,7 @@ import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
 import { useThumb } from '../shell/thumb.ts';
-import { layoutClass, layoutVars } from '../shell/room.ts';
+import { layoutClass, layoutVars, sheetFoot } from '../shell/room.ts';
 import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
 import { useTestsRoom } from '../tests/room.ts';
@@ -146,7 +146,7 @@ export function TreatCard() {
   useEffect(() => {
     const c = ref.current;
     if (!open || !thumb || !c) return;
-    const put = () => { const h = c.offsetHeight; if (h > 0) useTestsRoom.setState({ place: sheetPlace(vp, parseFloat(layoutVars(vp, layoutClass(true))['--vdock-h']) + 14, h) }); };
+    const put = () => { const h = c.offsetHeight; if (h > 0) useTestsRoom.setState({ place: sheetPlace(vp, sheetFoot(layoutClass(true)), h) }); };
     put();
     if (typeof ResizeObserver === 'undefined') return () => useTestsRoom.setState({ place: null });
     const ro = new ResizeObserver(put); ro.observe(c);

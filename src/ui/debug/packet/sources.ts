@@ -14,6 +14,7 @@ import { useShell } from '../../shell/store.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { readerList } from '../core/registry.copied.js';
 import { buildLabel } from '../../shell/build-pill.ts';
+import { intentLog } from '../../../scene/intent-log.ts';
 import { shaderFailures } from '../../../debug/shader-fail.ts';
 
 /** The sliders: what was changed from the loaded patient's own settings (a difference, never the whole tree), or null for none or when no patient base is known. */
@@ -54,6 +55,8 @@ export function deviceInfo(): Record<string, unknown> {
 export async function packetNow({ note = '' }: { note?: string } = {}): Promise<Record<string, any>> {
   const app = appSnapshot();
   const state = stateNow(app);
+  const log = intentLog();
+  if (log.length) state.log = log;   // (the last 60 s of what asked the figure to change: `npm run debug -- packet replay`)
   const link = stateLink(state, baseOf(location));
   let screen: Record<string, any> | null = null, text = '', findings: unknown[] | null = null, history: unknown = null, watchFindings: unknown[] = [];
   const rec = recorder();

@@ -33,6 +33,8 @@ export function footHeight(d: DeviceClass): number {
 }
 /** The slot the view pill takes above the dock (its gap and its height): the open action card stands over it (the pill fades out underneath), so its foot sits this much lower. */
 export const pillSpace = (): number => M.viewGapAbove + viewPillHeight();
+/** The foot of every sheet and card that stands over the dock (vessel and device card, Tests, Treat, the menus), above the bottom safe area: the dock's top edge plus the one gap (M.sheetGap). */
+export const sheetFoot = (d: DeviceClass): number => dockInset(d) + dockHeight(d) + M.sheetGap;
 export { botOcc };
 
 export function freeRoom(vp: Viewport, d: DeviceClass): Rect {
@@ -50,6 +52,8 @@ export function layoutVars(vp: Viewport, d: DeviceClass): Record<string, string>
   return {
     '--top-safe': px(vp.safe.top + topBarH(vp, d)), '--vdock-h': px(vdock), '--vdock-top': px(gap + vdH + nbvH), '--vdock-edge': px(gap + vdH),
     '--bot-occ': px(vdock + gap), '--dock-occ': px(vdock + gap),
+    // 2D main.js: --nb-occ (= --sheet-foot) is where the cards on the dock rest, from the app's bottom (the bottom safe area included); --sheet-gap is the one gap over the dock's top edge
+    '--nb-occ': px(vp.safe.bottom + sheetFoot(d)), '--sheet-foot': px(vp.safe.bottom + sheetFoot(d)), '--sheet-gap': px(M.sheetGap),
   };
 }
 

@@ -90,7 +90,7 @@ test('the capture hook reads the canvas once, in the frame that was asked for', 
 test('the pages are wired and listed: Stage reads after the render, main opens the board and the capture state in the preview only', () => {
   const stage = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
   // (the board reads the canvas in the task that drew it: after the frame's render call, whatever times that call (firstDraw, frameBegin/frameEnd), and inside the same useFrame)
-  const draw = stage.indexOf('cel.render(gl)'), read = stage.indexOf('lookCapture.run(gl.domElement)');
+  const read = stage.indexOf('lookCapture.run(gl.domElement)'), draw = stage.lastIndexOf('cel.render(gl)', read);   // (the nearest render call before the read: the frame's own, not the figure-shot's two earlier in the file)
   assert.ok(draw > 0 && read > draw, 'lookCapture.run comes after cel.render');
   assert.doesNotMatch(stage.slice(draw, read), /useFrame|requestAnimationFrame|setTimeout|await /, 'no other task between the render and the read');
   const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');

@@ -59,7 +59,10 @@ export const usePick = create<{ picked: string | null }>(() => ({ picked: null }
 export const sceneApi = {
   /** A slide's move to a shot (2D planSlide's 800 to 1400 ms, not a hand's 480 to 900), fitted into the room: for a deck framing that is not a view change. */
   goToSlide(shot: ShotName | Shot, room: Room): void { this.goTo(shot, room, cel.rig.slideMs(shot)); },
-  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long, even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on. */
+  /**
+   * Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long,
+   * even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on.
+   */
   goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
     cel.goTo(shot, room, clock.now(), ms ?? cel.rig.reachMs(shot), ease);
@@ -80,7 +83,8 @@ export const sceneApi = {
     const from = cel.view;
     if (v === 'circuit') cel.setCircuitUpright(entryUpright());
     cel.setView(v);
-    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
+    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid
+    // are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
     const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
@@ -90,7 +94,7 @@ export const sceneApi = {
     const upright = entryUpright();
     cel.setCircuitUpright(upright);
     cel.setView('circuit');
-    cel.setResistors(o.resistors ?? []); cel.setCaudatePin(!!o.caudate);
+    setLayer('talk', { resistors: o.resistors ?? [], caudate: !!o.caudate });
     const whole = !o.box || (o.box[0] <= 30 && o.box[1] <= 30 && o.box[2] >= 1360 && o.box[3] >= 730);
     const shot = whole ? circuitShot(upright) : circuitBoxShot(o.box!, upright, o.kMax ?? null);
     this.goTo(shot, room, cel.circuit.changeMs() || cel.rig.slideMs(shot));   // (a slide's move takes 2D's 800 to 1400 ms: rig.slideMs)
@@ -101,7 +105,7 @@ export const sceneApi = {
     const from = cel.view;
     if (v === 'circuit' && from !== v) cel.setCircuitUpright(entryUpright());
     if (from !== v) cel.setView(v);
-    if (from === 'circuit' && v !== 'circuit') { cel.setResistors([]); cel.setCaudatePin(false); }
+    if (from === 'circuit' && v !== 'circuit') setLayer('talk', { resistors: [], caudate: false });
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
     const to = v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : shot;
     // a slide's move takes 2D's 800 to 1400 ms (planSlide: rig.slideMs); a catheter step's close-up (slide false) keeps the hand's glide
@@ -117,7 +121,7 @@ export const sceneApi = {
   /** Where a station stands in the Circuit now (scene point, turned with the map), for labels; null off the map. */
   circuitStation: (id: string, out?: Vector3): Vector3 | null => cel.circuitStation(id, out),
   /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): zigzags and "R liver x2.3" readings on the Circuit's map. An empty list clears them. */
-  setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },
+  setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },   // (the reconciler's call: a writer says it with setLayer)
   /** A slide is about the caudate lobe: the Circuit draws the caudate's own lane. */
   setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
@@ -237,5 +241,7 @@ export const stopReconciler = startReconciler({
   pinOrgans: (ids, normalSpleen) => sceneApi.pinOrgans(ids, normalSpleen),
   setSinceRef: (P) => sceneApi.setSinceRef(P),
   markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
+  setResistors: (keys) => sceneApi.setResistors(keys),
+  setCaudatePin: (on) => sceneApi.setCaudatePin(on),
   pick: (id) => { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
 });

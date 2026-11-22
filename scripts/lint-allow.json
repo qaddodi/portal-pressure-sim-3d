@@ -2,7 +2,8 @@
   "raf-outside-clock": 0,
   "chained-step": 0,
   "raw-time": 21,
-  "layout-read": 200,
+  "layout-read": 195,
   "unsafe-cast": 341,
+  "raw-idle": 0,
   "canvas-own-loop": 0
 }

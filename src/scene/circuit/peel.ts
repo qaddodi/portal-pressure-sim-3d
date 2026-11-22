@@ -23,6 +23,10 @@ export function peelAt(t: number, r: number): number {
   return x * x * (3 - 2 * x);
 }
 
+/** Whether any of the map's junction skins can show at t: the earliest share is the gut's (rank 0), and a skin shows once its point's share passes `edge` (SKIN_CIRC_IN). The one gate the scene
+ *  draws the skins by: a skin that has colour must be drawn (before, the gate was a rounded 0.63 of the whole change and the gut's skins, in from 0.37, were hidden and then popped in whole). */
+export function circSkinsOn(t: number, edge: number): boolean { return peelAt(t, 0) > edge; }
+
 /** How fast a point's share of the change moves with its rank at t: d peelAt / d r (0 where the share rests at 0 or 1). The tangent of a vessel mid-change needs it: the centreline's
  *  derivative along the vessel is (1 - w) A' + w C' + w' (C - A), and w' is this times the rank's own slope along the vessel (the 2D app's gradient term). */
 export function peelSlope(t: number, r: number): number {
