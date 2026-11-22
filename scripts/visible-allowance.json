@@ -25,6 +25,7 @@
   "src/scene/lobule/mark.ts": 2,
   "src/scene/lobule/parts.ts": 3,
   "src/scene/lobule/view.ts": 5,
+  "src/scene/materials/prototypes.ts": 1,
   "src/scene/micro3d/cel3d.ts": 2,
   "src/scene/micro3d/lobule3d.ts": 8,
   "src/scene/micro3d/sinusoid3d.ts": 3,
