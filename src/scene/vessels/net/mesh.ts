@@ -106,15 +106,7 @@ const norm = (a: Vec3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; ret
 interface EdgeCtx { idx: number; id: string; first: number; count: number; bones: Bone[]; cum: number[]; /** the arc length at each bone in the MAP pose */ cum1: number[]; alpha: number; seg: number[] /* rings per segment */ }
 interface Sample { P: V3; r: number; t: V3; n: V3; b: V3; k: number; f: number; /** d radius / d arc length along the edge here (a taper tilts the surface normal by this much) */ dr: number }
 
-/** The connected networks of a skeleton: each a list of edge indices (every edge sharing a node is in one). */
-export function networksOf(skel: Skeleton): number[][] {
-  const parent = skel.edges.map((_, i) => i);
-  const find = (i: number): number => { while (parent[i] !== i) { parent[i] = parent[parent[i]!]!; i = parent[i]!; } return i; };
-  for (const nd of skel.nodes) for (let i = 1; i < nd.edges.length; i++) parent[find(nd.edges[i]!.edge)] = find(nd.edges[0]!.edge);
-  const groups = new Map<number, number[]>();
-  skel.edges.forEach((_, i) => { const r = find(i), g = groups.get(r); if (g) g.push(i); else groups.set(r, [i]); });
-  return [...groups.values()];
-}
+export { networksOf } from './networks.ts';
 
 /** The skeleton the mesh was built from: every bone's radii times its edge's bake factor (`NetMesh.bakeScale`). The mesh's offsets are in units of THESE radii. */
 export function scaledSkeleton(skel: Skeleton, bakeScale: ArrayLike<number>): Skeleton {
