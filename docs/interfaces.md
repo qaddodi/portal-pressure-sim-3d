@@ -6,9 +6,9 @@ Integration branch: `claude/project-thread-ge1swr` (publishes the site). Work on
 | Folder | Owner | Notes |
 |---|---|---|
 | `AGENTS.md`, `CLAUDE.md`, `package.json`, `index.html`, `vite.config.ts`, `src/main.tsx`, `src/App.tsx`, `src/boot/`, `src/looks/`, `src/state/`, `src/clock/`, `src/engine/`, `src/ui/perf/`, `scripts/`, `.github/` | Foundation | |
-| `src/scene/` (Stage, materials, anatomy, camera, catheter, highlight) | Scene | `src/scene/Stage.tsx` is a placeholder sphere until it lands |
-| `src/ui/cards/`, `src/ui/wallet/`, `src/ui/shell/`, `src/ui/settings/` | Cards | `ui/shell/Shell.tsx` and `global.css` are placeholders; replace freely |
-| `src/decks/`, `src/ui/deck/`, `src/ui/tags/`, `scripts/copy-decks.mjs` | Deck | |
+| `src/scene/` (Stage, materials, anatomy, camera, catheter, highlight, labels) | Scene | `src/scene/Stage.tsx` mounts the one R3F canvas; the figure is `src/scene/scene.ts` (`CelScene`), driven through `sceneApi` / `cel` in `src/scene/api.ts` |
+| `src/ui/cards/`, `src/ui/wallet/`, `src/ui/shell/`, `src/ui/settings/` | Cards | the chrome: `ui/shell/Shell.tsx` (bars, menus, sheets) and `ui/shell/global.css` |
+| `src/decks/`, `src/ui/deck/`, `scripts/copy-decks.mjs` | Deck | |
 
 ## The clock (`src/clock/`)
 
@@ -32,20 +32,20 @@ R3F: `<Canvas frameloop="never">` with `<ClockBridge/>` (`src/clock/r3f.tsx`) in
 
 ## Engine (`src/engine/`, import from `../engine/index.ts`)
 
-- `bootEngine()` (called by `main.tsx`): starts the worker, loads the slice patient `csph`, adopts frames. Frames of any other patient are never shown before it.
+- `bootEngine()` (called by `main.tsx`): starts the worker, loads the first patient (`START_PRESET`, `healthy`), adopts frames. Frames of any other patient are never shown before it.
 - `useEngine(selector)`: `{ status: 'booting'|'ready'|'crashed', presetId, hvpg, whvp, fhvp, pv, ivc, ra, crash }` (mmHg or null; `useEngine.subscribe` it to mirror readings into your own store, so the engine never imports a UI store); re-renders only when a headline number moves.
 - `latest.frame` / `latest.version`: the newest `EngineFrame` outside React (read in clock systems). Arrays: `P`, `Pf` per node; `Q`, `Qf`, `D` per edge (topology order).
-- `engine().send({type, …})` / `engine().request({type, …})` (promise): the worker's messages, typed in `protocol.ts` (`preset`, `setParams`, `action`, `morph`, `sequence`, `explain`, `metrics`…).
+- `engine().send({type, …})` / `engine().request({type, …})` (promise): the worker's messages, typed by the engine itself in `hales/host/protocol.d.ts` (`preset`, `setParams`, `action`, `morph`, `sequence`, `explain`, `metrics`…; the engine's own protocol test fails when they move).
   Deck numbers (`{hvpg}`) come from `request({type:'metrics'})` / frames, as in the 2D app.
 - `VesselData` (`vessel-data.ts`): one float texture, one texel per vessel in topology edge order. Texel r = upstream pressure (mmHg), g = flow (mL/s, negative = reversed),
   b = diameter (mm), a = downstream pressure. `indexOf('PV_TRUNK')` is the texel; **a 3D vessel's name is its topology edge id**. `Stage.tsx` fills it in the clock's engine phase.
 - `src/engine/hales/` is a copy of hales-engine, host included (`npm run sync:engine`); never edit it.
+- Workers: `engine/pool.ts` is the one place a simulation worker starts. `enginePool.live()` is the figure's (owned by `EngineClient`); `enginePool.sequence` (a deck's states) and `enginePool.whatIf` (the Model line) are second engines that start on their first message, are told `{ type: 'crash' }` once when they fail or stall, and start afresh after.
 
 ## State and settings
 
-- `useDeck` (`src/state/deck.ts`): `{ mode: 'free'|'deck', deckId, slide (0 = title), slideCount, dir, open(id, count, slide?), close(), next(), back(), goto(i) }`.
-- `useSettings` (`src/state/settings.ts`): `{ look: LookChoice, flowMarks: 'A'|'B'|'C'|'D' (default 'A'), setLook, setFlowMarks }`, kept in localStorage.
-  Flow-mark styles: A = chevrons on the vessels the slide talks about and the picked one; B = chevrons everywhere, fainter off-topic; C = soft light bands everywhere; D = marks only after a change.
+- Is a talk on, which, and where: ONE answer, `useUi` (`src/ui/ui-store.ts`: `deck`, `stops`, `pos`). `src/state/deck.ts` only reads it: `talkOn()`, `talkId()`, `slideIndex()` (0 = the title), `slideCount()` and the hook `useTalkOn()`. A talk starts with `startTalk` and ends in `closeTalk` (`src/ui/shell/talk.ts`); there is no second store to keep in step (`tests/talk-state.test.ts`).
+- `useSettings` (`src/state/settings.ts`): the look, Display (blur, figure detail, sharp while moving, keyboard shortcuts), Diagnostics and the Figure depth switches (`DEPTH_KEYS`), kept in localStorage under `STORAGE_PREFIX`.
 - Looks (`src/looks/looks.ts`): `LOOKS[id]` has every UI token and 3D tone (plate, ink, liver…, portal, systemic, `shadeK`); `applyLook` writes CSS variables
   (`--bg --surface --glass --text --text-2 --text-3 --accent --accent-soft --ok --caution --danger --sys --edge --shadow-rgb --sa --organ-body --ink --organ-* --vein-*`, plus `--ui` and `--display` font families from global.css) and `data-look` on `<html>`.
   The scene reads the table directly (`hexToRgb` for uniforms) and re-reads on `useSettings` change.

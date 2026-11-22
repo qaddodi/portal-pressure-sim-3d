@@ -22,8 +22,11 @@ import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vesse
 import { CircuitSkinSet } from './circuit/skins.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
-/** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
- *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
+/**
+ * A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are
+ * held back from where the dissolve starts, 1.8 cava radii from the vein's end (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half
+ * faded in it (eyes, v11).
+ */
 const CAVA_BURY = 0.9;
 /** The ascending lumbar collateral, drawn like the cava (fades.ts CAVA_LIKE) but named on its own. */
 const LUMBAR_ID = 'C9';
@@ -272,7 +275,10 @@ export class CelScene {
   /** The organs, varices and catheter: what leaves as the figure turns into the map (the vessels stay and fly). */
   private readonly leaving: CelObject[] = [];
   private lastFade = 1;
-  /** the vessels with no map course (the tributary fans, the liver's branching veins): the Circuit's shader fades them by 2D's `1 - 2 * T0` (circuit/shader.ts), the model's `live` and the dive's dissolve are composed into their one `fade` (composeFade) */
+  /**
+   * the vessels with no map course (the tributary fans, the liver's branching veins): the Circuit's shader fades them by 2D's `1 - 2 * T0` (circuit/shader.ts), the
+   * model's `live` and the dive's dissolve are composed into their one `fade` (composeFade)
+   */
   private readonly fans = new Map<CelObject, string>();
   private readonly leavingSet = new Set<CelObject>();
   private feeders!: FeederLives;
@@ -432,7 +438,10 @@ export class CelScene {
   private unJoins: () => void = () => {};
   private disposed = false;
 
-  /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
+  /**
+   * Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not
+   * `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere.
+   */
   private skins: SkinSet | null = null;
   /** What the junction-skin rebuilds have cost so far (?perf and ?audit read it; null while no skins are built). */
   get skinStats(): Readonly<{ rebuilds: number; lastMs: number; worstMs: number; lastNode: string }> | null { return this.skins?.stats ?? null; }
@@ -440,7 +449,10 @@ export class CelScene {
   private circuitSkins: CircuitSkinSet | null = null;
   private circuitSkinKey = '';
   private joins: JoinsMode;
-  /** The inspector's join switch (`?inspect`, src/ui/debug/inspect): the mode is read again from the page's live answer (joins-mode.ts) and the skins are built again on the tubes, or taken away for `old`: the same path as the Smooth vessel joins switch. */
+  /**
+   * The inspector's join switch (`?inspect`, src/ui/debug/inspect): the mode is read again from the page's live answer (joins-mode.ts) and the skins are built again on
+   * the tubes, or taken away for `old`: the same path as the Smooth vessel joins switch.
+   */
   useJoinsLive(): void {
     const m = joinsMode();
     if (m !== this.joins) { this.joins = m; this.refreshSkins(); this.applyMates(); }
@@ -494,8 +506,10 @@ export class CelScene {
       const bury: [number, number] = [0, 0];
       for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
       for (const e of [0, 1] as const) if (sk[e]) bury[e] = 0;   // (the part of the tube the bury guarded is cut away)
-      // THE CAVA'S CUT RULES (spec 10.4): a hepatic vein that opens into the cava is cut away inside the cava's lumen (`cavaCut`, shaders.ts cavA) and its ink held back there (`CAVA_BURY`). Where a skin has taken over that end of it the skin IS the
-      // opening (the tube stops at its seam ring, outside the cava's wall), so the cut and the cava's colour are off there ('fade': only the opacity ramp stays, which the skin carries on) and come back, exactly, with the skin. (Its `cavaEnd` ease is zero for every vein now: fades.ts cavaEndSpan.)
+      // THE CAVA'S CUT RULES (spec 10.4): a hepatic vein that opens into the cava is cut away inside the cava's lumen (`cavaCut`, shaders.ts cavA) and its ink held back
+      // there (`CAVA_BURY`). Where a skin has taken over that end of it the skin IS the
+      // opening (the tube stops at its seam ring, outside the cava's wall), so the cut and the cava's colour are off there ('fade': only the opacity ramp stays, which
+      // the skin carries on) and come back, exactly, with the skin. (Its `cavaEnd` ease is zero for every vein now: fades.ts cavaEndSpan.)
       const cc = this.cavaCutArgs.get(def.id);
       if (cc) o.setCavaCut(sk[1] ? 'fade' : true, ...cc);
       if (on && !sk[1] && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
@@ -506,7 +520,10 @@ export class CelScene {
     }
   }
 
-  /** Every tube is rewritten for a join mode (no Settings switch any more: smooth joins are always on; kept for the tests that look at the off drawing): every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
+  /**
+   * Every tube is rewritten for a join mode (no Settings switch any more: smooth joins are always on; kept for the tests that look at the off drawing): every tube is
+   * rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once.
+   */
   private useSmoothJoins(on: boolean): void {
     if (!setSmoothJoins(on)) return;
     for (const def of NETWORK) {
@@ -534,14 +551,22 @@ export class CelScene {
     if (circ) { attachRuns(built.geometry, built.runs, circ, def.radius); sewOnMap(def.id, built.geometry, built.runs); }   // (the ends no skin welds are sunk and flared on the map: circuit/map-sewn.ts)
     const q = STUB_Q[def.lensId] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1),
+      bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
       vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
-    { const cm = CIRCUIT_MATES.get(def.id); if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), [cm[0]?.ease ?? 0, cm[1]?.ease ?? 0]); }   // (the map's own pairs and their taper, circuit/mates.ts: whatever the joins switch or a skin says)
+    // (the map's own pairs and their taper, circuit/mates.ts: whatever the joins switch or a skin says)
+    { const cm = CIRCUIT_MATES.get(def.id); if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), [cm[0]?.ease ?? 0, cm[1]?.ease ?? 0]); }
     { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
-    { const cm = cavaMateOf(def.id); if (cm) { const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1]; o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args); } }
+    {
+      const cm = cavaMateOf(def.id);
+      if (cm) {
+        const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1];
+        o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args);
+      }
+    }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -684,7 +709,8 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk();
+    this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
@@ -758,7 +784,8 @@ export class CelScene {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; if (host) for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
-    // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
+    // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the
+    // cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
     this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
     this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
     this.moving = true;
@@ -851,7 +878,9 @@ export class CelScene {
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
     // (the lobule is what lies between the body and the sinusoid: a move that has the sinusoid at either end passes through it, so it is on for the flight whichever view is the other end.
     //  Before, only a move TO the lobule turned it on: sinusoid <-> body (a talk's slide change) drew the sinusoid dissolving over nothing, a black gap, and then the body fading in from the dark)
-    if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle();   // (the idle slices normally finished long before; a dive straight after the load asks for them here, and waits: the dive frame is off until `microReady`, nothing is built in this frame)
+    // (the idle slices normally finished long before; a dive straight after the load asks for them here, and waits: the dive frame is off until `microReady`, nothing is
+    // built in this frame)
+    if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle();
     if (v === 'lobule' || v === 'sinusoid' || wasSinusoid) this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)
@@ -975,7 +1004,10 @@ export class CelScene {
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
     return f;
   }
-  /** Writes the composed fade to every object (only a change reaches it: the dive, the Circuit's change, the model's `live`). A tributary group is drawn only while it has something to show and the change has not taken it (the shader fades it out by the half-way point). */
+  /**
+   * Writes the composed fade to every object (only a change reaches it: the dive, the Circuit's change, the model's `live`). A tributary group is drawn only while it has
+   * something to show and the change has not taken it (the shader fades it out by the half-way point).
+   */
   private pushFades(): void {
     let changed = false;
     for (const o of this.objects) { const f = this.composeFade(o); if (o.fade !== f) { o.setFade(f); changed = true; } }
@@ -1031,7 +1063,8 @@ export class CelScene {
     const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
-    const o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, 0))), this.scrA);   // (the plane keeps its own frame; the camera's roll turns it on screen)
+    // (the plane keeps its own frame; the camera's roll turns it on screen)
+    const o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, 0))), this.scrA);
     const m = measureScreen(o, a, this.rig.roomCentre());
     this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   }
@@ -1172,12 +1205,15 @@ export class CelScene {
   probeVessels(): Record<string, unknown>[] {
     const rows: Record<string, unknown>[] = [];
     const row = (o: VesselObject, extra: Record<string, unknown>) => {
-      const u = o.toon.uniforms, v = (n: string) => { const x = (u[n] as { value: unknown } | undefined)?.value; return x && typeof x === 'object' && 'toArray' in x ? (x as { toArray(): number[] }).toArray().map((n2) => +n2.toFixed(3)) : x; };
-      rows.push({ id: o.edge?.id, visible: o.group.visible, fade: v('fade'), reveal: v('reveal'), circT: v('circT'), circW: v('circW'), circCap: v('circCap'), circRow: v('circRow'), len: v('len'), radius: v('radius'), transparent: o.toon.transparent, ...extra });
+      const u = o.toon.uniforms;
+      const v = (n: string) => { const x = (u[n] as { value: unknown } | undefined)?.value; return x && typeof x === 'object' && 'toArray' in x ? (x as { toArray(): number[] }).toArray().map((n2) => +n2.toFixed(3)) : x; };
+      rows.push({ id: o.edge?.id, visible: o.group.visible, fade: v('fade'), reveal: v('reveal'), circT: v('circT'), circW: v('circW'),
+        circCap: v('circCap'), circRow: v('circRow'), len: v('len'), radius: v('radius'), transparent: o.toon.transparent, ...extra });
     };
     for (const o of this.vessels) row(o as VesselObject, { kind: 'vessel', presence: this.presence.stateOf(o.edge?.id ?? ''), drawn: this.vesselDrawn(o.edge?.id ?? '') });
     this.tubes.objects.forEach((o, i) => row(o, { kind: 'tube', tube: this.tubes.ids[i]?.id }));
-    rows.push({ id: '*', fadeNow: this.fadeNow, circBoost: this.circuit.shared.circBoost.value, circPerPx: this.circuit.shared.circPerPx.value, t: this.circuit.t, rr: this.circuit.rr, bodyVisible: this.body.visible, view: this.figureView });
+    rows.push({ id: '*', fadeNow: this.fadeNow, circBoost: this.circuit.shared.circBoost.value, circPerPx: this.circuit.shared.circPerPx.value,
+      t: this.circuit.t, rr: this.circuit.rr, bodyVisible: this.body.visible, view: this.figureView });
     return rows;
   }
 
@@ -1253,8 +1289,7 @@ export class CelScene {
     if (this.microReady) this.micro!.sinus.pinTraffic(this.micro3d);
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
-    // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: the two dissolving at once let the page show through both, the pale washed frame of
-    //  the Lobule -> Sinusoid handoff, eyes 20 Nov. The sinusoid is drawn over it, lifted, from SIN_SHOW_FROM, so nothing of the lobule shows once it is whole.)
+    // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: both dissolving at once let the page show through, docs/decisions.md "Lobule to sinusoid handoff")
     const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
     const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
     if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
@@ -1268,7 +1303,8 @@ export class CelScene {
     lap('disease+organs');
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
     lap('probes');
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive
+      || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
   }
@@ -1323,7 +1359,10 @@ export class CelScene {
   // ---- the inspector's hooks (?inspect): layers on and off, wireframe. Nothing here runs unless the panel has set something. ------------------------------------------------------------------------
   private readonly inspectHidden = new Set<string>();
   private readonly inspectWired = new Set<string>();
-  /** The parts of the figure the inspector can switch, each with the objects it stands for now (the vessels' tubes, the junction skins, the organs, what the disease puts on the vessels, the devices, the Circuit's map, the lobule and the sinusoid). */
+  /**
+   * The parts of the figure the inspector can switch, each with the objects it stands for now (the vessels' tubes, the junction skins, the organs, what the disease puts
+   * on the vessels, the devices, the Circuit's map, the lobule and the sinusoid).
+   */
   inspectLayers(): readonly { id: string; label: string; objects: () => readonly Object3D[] }[] {
     const d = this.disease;
     return [
@@ -1368,17 +1407,22 @@ export class CelScene {
     this.moving = true; clock.invalidate('inspect');
     return spots?.length ?? 0;
   }
-  /** Marks the unwelded ends in the figure (a ball at each, in the colour of its reason), or only those of vessel `only`; none when `on` is false. Built from the report at the time of the call: press it again after a change. Returns how many. */
+  /**
+   * Marks the unwelded ends in the figure (a ball at each, in the colour of its reason), or only those of vessel `only`; none when `on` is false. Built from the report
+   * at the time of the call: press it again after a change. Returns how many.
+   */
   setInspectMarks(on: boolean, only: string | null = null): number {
     if (!on) return this.putInspectMarks('unwelded', null);
-    return this.putInspectMarks('unwelded', this.inspectJoinsReport().unwelded.filter((u) => !only || u.id === only).map((u) => ({ at: u.pos, r: Math.max(u.radius * 1.5, 0.02), colour: WHY_COLOUR[u.why], name: `unwelded:${u.id}:${u.end}` })));
+    return this.putInspectMarks('unwelded', this.inspectJoinsReport().unwelded.filter((u) => !only || u.id === only)
+      .map((u) => ({ at: u.pos, r: Math.max(u.radius * 1.5, 0.02), colour: WHY_COLOUR[u.why], name: `unwelded:${u.id}:${u.end}` })));
   }
   /** Every pair of drawn vessels whose tubes run through each other now (vessels/overlaps.ts), worst first. */
   inspectOverlaps(): readonly Overlap[] { return findOverlaps({ drawn: (id) => this.presence.isDrawn(id), stateOf: (id) => this.shapes?.stateOf(id) }); }
   /** Marks the overlaps (a hot-pink ball at the deepest point of each pair, or only the pair `pair`); none when `on` is false. Returns how many. */
   setInspectOverlapMarks(on: boolean, pair: readonly [string, string] | null = null): number {
     if (!on) return this.putInspectMarks('overlaps', null);
-    return this.putInspectMarks('overlaps', this.inspectOverlaps().filter((o) => !pair || (o.a === pair[0] && o.b === pair[1])).map((o) => ({ at: o.at, r: Math.max(o.limit * 0.9, 0.015), colour: '#ff2d95', name: `overlap:${o.a}:${o.b}` })));
+    return this.putInspectMarks('overlaps', this.inspectOverlaps().filter((o) => !pair || (o.a === pair[0] && o.b === pair[1]))
+      .map((o) => ({ at: o.at, r: Math.max(o.limit * 0.9, 0.015), colour: '#ff2d95', name: `overlap:${o.a}:${o.b}` })));
   }
   /** Where each drawn vessel's id label goes: the middle of its main course, in the figure's own space, for the panel's labels. */
   inspectLabelPoints(): readonly { id: string; at: readonly [number, number, number] }[] {
@@ -1406,7 +1450,9 @@ export class CelScene {
     if (on) this.inspectWired.add(id);
     else {
       this.inspectWired.delete(id);
-      for (const l of this.inspectLayers()) if (l.id === id) for (const o of l.objects()) o.traverse((c) => { if (c instanceof Mesh) for (const m of Array.isArray(c.material) ? c.material : [c.material]) if ((m as { wireframe?: boolean }).wireframe) { (m as { wireframe: boolean }).wireframe = false; } });
+      for (const l of this.inspectLayers()) if (l.id === id) for (const o of l.objects()) {
+        o.traverse((c) => { if (c instanceof Mesh) for (const m of Array.isArray(c.material) ? c.material : [c.material]) if ((m as { wireframe?: boolean }).wireframe) { (m as { wireframe: boolean }).wireframe = false; } });
+      }
     }
     this.moving = true; clock.invalidate('inspect');
   }

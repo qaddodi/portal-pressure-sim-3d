@@ -23,7 +23,7 @@ card. Clinical text is for US physicians: Baveno VIII (never VII) is the only gu
 - **No headless browsers, no screenshots, no Playwright** in the cloud. Work from code. Play-tests run on the owner's Mac in the Claude
   desktop app's built-in browser, through a Remote Control thread, only when he asks.
 - **No GitHub Actions runners for checks or sweeps.** `.github/workflows/pages.yml` (build and publish only) is the one workflow.
-- **Tests are fast and targeted**: `npm run typecheck`, `npm run lint`, `npm test` (node only, about a second). Never a long suite in the cloud.
+- **Tests are fast and targeted**: `npm run typecheck`, `npm run lint`, `npm test` (node only; in the cloud run just the test files for what you touched: `node --test tests/talk-state.test.ts`, for example). Never the whole suite in the cloud.
 - **Work on your own branch** `claude/<name>`; merge into the integration branch `claude/project-thread-ge1swr` (it publishes the site);
   never push `main` directly; merge to `main` only when the owner says so.
 - **Every push is reported** to the owner: the commit hash, what changed, how to test it, what could still be wrong. Push as soon as a fix works.
