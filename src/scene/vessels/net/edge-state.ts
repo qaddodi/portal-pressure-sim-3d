@@ -49,7 +49,7 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   // the fades (fades.ts) and the cava's end
   col('fadeMode', 1, [0]), col('fadeKeep', 1, [0]), col('fadeA', 4, [0, 1, 1, 1]), col('fadeLine', 4, [0, 0, 0, 1]), col('mapFade', 3, [0, 1, 0]), col('cavaEnd', 2, [0, 1]),
   // surgery and procedures
-  col('stump', 3, [0, 0, 0]), col('stentU', 4, [0, 0, 1, 0]), col('seamA', 8, [0, 0, 0, 0, 0, 0, 0, 0]), col('seamB', 8, [0, 0, 0, 0, 0, 0, 0, 0]),
+  col('stump', 3, [0, 0, 0]), col('stentU', 4, [0, 0, 1, 0]), col('stentT0', 1, [0]), col('seamA', 8, [0, 0, 0, 0, 0, 0, 0, 0]), col('seamB', 8, [0, 0, 0, 0, 0, 0, 0, 0]),
   col('wedge', 4, [0, 0.02, 0.6, 0]), col('wedgeD', 4, [0, 0, -1, 0.02]),
 ];
 
