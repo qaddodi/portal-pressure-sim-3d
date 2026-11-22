@@ -187,7 +187,7 @@ test('the hidden panel: a flag, the lab\'s controls, Copy and Apply; it writes t
 
 test('the scene steps the tuner on the one clock, keeps the clock awake while it glides, hands the budget the device and the canvas, and every vessel reads the same array', () => {
   const sc = read('../src/scene/scene.ts');
-  assert.match(sc, /const dustMoving = dustTuner\.step\(dt\);/); assert.match(sc, /\|\| cellsMoving \|\| dustMoving \|\|/);
+  assert.match(sc, /\{ id: 'lens\+dust', step: \(\{ now, dt \}\) => anyMoving\(this\.lens\.step\(now\), dustTuner\.step\(dt\)\) \}/);   // (the tuner is stepped by a named system of the frame, whose answer the runner ORs into "needs another frame")
   assert.match(sc, /dustTuner\.setView\(this\.phone, this\.width \* this\.height \* dpr \* dpr\)/); assert.match(sc, /dustTuner\.setPhone\(phone\)/);
   assert.match(sc, /dustTuner\.onWake = \(\) => \{ this\.moving = true; clock\.invalidate\('dust'\); \};/);
   assert.match(read('../src/scene/vessels/vessel-object.ts'), /dustP: blood\.dustP/);

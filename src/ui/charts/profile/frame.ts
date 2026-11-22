@@ -10,7 +10,7 @@ import type { Rgba } from '../colour.ts';
 import type { Frame, Shape, TextShape } from '../scene.ts';
 import { ZONE_LOOK, zoneLines } from './layout.generated.js';
 import {
-  BRACE_NAME, FULL_NAMES, NS, RATE_OF, STATIONS, blockRect, blockSpan, bracePts, bracketGeom, cutRuns, gridOf, holesOf, pillSize, profileWords, smooth, whole,
+  BRACE_NAME, FULL_NAMES, NS, RATE_OF, STATIONS, blockRect, blockSpan, bracePts, bracketGeom, cutRuns, gap1, gridOf, holesOf, pillSize, profileWords, smooth, whole,
   yOf, zoneSize, zoneSpans, hatchLines, PATH, type Prof, type ProfilePlan,
 } from './model.ts';
 import { pressureColour } from './pressure-colour.ts';
@@ -144,7 +144,7 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     const pen = { color: fade(bp.stroke, view.brk)!, w: bp.width ?? 1.5 };
     for (const t of g.ticks) shapes.push({ k: 'path', pts: t, pen });
     for (const t of g.bar) shapes.push({ k: 'path', pts: t, pen });
-    const halo = bt.halo ? { color: fade(bt.halo.color, view.brk)!, w: bt.halo.w } : undefined, val = words0(v);
+    const halo = bt.halo ? { color: fade(bt.halo.color, view.brk)!, w: bt.halo.w } : undefined, val = gap1(v);
     const part = (x: number, y: number, s: string, k: Look, anchor: 'start' | 'middle'): TextShape =>
       ({ k: 'text', x, y, s, size: g.fs < f - 0.01 ? g.fs : f, weight: k.weight, color: fade(k.fill, view.brk)!, anchor, ...(halo ? { halo } : {}) });
     if (g.stack) {
@@ -165,7 +165,7 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
       if (!at) return;
       const v = shownOf[key]!, rate = RATE_OF[key]!(v), rk = lk('prof.pill.rect', { rate }), tk = lk('prof.pill.text', { rate }), kk = lk('prof.pill.k');
       shapes.push({ k: 'rect', x: at.x, y: at.y, w: ps.w[k]!, h: ps.h, r: ps.h / 2, fill: fade(rk.fill, a), pen: rk.stroke ? { color: fade(rk.stroke, a)!, w: rk.width ?? 1 } : undefined });
-      const val = words0(v), nw = measure(`${name} `, f, kk.weight ?? 600), vw = measure(val, f, tk.weight ?? 700), x = at.x + ps.w[k]! / 2 - (nw + vw) / 2, y = at.y + ps.h / 2 + 0.36 * f;
+      const val = gap1(v), nw = measure(`${name} `, f, kk.weight ?? 600), vw = measure(val, f, tk.weight ?? 700), x = at.x + ps.w[k]! / 2 - (nw + vw) / 2, y = at.y + ps.h / 2 + 0.36 * f;
       shapes.push({ k: 'text', x, y, s: `${name} `, size: tk.size!, weight: kk.weight, color: fade(tk.fill, a)!, anchor: 'start' });
       shapes.push({ k: 'text', x: x + nw, y, s: val, size: tk.size!, weight: tk.weight, color: fade(tk.fill, a)!, anchor: 'start' });
     });
