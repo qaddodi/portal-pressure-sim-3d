@@ -21,10 +21,10 @@ if (process.argv.includes('--net')) {
   const { readFileSync, statSync, readdirSync } = await import('node:fs'), { gunzipSync } = await import('node:zlib');
   const srcNewest = Math.max(...['../src/scene/vessels/net/', '../src/scene/vessels/net/junction/', '../src/scene/vessels/skin/'].flatMap((d) => readdirSync(fileURLToPath(new URL(d, import.meta.url))).filter((f) => f.endsWith('.ts')).map((f) => statSync(fileURLToPath(new URL(d + f, import.meta.url))).mtimeMs)), statSync(fileURLToPath(import.meta.url)).mtimeMs);
   const fresh = (file) => { try { const b = gunzipSync(readFileSync(file)), dl = b.readUInt32LE(16), d = b.subarray(20, 20 + dl).toString(); return d === digest && statSync(file).mtimeMs >= srcNewest; } catch { return false; } };
-  const { loadLadder, saveLadder } = await import('./net-ladder.mjs'), ladder = loadLadder();   // (the rungs that took last time: a rung that folds is not built again)
+  const { loadLadder, saveLadder } = await import('./net-ladder.mjs'), ladder = loadLadder(), workers = (await import('node:os')).availableParallelism();   // (the rungs that took last time: a rung that folds is not built again)
   networksOf(skel).forEach((edges, n) => {
     if (fresh(fileURLToPath(new URL(`../public/anatomy/net-${n}.bin`, import.meta.url))) && !process.argv.includes('--force')) { console.log(`net-${n}.bin: current (digest ${digest}), kept`); return; }
-    const t0 = Date.now(), r = buildNetMesh(skel, edges, { states, maps: true, ladder });
+    const t0 = Date.now(), r = buildNetMesh(skel, edges, { states, maps: true, ladder, workers });
     const gz = gzipSync(Buffer.from(encodeNet(r.mesh, digest, r.nodes)), { level: 9 });
     writeFileSync(fileURLToPath(new URL(`../public/anatomy/net-${n}.bin`, import.meta.url)), gz);
     console.log(`net-${n}.bin: ${edges.length} edges, ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${Date.now() - t0} ms${r.mapNotes.length ? `; ${r.mapNotes.length} regions without a bridging map mesh: ${r.mapNotes.map((x) => x.node).join(', ')}` : ''}`);

@@ -146,7 +146,7 @@ function dropMeshes(res: NetMeshResult, drop: ReadonlySet<NodeReport>): void {
 }
 
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
-export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** also build each junction region's MAP-built mesh (a second mesh per region in the same index buffer: NodeReport.variant 1) on seams that clear at both layouts */ maps?: boolean; /** with `maps`: also a mesh built at t = 0.5 for every map-capable region (the ones the windows need are kept) */ mid?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[]; /** false: the states judge the gate but no keys are baked (the acceptance scripts, minutes faster) */ keys?: boolean; /** what a bake remembers of each junction's remesh ladder (junction/mesh.ts `LadderMemory`): the rungs that folded last time are not built again; the meshes are the same */ ladder?: LadderMemory }): NetMeshResult {
+export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** also build each junction region's MAP-built mesh (a second mesh per region in the same index buffer: NodeReport.variant 1) on seams that clear at both layouts */ maps?: boolean; /** with `maps`: also a mesh built at t = 0.5 for every map-capable region (the ones the windows need are kept) */ mid?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[]; /** false: the states judge the gate but no keys are baked (the acceptance scripts, minutes faster) */ keys?: boolean; /** what a bake remembers of each junction's remesh ladder (junction/mesh.ts `LadderMemory`): the rungs that folded last time are not built again; the meshes are the same */ ladder?: LadderMemory; /** key the regions on this many worker threads (a bake; node only): the same keys, sooner */ workers?: number }): NetMeshResult {
   // The mesh is baked at each arm's MIDDLE radius (ranges.ts: the geometric mean of its swell range), so the fillets' fixed triangles are within the least ratio of every state: the bones' radii are scaled by their edge's factor for the build.
   // The offsets are divided by those radii, so a tube is unchanged (its unit offsets times the live radius); `bakeScale` tells the shader's junction start to take the factor too (lumenRest x bakeScale).
   const bakeScale = new Float32Array(skel.edges.length).fill(1);
@@ -179,7 +179,7 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: {
   return res;
 }
 
-function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; maps?: boolean; states?: readonly (readonly number[])[]; keys?: boolean; ladder?: LadderMemory } | undefined, bakeScale: Float32Array): NetMeshResult {
+function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; maps?: boolean; states?: readonly (readonly number[])[]; keys?: boolean; ladder?: LadderMemory; workers?: number } | undefined, bakeScale: Float32Array): NetMeshResult {
   const inNet = new Set(edges ?? skel.edges.map((_, i) => i));
   const ctx = new Map<number, EdgeCtx>();
   for (const i of inNet) {
@@ -893,6 +893,6 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   }
   const index = Uint32Array.from(tris), fit = fitAll(skel, { position: position0, bone, weight, offset: offset0, index }, reports), offset = fit.offset, offsetMap = fit.offsetMap, position = fit.position;
   const mesh: NetMesh = { position, bone, weight, offset, offsetMap, normal, index };
-  if (opts?.states?.length && opts.keys !== false) { const armsOf = new Map(reports.map((r) => [r.node, r.arms])); mesh.keys = regionKeys(skel, mesh, fit.done, opts.states, bakeScale, (n) => [...new Set(armsOf.get(n) ?? [])]); }
+  if (opts?.states?.length && opts.keys !== false) { const armsOf = new Map(reports.map((r) => [r.node, r.arms])); mesh.keys = regionKeys(skel, mesh, fit.done, opts.states, bakeScale, (n) => [...new Set(armsOf.get(n) ?? [])], opts.workers); }
   return { mesh, edges: [...ctx.keys()], nodes: reports, failures, mapNotes, windows: new Map(), report: { vertices: V, triangles: tris.length / 3, sweepTriangles } };
 }
