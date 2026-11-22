@@ -24,7 +24,7 @@ for (const fx of fixtures()) {
     const capsOf = regs.map((rg) => rg.caps.map((c): Capsule => { const pts = new Float64Array(3 * c.bones.length), rr = new Float64Array(c.bones.length); c.bones.forEach((bi, j) => { pts.set(bones[bi]!.cen, 3 * j); rr[j] = bones[bi]!.lumen; }); return { n: c.bones.length, pts, r: rr, mate: c.mate >= 0 ? c.mate : undefined }; }));
     const resid: number[] = [], ang: number[] = [], inkW: number[] = [];
     regs.forEach((rg, ri) => {
-      const caps = capsOf[ri]!, k = pose.k[ri]!, R = k / SKIN_K, h = 0.02 * R;
+      const caps = capsOf[ri]!, k = pose.k[ri]!, R = k / SKIN_K, h = 0.001 * R;   // (a finite difference at 0.02 R straddles the sharpest crotch vertex of a fillet: 6.9 deg off a normal that is right to 0.01 deg at this step)
       for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) {
         const x = [pose.position[3 * v]!, pose.position[3 * v + 1]!, pose.position[3 * v + 2]!];
         resid.push(Math.abs(sdUnion(caps, k, x[0]!, x[1]!, x[2]!)) / R);
@@ -55,7 +55,7 @@ for (const fx of fixtures()) {
       }
     }
     const extreme = name.startsWith('swell real'), baseline = fx.name === 'HT' ? 1 : 0;   // (HT's mesh has one sliver facing in at rest: WP2's)
-    test(`${fx.name} @ ${name}: every junction vertex within 0.01 R of the live union, normal within 3 deg (p99) of its finite-difference normal, ink hull within 15% of its width across the fillet`, { todo: extreme ? 'an arm ratio of up to 3.2 (the real range): Newton 3 steps do not converge everywhere (HT 0.15 R)' : quantile(ang, 0.99) > 3 ? `WP2's later fillet binding moved this state's normal p99 to ${quantile(ang, 0.99).toFixed(1)} deg at the crotch vertices (3 deg held on the first mesh): WP3 to look at the shade normal there` : Math.max(...inkW) > 1.15 ? `ink hull reaches ${Math.max(...inkW).toFixed(2)} of its width at the sharpest crotch vertex (the offset runs on past a concave corner)` : false }, () => {
+    test(`${fx.name} @ ${name}: every junction vertex within 0.01 R of the live union, normal within 3 deg (p99) of its finite-difference normal, ink hull within 15% of its width across the fillet`, { todo: extreme ? 'an arm ratio of up to 3.2 (the real range): Newton 3 steps do not converge everywhere (HT 0.15 R)' : Math.max(...inkW) > 1.15 ? `ink hull reaches ${Math.max(...inkW).toFixed(2)} of its width at the sharpest crotch vertex (the offset runs on past a concave corner)` : false }, () => {
       assert.ok(Math.max(...resid) <= 0.01, `residual ${Math.max(...resid)} R`);
       assert.ok(quantile(ang, 0.99) <= 3, `normal p99 ${quantile(ang, 0.99)}`);
       assert.ok(Math.min(...inkW) >= 0.85 && Math.max(...inkW) <= 1.15, `ink hull ${Math.min(...inkW)} .. ${Math.max(...inkW)} of its width`);

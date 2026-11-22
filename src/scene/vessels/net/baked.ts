@@ -1,5 +1,5 @@
 // The baked network mesh file (public/anatomy/net-<n>.bin, gzip): written by `node scripts/bake-skins.mjs --net` at build time, so the page meshes nothing at load. One file per network (mesh.ts `networksOf`).
-// Layout (little endian): u32 magic 'NETM', u32 version, u32 vertices V, u32 index length I, u32 digest length D; D bytes of digest (padded to 4); f32 position[3V]; u16 bone[4V] (padded to 4 bytes); f32 weight[4V]; f32 offset[12V]; f32 normal[12V]; u32 index[I]; f32 offsetMap[12V]; u32 edges E; f32 bakeScale[E]. (Version 4 appends the wide junctions' KEYS (net/keys.ts) after bakeScale: u32 R; per region: u32 node length, node bytes (padded to 4), u32 vertStart, u32 vertCount, u32 A, u32 arms[A], u32 K; per key: u32 state, f32 swell[A], f32 offset[12n], f32 offsetMap[12n], n = vertCount.) (Version 3: the map-pose fit, net/fit.ts, and the bake radius factors, ranges.ts.)
+// Layout (little endian): u32 magic 'NETM', u32 version, u32 vertices V, u32 index length I, u32 digest length D; D bytes of digest (padded to 4); f32 position[3V]; u16 bone[4V] (padded to 4 bytes); f32 weight[4V]; f32 offset[12V]; f32 normal[12V]; u32 index[I]; f32 offsetMap[12V]; u32 edges E; f32 bakeScale[E]. (Version 4 appends the wide junctions' KEYS (net/keys.ts) after bakeScale: u32 R; per region: u32 node length, node bytes (padded to 4), u32 vertStart, u32 vertCount, u32 A, u32 arms[A], u32 K; per key: u32 state, u32 folds at the body pose, u32 folds at the map pose, f32 swell[A], f32 offset[12n], f32 offsetMap[12n], n = vertCount.) (Version 3: the map-pose fit, net/fit.ts, and the bake radius factors, ranges.ts.)
 import type { NetMesh, Skeleton } from './types.ts';
 
 const MAGIC = 0x4d54454e, VERSION = 4;
@@ -19,7 +19,7 @@ export function skeletonDigest(skel: Skeleton): string {
 const pad4 = (n: number): number => (n + 3) & ~3;
 function keysBytes(keys: NetMesh['keys']): number {
   let n = 4;
-  for (const r of keys ?? []) { n += 4 + pad4(new TextEncoder().encode(r.node).length) + 16 + 4 * r.arms.length; for (const k of r.keys) n += 4 + 4 * r.arms.length + 4 * (k.offset.length + k.offsetMap.length); }
+  for (const r of keys ?? []) { n += 4 + pad4(new TextEncoder().encode(r.node).length) + 16 + 4 * r.arms.length; for (const k of r.keys) n += 12 + 4 * r.arms.length + 4 * (k.offset.length + k.offsetMap.length); }
   return n;
 }
 function writeKeys(buf: ArrayBuffer, at: number, keys: NetMesh['keys']): void {
@@ -29,7 +29,7 @@ function writeKeys(buf: ArrayBuffer, at: number, keys: NetMesh['keys']): void {
   for (const r of keys ?? []) {
     const name = new TextEncoder().encode(r.node); u32(name.length); new Uint8Array(buf, o, name.length).set(name); o += pad4(name.length);
     u32(r.vertStart); u32(r.vertCount); u32(r.arms.length); for (const a of r.arms) u32(a); u32(r.keys.length);
-    for (const k of r.keys) { u32(k.state); f32s(k.swell); f32s(k.offset); f32s(k.offsetMap); }
+    for (const k of r.keys) { u32(k.state); u32(k.folds[0]); u32(k.folds[1]); f32s(k.swell); f32s(k.offset); f32s(k.offsetMap); }
   }
 }
 function readKeys(buf: ArrayBuffer, at: number): NonNullable<NetMesh['keys']> | null {
@@ -43,7 +43,7 @@ function readKeys(buf: ArrayBuffer, at: number): NonNullable<NetMesh['keys']> | 
     const node = new TextDecoder().decode(new Uint8Array(buf, o, len)); o += pad4(len);
     const vertStart = u32(), vertCount = u32(), A = u32(), arms: number[] = []; for (let i = 0; i < A; i++) arms.push(u32());
     const keys: NonNullable<NetMesh['keys']>[number]['keys'] = [];
-    for (let K = u32(); K > 0; K--) { if (o + 4 + 4 * (A + 24 * vertCount) > buf.byteLength) return null; keys.push({ state: u32(), swell: Array.from(f32s(A)), offset: f32s(12 * vertCount), offsetMap: f32s(12 * vertCount) }); }
+    for (let K = u32(); K > 0; K--) { if (o + 12 + 4 * (A + 24 * vertCount) > buf.byteLength) return null; keys.push({ state: u32(), folds: [u32(), u32()], swell: Array.from(f32s(A)), offset: f32s(12 * vertCount), offsetMap: f32s(12 * vertCount) }); }
     out.push({ node, vertStart, vertCount, arms, keys });
   }
   return o === buf.byteLength ? out : null;

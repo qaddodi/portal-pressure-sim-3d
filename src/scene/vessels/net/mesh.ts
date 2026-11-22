@@ -108,13 +108,19 @@ export function networksOf(skel: Skeleton): number[][] {
   return [...groups.values()];
 }
 
+/** The skeleton the mesh was built from: every bone's radii times its edge's bake factor (`NetMesh.bakeScale`). The mesh's offsets are in units of THESE radii. */
+export function scaledSkeleton(skel: Skeleton, bakeScale: ArrayLike<number>): Skeleton {
+  let id = true; for (let i = 0; i < skel.edges.length; i++) if (bakeScale[i] !== 1) id = false;
+  return id ? skel : { ...skel, bones: skel.bones.map((b) => { const g = bakeScale[b.edge]!; return g === 1 ? b : { ...b, r: [b.r[0] * g, b.r[1] * g] as [number, number] }; }) };
+}
+
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
 export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[] }): NetMeshResult {
   // The mesh is baked at each arm's MIDDLE radius (ranges.ts: the geometric mean of its swell range), so the fillets' fixed triangles are within the least ratio of every state: the bones' radii are scaled by their edge's factor for the build.
   // The offsets are divided by those radii, so a tube is unchanged (its unit offsets times the live radius); `bakeScale` tells the shader's junction start to take the factor too (lumenRest x bakeScale).
   const bakeScale = new Float32Array(skel.edges.length).fill(1);
   skel.edges.forEach((e, i) => { bakeScale[i] = bakeScaleOf(e.id); });
-  const scaled: Skeleton = bakeScale.every((g) => g === 1) ? skel : { ...skel, bones: skel.bones.map((b) => { const g = bakeScale[b.edge]!; return g === 1 ? b : { ...b, r: [b.r[0] * g, b.r[1] * g] as [number, number] }; }) };
+  const scaled = scaledSkeleton(skel, bakeScale);
   const res = buildOnce(scaled, edges, opts, bakeScale);
   res.mesh.bakeScale = bakeScale;
   return res;
