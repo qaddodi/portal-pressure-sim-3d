@@ -45,3 +45,43 @@ describe('the Circuit stent tiles by true arc length', () => {
     assert.doesNotMatch(blk, /\/ len\b|\* len\b/);
   });
 });
+
+import { headings, skewOf } from '../src/scene/circuit/geometry.ts';
+import { bareHalfWidths, BARE_MM } from '../src/scene/devices/stent/stent-look.ts';
+describe('the stent keeps real proportions on the map', () => {
+  it('the bare stretch is a real 2 cm whatever the route length (in lumen half widths, by the diameter)', () => {
+    assert.equal(bareHalfWidths(8), 5);                       // 20 mm bare, an 8 mm lumen (half width 4 mm)
+    assert.equal(BARE_MM, 20);
+    assert.ok(bareHalfWidths(6) > bareHalfWidths(10), 'a narrower lumen takes more half widths for the same 2 cm');
+    const dev = readFileSync(new URL('../src/scene/devices/stent/stent-device.ts', import.meta.url), 'utf8');
+    assert.match(dev, /bareHalfWidths\(this\.dq\)/);
+    assert.doesNotMatch(dev, /\(INSET \+ this\.paths\.bareEnd\) \/ this\.L/);
+  });
+  it('headings unwrap through a half turn and an S bend', () => {
+    const q = (a: number): [number, number] => [Math.cos(a), Math.sin(a)];
+    const h = headings([q(3.0), q(3.0 + 0.3), q(-3.0)]);   // across the +/-pi cut: still a turn that never jumps by 2 pi
+    assert.ok(Math.abs(h[1]! - 0.3) < 1e-9 && Math.abs(h[2]! - (2 * Math.PI - 6.0)) < 1e-9);
+    const s = headings([q(0), q(1), q(0.2)]); assert.ok(Math.abs(s[2]! - 0.2) < 1e-9);
+  });
+  it('a cell keeps its length on the surface at any offset round a corner (inside and outside)', () => {
+    const rho = 40, pitch = 6;                                  // a bend of radius 40, cells 6 apart along the centre
+    for (const lat of [-9, -4, 0, 4, 9]) {                      // lateral offsets (left positive); the surface runs (rho - lat) per radian
+      const turn = (s: number): number => s / rho, phase = (s: number): number => s - skewOf(lat, turn(s));
+      let prevS = 0, prevP = phase(0), min = 1e9, max = -1e9;
+      for (let s = 1; s <= 60; s++) {
+        const ds = (rho - lat) * (turn(s) - turn(s - 1)), dp = phase(s) - prevP;   // surface length vs phase advanced
+        const ratio = dp / ds; min = Math.min(min, ratio); max = Math.max(max, ratio); prevS = s; prevP = phase(s);
+      }
+      assert.ok(max - min < 1e-9 && Math.abs(max - 1) < 1e-9, `lat ${lat}: one phase per surface length (${min}..${max})`);
+    }
+    void pitch;
+  });
+  it('the shader uses the bare length, the skew and the nominal lumen in the stent block', () => {
+    const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+    const blk = src.slice(src.indexOf('if (stentU.x > 0.001'), src.indexOf('the running stitch'));
+    assert.match(blk, /sB = s0 \+ stentU\.w \* vR0/);
+    assert.match(blk, /float sp = s - vSkew/);
+    assert.doesNotMatch(blk, /stentU\.w \* Lw/);
+    assert.match(src, /vSkew = circShare \* dot\(aNor\.xy, vec2\(-tl\.y, tl\.x\)\) \* lumenW \* vU \* \(turn - stentT0\)/);
+  });
+});

@@ -26,3 +26,7 @@ export function stentCircuitLook(p: Palette): { wire: Color; wireA: number; gold
   const look = ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light'), t = DEVICE_TOKENS[look];
   return { wire: rawColor(STENT_CHAMPAGNE), wireA: STENT_FRONT_ALPHA, gold: rawColor(t.stentGold), goldA: STENT_GOLD_ALPHA };
 }
+
+/** The Viatorr's bare stretch is a real length, 2 cm, on every route: in the Circuit, where the route is longer than the body course, a share of its length would stretch it. Given in lumen half widths (a half width is D / 2 mm). */
+export const BARE_MM = 20;
+export const bareHalfWidths = (dMm: number): number => (2 * BARE_MM) / Math.max(dMm, 1);
