@@ -2,6 +2,7 @@
 // current params; it goes to the worker (setParams) and is adopted here at once, so the next press reads what this one made. Every learner change is one history
 // entry with its label (what History and Undo list). The engine owns the numbers: nothing here computes a pressure.
 import { deepMerge } from '../../engine/hales/portal/scenario.js';
+import { migratePieceKeys } from './piece-keys.ts';
 import { engine } from '../../engine/boot.ts';
 import { patient, setParams } from '../../engine/store.ts';
 import { create } from 'zustand';
@@ -44,6 +45,7 @@ export function updateParams(patchOrFn: Record<string, unknown> | ((p: Params) =
   let next: Params;
   if (typeof patchOrFn === 'function') { const copy = structuredClone(prev); next = (patchOrFn as (p: Params) => Params | void)(copy) ?? copy; } else next = deepMerge(prev, patchOrFn);
   if (!next) return false;
+  next = migratePieceKeys(next);
   if (history) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
   setParams(next);
   try { engine().send({ type: 'setParams', params: next, settle: opts.settle ?? false }); } catch { /* the engine is not up (a test): the local copy is the change */ }
@@ -60,7 +62,7 @@ export const historyNow = (): readonly Entry[] => past;
 export const canUndo = (): boolean => past.length > 0;
 export const canRedo = (): boolean => future.length > 0;
 
-function jump(params: Params): void { setParams(params); try { engine().send({ type: 'setParams', params, settle: false }); } catch { /* no engine */ } bump(); }
+function jump(params: Params): void { params = migratePieceKeys(params); setParams(params); try { engine().send({ type: 'setParams', params, settle: false }); } catch { /* no engine */ } bump(); }
 /** Back one change; returns its label (or true when it had none), false when there is nothing to undo. */
 export function undo(): string | true | false {
   const h = past.pop();

@@ -2,7 +2,7 @@
 // the same words, verbs, ranges and readings, held to the 2D app's own answers by tests/action-cards.test.ts (tests/fixtures/actions-2d.json, scripts/gen-actions.mjs).
 // A card is a fixed description: its readings are functions of an Env (a frame, the patient's parameters, the healthy reference) and its verbs are carried out through an Act
 // (the changes go through updateParams, so each lands in History as one entry). Nothing here draws; ActionCard.tsx does.
-import { EDGES, SHUNT_PORTAL, SHUNT_SYSTEMIC, dMinOf, edgePresent } from '../../engine/hales/portal/topology.js';
+import { EDGES, partOf, SHUNT_PORTAL, SHUNT_SYSTEMIC, dMinOf, edgePresent } from '../../engine/hales/portal/topology.js';
 import { edgeWhy } from '../../engine/hales/portal/explain-ids.js';
 import { PREGNANCY_INFO } from '../../engine/hales/portal/scenario.js';
 import { stentStill } from '../../engine/hales/portal/flow-cuts.js';
@@ -65,6 +65,8 @@ const NORM_EDGE = new Map<string, Sel>();
 for (const e of edges) {
   // A central vein that runs into a hepatic vein is that hepatic vein to the eye; the liver's other micro-vessels are the liver; the drawn sinusoids are a vessel of their own.
   if (POST_TO_HV[e.id]) NORM_EDGE.set(e.id, { type: 'edge', id: POST_TO_HV[e.id]! });
+  // A piece of a split vein is that vein: its card writes the key the engine reads (thrombus, stenosis, stent), so the clot lies along the whole vein.
+  else if (partOf(e.id) !== e.id && EI[partOf(e.id)] !== undefined) NORM_EDGE.set(e.id, { type: 'edge', id: partOf(e.id) });
   else if (e.kind === 'liver' && !SIN_EDGES.has(e.id)) NORM_EDGE.set(e.id, { type: 'organ', id: 'liver', lobe: e.lobe === 'L' ? 'L' : e.lobe === 'R' ? 'R' : null, zone: e.zone });
 }
 /** The structure a selection stands for (liver micro-vessels are the liver; stations their vessel). */
