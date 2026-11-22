@@ -9,7 +9,6 @@ import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { TIER_Z } from '../src/scene/frame2d.ts';
-// @ts-expect-error (a plain .mjs script shared with the generator)
 import { meanderWanted, hostsLanding, calibreOf, MEANDER_KEPT } from '../scripts/meander-rule.mjs';
 import { EDGES, dMinOf } from '../src/engine/hales/portal/topology.js';
 
@@ -69,8 +68,8 @@ test('the meander rule: a wave shallower than its vessel is wide is dropped; a w
   const edge = (id: string) => EDGES.find((e: { id: string }) => e.id === id)!;
   const path = (len: number): [number, number][] => Array.from({ length: 64 }, (_, i) => [(len * i) / 63, 0]);
   const T = { EDGES, dMinOf };
-  // the cava's right atrium column and a hepatic vein: calm
-  for (const id of ['IVCS_RA', 'SVC_RA', 'MHV_IVC']) assert.equal(meanderWanted(edge(id), path(340), T), false, id);
+  // the cava's right atrium column and the right hepatic vein: calm
+  for (const id of ['IVCS_RA', 'SVC_RA', 'RHV_IVC']) assert.equal(meanderWanted(edge(id), path(340), T), false, id);
   assert.equal(meanderWanted(edge('V_UP'), path(80), T), false, 'V_UP');
   // a thin vein with a long course bends by many of its calibres: a curve, it keeps its wave
   assert.equal(meanderWanted(edge('EPI_SVC'), path(990), T), true);
@@ -78,7 +77,7 @@ test('the meander rule: a wave shallower than its vessel is wide is dropped; a w
   assert.equal(meanderWanted(edge('C1a'), path(255), T), true);
   // the one named exception, and why (the cava's hepatic-vein skin planner)
   assert.ok(MEANDER_KEPT.has('IVC_IS'));
-  assert.equal([...MEANDER_KEPT].length, 1, 'no second exception without a reason written next to it');
+  assert.deepEqual([...MEANDER_KEPT].sort(), ['IVC_IS', 'LHV_IVC', 'MHV_IVC'], 'no exception without a reason written next to it');
   // a vein a collateral or shunt ends on keeps the course the end was drawn against; one nothing lands on does not
   const r = calibreOf(edge('IVC_IS_1'), T), vein = path(340);
   assert.equal(hostsLanding([[170, 1.5 * r]], vein, r), true, 'an end 1.5 radii off the middle of the vein lands on it');
