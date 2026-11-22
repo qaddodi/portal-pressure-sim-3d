@@ -69,8 +69,10 @@ const frame = (t: number) => ({ ...real, t }) as never;
 function source() {
   const taps = new Set<(f: never) => void>();
   let now: unknown = frame(100);
-  const src: FrameSource = { now: () => now as never, on: (fn) => { taps.add(fn as never); return () => { taps.delete(fn as never); }; } };
-  return { src, push: (t: number) => { now = frame(t); taps.forEach((f) => f(frame(t))); }, taps };
+  let going = false, runs = 0;
+  const src: FrameSource = { now: () => now as never, on: (fn) => { taps.add(fn as never); return () => { taps.delete(fn as never); }; }, run: () => { going = true; runs++; } };
+  // (a paused model gives no new seconds: its frames carry the same time)
+  return { src, push: (t: number) => { const at = going ? t : 100; now = frame(at); taps.forEach((f) => f(frame(at))); }, taps, runs: () => runs };
 }
 
 test('the graph starts at the change and takes the live frames after it, every 0.1 s of the model, until its seconds have run', () => {
@@ -92,6 +94,30 @@ test('the graph starts at the change and takes the live frames after it, every 0
   assert.equal(run.on, false, 'leaving the slide clears the graph');
   restoreEvRun('d/s1', TIPS);
   assert.equal(evRunFor('d/s1', TIPS).n, kept, 'Back onto the played slide shows the line whole');
+});
+
+test('a paused model is set going at the change, or the line would stop at t = 0 (Mohammad, 22 Nov: "nothing is drawn from 0 to +20 s")', () => {
+  const { src, push, runs } = source();
+  const run = evRunFor('d/s3', TIPS);
+  startEvRun('d/s3', TIPS, null, null, src);
+  assert.equal(runs(), 1, 'the model is told to run at the change');
+  for (let t = 1; t <= 3; t += 0.5) push(100 + t);
+  assert.ok(run.n >= 4 && run.pts[3 * (run.n - 1)]! > 2, 'the line advances after the apply');
+});
+
+test('the real engine: a paused model, a change, and the graph\'s line grows with the model\'s own seconds', async () => {
+  const { createCore } = await import('../src/engine/hales/host/worker-core.js');
+  const taps = new Set<(f: never) => void>();
+  let latestF: unknown = null;
+  const core = createCore((m: { type: string }) => { if (m.type === 'frame') { latestF = m; taps.forEach((f) => f(m as never)); } });
+  await core.handle({ type: 'init' }); await core.handle({ type: 'preset', id: 'cirr-decomp', reqId: 1 }); await core.handle({ type: 'run', running: false });
+  const src: FrameSource = { now: () => latestF as never, on: (fn) => { taps.add(fn as never); return () => { taps.delete(fn as never); }; }, run: () => { void core.handle({ type: 'run', running: true, clock: 'hemo', speed: 1 }); } };
+  const run = evRunFor('d/real', TIPS);
+  startEvRun('d/real', TIPS, null, null, src);
+  await new Promise((r) => setTimeout(r, 1500));
+  core.dispose();
+  assert.ok(run.n >= 3, `only ${run.n} readings in 1.5 s of the running model`);
+  assert.ok(run.pts[3 * (run.n - 1)]! > 0.5);
 });
 
 test('going back past the change, or replaying, resets the run and stops its feed', () => {

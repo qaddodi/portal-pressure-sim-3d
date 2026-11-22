@@ -33,6 +33,8 @@ export class TextLayer {
     const words = shapes.filter((s): s is TextShape => s.k === 'text');
     while (this.slots.length < words.length) {
       const doc = this.root.ownerDocument, el = doc.createElement('span'), txt = doc.createElement('span');
+      // (positioned, and after the halo in the box: an absolutely positioned halo paints over an unpositioned sibling, so the letters must be positioned too, or the halo covers them)
+      txt.style.cssText = 'position:relative;';
       el.append(txt);
       this.root.append(el);
       this.slots.push({ fresh: this.shown, el, txt, halo: null, style: '', text: '', t: '', o: '', c: '', h: '' });

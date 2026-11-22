@@ -79,3 +79,17 @@ test('a drawn diameter is the floor under the engine\'s: it draws the tract befo
   assert.equal(drawnDiameter('TIPS'), 0);
   assert.equal(presenceOf(e, f, { collaterals: false, circuit: false }), 'hidden');
 });
+
+// The grey octagonal knob on the TIPS wire (owner, 22 Nov: "wtf is this circle in tips"). Root cause: the needle's bevel cone was built on the Z axis but laid along the route as an X-axis part (`orient` turns +X), so it
+// stood end-on to the viewer; and its apex radius was an absolute 0.01 against a needle of 0.0015, an inverted cone: a wide 8-sided disc where the needle ends. Every part laid by `orient` must have its length on +X.
+import { NEEDLE_APEX_K, needlePoint } from '../src/scene/devices/catheters/proc-catheter.ts';
+test('the needle\'s point lies along +X (base at the origin, apex ahead), never end-on', () => {
+  const rc = route3d('tips')!.rc, r = Math.max(rc * 0.42, 0.0015);
+  const g = needlePoint(rc, r); g.computeBoundingBox();
+  const b = g.boundingBox!;
+  assert.ok(Math.abs(b.min.x) < 1e-6 && Math.abs(b.max.x - rc * 1.4) < 1e-6, `length on +X: ${b.min.x}..${b.max.x}`);
+  assert.ok(b.max.y - b.min.y <= 2 * r + 1e-6 && b.max.z - b.min.z <= 2 * r + 1e-6, 'no wider than the needle');
+  const pos = g.getAttribute('position'); let atApex = 0;
+  for (let i = 0; i < pos.count; i++) if (pos.getX(i) > rc * 1.4 - 1e-6) { atApex++; assert.ok(Math.hypot(pos.getY(i), pos.getZ(i)) <= r * NEEDLE_APEX_K + 1e-6, 'the apex is narrower than the base'); }
+  assert.ok(atApex > 0, 'the apex is ahead of the base');
+});
