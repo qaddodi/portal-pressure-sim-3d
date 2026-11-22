@@ -4,11 +4,12 @@
 // the ramp gives none). Each key is stored in the bones' frames at BOTH poses (the body's, and the map's, which ramps from the map fit), in units of the bone radius AT THE KEY'S STATE (so at that state the shader's start is the key exactly, and at another it is the key scaled by the live radii, the way `offset` is).
 // Which states: the vector of every arm's swell (widthSwell of the engine's diameter) over the real states (every preset), clustered by farthest point in log space into at most MAX_KEYS keys, the largest state first.
 import { fitCaps, fitK, boundPositions, offsetsAt, project, type FitDone, type FitMesh } from './fit.ts';
+import { relax } from './relax.ts';
 import type { Skeleton } from './types.ts';
 
 export const MAX_KEYS = 4, KEY_STEPS = 24, NEWTON = 3, WIDE_RATIO = 2;
 /** The keys of one junction region: its free vertices [vertStart, vertStart + vertCount), the edges of its arms, and per key the arms' swell and the fitted offsets (12 floats a vertex) at the body pose and at the map pose. */
-export interface RegionKeys { node: string; vertStart: number; vertCount: number; arms: number[]; keys: { swell: number[]; offset: Float32Array; offsetMap: Float32Array }[] }
+export interface RegionKeys { node: string; vertStart: number; vertCount: number; arms: number[]; keys: { /** index into the states it was baked from */ state: number; swell: number[]; offset: Float32Array; offsetMap: Float32Array }[] }
 
 /** Which of the states (each a vector of arm swells) are the keys: the one with the largest radii first, then each time the state farthest, in log space, from those chosen. Duplicates (within `eps` in log space) count once. */
 export function pickKeys(states: readonly (readonly number[])[], max = MAX_KEYS, eps = 0.02): number[] {
@@ -38,6 +39,7 @@ export function isWide(states: readonly (readonly number[])[], arms: number): bo
 export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, fKey: Float64Array, steps = KEY_STEPS): Float64Array {
   const { rg } = d, V = rg.verts.length, free = rg.verts.map((v) => v >= rg.free[0] && v < rg.free[0] + rg.free[1]);
   const pos = pose === 1 ? Float64Array.from(d.map) : boundPositions(skel, m, rg, 0), fs = new Float64Array(fKey.length), ring = pose === 1 ? m.offset : m.offset;
+  const local = new Map(rg.verts.map((v, q) => [v, q])), tris = rg.tris.map((v) => local.get(v)!), fixed = Uint8Array.from(free, (f) => (f ? 0 : 1));
   for (let k = 1; k <= steps; k++) {
     const t = k / steps;
     for (let e = 0; e < fs.length; e++) fs[e] = 1 + (fKey[e]! - 1) * t;
@@ -45,6 +47,8 @@ export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, 
     for (let q = 0; q < V; q++) {
       if (!free[q]) { pos[3 * q] = tube[3 * q]!; pos[3 * q + 1] = tube[3 * q + 1]!; pos[3 * q + 2] = tube[3 * q + 2]!; } else project(caps, kk, pos, 3 * q, NEWTON);
     }
+    // the ramp keeps the fillet on the step's surface but bunches its triangles where an arm swells: a round of the fit's own relaxation (fold guard on, seam rings fixed) after each step, ten at the key
+    relax({ pos, tris, fixed, caps, k: kk }, { rounds: k === steps ? 10 : 1, pull: 0.5, soft: 0 });
   }
   return pos;
 }
@@ -65,7 +69,7 @@ export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[],
         d.rg.verts.forEach((v, q) => { if (v >= d.rg.free[0] && v < d.rg.free[0] + n) res.set(off.subarray(12 * q, 12 * q + 12), 12 * (v - d.rg.free[0])); });
         return res;
       };
-      return { swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
+      return { state: p, swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
     });
     out.push({ node: d.node, vertStart: d.rg.free[0], vertCount: d.rg.free[1], arms, keys });
   }

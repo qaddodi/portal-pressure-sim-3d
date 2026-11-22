@@ -136,12 +136,12 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   for (const n of skel.nodes) if (n.edges.some((x) => inNet.has(x.edge)) && !inNodes.includes(n)) throw new NetMeshError(n.id, 'the node joins an edge outside this network');
   // SEWN ENDS (review doc, "Rulings on WP3's sewn-end proposal"): an arm that is not a permanent vessel (a collateral, a shunt, TIPS, DIPS, REX, a feeder) takes no part in a fillet. Its end at a node that holds a permanent vessel is sewn into that host:
   // the tube simply ends there with its own cap, and the COLLAR (2D's sideEndScale and flareScale, from the host's LIVE radius) is the shader's (net/sewn.ts, shaders.ts sewnCollar), so it is not baked here. The node keeps its host edges only, so it is
-  // a run-on, a step or a junction of the permanent arms alone. A node with fewer than two permanent edges keeps them all.
+  // a run-on, a step or a junction of the permanent arms alone. A node with no permanent edge keeps them all (a collateral chain).
   const sewnTable = sewnEnds(skel, (id) => { const v = NETWORK_BY_ID.get(id.split('#')[0]!); return v ? isPermanent(v) : true; });   // (an id the network does not know, a fixture's, is permanent)
   const sewn = new Set<string>();
   const nodes = inNodes.map((n): (typeof inNodes)[number] => {
-    const keep = n.edges.filter((x) => !sewnTable[x.edge]![x.end]);
-    if (keep.length < 2 || keep.length === n.edges.length) return n;
+    const keep = n.edges.filter((x) => !sewnTable[x.edge]![x.end] && !skel.edges[x.edge]!.sewn?.[x.end]);   // (WP0's SkelEdge.sewn: every collateral, shunt and procedure end)
+    if (keep.length < 1 || keep.length === n.edges.length) return n;
     for (const x of n.edges) if (!keep.includes(x)) sewn.add(`${x.edge}:${x.end}`);
     const at = new Map(keep.map((x, q) => [x, q] as const)), ro = n.runOn && at.has(n.edges[n.runOn[0]]!) && at.has(n.edges[n.runOn[1]]!) ? ([at.get(n.edges[n.runOn[0]]!)!, at.get(n.edges[n.runOn[1]]!)!] as [number, number]) : keep.length === 2 ? ([0, 1] as [number, number]) : undefined;
     return { ...n, edges: keep, ...(ro ? { runOn: ro } : {}) };
