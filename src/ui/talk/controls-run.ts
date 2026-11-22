@@ -5,8 +5,9 @@ import { engine } from '../../engine/index.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
-import { useVariant } from './variant-words.ts';
-import { variantStateOf, type Picked, type Seq } from './variant-state.ts';
+import { useVariant, variantOf } from './variant-words.ts';
+import { variantStateOf, sliderOpt, type Picked, type Seq } from './variant-state.ts';
+import { clock } from '../../clock/frame.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
@@ -70,8 +71,23 @@ export function dragToolOption(deck: Deck, i: number, name: string, x: number): 
 /** Where an instrument slider starts: the slide's own option, else the low end. */
 export const toolOptionStart = (deck: Deck, i: number, name: string, min: number): number => { const v = (copiedOf(deck.id)?.slides[i]?.tool as Record<string, unknown> | undefined)?.[name]; return typeof v === 'number' ? v : min; };
 
-/** The what-if slider: one value at its parameter paths, eased in. */
-export function dragWhatIf(paths: readonly string[], x: number): void { engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS }); }
+/** The what-if slider: one value at its parameter paths, eased in. The slide's charts follow it too (the same state a parameter button gives them), once the slider has rested a moment: each value is a
+ *  settled model worked out off screen, so a drag asks for the last one only. At the slide's own value the slide's own state is back. */
+const SLIDER_REST_MS = 250;
+let dragTimer: number | null = null, dragN = 0;
+export function dragWhatIf(deck: Deck, i: number, paths: readonly string[], x: number): void {
+  engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS });
+  const key = slideKey(deck, i), n = ++dragN;
+  if (dragTimer != null) clock.cancel(dragTimer);
+  dragTimer = clock.after(() => {
+    dragTimer = null;
+    const own = stateOf(deck, i), words = variantOf(key);
+    if (x === whatIfStart(deck, i, paths, NaN)) { if (n === dragN) useVariant.getState().set(key, words, null); return; }
+    void variantStateOf((st, base) => engine().sequence(st, base), picked, { slideKey: key }, sliderOpt(paths, x), own, undefined).then((got) => {
+      if (n === dragN && got?.state) useVariant.getState().set(key, words, got.state);
+    });
+  }, SLIDER_REST_MS);
+}
 /** Where the slider starts: the slide's own value at its first path (its computed state's parameters), else the low end. */
 export const whatIfStart = (deck: Deck, i: number, paths: readonly string[], min: number): number => valueAt(stateOf(deck, i)?.params, paths[0]!) ?? min;
 

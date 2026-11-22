@@ -4,6 +4,7 @@
 //   card   the tile text of the same fingerprint
 //   figure the model the button eases to (its snapshot, read again at the bedside), or the slide's own base with the button's change
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import * as host from '../src/engine/hales/host/worker-core.js';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
@@ -14,7 +15,7 @@ import { deepMerge, sanitizeParams } from '../src/engine/hales/portal/scenario.j
 import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { chainOf, sequencer } from '../src/decks/hp/numbers.ts';
 import { controlsOf, type CompareOpt } from '../src/decks/controls.ts';
-import { variantStateOf, type Own, type Picked, type Seq } from '../src/ui/talk/variant-state.ts';
+import { variantStateOf, sliderOpt, type Own, type Picked, type Seq } from '../src/ui/talk/variant-state.ts';
 import { reading } from '../src/ui/charts/fmt.ts';
 import { SPANS, gap1, planProfile } from '../src/ui/charts/profile/model.ts';
 import { profileFrameAtRest } from '../src/ui/charts/profile/frame.ts';
@@ -99,4 +100,41 @@ test('the ladder of a normal heart is not the failing heart\'s (the 21 Nov bug),
   const own = await ownState(d.slides, i), cache = new Map<string, Promise<Picked>>();
   const normal = (await variantStateOf(nodeSeq, cache, { slideKey: 'sites/x' }, { label: 'Normal heart', preset: 'healthy' } as CompareOpt, own, undefined))!.state!;
   assert.ok((normal.fp.ra as number) < 6 && (own.fp as Record<string, number>).ra! > 12, `RA ${normal.fp.ra} against the failing heart's ${(own.fp as Record<string, number>).ra}`);
+});
+
+// The what-if sliders are the same family (Mohammad, 21 Nov): a slider moved the model and the slide's charts read the slide's own state. The slider's value is a parameter change on the slide's own base,
+// worked out as a parameter button's is (controls-run.ts dragWhatIf); its ends must give the charts the patient the figure shows, and a value that moves the model moves the readings.
+for (const id of ['treatment', 'shunts', 'tipping'] as const) {
+  test(`${id}: every what-if slider gives the slide's charts the patient the figure shows, at both ends`, async () => {
+    const d = (await RW_LOADERS[id]!()) as unknown as { slides: CopiedSlide[] };
+    const cache = new Map<string, Promise<Picked>>();
+    let ends = 0;
+    for (let i = 0; i < d.slides.length; i++) {
+      const w = controlsOf(d.slides[i]!)?.whatIf;
+      if (!w || w.tool || !w.paths.length) continue;
+      const own = await ownState(d.slides, i), moved: number[] = [];
+      for (const x of [w.min, w.max]) {
+        const at: string = `${id}/${d.slides[i]!.id}/${w.paths.join()}=${x}`;
+        const got = await variantStateOf(nodeSeq, cache, { slideKey: `${id}/${d.slides[i]!.id}` }, sliderOpt(w.paths, x), own, undefined);
+        const st = got?.state as { fp: Record<string, number | null> } | null | undefined;
+        assert.ok(st?.fp, `${at}: the charts get no patient`);
+        const fig = figureFp(own.base, sliderOpt(w.paths, x).params);
+        for (const k of ['hvpg', 'ppg', 'ra', 'pv', 'ivc'] as const) {
+          const a: number | null | undefined = st.fp[k], b: number | null | undefined = fig[k];
+          assert.ok(typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.35, `${at}: ${k}: the chart reads ${a}, the figure shows ${b}`);
+        }
+        moved.push(st.fp.pv as number); ends++;
+      }
+      assert.ok(Number.isFinite(moved[0]) && Number.isFinite(moved[1]), `${id}/${d.slides[i]!.id}: readings`);
+    }
+    assert.ok(ends > 0, `${id}: no slider was moved`);
+  });
+}
+
+test('a what-if slider asks for the charts\' state once it rests, and the slide\'s own value gives the slide\'s own state back', () => {
+  const run = readFileSync('src/ui/talk/controls-run.ts', 'utf8');
+  assert.match(run, /export function dragWhatIf\(deck: Deck, i: number, paths: readonly string\[\], x: number\)/);
+  assert.match(run, /clock\.cancel\(dragTimer\)/, 'a drag asks for the last value only');
+  assert.match(run, /set\(key, words, null\)/, 'the slide\'s own value: the slide\'s own state');
+  assert.match(readFileSync('src/ui/cards/SlideControls.tsx', 'utf8'), /dragWhatIf\(deck, i, w\.paths, x\)/);
 });
