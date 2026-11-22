@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { calibreOf, hostsLanding, meanderWanted } from './meander-rule.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
@@ -140,13 +141,18 @@ function meander(pts, id) {
     return [p[0] + nx * o, p[1] + ny * o];
   });
 }
+const meanders = (e, raw) => meanderWanted(e, raw, TOPO);
 const round = (v) => Math.round(v * 100) / 100;
 const paths = {};
+const sampled = new Map(TOPO.EDGES.filter((e) => EDGE_PATH[e.id]).map((e) => [e.id, sample(EDGE_PATH[e.id])]));
+// the ends of the growing vessels (collaterals and shunts), which land on a vein's wall (meander-rule.mjs hostsLanding)
+const landings = TOPO.EDGES.filter((e) => (e.kind === 'collateral' || e.kind === 'shunt') && sampled.has(e.id)).flatMap((e) => { const p = sampled.get(e.id); return [p[0], p[p.length - 1]]; });
 for (const e of TOPO.EDGES) {
-  const d = EDGE_PATH[e.id];
-  if (!d) continue;
-  const raw = sample(d);
-  const pts = (e.kind === 'collateral' && !e.spontaneous) || e.kind === 'shunt' ? raw : meander(raw, e.id);
+  const raw = sampled.get(e.id);
+  if (!raw) continue;
+  const own = () => meander(raw, e.id);
+  const growing = (e.kind === 'collateral' && !e.spontaneous) || e.kind === 'shunt';
+  const pts = growing ? raw : meanders(e, raw) || hostsLanding(landings, own(), calibreOf(e, TOPO)) ? own() : raw;
   paths[e.id] = pts.map(([x, y]) => [round(x), round(y)]);
 }
 // The feeders (stage-geo.js feedGeo): the fan of tributaries at the umbilicus (caput medusae, C3), the azygos's ascending channel, the caudate vein's tributaries and collaterals.
