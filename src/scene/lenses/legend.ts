@@ -51,7 +51,7 @@ export function rampStops(look: LookId, name: 'pressure' | 'flow' | 'velocity' |
   return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(s.at((i / (n - 1)) * max, [0, 0, 0])), look, raw), (i / (n - 1)) * 100]);
 }
 /** The Change lens's bar: the figure's own three-colour scale (sRGB, as delta3), read at 11 steps and put through the same transform as the vessels (the three stops alone would be blended AFTER the caps). */
-function deltaStops(look: LookId, n = 11): [string, number][] {
+export function deltaStops(look: LookId, n = 11): [string, number][] {
   const lo = hexToRgb01(LENS_SHARED.deltaLow), mid = hexToRgb01(LENS_SHARED.deltaMid), hi = hexToRgb01(LENS_SHARED.deltaHigh), c: Rgb = [0, 0, 0];
   return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(delta3(lo, mid, hi, (i / (n - 1)) * 2 - 1, 1, c)), look), (i / (n - 1)) * 100]);
 }

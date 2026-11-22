@@ -26,6 +26,9 @@ test('each kind is a timeline the card, the layer and the camera already know: s
     assert.equal(sp.stops.length, sp.steps.length, `${k}: one stop to a step`);
     assert.ok(sp.stops.every((t, i) => t > (i ? sp.stops[i - 1]! : 0)) && sp.stops.at(-1) === sp.T.end, `${k}: stops rise to the end`);
     assert.ok(sp.T.apply > sp.stops[0]! && sp.T.apply < sp.T.back && sp.T.back < sp.T.end, `${k}: the change comes after the first step and before the way out`);
+    // the result comes in during the step whose words describe it (DIPS came in during "Needle across", a step early)
+    const lo = sp.stops[sp.resultStep - 1] ?? 0, hi = sp.stops[sp.resultStep]!;
+    assert.ok(sp.T.apply >= lo && sp.T.apply < hi, `${k}: the change (${sp.T.apply}) is in step ${sp.resultStep} (${lo} to ${hi})`);
     const legs = legsOf(k);
     assert.equal(legs.length, sp.steps.length, k);
     assert.equal(legs.at(-1)![1], sp.T.end, k);

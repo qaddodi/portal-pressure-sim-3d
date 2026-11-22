@@ -57,7 +57,7 @@ function reversals(rig: CameraRig, pts: Vector3[], from: number, ms: number, hoo
   return bad;
 }
 
-const decks = await Promise.all((UI.decks as { id: string }[]).map(async (d) => [d.id, (await loadBuiltin(d.id))!] as const));
+const decks = await Promise.all((UI.decks as readonly { id: string }[]).map(async (d) => [d.id, (await loadBuiltin(d.id))!] as const));
 
 test('every slide to slide camera move, in every deck, on a Mac, an iPad and an iPhone, is one path: the zoom goes one way and every point travels straight', () => {
   let moves = 0;

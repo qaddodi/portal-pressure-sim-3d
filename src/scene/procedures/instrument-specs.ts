@@ -15,6 +15,8 @@ export interface InstrumentSpec {
   name: string; label: string; graft: true;
   T: { apply: number; back: number; end: number }; stops: number[]; steps: Step[];
   morph?: true; scope?: 'band';
+  /** the step whose words describe the result the model takes at `T.apply`: the result must come in during that step, never before it (tests/instrument-procedures.test.ts) */
+  resultStep: number;
   can(p: unknown, m?: unknown): string; offered(p?: unknown): boolean; apply(p: any): any; had(p: any): boolean; undo(p: any): any; before?: Record<string, unknown>;
 }
 
@@ -24,7 +26,7 @@ const nothing = (): string => '';
 export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   evl: {
     name: 'Band (EVL)', label: 'Band (EVL)', graft: true, morph: true, scope: 'band',
-    T: { apply: 2500, back: 6200, end: 7800 }, stops: [2200, 5200, 7800],
+    T: { apply: 2500, back: 6200, end: 7800 }, stops: [2200, 5200, 7800], resultStep: 1,
     steps: [
       step('scope', 'Scope in', 'The endoscope, with the ligator cap and a band loaded on its tip, is passed through the esophagus to the varices.', 'Scope', 'C1b'),
       step('band', 'Bands placed', 'Each varix is suctioned into the cap and a band is released around its base, starting at the gastroesophageal junction and working upward.', 'Bands', 'C1b'),
@@ -34,7 +36,7 @@ export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   },
   tamponade: {
     name: 'Balloon tamponade', label: 'Balloon tamponade', graft: true,
-    T: { apply: 3400, back: 6400, end: 7200 }, stops: [1800, 4600, 7200],
+    T: { apply: 3400, back: 6400, end: 7200 }, stops: [1800, 4600, 7200], resultStep: 1,
     steps: [
       step('tube', 'Tube in', 'The airway is secured first. The tube is then passed through the mouth into the stomach.', 'Tube', 'C2'),
       step('gastric', 'Gastric balloon', 'The gastric balloon is inflated in the stomach and the tube is put under traction, so the balloon compresses the cardia and the varices there.', 'Balloon', 'C2'),
@@ -45,7 +47,8 @@ export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   },
   dips: {
     name: 'DIPS', label: 'DIPS', graft: true,
-    T: { apply: 4100, back: 6500, end: 7000 }, stops: [1800, 4300, 7000],
+    // (the stent opens in the third step, "Stent in": at 4100 it came in during "Needle across", before the stent had been placed)
+    T: { apply: 4500, back: 6500, end: 7000 }, stops: [1800, 4300, 7000], resultStep: 2,
     steps: [
       step('enter', 'Catheter in', 'A catheter passes through a vein of the neck or groin into the inferior vena cava.', 'In', 'DIPS'),
       step('needle', 'Needle across', 'A needle passes from the vena cava straight through the liver into the portal vein, so no hepatic vein is needed.', 'Needle', 'DIPS'),
@@ -56,7 +59,7 @@ export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   },
   dsrs: {
     name: 'Distal splenorenal shunt (DSRS)', label: 'DSRS', graft: true,
-    T: { apply: 3600, back: 6600, end: 7800 }, stops: [2000, 4200, 7800],
+    T: { apply: 3600, back: 6600, end: 7800 }, stops: [2000, 4200, 7800], resultStep: 1,
     steps: [
       step('expose', 'Splenic vein freed', 'At open surgery the splenic vein is freed from the pancreas and divided near its junction with the portal vein.', 'Freed', 'S_DSR'),
       step('sew', 'Joined to the renal vein', 'The splenic end is sewn to the left renal vein. The portal end is tied off.', 'Sewn', 'S_DSR'),
@@ -67,7 +70,7 @@ export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   },
   paracentesis: {
     name: 'Paracentesis', label: 'Paracentesis', graft: true, morph: true,
-    T: { apply: 2400, back: 6200, end: 7200 }, stops: [1600, 5000, 7200],
+    T: { apply: 2400, back: 6200, end: 7200 }, stops: [1600, 5000, 7200], resultStep: 1,
     steps: [
       step('needle', 'Needle in', 'A needle or catheter passes through the abdominal wall into the ascites, under ultrasound.', 'Needle', ''),
       step('drain', 'Fluid drains', 'The ascites drains. As the fluid leaves, the intra-abdominal pressure falls and the abdomen softens.', 'Drains', ''),

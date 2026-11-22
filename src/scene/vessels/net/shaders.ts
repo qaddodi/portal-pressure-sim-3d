@@ -41,6 +41,7 @@ import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
 import { SKIN_K } from '../skin/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { REGION_CAPS, REGION_PTS } from './regions.ts';
+import { SIDE_END_MIN, FLARE_K, FLARE_SPAN } from '../fork-joins.copied.js';
 import { BONE_TEXELS, BONES_PER_ROW } from './bones.ts';
 import { EDGE_LAYOUT } from './edge-state.ts';
 
@@ -65,7 +66,7 @@ const fetchOf = (name: string, row: string): string => { const s = slotOf(name);
 export const NET_VS_COLUMNS: readonly string[] = [
   'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
   'hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiFade', 'hiPx', 'hiEnds',
-  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse',
+  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse', 'sewn',
 ];
 export const NET_FS_COLUMNS: readonly string[] = [
   'tone', 'vindex', 'baseD', 'len', 'radius', 'lensIndex', 'lensUse', 'lensSpan', 'reveal', 'fade', 'flowAmount', 'smokeOn', 'dotted', 'hiColor', 'glowK', 'inkOn',
@@ -75,7 +76,7 @@ export const NET_FS_COLUMNS: readonly string[] = [
 /** What the network object must carry as plain uniforms (and the textures): one set for the whole network, never per vessel. WP4 builds the material's uniforms from this list; tests/net-shader.test.ts holds it to the shaders. */
 export const NET_GLOBALS: Readonly<Record<string, string>> = {
   // both stages
-  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
+  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', sewnTex: 'sampler2D', sewnRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
   // vertex stage
   circRot: 'vec2', circM: 'vec3', circTrackSize: 'vec2', circTrack: 'sampler2D', circBoost: 'float', circPerPx: 'float', ringSag: 'float',
   // fragment stage
@@ -106,6 +107,7 @@ attribute vec4 nrm1;
 attribute vec4 nrm2;
 uniform sampler2D boneTex;
 uniform sampler2D regionTex;
+uniform sampler2D sewnTex;     // the live lumen of each sewn end's host: (end 0, end 1) across, one row per edge (the sewn pass, NET_SEWN_VS)
 uniform sampler2D capTex;      // the live capsule points of every region: (centre, lumen), one texel per point, REGION_CAPS x REGION_PTS across, one row per region (the capsule pass, NET_CAP_VS)
 uniform sampler2D edgeTex;
 uniform sampler2D vdata;
@@ -181,6 +183,35 @@ mat3 frameTo(mat3 F, vec3 T) {
   float k = 1.0 / (1.0 + c);
   return mat3(T, F[1] * c + cross(ax, F[1]) + ax * (dot(ax, F[1]) * k), F[2] * c + cross(ax, F[2]) + ax * (dot(ax, F[2]) * k));
 }
+// A SEWN END (net/sewn.ts, 2D's sideEndScale / flareScale in fork-joins.copied.js): the tube runs on into its host, narrows to SIDE_END_MIN past the wall and flares at the heel, sized from the host's LIVE lumen (sewnTex, written once per frame by the same netBone).
+// The scale of the radius at distance d (the edge's own units) from the end, for a host of radius hostR; flags: 1 inside, 2 sink, 4 flare, 8 capped (a generated end's flare never takes the tube wider than its host: tubes.ts).
+float sewnNarrow(float d, float hostR) {
+  float sd = 0.6 * hostR;
+  if (!(sd > 0.0) || d >= sd) return 1.0;
+  float t = max(0.0, d) / sd;
+  return ${F(SIDE_END_MIN)} + (1.0 - ${F(SIDE_END_MIN)}) * t * t * (3.0 - 2.0 * t);
+}
+float sewnFlare(float d, float hostR) {
+  if (!(hostR > 0.0)) return 1.0;
+  float wall = 0.6 * hostR, t = clamp(1.0 - (d - wall) / (${F(FLARE_SPAN)} * hostR), 0.0, 1.0);
+  return 1.0 + ${F(FLARE_K)} * t * t * (3.0 - 2.0 * t);
+}
+float sewnCollar(float u, float arc, float lumen, int row) {
+  if (sewn.z < 0.5 && sewn.w < 0.5) return 1.0;
+  if (lumen < 1e-9) return 1.0;
+  float a = 1.0, n = 1.0, cap = 0.0;
+  for (int e = 0; e < 2; e++) {
+    int f = int((e == 0 ? sewn.z : sewn.w) + 0.5);
+    if (f == 0) continue;
+    float hostR = texelFetch(sewnTex, ivec2(e, row), 0).x, d = (e == 0 ? u : 1.0 - u) * arc;
+    float nar = ((f & 1) != 0 && (f & 2) == 0) ? sewnNarrow(d, hostR) : 1.0, fl = (f & 4) != 0 ? sewnFlare(d, hostR) : 1.0;
+    a *= nar * fl; n *= nar;
+    if ((f & 8) != 0 && (f & 4) != 0 && fl > 1.0) cap = max(cap, hostR);
+  }
+  float k = a;
+  if (cap > 0.0) k = min(a, max(n, cap / lumen));
+  return k;
+}
 struct NetBone { vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; float lumenRest; };
 int netRowLoaded = -1;   // (the edge row the globals hold now: a junction's capsules read their bones edge by edge, so most reads reuse it)
 // lite: only the bone's live centre and live lumen (the junction projection's capsules); the rest of the struct is not set
@@ -239,6 +270,7 @@ NetBone netBone(int bi, bool lite) {
   vec3 position = A.xyz;
   float rest = mix(A.w, M.w, circShare);   // (the course's own radius share: on the map not the body's tapers: rk and rkc)
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, A.w * swell * vU);
+  swell *= sewnCollar(u, mix(len, lenMap, circShare), rest * swell * presence, row);   // (a sewn end: the collar, sized from the host's live lumen)
   float narrowK = 1.0 - clamp(waistNarrow(waist, u), 0.0, 0.97);
   float lumen0W = rest * swell * presence;   // (before a stenosis or the stent's waist pinches it: the stent's cells are sized from it)
   float lumenW = lumen0W * narrowK;
@@ -665,6 +697,26 @@ void main() { gl_FragColor = vCapOut; }`;
 /** The point ids of the capsule pass: every (region, capsule, point) slot of `regions` regions, in texel order. */
 export const capPointIds = (regions: number): Float32Array => Float32Array.from({ length: regions * REGION_CAPS * REGION_PTS }, (_, i) => i);
 
+// ---- THE SEWN PASS: once per drawn frame, one point per (edge, end) writes the live lumen of that end's host (the host's bone read by the same netBone, lite) into sewnTex (RGBA32F, 2 wide, one row per edge). The sewn tube's collar reads it
+// (sewnCollar above), so the collar follows the host's live radius with one source for the radius rule and no read of a second edge's row in the middle of the first's.
+export const NET_SEWN_VS = /* glsl */ `${NET_VS_PRELUDE}
+attribute float sewnId;   // edge * 2 + end
+uniform float sewnRows;   // the render target's height: the number of edges
+varying float vHostLumen;
+void main() {
+  int id = int(sewnId + 0.5), row = id / 2, end = id - row * 2;
+  loadEdgeVS(row); netRowLoaded = row;
+  float hb = end == 0 ? sewn.x : sewn.y;
+  vHostLumen = hb >= 0.0 ? netBone(int(hb + 0.5), true).lumen : 0.0;
+  gl_PointSize = 1.0;
+  gl_Position = vec4((float(end) + 0.5) - 1.0, (float(row) + 0.5) / sewnRows * 2.0 - 1.0, 0.0, 1.0);
+}`;
+export const NET_SEWN_FS = /* glsl */ `
+varying float vHostLumen;
+void main() { gl_FragColor = vec4(vHostLumen, 0.0, 0.0, 1.0); }`;
+/** The point ids of the sewn pass: every (edge, end), in texel order. */
+export const sewnPointIds = (edges: number): Float32Array => Float32Array.from({ length: edges * 2 }, (_, i) => i);
+
 /** The programs this file gives the compile test (src/debug/gl-auto.ts): the figure's, its veil over the organs, the glow's mask and the inspector's. */
 export const GL_PROGRAMS = [
   { name: 'net vessel', vs: NET_VS, fs: NET_FS },
@@ -672,6 +724,7 @@ export const GL_PROGRAMS = [
   { name: 'net vessel GLOW', vs: NET_VS, fs: NET_FS, defines: { GLOW: 1 } },
   { name: 'net vessel (inspector)', vs: NET_VS, fs: NET_FS, defines: { VDBG: 1 } },
   { name: 'net capsules', vs: NET_CAP_VS, fs: NET_CAP_FS },
+  { name: 'net sewn hosts', vs: NET_SEWN_VS, fs: NET_SEWN_FS },
 ] as const;
 
 /** shaders.ts's sag for the mesher's ring (the uniform `ringSag`'s default): the mesher's RADIAL decides it, net/mesh.ts. */
