@@ -16,7 +16,7 @@ export interface GateSkin { node: string; mesh: SkinMesh; axes: readonly ArmAxis
 export interface GateStat { node: string; pixels: number; lumen: number; line: number; dropped: number; /** pixels whose outline the depth rule moved by more than a pixel */ held: number }
 
 /** The body's skins at rest, as the scene builds them (the baked file under node), and the scene whose camera draws them. */
-export function gateSkins(): { scene: CelScene; skins: GateSkin[]; done(): void } {
+export function gateSkins(): { scene: CelScene; skins: GateSkin[]; /** the parts of a node's skin (plain.ts partOf: the permanent arms and one set of the growing arms), by key */ partsOf(node: string): { key: string; skin: GateSkin; keep: readonly number[] }[]; set: SkinSet; plain(node: string): GateSkin | undefined; done(): void } {
   setSmoothJoins(true);
   const scene = new CelScene(), draws: GateSkin[] = [], parent = new Group();
   const set = new SkinSet({
@@ -26,7 +26,8 @@ export function gateSkins(): { scene: CelScene; skins: GateSkin[]; done(): void 
   });
   set.build(2);
   const live = new Set<unknown>(set.liveDraws());
-  return { scene, skins: draws.filter((d) => live.has(d)), done: () => (scene as unknown as { dispose?(): void }).dispose?.() };
+  const byDraw = new Map<unknown, GateSkin>(draws.map((d) => [d, d]));
+  return { scene, set, plain: (node) => { const d = set.plainDrawOf(node); return d ? byDraw.get(d) : undefined; }, skins: draws.filter((d) => live.has(d)), partsOf: (node) => [...set.partsOf(node)].map(([key, p]) => ({ key, skin: byDraw.get(p.draw)!, keep: p.keep })), done: () => (scene as unknown as { dispose?(): void }).dispose?.() };
 }
 
 /** An arm's exact 3D distance (skin/exact-normal.ts skinArmSd3): from the point to the arm's capsule over its four axis points, less the radius at the nearest. */
