@@ -6,7 +6,7 @@ import type { NetTone, Tier } from '../network.ts';
 /** One sample of an edge's centreline (a "bone"): its place in both poses (body, map), its rest radius in both, and the frame it is swept in. */
 export interface Bone { edge: number; u: number; pos: [Vec3, Vec3]; r: [number, number]; frame: [Vec3, Vec3, Vec3] /* t, n, b at body pose; map frame derived */ }
 /** A vessel's centreline between two nodes: `bones` is [first, count] in `Skeleton.bones`. */
-export interface SkelEdge { id: string; from: string; to: string; bones: [number, number] /* first, count */; tone: NetTone; tier: Tier }
+export interface SkelEdge { id: string; from: string; to: string; bones: [number, number] /* first, count */; tone: NetTone; tier: Tier; /** bones at [end 0, end 1] that nothing draws in either pose at rest (the body's fade and the Circuit's both leave them at alpha <= 0.02): the only bones WP2 may cull or cap. A lens, a selection or an opened collateral that lets a fade go is not read here. 0 where the Circuit draws the vessel whole (the down-the-figure tails) */ hidden: [number, number]; /** the same at the body pose alone (the Circuit may draw them): WP0 lays the body course freely inside it; never a reason to cull */ hiddenBody: [number, number] }
 /** A junction (or a free end): one position per pose. `edges` lists the edge ends that start or end exactly here; `runOn` the two of them (indices into `edges`) that carry on into one another. */
 export interface SkelNode { id: string; pos: [Vec3, Vec3]; edges: { edge: number; end: 0 | 1 }[]; runOn?: [number, number] }
 export interface Skeleton { nodes: SkelNode[]; edges: SkelEdge[]; bones: Bone[] }
