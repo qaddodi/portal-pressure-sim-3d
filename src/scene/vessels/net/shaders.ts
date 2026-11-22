@@ -70,7 +70,7 @@ export const NET_VS_COLUMNS: readonly string[] = [
 ];
 export const NET_FS_COLUMNS: readonly string[] = [
   'tone', 'vindex', 'baseD', 'len', 'radius', 'lensIndex', 'lensUse', 'lensSpan', 'reveal', 'fade', 'flowAmount', 'smokeOn', 'dotted', 'hiColor', 'glowK', 'inkOn',
-  'stump', 'seamA', 'seamB', 'stentU', 'wedge', 'wedgeD', 'circCap', 'solidK', 'veilK', 'quietK',
+  'stump', 'seamA', 'seamB', 'stentU', 'wedge', 'wedgeD', 'circCap', 'solidK', 'veilK', 'quietK', 'arcHost',
 ];
 
 /** What the network object must carry as plain uniforms (and the textures): one set for the whole network, never per vessel. WP4 builds the material's uniforms from this list; tests/net-shader.test.ts holds it to the shaders. */
@@ -579,6 +579,8 @@ void main() {
   vFade = vPackB.x; vCircShare = vPackB.y; circStay = vPackB.z; vHi = vPackB.w;
   vUv = vPackC.xy; vUvB = vPackC.z; vBlend = vPackC.w; vR0 = vPackD.x; vSkew = vPackD.y;
   loadEdgeFS(int(vEdge.x + 0.5));   // the dominant edge's state: the old shader's uniforms
+  float arcS = vUv.x * len + arcHost.x;   // the arc along the WHOLE vessel (a piece of a split host starts where the one before ends: no restart of the chevrons, the dust, the dashes at a join)
+  float lenH = arcHost.y > 0.0 ? arcHost.y : len;
   vec3 color = toneColor[int(tone + 0.5)];
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
   // THE DERIVATIVES, before any discard (see shaders.ts: a derivative after a discard is garbage on a device that drops the lane)
@@ -592,7 +594,7 @@ void main() {
   float nzD = 0.0, fwNz = 0.0;
   if (smokeOn > 0.5) {
     float driftD = time * 0.04;
-    nzD = vnoise(vec2(vUv.x * len * 5.0 + driftD * 6.0, acrossD * 3.0 + driftD)) * 0.65 + vnoise(vec2(vUv.x * len * 11.0 - driftD * 4.0, acrossD * 6.0)) * 0.35;
+    nzD = vnoise(vec2(arcS * 5.0 + driftD * 6.0, acrossD * 3.0 + driftD)) * 0.65 + vnoise(vec2(arcS * 11.0 - driftD * 4.0, acrossD * 6.0)) * 0.35;
     fwNz = fwidth(nzD);
   }
   vec3 cBody = vec3(0.0);
@@ -612,7 +614,7 @@ void main() {
   if (!gl_FrontFacing) discard;
   if (dotted > 0.5) {
     // a closed potential collateral: a dotted thread along the tube's axis, nothing round it
-    float dash = fract(vUv.x * len / 0.09);
+    float dash = fract(arcS / 0.09);
     if (dash > 0.45) discard;
   }
 
@@ -670,8 +672,8 @@ void main() {
   c = dbgBody(c, base, n);
 #endif
   // THE DUST (blood/dust-glsl.ts) is part of the tube: inside the lumen, following its alpha, under the chevrons
-  float sD = vUv.x * len * vU;
-  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU);
+  float sD = arcS * vU;
+  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, lenH * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU);
   fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere);
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
@@ -699,7 +701,7 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, 1.0, la, lb, color, base);
+  vec4 hd = flowHeads(across, acrossW, arcS * vU, lenH * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, 1.0, la, lb, color, base);
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);

@@ -617,6 +617,10 @@ export class CelScene {
   // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
   private net: NetFigure | null = null;
   private netFailOff: (() => void) | null = null;
+  /** The vessels the network draws: the ids of the skeleton's edges. The rest (fans of tributaries, liver branches, caudate veins, the splenic tree: no skeleton edge until WP5) keep drawing as today. */
+  private netIds: ReadonlySet<string> | null = null;
+  /** Whether the network figure draws this vessel (so its tube is hidden and its old fade is 0). */
+  netDraws(o: CelObject): boolean { return !!this.netIds && this.netIds.has(o.edge?.id ?? '') && this.byEdge.get(o.edge?.id ?? '') === o; }
   /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw).
    *  Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
   private async mountNet(): Promise<void> {
@@ -646,6 +650,7 @@ export class CelScene {
     if (!n) return;
     this.body.remove(n.group); n.dispose();
     for (const o of this.vessels) (o as VesselObject).setNetHidden(false);
+    this.netIds = null;
     this.pushFades(); this.moving = true;
   }
   /** Builds the figure from loaded network meshes (the page's `mountNet`, and a test, which hands the baked files it read from disk). */
@@ -663,7 +668,8 @@ export class CelScene {
       template: () => vo(NETWORK[0]!.id)!.toon.uniforms, tones: () => [first('portal'), first('sys'), first('artery')],
     }, behind);
     this.body.add(this.net.group);
-    for (const o of this.vessels) (o as VesselObject).setNetHidden(true);   // (the tubes hold the state and the picking; the network draws them)
+    this.netIds = new Set(edgeIds);
+    for (const o of this.vessels) if (this.netDraws(o)) (o as VesselObject).setNetHidden(true);   // (the tubes hold the state and the picking; the network draws them)
     this.stepNet();
     this.pushFades();
     this.moving = true; clock.invalidate('net');
@@ -1123,7 +1129,7 @@ export class CelScene {
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
-    if (forOld && this.net && this.byEdge.get(o.edge?.id ?? '') === o) f = 0;   // (?geom=net: the old tubes and the skins that follow their fade are not drawn: the network draws them)
+    if (forOld && this.net && this.netDraws(o)) f = 0;   // (?geom=net: the old tubes and the skins that follow their fade are not drawn: the network draws them)
     return f;
   }
   /**

@@ -50,7 +50,20 @@ test('the figure is at most 12 vessel draws and the old tubes are not drawn whil
   const { scene, net } = await figure();
   assert.ok(net.drawCalls <= 12, `${net.drawCalls} draws`);
   scene.update(16);
-  for (const o of scene.vessels) assert.equal((o as unknown as { toon: { visible: boolean } }).toon.visible, false, 'the tubes are hidden at the body pose');
+  const edgeIds = new Set(data!.skel.edges.map((e) => e.id.split('#')[0]!));
+  let hidden = 0, kept = 0;
+  for (const o of scene.vessels) {
+    const id = o.edge?.id ?? '', tube = (o as unknown as { toon: { visible: boolean } }).toon;
+    if (edgeIds.has(id)) { assert.equal(tube.visible, false, `${id} is a skeleton edge: the network draws it, its tube is hidden`); hidden++; }
+    else { assert.equal(tube.visible, true, `${id} is not in the skeleton (fans, liver branches, caudate veins, the splenic tree): it keeps drawing as today`); kept++; }
+  }
+  assert.ok(hidden > 50 && kept > 0, `${hidden} hidden, ${kept} kept: both kinds exist`);
+});
+
+test('the old fade follows the same rule: 0 for a vessel the network draws, untouched for one it does not', { skip }, async () => {
+  const { scene } = await figure();
+  const edgeIds = new Set(data!.skel.edges.map((e) => e.id.split('#')[0]!));
+  for (const o of scene.vessels) assert.equal(scene.netDraws(o), edgeIds.has(o.edge?.id ?? ''), o.edge?.id ?? '');
 });
 
 test('every edge row equals its vessel\'s uniforms, column by column (whole vessels exactly)', { skip }, async () => {
@@ -97,4 +110,29 @@ test('the organs-pass copy holds only the triangles of back vessels, and every v
 test('the old shaders are untouched: the figure adds no define or uniform to the tubes\' or the skins\' programs', async () => {
   const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
   assert.ok(!VESSEL_FS.includes('handOld') && !VESSEL_VS.includes('handOld'), 'the network program\'s own uniforms stay out of the old one');
+});
+
+test('a split host\'s pieces run on one arc: each piece starts where the one before ends, the chevrons, dust and dashes read that arc, a whole vessel is untouched', { skip }, async () => {
+  const { net } = await figure();
+  const sk = data!.skel, rows = net.rows, ve = rows.vessels;
+  assert.ok(NET_FS.includes('float arcS = vUv.x * len + arcHost.x;') && NET_FS.includes('flowHeads(across, acrossW, arcS * vU, lenH * vU,') && NET_FS.includes('sD = arcS * vU'), 'every phase reads the host arc (the end caps stay piece-local: circCap is remapped per piece)');
+  const byId = new Map<string, number[]>();
+  sk.edges.forEach((e, row) => { const id = e.id.split('#')[0]!; byId.set(id, [...(byId.get(id) ?? []), row]); });
+  let split = 0;
+  for (const [id, list] of byId) {
+    if (list.length < 2) { assert.deepEqual([...net.state.get(list[0]!, 'arcHost')], [0, 0], `${id}: a whole vessel keeps the default`); continue; }
+    split++;
+    const host = ve[list[0]!]!, hostLen = net.state.get(list[0]!, 'arcHost')[1]!;
+    assert.ok(hostLen > 0, `${id}: the host's length is written`);
+    let at = 0;
+    list.forEach((row, i) => {
+      const a = net.state.get(row, 'arcHost'), len = net.state.get(row, 'len')[0]!;
+      assert.ok(Math.abs(a[1]! - hostLen) < 1e-6 * hostLen, `${id}#${i}: one host length`);
+      if (i > 0) assert.ok(Math.abs(a[0]! - at) < 1e-5 * hostLen, `${id}#${i}: starts at ${at}, has ${a[0]}`);
+      else assert.ok(Math.abs(a[0]!) < 1e-9 || host.h0 === 0, `${id}: the first piece starts the arc`);
+      at = a[0]! + len;
+    });
+    assert.ok(Math.abs(at - hostLen) < 1e-4 * hostLen, `${id}: the pieces end where the host does (${at} vs ${hostLen})`);
+  }
+  assert.ok(split >= 5, `${split} split hosts`);
 });

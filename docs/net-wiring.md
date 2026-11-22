@@ -24,7 +24,8 @@ The network draws the whole picture at every t, the Circuit's change included; i
 - GLSL never executed (no GPU here). Pushed, not yet seen.
 - No crossing-shadow program and no second draw for both-sides-blendable crossings.
 - Glow mask and picking stay on the old tubes. Stent waist narrowing and WP5's dynamic shapes are not driven (the clamp waist is, `waistOf`).
-- Chevron and dust phase restart at the 7 piece joins (needs an arc-offset column).
+- Chevron, dust and dash phase run on the host's arc across the 7 piece joins (`arcHost` column, `arcS` in the fragment stage).
+- A vessel with no skeleton edge (fans of tributaries, liver branches, caudate veins, the splenic tree) is not hidden: it keeps drawing as the old tube until WP5 (`CelScene.netDraws`).
 - Wide-junction keys are not in the shader (WP3).
 
 `scripts/net-compare.mjs --out <dir>` renders today's tubes and skins beside the net meshes at rest (the oracle, not the GPU) from one camera.
