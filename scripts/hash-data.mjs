@@ -11,7 +11,10 @@ import { fileURLToPath } from 'node:url';
 /** The data files the page fetches by name (relative to the site's root). A name missing from the build is skipped (a bake that failed); one present but named by no chunk is an error. */
 export const DATA_FILES = ['anatomy/organs-baked.bin', 'anatomy/skins.bin', 'anatomy/circuit-skins.bin', 'anatomy/organs.bin', 'anatomy/organ-art.json'];
 
-/** Moves each data file of `dist` to assets/<stem>-<hash><ext> and rewrites the chunks that name it. Returns old name -> new name. */
+/** Moves each data file of `dist` to assets/<stem>-<hash><ext> and rewrites the chunks that name it. Returns old name -> new name.
+ * @param {string} dist
+ * @param {string[]} [files]
+ * @returns {Record<string, string>} */
 export function hashData(dist, files = DATA_FILES) {
   const assets = join(dist, 'assets');
   mkdirSync(assets, { recursive: true });

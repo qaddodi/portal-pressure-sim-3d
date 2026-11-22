@@ -128,7 +128,7 @@ test('a rung with a load reads it before its slot and runs inside the slot with 
   assert.deepEqual(log, ['load', 'slot', 'run:[1,2]']);
   log.length = 0;
   await runLadder(rungs, (go) => go(), { lowData: () => true, time: (_id, fn) => fn() });
-  assert.deepEqual(log, [], 'under Save-Data nothing is fetched');
+  assert.equal(log.length, 0, 'under Save-Data nothing is fetched');
   // a load that fails leaves the rung for its first use and the next one runs
   const ran = await runLadder([{ id: 'bad', load: () => Promise.reject(new Error('no')), run: () => { log.push('never'); } }, { id: 'ok', run: () => { log.push('ok'); } }], (go) => go(), { lowData: () => false, time: (_id, fn) => fn() });
   assert.deepEqual(ran, ['ok']); assert.deepEqual(log, ['ok']);
