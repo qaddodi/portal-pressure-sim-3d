@@ -140,7 +140,8 @@ test('the tamponade tube goes in, fills the gastric balloon, then the esophageal
     if (adv0 < 0 && Number(t.state.adv) === 0) adv0 = i;
   }
   assert.ok(eso0 >= 0 && eso0 < gas0 && gas0 < adv0, `down in order: ${eso0} ${gas0} ${adv0}`);
-  assert.equal(t.group.visible, false);
+  // (a container is never switched, device-object.ts: what is let down is every part asked to go; that they then fade out and leave the draw list is tests/device-presence.test.ts)
+  assert.ok([t.tube, t.gas, t.eso, ...t.marks, t.pullLine, t.pullHead].every((o) => !o.wanted), 'every part is asked to go once the tube is out');
   s.dispose();
 });
 
