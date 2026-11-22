@@ -73,7 +73,8 @@ export interface SolveInput {
   lines?: readonly (readonly [number, number, number, number])[];
   /** Discs of vessels seen end-on (a portal venule's, a central vein's): a label never stands on one nor does a leader run across one, except the item that names it (`id`); 2D's lobule keeps the same (lobule-tract-labels.js fanCost). */
   keep?: readonly { id: string; x: number; y: number; r: number }[];
-  /** A cost for each vessel line a label's leader crosses (past the vessel the dot stands on), up to four: a name never hangs from a long leader drawn across the sinusoids when it could stand clear (Circuit, phone and iPad, 20 Nov). 0 or absent: none. */
+  /** Set (above 0): a label's leader never crosses a vessel line (past the vessel the dot stands on): a name stands beside its vessel or on a leader with a clear route, never on one drawn across the sinusoids
+   *  (Circuit, phone and iPad, 20 and 22 Nov: "Middle hepatic vein" hung from a diagonal leader across the ovals). A rule, not a cost: only a `must` label's last resort (relax 2) may cross, at this cost per line, up to four. 0 or absent: none. */
   leaderLineCost?: number;
   /** A diagnostic (`?capwhy`): filled with, for each item, how many of its near spots (cost under 20) each rule threw out, and who the label or dot in the way was. */
   why?: Map<string, Record<string, number>>;
@@ -294,6 +295,7 @@ export function solve(input: SolveInput): Solved {
               const k = Math.min(1, ((it.vw ?? 0) + 4) / len), from: Seg = [seg[0] + (seg[2] - seg[0]) * k, seg[1] + (seg[3] - seg[1]) * k, seg[2], seg[3]];
               let n = 0;
               for (const l of lines) if (segsCross(from, [l[0], l[1], l[2], l[3]])) n++;
+              if (n > 0 && relax < 2) { no(c, 'leaderLine'); continue; }
               pen += leaderLineCost * Math.min(n, 4);
             }
             for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; no(c, 'leaderCard'); break; }

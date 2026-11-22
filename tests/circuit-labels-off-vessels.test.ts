@@ -7,6 +7,7 @@ import { buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
 import { CIRCUIT_D, CIRCUIT_NODES, LANE_CAPTIONS } from '../src/scene/circuit/data.copied.ts';
 import { courseOf } from '../src/scene/circuit/paths.ts';
 import { solve } from '../src/scene/labels/solver.ts';
+import { nearestOn, segsCross } from '../src/scene/labels/geometry.ts';
 
 const S = 0.7, OX = 40, OY = 20;
 const ctx = (over: Partial<CapCtx> = {}): CapCtx => ({
@@ -57,7 +58,16 @@ test('on the map, the stations\' names stand off the vessels (19 before: the den
     const box = { x0: it.ax + p.dx, y0: it.ay + p.dy, x1: it.ax + p.dx + p.w, y1: it.ay + p.dy + p.h };
     if (ln.some((l) => crosses(l, box))) on.push(p.id);
   }
-  assert.ok(on.length <= 10, `on a vessel: ${on.join(', ')}`);
+  // (22 Nov: a leader never crosses a vessel, so a name whose only clear spot lay behind one now stands beside its vessel, on the lines round it, where 8 stood clear on a leader across them: the dense
+  // left side keeps these, the leaders are the ones the owner saw run across the sinusoid ovals)
+  assert.ok(on.length <= 16, `on a vessel: ${on.join(', ')}`);
+  for (const p of out.placed) {
+    if (!p.leader) continue;
+    const it = byId.get(p.id)!, [px, py] = nearestOn({ x0: it.ax + p.dx, y0: it.ay + p.dy, x1: it.ax + p.dx + p.w, y1: it.ay + p.dy + p.h }, it.ax, it.ay);
+    const len = Math.hypot(px - it.ax, py - it.ay), k = Math.min(1, ((it.vw ?? 0) + 4) / len);
+    const from: [number, number, number, number] = [it.ax + (px - it.ax) * k, it.ay + (py - it.ay) * k, px, py];
+    assert.deepEqual(ln.filter((l) => segsCross(from, l)).length, 0, `${p.id}'s leader crosses a vessel`);
+  }
 });
 
 test('no station caption is a number alone: every form of it carries its name', () => {
