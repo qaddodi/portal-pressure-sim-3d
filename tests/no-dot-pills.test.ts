@@ -78,3 +78,42 @@ test('no chart frame draws a capsule (a rectangle rounded to half its height) ro
   for (const f of frames) readFileSync(f, 'utf8').split('\n').forEach((l, i) => { if (/k: 'rect'/.test(l) && /\br: [^,}]*\/ 2/.test(l) && !/\/\/ ?\(capsule ok/.test(l)) bad.push(`${f}:${i + 1}`); });
   assert.deepEqual(bad, [], 'a capsule: draw the words alone in their colour (docs/HUMANIZED-DESIGN.md section 0)');
 });
+
+// Small round marks (a dot bullet, a hollow ring before words, a numbered circle, a row of pips): any rule that rounds a box of 26 px or less to a circle on a class the app makes.
+// Each is either listed here as a control or a figure mark with its reason, or it is retired (humanized.css must name it). A new one fails.
+const ROUND_ALLOWED: Record<string, string> = {
+  '.cl-lead-dot': 'the callout leader\'s anchor on the figure', '.ac-switch': 'on/off switch knob', '.switch': 'on/off switch knob', '.switch-vis': 'on/off switch knob',
+  '.sh-sw': 'on/off switch knob', '.mt-sw': 'on/off switch knob', '.sl-start': 'slider thumb', '.info-i': 'the info button\'s "i"', '.look-spin': 'a spinner',
+  '.sh-waitcue': 'a spinner', '.pz-prail-dot': 'the owner-picked step rail (mock A)', '.pz-prail-at': 'the step rail\'s play button (mock A)', '.sh-toast': 'excluded: the notes redesign',
+};
+const ROUND_RETIRED = ['.pzc-c', '.pz-nm', '.pzk-n', '.ms-dot', '.hvpg-steps', '.instr-tab', '.tr-pips', '.dk-obj'];
+const px = (v: string): number | null => { const m = /^([\d.]+)(px|em)$/.exec(v.trim()); return m ? (m[2] === 'px' ? +m[1]! : +m[1]! * 14) : null; };
+
+test('no small round mark (dot bullet, ring, numbered circle, pip) the app makes is drawn, except the listed controls and figure marks', () => {
+  const bad: string[] = [];
+  for (const f of cssFiles.filter((x) => !x.endsWith('humanized.css'))) {
+    const css = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const body = m[2]!;
+      if (!/border-radius:\s*(50%|999px|var\(--r-pill\))/.test(body)) continue;
+      const w = /(?:^|[;\s])width:\s*([^;]+)/.exec(body), h = /(?:^|[;\s])height:\s*([^;]+)/.exec(body);
+      const W = w ? px(w[1]!) : null, H = h ? px(h[1]!) : null;
+      if (W == null || H == null || W > 26 || H > 26) continue;
+      for (const sel of m[1]!.split(',')) {
+        const cls = [...sel.replace(/::?[\w-]+(\([^)]*\))?/g, '').matchAll(/\.([A-Za-z][\w-]*)/g)].map((c) => c[1]!);
+        const last = cls[cls.length - 1];
+        if (!last || !made(last)) continue;
+        if (cls.some((c) => `.${c}` in ROUND_ALLOWED) || ROUND_RETIRED.some((r) => cls.includes(r.slice(1)))) continue;
+        bad.push(`${sel.trim().slice(0, 70)} (${f})`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'a round mark beside words: say the state in words (docs/HUMANIZED-DESIGN.md section 0), strip it in humanized.css and list it in ROUND_RETIRED, or list it in ROUND_ALLOWED with its reason');
+});
+
+test('humanized.css strips every retired round mark', () => {
+  const css = readFileSync('src/ui/humanized.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const r of ROUND_RETIRED.filter((x) => x !== '.dk-obj')) assert.ok(css.includes(r), `${r} is not stripped in humanized.css`);
+  assert.doesNotMatch(readFileSync('src/ui/deck-ui.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''), /\.dk-obj li::before/, 'the title card has no dot bullets');
+  assert.doesNotMatch(readFileSync('src/ui/trials/TrialsPane.tsx', 'utf8'), /<i key=\{i\} className=\{c\} \/>/, 'the trial rows have no pips');
+});

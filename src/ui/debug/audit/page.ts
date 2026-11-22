@@ -2,6 +2,7 @@
 // its progress and its result to the outer page, outer.ts). Loaded only when the address asks (debug/mount.ts); nothing runs until a button, or the frame's start.
 import { bootDigest } from '../../../boot/digest.ts';
 import { runAudit } from './run.ts';
+import { startBlockWatch } from '../../../boot/longtasks.ts';
 import { plan, planTotal, startTaps, settle, QUIET_MS } from './app.ts';
 import { pace } from './progress.ts';
 import { loadAllDecks } from '../page/live.ts';
@@ -32,6 +33,7 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
   if (speed > 1) notes.push(`SPEED x${speed}: the page's clock ran ${speed} times faster (clock.now, every clock.after wait and every CSS animation), so frame rates are not valid (stalls are: they are real-time gaps); fades, settle times, layout and words are.`);
   const glassOff = flagValue('noglass') === '1';
   if (glassOff) { document.documentElement.setAttribute('data-noglass', ''); notes.push('NOGLASS: the frosted-glass blur was off for this run (&noglass=1). Compare its talk-open frame rates with a normal run to see what the glass costs.'); }
+  startBlockWatch();   // (Safari has no long-task observer: a 4 ms timer that is late says a block held the thread, and the marks say what ran; the digest at the end lists them)
   clock.setScale(speed);   // (one number: every tween, wait and reader of clock.now() follows)
   const taps = startTaps(window, speed);
   const total = planTotal(depth);

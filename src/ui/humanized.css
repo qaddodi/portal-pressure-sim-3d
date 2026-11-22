@@ -50,3 +50,24 @@ html:root .fr-pillnote { padding-inline: 0; border-radius: 0; background: none; 
 html:root .sv-legend { padding: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; font-weight: 600; color: color-mix(in srgb, var(--albumin-line, var(--albumin)) 80%, var(--text)); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
 html:root .sv-legend::before, html:root .sv-legend::after { display: none; }
 html:root .sv-legend i.alb { display: none; }
+
+/* ── criteria rows: no hollow or filled circle before a rule (2D app-11 .pzc-c::before); the row that fits the case is bold, and an ordered list keeps its numerals ── */
+html:root .pz-crit:not(.has-cut):not(.ordered) .pzc-row:not(.pzc-hrow) .pzc-c::before { content: none; }
+/* a "none" in a table cell (.pz-nm was a hollow ring): a quiet dash */
+html:root .pz-nm { width: auto; height: auto; border: 0; border-radius: 0; vertical-align: baseline; color: var(--text-3); }
+html:root .pz-nm::before { content: "–"; }
+/* the key's numbered ring (.pzk-n): the numeral alone */
+html:root .pzk-n { width: auto; height: auto; border: 0; border-radius: 0; }
+
+/* ── numbered step circles (.ms-dot of the HVPG steps, .hvpg-steps li::before, the instrument tabs' order badge): the numeral in the accent's ink, bold where it is the step now ── */
+html:root .ms-dot { width: auto; height: auto; border: 0; border-radius: 0; display: inline; font-size: inherit; }
+html:root .ms-fill { display: none; }
+html:root .ms-dot b { color: var(--text-3); font-variant-numeric: tabular-nums; transition: color var(--d-small) var(--ease); }
+html:root .mon-steps li:is([data-state="now"], [data-state="done"]) .ms-dot b { color: var(--accent-ink); }
+html:root .mon-steps li[data-state="now"] { color: var(--text); font-weight: 600; }
+html:root .hvpg-steps li::before { width: auto; height: auto; border: 0; border-radius: 0; background: none; font-size: inherit; }
+html:root .hvpg-steps li[data-state="done"]::before { background: none; }
+html:root .instr-tab[data-slot="1"]::after, html:root .instr-tab[data-slot="2"]::after { width: auto; height: auto; top: -2px; right: 1px; border-radius: 0; background: none; color: var(--accent-ink); font: 700 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+
+/* ── a trial's key rules (.tr-pips were a row of rings): "3 of 4 rules" in words ── */
+html:root .tr-pips { gap: 0; font: 600 12px/1.3 var(--font-ui); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 8px; }
