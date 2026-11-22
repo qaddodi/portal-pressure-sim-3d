@@ -36,7 +36,7 @@ export class Bands {
       writeRings(g, rings, WIRE_SIDES);
       // 2D's band is a plain 2.4 px stroke in --dev-platinum, no outline (app-02-controls.css .band-ring): no edge, and no growth beyond the stroke's own width
       const o = new DeviceObject(g, 'platinum', shared, { px: 0, order: 5, fat: 0 }, 'none');
-      o.group.visible = false;
+      o.park();
       this.rings.push(o); this.group.add(inVesselPass(o.group));
     }
   }
@@ -55,8 +55,7 @@ export class Bands {
     for (let i = 0; i < BANDS_MAX; i++) {
       const a = Math.min(1, Math.max(0, next - i));
       const o = this.rings[i]!;
-      o.group.visible = a > 0.002;
-      if (o.group.visible) o.setAlpha(a);
+      o.present(); o.setAlpha(a);   // (the band's own fade, `next - i`, is its alpha: one fade)
     }
     return moved && next !== this.goal;
   }
