@@ -105,9 +105,9 @@ export class AscitesLayer {
   }
   /** The back sheet is drawn while there is water and the living switch is not fully off (off is 2D's flat pool: nothing behind it). */
   private syncBack(): void { this.back.visible = this.fill.visible && this.uniforms.uLiving.value > 0.002; }
-  /** The body's reach from the belly's plane (hullThickness of the shown volume and the laid radius) times the living share: it swells and shrinks with the volume's spring and glides flat with the switch. */
+  /** The body's reach from the belly's plane (hullThickness of the laid radius, which follows the shown volume) times the living share: it swells and shrinks with the volume's spring and glides flat with the switch. */
   private applyThick(): void {
-    const th = hullThickness(this.lastMl, this.hull.radius, 1), live = this.uniforms.uLiving.value;
+    const th = hullThickness(this.hull.radius, 1), live = this.uniforms.uLiving.value;
     this.thick.tf = th.tf * live; this.thick.tb = th.tb * live;
     this.uniforms.uTf.value = this.thick.tf; this.uniforms.uTb.value = this.thick.tb; this.uniforms.uR.value = this.hull.radius;
   }
@@ -137,10 +137,8 @@ export class AscitesLayer {
   private levelH = 0;
   /** The wall's bulge in 2D units shown now (the bowel floats up with it: bowel group moves by 26/34 of it). */
   bulge = 0;
-  private lastMl = 0;
   /** `ml` is the shown (sprung) volume. Returns true when the picture changed. */
   set(ml: number): boolean {
-    this.lastMl = ml;
     const fade = poolFade(ml), step = bulgeStep(ml);
     this.bulge = step / 2;
     const { h, amp } = fluidLevel(ml);
