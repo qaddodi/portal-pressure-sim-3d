@@ -16,7 +16,12 @@ if (process.argv.includes('--net')) {
   const { presetSwells } = await import('./net-states.mjs');
   const skel = skeleton(), digest = skeletonDigest(skel), states = await presetSwells(skel);   // (the real states: the wide junctions' keys, net/keys.ts)
   mkdirSync(fileURLToPath(new URL('../public/anatomy/', import.meta.url)), { recursive: true });
+  // cached by digest: a file that is for THIS skeleton and newer than every source the mesher reads is kept (the page never meshes, so a stale file is never laid in; a fresh checkout has none and bakes once)
+  const { readFileSync, statSync, readdirSync } = await import('node:fs'), { gunzipSync } = await import('node:zlib');
+  const srcNewest = Math.max(...['../src/scene/vessels/net/', '../src/scene/vessels/skin/'].flatMap((d) => readdirSync(fileURLToPath(new URL(d, import.meta.url))).filter((f) => f.endsWith('.ts')).map((f) => statSync(fileURLToPath(new URL(d + f, import.meta.url))).mtimeMs)), statSync(fileURLToPath(import.meta.url)).mtimeMs);
+  const fresh = (file) => { try { const b = gunzipSync(readFileSync(file)), dl = b.readUInt32LE(16), d = b.subarray(20, 20 + dl).toString(); return d === digest && statSync(file).mtimeMs >= srcNewest; } catch { return false; } };
   networksOf(skel).forEach((edges, n) => {
+    if (fresh(fileURLToPath(new URL(`../public/anatomy/net-${n}.bin`, import.meta.url))) && !process.argv.includes('--force')) { console.log(`net-${n}.bin: current (digest ${digest}), kept`); return; }
     const t0 = Date.now(), r = buildNetMesh(skel, edges, { states, maps: true });
     const gz = gzipSync(Buffer.from(encodeNet(r.mesh, digest, r.nodes)), { level: 9 });
     writeFileSync(fileURLToPath(new URL(`../public/anatomy/net-${n}.bin`, import.meta.url)), gz);
