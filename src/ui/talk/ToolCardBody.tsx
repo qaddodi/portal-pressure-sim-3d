@@ -43,6 +43,7 @@ import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
 import { SaagCard } from '../charts/saag/SaagCard.tsx';
 import { EvGraphCard } from '../charts/evgraph/EvGraphCard.tsx';
+import { evRunFor } from '../charts/evgraph/live.ts';
 import { eventGraphOf } from '../charts/evgraph/model.ts';
 import { evBounds } from '../charts/evgraph/data.ts';
 import { fitTrial, metricsOfFp, trialOf } from '../charts/trial/model.ts';
@@ -152,7 +153,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={fitFor(tool, fp, params, fpOf, results, copied.slides as CopiedSlide[])} head /> : null;
     case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} />;
     case 'saag': return <SaagCard rows={(((tool.of ?? cs.of) as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} room={room} />;
-    case 'evgraph': return <EvGraph cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
+    case 'evgraph': return <EvGraph runKey={`${deck.id}/${slide.id}`} cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
     case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
     case 'forest': return <ForestCard ids={(tool.ids as string[] | undefined) ?? []} />;
     case 'stiffness': return <StiffCard lsm={(fp?.lsm as number | null | undefined) ?? null} plt={(fp?.plt as number | null | undefined) ?? null} note />;
@@ -226,10 +227,11 @@ function FlowTime({ deck, slide, i, tool, trail }: { deck: Deck; slide: Slide; i
 }
 
 /** A procedure's graph: the two readings before the change and where the slide's settled state ends them. */
-function EvGraph({ cs, fp, before, opened }: { cs: CopiedSlide; fp: Fp | null; before?: { fp: Fp }; opened: Fp | null }) {
+function EvGraph({ runKey, cs, fp, before, opened }: { runKey: string; cs: CopiedSlide; fp: Fp | null; before?: { fp: Fp }; opened: Fp | null }) {
   const spec = useMemo(() => eventGraphOf(cs as never), [cs]);
   const b = spec && fp ? evBounds(spec, opened as never, { fp: fp as never, before: before as never }) : null;
-  return spec && b ? <EvGraphCard spec={spec} before={b.before} end={b.end} /> : null;
+  const run = useMemo(() => (spec ? evRunFor(runKey, spec) : null), [runKey, spec]);   // (the procedure link feeds it once the change is made: ui/deck/procs-link.ts)
+  return spec && b ? <EvGraphCard spec={spec} before={b.before} end={b.end} run={run} /> : null;
 }
 
 /** The change-from-healthy chart: one chart over the deck's states, a state's slot once its slide is reached. */
