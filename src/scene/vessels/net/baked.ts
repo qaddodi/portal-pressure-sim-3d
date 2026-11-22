@@ -1,5 +1,5 @@
 // The baked network mesh file (public/anatomy/net-<n>.bin, gzip): written by `node scripts/bake-skins.mjs --net` at build time, so the page meshes nothing at load. One file per network (mesh.ts `networksOf`).
-// Layout (little endian): u32 magic 'NETM', u32 version, u32 vertices V, u32 index length I, u32 digest length D; D bytes of digest (padded to 4); f32 position[3V]; u16 bone[4V] (padded to 4 bytes); f32 weight[4V]; f32 offset[12V]; f32 normal[12V]; u32 index[I]; f32 offsetMap[12V]. (Version 3: the map-pose fit, net/fit.ts.)
+// Layout (little endian): u32 magic 'NETM', u32 version, u32 vertices V, u32 index length I, u32 digest length D; D bytes of digest (padded to 4); f32 position[3V]; u16 bone[4V] (padded to 4 bytes); f32 weight[4V]; f32 offset[12V]; f32 normal[12V]; u32 index[I]; f32 offsetMap[12V]; u32 edges E; f32 bakeScale[E]. (Version 3: the map-pose fit, net/fit.ts, and the bake radius factors, ranges.ts.)
 import type { NetMesh, Skeleton } from './types.ts';
 
 const MAGIC = 0x4d54454e, VERSION = 3;
@@ -19,7 +19,7 @@ export function skeletonDigest(skel: Skeleton): string {
 const pad4 = (n: number): number => (n + 3) & ~3;
 export function encodeNet(m: NetMesh, digest: string): ArrayBuffer {
   const V = m.position.length / 3, I = m.index.length, d = new TextEncoder().encode(digest);
-  const head = 20, dEnd = head + pad4(d.length), pEnd = dEnd + 12 * V, bEnd = pEnd + pad4(8 * V), wEnd = bEnd + 16 * V, oEnd = wEnd + 48 * V, nEnd = oEnd + 48 * V, iEnd = nEnd + 4 * I, total = iEnd + 48 * V;
+  const head = 20, dEnd = head + pad4(d.length), pEnd = dEnd + 12 * V, bEnd = pEnd + pad4(8 * V), wEnd = bEnd + 16 * V, oEnd = wEnd + 48 * V, nEnd = oEnd + 48 * V, iEnd = nEnd + 4 * I, E = m.bakeScale?.length ?? 0, total = iEnd + 48 * V + 4 + 4 * E;
   const buf = new ArrayBuffer(total), dv = new DataView(buf);
   dv.setUint32(0, MAGIC, true); dv.setUint32(4, VERSION, true); dv.setUint32(8, V, true); dv.setUint32(12, I, true); dv.setUint32(16, d.length, true);
   new Uint8Array(buf, head, d.length).set(d);
@@ -30,6 +30,8 @@ export function encodeNet(m: NetMesh, digest: string): ArrayBuffer {
   new Float32Array(buf, oEnd, 12 * V).set(m.normal);
   new Uint32Array(buf, nEnd, I).set(m.index);
   new Float32Array(buf, iEnd, 12 * V).set(m.offsetMap);
+  dv.setUint32(iEnd + 48 * V, E, true);
+  if (m.bakeScale) new Float32Array(buf, iEnd + 48 * V + 4, E).set(m.bakeScale);
   return buf;
 }
 export function decodeNet(buf: ArrayBuffer): { digest: string; mesh: NetMesh } | null {
@@ -37,9 +39,11 @@ export function decodeNet(buf: ArrayBuffer): { digest: string; mesh: NetMesh } |
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== MAGIC || dv.getUint32(4, true) !== VERSION) return null;
   const V = dv.getUint32(8, true), I = dv.getUint32(12, true), D = dv.getUint32(16, true), head = 20, dEnd = head + pad4(D), pEnd = dEnd + 12 * V, bEnd = pEnd + pad4(8 * V), wEnd = bEnd + 16 * V, oEnd = wEnd + 48 * V, nEnd = oEnd + 48 * V, iEnd = nEnd + 4 * I;
-  if (buf.byteLength !== iEnd + 48 * V) return null;
+  if (buf.byteLength < iEnd + 48 * V + 4) return null;
+  const E = dv.getUint32(iEnd + 48 * V, true);
+  if (buf.byteLength !== iEnd + 48 * V + 4 + 4 * E) return null;
   return {
     digest: new TextDecoder().decode(new Uint8Array(buf, head, D)),
-    mesh: { position: new Float32Array(buf.slice(dEnd, pEnd)), bone: new Uint16Array(buf.slice(pEnd, pEnd + 8 * V)), weight: new Float32Array(buf.slice(bEnd, wEnd)), offset: new Float32Array(buf.slice(wEnd, oEnd)), normal: new Float32Array(buf.slice(oEnd, nEnd)), index: new Uint32Array(buf.slice(nEnd, iEnd)), offsetMap: new Float32Array(buf.slice(iEnd)) },
+    mesh: { position: new Float32Array(buf.slice(dEnd, pEnd)), bone: new Uint16Array(buf.slice(pEnd, pEnd + 8 * V)), weight: new Float32Array(buf.slice(bEnd, wEnd)), offset: new Float32Array(buf.slice(wEnd, oEnd)), normal: new Float32Array(buf.slice(oEnd, nEnd)), index: new Uint32Array(buf.slice(nEnd, iEnd)), offsetMap: new Float32Array(buf.slice(iEnd, iEnd + 48 * V)), bakeScale: new Float32Array(buf.slice(iEnd + 48 * V + 4)) },
   };
 }

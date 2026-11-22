@@ -14,6 +14,7 @@ import { SHEET_CUT_R } from '../skin/sheet.ts';
 import { throughNeck } from './neck.ts';
 import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
+import { bakeScaleOf } from './ranges.ts';
 import { flareScale, sideEndScale } from '../fork-joins.copied.js';
 import type { SkinArm, SkinCut, SkinJunction } from '../skin/types.ts';
 import type { Vec3 } from '../../anatomy/vessels.ts';
@@ -33,11 +34,11 @@ export const MAX_ARMS = 8;
 const PLAN_REACH = 24;
 /** The vessels that do not take part in a fillet (their width changes threefold with the case or they come and go): the collaterals and the procedure shunts. Until WP0 flags them on the edge this is the list. */
 const SEWN_VESSEL = /^(C\d+[ab]?|TIPS|DIPS|S_PC|S_DSR|S_MC|REX)$/;
-/** A shunt whose start runs on from a divided vein is not sewn there (shunt-ends.ts ROWS: inside false); it stays an arm. */
-const RUNS_ON_AT_START = new Set(['S_PC', 'S_DSR']);
-const isSewnEnd = (edgeId: string, end: 0 | 1): boolean => { const base = edgeId.split('#')[0]!; return SEWN_VESSEL.test(base) && !(end === 0 && RUNS_ON_AT_START.has(base)); };
+const isSewnEnd = (edgeId: string, _end: 0 | 1): boolean => SEWN_VESSEL.test(edgeId.split('#')[0]!);
 /** 2D sinks the end 0.4 of the host's radius short of its centreline; the extension past the end bone is capped at this many host radii. */
 const SEWN_SHORT = 0.4, SEWN_MAX_EXTRA = 0.8;
+/** A buried ring keeps this share of the host's radius off its wall (the ink's width, with room) and is never narrower than SEWN_MIN_R of it. */
+const SEWN_INK = 0.06, SEWN_MIN_R = 0.03;
 const scratch7 = new Float64Array(7);
 
 /** A free vertex with exactly three triangles around it is a cap the skin builder's remesh leaves (a pinhole of three slivers): the three become one triangle on its three neighbours, same winding. Repeats until none is left. */
@@ -113,7 +114,14 @@ export function networksOf(skel: Skeleton): number[][] {
 
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
 export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean }): NetMeshResult {
-  return buildOnce(skel, edges, opts);
+  // The mesh is baked at each arm's MIDDLE radius (ranges.ts: the geometric mean of its swell range), so the fillets' fixed triangles are within the least ratio of every state: the bones' radii are scaled by their edge's factor for the build.
+  // The offsets are divided by those radii, so a tube is unchanged (its unit offsets times the live radius); `bakeScale` tells the shader's junction start to take the factor too (lumenRest x bakeScale).
+  const bakeScale = new Float32Array(skel.edges.length).fill(1);
+  skel.edges.forEach((e, i) => { bakeScale[i] = bakeScaleOf(e.id); });
+  const scaled: Skeleton = bakeScale.every((g) => g === 1) ? skel : { ...skel, bones: skel.bones.map((b) => { const g = bakeScale[b.edge]!; return g === 1 ? b : { ...b, r: [b.r[0] * g, b.r[1] * g] as [number, number] }; }) };
+  const res = buildOnce(scaled, edges, opts);
+  res.mesh.bakeScale = bakeScale;
+  return res;
 }
 
 function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean } | undefined): NetMeshResult {
@@ -133,21 +141,22 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   // SEWN ENDS (review doc, "Rulings on WP3": fillets only for arms with a narrow range of swell). A collateral, a procedure shunt or anything with presence does not take part in a junction: its end sinks past the host's wall with 2D's own
   // collar (sideEndScale, flareScale) in the same mesh. The node the host passes through keeps its host edges only, so it is a run-on, a step or a junction of the permanent arms alone. A node with fewer than two other edges (no host) keeps them all.
   const endBoneOf = (edge: number, end: 0 | 1): number => { const [first, count] = skel.edges[edge]!.bones; return first + (end === 0 ? 0 : count - 1); };
-  const sewn = new Map<string, { hostR: number; extra: number; node: string }>();
+  const sewn = new Map<string, { hostR: number; extra: number; node: string; host: Capsule[] }>();
   const nodes = inNodes.map((n): (typeof inNodes)[number] => {
     const keep = n.edges.filter((x) => !isSewnEnd(skel.edges[x.edge]!.id, x.end));
     if (keep.length < 2 || keep.length === n.edges.length) return n;
     const hostR = Math.max(...keep.map((x) => skel.bones[endBoneOf(x.edge, x.end)]!.r[0]));
+    const host: Capsule[] = keep.map((h) => {
+      const [first, count] = skel.edges[h.edge]!.bones, pts = new Float64Array(3 * count), r = new Float64Array(count);
+      for (let q = 0; q < count; q++) { const b = skel.bones[first + q]!; pts[3 * q] = b.pos[0][0]; pts[3 * q + 1] = b.pos[0][1]; pts[3 * q + 2] = b.pos[0][2]; r[q] = b.r[0]; }
+      return { n: count, pts, r };
+    });
     for (const x of n.edges) if (!keep.includes(x)) {
       const at = skel.bones[endBoneOf(x.edge, x.end)]!.pos[0];
       let dAxis = Infinity;
-      for (const h of keep) {
-        const [first, count] = skel.edges[h.edge]!.bones, pts = new Float64Array(3 * count), r = new Float64Array(count);
-        for (let q = 0; q < count; q++) { const b = skel.bones[first + q]!; pts[3 * q] = b.pos[0][0]; pts[3 * q + 1] = b.pos[0][1]; pts[3 * q + 2] = b.pos[0][2]; r[q] = b.r[0]; }
-        dAxis = Math.min(dAxis, closestOnArm({ n: count, pts, r }, at[0], at[1], at[2], scratch7));
-      }
+      for (const h of host) dAxis = Math.min(dAxis, closestOnArm(h, at[0], at[1], at[2], scratch7));
       // 2D ends it a little short of the host's centreline (0.4 of its radius): the part of that the end bone has not already covered is the extension past it
-      sewn.set(`${x.edge}:${x.end}`, { hostR, extra: Math.min(SEWN_MAX_EXTRA * hostR, Math.max(0, dAxis - SEWN_SHORT * hostR)), node: n.id });
+      sewn.set(`${x.edge}:${x.end}`, { hostR, extra: Math.min(SEWN_MAX_EXTRA * hostR, Math.max(0, dAxis - SEWN_SHORT * hostR)), node: n.id, host });
     }
     const at = new Map(keep.map((x, q) => [x, q] as const)), ro = n.runOn && at.has(n.edges[n.runOn[0]]!) && at.has(n.edges[n.runOn[1]]!) ? ([at.get(n.edges[n.runOn[0]]!)!, at.get(n.edges[n.runOn[1]]!)!] as [number, number]) : keep.length === 2 ? ([0, 1] as [number, number]) : undefined;
     return { ...n, edges: keep, ...(ro ? { runOn: ro } : {}) };
@@ -258,7 +267,12 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   // blended, with no through pair (WP0's run-on rule is equal radii).
   const radiusAtNode = (n: (typeof nodes)[number]): number[] => n.edges.map((x) => { const c = ctx.get(x.edge)!; return c.bones[endBone(c, x.end)]!.r[0]; });
   const isStep = (n: (typeof nodes)[number]): boolean => { if (n.edges.length !== 2) return false; const r = radiusAtNode(n); return Math.abs(r[0]! - r[1]!) > STEP_RATIO * Math.max(r[0]!, r[1]!); };
-  const throughOf = (n: (typeof nodes)[number]): [number, number] | undefined => (isStep(n) ? undefined : n.runOn);
+  // (a through pair whose two halves are baked at different radii is a step along the vessel, not a run: there is no neck to judge, the blend makes the change)
+  const throughOf = (n: (typeof nodes)[number]): [number, number] | undefined => {
+    if (isStep(n) || !n.runOn) return undefined;
+    const r = radiusAtNode(n), a = r[n.runOn[0]]!, b = r[n.runOn[1]]!;
+    return Math.abs(a - b) > STEP_RATIO * Math.max(a, b) ? undefined : n.runOn;
+  };
   const jnodes = nodes.filter((n) => n.edges.length >= 3 || isStep(n)), jset = new Set(jnodes.map((n) => n.id)), jbase = new Set(jset);
   const parent = new Map(jnodes.map((n) => [n.id, n.id]));
   const root = (x: string): string => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x)!)!); x = parent.get(x)!; } return x; };
@@ -594,14 +608,20 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
 
   // ---- sweeps ----
   /** The scale of a sewn end's radius (2D's collar) at bone coordinate `s` of an edge: `sideEndScale` (the end narrows to 0.35 inside the host) times `flareScale` (the heel widens toward the wall, never past the host's own radius), by the distance to the end's very tip (the extension past the end bone counts). 1 away from a sewn end. */
-  const sewnScale = (c: EdgeCtx, s: number): number => {
+  /** The largest radius a ring centred at `P` may have and still lie inside the host's lumen (less the ink's margin): the buried part of a sewn end must never show through the wall, whatever angle the vessel arrives at (2D's collar assumes a square landing). Infinity while the centre is outside the lumen. */
+  const insideFit = (w: { host: Capsule[] }, P: ArrayLike<number>): number => {
+    let allow = Infinity;
+    for (const h of w.host) { const d = closestOnArm(h, P[0]!, P[1]!, P[2]!, scratch7), R = scratch7[3]!; if (d < R) allow = Math.min(allow, Math.max(SEWN_MIN_R * R, R - d - SEWN_INK * R)); }
+    return allow;
+  };
+  const sewnScale = (c: EdgeCtx, s: number, P: ArrayLike<number>): number => {
     let k = 1;
     for (const end of [0, 1] as const) {
       const w = sewn.get(`${c.idx}:${end}`);
       if (!w) continue;
       const kk = Math.min(c.count - 2, Math.max(0, Math.floor(s))), f = Math.min(1, Math.max(0, s - kk)), at = c.cum[kk]! + (c.cum[kk + 1]! - c.cum[kk]!) * f;
       const d = w.extra + (end === 1 ? c.cum[c.count - 1]! - at : at), rr = c.bones[Math.min(c.count - 1, Math.max(0, Math.round(s)))]!.r[0];
-      k *= (sideEndScale(d, w.hostR) as number) * Math.min(flareScale(d, w.hostR) as number, Math.max(1, w.hostR / rr));
+      k *= Math.min((sideEndScale(d, w.hostR) as number) * Math.min(flareScale(d, w.hostR) as number, Math.max(1, w.hostR / rr)), insideFit(w, P) / rr);
     }
     return k;
   };
@@ -612,7 +632,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
     if (sb <= sa) throw new NetMeshError(c.id, `the edge is cut away by its junctions (seams at bones ${sa} and ${sb} of ${c.count})`);
     const ends: (0 | 1)[] = [0, 1];
     const ringAt = (s: number): number[] => {
-      const S = sample(c, s), ks = sewnScale(c, s), r = ringOf(ks === 1 ? S : { ...S, r: S.r * ks }, c.alpha), { bones, weights } = boneOfSample(c, S);
+      const S = sample(c, s), ks = sewnScale(c, s, S.P), r = ringOf(ks === 1 ? S : { ...S, r: S.r * ks }, c.alpha), { bones, weights } = boneOfSample(c, S);
       // a ring at an end that is welded to another edge's is the shared one
       for (const end of ends) {
         if (Math.abs(s - endBone(c, end)) > 1e-9) continue;
@@ -651,7 +671,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       let outer = ring;
       const n = w.extra > 0 ? Math.max(1, Math.ceil(w.extra / (RING_STEP * S.r))) : 0, scaleAt = (d: number): number => (sideEndScale(d, w.hostR) as number) * Math.min(flareScale(d, w.hostR) as number, Math.max(1, w.hostR / S.r));
       const ringAtX = (x: number): number[] => {
-        const R = S.r * scaleAt(w.extra - x), ids: number[] = [];
+        const Pc: V3 = [S.P[0] + up * x * S.t[0], S.P[1] + up * x * S.t[1], S.P[2] + up * x * S.t[2]], R = Math.min(S.r * scaleAt(w.extra - x), insideFit(w, Pc)), ids: number[] = [];
         for (let j = 0; j < RADIAL; j++) {
           const a = theta(j, c.alpha), rad = [0, 1, 2].map((d) => Math.cos(a) * S.n[d]! + Math.sin(a) * S.b[d]!), p = [0, 1, 2].map((d) => S.P[d]! + up * x * S.t[d]! + R * rad[d]!);
           ids.push(addVertex(p, 0, [bone], [1], rad, 0));
@@ -659,7 +679,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         return ids;
       };
       for (let i = 1; i <= n; i++) { const ids = ringAtX((w.extra * i) / n); if (end === 1) bridge(outer, ids); else bridge(ids, outer); outer = ids; }
-      const Rt = S.r * scaleAt(0), tip: V3 = [S.P[0] + up * w.extra * S.t[0], S.P[1] + up * w.extra * S.t[1], S.P[2] + up * w.extra * S.t[2]];
+      const tip: V3 = [S.P[0] + up * w.extra * S.t[0], S.P[1] + up * w.extra * S.t[1], S.P[2] + up * w.extra * S.t[2]], Rt = Math.min(S.r * scaleAt(0), insideFit(w, tip));
       for (const lat of CAP_LATS) {
         const phi = (lat * Math.PI) / 180, rr = Rt * Math.cos(phi), along = up * Rt * Math.sin(phi), ids: number[] = [];
         for (let j = 0; j < RADIAL; j++) {
