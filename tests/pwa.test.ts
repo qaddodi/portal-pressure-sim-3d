@@ -283,9 +283,9 @@ test('storage.persist() is asked once per device, after the install, and a refus
   assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /return sw\.ready; \}\)\.then\(\(r\) => \{ void persistOnce\(/, 'after the worker is ready (the install list is held)');
 });
 
-test('a file with no hash in its name is never served from the build before it (the baked network meshes were: a phone kept the old ones across a deploy); a hashed file still is, for a tab that runs it', async () => {
-  const pre = 'pps3d@/app/@', bin = 'https://x.test/app/anatomy/net-0.bin', js = 'https://x.test/app/assets/a-old.js';
-  const sw = buildSw({ build: 'new', files: [], boot: ['index.html'], later: ['anatomy/net-0.bin'] });
+test('a file with no hash in its name is never served from the build before it (the baked meshes were: a phone kept the old ones across a deploy); a hashed file still is, for a tab that runs it', async () => {
+  const pre = 'pps3d@/app/@', bin = 'https://x.test/app/anatomy/skins.bin', js = 'https://x.test/app/assets/a-old.js';
+  const sw = buildSw({ build: 'new', files: [], boot: ['index.html'], later: ['anatomy/skins.bin'] });
   const ask = async (w: ReturnType<typeof runSw>, url: string) => { let out: unknown; await w.fire('fetch', { request: { method: 'GET', url, mode: 'cors' }, respondWith: (p: Promise<unknown>) => { out = p; } }); return out as Promise<{ tag: string }>; };
   const net = (tag: string) => ({ status: 200, type: 'basic', clone() { return this; }, tag });
   const w = runSw(sw, [`${pre}old`], { fetch: () => Promise.resolve(net('network')) });

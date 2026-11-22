@@ -4,6 +4,14 @@
 // was its own round cap, caps of different radii stacked on one centre and their ink crossed; here only the widest end at a point keeps its cap and the others run into it, so the point is one round hub.
 import type { Course } from './tubes.ts';
 
+/** The caput medusae fan's vessel id (the paraumbilical vein's tributaries that show with the collateral). */
+export const CAPUT_FAN_ID = 'C3~F:caput';
+/** From this share of a free tributary's course it eases to transparent (to nothing at its tip) and narrows to a fine point: each fan thins out of sight, no cut end. */
+export const FAN_TIP_FROM = 0.3;
+/** How far toward the viewer the fan is drawn in the depth buffer (scene units, a depth offset only: nothing moves, so no sideways shift in a tilted view). The caput veins lie on the abdominal wall, the most superficial vein of the figure: they draw over every other vessel,
+ *  including the epigastric veins that run on to the same navel at the fan's own depth, where a tie went to the wider tube. */
+export const FAN_FRONT = 0.03;
+
 const TOL = 1e-4;
 const d3 = (a: readonly number[], b: readonly number[]): number => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
 const lengthOf = (pts: readonly (readonly number[])[]): number => { let s = 0; for (let i = 1; i < pts.length; i++) s += d3(pts[i]!, pts[i - 1]!); return s; };
@@ -42,4 +50,12 @@ export function fanCaps(courses: readonly Pick<Course, 'pts' | 'radius'>[]): [bo
     for (const g of group) if (g !== best) keep[g.b.c]![g.b.e] = false;
   });
   return keep;
+}
+
+/** The courses whose far end meets no other course: the tips of the tree, `true` each. */
+export function fanTips(courses: readonly Pick<Course, 'pts'>[]): boolean[] {
+  return courses.map((c, i) => {
+    const e = c.pts[c.pts.length - 1];
+    return !!e && !courses.some((o, j) => j !== i && o.pts.length > 0 && (d3(o.pts[0]!, e) < TOL || d3(o.pts[o.pts.length - 1]!, e) < TOL));
+  });
 }

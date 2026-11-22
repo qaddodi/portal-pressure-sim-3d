@@ -144,9 +144,7 @@ function bodyPoints(d: string, n: number): Vector3[] {
   return resample(courseOf(d), n).map(([x, y]) => new Vector3(x3(x), y3(y), TIER_Z.over));
 }
 
-export type TubeKind = 'tree' | 'caud' | 'custom' | 'link';
-/** The liver's own links the anatomy hides but the 2D map draws (HIDDEN_EDGES, ANAT_HIDDEN): each joins two lanes' nodes, so every sinusoid connects. Map-only tubes (never on the body), grown with the lane they hang from. [id, the lane whose growth and presence it follows] */
-export const LINKS: readonly (readonly [string, string])[] = [['SIN_RL', 'SIN_RR'], ['POST_L_MHV', 'POST_L_LHV']];
+export type TubeKind = 'tree' | 'caud' | 'custom';
 interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt's body course (scene points) and tube radius, for the finger's reach on the body */ body?: { pts: Vector3[]; radius: number }; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number]; /** where its map course lies in the flow (0 gut, 1 heart): a map-only tube comes in as its own stretch of the map lands */ rank: number }
 
 export interface TubesContext {
@@ -191,13 +189,6 @@ export class CircuitTubes {
       if (!parent) continue;
       list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1], undefined, buryOf(treeRunOn(id, i) ? 0 : mapRadius(parent) * parentShare(list, i), 0), treeEnds(id, i) ?? undefined));
     }
-    // the inter-lobar sinusoids (SIN_RL, between the two sinusoid lanes at x = 800) and the left central veins' link to the MHV (POST_L_MHV): each sunk at both ends in the lanes at its nodes
-    for (const [id, lane] of LINKS) {
-      const e = edgeById.get(id), d = CIRCUIT_D[id], parent = NETWORK_BY_ID.get(lane);
-      if (!e || !d || !parent || !hasVessel(id)) continue;
-      const own = 0.5 * circuitWidthMap(2, e.d ?? 3, 1, 1) * MAP_K;
-      this.add(id, 'link', id, courseOf(d), radiusOf(widthPx(e, e.d ?? 3)), e.zone === 'post' ? 'sys' : 'portal', e.d ?? 3, 2, undefined, undefined, undefined, lane, buryOf(trunkRadius(e.from), trunkRadius(e.to)), { ends: [hostAt(e.from, own), hostAt(e.to, own)], own });
-    }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
     const d = CIRCUIT_D.CAUD;
@@ -234,7 +225,7 @@ export class CircuitTubes {
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
-    if (kind === 'tree' || kind === 'link') { const a = built.curve.getPointAt(0); o.setStretchAnchors(a, a); }
+    if (kind === 'tree') { const a = built.curve.getPointAt(0); o.setStretchAnchors(a, a); }
     // drawn over the organs with the rest of the figure's vessels (scene.ts VESSEL_LAYER)
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     o.glowMesh?.layers.set(GLOW_LAYER);   // (the glow's mask has its own pass: glow-fx.ts; left on the vessels' layer it would draw as a solid tube when lit)
@@ -308,7 +299,7 @@ export class CircuitTubes {
     }
     for (const e of this.entries) {
       // (a liver branch is the map's alone and follows the change itself, so it draws back along its flow when the body returns, not a moment after the camera turns)
-      const grown = e.kind === 'tree' || e.kind === 'link' ? growOf(e.parent, c.t) : null;
+      const grown = e.kind === 'tree' ? growOf(e.parent, c.t) : null;
       const want = e.dead ? false : e.kind === 'caud' ? c.caudPin : e.kind === 'custom' ? (c.open[e.id] ?? 0) > 0 : grown != null ? c.t > 0 : c.drawn(e.parent);
       // a custom shunt lies on the body too: it is on while it is open, in either view (the map-only branches wait for the map)
       e.goal = want && (e.lens || c.t > 0) ? 1 : 0;

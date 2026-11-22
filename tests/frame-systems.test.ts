@@ -33,7 +33,7 @@ test('importing scene/api.ts builds no scene; the first use of `cel` or `scene()
 test('the frame order is pinned: the ids of the scene\'s systems, in the order they run', async () => {
   const { CelScene } = await import('../src/scene/scene.ts');
   const s = new CelScene();
-  assert.deepEqual([...s.systemIds], ['camera', 'circuit', 'highlight', 'flow', 'lens+dust', 'cells', 'presence', 'shapes', 'skins', 'net', 'micro', 'procedures', 'disease', 'probes']);
+  assert.deepEqual([...s.systemIds], ['camera', 'circuit', 'highlight', 'flow', 'lens+dust', 'cells', 'presence', 'shapes', 'skins', 'micro', 'procedures', 'disease', 'probes']);
   s.update(0); s.update(16);
   for (const id of s.systemIds) assert.ok(id in s.systemMs, `${id} is timed in systemMs`);
   s.dispose();

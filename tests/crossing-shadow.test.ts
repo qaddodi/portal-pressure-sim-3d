@@ -143,3 +143,11 @@ test('both programs carry the rule: SHADOW widens the tube, lays it behind its o
   const iG = VESSEL_FS.indexOf('#ifdef GLOW'), iS = VESSEL_FS.indexOf('#ifdef SHADOW'), iT = VESSEL_FS.indexOf('float sT = dot(n, celLightView())');
   assert.ok(iG > 0 && iS > iG && iT > iS);
 });
+
+test('the band starts at the line the vertex stage really drew: the artery\'s heavier wall is in the shadow\'s line width, in the tube, the glow and the shadow (the shadow was hidden under the artery\'s own line, 22 Nov)', () => {
+  const lineOf = (name: string) => new RegExp(`float ${name} = ([^;]*);`).exec(VESSEL_FS)?.[1] ?? VESSEL_VS.match(new RegExp(`float ${name} = ([^;]*);`))?.[1] ?? '';
+  const heavy = (e: string) => e.startsWith('min(') && e.includes(' * (1.0 + ');   // the artery form of inkPxGlsl: min(LINE_MAX, base * (1.0 + k * art * taper))
+  assert.ok(heavy(lineOf('lineS')), 'the shadow\'s line carries the artery wall');
+  assert.ok(heavy(lineOf('lineG')), 'the glow\'s line carries it');
+  assert.ok(heavy(lineOf('inkPx')), 'the tube\'s line carries it');
+});

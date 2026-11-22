@@ -884,7 +884,7 @@ void main() {
   {
     if (dotted > 0.5) discard;
     float rCssS = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
-    float lineS = clamp(0.3 * rCssS, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssS) * mix(1.0, 1.1, circT) * inkOn;
+    float lineS = min(3.0, clamp(0.3 * rCssS, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssS) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCssS))) * mix(1.0, 1.1, circT) * inkOn;
     float sS = dLat / dpr - rCssS - lineS;   // CSS px past the line's outer edge
     float bandS = smoothstep(-0.5, 0.0, sS) * (1.0 - smoothstep(0.55 * shadowPx, shadowPx, sS));
     float d0S = vUv.x * len * vU, d1S = (1.0 - vUv.x) * len * vU, rS = max(vR, 1e-6);

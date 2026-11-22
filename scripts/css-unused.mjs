@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Which rules of the built stylesheet style something the app never makes: a rule is DEAD when a class or id in its selector is named nowhere in src/, public/ or index.html (a literal, a template
-// string and a dash-prefix built at run time, `'row-' + x`, all count as naming it). `node scripts/css-unused.mjs [dist/assets/index-*.css]` prints the share; `--write` rewrites the file without the dead rules.
+// string and a dash-prefix built at run time, `'row-' + x`, all count as naming it). `node scripts/css-unused.mjs [dist/assets/<name>.css]` (no argument: every stylesheet in dist/assets) prints the share; `--write` rewrites the file without the dead rules.
 // scripts/build.mjs runs it with --write on the built file, so the 2D stylesheets in src/ui/css2d (copied byte for byte, tests/css2d-copy.test.ts) are never edited and the source stays whole.
 import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -57,21 +57,31 @@ export function prune(css, used) {
   return { css: root_.toString(), rules, dead };
 }
 
+/** The built app's stylesheets: every .css in the build's assets folder (named by the page and the chunks, whatever the entry is called: `index-*`, `main-*`). Throws when there is none, so a rename can never again turn the prune off unseen. */
+export function builtStylesheets(dir) {
+  const files = readdirSync(dir).filter((f) => /\.css$/.test(f)).sort();
+  if (!files.length) throw new Error(`no stylesheet in ${dir}`);
+  return files.map((f) => join(dir, f));
+}
+
+/** Prunes one built file in place; returns its new name. The file's name is its content's hash (a browser keeps a hashed file for good): the pruned text gets its own name, and the page and every chunk that names the old one are pointed at it. */
+function pruneFile(file, used, write) {
+  const before = readFileSync(file, 'utf8');
+  const { css, rules, dead } = prune(before, used);
+  console.log(`css: ${file.split('/').pop()} ${Math.round(before.length / 1024)} kB, ${rules} rules, ${dead} had a selector naming something the app never makes; ${write ? 'written' : 'would be'} ${Math.round(css.length / 1024)} kB`);
+  if (!write) return;
+  const dir = file.slice(0, file.lastIndexOf('/') + 1), oldName = file.split('/').pop(), stem = oldName.replace(/-[^-]*\.css$/, '');
+  const newName = `${stem}-${createHash('sha256').update(css).digest('base64url').slice(0, 8)}.css`;
+  writeFileSync(file, css); renameSync(file, dir + newName);
+  const fix = (p) => { const t = readFileSync(p, 'utf8'); if (t.includes(oldName)) writeFileSync(p, t.split(oldName).join(newName)); };
+  fix(join(dir, '../index.html'));
+  for (const f of readdirSync(dir)) if (/\.(js|css)$/.test(f)) fix(dir + f);
+  console.log(`css: renamed ${oldName} to ${newName}`);
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const args = process.argv.slice(2), write = args.includes('--write');
-  let file = args.find((a) => !a.startsWith('--'));
-  if (!file) { const dir = join(root, 'dist/assets'); file = join(dir, readdirSync(dir).filter((f) => /^index-.*\.css$/.test(f))[0]); }
-  const before = readFileSync(file, 'utf8');
-  const { css, rules, dead } = prune(before, namer(corpus()));
-  console.log(`css: ${file.split('/').pop()} ${Math.round(before.length / 1024)} kB, ${rules} rules, ${dead} had a selector naming something the app never makes; ${write ? 'written' : 'would be'} ${Math.round(css.length / 1024)} kB`);
-  if (write) {
-    // the file's name is its content's hash (a browser keeps a hashed file for good): the pruned text gets its own name, and the page and every chunk that names the old one are pointed at it
-    const dir = file.slice(0, file.lastIndexOf('/') + 1), oldName = file.split('/').pop(), stem = oldName.replace(/-[^-]*\.css$/, '');
-    const newName = `${stem}-${createHash('sha256').update(css).digest('base64url').slice(0, 8)}.css`;
-    writeFileSync(file, css); renameSync(file, dir + newName);
-    const fix = (p) => { const t = readFileSync(p, 'utf8'); if (t.includes(oldName)) writeFileSync(p, t.split(oldName).join(newName)); };
-    fix(join(dir, '../index.html'));
-    for (const f of readdirSync(dir)) if (/\.(js|css)$/.test(f)) fix(dir + f);
-    console.log(`css: renamed ${oldName} to ${newName}`);
-  }
+  const given = args.find((a) => !a.startsWith('--'));
+  const used = namer(corpus());
+  for (const file of given ? [given] : builtStylesheets(join(root, 'dist/assets'))) pruneFile(file, used, write);
 }
