@@ -10,5 +10,5 @@ export function bootDigest(): BootDigest {
   const lt = longTaskDigest();
   let parallel: boolean | undefined;
   try { parallel = !!renderer()?.getContext().getExtension('KHR_parallel_shader_compile'); } catch { parallel = undefined; }
-  return { stamps: { ...stamps() }, firstByte: firstByteMs(), late: { total: lateTotal(), rows: [...lateRows()] }, longTasks: { measured: lt.measured, total: lt.total, rows: [...lt.rows] }, slots: slotStats(), parallelCompile: parallel };
+  return { stamps: { ...stamps() }, firstByte: firstByteMs(), late: { total: lateTotal(), rows: [...lateRows()] }, longTasks: { measured: lt.measured, by: lt.by, total: lt.total, rows: [...lt.rows] }, slots: slotStats(), parallelCompile: parallel };
 }

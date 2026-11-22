@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { mark } from '../clock/blocks.ts';
 import './css2d/index.css';   // the 2D app's own stylesheets, lifted unchanged (scripts/copy-2d-css.mjs); the shell imports the same file, loaded once
 import './deck-ui.css';
 import { useEngine } from '../engine/index.ts';
@@ -25,6 +26,7 @@ import { observeThenFit } from './layout/fit-later.ts';
 
 /** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
 export function DeckUi() {
+  useState(() => { mark('deck-ui:render'); return 0; });   // (the first render of the talk's UI, so a main-thread block at a talk's opening says where it ended: clock/blocks.ts)
   const root = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
   const device = useUi((s) => s.device);
@@ -87,6 +89,9 @@ export function DeckUi() {
     window.addEventListener('orientationchange', measure);
     return () => { off(); window.removeEventListener('orientationchange', measure); };
   }, [setViewport]);
+
+  useLayoutEffect(() => { mark('deck-ui:committed'); }, []);
+  useEffect(() => { mark('deck-ui:effects'); }, []);
 
   const layout = layoutOf(vp.w, vp.h), sideways = isSideways(vp.w, vp.h);
   const t = typeFor(vp.w, vp.h);

@@ -8,10 +8,12 @@ import { renderStats } from '../../clock/render-stats.ts';
 import { cel } from '../../scene/api.ts';
 import { spans } from '../../boot/spans.ts';
 import { bootDigest } from '../../boot/digest.ts';
+import { startBlockWatch } from '../../boot/longtasks.ts';
 import { shaderFailureLine } from '../../debug/shader-fail.ts';
 
 export function mountPerf(): void {
   if (!new URLSearchParams(location.search).has('perf')) return;
+  startBlockWatch();   // (no long-task observer on Safari: a late 4 ms timer names a block, with the marks the app left in it: clock/blocks.ts)
   // a compact strip by default (one line, inside the safe area, along the top so it never covers the controls or the figure's middle); the detail (the slow-frame list) is closed while timings are collected and opens
   // in a height-capped scroll view (release review #18)
   const box = document.createElement('div');

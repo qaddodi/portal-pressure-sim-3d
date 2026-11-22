@@ -18,6 +18,7 @@ import { reduced } from '../a11y/motion.ts';
 import { D_SMALL, EASE_IN } from '../motion.ts';
 
 import { clock } from '../../clock/frame.ts';
+import { mark } from '../../clock/blocks.ts';
 let saved: Saved | null = null;
 let chartsAsked = false;
 /** A start overtaken by a newer start, or by leaving (2D startGen): the older one installs nothing. */
@@ -46,13 +47,16 @@ async function begin(deck: Deck, at: number): Promise<void> {
   const mine = ++startGen;
   await Promise.all([coverUp(deck.title), fontsIn()]);
   if (mine !== startGen) return;
+  mark('talk:cover-up');
   rememberFocus(typeof document !== 'undefined' ? document.activeElement : null, talkOn());   // (focus returns here when the talk ends: talk-focus.ts)
   if (!talkOn()) saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
   cel.setView('body');
   // (the cover lifts at the first landing the new talk makes; landing.ts begins it once the talk's stops are in)
   const off = onLanded(() => { off(); if (mine === startGen) void coverDown(); });
+  mark('talk:open-deck');
   useUi.getState().openDeck(deck, at);
   useShell.setState({ view: 'anatomic', sheet: null, dialog: null });
+  mark('talk:opened');
 }
 
 /** The address of a talk that has ended carries no talk (2D stop: a reload, or a tab the phone discarded and brings back, must not start it again from the link that opened it). */
