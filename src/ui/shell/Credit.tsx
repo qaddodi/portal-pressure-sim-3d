@@ -19,7 +19,7 @@ import { sinusoidWorld } from '../../scene/lobule/frames.ts';
 import { U } from '../../scene/sinusoid/view.ts';
 import { Vector3 } from 'three';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 /** The Sinusoid view's vessel on the canvas now (the lumen and its wall as a strip over the whole screen), or null when the view is not up or the camera is still flying to it (the strip is not where it will be yet). */
 const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0, 0, 0];
 function sinusoidVessel() {
@@ -101,7 +101,7 @@ export function Credit() {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    let timer = 0, shown = false, at0: { x: number; y: number } | null = null, hop = 0;
+    let timer: TimerId | null = null, shown = false, at0: { x: number; y: number } | null = null, hop: TimerId | null = null;
     // the bars settle after the layout change (the dock's height, a card's transition): look again once they have, and again when one resizes
     function again() { clock.cancel(timer); timer = clock.after(place, 260); }
     const place = () => {
@@ -140,7 +140,7 @@ export function Credit() {
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(again) : null;
     for (const e of document.querySelectorAll(OBSTACLES)) ro?.observe(e);
     // a talk's cards come and go (a slide, a page, a card's measure, its fade): look again once each change has settled, and once more after its entry
-    let settle = 0;
+    let settle: TimerId | null = null;
     const changed = () => { again(); clock.cancel(settle); settle = clock.after(place, 1100); };
     const deck = document.querySelector('.deck-ui');
     const mo = deck && typeof MutationObserver === 'function' ? new MutationObserver(changed) : null;

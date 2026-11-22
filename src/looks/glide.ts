@@ -4,7 +4,7 @@
 // picture is taken once the figure has drawn a frame in it, and the two cross-fade, `::view-transition-*` in shell/global.css). Where there is no View Transition the DOM's own colours
 // ease (`html.look-glide`, global.css) and the figure changes at once. Reduce Motion, a hidden page and the first paint apply at once.
 import type { LookId } from './looks.ts';
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 
 export const GLIDE_MS = 320;
 type Applier = (look: LookId) => void;
@@ -42,7 +42,7 @@ export function createLookGlide(env: GlideEnv) {
 /** The browser's: View Transitions, the motion preference, the clock's next frame. */
 const browserEnv = (): GlideEnv => {
   const doc = typeof document === 'undefined' ? null : document as Document & { startViewTransition?: (cb: () => Promise<void>) => unknown };
-  let timer = 0;
+  let timer: TimerId | null = null;
   return {
     transition: doc?.startViewTransition ? (apply) => { doc.startViewTransition!(apply); } : undefined,
     still: () => !doc || doc.visibilityState !== 'visible' || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches),

@@ -9,7 +9,7 @@ import type { Msg } from './page.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { pace, combine, sequenceOn } from './progress.ts';
 
-import { clock } from '../../../clock/frame.ts';
+import { clock, type TimerId } from '../../../clock/frame.ts';
 export const DEFAULT_SIZES = ['iphone', 'ipad-portrait', 'ipad', 'mac'];
 export const ALL_SIZES = ['iphone', 'iphone-landscape', 'ipad-portrait', 'ipad', 'mac-short', 'mac'];
 /** A frame that says nothing for this long is taken to have died (a tab kill, a crash, a page that never booted). */
@@ -98,7 +98,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
     const r = room.getBoundingClientRect(), k = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * k)}px`; wrap.style.height = `${Math.round(d.h * k)}px`; wrap.style.margin = '0 6px';
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${k})`;
-    let silent: number, finished = false;
+    let silent: TimerId, finished = false;
     const end = (res0: { data?: AuditData; why?: string }) => { if (finished) return; finished = true; const kept = partial.get(id); const res = !res0.data && kept ? { data: { ...kept, stopped: true, notes: [...kept.notes, `PARTIAL: this size did not finish (${res0.why ?? 'no result'}); these are the steps it got through`] } } : res0; clock.cancel(silent); win.removeEventListener('message', on); clock.cancel(poll); wrap.remove(); done(res); };
     const wake = () => { clock.cancel(silent); silent = clock.after(() => end({ why: `silent for ${SILENT_MS / 1000} s (the frame crashed or never booted)` }), SILENT_MS); };
     const on = (e: MessageEvent) => {

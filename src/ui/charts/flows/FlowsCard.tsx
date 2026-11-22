@@ -5,11 +5,11 @@ import { flowsFrame } from './frame.ts';
 import type { Tiers } from './layout.ts';
 import '../charts.css';
 
-import { clock } from '../../../clock/frame.ts';
+import { clock, type TimerId } from '../../../clock/frame.ts';
 /** The parts the bar shows: a split that moves no part by more than a whole percent waits until the readings rest (HOLD_MS), so the bar never flips on a wobble. */
 function useHeld(next: Part[] | null): Part[] | null {
   const [shown, setShown] = useState<Part[] | null>(next);
-  const timer = useRef<number | undefined>(undefined);
+  const timer = useRef<TimerId | undefined>(undefined);
   useEffect(() => {
     clock.cancel(timer.current);
     if (!next) return;

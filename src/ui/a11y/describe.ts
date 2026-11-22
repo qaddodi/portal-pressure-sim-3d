@@ -11,7 +11,7 @@ import { caption } from './caption.ts';
 import { announce } from './announce.ts';
 import { createPatientAnnouncer } from './patient-announce.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 export const FIGURE_NAME = 'Portal circulation: the liver, the portal vein and its tributaries, the hepatic veins and the heart';
 /** The description is rewritten at most this often (ms) and never while the figure moves. */
 export const DESCRIBE_GAP = 3000;
@@ -28,7 +28,7 @@ export function describeNow(opts: { scenario?: boolean } = {}, frame: unknown = 
 
 /** Put a name and the description on the figure (the stage's canvas, once it exists) and keep it current. Returns the remover. */
 export function mountDescription(doc: Document = document): () => void {
-  let canvas: HTMLElement | null = null, last = -Infinity, timer: number | undefined;
+  let canvas: HTMLElement | null = null, last = -Infinity, timer: TimerId | undefined;
   const find = () => { if (!canvas || !canvas.isConnected) { canvas = doc.querySelector('canvas'); if (canvas) { canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', FIGURE_NAME); } } return canvas; };
   const write = () => {
     clock.cancel(timer);

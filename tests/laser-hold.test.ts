@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createLaser, HOLD_MS, HOLD_SLOP } from '../src/ui/deck/laser.ts';
+import { createClock, type Env } from '../src/clock/frame.ts';
 
 function rig() {
   const L = new Map<string, ((e: any) => void)[]>();
@@ -14,15 +15,16 @@ function rig() {
     innerWidth: 390, innerHeight: 844,
     addEventListener: (n: string, f: (e: any) => void) => { (L.get(n) ?? L.set(n, []).get(n)!).push(f); },
     removeEventListener: (n: string, f: (e: any) => void) => { L.set(n, (L.get(n) ?? []).filter((g) => g !== f)); },
-    setTimeout: (fn: () => void, ms: number) => { const id = nid++; timers.set(id, { at: t + ms, fn }); return id; },
-    clearTimeout: (id: number) => { timers.delete(id); },
   } as unknown as Window;
+  // the laser waits on the page clock's real-time timer (afterReal); the clock runs on this hand-turned Env
+  const env: Env = { raf: () => 0, cancel: () => {}, now: () => t, timer: (fn, ms) => { const id = nid++; timers.set(id, { at: t + ms, fn }); return id; }, untimer: (id) => { timers.delete(id as number); } };
+  const c = createClock(env);
   const fire = (n: string, e: Record<string, unknown>) => { for (const f of L.get(n) ?? []) f({ cancelable: true, preventDefault() {}, stopImmediatePropagation() {}, ...e }); };
   const advance = (ms: number) => { t += ms; for (const [id, x] of [...timers]) if (x.at <= t) { timers.delete(id); x.fn(); } };
   const fig = { closest: (s: string) => (s.includes('canvas') ? {} : null) };
-  const laser = createLaser({}, doc, win);
+  const laser = createLaser({}, doc, win, c);
   const touch = (type: string, id = 1, x = 100, y = 200, extra: Record<string, unknown> = {}) => fire(type, { pointerType: 'touch', pointerId: id, isPrimary: id === 1, clientX: x, clientY: y, target: fig, ...extra });
-  return { win, laser, touch, fire, advance, pending: () => timers.size, cursor: () => doc.documentElement.style.cursor };
+  return { c, win, laser, touch, fire, advance, pending: () => timers.size, cursor: () => doc.documentElement.style.cursor };
 }
 
 test('a held finger on the figure turns it on after HOLD_MS, and lifting it turns it off', () => {
@@ -68,9 +70,15 @@ test('a second finger (pinch or two-finger pan) cancels the hold; a press off th
   const d = rig(); d.touch('pointerdown'); d.fire('blur', { target: {} }); assert.equal(d.pending(), 1, 'a button losing focus is not the window\'s blur');
 });
 
-test('dispose clears a running hold; the hold timer is a window timer set and cleared as a pair, never the page clock\'s', () => {
+test('dispose clears a running hold; the hold is the page clock\'s real-time timer, cancelled by the clock that made it', () => {
   const r = rig(); r.touch('pointerdown'); r.laser.dispose(); assert.equal(r.pending(), 0); assert.equal(r.cursor(), '');
   const s = readFileSync('src/ui/deck/laser.ts', 'utf8').replace(/\/\/.*$/gm, '');
-  assert.ok(!/clock\.cancel\(/.test(s), 'clock.cancel() on a window timer id cancels nothing');
-  assert.ok(/win\.setTimeout\(/.test(s) && /win\.clearTimeout\(/.test(s));
+  assert.ok(/c\.afterReal\(/.test(s) && /c\.cancel\(hold\)/.test(s));
+  assert.ok(!/win\.(set|clear)Timeout/.test(s) && !/clock\.cancel\(/.test(s), 'one source of timers');
+});
+
+test('the hold is not shortened by the audit\'s speed mode (afterReal is real time)', () => {
+  const r = rig(); r.c.setScale(10);
+  r.touch('pointerdown'); r.advance(HOLD_MS / 10 + 5); assert.equal(r.laser.on, false, 'a scaled wait would have fired by now');
+  r.advance(HOLD_MS); assert.equal(r.laser.on, true);
 });
