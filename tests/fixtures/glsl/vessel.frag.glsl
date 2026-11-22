@@ -851,9 +851,11 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
+  float nbrCut = 0.0;   // (the same depth inside the other lumen, judged from NBR_CUT_PX in: only there is a band pixel dropped)
   if (vNbr.y > 0.0) {
     float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
     nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
+    nbrCut = smoothstep(2.5 * dpr - 0.5, 2.5 * dpr + 0.5, nbrPx) * (1.0 - circT);
   }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
@@ -977,8 +979,7 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  // (no pixel is dropped for lying inside the neighbour: nbr is the figure plane's measure, a vertex at a time, and the neighbour's drawn lumen lies where the camera puts it, so a drop left a dotted row of holes where two walls ran side by side within
-  //  a pixel or two (Mohammad, 22 Nov, splenic vein; the inspector's "Why tubes drop pixels" painted them magenta). The tube keeps its own fill there, with no ink (inkT goes with nbrK) and lit (nbrT): the neighbour's own fill lies under or over it, the same tone.)
+  if (nbrCut > 0.5 && dLat > rDevAx + 0.5) DROP(12);
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(0.35 * rDevAx, 1.0 * dpr, 3.5 * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * 0.55 * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);
