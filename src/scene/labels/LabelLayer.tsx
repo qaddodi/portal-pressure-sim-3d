@@ -19,7 +19,7 @@ import { cel, sceneApi, usePick } from '../api.ts';
 import { scopeClaims } from './scope-claims.ts';
 import { creditClaim } from './credit-claim.ts';
 import { rectToBox, type Box } from './geometry.ts';
-import { labelsShown } from '../../boot/ready.ts';
+import { labelsProgress, labelsShown } from '../../boot/ready.ts';
 import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
@@ -294,7 +294,7 @@ export function LabelLayer() {
       cath.paint(ctl.cath);
       clampMarks.paint(cel.disease.clamps.marks());
       waistBrackets.paint(cel.procs.stents);
-      if (ctl.out.length > 1 && ctl.out.every((d) => d.alpha >= 0.999)) labelsShown();   // (the splash waits for the labels to be fully in, boot/ready.ts)
+      if (ctl.out.length > 1) { if (ctl.out.every((d) => d.alpha >= 0.999)) labelsShown(); else labelsProgress(ctl.out.reduce((n, d) => n + d.alpha, 0)); }   // (the splash waits for the labels to be fully in, and for as long as they are still coming in; boot/ready.ts)
       // the boxes the Doppler probe keeps off, and the probes' own readings
       beginLabelBoxes();
       for (const d of ctl.out) if (d.kind === 'station' && !d.ghost && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);

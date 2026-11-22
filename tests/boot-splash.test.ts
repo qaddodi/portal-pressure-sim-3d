@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Script, createContext } from 'node:vm';
 
 const HTML = readFileSync('index.html', 'utf8');
-interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean }
+interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean; held?: boolean }
 
 function run(o: Opts = {}) {
   const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;   // (the cover's script: found by what it defines, not by its place: the look script before it came first from 22 Nov)
@@ -25,7 +25,7 @@ function run(o: Opts = {}) {
   const fonts = o.fonts === 'now' ? { load: () => ({ then: (ok: () => void) => { ok(); } }) } : o.fonts === 'never' ? { load: () => ({ then: () => undefined }) } : undefined;
   const meta = { getAttribute: () => String(o.total ?? 0) };
   const ctx: any = {
-    document: { getElementById: (i: string) => (i === 'boot' ? boot : i === 'root' ? root : null), documentElement: { getAttribute: () => 'wait' }, fonts,
+    document: { getElementById: (i: string) => (i === 'boot' ? boot : i === 'root' ? root : null), documentElement: { getAttribute: () => (o.held === false ? null : 'wait') }, fonts,
       querySelector: (s: string) => (s.includes('pps-boot-bytes') ? meta : null), addEventListener: (e: string, f: () => void) => { (listeners[e] ??= []).push(f); } },
     addEventListener() {}, MutationObserver: class { observe() {} disconnect() {} }, location: { protocol: 'https:', host: 'x.test', reload() {} },
     navigator: { userAgent: 'test', onLine: o.onLine ?? true, serviceWorker: o.controller ? { controller: {} } : undefined },
@@ -121,7 +121,10 @@ test('the mark is inline SVG, not an image that arrives after the first paint; t
 test('the 20 s last word, the 600 ms minimum and the terminal state are kept', () => {
   const c = run({ entries: () => file(3) });
   c.advance(19000); assert.equal(c.boot.className, 'slow', 'a quiet 8 s is told');
-  c.advance(21000); assert.equal(c.boot.className, 'done', 'a slow (not failed) cover is lifted by the 20 s timer');
+  c.advance(21000); assert.equal(c.boot.className, 'slow', 'a held app (html[data-boot=wait]) is not lifted at 20 s: it is still working under the cover and has its own progress watch and hard limit');
+  c.advance(46000); assert.equal(c.boot.className, 'done', 'but the page\'s last word still comes, 25 s later');
+  const p = run({ entries: () => file(3), held: false }); p.advance(19000); p.advance(21000);
+  assert.equal(p.boot.className, 'done', 'a page that holds nothing (the crash and debug pages) is lifted by the 20 s timer as before');
   const f = run({ dcl: false }); f.ctx.ppsBootRendererFail('lost'); f.advance(30000);
   assert.equal(f.boot.className, 'failed');
 });

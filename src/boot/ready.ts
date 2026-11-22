@@ -14,7 +14,7 @@ export const BOOT_STALL_MS = 5000;
 /** ...or after this long in all, whatever happened (a start that never finishes: the page's own 20 s word in index.html is for a page that never mounts). A slow phone that keeps getting somewhere keeps the cover. */
 export const BOOT_HARD_MS = 30000;
 const STALL_POLL_MS = 500;
-/** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame it lifts. */
+/** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame, or after the last time the labels came further in, it lifts. */
 export const LABELS_GRACE_MS = 2500;
 /** The reveal (splash plan A2/A6): the camera starts REVEAL_ZOOM times closer than rest, behind the cover, and glides home over REVEAL_MS, starting REVEAL_DELAY_MS after the cover begins to fade (so the eye follows the figure settling,
  *  not the cover clearing). It is the rig's own glide (scene.playReveal), drawn crisp at full resolution each frame, with the labels following by projection; there is no CSS scale of the canvas. */
@@ -27,19 +27,22 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false, stallOff: (() => void) | null = null;
+let labelsAt = 0, labelSum = 0, labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false, stallOff: (() => void) | null = null;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
-  waiting = true; done = false; frames = -1; labels = false; compiled = false;
+  waiting = true; done = false; frames = -1; labels = false; compiled = false; labelsAt = 0; labelSum = 0;
   document.documentElement.dataset.boot = 'wait';
   clock.cancel(timer); stallOff?.();
-  stallOff = watchStall(release);
+  // (only a start that HAS drawn its figure may be lifted for a quiet spell; one that has not drawn lifts only at the hard limit: lifting onto an undrawn scene is the black ground, then the figure, then the labels, one after the other.
+  //  The warm-up's own cap fires on the same quiet spell, so the two used to meet and the cover went up at the very moment the first frame was about to be drawn: 22 Nov, Mohammad.)
+  stallOff = watchStall((hard) => (hard || frames >= 0 ? release() : false));
 }
 
-/** Calls `onStall` once when no boot stage has been stamped for `quietMs` of real time (the page clock's audit speed does not shorten it), or after BOOT_HARD_MS; never when `live()` turns false first. Returns its canceller. */
-export function watchStall(onStall: () => void, quietMs = BOOT_STALL_MS, live: () => boolean = () => waiting && !done): () => void {
+/** Calls `onStall(hard)` when no boot stage has been stamped for `quietMs` of real time (the page clock's audit speed does not shorten it), or after BOOT_HARD_MS (`hard`); never when `live()` turns false first.
+ *  A handler that returns `false` is not done: the watch goes on (a new quiet spell starts, and the hard limit still comes). Returns its canceller. */
+export function watchStall(onStall: (hard: boolean) => void | boolean, quietMs = BOOT_STALL_MS, live: () => boolean = () => waiting && !done): () => void {
   let next: TimerId | undefined;
   let seen = Object.keys(stamps()).length, quiet = 0, total = 0;
   const poll = (): void => {
@@ -47,7 +50,10 @@ export function watchStall(onStall: () => void, quietMs = BOOT_STALL_MS, live: (
     total += STALL_POLL_MS;
     const n = Object.keys(stamps()).length;
     if (n !== seen) { seen = n; quiet = 0; } else quiet += STALL_POLL_MS;
-    if (quiet >= quietMs || total >= BOOT_HARD_MS) onStall(); else next = clock.afterReal(poll, STALL_POLL_MS);
+    const hard = total >= BOOT_HARD_MS;
+    if ((quiet >= quietMs || hard) && onStall(hard) !== false) return;
+    if (quiet >= quietMs) quiet = 0;
+    next = clock.afterReal(poll, STALL_POLL_MS);
   };
   next = clock.afterReal(poll, STALL_POLL_MS);
   return () => clock.cancel(next);
@@ -58,7 +64,10 @@ export const splashHeld = (): boolean => waiting && !done;
 
 /** Every program the figure can ask for is compiled (Stage's warm-up under the splash: materials/prototypes.ts), or the warm-up's cap ran out. The cover never lifts before this, except by the failsafe: the
  *  splash is the one place allowed to be slow, and a program that compiles after the lift is a stall in front of the viewer (L3, 21 Nov). */
-export function compileDone(): void { compiled = true; }
+export function compileDone(): void {
+  compiled = true;
+  reveal?.prime(REVEAL_ZOOM);   // (the closer view is in BEFORE the first frame is drawn, so the labels are placed at the view they will be lifted over, and nothing about the camera changes between the first frame and the lift)
+}
 /** Whether the programs are compiled (tests, and Stage's first frame). */
 export const programsCompiled = (): boolean => compiled;
 
@@ -67,8 +76,7 @@ export function figureDrawn(): void {
   if (!waiting || done || !compiled) return;
   if (frames < 0) {
     frames = 0; firstAt = clock.now(); stamp('first-draw');
-    reveal?.prime(REVEAL_ZOOM);   // (unseen: the cover is still up; a start that is released without this one never plays the glide, so nothing jumps)
-    off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
+    off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - Math.max(firstAt, labelsAt) > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
     clock.invalidate('boot-ready');
   }
 }
@@ -80,6 +88,10 @@ export function rendererFailed(reason: string): void {
   clock.cancel(timer); stallOff?.(); off?.(); off = null;
   (window as unknown as { ppsBootRendererFail?: (r: string) => void }).ppsBootRendererFail?.(reason);
 }
+
+/** The labels are on their way in: `sum` is how far in they all are together (the sum of their opacities). While it grows the grace period starts again, so labels that are still arriving are waited for and never lifted over;
+ *  labels that stand part-way and stay there (it does not grow) are given up on after the grace. */
+export function labelsProgress(sum: number): void { if (waiting && sum > labelSum + 0.002) { labelSum = sum; labelsAt = clock.now(); } }
 
 /** Every label the figure shows is fully in (LabelLayer, each frame it is true). */
 export function labelsShown(): void { if (waiting) { if (!labels) stamp('labels'); labels = true; } }
