@@ -38,6 +38,7 @@ const OTHER: Record<string, UniformFate> = {
   color: g('the look\'s palette, one colour per tone: the shader picks by the edge\'s `tone` column'),
   markDark: g(), markLight: g(), markRev: g(),
   lensMix: g(), lensTail: g(), lensGradA: g(), lensLaneA: g(), lensModeA: g(), lensRawA: g(), lensGradB: g(), lensLaneB: g(), lensModeB: g(), lensRawB: g(), laneColA: g(), laneColB: g(), lensSmooth: g('the Smooth joins setting'),
+  shadowPx: g('the crossing shadow\'s width in CSS px'), shadowDepth: g('how far behind its own vessel the shadow hull lies (Anatomy)'), shadowDepthC: g('the same in the Circuit'), shadowA: g('the look\'s shadow strength (cel-ink.ts SHADOW)'), shadowCol: g('the look\'s shadow tone (cel-ink.ts SHADOW), one per look'),
   stentWire: g(STENT), stentGoldC: g(STENT),
   streamTex: g(), chainTex: g(), routeTex: g(), streakAmt: g(), dustP: g(),
   dbgShade: g(DBG), dbgDust: g(DBG), dbgHeads: g(DBG), dbgInk: g(DBG), dbgTint: g(DBG), dbgCol: g(DBG),

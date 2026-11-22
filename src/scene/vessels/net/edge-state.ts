@@ -47,6 +47,8 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   col('glowK', 1, [1]), col('quietK', 1, [0]), col('solidK', 1, [1]), col('veilK', 1, [1]),
   col('circFlat', 1, [0]), col('circAnchA', 3, [0, 0, 0]), col('circAnchC', 3, [0, 0, 0]),
   col('lensSpan', 2, [0, 1]),
+  // the crossing shadow (cel-ink.ts SHADOW): the Circuit's depth offset (circuit/map-depth.ts mapDepthOf) and the band's fade length over each joined end (vessels/shadow.ts shadowEndsOf, in this edge's radii; 0 a free end), written once per edge
+  col('mapDepth', 1, [0]), col('shadowEnd', 2, [0, 0]),
   // the highlight (highlight.ts)
   col('hiOn', 1, [0]), col('hiDir', 1, [0]), col('hiOffset', 1, [0]), col('hiAhead', 1, [1]), col('hiBehind', 1, [1]), col('hiFade', 1, [1]), col('hiPx', 1, [1.6]),
   col('hiEnds', 2, [HI_NONE, HI_NONE]), col('hiColor', 3, [0, 0, 0]),
