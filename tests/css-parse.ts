@@ -1,4 +1,4 @@
-// A small stylesheet reader shared by the node tests that judge the cascade (tests/css-cascade.test.ts, tests/colour-tokens.test.ts): every style rule with its
+// A small stylesheet reader shared by the node tests that judge the cascade (tests/css-cascade-out-rank.test.ts, tests/colour-tokens.test.ts): every style rule with its
 // selector, declarations (!important kept), the at-rule context it sits in (@media / @supports, flattened) and its position, in file order. No browser, no postcss.
 import { readFileSync, readdirSync } from 'node:fs';
 

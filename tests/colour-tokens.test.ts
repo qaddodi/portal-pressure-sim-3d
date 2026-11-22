@@ -1,7 +1,7 @@
 // G3 (Plan 39): colours follow the look. (a) No 3D sheet writes a raw white or black as text on a themed fill (the Dark looks' blue fill #7C9BFF took white text at 2.63:1;
 // --on-accent and --on-danger exist for this). (b) In every look the ink on an accent or danger fill, the three text tones and the status colours reach 4.5:1 on the
 // card and the ground, and Light's amber still reads as amber beside its red. (c) Every look token a 3D rule reads with no fallback is defined for all five looks.
-// The values are resolved from the 2D tokens.css (src/ui/css2d, never edited) plus 3D's css2d-3d.css, by the cascade, not from a copy. Source-reading, node only.
+// The values are resolved from the 2D tokens.css (src/ui/css2d, never edited) plus 3D's css3d-over-2d.css, by the cascade, not from a copy. Source-reading, node only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { contrast } from '../src/ui/debug/contrast.ts';
 import { parseCss, stylesheets, spec, cmpSpec, type Rule } from './css-parse.ts';
 
 const tokensRules = parseCss('ui/css2d/tokens.css', readFileSync(new URL('../src/ui/css2d/tokens.css', import.meta.url), 'utf8'));
-const threeRules = parseCss('ui/css2d-3d.css', readFileSync(new URL('../src/ui/css2d-3d.css', import.meta.url), 'utf8'), 100000);
+const threeRules = parseCss('ui/css3d-over-2d.css', readFileSync(new URL('../src/ui/css3d-over-2d.css', import.meta.url), 'utf8'), 100000);
 const SELECTORS: Record<LookId, string[]> = {
   light: [':root'], soft: [':root', ':root[data-theme="soft"]'], dark: [':root', ':root[data-theme="dark"]'],
   navy: [':root', ':root[data-theme="dark"]', ':root[data-theme="dark"][data-palette="navy"]'], black: [':root', ':root[data-theme="dark"]', ':root[data-theme="dark"][data-palette="black"]'],

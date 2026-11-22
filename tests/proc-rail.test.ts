@@ -55,7 +55,7 @@ test('the card has one row and no paragraph or button row left (the old .pz-proc
   assert.match(src, /railOf\(st\)/);
   assert.match(src, /transform: `scaleX/); assert.match(src, /transform: `translateX/);
   const css = merged2d('app-04-presenter.css');
-  assert.doesNotMatch(readFileSync('src/ui/css2d-3d.css', 'utf8'), /\.pz-procs/);   // (2D's copied sheet still carries the old rules, dead: nothing renders them)
+  assert.doesNotMatch(readFileSync('src/ui/css3d-over-2d.css', 'utf8'), /\.pz-procs/);   // (2D's copied sheet still carries the old rules, dead: nothing renders them)
   for (const sel of ['.pz-prail-fill {', '.pz-prail-at {']) {
     const at = css.indexOf(`\n${sel}`), rule = css.slice(at, css.indexOf('}', at));
     assert.match(rule, /transition: transform var\(--d-surface\)/, `${sel} glides`);

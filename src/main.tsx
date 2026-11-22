@@ -5,7 +5,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';
 import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
-import './ui/css2d-3d.css';   // 3D's own changes to the copied 2D rules, same selectors, loaded after them (the copies are never edited)
+import './ui/css3d-over-2d.css';   // 3D's own changes to the copied 2D rules, same selectors, loaded after them (the copies are never edited)
 import './ui/shell/ease.css';   // every control eases its state changes (zero weight: a control's own transition wins)
 import './ui/humanized.css';   // the 2D pills, chips and badges taken off: plain words (docs/HUMANIZED-DESIGN.md; tests/no-dot-pills.test.ts)
 import './ui/glass.css';   // the one glass for every panel, menu, pill and card (tests/glass.test.ts)

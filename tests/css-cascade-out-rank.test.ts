@@ -41,7 +41,7 @@ test('no non-important 2D rule out-ranks a 3D declaration on the same property o
   }
   const hits = new Set<string>();
   for (const r of three) {
-    if (/^ui\/css2d-3d\.css$/.test(r.file)) continue;   // the 2D-rule overrides: same selectors, later in order; judged by css2d-copy and the tests that read them
+    if (/^ui\/css3d-over-2d\.css$/.test(r.file)) continue;   // the 2D-rule overrides: same selectors, later in order; judged by css2d-copy and the tests that read them
     const global = r.file === 'ui/shell/global.css';   // loads before the 2D sheets: a tie goes to 2D
     for (const one of splitSel(r.sel)) {
       const mine = subject(one); if (!mine || !mine.classes.size) continue;

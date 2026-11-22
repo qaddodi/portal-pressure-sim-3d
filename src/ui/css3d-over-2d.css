@@ -99,3 +99,6 @@ html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot
 /* An open action card (a vessel, the TIPS, a device) stands over the view pill's slot, so it takes the room the pill had and the pill fades out under it, eased (Mohammad, 21 Nov: "we don't need access to the anatomy pill when we open those cards"). */
 .app.thumb.ac-over-pill .vdock:not(.mini) > .nb-views { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
 
+
+/* The talk bar's beat strokes (2D .pzb-pips) are gone from 3D (ui/deck/PresenterBar.tsx draws none); 2D's rule stays in the copy, so here it is inert and never a full-width bar. */
+.pzb-pips { position: static; display: none; }

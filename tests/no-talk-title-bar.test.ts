@@ -13,5 +13,6 @@ test('no talk title bar: not in the markup, the styles, the fade-out or the bar 
 });
 
 test('no beat strokes under the slide count', () => {
-  for (const p of ['src/ui/deck/PresenterBar.tsx', 'src/ui/deck-ui.css', 'src/ui/css2d-3d.css']) assert.ok(!/pzb-pips/.test(readFileSync(p, 'utf8')), p);
+  for (const p of ['src/ui/deck/PresenterBar.tsx', 'src/ui/deck-ui.css']) assert.ok(!/pzb-pips/.test(readFileSync(p, 'utf8')), p);
+  assert.match(readFileSync('src/ui/css3d-over-2d.css', 'utf8'), /\.pzb-pips \{ position: static; display: none; \}/, '2D keeps its dead rule in the copy; here it is inert');
 });

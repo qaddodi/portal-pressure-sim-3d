@@ -105,7 +105,7 @@ test('the heart-failure slide draws its own dot at SAAG 1.3 and protein 4.5 (the
 test('a pill that is followed by a stop (2.2 g/dL.) keeps only the hair of room: the rule reaches a pill inside its no-break span, as Line sets it', () => {
   const css = merged2d('app-04-presenter.css');
   assert.match(css, /\.pz-stop :is\(\.pz-val, \.pz-term\) \{ margin-inline-end: \.08em; \}/);
-  // (2D's own rule is the child combinator, which a pill inside its no-break span escapes; the descendant rule above is in css2d-3d.css and out-ranks it by order)
+  // (2D's own rule is the child combinator, which a pill inside its no-break span escapes; the descendant rule above is in css3d-over-2d.css and out-ranks it by order)
   const line = readFileSync(new URL('../src/ui/cards/Line.tsx', import.meta.url), 'utf8');
   assert.match(line, /<span className="pz-nw"><span className=\{`pz-val/, 'the value pill sits inside .pz-nw, so it is never a direct child of .pz-stop');
 });
