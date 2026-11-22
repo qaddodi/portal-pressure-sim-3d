@@ -5,7 +5,7 @@
 // file adds, by the plan owner's rulings of 22 Nov: (1) a node's place is where the TRUNKS meet (the pair that runs on into one another, else the widest veins), radius-weighted, per pose;
 // (2) a branch whose end lies on a trunk's wall is a SIDE-WALL LANDING: the host is split there into two edges at its own bone and the branch ends on that bone, the short way from where it was drawn;
 // where the map draws that branch at the host's end instead, the host's map bones between the landing and that end are laid at the station (as the 2D diagram has one meeting point);
-// (3) any other end eases onto its node over its last stretch by the one fade the course code already uses (network.ts `jointFade`), and every move past 25 % of its course or 3 radii must be named (KNOWN_BIG_MOVES);
+// (3) any other end eases onto its node (an end in a fully faded tail bends only inside it, hiddenTail) over its last stretch by the one fade the course code already uses (network.ts `jointFade`), and every move past 25 % of its course or 3 radii must be named (KNOWN_BIG_MOVES);
 // (4) where two vessels carry straight on into each other (network.ts RUN_PAIRS) one shared tangent at the node and one shared radius, and where the MAP turns there (IVCS to RA, the epigastric vein, the hepatic artery) the corner is
 // rounded as the map rounds its own (course.ts CORNER_R, a quadratic through the corner, the node on the curve); (5) a parallel-transport frame along every edge that runs on across those joins.
 //
@@ -15,7 +15,9 @@ import { CORNER_R, COURSES, N_TRACK } from '../../circuit/course.ts';
 import { frameN } from '../../circuit/frame.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { circuitWidthMap } from '../../circuit/width.ts';
-import { MAPPED, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
+import { fadeOf } from '../fades.ts';
+import { tipAlpha } from '../fade-alpha.ts';
+import { MAPPED, NETWORK_BY_ID, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
 import { radiusAtU } from '../tubes.ts';
 import type { Bone, SkelEdge, SkelNode, Skeleton } from './types.ts';
 
@@ -47,6 +49,21 @@ function arcOf(P: readonly Vec3[]): number[] {
   for (let i = 1; i < P.length; i++) a.push(a[i - 1]! + len(sub(P[i]!, P[i - 1]!)));
   return a;
 }
+/** How far from `end` the course is still fully faded (resting alpha at most FADE_SEEN, fades.ts / fade-alpha.ts): the end's bend may run this far and no further, so the part anyone sees never moves. 0 when the end itself is drawn. */
+export const FADE_SEEN = 0.02;
+export function hiddenTail(id: string, P: readonly Vec3[], arc: readonly number[], end: 0 | 1): number {
+  const n = P.length, total = arc[n - 1]!, art = NETWORK_BY_ID.get(id)?.tone === 'artery';
+  const f = fadeOf(id, art);
+  if (!f || f.mode !== 2) return 0;   // (the down-the-figure fade: the tails below the plate; the others fade along the vessel and stay as they were)
+  let d = 0;
+  for (let q = 0; q < n; q++) {
+    const i = end ? n - 1 - q : q;
+    if (tipAlpha(f, i / (n - 1), P[i]![0], P[i]![1]) > FADE_SEEN) break;
+    d = end ? total - arc[i]! : arc[i]!;
+  }
+  return d;
+}
+
 /** The reach an end eases over, from how far it moves and the course's length. */
 export const reachOf = (move: number, courseLen: number): number => Math.min(REACH_MAX * courseLen, Math.max(REACH_PER_MOVE * move, REACH_MIN * courseLen));
 
@@ -122,8 +139,8 @@ export const MAX_MOVE_SHARE = 0.25, MAX_MOVE_RADII = 3;
  *  ('fade': the end lies in the faded tail below the plate, past 2D's FADE_DOWN_Y start;
  *  'depth': the move is the depth the drawn tubes ease to their node's too (NODE_Z), not a bend across the plate; 'fillet': the node sits on a rounded map corner, not on the corner point the branch ends at; 'data': none of these, named as an open gap). Key: `edge|end|pose`. */
 export const KNOWN_BIG_MOVES: Readonly<Record<string, { why: 'fade' | 'depth' | 'fillet' | 'data'; reason: string }>> = {
-  'EPI_ILI|1|0': { why: 'fade', reason: "the epigastric vein's end is 100 figure units from the iliac trunk's start, in the tail 2D fades out below the plate (fade 870 to 925, its end at 950); the bend begins at y 888, where the vein is still about two thirds drawn: an open gap, bends at the faded tail" },
-  'C4|1|0': { why: 'fade', reason: "the rectal collateral's end (y 1010) is 0.6 from the iliac node, in the tail 2D fades out below the plate (fade 892 to 928): its ease runs through the faded stretch" },
+  'EPI_ILI|1|0': { why: 'fade', reason: "the epigastric vein's end is 100 figure units from the iliac trunk's start, in the tail 2D fades out below the plate (fade 870 to 925, its end at 950): the bend runs only inside the fully faded stretch (hiddenTail, alpha at most 0.02), so the drawn part does not move (tests/net-skeleton.test.ts); a steep hairpin there (about 64 degrees between bones), invisible" },
+  'C4|1|0': { why: 'fade', reason: "the rectal collateral's end (y 1010) is 0.6 from the iliac node, in the tail the 3D fade takes out below the plate (fade 940 to 1005): the bend runs only inside the fully faded stretch (hiddenTail), so the drawn part does not move; a steep hairpin there (over 100 degrees between bones), invisible" },
   'C3|1|0': { why: 'depth', reason: 'the paraumbilical vein runs at the forward tier (z 0.2) and reaches the umbilicus node at the plate: the move is all depth' },
   'C3|0|0': { why: 'data', reason: "the paraumbilical vein's start is 8.8 radii across the plane from the left portal vein's node (the old path leaves it on the wall, starts.ts); no landing fits; open gap" },
   'C3|1|1': { why: 'fillet', reason: "the epigastric node sits on the rounded corner of the map's EPI run-on (wide because the epigastric-SVC edge is long and its bones far apart); the paraumbilical vein's map end is at the corner point" },
@@ -270,7 +287,8 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
         if (pose === 1 && filleted.has(key)) continue;
         const P = w.P[pose], delta = sub(nodePos.get(id)![pose], endOf(w, end, pose)), move = len(delta);
         if (move <= 0) continue;
-        const reach = reachOf(move, w.arc[pose][P.length - 1]!);
+        let reach = reachOf(move, w.arc[pose][P.length - 1]!);
+        if (pose === 0) { const hid = hiddenTail(v.id, P, w.arc[0], end); if (hid > 0) reach = Math.min(reach, hid); }   // (an end in a faded tail bends only inside it)
         easeEnd(P, w.arc[pose], end, delta, reach);
         reachOfEnd.set(`${key}|${pose}`, reach);
         note(v, end, id, pose, delta, w.arc[pose][P.length - 1]!, reach, nodeRadius(l, pose));

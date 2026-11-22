@@ -9,8 +9,9 @@ import { COURSES } from '../src/scene/circuit/course.ts';
 import { FADE_DOWN_Y_2D } from '../src/scene/vessels/fades.copied.ts';
 import { y2d } from '../src/scene/frame2d.ts';
 import { MAPPED, NETWORK, RUN_PAIRS } from '../src/scene/vessels/network.ts';
+import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
 import { baseline } from '../src/scene/vessels/net/baseline.ts';
-import { BONES_PER_EDGE, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
+import { BONES_PER_EDGE, FADE_SEEN, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
 
 const S = skeleton(), R = skeletonReport();
 const dist = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -87,6 +88,43 @@ test('no silent large moves: an end moves at most 25 % of its course and 3 radii
     if (w.why === 'fillet') assert.ok(R.fillets.some((f) => f.node === x!.node), `${k}: no rounded corner at ${x!.node}`);
     if (w.why === 'depth') assert.ok(x!.planar < 0.5, `${k}: the move is not all depth (${x!.planar.toFixed(1)} radii across the plane)`);
     assert.ok(w.reason.length > 20);
+  }
+});
+
+// The named exceptions may only shrink (like scripts/lint-allow.json): this is the whole list as accepted on 22 Nov; a new name fails here, a name that is no longer past the limits fails above. The two 'fade' ones are held to the test below.
+const ACCEPTED_BIG_MOVES = ['EPI_ILI|1|0', 'C4|1|0', 'C3|1|0', 'C3|0|0', 'C3|1|1', 'C7|0|0', 'S_MC|1|0'];
+test('the named big moves are a list that only shrinks: seven at most, five of them data, depth or corner, two in the faded tails', () => {
+  for (const k of Object.keys(KNOWN_BIG_MOVES)) assert.ok(ACCEPTED_BIG_MOVES.includes(k), `${k} is a new named exception: fix the end instead (a landing, or the trunk-first node) rather than naming it`);
+  assert.ok(Object.values(KNOWN_BIG_MOVES).filter((w) => w.why !== 'fade').length <= 5);
+  assert.ok(Object.values(KNOWN_BIG_MOVES).filter((w) => w.why === 'fade').length <= 2);
+});
+
+test('a bend in a faded tail stays in it: of EPI_ILI and C4, every bone drawn (resting alpha above 0.02) is within one radius of where the course puts it', () => {
+  const fades = Object.entries(KNOWN_BIG_MOVES).filter(([, w]) => w.why === 'fade').map(([k]) => k.split('|') as [string, string, string]);
+  assert.deepEqual(fades.map((f) => f[0]).sort(), ['C4', 'EPI_ILI']);
+  for (const [id, end] of fades) {
+    const g = COURSES.get(id)!, hb = hostBones(id), at = (i: number) => vesselAlphaAt(id, i / (BONES_PER_EDGE - 1), g.A[i]!.x, g.A[i]!.y);
+    assert.ok(at(Number(end) ? BONES_PER_EDGE - 1 : 0) <= FADE_SEEN, `${id}: its end is drawn (alpha ${at(Number(end) ? BONES_PER_EDGE - 1 : 0).toFixed(2)}), not in the faded tail`);
+    let drawn = 0, worst = 0;
+    for (let i = 0; i < BONES_PER_EDGE; i++) {
+      if (at(i) <= FADE_SEEN || (Number(end) ? i < BONES_PER_EDGE / 2 : i >= BONES_PER_EDGE / 2)) continue;   // (the half at the faded end: the other end's own ease is under the 25 % / 3 radii limits)
+      drawn++;
+      const a = g.A[i]!, d = dist(hb[i]!.pos[0], [a.x, a.y, a.z]) / hb[i]!.r[0];
+      worst = Math.max(worst, d);
+      assert.ok(d <= 1, `${id} bone ${i} (alpha ${at(i).toFixed(2)}) is ${d.toFixed(2)} radii from its course`);
+    }
+    assert.ok(drawn >= 5, `${id}: only ${drawn} bones drawn: the check is not looking at the visible part`);
+  }
+});
+
+test('a rounded map corner spans at least five bones either side of its node', () => {
+  assert.ok(FILLET_BONES >= 5);
+  for (const f of R.fillets) {
+    const ia = S.nodes.find((x) => x.id === f.node)!, [x, y] = ia.runOn!.map((i) => ia.edges[i]!) as [typeof ia.edges[0], typeof ia.edges[0]];
+    for (const e of [x, y]) {
+      const id = S.edges[e.edge]!.id.split('#')[0]!, b = hostBones(id).map((q) => q.pos[1]), o = (e.end ? b.slice().reverse() : b).filter((q, i, a) => i === 0 || dist(q, a[i - 1]!) > 1e-9);   // (a host cut at its landings: its whole course, the collapsed pieces counting once)
+      assert.ok(o.length > FILLET_BONES, `${f.node}: ${o.length} distinct map bones on ${id}`);
+    }
   }
 });
 
