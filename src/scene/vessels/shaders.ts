@@ -517,6 +517,15 @@ void main() {
   float nbrK = 0.0;
   // (past the other tube's open end nothing of it is drawn: the ink and the drop give way over half a pixel either side of its end plane, by vNbr.z, which the GPU blends exactly where the radius ramped to 0 over a whole triangle)
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT) * (1.0 - smoothstep(-0.5, 0.5, vNbr.z / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
+  // THE CLOT'S OWN PIXELS (plan 34b): coverage and shape are computed here, before the cava opacity ramp and the fade discards, so the ramp is lifted under the clot (a thrombus is not the cava: it stays as solid as the vein's own fade, with no screen dither on its caps).
+  float rDevC = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;
+  vec3 ct = vec3(0.0);
+  float covC = 0.0;
+  if (clotA.z != 0.0 && dotted < 0.5) {
+    float latC = tl > 1e-3 ? dot(dvPx, vec2(-tS.y, tS.x) / tl) / max(rDevC, 1e-3) : 0.0;
+    ct = clotAt(clotA, clotP.xy, vUv.x, latC, vR, rDevC);
+    covC = ct.x * (1.0 - smoothstep(rDevC + 0.5, rDevC + 1.5, dLat)) * (1.0 - smoothstep(0.0, 0.35, circT)) * (1.0 - nbrK);
+  }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -536,6 +545,7 @@ void main() {
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
   }
+  fadeHere = mix(fadeHere, vFade, covC);   // (plan 34b: the cava's opacity ramp is lifted in the clot's own pixels, before the dither and every fade discard: a thrombus is not the cava)
   if (cavA < 0.004) DROP(10);
 #ifdef VEIL
   fadeHere *= veilK;
@@ -639,10 +649,6 @@ void main() {
   // THE CLOT (plan 26) is painted here, in the vein's own fragment: over the dust and the heads, inside the lumen (clipped at its edge, before the ink band below), lit by this pixel's own n.L, so it has the vein's depth, fades, cuts and
   // weights and looks the same from every angle. Its line is on its free edge and its caps only. A uniform branch: a vein with no clot runs none of this and is the same pixel as before.
   if (clotA.z != 0.0 && dotted < 0.5) {
-    float rDevC = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;
-    float latC = tl > 1e-3 ? dot(dvPx, vec2(-tS.y, tS.x) / tl) / max(rDevC, 1e-3) : 0.0;
-    vec3 ct = clotAt(clotA, clotP.xy, vUv.x, latC, vR, rDevC);
-    float covC = ct.x * (1.0 - smoothstep(rDevC + 0.5, rDevC + 1.5, dLat)) * (1.0 - smoothstep(0.0, 0.35, circT)) * (1.0 - nbrK);
     if (covC > 0.0) {
       float etC = max(0.5 * ${F(CEL_STYLE.EDGE_PX)} * fwSt, 1e-4);
       vec3 toneC = mix(mix(clotShade, clotBase, smoothstep(${F(CLOT_SHADE_AT)} - etC, ${F(CLOT_SHADE_AT)} + etC, sT)), clotLift, smoothstep(${F(CLOT_LIFT_AT)} - etC, ${F(CLOT_LIFT_AT)} + etC, sT));

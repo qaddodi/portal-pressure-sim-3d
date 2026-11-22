@@ -68,14 +68,12 @@ export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, 
 /** The geometry of the shape on the wall: the wall side of a clot of occlusion `v` at share `f` is on the lumen's edge, never past it (the gate: |c| + h <= CLOT_INSIDE). */
 export function clotWallReach(v: number, f: number, id: string): number { const { h, c } = clotShapeAt(v, f, id); return Math.abs(c) + h; }
 
-/** The share of the vein's length a clot of occlusion `v` covers. A vein that opens into the cava fades into it and is cut at its wall over its last stretch (fades.ts), and the joint's skin lies there: its clot ENDS, with its own crisp cap, before that
- *  (`limit`: the share where the fade begins less the cap's length, host.ts fadeStartShare; null for any other vein). A vein too short for that shrinks the clot around its middle (never b past a: a floor of two caps long, `cap` a share). */
-export function clotRange(v: number, limit: number | null, cap = 0): { a: number; b: number } {
-  const span = clotSpan(v);
-  if (limit == null || limit >= span.u1) return { a: span.u0, b: span.u1 };
-  if (limit - span.u0 >= 2 * cap) return { a: span.u0, b: limit };
-  // (a vein so short its fade begins within two caps of the clot's start: the clot keeps its end and is two caps long, never b past a)
-  return { a: Math.max(0, limit - 2 * cap), b: Math.max(limit, 0) };
+/** The share of the vein's length a clot of occlusion `v` covers. A vein that opens into the cava (Budd-Chiari: hepatic vein thrombosis) is clotted at its OSTIUM and upstream: `limit` is the proximal end b: the IVCS junction skin's seam share on the vein less the cap's length, so the cap's tip sits at the seam and never enters the skin (clots.ts seamShare: plan 34c). That end stays put as v rises and the distal end `a` falls (the clot grows upstream), by the
+ *  width clotSpan gives as a share of the trunk from the periphery to b: (0.2 + 0.44 v) b. Any other vein (limit null) keeps clotSpan, growing from the middle. */
+export function clotRange(v: number, limit: number | null): { a: number; b: number } {
+  if (limit == null) { const span = clotSpan(v); return { a: span.u0, b: span.u1 }; }
+  const b = Math.max(limit, 0), span = clotSpan(v), w = span.u1 - span.u0;
+  return { a: Math.max(0, b - w * b), b };
 }
 
 /** What each piece of a vein is given: for a vein of pieces whose arcs (scene units) run `starts[k]` to `ends[k]` along a whole vein of `length`, the clot [a, b] (shares) as the piece's uniform. */

@@ -294,6 +294,8 @@ export class SkinSet {
   }
   /** The weld a node's skin shows now (1 whole, 0 the flared tubes alone), NaN for a skin without a growing arm. */
   weldOf(node: string): number { const b = this.drawn.find((x) => x.node === node); return b && b.arms.some((a) => a.grow) ? (Number.isNaN(b.w) ? 0 : b.w) : NaN; }
+  /** Where the skin's seam stands on a vessel's end (uv.x of the tube, 0..1: `end` 1 is its far end), or null when no skin has the end. The one place the clot (disease/clots.ts seamShare) learns where a vein's plain tube ends and the junction skin begins. */
+  seamU(id: string, end: 0 | 1 = 1): number | null { const u = this.cuts.get(id)?.[end]; return u != null && u >= 0 && u <= 1 ? u : null; }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.mesh ?? undefined; }
   /** The stretch of each arm vessel's course (share of its length, from its start and from its end) the seam of a skin stands on, with a margin: what ShapeTracks holds at rest, so the growth of a collateral never moves a seam (coil.ts `pinCourse`). */
