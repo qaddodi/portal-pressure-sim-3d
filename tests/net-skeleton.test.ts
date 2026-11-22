@@ -11,6 +11,7 @@ import { y2d } from '../src/scene/frame2d.ts';
 import { MAPPED, NETWORK, RUN_PAIRS } from '../src/scene/vessels/network.ts';
 import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
 import { baseline } from '../src/scene/vessels/net/baseline.ts';
+import type { Bone } from '../src/scene/vessels/net/types.ts';
 import { BONES_PER_EDGE, FADE_SEEN, WALL_STARTS, hiddenCounts, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
 
 const S = skeleton(), R = skeletonReport();
@@ -68,14 +69,14 @@ test('the courses are read as they are: away from the ends no bone has moved (th
     const g = COURSES.get(v.id)!, b = hostBones(v.id);
     for (const i of [31, 32]) {
       assert.ok(dist(b[i]!.pos[0], [g.A[i]!.x, g.A[i]!.y, g.A[i]!.z]) < 1e-9, `${v.id} body bone ${i}`);
-      assert.ok(dist(b[i]!.pos[1], [g.C[i]!.x, g.C[i]!.y, g.C[i]!.z]) < 1e-9 || R.fillets.some((f) => f.a === v.id || f.b === v.id) || R.collapses.some((c) => c.host === v.id), `${v.id} map bone ${i}`);
+      assert.ok(dist(b[i]!.pos[1], [g.C[i]!.x, g.C[i]!.y, g.C[i]!.z]) < 1e-9 || R.fillets.some((f) => f.a === v.id || f.b === v.id) || R.landings.some((l) => l.host === v.id || l.branch === v.id) || R.arms.some((a) => a.arms.includes(v.id)), `${v.id} map bone ${i}`);
     }
   }
   for (const id of ['IVC_IS', 'IVC_IS_1', 'IVCS_RA', 'SVC_RA', 'SVC_RA_1', 'V_UP']) assert.ok(hostBones(id).length === BONES_PER_EDGE, `${id} is in the skeleton`);
 });
 
 test('no silent large moves: an end moves at most 25 % of its course and 3 radii, or is named in KNOWN_BIG_MOVES with a reason the build bears out', () => {
-  const over = R.ends.filter((x) => x.share > MAX_MOVE_SHARE || x.radii > MAX_MOVE_RADII);
+  const over = R.ends.filter((x) => !x.layout && (x.share > MAX_MOVE_SHARE || x.radii > MAX_MOVE_RADII));   // (the map's station layout moves are held to their own bound below)
   const named = new Set(Object.keys(KNOWN_BIG_MOVES));
   for (const x of over) assert.ok(named.has(`${x.edge}|${x.end}|${x.pose}`), `${x.edge} end ${x.end} (pose ${x.pose}, node ${x.node}) moves ${(x.share * 100).toFixed(0)} % of its course, ${x.radii.toFixed(1)} radii`);
   for (const [k, w] of Object.entries(KNOWN_BIG_MOVES)) {
@@ -142,6 +143,46 @@ test('DIPS and REX start on the host wall, each at a junction of its own, MIN_PI
     for (const o of R.landings) if (o !== l && o.host === l!.host) assert.ok(Math.abs(o.bone - l!.bone) >= 3, `${id}: shares its junction with ${o.branch}`);
     const n = S.nodes.find((x) => x.id === l!.node)!;
     assert.equal(n.edges.length, 3, `${id}: the junction is the host's two pieces and the shunt only`);
+  }
+});
+
+test('every map corner takes at least five bones: on no edge does the map course turn more than 25 degrees between two bone steps (a 90 degree corner over four steps), the corners rounded by the build are listed', () => {
+  let worst = 0, at = '';
+  for (const [i, e] of S.edges.entries()) {
+    const b = bonesOf(S, i).map((q) => q.pos[1]), dd: Vec3[] = [];
+    for (let k = 1; k < b.length; k++) if (dist(b[k]!, b[k - 1]!) > 1e-9) dd.push(unit([b[k]![0] - b[k - 1]![0], b[k]![1] - b[k - 1]![1], b[k]![2] - b[k - 1]![2]]));
+    for (let k = 1; k < dd.length; k++) { const a = angle(dd[k - 1]!, dd[k]!); if (a > worst) { worst = a; at = `${e.id} step ${k}`; } assert.ok(a <= 25, `${e.id}: the map turns ${a.toFixed(0)} degrees in one step (bone ${k}), a corner of fewer than five bones`); }
+  }
+  for (const id of ['C4', 'EPI_SVC']) assert.ok(R.softened.some((x) => x.edge === id), `${id}'s corner was rounded to five bones`);
+  assert.ok(R.softened.length >= 8, `${R.softened.length} courses had a corner rounded (worst left: ${worst.toFixed(0)} degrees at ${at})`);
+});
+
+test('the map keeps the body\'s side: an arm that leaves a host line on one side in the body (between 20 and 160 degrees) leaves it on the same side on the map', () => {
+  let checked = 0;
+  for (const n of S.nodes) {
+    if (!n.runOn || n.edges.length < 3) continue;
+    const arms = (pose: 0 | 1) => armsOf(n, pose), host = n.runOn;
+    const side = (pose: 0 | 1, i: number): number => { const A = arms(pose), t = A[host[0]!]!.d, d = A[i]!.d; return Math.atan2(t[0] * d[1] - t[1] * d[0], t[0] * d[0] + t[1] * d[1]) * 180 / Math.PI; };
+    for (let i = 0; i < n.edges.length; i++) {
+      if (host.includes(i)) continue;
+      const b = side(0, i), m = side(1, i);
+      if (Math.abs(b) > 20 && Math.abs(b) < 160 && Math.abs(m) > 20 && Math.abs(m) < 160) { assert.equal(Math.sign(m), Math.sign(b), `${n.id}: ${S.edges[n.edges[i]!.edge]!.id} is on the ${b > 0 ? 'left' : 'right'} of the host in the body and the other side on the map`); checked++; }
+    }
+  }
+  assert.ok(checked >= 10, `${checked} arms compared`);
+});
+
+test('hidden tails continue the drawn course smoothly: the course keeps its direction where the hidden stretch starts (under 10 degrees), and the turn inside it keeps its curvature at most 1/(2 r); C4 is named, its hidden stretch (two bones) being under 3 radii', () => {
+  const CURVATURE_GAPS = new Set(['C4']);
+  for (const id of ['EPI_ILI', 'C4']) {
+    const hb = hostBones(id), hc = hiddenCounts(id), n = hb.length, h = hc.body[1], iB = n - 1 - h, pts = hb.map((q) => q.pos[0]);
+    const turn = (k: number) => angle(unit([pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1], pts[k]![2] - pts[k - 1]![2]]), unit([pts[k + 1]![0] - pts[k]![0], pts[k + 1]![1] - pts[k]![1], pts[k + 1]![2] - pts[k]![2]]));
+    let kmax = 0; for (let k = Math.max(1, iB); k < n - 1; k++) kmax = Math.max(kmax, (turn(k) * Math.PI / 180) / ((dist(pts[k]!, pts[k - 1]!) + dist(pts[k + 1]!, pts[k]!)) / 2) * hb[k]!.r[0]);
+    const A = COURSES.get(id)!.A, rest = hb[iB]!.r[0], was = dist([A[iB]!.x, A[iB]!.y, A[iB]!.z], [A[n - 1]!.x, A[n - 1]!.y, A[n - 1]!.z]);   // (the hidden stretch of the course as drawn, and the vessel's radius there)
+    if (CURVATURE_GAPS.has(id)) { assert.ok(was < 3 * rest, `${id} is named but its hidden stretch (${(was / rest).toFixed(1)} radii) holds the 3 radii: take it out`); continue; }
+    assert.ok(turn(iB) < 10, `${id}: the drawn course turns ${turn(iB).toFixed(0)} degrees where its hidden stretch starts`);
+    assert.ok(kmax <= 0.5, `${id}: curvature x radius ${kmax.toFixed(2)} in the hidden stretch (limit 0.5)`);
+    assert.ok(was >= 3 * rest, `${id}: its hidden stretch is ${(was / rest).toFixed(1)} radii, under the 3 the turn needs`);
   }
 });
 
@@ -277,20 +318,55 @@ test('baseline recorded: the tubes the current path builds for the Anatomy (a fl
   console.log(`baseline: ${b.vessels} vessels, ${b.courses} courses, ${b.tubeVertices} tube vertices, ${b.tubeTriangles} triangles; skeleton ${b.skeleton.nodes} nodes, ${b.skeleton.edges} edges, ${b.skeleton.bones} bones (${b.skeleton.boneBytes} bytes at 3 RGBA32F texels)`);
 });
 
-test('the map keeps 2D\'s one meeting point: a branch the body lands on a host\'s wall but the map draws at the host\'s end meets it there, and the pieces between the landings have no length on the map', () => {
-  const by = (host: string) => R.collapses.find((c) => c.host === host);
-  assert.ok(by('IVC_IS') && by('LHV_IVC') && by('AZY_SVC'), 'the cava, the left hepatic vein and the azygos have collapsed landings');
-  for (const c of R.collapses) {
-    const landed = R.landings.filter((l) => l.host === c.host);
-    assert.ok(landed.length >= 1);
-    for (const l of landed) {
-      const node = S.nodes.find((n) => n.id === l.node)!, branch = MAPPED.find((v) => v.id === l.branch)!;
-      const g = COURSES.get(l.branch)!, own = l.branchEnd ? g.C[BONES_PER_EDGE - 1]! : g.C[0]!;
-      // the branch's map end is (nearly) where the map drew it: no slide along the host
-      if (l.bone >= c.bone === Boolean(c.hostEnd)) assert.ok(dist(node.pos[1], [own.x, own.y, own.z]) <= 3 * mapRadiusOf(branch) + 0.03, `${l.node}: the branch's map end moved ${dist(node.pos[1], [own.x, own.y, own.z]).toFixed(3)}`);
-    }
-    const piece = S.edges.findIndex((e) => e.id.startsWith(`${c.host}#`) && (c.hostEnd ? e.id.endsWith(`#${R.landings.filter((l) => l.host === c.host).length ? Math.max(...S.edges.filter((x) => x.id.startsWith(`${c.host}#`)).map((x) => Number(x.id.split('#')[1]))) : 0}`) : e.id.endsWith('#0')));
-    const b = bonesOf(S, piece);
-    assert.ok(dist(b[0]!.pos[1], b[b.length - 1]!.pos[1]) < 1e-9, `${c.host}: the end piece has no length on the map`);
+// 22 Nov, plan owner on the render verdict: the map's node structure equals the body's (the earlier merge of the hepatic landings into one map point is withdrawn). Every body node has its own map station.
+/** Hosts whose map course is too short to hold their stations and ends 3 radii apart (name, may only shrink). */
+const SHORT_MAP_HOSTS = new Set(['IVC_IS', 'IVC_IS_1', 'PV_TRUNK_1', 'PVH_R_2', 'PVH_L_1', 'RHV_IVC_1']);
+const mapDist = (a: Bone, b: Bone): number => dist(a.pos[1], b.pos[1]);
+const mapArc = (bs: Bone[], i: number, j: number): number => { let t = 0; for (let k = i + 1; k <= j; k++) t += mapDist(bs[k - 1]!, bs[k]!); return t; };
+test('every body node has its own map station: no zero-length piece on the map, stations on one host at least 3 host radii apart, the hepatic veins in the body\'s order from below (MHV, RHV, LHV)', () => {
+  for (const [i, e] of S.edges.entries()) {
+    const b = bonesOf(S, i);
+    assert.ok(mapDist(b[0]!, b.at(-1)!) > 1e-6, `${e.id} has no length on the map`);
   }
+  for (const host of new Set(R.landings.map((l) => l.host))) {
+    const st = [...new Set(R.landings.filter((l) => l.host === host).map((l) => l.bone))].sort((a, b) => a - b), hb = hostBones(host), r = mapRadiusOf(MAPPED.find((v) => v.id === host)!), rep = R.stations.find((x) => x.host === host)!;
+    const nodes = [0, ...st, BONES_PER_EDGE - 1];
+    for (let k = 1; k < nodes.length; k++) assert.ok(mapArc(hb, nodes[k - 1]!, nodes[k]!) >= rep.spacing * r - 1e-6, `${host}: nodes at bones ${nodes[k - 1]} and ${nodes[k]} are ${(mapArc(hb, nodes[k - 1]!, nodes[k]!) / r).toFixed(2)} radii apart on the map, the report says ${rep.spacing.toFixed(2)}`);
+    // the rule is 3 radii; a map host too short for it (its stations and two ends at 3 radii) is named here, with the spacing it can have: only a longer map host closes it
+    if (!SHORT_MAP_HOSTS.has(host)) assert.ok(rep.spacing >= 3 - 1e-9, `${host}: its map course (${rep.length.toFixed(1)} radii) holds its ${nodes.length} nodes only ${rep.spacing.toFixed(2)} radii apart`);
+    else assert.ok(rep.spacing < 3, `${host} is named short but holds the rule: take it out`);
+  }
+  const at = (b: string) => R.landings.find((l) => l.host === 'IVC_IS' && l.branch === b)!.bone;
+  assert.ok(at('MHV_IVC') < at('RHV_IVC') && at('RHV_IVC') < at('LHV_IVC'), 'the cava takes MHV, then RHV, then LHV from below');
+  const lay = R.ends.filter((x) => x.layout);
+  assert.ok(lay.length > 0 && lay.every((x) => x.pose === 1 && x.radii <= 12), 'the map layout moves are landings, at the map pose, 12 radii at most');
+});
+
+/** The arms of a node at a pose: each one's direction leaving the node, taken over its first 2 radii, and how far its first 2 radii stray from a straight line (degrees). */
+const armsOf = (n: typeof S.nodes[number], pose: 0 | 1) => n.edges.map((e) => {
+  const whole = hostBones(S.edges[e.edge]!.id.split('#')[0]!), piece = bonesOf(S, e.edge), seq = e.end ? piece.slice().reverse() : piece, r = seq[0]!.r[pose];
+  void whole;
+  let whole1 = 0; for (let i = 1; i < seq.length; i++) whole1 += dist(seq[i]!.pos[pose], seq[i - 1]!.pos[pose]);
+  const want = Math.min(2 * r, 0.5 * whole1);   // (a piece between two nodes keeps half of itself straight at most)
+  const pts = [seq[0]!.pos[pose]]; let acc = 0;
+  for (let i = 1; i < seq.length && acc < want; i++) { acc += dist(seq[i]!.pos[pose], seq[i - 1]!.pos[pose]); pts.push(seq[i]!.pos[pose]); }
+  const d = unit([pts.at(-1)![0] - pts[0]![0], pts.at(-1)![1] - pts[0]![1], pts.at(-1)![2] - pts[0]![2]]);
+  let dev = 0; for (const p of pts.slice(1)) dev = Math.max(dev, angle(unit([p[0] - pts[0]![0], p[1] - pts[0]![1], p[2] - pts[0]![2]]), d));
+  return { id: S.edges[e.edge]!.id, d, dev, run: acc / r };
+});
+const cornerNodes = new Set(R.fillets.map((f) => f.node));
+test('at the map pose every node of three or more arms keeps its arms 25 degrees from their neighbours and 45 degrees from the host, each straight for 2 radii (the corners\' own curves excepted)', () => {
+  let checked = 0;
+  for (const n of S.nodes) {
+    if (n.edges.length < 3 || n.id.endsWith(':art')) continue;
+    const arms = armsOf(n, 1), host = new Set(n.runOn ?? []);
+    for (let i = 0; i < arms.length; i++) for (let j = i + 1; j < arms.length; j++) {
+      const a = angle(arms[i]!.d, arms[j]!.d), both = host.has(i) && host.has(j);
+      if (both) continue;
+      assert.ok(a >= (host.has(i) || host.has(j) ? 45 : 25) - 0.5, `${n.id}: ${arms[i]!.id} and ${arms[j]!.id} leave ${a.toFixed(0)} degrees apart`);
+    }
+    if (cornerNodes.has(n.id)) continue;
+    arms.forEach((a, i) => { assert.ok(a.dev <= 15, `${n.id}: ${a.id} bends ${a.dev.toFixed(0)} degrees inside its first 2 radii`); checked++; void i; });
+  }
+  assert.ok(checked >= 30, `${checked} arms checked`);
 });
