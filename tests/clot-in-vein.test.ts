@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { ClotObject, clotBiasOf, clotGeometry, clotShapeOf } from '../src/scene/disease/clots.ts';
 import { drawnHost } from '../src/scene/disease/host.ts';
-import { neighbourAttr } from '../src/scene/vessels/neighbour.ts';
+import { NBR_STRIDE, neighbourAttr } from '../src/scene/vessels/neighbour.ts';
 import { TUBE_DEPTH_SHARE, VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
@@ -24,7 +24,7 @@ test('A: the clot\'s fill and outline are cut along the cava\'s wall by the vein
     assert.match(m.fragmentShader, /return 1\.0 - smoothstep\(-0\.5, 0\.5, cdPx\);/);
     assert.match(m.fragmentShader, /if \(cutK < 0\.004\) discard;/);
     assert.match(m.fragmentShader, /\* vLumA \* cutK/);
-    assert.match(m.vertexShader, /vNbr = nbr;/);
+    assert.match(m.vertexShader, /vNbr = nbr\.xy;/);
   }
 });
 
@@ -36,8 +36,8 @@ test('A: a clot in a vein that opens into the cava carries the cava\'s nbr on ev
     assert.ok(ref, `${id}: the cava is the vein's mate`);
     let inside = 0, outside = 0;
     for (let v = 0; v < g.getAttribute('position').count; v++) {
-      assert.ok(Math.abs(nb[2 * v]! - ref[2 * v]!) < 1e-6 && Math.abs(nb[2 * v + 1]! - ref[2 * v + 1]! * k) < 1e-6, `${id} vertex ${v}`);
-      if (ref[2 * v + 1]! * k - Math.abs(ref[2 * v]!) > 0) inside++; else outside++;
+      assert.ok(Math.abs(nb[NBR_STRIDE * v]! - ref[NBR_STRIDE * v]!) < 1e-6 && Math.abs(nb[NBR_STRIDE * v + 1]! - ref[NBR_STRIDE * v + 1]! * k) < 1e-6, `${id} vertex ${v}`);
+      if (ref[NBR_STRIDE * v + 1]! * k - Math.abs(ref[NBR_STRIDE * v]!) > 0) inside++; else outside++;
     }
     // the clot runs on past the wall (its vertices inside the lumen are cut) and is whole outside it
     assert.ok(inside > 0 && outside > 0, `${id} swell ${k}: ${inside} vertices inside the cava, ${outside} outside`);

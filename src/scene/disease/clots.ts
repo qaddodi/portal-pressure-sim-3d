@@ -8,7 +8,7 @@
 // at (the axis's depth and the same share of the bulge) less a bias, so it ties with its vein and loses to a vessel on a nearer tier;  (Its outline weight is not touched here: the clot's style is its own plan.)
 // A clot thickens and thins with its parameter in a moment (lesion-ease.js) and never pops: a new clot grows from nothing, a lysed one shrinks to nothing.
 import { BufferGeometry, Float32BufferAttribute, Group, Vector3 } from 'three';
-import { neighbourAttr } from '../vessels/neighbour.ts';
+import { NBR_STRIDE, neighbourAttr } from '../vessels/neighbour.ts';
 import { TUBE_DEPTH_SHARE } from '../vessels/shaders.ts';
 import { opensIntoCava } from '../vessels/fades.ts';
 import { clotRadius, clotShift, clotSide, clotSpan, hashSeed } from './copied/clot-shape.js';
@@ -37,7 +37,7 @@ export const clotBiasOf = (lumenMax: number): number => TUBE_DEPTH_SHARE * lumen
 /** What the clot's vertex stages add (both the fill and the outline): the vertex's ring (`ringC`: the clot's own axis, for depth), and the cava's `nbr`. */
 export const CLOT_VS_GLSL = /* glsl */ `
 attribute vec3 ringC;
-attribute vec2 nbr;
+attribute vec3 nbr;
 varying vec2 vNbr;
 varying float vUpx;
 uniform float clotBias;
@@ -45,7 +45,7 @@ uniform float clotBias;
 void clotVary() {
   vec4 ca = projectionMatrix * modelViewMatrix * vec4(ringC, 1.0);
   vUpx = max(2.0 * ca.w / (res.y * projectionMatrix[1][1]), 1e-9);
-  vNbr = nbr;
+  vNbr = nbr.xy;   // (the vein's own cava cut reads only the distance and the radius: z, the end plane, is NBR_NO_END against the cava)
 }
 // the tube's depth rule (vessels/shaders.ts TUBE_DEPTH_SHARE): the clot's own axis's depth plus the same share of the bulge (never farther than the axis: a back face is no deeper), toward the viewer by clotBias
 float clotDepth(vec4 c) {
@@ -151,9 +151,9 @@ export function clotGeometry(shape: ClotShape, cut: ClotCut | null = null): Buff
   put(0); put(n - 1);   // (the two end caps, one vertex each)
   g.setAttribute('lumA', new Float32BufferAttribute(a, 1));
   g.setAttribute('ringC', new Float32BufferAttribute(rc, 3));
-  const nb = (cut && neighbourAttr(cut.piece, g.getAttribute('position').array)) || new Float32Array(g.getAttribute('position').count * 2);
-  if (cut) for (let i = 1; i < nb.length; i += 2) nb[i] = nb[i]! * cut.swell;   // (the cava as it is DRAWN: its built radius times its live swell, as the vein's vertex stage does it)
-  g.setAttribute('nbr', new Float32BufferAttribute(nb, 2));
+  const nb = (cut && neighbourAttr(cut.piece, g.getAttribute('position').array)) || new Float32Array(g.getAttribute('position').count * NBR_STRIDE);
+  if (cut) for (let i = 1; i < nb.length; i += NBR_STRIDE) nb[i] = nb[i]! * cut.swell;   // (the cava as it is DRAWN: its built radius times its live swell, as the vein's vertex stage does it)
+  g.setAttribute('nbr', new Float32BufferAttribute(nb, NBR_STRIDE));
   return g;
 }
 
