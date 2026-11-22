@@ -290,3 +290,38 @@ export function absentFits(mesh: NetMesh, skel: Skeleton, regions: readonly Regi
     return out;
   }));
 }
+
+/** THE KEYED START (plan owner, 22 Nov, wide junctions): a region's fillet is baked at up to 4 KEYS, each a state of its arms' radii, by CONTINUATION (the radii ramp from rest to the key in `steps` small steps, each step projecting the previous
+ *  step's vertices by 3 Newton steps: a direct projection of the rest arrangement folds at a wide ratio, the ramp does not). At run time the start is the convex blend of the keys' vertices, weights from the inverse log-radius distance between the live
+ *  arm radii and each key's (to the power `power`), so a blend of fold-free keys cannot overshoot; the projection then runs as always. REST POSE only (the positions are world positions: the real bake keeps them in the bone frames). */
+export interface RegionKey { radii: number[]; pos: Float32Array }
+const armRadii = (rg: Region, bones: LiveBone[]): number[] => rg.caps.slice(0, rg.arms).map((c) => bones[c.bones[0]!]!.lumen);
+export function bakeKeys(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], keyStates: readonly LiveState[], steps = 24): RegionKey[][] {
+  const rest = liveStates(skel)[0]![1], lerp = (a: LiveState, b: LiveState, f: number): LiveState => ({ ...a, ink: 0, sag: 0, edges: a.edges.map((e, i) => ({ ...e, swell: e.swell + (b.edges[i]!.swell - e.swell) * f })) });
+  const out: RegionKey[][] = regions.map(() => []);
+  for (const ks of keyStates) {
+    let pos: Float32Array | null = null;
+    for (let k = 1; k <= steps; k++) {
+      const st = lerp(rest, ks, k / steps);
+      const start: { position: Float32Array; normal: Float32Array } = pos ? { position: pos, normal: new Float32Array(pos.length) } : junctionPose(mesh, skel, regions, st).start;
+      pos = projectRegions(mesh, skel, regions, st, start, 3).position;
+    }
+    const bones = liveBones(skel, ks);
+    regions.forEach((rg, ri) => out[ri]!.push({ radii: armRadii(rg, bones), pos: pos!.slice(3 * rg.vertStart, 3 * (rg.vertStart + rg.vertCount)) }));
+  }
+  return out;
+}
+/** The normalised weights of the keys at the live arm radii: 1 / (log-radius distance + eps)^power, summing to 1. */
+export function keyWeights(live: readonly number[], keys: readonly RegionKey[], power = 2): number[] {
+  const w = keys.map((k) => 1 / Math.pow(Math.hypot(...live.map((r, i) => Math.log(Math.max(r, 1e-9) / Math.max(k.radii[i]!, 1e-9)))) + 1e-3, power)), W = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => x / W);
+}
+/** The junction pose with the keyed start (rest pose, swell only). */
+export function keyedPose(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState, keys: readonly (readonly RegionKey[])[], power = 2): ReturnType<typeof projectRegions> {
+  const start: ReturnType<typeof deformLive> = junctionPose(mesh, skel, regions, live).start, bones = liveBones(skel, live), pos = Float32Array.from(start.position);
+  regions.forEach((rg, ri) => {
+    const w = keyWeights(armRadii(rg, bones), keys[ri]!, power);
+    for (let v = 0; v < rg.vertCount; v++) for (let q = 0; q < 3; q++) pos[3 * (rg.vertStart + v) + q] = keys[ri]!.reduce((a, k, ki) => a + w[ki]! * k.pos[3 * v + q]!, 0);
+  });
+  return projectRegions(mesh, skel, regions, live, { position: pos, normal: start.normal }, 3);
+}
