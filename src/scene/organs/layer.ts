@@ -16,7 +16,7 @@ import { Eased, LiverFollow } from '../disease/follow.ts';
 import { type BodyTargets, SPLENIC_GHOST, poolFill } from '../disease/targets.ts';
 import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, setLiverTint, type RGB } from './organ-look.ts';
 import { PAINTED, VertexPaint } from './vertex-paint.ts';
-import { poolUniforms } from './pool-level.ts';
+import { RIPPLE_HZ, poolUniforms } from './pool-level.ts';
 import { LiverShape } from './liver-shape.ts';
 import { LiverBake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
@@ -90,7 +90,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
-    poolA: { value: new Vector4() }, poolLand: { value: new Vector3() }, poolDelta: { value: new Vector3() },   // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
+    poolA: { value: new Vector4() }, poolLand: { value: new Vector4() }, poolDelta: { value: new Vector3() },   // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
     shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
   });
   m.transparent = true; m.depthWrite = true;
@@ -149,6 +149,8 @@ export class OrganLayer {
   private quiet = 0;
   private readonly sat = new Eased(1, 0.42);
   private readonly blood = new Eased(0, 0.6);
+  /** how far the pool's ripples stand (0..1): they come in with the bleed and ease out when it stops (a little slower than the pool's colour, so the surface calms as the blood leaves) */
+  private readonly ripple = new Eased(0, 0.9);
   /** how full the pool of blood stands in the stomach (poolFill of the blood lost; it keeps its level while it fades) */
   private readonly pool = new Eased(0.12, 0.6);
   /** how far the embolized spleen's dead lower part has come in */
@@ -287,8 +289,9 @@ export class OrganLayer {
     moving = this.sat.to(this.grey ? LENS_GREY.sat : 1, dt, inst) || moving;
     moving = this.blood.to(t.bleed.active ? 1 : 0, dt, inst) || moving;
     if (t.bleed.active) moving = this.pool.to(poolFill(t.bleed.total), dt, inst) || moving;
+    moving = this.ripple.to(t.bleed.active ? 1 : 0, dt, inst) || moving;
     if (moving || this.dirtyColours) { this.paint(); this.dirtyColours = false; }
-    return moving || eased;
+    return this.stepRipple(now) || moving || eased;
   }
 
   /** The caudate lobe on a slide about it (2D stage.js caud.show): `on` shows it, eased. `grown` (0..1, from its veins' flow: network.ts feederLive 'caudate') sets how far it has enlarged about its anchor (CAUDATE.grow). */
@@ -367,6 +370,17 @@ export class OrganLayer {
     return false;
   }
 
+  /** The pool's ripples run on the clock: their height (eased with the bleed) and phase go to the stomach's shader every frame while they show, and nothing else is repainted for them.
+   *  True while they show (another frame is wanted); false once they have died away (the height is written 0 once, and nothing is asked for). */
+  private stepRipple(now: number): boolean {
+    const st = this.byId.get('stomach');
+    if (!st) return false;
+    const pl = st.toon.uniforms.poolLand!.value as Vector4, on = this.ripple.value > 0.004 && this.blood.value > 0.004;
+    if (!on && pl.z === 0) return false;
+    pl.z = on ? this.ripple.value : 0; pl.w = ((now / 1000) * RIPPLE_HZ % 1) * 2 * Math.PI;
+    return on;
+  }
+
   /** The stomach's pool of blood: the level, the landing and the colour it moves the wash by, written as uniforms for the organ shader (organ-shader.ts) to draw per pixel; nothing per vertex.
    *  `c` is the organ's one colour, `bloody` the same wash with the blood in it (it eases in and out with the bleed, so the pool's colour does). */
   private paintPool(o: CelObject, c: RGB, bloody: RGB): void {
@@ -374,7 +388,7 @@ export class OrganLayer {
     if (this.blood.value <= 0.004 || !this.body) { a.z = 0; return; }
     const b = u.box!.value as Vector4, q = poolUniforms([b.x, b.y, b.z, b.w], this.pool.value, this.body.bleed);
     a.set(q.level, q.unitsPerBox, this.blood.value, q.flow);
-    (u.poolLand!.value as Vector3).set(q.landX, q.landHalf, 0);
+    const pl = u.poolLand!.value as Vector4; pl.x = q.landX; pl.y = q.landHalf;   // (z and w, the ripples, are the clock's: stepRipple)
     (u.poolDelta!.value as Vector3).set(bloody[0] - c[0], bloody[1] - c[1], bloody[2] - c[2]);
   }
 

@@ -72,9 +72,9 @@ uniform vec3 sepDelta;
 uniform vec2 nodK;
 varying vec2 vRest;
 // the pool of blood in the stomach (pool-level.ts), drawn per pixel: x the surface's place in the box (vBox.y), y the figure's units in one box height, z how much blood there is (0 none: nothing below runs),
-// w how strongly the jet lands on the surface; poolLand x the landing's place in the box (vBox.x), y its half width in box widths; poolDelta how far the pool's colour is from the organ's
+// w how strongly the jet lands on the surface; poolLand x the landing's place in the box (vBox.x), y its half width in box widths (16 figure units), z how high the ripples stand (0 none: they ease out with the bleed), w their phase (radians, from the clock); poolDelta how far the pool's colour is from the organ's
 uniform vec4 poolA;
-uniform vec3 poolLand;
+uniform vec4 poolLand;
 uniform vec3 poolDelta;
 // Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
 uniform float depthAmt;
@@ -113,7 +113,16 @@ void main() {
   if (poolA.z > 0.004) {
     // the pool: a level in the figure (a line across the stomach, per pixel, never per vertex), mirrored by poolShade in pool-level.ts (which the node render and the tests run).
     // dU is how many figure units below the surface this pixel is (negative above it).
-    float dU = (vBox.y - poolA.x) * poolA.y;
+    // ripples: gentle waves run out along the surface from where the jet lands (the surface is seen edge-on, so a ring is a wave of the waterline): the level rises and falls by a unit or two,
+    // dying away with distance, and the crests catch the light.
+    float dxU = (vBox.x - poolLand.x) * 16.0 / max(poolLand.y, 1e-4);
+    float ad = abs(dxU);
+    float env = (1.0 - exp(-ad / 4.0)) * exp(-ad / 70.0);
+    float th = 6.2831853 * ad / 24.0 - poolLand.w;
+    float amp = poolLand.z * (0.5 + 0.5 * poolA.w) * 1.6;
+    float rise = amp * env * sin(th);
+    float slope = amp * env * cos(th) * (6.2831853 / 24.0) * sign(dxU);
+    float dU = (vBox.y - poolA.x) * poolA.y - rise;
     float aa = max(fwPool, 1.5);   // the waterline is a soft blend a few units wide (colours blend, never step), and never narrower than a pixel
     float body = smoothstep(-aa, aa, dU);
     float wet = smoothstep(-3.5, -aa, dU) * (1.0 - body);   // the meniscus: the wall just above the surface is wet, a faint film that climbs a few units and fades
@@ -122,6 +131,8 @@ void main() {
     float lobe = exp(-pow((vBox.x - poolLand.x) / max(poolLand.y, 1e-4), 2.0));   // the jet lands: a lighter, fresher patch on the surface, a little wider than the jet
     float skin = (1.0 - smoothstep(0.0, 6.0, dU)) * smoothstep(-0.5, 2.0, dU);   // the lit skin of the surface: a few units under it
     fill = mix(fill, ogLight.rgb, clamp((0.07 + poolA.w * lobe * 0.12) * skin * poolA.z, 0.0, 1.0));
+    float band = (1.0 - smoothstep(0.0, 9.0, dU)) * smoothstep(-1.5, 1.0, dU);   // the ripples' light lies in the blood's top few units
+    fill = mix(fill, slope > 0.0 ? ogLight.rgb : ogDark.rgb, clamp(abs(slope) * 0.5, 0.0, 0.2) * band * poolA.z);
     lay = mix(layer, max(layer, 0.9), body * poolA.z);   // blood is not a wash: it lies on the page nearly opaque, so it reads red, not mauve
   }
   if (nodAmt > 0.0) {

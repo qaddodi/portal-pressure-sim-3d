@@ -1,6 +1,7 @@
 // Renders the stomach's pool of blood without a GPU or a browser: the real stomach mesh (public/anatomy/organs.bin), rasterised front-on with a z-buffer, and the organ fragment shader's
 // own arithmetic in JS (organ-shader.ts: the gradient, the volume, the inner shade, and the pool through poolShade in pool-level.ts, which mirrors the GLSL line for line). The uniforms are
 // the layer's own, written by OrganLayer for a real bleed. A node picture of the arithmetic, NOT a GPU frame: say "node raster, not the GPU" when reporting it.
+//   (--phases 0,.33,.66 --crop 740,420,1010,480 --totals 400 shows the ripples close up)
 //   node scripts/pool-render.mjs --out /mnt/project-files/variceal-bleed/pool/pool-sheet.png [--totals 20,400,1500] [--looks light,dark] [--scale 1.6]
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -24,9 +25,9 @@ await organsReady;
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smoothstep = (a, c, x) => { const t = clamp01((x - a) / (c - a)); return t * t * (3 - 2 * t); };
 const mix = (a, c, t) => a.map((v, i) => v + (c[i] - v) * t);
-const Y0 = 170, Y1 = 600, X0 = 690, X1 = 1010, W = Math.round((X1 - X0) * S), H = Math.round((Y1 - Y0) * S);
+const [X0, Y0, X1, Y1] = arg('crop', '690,170,1010,600').split(',').map(Number), W = Math.round((X1 - X0) * S), H = Math.round((Y1 - Y0) * S);
 
-async function shot(look, total) {
+async function shot(look, total, phase = 0) {
   const palette = paletteFor(look);
   const layer = new OrganLayer(createShared(), { stomach: ORGAN_MESHES.stomach });
   layer.applyLook(palette);
@@ -38,7 +39,7 @@ async function shot(look, total) {
   const col = (x) => [x.r, x.g, x.b];
   const o1 = col(u.o1.value), o2 = col(u.o2.value), page = col(u.page.value), layerA = u.layer.value;
   const ogLight = v4(u.ogLight.value), ogDark = v4(u.ogDark.value), volLight = v4(u.volLight.value), volShade = v4(u.volShade.value), volGeo = v4(u.volGeo.value), steps = v3(u.shadeSteps.value);
-  const box = v4(u.box.value), pa = v4(u.poolA.value), pl = v3(u.poolLand.value), pd = v3(u.poolDelta.value);
+  const box = v4(u.box.value), pa = v4(u.poolA.value), pl = v4(u.poolLand.value), pd = v3(u.poolDelta.value);
   const pos = g.getAttribute('position'), nrm = g.getAttribute('shadeN'), idx = g.index.array;
   const img = new Float32Array(W * H * 3);
   for (let i = 0; i < W * H; i++) { img[i * 3] = page[0]; img[i * 3 + 1] = page[1]; img[i * 3 + 2] = page[2]; }
@@ -66,7 +67,7 @@ async function shot(look, total) {
         let lay = layerA;
         if (pa[2] > 0.004) {
           const lobe = Math.exp(-Math.pow((bx - pl[0]) / Math.max(pl[1], 1e-4), 2));
-          const r = poolShade(fill, layerA, { dU: (by - pa[0]) * pa[1], lobe, amount: pa[2], flow: pa[3], delta: pd, light: ogLight.slice(0, 3), aa: 1.5 });
+          const r = poolShade(fill, layerA, { dU: (by - pa[0]) * pa[1], dxU: (bx - pl[0]) * 16 / Math.max(pl[1], 1e-4), ripple: pl[2], phase: phase * 2 * Math.PI, dark: ogDark.slice(0, 3), lobe, amount: pa[2], flow: pa[3], delta: pd, light: ogLight.slice(0, 3), aa: 1.5 });
           fill = r.fill; lay = r.layer;
         }
         const r = Math.hypot(bx - volGeo[0], by - volGeo[1]) / volGeo[2];
@@ -87,8 +88,11 @@ async function shot(look, total) {
 }
 
 const cells = [];
-for (const look of looks) for (const total of totals) cells.push({ look, ...(await shot(look, total)) });
-const cols = totals.length, rows = looks.length, SW = W * cols, SH = H * rows;
+// --phases 0,.25,.5,.75 shows one total's ripples at those phases (cycles) instead of the totals side by side
+const phases = arg('phases', '').split(',').filter(Boolean).map(Number);
+if (phases.length) { for (const look of looks) for (const ph of phases) cells.push({ look, ...(await shot(look, totals[0], ph)) }); }
+else for (const look of looks) for (const total of totals) cells.push({ look, ...(await shot(look, total)) });
+const cols = phases.length ? phases.length : totals.length, rows = looks.length, SW = W * cols, SH = H * rows;
 const sheet = Buffer.alloc(SW * SH * 3);
 cells.forEach((c, n) => {
   const cx = (n % cols) * W, cy = Math.floor(n / cols) * H;

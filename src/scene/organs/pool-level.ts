@@ -30,19 +30,25 @@ export function poolUniforms(box: PoolBox, fill: number, bleed: { site: 'VAR' | 
   return { level: (top - y3(surf)) / h, unitsPerBox: h * UNITS_PER_SCENE, landX: (x3(row[2]!) - box[0]) / w, landHalf: 16 / (w * UNITS_PER_SCENE), flow: row[3]! };
 }
 
+/** The ripples' wavelength along the surface, in figure units (organ-shader.ts: 24), and how fast they run out (cycles a second). */
+export const RIPPLE_LAMBDA = 24, RIPPLE_HZ = 0.9;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const smoothstep = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
 /** The pool's part of the organ fragment shader (organ-shader.ts, the `poolA.z > 0.004` block), in JS, line for line: the node render (scripts/pool-render.mjs) and the tests run this, so what is judged
  *  without a GPU is the shader's own arithmetic. `fill` the wash so far, `layer` the organ layer's opacity; `dU` figure units below the surface (negative above), `lobe` the jet's landing (0..1),
  *  `aa` the edge's width floor (1.5). Returns the colour and the opacity it lies on the page at (blood is nearly opaque below the surface). */
-export function poolShade(fill: readonly number[], layer: number, p: { dU: number; lobe: number; amount: number; flow: number; delta: readonly number[]; light: readonly number[]; aa?: number }): { fill: number[]; layer: number } {
-  const aa = Math.max(p.aa ?? 1.5, 1.5), dU = p.dU;
+export function poolShade(fill: readonly number[], layer: number, p: { dU: number; dxU?: number; ripple?: number; phase?: number; lobe: number; amount: number; flow: number; delta: readonly number[]; light: readonly number[]; dark?: readonly number[]; aa?: number }): { fill: number[]; layer: number } {
+  const aa = Math.max(p.aa ?? 1.5, 1.5), dx = p.dxU ?? 0, ad = Math.abs(dx);
+  const env = (1 - Math.exp(-ad / 4)) * Math.exp(-ad / 70), th = 2 * Math.PI * ad / RIPPLE_LAMBDA - (p.phase ?? 0), amp = (p.ripple ?? 0) * (0.5 + 0.5 * p.flow) * 1.6;
+  const slope = amp * env * Math.cos(th) * (2 * Math.PI / RIPPLE_LAMBDA) * Math.sign(dx), dU = p.dU - amp * env * Math.sin(th);
   const body = smoothstep(-aa, aa, dU);
   const wet = smoothstep(-3.5, -aa, dU) * (1 - body);
   const out = fill.map((v, i) => v + p.delta[i]! * (body + 0.25 * wet));
   const dark = 1 - 0.26 * smoothstep(0, 90, dU) * body * p.amount;
   const skin = (1 - smoothstep(0, 6, dU)) * smoothstep(-0.5, 2, dU);
   const k = clamp01((0.07 + p.flow * p.lobe * 0.12) * skin * p.amount);
-  return { fill: out.map((v, i) => v * dark + (p.light[i]! - v * dark) * k), layer: layer + (Math.max(layer, 0.9) - layer) * body * p.amount };
+  const lit = out.map((v, i) => v * dark + (p.light[i]! - v * dark) * k);
+  const band = (1 - smoothstep(0, 9, dU)) * smoothstep(-1.5, 1, dU), rk = Math.min(0.2, Math.abs(slope) * 0.5) * band * p.amount, tone = slope > 0 ? p.light : (p.dark ?? p.light.map(() => 0));
+  return { fill: lit.map((v, i) => v + (tone[i]! - v) * rk), layer: layer + (Math.max(layer, 0.9) - layer) * body * p.amount };
 }

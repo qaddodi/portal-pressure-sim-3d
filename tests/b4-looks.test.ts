@@ -83,9 +83,17 @@ test('the bleed\'s pool is a level the stomach\'s shader draws per pixel, not ve
   const surfY = box.y - a.x * box.w;   // the level, back in scene y
   assert.ok(surfY < y3(280) && surfY > y3(600), 'the surface is across the stomach');
   assert.ok(d.x - d.z > 0.05, 'the pool is redder than the wash');
+  const rp = u.poolLand!.value as { z: number; w: number };
+  assert.ok(rp.z > 0.9, 'the ripples stand while it bleeds');
+  const w0 = rp.w; o.update(1000 + 120 * 33 + 200);
+  assert.notEqual(rp.w, w0, 'and run on the clock');
   const before = a.x;
   o.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 1400 } }, false); o.update(9000);
   assert.ok(a.x < before + 1e-9 && a.x > 0, 'the level eases (a fuller pool is higher up the box, never a jump)');
+  o.setBody({ ...t, bleed: { active: false, site: 'VAR', rate: 0, total: 1400 } }, false);
+  let frames = 0; while (o.update(20000 + frames * 33) && frames < 400) frames++;
+  assert.ok(frames > 5 && frames < 400, 'the ripples ease out when the bleed stops (and ask for no more frames after)');
+  assert.equal(rp.z, 0, 'and are off');
   o.dispose(); s.dispose?.();
 });
 
@@ -112,6 +120,10 @@ test('the pool level: a fuller pool stands higher, the jet lands inside the box,
   assert.ok(worst < 0.06, `the waterline blends over several units, never a step (largest step ${worst.toFixed(3)} per quarter unit)`);
   const land = poolShade(wash, 0.72, { dU: 2, lobe: 1, amount: 1, flow: 1, delta, light }).fill, none = poolShade(wash, 0.72, { dU: 2, lobe: 0, amount: 1, flow: 1, delta, light }).fill;
   assert.ok(land[1]! > none[1]!, 'the surface is lighter where the jet lands');
+  const ripple = (dxU: number, phase: number, r = 1) => poolShade(wash, 0.72, { dU: 1, dxU, ripple: r, phase, lobe: 0, amount: 1, flow: 0.8, delta, light, dark: [0, 0, 0] }).fill[1]!;
+  assert.equal(ripple(20, 1, 0), ripple(20, 3, 0), 'no ripple height, no wave: the phase changes nothing');
+  assert.ok(Math.abs(ripple(20, 0) - ripple(20, 1.5)) > 1e-3, 'a ripple moves the surface as the phase runs');
+  assert.ok(Math.abs(ripple(300, 0) - ripple(300, 1.5)) < Math.abs(ripple(20, 0) - ripple(20, 1.5)), 'the ripples die away with distance from the landing');
   assert.ok(ORGAN_FS.indexOf('fwidth(vBox.y)') < ORGAN_FS.indexOf('discard;'), 'the pool\'s derivative is taken before the window\'s discard');
 });
 
