@@ -151,3 +151,15 @@ test('N4: an edited link keeps only what the app can apply of the figure part', 
   const s = readShare(`#s=${encodeShare(payload)}`, IDS)!;
   assert.deepEqual(s.fig, { figure: { lymph: true } });
 });
+
+test('N4: the tool that is open (compare, layers, blood, lens) rides in the link and opens last, after the view, the selection and the camera; any other sheet is dropped', async () => {
+  const fig = { sheet: 'layers' };
+  const url = shareUrl(now({ fig, view: 'lobule', cam: { orbit: 1, k: 2, x: 3, y: 4 }, sel: { type: 'edge', id: 'SV' } }), BASE);
+  const s = readShare(url.slice(url.indexOf('#')), IDS)!;
+  assert.deepEqual(s.fig, fig);
+  const { d, log } = fake();
+  assert.equal(await loadShared(s, { ...d, openSheet: (n) => { log.push(`sheet ${n}`); } }), true);
+  assert.equal(log.at(-1) === 'sheet layers' || log.indexOf('sheet layers') > log.findIndex((l) => l.startsWith('view')), true, `sheet after the view: ${log}`);
+  const bad = readShare(`#s=${encodeShare({ v: 1, preset: 'csph', params: params(), view: 'anatomic', x: { sheet: 'readings' } })}`, IDS)!;
+  assert.equal(bad.fig, undefined, 'a sheet that takes typing is not opened by a link');
+});

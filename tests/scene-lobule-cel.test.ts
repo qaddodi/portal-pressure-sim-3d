@@ -56,7 +56,7 @@ test('the shaders read the figure\'s numbers: tone strengths, where the tones ch
 
 test('the plate is cel shaded with a faint line of its own colour; the neighbours are cel shaded and quieter (no ink); the Zones are three hard zones with a line', () => {
   assert.match(LOBULE_PLATE_FS, /celTissue\(/);
-  assert.match(LOBULE_PLATE_FS, /celEdge\(map, vUv, uvPerPx, uDpr\)/, 'the clean line is LINE_MIN CSS px: the pixel ratio comes in');
+  assert.match(LOBULE_PLATE_FS, /plateEdge\(vUv, uvPerPx, uDpr\)/, 'the clean line is LINE_MIN CSS px: the pixel ratio comes in');
   // Mohammad 20 Nov: "in lobule fibrosis shouldn't be outlined with black ink": the plate (collagen, septa, nutmeg, Zones) lines its edges in a deeper shade of its own colour
   assert.doesNotMatch(LOBULE_PLATE_FS, /uniform vec3 ink|mix\(c, ink/, 'no dark casing on the plate');
   assert.match(LOBULE_PLATE_FS, /mix\(c, c \* PLATE_EDGE_SHADE, PLATE_EDGE_K \*/, 'its own colour, deeper');

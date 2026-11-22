@@ -92,15 +92,26 @@ const float PLATE_EDGE_SHADE = ${PLATE_EDGE_SHADE.toFixed(3)};
 const float PLATE_EDGE_K = ${PLATE_EDGE_K.toFixed(3)};
 ${FADE_GLSL}
 uniform sampler2D map;
+uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
+uniform float mixB;
 uniform float opacity;
 uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
 varying vec2 vUv;
+vec4 plateTex(vec2 uv) { vec4 a = texture2D(map, uv); return mixB > 0.0 ? mix(a, texture2D(mapB, uv), mixB) : a; }
+vec4 plateTexLod(vec2 uv, float bias) { vec4 a = texture2D(map, uv, bias); return mixB > 0.0 ? mix(a, texture2D(mapB, uv, bias), mixB) : a; }
+// the lightness jump across one device pixel's neighbourhood of the painted plate: 0 flat, large at a line
+float plateEdge(vec2 uv, vec2 uvPerPx, float dpr) {
+  vec2 o = uvPerPx * CEL_LINE_MIN * dpr * 0.5;
+  float a = celLight(plateTex(uv + vec2(o.x, 0.0)).rgb), b = celLight(plateTex(uv - vec2(o.x, 0.0)).rgb);
+  float c = celLight(plateTex(uv + vec2(0.0, o.y)).rgb), d = celLight(plateTex(uv - vec2(0.0, o.y)).rgb);
+  return length(vec2(a - b, c - d));
+}
 void main() {
   // (every derivative first, before the dissolve's discard and the empty-texel return: a quad whose other pixels were dropped gives a garbage fwidth on a device that drops the lane,
   // tests/no-derivative-after-discard.test.ts)
-  vec4 p = texture2D(map, vUv);
+  vec4 p = plateTex(vUv);
   vec3 c = p.rgb / max(p.a, 1e-4);
-  vec4 m = texture2D(map, vUv, 3.0);
+  vec4 m = plateTexLod(vUv, 3.0);
   float lb = celLight(m.rgb / max(m.a, 1e-3));
   float dv = (celLight(c) - lb) / max(lb, 0.08);
   float fwDv = fwidth(dv);
@@ -112,7 +123,7 @@ void main() {
   c = celTissue(c, lb, max(fwDv * CEL_EDGE_PX * 1.5, 1e-3));
   // the plate's edges (Mohammad 20 Nov: "fibrosis shouldn't be outlined with black ink"): what it holds is soft tissue (collagen, septa, nutmeg, the Zones), so a strong edge takes a
   // faint, deeper shade of the tissue's OWN colour, LINE_MIN CSS px across, never the cells' dark casing; it comes and goes with the mark, as the edge does
-  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, celEdge(map, vUv, uvPerPx, uDpr)));
+  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, plateEdge(vUv, uvPerPx, uDpr)));
   gl_FragColor = vec4(c * p.a, p.a) * opacity;
 }`;
 

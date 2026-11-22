@@ -6,11 +6,15 @@ import { reconcile, startReconciler, type ReconcileTarget } from '../src/scene/r
 // A scene stand-in: it records every call and keeps the state the calls leave (what the real scene would show).
 function fakeScene() {
   const calls: string[] = [];
-  const state = { named: [] as readonly string[], pins: [] as readonly string[], normalSpleen: false, sinceRef: null as ArrayLike<number> | null };
+  const state = { named: [] as readonly string[], pins: [] as readonly string[], normalSpleen: false, sinceRef: null as ArrayLike<number> | null, lit: [] as readonly string[], picked: null as string | null, res: [] as readonly string[], caudate: false };
   const to: ReconcileTarget = {
     setNamedVessels(ids) { calls.push('named'); state.named = ids; },
     pinOrgans(ids, ns = false) { calls.push('pins'); state.pins = ids; state.normalSpleen = ns; },
     setSinceRef(P) { calls.push('since'); state.sinceRef = P; },
+    markVessels(ids) { calls.push('mark'); state.lit = ids; state.picked = null; },   // (as the scene does: lighting vessels, or putting them out, clears the pick)
+    pick(id) { calls.push('pick'); state.picked = id; },
+    setResistors(keys) { calls.push('res'); state.res = keys; },
+    setCaudatePin(on) { calls.push('caudate'); state.caudate = on; },
   };
   return { calls, state, to };
 }
@@ -60,15 +64,19 @@ test('property: random layers pushed and popped; the scene always shows the reso
     setLayer('base', { named: pick(), pins: pick() });
     for (let step = 0; step < 30; step++) {
       const name = LAYER_ORDER[rnd(3)] as LayerName;
-      if (rnd(3) === 0) clearLayer(name); else setLayer(name, rnd(2) ? { named: pick() } : { pins: pick(), normalSpleen: rnd(2) === 0, sinceRef: rnd(2) ? [rnd(9)] : null });
+      if (rnd(3) === 0) clearLayer(name); else setLayer(name, rnd(3) === 0 ? { named: pick() } : rnd(2) ? { marked: rnd(2) ? pick() : [], picked: rnd(3) === 0 ? null : ids[rnd(4)]! } : { pins: pick(), normalSpleen: rnd(2) === 0, sinceRef: rnd(2) ? [rnd(9)] : null });
       const want = resolved();
       assert.deepEqual(f.state.named, want.named); assert.deepEqual(f.state.pins, want.pins);
       assert.equal(f.state.normalSpleen, want.normalSpleen); assert.equal(f.state.sinceRef, want.sinceRef);
+      // the lit vessels and the pick share one highlight: lit vessels replace the pick; with none lit the pick shows
+      assert.deepEqual(f.state.lit, want.marked);
+      assert.equal(f.state.picked, want.marked.length ? null : want.picked, 'the pick is hidden while vessels are lit, shown again when they go');
     }
     clearLayer('talk'); clearLayer('tool');
     const left = resolve({ base: useIntent.getState().layers.base });   // (the walk may have written base too: what is left of it is what shows)
     assert.deepEqual(f.state.named, left.named, 'only base left: base shows');
     assert.deepEqual(f.state.pins, left.pins); assert.equal(f.state.normalSpleen, left.normalSpleen); assert.equal(f.state.sinceRef, left.sinceRef);
+    assert.deepEqual(f.state.lit, left.marked); assert.equal(f.state.picked, left.marked.length ? null : left.picked);
     stop();
   }
   reset();
@@ -83,5 +91,29 @@ test('open a talk, five slides, close: the scene ends as it began', () => {
   assert.deepEqual(f.state.named, ['s4']);
   clearLayer('talk');
   assert.equal(JSON.stringify(f.state), before);
+  stop(); reset();
+});
+
+test('the shunt\'s targets hide the pick and putting them out brings it back; a slide\'s spotlight under a tool is hidden by it', () => {
+  reset();
+  const f = fakeScene(); const stop = startReconciler(f.to);
+  setLayer('base', { picked: 'PV_TRUNK' }); assert.equal(f.state.picked, 'PV_TRUNK');
+  setLayer('talk', { marked: ['a'] }); assert.deepEqual(f.state.lit, ['a']); assert.equal(f.state.picked, null);
+  setLayer('tool', { marked: ['t1', 't2'] }); assert.deepEqual(f.state.lit, ['t1', 't2']);
+  clearLayer('tool'); assert.deepEqual(f.state.lit, ['a'], 'the slide\'s spotlight is back');
+  clearLayer('talk'); assert.deepEqual(f.state.lit, []); assert.equal(f.state.picked, 'PV_TRUNK', 'nothing lit: the pick shows again');
+  stop(); reset();
+});
+
+test('the Circuit\'s resistors and caudate lane follow the layers: a slide asks, leaving the talk puts them out, an unchanged ask calls nothing', () => {
+  reset();
+  const f = fakeScene(); const stop = startReconciler(f.to);
+  setLayer('talk', { resistors: ['rLiver', 'rGut'], caudate: true });
+  assert.deepEqual(f.state.res, ['rLiver', 'rGut']); assert.equal(f.state.caudate, true);
+  const n = f.calls.length;
+  setLayer('talk', { caudate: true, named: ['x'] });
+  assert.deepEqual(f.calls.slice(n), ['named'], 'only what changed is called');
+  clearLayer('talk');
+  assert.deepEqual(f.state.res, []); assert.equal(f.state.caudate, false);
   stop(); reset();
 });

@@ -43,7 +43,7 @@ test('an open action card sheet takes its height off the figure\'s room, so the 
   const { roomAbove, takenBy } = await import('../src/ui/action/action-room-math.ts');
   const room = { x: 0, y: 100, w: 390, h: 600 };
   assert.deepEqual(roomAbove(room, 0), room, 'no card, no change');
-  assert.equal(roomAbove(room, 300).h, 600 - (300 - 8 + 6));
+  assert.equal(roomAbove(room, 300).h, 600 - (300 + 12 - 8 + 6), 'the card\'s height, its gap over the dock (12) less the pill slot\'s 8 px, and a 6 px breath');
   assert.equal(takenBy(1000, room), 330, 'a tall card never takes more than 55 % of the room');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
   assert.match(shell, /roomAbove\(panRoom\(base, testsPlace\), actionH\)/);
@@ -88,7 +88,7 @@ test('an open action card stands over the view pill\'s slot and the pill fades o
   const card = readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
   const dock = readFileSync(new URL('../src/ui/css2d/app-10-thumb-dock.css', import.meta.url), 'utf8');
-  assert.match(card, /footHeight\(device\) - 8 - pillSpace\(\)/, 'the card\'s foot sits a pill lower');
+  assert.match(card, /\$\{sheetFoot\(device\)\}px/, 'the card\'s foot is the one sheet foot: the dock\'s top and the gap over it');
   assert.match(card, /- pillSpace\(\)\), true\)/, 'and only what stands above the pill\'s slot takes room from the figure');
   assert.match(shell, /cardOver \? ' ac-over-pill' : ''/);
   assert.match(dock, /\.app\.thumb\.ac-over-pill \.vdock:not\(\.mini\) > \.nb-views \{ opacity: 0; pointer-events: none; transition: opacity var\(--d-small\) var\(--ease\); \}/);
@@ -96,10 +96,10 @@ test('an open action card stands over the view pill\'s slot and the pill fades o
 
 test('a phone held sideways fits the vessel card under the top bar: the sheet\'s height is what the bars leave, and its figure steps aside', async () => {
   const { cardMaxHeight } = await import('../src/ui/action/action-room-math.ts');
-  assert.equal(cardMaxHeight(390, 0, 48, 0, 163, 50), 231, '844 x 390: 231 px between the top bar and the sheet\'s foot');
-  assert.equal(cardMaxHeight(375, 0, 48, 0, 163, 50), 216);
-  assert.equal(cardMaxHeight(844, 0, 50, 0, 163, 50), 683);
-  assert.ok(cardMaxHeight(200, 0, 48, 0, 163, 50) >= 140, 'never a sliver');
+  assert.equal(cardMaxHeight(390, 0, 48, 0, 125), 211, '844 x 390: 211 px between the top bar and the sheet\'s foot, 12 px over the dock');
+  assert.equal(cardMaxHeight(375, 0, 48, 0, 125), 196);
+  assert.equal(cardMaxHeight(844, 0, 50, 0, 125), 663);
+  assert.ok(cardMaxHeight(200, 0, 48, 0, 125) >= 140, 'never a sliver');
   assert.match(plate, /@media \(max-height: 430px\) \{ \.tv \.tf-card \{ display: none; \} \}/);
   const card = readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8');
   assert.match(card, /maxHeight: cardMaxHeight\(vp\.h, vp\.safe\.top, topBarH\(vp, device\)/);

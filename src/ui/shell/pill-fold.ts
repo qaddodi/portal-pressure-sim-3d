@@ -7,12 +7,13 @@
 import type { ViewId } from './views.ts';
 
 import { clock } from '../../clock/frame.ts';
+import { D_SURFACE, EASE_MOVE } from '../motion.ts';
 export interface Box { l: number; w: number; pl?: number; pr?: number }
 /** What the pill's layout is: its own width, and each shown button's left edge (px from the pill's centre) and width. */
 export interface Snap { w: number; items: Map<ViewId, Box>; inset?: number }
 export type Move = { kind: 'stay' | 'in' | 'out'; dx0: number; dx1: number; o0: number; o1: number };
 
-export const FOLD_MS = 420, FOLD_EASE = 'cubic-bezier(0.5, 0, 0.5, 1)';   // (--d-surface on --ease-move: what travels)
+export const FOLD_MS = D_SURFACE, FOLD_EASE = EASE_MOVE;   // (--d-surface on --ease-move: what travels)
 
 /** The fold, worked out: for each view in `order`, where it starts from and ends (px offset from its resting place, or from where it was drawn for a going one) and its opacity. */
 export function foldPlan(before: Snap, after: Snap, order: readonly ViewId[]): Map<ViewId, Move> {

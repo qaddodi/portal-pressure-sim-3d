@@ -100,14 +100,14 @@ test('the Tests card stands 4 px under the top bar as 2D\'s does (top-safe + 4, 
   assert.equal(topBarH({ w: 844, h: 390, safe: ph.safe }, 'phone-landscape'), 48);
 });
 
-test('a phone\'s Tests sheet rests 8 px above the dock like 2D (--thumb-occ), with no room kept for the view pill that goes with the card, and the dock\'s open tab is pressed', async () => {
+test('a phone\'s Tests sheet rests one sheet gap above the dock (--thumb-occ), with no room kept for the view pill that goes with the card, and the dock\'s open tab is pressed', async () => {
   const { testsPlace } = await import('../src/ui/tests/place.ts');
   const { dockHeight, dockInset } = await import('../src/ui/shell/room.ts');
   const { readFileSync } = await import('node:fs');
   const vp = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } };
   const pl = testsPlace(vp, 'phone-portrait');
   assert.equal(pl.kind, 'sheet');
-  assert.equal(vp.h - (pl.rect.y + pl.rect.h), vp.safe.bottom + dockInset('phone-portrait') + dockHeight('phone-portrait') + 8, 'its foot is the dock\'s top less 8 px');
+  assert.equal(vp.h - (pl.rect.y + pl.rect.h), vp.safe.bottom + dockInset('phone-portrait') + dockHeight('phone-portrait') + M.sheetGap, 'its foot is the dock\'s top plus the one sheet gap');
   const bar = readFileSync(new URL('../src/ui/shell/ThumbBar.tsx', import.meta.url), 'utf8');
   assert.match(bar, /aria-pressed=\{t\.id === 'tests' \? testsOpen : t\.id === 'treat' \? treatOpen : undefined\}/);
 });

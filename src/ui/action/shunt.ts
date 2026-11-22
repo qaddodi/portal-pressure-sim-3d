@@ -3,11 +3,13 @@
 // ("Shunt canceled."). The card is put away while it waits (2D: a card is not shown while shunting) and comes back when it is called off. Registered as the 'shunt' feature by startShunting().
 import { create } from 'zustand';
 import { clock } from '../../clock/frame.ts';
+import { D_FLIP, EASE_ARRIVE } from '../motion.ts';
 import { registerFeature } from '../shell/features.ts';
 import { useShell } from '../shell/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { useSelection, selectStructure, holdScenePicks } from './selection.ts';
 import { currentParams, updateParams } from './params.ts';
+import { setLayer, clearLayer } from '../../scene/intent.ts';
 import { figurePlaces, shuntChange, shuntTargets } from './shunt-model.ts';
 import { SHUNT_WORDS, SHUNT_CREATED } from './shunt-words.copied.ts';
 import type { ShuntRule } from './shunt-rules.copied.ts';
@@ -17,7 +19,7 @@ export interface Shunting { src: string; only: string | null; targets: ReadonlyM
 export const useShunting = create<{ now: Shunting | null }>(() => ({ now: null }));
 
 let release: (() => void)[] = [];
-function end(): void { for (const f of release) f(); release = []; useShunting.setState({ now: null }); sceneApi.markVessels([]); sceneApi.shunt.guide(null, 0, 0, ''); sceneApi.shunt.hover(null); }
+function end(): void { for (const f of release) f(); release = []; useShunting.setState({ now: null }); clearLayer('tool'); sceneApi.shunt.guide(null, 0, 0, ''); sceneApi.shunt.hover(null); }
 
 /** Call the shunt off (Esc, Cancel, a tap on nothing): the vessel it started from is selected again, as 2D leaves it. */
 export function cancelShunt(silent = false): void {
@@ -46,7 +48,7 @@ function aim(src: string, targets: ReadonlyMap<string, ShuntRule>): () => void {
   const tip = document.createElement('div');
   tip.className = 'shunt-aim';
   tip.setAttribute('aria-hidden', 'true');
-  tip.style.cssText = 'position:fixed;left:0;top:0;z-index:60;pointer-events:none;opacity:0;white-space:nowrap;padding:3px 9px;border-radius:9px;font:600 13px/1.3 var(--font-ui, system-ui, sans-serif);color:var(--accent);background:var(--surface, #fff);box-shadow:0 1px 6px rgba(0,0,0,.25);will-change:transform,opacity;transition:opacity 120ms ease-out;';
+  tip.style.cssText = `position:fixed;left:0;top:0;z-index:60;pointer-events:none;opacity:0;white-space:nowrap;padding:3px 9px;border-radius:9px;font:600 13px/1.3 var(--font-ui, system-ui, sans-serif);color:var(--accent);background:var(--surface, #fff);box-shadow:0 1px 6px rgba(0,0,0,.25);will-change:transform,opacity;transition:opacity ${D_FLIP}ms ${EASE_ARRIVE};`;
   document.body.append(tip);
   const cs = getComputedStyle(document.documentElement), accent = cs.getPropertyValue('--accent').trim() || '#2f7cf6', danger = cs.getPropertyValue('--danger').trim() || '#d64545';
   let at: { x: number; y: number } | null = null, hover: string | null = null, word = '', done = '';
@@ -78,12 +80,12 @@ export function startShunt(src?: string, o: { only?: string | null } = {}): bool
   if (!targets.size) { useShell.getState().say(SHUNT_WORDS.none); return false; }
   // the card goes while the shunt waits; the targets glow; the scene's taps are the shunt's now
   selectStructure(null);
-  sceneApi.markVessels([...targets.keys()]);
+  setLayer('tool', { marked: [...targets.keys()] });
   useShunting.setState({ now: { src: from, only: o.only ?? null, targets } });
   release.push(holdScenePicks((id) => {
     if (id && targets.has(id)) drop(id);
     else if (!id) cancelShunt();
-    else sceneApi.markVessels([...targets.keys()]);   // (another vessel: nothing happens, the targets stay lit)
+    else setLayer('tool', { marked: [...targets.keys()] });   // (another vessel: nothing happens, the targets stay lit)
   }));
   release.push(aim(from, targets));
   const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); cancelShunt(); } };

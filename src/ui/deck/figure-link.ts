@@ -60,10 +60,8 @@ export function linkFigure(): () => void {
     // the vessels named: all at once, or in the glow's order (glowSeq: the pressure passing back from the heart), one step after another
     const late = c.named.some((g) => g.at > 0);
     if (late) { seq = { named: c.named, shown: -1, hold: clock.hold('figure-glow-seq') }; clock.invalidate('figure-glow-seq'); } else setLayer('talk', { named: c.named.map((g) => g.id) });
-    sceneApi.markVessels(c.marked);
-    setLayer('talk', { pins: c.pins, normalSpleen: c.normalSpleen });
-    sceneApi.setResistors(c.res);
-    sceneApi.setCaudatePin(c.caudate);
+    setLayer('talk', { marked: c.marked });
+    setLayer('talk', { pins: c.pins, normalSpleen: c.normalSpleen, resistors: c.res, caudate: c.caudate, caudateVeins: c.caudateVeins });
     t0 = clock.now();
     useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, t0 });
   };

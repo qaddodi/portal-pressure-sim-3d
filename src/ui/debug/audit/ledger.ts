@@ -23,6 +23,7 @@ export function vanishedShowing(own: number, descOps: readonly number[]): boolea
 export function startLedger(doc: Document = document, win: Window = window): Ledger {
   let t0 = clock.now(), recs: AnimRec[] = [], found: AuditFinding[] = [];
   const open = new Map<string, AnimRec>();
+  let lastCancel = '';
   const key = (e: Event, prop: string) => `${(e.target as Element | null)?.tagName}|${prop}|${(e.target as Element & { __au?: number }).__au ?? ((e.target as Element & { __au?: number }).__au = Math.random())}`;
   const plannedOf = (el: Element, prop: string, kind: 'transition' | 'animation'): { ms: number | null; delay: number; easing: string | null } => {
     try {
@@ -36,13 +37,16 @@ export function startLedger(doc: Document = document, win: Window = window): Led
     const el = e.target as Element | null; if (!el || SKIP(el)) return;
     const prop = kind === 'transition' ? (e as TransitionEvent).propertyName : (e as AnimationEvent).animationName;
     const p = plannedOf(el, prop, kind);
+    // (a transition turned round or retargeted part-way is cancelled and run again in the same breath, and the browser gives the new one only the share of its length it has left, as the spec says: a .24 s fade reversed a
+    //  quarter of the way runs 60 ms. That is the browser's shortening, not a snap: the credit read "60 ms, a snap" on the 21 Nov run. A declared short one is still caught at its first run.)
+    const reversal = kind === 'transition' && lastCancel === key(e, prop); lastCancel = '';
     const r: AnimRec = { sel: nameOf(el), prop, kind, startMs: Math.round(clock.now() - t0), plannedMs: p.ms, delayMs: p.delay, easing: p.easing, ended: 'running', actualMs: null };
     recs.push(r); open.set(key(e, prop), r);
-    if (p.ms != null && p.ms > 0 && p.ms < INSTANT_MS && (kind === 'animation' || VISIBLE.test(prop))) found.push({ kind: 'anim-too-fast', sev: 'warn', what: `${r.sel} ${prop} ${kind} lasts ${p.ms} ms (under ${INSTANT_MS}): it reads as a snap`, where: r.sel });
+    if (p.ms != null && p.ms > 0 && p.ms < INSTANT_MS && (kind === 'animation' || VISIBLE.test(prop)) && !reversal) found.push({ kind: 'anim-too-fast', sev: 'warn', what: `${r.sel} ${prop} ${kind} lasts ${p.ms} ms (under ${INSTANT_MS}): it reads as a snap`, where: r.sel });
   };
   const finish = (how: 'end' | 'cancel', kind: 'transition' | 'animation') => (e: Event) => {
     const prop = kind === 'transition' ? (e as TransitionEvent).propertyName : (e as AnimationEvent).animationName;
-    const k = key(e, prop), r = open.get(k); if (!r) return;
+    const k = key(e, prop), r = open.get(k); lastCancel = how === 'cancel' && kind === 'transition' ? k : ''; if (!r) return;
     r.ended = how; r.actualMs = Math.round(clock.now() - t0) - r.startMs; open.delete(k);
   };
   const L: [string, (e: Event) => void][] = [['transitionrun', begin('transition')], ['animationstart', begin('animation')], ['transitionend', finish('end', 'transition')], ['transitioncancel', finish('cancel', 'transition')], ['animationend', finish('end', 'animation')], ['animationcancel', finish('cancel', 'animation')]];

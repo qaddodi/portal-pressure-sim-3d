@@ -11,8 +11,8 @@
 
 /** The side of a contact cell in the shared frame (300 units are one figure unit of 2D: 0.03 is 9 SVG units). */
 export const CELL = 0.03;
-/** The groups that are one organ for contact: the atrium is part of the heart. */
-const GROUP_OF: Record<string, string> = { 'heart-ra': 'heart' };
+/** The groups that are one organ for contact: the atrium is part of the heart, the caudate lobe part of the liver. */
+const GROUP_OF: Record<string, string> = { 'heart-ra': 'heart', caudate: 'liver' };
 
 export interface DepthPart { pos: ArrayLike<number>; normal: ArrayLike<number>; index: ArrayLike<number> }
 

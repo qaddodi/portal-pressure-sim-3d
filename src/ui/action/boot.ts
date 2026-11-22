@@ -19,6 +19,7 @@ import { injectDye } from './dye.ts';
 import { startShunting } from './shunt.ts';
 import './stent/StentPanel.tsx';   // (registers the stent editor as the card's 'stent' panel)
 import { goToView } from '../shell/view-actions.ts';
+import { logInput } from '../../scene/intent-log.ts';
 
 /** The shell sheets that take the column Treat stands in. */
 export const CARD_SHEETS: ReadonlySet<string> = new Set(['settings', 'menu', 'history', 'compare', 'help', 'guide']);
@@ -39,6 +40,10 @@ export function startActions(): () => void {
   // History: a change is named as the 2D app names it (activeInterventions), and every learner change is one entry (a slider drag is one: the timeline debounces it)
   setInterventionLabels((p) => new Map(activeInterventions(p as never).map((a) => [a.key, a.label])));
   off.push(onParamsChange(({ label, history }) => { if (history) timeline.noteChange(label); }));
+  // the inputs that go with what the figure was asked (src/scene/intent-log.ts: the last 60 s ride in a bug report)
+  off.push(useShell.subscribe((s, p) => { if (s.view !== p.view) logInput(`view ${s.view}`); if (s.sheet !== p.sheet) logInput(`sheet ${s.sheet ?? 'closed'}`); }));
+  off.push(useUi.subscribe((s, p) => { if (s.pos.stop !== p.pos.stop) logInput(`stop ${s.pos.stop}`); }));
+  off.push(usePick.subscribe((s, p) => { if (s.picked !== p.picked) logInput(`pick ${s.picked ?? 'none'}`); }));
   off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)
   bindScene((id) => { if (usePick.getState().picked !== id) sceneApi.pick(id); });
   off.push(usePick.subscribe((s) => scenePicked(s.picked)));

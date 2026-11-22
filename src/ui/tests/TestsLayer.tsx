@@ -37,8 +37,7 @@ import { useTestsStatus } from './dock/status.ts';
 import { runSegGlide } from './copied/seg-glide.copied.js';
 // @ts-ignore plain JS copied from the 2D app
 import { handOver } from './copied/hand-over.copied.js';
-// @ts-ignore plain JS copied from the 2D app
-import { D_FLIP, D_SMALL, EASE_IN } from './copied/ease.copied.js';
+import { D_FLIP, D_SMALL, EASE_IN, EASE_MOVE } from '../motion.ts';
 import { reduced } from '../a11y/motion.ts';
 import { M } from '../shell/metrics.ts';
 import { topBarH } from '../shell/room.ts';
@@ -174,7 +173,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
     const was = tabX.current;
     tabX.current = now;
     if (!was || !fit.tight || reduced()) return;
-    for (const [id, b] of bs) { const dx = (was[id] ?? now[id]!) - now[id]!; if (Math.abs(dx) > 0.5 && typeof b.animate === 'function') b.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: D_SMALL, easing: 'cubic-bezier(.5, 0, .5, 1)', composite: 'add' }); }
+    for (const [id, b] of bs) { const dx = (was[id] ?? now[id]!) - now[id]!; if (Math.abs(dx) > 0.5 && typeof b.animate === 'function') b.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: D_SMALL, easing: EASE_MOVE, composite: 'add' }); }
   }, [tab, second, fit.tight, fit.bare]);
 
   // Tests left by the close button, Esc or the Tests button with focus inside: focus goes back to the Tests button (2D dock.js close)

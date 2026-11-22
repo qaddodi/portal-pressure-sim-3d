@@ -1,27 +1,27 @@
 /* Chart cards: the words and rules around a chart's picture. Colours are the look's tokens (--surface --text --text-2 --text-3 --accent --ok --caution --danger --edge);
    type sizes come from the card's custom properties (--fs-data, --fs-body) and are floors, never shrunk to fit. The pictures are drawn on the GPU (Chart.tsx). */
 
-.pz-crit, .pz-flows, .pz-trial, .pz-lumen, .pz-forest, .pz-saag, .pz-stiff, .pz-shift, .pz-plane { --cs: var(--fs-data, 13px); font-size: max(12px, var(--cs)); width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); }
+.pz-crit, .pz-flows, .pz-trial, .pz-lumen, .pz-forest, .pz-saag, .pz-stiff, .pz-shift, .pz-plane { --cs: var(--fs-data, 13px); font-size: max(var(--t-cap), var(--cs)); width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); }
 .pz-crit [hidden] { display: none; }
 
 /* ── criteria ── */
 .pzc-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: .35em .8em; margin: 0 0 .55em; }
 .pzc-lead { flex: 0 1 auto; min-width: 0; margin: 0; text-align: left; font: 400 1em/1.35 var(--ui, system-ui); color: var(--text-2); }
-.pzc-rule { flex: none; margin: 0; font: 600 max(12px, .86em)/1 var(--ui, system-ui); color: var(--text-2); border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 999px; padding: .28em .7em; white-space: nowrap; }
+.pzc-rule { flex: none; margin: 0; font: 600 max(var(--t-cap), .86em)/1 var(--ui, system-ui); color: var(--text-2); border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 999px; padding: .28em .7em; white-space: nowrap; }
 .pzc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
 .pzc-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: baseline; padding: .55em 0; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); font: 400 1.07em/1.35 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
 .pzc-row:first-child { border-top: 0; }
 .pzc-top + .pzc-list > .pzc-row:first-child:not(.pzc-hrow) { padding-top: .2em; }
 .pzc-row:is([data-lit], [data-met="yes"]) { color: var(--text); font-weight: 600; }
-.pzc-hrow { padding: 0 0 .3em; font: 500 max(12px, .86em)/1.2 var(--ui, system-ui); color: var(--text-3); }
+.pzc-hrow { padding: 0 0 .3em; font: 500 max(var(--t-cap), .86em)/1.2 var(--ui, system-ui); color: var(--text-3); }
 .pzc-c { grid-column: 1; display: none; }
 .pz-crit.has-cut .pzc-c { display: block; padding-right: .8em; white-space: nowrap; font: 400 1.25em/1 var(--display, "Source Serif 4", Georgia, serif); font-variant-numeric: lining-nums; }
 .pzc-t { grid-column: 2; min-width: 0; }
 .pzc-t > b { font-weight: 600; color: var(--text); }
 .pzc-s, .pzc-u { font-family: var(--ui, system-ui); font-weight: 400; }
 .pzc-s { font-size: .8em; margin-right: .06em; }
-.pzc-u { font-size: max(12px, .46em); margin-left: .3em; color: var(--text-3); }
-.pzc-and { margin-left: .5em; font: 500 max(12px, .5em)/1 var(--ui, system-ui); font-variant-numeric: tabular-nums lining-nums; color: var(--text-2); }
+.pzc-u { font-size: max(var(--t-cap), .46em); margin-left: .3em; color: var(--text-3); }
+.pzc-and { margin-left: .5em; font: 500 max(var(--t-cap), .5em)/1 var(--ui, system-ui); font-variant-numeric: tabular-nums lining-nums; color: var(--text-2); }
 .pzc-end { grid-column: 3; display: flex; flex-direction: column; align-items: flex-start; gap: .1em; white-space: nowrap; padding-left: 22px; font: 500 calc(1em / 1.07)/1.25 var(--ui, system-ui); font-variant-numeric: tabular-nums; color: var(--text-3); }
 .pzc-hrow .pzc-end { font: inherit; color: inherit; }
 .pzc-note .pzc-v { white-space: normal; text-wrap: balance; }
@@ -29,8 +29,8 @@
 .pzc-row:is([data-lit], [data-met]) .pzc-v, .pzc-live .pzc-v { font-size: 1.3em; font-weight: 600; line-height: 1.15; color: var(--text); }
 .pzc-row[data-met="no"] .pzc-v { color: var(--text-2); }
 .pzc-live:not([data-met="yes"]) .pzc-v { color: var(--text-3); }
-.pzc-m { display: grid; font: 600 max(12px, .86em)/1.3 var(--ui, system-ui); white-space: nowrap; }
-.pzc-m > i { grid-area: 1 / 1; font-style: normal; opacity: 0; transition: opacity 280ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.pzc-m { display: grid; font: 600 max(var(--t-cap), .86em)/1.3 var(--ui, system-ui); white-space: nowrap; }
+.pzc-m > i { grid-area: 1 / 1; font-style: normal; opacity: 0; transition: opacity var(--d-card-in) var(--ease-arrive); }
 .pzc-m > .y { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
 .pzc-m > .n { color: var(--text-3); font-weight: 500; }
 .pzc-note .pzc-m > i, .pzc-row[data-met="yes"] .pzc-m > .y, .pzc-row[data-met="no"] .pzc-m > .n { opacity: 1; }
@@ -50,18 +50,20 @@
 .pz-crit.has-zones .pzc-top { flex-wrap: nowrap; align-items: center; justify-content: center; gap: .8em; margin-bottom: .75em; }
 .pz-crit.has-zones .pzc-lead { flex: none; white-space: nowrap; text-align: center; }
 .pzc-zones { display: block; }
-.pzc-key { display: flex; flex-direction: column; align-items: center; gap: .3em; margin-top: .7em; text-align: center; font: 500 max(12px, .86em)/1.3 var(--ui, system-ui); color: var(--text-2); }
+.pzc-key { display: flex; flex-direction: column; align-items: center; gap: .3em; margin-top: .7em; text-align: center; font: 500 max(var(--t-cap), .86em)/1.3 var(--ui, system-ui); color: var(--text-2); }
 .pzc-kl { margin: 0; display: inline-flex; align-items: center; gap: .5em; }
 .pzc-kl b { font-weight: 600; color: var(--text); }
-.pzc-sw { display: block; flex: none; width: 22px; height: 14px; border-radius: 4px; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text) 42%, var(--surface-3, var(--edge))) 0 2px, var(--surface-3, var(--edge)) 0 4.95px); }
+.pzc-sw { display: block; flex: none; width: 22px; height: 14px; border-radius: var(--r-control); background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text) 42%, var(--surface-3, var(--edge))) 0 2px, var(--surface-3, var(--edge)) 0 4.95px); }
 @media (prefers-reduced-motion: reduce) { .pzc-m > i { transition: none; } }
 
 /* the earlier reading, faint beside a live instrument (2D ghost): a label and its number, in the card's quiet ink */
-.pz-ghost { margin: 0 0 .4em; display: flex; gap: .5em; align-items: baseline; font: 500 max(12px, var(--fs-data, 13px))/1.2 var(--ui, system-ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.pz-ghost { margin: 0 0 .4em; display: flex; gap: .5em; align-items: baseline; font: 500 max(var(--t-cap), var(--fs-data, var(--t-lab)))/1.2 var(--ui, system-ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
 .pz-ghost b { font-weight: 600; color: var(--text-2); }
 .pz-vitals { width: 100%; }
 
-/* A chart's box is never shorter than the picture drawn in it. The 2D sheet gives these wrappers a height of their own (`.pz-flowtime` max(60cqi, 15em), `.pz-curve`, `.pz-talk`, `.pz-shift`, `.pz-flows`: 2D's SVG is drawn
-   to that box); here the picture is drawn on the GPU at the height its frame says, so a box the CSS made shorter clipped it at the card's foot (the lower values, the lines and the last point of "HVPG and ascites over the
-   month" cut off, Mohammad 21 Nov). The CSS height stays the floor; the picture's own height is what the card (and its measured height) then sees. A changed height is the chart's box changing, which the card measures. */
-:is(.pz-flowtime, .pz-curve, .pz-talk, .pz-shift, .pz-flows) { min-height: min-content !important; }
+/* A chart's box is exactly as tall as the picture drawn in it. The 2D sheet gives these wrappers a height of its own (`.pz-flowtime` max(60cqi, 15em), `.pz-curve`, `.pz-talk`, `.pz-shift`, `.pz-flows`, and a phone's
+   `.pz.stack.stack .pz-flowtime` 144 px: 2D's SVG is drawn to that box); here the picture is drawn on the GPU at the height its frame says. Two heights for one thing is the root of every "chart cut off at the card's foot"
+   (Mohammad, 21 and 22 Nov: the audit found the flow-time, course, trace and curve charts 43 to 130 px past their card on an iPad held upright and 13 to 54 px on an iPhone): the card is sized to the wrapper, so a picture
+   taller than the wrapper's CSS height stood past the card and was clipped. One source, the chart's (as `.pz-prof` already is, deck-ui.css): the wrapper takes the height of what it holds. The CSS height was only ever the
+   2D layout's guess at it; the frame is built from the same numbers. tests/chart-content-in-box.test.ts holds every wrapper to this. */
+:is(.pz-flowtime, .pz-curve, .pz-talk, .pz-shift, .pz-flows) { height: auto !important; min-height: 0 !important; max-height: none !important; }

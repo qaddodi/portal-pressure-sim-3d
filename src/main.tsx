@@ -1,5 +1,6 @@
 // Boot order: the saved look (before anything paints) → fonts and the engine's first patient, in parallel → React → the first card.
 // Nothing is shown before it is ready: the screen is the look's ground until then, never white, never half-styled.
+import './boot/started.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';
@@ -23,6 +24,7 @@ import { UPDATE_TOAST } from './pwa/register.ts';
 import { reloadKeepingState } from './boot/reload.ts';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { holdSplash } from './boot/ready.ts';
+import { stamp } from './boot/timeline.ts';
 import { bakedReady } from './scene/vessels/skin/baked.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
@@ -32,8 +34,7 @@ import { mountA11y } from './ui/a11y/mount.ts';
 import { installCrashNet } from './boot/crash-net.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
-import { isFrameRequest } from './ui/debug/frame/request.ts';
-import { flagOn, flagValue, debugPage, inspectRequested, auditPage } from './ui/debug/flags.ts';
+import { flagOn, inspectRequested } from './ui/debug/flags.ts';
 
 /** False in the live site's build (VITE_CHANNEL=live, set by the Pages workflow for main): the bundler then drops every branch below that opens a debug tool, so the debug chunks are not built, not downloaded and not held offline.
  *  On the preview copy and in a local run it is true, and each tool still asks isPreview()/its flag's gate. Only ?gl and ?perf (and the open-a-slide links) work on the live site. tests/live-no-debug.test.ts holds this. */
@@ -59,49 +60,7 @@ window.addEventListener('vite:preloadError', () => {
   useShell.getState().say(UPDATE_TOAST, 'info', { label: 'Reload', run: () => { void reloadKeepingState(); } });
 });
 
-/** A page that is not the app (the device frame, the look board, the self-test) puts nothing in #root, so the loading cover (index.html #boot) would stay over it for 20 s and take every click, and the saved look's
- *  colour scheme would turn its form controls dark on its own light page. It lifts the cover at once, gives the page the browser's own scheme and takes the empty full-screen #root out of the way of its clicks (tests/debug-audit.test.ts holds the three callers). */
-function plainPage() {
-  (window as unknown as { ppsBootLift?: () => void }).ppsBootLift?.();
-  document.documentElement.style.colorScheme = dark.matches ? 'dark' : 'light';
-  // (#root is position:fixed over the whole screen (global.css): empty, it still paints above the page's own unpositioned content and takes every click)
-  const root = document.getElementById('root'); if (root) root.style.display = 'none';
-}
-
 async function start() {
-  // ?parity: the build's progress page needs neither fonts nor the engine; it is its own small chunk.
-  if (DEBUG && isPreview() && flagOn('parity')) {
-    const { ParityPage } = await import('./parity/ParityPage.tsx');
-    createRoot(document.getElementById('root')!).render(<StrictMode><ParityPage /></StrictMode>);
-    return;
-  }
-  // ?presenter-view=<session>: the notes window of a talk (text only, no engine, no GL).
-  if (new URLSearchParams(location.search).has('presenter-view')) {
-    const { run } = await import('./ui/deck/presenter-window.ts');
-    run();
-    return;
-  }
-  // ?debug=frame (the preview copy and a local run only): the device frame, an outer page that holds the app in one iframe at a phone's or iPad's size. It starts no app.
-  if (DEBUG && isPreview() && isFrameRequest(location.search)) {
-    const { bootFrame } = await import('./ui/debug/frame/frame.ts');
-    plainPage();
-    bootFrame();
-    return;
-  }
-  // ?audit on a Mac (the preview copy and a local run only): the self-test's outer page, which holds the app in sized frames one after the other. It starts no app itself.
-  if (DEBUG && isPreview() && auditPage(undefined, matchMedia('(pointer: fine)').matches) === 'frames') {
-    const { bootOuter } = await import('./ui/debug/audit/outer.ts');
-    plainPage();
-    bootOuter();
-    return;
-  }
-  // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.
-  if (DEBUG && isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
-    const { bootLookBoard } = await import('./debug/look-board.ts');
-    plainPage();
-    bootLookBoard();
-    return;
-  }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); }), bakedReady]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
@@ -109,6 +68,7 @@ async function start() {
   const eng = useEngine.getState();
   if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
   if (DEBUG && isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
+  stamp('engine');
   holdSplash();   // the splash stays until the figure has drawn and its labels are placed (boot/ready.ts), then eases away over the app
   createRoot(document.getElementById('root')!).render(<StrictMode><AppBoundary layer="root"><App /></AppBoundary></StrictMode>);
   if (DEBUG && isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));

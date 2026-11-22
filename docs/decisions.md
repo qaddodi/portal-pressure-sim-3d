@@ -1,0 +1,8 @@
+# Decisions behind the code
+
+One line each, with the date, so the code can keep a one-clause "why" and point here. Add to this file when a comment would otherwise carry an owner's quote or a review's number.
+
+- **Lobule to sinusoid handoff** (20 Nov 2026, play-test): the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside; the sinusoid is drawn over it, lifted, from `SIN_SHOW_FROM`. Both dissolving at once let the page show through both: the pale, washed frame at the handoff. (`src/scene/scene.ts`)
+- **Compile under the splash, build in slices after it** (21-22 Nov 2026, loading L3-L4; was "warm-up before the micro views"): every program (the two micro views constructed without geometry, the hidden devices, and one hidden stand-in per later-made material, `src/scene/materials/prototypes.ts`) is compiled before the first frame, into the post pass's target, capped at `WARM_CAP_MS`; the cover lifts only after (`boot/ready.ts` `compileDone`). The lobule and sinusoid meshes are then built in small generator steps (about 8k units of a deterministic work meter, never over 40k) in the background slot, byte-identical to the one-shot build (`tests/micro-slices.test.ts`), so the compile and the build are never one slot. (`src/scene/Stage.tsx`)
+- **One answer to "is a talk on"** (22 Nov 2026, codebase review R4): `useUi` holds it; `src/state/deck.ts` only reads it; a talk ends in `closeTalk`. Three stores copied into one another used to disagree. (`src/state/deck.ts`, `src/ui/shell/talk.ts`)
+- **One place starts the simulation workers** (22 Nov 2026, codebase review R8): `src/engine/pool.ts`. The host and its protocol types are hales-engine's own (`src/host/`), not the 2D app's. (`src/engine/`)

@@ -5,8 +5,9 @@ import { clock } from '../../clock/frame.ts';
 import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { perfReport } from '../perf/report.ts';
+import { bootDigest } from '../../boot/digest.ts';
 
-const report = () => perfReport(clock.stats(), { ua: navigator.userAgent, dpr: devicePixelRatio, size: `${innerWidth}×${innerHeight}`, look: resolveLook(useSettings.getState().look, matchMedia('(prefers-color-scheme: dark)').matches), hash: String(import.meta.env.VITE_BUILD ?? 'dev') });
+const report = () => perfReport(clock.stats(), { ua: navigator.userAgent, dpr: devicePixelRatio, size: `${innerWidth}×${innerHeight}`, look: resolveLook(useSettings.getState().look, matchMedia('(prefers-color-scheme: dark)').matches), hash: String(import.meta.env.VITE_BUILD ?? 'dev'), boot: bootDigest() });
 
 export function Diagnostics() {
   const fps = useSettings((s) => s.showFps), breakdown = useSettings((s) => s.showBreakdown);

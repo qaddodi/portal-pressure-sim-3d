@@ -84,7 +84,8 @@ export function allPatientsFrame(ser: Series | null, foot: readonly string[], c:
 function keyShapes(G: Geo, ser: Series, say: (l: Look, s: string, x: number, y: number, a?: TextShape['anchor'], o?: Partial<TextShape>) => void, lk: (key: string, state?: Record<string, unknown>, tone?: string) => Look, shapes: Shape[]) {
   void ser;
   const { f, key: K } = G, n = (v: number) => +v.toFixed(1);
-  const heads = (h: { y: number; colR: number[]; texts: string[] }) => h.texts.forEach((s, i) => say(lk('time.tk'), s, n(h.colR[i]!), h.y, 'end'));
+  // (a column's head ends at the column's right edge, and a head wider than the column stands right of the box's edge instead of cut off by it: "Before" on a 280 px card)
+  const heads = (h: { y: number; colR: number[]; texts: string[] }) => h.texts.forEach((s, i) => { const l = lk('time.tk'); say(l, s, n(Math.max(h.colR[i]!, measure(s, l.size ?? f, l.weight ?? 500))), h.y, 'end'); });
   if (K.head) heads(K.head);
   for (const b of K.blocks) {
     const v = verdictOf(b.p), star = b.p.pace ? '*' : '', tone = tokName(b.p.c);

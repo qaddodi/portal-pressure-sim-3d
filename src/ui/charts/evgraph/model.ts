@@ -7,6 +7,7 @@ import { PPG_CUTS } from '../../../engine/hales/portal/pressure-cuts.js';
 import { SCALE, RATE, PRESS } from '../../deck/from2d/table-marks.js';
 import { LINE, withUnit } from '../flowtime/model.ts';
 import { END_APART, STRETCH_MAX } from '../plot/scales.ts';
+import { measure } from '../measure.ts';
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
@@ -170,7 +171,9 @@ export function valAt(run: Pick<EvRun, 'pts' | 'n' | 'on'> | null, before: reado
 }
 
 // ── The layout ──
-const cw = (t: string, f: number, b?: boolean | number) => t.length * f * (b ? 0.6 : 0.56);   // (event-graph.js: a text's width, near enough: the chart is laid out before it is drawn)
+// A word's width as Inter sets it (measure.ts), as every other chart lays its words out. 2D's event-graph.js guessed `length * f * 0.6`, 'near enough' for its SVG text; the GPU chart's words are the real
+// glyphs, and the guess put the last value ("32%", bold) 3.7 px past the box's right edge on a narrow card, cut off.
+const cw = (t: string, f: number, b?: boolean | number) => measure(t, f, b ? 700 : 500);
 export { cw as evCw };
 export const fmtN = (v: number) => (Math.abs(v - Math.round(v)) < 1e-6 ? String(Math.round(v)) : v.toFixed(1));
 export interface EvKey { c: string; name: string; unit: string; w: number }

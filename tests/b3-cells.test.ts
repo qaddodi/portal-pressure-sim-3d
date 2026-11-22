@@ -174,6 +174,8 @@ test('off (the default): nothing is built, nothing is in the scene, no frame is 
 test('on: one Points, one draw call, within the cap, on the vessels\' layer; faded out again it is not visible and asks for nothing', () => {
   useSettings.setState({ particles: true });
   const s = new CelScene();
+  assert.equal(s.cells.step(16, frame), true, 'the first wanted frame only waits (the build is not paid in the first update) and asks for the next');
+  assert.equal(s.cells.built, false, 'nothing is built in the waiting frame');
   assert.equal(s.cells.step(16, frame), true, 'fading in asks for frames');
   const o = s.cells.object!;
   assert.ok(o && o.isPoints, 'a Points: one draw call');
@@ -207,7 +209,7 @@ test('on: one Points, one draw call, within the cap, on the vessels\' layer; fad
 test('on: a phone gets about half the cells, rebuilt when the device class changes', () => {
   useSettings.setState({ particles: true });
   const s = new CelScene();
-  s.setPhone(false); s.cells.step(16, frame);
+  s.setPhone(false); s.cells.step(16, frame); s.cells.step(16, frame);   // (the first wanted frame waits, the second builds)
   const desktop = s.cells.count;
   s.setPhone(true); s.cells.step(16, frame);
   console.log(`[cells] ${s.cells.count} on a phone, ${desktop} on a desktop`);
@@ -218,7 +220,7 @@ test('on: a phone gets about half the cells, rebuilt when the device class chang
 test('the program is found on the scene graph once on, declares nothing the material lacks, and fits the phone floor', () => {
   useSettings.setState({ particles: true });
   const s = new CelScene();
-  s.cells.step(16, frame);
+  s.cells.step(16, frame); s.cells.step(16, frame);   // (the first wanted frame waits, the second builds)
   const ps = collectMaterials(s.scene, namedSources()).filter((p) => p.name.startsWith('blood cells'));
   assert.equal(ps.length, 1, ps.map((p) => p.name).join(' | '));
   assert.deepEqual(uniformProblems(ps[0]!), []);

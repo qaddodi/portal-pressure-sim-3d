@@ -6,6 +6,7 @@ import { clock } from '../clock/frame.ts';
 import { CelScene } from './scene.ts';
 import { bindTests } from './devices/probes/bind-tests.ts';
 import { startReconciler } from './reconcile.ts';
+import { setLayer } from './intent.ts';
 import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
@@ -58,7 +59,10 @@ export const usePick = create<{ picked: string | null }>(() => ({ picked: null }
 export const sceneApi = {
   /** A slide's move to a shot (2D planSlide's 800 to 1400 ms, not a hand's 480 to 900), fitted into the room: for a deck framing that is not a view change. */
   goToSlide(shot: ShotName | Shot, room: Room): void { this.goTo(shot, room, cel.rig.slideMs(shot)); },
-  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long, even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on. */
+  /**
+   * Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long,
+   * even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on.
+   */
   goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
     cel.goTo(shot, room, clock.now(), ms ?? cel.rig.reachMs(shot), ease);
@@ -79,7 +83,8 @@ export const sceneApi = {
     const from = cel.view;
     if (v === 'circuit') cel.setCircuitUpright(entryUpright());
     cel.setView(v);
-    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
+    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid
+    // are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
     const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
@@ -89,7 +94,7 @@ export const sceneApi = {
     const upright = entryUpright();
     cel.setCircuitUpright(upright);
     cel.setView('circuit');
-    cel.setResistors(o.resistors ?? []); cel.setCaudatePin(!!o.caudate);
+    setLayer('talk', { resistors: o.resistors ?? [], caudate: !!o.caudate, caudateVeins: false });
     const whole = !o.box || (o.box[0] <= 30 && o.box[1] <= 30 && o.box[2] >= 1360 && o.box[3] >= 730);
     const shot = whole ? circuitShot(upright) : circuitBoxShot(o.box!, upright, o.kMax ?? null);
     this.goTo(shot, room, cel.circuit.changeMs() || cel.rig.slideMs(shot));   // (a slide's move takes 2D's 800 to 1400 ms: rig.slideMs)
@@ -100,7 +105,7 @@ export const sceneApi = {
     const from = cel.view;
     if (v === 'circuit' && from !== v) cel.setCircuitUpright(entryUpright());
     if (from !== v) cel.setView(v);
-    if (from === 'circuit' && v !== 'circuit') { cel.setResistors([]); cel.setCaudatePin(false); }
+    if (from === 'circuit' && v !== 'circuit') setLayer('talk', { resistors: [], caudate: false, caudateVeins: false });
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
     const to = v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : shot;
     // a slide's move takes 2D's 800 to 1400 ms (planSlide: rig.slideMs); a catheter step's close-up (slide false) keeps the hand's glide
@@ -116,9 +121,10 @@ export const sceneApi = {
   /** Where a station stands in the Circuit now (scene point, turned with the map), for labels; null off the map. */
   circuitStation: (id: string, out?: Vector3): Vector3 | null => cel.circuitStation(id, out),
   /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): zigzags and "R liver x2.3" readings on the Circuit's map. An empty list clears them. */
-  setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },
+  setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },   // (the reconciler's call: a writer says it with setLayer)
   /** A slide is about the caudate lobe: the Circuit draws the caudate's own lane. */
-  setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
+  /** (`veins`: the anatomy's lobe is drawn with its short hepatic veins, 2D's pinOrgans 'caudate' against 'caudate-lobe'; eased in and out) */
+  setCaudatePin(on: boolean, veins = false): void { cel.setCaudatePin(on); cel.setCaudate(on, veins); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** Which view the figure is in now (body, lobule, sinusoid, circuit). */
@@ -139,6 +145,7 @@ export const sceneApi = {
     if (homeTurn) gesturesRef.current?.turnOff();
     // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
     if (cel.view === 'sinusoid' && stagePortrait() !== cel.isPortrait) { this.goTo(sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)), room, ms); return; }
+    cel.holdRoom(room);   // (a dive waiting for the lobule's parts lands in the room the cards leave now)
     cel.rig.setRoom(room, clock.now(), ms, homeTurn, refit, ease ?? null);
     clock.invalidate('room');
   },
@@ -187,8 +194,6 @@ export const sceneApi = {
     hover(id: string | null): void { cel.hoverVessel(id); clock.invalidate('shunt-guide'); },
     guide(src: string | null, x: number, y: number, color: string): void { cel.setShuntGuide(src, x, y, color); clock.invalidate('shunt-guide'); },
   },
-  /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
-  markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
   /** The lobule's tapped part: a halo on it; null clears it. */
   markLobule(hit: LobuleHit | null): void { cel.markLobule(hit); clock.invalidate('lobule-mark'); },
@@ -196,7 +201,8 @@ export const sceneApi = {
   selectOrgans(ids: readonly string[]): void { cel.selectOrgans(ids); clock.invalidate('select-organ'); },
   pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },
   /** Pick a vessel by edge ID, or clear with null. */
-  pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+  /** Pick a vessel by edge ID, or clear with null: the base layer's pick (intent.ts); the reconciler lights it and updates `usePick`. */
+  pick(id: string | null): void { setLayer('base', { picked: id }); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
   flowPulse(): void { /* the 2D app has no pulse option: nothing to trigger */ clock.invalidate('flow-pulse'); },
   /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
@@ -232,4 +238,12 @@ export const sceneApi = {
 };
 
 /** The figure's intent (intent.ts) is turned into calls on the scene here, and nowhere else (R5). Starting it builds nothing: the scene is built by the first call it makes. */
-export const stopReconciler = startReconciler(sceneApi);
+export const stopReconciler = startReconciler({
+  setNamedVessels: (ids) => sceneApi.setNamedVessels(ids),
+  pinOrgans: (ids, normalSpleen) => sceneApi.pinOrgans(ids, normalSpleen),
+  setSinceRef: (P) => sceneApi.setSinceRef(P),
+  markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
+  setResistors: (keys) => sceneApi.setResistors(keys),
+  setCaudatePin: (on, veins) => sceneApi.setCaudatePin(on, veins),
+  pick: (id) => { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+});

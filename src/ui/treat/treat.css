@@ -9,9 +9,9 @@
 /* 2D keeps the closed card `hidden` and its stylesheets read it (app-10-thumb-dock.css: `.app.thumb:has(#treatCard:not([hidden])) .vdock > .nb-views { opacity: 0 }` puts the phone's view pill away while Treat is up).
    Here the card is always in the page and fades by visibility, so `hidden` is only the marker: it stays displayed (this rule outweighs `[hidden] { display: none !important }`), and nothing pops. Without the marker the pill was away for good. */
 .sh-root #treatCard.treat-card[hidden] { display: block !important; }
-.treat-card.tr-card { animation: none; visibility: hidden; pointer-events: none; transform: translateY(10px); transition: transform 240ms var(--ease, ease), visibility 0s linear 240ms; }
+.treat-card.tr-card { animation: none; visibility: hidden; pointer-events: none; transform: translateY(10px); transition: transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .treat-card.tr-card[data-open="true"] { visibility: visible; pointer-events: auto; transform: none; transition-delay: 0s; }
-.treat-card.tr-card > .tr-in, .treat-card.tr-card > .sheet-plate { opacity: 0; transition: opacity 240ms var(--ease, ease); }
+.treat-card.tr-card > .tr-in, .treat-card.tr-card > .sheet-plate { opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
 .treat-card.tr-card[data-open="true"] > .tr-in, .treat-card.tr-card[data-open="true"] > .sheet-plate { opacity: 1; }
 /* (2D's `.has-plate:not(.app.thumb *)` cuts the card's box with a clip-path; a clip-path is also a backdrop root, which would end the plate's blur) */
 html .treat-card.tr-card.has-plate { clip-path: none !important; }
@@ -36,5 +36,5 @@ html .treat-card.tr-card.has-plate { clip-path: none !important; }
 .treat-card.tr-card[data-bottom="true"] .tc-head { cursor: grab; }
 
 @media (prefers-reduced-motion: reduce) {
-  .treat-card.tr-card, .treat-card.tr-card > .tr-in, .treat-card.tr-card > .sheet-plate { transition-duration: 1ms !important; }
+  .treat-card.tr-card, .treat-card.tr-card > .tr-in, .treat-card.tr-card > .sheet-plate { transition-duration: 1ms !important; }   /* own pace: Reduce Motion's near-instant swap */
 }

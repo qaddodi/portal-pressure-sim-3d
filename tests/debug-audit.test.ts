@@ -108,8 +108,8 @@ test('the frames page: sizes from the address (unknown names dropped), the child
 
 test('every page that is not the app lifts the loading cover and sets its own colour scheme (the cover took every click on ?audit; the saved look made its controls dark)', async () => {
   const { readFileSync } = await import('node:fs');
-  const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
-  assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = dark\.matches/); assert.match(main, /root\.style\.display = 'none'/);   // (the empty fixed #root otherwise sits over the page and takes its clicks)
+  const main = readFileSync(new URL('../src/entry.ts', import.meta.url), 'utf8');   // (the page's entry opens every page that is not the app, before the app is fetched)
+  assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = window\.matchMedia\('\(prefers-color-scheme: dark\)'\)\.matches/); assert.match(main, /root\.style\.display = 'none'/);   // (the empty fixed #root otherwise sits over the page and takes its clicks)
   for (const call of ['bootFrame()', 'bootOuter()', 'bootLookBoard()']) assert.match(main, new RegExp(`plainPage\\(\\);\\s*${call.replace(/[()]/g, '\\$&')}`), `${call} is called after plainPage()`);
 });
 
@@ -186,9 +186,13 @@ test('the sweep: text or a picture cut by a clipping ancestor, past the screen, 
   assert.deepEqual(k(scan({ items: [item({ what: 'Alpha', box: [20, 100, 120, 118] }), item({ what: 'Beta', box: [60, 104, 160, 122] })] })), ['text-overlap']);
   assert.deepEqual(k(scan({ items: [item({ what: 'Same', box: [20, 100, 120, 118] }), item({ what: 'Same', box: [21, 101, 121, 119] })] })), [], 'the same words twice is a halo, not an overlap');
   assert.deepEqual(k(scan({ items: [item({ what: 'tiny', box: [20, 100, 60, 108], px: 7 })] })), ['small-text']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'fitted', box: [20, 100, 60, 108], px: 10.5, fitted: true })] })), [], 'a card the app zoomed down to fit keeps its shrink (22 Nov: keep shrink)');
   assert.deepEqual(k(scan({ items: [item({ what: 'pale', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)' })] })), ['low-contrast']);
   assert.deepEqual(k(scan({ items: [item({ what: 'mid-fade', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5, fading: true })] })), [], 'text under a running fade is judged when it lands');
   assert.deepEqual(k(scan({ items: [item({ what: 'dim at rest', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5 })] })), ['low-contrast'], 'text translucent at rest is still judged');
+  // (a pale word names where it stands and how translucent it is: the 21 Nov run gave "WHVP" and "2" at 3.24:1 with nothing to find them by)
+  const pale = judgeScan(scan({ items: [item({ what: 'WHVP', box: [20, 100, 60, 118], fg: 'rgba(90, 83, 71, 1)', bg: 'rgb(252, 249, 243)', opacity: 0.65, by: 'li.step < ol.hvpg' })] }))[0]!;
+  assert.match(pale.what, /drawn at 65% opacity \(in li\.step < ol\.hvpg\)/);
   assert.deepEqual(k(scan({ items: [item({ what: 'fine', box: [20, 100, 60, 118] })] })), []);
   assert.deepEqual(k(scan({ covered: [{ what: 'button "Next"', by: 'div.dock', points: 4 }], zero: [{ what: 'svg.plot', why: 'has no size' }], broken: [{ what: 'img logo.png' }] })), ['covered-by', 'zero-size', 'broken-image']);
   assert.ok(judgeScan(scan({ items: Array.from({ length: 40 }, (_, i) => item({ what: `t${i}`, box: [20, 100 + i * 20, 60, 118 + i * 20], px: 6 })) })).some((f) => f.sev === 'note'), 'a flood is capped and says how many more');
@@ -268,4 +272,62 @@ test('fade-slow is not judged above FRAME_LIMIT_SPEED (the sampler sees a fade a
   assert.ok(FRAME_LIMITED_KINDS.has('fade-slow'));
   assert.equal(dropsFinding({ speed: 20 } as never, 'fade-slow'), true);
   assert.equal(dropsFinding({ speed: FRAME_LIMIT_SPEED } as never, 'fade-slow'), false);
+});
+
+test('words for a screen reader alone are found by their clip, not by their size: the chart\'s hidden table (a table never shrinks to 1 px) was read as ~950 cut-off words on the 21 Nov iPhone audit, in all three readers', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { srOnlyStyle } = await import('../src/ui/debug/sr-only.ts');
+  const base = { position: 'static', clip: 'auto', clipPath: 'none', overflow: 'visible', width: '300px', height: '20px' };
+  // deck-ui.css and a11y.css `.sr-only`, as a browser computes them
+  assert.equal(srOnlyStyle({ ...base, position: 'absolute', clipPath: 'inset(50%)', overflow: 'hidden', width: '1px', height: '1px' }), true);
+  assert.equal(srOnlyStyle({ ...base, position: 'absolute', clip: 'rect(0px, 0px, 0px, 0px)', overflow: 'hidden', width: '420px', height: '90px' }), true);   // a table: wide, yet clipped to nothing
+  assert.equal(srOnlyStyle({ ...base, overflow: 'hidden', width: '1px', height: '1px' }), true);
+  assert.equal(srOnlyStyle(base), false);
+  assert.equal(srOnlyStyle({ ...base, overflow: 'hidden' }), false);   // a real label that clips is still read
+  assert.equal(srOnlyStyle({ ...base, position: 'absolute', clip: 'rect(0px, 20px, 20px, 0px)' }), false);
+  // the chart's table is what carries it, and every reader asks the one predicate
+  assert.match(readFileSync(new URL('../src/ui/charts/Chart.tsx', import.meta.url), 'utf8'), /<table className="sr-only" data-chart-data="">/);
+  for (const f of ['audit/scan.ts', 'audit/app.ts', 'screen/raw.ts']) assert.match(readFileSync(new URL(`../src/ui/debug/${f}`, import.meta.url), 'utf8'), /srOnly(Style|Memo)\(/, f);
+});
+
+test('the copied JSON leaves out what the run could not judge, and counts it (the 21 Nov x20 run carried 1676 slow fades, 718 slow loads and 482 stalls that its own report called invalid); one size alone is not a parallel run', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { renderJson } = await import('../src/ui/debug/audit/report.ts');
+  const row = (flags: { kind: string; sev: string; what: string; where: string }[]) => ({ group: 'g', id: 'x', label: 'x', busyMs: 1000, settled: true, cardsMs: null, fadeIn: null, fadeOut: null, frames: {}, flags, anims: [], animN: 0 });
+  const flags = [{ kind: 'fade-slow', sev: 'warn', what: 'a', where: '' }, { kind: 'clipped', sev: 'fail', what: 'b', where: '' }, { kind: 'stall', sev: 'fail', what: 'c', where: '' }];
+  const b = { build: 'b', device: 'd', at: 'now', depth: 'quick', framed: true, speed: 20, parallel: true, parts: [{ size: { id: 'iphone', w: 390, h: 844, dpr: 2 }, rows: [row(flags)] }], failed: [] } as never as Bundle;
+  const out = JSON.parse(renderJson(b)) as Bundle;
+  assert.deepEqual(out.parts[0]!.rows[0]!.flags.map((f) => f.kind), ['clipped']);
+  assert.deepEqual(out.dropped, { 'fade-slow': 1, stall: 1 });
+  const kept = JSON.parse(renderJson({ ...b, speed: 1, parallel: false } as Bundle)) as Bundle;
+  assert.equal(kept.parts[0]!.rows[0]!.flags.length, 3);
+  assert.match(readFileSync(new URL('../src/ui/debug/audit/outer.ts', import.meta.url), 'utf8'), /together = par\.checked && ids\.length > 1/);
+});
+
+test('a transition cancelled and run again in the same breath (turned round or retargeted: the browser gives it the share of its length it has left) is not "a snap"; a declared short one still is (the credit\'s .24 s fade read 60 ms)', async () => {
+  (globalThis as { MutationObserver?: unknown }).MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
+  const { startLedger } = await import('../src/ui/debug/audit/ledger.ts');
+  const heard = new Map<string, (e: unknown) => void>();
+  const doc = { addEventListener: (t: string, f: (e: unknown) => void) => heard.set(t, f), removeEventListener() {}, documentElement: {}, body: {}, querySelector: () => null } as never;
+  const mk = (ms: number) => ({ tagName: 'DIV', id: '', className: 'credit', classList: { contains: () => false }, closest: () => null, parentElement: null, getAttribute: () => null, getAnimations: () => [{ transitionProperty: 'opacity', effect: { getTiming: () => ({ duration: ms, delay: 0, easing: 'ease' }) } }] });
+  const run = (el: unknown) => ({ target: el, propertyName: 'opacity' });
+  const led = startLedger(doc, {} as never);
+  const turned = mk(60);   // .24 s, a quarter of the way: cancelled, then run again at 60 ms
+  heard.get('transitionrun')!(run(mk(240)));
+  heard.get('transitioncancel')!(run(turned)); heard.get('transitionrun')!(run(turned));
+  assert.equal(led.read().findings.filter((f) => f.kind === 'anim-too-fast').length, 0);
+  heard.get('transitionrun')!(run(mk(60)));   // asked for at 60 ms, no cancel before it
+  assert.equal(led.read().findings.filter((f) => f.kind === 'anim-too-fast').length, 1);
+  led.stop();
+});
+
+test('srOnlyMemo asks each element once and a hidden ancestor hides what is inside it (the chart table\'s cells)', async () => {
+  const { srOnlyMemo } = await import('../src/ui/debug/sr-only.ts');
+  const hidden = { position: 'absolute', clip: 'auto', clipPath: 'inset(50%)', overflow: 'hidden', width: '420px', height: '90px' }, shown = { position: 'static', clip: 'auto', clipPath: 'none', overflow: 'visible', width: '10px', height: '10px' };
+  interface N { parentElement: N | null; st: typeof shown }
+  const table: N = { parentElement: null, st: hidden }, cell: N = { parentElement: table, st: shown }, card: N = { parentElement: null, st: shown }, other: N = { parentElement: card, st: shown };
+  let reads = 0;
+  const f0 = srOnlyMemo((el) => { reads++; return (el as never as N).st; }), f = (n: N) => f0(n as never);
+  assert.equal(f(cell), true); assert.equal(f(table), true); assert.equal(f(other), false);
+  assert.equal(reads, 3);   // (the cell under the hidden table is not even read)
 });

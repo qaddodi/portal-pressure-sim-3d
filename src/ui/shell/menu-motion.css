@@ -7,21 +7,21 @@
 @keyframes mn-fade-in { from { opacity: 0; } }
 @keyframes mn-fade-out { to { opacity: 0; } }
 html.thumb-ui .sh-root > .menu.as-sheet.from-dock { --ride-extra: 8px; }
-.sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-small, .24s) var(--ease-arrive, cubic-bezier(.2, .8, .2, 1)) both; }
-.sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small, .24s) var(--ease-in, cubic-bezier(.4, 0, 1, 1)) forwards; }
-.sh-root > .umenu.sheet { animation: mn-sheet-in var(--d-small, .24s) var(--ease-arrive, cubic-bezier(.2, .8, .2, 1)) both; }
+.sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-small) var(--ease-arrive) both; }
+.sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--ease-in) forwards; }
+.sh-root > .umenu.sheet { animation: mn-sheet-in var(--d-small) var(--ease-arrive) both; }
 .sh-root > .umenu.sheet.still { animation: none; }
-.sh-root > .umenu.sheet.out { animation: mn-sheet-out var(--d-small, .24s) var(--ease-in, cubic-bezier(.4, 0, 1, 1)) forwards; }
+.sh-root > .umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--ease-in) forwards; }
 /* the preview under a menu row folds open and shut by its own keyframes (2D transitions it from a class set a frame later; React mounts it open) */
 @keyframes um-inline-in { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 @keyframes um-inline-out { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }
-.um-inline.on { animation: um-inline-in var(--d-small, .24s) var(--ease, cubic-bezier(.2, .8, .2, 1)) both; }
-.um-inline.on.out { animation: um-inline-out var(--d-small, .24s) var(--ease, cubic-bezier(.2, .8, .2, 1)) forwards; }
+.um-inline.on { animation: um-inline-in var(--d-small) var(--ease-arrive) both; }
+.um-inline.on.out { animation: um-inline-out var(--d-small) var(--ease-arrive) forwards; }
 @media (prefers-reduced-motion: reduce) {
-  .sh-root > .menu.as-sheet, .sh-root > .umenu.sheet { animation: mn-fade-in var(--d-small, .24s) var(--ease-arrive, ease) both; }
-  html.thumb-ui .sh-root > .menu.as-sheet.from-dock { animation-duration: var(--d-flip, .12s); }
-  .sh-root > .menu.as-sheet.leaving, .sh-root > .umenu.sheet.out { animation: mn-fade-out var(--d-small, .24s) var(--ease-in, ease-in) forwards; }
-  html.thumb-ui .sh-root > .menu.as-sheet.from-dock.leaving { animation-duration: var(--d-flip, .12s); }
+  .sh-root > .menu.as-sheet, .sh-root > .umenu.sheet { animation: mn-fade-in var(--d-small) var(--ease-arrive) both; }
+  html.thumb-ui .sh-root > .menu.as-sheet.from-dock { animation-duration: var(--d-flip); }
+  .sh-root > .menu.as-sheet.leaving, .sh-root > .umenu.sheet.out { animation: mn-fade-out var(--d-small) var(--ease-in) forwards; }
+  html.thumb-ui .sh-root > .menu.as-sheet.from-dock.leaving { animation-duration: var(--d-flip); }
 }
 
 /* The first words in the preview card do not fade in a second time under the card's own fade in (menu.js placePreview: `next.style.animation = 'none'`). */
@@ -32,8 +32,8 @@ html.thumb-ui .sh-root > .menu.as-sheet.from-dock { --ride-extra: 8px; }
 /* the colour key: the old key fades out as the new one fades in, on one spot (LensKey.tsx); nothing swaps */
 .lens-key { display: grid; align-items: center; min-width: 0; }
 .lens-key > .legend { grid-area: 1 / 1; }
-.lens-key > .lk-in { animation: lk-in 240ms var(--ease-arrive) backwards; }
-.lens-key > .lk-out { animation: lk-out 240ms var(--ease-arrive) forwards; pointer-events: none; }
+.lens-key > .lk-in { animation: lk-in var(--d-small) var(--ease-arrive) backwards; }
+.lens-key > .lk-out { animation: lk-out var(--d-small) var(--ease-arrive) forwards; pointer-events: none; }
 @keyframes lk-in { from { opacity: 0; } }
 @keyframes lk-out { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .lens-key > .legend { animation: none; } }

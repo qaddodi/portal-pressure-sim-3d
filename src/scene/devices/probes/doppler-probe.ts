@@ -271,8 +271,9 @@ export class DopplerProbe {
     this.headA = headA;
     const vis = a > 0.002;
     this.group.visible = vis;
-    for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !this.overlay && !(this.shut && this.closing.includes(o)); }
-    for (const o of this.headParts) { const h = a * headA; if (h > 0.002) o.setAlpha(h); o.group.visible = h > 0.002; }
+    // (a mark is asked to show while the probe does and the screen is not on top of it: it fades in and out with the display's opening, over `a`'s own fade; the head's alpha is its own, so its alpha alone brings it and takes it away)
+    for (const o of this.markParts) { o.setAlpha(vis ? a : 0); o.show(vis && !this.overlay && !(this.shut && this.closing.includes(o))); }
+    for (const o of this.headParts) { o.present(); o.setAlpha(a * headA); }
     this.wedge.visible = vis; this.wedgeMat.opacity = a;
   }
 

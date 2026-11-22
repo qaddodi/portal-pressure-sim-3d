@@ -1,5 +1,5 @@
 // The tap-anything card (2D: card.js, app-03-layouts.css .action-card): the name and its direction word, the reading or the pressure bar, the readings, the controls and the
-// actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (276 px); on a phone or an upright
+// actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (M.sideCardW, 340 px); on a phone or an upright
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
@@ -10,7 +10,7 @@ import './action.css';
 import { OrderIcon } from './icons.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
-import { usesBottomBar, footHeight, pillSpace, topBarH } from '../shell/room.ts';
+import { usesBottomBar, sheetFoot, pillSpace, topBarH } from '../shell/room.ts';
 import { cardMaxHeight } from './action-room-math.ts';
 import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
@@ -181,7 +181,7 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
       {rows.about.length > 0 && <div className="ac-about">{rows.about}</div>}
       {rows.panel}
       {rows.ctl.length > 0 && <div className="ac-cs" data-one={rows.ctl.length === 1 || undefined}>{rows.ctl}</div>}
-      {rows.act.length > 0 && <div className="ac-as">{rows.act}</div>}
+      {rows.act.length > 0 && <div className="ac-as ac-acts">{rows.act}</div>}
     </div>
   );
 }
@@ -215,7 +215,7 @@ export function ActionCard() {
     ro.observe(el);
     return () => { ro.disconnect(); set(0); };
   }, [open, bottom]);
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - pillSpace()}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, footHeight(device), pillSpace()) } : undefined;
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, sheetFoot(device)) } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <div className="ac-grab" aria-hidden="true"><i /></div>
