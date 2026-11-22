@@ -120,7 +120,7 @@ void main() {
   if (fadedOut()) discard;
   if (p.a < 0.002) { gl_FragColor = vec4(0.0); return; }
   // the tissue in three flat tones about its own local lightness (the painted colour blurred a few mip levels), hard edges one pixel wide
-  c = celTissue(c, lb, max(fwDv * CEL_EDGE_PX * 1.5, 1e-3));
+  c = celTissue(c, lb, max(fwDv * CEL_EDGE_HALF, 1e-3));
   // the plate's edges (Mohammad 20 Nov: "fibrosis shouldn't be outlined with black ink"): what it holds is soft tissue (collagen, septa, nutmeg, the Zones), so a strong edge takes a
   // faint, deeper shade of the tissue's OWN colour, LINE_MIN CSS px across, never the cells' dark casing; it comes and goes with the mark, as the edge does
   c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, plateEdge(vUv, uvPerPx, uDpr)));

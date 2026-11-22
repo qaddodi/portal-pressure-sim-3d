@@ -11,6 +11,7 @@ import { CEL_BANDS, CEL_STYLE } from '../cel-style.ts';
 
 export const CEL_QUANT_GLSL = /* glsl */ `
 const float CEL_EDGE_PX = ${CEL_STYLE.EDGE_PX.toFixed(2)};
+const float CEL_EDGE_HALF = ${(CEL_STYLE.EDGE_PX / 2).toFixed(3)};   // (the ramp is smoothstep(0.5 - w, 0.5 + w): w is HALF the edge, so the whole ramp is EDGE_PX device px of the measure's derivative)
 const float CEL_SHADE = ${CEL_STYLE.SHADE.toFixed(2)};
 const float CEL_LIT = ${CEL_STYLE.LIT.toFixed(2)};
 float celLight(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -21,7 +22,7 @@ vec3 celQuantW(vec3 c, float bands, float w) {
 }
 vec3 celQuant(vec3 c, float bands) {
   float l = celLight(c), q = l * bands;
-  float w = max(fwidth(q) * CEL_EDGE_PX * 1.5, 1e-3);
+  float w = max(fwidth(q) * CEL_EDGE_HALF, 1e-3);
   return celQuantW(c, bands, w);
 }
 vec3 celInk(vec3 base, vec3 ink, float d, float w) {
