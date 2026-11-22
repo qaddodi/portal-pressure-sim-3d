@@ -6,6 +6,8 @@
 // remapped onto the piece (`pieceOf`, `remapPiece`): the same rule for every column, so a fade, a highlight or a lens ramp runs on across the cut with no step.
 import type { IUniform } from 'three';
 import { EDGE_COLUMNS, type EdgeStateTable } from './edge-state.ts';
+import { mapRadiusOf } from '../../circuit/width.ts';
+import { NETWORK_BY_ID } from '../network.ts';
 import { sewnEnds } from './sewn.ts';
 import type { Skeleton } from './types.ts';
 
@@ -108,6 +110,7 @@ export class NetRows {
       this.table.set(row, 'sewn', [a ? a.host : -1, b ? b.host : -1, a ? a.flags : 0, b ? b.flags : 0]);
       if (bakeScale) this.table.set(row, 'bakeScale', bakeScale[row] ?? 1);
       const f = this.src.fixed(this.vessels[row]!.id), v = this.vessels[row]!;
+      const nv = NETWORK_BY_ID.get(v.id); if (nv) this.table.set(row, 'mapBase', mapRadiusOf(nv));
       if (f) { this.table.set(row, 'noMap', f.noMap ? 1 : 0); this.table.set(row, 'lenMap', f.lenMap * (v.h1 - v.h0)); }
     });
   }

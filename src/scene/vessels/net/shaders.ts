@@ -64,7 +64,7 @@ const fetchOf = (name: string, row: string): string => { const s = slotOf(name);
 
 /** The columns each stage reads (net/edge-state.ts names them; every one is a uniform the old shader had, or a column the skeleton added). */
 export const NET_VS_COLUMNS: readonly string[] = [
-  'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
+  'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'mapBase', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
   'hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiFade', 'hiPx', 'hiEnds',
   'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse', 'sewn', 'bakeScale', 'mapDepth',
 ];
@@ -175,7 +175,7 @@ float circSwellNet() {
     wc = circWidthOf(d, 0.0);
   }
   wc = max(wc, circW.w * circPerPx);
-  return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
+  return 0.5 * wc * CIRC_MAPK / max(mapBase, 1e-6);   // (over the radius the bones' MAP radii were built at, not the body's: the bone already carries the map's own width, so over radius the line came out mapBase/radius (1.4 to 2.3) times too fat)
 }
 ivec2 boneTexel(int i, int k) { return ivec2((i % ${BONES_PER_ROW}) * ${BONE_TEXELS} + k, i / ${BONES_PER_ROW}); }
 // the frame (t, n, b as columns) of a unit quaternion given by x, y, z (w >= 0 rebuilt: net/bones.ts)

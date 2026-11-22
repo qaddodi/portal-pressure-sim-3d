@@ -14,7 +14,7 @@ import type { Vec3 } from '../../anatomy/vessels.ts';
 import { CORNER_R, COURSES, N_TRACK } from '../../circuit/course.ts';
 import { frameN } from '../../circuit/frame.ts';
 import { MAP_K } from '../../circuit/map.ts';
-import { circuitWidthMap } from '../../circuit/width.ts';
+import { mapRadiusOf } from '../../circuit/width.ts';
 import { fadeOf } from '../fades.ts';
 import { tipAlpha, vesselAlphaAt } from '../fade-alpha.ts';
 import { MAPPED, NETWORK_BY_ID, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
@@ -202,8 +202,7 @@ function bodyRadii(v: NetVessel, courseLen: number, taper: readonly [number, num
   for (let i = 0; i < n; i++) out.push(radiusAtU({ pts: v.pts, radius: v.radius, ...(taper ? { taper } : {}) }, i / (n - 1), courseLen));
   return out;
 }
-/** A vessel's rest radius on the map (scene units): the 2D rule's width in map units (circuit/width.ts, boost 1) halved and carried by the map's scale. */
-export const mapRadiusOf = (v: Pick<NetVessel, 'widthKind' | 'baseD' | 'circFine'>): number => 0.5 * circuitWidthMap(v.widthKind, v.baseD, 1, v.circFine ?? 1) * MAP_K;
+export { mapRadiusOf };
 
 function rodrigues(n: Vec3, from: Vec3, to: Vec3): Vec3 {
   const ax = cross(from, to), s = len(ax), c = dot(from, to);
