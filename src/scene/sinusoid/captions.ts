@@ -83,7 +83,8 @@ export function buildSinusoidNames(c: CapCtx): NamePlacement[] {
 }
 
 /** Whether the names are on: only while the sinusoid is the view and drawn (nothing of them stands in the lobule, the body or the Circuit). */
-export const namesOn = (view: string, drawn: boolean): boolean => view === 'sinusoid' && drawn;
+/** `held`: the dive into the sinusoid is still waiting for its parts, so the camera has not flown to it: the names are not placed against the picture as it stands (the Lobule's captions, the same rule). */
+export const namesOn = (view: string, drawn: boolean, held = false): boolean => view === 'sinusoid' && drawn && !held;
 /** A name's translate and size on the canvas (px): its box's corner. Never a turn: a tall screen's names read across. */
 export const placeOf = (p: Pick<NamePlacement, 'cx' | 'cy' | 'w' | 'hh'>): { x: number; y: number; w: number; h: number } => ({ x: p.cx - p.w / 2, y: p.cy - p.hh / 2, w: p.w, h: p.hh });
 

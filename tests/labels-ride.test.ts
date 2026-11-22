@@ -214,3 +214,15 @@ test('after a pan comes to rest and the words still fit, the dots stay where the
   g.r.ride(350, 200, p);   // 50 px right of the reference when solved
   assert.ok(Math.abs(p.x - (100 + 75)) < 1e-9, `scaled about the picture at rest: ${p.x}`);
 });
+
+// Cold ?slide= start (Mohammad, 22 Nov): the lobule's names were placed while the dive was still held for its parts (the view says lobule, the camera is still on the body), against a plate that projects somewhere tiny,
+// so nothing stood; the empty answer was kept. Root cause: the names' `on` did not know the camera had not flown yet. One rule for the lobule's and the sinusoid's names.
+test('names wait for the held dive: neither the lobule\'s nor the sinusoid\'s are placed while the camera has not flown to the view', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync('src/scene/lobule/LobuleCaptions.tsx', 'utf8'), /const on = cel\.view === 'lobule' && cel\.lobule\.group\.visible && !cel\.diveHeld;/);
+  assert.match(readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8'), /namesOn\(cel\.view, cel\.sinus\.group\.visible, cel\.diveHeld\)/);
+  const { namesOn } = await import('../src/scene/sinusoid/captions.ts');
+  assert.equal(namesOn('sinusoid', true), true);
+  assert.equal(namesOn('sinusoid', true, true), false, 'a held dive');
+  assert.equal(namesOn('lobule', true), false);
+});
