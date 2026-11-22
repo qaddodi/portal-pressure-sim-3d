@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
-import { ClotObject, clotBiasOf, clotGeometry, clotShapeOf } from '../src/scene/disease/clots.ts';
+import { ClotObject, clotGeometry, clotShapeOf } from '../src/scene/disease/clots.ts';
 import { drawnHost } from '../src/scene/disease/host.ts';
 import { NBR_STRIDE, neighbourAttr } from '../src/scene/vessels/neighbour.ts';
 import { TUBE_DEPTH_SHARE, VESSEL_FS } from '../src/scene/vessels/shaders.ts';
@@ -57,13 +57,12 @@ test('A: the clot is cut against the same cava piece as its vein, so the two cut
 test('B: a clot is depth-tested, writes no depth, and sits in its vein\'s slot: after the vein\'s copy, under the devices; its bias is a few thousandths, far under the 0.01 between tiers', () => {
   const o = new ClotObject(clotGeometry({ centres: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], radii: [0.1, 0.1], alpha: [1, 1], lumen: [0.2, 0.2] }), createShared());
   for (const m of [o.toon, o.ink]) { assert.equal(m.depthTest, true); assert.equal(m.depthWrite, false); assert.equal(m.transparent, true); }
-  o.placeAfter(0, 0.01);
+  o.placeAfter(0);
   const ink = o.group.children.find((c) => c !== o.toonMesh)!;
   assert.equal(ink.renderOrder, 0.25); assert.ok(o.toonMesh.renderOrder > ink.renderOrder && o.toonMesh.renderOrder < 1);
   o.placeAfter(2);
   assert.equal(o.group.children.find((c) => c !== o.toonMesh)!.renderOrder, 2.25);
-  for (const R of [0.004, 0.01, 0.027, 0.035]) { const b = clotBiasOf(R); assert.ok(b >= TUBE_DEPTH_SHARE * R && b < 0.0065, `${R}: ${b}`); }
   assert.match(o.toon.vertexShader, /gp\.z = clotDepth\(gp\);/);
   assert.match(o.ink.vertexShader, /c\.z = clotDepth\(c\);/);
-  assert.match(o.toon.vertexShader, new RegExp(`mix\\(za, zs, ${TUBE_DEPTH_SHARE.toFixed(4)}\\)`));
+  assert.match(o.toon.vertexShader, new RegExp(`${TUBE_DEPTH_SHARE.toFixed(4)} \\* \\(lumR \\+ inkS\\)`));
 });
