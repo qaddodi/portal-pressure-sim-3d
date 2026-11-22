@@ -7,14 +7,26 @@ import type { Skeleton } from './types.ts';
 
 /** The most capsules of a region (the ruling says 6 arms; the short edges of a merged region and a run capsule come on top) and the bones along each. */
 export const REGION_CAPS = 8, REGION_PTS = 8;
-/** A region's row in the region texture: texel 0 (capsule count, arm count, variant), two of mates, texel 3 the switch window (b, a), then from REGION_HEAD the bone indices four to a texel. */
+/** A region's row in the region texture: texel 0 (capsule count, arm count, variant), two of mates, texel 3 the fade ramps (in0, in1, out0, out1), then from REGION_HEAD the bone indices four to a texel. */
 export const REGION_HEAD = 4;
 export const REGION_TEXELS = REGION_HEAD + Math.ceil((REGION_CAPS * REGION_PTS) / 4);
-/** A region has two meshes (plan owner, 22 Nov): one built at the body layout (variant 0) and one at the map layout (variant 1), both projected onto the same live union. The body mesh is drawn for t <= b, the map mesh for t >= a, and between them the screen
- *  dither hands over (the body mesh keeps the pixels whose pattern value is below its share 1 - smoothstep(b, a, t), the map mesh the rest); the one not drawn collapses to a point in the vertex stage. A body mesh alone is window [2, 2] (always drawn), a map mesh alone [-1, -1]. */
+/** A region is drawn as plain tubes plus a FILLET mesh that dissolves in and out (plan owner, 22 Nov): the arms' tubes run through their seams to the node, so with no fillet the junction is still whole. A region's fillet is built at the body layout (variant 0),
+ *  at the map layout (variant 1) and, where those share no t, at the middle of the Circuit (variant 2); each is drawn by the screen dither with a share of the pixels: the body fillet dissolves over [a - 0.1, a], the map fillet comes in over [b, b + 0.05],
+ *  a mid fillet does both (in over [b, b + 0.05] of its first window, out over [a - 0.1, a] of its second), and between them the plain tubes show. `a` and `b` are the bake's (`NodeReport.switchT`: [b, a]). A mesh alone has window [2, 2] (body: always
+ *  there) or [-1, -1] (map). The share is smoothstep(in) * (1 - smoothstep(out)); where it is 0 the mesh collapses to a point in the vertex stage (no work, no fragments). */
+export const FADE_OUT_T = 0.1, FADE_IN_T = 0.05;
 export const BODY_ONLY: readonly [number, number] = [2, 2], MAP_ONLY: readonly [number, number] = [-1, -1];
-/** The body mesh's share of the pixels at t (the vertex stage's `wb`): 1 before the window, 0 after it, smooth inside; a window with a <= b is a hard switch at a. */
-export const bodyShare = (win: readonly [number, number], t: number): number => { const [b, a] = win; if (a > b) { const x = Math.min(1, Math.max(0, (t - b) / (a - b))); return 1 - x * x * (3 - 2 * x); } return t < a ? 1 : 0; };
+const ALWAYS: readonly [number, number] = [-2, -1], NEVER: readonly [number, number] = [2, 3];
+/** A region's share ramps, [in0, in1, out0, out1], from its variant and windows. */
+export function regionFades(rg: Pick<Region, 'variant' | 'window' | 'window2'>): [number, number, number, number] {
+  const inR = rg.variant === 0 ? ALWAYS : [rg.window[0], rg.window[0] + FADE_IN_T] as const;
+  const aOut = rg.variant === 2 ? (rg.window2 ?? rg.window)[1] : rg.window[1];
+  const outR = rg.variant === 1 ? NEVER : [aOut - FADE_OUT_T, aOut] as const;
+  return [inR[0], inR[1], outR[0], outR[1]];
+}
+const smooth = (a: number, b: number, t: number): number => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * (3 - 2 * x); };
+/** The share of the pixels a region's fillet mesh keeps at t (the vertex stage's `vDraw`). */
+export function regionShare(rg: Pick<Region, 'variant' | 'window' | 'window2'>, t: number): number { const [i0, i1, o0, o1] = regionFades(rg); return smooth(i0, i1, t) * (1 - smooth(o0, o1, t)); }
 
 export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[]; /** 0: the body-built mesh, 1: the map-built (the mesher reports it, `NodeReport.variant`; absent = body) */ variant: 0 | 1 | 2; /** the t window over which this region's two meshes hand over, `[b, a]` (`NodeReport.switchT`; absent = this mesh alone) */ window: readonly [number, number]; /** variant 2 only (a mid mesh, `NodeReport.switchT2`): the window it hands over to the map mesh in (`window` is the one from the body mesh) */ window2?: readonly [number, number] }
 
@@ -51,7 +63,7 @@ export function regionTexture(regions: readonly Region[], vertexCount: number): 
   const height = Math.max(1, regions.length), data = new Float32Array(4 * REGION_TEXELS * height), vertexRegion = new Float32Array(vertexCount).fill(-1);
   regions.forEach((rg, ri) => {
     const o = 4 * REGION_TEXELS * ri;
-    data[o] = rg.caps.length; data[o + 1] = rg.arms; data[o + 2] = rg.variant; data[o + 4 * 3] = rg.window[0]; data[o + 4 * 3 + 1] = rg.window[1];
+    data[o] = rg.caps.length; data[o + 1] = rg.arms; data[o + 2] = rg.variant; data.set(regionFades(rg), o + 4 * 3);
     rg.caps.forEach((c, ci) => {
       data[o + 4 * 1 + ci] = c.mate;   // texels 1 and 2: the mates
       for (let q = 0; q < REGION_PTS; q++) data[o + 4 * REGION_HEAD + ci * REGION_PTS + q] = c.bones[q]!;

@@ -133,7 +133,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;   // vW, vR, vU, vArcLen: the clip depth, the lumen's half width and the figure's units in a scene unit here, and the length along the course drawn now (shaders.ts vArcLen)
 varying vec4 vPackB;   // vFade, vCircShare, circStay, vHi
-varying float vDraw;   // a junction region's two meshes: the body mesh's share of the pixels (variant 0), or 2 + it (the map mesh, which keeps the rest); 1 for everything else
+varying float vDraw;   // a junction region's fillet: the share of its pixels the screen dither keeps; 1 for everything else
 varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
 flat varying vec2 vEdge;   // the edge of the bone that holds the vertex most, and the second's: the fragment stage's discrete state (flat: one per triangle)
@@ -343,15 +343,15 @@ float netUnion(vec3 p, float k, int nc, out vec3 g) {
   return acc;
 }
 void main() {
-  // A JUNCTION REGION HAS TWO MESHES (body-built and map-built, regions.ts), both projected onto the one live union; the screen dither hands over from one to the other over [b, a] of t, and the one not drawn is a point (no work, no fragments)
+  // A JUNCTION REGION'S FILLET dissolves in and out by the screen dither (regions.ts regionFades): the arms' tubes run through to the node, so without the fillet the junction is still whole. The share is smoothstep(in) * (1 - smoothstep(out)) of t;
+  // where it is 0 the mesh is a point (no work, no fragments)
   vDraw = 1.0;
   if (region > -0.5) {
     int r0 = int(region + 0.5);
-    float variantM = texelFetch(regionTex, ivec2(0, r0), 0).z;
-    vec2 win = texelFetch(regionTex, ivec2(3, r0), 0).xy;
-    float wb = win.y > win.x ? 1.0 - smoothstep(win.x, win.y, circT) : (circT < win.y ? 1.0 : 0.0);
-    if (variantM < 0.5 ? wb <= 0.0 : wb >= 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-    vDraw = variantM < 0.5 ? wb : 2.0 + wb;
+    vec4 fd = texelFetch(regionTex, ivec2(3, r0), 0);
+    float share = smoothstep(fd.x, fd.y, circT) * (1.0 - smoothstep(fd.z, fd.w, circT));
+    if (share <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    vDraw = share;
   }
   vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
   float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
@@ -561,8 +561,8 @@ void main() {
   if (fadedOut()) discard;
   // a part with no map course fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve
   if (circStay < 0.999 && ${SCREEN_DITHER_GLSL} >= circStay) discard;
-  // a junction region's two meshes hand over in the same pattern: the body mesh keeps the pixels below its share, the map mesh the others, so every pixel is drawn by exactly one of them
-  if (vDraw < 0.999 || vDraw > 1.001) { bool mapMesh = vDraw > 1.5; float wbS = mapMesh ? vDraw - 2.0 : vDraw; float nzS = ${SCREEN_DITHER_GLSL}; if (mapMesh ? nzS < wbS : nzS >= wbS) discard; }
+  // a junction region's fillet dissolves in the same pattern: it keeps the pixels whose pattern value is below its share
+  if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;
   if (vFade < 0.004) discard;
   vec3 n = normalize(vN);
   vec3 sideX = cross(normalize(vT), normalize(vV));
