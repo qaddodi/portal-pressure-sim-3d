@@ -1,6 +1,6 @@
 # ?geom=net: the network meshes in the scene (WP4)
 
-Behind `?geom=net` only (`net/flag.ts`). With no flag nothing here runs: the scene mounts no net figure, the old vessel shaders carry no `handOld`, and the tubes and skins are exactly today's.
+Behind `?geom=net` only (`net/flag.ts`). With no flag nothing here runs: the scene mounts no net figure, and the tubes and skins are exactly today's.
 
 ## What is drawn
 - `scene.ts` `mountNet()` loads the baked meshes (`public/anatomy/net-<n>.bin`, gzip; `net/load.ts`; a dynamic import, off the load path) and builds a `NetFigure` (`net/network-object.ts`).
@@ -11,8 +11,8 @@ Behind `?geom=net` only (`net/flag.ts`). With no flag nothing here runs: the sce
 ## Bakes
 `node scripts/bake-skins.mjs --net` (about 64 s, cached by the skeleton digest and source mtime, `--force`). Non-main builds run it (`scripts/build.mjs`); the files are git-ignored. Missing or stale files: the console says so and `?geom=net` leaves the old figure.
 
-## TEMPORARY hand-over (flag-only, goes away)
-Over the first 0.1 of t the Circuit's change shows the old tubes and skins by the screen dither, reversed on the way back (`oldShare(t)`, `NET_HANDOVER_T`). The net FS discards pixels where the pattern is below `handOld`. It exists because the plain tubes with a junction dissolve were not ready; remove `handOld`, `setNetHidden`, `oldShare` and the `composeFade` min once WP3's fillet dissolve passes its acceptance at every 0.05 of t. It must never reach the default.
+## No hand-over
+The network draws the whole picture at every t, the Circuit's change included; its fillets dissolve by WP3's screen dither (71141fa7). The old tubes are not drawn (`setNetHidden`) and their fade is 0 (so the skins that follow it are off): they stay only for state and picking. The earlier temporary hand-over to the old figure over the first 0.1 of t is gone.
 
 ## Budget
 `net/reads.ts` models the junction texel reads per drawn frame on the real mesh (every vertex's bones, the region rows, the capsule and sewn passes). Worst case 1.16 M (t = 0.15), bound 1.5 M. A model of the shader text, not a measurement: confirm with `?perf` on a device.

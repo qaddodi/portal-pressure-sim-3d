@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ARM_RANGE, BAKE_RADII, NARROW_SPAN, WIDE_TOP, bakeScaleOf } from '../src/scene/vessels/net/ranges.ts';
 
-test('an arm that never swells is baked at the radius it is drawn at, a narrow range at its geometric mean, a wide one with its top at 1.1 of the baked radius', () => {
+test('an arm that never swells is baked at the radius it is drawn at, a narrow range at its geometric mean, a wide one with its top at 1.15 of the baked radius', () => {
   assert.equal(BAKE_RADII, 'narrow');
   assert.equal(bakeScaleOf('PRE_R'), 1);
   assert.equal(bakeScaleOf('POST_R_RHV'), 1);

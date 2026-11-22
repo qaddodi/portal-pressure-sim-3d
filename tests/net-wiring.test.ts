@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
 import { loadNetFromDisk } from '../src/scene/vessels/net/load.ts';
-import { geomNet, oldShare, NET_HANDOVER_T } from '../src/scene/vessels/net/flag.ts';
+import { geomNet } from '../src/scene/vessels/net/flag.ts';
 import { NET_FS, NET_GLOBALS, NET_VS } from '../src/scene/vessels/net/shaders.ts';
 import { shaderUniforms } from '../src/scene/vessels/net/uniform-map.ts';
 import { EDGE_COLUMNS } from '../src/scene/vessels/net/edge-state.ts';
@@ -23,12 +23,9 @@ test('the flag is off by default and on only for ?geom=net', () => {
   assert.equal(geomNet('?geom=net'), true);
 });
 
-test('the hand-over is temporary, eased, and exactly 0 at rest and 1 after the first tenth', () => {
-  assert.equal(oldShare(0), 0); assert.equal(oldShare(NET_HANDOVER_T), 1); assert.equal(oldShare(0.5), 1); assert.equal(oldShare(-1), 0);
-  let prev = 0; for (let t = 0; t <= NET_HANDOVER_T; t += 0.001) { const s = oldShare(t); assert.ok(s >= prev - 1e-12 && s <= 1); prev = s; }
-  assert.ok(oldShare(NET_HANDOVER_T / 2) > 0.4 && oldShare(NET_HANDOVER_T / 2) < 0.6, 'a smoothstep: half-way at half');
-  assert.match(NET_FS, /if \(handOld > 0\.0 && fract\(52\.9829189 \* fract\(dot\(gl_FragCoord\.xy, vec2\(0\.06711056, 0\.00583715\)\)\)\) < handOld\) discard;/, 'the complement of the old program\'s fadedOut (dither >= fade)');
-  assert.ok(NET_FS.indexOf('handOld > 0.0') < NET_FS.indexOf('vec3 n = normalize(vN);'), 'before any derivative');
+test('no hand-over to the old figure is left: the network program has no handOld and the flag file no oldShare', async () => {
+  assert.ok(!NET_FS.includes('handOld'));
+  assert.equal('oldShare' in (await import('../src/scene/vessels/net/flag.ts')), false);
 });
 
 test('without the flag a scene has no network figure and its old tubes are drawn (the default is untouched)', () => {
@@ -39,7 +36,7 @@ test('without the flag a scene has no network figure and its old tubes are drawn
 
 test('every uniform the network programs declare is supplied by the figure (shared from the old vessels, or its own)', { skip }, async () => {
   const { net } = await figure();
-  const own = new Set(Object.keys(net.uniforms).concat(['regionTex', 'capTex', 'capRows']));
+  const own = new Set(Object.keys(net.uniforms).concat(['regionTex', 'capTex', 'capRows', 'keyTex']));
   const declared = new Set([...shaderUniforms(NET_VS), ...shaderUniforms(NET_FS)]);
   const BUILTIN = new Set(['projectionMatrix', 'modelViewMatrix', 'normalMatrix']);
   const dbg = (n: string): boolean => n.startsWith('dbg');   // (the inspector's: present only with ?inspect)
@@ -54,7 +51,6 @@ test('the figure is at most 12 vessel draws and the old tubes are not drawn whil
   assert.ok(net.drawCalls <= 12, `${net.drawCalls} draws`);
   scene.update(16);
   for (const o of scene.vessels) assert.equal((o as unknown as { toon: { visible: boolean } }).toon.visible, false, 'the tubes are hidden at the body pose');
-  assert.equal(net.uniforms.handOld!.value, 0);
 });
 
 test('every edge row equals its vessel\'s uniforms, column by column (whole vessels exactly)', { skip }, async () => {
@@ -100,5 +96,5 @@ test('the organs-pass copy holds only the triangles of back vessels, and every v
 
 test('the old shaders are untouched: the figure adds no define or uniform to the tubes\' or the skins\' programs', async () => {
   const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
-  assert.ok(!VESSEL_FS.includes('handOld') && !VESSEL_VS.includes('handOld'), 'the hand-over is in the network program only; the old one holds back by its own fade');
+  assert.ok(!VESSEL_FS.includes('handOld') && !VESSEL_VS.includes('handOld'), 'the network program\'s own uniforms stay out of the old one');
 });

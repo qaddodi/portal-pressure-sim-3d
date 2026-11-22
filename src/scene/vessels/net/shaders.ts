@@ -40,7 +40,7 @@ import { VDBG_GLSL } from '../debug-view.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
 import { SKIN_K } from '../skin/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
-import { REGION_CAPS, REGION_HEAD, REGION_PTS } from './regions.ts';
+import { KEY_COLS, KEY_MAX, KEY_RIDX, KEY_TEX, REGION_CAPS, REGION_HEAD, REGION_PTS } from './regions.ts';
 import { SIDE_END_MIN, FLARE_K, FLARE_SPAN } from '../fork-joins.copied.js';
 import { BONE_TEXELS, BONES_PER_ROW } from './bones.ts';
 import { EDGE_LAYOUT } from './edge-state.ts';
@@ -76,14 +76,14 @@ export const NET_FS_COLUMNS: readonly string[] = [
 /** What the network object must carry as plain uniforms (and the textures): one set for the whole network, never per vessel. WP4 builds the material's uniforms from this list; tests/net-shader.test.ts holds it to the shaders. */
 export const NET_GLOBALS: Readonly<Record<string, string>> = {
   // both stages
-  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', sewnTex: 'sampler2D', sewnRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
+  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', keyTex: 'sampler2D', sewnTex: 'sampler2D', sewnRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
   // vertex stage
   circRot: 'vec2', circM: 'vec3', circTrackSize: 'vec2', circTrack: 'sampler2D', circBoost: 'float', circPerPx: 'float', ringSag: 'float',
   // fragment stage
   toneColor: 'vec3[3]', tubeDark: 'float', inkColor: 'vec3', inkColorCirc: 'vec3', shadeK: 'float', light: 'vec3', bands: 'float', spec: 'float', time: 'float', projY: 'float', dpr: 'float',
   markDark: 'vec3', markLight: 'vec3', markRev: 'vec3', lensMix: 'float', lensTail: 'float', lensGradA: 'sampler2D', lensLaneA: 'sampler2D', lensGradB: 'sampler2D', lensLaneB: 'sampler2D',
   lensModeA: 'float', lensModeB: 'float', lensRawA: 'float', lensRawB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
-  handOld: 'float', wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
+  wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
   // the inspector's (VDBG), as the old program's
   dbgShade: 'float', dbgDust: 'float', dbgHeads: 'float', dbgInk: 'float', dbgTint: 'float', dbgCol: 'vec4',
 };
@@ -299,6 +299,8 @@ ${HIGHLIGHT_ALONG_GLSL}
 }`;
 
 export const NET_VS = /* glsl */ `${NET_VS_PRELUDE}
+uniform sampler2D keyTex;      // the keys of the wide junctions (net/regions.ts keyPlan): ${KEY_COLS} slots across, a slot is ${KEY_MAX} keys x ${KEY_TEX} texels (body offsets x3, map offsets x3); a region's header slot holds the keys' ln lumens
+ivec2 keyAt(int slot, int texel) { return ivec2((slot - (slot / ${KEY_COLS}) * ${KEY_COLS}) * ${KEY_MAX * KEY_TEX} + texel, slot / ${KEY_COLS}); }
 // ---- THE JUNCTION PROJECTION (implicit skinning, review doc "Rulings on WP3"): the live smooth union of a region's capsules and its gradient, sdf.ts sdUnionGrad in GLSL.
 // Each capsule is ${REGION_PTS} bones: the axis runs through their live centres, the radius is their live lumen (swell, width, presence). capP = (centre, lumen) of every point, capMate the mate's index or -1 (the two halves of a run-on: a plain minimum).
 vec4 capP[${REGION_CAPS * REGION_PTS}];
@@ -346,8 +348,11 @@ void main() {
   // A JUNCTION REGION'S FILLET dissolves in and out by the screen dither (regions.ts regionFades): the arms' tubes run through to the node, so without the fillet the junction is still whole. The share is smoothstep(in) * (1 - smoothstep(out)) of t;
   // where it is 0 the mesh is a point (no work, no fragments)
   vDraw = 1.0;
+  // (the vertex attribute is the region's row, plus ${KEY_RIDX} x the vertex's key slot when its region has keys)
+  int regionAttr = region > -0.5 ? int(region + 0.5) : 0;
+  int rrow = regionAttr - (regionAttr / ${KEY_RIDX}) * ${KEY_RIDX}, kslot = regionAttr / ${KEY_RIDX};
   if (region > -0.5) {
-    int r0 = int(region + 0.5);
+    int r0 = rrow;
     vec4 fd = texelFetch(regionTex, ivec2(3, r0), 0);
     float share = smoothstep(fd.x, fd.y, circT) * (1.0 - smoothstep(fd.z, fd.w, circT));
     if (share <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
@@ -357,15 +362,49 @@ void main() {
   float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
   int rowOf[4] = int[4](-1, -1, -1, -1);
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
+  // THE KEYED START of a wide junction: the offsets are the normalised blend of the keys' (weights 1 / (distance + 0.001)^2, the distance in ln lumen between the arms' live lumens, from the capsule pass, and each key's); the projection below is unchanged
+  vec4 o0 = off0, o1 = off1, o2 = off2, m0 = offM0, m1 = offM1, m2 = offM2;
+  if (kslot > 0) {
+    vec4 kh = texelFetch(regionTex, ivec2(4, rrow), 0);
+    int nk = int(kh.x + 0.5), hs = int(kh.y + 0.5), nArm = int(texelFetch(regionTex, ivec2(0, rrow), 0).y + 0.5);
+    float lnLive[${REGION_CAPS}];
+    for (int c = 0; c < ${REGION_CAPS}; c++) lnLive[c] = c < nArm ? log(max(texelFetch(capTex, ivec2(c * ${REGION_PTS}, rrow), 0).w, 1.0e-9)) : 0.0;
+    float kw[${KEY_MAX}];
+    float kws = 0.0;
+    for (int k = 0; k < ${KEY_MAX}; k++) {
+      kw[k] = 0.0;
+      if (k >= nk) break;
+      float d2 = 0.0;
+      for (int c = 0; c < ${REGION_CAPS}; c++) {
+        if (c >= nArm) break;
+        int ix = k * ${REGION_CAPS} + c;
+        vec4 hv = texelFetch(keyTex, keyAt(hs, ix / 4), 0);
+        int ic = ix - (ix / 4) * 4;
+        float lk = ic == 0 ? hv.x : (ic == 1 ? hv.y : (ic == 2 ? hv.z : hv.w));
+        if (lk < 1.0e8) d2 += (lnLive[c] - lk) * (lnLive[c] - lk);
+      }
+      float dk = sqrt(d2) + 0.001;
+      kw[k] = 1.0 / (dk * dk);
+      kws += kw[k];
+    }
+    o0 = vec4(0.0); o1 = vec4(0.0); o2 = vec4(0.0); m0 = vec4(0.0); m1 = vec4(0.0); m2 = vec4(0.0);
+    for (int k = 0; k < ${KEY_MAX}; k++) {
+      if (k >= nk) break;
+      float wk = kw[k] / kws;
+      int t0 = k * ${KEY_TEX};
+      o0 += wk * texelFetch(keyTex, keyAt(kslot, t0), 0); o1 += wk * texelFetch(keyTex, keyAt(kslot, t0 + 1), 0); o2 += wk * texelFetch(keyTex, keyAt(kslot, t0 + 2), 0);
+      m0 += wk * texelFetch(keyTex, keyAt(kslot, t0 + 3), 0); m1 += wk * texelFetch(keyTex, keyAt(kslot, t0 + 4), 0); m2 += wk * texelFetch(keyTex, keyAt(kslot, t0 + 5), 0);
+    }
+  }
   for (int k = 0; k < 4; k++) {
     float wk = weight[k];
     if (wk <= 0.0) continue;
     NetBone b = netBone(int(bone[k] + 0.5), false);
     rowOf[k] = b.row;
     float sc = region > -0.5 ? b.lumenRest : b.lumen;   // (a junction vertex STARTS from the rest arrangement, the projection below follows the live radii)
-    vec3 o = k == 0 ? off0.xyz : (k == 1 ? vec3(off0.w, off1.xy) : (k == 2 ? vec3(off1.zw, off2.x) : off2.yzw));
+    vec3 o = k == 0 ? o0.xyz : (k == 1 ? vec3(o0.w, o1.xy) : (k == 2 ? vec3(o1.zw, o2.x) : o2.yzw));
     vec3 nr = k == 0 ? nrm0.xyz : (k == 1 ? vec3(nrm0.w, nrm1.xy) : (k == 2 ? vec3(nrm1.zw, nrm2.x) : nrm2.yzw));
-    vec3 om = k == 0 ? offM0.xyz : (k == 1 ? vec3(offM0.w, offM1.xy) : (k == 2 ? vec3(offM1.zw, offM2.x) : offM2.yzw));
+    vec3 om = k == 0 ? m0.xyz : (k == 1 ? vec3(m0.w, m1.xy) : (k == 2 ? vec3(m1.zw, m2.x) : m2.yzw));
     pAcc += wk * (b.F * (o * sc));
     pMapAcc += wk * (b.F * (om * sc));
     padAcc += wk * b.pad;
@@ -384,7 +423,7 @@ void main() {
   pAcc = cenAcc + mix(pAcc, pMapAcc, clamp(shareAcc, 0.0, 1.0));
   if (region > -0.5) {
     // THE PROJECTION: the capsules from their bones (live centre and lumen), k from the narrowest ARM's live lumen at the junction, three Newton steps onto the live union, the normal the union's gradient at the shade width
-    int rr = int(region + 0.5);
+    int rr = rrow;
     vec4 hd = texelFetch(regionTex, ivec2(0, rr), 0);
     int nc = int(hd.x + 0.5), na = int(hd.y + 0.5);
     float kMin = 1.0e9;
@@ -466,7 +505,6 @@ uniform vec3 light;
 uniform float bands;
 uniform float spec;
 uniform float time;
-uniform float handOld;   // the share of the OLD figure drawn now (net/flag.ts oldShare): the old tubes and skins come in by the screen pattern, this program draws the pixels they leave (TEMPORARY, flag.ts)
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -562,8 +600,6 @@ void main() {
   if (fadedOut()) discard;
   // a part with no map course fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve
   if (circStay < 0.999 && ${SCREEN_DITHER_GLSL} >= circStay) discard;
-  // the Circuit's hand-over to the old tubes (TEMPORARY, net/flag.ts): the old program keeps the pixels whose pattern value is below its share, so this one keeps the rest
-  if (handOld > 0.0 && ${SCREEN_DITHER_GLSL} < handOld) discard;
   // a junction region's fillet dissolves in the same pattern: it keeps the pixels whose pattern value is below its share
   if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;
   if (vFade < 0.004) discard;
