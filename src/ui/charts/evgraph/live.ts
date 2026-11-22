@@ -6,7 +6,8 @@ import { evFeeder, type Fp } from './data.ts';
 import { EvRun, type EvSpec } from './model.ts';
 
 /** Where the frames come from: the newest one, and a tap on each new one. */
-export interface FrameSource { now(): EngineFrame | null; on(fn: (f: EngineFrame) => void): () => void }
+/** `run`: sets the model going on its own clock at real time (2D liveSet's LIVE_RUN): a paused model, or one on the disease clock, gives no seconds after the change. */
+export interface FrameSource { now(): EngineFrame | null; on(fn: (f: EngineFrame) => void): () => void; run(): void }
 /** One reading per this many model seconds (2D polled every 100 ms of the model's own clock). */
 export const FEED_DT = 0.1;
 
@@ -28,6 +29,7 @@ export function evRunFor(k: string, spec: Pick<EvSpec, 'lines'>): EvRun {
 export function startEvRun(k: string, spec: EvSpec, settled: Fp | null, params: unknown, src: FrameSource): void {
   const r = evRunFor(k, spec);
   stopFeed();
+  src.run();   // (before the change's moment is read: the seconds the graph counts are the model's own, so the model must be running)
   const feeder = evFeeder(r, spec, settled, params), f0 = src.now();
   feeder.start(f0?.t ?? 0);
   let last = -Infinity;

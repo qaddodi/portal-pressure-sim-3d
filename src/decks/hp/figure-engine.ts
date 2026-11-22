@@ -33,4 +33,4 @@ export function liveFp(): Record<string, number | null | undefined> | null {
 export const engineSend = (m: Parameters<ReturnType<typeof engine>['send']>[0]): void => { engine().send(m); };
 
 /** The newest engine frame, and a tap on each new one (the procedure graph's live run reads the model through these, ui/charts/evgraph/live.ts). */
-export const engineFrames = { now: () => latest.frame, on: onFrame };
+export const engineFrames = { now: () => latest.frame, on: onFrame, run: () => { engine().send({ type: 'run', running: true, clock: 'hemo', speed: 1 }); } };
