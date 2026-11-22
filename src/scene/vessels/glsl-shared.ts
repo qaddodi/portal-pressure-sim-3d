@@ -171,11 +171,13 @@ export const CIRC_WIDTH_OF_GLSL = /* glsl */ `float circWidthOf(float d, float k
   return clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
 }`;
 
+/** The tie's pinch of a divided vein's stump: the share of its width the tie takes off, and the Gaussian's width (figure units). One source for the shader and divide.ts. */
+export const PINCH_K = 0.28, PINCH_W = 3.2;
 /** The stump of a divided vein as a share of the radius at arc `a` (units from the start), `R` the radius there. Reads: stump. Spliced exactly where it stood in vessels/shaders.ts. */
 export const STUMP_K_GLSL = /* glsl */ `float stumpK(float a, float R) {
   float q = clamp((a - stump.x) / max(R, 1e-3), 0.0, 1.0);
-  float pq = (a - stump.y) / 5.5;
-  return max(sqrt(max(0.0, 1.0 - (1.0 - q) * (1.0 - q))), 0.02) * (1.0 - 0.2 * stump.z * exp(-pq * pq));
+  float pq = (a - stump.y) / ${F(PINCH_W)};
+  return max(sqrt(max(0.0, 1.0 - (1.0 - q) * (1.0 - q))), 0.02) * (1.0 - ${F(PINCH_K)} * stump.z * exp(-pq * pq));
 }`;
 
 /** A free end in the Circuit is round: the pixels outside a half circle at the end are carved away. Reads: circT, circCap, vUv, len, vU, vCen, projY, vR, inkOn. Spliced exactly where it stood in vessels/shaders.ts. */
@@ -195,7 +197,8 @@ export const CAP_CARVED_GLSL = /* glsl */ `bool capCarved(float across) {
 }`;
 
 /** The stent in the Circuit, the surgical stitches, the stump's tie and the wedge's amber column, painted on the tube (a part of main, in its own locals: c, across, pxArc, fwPx, fwTh, fwAcr, inkT; with stentU, stentWire, stentGoldC, seamA, seamB, stump, wedge, wedgeD, wedgeCol, circT, len, vU, vR, vR0, vArcLen, vUv, and what the stent's heading needs). Spliced exactly where it stood in vessels/shaders.ts. */
-export const PROCEDURE_MARKS_GLSL = /* glsl */ `  // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
+export const PROCEDURE_MARKS_GLSL = /* glsl */ `  const vec3 THREAD = vec3(0.953, 0.918, 0.816), THREAD_EDGE = vec3(0.145, 0.133, 0.20);   // (a pale suture and its dark edge, on every look)
+  // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
     float kS = stentU.x * circT, Lw = vArcLen * vU, s = vUv.x * Lw, un = max(vR0, 0.3) / 12.0, s0 = stentU.y * Lw, sE = stentU.z * Lw, sB = s0 + stentU.w * vR0;
@@ -244,22 +247,27 @@ export const PROCEDURE_MARKS_GLSL = /* glsl */ `  // the stent in the Circuit (t
         dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
         dsh = smoothstep(1.0, 0.92, abs(aa));
       }
-      tw = max(tw, (1.0 - smoothstep(0.32, 0.5, dd)) * dsh);
-      te = max(te, (1.0 - smoothstep(0.7, 1.0, dd)) * dsh);
+      tw = max(tw, (1.0 - smoothstep(0.2, 0.36, dd)) * dsh);
+      te = max(te, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
     }
-    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4);
-    c = mix(c, vec3(0.910, 0.455, 0.165), tw);
+    c = mix(c, THREAD_EDGE, te * 0.4);
+    c = mix(c, THREAD, tw);
   }
-  // the tie on a divided vein's stump (suture-marks.js woundTie): three turns of thread, 2.2 units apart, a little slanted across the vein, with the 2D's own thread and edge colours (--suture-thread, --suture-edge)
+  // the tie on a divided vein's stump: a ligature of two fine turns a hair apart, leaning a little across the front of the vein (never a stripe round it), and the knot where the ends meet, in the one thread colour (THREAD, a pale suture, never orange)
+  // with a faint dark edge. It lies on the pinch the tie makes (stumpK), and not past the vein's own outline.
   if (stump.z > 0.001 && circT < 0.001) {
-    float aF = vUv.x * len * vU, ph = vUv.y * 6.2831853, tw = 0.0, te = 0.0;
-    for (int j = 0; j < 3; j++) {
-      float dd = abs(aF - (stump.y + (float(j) - 1.0) * 2.2 + 0.5 * sin(ph)));
-      tw = max(tw, 1.0 - smoothstep(0.32, 0.5, dd));
-      te = max(te, 1.0 - smoothstep(0.7, 1.0, dd));
+    float aF = vUv.x * len * vU, aa = clamp(across, -1.0, 1.0), rr = max(vR, 0.3), tw = 0.0, te = 0.0;
+    for (int j = 0; j < 2; j++) {
+      float dd = abs(aF - (stump.y + (float(j) - 0.5) * 1.3 + 0.3 * aa));
+      tw = max(tw, 1.0 - smoothstep(0.2, 0.36, dd));
+      te = max(te, 1.0 - smoothstep(0.45, 0.8, dd));
     }
-    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
-    c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
+    float kd = length(vec2(aF - stump.y, (aa + 0.4) * rr)) / 0.7;   // (the knot: a small bead on the near side)
+    tw = max(tw, 1.0 - smoothstep(0.7, 1.0, kd));
+    te = max(te, 1.0 - smoothstep(1.2, 1.7, kd));
+    float eK = smoothstep(1.0, 0.86, abs(aa)) * stump.z;
+    c = mix(c, THREAD_EDGE, te * 0.4 * eK);
+    c = mix(c, THREAD, tw * eK);
   }
   // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
   if (wedge.x > 0.001 && circT < 0.001) {

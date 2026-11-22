@@ -1,3 +1,5 @@
+// THE HOLES (Mohammad, 22 Nov: "actual holes in the drawing, in the joins, turning around from all directions"): ROOT CAUSE the depth hold-out compared the pixel's depth with the axis' depth at the arm's nearest SCREEN point; an arm along the view is foreshortened to a few px,
+// so its own pixels were held out and dropped past the band, and the tube is cut there. It is now the exact 3D distance (skin/shaders.ts skinArmPx); the cases below turn the figure.
 // THE SKIN GATE (Mohammad, 21 Nov: "zoomed out the vessels look fucked": at a phone's scale every junction skin was line from edge to edge, with the tubes' blue only between them). A skin change ships only with a case here that fails without it.
 // The real junction skins are drawn in node (tests/skin-gate-lib.ts: the fragment stage's own outline rule on the camera the app has at a screen's size) at an iPhone and a laptop, and one number per skin says whether it is a vessel: the share of
 // its pixels that are lumen. ROOT CAUSE of the day's break: the outline's DEPTH rule (skin/shaders.ts skinArmPx) held an arm out when the pixel's surface lay more than the arm's radius from the arm's depth, but the mesh is built INK wider than the lumen,
@@ -15,17 +17,41 @@ const LUMEN_MIN = 0.3, JUDGED_PIXELS = 100;
 const HELD_MAX = 0.04;
 const DROPPED_MAX = 0.08;   // (a skin whose arms really lie at other depths, a wall skin or the renal vein under the cava, drops the pixels of the arm out of reach by design: 5 % at most at a laptop)
 
-test('the depth rule counts the line: an arm is held out only by a depth beyond its radius plus the ink the mesh stands out by', () => {
-  assert.match(SKIN_FS, /float gap = abs\(fragW - wNear\)[^;]*- rNear - inkPx;/);
-  assert.match(SKIN_FS, /float sdPx = skinSdPx\(kPx, inkDev\);/);
+test('the depth hold-out is judged in 3D: the pixel\'s own place in the figure against the arm\'s capsule, not the axis depth at the nearest screen point', () => {
+  assert.match(SKIN_FS, /float gap = skinArmSd3\(fragP, arm, swell, g3, r3\) \/ max\(/);
+  assert.match(SKIN_FS, /skinArmPx\(gl_FragCoord\.xy, i, swAt\(i\), 1\.0 \/ gl_FragCoord\.w, vPos, kPx\)/);
+  assert.match(SKIN_FS, /float sdPx = skinSdPx\(kPx\);/);
+  assert.doesNotMatch(SKIN_FS, /abs\(fragW - wNear\)/);
 });
 
-test('the gate bites: with the depth rule as it was (the radius alone) the iPhone\'s skins are line from edge to edge', () => {
+/** The figure turned a quarter and a half turn each way, as a hand turns it (Mohammad, 22 Nov: holes in the junctions "turning around from all directions"). */
+const TURNS = [{ yaw: 1.05 }, { yaw: 1.57, pitch: 0.3 }, { yaw: -1.05 }, { yaw: 2.4, pitch: -0.3 }] as const;
+/** At most this share of a skin's pixels may be dropped. The hold-out drops none; what is left (measured 1.4 % at most) is a one-pixel sliver of the mesh's OUTER edge where an arm is seen end on and the mesh, stood out by the line, lies a pixel past the outline's band: past the vessel, not in it. Holes were 5 to 50 %. */
+const TURNED_DROP_MAX = 0.02;
+
+test('the gate bites: with the hold-out judged at the nearest screen point (until 22 Nov) a turned figure loses a fifth of its junctions\' pixels', () => {
   const g = gateSkins();
   try {
-    const stats = rasterSkins(g.scene, g.skins, 393, 852, 2, false, false).filter((k) => k.pixels >= JUDGED_PIXELS);
-    const broken = stats.filter((k) => k.lumen / (k.lumen + k.line) < LUMEN_MIN || k.dropped / k.pixels > DROPPED_MAX);
-    assert.ok(broken.length >= 10, `${broken.length} of ${stats.length} skins fail without the fix`);
+    const stats = rasterSkins(g.scene, g.skins, 1440, 900, 1, { screenDepth: true, view: { yaw: 1.05 } }).filter((k) => k.pixels >= JUDGED_PIXELS);
+    const holed = stats.filter((k) => k.dropped / k.pixels > 0.05);
+    assert.ok(holed.length >= 6, `${holed.length} of ${stats.length} skins lose over 5 % of their pixels without the fix`);
+  } finally { g.done(); }
+});
+
+test('no junction skin has a hole at any turn of the figure: the hold-out drops none of a skin\'s pixels (it lay in the tube\'s cut, so a dropped pixel is a hole in the vessel)', () => {
+  const g = gateSkins();
+  try {
+    let judged = 0;
+    for (const view of TURNS) {
+      for (const k of rasterSkins(g.scene, g.skins, 1440, 900, 1, { view })) {
+        if (k.pixels < JUDGED_PIXELS) continue;
+        judged++;
+        assert.ok(k.dropped / k.pixels <= TURNED_DROP_MAX, `yaw ${view.yaw} ${k.node}: ${(100 * k.dropped / k.pixels).toFixed(1)} % of ${k.pixels} pixels dropped`);
+      }
+    }
+    assert.ok(judged >= 40, `${judged} skin x turn cases judged`);
+    // a phone, turned
+    for (const k of rasterSkins(g.scene, g.skins, 393, 852, 2, { view: { yaw: 1.2, pitch: 0.3 } })) if (k.pixels >= JUDGED_PIXELS) assert.ok(k.dropped / k.pixels <= TURNED_DROP_MAX, `iPhone turned ${k.node}: ${(100 * k.dropped / k.pixels).toFixed(1)} % dropped`);
   } finally { g.done(); }
 });
 

@@ -167,7 +167,8 @@ ${CIRCUIT_VS_CALL}
   }
   // smooth joins: where this vessel carries on into another, both ease to the mean of their two live widths over the same stretch the tube's own taper takes (tubes.ts factorAt: the first and
   // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
-  if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
+  if (mate0.x >= 0.0) { float k0 = (1.0 - smoothstep(0.0, 0.3, uv.x)) * (1.0 - stump.z);   // (a divided vein's cut start carries on into nothing: it eases to its own width as the cut opens)
+    if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
   if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
   swell *= liveW;
@@ -175,7 +176,20 @@ ${CIRCUIT_VS_CALL}
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vArcLen = mix(len, cl.y, circShare);
   vSkew = 0.0;
-  if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
+  // THE STUMP'S ROUND END is drawn from the whole divided stretch's rings, never from the few that happen to lie in the cap: the stretch up to the cap's far end (the cut and one radius) is laid over the cap, ring by ring along each ring's own tangent
+  // (uv and the ring's place move together, so the tie, the fade and the marks all read the new arc), so a quarter circle one radius long is always made of every ring the stretch has: before, the cap took the three rings (a ring every 1/180 of a
+  // scene unit against a radius of 0.017) that lay in it and was a flat cut whose end moved with the cut (Mohammad, 22 Nov: "tied off the portal vein looks bad")
+  vec2 uvS = uv;   // (the attribute is read-only: from here the stretch laid over the cap is uv from here)
+#define uv uvS
+  if (stump.x > 0.0 && circShare < 0.001) {
+    float capR = radius * swell * vU, capZ = stump.x + capR, arcA = uv.x * len * vU;
+    if (arcA < capZ) {
+      float arcB = stump.x + capR * (arcA / capZ);
+      aPos += aTan * ((arcB - arcA) / vU);
+      uv.x = arcB / (len * vU);
+    }
+    swell *= stumpK(uv.x * len * vU, capR);
+  }
   float fa = 1.0;
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
@@ -550,9 +564,11 @@ void main() {
   // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
   float sD = vUv.x * len * vU;
+  // the blind end of a divided vein's stump (between its round end and its tie, and a head's length past the tie) holds no flow: no dust, no chevron, and so none half cut off by the cap or standing past the tie (Mohammad, 22 Nov); it eases in with the cut
+  float stumpMk = (stump.x > 0.0 && circT < 0.001) ? mix(1.0, smoothstep(stump.y + 2.5, stump.y + 2.5 + 1.6 * vR, sD), stump.z) : 1.0;
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
-  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
+  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
   fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere * cavA);   // (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
@@ -582,7 +598,7 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU), la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * stumpMk, la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);
