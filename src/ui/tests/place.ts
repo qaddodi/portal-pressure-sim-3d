@@ -3,7 +3,7 @@
 // it has; a pane that does not fit the room the card has scrolls (owner, 20 Nov 2026, for a phone's Half). Pure numbers: the scene frames the figure in what is left.
 import type { DeviceClass, Rect, Viewport } from '../layout/device.ts';
 import { isPhone } from '../layout/device.ts';
-import { footHeight, usesBottomBar, topBarH, dockHeight, dockInset } from '../shell/room.ts';
+import { footHeight, usesBottomBar, topBarH, sheetFoot } from '../shell/room.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
 import { testsHalfPx, MIN_HALF } from './copied/stack-plan.copied.js';
@@ -99,10 +99,10 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
     return { kind: 'side', rect: { x, y: top, w, h }, maxH, vars: sideVars(w, bodyOf(h), count), focus: false, stops: null };
   }
   // a sheet over the foot of the figure: the full width less the margins, rising from just above the bottom bars; Half or Full (dock-sheet.js)
-  // (its foot is the dock's top edge less 8 px, 2D's --thumb-occ: the view pill over the dock goes with the card, so the sheet does not stand above the room it leaves, a 50 px gap over the dock, 20 Nov play-test)
+  // (its foot is the dock's top edge plus the one sheet gap, sheetFoot(), 2D's --thumb-occ: the view pill over the dock goes with the card, so the sheet does not stand above the room it leaves, a 50 px gap over the dock, 20 Nov play-test)
   // (an upright iPad, 700 to 1100 px wide: 2D app-10-thumb-dock.css:175 sets the dock and the sheet to `left: 15%; right: 15%`, the 70 % column the cards of a talk keep; the tab row fits that width, so it
   //  shows the short names, where a full-width sheet cut "Endoscopy" to "Endosc…", 20 Nov play-test)
-  const tab = device === 'tablet-portrait', margin = 8, w = tab ? Math.round(vp.w * 0.7) : vp.w - vp.safe.left - vp.safe.right - 2 * margin, x = tab ? Math.round(vp.w * 0.15) : vp.safe.left + margin, foot = vp.safe.bottom + dockInset(device) + dockHeight(device) + 8;
+  const tab = device === 'tablet-portrait', margin = 8, w = tab ? Math.round(vp.w * 0.7) : vp.w - vp.safe.left - vp.safe.right - 2 * margin, x = tab ? Math.round(vp.w * 0.15) : vp.safe.left + margin, foot = vp.safe.bottom + sheetFoot(device);
   const R = Math.max(1, vp.h - vp.safe.top - barH - foot - 22);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
   const maxH = stops[1];

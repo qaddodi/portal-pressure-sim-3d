@@ -23,7 +23,7 @@ import { Toast } from './Toast.tsx';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
 import { syncTransport } from './transport.ts';
-import { viewRoom, layoutVars, layoutClass, dockHeight, dockInset, topBarH } from './room.ts';
+import { viewRoom, layoutVars, layoutClass, sheetFoot, topBarH } from './room.ts';
 import { M } from './metrics.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { applyDeepLink } from './open-link.ts';
@@ -112,11 +112,11 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
     const el = app.current;
     if (!el || vp.w <= 0) return;
     for (const [k, v] of Object.entries(layoutVars(vp, layoutClass(thumb)))) el.style.setProperty(k, v);
-    // 2D main.js publishes on the root what the menu sheets and the palette read: on the thumb dock a sheet rests 8 px above the dock's top edge (--thumb-occ, --sheet-foot-screen) and stops under the top bar (--thumb-top)
+    // 2D main.js publishes on the root what the menu sheets and the palette read: on the thumb dock a sheet rests one gap (M.sheetGap) above the dock's top edge (--thumb-occ, --sheet-foot-screen) and stops under the top bar (--thumb-top)
     const root = document.documentElement, d = layoutClass(thumb), px = (n: number) => `${Math.round(n)}px`;
     root.classList.toggle('thumb-ui', thumb);
-    const occ = thumb ? dockInset(d) + dockHeight(d) + 8 : 0;
-    root.style.setProperty('--thumb-occ', px(occ)); root.style.setProperty('--sheet-foot-screen', px(occ));
+    const occ = thumb ? vp.safe.bottom + sheetFoot(d) : 0;   // (from the screen's bottom, safe area included, as 2D measures it)
+    root.style.setProperty('--sheet-gap', px(M.sheetGap)); root.style.setProperty('--thumb-occ', px(occ)); root.style.setProperty('--sheet-foot-screen', px(occ));
     root.style.setProperty('--thumb-top', thumb ? px(vp.safe.top + topBarH(vp, d)) : '0px');
     // the foot's height (the dock and the view pill over it) for what stands outside .app, the toast (2D: --toast-foot / --bot-occ, main.js)
     const lv = layoutVars(vp, d);
