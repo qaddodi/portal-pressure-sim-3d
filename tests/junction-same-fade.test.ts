@@ -8,7 +8,6 @@ import { NETWORK } from '../src/scene/vessels/network.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { CAVA_RAMP_R, cavaRamp } from '../src/scene/vessels/fade-alpha.ts';
 import { drawnHost, cavaWallShare } from '../src/scene/disease/host.ts';
-import { clotShapeOf } from '../src/scene/disease/clots.ts';
 
 test('the ramp is gradual: nothing 2.5 cava radii before the wall, the whole of it at the wall, smooth between', () => {
   assert.equal(cavaRamp(-CAVA_RAMP_R), 0); assert.equal(cavaRamp(0), 1); assert.equal(cavaRamp(1), 1);
@@ -58,8 +57,7 @@ test('what lies in a vein that opens into the cava reads the same fade: the draw
     assert.ok(w > 0.5 && w <= 1);
     let k = h.s.length - 1; while (k > 0 && h.s[k]! / h.length > w) k--;
     assert.ok(Math.abs(h.A[k]! - CAVA_RECEDE) < 0.08, `${id}: vein opacity at the wall ${h.A[k]}`);
-    const shape = clotShapeOf(h, h.pieces.map(() => 1), 1, id);
-    assert.ok(Math.abs(shape.alpha[shape.alpha.length - 1]! - CAVA_RECEDE) < 0.08, `${id}: clot opacity at the wall ${shape.alpha[shape.alpha.length - 1]}`);
+    // (the clot is painted in the vein's own fragment: its opacity at the wall is the vein's, by construction: plan 26)
   }
 });
 

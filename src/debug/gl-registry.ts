@@ -24,7 +24,6 @@ import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
 import { DOF_COPY_FS, DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
 import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
-import { ClotObject } from '../scene/disease/clots.ts';
 import { createShared } from '../scene/materials/cel.ts';
 import { BufferGeometry } from 'three';
 
@@ -43,7 +42,6 @@ export const GL_FILES: Record<string, string> = {
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
   'scene/disease/bleed.ts': 'the bleed jet\'s ink (a hull whose line thins toward the tip; made when a bleed first shows): registered by name',
-  'scene/disease/clots.ts': 'the clot: the device toon and ink with the vein\'s opacity at each vertex (made when a thrombus first shows): registered by name',
   'scene/disease/dye.ts': 'the dye overlay (made when a bolus is given): registered by name',
   'scene/shunt-guide.ts': 'the shunt\'s dashed guide (a quad on the vessels\' pass, in the body group): found on the scene graph',
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
@@ -85,15 +83,6 @@ function organArtPrograms(): Program[] {
   return out;
 }
 
-/** The clot's toon and ink (the device shaders with the vein's per-vertex opacity), made from a clot of no geometry. */
-function clotPrograms(): Program[] {
-  const o = new ClotObject(new BufferGeometry(), createShared());
-  return [
-    lateMaterialProgram('clot fill', o.toon.vertexShader, o.toon.fragmentShader, o.toon.defines as Record<string, unknown>),
-    lateMaterialProgram('clot outline', o.ink.vertexShader, o.ink.fragmentShader, o.ink.defines as Record<string, unknown>),
-  ];
-}
-
 export function rawPrograms(fibroText: string): Program[] {
   const fibro = templateConstants(fibroText);
   const out = [
@@ -107,7 +96,6 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('skin (inspector)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_DEBUG: 1 }),
     lateMaterialProgram('skin (inspector, no marks)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOMARKS: 1 }),
     lateMaterialProgram('skin (inspector, no ink)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOINK: 1 }),   // (spec 10.4: one source, three programs: the front copy is the one above)
-    ...clotPrograms(),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),
     lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),

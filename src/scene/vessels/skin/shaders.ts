@@ -40,6 +40,7 @@ import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
+import { CEL_STYLE } from '../../cel-style.ts';
 import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
 import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
@@ -48,6 +49,7 @@ import { skinNormalGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX, SKIN_RING_W_FROM } f
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
 import { WEDGE_GLSL } from '../wedge-glsl.ts';
+import { CLOT_CONST_GLSL, CLOT_FN_GLSL, CLOT_INK_MAX_R, CLOT_LIFT_AT, CLOT_SHADE_AT } from '../../disease/clot-field.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -240,6 +242,13 @@ uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
 #define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
+uniform vec4 armClotA[${SKIN_ARMS}];   // each arm's clot (disease/clot-field.ts, plan 26): (f0, df, side * v, length); z 0: none
+uniform vec4 armClotP[${SKIN_ARMS}];   // its seed's lump phases
+uniform vec3 clotShade;
+uniform vec3 clotBase;
+uniform vec3 clotLift;
+${CLOT_CONST_GLSL}
+${CLOT_FN_GLSL}
 uniform vec4 armFlow[2];    // each arm tube's flowAmount, six floats PACKED in two vectors (a float array costs a whole vector a slot: the fragment stage is held to 120 vectors, tests/skin-shaders.test.ts); read with armFlowAt
 uniform vec4 armWedge[2];   // each arm tube's route distance from the balloon's distal edge at its seam (wedge-glsl.ts), -1e4 for an arm whose tube carries no wedge
 float armFlowAt(int i) { return i < 4 ? armFlow[0][i] : armFlow[1][i - 4]; }
@@ -316,6 +325,27 @@ float skinArmPx(vec2 frag, int arm, float swell) {
   float d1 = length(frag - p1.xy - b * t1) - mix(p1.z, p2.z, t1);
   float d2 = length(frag - p2.xy - c * t2) - mix(p2.z, p3.z, t2);
   return min(d0, min(d1, d2));
+}
+// the signed lateral of this pixel from the axis of arm i on the screen, in lumen units, the tube's own sign (the left of its heading as the arc grows: vessels/shaders.ts), and the lumen's radius there in device px (rPx)
+float skinArmLat(vec2 frag, int arm, float swell, out float rPx) {
+  vec4 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
+  vec4 p1 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 1].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 1].w, swell);
+  vec4 p2 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 2].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 2].w, swell);
+  vec4 p3 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 3].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 3].w, swell);
+  vec2 a = p1.xy - p0.xy, b = p2.xy - p1.xy, c = p3.xy - p2.xy;
+  float t0 = clamp(dot(frag - p0.xy, a) / max(dot(a, a), 1e-6), 0.0, 1.0);
+  float t1 = clamp(dot(frag - p1.xy, b) / max(dot(b, b), 1e-6), 0.0, 1.0);
+  float t2 = clamp(dot(frag - p2.xy, c) / max(dot(c, c), 1e-6), 0.0, 1.0);
+  vec2 e0 = frag - p0.xy - a * t0, e1 = frag - p1.xy - b * t1, e2 = frag - p2.xy - c * t2;
+  float r0 = mix(p0.z, p1.z, t0), r1 = mix(p1.z, p2.z, t1), r2 = mix(p2.z, p3.z, t2);
+  float d0 = length(e0) - r0, d1 = length(e1) - r1, d2 = length(e2) - r2;
+  vec2 e = e0, dir = a; rPx = r0;
+  if (d1 < d0 && d1 <= d2) { e = e1; dir = b; rPx = r1; }
+  else if (d2 < d0 && d2 < d1) { e = e2; dir = c; rPx = r2; }
+  float dl = length(dir);
+  vec2 tg = dl > 1e-6 ? dir / dl : vec2(1.0, 0.0);
+  tg *= -sign(armArc[arm].y);   // (the heading as the arc grows: the axis runs from the node outward, so toward the node the arc grows against it)
+  return dot(e, vec2(-tg.y, tg.x)) / max(rPx, 1e-3);
 }
 // THE DEPTH HOLD-OUT, as a share 0 to 1 (see skinSdPx for how it is used). A pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of
 // the arm it is, whatever the camera does (an arm that runs along the view is foreshortened to a few pixels, so a depth taken at the nearest SCREEN point was the wrong one and held out the pixels of an arm that were its own: holes in the junctions when the figure is turned,
@@ -612,6 +642,30 @@ void main() {
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;
 #endif
+  // THE CLOT (plan 26): each arm that carries one paints it in its own frame (its share along the vein, its lateral), by the arm's weight, so it crosses the joint with no seam; the one function of the tube (clot-field.ts), lit by this
+  // pixel's own n.L, clipped to the union's lumen before the ink band. A uniform branch per arm: a junction with no clot runs none of this.
+  if (skinCirc < 0.5) {
+    float covK = 0.0, inkK = 0.0, covRaw = 0.0;
+    for (int i = 0; i < ${SKIN_ARMS}; i++) {
+      if (armData[i].x < 0.0 || armClotA[i].z == 0.0) continue;
+      float wI = wAt(i);
+      if (wI < 0.004) continue;
+      float rPxC;
+      float latC = skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxC);
+      vec3 ct = clotAt(armClotA[i], armClotP[i].xy, sIa[i] / max(armArc[i].z, 1e-6), latC, armArc[i].w * swAt(i), rPxC);
+      float inkC = min(inkDev, ${F(CLOT_INK_MAX_R)} * rPxC);
+      float cv = wI * ct.x;
+      covK += cv; covRaw += cv;
+      inkK += cv * ct.z * (1.0 - smoothstep(inkC - 0.5, inkC + 0.5, ct.y));
+    }
+    covK = min(covK, 1.0) * (1.0 - smoothstep(0.5, 1.5, sdPx)) * (1.0 - smoothstep(0.0, 0.35, circT));
+    if (covK > 0.0) {
+      float etC = max(0.5 * ${F(CEL_STYLE.EDGE_PX)} * swT, 1e-4);
+      vec3 toneC = mix(mix(clotShade, clotBase, smoothstep(${F(CLOT_SHADE_AT)} - etC, ${F(CLOT_SHADE_AT)} + etC, sT)), clotLift, smoothstep(${F(CLOT_LIFT_AT)} - etC, ${F(CLOT_LIFT_AT)} + etC, sT));
+      vec3 lineC = mix(inkColor, clotShade * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)});
+      c = mix(c, mix(toneC, lineC, clamp(inkK / max(covRaw, 1e-4), 0.0, 1.0)), covK);
+    }
+  }
   float inkT = smoothstep(-0.5, 0.5, sdPx);   // the outline: ink outside the live lumen, antialiased half a pixel each side
 #ifdef VDBG
   if (dbgInk < 0.5) inkT = 0.0;

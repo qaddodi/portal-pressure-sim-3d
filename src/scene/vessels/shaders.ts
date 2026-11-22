@@ -35,6 +35,7 @@ export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
 export const TUBE_DEPTH_SHARE = 0.15;
 import { CIRC_INK_K, CIRC_INNER, SHADOW_FEATHER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 import { VDBG_GLSL } from './debug-view.ts';
+import { CLOT_CONST_GLSL, CLOT_FN_GLSL, CLOT_INK_MAX_R, CLOT_LIFT_AT, CLOT_SHADE_AT } from '../disease/clot-field.ts';
 
 export const VESSEL_VS = /* glsl */ `
 const float RUN_ON_PX = 0.75;   // CSS px
@@ -436,6 +437,14 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
 ${CAP_CARVED_GLSL}
 ${SEAM_STITCH_GLSL}
 
+uniform vec4 clotA;   // the vein's clot in this piece (disease/clot-field.ts): (f0, df, side * v, length); z 0: none, and the clot's code is never run
+uniform vec4 clotP;   // its seed's lump phases
+uniform vec3 clotShade;
+uniform vec3 clotBase;
+uniform vec3 clotLift;
+${CLOT_CONST_GLSL}
+${CLOT_FN_GLSL}
+
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
   // THE DERIVATIVES, before any discard: a quad whose other pixels have been discarded (the cut, the dissolve, a cap, a back face) gives a garbage fwidth on a device that drops the lane (Apple's), and the flow heads, the shade band and the
@@ -626,6 +635,22 @@ void main() {
   if (hd.a > 0.0) {
     if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
     c = c * (1.0 - hd.a) + hd.rgb;
+  }
+  // THE CLOT (plan 26) is painted here, in the vein's own fragment: over the dust and the heads, inside the lumen (clipped at its edge, before the ink band below), lit by this pixel's own n.L, so it has the vein's depth, fades, cuts and
+  // weights and looks the same from every angle. Its line is on its free edge and its caps only. A uniform branch: a vein with no clot runs none of this and is the same pixel as before.
+  if (clotA.z != 0.0 && dotted < 0.5) {
+    float rDevC = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;
+    float latC = tl > 1e-3 ? dot(dvPx, vec2(-tS.y, tS.x) / tl) / max(rDevC, 1e-3) : 0.0;
+    vec3 ct = clotAt(clotA, clotP.xy, vUv.x, latC, vR, rDevC);
+    float covC = ct.x * (1.0 - smoothstep(rDevC + 0.5, rDevC + 1.5, dLat)) * (1.0 - smoothstep(0.0, 0.35, circT)) * (1.0 - nbrK);
+    if (covC > 0.0) {
+      float etC = max(0.5 * ${F(CEL_STYLE.EDGE_PX)} * fwSt, 1e-4);
+      vec3 toneC = mix(mix(clotShade, clotBase, smoothstep(${F(CLOT_SHADE_AT)} - etC, ${F(CLOT_SHADE_AT)} + etC, sT)), clotLift, smoothstep(${F(CLOT_LIFT_AT)} - etC, ${F(CLOT_LIFT_AT)} + etC, sT));
+      float rCssC = rDevC / dpr;
+      float inkC = min(${inkPxGlsl('rCssC', 'rCssC', '1.0 - lensUse')} * dpr, ${F(CLOT_INK_MAX_R)} * rDevC);
+      vec3 lineC = mix(inkColor, clotShade * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)});
+      c = mix(c, mix(toneC, lineC, ct.z * (1.0 - smoothstep(inkC - 0.5, inkC + 0.5, ct.y))), covC);
+    }
   }
   // THE OUTLINE: the band between the lumen's edge and the tube's (it is built INK wider, see the vertex stage). The exact lateral distance from the pixel to the tube's axis, in device pixels, against the lumen's radius:
   // the line is continuous by construction (no second mesh, no stencil, no depth tie), constant in device pixels (the vertex stage widened the tube by the same line) and antialiased half a pixel each side. It follows the fade
