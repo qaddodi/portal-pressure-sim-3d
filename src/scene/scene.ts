@@ -1,3 +1,4 @@
+import { waitCue } from '../ui/shell/wait-cue.ts';
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { span } from '../boot/spans.ts';
 import { stamp } from '../boot/timeline.ts';
@@ -26,7 +27,7 @@ import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitPending, bakedCircuitSkins, bakedPending, bakedReady, bakedSkins, requestCircuitSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
-import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
+import { SKIN_CIRC_IN, SKIN_CUT_C_NONE } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /**
  * A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are
@@ -42,7 +43,7 @@ import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-o
 import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { nbrMatesOf, cavaMateOf, neighbourAttr } from './vessels/neighbour.ts';
-import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
+import { fadeOf, opensIntoCava, cavaEndSpan, cavaJoinShare, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
 import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -51,7 +52,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { dustTuner } from './blood/dust.ts';
 import { turnTargets } from './blood/routes.ts';
-import { CIRCUIT_MATES, mateUniform } from './circuit/mates.ts';
+import { CIRCUIT_MATES, mateUniform, skinnedEase } from './circuit/mates.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { MICRO_DPR } from './micro3d/cel3d.ts';
@@ -546,8 +547,8 @@ export class CelScene {
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       const sk = this.skins?.endsOf(def.id) ?? [false, false];   // (a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6)
       o.setMates(sk[0] ? null : mate(sj?.mate[0]), sk[1] ? null : mate(sj?.mate[1]));
-      // (the map's own pairs and their taper: an end the Circuit's skin has taken over has none, the skin's weights blend the live widths there, as on the body)
-      { const cm = CIRCUIT_MATES.get(def.id), ce = this.circuitSkins?.endsOf(def.id) ?? [false, false]; if (cm) o.setCircuitMates(ce[0] ? null : mateUniform(cm[0]), ce[1] ? null : mateUniform(cm[1]), [cm[0]?.ease ?? 0, cm[1]?.ease ?? 0]); }
+      // (the map's own pairs and their taper, at EVERY end: a skinned end keeps it as far as its skin's cut (circuit/mates.ts skinnedEase), where the welded skin carries on; a skin whose growing arm is closed is not drawn, and a run-on pair then met at the node at two widths, a hard step: Mohammad, 22 Nov, the SMV node)
+      { const cm = CIRCUIT_MATES.get(def.id); if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), skinnedEase(def.id, cm, this.circuitSkins?.endsOf(def.id) ?? [false, false], this.circuitSkins?.cutOf(def.id) ?? SKIN_CUT_C_NONE)); }
       // (a junction's fork: the outline of the branch and its trunk is the union's, with the switch on)
       { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; o.setNbrOn(!!md); if (md) o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); }
       // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.
@@ -612,7 +613,7 @@ export class CelScene {
     {
       const cm = cavaMateOf(def.id);
       if (cm) {
-        const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1];
+        const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cavaJoinShare(def.id), fadeOf(cm, false)?.a0 ?? 1];
         o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args);
       }
     }
@@ -824,20 +825,30 @@ export class CelScene {
   /** Every camera move of the app comes here. A move INTO the lobule or the sinusoid waits until their 3D parts are built and primed (`heldDive`): a dive is never begun toward something that
    *  cannot be drawn. The body stays as it stands meanwhile (the build is rushed, a second or so at most on a phone, often nothing), then the dive starts from where the camera is. A newer move replaces a waiting one. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void {
-    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.heldDive = { shot, room, ms, ease }; this.buildMicroIdle(true); return; }
-    this.heldDive = null;
+    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
+    this.hold(null);
     this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true;
   }
+  /** The boot reveal (boot/ready.ts, splash plan A2): the camera a little closer than rest while the splash is up, and the glide home as it lifts. Only the body view settles; any other start just fades. */
+  primeReveal(k: number): void { if (this.figureView === 'body' && this.rig.primeSettle(k)) this.moving = true; }
+  playReveal(now: number, ms: number, ease: (k: number) => number): void { if (this.figureView === 'body' && this.rig.settle(now, ms, ease)) this.moving = true; }
   /** A dive waiting for the micro views (goTo), with the room it will land in. */
   private heldDive: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null = null;
   get diveHeld(): boolean { return this.heldDive !== null; }
+  /** A dive waits (or stops waiting). A wait that passes 300 ms shows the one calm cue (ui/shell/wait-cue.ts, splash plan A7), so the held dive is never a silent blank; a short one shows nothing. */
+  private holdCue: (() => void) | null = null;
+  private hold(h: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null): void {
+    this.heldDive = h;
+    if (h) this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule');
+    else { this.holdCue?.(); this.holdCue = null; }
+  }
   /** The cards changed room while a dive waits: it will land in the new one. */
   holdRoom(room: Room): void { if (this.heldDive) this.heldDive.room = room; }
   /** The micro views are ready: a waiting dive starts now (only while its view is still the one asked for: a tap back to the body in the meantime replaced it). */
   private releaseDive(): void {
     const h = this.heldDive;
     if (!h || !this.microPrimedNow) return;
-    this.heldDive = null;
+    this.hold(null);
     if (this.figureView === 'lobule' || this.figureView === 'sinusoid') this.goTo(h.shot, h.room, clock.now(), h.ms, h.ease);
   }
 
@@ -956,7 +967,7 @@ export class CelScene {
     // (the idle slices normally finished long before; a dive straight after the load asks for them here, and waits: the dive frame is off until `microReady`, nothing is
     // built in this frame)
     if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle(true);
-    else this.heldDive = null;   // (a dive still waiting for its parts is dropped by any move out of them)
+    else this.hold(null);   // (a dive still waiting for its parts is dropped by any move out of them)
     if (v === 'lobule' || v === 'sinusoid' || wasSinusoid) this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)

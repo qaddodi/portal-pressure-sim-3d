@@ -9,6 +9,6 @@ test('the canvas starts at opacity 0 and is shown by the first drawn frame, at o
   assert.match(s, /cel\.render\(gl\)\);[\s\S]{0,800}style\.opacity = '1'/);
   assert.match(s, /prefers-reduced-motion: reduce[\s\S]{0,120}'none'/);
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /html, body \{ margin: 0; background: #F1EBE0; \}/);
-  assert.match(html, /prefers-color-scheme: dark\) \{ html, body \{ background: #1A1917; \} \}/);
+  assert.match(html, /html, body \{ margin: 0; background: var\(--bg, #F1EBE0\); \}/);
+  assert.match(html, /prefers-color-scheme: dark\) \{ html, body \{ background: var\(--bg, #1A1917\); \} \}/);
 });

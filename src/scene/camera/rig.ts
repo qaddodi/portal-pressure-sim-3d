@@ -502,6 +502,23 @@ export class CameraRig {
   setHand(v: View): void { this.hand.k = v.k; this.hand.x = v.x; this.hand.y = v.y; this.dirty = true; }
   /** The hand takes the camera: a shot's return of the hand to its fit stops where it is. */
   holdHand(): void { this.handTween = false; }
+  // ── THE BOOT REVEAL (splash plan A2, 22 Nov): the figure settles in from a camera a little closer than rest, by the rig's own glide, so every frame is drawn crisp at full resolution (the CSS scale of the canvas it
+  //    replaces stretched a finished bitmap) and the labels follow by projection. `primeSettle` puts the closer view in under the splash; `settle` (the lift) glides it home on the hand's own return. ──
+  private settleK = 0;
+  /** Under the splash: the camera `k` times closer than rest (a hand zoom), unseen behind the cover. Not with Reduce Motion, and not over a move or a hand already in play. */
+  primeSettle(k: number): boolean {
+    if (this.reduceMotion || reduced() || !this.placedFirst || this.active || this.handTween || this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0) return false;
+    this.hand.k = k; this.settleK = k; this.dirty = true;
+    return true;
+  }
+  /** The lift: the primed zoom glides home over `ms`. Does nothing when nothing was primed or the camera was moved since (a start that never primed, a resize that refitted under the cover): no jump to the closer view. */
+  settle(now: number, ms: number, ease: (k: number) => number): boolean {
+    const k = this.settleK; this.settleK = 0;
+    if (!k || this.active || this.hand.k !== k || this.hand.x !== 0 || this.hand.y !== 0) return false;
+    this.handTween = true;
+    this.goTo(this.to.shot, this.to.room, now, ms, true, ease);
+    return true;
+  }
   /** The middle of the free room, in canvas px: what the figure is zoomed about. */
   roomCentre(): { x: number; y: number } {
     const r = this.cur.room.w > 1 ? this.cur.room : { x: 0, y: 0, w: this.width, h: this.height };

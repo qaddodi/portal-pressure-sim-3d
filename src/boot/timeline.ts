@@ -11,7 +11,11 @@ export type Stage = (typeof STAGES)[number][0];
 
 const at: Partial<Record<Stage, number>> = {};
 /** Note that `stage` has finished (only the first call counts). */
-export function stamp(stage: Stage): void { if (at[stage] === undefined) at[stage] = Math.round(clock.now()); }
+export function stamp(stage: Stage): void {
+  if (at[stage] !== undefined) return;
+  at[stage] = Math.round(clock.now());
+  (globalThis as { ppsBootStage?: (s: string) => void }).ppsBootStage?.(stage);   // (the cover's bar moves a share further with each stage: index.html, splash plan A1)
+}
 export const stamps = (): Readonly<Partial<Record<Stage, number>>> => at;
 export const resetTimeline = (): void => { for (const k of Object.keys(at)) delete at[k as Stage]; };
 

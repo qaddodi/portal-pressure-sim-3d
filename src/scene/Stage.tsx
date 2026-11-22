@@ -12,7 +12,8 @@ import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
-import { compileDone, figureDrawn, rendererFailed, splashHeld, watchStall } from '../boot/ready.ts';
+import { compileDone, figureDrawn, rendererFailed, setRevealHooks, splashHeld, watchStall } from '../boot/ready.ts';
+import { easeArrive } from '../clock/tween.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
 import { firstDraw, spanAsync } from '../boot/spans.ts';
@@ -108,6 +109,12 @@ function SceneBridge() {
     });
     return () => { alive = false; };
   }, [gl]);
+
+  // The boot reveal (boot/ready.ts, splash plan A2): the camera a little closer than rest under the cover, then the rig's own glide home as the cover lifts (crisp at full resolution, the labels following by projection).
+  useEffect(() => {
+    setRevealHooks({ prime: (zoom) => cel.primeReveal(zoom), play: (ms) => { cel.playReveal(clock.now(), ms, easeArrive); clock.invalidate('boot-reveal'); } });
+    return () => setRevealHooks(null);
+  }, []);
 
   // Copy / Save figure (ui/shell/figure-image-dom.ts): the stage drawn once at `want` times its CSS size, in this task (the canvas is read before anything else can clear it), then put back at the pixel
   // ratio it rests at and drawn again in the same task, so the screen never shows the other size. The size is kept inside what the device can draw (figure-image.ts pictureScale).

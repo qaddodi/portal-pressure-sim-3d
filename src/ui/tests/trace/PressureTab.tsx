@@ -13,7 +13,7 @@ export const PRESSURE_VIEWS: readonly (readonly [PaneId, string])[] = [['profile
 
 function View({ id, p }: { id: PaneId; p: PaneProps }) {
   if (id === 'scope') return <OverTimePane plot={p.plot} />;
-  return <LazyBoundary><ProfilePane {...p} /></LazyBoundary>;
+  return <LazyBoundary height={p.plot}><ProfilePane {...p} /></LazyBoundary>;
 }
 
 export function PressureTab({ own, ...p }: PaneProps & { own: PaneId }) {

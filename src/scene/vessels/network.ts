@@ -57,7 +57,7 @@ export interface NetVessel {
   feeder?: { host: string; when: string | null };
 }
 
-interface Edge { id: string; from: string; to: string; kind: string; d?: number; dMax?: number; share?: number; label?: string; zone?: string; shunt?: string; spontaneous?: boolean }
+interface Edge { id: string; from: string; to: string; kind: string; code?: string; d?: number; dMax?: number; share?: number; label?: string; zone?: string; shunt?: string; spontaneous?: boolean }
 const edges = EDGES as Edge[];
 const edgeById = new Map(edges.map((e) => [e.id, e]));
 const portal = PORTAL_TERRITORY as Set<string>;
@@ -370,15 +370,32 @@ export interface PresenceOptions { /** Blood menu: Potential collaterals (dotted
 const OPEN_FRAC = 0.12, OPEN_Q = 0.3, C3_FRAC = 0.15, AP_Q = 0.3;
 const indexOf = new Map(edges.map((e, i) => [e.id, i]));
 
-/** How far a collateral has opened, 0 to 1, from its diameter between its closed and open ones (stage-frame.js recruitFrac). */
+/** ONE SEGMENT (Mohammad, 22 Nov: "coronary vein -> azygos through varices, the entire thing one segment: opens and closes as one"). The engine cuts a collateral route in edges where its stations are (the coronary vein to the varices,
+ *  the varices to the azygos) and gives them one `code`: edges of one code that meet end to end are one vessel to draw. Nothing here names C1: any route the engine splits gets the same treatment. Member ids, in flow order, by member. */
+export const SEGMENT_OF: ReadonlyMap<string, readonly string[]> = (() => {
+  const byCode = new Map<string, Edge[]>();
+  for (const e of edges) if (e.kind === 'collateral' && e.code) byCode.set(e.code, [...(byCode.get(e.code) ?? []), e]);
+  const m = new Map<string, readonly string[]>();
+  for (const list of byCode.values()) {
+    if (list.length < 2) continue;
+    const chain: Edge[] = [list.find((e) => !list.some((o) => o !== e && o.to === e.from)) ?? list[0]!];
+    while (chain.length < list.length) { const nx = list.find((o) => !chain.includes(o) && o.from === chain[chain.length - 1]!.to); if (!nx) break; chain.push(nx); }
+    if (chain.length < list.length) continue;   // (not one run end to end: separate vessels)
+    const ids = chain.map((e) => e.id);
+    for (const id of ids) m.set(id, ids);
+  }
+  return m;
+})();
+/** Whether two collateral edges are neighbours in one segment (they meet at its station: the one vessel's two halves). */
+export const sameSegment = (a: string, b: string): boolean => a !== b && !!SEGMENT_OF.get(a)?.includes(b);
+const recruitOwn = (k: number, f: PresenceFrame): number => { const e = edges[k]!, lo = dMinOf(e) as number, hi = e.dMax ?? lo; return hi > lo ? Math.min(1, Math.max(0, (f.D[k]! - lo) / (hi - lo))) : 0; };
+/** How far a collateral has opened, 0 to 1, from its diameter between its closed and open ones (stage-frame.js recruitFrac). A segment opens as one: every member reads the most open of them. */
 export function recruitFrac(id: string, f: PresenceFrame): number {
-  const k = indexOf.get(id)!, e = edges[k]!, lo = dMinOf(e) as number, hi = e.dMax ?? lo;
-  return hi > lo ? Math.min(1, Math.max(0, (f.D[k]! - lo) / (hi - lo))) : 0;
+  return Math.max(...(SEGMENT_OF.get(id) ?? [id]).map((m) => recruitOwn(indexOf.get(m)!, f)));
 }
-/** Whether a collateral is drawn open: it has grown past an eighth, or carries 0.3 mL/s. */
+/** Whether a collateral is drawn open: it has grown past an eighth, or carries 0.3 mL/s. A segment is open when any of it is, and closed when all of it is. */
 export function collateralOpen(id: string, f: PresenceFrame): boolean {
-  const k = indexOf.get(id)!;
-  return recruitFrac(id, f) > OPEN_FRAC || Math.abs((f.Qf ?? f.Q)[k]!) > OPEN_Q;
+  return recruitFrac(id, f) > OPEN_FRAC || (SEGMENT_OF.get(id) ?? [id]).some((m) => Math.abs((f.Qf ?? f.Q)[indexOf.get(m)!]!) > OPEN_Q);
 }
 
 /** The 2D rules of stage-frame.js edgeVisible: a collateral is solid once open, a dotted thread while closed when potential collaterals are on, and nothing

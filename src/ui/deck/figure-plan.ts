@@ -174,7 +174,10 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
 
   // a site the label stands in for lends it its station colour
   const siteKeys = [...new Set([...list(s.sites as string[] | undefined), ...sitesFromTerms])];
-  const labelSet = [...new Set([...(s.labels ?? []), ...labels])];
+  // A site that sits on a station (the portal vein, the IVC, the right atrium) is that station's own label, with its reading and colour, like "Portal vein 19.0 mmHg": never a speech-bubble card that
+  // points somewhere else (Mohammad, 22 Nov, slide "The PPG detects resistance the HVPG misses": the IVC bubble pointed at the spleen). Only a site that is no station (the portal blood's split) is a card.
+  const siteStations = siteKeys.map((k) => SITE_NODE_2D[k]).filter((n): n is string => !!n && STATION_IDS.has(n));
+  const labelSet = [...new Set([...(s.labels ?? []), ...labels, ...siteStations])];
   for (const k of siteKeys) { const n = SITE_NODE_2D[k]; if (n && labelSet.includes(n)) tones[n] ??= TARGETS_FIG[k]?.tone ?? VAL_TONE_2D[k] ?? 'accent'; }
   for (const id of s.labels ?? []) if (!STATION_IDS.has(id)) bad('label', id);
   for (const id of labels) if (!STATION_IDS.has(id)) bad('term station', id);

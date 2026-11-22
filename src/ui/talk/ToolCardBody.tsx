@@ -211,7 +211,7 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
-      <LazyBoundary>
+      <LazyBoundary height={p.plot}>
         {kind === 'doppler' ? <DopplerPane {...p} options={opts} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
       </LazyBoundary>
     </div>

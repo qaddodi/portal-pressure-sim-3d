@@ -77,7 +77,7 @@ test('every camera move goes through the one gate, and a dead micro job is made 
   assert.equal((src.match(/this\.rig\.goTo\(/g) ?? []).length, 1, 'scene.goTo is the only caller of rig.goTo');
   for (const f of ['src/scene/api.ts', 'src/ui/shell/view-actions.ts', 'src/ui/talk/controls-run.ts']) assert.doesNotMatch(strip(readFileSync(f, 'utf8')), /rig\.goTo\(/, `${f} moves the camera through cel.goTo`);
   assert.match(src, /if \(this\.microJob\?\.done\) this\.microJob = null;/);
-  assert.match(src, /else this\.heldDive = null;/, 'leaving the micro views drops a waiting dive');
+  assert.match(src, /else this\.hold\(null\);/, 'leaving the micro views drops a waiting dive');
   assert.match(src, /!this\.circuit\.moving && !this\.heldDive\) this\.settleViews\(\)/, 'a waiting dive has not landed: the views do not settle on it');
   assert.match(src, /if \(urgent\) this\.microJob\.rush\(\);/);
   assert.doesNotMatch(readFileSync('src/scene/Stage.tsx', 'utf8'), /buildMicroIdle\(true\)/, 'the boot build is background work, not urgent');

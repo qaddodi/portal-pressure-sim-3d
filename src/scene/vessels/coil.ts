@@ -114,7 +114,27 @@ export function pinCourse(pts: readonly P2[], rest: readonly P2[], pin: Pin): P2
   });
 }
 
-export interface CoilCourse { pts: P2[]; k: number; ph: number; /** 0 to 1: how much of it is drawn (a channel growing in, a strand a band has closed) */ live?: number }
+export interface CoilCourse { pts: P2[]; k: number; ph: number; /** 0 to 1: how much of it is drawn (a channel growing in, a strand a band has closed) */ live?: number; /** depth offset at each point, in 2D units (a woven strand goes over and under its neighbours) */ dz?: number[] }
+/** THE WEAVE (Mohammad, 22 Nov: the varices drawn as the gastrorenal shunt's braid, picked from the mocks as B2): the strands wind round the vein's axis, each at its own phase, so they cross over and under one another instead of bowing side by side.
+ *  `turns` is how many times a strand goes round between where the strands leave the trunk (`u0`) and where they gather again; `reach` the radius of the winding, in 2D units; it is the same across and in depth. */
+export const WEAVE: Readonly<Record<string, { turns: number; reach: number }>> = { C1a: { turns: 0.9, reach: 9 } };
+const weaveEnv = (v: number): number => smooth01(v / 0.3) * (1 - smooth01((v - 0.7) / 0.3));
+/** One woven strand: the course moved sideways by `reach` sin(angle) and in depth by `reach` cos(angle), the angle `phase` plus `turns` turns along the stretch from `u0`, the winding eased to nothing at both ends. */
+export function weave(pts: readonly P2[], reach: number, turns: number, phase: number, u0: number): { pts: P2[]; dz: number[] } {
+  const n = pts.length - 1, dz: number[] = [];
+  const out = pts.map((p, i): P2 => {
+    const v = clamp((i / n - u0) / (1 - u0), 0, 1), e = weaveEnv(v), a = phase + 2 * Math.PI * turns * v;
+    dz.push(reach * e * Math.cos(a));
+    if (i === 0 || i === n) return p;
+    const q = pts[i - 1]!, r = pts[i + 1]!;
+    let nx = -(r[1] - q[1]), ny = r[0] - q[0];
+    const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+    const o = reach * e * Math.sin(a);
+    return [p[0] + nx * o, p[1] + ny * o];
+  });
+  return { pts: out, dz };
+}
+
 /** The 2D course of a collateral (or a liver bed) and its strands at coil `wig` and spread `spr`, as stage-frame.js builds them in the anatomic view. */
 export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number, pin?: Pin): { main: P2[]; strands: CoilCourse[] } {
   const live = coilCoursesFree(id, base, coils, wig, spr);
@@ -129,8 +149,13 @@ function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: n
   // (a varix is a few separate strands, three at most: the 2D figure's five overlapped into a solid-looking bundle in 3D)
   const all = STRANDS_2D[id] ?? [], rows = id !== 'C8' && !/^SIN/.test(id) && all.length > 3 ? [0, 1, 2].map((i) => all[Math.round((i * (all.length - 1)) / 2)]!) : all;
   const soft = STRAND_SOFT_2D.has(id), sp0 = LOOK_SITE[id] ? spr : 1;
-  const strands = rows.map((r): CoilCourse => {
+  const wv = WEAVE[id];
+  const strands = rows.map((r, i): CoilCourse => {
     const [off, ph, k, ua, ub] = r as [number, number, number, number?, number?];
+    if (wv) {
+      const w = weave(base, wv.reach * sp0, wv.turns, (2 * Math.PI * i) / rows.length, u0);
+      return { pts: u0 ? blendFrom(main, w.pts, u0) : w.pts, k, ph, dz: w.dz };
+    }
     const fan = off * sp0, amp = 0.8 * wig + 3;
     let sp = ua != null ? braid(base, fan, 0, [ua, ub!], ph) : soft ? wiggle(braid(main, fan, u0, null, 0, true), amp, ph, STRAND_HOLD_2D) : wiggle(braid(base, fan, u0), amp, ph);
     if (u0) sp = blendFrom(main, sp, u0);
