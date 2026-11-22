@@ -108,6 +108,14 @@ export function fixtures(): Fixture[] {
     { id: 'Rc', from: 'R', to: 'c', curve: arm([0.125, 0, 0], dirXY(40), 2, [0, 0, 1]), rad: lin(0.07, 0.06) },
     { id: 'Rd', from: 'R', to: 'd', curve: arm([0.125, 0, 0], dirXY(-40), 2, [0, 0, 1]), rad: lin(0.07, 0.06) },
   ]) });
+  // HT: a trunk running through TWO junctions joined by a short edge (a branch up at one, down at the other): the through pair crosses the merged region
+  out.push({ name: 'HT', junctions: ['L+R'], skel: makeSkeleton([{ id: 'L', runOn: ['T0', 'M'] }, { id: 'R', runOn: ['M', 'T1'] }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], [
+    { id: 'T0', from: 'a', to: 'L', curve: (u) => [-3.125 + 3 * u, 0, 0], rad: lin(0.1, 0.1) },
+    { id: 'M', from: 'L', to: 'R', curve: (u) => [-0.125 + 0.25 * u, 0, 0], rad: lin(0.1, 0.1), bones: 6 },
+    { id: 'T1', from: 'R', to: 'b', curve: (u) => [0.125 + 3 * u, 0, 0], rad: lin(0.1, 0.1) },
+    { id: 'Bc', from: 'L', to: 'c', curve: arm([-0.125, 0, 0], dirXY(100), 3, [0, 0, 1]), rad: lin(0.05, 0.04) },
+    { id: 'Bd', from: 'R', to: 'd', curve: arm([0.125, 0, 0], dirXY(-100), 3, [0, 0, 1]), rad: lin(0.05, 0.04) },
+  ]) });
   // TT: a trunk that narrows through its node (0.12 above, 0.08 below, one radius at the node as the run-on rule has it) with a side branch: the through pair has two radii
   out.push({ name: 'TT', junctions: ['N'], skel: makeSkeleton([{ id: 'N', runOn: ['T0', 'T1'] }, { id: 'a' }, { id: 'b' }, { id: 'c' }], [
     { id: 'T0', from: 'a', to: 'N', curve: (u) => [-3 + 3 * u, 0, 0], rad: lin(0.12, 0.1) },
