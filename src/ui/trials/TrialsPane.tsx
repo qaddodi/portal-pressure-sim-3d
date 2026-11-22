@@ -98,7 +98,7 @@ function Row({ p, hero, open, onOpen }: { p: Placed; hero: boolean; open: boolea
   return (
     <button type="button" className={`tr-row${hero ? ' hero' : ''}`} data-id={t.id} aria-expanded={open} aria-controls={`tr-x-${t.id}`} onClick={onOpen}>
       <span className="tr-l1"><span className="tr-nm">{t.short ?? t.name}</span><span className="tr-rs">{a}<span className="tr-vs">{b}</span></span></span>
-      <span className="tr-l2">{hero ? <span className="tr-pips" aria-hidden="true">{[...pips].map((c, i) => <i key={i} className={c} />)}</span> : null}<span className="tr-why">{rowReason(t, fit)}</span></span>
+      <span className="tr-l2">{hero ? <span className="tr-pips" aria-hidden="true">{[...pips].filter((c) => c === 'y').length} of {pips.length} rules</span> : null}<span className="tr-why">{rowReason(t, fit)}</span></span>
     </button>
   );
 }

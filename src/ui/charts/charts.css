@@ -36,11 +36,10 @@
 .pzc-note .pzc-m > i, .pzc-row[data-met="yes"] .pzc-m > .y, .pzc-row[data-met="no"] .pzc-m > .n { opacity: 1; }
 .pzc-verdict { margin: 0; padding-top: .6em; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); font: 400 1em/1.35 var(--ui, system-ui); color: var(--text-2); }
 .pzc-verdict > b { font-weight: 600; color: var(--text); }
-/* plain rules: a ring for a thing to check (a numeral when the order matters), filled for the row that applies to the case */
+/* plain rules: a numeral when the order matters, nothing before a thing to check (the row that applies to the case is bold) */
 .pz-crit:not(.has-cut) .pzc-row:not(.pzc-hrow) { font-size: 1.12em; }
 .pz-crit:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c { display: block; align-self: start; padding-right: .75em; }
-.pz-crit:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c::before { content: ""; display: block; box-sizing: border-box; width: .58em; height: .58em; margin-top: .385em; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 45%, transparent); }
-.pz-crit:not(.has-cut) .pzc-row:is([data-lit], [data-met="yes"]) .pzc-c::before { background: var(--text); box-shadow: inset 0 0 0 1.5px var(--text); }
+.pz-crit:not(.has-cut):not(.ordered) .pzc-row:not(.pzc-hrow) .pzc-c { display: none; }   /* (no hollow or filled circle before a criterion: the row that fits the case is bold and in full ink, as the rows say) */
 .pz-crit.ordered .pzc-list { counter-reset: pzcn; }
 .pz-crit.ordered:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c { align-self: baseline; }
 .pz-crit.ordered:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c::before { counter-increment: pzcn; content: counter(pzcn); width: auto; height: auto; margin: 0; border-radius: 0; background: none; box-shadow: none; font: 400 1.15em/1 var(--display, "Source Serif 4", Georgia, serif); font-variant-numeric: lining-nums; color: var(--text-3); }
