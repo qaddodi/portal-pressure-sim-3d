@@ -23,14 +23,35 @@ export const SEWN_TOL_R = 1.5;
 /** A host as the Circuit (or any caller that has no network vessel) gives it: its axis and its radius, in the units of the path asked about. */
 export interface HostAxis { pts: readonly Vec3[]; radius: number }
 
-/** How an end that lands on a wall is drawn (the Warren shunt's way, 2D SIDE_INSIDE: narrowed to the host's width, closing to a point inside the wall so no round cap shows past it, flared at the heel but never wider than the host): the host is the widest one within reach. Null where the end is on no host. */
-export function sewnEndAt(p: Vec3, hosts: readonly HostAxis[]): ShuntEnd | null {
-  let r = 0, dir: Vec3 | undefined;
+/** An end that continues a host from the host's own end is a RUN-ON, not an end-to-side join (Mohammad, 22 Nov: "coronary vein into varices still did not get fixed"): the varix strands leave the coronary vein's end, which runs no further, yet were sunk and narrowed to 0.43 of its width as if it carried on past them. A run-on needs both: (a) the end lies at the host's end, within `RUN_ON_AXIAL` host radii of it along the axis (absolute, not a share of the host's length), and (b) it leaves outward: the vessel's direction from its end inward, dotted with the host's outward tangent at that end, is `RUN_ON_DOT` or more. A collateral that lands across the axis, or at a joint between two trunk pieces (it runs on from one piece but meets the other's wall), is a side join and stays sewn: the end is a run-on only when it runs on from EVERY host within reach (`sewnEndAt`). */
+export const RUN_ON_AXIAL = 1, RUN_ON_DOT = 0.7;
+/** How the end `p` (leaving along the unit `away`, from the end inward along its own vessel) meets `host`: its axial distance to the host's nearest end in host radii, which end, and the dot of `away` with that end's outward tangent; null with no direction or no tangent. */
+export function runOnOf(host: HostAxis, p: Vec3, away: Vec3 | undefined): { axial: number; end: 0 | 1; dot: number; runOn: boolean } | null {
+  if (!away || host.pts.length < 2 || !(host.radius > 0)) return null;
+  const n = nearestOnPolyline(host.pts, p);
+  let total = 0;
+  for (let i = 1; i < host.pts.length; i++) total += Math.hypot(host.pts[i]![0] - host.pts[i - 1]![0], host.pts[i]![1] - host.pts[i - 1]![1], host.pts[i]![2] - host.pts[i - 1]![2]);
+  const end: 0 | 1 = n.u < 0.5 ? 0 : 1, axial = (end ? 1 - n.u : n.u) * total / host.radius;
+  // (the host's outward tangent at that end: its first segment reversed at the start, its last segment at the end)
+  const a = end ? host.pts[host.pts.length - 2]! : host.pts[1]!, b = end ? host.pts[host.pts.length - 1]! : host.pts[0]!, t = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], tl = Math.hypot(t[0]!, t[1]!, t[2]!);
+  if (!(tl > 0)) return null;
+  const dot = (t[0]! * away[0] + t[1]! * away[1] + t[2]! * away[2]) / tl;
+  return { axial, end, dot, runOn: axial <= RUN_ON_AXIAL && dot >= RUN_ON_DOT };
+}
+/** How an end that lands on a wall is drawn (the Warren shunt's way, 2D SIDE_INSIDE: narrowed to the host's width, closing to a point inside the wall so no round cap shows past it, flared at the heel but never wider than the host): the host is the widest one within reach. Null where the end is on no host, or runs on from the host's end (`runOnOf`, given `away`). */
+export function sewnEndAt(p: Vec3, hosts: readonly HostAxis[], away?: Vec3): ShuntEnd | null {
+  let r = 0, dir: Vec3 | undefined, reach = 0, runOns = 0;
   for (const h of hosts) {
     if (h.pts.length < 2) continue;
     const n = nearestOnPolyline(h.pts, p);
-    if (n.d <= SEWN_TOL_R * h.radius && h.radius >= r) { r = h.radius; dir = tangentNear(h.pts, n.at); }
+    if (n.d <= SEWN_TOL_R * h.radius) {
+      reach++;
+      if (runOnOf(h, p, away)?.runOn) runOns++;
+      if (h.radius >= r) { r = h.radius; dir = tangentNear(h.pts, n.at); }
+    }
   }
+  // (a run-on from every host within reach: nothing the end lands across. At a joint between two pieces of a trunk, or beside another vessel, the end also meets a wall, so it stays sewn as before)
+  if (reach > 0 && runOns === reach) return null;
   return r > 0 ? { hostR: r, inside: true, sink: false, flare: true, capped: true, ...(dir ? { dir } : {}) } : null;
 }
 /** The unit direction of a polyline at the point `at` on it (the segment it lies on). */
@@ -45,10 +66,19 @@ function tangentNear(pts: readonly Vec3[], at: Vec3): Vec3 | undefined {
   }
   return dir;
 }
+/** The unit direction an end leaves along: from the path's end point inward along its first segment of any length (null for a path of no length). */
+export function awayFrom(pts: readonly Vec3[], end: 0 | 1): Vec3 | undefined {
+  const at = end ? pts.length - 1 : 0, step = end ? -1 : 1, p = pts[at]!;
+  for (let i = at + step; i >= 0 && i < pts.length; i += step) {
+    const q = pts[i]!, d: Vec3 = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], l = Math.hypot(d[0], d[1], d[2]);
+    if (l > 1e-12) return [d[0] / l, d[1] / l, d[2] / l];
+  }
+  return undefined;
+}
 /** The two sewn ends of a path made at run time (a custom shunt of the Circuit, a strand): each end that lands on one of `hosts`, else null. Pure numbers, a few polyline distances. */
 export function endProfileFor(pts: readonly Vec3[], hosts: readonly HostAxis[]): readonly [ShuntEnd | null, ShuntEnd | null] | null {
   if (pts.length < 2) return null;
-  const a = sewnEndAt(pts[0]!, hosts), b = sewnEndAt(pts[pts.length - 1]!, hosts);
+  const a = sewnEndAt(pts[0]!, hosts, awayFrom(pts, 0)), b = sewnEndAt(pts[pts.length - 1]!, hosts, awayFrom(pts, 1));
   return a || b ? [a, b] : null;
 }
 

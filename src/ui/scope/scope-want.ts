@@ -6,10 +6,14 @@ import { useUi } from '../ui-store.ts';
 import { viewAt, type Stop } from '../deck/presenter-machine.ts';
 import { copiedSlideOf } from '../../scene/labels/deck-link.ts';
 import { scopeLensFor, scopeGrows } from '../../scene/disease/copied/scope-lens-rule.js';
+import { procPlanOf } from '../deck/procs-plan.ts';
 import type { Slide } from '../../decks/schema.ts';
 
-export interface ScopeWant { /** the slide's key (deck, slide): a new one shuts a lens left open */ key: string; want: boolean; /** the varices grow as it plays: the ring stands from its first frame */ grows: boolean }
-const NONE: ScopeWant = { key: '', want: false, grows: false };
+export interface ScopeWant { /** the slide's key (deck, slide): a new one shuts a lens left open */ key: string; want: boolean; /** the varices grow as it plays: the ring stands from its first frame */ grows: boolean; /** the lens opens by itself once the ring stands and the camera has held still (the EVL slides: the bands are shown through it) */ auto: boolean }
+const NONE: ScopeWant = { key: '', want: false, grows: false, auto: false };
+
+/** Slides whose procedure the scope view shows by itself (no tap): the EVL slides (owner, 22 Nov 2026: "with a view of the scope"). */
+export const AUTO_LENS_KINDS: ReadonlySet<string> = new Set(['evl']);
 
 /** The fields the 2D rule reads, from a slide that was not ported from 2D. */
 export function ruleFieldsOf(slide: Slide): Record<string, unknown> {
@@ -25,7 +29,9 @@ export function wantOf(stops: Stop[], pos: { stop: number; beat: number }, deckI
   const copied = copiedSlideOf(deckId, v.slide);
   const s = (copied ?? ruleFieldsOf(v.slide)) as Parameters<typeof scopeLensFor>[0];
   const want = !!scopeLensFor(s);
-  return { key: `${deckId}/${v.slide.id}`, want, grows: want && !!scopeGrows(s) };
+  const kind = procPlanOf(s as { procedure?: unknown })?.kind, auto = want && !!kind && AUTO_LENS_KINDS.has(kind);
+  // (an EVL slide lands on the state before its banding, so the varices are there and the ring stands; an open lens keeps it after the bands: scope-gate.ts)
+  return { key: `${deckId}/${v.slide.id}`, want, grows: want && !!scopeGrows(s), auto };
 }
 
 export const useScopeWant = create<ScopeWant>(() => NONE);
@@ -35,7 +41,7 @@ export function linkScopeWant(): () => void {
   const sync = () => {
     const { stops, pos, deck } = useUi.getState();
     const w = deck ? wantOf(stops, pos, deck.id) : NONE, c = useScopeWant.getState();
-    if (w.key !== c.key || w.want !== c.want || w.grows !== c.grows) useScopeWant.setState(w);
+    if (w.key !== c.key || w.want !== c.want || w.grows !== c.grows || w.auto !== c.auto) useScopeWant.setState(w);
   };
   sync();
   const off = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops || s.deck !== p.deck) sync(); });

@@ -42,7 +42,7 @@ test('at a junction the branch\'s end lies inside the trunk\'s lumen and the tru
       assert.ok(nbr, `${id} has a nbr attribute`);
       const k = end ? run.tubular : 0;
       let inside = 0;
-      for (let j = 0; j < run.radial; j++) { const i = run.tubeStart + k * (run.radial + 1) + j; if (nbr[i * 2 + 1]! > 0 && Math.abs(nbr[i * 2]!) < nbr[i * 2 + 1]! * 1.02 + 0.003) inside++; }
+      for (let j = 0; j < run.radial; j++) { const i = run.tubeStart + k * (run.radial + 1) + j; if (nbr[i * 3 + 1]! > 0 && nbr[i * 3 + 2]! < 0.003 && Math.abs(nbr[i * 3]!) < nbr[i * 3 + 1]! * 1.02 + 0.003) inside++; }
       assert.ok(inside >= run.radial * 0.7, `${id} end ${end}: ${inside} of ${run.radial} end vertices lie inside the trunk's lumen (hosts ${hosts.join(', ')})`);
       // and the trunk sees the branch somewhere along it
       for (const h of hosts) {

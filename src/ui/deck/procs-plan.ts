@@ -26,7 +26,7 @@ export function procPlanOf(s: { procedure?: unknown }): ProcPlan | null {
   const kind = procKindOf(p) as string | null;
   if (!kind) return null;
   const o = typeof p === 'object' ? (p as { then?: string; auto?: boolean }) : {};
-  return { kind, then: o.then ?? null, auto: !!o.auto };
+  return { kind, then: o.then ?? null, auto: !!o.auto || !!(specFor(kind) as { auto?: boolean } | null)?.auto };
 }
 
 /** The steps the card lists: the procedure's, then its reading's. */

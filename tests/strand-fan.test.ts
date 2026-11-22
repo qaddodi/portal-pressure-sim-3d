@@ -88,7 +88,7 @@ test('the retroperitoneal collateral takes the cava\'s cut-at-the-wall rule like
     const pos = g.getAttribute('position').array as Float32Array, nb = neighbourAttr('C7', pos)!;
     assert.ok(nb, 'every vertex of the strands knows where it stands against the cava');
     let inside = 0, outside = 0;
-    for (let i = 0; i < pos.length / 3; i++) { const r = nb[2 * i + 1]!; if (r > 0 && Math.abs(nb[2 * i]!) < r) inside++; else outside++; }
+    for (let i = 0; i < pos.length / 3; i++) { const r = nb[3 * i + 1]!; if (r > 0 && nb[3 * i + 2]! < 0 && Math.abs(nb[3 * i]!) < r) inside++; else outside++; }
     assert.ok(inside > 20, `the part of the strands inside the lumen (${inside} vertices) is what the shader cuts`);
     assert.ok(inside < 0.25 * (inside + outside), `and it is only the end (${inside} of ${inside + outside}): the rest of the strands is outside the cava`);
   } finally { setSmoothJoins(was); }

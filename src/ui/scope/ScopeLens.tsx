@@ -24,6 +24,8 @@ const ScopeView = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) 
 const STILL_MS = 160;
 /** The ring's tap: at least 44 px across (2D ringHit's reach: the ring's radius and 8 px, never under 22). */
 const HIT = 44;
+/** How many times the lens that opens by itself looks for the ring before it gives up (the ring eases in: a slow device brings it later), about 200 ms apart. */
+const AUTO_TRIES = 24;
 const OPT = scopeOptions({});
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -33,15 +35,15 @@ interface Placed { x: number; y: number; r: number; ox: number; oy: number }
 const newRing = (): ScopeRingScreen => ({ x: 0, y: 0, r: 0, bx: 0, by: 0, br: 0, bleed: { l: 0, t: 0, r: 0, b: 0 } });
 
 export function ScopeLens() {
-  const want = useScopeWant((s) => s.want), grows = useScopeWant((s) => s.grows), key = useScopeWant((s) => s.key);
+  const want = useScopeWant((s) => s.want), grows = useScopeWant((s) => s.grows), key = useScopeWant((s) => s.key), auto = useScopeWant((s) => s.auto);
   const [placed, setPlaced] = useState<Placed | null>(null);
   const [on, setOn] = useState(false);
   const [cap, setCap] = useState('');
   const [nth, setNth] = useState(0);   // (a scope of its own for each opening: it is drawn first from the frame now, never from one kept from an earlier opening)
   const hit = useRef<HTMLButtonElement>(null), layer = useRef<HTMLDivElement>(null), cone = useRef<SVGSVGElement>(null);
-  const live = useRef({ want, grows, open: false, gate: newGate() as Gate, ring: newRing(), A: null as Anchor | null, lastMove: 0, wake: null as TimerId | null, still: null as TimerId | null, shut: null as TimerId | null, pushed: '', claimDirty: true, dx: NaN, dy: NaN, rx: NaN, ry: NaN, rr: NaN });
+  const live = useRef({ want, grows, auto, autoDone: false, autoTries: 0, autoT: null as TimerId | null, ringMoved: 0, open: false, gate: newGate() as Gate, ring: newRing(), A: null as Anchor | null, lastMove: 0, wake: null as TimerId | null, still: null as TimerId | null, shut: null as TimerId | null, pushed: '', claimDirty: true, dx: NaN, dy: NaN, rx: NaN, ry: NaN, rr: NaN });
   const L = live.current;
-  L.want = want; L.grows = grows;
+  L.want = want; L.grows = grows; L.auto = auto;
   scopeClaims.setWants(want);   // (a caliper across the varices keeps clear of the ring for the whole slide, whether or not the ring stands yet)
 
   // ── the ring: stands while the slide wants it and the patient has varices (scope-gate.ts), eased by the scene ──
@@ -51,20 +53,37 @@ export function ScopeLens() {
     L.gate = r.gate;
     if (r.close) closeRef.current();
     const ringOn = L.want && L.gate.has, k = `${ringOn ? 1 : 0}${L.open ? 1 : 0}`;
-    if (k !== L.pushed) { L.pushed = k; sceneApi.setScopeRing(ringOn, L.open && ringOn); }
+    if (k !== L.pushed) { L.pushed = k; sceneApi.setScopeRing(ringOn, L.open && ringOn); if (ringOn) armAuto.current(); }
     clock.cancel(L.wake); L.wake = null;
     if (r.wake != null) L.wake = clock.after(() => { L.wake = null; look.current(); }, r.wake + 8, 'scope-gate');
   };
   const closeRef = useRef<(now?: boolean) => void>(() => undefined);
 
+  // ── the lens that opens by itself (the EVL slides): once the ring stands and the camera has held still, once for each visit to the slide; a lens the viewer shuts stays shut ──
+  const armAuto = useRef<() => void>(() => undefined);
+  armAuto.current = () => {
+    if (!L.auto || L.autoDone || L.open) return;
+    clock.cancel(L.autoT);
+    L.autoT = clock.after(() => {
+      L.autoT = null;
+      if (!L.auto || L.autoDone || L.open || !L.want || !L.gate.has) return;
+      if (clock.now() - L.ringMoved < STILL_MS) { armAuto.current(); return; }   // (the camera is still on its way)
+      if (!sceneApi.scopeRingScreen(L.ring)) { if (++L.autoTries < AUTO_TRIES) armAuto.current(); return; }   // (the ring has not come up yet)
+      L.autoDone = true;
+      openRef.current();   // (placeLens keeps it off the cards; where nothing fits it stays shut and the ring stays tappable)
+    }, STILL_MS + 40, 'scope-lens');
+  };
+  const openRef = useRef<() => void>(() => undefined);
+
   // a new slide: a lens left open shuts, the gate starts again for it
   useEffect(() => {
     closeRef.current(true);
+    clock.cancel(L.autoT); L.autoT = null; L.autoDone = false; L.autoTries = 0; L.ringMoved = clock.now();
     L.gate = newGate(); L.pushed = '';
     look.current();
-  }, [key, want, grows]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, want, grows, auto]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => onFrame(() => look.current()), []);
-  useEffect(() => () => { clock.cancel(L.wake); clock.cancel(L.still); clock.cancel(L.shut); sceneApi.setScopeRing(false, false); scopeClaims.setWants(false); scopeClaims.set([]); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { clock.cancel(L.wake); clock.cancel(L.still); clock.cancel(L.shut); clock.cancel(L.autoT); sceneApi.setScopeRing(false, false); scopeClaims.setWants(false); scopeClaims.set([]); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── open and shut ──
   const place = () => {
@@ -89,6 +108,7 @@ export function ScopeLens() {
     layCone(true);
     look.current();
   };
+  openRef.current = open;
   const close = (now = false) => {
     if (!L.open) return;
     L.claimDirty = true; L.open = false; L.A = null;
@@ -162,6 +182,7 @@ export function ScopeLens() {
       }
     }
     const moved = ring.x !== L.rx || ring.y !== L.ry || ring.r !== L.rr;
+    if (moved) { L.ringMoved = clock.now(); if (!L.open) armAuto.current(); }
     L.rx = ring.x; L.ry = ring.y; L.rr = ring.r;
     // (the room the ring, its badge and an open lens take: the names and the callouts keep off it; written when something moved, never built per frame at rest)
     if (moved || L.claimDirty) {

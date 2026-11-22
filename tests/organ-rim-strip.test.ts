@@ -8,8 +8,9 @@ import { BufferGeometry, Float32BufferAttribute } from 'three';
 import { ORGAN_MESHES, setOrganData } from '../src/scene/organs/meshes.ts';
 import { caudateGeometry } from '../src/scene/organs/caudate.ts';
 import { prepareOrgans } from '../src/scene/organs/prepare.ts';
-import { rimDistance } from '../src/scene/organs/contour.ts';
-import { RIM_KNOTS, RIM_ZONE, fitRimProfile, rimProfileAt, rimShadeNormal } from '../src/scene/organs/rim-profile.ts';
+import { rimDistance, silhouetteRing, weld } from '../src/scene/organs/contour.ts';
+import { SMOOTH_SHADE } from '../src/scene/organs/layer.ts';
+import { RIM_KNOTS, RIM_SPECK, RIM_ZONE, fitRimProfile, rimProfileAt, rimShadeNormal } from '../src/scene/organs/rim-profile.ts';
 import { ORGAN_FS, ORGAN_VS } from '../src/scene/organs/organ-shader.ts';
 import { decodeOrgans, encodeOrgans } from '../src/scene/organs/baked.ts';
 
@@ -98,4 +99,125 @@ test('on a mesh whose rows are unequally far from the rim, the crescent edge is 
   const raw = edge(false), withStrip = edge(true);
   assert.ok(raw > 0.0015, `the interpolated normal's crescent edge wobbles round the rim (${raw.toFixed(4)})`);
   assert.ok(withStrip < raw / 3, `with the strip it is straight (${withStrip.toFixed(4)} against ${raw.toFixed(4)})`);
+});
+
+// ---- the speck guard ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// The strip takes the direction round the rim from n.xy / |n.xy|. Where the normal nearly faces the eye that direction is noise (it can swing 180 degrees in a pixel), and the strip would paint a speck. The strip's share fades
+// in with |n.xy| from RIM_SPECK[0] to RIM_SPECK[1]. Sampled the way the GPU does: every front triangle of the strip, the interpolated shade normal (the smoothed one for the organs that use it, their own otherwise), the interpolated
+// distance and offset, taken on a grid one pixel apart (PX scene units: the figure is about 2 units across, so 0.001 is a pixel of a 2000 px figure, finer than any screen the app runs on at its figure size).
+const PX = 0.001;
+const smoothstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** What the twin did before the guard (the strip at full share wherever the zone allows): the control that shows the test bites. */
+function unguarded(n: readonly number[], s: number, c: number, prof: readonly number[], w: number): number[] {
+  const zone = 1 - smoothstep(0.75, 1, s), hl = Math.hypot(n[0]!, n[1]!), nzP = Math.min(1, Math.max(0, rimProfileAt(prof, s) + c)), k = zone * w, sin = Math.sqrt(Math.max(0, 1 - nzP * nzP));
+  const x = n[0]! + ((hl > 1e-4 ? n[0]! / hl : 0) * sin - n[0]!) * k, y = n[1]! + ((hl > 1e-4 ? n[1]! / hl : 0) * sin - n[1]!) * k, z = n[2]! + (nzP - n[2]!) * k, l = Math.hypot(x, y, z) || 1;
+  return [x / l, y / l, z / l];
+}
+/** The biggest change of the strip's normal between two samples one pixel apart (in x or in y), over the pairs where both samples are inside the speck window (|n.xy| below RIM_SPECK[1]) and the interpolated INPUT normal itself
+ *  moves by less than `calm` (so a change in the output is the strip's own doing, not the mesh's). */
+function speckJump(g: BufferGeometry, id: string, twin: (n: number[], s: number, c: number, prof: number[], w: number) => readonly number[], calm = 0.03): { worst: number; pairs: number } {
+  const pos = g.getAttribute('position'), idx = g.index!.array, N = g.getAttribute(SMOOTH_SHADE.has(id) ? 'shadeN' : 'normal'), rd = g.getAttribute('rimD'), rc = g.getAttribute('rimC'), prof = g.userData.rimProfile as number[];
+  let worst = 0, pairs = 0;
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    const v = [idx[t]!, idx[t + 1]!, idx[t + 2]!];
+    if (Math.min(rd.getX(v[0]!), rd.getX(v[1]!), rd.getX(v[2]!)) >= 1) continue;
+    const P = v.map((i) => [pos.getX(i), pos.getY(i)] as const), den = (P[1]![1] - P[2]![1]) * (P[0]![0] - P[2]![0]) + (P[2]![0] - P[1]![0]) * (P[0]![1] - P[2]![1]);
+    if (den <= 0) continue;   // (the back faces are never drawn)
+    const at = (x: number, y: number) => {
+      const l0 = ((P[1]![1] - P[2]![1]) * (x - P[2]![0]) + (P[2]![0] - P[1]![0]) * (y - P[2]![1])) / den, l1 = ((P[2]![1] - P[0]![1]) * (x - P[2]![0]) + (P[0]![0] - P[2]![0]) * (y - P[2]![1])) / den, L = [l0, l1, 1 - l0 - l1];
+      if (L.some((q) => q < 0)) return null;
+      const n = [0, 1, 2].map((c) => L[0]! * N.getComponent(v[0]!, c) + L[1]! * N.getComponent(v[1]!, c) + L[2]! * N.getComponent(v[2]!, c)), l = Math.hypot(n[0]!, n[1]!, n[2]!) || 1, u = n.map((q) => q / l);
+      return { u, s: L[0]! * rd.getX(v[0]!) + L[1]! * rd.getX(v[1]!) + L[2]! * rd.getX(v[2]!), c: L[0]! * rc.getX(v[0]!) + L[1]! * rc.getX(v[1]!) + L[2]! * rc.getX(v[2]!) - 0.5 };
+    };
+    for (let x = Math.min(P[0]![0], P[1]![0], P[2]![0]); x <= Math.max(P[0]![0], P[1]![0], P[2]![0]); x += PX) for (let y = Math.min(P[0]![1], P[1]![1], P[2]![1]); y <= Math.max(P[0]![1], P[1]![1], P[2]![1]); y += PX) {
+      const a = at(x, y); if (!a || Math.hypot(a.u[0]!, a.u[1]!) >= RIM_SPECK[1]) continue;
+      for (const [dx, dy] of [[PX, 0], [0, PX]] as const) {
+        const b = at(x + dx, y + dy); if (!b || Math.hypot(b.u[0]!, b.u[1]!) >= RIM_SPECK[1]) continue;
+        if (Math.hypot(a.u[0]! - b.u[0]!, a.u[1]! - b.u[1]!, a.u[2]! - b.u[2]!) > calm) continue;
+        const p = twin(a.u, a.s, a.c, prof, 1), q = twin(b.u, b.s, b.c, prof, 1);
+        worst = Math.max(worst, Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!)); pairs++;
+      }
+    }
+  }
+  return { worst, pairs };
+}
+
+test('the speck guard: both twins share its constants, the shader reads them, and the GLSL multiplies the strip by it', () => {
+  assert.ok(RIM_SPECK[0] > 0 && RIM_SPECK[0] < RIM_SPECK[1] && RIM_SPECK[1] <= 0.3);
+  const n: [number, number, number] = [0.05, 0, Math.sqrt(1 - 0.0025)], prof = new Array(RIM_KNOTS).fill(0.2);
+  assert.deepEqual(rimShadeNormal(n, 0.2, 0, prof, 1).map((v) => +v.toFixed(6)), n.map((v) => +v.toFixed(6)), 'below the window the interpolated normal rules, whatever the strip says');
+  assert.match(ORGAN_FS, new RegExp(`\\* rimW \\* smoothstep\\(${RIM_SPECK[0]}, ${RIM_SPECK[1]}, hl\\);`));
+  assert.ok(ORGAN_FS.indexOf('float hl = length(n.xy);') < ORGAN_FS.indexOf('* rimW * smoothstep('), 'hl is read before the strip uses it');
+});
+
+test('every baked organ: where the shade normal nearly faces the eye, the strip moves its normal by less than 0.15 between samples one pixel apart (and without the guard it does not)', () => {
+  let unguardedWorst = 0;
+  for (const [id, g] of made) {
+    const guarded = speckJump(g, id, (n, s, c, p, w) => rimShadeNormal(n as [number, number, number], s, c, p, w)), bare = speckJump(g, id, unguarded);
+    assert.ok(guarded.worst < 0.15, `${id}: the strip's normal moves ${guarded.worst.toFixed(3)} in a pixel over ${guarded.pairs} samples`);
+    unguardedWorst = Math.max(unguardedWorst, bare.worst);
+  }
+  assert.ok(unguardedWorst > 0.5, `the unguarded strip does swing (${unguardedWorst.toFixed(3)}), so this test has teeth`);
+});
+
+// ---- false rims -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// silhouetteRing marks every place the mesh turns from facing the eye to facing away. In a folded organ that would include folds INSIDE the outline, where more surface lies beyond, and a strip grown from one would paint a false crescent
+// inside the organ. A ring segment is OUTER when the plane just past it holds no triangle on at least one side; an inner fold has surface on both.
+function ringReport(g: BufferGeometry): { pieces: { n: number; closed: boolean }[]; inner: number } {
+  const w = weld(g), ring = silhouetteRing(g, w), pos = g.getAttribute('position'), at = (v: number): [number, number] => { const i = w.verts[v]![0]!; return [pos.getX(i), pos.getY(i)]; };
+  const segs: [number, number][] = [];
+  for (const [u, [a, b]] of ring) for (const v of [a, b]) if (u < v || !ring.get(v)?.includes(u)) segs.push([u, v]);
+  const adj = new Map<number, number[]>(), seen = new Set<number>(), pieces: { n: number; closed: boolean }[] = [];
+  for (const [u, v] of segs) { (adj.get(u) ?? adj.set(u, []).get(u)!).push(v); (adj.get(v) ?? adj.set(v, []).get(v)!).push(u); }
+  for (const v0 of adj.keys()) {
+    if (seen.has(v0)) continue;
+    const st = [v0]; seen.add(v0); let n = 0, closed = true;
+    while (st.length) { const u = st.pop()!; n++; const l = adj.get(u)!; if (l.length !== 2) closed = false; for (const x of l) if (!seen.has(x)) { seen.add(x); st.push(x); } }
+    pieces.push({ n, closed });
+  }
+  const CELL = 0.02, cells = new Map<string, number[]>(), cell = (x: number) => Math.floor(x / CELL), tri: number[][] = [];
+  for (let t = 0; t < w.tris.length; t += 3) {
+    const a = at(w.tris[t]!), b = at(w.tris[t + 1]!), c = at(w.tris[t + 2]!), k = tri.length;
+    tri.push([...a, ...b, ...c]);
+    for (let cx = cell(Math.min(a[0], b[0], c[0])); cx <= cell(Math.max(a[0], b[0], c[0])); cx++) for (let cy = cell(Math.min(a[1], b[1], c[1])); cy <= cell(Math.max(a[1], b[1], c[1])); cy++) (cells.get(`${cx},${cy}`) ?? cells.set(`${cx},${cy}`, []).get(`${cx},${cy}`)!).push(k);
+  }
+  const covered = (x: number, y: number): boolean => (cells.get(`${cell(x)},${cell(y)}`) ?? []).some((k) => {
+    const [ax, ay, bx, by, cx, cy] = tri[k]!, d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+    if (Math.abs(d) < 1e-12) return false;
+    const l0 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / d, l1 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / d;
+    return l0 >= 0 && l1 >= 0 && l0 + l1 <= 1;
+  });
+  let inner = 0;
+  for (const [u, v] of segs) {
+    const p = at(u), q = at(v), l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (l < 1e-9) continue;
+    const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, nx = (-(q[1] - p[1]) / l) * 0.0015, ny = ((q[0] - p[0]) / l) * 0.0015;
+    if (covered(mx + nx, my + ny) && covered(mx - nx, my - ny)) inner++;
+  }
+  return { pieces: pieces.sort((a, b) => b.n - a.n), inner };
+}
+
+test('the helper finds an inner fold: a pillow lying over a larger one has its own outline inside the first', () => {
+  const disc = (cx: number, r: number, z: number): [number[], number[]] => {
+    const N = 24, pos: number[] = [cx, 0, z + 0.1, cx, 0, z - 0.1], idx: number[] = [];
+    for (let k = 0; k < N; k++) { const a = (k / N) * 2 * Math.PI; pos.push(cx + r * Math.cos(a), r * Math.sin(a), z); }
+    for (let k = 0; k < N; k++) { const a = 2 + k, b = 2 + ((k + 1) % N); idx.push(0, a, b, 1, b, a); }
+    return [pos, idx];
+  };
+  const [pa, ia] = disc(0, 1, 0), [pb, ib] = disc(0.1, 0.3, 0.05), g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute([...pa, ...pb], 3)); g.setIndex([...ia, ...ib.map((v) => v + pa.length / 3)]);
+  const r = ringReport(g);
+  assert.equal(r.pieces.length, 2, 'two rings');
+  assert.equal(r.inner, r.pieces[1]!.n, 'the small one lies inside the large one: all its segments are inner folds');
+});
+
+test('every baked organ has one silhouette ring and no inner fold in it (a fold would grow a false rim crescent)', () => {
+  // the ring is one closed loop for these; the small bowel, the duodenum and the caudate lobe are pinched (a silhouette vertex where the ring branches), so their one piece is not closed: pinned, not a loop of its own
+  const PINCHED = new Set(['bowel', 'duodenum', 'caudate']);
+  for (const [id, g] of made) {
+    const r = ringReport(g);
+    assert.equal(r.pieces.length, 1, `${id}: ${r.pieces.length} separate rings (${r.pieces.slice(0, 5).map((p) => p.n).join(', ')}): restrict the strip's ring (contour.ts rimDistance) to the outer one`);
+    assert.equal(r.pieces[0]!.closed, !PINCHED.has(id), `${id}: ring ${r.pieces[0]!.closed ? 'is' : 'is not'} one closed loop`);
+    assert.equal(r.inner, 0, `${id}: ${r.inner} ring segments are folds inside the outline (surface beyond them on both sides)`);
+  }
 });

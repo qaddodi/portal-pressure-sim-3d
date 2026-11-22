@@ -205,7 +205,7 @@ float markK(float d0, float d1) {
 varying float vFade;
 varying float vCircShare;
 varying float circStay;
-varying vec2 vNbr;
+varying vec3 vNbr;
 varying vec3 vCen;
 varying float vHi;
 varying vec3 vN;
@@ -780,6 +780,20 @@ bool capCarved(float across) {
   float q = 1.0 - a / R;
   return across * across + q * q > 1.0;
 }
+// the running stitch at a sewn end: the thread's coverage (x) and its halo's (y) at the distance sl in from the end and the place aa across (one rule for the tube's marks and a welded end's suture)
+vec2 seamStitch(vec4 A, vec4 B, float sl, float aa, float rr, float fwAcr) {
+  float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
+  float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
+  float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
+  if (B.y > 0.5) {
+    float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
+    dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
+  } else {
+    dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
+    dsh = smoothstep(1.0, 0.92, abs(aa));
+  }
+  return vec2((1.0 - smoothstep(0.2, 0.36, dd)) * dsh, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+}
 
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
@@ -851,7 +865,8 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
-  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
+  // (past the other tube's open end nothing of it is drawn: the ink and the drop give way over half a pixel either side of its end plane, by vNbr.z, which the GPU blends exactly where the radius ramped to 0 over a whole triangle)
+  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT) * (1.0 - smoothstep(-0.5, 0.5, vNbr.z / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -913,7 +928,7 @@ void main() {
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
-  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
+  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
   vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
@@ -1027,18 +1042,9 @@ void main() {
       vec4 A = seamA[e], B = seamB[e];
       if (A.x <= 0.0) continue;
       float sl = e == 0 ? aF : Lw - aF;
-      float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
-      float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
-      float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
-      if (B.y > 0.5) {
-        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
-        dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
-      } else {
-        dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
-        dsh = smoothstep(1.0, 0.92, abs(aa));
-      }
-      tw = max(tw, (1.0 - smoothstep(0.2, 0.36, dd)) * dsh);
-      te = max(te, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+      vec2 st = seamStitch(A, B, sl, aa, rr, fwAcr);
+      tw = max(tw, st.x);
+      te = max(te, st.y);
     }
     c = mix(c, THREAD_EDGE, te * 0.4);
     c = mix(c, THREAD, tw);

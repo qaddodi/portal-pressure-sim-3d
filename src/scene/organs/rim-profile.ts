@@ -8,6 +8,9 @@
 /** How far in the profile reaches, scene units (0.03: 9 of the figure's units), and the number of points it is sampled at (evenly, the first on the rim, the last at ZONE). */
 export const RIM_ZONE = 0.03;
 export const RIM_KNOTS = 8;
+/** The speck guard (both twins): the strip's direction round the rim, n.xy / |n.xy|, is noise where the shade normal nearly faces the eye, and across one pixel it swings by up to 180 degrees there. The strip's share therefore fades in with |n.xy| from
+ *  RIM_SPECK[0] (none) to RIM_SPECK[1] (all). The healthy pillows (heart, spleen, kidney, liver) have no pixel of the strip below 0.3 and are not touched; the stomach, the bowel and the duodenum, which have face-on patches inside their strip, are. */
+export const RIM_SPECK = [0.1, 0.3] as const;
 
 /** The profile of `nz` (a normal's z, 1 flat to 0 edge-on) against `rimD` (scene units) over the FRONT surface (the shader draws no other), from samples (prepare.ts: points inside the strip's triangles): the median of those near each knot, rising from the rim inward, to 4 places.
  *  Empty knots take their neighbours'. */
@@ -33,7 +36,7 @@ export function rimOffsetByte(c: number): number { return Math.round((Math.min(0
 /** The shade normal in the strip: the interpolated unit normal `n` with its tilt taken from the profile at `s` plus the regional offset `c`, by `w` (the zone's falloff times how much of the smooth normal the organ takes).
  *  GLSL twin: `rimShadeNormal` (organ-shader.ts). */
 export function rimShadeNormal(n: readonly [number, number, number], s: number, c: number, prof: readonly number[], w: number): [number, number, number] {
-  const zone = 1 - smooth(0.75, 1, s), hl = Math.hypot(n[0], n[1]), nzP = Math.min(1, Math.max(0, rimProfileAt(prof, s) + c)), k = zone * w;
+  const zone = 1 - smooth(0.75, 1, s), hl = Math.hypot(n[0], n[1]), nzP = Math.min(1, Math.max(0, rimProfileAt(prof, s) + c)), k = zone * w * smooth(RIM_SPECK[0], RIM_SPECK[1], hl);   // (speck guard, RIM_SPECK)
   const sin = Math.sqrt(Math.max(0, 1 - nzP * nzP)), dx = hl > 1e-4 ? n[0] / hl : 0, dy = hl > 1e-4 ? n[1] / hl : 0;
   const x = n[0] + (dx * sin - n[0]) * k, y = n[1] + (dy * sin - n[1]) * k, z = n[2] + (nzP - n[2]) * k, l = Math.hypot(x, y, z) || 1;
   return [x / l, y / l, z / l];
