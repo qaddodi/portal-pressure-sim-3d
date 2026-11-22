@@ -14,6 +14,7 @@ import { EdgeStateTable } from './edge-state.ts';
 import { REGION_CAPS, REGION_PTS, extensionRows, keyPlan, regionTexture, regionsOf, type Region } from './regions.ts';
 import { NetRows, type RowSource } from './rows.ts';
 import type { NetData, NetMeshData } from './load.ts';
+import { DrawProbe, type ProbeState } from './probe.ts';
 import type { NodeReport } from './mesh.ts';
 import type { NetMesh, Skeleton } from './types.ts';
 
@@ -98,6 +99,8 @@ export class NetFigure {
   readonly state: EdgeStateTable;
   readonly rows: NetRows;
   readonly draws: NetDraw[] = [];
+  /** whether each object's draw has been seen to put pixels on the screen (before it, the old tubes are not hidden) */
+  readonly probe = new DrawProbe();
   /** the uniforms every program of the figure shares (the scene's by reference, the network's own) */
   readonly uniforms: Record<string, IUniform>;
   private readonly toneColor: Vector3[] = [new Vector3(), new Vector3(), new Vector3()];
@@ -163,7 +166,11 @@ export class NetFigure {
     const meshes: Mesh[] = [];
     if (organs) { const a = new Mesh(organs, mk({})); a.name = `net:${name}:organs`; a.renderOrder = 0; a.frustumCulled = false; a.matrixAutoUpdate = true; a.layers.set(0); meshes.push(a); }
     const b = new Mesh(full, mk({ VEIL: 1 })); b.name = `net:${name}:vessels`; b.renderOrder = 1; b.frustumCulled = false; b.layers.set(VESSEL_LAYER); meshes.push(b);
-    for (const m of meshes) { m.raycast = () => {}; this.group.add(m); }   // (the pick is the old tubes': the figure keeps them as the picking proxies)
+    for (const m of meshes) {
+      m.raycast = () => {}; this.group.add(m);
+      const key = m.name;   // (an occlusion query round each draw: has this object put a pixel on the screen, probe.ts)
+      m.onBeforeRender = (r) => this.probe.begin(r.getContext(), key); m.onAfterRender = (r) => this.probe.end(r.getContext(), key);
+    }   // (the pick is the old tubes': the figure keeps them as the picking proxies)
     if (capTarget) {
       const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * regions.length * REGION_CAPS * REGION_PTS), 3)); g.setAttribute('capId', new BufferAttribute(capPointIds(regions.length), 1));
       const m = new ShaderMaterial({ name: 'net-capsules', vertexShader: NET_CAP_VS, fragmentShader: NET_CAP_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...own, capTex: { value: blankTex } }, defines: vdbgDefines() });
@@ -183,6 +190,11 @@ export class NetFigure {
     this.state.flush(); this.bones.flush();
     return changed;
   }
+
+  /** Reads the draw queries (once per drawn frame, after the passes that draw the figure). Returns whether any answered. */
+  poll(gl: WebGLRenderer): boolean { return this.probe.poll(gl.getContext()); }
+  /** An object's standing: 'drawn' once a pixel of it has passed, 'blank' when it had its frames and none did, else 'pending'. */
+  standing(d: NetDraw): ProbeState { return this.probe.state(d.meshes.map((m) => m.name)); }
 
   /** The passes that make the textures the vertex stage reads, once per DRAWN frame before the figure: the sewn hosts' live radii, then each region's live capsules. */
   prepass(gl: WebGLRenderer): void {
