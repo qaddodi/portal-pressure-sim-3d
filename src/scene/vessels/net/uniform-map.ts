@@ -31,8 +31,6 @@ const MATE = 'a continuing vessel is the next bone of the same mesh: the width, 
 
 /** Everything that is not an edge column. */
 const OTHER: Record<string, UniformFate> = {
-  // the vessel's rest radius is the bone's
-  radius: { kind: 'bone', from: 'texel 0 and 1 radius (r[0] body, r[1] map)' },
   // shared by the whole object
   vdata: g('the engine data texture'), vdataSize: g(), useData: g(), res: g(), dpr: g(), projY: g(), time: g(), light: g(), bands: g('2 on every vessel'), spec: g('1 on every vessel'),
   circT: g(), circRot: g(), circM: g(), circTrack: g(), circTrackSize: g(), circBoost: g(), circPerPx: g(),

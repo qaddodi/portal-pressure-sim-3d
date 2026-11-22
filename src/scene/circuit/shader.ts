@@ -8,7 +8,7 @@ import { MAP_K } from './map.ts';
 import { PEEL_SPAN } from './peel.ts';
 
 /** Attribute and uniform declarations, put before `void main` of the vessel's vertex shader, after its own (`radius`, `rk`, `tang` and `position` are the vessel's: declaring one here is a redefinition, which a real GPU refuses and the whole vessel then draws nothing). */
-export const CIRCUIT_VS_HEAD = /* glsl */ `
+const CIRC_DECL_GLSL = /* glsl */ `
 attribute vec3 cC;
 attribute vec3 tC;
 attribute vec3 fr;
@@ -30,7 +30,9 @@ uniform vec3 circAnchA;
 uniform vec3 circAnchC;
 uniform vec2 circTrackSize;
 uniform sampler2D circTrack;
-const float CIRC_DL = ${PEEL_DL.toFixed(4)};
+`;
+/** The peel and the turn, as functions of a rank and a point: the morph's rule written once. The vessel's per-vertex morph (above) and ?geom=net's per-bone morph (vessels/net/shaders.ts) both use it. Reads: circRot, circM (declared by the program). */
+export const CIRC_PEEL_GLSL = /* glsl */ `const float CIRC_DL = ${PEEL_DL.toFixed(4)};
 const float CIRC_MAPK = ${MAP_K.toFixed(6)};
 const float CIRC_SPAN = ${PEEL_SPAN.toFixed(1)};
 float circPeel(float t, float r) {
@@ -57,7 +59,8 @@ vec3 circFrameN(vec3 T) {
   vec3 ref = abs(T.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
   return normalize(ref - T * dot(ref, T));
 }
-void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
+`;
+const CIRC_MORPH_GLSL = /* glsl */ `void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   circStay = 1.0;
   if (circT <= 0.0) return;
   // A vertex with no map course (cl.y 0: the fans of tributaries, the liver's branching veins, a collateral's strands, which VesselObject gives zero course attributes: circuit/geometry.ts withCircuitAttributes) never
@@ -95,6 +98,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   Tn = T;
 }
 `;
+export const CIRCUIT_VS_HEAD = CIRC_DECL_GLSL + CIRC_PEEL_GLSL + CIRC_MORPH_GLSL;
 /** The call at the top of main(): the body's own position, normal and tangent, morphed. */
 export const CIRCUIT_VS_CALL = /* glsl */ `
   vec3 aPos = position;

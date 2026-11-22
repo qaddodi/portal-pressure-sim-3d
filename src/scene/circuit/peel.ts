@@ -4,7 +4,9 @@
 import { PEEL_DL, VB_CIRC } from './data.copied.ts';
 
 export { PEEL_DL };
-const X0 = VB_CIRC[0] + 30, X1 = VB_CIRC[0] + VB_CIRC[2] - 30;   // (the splanchnic beds' left edge, 60, to the heart's right, 1360)
+const X0 = VB_CIRC[0] + 30, X1 = VB_CIRC[0] + VB_CIRC[2] - 30;
+/** The map x (map units) where the rank is 0: the shader reads it (vessels/net/shaders.ts). */
+export const PEEL_X0 = X0;   // (the splanchnic beds' left edge, 60, to the heart's right, 1360)
 /** The width of the flow the rank runs over, map units (1300). */
 export const PEEL_SPAN = X1 - X0;
 
