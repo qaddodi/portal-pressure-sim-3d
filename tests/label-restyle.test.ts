@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { restyle, RESTYLE_SHOWING } from '../src/scene/labels/roll.ts';
 import { D_SMALL } from '../src/ui/motion.ts';
-import { LabelFader, type Want } from '../src/scene/labels/fade.ts';
+import { LabelFader, lookKey, type Want } from '../src/scene/labels/fade.ts';
 import type { Placement } from '../src/scene/labels/solver.ts';
 
 type Keys = { opacity?: number }[];
@@ -206,5 +206,25 @@ test('the controller puts tone, tint and gate in the snapshot every frame, and t
   assert.match(c, /w\.snap = \{ \.\.\.was, \.\.\.now \}/, 'a changed look is a new snapshot, never a mutation of the one the old picture holds');
   assert.match(c, /tone: snap \? snap\.tone/, 'a picture is drawn in the look it was snapped with');
   assert.match(c, /tone: fs \? fs\.tone/, 'and the ghost in the old one');
-  assert.match(c, /tint: snap \? snap\.tint : /); assert.match(c, /gate: snap \? snap\.gate : /);
+  assert.match(c, /tint: !snap \|\| snap\.tinted \? m\.ex\.tint \?\? '' : ''/, 'the tint COLOUR is always live; the snapshot holds only whether there is one');
+  assert.match(c, /gate: snap \? snap\.gate : /);
+});
+
+test('the look key is discrete by construction: a tint that follows a reading smoothly never starts a crossing; only gaining or losing one does', () => {
+  const f = new LabelFader();
+  const colour = (i: number) => `color-mix(in srgb, #${(0x30 + (i % 200)).toString(16).padStart(2, '0')}80c0 var(--vel-ink, 55%), var(--lb-val))`;
+  for (let t = 0; t < 400; t += 16) f.step(16, wantLook(lookKey(null, true, false), { tinted: true }), false);
+  assert.equal(f.frame.get('a')!.from, null, 'settled');
+  const keys = new Set<string>();
+  for (let i = 0; i < 300; i++) {
+    keys.add(lookKey(null, !!colour(i), false));   // (a different colour every frame: the key sees none of it)
+    f.step(16, wantLook(lookKey(null, !!colour(i), false), { tinted: true }), false);
+    assert.equal(f.frame.get('a')!.from, null, `frame ${i}: a smoothly changing tint is no crossing`);
+  }
+  assert.equal(keys.size, 1, 'one key for every colour');
+  // gaining or losing a tint is a state, and crosses once
+  f.step(16, wantLook(lookKey(null, false, false), { tinted: false }), false);
+  assert.ok(f.frame.get('a')!.from, 'a point that loses its tint crosses over');
+  const c = readFileSync('src/scene/labels/controller.ts', 'utf8');
+  assert.doesNotMatch(c, /interface Snap \{[^}]*\btint: string/, 'the snapshot never holds the colour');
 });

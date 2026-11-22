@@ -23,6 +23,10 @@ export interface Want {
 /** The key a label's picture is known by: its words and its look. */
 const keyOf = (w: { key?: string; look?: string }): string => (w.look ? `${w.key ?? ''}|${w.look}` : w.key ?? '');
 
+/** The look a label wears, as the fader keys it: DISCRETE by construction. The slide's tone (a token) and the Doppler gate (on or off) are states; the velocity tint is a colour that follows a reading
+ *  smoothly, so only whether there is one is a state (a point that gains or loses its tint crosses over); its colour glides in place with the number and never starts a crossing. */
+export const lookKey = (tone: string | null, tinted: boolean, gate: boolean): string => `${tone ?? ''}|${tinted ? 't' : ''}|${gate ? 1 : 0}`;
+
 /** The picture a label is leaving. */
 export interface Ghost { p: Placement; key: string; snap: unknown }
 
