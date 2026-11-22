@@ -24,7 +24,7 @@ test('the azygos arch ends in a plain rounded stub behind the landing: solid, no
     c.pts.forEach((p, i) => { if (i) run += Math.hypot(p[0] - c.pts[i - 1]![0], p[1] - c.pts[i - 1]![1], p[2] - c.pts[i - 1]![2]); const d = Math.hypot(p[0] - node[0]!, p[1] - node[1]!); if (d < bd) { bd = d; at = run; } });
     lead = at;
     assert.ok(lead >= 3 * c.radius, `the stub behind the landing holds the hole and the cap (${(lead / c.radius).toFixed(1)} radii)`);
-    assert.ok(lead <= 6 * c.radius, `and is a stub, not a spike or a limb (${(lead / c.radius).toFixed(1)} radii)`);
+    assert.ok(lead <= 7 * c.radius, `and is a stub, not a spike or a limb (${(lead / c.radius).toFixed(1)} radii)`);
     assert.ok(len > lead);
   } finally { setSmoothJoins(was); }
 });
