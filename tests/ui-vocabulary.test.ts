@@ -117,7 +117,7 @@ test('the dead Look swatches and the second easing definitions are gone', () => 
 
 // ── the whole app: nothing outside motion.ts and global.css writes a curve or an animation time ──
 // Allowances (a ratchet, like the layout-read one): files the label thread (polish B) still owns. It lowers them as it moves them onto the scale; a count here never goes up, and a file not listed has 0.
-const LEGACY: Record<string, number> = { 'src/scene/labels/labels.css': 5, 'src/scene/labels/roll.ts': 1 };
+const LEGACY: Record<string, number> = {};
 
 import { readdirSync } from 'node:fs';
 const walk = (d: string): string[] => readdirSync(new URL(`../${d}`, import.meta.url), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]));

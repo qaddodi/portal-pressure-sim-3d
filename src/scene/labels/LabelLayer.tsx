@@ -3,6 +3,7 @@
 // (never through React state). The decisions (what is shown, where, when) are in controller.ts, the solver, the fader.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { reduced } from '../../ui/a11y/motion.ts';
+import { D_SMALL } from '../../ui/motion.ts';
 import './labels.css';
 import { clock } from '../../clock/frame.ts';
 import { latest, patient, indexOf } from '../../engine/index.ts';
@@ -423,7 +424,7 @@ function writeGeo(r: Rec, word: string): void {
 
 /** The key's pill: the lens named, then its scale or its named swatches (the 2D app's presenter.js keyNodes). */
 type KeyM = NonNullable<ReturnType<typeof keyModel>>;
-const KEY_BLEND_MS = 240;
+const KEY_BLEND_MS = D_SMALL;
 /** The key on show, kept through its fade-out, and the one it replaces while it cross-fades (nothing pops). */
 function useKeyBlend(model: KeyM | null): { now: KeyM | null; leaving: KeyM | null } {
   const last = useRef<KeyM | null>(model);

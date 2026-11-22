@@ -2,7 +2,7 @@
 import { MOTION } from '../../clock/tween.ts';
 
 import { clock } from '../../clock/frame.ts';
-import { D_SMALL } from '../../ui/motion.ts';
+import { D_SMALL, EASE_ARRIVE } from '../../ui/motion.ts';
 /** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity).
  *  Until the two animations have started (a busy frame: a settings sheet or the Tests card opening can hold the first frame for seconds) only the old number is seen, never both
  *  stacked ("IVC 4.6" with a grey 4.5 behind it, Mac play-test, 19 Nov): the new one is held at opacity 0 by its own style until its animation takes over, and the old one is
@@ -38,7 +38,7 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
   box.appendChild(old);
   cur.textContent = next;
   cur.style.opacity = '0';
-  const ease = 'cubic-bezier(.2, .8, .2, 1)';
+  const ease = EASE_ARRIVE;
   const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   const inn = cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   const doneOut = () => old.remove();
