@@ -36,7 +36,7 @@ test('no flat sides: every wall vertex lies on MID, no wall-only face has area (
 
 test('no plateau: the profile rises strictly and at most 5 % of front vertices share the maximum z', () => {
   let prev = -1; for (let w = 0; w <= 1; w += 0.05) { const p = hullProfile(w); assert.ok(p > prev); prev = p; }
-  const { L } = laid(8500), th = hullThickness(8500, L.radius, 1);
+  const { L } = laid(8500), th = hullThickness(L.radius, 1);
   let max = -Infinity; for (let v = 0; v < SHEET; v++) max = Math.max(max, zOf(L, v, th));
   let run = 0; for (let v = 0; v < SHEET; v++) if (zOf(L, v, th) >= max - 1e-9) run++;
   assert.ok(run / SHEET <= 0.05, `${run} of ${SHEET} share the maximum`);
@@ -66,10 +66,11 @@ test('no inverted triangles, 150 to 8500 mL in 50 mL steps, at every bulge step;
   for (let step = 0; step <= 68; step += 2) { const { L } = laid(8500, step); for (const t of tris(L)) if (t[0]! < SHEET) assert.ok(area(L, t) >= -1e-9, `step ${step}`); }
 });
 
-test('no faceting: neighbouring vertices differ in z by at most 0.02 at 8500 mL (0.035 within 12 units of the wall, where the ellipse is vertical)', () => {
-  const { L } = laid(8500), th = hullThickness(8500, L.radius, 1);
+test('no faceting: neighbouring vertices differ in z by at most 1/8 of the body\'s front reach (0.22 of it within 24 units of the wall, where the ellipse is vertical)', () => {
+  const { L } = laid(8500), th = hullThickness(L.radius, 1);
   const chk = (a: number, b: number, what: string): void => {
-    const lim = Math.min(L.aW[a]!, L.aW[b]!) < 12 ? 0.035 : 0.02;
+    // (the limits were 0.02 and 0.035 when the reach was a fixed 0.16; now the reach follows the width, so the tolerance is the same share of it)
+    const lim = (Math.min(L.aW[a]!, L.aW[b]!) < 24 ? 0.22 : 0.125) * th.tf;
     assert.ok(Math.abs(zOf(L, a, th) - zOf(L, b, th)) <= lim + 1e-9, what);
   };
   for (let i = 0; i < NS; i++) for (let j = 0; j < NT; j++) {
@@ -79,10 +80,28 @@ test('no faceting: neighbouring vertices differ in z by at most 0.02 at 8500 mL 
 });
 
 test('the body encloses the gut at 5000 mL (front past the colon 0.040, back behind the bowel -0.224)', () => {
-  const th = hullThickness(5000, laid(5000).L.radius, 1);
+  const th = hullThickness(laid(5000).L.radius, 1);
   assert.ok(MID + th.tf > 0.04 - 0.1 * 0, `front reaches ${MID + th.tf}`);
   assert.ok(MID + HULL.TF_MAX > 0.04 && MID - HULL.TB_MAX < -0.224, 'at its whole thickness the hull clears both');
-  assert.ok(MID + th.tf > -0.035 && MID - th.tb < -0.1, 'and already at 5 L it wraps the gut\'s middle');
+  assert.ok(MID + th.tf > 0.04 && MID - th.tb < -0.224, 'and already at 5 L it wraps the gut front and back');
+});
+
+test('ROOT CAUSE of the thin sliver (22 Nov): the water is as deep front to back as its width allows, at every volume, not a fixed 0.33 against a cavity 2.5 wide', () => {
+  let prev = 0;
+  for (const ml of [600, 1500, 3000, 5000, 8500]) {
+    const { L } = laid(ml), th = hullThickness(L.radius, 1), half = L.radius / 300;   // (R in scene units: the water's own half-width)
+    const depth = th.tf + th.tb;
+    assert.ok(depth > prev, `${ml} mL: the depth keeps growing with severity (${depth} after ${prev})`); prev = depth;
+    if (ml >= 3000) {
+      assert.ok(th.tf >= 0.35 * half && th.tb >= 0.25 * half, `${ml} mL: front ${th.tf}, back ${th.tb}, half-width ${half}: a rounded belly, not a pancake`);
+      assert.ok(th.tf > th.tb, 'the belly bulges forward more than it reaches back (the fluid lies in front of the spine)');
+    }
+  }
+  const { L } = laid(8500), th = hullThickness(L.radius, 1);
+  assert.ok(th.tf + th.tb > 0.8, `a full belly is about a scene unit deep (${th.tf + th.tb}); it was 0.33 against 2.5 wide`);
+  assert.ok(th.tf <= HULL.TF_MAX && th.tb <= HULL.TB_MAX, 'the caps hold');
+  assert.deepEqual(hullThickness(L.radius, 0), { tf: 0, tb: 0 }, 'living off is flat');
+  assert.ok(hullThickness(20, 1).tf < 0.01, 'a first film is a thin lens');
 });
 
 test('budget: layHull median <= 1 ms at 8500 mL, and the arrays are never reallocated', () => {
@@ -97,7 +116,7 @@ test('budget: layHull median <= 1 ms at 8500 mL, and the arrays are never reallo
 });
 
 test('tap: hullHit returns a point holds() accepts at yaw +-25 and pitch +-12, and null outside the wall', () => {
-  const { L, poly, surf } = laid(5000), th = hullThickness(5000, L.radius, 1);
+  const { L, poly, surf } = laid(5000), th = hullThickness(L.radius, 1);
   const holds = (x: number, y: number): boolean => {
     let lo = Infinity, hi = -Infinity;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xa, ya] = poly[j]!, [xb, yb] = poly[i]!; if ((xa <= x && x < xb) || (xb <= x && x < xa)) { const y2 = ya + ((x - xa) / (xb - xa)) * (yb - ya); lo = Math.min(lo, y2); hi = Math.max(hi, y2); } }

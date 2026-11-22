@@ -47,7 +47,7 @@ test('the page and the figure are wired to it, and the stylesheet eases the fade
   assert.match(readFileSync('src/main.tsx', 'utf8'), /lookGlide\.change\(/);
   assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /lookGlide\.onLook\(/);
   const css = readFileSync('src/ui/shell/global.css', 'utf8');
-  assert.match(css, /::view-transition-group\(root\)[^}]*animation-duration: var\(--d-look\)/);
+  assert.match(css, /html::view-transition-group\(root\)[^}]*animation-duration: var\(--d-look\)/);
   assert.match(css, /--d-look: 320ms;[^\n]*own pace/);   // (the look's own pace, named once in global.css)
   assert.match(css, /html\.look-glide/);
 });

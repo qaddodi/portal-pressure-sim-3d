@@ -90,7 +90,7 @@ test('round when turned: the projected outline turns <= 15 degrees between rows 
   const s = SHOTS.play, [tx, ty, tz] = s.target, r = s.r, yaw = 25 * D2R;
   const cam = new PerspectiveCamera(FOV, W / H, r * 0.02, r * 120);
   cam.position.set(tx + Math.sin(yaw) * r, ty, tz + Math.cos(yaw) * r); cam.lookAt(tx, ty, tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
-  const rest: [number, number, number] = [tx, ty, tz + r], th = hullThickness(ml, L.radius, 1);
+  const rest: [number, number, number] = [tx, ty, tz + r], th = hullThickness(L.radius, 1);
   const pxu = cam.projectionMatrix.elements[5]! * H * 0.5 / r / 300;
   const proj = (v: number): [number, number] => {
     const p = hullVertex({ x: L.pos[v * 3]!, y: L.pos[v * 3 + 1]!, aW: L.aW[v]!, aD: L.aD[v]!, aK: L.aK[v]!, aLid: 0 },

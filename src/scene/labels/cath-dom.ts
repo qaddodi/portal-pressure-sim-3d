@@ -8,7 +8,7 @@
 import type { PillDraw, SumDraw, CathFrame } from './cath-show.ts';
 import { pillGlass, type Glass, type Reading } from './cath.ts';
 import { LS } from './type.ts';
-import { restyle } from './roll.ts';
+import { restyle, rollsFor } from './roll.ts';
 
 const NS = 'http://www.w3.org/2000/svg';
 const px = (n: number) => Math.round(n * 100) / 100;
@@ -43,6 +43,13 @@ export function makeCard(parent: Element, cls: string): Card {
 export function words(c: Card, r: Omit<Reading, 'tone'> & { tone: string }, alpha = 0): void {
   const t = `${r.kicker}|${r.value}|${r.unit}`;
   if (c.text === t && c.tone === r.tone) return;
+  // A reading that ticks (the manometer's number while the needle reads, a beat-filtered pressure breathing round a rounding boundary) is written where it stands, as 2D's refreshValues does and
+  // as the station labels do (roll.ts ROLL_MIN): the same kicker, unit and tone and a number within ROLL_MIN of the last is no change of words, so it never crosses over (a cross-fade per tick,
+  // every few frames, was the callout flickering while it measured). A real change (a new reading, a dash coming to a number, another tone) still crosses over.
+  if (c.tone === r.tone && c.text) {
+    const [k0, n0, u0] = c.text.split('|');
+    if (k0 === r.kicker && u0 === r.unit && n0 !== undefined && !rollsFor(r.value, n0) && /^-?\d+(\.\d+)?$/.test(r.value) && /^-?\d+(\.\d+)?$/.test(n0)) { c.text = t; c.n.textContent = r.value; return; }
+  }
   restyle(c.root, () => {
     if (c.text !== t) { c.text = t; c.k.textContent = r.kicker; c.n.textContent = r.value; c.u.textContent = r.unit; }   // (an empty number or unit takes no room: labels.css `:empty`)
     if (c.tone !== r.tone) { c.tone = r.tone; c.root.dataset.tone = r.tone; }

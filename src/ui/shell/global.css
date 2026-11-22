@@ -33,9 +33,11 @@ img, canvas, svg { -webkit-user-drag: none; user-drag: none; }
 input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button { font: inherit; color: inherit; }
 
-/* A change of look cross-fades the whole page and the figure (looks/glide.ts): the View Transition's one group, eased. Reduce Motion never starts it. */
-::view-transition-group(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); mix-blend-mode: normal; }
+/* A change of look cross-fades the whole page and the figure (looks/glide.ts): the View Transition's one group, eased. Reduce Motion never starts it.
+   --d-look is the ONE time of the fade (the group, both pictures, the fallback below, GLIDE_MS). The copied 2D stylesheet (css2d/app-02-controls.css, never edited) also times these pictures at --d-surface;
+   `html::` outranks its bare rule, so it can no longer finish at another moment than the group. */
+html::view-transition-group(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); }
+html::view-transition-old(root), html::view-transition-new(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); mix-blend-mode: normal; }
 /* (where there is no View Transition the page's own colours ease) */
 html.look-glide *, html.look-glide *::before, html.look-glide *::after { transition: background-color var(--d-look) var(--ease-move), color var(--d-look) var(--ease-move), border-color var(--d-look) var(--ease-move), fill var(--d-look) var(--ease-move), stroke var(--d-look) var(--ease-move), box-shadow var(--d-look) var(--ease-move) !important; }
 
