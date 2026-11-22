@@ -177,16 +177,16 @@ function SceneBridge() {
     const apply = () => {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
-      if (!moving) applied = gov.drop;
+      if (!moving) applied = st.autoDetail ? gov.drop : 0;
       const d = figureDpr(Math.max(0, st.figureDetail - applied), st.sharpMoving, moving, window.devicePixelRatio || 1);
       if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); document.documentElement.dataset.detailDrop = String(applied); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
       clock.cancel(settle);
-      if ((moving && !st.sharpMoving) || (moving && gov.drop !== applied)) settle = clock.after(apply, 200);
+      if (moving && (!st.sharpMoving || (st.autoDetail ? gov.drop : 0) !== applied)) settle = clock.after(apply, 200);
     };
     apply();
     const off = clock.on('camera', apply, 1);
-    const offGov = clock.on('tags', (f) => { const was = gov.drop; if (govern(gov, f.time, f.dt) !== was) { clock.cancel(settle); settle = clock.after(apply, 200); } }, 90);
+    const offGov = clock.on('tags', (f) => { if (!useSettings.getState().autoDetail) return; const was = gov.drop; if (govern(gov, f.time, f.dt) !== was) { clock.cancel(settle); settle = clock.after(apply, 200); } }, 90);
     const un = useSettings.subscribe(apply);
     return () => { off(); offGov(); un(); clock.cancel(settle); };
   }, [setDpr]);

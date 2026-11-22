@@ -87,7 +87,15 @@
               true
             ],
             [
-              " (Light, Soft, Dark, Navy, Black or System).",
+              " (Light, Soft, Dark, Navy, Black or System) and ",
+              false
+            ],
+            [
+              "Display",
+              true
+            ],
+            [
+              ", where Auto detail softens the figure on a slow device.",
               false
             ]
           ],
@@ -154,7 +162,15 @@
               true
             ],
             [
-              " (Light, Soft, Dark, Navy, Black or System).",
+              " (Light, Soft, Dark, Navy, Black or System) and ",
+              false
+            ],
+            [
+              "Display",
+              true
+            ],
+            [
+              " (Auto detail).",
               false
             ]
           ],
