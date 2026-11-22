@@ -1,17 +1,11 @@
 // The colour key under the figure: what the lens means, drawn from legendFor (the 2D app's words and ramps). It fades in when the lens changes and
 // holds still otherwise; type sizes come from custom properties the shell sets (--lg-title, --lg-num), so nothing here shrinks to fit.
-import { useEffect, useState } from 'react';
 import { useLens } from './store.ts';
 import { legendFor } from './legend.ts';
-import { resolveLook } from '../../looks/looks.ts';
-import { useSettings } from '../../state/settings.ts';
+import { useLookId as useLook } from '../../looks/use-look.ts';
 import './legend.css';
 
-export function useLook() {
-  const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => { const m = matchMedia('(prefers-color-scheme: dark)'); const f = () => setDark(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
-  return resolveLook(useSettings((s) => s.look), dark);
-}
+export { useLook };
 
 /** `variant="bar"` is the figure header's legend (the 2D app's `.legend`, in the top bar beside the Blood button, never over the figure): the full title and
  *  the compact caption both render, and the stylesheet shows the one that fits the screen (shell.css, as the 2D app's media rules do). */

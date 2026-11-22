@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { LOOK_IDS, resolveLook, type LookId } from '../../looks/looks.ts';
-import { useSettings } from '../../state/settings.ts';
+import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { LOOK_IDS, type LookId } from '../../looks/looks.ts';
+import { useLookId as useAppLook } from '../../looks/use-look.ts';
 import { useUi } from '../ui-store.ts';
 import type { DeviceClass } from '../layout/device.ts';
 import { chartType, panelType, toolType, type ChartType } from './type.ts';
@@ -18,20 +18,8 @@ export interface ChartCtx { w: number; pal: Palette; type: ChartType; look: Look
 /** A look and a device class forced on the charts below (the ?charts gallery shows every look at every width at once). Absent: the app's own. */
 export const ChartEnv = createContext<{ look?: LookId; device?: DeviceClass } | null>(null);
 
-/** The look in force now ('system' follows the device). */
-export function useLookId(): LookId {
-  const choice = useSettings((s) => s.look);
-  const [dark, setDark] = useState(() => typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => {
-    if (typeof matchMedia !== 'function') return;
-    const mq = matchMedia('(prefers-color-scheme: dark)');
-    const on = () => setDark(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  const id = resolveLook(choice, dark);
-  return LOOK_IDS.includes(id) ? id : 'light';
-}
+/** The look in force now ('system' follows the device): the one the page and the figure wear, so a chart changes with them (looks/use-look.ts). */
+export function useLookId(): LookId { const id = useAppLook(); return LOOK_IDS.includes(id) ? id : 'light'; }
 
 interface Props {
   /** The chart as a frame for this box. A pure function: the same inputs give the same frame. It runs again when `deps` or the width or the look changes. */
