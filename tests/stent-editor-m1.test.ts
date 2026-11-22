@@ -88,3 +88,7 @@ test('every card\'s two-way choice has the same look: the action card\'s .ac-seg
   for (const f of ['src/ui/action/ActionCard.tsx', 'src/ui/charts/stent/StentCard.tsx']) assert.match(read(f), /data-t=\{name\}/, f);
   assert.doesNotMatch(stentCss, /box-shadow/);
 });
+
+test('the card that holds the editor stands up to 560 px tall on a side card, so its actions, rows and open controls all fit without scrolling inside it', () => {
+  assert.match(editorCss, /\.ac-card:not\(\[data-bottom\]\):has\(\.stent-editor\) \{ max-height: min\(560px/);
+});
