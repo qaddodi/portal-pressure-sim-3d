@@ -111,7 +111,7 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/circuit/resistors.ts': { n: 1, how: 'stand-in', why: 'RESISTOR_FLAGS' },
   'scene/circuit/map-layer.ts': { n: 2, how: 'graph', why: 'the Circuit plate and dots' },
   'scene/shunt-guide.ts': { n: 1, how: 'graph', why: 'the shunt guide' },
-  'scene/micro3d/lobule3d.ts': { n: 2, how: 'micro', why: 'the marks plate, constructed under the splash' },
+  'scene/micro3d/lobule3d.ts': { n: 1, how: 'micro', why: 'the marks plate, constructed under the splash' },
   'scene/micro3d/cel3d.ts': { n: 2, how: 'micro', why: 'microMaterials: every part of both views' },
   'scene/devices/contact-shadow.ts': { n: 1, how: 'graph', why: 'the soft shadow of a device tube (the balloon\'s and the catheters\' are made with them)' },
   'scene/blood/cells/cells.ts': { n: 1, how: 'stand-in', why: 'STREAK_FLAGS' },
