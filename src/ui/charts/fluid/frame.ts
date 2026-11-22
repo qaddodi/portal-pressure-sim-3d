@@ -186,8 +186,9 @@ export function fluidFrame(f: Fluid | null, forces: Forces | null, c: ChartCtx, 
       const w1 = measure(fw.caption, em, 500), w2 = measure(fw.net, em, 600), wrap = w1 + w2 + 0.6 * em > W;
       say(0, y + fr / 2, fw.caption, em, 500, text3);
       if (wrap) y += fr;
-      say(W, y + fr / 2, fw.net, em, 600, text, 'end');
-      y += fr + 0.3 * em;
+      // (the answer is a sentence: on a card narrower than it, it wraps to its own lines, each ending at the right edge, never past the box)
+      for (const ln of w2 <= W ? [fw.net] : wrapWords(fw.net, W, em, 600, measure, 3)) { say(W, y + fr / 2, ln, em, 600, text, 'end'); y += fr; }
+      y += 0.3 * em;
       tug(0, y, W, forces, false);
       y += 1.25 * em;
     }
