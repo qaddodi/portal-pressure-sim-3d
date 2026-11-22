@@ -40,7 +40,8 @@ test('P1: a note a finger or the pointer is on stays; it fades TOAST_LINGER_MS a
   sh.say('Held note.');
   assert.ok(useShell.getState().toast);
   const t = timed(() => { sh.holdToast(true); sh.holdToast(false); });
-  assert.deepEqual(t.ms, [TOAST_LINGER_MS]);
+  assert.equal(t.ms.length, 1);
+  assert.ok(t.ms[0]! >= TOAST_LINGER_MS && t.ms[0]! <= TOAST_MS, 'let go: the rest of its time, never under TOAST_LINGER_MS');
   t.fire();
   assert.equal(useShell.getState().toast, null);
   sh.say('Sticky.', 'info', undefined, true);
@@ -53,18 +54,28 @@ test('P2: a second note crossfades its words in place (the old fade out, the new
   assert.match(tsx, /TOAST_SWAP_MS = 120/);
   assert.match(tsx, /setShown\(next\); setSwap\(false\);[^\n]*TOAST_SWAP_MS\)/);
   assert.match(tsx, /data-swap=/);
-  assert.match(css, /\.sh-toast > span \{ display: block; transition: opacity var\(--d-flip\) linear; \}/);
+  assert.match(css, /\.sh-toast > span \{[^}]*transition: opacity var\(--d-flip\) linear; \}/);
   assert.match(css, /\.sh-toast\[data-swap\] > span \{ opacity: 0; \}/);
 });
 
-test('P2: when the new words change the box\'s width it eases (transform only, read from the ResizeObserver, words and button counter-scaled), never snaps', () => {
-  const tsx = src('src/ui/shell/Toast.tsx');
-  assert.match(tsx, /borderBoxSize\?\.\[0\]\?\.inlineSize/);
-  assert.match(tsx, /translate\(-50%, 0\) scaleX\(\$\{r\}\)/);
-  assert.match(tsx, /scaleX\(\$\{1 \/ r\}\)/);
-  assert.match(tsx, /pseudoElement: '::before'/);   // (the dot is counter-scaled too)
-  assert.match(tsx, /prefers-reduced-motion: reduce/);
-  assert.doesNotMatch(tsx.replace(/const p = n\.offsetParent[^\n]*\n/, ''), /getBoundingClientRect\(\)\.width|style\.width/);
+test('P2: the note is B1 (owner, 22 Nov): a ruled row above the dock, no box, no dot, the rule under it is its clock, swipe, click or Esc lets it go', () => {
+  const tsx = src('src/ui/shell/Toast.tsx'), css = src('src/ui/shell/shell.css');
+  const rule = css.slice(css.indexOf('.sh-toast {'), css.indexOf('/* a Reset dialog */'));
+  assert.doesNotMatch(rule, /border-radius: 50%|::before|var\(--glass\)|box-shadow/, 'no dot, no pill, no glass box');
+  assert.match(rule, /\.sh-toast \{[^}]*border-top: 1px solid/);
+  assert.match(rule, /\.sh-toast-time \{[^}]*transform-origin: left center/);
+  assert.match(rule, /\.sh-toast-act \{[^}]*border: 0; background: transparent/);
+  assert.match(tsx, /scaleX\(0\)/);
+  assert.match(tsx, /dismissToast\(\)/);
+  assert.match(tsx, /'Escape'/);
+  const sh = useShell.getState();
+  sh.say('Paracentesis: up to 5.0 L drained with albumin.');
+  assert.equal(useShell.getState().toastRun?.from, 1);
+  sh.holdToast(true);
+  assert.equal(useShell.getState().toastRun?.paused, true);
+  sh.dismissToast();
+  assert.equal(useShell.getState().toast, null);
+  assert.equal(useShell.getState().toastRun, null);
 });
 
 test('P4: a note that explains what the app chose to do is not red; a failure still is', async () => {

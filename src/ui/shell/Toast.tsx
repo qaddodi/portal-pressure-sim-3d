@@ -30,25 +30,31 @@ export function Toast() {
   const el = useRef<HTMLDivElement>(null);
   // the width easing: the box's last width, and whether a swap of words has just been committed; when the new words make the box another width it scales from the old width to 1 over D_SMALL
   // (scaleX on the box, the inverse on its words, button and dot so they are never stretched), instead of snapping.
-  const lastW = useRef(0), swapped = useRef(false);
+  const swapped = useRef(false);
+  // the rule under the words is the note's clock (store.ts toastRun): it shortens to nothing as the read time runs out, holds while a finger or pointer is on the note, and a new note grows it back (never a jump)
+  const run = useShell((s) => s.toastRun);
+  const rule = useRef<HTMLElement>(null), anim = useRef<Animation | null>(null), at = useRef({ from: 1, to: 0 });
   useEffect(() => {
-    const n = el.current;
-    if (!n || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((es) => {
-      const e = es[es.length - 1]!, w = e.borderBoxSize?.[0]?.inlineSize ?? e.contentRect.width, from = lastW.current;
-      lastW.current = w;
-      if (!swapped.current) return;
-      swapped.current = false;
-      const r = w > 0 ? from / w : 1;
-      if (!from || !(Math.abs(r - 1) > 0.02) || typeof n.animate !== 'function' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
-      const o = { duration: D_SMALL, easing: EASE_ARRIVE };
-      n.animate([{ transform: `translate(-50%, 0) scaleX(${r})` }, { transform: 'translate(-50%, 0) scaleX(1)' }], o);
-      for (const c of Array.from(n.children)) c.animate([{ transform: `scaleX(${1 / r})` }, { transform: 'scaleX(1)' }], o);
-      try { n.animate([{ transform: `scaleX(${1 / r})` }, { transform: 'scaleX(1)' }], { ...o, pseudoElement: '::before' }); } catch { /* a browser without pseudo-element animation: the dot squeezes for the glide */ }   // (the dot is the box's ::before)
-    });
-    ro.observe(n);
-    return () => ro.disconnect();
-  }, []);
+    const r = rule.current;
+    if (!r || typeof r.animate !== 'function') return;
+    const a = anim.current, p = a?.effect?.getComputedTiming().progress;
+    const now = a ? at.current.from + (at.current.to - at.current.from) * (typeof p === 'number' ? p : 1) : 1;
+    a?.cancel();
+    if (!run) { const k = { transform: `scaleX(${now})` }; anim.current = r.animate([k, { transform: 'scaleX(1)' }], { duration: D_SMALL, easing: EASE_ARRIVE, fill: 'forwards' }); at.current = { from: now, to: 1 }; return; }
+    if (run.paused) { const k = { transform: `scaleX(${now})` }; anim.current = r.animate([k, k], { duration: 1, fill: 'forwards' }); at.current = { from: now, to: now }; return; }
+    const grow = run.from > now + 0.02 ? Math.min(0.3, D_SMALL / Math.max(1, run.ms)) : 0;
+    const keys: Keyframe[] = grow ? [{ transform: `scaleX(${now})` }, { transform: `scaleX(${run.from})`, offset: grow }, { transform: 'scaleX(0)' }] : [{ transform: `scaleX(${run.from})` }, { transform: 'scaleX(0)' }];
+    anim.current = r.animate(keys, { duration: run.ms, easing: 'linear', fill: 'forwards' });
+    at.current = { from: grow ? now : run.from, to: 0 };
+  }, [run?.seq, run === null]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Esc lets the note go (only when no sheet or dialog is open, which Esc closes first)
+  useEffect(() => {
+    if (!t) return;
+    const key = (e: KeyboardEvent) => { const s = useShell.getState(); if (e.key === 'Escape' && !s.sheet && !s.dialog) s.dismissToast(); };
+    addEventListener('keydown', key);
+    return () => removeEventListener('keydown', key);
+  }, [!!t]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const down = useRef<{ x: number; y: number } | null>(null);
   // the note's rect, measured when it shows or changes size (the layout's own place, not the transition's: the note slides 10 px up as it comes in), for the figure's names to keep out of
   useEffect(() => {
     const n = el.current;
@@ -67,11 +73,16 @@ export function Toast() {
     addEventListener('resize', put);
     return () => { ro.disconnect(); removeEventListener('resize', put); };
   }, [t, view.text, label]);
+  const m = /^(.+?[.!?:])\s+(.+)$/.exec(view.text);   // the first sentence carries the weight, the rest is said quieter (B1)
   return (
     <div ref={el} className="sh-toast" role="status" aria-live="polite" data-on={!!t} data-tone={view.tone} data-action={label ? '' : undefined} data-swap={swap ? '' : undefined}
-      onPointerEnter={() => useShell.getState().holdToast(true)} onPointerLeave={() => useShell.getState().holdToast(false)}>
-      <span>{view.text}</span>
-      {label && <button type="button" className="sh-toast-act" tabIndex={t ? 0 : -1} onClick={() => { const a = useShell.getState().toast?.action; if (a) { a.run(); useShell.setState({ toast: null }); } }}>{label}</button>}
+      onPointerEnter={() => useShell.getState().holdToast(true)} onPointerLeave={() => useShell.getState().holdToast(false)}
+      onPointerDown={(e) => { down.current = { x: e.clientX, y: e.clientY }; }}
+      onPointerUp={(e) => { const d = down.current; down.current = null; if (d && (e.clientY - d.y > 18 || Math.abs(e.clientX - d.x) > 40)) useShell.getState().dismissToast(); }}
+      onClick={(e) => { if (!(e.target as Element).closest?.('.sh-toast-act')) useShell.getState().dismissToast(); }}>
+      <span>{m ? <><b>{m[1]}</b> <span className="sh-toast-more">{m[2]}</span></> : <b>{view.text}</b>}</span>
+      {label && <button type="button" className="sh-toast-act" tabIndex={t ? 0 : -1} onClick={() => { const a = useShell.getState().toast?.action; if (a) { a.run(); useShell.getState().dismissToast(); } }}>{label}</button>}
+      <i ref={rule} className="sh-toast-time" aria-hidden="true" />
     </div>
   );
 }
