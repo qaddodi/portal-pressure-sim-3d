@@ -17,23 +17,24 @@ export function runKeyJobs(jobs0: Omit<KeyJobs, 'order'>, workers: number): Regi
   if (!proc?.getBuiltinModule) return null;
   const wt = proc.getBuiltinModule('node:worker_threads') as typeof import('node:worker_threads') | undefined;
   if (!wt?.Worker || typeof SharedArrayBuffer === 'undefined') return null;
-  const n = Math.min(workers, jobs.done.length), ctl = new Int32Array(new SharedArrayBuffer(8)), ports: import('node:worker_threads').MessagePort[] = [], started: import('node:worker_threads').Worker[] = [];   // ctl: [next job, workers finished]
+  const n = Math.min(workers, jobs.done.length), ctl = new Int32Array(new SharedArrayBuffer(12)), ports: import('node:worker_threads').MessagePort[] = [], theirs: import('node:worker_threads').MessagePort[] = [];   // ctl: [next job, workers finished, 1 once one has died]
+  let boss: import('node:worker_threads').Worker;
   try {
-    for (let w = 0; w < n; w++) {
-      const { port1, port2 } = new wt.MessageChannel();
-      ports.push(port1);
-      started.push(new wt.Worker(new URL('./keys-worker.ts', import.meta.url), { workerData: { ctl: ctl.buffer, port: port2, jobs }, transferList: [port2] }));
-    }
-  } catch { for (const w of started) void w.terminate(); for (const p of ports) p.close(); return null; }
-  for (let seen = Atomics.load(ctl, 1), waits = 0; seen < n; seen = Atomics.load(ctl, 1)) {
+    for (let w = 0; w < n; w++) { const { port1, port2 } = new wt.MessageChannel(); ports.push(port1); theirs.push(port2); }
+    // THE SUPERVISOR (keys-supervisor.ts) starts the workers and watches them: this thread sleeps in Atomics.wait and cannot hear a worker's 'error' or 'exit' event itself, so a worker that dies without a word would be waited on for ever
+    boss = new wt.Worker(new URL('./keys-supervisor.ts', import.meta.url), { workerData: { ctl: ctl.buffer, ports: theirs, jobs, n }, transferList: theirs });
+  } catch { for (const p of ports) p.close(); return null; }
+  let waits = 0;
+  for (let seen = Atomics.load(ctl, 1); seen < n && Atomics.load(ctl, 2) === 0; seen = Atomics.load(ctl, 1)) {
     Atomics.wait(ctl, 1, seen, 1000);
-    if (++waits > MAX_WAITS) { for (const w of started) void w.terminate(); throw new Error('the key workers did not finish'); }   // (a worker that died without counting itself)
+    if (++waits > MAX_WAITS) { void boss.terminate(); throw new Error('the key workers did not finish'); }   // (the supervisor itself gone: the last resort)
   }
+  void boss.terminate();
   const out: (RegionKeys | undefined)[] = new Array(jobs.done.length).fill(undefined);
   let err = '';
   for (const p of ports) for (let r = wt.receiveMessageOnPort(p); r; r = wt.receiveMessageOnPort(p)) { const m = r.message as Reply; if ('err' in m) err ||= m.err; else out[m.i] = m.keys; }
-  for (const w of started) void w.terminate();
   for (const p of ports) p.close();
+  if (Atomics.load(ctl, 2) !== 0 && !err) err = 'a worker exited before it finished';
   if (err) throw new Error(`a key worker failed: ${err}`);
   if (out.some((k) => !k)) throw new Error('a key worker returned too few regions');
   return out as RegionKeys[];
