@@ -85,7 +85,7 @@ test('a vessel is one draw: body and ink share one mesh and one material (a vess
   const s = new CelScene();
   for (const o of s.vessels) {
     let n = 0;
-    o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh && c !== o.glowMesh && c !== o.shadowMesh) n++; });   // (the selection glow's hull is the vessel's own, hidden until a pick: glow.ts)
+    o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh && c !== o.glowMesh && c.name !== 'crossing/shadow') n++; });   // (the selection glow's hull is the vessel's own, hidden until a pick: glow.ts)
     assert.equal(n, BACK_EDGES.has(o.edge!.id) ? 2 : 1, o.edge!.id);
     assert.equal(o.toonMesh.geometry.getAttribute('hull'), undefined, 'no hull copy');
     assert.ok(!Array.isArray(o.toonMesh.material), 'one material');
