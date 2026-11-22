@@ -11,10 +11,11 @@ import { I } from './icons.tsx';
 import { placePopover } from './place.ts';
 import { pushPage, type Push } from './page-push.ts';
 
+import { D_FLIP, D_SMALL, LEAVE_SLACK_MS } from '../motion.ts';
 import { clock } from '../../clock/frame.ts';
 /** 2D util.js STACK_MQ: the one breakpoint at which a menu is a bottom sheet (a phone, or a tablet held upright). */
 export const STACK_MQ = '(max-width: 767px), (max-width: 1100px) and (orientation: portrait)';
-export const MENU_LEAVE_MS = 180;   // 2D --d-flip
+export const MENU_LEAVE_MS = D_FLIP + LEAVE_SLACK_MS;   // 2D --d-flip, and a frame or two before the menu is unmounted
 
 /** Mounted while shown; `leaving` for the length of the exit. */
 export function usePresence(open: boolean, ms = MENU_LEAVE_MS) {
@@ -40,10 +41,10 @@ function anchorFor(kind: string): HTMLElement | null {
 /** A page pushed inside a menu (2D util.js menuPush): History and Help from Settings. It lies over the menu's rows at the menu's own height and scrolls by itself; the rows slide away under it
  *  (page-push.ts: the slide and the swipe right that takes it with the finger are written by the clock). */
 export interface MenuPage { back: string; title: string; body: ReactNode }
-export const PAGE_MS = 280;   // 2D --d-small (240) and a frame or two: a page stays mounted while its slide runs
+export const PAGE_MS = D_SMALL + LEAVE_SLACK_MS;   // 2D --d-small and a frame or two: a page stays mounted while its slide runs
 
 /** 2D util.js menuExitMs: a sheet, and a menu from the thumb dock (which settles in over --d-small), take --d-small both ways; any other, --d-flip. */
-export const menuExitMs = (sheet: boolean, fromDock: boolean, thumb: boolean): number => (sheet || (fromDock && thumb) ? 240 : MENU_LEAVE_MS);
+export const menuExitMs = (sheet: boolean, fromDock: boolean, thumb: boolean): number => (sheet || (fromDock && thumb) ? D_SMALL : MENU_LEAVE_MS);
 
 /** The page pushed over a menu's rows, on 2D's pushPage: it slides in, follows a swipe right and slides away; `pushed` going false (or a back tap) sends it back first. */
 function MenuPageView({ page, pushed, geo, leaving, onPop, onBack, onClose }: {
