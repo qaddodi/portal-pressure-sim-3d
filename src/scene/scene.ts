@@ -172,6 +172,8 @@ function withNeighbour(id: string, g: BufferGeometry): void {
 
 /** How long one slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
 const SLICE_MS = 4;
+/** How long the body takes to hand over to the dive's parts if they become ready with the camera already inside (ms). */
+const DIVE_READY_MS = 350;
 export class CelScene {
   readonly scene = new Scene();
   /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
@@ -237,12 +239,15 @@ export class CelScene {
   /** Builds the two 3D parts and prepares the sinusoid's shapes in slices of their own, each a task of its own in an idle slot (a timer where the browser has no idle callback: Safari), so no slice lands inside a
    *  drawn frame: the construction of the lobule, then each pass of the shapes. The view change asks for it too (a dive straight after the load) and never builds anything itself: the dive frame stays off until
    *  `microReady`. Once. */
-  buildMicroIdle(): void {
+  buildMicroIdle(urgent = false): void {
     if (this.microPrimedNow || this.disposed) return;
-    // (a dive straight after the load: the job the user is now waiting for runs through the motion of the dive, still in slices with a rest between)
-    if (this.microJob) { this.microJob.rush(); return; }
+    // (a job that ended without priming (a step threw: the slot marks it done) is made again, so one bad slice can never leave every later dive waiting on a job that will not run)
+    if (this.microJob?.done) this.microJob = null;
     // (many small steps per slice up to SLICE_MS, one slot with the rest of the page's background work: clock/idle.ts)
-    this.microJob = whenQuiet(() => this.microStep(), { tag: 'micro', budgetMs: SLICE_MS });
+    this.microJob ??= whenQuiet(() => this.microStep(), { tag: 'micro', budgetMs: SLICE_MS });
+    // (a view change: the user is waiting for it. The slot never runs an unrushed job under a live clock hold, so the job must be rushed whether the dive made it or Stage's boot call did.
+    //  Before, only a job that already existed was rushed: a dive that was the first caller made an unrushed one, which waited behind the screen's own holds: the black first dive, 22 Nov)
+    if (urgent) this.microJob.rush();
   }
   /** One small step of the micro views' preparation; true when everything is built and primed. */
   private microStep(): boolean {
@@ -253,7 +258,7 @@ export class CelScene {
       else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
       else if (!this.microPrimed) { this.microPrimed = true; this.snapMicroToModel(); this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
       else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
-      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microJob = null; this.moving = true; this.onMicroPrimed?.(); return true; }
+      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microJob = null; this.moving = true; this.releaseDive(); this.onMicroPrimed?.(); return true; }
       return false;
     }
   }
@@ -327,7 +332,9 @@ export class CelScene {
   /** The cava (and the lumbar collateral drawn like it) eases toward whole or veiled: each its own Ease, both writing the objects they stand for. */
   private readonly cavaE = new Ease(0, 'cava-whole', () => this.applyCava());
   private readonly lumbarE = new Ease(0, 'lumbar-whole', () => this.applyCava());
-  private readonly eases: readonly Ease[] = [this.occ, this.shadow, this.cavaE, this.lumbarE];
+  /** 0 until the micro views are built, then 1 (eased when that lands mid-dive): how far the body's dive dissolve may go (fadeBody). */
+  private readonly diveReady = new Ease(0, 'dive-ready');
+  private readonly eases: readonly Ease[] = [this.occ, this.shadow, this.cavaE, this.lumbarE, this.diveReady];
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look: LookId;
   private phone: boolean;
@@ -743,7 +750,25 @@ export class CelScene {
 
   // ---- slide state ---------------------------------------------------------------------------
 
-  goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void { this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true; }
+  /** Every camera move of the app comes here. A move INTO the lobule or the sinusoid waits until their 3D parts are built and primed (`heldDive`): a dive is never begun toward something that
+   *  cannot be drawn. The body stays as it stands meanwhile (the build is rushed, a second or so at most on a phone, often nothing), then the dive starts from where the camera is. A newer move replaces a waiting one. */
+  goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void {
+    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.heldDive = { shot, room, ms, ease }; this.buildMicroIdle(true); return; }
+    this.heldDive = null;
+    this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true;
+  }
+  /** A dive waiting for the micro views (goTo), with the room it will land in. */
+  private heldDive: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null = null;
+  get diveHeld(): boolean { return this.heldDive !== null; }
+  /** The cards changed room while a dive waits: it will land in the new one. */
+  holdRoom(room: Room): void { if (this.heldDive) this.heldDive.room = room; }
+  /** The micro views are ready: a waiting dive starts now (only while its view is still the one asked for: a tap back to the body in the meantime replaced it). */
+  private releaseDive(): void {
+    const h = this.heldDive;
+    if (!h || !this.microPrimedNow) return;
+    this.heldDive = null;
+    if (this.figureView === 'lobule' || this.figureView === 'sinusoid') this.goTo(h.shot, h.room, clock.now(), h.ms, h.ease);
+  }
 
   /** The deck's catheter (route, free, wedge, hvpg): drawn by the procedure layer on the HVPG route of the 2D figure, so it is the same device the Tests card plays. The slice catheter keeps the state
    *  (the labels read its tip) and draws nothing. */
@@ -858,7 +883,8 @@ export class CelScene {
     //  Before, only a move TO the lobule turned it on: sinusoid <-> body (a talk's slide change) drew the sinusoid dissolving over nothing, a black gap, and then the body fading in from the dark)
     // (the idle slices normally finished long before; a dive straight after the load asks for them here, and waits: the dive frame is off until `microReady`, nothing is
     // built in this frame)
-    if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle();
+    if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle(true);
+    else this.heldDive = null;   // (a dive still waiting for its parts is dropped by any move out of them)
     if (v === 'lobule' || v === 'sinusoid' || wasSinusoid) this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)
@@ -960,11 +986,15 @@ export class CelScene {
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
   private fadeBody(): void {
     // the dive's effects belong to a dive (or to the lobule and the sinusoid): a close-up of the body at rest (a deck's zoom on the liver) is outside every dive and never fades the organs or opens the window
-    const f = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint), this.diveIn()) : 1;
+    // (and only as far as the dive's own parts can be drawn: `diveReady` is 0 until they are built, then eases to 1. With goTo holding every dive until they are, this is the second guard, for a
+    //  camera that reaches the liver by any other road: the body is never dissolved into nothing, so no timing can show the bare ground, the black screen of 22 Nov)
+    if (this.microReady && this.diveReady.target !== 1) { if (this.inDive() && this.figureView !== 'body') this.diveReady.to(1, { ms: DIVE_READY_MS }); else this.diveReady.snap(1); }
+    const f0 = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint), this.diveIn()) : 1;
+    const f = 1 - (1 - f0) * this.diveReady.value;
     // the lobule and the sinusoid live inside the liver: drawn only once the body has begun to dissolve (the camera is through the surface) or when one of them is the view at rest.
     // Before, the dive frame was on for the whole flight, so the see-through liver showed the lobule on its surface and the two fought in the wash (the dive's flicker).
     const dv = this.figureView === 'lobule' || this.figureView === 'sinusoid' ? (!this.hideLeftBehind || f < 1) : this.hideLeftBehind && f < 1;
-    const dvr = dv && this.microReady;   // (nothing of the dive is shown before its parts and their shapes are built: they are built in idle slices, never in a frame)
+    const dvr = dv && this.microReady && this.diveReady.value > 0;   // (nothing of the dive is shown before its parts and their shapes are built: they are built in idle slices, never in a frame)
     if (this.dive.visible !== dvr) { this.dive.visible = dvr; this.moving = true; }
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
@@ -1252,7 +1282,7 @@ export class CelScene {
         const circMoving = this.stepCircuit(now, dt);
         this.fadeBody();
         // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
-        if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
+        if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving && !this.heldDive) this.settleViews();   // (a dive waiting for its parts has not landed: the body stays the view until it has flown)
         this.highlight.setGlowShown(glowGate(this.circuit.t));   // (it eases away over the change's first 15 %, never snaps at the switch)
         return circMoving;
       } },
