@@ -421,7 +421,8 @@
 .pz-prail-at > i { position: absolute; top: 50%; left: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--accent); }
 /* the words never cut: measured on one line and scaled to fit the room the row leaves them (ui/cards/proc-rail.ts fitRailName, --pr-z), down to 10 px (his "keep shrink");
    only past that do they wrap (data-wrap) */
-.pz-prail-t { flex: 1 1 auto; min-width: 0; }
+.pz-prail-t { flex: 1 1 auto; min-width: 0; opacity: 0; transition: opacity var(--d-small) var(--ease); }
+.pz-prail-t[data-fit] { opacity: 1; }
 .pz-prail-tx { display: block; width: max-content; white-space: nowrap; font-size: max(10px, calc(1em * var(--pr-z, 1))); animation: pz-prail-in var(--d-small) var(--ease) both; }
 .pz-prail-t[data-wrap] > .pz-prail-tx { width: auto; white-space: normal; overflow-wrap: anywhere; }
 /* EUS glue's short line per step: every line in one grid cell, so the cell is as tall as the longest and nothing reflows; the current one fades in as the last fades out */

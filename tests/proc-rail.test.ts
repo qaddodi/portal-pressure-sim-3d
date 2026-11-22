@@ -82,10 +82,18 @@ test('a long name is never cut off: measured and scaled to fit its room (to 10 p
   assert.ok(250 * nameFit(250, 199) <= 199, 'never a hair over');
   assert.equal(nameFit(0, 200), 1, 'nothing measured yet: full size');
   const src = readFileSync('src/ui/cards/ProcRow.tsx', 'utf8');
-  assert.match(src, /fitRailName\(el\)/); assert.match(src, /observeThenFit\(/); assert.match(src, /document\.fonts\.ready/);
+  assert.match(src, /fitRailName\(el\)/); assert.match(src, /observeThenFit\(/); assert.match(src, /fonts\.ready\.then/);
   assert.doesNotMatch(src, /--ch|chars/, 'no character-count guess');
   const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
   assert.doesNotMatch(css.slice(css.indexOf('.pz-prail {'), css.indexOf('.pz-prail-cap')), /text-overflow: ellipsis|cqi/);
   assert.match(css, /\.pz-prail-tx \{[^}]*font-size: max\(10px, calc\(1em \* var\(--pr-z, 1\)\)\)/);
   assert.match(css, /\.pz-prail-t\[data-wrap\] > \.pz-prail-tx \{[^}]*white-space: normal/);
+});
+
+test('a late font never resizes the name on screen: the words stay hidden until they are fitted with it, then fade in', () => {
+  const src = readFileSync('src/ui/cards/ProcRow.tsx', 'utf8');
+  assert.match(src, /fonts\.status === 'loaded'/); assert.match(src, /setAttribute\('data-fit', ''\)/);
+  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
+  assert.match(css, /\.pz-prail-t \{[^}]*opacity: 0; transition: opacity/);
+  assert.match(css, /\.pz-prail-t\[data-fit\] \{ opacity: 1; \}/);
 });
