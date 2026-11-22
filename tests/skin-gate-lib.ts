@@ -8,6 +8,7 @@ import { inkTaper } from '../src/scene/vessels/cel-ink.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { skinKOf } from '../src/scene/vessels/skin/sdf.ts';
+import { SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K } from '../src/scene/vessels/skin/shaders.ts';
 import { throughMates } from '../src/scene/vessels/skin/through.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
@@ -53,10 +54,12 @@ export interface RasterOpts {
   screenDepth?: boolean;
   /** the figure turned as a hand's orbit turns it (radians) */
   view?: { yaw: number; pitch?: number };
+  /** the hold-out's ramp in shares of the blend width (shipped: SKIN_HOLD_FROM_K to SKIN_HOLD_TO_K); the gate's bite test asks for the rule as it was until 22 Nov, 0.25 to 1 */
+  ramp?: readonly [number, number];
 }
 /** The skins on a screen `w` x `h` CSS px drawn at pixel ratio `dpr`: the camera the rig frames at that size (turned by `opts.view`), the line the vertex stage builds, the outline the fragment stage judges. */
 export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: number, h: number, dpr: number, opts: RasterOpts = {}): GateStat[] {
-  const { ignoreDepth = false, screenDepth = false, view } = opts;
+  const { ignoreDepth = false, screenDepth = false, view, ramp = [SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K] } = opts;
   const rig = scene.rig; rig.resize(w, h); rig.update(1000 + w);
   // (the figure turned, as a hand's orbit turns it: the same camera, swung round the target by `view` radians; the inspector's turn is the rig's public way to it, and a few big steps let its ease settle)
   rig.setInspect(true); rig.inspectTo(view?.yaw ?? 0, view?.pitch ?? 0);
@@ -82,10 +85,10 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
       if (fragW < 0) return best.d;
       // (the shader's hold-out, skin/shaders.ts skinArmPx: how far the pixel's own place in the figure lies from the arm's capsule, in 3D, in px at the pixel's depth; `screenDepth` is the rule before 22 Nov)
       const gap = screenDepth ? Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * dpr - best.r - inkPx : sd3(axes[a]!, fragP!) / Math.max(wpc(fragW), 1e-9) * dpr;
-      return best.d + 2 * kPx * (smooth(0.25 * kPx, kPx, gap) - sub);
+      return best.d + 2 * kPx * (smooth(ramp[0] * kPx, ramp[1] * kPx, gap) - sub);
     };
     // (the shader's skinArmHeld: the hold-out's share, 0 to 1; the outline takes it relative to the least-held arm, skin/shaders.ts skinSdPx)
-    const armHeld = (a: number, fragW: number, kPx: number, fragP: readonly number[]): number => smooth(0.25 * kPx, kPx, sd3(axes[a]!, fragP, 1) / Math.max(wpc(fragW), 1e-9) * dpr);
+    const armHeld = (a: number, fragW: number, kPx: number, fragP: readonly number[]): number => smooth(ramp[0] * kPx, ramp[1] * kPx, sd3(axes[a]!, fragP, 1) / Math.max(wpc(fragW), 1e-9) * dpr);
     const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[]): number => {
       const sub = fragW >= 0 && !screenDepth ? Math.min(...axes.map((_, i) => armHeld(i, fragW, kPx, fragP!))) : 0;
       const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx, fragP, sub));

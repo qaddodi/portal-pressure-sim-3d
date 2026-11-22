@@ -7,7 +7,7 @@ import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { inkTaper } from '../src/scene/vessels/cel-ink.ts';
 import { skinKOf } from '../src/scene/vessels/skin/sdf.ts';
 import { facetSag } from '../src/scene/vessels/skin/facet-sag.ts';
-import { SKIN_ARM_ABSENT, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
+import { SKIN_ARM_ABSENT, SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { sd3, type GateSkin } from './skin-gate-lib.ts';
 import { skinNormalTwin, skinShadeK, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
@@ -38,10 +38,14 @@ export interface LiveVariant {
   noRescue?: boolean;
   /** a pixel the depth rule leaves as line that the union calls lumen by more than the line's own width is lumen: no ink inside the union (the purple's two lines running into the azygos) */
   noInkRescue?: boolean;
+  /** Plan 16C: the depth hold-out measures each arm's gap with the tier step removed (the pixel's z is moved by the arm's tier less the pixel's blended tier), so only a real 3D separation holds an arm out */
+  tierless?: boolean;
+  /** the hold-out's ramp, in shares of the blend width k (shipped: SKIN_HOLD_FROM_K to SKIN_HOLD_TO_K): a pixel is held out of an arm from `ramp[0]` k of 3D gap, wholly from `ramp[1]` k */
+  ramp?: readonly [number, number];
 }
-export interface LiveCase { swell: readonly number[]; keep: readonly boolean[] }
+export interface LiveCase { swell: readonly number[]; keep: readonly boolean[]; /** each arm's tier z (frame2d.ts TIER_Z), for `tierless` */ tierZ?: readonly number[] }
 /** `covered` pixels the skin's front faces cover; `lumenRef` of them the live union (kept arms, no depth rule) says are lumen; `hole` of those no fragment is drawn at (every face over it is dropped: the tube is cut there, so it is background); `inkOnly` of those the nearest drawn fragment is line only (black where it should be vessel). */
-export interface LiveStat { node: string; covered: number; lumenRef: number; hole: number; inkOnly: number; /** pixels inside the hull of the seam rings (where the tubes are cut and only the skin can draw) the live union calls vessel */ hullVessel: number; /** of those, pixels no kept fragment is drawn at: the figure shows background there, a hole through the vessel */ hullHole: number; hullInkOnly: number; /** pixels the shipped rule draws that the rule before it dropped (the stub of an arm that is not there, now in the host's lumen) */ newlyDrawn: number; /** of those, pixels whose shade normal differs by over 15 degrees between the union with every arm and the union of the arms that are there */ newlyDrawnShadeOff: number; /** and whose lit measure n.L differs by over 0.2 (a cel band flips) */ newlyDrawnBandFlip: number; /** drawn pixels shaded from the mesh's own lerped normal (the seam ring's rule, weight over 0.97) with the renormalised weights, and not with the raw weights of the arms that are there: the stub's pixels, shaded as a stub */ vertexNormalWrongly: number }
+export interface LiveStat { node: string; covered: number; lumenRef: number; hole: number; inkOnly: number; /** of those, the pixels the live union calls lumen by more than the line's own width (ink INSIDE the union: the lines that run on into the azygos) */ deepInk: number; /** pixels inside the hull of the seam rings (where the tubes are cut and only the skin can draw) the live union calls vessel */ hullVessel: number; /** of those, pixels no kept fragment is drawn at: the figure shows background there, a hole through the vessel */ hullHole: number; hullInkOnly: number; /** pixels the shipped rule draws that the rule before it dropped (the stub of an arm that is not there, now in the host's lumen) */ newlyDrawn: number; /** of those, pixels whose shade normal differs by over 15 degrees between the union with every arm and the union of the arms that are there */ newlyDrawnShadeOff: number; /** and whose lit measure n.L differs by over 0.2 (a cel band flips) */ newlyDrawnBandFlip: number; /** drawn pixels shaded from the mesh's own lerped normal (the seam ring's rule, weight over 0.97) with the renormalised weights, and not with the raw weights of the arms that are there: the stub's pixels, shaded as a stub */ vertexNormalWrongly: number }
 
 /** The camera the app has on a phone's screen, brought in on `centre` so one scene unit is `pxPerUnit` CSS px (the figure's depth scale; the rig's own orientation is kept). */
 export function closeCamera(scene: CelScene, w: number, h: number, centre: readonly number[], pxPerUnit: number, view?: { yaw: number; pitch?: number }): PerspectiveCamera {
@@ -89,7 +93,7 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
   }
 
   // per pixel: the nearest fragment the shader keeps (its depth, whether it is lumen), and whether the live union says the pixel is vessel
-  const best = new Map<number, { w: number; lumen: boolean; ref: boolean }>();
+  const best = new Map<number, { w: number; lumen: boolean; ref: boolean; deep: boolean }>();
   const nd = { a: 0, b: 0, c: 0, d: 0 };
   const shadeBest = new Map<number, { w: number; p: number[]; k: number }>();
   const idx = mesh.index;
@@ -112,7 +116,10 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       let swB = 0; for (let i = 0; i < n; i++) swB += wAt[i]! * cs.swell[i]!;
       const wpcAx = wpc(vCenW), inkDev = inkCss(vRest * swB / wpcAx) * dpr, kPx = kM / wpcAx * dpr;
       // skinArmPx
-      const armHeld = (arm: number, holdLive: boolean): number => smooth(0.25 * kPx, kPx, sd3(axes[arm]!, fragP, holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr);
+      const tierPix = variant.tierless && cs.tierZ ? wAt.reduce((t, w, i) => t + w * cs.tierZ![i]!, 0) : 0;
+      const fragPOf = (arm: number): number[] => (variant.tierless && cs.tierZ ? [fragP[0]!, fragP[1]!, fragP[2]! + cs.tierZ[arm]! - tierPix] : fragP);
+      const ramp = variant.ramp ?? [SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K];
+      const armHeld = (arm: number, holdLive: boolean): number => smooth(ramp[0] * kPx, ramp[1] * kPx, sd3(axes[arm]!, fragPOf(arm), holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr);
       const armPx = (arm: number, depth: boolean, holdLive: boolean, sub = 0): number => {
         const P = apLive[arm]!, segs = ([[P[0], P[1]], [P[1], P[2]], [P[2], P[3]]] as number[][][]).map(([p, q]) => {
           const abx = q![0]! - p![0]!, aby = q![1]! - p![1]!, tt = Math.min(1, Math.max(0, ((fx - p![0]!) * abx + (fy - p![1]!) * aby) / Math.max(abx * abx + aby * aby, 1e-6)));
@@ -120,8 +127,8 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
         });
         const d = Math.min(...segs);
         if (!depth) return d;
-        const gap = sd3(axes[arm]!, fragP, holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr;
-        return d + 2 * kPx * (smooth(0.25 * kPx, kPx, gap) - sub);
+        const gap = sd3(axes[arm]!, fragPOf(arm), holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr;
+        return d + 2 * kPx * (smooth(ramp[0] * kPx, ramp[1] * kPx, gap) - sub);
       };
       const sdOf = (depth: boolean, holdLive: boolean, absentIn: boolean, subOverride?: number): number => {
         const live = axes.map((_, i) => arms[i] != null && (absentIn || cs.keep[i]));
@@ -157,13 +164,13 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       if (!variant.noRescue && sd > band && ref <= -0.5) sd = ref;
       if (!variant.noInkRescue && sd > -0.5 && ref < -(inkDev + 0.5)) sd = ref;
       if (opts?.shade && sd <= band) { const cur0 = shadeBest.get(y * W2 + x); if (!cur0 || fragW < cur0.w) shadeBest.set(y * W2 + x, { w: fragW, p: fragP, k: skinShadeK(kM, wpc(fragW)) }); }
-      const drop = sd > band, key = y * W2 + x, cur = best.get(key) ?? { w: Infinity, lumen: false, ref: false };
+      const drop = sd > band, key = y * W2 + x, cur = best.get(key) ?? { w: Infinity, lumen: false, ref: false, deep: false };
       cur.ref = cur.ref || ref <= -0.5;
-      if (!drop && fragW < cur.w) { cur.w = fragW; cur.lumen = sd <= -0.5; }
+      if (!drop && fragW < cur.w) { cur.w = fragW; cur.lumen = sd <= -0.5; cur.deep = sd > -0.5 && ref < -(inkDev + 0.5); }
       best.set(key, cur);
     }
   }
-  const st: LiveStat = { node, covered: best.size, lumenRef: 0, hole: 0, inkOnly: 0, hullVessel: 0, hullHole: 0, hullInkOnly: 0, newlyDrawn: nd.a, newlyDrawnShadeOff: nd.b, newlyDrawnBandFlip: nd.c, vertexNormalWrongly: nd.d };
+  const st: LiveStat = { node, covered: best.size, lumenRef: 0, hole: 0, inkOnly: 0, deepInk: 0, hullVessel: 0, hullHole: 0, hullInkOnly: 0, newlyDrawn: nd.a, newlyDrawnShadeOff: nd.b, newlyDrawnBandFlip: nd.c, vertexNormalWrongly: nd.d };
   // the hull of the seam rings: the tubes are cut at their rings, so inside it the skin is the only thing that draws
   {
     const pts = mesh.seamVerts.flatMap((r) => [...r]).map((v) => [sx[v]!, sy[v]!] as const).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
@@ -188,7 +195,7 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       }
     }
   }
-  for (const p of best.values()) if (p.ref) { st.lumenRef++; if (p.w === Infinity) st.hole++; else if (!p.lumen) st.inkOnly++; }
+  for (const p of best.values()) if (p.ref) { st.lumenRef++; if (p.w === Infinity) st.hole++; else if (!p.lumen) { st.inkOnly++; if (p.deep) st.deepInk++; } }
   if (opts?.shade) {
     const L = lightUnit(), tw: TwinArm[] = axes.map((ax, i) => ({ pts: ax.pts.flat(), r: ax.radii, mate: ax.mate, sw: cs.swell[i]!, off: !cs.keep[i] }));
     const sAt = (f: { p: number[]; k: number }, project: boolean): number => {

@@ -32,7 +32,7 @@ const TURNED_DROP_MAX = 0.02;
 test('the gate bites: with the hold-out judged at the nearest screen point (until 22 Nov) a turned figure loses a fifth of its junctions\' pixels', () => {
   const g = gateSkins();
   try {
-    const stats = rasterSkins(g.scene, g.skins, 1440, 900, 1, { screenDepth: true, view: { yaw: 1.05 } }).filter((k) => k.pixels >= JUDGED_PIXELS);
+    const stats = rasterSkins(g.scene, g.skins, 1440, 900, 1, { screenDepth: true, ramp: [0.25, 1], view: { yaw: 1.05 } }).filter((k) => k.pixels >= JUDGED_PIXELS);
     const holed = stats.filter((k) => k.dropped / k.pixels > 0.05);
     assert.ok(holed.length >= 6, `${holed.length} of ${stats.length} skins lose over 5 % of their pixels without the fix`);
   } finally { g.done(); }

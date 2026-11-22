@@ -10,7 +10,7 @@ import { SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
 import { armWalk } from '../src/scene/vessels/skin/cuts.ts';
 import { axisOf } from '../src/scene/vessels/skin/skin-set.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
-import { SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
+import { SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../src/scene/vessels/tubes.ts';
@@ -185,7 +185,7 @@ function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number
     const ndcZ = ((cam.far + cam.near) / (cam.far - cam.near) * fragW - 2 * cam.far * cam.near / (cam.far - cam.near)) / fragW;
     const P = new Vector3(((frag[0]! / (RES * DPR)) - 0.5) * 2, ((frag[1]! / (RES * DPR)) - 0.5) * 2, ndcZ).unproject(cam);
     const gap = sd3(ax, [P.x, P.y, P.z]) / Math.max(wpc(fragW), 1e-9) * DPR;
-    return best.d + 2 * kPx * smooth(0.25 * kPx, kPx, gap);
+    return best.d + 2 * kPx * smooth(SKIN_HOLD_FROM_K * kPx, SKIN_HOLD_TO_K * kPx, gap);
   };
   const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
   const kPx = (centre: readonly number[]): number => { const q = new Vector4(centre[0]!, centre[1]!, centre[2]!, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix); return kM / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR; };
