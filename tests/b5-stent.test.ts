@@ -1,3 +1,4 @@
+import { isDrawn } from '../src/scene/devices/device-object.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
@@ -75,12 +76,12 @@ test('the TIPS stent is in while the shunt is as wide as a stent (D >= 3 mm), ou
   const k = indexOf('TIPS'), D = new Float32Array(400);
   D[k] = 8;
   const params = { stentGeom: { TIPS: { len: 8, waist: 2, trans: 0, red: 0.4 } } };
-  assert.equal(st.group.visible, false);
+  assert.equal(isDrawn(st.group), false);
   s.procs.syncStents({ D }, params, true);
   assert.equal(st.goal, 1);
   assert.equal(st.amount, 1);
   st.update(16);
-  assert.equal(st.group.visible, true);
+  assert.equal(isDrawn(st.group), true);
   const narrow = s.vesselObject('TIPS')!.toonMesh.geometry.getAttribute('narrow');
   assert.ok(narrow, 'the vessel has the narrowing attribute');
   let max = 0; for (let i = 0; i < narrow.count; i++) max = Math.max(max, narrow.getX(i));
@@ -89,7 +90,7 @@ test('the TIPS stent is in while the shunt is as wide as a stent (D >= 3 mm), ou
   s.procs.syncStents({ D }, params);
   assert.equal(st.goal, 0);
   for (let i = 0; i < 40; i++) st.update(30);
-  assert.equal(st.group.visible, false, 'eased out');
+  assert.equal(isDrawn(st.group), false, 'eased out');
   s.dispose();
 });
 

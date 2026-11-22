@@ -52,7 +52,7 @@ export class Second {
     return w;
   }
   // (the stall rule: a worker silent for waitMs after a request is dropped; an answer, or the next request, starts the wait again)
-  private arm(): void { clock.cancel(this.timer); this.timer = clock.after(() => this.fail('The simulation did not answer in time.'), this.waitMs); }
+  private arm(): void { clock.cancel(this.timer); this.timer = clock.afterReal(() => this.fail('The simulation did not answer in time.'), this.waitMs); }
 
   /** The worker is gone: end it, tell the listener once, and let the next message start a new one. */
   fail(message: string): void {

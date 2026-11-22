@@ -52,7 +52,7 @@ export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }:
   const draw = () => { const c = ctx.current, p = painter.current; if (c && p) p.show(frame(c), false); };
   const sync = () => {
     const run = !!latest.frame?.running;
-    if (run && !hold.current) hold.current = clock.hold('beat-card'); else if (!run && hold.current) { hold.current.release(); hold.current = null; }
+    if (run && !hold.current) hold.current = clock.hold('beat-card', { steady: true }); else if (!run && hold.current) { hold.current.release(); hold.current = null; }
   };
   useEffect(() => {
     if (!feed.n || feed.last - feed.t[0]! < BEAT_CARD_S + 1) void feed.backfill(BEAT_CARD_S + 2).then(() => { dirty.current = true; clock.invalidate('beat-card'); });

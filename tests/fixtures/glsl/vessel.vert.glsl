@@ -16,6 +16,7 @@ uniform float radius;
 uniform float baseD;
 uniform float widthKind;
 uniform float len;
+uniform float stentT0;   // the map course's heading turned at the stent's start (the turn attribute there)
 uniform float px;
 uniform vec2 res;
 // smooth joins (Settings > Figure depth): the vessel this one's start (mate0) and end (mate1) carries on into, as (its texel in the vessel data, the diameter its tube was built at, its width rule);
@@ -33,6 +34,7 @@ uniform vec2 hiEnds;   // the picked vein's distance to its outer start and oute
 uniform float hiFade;
 uniform float hiPx;
 uniform float inkOn;   // 0 on a dotted thread (no outline), else 1
+uniform float lensUse;   // 0 on an ARTERY (it keeps its own colour), 1 on a vein: here it also says whose wall the line is built for (cel-style ARTERY)
 uniform float liveW;   // a conditional tributary group's width share, 2D's 0.5 + 0.5 * live (feeders.ts): 1 for every other vessel
 uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
@@ -61,6 +63,8 @@ attribute vec3 fr;
 attribute vec2 pk;
 // the lengths of the vessel's two courses (body, map), scene units: the speed of each along the vessel's own 0 to 1
 attribute vec2 cl;
+// the map course's heading turned so far (rad, counter-clockwise, from the vessel's start): the stent's cells keep their size round a corner (vessels/shaders.ts vSkew)
+attribute float turn;
 uniform float circT;
 // 1 on a vertex that stays where it is through the change, fading with 2D's clamp(1 - 2 * T0) (see circuitMorph), read by the fragment stage as a dither (vessels/shaders.ts)
 varying float circStay;
@@ -141,7 +145,15 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
 
 varying float vW;
 varying float vR;
-varying float vU;   // the figure's units in one scene unit here: 300 on the body, 1 / MAP_K on the map (the Circuit share of this vertex)
+// ONE packed varying (a phone's floor is 15 vectors, and every one counts): x vU, the figure's units in one scene unit here (300 on the body, 1 / MAP_K on the map, the Circuit share of this vertex); y vArcLen, the vessel's
+// length along the course it is drawn on now (the body course's len at rest, the map course's cl.y in the Circuit, by the same share); z vR0, the lumen's half width before a stenosis or the stent's waist pinches it (figure units:
+// the stent's cells and bare length are sized from it); w vSkew, the stent's wires' shift along the tube here (figure units: the lateral offset in the map's plane times the bend turned since the stent began, so a cell keeps
+// its length round a corner). Named by macros, so every use reads as before.
+varying vec4 vUp;
+#define vU vUp.x
+#define vArcLen vUp.y
+#define vR0 vUp.z
+#define vSkew vUp.w
 float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
   float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
@@ -226,6 +238,8 @@ void main() {
   swell *= liveW;
   vCircShare = circShare;
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
+  vArcLen = mix(len, cl.y, circShare);
+  vSkew = 0.0;
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
   float fa = 1.0;
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
@@ -262,6 +276,7 @@ void main() {
   // the outline vanished through the narrowing, and the heads were built for a wide tube and spilled over a thin one (Mohammad, 20 Nov, the stenosed portal vein).
   float narrowK = 1.0 - clamp(narrow, 0.0, 0.97);
   vR = radius * rkE * swell * narrowK * vU;   // the lumen's half width in the 2D figure's units
+  vR0 = radius * rkE * swell * vU;
   vec3 cenW = aPos - aNor * (radius * rkE);   // the ring's centre
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cenW, 1.0));
   vCen = vec3(cc.x, cc.y, cc.w);
@@ -275,10 +290,11 @@ void main() {
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
-  float inkPx = clamp(0.3 * rCssV, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssV / narrowK);   // CSS px
+  float inkPx = min(3.0, clamp(0.3 * rCssV, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssV / narrowK) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCssV / narrowK)));   // CSS px
   inkPx *= mix(1.0, 1.1, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rkE * swell * narrowK;
+  { vec2 tl = aTan.xy; float tn = length(tl); if (circShare > 0.0 && tn > 1e-5) { tl /= tn; vSkew = circShare * dot(aNor.xy, vec2(-tl.y, tl.x)) * lumenW * vU * (turn - stentT0); } }
   // (the ring is a polygon: its flats sit at the radius, its corners 0.025716863272553958 of the radius farther out, so the silhouette never falls inside the line)
   vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + (lumenW + inkW) * 0.025716863272553958);
   // where this tube carries on into another (a mate), its end ring runs on a hair (under a CSS px) into the next: two flat rings that meet exactly leave a light line between them where their edges are smoothed, along the whole of a straight join

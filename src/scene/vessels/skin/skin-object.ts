@@ -26,7 +26,7 @@ import type { SkinMesh, Vec3 } from './types.ts';
 export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
   'streamTex', 'chainTex', 'routeTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
-  'lensGradA', 'lensLaneA', 'lensModeA', 'lensGradB', 'lensLaneB', 'lensModeB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
+  'lensGradA', 'lensLaneA', 'lensModeA', 'lensRawA', 'lensGradB', 'lensLaneB', 'lensModeB', 'lensRawB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
   'circBoost', 'circPerPx',   // (the Circuit's width rule: the map's skins read them, circuit/skins.ts; the body's skin declares neither)
 ] as const;
 
@@ -90,13 +90,16 @@ export class SkinObject implements SkinDraw {
   readonly glow: Mesh;
   /** the group the copies stand in (it is what the scene adds) */
   readonly object: Object3D;
+  /** Which arms the weights are shared among (shaders.ts armKeep): 1 each, 0 for a growing arm that is not there. */
+  private keepMask = (1 << SKIN_ARMS) - 1;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
-  private readonly kw = new Vector3(0, 0, 1);   // (x the blend width skinK, y the mode, z the share: skinKW in the fragment stage)
+  private readonly kw = new Vector4(0, 0, 1, SKIN_FIGURE_UNITS);   // (x the blend width skinK, y the mode, z the share, w the units in a scene unit, negative on the Circuit's own skins: skinKW in the shader stages)
 
   /** `circuit`: this is a skin of the Circuit's map (circuit/skins.ts): its mesh is built on the map's courses, its program is the one built with SKIN_CIRC and its name says so. */
   constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[], circuit = false) {
+    if (circuit) this.kw.w = -1 / MAP_K;   // (the Circuit's own skins: the map's units, the sign says which: skinKW.w in the shaders)
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(skin.position, 3));
     g.setAttribute('normal', new BufferAttribute(skin.normal, 3));
@@ -125,13 +128,11 @@ export class SkinObject implements SkinDraw {
       ...shared,
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
-      lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4()] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       
-      // the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units and its widths, line and fade are a uniform, so a map skin compiles nothing the body's skins have not
-      skinMap: { value: new Vector2(circuit ? 1 / MAP_K : SKIN_FIGURE_UNITS, circuit ? 1 : 0) },
+      // (the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units, with the sign flipped, are skinKW.w, so a map skin compiles nothing the body's skins have not)
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
@@ -215,6 +216,10 @@ export class SkinObject implements SkinDraw {
     this.armAF[i]!.w = p;
     this.showCopies();
   }
+  /** Share the weights among the arms that are there only (shaders.ts armKeep): a growing arm that is not (a closed shunt, a dotted thread) hands its weight to the arms that stay. */
+  setKeep(i: number, on: boolean): void { this.keepMask = on ? this.keepMask | (1 << i) : this.keepMask & ~(1 << i); (this.material.uniforms.armFlow!.value as Vector4[])[1]!.w = this.keepMask; }
+  /** The arms' keep flags (a test reads them). */
+  keepOf(): readonly number[] { return Array.from({ length: SKIN_ARMS }, (_, i) => (this.keepMask >> i) & 1); }
   /** Whether arm `k` is there at all: its tube's presence at the seam. */
   private isThere(k: number): boolean { return this.armAF[k]!.w > 0.002; }
   /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (its presence): a skin has no visibility of its own, it inherits its arms'. */

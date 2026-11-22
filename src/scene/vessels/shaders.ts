@@ -22,7 +22,7 @@ import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TUBE_RADIAL } from './tubes.ts';
 import { SKIN_CIRC_IN, SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from './glsl-shared.ts';
+import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_GLSL, PROCEDURE_MARKS_GLSL, STUMP_K_GLSL, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from './glsl-shared.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
@@ -31,7 +31,7 @@ export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
  *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
  *  (at most 0.15 x 0.035 = 0.005, under the narrowest gap that has to hold, cava to artery 0.02) only sorts two tubes of one tier. */
 export const TUBE_DEPTH_SHARE = 0.15;
-import { CIRC_INK_K, CIRC_INNER, SHADOW_FEATHER } from './cel-ink.ts';
+import { CIRC_INK_K, CIRC_INNER, SHADOW_FEATHER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 import { VDBG_GLSL } from './debug-view.ts';
 
 export const VESSEL_VS = /* glsl */ `
@@ -74,6 +74,7 @@ uniform vec2 hiEnds;   // the picked vein's distance to its outer start and oute
 uniform float hiFade;
 uniform float hiPx;
 uniform float inkOn;   // 0 on a dotted thread (no outline), else 1
+uniform float lensUse;   // 0 on an ARTERY (it keeps its own colour), 1 on a vein: here it also says whose wall the line is built for (cel-style ARTERY)
 uniform float liveW;   // a conditional tributary group's width share, 2D's 0.5 + 0.5 * live (feeders.ts): 1 for every other vessel
 uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
@@ -122,11 +123,7 @@ ${SWELL_OF_GLSL}
 // the swell the tube has at the map's end (2D stage-tubes.js widthAt, t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) map units, an artery 3, a liver bed 8, the boost on veins and beds;
 // as a share of the radius the tube was built at, so the shared morph can ease the width with the line (the map's units are MAP_K scene units, the body's 1 / 300)
 // the width (map units, before the boost's floor on the screen) a vessel of this kind and diameter has on the map: a vein clamp(vesselPx(D) * 0.95, 6, 15) times the boost, an artery 3, a bed 8 times the boost (width.ts circuitWidthMap)
-float circWidthOf(float d, float kind) {
-  if (kind > 1.5) return 8.0 * circBoost;
-  if (kind > 0.5) return 3.0;
-  return clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
-}
+${CIRC_WIDTH_OF_GLSL}
 float circMateMin(vec3 m) { return m.z > 1.5 ? 4.5 : (m.z > 0.5 ? 3.0 : 5.0); }   // the least width on the screen of a mate's kind, CSS px (circuit/width.ts MIN_PX)
 float circMateWidth(vec3 m) {   // a run-on mate's width on the map (m: its data index, its built diameter, its kind)
   float d = m.y;
@@ -153,11 +150,7 @@ float circSwell() {
   return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
 }
 // The stump of a divided vein: the first stump.x of it is not drawn, its end is round (a quarter circle over one radius) and it narrows a little at its tie (stage-tubes.js tubeRadius stumpPinch: 1 - 0.2 exp(-((a - tie) / 5.5)^2)).
-float stumpK(float a, float R) {
-  float q = clamp((a - stump.x) / max(R, 1e-3), 0.0, 1.0);
-  float pq = (a - stump.y) / 5.5;
-  return max(sqrt(max(0.0, 1.0 - (1.0 - q) * (1.0 - q))), 0.02) * (1.0 - 0.2 * stump.z * exp(-pq * pq));
-}
+${STUMP_K_GLSL}
 void main() {
 ${CIRCUIT_VS_CALL}
   // the width follows the engine's diameter by the 2D figure's own rule (stage-tubes.js widthAt): a vein 1.3 * max(2.6, 2 d^0.72), an artery half of that (at
@@ -185,26 +178,7 @@ ${CIRCUIT_VS_CALL}
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
   float rkE = mix(rk, rkc, circShare);   // (the tube's radius share here: on the map the course's own, not the body's tapers)
-  if (fadeMode > 2.5) {
-    // tube-geo.js tubeAlpha: the projection of the point on the line
-    vec2 fd = fadeLine.zw - fadeLine.xy;
-    float fv = dot(position.xy - fadeLine.xy, fd) / max(dot(fd, fd), 1e-9);
-    if (fadeMode > 3.5) {
-      fv = clamp(fv, 0.0, 1.0);
-      fa = fv < fadeA.x ? mix(fadeA.z, fadeA.w, smoothstep(0.0, max(fadeA.x, 1e-4), fv)) : mix(fadeA.w, 1.0, smoothstep(fadeA.x, 1.0, fv));
-    } else {
-      fa = mix(fadeA.z, fadeA.w, clamp((fv - fadeA.x) / max(1.0 - fadeA.x, 1e-4), 0.0, 1.0));
-    }
-    fa = mix(fa, mapFa, circT);
-  } else if (fadeMode > 0.5) {
-    float fs = fadeMode < 1.5 ? uv.x : position.y;
-    float ft = clamp((fs - fadeA.x) / (abs(fadeA.y - fadeA.x) < 1e-5 ? 1e-5 : fadeA.y - fadeA.x), 0.0, 1.0);
-    fa = mix(fadeA.z, fadeA.w, ft);
-    fa = mix(fa, mapFa, circT);
-  }
-  // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
-  if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
-  if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
+${FADE_ALPHA_GLSL}
   vFade = fa;
   // the other tube's radius is the one it is DRAWN at: its built radius times its own live swell (the engine's diameter). Its built radius put the cut and the union's outline inside the real wall wherever the engine widens it (Mohammad, 20 Nov: "a big gaping hole" at the hepatic veins' mouths)
   vNbr = vec2(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0));
@@ -222,15 +196,11 @@ ${CIRCUIT_VS_CALL}
   vCen = vec3(cc.x, cc.y, cc.w);
   float wpcV = ${wpcGlsl('cc.w', 'projectionMatrix[1][1]', 'vU')};   // the figure's units under one CSS px here
   float rCssV = vR / max(wpcV, 1e-6);   // the lumen's radius in CSS px
-  float aU = uv.x * len;
-  float distH = hiDir > 0.5 ? hiOffset + aU : (hiDir < -0.5 ? hiOffset + (len - aU) : 0.0);
-  float limitH = hiDir < -0.5 ? hiBehind : hiAhead;
-  float ownH = smoothstep(0.0, max(hiFade, 0.0001), min(hiEnds.x + aU, hiEnds.y + (len - aU)));   // the picked vein's own line: nothing at its two outer ends, full a fade's length in
-  vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limitH, 0.0001), distH) : ownH);
+${HIGHLIGHT_ALONG_GLSL}
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
-  float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK')};   // CSS px
+  float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK', '1.0 - lensUse')};   // CSS px
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rkE * swell * narrowK;
@@ -305,6 +275,8 @@ uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
@@ -431,20 +403,7 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
 
 // A free end in the Circuit is round: the pixels outside a half circle of the tube's own radius at the end are carved away (the tube is the lumen plus its line, so the ink runs round the cap).
 // Exact at any ring spacing, which a geometry dome is not (a tube has a ring every 1/24 of a scene unit, about a radius).
-bool capCarved(float across) {
-  float k = smoothstep(0.7, 1.0, circT);
-  if (k <= 0.0 || circCap.x + circCap.y < 0.5) return false;
-  float dd = 1e9;
-  if (circCap.x > 0.5) dd = vUv.x * len * vU;
-  if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
-  float wpc = ${wpcGlsl('vCen.z', 'projY', 'vU')};   // (the axis's depth, the one the vertex stage built the line from)
-  float rCss = vR / max(wpc, 1e-6);   // CSS px, as the vertex stage's line is (the same clamp)
-  float ink = clamp(${F(CEL_STYLE.LINE_R)} * rCss, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * mix(1.0, ${F(CIRC_INK_K)}, circT) * wpc * inkOn;
-  float R = (vR + ink) * k, a = dd + ink * k;
-  if (a >= R) return false;
-  float q = 1.0 - a / R;
-  return across * across + q * q > 1.0;
-}
+${CAP_CARVED_GLSL}
 
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
@@ -502,6 +461,7 @@ void main() {
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
+  tubeRawK = mix(la.a * lensRawA, lb.a * lensRawB, lensMix);   // (the pressure ramp is authored as drawn: cel-glsl.ts tubeRawK)
 
   // the fill: exactly TWO flat tones, lit by the one world light (cel-glsl.ts: the base, a hard edge EDGE_PX device px across, the shade, no gradient), so two pieces of one vein shade alike at their join and a turned camera
   // changes nothing; no rim, no highlight. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
@@ -530,6 +490,7 @@ void main() {
     if (cavaCut < 1.5) {
       vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
       base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+      tubeRawK = mix(tubeRawK, mix(la2.a * lensRawA, lb2.a * lensRawB, lensMix), wB);
       float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
@@ -547,7 +508,7 @@ void main() {
   // by max (so the pieces of a vein and the skins at its joins overlap without adding up). Only the lumen and its line: the blur makes the halo outside it.
   {
     float rCssG = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
-    float lineG = ${inkPxGlsl('rCssG', 'rCssG')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float lineG = ${inkPxGlsl('rCssG', 'rCssG', '1.0 - lensUse')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
     float wG = ${glowWeightGlsl('vHi')} * glowK * fadeHere * cavA * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
@@ -577,7 +538,7 @@ void main() {
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
-  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
@@ -642,82 +603,13 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
+    float rawKeep = tubeRawK;
+    tubeRawK = mix(laH.a * lensRawA, lbH.a * lensRawB, lensMix);
     vec3 inkH = ${inkColourGlsl('baseH')};
+    tubeRawK = rawKeep;
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
-  // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
-  // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
-  if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
-    float kS = stentU.x * circT, Lw = vArcLen * vU, s = vUv.x * Lw, un = max(vR0, 0.3) / 12.0, s0 = stentU.y * Lw, sE = stentU.z * Lw, sB = s0 + stentU.w * vR0;
-    float sp = s - vSkew;
-    float th = asin(clamp(across, -1.0, 1.0)), px = max(pxArc, 1e-4), cov = 0.0, gold = 0.0;
-    bool hasG = stentU.w > 0.0 && sB > s0 + 6.0 * un && sB < sE - 4.0 * un;
-    float bEnd = hasG ? sB : sE - 1.2 * un, t0 = s0 + 1.2 * un;
-    float Nb = max(1.0, floor((bEnd - t0) / (17.0 * un) + 0.5)), Pb = (bEnd - t0) / Nb, Ab = 0.5 * Pb;
-    float jb = floor((sp - t0) / Pb);
-    for (int i = -1; i <= 1; i++) {
-      float j = jb + float(i), ok = (j < 0.0 || j >= Nb || sp > bEnd + Ab) ? 0.0 : 1.0;
-      float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
-      // (a wire's distance in SCREEN pixels, the distance over its own slope: a crown's steep flank stays one even line instead of breaking into dashes)
-      float dv = sp - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
-      cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pb, 0.7 * Pb, fwPx + 5.0 * Ab * fwTh)));
-    }
-    if (hasG) {
-      float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
-      float jc = floor((sp - c0) / Pc + 0.5);
-      for (int i = -1; i <= 1; i++) {
-        float j = jc + float(i), ok = (j < 0.0 || j > Kc) ? 0.0 : 1.0;
-        float dv = sp - (c0 + j * Pc + Ac * cos(5.0 * th));
-        cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ac * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pc, 0.7 * Pc, fwPx + 5.0 * Ac * fwTh)));
-      }
-      c = mix(c, vec3(1.0), 0.10 * kS * smoothstep(sB - px, sB + px, s));
-      gold = 1.0 - smoothstep(0.5 * px, 1.4 * px, abs(s - (sB + 1.5 * un * (1.0 - abs(cos(th))))));
-    }
-    c = mix(c, stentWire.rgb, stentWire.a * cov * kS);
-    c = mix(c, stentGoldC.rgb, stentGoldC.a * gold * kS);
-  }
-  // the running stitch at a surgical shunt's sewn end (suture-marks.js seamDashes): dashes along the curve where the host's wall crosses the shunt (a slanted curve, found on the 2D courses), a dark halo under a thin thread,
-  // with the 2D's thread and edge colours; a shunt in no host keeps 2D's three ticks. The distance to the curve is taken square to it (its slant against the tube's half width).
-  if ((seamA[0].x > 0.0 || seamA[1].x > 0.0) && circT < 0.001) {
-    float Lw = len * vU, aF = vUv.x * Lw, aa = clamp(across, -1.0, 1.0), rr = max(vR, 0.3), tw = 0.0, te = 0.0;
-    for (int e = 0; e < 2; e++) {
-      vec4 A = seamA[e], B = seamB[e];
-      if (A.x <= 0.0) continue;
-      float sl = e == 0 ? aF : Lw - aF;
-      float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
-      float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
-      float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
-      if (B.y > 0.5) {
-        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
-        dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
-      } else {
-        dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
-        dsh = smoothstep(1.0, 0.92, abs(aa));
-      }
-      tw = max(tw, (1.0 - smoothstep(0.32, 0.5, dd)) * dsh);
-      te = max(te, (1.0 - smoothstep(0.7, 1.0, dd)) * dsh);
-    }
-    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4);
-    c = mix(c, vec3(0.910, 0.455, 0.165), tw);
-  }
-  // the tie on a divided vein's stump (suture-marks.js woundTie): three turns of thread, 2.2 units apart, a little slanted across the vein, with the 2D's own thread and edge colours (--suture-thread, --suture-edge)
-  if (stump.z > 0.001 && circT < 0.001) {
-    float aF = vUv.x * len * vU, ph = vUv.y * 6.2831853, tw = 0.0, te = 0.0;
-    for (int j = 0; j < 3; j++) {
-      float dd = abs(aF - (stump.y + (float(j) - 1.0) * 2.2 + 0.5 * sin(ph)));
-      tw = max(tw, 1.0 - smoothstep(0.32, 0.5, dd));
-      te = max(te, 1.0 - smoothstep(0.7, 1.0, dd));
-    }
-    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
-    c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
-  }
-  // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
-  if (wedge.x > 0.001 && circT < 0.001) {
-    // the distance from the balloon's distal edge at this point on this vessel (the same field the junction skins carry), against the one advancing front
-    float wa = wedge.x * wedgeCover(wedgeD.x + wedgeD.y * vUv.x, vec3(wedge.y, wedgeD.z, wedgeD.w));
-    wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
-    c = mix(c, wedgeCol, WEDGE_A * wa * (1.0 - inkT));   // (under the outline: the vessel's line stays)
-  }
+${PROCEDURE_MARKS_GLSL}
 #ifdef VDBG
   c = dbgEnd(c, vindex);
 #endif

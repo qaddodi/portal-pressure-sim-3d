@@ -31,15 +31,13 @@ const MATE = 'a continuing vessel is the next bone of the same mesh: the width, 
 
 /** Everything that is not an edge column. */
 const OTHER: Record<string, UniformFate> = {
-  // the vessel's rest radius is the bone's
-  radius: { kind: 'bone', from: 'texel 0 and 1 radius (r[0] body, r[1] map)' },
   // shared by the whole object
   vdata: g('the engine data texture'), vdataSize: g(), useData: g(), res: g(), dpr: g(), projY: g(), time: g(), light: g(), bands: g('2 on every vessel'), spec: g('1 on every vessel'),
   circT: g(), circRot: g(), circM: g(), circTrack: g(), circTrackSize: g(), circBoost: g(), circPerPx: g(),
   tubeDark: g(), shadeK: g(), inkColor: g('the look\'s casing ink'), inkColorCirc: g(), casingA: g(), casingCircA: g(), pageCol: g(), rimInk: g(), wedgeCol: g(),
   color: g('the look\'s palette, one colour per tone: the shader picks by the edge\'s `tone` column'),
   markDark: g(), markLight: g(), markRev: g(),
-  lensMix: g(), lensTail: g(), lensGradA: g(), lensLaneA: g(), lensModeA: g(), lensGradB: g(), lensLaneB: g(), lensModeB: g(), laneColA: g(), laneColB: g(), lensSmooth: g('the Smooth joins setting'),
+  lensMix: g(), lensTail: g(), lensGradA: g(), lensLaneA: g(), lensModeA: g(), lensRawA: g(), lensGradB: g(), lensLaneB: g(), lensModeB: g(), lensRawB: g(), laneColA: g(), laneColB: g(), lensSmooth: g('the Smooth joins setting'),
   stentWire: g(STENT), stentGoldC: g(STENT),
   streamTex: g(), chainTex: g(), routeTex: g(), streakAmt: g(), dustP: g(),
   dbgShade: g(DBG), dbgDust: g(DBG), dbgHeads: g(DBG), dbgInk: g(DBG), dbgTint: g(DBG), dbgCol: g(DBG),

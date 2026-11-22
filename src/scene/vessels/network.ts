@@ -97,6 +97,10 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 /** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
 export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
+/** The azygos arch comes down to the superior cava on ONE gentle slope from its own plane to the cava's, over its whole length (shape.ts depthEnds `through`, as the cava into the right atrium; Mohammad, 21 Nov: "Azygos weld into SVC sucks"). It is a 'net' vein (0.02) meeting the cava at 'back' (-0.02),
+ *  and the quarter-length ease to the node ran it down 0.047 in 0.045 of run: a tube diving at the camera at 45 degrees onto the cava's wall, shaded by its normals (a dark patch) and held out of the joint by the skin's depth rule (ragged ink in the lumen). Its tier stays: the azygos node, where
+ *  the coronary and lumbar collaterals land, keeps its depth (moving it dropped their wall skins, tests/vessel-wobble.test.ts). */
+export const SVC_TRIBUTARY_IDS: ReadonlySet<string> = new Set(['AZY_SVC']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)

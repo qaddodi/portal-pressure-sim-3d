@@ -2,6 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
+import { fadeFrames } from './device-clock.ts';
+import { isDrawn } from '../src/scene/devices/device-object.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { PALETTES } from '../src/scene/palette.ts';
 import { x3, y3, len3 } from '../src/scene/frame2d.ts';
@@ -90,7 +92,8 @@ test('a scope the procedure has let go of fades out where it stood (600 ms), nev
   assert.equal(sc.d, d0);
   assert.equal(sc.leave(300), false);
   assert.equal(sc.d, 0);
-  assert.equal(sc.group.visible, false);
+  fadeFrames();
+  assert.equal(isDrawn(sc.group), false);
   // the plain endoscope works again afterwards, on its own way
   sc.update(16, true, 'scope', 'pv');
   assert.ok(sc.d > 0);
@@ -143,17 +146,18 @@ test('the glue cast and coil are drawn in the varix and come away with clear()',
   const g = new GlueCast(createShared());
   g.applyPalette(PALETTES.light);
   g.set({ coil: 0, column: 0, flash: 0, opacity: 1 });
-  assert.equal(g.group.visible, false);
+  assert.equal(isDrawn(g.group), false);
   g.set({ coil: 0.6, column: 0, flash: 0.3, opacity: 1 });
-  assert.ok(g.group.visible && g.coil.group.visible && !g.cast.group.visible);
+  assert.ok(isDrawn(g.group) && g.coil.group.visible && !g.cast.group.visible);
   assert.ok(g.flashes[0]!.group.visible && g.flashes[1]!.group.visible);
   g.set({ coil: 1, column: 0.7, flash: 0, opacity: 1 });
+  fadeFrames();   // (the hit's rings ease out)
   assert.ok(g.coil.group.visible && g.cast.group.visible && !g.flashes[0]!.group.visible);
   assert.equal(g.cast.deviceTone, 'glue');
   g.set({ coil: 1, column: 1, flash: 0, opacity: 0.5 });
   assert.ok(g.cast.group.visible);
-  g.clear();
-  assert.equal(g.group.visible, false);
+  g.clear(); fadeFrames();
+  assert.equal(isDrawn(g.group), false);
   assert.ok(!g.coil.group.visible && !g.cast.group.visible);
 });
 
@@ -161,7 +165,7 @@ test('the procedure layer draws the glue as the 2D frame says, drives the scope,
   const pr = new ProcedureLayer(createShared());
   const T = (specFor('eusglue')!.T as unknown as Record<string, number>);
   pr.seek('eusglue', T.travel0! + 10);
-  assert.ok(pr.glueDrive && pr.glueDrive.u > 0 && pr.glueDrive.needle === 0 && pr.glue.group.visible === false);
+  assert.ok(pr.glueDrive && pr.glueDrive.u > 0 && pr.glueDrive.needle === 0 && !isDrawn(pr.glue.group));
   pr.seek('eusglue', T.needle1!);
   assert.ok(pr.glueDrive!.needle > 0.99 && pr.glueDrive!.fan > 0.99 && pr.glueDrive!.aim > 0.99);
   pr.seek('eusglue', T.coil1!);
@@ -174,9 +178,9 @@ test('the procedure layer draws the glue as the 2D frame says, drives the scope,
   assert.ok(pr.glue.coil.group.visible && pr.glue.cast.group.visible);
   pr.stop();
   assert.equal(pr.glueDrive, null, 'the scope is let go of at once');
-  assert.equal(pr.glue.group.visible, true, 'the coil and the cast ease out in place, they do not pop (stop() fades them over LEAVE_MS)');
-  for (let t = 0; t <= 800; t += 16) pr.update(1000 + t);
-  assert.equal(pr.glue.group.visible, false, 'and are gone when the fade is done');
+  assert.equal(isDrawn(pr.glue.group), true, 'the coil and the cast ease out in place, they do not pop (stop() fades them over LEAVE_MS)');
+  for (let t = 0; t <= 800; t += 16) { pr.update(1000 + t); fadeFrames(1); }
+  assert.equal(isDrawn(pr.glue.group), false, 'and are gone when the fade is done');
 });
 
 test('the last step holds: the play stops at its last stop (not on the fade-out leg), and the scope stays parked until the slide is left', async () => {

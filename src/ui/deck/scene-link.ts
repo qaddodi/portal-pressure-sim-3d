@@ -17,6 +17,10 @@ import type { CathState } from '../../decks/schema.ts';
 /** The time the catheter takes to come in from the neck: the route's leg at the travel speed (hvpg-clock.js legMs, 3.4 s), after its 300 ms of stillness. procs-link.ts waits this long before the blocked vein's pushes. */
 export { ARRIVE_MS };
 
+let reframe: (() => void) | null = null;
+/** The camera was taken by someone else during the talk (a Tests run that gave it back, integration review I4): the slide's own framing comes back, eased. False when no talk is linked. */
+export function reframeSlide(): boolean { if (!reframe) return false; reframe(); return true; }
+
 export function linkScene(): () => void {
   const cc = makeCathClock(), pose: CathPose = { advance: 0, balloon: 0, column: 0 };
   let readWas = false, place: CathState | null = null, drawn = false, hold: Hold | null = null;
@@ -70,9 +74,10 @@ export function linkScene(): () => void {
   };
 
   sync();
+  reframe = () => { shot = null; sync(); };   // (forget the shot it last sent: the camera is no longer on it)
   // a dock glide has set off: the figure reframes for where the card is going, in the glide's own time, not once it has landed (2D presenter-zoom.js dockTo: layout() then reframe(ms))
   const offHint = useUi.subscribe((s, prev) => { const h = s.roomHint; if (h && h !== prev.roomHint && h.free.w > 0 && h.free.h > 0) sceneApi.setRoom(h.free, h.ms, false, true, easeArrive); });   // (refit: the card tucked or came back, so the figure is fitted to the room it now has, in or out, as 2D's reframe(ms))
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
-  return () => { off(); offHint(); offClock(); hold?.release(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
+  return () => { reframe = null; off(); offHint(); offClock(); hold?.release(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }

@@ -10,6 +10,7 @@ import { CREDIT } from '../shell/words.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
+import { scaleOf } from '../charts/fit.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -146,13 +147,13 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
       // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split
       if (card && cs && centredKind(entry.id) === 'panel') {
-        const room = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height + pad + 2;
+        const room = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height / scaleOf(el) + pad + 2;
         card.style.removeProperty('--pz-fit');
         const probe = card.querySelector('.pz-line, .pz-outline li, p'), lb = probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0, floor = lb > 12 ? Math.ceil((12 / lb) * 1000) / 1000 : 0.5;
         let k = 1, hgt = size();
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }
-      const h = Math.ceil(el.getBoundingClientRect().height + pad) + 2;
+      const h = Math.ceil(el.getBoundingClientRect().height / scaleOf(el) + pad) + 2;   // (a card zoom is a transform: its rect is that many times the card's own height)
       growNow(h); shrinkNow(h);
       onHeight(entry.key, Math.round(rect.w), h);
     };

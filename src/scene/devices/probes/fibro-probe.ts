@@ -134,7 +134,6 @@ export class FibroProbe {
     this.beam = new Mesh(this.beamGeo, this.beamMat);
     this.beam.renderOrder = 1000; this.beam.frustumCulled = false; this.beam.visible = false;
     this.group.add(this.beam);
-    this.group.visible = false;
   }
 
   /** A direction on the screen (degrees clockwise from +x, y down) as the plate's vector per px there: the legacy figure scale has none (the probe's own turn is the plate's direction). */
@@ -232,7 +231,6 @@ export class FibroProbe {
     const vis = this.shown > 0.002;
     let moving = this.shown !== prev || this.opT.running;
     if (this.shown !== prev) {
-      this.group.visible = vis;
       // (the probe's own fade, `shown`, is the alpha of every part that has no fade of its own; a part that does (the head's, a wave's) gets nothing here but its leave)
       for (const o of this.parts) {
         if (this.waves.some((w) => w.part === o)) { if (!vis) o.show(false); continue; }

@@ -16,6 +16,8 @@ import { ProcCatheter, CATHETER_IDLE } from '../src/scene/devices/catheters/proc
 import { route3d } from '../src/scene/procedures/route3d.ts';
 import { EndoScope } from '../src/scene/devices/probes/scope.ts';
 import { countAll, readAllowance } from '../scripts/visible-ratchet.mjs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 // a clock on a hand-turned Env: frames and time move only when the test says so
 let t = 1000, id = 0;
@@ -145,8 +147,31 @@ test('raw `.visible =` writes under src/scene only go down (scripts/visible-allo
   const now = countAll() as Record<string, number>, was = readAllowance() as Record<string, number>, over: string[] = [];
   for (const f of Object.keys(now)) if (now[f]! > (was[f] ?? 0)) over.push(`${f}: ${now[f]} > ${was[f] ?? 0}`);
   assert.deepEqual(over, [], 'a scene object is shown with DeviceObject.show / setAlpha (it eases), not a boolean (it pops)');
-  for (const f of ['scope.ts', 'proc-catheter.ts', 'tamponade.ts', 'fibro-probe.ts', 'glue-cast.ts']) {
-    const k = Object.keys(now).find((x) => x.endsWith('/' + f));
-    assert.ok(!k || now[k]! <= 7, `${f}: only containers and derived meshes keep a raw write`);
-  }
+});
+
+test('no device part or container is switched by a raw `group.visible =` outside DeviceObject (the one writer): show / present / setAlpha only', () => {
+  const dir = new URL('../src/scene/devices/', import.meta.url).pathname, bad: string[] = [];
+  const walk = (d: string): void => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(n) && n !== 'device-object.ts') { const src = readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1'); src.split('\n').forEach((l, i) => { if (/\bgroup\.visible\s*=(?!=)/.test(l)) bad.push(`${p.slice(dir.length)}:${i + 1}`); }); } } };
+  walk(dir);
+  assert.deepEqual(bad, [], 'DeviceObject.show / present / park / setAlpha own a part\'s visibility, and a container is never switched');
+});
+
+test('presence and an owner\'s fade multiply and start together: a Doppler mark rises with the probe\'s own fade, not after it', () => {
+  const o = part(); o.park();
+  o.show(true); o.setAlpha(0);            // structurally there from the start, the owner's fade at nothing
+  frames(20);                             // presence is whole long before the owner starts
+  const first: number[] = [];
+  for (let i = 0; i < 6; i++) { o.setAlpha((i + 1) / 10); first.push(alphaOf(o)); tick(); }
+  assert.ok(first.every((v, i) => Math.abs(v - (i + 1) / 10) < 1e-9), `the owner's fade comes through whole: ${first.map((v) => v.toFixed(2))}`);
+});
+
+test('a tamponade balloon grows from a true zero: its alpha is nothing at the first drop of fill and rises with its size', () => {
+  const tp = new Tamponade(shared); tp.applyPalette(PALETTES.light);
+  const st = (tp as unknown as { state: { adv: number; gas: number; eso: number } }).state, draw = (): void => (tp as unknown as { draw(): void }).draw();
+  tp.want(true, true); st.adv = 1;
+  const seen: number[] = [];
+  for (const g of [0.0011, 0.02, 0.06, 0.2, 1]) { st.gas = g; st.eso = 0; draw(); frames(20); seen.push(alphaOf(tp.gas)); }   // (20 frames: presence is whole, so what is read is the fill's own alpha)
+  assert.ok(seen[0]! < 0.02, `at the first drop it is invisible (${seen[0]})`);
+  assert.ok(seen.every((v, i) => i === 0 || v >= seen[i - 1]! - 1e-9), `and rises with the fill: ${seen.map((v) => v.toFixed(2))}`);
+  assert.ok(Math.abs(seen[seen.length - 1]! - 0.92) < 1e-6, 'to the latex\'s own alpha');
 });

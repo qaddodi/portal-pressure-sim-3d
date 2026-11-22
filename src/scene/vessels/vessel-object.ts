@@ -19,8 +19,8 @@ import { GLOW_LAYER } from '../glow.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
 export interface LensShared {
-  lensGradA: { value: Texture }; lensLaneA: { value: Texture }; lensModeA: { value: number };
-  lensGradB: { value: Texture }; lensLaneB: { value: Texture }; lensModeB: { value: number };
+  lensGradA: { value: Texture }; lensLaneA: { value: Texture }; lensModeA: { value: number }; lensRawA: { value: number };
+  lensGradB: { value: Texture }; lensLaneB: { value: Texture }; lensModeB: { value: number }; lensRawB: { value: number };   // (lensRaw: 1 when that set's colours are authored as drawn, the pressure ramp: cel-glsl.ts tubeRawK)
   laneColA: { value: Vector3[] }; laneColB: { value: Vector3[] };
   lensMix: { value: number }; lensTail: { value: number };
 }
@@ -29,8 +29,8 @@ export function createLensShared(): LensShared {
   const blank = (): Texture => { const t = new DataTexture(new Float32Array([0, 0, 0, 0]), 1, 1, RGBAFormat, FloatType); t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; };
   const lanes = () => Array.from({ length: 5 }, () => new Vector3());
   return {
-    lensGradA: { value: blank() }, lensLaneA: { value: blank() }, lensModeA: { value: 0 },
-    lensGradB: { value: blank() }, lensLaneB: { value: blank() }, lensModeB: { value: 0 },
+    lensGradA: { value: blank() }, lensLaneA: { value: blank() }, lensModeA: { value: 0 }, lensRawA: { value: 0 },
+    lensGradB: { value: blank() }, lensLaneB: { value: blank() }, lensModeB: { value: 0 }, lensRawB: { value: 0 },
     laneColA: { value: lanes() }, laneColB: { value: lanes() },
     lensMix: { value: 1 }, lensTail: { value: 0 },
   };
@@ -113,7 +113,7 @@ export class VesselObject extends CelObject {
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         glowK: { value: 1 }, veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, mapFade: { value: new Vector3(0, 1, 0) }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 0.02, 0.6, 0) }, wedgeD: { value: new Vector4(0, 0, -1, 0.02) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
-        lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
+        lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensRawA: lens.lensRawA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB, lensRawB: lens.lensRawB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
         ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
       },

@@ -20,6 +20,12 @@ const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
 export interface TamponadeState { adv: number; gas: number; eso: number }
 
+/** A latex balloon's alpha when whole. */
+const LATEX_ALPHA = 0.92;
+/** A balloon grows from nothing: its alpha rises with its size (`k`, the eased fill), so it is invisible at zero and whole by a tenth of the way up. (The radius cannot go below the tube it sits on; the alpha is what takes it to a true zero.) */
+const GROW_FULL = 0.1;
+const grow = (k: number): number => Math.min(1, Math.max(0, k / GROW_FULL));
+
 export class Tamponade {
   readonly group = new Group();
   readonly tube: DeviceObject; readonly gas: DeviceObject; readonly eso: DeviceObject;
@@ -84,7 +90,7 @@ export class Tamponade {
     const show = adv > 0.001;
     // (every part is asked to show or go and fades by itself: DeviceObject.show; the container stays drawn until the last of them is gone)
     this.tube.show(show);
-    if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.show(false); this.pull = 0; this.settle(); return; }
+    if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.show(false); this.pull = 0; return; }
     const k = easeMove(gas), ke = easeMove(eso);
     const q = easeMove(clamp01((gas - 0.45) / 0.55));   // the traction runs in the second half of the gastric balloon's filling (stage-balloon.js `pull`)
     const path = tubePath();
@@ -106,7 +112,7 @@ export class Tamponade {
         this.pt(g.p0[0] + g.dir[0] * g.L * u, g.p0[1] + g.dir[1] * g.L * u, r.c); r.t.set(g.dir[0], -g.dir[1], 0); r.r = Math.max(tubeR, g.half(u) / U);
       }
       writeRings(this.gas.toonMesh.geometry, this.gasRings, RADIAL);
-      this.gas.setAlpha(0.92);
+      this.gas.setAlpha(LATEX_ALPHA * grow(k));
     }
     // the esophageal balloon: the long balloon on the tube, its centre and half width at each height from balloonShape's outline
     const showEso = eso > 0.001;
@@ -119,7 +125,7 @@ export class Tamponade {
         this.pt((l[0] + rr[0]) / 2, l[1], r.c); r.t.set(0, -1, 0); r.r = Math.max(tubeR, (rr[0] - l[0]) / 2 / U);
       }
       writeRings(this.eso.toonMesh.geometry, this.esoRings, RADIAL);
-      this.eso.setAlpha(0.92);
+      this.eso.setAlpha(LATEX_ALPHA * grow(ke));
     }
     // the two marker bands, on the tube at the esophageal balloon's ends (3 units in from each end of its length): a short ring a unit long, a hair wider than the tube
     const arcs = sheathArcs(tip, path), per = (arcs.eso[1] - arcs.eso[0]) / (BALLOON.bottom - BALLOON.top);
@@ -144,10 +150,7 @@ export class Tamponade {
       this.pullLine.setAlpha(q); this.pullHead.setAlpha(q);
     }
     void esoAt; void GAS;
-    this.settle();
   }
-  /** The container is drawn while any part still is (a part that is going fades in place). */
-  private settle(): void { this.group.visible = this.objects.some((o) => o.group.visible); }
 
   /** The arrow is fixed to the esophagus (balloon-gas.js `pullArrow`), so it is built once: a round shaft of the 2D stroke's width (1.5) and a cone for the head's triangle. */
   private buildPull(): void {

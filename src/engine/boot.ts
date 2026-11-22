@@ -27,7 +27,7 @@ export async function bootEngine(worker?: WorkerLike, preset = START_PRESET, wai
     onCrash: crashed,
   });
   const mine = client;
-  const late = clock.after(() => mine.crash('The simulation did not answer. Check the connection, then reload.'), waitMs);
+  const late = clock.afterReal(() => mine.crash('The simulation did not answer. Check the connection, then reload.'), waitMs);
   client.send({ type: 'init' });
   const [loadedPreset, healthy] = await Promise.all([
     client.request<Extract<FromWorker, { type: 'presetLoaded' }>>({ type: 'preset', id: preset }),

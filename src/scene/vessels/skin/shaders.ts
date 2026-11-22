@@ -75,9 +75,9 @@ const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ lengt
 const COPY_OF = (i: number): string => `armCopy[${i}][SKIN_COPY]`;
 
 export const SKIN_VS = /* glsl */ `
-uniform vec2 skinMap;    // (x) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1); (y) 1 on the Circuit's own skins (circuit/skins.ts): the map's widths, its bolder line and inner line, in over the end of the change. A uniform, not a define: the map's skins share the body's programs (skin-object.ts)
-#define SKIN_U skinMap.x
-#define skinCirc skinMap.y
+uniform vec4 skinKW;     // (x, y, z: the blend width and the weld pair, below) (w) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1) with its SIGN flipped: negative is the Circuit's own skins (circuit/skins.ts: the map's widths, its bolder line and inner line, in over the end of the change). A uniform, not a define: the map's skins share the body's programs (skin-object.ts). One slot for both: the fragment stage is held under 120 uniform vectors (tests/skin-shaders.test.ts)
+#define SKIN_U abs(skinKW.w)
+#define skinCirc (skinKW.w < 0.0 ? 1.0 : 0.0)
 attribute vec3 cen;      // the nearest point on the nearest arm's axis: the depth and the lumen's centre, as a tube's ring centre is
 attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 to 3; the six sum to 1, arm order)
 attribute vec2 weight2;  // arms 4 and 5
@@ -94,6 +94,7 @@ uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
 uniform vec4 armFade[${SKIN_ARMS}];   // per arm (a0, 1 / (a1 - a0), a2, a3): the tube's own fade by its length share u (arm-twins.ts uFadeOf), so the skin's alpha at each vertex is the tube's at that place along the arm and not its value at the seam; a2 < 0: none (the seam's value stands)
 uniform vec4 armArc[${SKIN_ARMS}];   // (as the fragment stage's) the arc at the seam, which way it grows toward the node, the vessel's length, its rest radius
+uniform vec4 armColor[${SKIN_ARMS}];   // (as the fragment stage's; here only its .a, the arm's lens flag: 0 an artery) the share of the junction that is an artery sets the wall's line (cel-style ARTERY)
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // (as the fragment stage's)
 varying vec4 vFadeA;     // each arm's fade at this vertex (arms 0 to 3), -1 where the arm has no u-fade: the seam's value stands
 varying vec2 vFadeB;
@@ -152,7 +153,8 @@ void main() {
   float rCssV = lumenW * SKIN_U / max(wpcV, 1e-6);   // the lumen's radius in CSS px
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
-  float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
+  float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);   // (the arms' share that is an artery: 0 at a vein's junction, 1 at an artery's, a gradient where one runs into the other)
+  float inkPx = ${inkPxGlsl('rCssV', 'rCssV', 'skinArt')};
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, skinCirc);   // (the Circuit's line is bolder: the tube's own, vessels/shaders.ts)
   float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
@@ -197,9 +199,9 @@ ${CEL_LIGHT_GLSL}
 ${VDBG_GLSL}
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
-uniform vec2 skinMap;    // (x) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1); (y) 1 on the Circuit's own skins (circuit/skins.ts): the map's widths, its bolder line and inner line, in over the end of the change. A uniform, not a define: the map's skins share the body's programs (skin-object.ts)
-#define SKIN_U skinMap.x
-#define skinCirc skinMap.y
+uniform vec4 skinKW;     // (x, y, z: the blend width and the weld pair, below) (w) the units in one scene unit: the figure's (300), or on the Circuit's own skins the map's (1 / MAP_K: the vessel's own vU at circShare 1) with its SIGN flipped: negative is the Circuit's own skins (circuit/skins.ts: the map's widths, its bolder line and inner line, in over the end of the change). A uniform, not a define: the map's skins share the body's programs (skin-object.ts). One slot for both: the fragment stage is held under 120 uniform vectors (tests/skin-shaders.test.ts)
+#define SKIN_U abs(skinKW.w)
+#define skinCirc (skinKW.w < 0.0 ? 1.0 : 0.0)
 uniform vec3 inkColor;
 uniform vec3 inkColorCirc;
 uniform float circT;
@@ -217,7 +219,7 @@ uniform vec2 res;
 uniform float dpr;
 uniform float projY;
 uniform float hiPx;
-uniform float lensUse;
+#define lensUse 1.0   // (the skin's own lens flag was a uniform that was always 1; the per-arm flag is multiplied in: armColor.a. A slot saved: tests/skin-shaders.test.ts)
 uniform float lensMix;
 uniform float lensTail;
 uniform float lensSmooth;
@@ -227,6 +229,8 @@ uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform vec4 armData[${SKIN_ARMS}];
@@ -234,7 +238,6 @@ uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres)
 uniform vec4 armCopy[${SKIN_ARMS}];   // each arm's shares of the three copies (xyz: front, solid, veil: vessel-object.ts copyShares; this program is ONE of them, SKIN_COPY) and in w the arm it runs THROUGH the node with (through.ts), or -1: their union is a plain minimum (one vec4, because a float array costs a whole vector a slot)
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
-uniform vec3 skinKW;
 #define skinK skinKW.x
 uniform vec4 armArc[${SKIN_ARMS}];
 uniform vec4 armFlow[2];    // each arm tube's flowAmount, six floats PACKED in two vectors (a float array costs a whole vector a slot: the fragment stage is held to 120 vectors, tests/skin-shaders.test.ts); read with armFlowAt
@@ -266,7 +269,13 @@ varying vec2 vSwell2;
 varying vec3 vPos;
 varying vec4 vFadeA;
 varying vec2 vFadeB;
-float wAt(int i) { return i < 4 ? vWeight[i] : vWeight2[i - 4]; }
+// THE WEIGHTS OF THE ARMS THAT ARE THERE (Mohammad, 21 Nov, Budd-Chiari: a gap with a hatched edge in the cava below the liver). A growing arm that is not there (a closed shunt or collateral: its tube hidden or a dotted thread) is kept 0 (the armFlow bits): its weight goes to
+// the arms that stay, so the skin at the pixels it owned is the host's own lumen. Before, its weight stayed in the blend with presence 0: the presence dither (pres, below) threw away every pixel it owned, and the host's tube is cut away under the skin
+// (a hole), so the cava was missing there with a screen-door edge. Kept arms: the weights as the mesh has them (the sum of the weights is 1, so nothing changes where every arm is kept).
+float gWKeep = 1.0;
+float rawW(int i) { return i < 4 ? vWeight[i] : vWeight2[i - 4]; }
+float keepOf(int i) { return mod(floor(armFlow[1].w / exp2(float(i))), 2.0); }   // the kept arms as bits of one float in a free slot of armFlow (skin-object.ts setKeep): a uniform of its own would go over the fragment stage's 120 vectors
+float wAt(int i) { return rawW(i) * keepOf(i) * gWKeep; }
 // an arm's alpha HERE: its tube's fade at this place along the arm (the vertex stage), or its value at the seam where the arm carries no u-fade (vFade < 0)
 float fadeOf(int i) { float v = i < 4 ? vFadeA[i] : vFadeB[i - 4]; return v >= 0.0 ? v : armAF[i].y; }
 float swAt(int i) { return i < 4 ? vSwell[i] : vSwell2[i - 4]; }
@@ -353,6 +362,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   return mine / max(sum, 1e-6);
 }
 void main() {
+  { float kept = 0.0; for (int i = 0; i < ${SKIN_ARMS}; i++) kept += rawW(i) * keepOf(i); gWKeep = armFlow[1].w > exp2(float(${SKIN_ARMS})) - 1.5 ? 1.0 : 1.0 / max(kept, 1.0e-4); }   // (every arm kept: the weights as they are)
   // (a welded skin's normal is interpolated between vertices whose normals can face apart at a crease: its length can come to nothing, and normalize() of nothing is NaN, which the flow marks turned into
   // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
   float nLen = length(vN);
@@ -442,7 +452,8 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
-  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
+  float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx, inkDev);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
@@ -457,6 +468,7 @@ void main() {
   if (sdPx > inkDev + 0.5 + seamPad) discard;   // (past the band: the mesh is a little wider than the union's line where the arms spread)
   // THE BODY COLOUR: each arm's lens colour at its seam's ramp position (the tube's own rule, the two lens sets crossfaded by lensMix), then the arms blended by weight: a gradient through the junction, the tube's colour on a seam
   vec3 base = vec3(0.0);
+  float rawAcc = 0.0;   // (the arms' as-drawn share, weighted as the colour is: cel-glsl.ts tubeRawK)
   vec4 laArm[${SKIN_ARMS}];
   vec4 lbArm[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -470,11 +482,13 @@ void main() {
     lb.a *= armColor[i].a;
     laArm[i] = la; lbArm[i] = lb;
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
+    rawAcc += wAt(i) * mix(la.a * lensRawA, lb.a * lensRawB, lensMix);
   }
+  tubeRawK = rawAcc;
 #ifdef GLOW
   // THE GLOW'S MASK (glow.ts, glow-fx.ts): the skin as it is drawn, weighted by the arms' blended pick weight, painted into the mask texture by max with the tubes' own: the junction is part of the one mask the blur turns into a halo
   {
-    float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx')};   // CSS px past the line's outer edge
+    float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')};   // CSS px past the line's outer edge
     float wG = ${glowWeightGlsl('hi')} * alpha * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     if (wG < 0.002) discard;
     gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
@@ -482,7 +496,7 @@ void main() {
   }
 #endif
   float rDev = vR / max(${wpcGlsl('vW', 'projY', 'SKIN_U')}, 1e-6) * dpr;
-  vec3 c = celTubeTone(base, sT, swT, rDev);   // two flat tones, matte and opaque: the tube's own
+  vec3 c = celTubeToneArt(base, sT, swT, rDev, skinArt);   // two flat tones, matte and opaque: the tube's own
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
 #endif
