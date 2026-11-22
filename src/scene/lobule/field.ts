@@ -29,10 +29,14 @@ export function fieldWide(d: number, rest: number): number {
   return t * t * (3 - 2 * t);
 }
 export const FIELD_Z = PLATE_Z - 0.1;
-/** Plan 31 part C: the lobule's own six corners (lobule radii, the tile's lattice: a flat-topped hexagon) and the tract's full radius there (1.84 x its 0.10: the cuff's outer edge at growth 1). The neighbour plates' rounded corners reach into these
+/** Plan 31 part C: the lobule's own six corners (lobule radii, the tile's lattice: a flat-topped hexagon) and the tract's full radius there (the cuff's outer edge at growth 1). The neighbour plates' rounded corners reach into these
  *  discs and showed through the tract's reveal as a stippled wedge with straight edges; inside them the field draws only its gap tone, so a home tract always lies on one ground. */
 export const HOME_CORNERS: readonly [number, number][] = Array.from({ length: 6 }, (_, i) => [Math.cos((i * Math.PI) / 3), Math.sin((i * Math.PI) / 3)] as [number, number]);
-export const HOME_TRACT_R = 1.84 * 0.1;
+export const HOME_TRACT_R = 1.84 * 0.1 * 1.06;   // (the cuff's outer edge, 1.7 x 1.08 of the tract's radius, and the most its wavy edge swells, 6 %)
+/** The plates give way entirely inside HOME_TRACT_R and ease back to the tile from there out to this many times it (outside the cuff, so nothing of the tract's reveal lies on the ease). */
+export const HOME_EASE = 1.25;
+/** The share of the neighbours' plates the shader keeps at r lobule radii from a home corner (the shader's own rule, in JS for the gate): 0 inside the tract disc, 1 from HOME_EASE times it. */
+export const plateShare = (r: number): number => { const x = Math.min(1, Math.max(0, (r - HOME_TRACT_R) / (HOME_TRACT_R * (HOME_EASE - 1)))); return x * x * (3 - 2 * x); };
 
 /** The field's state as 2D quantizes it (lobule-zoom-field.js fsQ: eighths, with a little hysteresis so a value on a step does not flip tiles). */
 export interface FieldState { su: number; pre: number; post: number; sin: number; cong: number }
@@ -119,9 +123,9 @@ void main() {
   vec2 uv = vec2(vLob.x / 6.0, vLob.y / 3.4641016151377544);
   vec3 col = texture2D(tile, uv, bias).rgb;
   vec3 colB = texture2D(tile, uv, bias + 3.0).rgb;
-  // (a home tract lies on one ground: inside its full disc the neighbours' plates give way to the gap tone, eased out over the disc's outer fifth, so no stippled wedge shows through the tract's reveal)
+  // (a home tract lies on one ground: inside its full disc the neighbours' plates give way to the gap tone, eased back in over the next quarter of its radius, so no stippled wedge shows through the tract's reveal)
   float home = 0.0;
-  for (int i = 0; i < 6; i++) home = max(home, 1.0 - smoothstep(homeR * 0.8, homeR, length(vLob - homeC[i])));
+  for (int i = 0; i < 6; i++) home = max(home, 1.0 - smoothstep(homeR, homeR * ${HOME_EASE.toFixed(4)}, length(vLob - homeC[i])));
   col = mix(col, gapCol, home); colB = mix(colB, gapCol, home);
   // the neighbours in the same three flat tones as the lobule (cel.ts), about their own local lightness; the blur they are drawn at softens the edge, and they carry no ink: they stay quiet
   float lbN = celLight(colB);
