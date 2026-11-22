@@ -46,7 +46,7 @@ import { lazyRetry } from '../../boot/lazy-retry.ts';
 import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { whenQuietOnce } from '../../clock/idle.ts';
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 // (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
 const IrPane = lazyRetry(() => LOADERS.hvpg().then((m) => ({ default: m.IrPane })));
@@ -126,9 +126,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // the instruments that load after the first paint come in when the card opens, and when the app is idle (2D load(), main.js lazy())
   useEffect(() => { if (open) needAll(); }, [open]);
   useEffect(() => {
-    const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
-    const t = idle ? idle(needAll) : clock.after(needAll, 4000);
-    return () => { if (!idle) clock.cancel(t); };
+    const job = whenQuietOnce(needAll, { tag: 'tests-modules', delayMs: 2000 });
+    return () => job.cancel();
   }, []);
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);

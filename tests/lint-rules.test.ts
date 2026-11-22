@@ -14,6 +14,7 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['raw-time', 'src/ui/x.ts', 'const t = performance.now(); setTimeout(f, 1);', 'const t = clock.now(); // performance.now()\nconst o = { setTimeout: 1 };'],
   ['layout-read', 'src/ui/x.ts', 'const r = el.getBoundingClientRect(); const w = el.offsetWidth;', 'const r = readBox(el); const w = readMetric(el, "offsetWidth");'],
   ['unsafe-cast', 'src/scene/x.ts', 'const a = b as unknown as Rec; const c = d as never;', 'const a = b as Rec; const c = d as unknown;'],
+  ['raw-idle', 'src/scene/x.ts', 'const ric = globalThis.requestIdleCallback; requestIdleCallback(f);', '// requestIdleCallback is the slot\'s\nwhenQuiet(step, { tag: "x" });'],
   ['canvas-own-loop', 'src/ui/x.tsx', 'export const A = () => <Canvas camera={c}><Scene /></Canvas>;', 'export const A = () => <Canvas frameloop="never"><Scene /></Canvas>;'],
 ];
 
@@ -28,6 +29,7 @@ test('every rule has a case here, and the exempt places stay exempt', () => {
   assert.deepEqual(CASES.map((c) => c[0]).sort(), Object.keys(RULES).sort());
   assert.deepEqual(lint('src/clock/frame.ts', 'requestAnimationFrame(f)'), [], 'the clock owns the animation frame');
   assert.deepEqual(lint('src/clock/frame.ts', 'performance.now()'), [], 'the clock owns time');
+  assert.deepEqual(lint('src/clock/idle.ts', 'requestIdleCallback(f)'), [], 'the slot owns idle time');
   assert.deepEqual(lint('src/ui/layout-snap.ts', 'el.getBoundingClientRect()'), [], 'the layout service reads layout');
   assert.deepEqual(lint('src/engine/host/worker.ts', 'setTimeout(f, 1); requestAnimationFrame(f)'), [], 'the copied engine is not this app');
 });

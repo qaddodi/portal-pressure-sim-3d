@@ -7,6 +7,8 @@ import { reloadKeepingState } from '../boot/reload.ts';
 import { talkOn } from '../state/deck.ts';
 
 import { clock } from '../clock/frame.ts';
+import { whenQuietOnce } from '../clock/idle.ts';
+import { stamp } from '../boot/timeline.ts';
 export const UPDATE_TOAST = 'A new version of the simulator is ready.';
 /** How long a held offer waits before it asks again (a talk is on). */
 export const RETRY_MS = 30000;
@@ -37,6 +39,13 @@ function askFiles(sw: ServiceWorker): Promise<unknown> {
 }
 
 /** The offer: one line at the foot with a Reload button; in a talk it waits and asks again. */
+/** Asks the worker to hold the parts opened later; it answers on the port when it has (the boot timeline's "fill done"). */
+function askFill(sw: ServiceWorker | null): void {
+  if (!sw) return;
+  const ch = new MessageChannel();
+  ch.port1.onmessage = () => stamp('fill');
+  try { sw.postMessage('pps:fill', [ch.port2]); } catch { /* (no answer: the timeline reads "–") */ }
+}
 export function offerReload(say = useShell.getState().say, retry = (fn: () => void) => { clock.after(fn, RETRY_MS); }): void {
   const offer = () => {
     if (talkOn()) { retry(offer); return; }
@@ -75,7 +84,6 @@ export function registerPwa(): void {
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) takeOver(); });
   }
-  const idle = (fn: () => void) => { const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback; if (ric) ric(fn, { timeout: 5000 }); else clock.after(fn, 1500); };
   // (once the worker is active the page asks it to hold the parts opened later: 'pps:fill', scripts/pwa.mjs)
   /** Asks the host for a newer worker when the tab comes to the front, comes back online or has stayed open CHECK_MS (the browser asks only on a navigation, and once a day otherwise). */
   const watchForNewBuild = (reg: ServiceWorkerRegistration) => {
@@ -85,9 +93,10 @@ export function registerPwa(): void {
     addEventListener('pageshow', ask); addEventListener('online', ask);
     clock.every(ask, CHECK_MS);
   };
-  const go = () => idle(() => {
-    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => idle(() => r.active?.postMessage('pps:fill')))
+  // (the worker is registered, and then asked to fill its cache, in the background slot: clock/idle.ts. A network job, not about the picture: it goes after MAX_WAIT even while something moves)
+  const go = () => whenQuietOnce(() => {
+    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { whenQuietOnce(() => askFill(r.active), { tag: 'sw-fill', maxWaitMs: 8000 }); })
       .catch((e) => console.warn('[pwa] no offline copy:', e));
-  });
+  }, { tag: 'sw-register', delayMs: 1500, maxWaitMs: 8000 });
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
 }

@@ -4,5 +4,6 @@
   "raw-time": 21,
   "layout-read": 200,
   "unsafe-cast": 342,
+  "raw-idle": 0,
   "canvas-own-loop": 0
 }

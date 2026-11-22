@@ -1,5 +1,7 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { span } from '../boot/spans.ts';
+import { stamp } from '../boot/timeline.ts';
+import { whenQuiet, type QuietJob } from '../clock/idle.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
@@ -163,7 +165,7 @@ function withNeighbour(id: string, g: BufferGeometry): void {
   g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
-/** How long one idle slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
+/** How long one slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
 const SLICE_MS = 4;
 export class CelScene {
   readonly scene = new Scene();
@@ -202,7 +204,7 @@ export class CelScene {
   // `setView` to the lobule or the sinusoid, or by the first read of either getter. `onMicroBuilt` lets the page compile their programs off the frame (Stage), so the first show never stalls on a driver.
   private micro: { sinus: Sinusoid3D; lobule: Lobule3D } | null = null;
   private microDpr = 0;
-  private microIdle = false;
+  private microJob: QuietJob | null = null;
   private microPrimed = false;
   private microPrimed2 = false;
   onMicroBuilt: (() => void) | null = null;
@@ -231,19 +233,11 @@ export class CelScene {
    *  drawn frame: the construction of the lobule, then each pass of the shapes. The view change asks for it too (a dive straight after the load) and never builds anything itself: the dive frame stays off until
    *  `microReady`. Once. */
   buildMicroIdle(): void {
-    if (this.microPrimedNow || this.microIdle || this.disposed) return;
-    this.microIdle = true;
-    const later = (f: () => void) => {
-      const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-      if (ric) ric(f, { timeout: 300 }); else clock.after(f, 60);
-    };
-    // (a slice runs steps until it has used SLICE_MS, so the many small steps of the shapes are not one idle wait each; every step is itself small)
-    const slice = () => {
-      const t0 = clock.now();
-      do { if (this.microStep()) return; } while (!this.disposed && clock.now() - t0 < SLICE_MS);
-      later(slice);
-    };
-    later(slice);
+    if (this.microPrimedNow || this.disposed) return;
+    // (a dive straight after the load: the job the user is now waiting for runs through the motion of the dive, still in slices with a rest between)
+    if (this.microJob) { this.microJob.rush(); return; }
+    // (many small steps per slice up to SLICE_MS, one slot with the rest of the page's background work: clock/idle.ts)
+    this.microJob = whenQuiet(() => this.microStep(), { tag: 'micro', budgetMs: SLICE_MS });
   }
   /** One small step of the micro views' preparation; true when everything is built and primed. */
   private microStep(): boolean {
@@ -254,7 +248,7 @@ export class CelScene {
       else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
       else if (!this.microPrimed) { this.microPrimed = true; this.snapMicroToModel(); this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
       else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
-      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; this.onMicroPrimed?.(); return true; }
+      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microJob = null; this.moving = true; this.onMicroPrimed?.(); return true; }
       return false;
     }
   }
@@ -362,7 +356,7 @@ export class CelScene {
     this.disease.ascites.still = !!opts.reduceMotion;   // (so does the pool's surface: no ripple, no slosh)
     this.disease.ascites.setLiving(useSettings.getState().fluidSurface, true);   // (Settings > Figure depth > Living fluid: read at boot, then glided)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
-    Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
+    Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); stamp('scene'); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));

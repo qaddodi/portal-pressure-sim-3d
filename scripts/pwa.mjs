@@ -100,7 +100,7 @@ self.addEventListener('activate', (e) => {
 // 'pps:fill': the page is quiet, hold the parts opened later. 'pps:files': which files this build holds (the page tells an update that changed its files from one it already runs).
 self.addEventListener('message', (e) => {
   if (e.data === 'pps:files' && e.ports[0]) e.ports[0].postMessage(BOOT.concat(LATER));
-  else if (e.data === 'pps:fill') e.waitUntil(holdAll(LATER, false).catch(() => {}));
+  else if (e.data === 'pps:fill') e.waitUntil(holdAll(LATER, false).catch(() => {}).then(() => e.ports[0]?.postMessage('filled')));
 });
 
 // This build's copy, else the copy of the build before it (an older tab asks for its own hashed files, which the server no longer has). Only this scope's caches.

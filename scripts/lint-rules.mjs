@@ -40,6 +40,11 @@ export const RULES = {
     applies: (p) => !vendored(p),
     visit: (n) => n.type === 'TSAsExpression' && (n.typeAnnotation.type === 'TSNeverKeyword' || unwrap(n.expression).type === 'TSAsExpression' && unwrap(n.expression).typeAnnotation.type === 'TSUnknownKeyword'),
   },
+  /** One background slot: requestIdleCallback / cancelIdleCallback only in src/clock/idle.ts (ask for background time with whenQuiet: it never runs while anything moves or a finger is down). */
+  'raw-idle': {
+    applies: (p) => !vendored(p) && p !== 'src/clock/idle.ts',
+    visit: (n) => n.type === 'Identifier' && (n.name === 'requestIdleCallback' || n.name === 'cancelIdleCallback'),
+  },
   /** An R3F <Canvas> never runs its own loop: frameloop="never" and the clock's bridge inside it. */
   'canvas-own-loop': {
     applies: (p) => !vendored(p) && p.endsWith('.tsx'),
