@@ -12,6 +12,7 @@ import { useTokens } from './from2d/lobule-paint.generated.js';
 import { EDGE_FADE, FADE_MID, FADE_SPAN, NEIGHBOUR_FLAT, blurWrapped, neighbourBlur, surroundGrade } from './from2d/lobule-look.generated.js';
 import { LOBULE_R } from './shots.ts';
 import { PLATE_Z, blankTexture } from './plate.ts';
+import { GROW_H, TAU_LO } from './growth.ts';
 import { lookColours, type RGB } from './lz-colours.ts';
 import type { LookId } from '../../looks/looks.ts';
 
@@ -35,8 +36,14 @@ export const HOME_CORNERS: readonly [number, number][] = Array.from({ length: 6 
 export const HOME_TRACT_R = 1.84 * 0.1 * 1.06;   // (the cuff's outer edge, 1.7 x 1.08 of the tract's radius, and the most its wavy edge swells, 6 %)
 /** The plates give way entirely inside HOME_TRACT_R and ease back to the tile from there out to this many times it (outside the cuff, so nothing of the tract's reveal lies on the ease). */
 export const HOME_EASE = 1.25;
+/** Plan 31c: the cleared disc follows the tract collagen that is drawn (growth.ts front: the cream reaches tau p + GROW_H; the tract of radius rt (0.8 + 0.9 g) reaches r at g = (r / rt - 0.8) / 0.9), so with no tract collagen (Healthy, p = 0) there is nothing to clear and the field is untouched.
+ *  At p = 1 it is HOME_TRACT_R, the cuff's full edge. */
+export const homeRadius = (p: number): number => HOME_TRACT_R * (0.8 + 0.9 * Math.min(1, Math.max(0, p) + GROW_H)) / 1.7;
+/** 0 with no tract collagen, 1 once the first of it is whole (growth.ts: the earliest arrival is TAU_LO, whole at TAU_LO + GROW_H = 0.135). A ramp that wide moves no pixel more than 0.08 in a frame at GROW_RATE (1.5 / 0.135 x 0.35 / 60 = 0.065); a 0.02 ramp moved it 0.43. */
+export const HOME_ON = TAU_LO + GROW_H;
+export const homeK = (p: number): number => { const x = Math.min(1, Math.max(0, p / HOME_ON)); return x * x * (3 - 2 * x); };
 /** The share of the neighbours' plates the shader keeps at r lobule radii from a home corner (the shader's own rule, in JS for the gate): 0 inside the tract disc, 1 from HOME_EASE times it. */
-export const plateShare = (r: number): number => { const x = Math.min(1, Math.max(0, (r - HOME_TRACT_R) / (HOME_TRACT_R * (HOME_EASE - 1)))); return x * x * (3 - 2 * x); };
+export const plateShare = (r: number, p = 1): number => { const R = homeRadius(p), x = Math.min(1, Math.max(0, (r - R) / (R * (HOME_EASE - 1)))); return 1 - homeK(p) * (1 - x * x * (3 - 2 * x)); };
 
 /** The field's state as 2D quantizes it (lobule-zoom-field.js fsQ: eighths, with a little hysteresis so a value on a step does not flip tiles). */
 export interface FieldState { su: number; pre: number; post: number; sin: number; cong: number }
@@ -98,7 +105,8 @@ uniform vec3 bg;
 uniform vec2 grey;
 uniform vec3 gapCol;   // the tile's gap tone (--og-liver-2), what lies between its plates
 uniform vec2 homeC[6];   // this lobule's six corners (lobule radii)
-uniform float homeR;   // the tract's full radius there (lobule radii)
+uniform float homeR;   // the radius of the tract's drawn collagen there, cuff swell included (lobule radii, homeRadius)
+uniform float homeK;   // 0 with no tract collagen: nothing is cleared (Healthy is untouched)
 uniform float ready;
 uniform float wide;   // the dive's breadth (fieldWide): 0 at the lobule's framing (the field fades into the page past the lobule), 1 from afar (lobules to every edge of the screen)
 uniform float fade;   // the dive's one dissolve of the lobule going under the sinusoid (lobule3d.ts: 1 whole, 0 gone), the same value every tile, tube and mark of the lobule is dropping pixels at
@@ -126,6 +134,7 @@ void main() {
   // (a home tract lies on one ground: inside its full disc the neighbours' plates give way to the gap tone, eased back in over the next quarter of its radius, so no stippled wedge shows through the tract's reveal)
   float home = 0.0;
   for (int i = 0; i < 6; i++) home = max(home, 1.0 - smoothstep(homeR, homeR * ${HOME_EASE.toFixed(4)}, length(vLob - homeC[i])));
+  home *= homeK;
   col = mix(col, gapCol, home); colB = mix(colB, gapCol, home);
   // the neighbours in the same three flat tones as the lobule (cel.ts), about their own local lightness; the blur they are drawn at softens the edge, and they carry no ink: they stay quiet
   float lbN = celLight(colB);
@@ -161,7 +170,7 @@ export class NeighbourField {
     this.mk = mk;
     this.mat = new ShaderMaterial({ name: 'lobule field',
       vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
-      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, gapCol: { value: new Color() }, homeC: { value: HOME_CORNERS.map(([x, y]) => new Vector2(x, y)) }, homeR: { value: HOME_TRACT_R }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 }, fade: { value: 1 } },
+      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, gapCol: { value: new Color() }, homeC: { value: HOME_CORNERS.map(([x, y]) => new Vector2(x, y)) }, homeR: { value: homeRadius(0) }, homeK: { value: 0 }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 }, fade: { value: 1 } },
       transparent: true, depthWrite: false,
       userData: { fadeKind: 'ground' },   // (an alpha draw: it takes the lobule's ground fade from LobuleRoot, one-fade.ts)
     });
@@ -202,6 +211,8 @@ export class NeighbourField {
   get fadeNow(): number { return this.mat.uniforms.fade!.value as number; }
   get wideNow(): number { return this.mat.uniforms.wide!.value as number; }
   get softNow(): number { return this.mat.uniforms.soft!.value as number; }
+  /** The tract collagen's eased growth now (the plate shader's uP.y): the cleared discs follow it. */
+  setHome(p: number): void { this.mat.uniforms.homeR!.value = homeRadius(p); this.mat.uniforms.homeK!.value = homeK(p); }
   setGrey(k: number): void {
     const g = surroundGrade(k) as [number, number];
     (this.mat.uniforms.grey!.value as Vector2).set(g[0], g[1]);

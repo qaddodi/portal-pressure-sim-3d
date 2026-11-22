@@ -16,7 +16,7 @@ export interface PlateAsk { id: number; look: LookId; s: PlateState; zones: bool
 const net = buildLobule();
 const shape = { ...plateShape(net), cells: [] };
 const sins = net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
-let canvas: OffscreenCanvas | null = null, cCanvas: OffscreenCanvas | null = null;
+let canvas: OffscreenCanvas | null = null;
 const ctxOf = (c: OffscreenCanvas) => c.getContext('2d') as unknown as CanvasRenderingContext2D;
 
 self.onmessage = async (e: MessageEvent<PlateAsk>) => {
@@ -41,9 +41,10 @@ self.onmessage = async (e: MessageEvent<PlateAsk>) => {
     const bmp = await createImageBitmap(canvas, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' });
     const out: { id: number; bmp: ImageBitmap; cbmp?: ImageBitmap; tau?: Uint8Array } = { id, bmp }, tr: Transferable[] = [bmp];
     if (collagen) {
-      cCanvas ??= new OffscreenCanvas(PLATE_PX * ATLAS_W, PLATE_PX);
+      // (the atlas's canvas is 32 MB and is used once per look: made here, let go once its bitmap is taken, never kept for the session: Plan 31c)
+      let cCanvas: OffscreenCanvas | null = new OffscreenCanvas(PLATE_PX * ATLAS_W, PLATE_PX);
       paintCollagenWorld(ctxOf(cCanvas), PLATE_PX, sc, -B, -B, collagenInput(shape, cvR, look));
-      out.cbmp = await createImageBitmap(cCanvas, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' }); tr.push(out.cbmp);
+      try { out.cbmp = await createImageBitmap(cCanvas, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' }); tr.push(out.cbmp); } finally { cCanvas.width = 1; cCanvas.height = 1; cCanvas = null; }
     }
     if (tau) { out.tau = flipRows(collagenTau(shape, cvR * PLATE_S, PLATE_PX, B), PLATE_PX); tr.push(out.tau.buffer); }
     post(out, tr);
