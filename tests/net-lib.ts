@@ -196,6 +196,34 @@ export function topology(index: Uint32Array): { use: Map<string, number>; badDir
   }
   return { use, badDirected, degenerate };
 }
+/**
+ * What a built network is made of since the arms run on to the node (plan owner, 22 Nov): the TUBES (every triangle outside a junction report) are closed, consistently wound surfaces by themselves, and each junction's FILLET is a patch whose only open edges are its arms'
+ * seam rings, which are the tubes' own rings (so a ring edge is on three triangles: the tube outside, the tube inside, the fillet). Returns what is wrong, in words (empty when sound).
+ */
+export function shellProblems(res: { mesh: { index: Uint32Array }; nodes: readonly { node: string; kind: string; variant?: number; triStart: number; triCount: number; rings?: number[][] }[] }): string[] {
+  const out: string[] = [], inRegion = new Uint8Array(res.mesh.index.length / 3), ring = new Set<string>();
+  for (const n of res.nodes) {
+    if (n.kind !== 'junction') continue;
+    inRegion.fill(1, n.triStart, n.triStart + n.triCount);
+    for (const rg of n.rings ?? []) for (let j = 0; j < rg.length; j++) ring.add(edgeKey(rg[j]!, rg[(j + 1) % rg.length]!));
+  }
+  const tubes: number[] = [];
+  for (let t = 0; t < inRegion.length; t++) {
+    const tri = Array.from(res.mesh.index.subarray(3 * t, 3 * t + 3));
+    if (!inRegion[t]) tubes.push(...tri);
+  }
+  const tp = topology(Uint32Array.from(tubes));
+  for (const [e, c] of tp.use) if (c !== 2) out.push(`tube edge ${e} is on ${c} triangles`);
+  if (tp.badDirected) out.push(`${tp.badDirected} tube edges wind against each other`);
+  if (tp.degenerate) out.push(`${tp.degenerate} degenerate tube triangles`);
+  for (const n of res.nodes) {
+    if (n.kind !== 'junction') continue;
+    const tp2 = topology(res.mesh.index.subarray(3 * n.triStart, 3 * (n.triStart + n.triCount)));
+    if (tp2.badDirected) out.push(`${n.node}: ${tp2.badDirected} fillet edges wind against each other`);
+    for (const [e, c] of tp2.use) { if (c > 2) out.push(`${n.node}: fillet edge ${e} on ${c} triangles`); if (c === 1 && !ring.has(e)) out.push(`${n.node}: fillet edge ${e} is open and not a seam ring's`); }
+  }
+  return out;
+}
 /** The signed volume of a closed mesh (positive when the triangles wind outward). */
 export function volume(position: ArrayLike<number>, index: ArrayLike<number>): number {
   let v = 0;

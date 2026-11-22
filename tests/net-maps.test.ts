@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
 import { RADIAL } from '../src/scene/vessels/net/mesh.ts';
 import { OFF_MAX } from '../src/scene/vessels/net/window.ts';
+import { BODY_ONLY, regionShare } from '../src/scene/vessels/net/regions.ts';
 import { fixtures } from './net-lib.ts';
 
 test('a default build has one mesh per region and no window', () => {
@@ -33,37 +34,23 @@ for (const fx of fixtures()) {
       for (let v = map.vertStart; v < map.vertStart + map.vertCount; v++) assert.ok(!rings.has(v), 'the map mesh owns its fillet vertices, the rings are the tubes\'');
     }
   });
-  test(`${fx.name}: each mesh is whole at its own layout and the window lies where both are`, () => {
+  test(`${fx.name}: every mesh is whole at every grid t it is drawn at (the fillet steps aside during the move)`, () => {
     for (const [node, w] of r.windows) {
-      const first = w.rows[0]!, last = w.rows[w.rows.length - 1]!;
-      assert.ok(first.body.folds === 0 && first.body.off <= OFF_MAX, `${node}: body mesh whole at t = 0`);
-      assert.ok(last.map.folds === 0 && last.map.off <= OFF_MAX, `${node}: map mesh whole at t = 1`);
-      assert.ok(w.switchT, `${node}: the two meshes overlap`);
-      const [lo, hi] = w.switchT!, body = regions.find((n) => n.node === node && (n.variant ?? 0) === 0)!, map = regions.find((n) => n.node === node && n.variant === 1)!;
-      assert.deepEqual(body.switchT, w.switchT); assert.deepEqual(map.switchT, w.switchT);
-      assert.ok(w.b <= lo && hi <= w.a, `${node}: window [${lo}, ${hi}] inside [${w.b}, ${w.a}]`);
-      for (const row of w.rows) if (row.t >= lo - 1e-9 && row.t <= hi + 1e-9) assert.ok(row.body.folds === 0 && row.map.folds === 0 && row.body.off <= OFF_MAX && row.map.off <= OFF_MAX, `${node} t ${row.t}: both whole`);
-    }
-    assert.equal(r.mapNotes.length, 0, r.mapNotes.map((x) => x.why).join('; '));
-  });
-}
-
-// The window search runs on the junction peel (net/peel.ts, WP3's 2e89eea8), the same rule as the shader and the oracle: at a given t every bone inside a region's seam rings has ONE share, the node's.
-import { bonesAtT } from '../src/scene/vessels/net/window.ts';
-import { peelTable } from '../src/scene/vessels/net/peel.ts';
-for (const fx of fixtures()) {
-  const r = buildNetMesh(fx.skel, undefined, { maps: true }), regions = r.nodes.filter((n) => n.kind === 'junction' && (n.variant ?? 0) === 0 && n.capBones);
-  if (!regions.length) continue;
-  test(`${fx.name}: a region's bones inside its seam rings share one peel share in the window search`, () => {
-    const peel = peelTable(fx.skel, r.nodes);
-    for (const t of [0.3, 0.5, 0.7]) {
-      const bones = bonesAtT(fx.skel, t, peel);
-      for (const rg of regions) {
-        // (the bones the table puts inside the region, on every arm: the capsule runs a few bones past its seam ring)
-        const inside = (g: number): boolean => { const pe = peel[fx.skel.bones[g]!.edge]!, u = fx.skel.bones[g]!.u; return (pe[0] >= 0 && u <= pe[1] + 1e-9) || (pe[2] >= 0 && u >= pe[3] - 1e-9); };
-        const shares = new Set(rg.capBones!.slice(0, rg.arms.length).flat().filter(inside).map((g) => bones[g]!.share.toFixed(6)));
-        assert.equal(shares.size, 1, `${rg.node} at t = ${t}: one share inside the region (got ${[...shares].join(', ')})`);
+      const body = regions.find((n) => n.node === node && (n.variant ?? 0) === 0)!, map = regions.find((n) => n.node === node && n.variant === 1);
+      assert.ok(w.rows[0]!.body.folds === 0 && w.rows[0]!.body.off <= OFF_MAX, `${node}: body mesh whole at t = 0`);
+      assert.deepEqual(body.switchT, w.a < 1 ? [w.b, w.a] : undefined); assert.deepEqual(map?.switchT, map ? [w.b, w.a] : undefined);
+      const wb = body.switchT ?? BODY_ONLY;
+      for (const row of w.rows) {
+        const sb = regionShare({ variant: 0, window: wb }, row.t);
+        if (sb > 1e-6) assert.ok(row.body.folds === 0 && row.body.off <= OFF_MAX, `${node} t ${row.t}: the body mesh is drawn (share ${sb.toFixed(2)}) and whole`);
+        if (map) { const sm = regionShare({ variant: 1, window: map.switchT! }, row.t); if (sm > 1e-6) assert.ok(row.map!.folds === 0 && row.map!.off <= OFF_MAX, `${node} t ${row.t}: the map mesh is drawn (share ${sm.toFixed(2)}) and whole`); }
       }
+    }
+  });
+  test(`${fx.name}: a region with no map mesh, or a map mesh never whole, is named and dissolves its body fillet`, () => {
+    for (const body of regions.filter((n) => (n.variant ?? 0) === 0)) {
+      const map = regions.find((n) => n.node === body.node && n.variant === 1);
+      if (!map) assert.ok(r.mapNotes.some((x) => x.node === body.node), `${body.node}: named in mapNotes`);
     }
   });
 }

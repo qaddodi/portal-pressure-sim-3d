@@ -4,21 +4,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NetMeshError, RADIAL, buildNetMesh, networksOf } from '../src/scene/vessels/net/mesh.ts';
 import { minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
-import { deform, deformNormals, fixtures, geometricNormals, makeSkeleton, topology, volume, type FixEdge } from './net-lib.ts';
+import { deform, deformNormals, fixtures, geometricNormals, makeSkeleton, shellProblems, topology, volume, type FixEdge } from './net-lib.ts';
 
 for (const fx of fixtures()) {
   const r = buildNetMesh(fx.skel), m = r.mesh, V = m.position.length / 3, T = m.index.length / 3;
 
   test(`${fx.name}: one closed surface, wound outward, with no degenerate triangle and no unused vertex`, () => {
+    assert.deepEqual(shellProblems(r), [], 'the tubes are closed and wound, the fillets open only at their seam rings');
     const t = topology(m.index);
-    for (const [e, c] of t.use) assert.equal(c, 2, `edge ${e} is on ${c} triangles`);
-    assert.equal(t.badDirected, 0, 'a directed edge is used twice: two faces wind against each other');
     assert.equal(t.degenerate, 0);
     assert.ok(volume(m.position, m.index) > 0, 'inside out');
     const used = new Uint8Array(V);
     for (const v of m.index) used[v] = 1;
     assert.equal(used.reduce((a, b) => a + b, 0), V, 'a vertex no triangle uses');
-    assert.ok(T > 0 && V - t.use.size + T === 2 * (networksOf(fx.skel).length), `Euler: V - E + F = ${V - t.use.size + T} (a tree of tubes is a sphere)`);
+    assert.ok(T > 0);
   });
 
   test(`${fx.name}: every vertex is bound to at most four real bones of this network, weights sum to 1`, () => {
@@ -116,7 +115,7 @@ for (const fx of fixtures()) {
     for (const nd of r.nodes) if (nd.kind === 'junction') for (let t = nd.triStart; t < nd.triStart + nd.triCount; t++) for (let s = 0; s < 3; s++) skin[m.index[3 * t + s]!] = 1;
     const tube: number[] = [], fil: number[] = [];
     const endBone = new Set<number>();
-    for (const nd of fx.skel.nodes) if (nd.edges.length === 1) { const x = nd.edges[0]!, e = fx.skel.edges[x.edge]!; endBone.add(x.end === 0 ? e.bones[0] : e.bones[0] + e.bones[1] - 1); }
+    for (const nd of fx.skel.nodes) for (const x of nd.edges) { const e = fx.skel.edges[x.edge]!; endBone.add(x.end === 0 ? e.bones[0] : e.bones[0] + e.bones[1] - 1); }   // (the free ends' domes and the domes of the arms' extensions at their nodes)
     for (let v = 0; v < V; v++) { if (m.weight[4 * v]! === 1 && endBone.has(m.bone[4 * v]!)) continue; (skin[v] ? fil : tube).push(angle(n0, geo, v)); }   // (the dome's rings: the geometry's average over the cap's first facet is not the sphere's normal)
     tube.sort((a, b) => a - b); fil.sort((a, b) => a - b);
     assert.ok(tube[Math.floor(0.99 * (tube.length - 1))]! < 3, `tube normals p99 ${tube[Math.floor(0.99 * (tube.length - 1))]!.toFixed(2)} deg from the geometry's`);
@@ -133,10 +132,10 @@ for (const fx of fixtures()) {
   });
 }
 
-/** The distance from the axis (x, 0, 0) to the mesh along the ray at azimuth `th`, in the plane at x (the nearest hit), or Infinity. */
+/** The distance from the axis (x, 0, 0) to the mesh along the ray at azimuth `th`, in the plane at x (the OUTERMOST hit: the arms' tubes run on inside the fillet, so the nearer ones are the hidden extensions), or Infinity. */
 function radiusAt(m: { position: Float32Array; index: Uint32Array }, x: number, th: number): number {
   const dy = Math.cos(th), dz = Math.sin(th);
-  let best = Infinity;
+  let best = -1;
   for (let t = 0; t < m.index.length; t += 3) {
     const P = [0, 1, 2].map((s) => m.index[t + s]! * 3);
     if (Math.min(...P.map((o) => m.position[o]!)) > x || Math.max(...P.map((o) => m.position[o]!)) < x) continue;
@@ -149,9 +148,9 @@ function radiusAt(m: { position: Float32Array; index: Uint32Array }, x: number, 
     const w = [q[1]! * e1[2]! - q[2]! * e1[1]!, q[2]! * e1[0]! - q[0]! * e1[2]!, q[0]! * e1[1]! - q[1]! * e1[0]!], v = (D[0]! * w[0]! + D[1]! * w[1]! + D[2]! * w[2]!) / det;
     if (v < 0 || u + v > 1) continue;
     const s = (e2[0]! * w[0]! + e2[1]! * w[1]! + e2[2]! * w[2]!) / det;
-    if (s > 0 && s < best) best = s;
+    if (s > best) best = s;
   }
-  return best;
+  return best < 0 ? Infinity : best;
 }
 
 for (const name of ['T', 'FOUR', 'STUB', 'TT', 'HT']) {
@@ -274,7 +273,7 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
     assert.deepEqual(junctions(trunk(0.8, 10) as ReturnType<typeof H>), ['N+M'], 'no room between them: one region');
     assert.deepEqual(junctions(trunk(1.2, 14) as ReturnType<typeof H>), ['N', 'M'], 'room enough: two');
     // (and a fillet is never left with a sliver: flips and a relax on the same union clean what the remesh leaves)
-    for (const A of [155, 160, 165, 170]) { const r = buildNetMesh(H(0.32, A)), t = topology(r.mesh.index); assert.ok([...t.use.values()].every((n) => n === 2) && t.badDirected === 0, `A=${A}: closed and consistently wound`); }
+    for (const A of [155, 160, 165, 170]) { const r = buildNetMesh(H(0.32, A)); assert.deepEqual(shellProblems(r), [], `A=${A}: closed and consistently wound`); }
   });
 
   test('an edge the MAP pose collapses merges its two junctions, though the body pose keeps them apart (real figure: the five zero-length map pieces)', () => {
@@ -308,8 +307,8 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
         { id: 'A', from: 'a', to: 'N', curve: (u) => [-2 + 2 * u, 0, 0], rad: lin2(r0, r0) },
         { id: 'B', from: 'N', to: 'b', curve: (u) => [2 * u, 0, 0], rad: lin2(r1, r1) },
       ]);
-      const r = buildNetMesh(skel), t = topology(r.mesh.index);
-      assert.ok([...t.use.values()].every((n) => n === 2) && t.badDirected === 0, 'closed and wound');
+      const r = buildNetMesh(skel);
+      assert.deepEqual(shellProblems(r), [], 'closed and wound');
       assert.deepEqual(r.nodes.filter((n) => n.kind === 'junction').map((n) => n.arms.length), [2], 'one junction of two arms');
       assert.equal(r.nodes.find((n) => n.kind === 'junction')!.through.length, 0, 'and no through pair');
       // the profile along the axis rises from the thin radius to the fat one over a stretch, not in one ring spacing: the largest radius change per ring step (about 1.5 radii) stays under half a radius
@@ -332,5 +331,39 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
     const r = buildNetMesh(skel, undefined, { lenient: true });
     assert.equal(r.failures.length, 1);
     assert.match(r.failures[0]!.why, /9 arms/);
+  });
+}
+
+// THE ARMS RUN ON TO THE NODE (plan owner, 22 Nov): each arm's sweep continues past its seam ring to the node and ends in a dome, in the same mesh, so the junction is still whole when the fillet dissolves during the Circuit move. At rest the smooth union holds every capsule,
+// so every vertex of an extension lies within the union (the depth test hides it under the fillet), and the extension reaches the node end bone.
+import { sdUnion, SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
+for (const fx of fixtures()) {
+  const r = buildNetMesh(fx.skel), m = r.mesh, regions = r.nodes.filter((n) => n.kind === 'junction' && n.caps);
+  if (!regions.length) continue;
+  test(`${fx.name}: the arms run on past their seam rings to the node, inside the fillet`, () => {
+    const inRegion = new Uint8Array(m.index.length / 3);
+    for (const n of regions) inRegion.fill(1, n.triStart, n.triStart + n.triCount);
+    const tubeVert = new Uint8Array(m.position.length / 3);
+    for (let t = 0; t < inRegion.length; t++) if (!inRegion[t]) for (let s = 0; s < 3; s++) tubeVert[m.index[3 * t + s]!] = 1;
+    for (const n of regions) {
+      const caps = n.caps!.map((c) => ({ n: c.pts.length / 3, pts: Float64Array.from(c.pts), r: Float64Array.from(c.r), ...(c.mate >= 0 ? { mate: c.mate } : {}) })), k = SKIN_K * Math.min(...n.caps!.flatMap((c) => c.r));
+      let reached = 0;
+      n.arms.forEach((edge, i) => {
+        const e = fx.skel.edges[edge]!, [first, count] = e.bones, end: 0 | 1 = n.node.split('+').includes(e.from) ? 0 : 1;
+        const seamBone = end === 0 ? first + n.seams[i]! : first + count - 1 - n.seams[i]!, nodeBone = end === 0 ? first : first + count - 1, inside = (b: number): boolean => (end === 0 ? b <= seamBone : b >= seamBone);
+        let worst = 0, any = 0;
+        for (let v = 0; v < tubeVert.length; v++) {
+          if (!tubeVert[v] || m.weight[4 * v]! < 1 - 1e-6) continue;
+          const b = m.bone[4 * v]!;
+          if (b < first || b >= first + count || !inside(b) || b === seamBone) continue;
+          any++; if (b === nodeBone) reached++;
+          const R = fx.skel.bones[b]!.r[0], x = m.position[3 * v]!, y = m.position[3 * v + 1]!, z = m.position[3 * v + 2]!;
+          worst = Math.max(worst, sdUnion(caps, k, x, y, z) / R);
+        }
+        assert.ok(any > 0, `${n.node} arm ${e.id}: has extension vertices from its seam to the node`);
+        assert.ok(worst < 0.03, `${n.node} arm ${e.id}: the extension lies within the union at rest (worst ${worst.toFixed(3)} R outside)`);
+      });
+      assert.ok(reached > 0, `${n.node}: an extension reaches the node's end bone`);
+    }
   });
 }
