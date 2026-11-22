@@ -1,0 +1,65 @@
+// "Still broken: a black hole at the azygos where the arch meets the SVC" (Mohammad, 22 Nov, Schistosomiasis / NCPH). ROOT CAUSE: the skin mesh is one static shape with every arm whole and the host's tube is cut away under it. A growing arm that is not there (the ascending lumbar C9
+// at this patient) is left out of the outline (f07a2725), and every arm that IS there held the pixels of its stub out by depth (skin/shaders.ts skinArmPx), so the band dropped them: nothing drew the host's wall behind the stub, a hole of a tenth of the skin's pixels. Measured in node
+// by tests/skin-live-lib.ts (the fragment stage's outline rule at the engine's live swells, each pixel's nearest kept fragment): the hold-out is now taken relative to the least-held arm that is there (skinSdPx), so such a pixel is judged by the host's lumen.
+// The same cause held at every skin with a growing arm (SVD, CONF, LRV_S, S_PC1/C90, the azygos). Never reverts b9154a0c (the rest capsule), which is right.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createCore } from '../src/engine/hales/host/worker-core.js';
+import { collateralOpen } from '../src/scene/vessels/network.ts';
+import { gateSkins } from './skin-gate-lib.ts';
+import { closeCamera, rasterLive, swellOf } from './skin-live-lib.ts';
+
+const SCREEN = { w: 393, h: 852, dpr: 2, pxPerUnit: 500 } as const;
+/** The skin's pixels the live union calls vessel and no fragment is kept at, past what the skin has with every arm there (a sliver of the mesh's outer edge, by design). */
+const EXTRA_HOLE_MAX = 0.02;
+
+async function frameOf(preset: string): Promise<{ D: ArrayLike<number>; Q: ArrayLike<number>; Qf: ArrayLike<number> }> {
+  const out: { type: string }[] = [], core = createCore((m: { type: string }) => out.push(m));
+  await core.handle({ type: 'init' }); await core.handle({ type: 'preset', id: preset, reqId: 1 });
+  core.dispose();
+  return out.filter((m) => m.type === 'frame').at(-1) as never;
+}
+
+test('a growing arm that is not there leaves no hole in its host: every skin, at the live swells of the presets, has no more unpainted vessel than with every arm there', async () => {
+  const g = gateSkins();
+  try {
+    const growing = g.skins.filter((s) => s.mesh.junction.arms.some((a) => a.grow));
+    assert.ok(growing.length >= 5, `${growing.length} skins with a growing arm`);
+    let judged = 0;
+    for (const preset of ['schisto', 'csph', 'budd-chiari', 'cirr-decomp']) {
+      const fr = await frameOf(preset);
+      for (const s of growing) {
+        const arms = s.mesh.junction.arms;
+        const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
+        const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
+        if (keep.every(Boolean) || !keep.some((k, i) => k && arms[i]!.grow)) continue;   // (none out: nothing to prove; none of the growers there: the plain trunk draws, not this skin)
+        const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
+        const now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
+        const all = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep: keep.map(() => true) });
+        judged++;
+        assert.ok((now.hole - all.hole) / now.covered <= EXTRA_HOLE_MAX, `${preset} ${s.node}: ${(100 * now.hole / now.covered).toFixed(1)} % of the skin is unpainted vessel (${(100 * all.hole / all.covered).toFixed(1)} % with every arm there)`);
+      }
+    }
+    assert.ok(judged >= 4, `${judged} skin x preset cases judged`);
+  } finally { g.done(); }
+});
+
+test('the test bites: with each arm held out on its own (the rule until 22 Nov) the azygos skin of the Schistosomiasis patient has a tenth of its pixels unpainted', async () => {
+  const g = gateSkins();
+  try {
+    const s = g.skins.find((k) => k.node.startsWith('wall:AZY_SVC'))!, arms = s.mesh.junction.arms, fr = await frameOf('schisto');
+    const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
+    const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
+    assert.deepEqual(keep, [true, true, false, true], 'C9 collapsed, the varices open');
+    const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
+    const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
+    assert.ok(old.hole / old.covered > 0.08, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
+    assert.ok(now.hole / now.covered < 0.03, `${(100 * now.hole / now.covered).toFixed(1)} % with it`);
+  } finally { g.done(); }
+});
+
+test('the outline\'s hold-out is relative to the least-held arm that is there', async () => {
+  const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.match(SKIN_FS, /heldMin = min\(heldMin, heldOf\[i\]\)/);
+  assert.match(SKIN_FS, /\(heldOf\[i\] - heldMin\)/);
+});
