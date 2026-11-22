@@ -3,7 +3,7 @@
 // whole at every grid t inside it; a default build has no map mesh; a region whose meshes share no t is named, not hidden.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildNetMesh, MAP_FILLET_OPEN } from '../src/scene/vessels/net/mesh.ts';
+import { buildNetMesh, MAP_FILLET_OPEN, networksOf, REFINE } from '../src/scene/vessels/net/mesh.ts';
 import { RADIAL } from '../src/scene/vessels/net/mesh.ts';
 import { OFF_MAX } from '../src/scene/vessels/net/window.ts';
 import { BODY_ONLY, regionShare } from '../src/scene/vessels/net/regions.ts';
@@ -57,7 +57,6 @@ for (const fx of fixtures()) {
 
 // A REGION WHOSE MAP FILLET IS OPEN (plan owner, 22 Nov: PVT_L's sliver root cause) has no map mesh: it dissolves to the plain tubes on the map, named in mapNotes.
 test('a region listed in MAP_FILLET_OPEN keeps its body mesh only, with a window like a region that has no map mesh, and is named', () => {
-  assert.ok(MAP_FILLET_OPEN.has('PVT_L'), 'PVT_L is listed');
   for (const fx of fixtures()) {
     const base = buildNetMesh(fx.skel, undefined, { maps: true }), node = base.nodes.find((n) => n.kind === 'junction' && n.variant === 1)?.node;
     if (!node) continue;
@@ -86,3 +85,17 @@ for (const fx of fixtures()) {
     for (const w of extensionsOutside(r.mesh, fx.skel, r.nodes, lives)) assert.ok(w.worst <= 0.01, `${w.node}: an extension of ${w.edge} (vertex ${w.vertex}, bone ${w.bone}) stands ${w.worst.toFixed(3)} outside the union`);
   });
 }
+
+// J1 (22 Nov): PVT_L's map fillet was open (dropped) because its base map mesh held a 2 R edge across a crease whose split left a sliver. The crease was LGV_CONF hooking back into its node; with the skeleton's arm turn capped
+// the real figure's PVT_L map mesh builds and reaches the fidelity tolerance, and no region of the portal network is left open.
+import { skeleton } from '../src/scene/vessels/net/skeleton.ts';
+test('J1: the real figure\'s PVT_L map fillet meshes at the tolerance (no region is open)', () => {
+  assert.equal(MAP_FILLET_OPEN.size, 0, 'no region is open');
+  const sk = skeleton(), g = networksOf(sk).find((e) => e.some((i) => sk.edges[i]!.id === 'LGV_CONF'))!;
+  const r = buildNetMesh(sk, g, { lenient: true, maps: true, keys: false });
+  assert.ok(r.nodes.some((n) => n.node === 'PVT_L' && n.variant === 1), 'PVT_L has its map mesh');
+  assert.ok(!r.mapNotes.some((n) => n.node === 'PVT_L'), 'PVT_L has no map note');
+  assert.deepEqual(r.failures, []);
+  const w = REFINE.world.get('PVT_L#1')!, lim = REFINE.limit.get('PVT_L#1')!;
+  assert.ok(w <= lim * (1 + 1e-6), `PVT_L#1 reached ${(w / lim).toFixed(2)} x the tolerance`);
+});
