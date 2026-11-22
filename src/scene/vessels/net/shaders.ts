@@ -75,7 +75,7 @@ export const NET_FS_COLUMNS: readonly string[] = [
 /** What the network object must carry as plain uniforms (and the textures): one set for the whole network, never per vessel. WP4 builds the material's uniforms from this list; tests/net-shader.test.ts holds it to the shaders. */
 export const NET_GLOBALS: Readonly<Record<string, string>> = {
   // both stages
-  boneTex: 'sampler2D', regionTex: 'sampler2D', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
+  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
   // vertex stage
   circRot: 'vec2', circM: 'vec3', circTrackSize: 'vec2', circTrack: 'sampler2D', circBoost: 'float', circPerPx: 'float', ringSag: 'float',
   // fragment stage
@@ -90,7 +90,8 @@ export const NET_GLOBALS: Readonly<Record<string, string>> = {
 const MAP_X0 = PEEL_X0;
 
 // ---- the vertex stage ----
-export const NET_VS = /* glsl */ `
+/** Everything of the vertex stage the capsule pass shares with it: the attributes, the edge-state loaders and netBone with its radius rule (one source). */
+const NET_VS_PRELUDE = /* glsl */ `
 attribute vec4 bone;      // the four bones this vertex is bound to (indices into the bone texture, as floats)
 attribute vec4 weight;
 attribute vec4 off0;      // the offset in each bone's frame over the bone's radius: 4 x vec3 as 12 floats, (o0.xyz, o1.x) (o1.yz, o2.xy) (o2.z, o3.xyz)
@@ -104,7 +105,8 @@ attribute vec4 nrm0;      // the rest normal in each bone's frame, the same layo
 attribute vec4 nrm1;
 attribute vec4 nrm2;
 uniform sampler2D boneTex;
-uniform sampler2D regionTex;   // one row per junction region: capsule count, arm count, the mates, the bones along each capsule (net/regions.ts)
+uniform sampler2D regionTex;
+uniform sampler2D capTex;      // the live capsule points of every region: (centre, lumen), one texel per point, REGION_CAPS x REGION_PTS across, one row per region (the capsule pass, NET_CAP_VS)
 uniform sampler2D edgeTex;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -261,7 +263,9 @@ ${HIGHLIGHT_ALONG_GLSL}
   o.pad = inkW + (lumenW + inkW) * ringSag + inflate;
   o.lumenRest = rest;
   return o;
-}
+}`;
+
+export const NET_VS = /* glsl */ `${NET_VS_PRELUDE}
 // ---- THE JUNCTION PROJECTION (implicit skinning, review doc "Rulings on WP3"): the live smooth union of a region's capsules and its gradient, sdf.ts sdUnionGrad in GLSL.
 // Each capsule is ${REGION_PTS} bones: the axis runs through their live centres, the radius is their live lumen (swell, width, presence). capP = (centre, lumen) of every point, capMate the mate's index or -1 (the two halves of a run-on: a plain minimum).
 vec4 capP[${REGION_CAPS * REGION_PTS}];
@@ -346,13 +350,11 @@ void main() {
       vec4 mt = texelFetch(regionTex, ivec2(1 + c / 4, rr), 0);
       int mc = c - (c / 4) * 4;
       capMate[c] = mc == 0 ? mt.x : (mc == 1 ? mt.y : (mc == 2 ? mt.z : mt.w));
-      for (int h = 0; h < ${REGION_PTS / 4}; h++) {
-        vec4 bi4 = texelFetch(regionTex, ivec2(3 + c * ${REGION_PTS / 4} + h, rr), 0);
-        for (int j = 0; j < 4; j++) {
-          NetBone nb = netBone(int(bi4[j] + 0.5), true);
-          capP[c * ${REGION_PTS} + h * 4 + j] = vec4(nb.cen, nb.lumen);
-          if (h == 0 && j == 0 && c < na) kMin = min(kMin, nb.lumen);
-        }
+      // the live capsule points, evaluated once per frame by the capsule pass (NET_CAP_VS, the same netBone): centre and lumen
+      for (int q = 0; q < ${REGION_PTS}; q++) {
+        vec4 cpq = texelFetch(capTex, ivec2(c * ${REGION_PTS} + q, rr), 0);
+        capP[c * ${REGION_PTS} + q] = cpq;
+        if (q == 0 && c < na) kMin = min(kMin, cpq.w);
       }
     }
     float kU = ${F(SKIN_K)} * kMin;
@@ -640,12 +642,36 @@ ${PROCEDURE_MARKS_GLSL}
   gl_FragColor = vec4(c, fadeHere);
 }`;
 
+// ---- THE CAPSULE PASS: once per drawn frame, one point per (region, capsule, point) writes that bone's live centre and lumen into capTex (RGBA32F, REGION_CAPS x REGION_PTS across, one row per region), by the same netBone (lite) the vertex stage's
+// radius rule lives in. Draw `capPointIds(regions)` as gl_POINTS into a render target of that size. The junction vertices then read their capsules from the texture instead of evaluating the bones themselves.
+export const NET_CAP_VS = /* glsl */ `${NET_VS_PRELUDE}
+attribute float capId;   // region * ${REGION_CAPS * REGION_PTS} + capsule * ${REGION_PTS} + point
+uniform float capRows;   // the render target's height: the number of regions
+varying vec4 vCapOut;
+void main() {
+  float W = ${F(REGION_CAPS * REGION_PTS)};
+  float rid = floor(capId / W + 0.001);
+  float within = capId - rid * W;
+  int rr = int(rid + 0.5), flat = int(within + 0.5);   // the bones of a region are packed four to a texel from texel 3, capsule after capsule
+  vec4 bi4 = texelFetch(regionTex, ivec2(3 + flat / 4, rr), 0);
+  NetBone nb = netBone(int(bi4[flat - (flat / 4) * 4] + 0.5), true);
+  vCapOut = vec4(nb.cen, nb.lumen);
+  gl_PointSize = 1.0;
+  gl_Position = vec4((within + 0.5) / W * 2.0 - 1.0, (rid + 0.5) / capRows * 2.0 - 1.0, 0.0, 1.0);
+}`;
+export const NET_CAP_FS = /* glsl */ `
+varying vec4 vCapOut;
+void main() { gl_FragColor = vCapOut; }`;
+/** The point ids of the capsule pass: every (region, capsule, point) slot of `regions` regions, in texel order. */
+export const capPointIds = (regions: number): Float32Array => Float32Array.from({ length: regions * REGION_CAPS * REGION_PTS }, (_, i) => i);
+
 /** The programs this file gives the compile test (src/debug/gl-auto.ts): the figure's, its veil over the organs, the glow's mask and the inspector's. */
 export const GL_PROGRAMS = [
   { name: 'net vessel', vs: NET_VS, fs: NET_FS },
   { name: 'net vessel VEIL', vs: NET_VS, fs: NET_FS, defines: { VEIL: 1 } },
   { name: 'net vessel GLOW', vs: NET_VS, fs: NET_FS, defines: { GLOW: 1 } },
   { name: 'net vessel (inspector)', vs: NET_VS, fs: NET_FS, defines: { VDBG: 1 } },
+  { name: 'net capsules', vs: NET_CAP_VS, fs: NET_CAP_FS },
 ] as const;
 
 /** shaders.ts's sag for the mesher's ring (the uniform `ringSag`'s default): the mesher's RADIAL decides it, net/mesh.ts. */

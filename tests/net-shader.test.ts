@@ -3,7 +3,7 @@
 // of the edge-state texture (no per-vessel uniform is left); the rules the old vessel program and the network program must share are the same SOURCE text (spliced, never copied); and the varying budget holds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GL_PROGRAMS, NET_FS, NET_FS_COLUMNS, NET_GLOBALS, NET_VS, NET_VS_COLUMNS } from '../src/scene/vessels/net/shaders.ts';
+import { GL_PROGRAMS, NET_CAP_FS, NET_CAP_VS, capPointIds, NET_FS, NET_FS_COLUMNS, NET_GLOBALS, NET_VS, NET_VS_COLUMNS } from '../src/scene/vessels/net/shaders.ts';
 import { EDGE_LAYOUT } from '../src/scene/vessels/net/edge-state.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_GLSL, PROCEDURE_MARKS_GLSL, STUMP_K_GLSL } from '../src/scene/vessels/glsl-shared.ts';
@@ -18,7 +18,7 @@ const stripped = (s: string): string => s.replace(/\/\/[^\n]*/g, '').replace(/\s
 
 test('every plain uniform the network shaders declare is in NET_GLOBALS with the same type, and nothing in it is unused', () => {
   const seen = new Map<string, string>();
-  for (const src of [NET_VS, NET_FS]) for (const [n, t] of uniforms(src)) seen.set(n, t);
+  for (const src of [NET_VS, NET_FS, NET_CAP_VS, NET_CAP_FS]) for (const [n, t] of uniforms(src)) seen.set(n, t);
   for (const [n, t] of seen) {
     assert.ok(n in NET_GLOBALS, `the shaders declare uniform ${t} ${n}, which NET_GLOBALS does not list`);
     const want = NET_GLOBALS[n]!;
@@ -54,14 +54,15 @@ test('the live radius is one function: the network vertex shader has no second c
   assert.equal((NET_VS.match(/vec2 circPeel\(|float circPeel\(/g) ?? []).length, 1);
 });
 
-test('four programs, and the network pair stays within the 15-varying floor', () => {
-  assert.equal(GL_PROGRAMS.length, 4);
+test('five programs, and the network pair stays within the 15-varying floor', () => {
+  assert.equal(GL_PROGRAMS.length, 5);
   const varyings = (src: string): number => {
     let n = 0;
     for (const m of src.matchAll(/^\s*(?:flat\s+)?out\s+(\w+)\s+\w+(\[(\d+)\])?\s*;/gm)) n += Number(m[3] ?? 1) * (m[1] === 'mat3' ? 3 : m[1] === 'mat4' ? 4 : 1);
     return n;
   };
   const used = varyings(NET_VS);
+  assert.ok(varyings(NET_CAP_VS) <= 15);
   assert.ok(used <= 15, `${used} varyings, the floor is 15`);
 });
 
@@ -74,9 +75,24 @@ test('the junction projection in the vertex stage: the oracle\'s constants (k sc
   assert.ok(NET_VS.includes(`float kU = ${f(SKIN_K)} * kMin;`), 'k is SKIN_K x the narrowest arm\'s live lumen');
   assert.ok(NET_VS.includes(`${f(SKIN_SHADE_K)} * kU`) && NET_VS.includes(`smoothstep(0.6, ${f(SKIN_RING_W_FROM)}, wmax)`), 'the shade width and the ease to the tube\'s own normal');
   assert.ok(NET_VS.includes(`vec4 capP[${REGION_CAPS * REGION_PTS}];`));
-  assert.equal(REGION_TEXELS, 3 + (REGION_CAPS * REGION_PTS) / 4);
+  assert.equal(REGION_TEXELS, 3 + Math.ceil((REGION_CAPS * REGION_PTS) / 4));
   assert.match(NET_VS, /pAcc \+= nPush \* padAcc;/, 'the ink, the sag and the lift push along the sharp gradient for a junction vertex');
   assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen;/, 'a junction vertex starts at the rest radii');
+});
+
+test('the capsule pass: one render-to-texture pass with the same netBone and radius rule, and the junction vertex only reads its result', async () => {
+  const { REGION_CAPS, REGION_PTS } = await import('../src/scene/vessels/net/regions.ts');
+  assert.equal(NET_CAP_VS.split('NetBone netBone(').length - 1, 1, 'one netBone in the capsule program: the prelude the vertex stage shares');
+  assert.equal((NET_CAP_VS.match(/float circWidthOf\(/g) ?? []).length, 1, 'the live radius is the one function, no CPU twin');
+  assert.match(NET_CAP_VS, /netBone\(int\(bi4\[flat - \(flat \/ 4\) \* 4\] \+ 0\.5\), true\)/, 'the pass evaluates each region bone once, lite');
+  assert.match(NET_CAP_VS, /vCapOut = vec4\(nb\.cen, nb\.lumen\);/, 'it writes (centre, lumen), what the oracle\'s capsules hold');
+  // the junction main: capsule points come from capTex, never from a bone evaluation per vertex
+  const main = NET_VS.slice(NET_VS.indexOf('float kMin = 1.0e9;'), NET_VS.indexOf('float kU = '));
+  assert.ok(!/netBone\(/.test(main), 'the junction vertex no longer evaluates bones itself');
+  assert.match(main, /texelFetch\(capTex, ivec2\(c \* \d+ \+ q, rr\), 0\)/);
+  const ids = capPointIds(3);
+  assert.equal(ids.length, 3 * REGION_CAPS * REGION_PTS);
+  assert.equal(ids[ids.length - 1], ids.length - 1, 'one point per texel, in texel order');
 });
 
 test('the free-end fade is each bone\'s own, at its REST position: a hidden returning tail does not take the pixel\'s y', () => {
