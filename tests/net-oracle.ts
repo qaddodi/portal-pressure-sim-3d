@@ -6,8 +6,8 @@
 import type { Vec3 } from '../src/scene/anatomy/vessels.ts';
 import type { NetMesh, Skeleton } from '../src/scene/vessels/net/types.ts';
 import type { NodeReport } from '../src/scene/vessels/net/mesh.ts';
-import { SKIN_K, sdUnion, sdUnionGrad, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
-import { SKIN_SHADE_K } from '../src/scene/vessels/skin/exact-normal.ts';
+import { SKIN_K, closestOnArm, sdUnion, sdUnionGrad, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
+import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../src/scene/vessels/skin/exact-normal.ts';
 import { peelAt, peelRank, peelSlope, PEEL_SPAN } from '../src/scene/circuit/peel.ts';
 import { MAP_K, sceneToMap } from '../src/scene/circuit/map.ts';
 
@@ -94,7 +94,7 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
 }
 
 /** Positions of the bound mesh in a live state (the shader's main: no ink, no ring sag). `normal` (4 x vec3, in each bone's frame) gives the blended normals as well. */
-export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, normal?: Float32Array): { position: Float32Array; normal: Float32Array; fade: Float32Array; blend: Float32Array; rowA: Int32Array; rowB: Int32Array } {
+export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, normal: Float32Array | undefined = mesh.normal): { position: Float32Array; normal: Float32Array; fade: Float32Array; blend: Float32Array; rowA: Int32Array; rowB: Int32Array } {
   const bones = liveBones(skel, live), V = mesh.position.length / 3;
   const position = new Float32Array(3 * V), nrm = new Float32Array(3 * V), fade = new Float32Array(V), blend = new Float32Array(V), rowA = new Int32Array(V), rowB = new Int32Array(V);
   for (let v = 0; v < V; v++) {
@@ -117,27 +117,6 @@ export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, norma
   return { position, normal: nrm, fade, blend, rowA, rowB };
 }
 
-/** What WP2 stores (ruling 3 on WP2): each vertex's REST normal in each bound bone's frame. Here the rest normals are the area-weighted vertex normals of the rest mesh, written in the bones' body frames. */
-export function bindRestNormals(mesh: NetMesh, skel: Skeleton): Float32Array {
-  const V = mesh.position.length / 3, acc = new Float64Array(3 * V), P = mesh.position;
-  for (let t = 0; t < mesh.index.length; t += 3) {
-    const a = mesh.index[t]!, b = mesh.index[t + 1]!, c = mesh.index[t + 2]!;
-    const e1: V3 = [P[3 * b]! - P[3 * a]!, P[3 * b + 1]! - P[3 * a + 1]!, P[3 * b + 2]! - P[3 * a + 2]!], e2: V3 = [P[3 * c]! - P[3 * a]!, P[3 * c + 1]! - P[3 * a + 1]!, P[3 * c + 2]! - P[3 * a + 2]!];
-    const fn = cross(e1, e2);
-    for (const v of [a, b, c]) for (let d = 0; d < 3; d++) acc[3 * v + d]! += fn[d]!;
-  }
-  const out = new Float32Array(12 * V);
-  for (let v = 0; v < V; v++) {
-    const n = norm([acc[3 * v]!, acc[3 * v + 1]!, acc[3 * v + 2]!]);
-    for (let i = 0; i < 4; i++) {
-      if (!(mesh.weight[4 * v + i]! > 0)) continue;
-      const F = skel.bones[mesh.bone[4 * v + i]!]!.frame;
-      out[12 * v + 3 * i] = dot(F[0], n); out[12 * v + 3 * i + 1] = dot(F[1], n); out[12 * v + 3 * i + 2] = dot(F[2], n);
-    }
-  }
-  return out;
-}
-
 /** Area-weighted vertex normals of a triangle mesh (a finite-difference normal of the surface). */
 export function meshNormals(position: ArrayLike<number>, index: ArrayLike<number>): Float32Array {
   const V = position.length / 3, acc = new Float64Array(3 * V);
@@ -157,47 +136,40 @@ export const angleDeg = (a: ArrayLike<number>, ia: number, b: ArrayLike<number>,
   (Math.acos(Math.min(1, Math.max(-1, a[ia]! * b[ib]! + a[ia + 1]! * b[ib + 1]! + a[ia + 2]! * b[ib + 2]!))) * 180) / Math.PI;
 export { smooth };
 
-/** The live arms of a junction as capsules (their axis the live bone centres out from the node, their radius the live lumen), the two halves of a run-on marked as mates: the smooth union the fillet is meant to follow. */
-export function junctionCapsules(skel: Skeleton, rep: NodeReport, bones: readonly LiveBone[]): { caps: Capsule[]; k: number } {
-  const node = skel.nodes.find((n) => n.id === rep.node)!;
-  const caps: Capsule[] = [];
+/** The live arms of a junction as capsules (their axis the live bone centres out from the junction, their radius the live lumen), the two halves of a run-on marked as mates: the smooth union the fillet is meant to follow.
+ *  A merged region (short edges between junctions) has no node of its own: each arm's end is the one nearer the region's rest vertices. */
+export function junctionCapsules(skel: Skeleton, rep: NodeReport, bones: readonly LiveBone[], mesh: NetMesh): { caps: Capsule[]; k: number } {
+  const c: V3 = [0, 0, 0];
+  for (let v = rep.vertStart; v < rep.vertStart + rep.vertCount; v++) for (let d = 0; d < 3; d++) c[d] += mesh.position[3 * v + d]! / rep.vertCount;
+  const caps: Capsule[] = [], ends: (0 | 1)[] = [];
   rep.arms.forEach((edge, i) => {
-    const end = node.edges.find((x) => x.edge === edge)!.end, [first, count] = skel.edges[edge]!.bones, K = Math.min(count - 1, rep.seams[i]! + 3);
+    const [first, count] = skel.edges[edge]!.bones, K = Math.min(count - 1, rep.seams[i]! + 3);
+    const d0 = Math.hypot(...sub(skel.bones[first]!.pos[0], c)), d1 = Math.hypot(...sub(skel.bones[first + count - 1]!.pos[0], c)), end: 0 | 1 = d0 <= d1 ? 0 : 1;
+    ends.push(end);
     const idx: number[] = [];
     for (let m = 0; m <= K; m++) idx.push(first + (end === 0 ? m : count - 1 - m));
     const pts = new Float64Array(3 * idx.length), r = new Float64Array(idx.length);
     idx.forEach((bi, j) => { pts.set(bones[bi]!.cen, 3 * j); r[j] = bones[bi]!.lumen; });
     caps.push({ n: idx.length, pts, r });
   });
-  if (node.runOn) {
+  const node = skel.nodes.find((n) => n.id === rep.node);
+  if (node?.runOn) {
     const a = rep.arms.indexOf(node.edges[node.runOn[0]]!.edge), b = rep.arms.indexOf(node.edges[node.runOn[1]]!.edge);
     if (a >= 0 && b >= 0) { const lo = Math.min(a, b), hi = Math.max(a, b); caps[lo] = { ...caps[lo]!, mate: hi }; caps[hi] = { ...caps[hi]!, mate: lo }; }
   }
-  return { caps, k: SKIN_K * Math.min(...caps.map((c) => c.r[0]!)) };
+  return { caps, k: SKIN_K * Math.min(...caps.map((q) => q.r[0]!)) };
 }
 
-/** The SHADE normal at points of the deformed mesh (WP2 ruling, follow-up a): the unit gradient of the live smooth union at the soft blend width (SKIN_SHADE_K times the fillet's k) for the junction's own vertices; the ring direction elsewhere (not asked here). */
-export function shadeNormalAt(caps: readonly Capsule[], k: number, x: number, y: number, z: number): V3 {
-  const g = [0, 0, 0];
+/** The SHADE normal at a point of the deformed mesh, by the mesher's own recipe (net/mesh.ts, rest normal): the unit gradient of the live smooth union at the soft width (SKIN_SHADE_K times the fillet's k), eased to the dominant arm's radial
+ *  direction where one arm is nearly all there is (`wmax`, the largest weight, smoothstep 0.6 .. SKIN_RING_W_FROM). */
+export function shadeNormalAt(caps: readonly Capsule[], k: number, x: number, y: number, z: number, wmax: number): V3 {
+  const g = [0, 0, 0], cp = new Float64Array(7);
   sdUnionGrad(caps, SKIN_SHADE_K * k, x, y, z, g);
-  return norm(g as V3);
+  const gn = norm(g as V3);
+  let best = Infinity, top = 0;
+  caps.forEach((q, i) => { closestOnArm(q, x, y, z, cp); const sd = cp[4]! - cp[3]!; if (sd < best) { best = sd; top = i; } });
+  closestOnArm(caps[top]!, x, y, z, cp);
+  const rad = norm([x - cp[0]!, y - cp[1]!, z - cp[2]!]), t = smooth(0.6, SKIN_RING_W_FROM, wmax);
+  return norm([gn[0] + t * (rad[0] - gn[0]), gn[1] + t * (rad[1] - gn[1]), gn[2] + t * (rad[2] - gn[2])]);
 }
 export { sdUnion };
-
-/** What WP2 binds (ruling 3 and its follow-up): the REST shade normal in each bound bone's frame: the live union's gradient at the soft width for a junction's own vertices, the area-weighted surface normal elsewhere (a tube's ring direction). */
-export function bindShadeNormals(mesh: NetMesh, skel: Skeleton, reports: readonly NodeReport[], rest: LiveState): Float32Array {
-  const out = bindRestNormals(mesh, skel), bones = liveBones(skel, rest);
-  for (const rep of reports) {
-    if (rep.kind !== 'junction') continue;
-    const { caps, k } = junctionCapsules(skel, rep, bones);
-    for (let v = rep.vertStart; v < rep.vertStart + rep.vertCount; v++) {
-      const n = shadeNormalAt(caps, k, mesh.position[3 * v]!, mesh.position[3 * v + 1]!, mesh.position[3 * v + 2]!);
-      for (let i = 0; i < 4; i++) {
-        if (!(mesh.weight[4 * v + i]! > 0)) continue;
-        const F = skel.bones[mesh.bone[4 * v + i]!]!.frame;
-        out[12 * v + 3 * i] = dot(F[0], n); out[12 * v + 3 * i + 1] = dot(F[1], n); out[12 * v + 3 * i + 2] = dot(F[2], n);
-      }
-    }
-  }
-  return out;
-}

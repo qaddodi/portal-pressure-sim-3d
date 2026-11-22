@@ -1,7 +1,8 @@
 // The network shader (?geom=net, WP3): ONE vertex and ONE fragment program for a whole network's mesh, in place of ~55 tube programs and 33 skin programs with ~120 uniforms each.
 //
 // THE VERTEX STAGE deforms the bound mesh: every vertex carries up to four (bone, weight) pairs and its offset (and rest normal) in each bone's frame, divided by the bone's radius (net/types.ts NetMesh),
-//     p = sum w_i (centre_i + frame_i * offset_i * R_i)
+//     p = sum w_i (centre_i + frame_i * offset_i * lumen_i) + n * sum w_i pad_i,   n = the blended, renormalised bound rest normal
+// (lumen_i is the live half width; pad_i the ink, the ring's sag and the inflate, pushed along the normal ONCE so the outline keeps its width across a fillet instead of adding up along each arm's own offset).
 // The bone texture (net/bones.ts) gives each bone its place and radius in the body pose and the map pose and its frame; the edge-state texture (net/edge-state.ts) gives each bone's EDGE its state (the old per-vessel uniforms).
 // For every bone the stage evaluates, with the vessel's OWN rules, the live radius R_i, the morph's share (the flow peel on the bone's rank), the fade and the highlight; the vertex then holds their blend.
 // A junction's fillet vertices are bound to the arms' bones, so every one of those values is continuous through the junction by construction: no mate, no cut, no seam to match.
@@ -15,7 +16,7 @@
 //
 // CAVA. A hepatic vein (alpha 1) opens into the cava (alpha 0.45, fades.ts CAVA_RECEDE). The old shader cut the vein at the cava's wall, ramped its alpha and swapped its colour for the cava's over 1.6 to 2.5 cava radii (cavaCut, wA, wB).
 // Here the fillet's vertices are bound to both arms, so `vFade` (the bone-weighted fade) goes from the vein's alpha to the cava's across the fillet, and the colour is the blend of the two arms' lens colours by the same weights (`vBlend`),
-// with nothing cut. The ramp is as long as the fillet is, which the mesher sets (junction zone), not 2.5 radii: tests/net-shader.test.ts pins that the blend meets both ends exactly and is monotone; the length is a look to judge on the device.
+// with nothing cut. The ramp is as long as the fillet is, which the mesher sets (junction zone), not 2.5 radii: NOT YET TESTED beyond the design (the blend is continuous by construction); the length is a look to judge on the device.
 //
 // LIMITS, said plainly: (1) a pixel in a fillet takes its flow marks, tone and dust from its triangle's dominant edge (a `flat` edge id) and blends only the colour and the alpha, so the marks of the two arms do not cross the fillet;
 // (2) tubes are drawn in one mesh, so two same-network surfaces that cross while one of them is faded are not sorted against each other (tests/net-crossings.test.ts lists them); (3) normals are the bound rest normals turned by the bone blend.
@@ -57,7 +58,7 @@ const fetchOf = (name: string, row: string): string => { const s = slotOf(name);
 export const NET_VS_COLUMNS: readonly string[] = [
   'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
   'hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiFade', 'hiPx', 'hiEnds',
-  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence',
+  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0',
 ];
 export const NET_FS_COLUMNS: readonly string[] = [
   'tone', 'vindex', 'baseD', 'len', 'radius', 'lensIndex', 'lensUse', 'lensSpan', 'reveal', 'fade', 'flowAmount', 'smokeOn', 'dotted', 'hiColor', 'glowK', 'inkOn',
@@ -75,6 +76,8 @@ export const NET_GLOBALS: Readonly<Record<string, string>> = {
   markDark: 'vec3', markLight: 'vec3', markRev: 'vec3', lensMix: 'float', lensTail: 'float', lensGradA: 'sampler2D', lensLaneA: 'sampler2D', lensGradB: 'sampler2D', lensLaneB: 'sampler2D',
   lensModeA: 'float', lensModeB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
   wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
+  // the inspector's (VDBG), as the old program's
+  dbgShade: 'float', dbgDust: 'float', dbgHeads: 'float', dbgInk: 'float', dbgTint: 'float', dbgCol: 'vec4',
 };
 
 const MAP_X0 = PEEL_X0;
@@ -114,6 +117,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;   // vW, vR, vU, vArcLen: the clip depth, the lumen's half width and the figure's units in a scene unit here, and the length along the course drawn now (shaders.ts vArcLen)
 varying vec4 vPackB;   // vFade, vCircShare, circStay, vHi
+varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
 flat varying vec2 vEdge;   // the edge of the bone that holds the vertex most, and the second's: the fragment stage's discrete state (flat: one per triangle)
 ${SWELL_OF_GLSL}
@@ -163,7 +167,7 @@ mat3 frameTo(mat3 F, vec3 T) {
   float k = 1.0 / (1.0 + c);
   return mat3(T, F[1] * c + cross(ax, F[1]) + ax * (dot(ax, F[1]) * k), F[2] * c + cross(ax, F[2]) + ax * (dot(ax, F[2]) * k));
 }
-struct NetBone { vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; };
+struct NetBone { vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; };
 NetBone netBone(int bi) {
   NetBone o;
   ivec2 t0 = boneTexel(bi, 0);
@@ -172,7 +176,7 @@ NetBone netBone(int bi) {
   float u = clamp((Q.w - float(row)) * 2.0, 0.0, 1.0);
   loadEdgeVS(row);
   mat3 Fb = quatFrame(Q.xyz);
-  float w = 0.0, stay = 1.0;
+  float w = 0.0, stay = 1.0, dturn = 0.0;
   vec3 cen = A.xyz;
   mat3 F = Fb;
   if (circT > 0.0) {
@@ -196,6 +200,8 @@ NetBone netBone(int bi) {
       float rs = (rank > 0.0 && rank < 1.0) ? dM.x / CIRC_MAPK / CIRC_SPAN : 0.0;
       vec3 Tm = (1.0 - w) * dA + w * circTurnDir(dM) + circPeelSlope(circT, rank) * rs * (cT - cA);
       vec3 T = dot(Tm, Tm) > 1e-9 ? normalize(Tm) : Fb[0];
+      // the map course's heading turned since the stent's start (the old shader's turn minus stentT0: the heading is the unturned map tangent's angle, taken near the stent's start heading)
+      if (dot(dM.xy, dM.xy) > 1e-12) dturn = mod(atan(dM.y, dM.x) - stentT0 + 3.14159265, 6.2831853) - 3.14159265;
       if (circRow >= 0.0) {
         float f = u * (circTrackSize.x - 1.0), i0 = floor(f), uu = f - i0, i1 = min(i0 + 1.0, circTrackSize.x - 1.0);
         int rw = int(circRow);
@@ -218,7 +224,8 @@ NetBone netBone(int bi) {
   float rest = mix(A.w, M.w, circShare);   // (the course's own radius share: on the map not the body's tapers: rk and rkc)
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, A.w * swell * vU);
   float narrowK = 1.0 - clamp(waistNarrow(waist, u), 0.0, 0.97);
-  float lumenW = rest * swell * narrowK * presence;
+  float lumen0W = rest * swell * presence;   // (before a stenosis or the stent's waist pinches it: the stent's cells are sized from it)
+  float lumenW = lumen0W * narrowK;
   // the free ends' fade and the cava end's ease (FADE_ALPHA_GLSL), on this bone's own place along its edge
   float fa = 1.0;
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
@@ -233,7 +240,7 @@ ${HIGHLIGHT_ALONG_GLSL}
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK')};
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);
   float inkW = (inkPx + hiPx * vHi) * inkOn * wpcV / vU;
-  o.cen = cen; o.F = F; o.lumen = lumenW; o.share = circShare; o.fa = fa * presence; o.hi = vHi; o.pres = presence; o.u = u; o.row = row; o.stay = stay; o.unit = vU; o.arc = mix(len, lenMap, circShare);
+  o.cen = cen; o.F = F; o.lumen = lumenW; o.share = circShare; o.fa = fa * presence; o.hi = vHi; o.pres = presence; o.u = u; o.row = row; o.stay = stay; o.unit = vU; o.arc = mix(len, lenMap, circShare); o.lumen0 = lumen0W; o.dturn = dturn;
   // The outline's ink, the ring polygon's sag and the lift push the surface along its NORMAL (the vertex stage adds them once, along the blended bound normal): in a tube that is the ring direction, as the old shader's, and in a fillet it
   // is the shade normal, so the outline keeps its width across a junction (an offset pushed along each arm's own direction would thin it where the arms diverge). The ring's flats sit at the lumen + ink, its corners ringSag farther out.
   o.pad = inkW + (lumenW + inkW) * ringSag + inflate;
@@ -241,7 +248,7 @@ ${HIGHLIGHT_ALONG_GLSL}
 }
 void main() {
   vec3 pAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
-  float padAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
+  float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
   for (int k = 0; k < 4; k++) {
     float wk = weight[k];
@@ -254,7 +261,7 @@ void main() {
     nAcc += wk * (b.F * nr);
     tAcc += wk * b.F[0];
     cenAcc += wk * b.cen;
-    fadeAcc += wk * b.fa; hiAcc += wk * b.hi; shareAcc += wk * b.share; lumenAcc += wk * b.lumen * b.unit; presAcc += wk * b.pres; unitAcc += wk * b.unit; arcAcc += wk * b.arc;
+    fadeAcc += wk * b.fa; hiAcc += wk * b.hi; shareAcc += wk * b.share; lumenAcc += wk * b.lumen * b.unit; presAcc += wk * b.pres; unitAcc += wk * b.unit; arcAcc += wk * b.arc; lumen0Acc += wk * b.lumen0 * b.unit; dturnAcc += wk * b.dturn;
     stayAcc = min(stayAcc, b.stay);
     if (wk > wA) { wB = wA; rowB = rowA; uB = uA; wA = wk; rowA = float(b.row); uA = b.u; }
     else if (wk > wB) { wB = wk; rowB = float(b.row); uB = b.u; }
@@ -269,6 +276,10 @@ void main() {
   vT = normalize(normalMatrix * (tl > 1e-6 ? tAcc / tl : vec3(1.0, 0.0, 0.0)));
   vZf = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
   vV = normalize(-mv.xyz);
+  // the stent's wires' shift along the tube here: the lateral offset in the map's plane times the bend turned since the stent began, so a cell keeps its length round a corner (shaders.ts vSkew)
+  float vSkewV = 0.0;
+  { float tn2 = length(tAcc.xy); if (shareAcc > 0.0 && tn2 > 1e-5) { vec2 tl = tAcc.xy / tn2; vSkewV = shareAcc * dot(nUnit.xy, vec2(-tl.y, tl.x)) * lumenAcc * dturnAcc; } }
+  vPackD = vec2(lumen0Acc, vSkewV);
   vPackC = vec4(uA, 0.0, uB, wB > 0.0 ? wB / (wA + wB) : 0.0);
   vEdge = vec2(rowA, wB > 0.0 ? rowB : rowA);
   vec4 c = projectionMatrix * mv;
@@ -336,9 +347,10 @@ varying vec3 vZf;
 varying vec4 vPackA;
 varying vec4 vPackB;
 varying vec4 vPackC;
+varying vec2 vPackD;
 flat varying vec2 vEdge;
 // (plain globals the shared GLSL reads, unpacked at the top of main)
-float vW, vR, vU, vArcLen, vFade, vCircShare, circStay, vHi, vUvB, vBlend;
+float vW, vR, vR0, vSkew, vU, vArcLen, vFade, vCircShare, circStay, vHi, vUvB, vBlend;
 vec2 vUv;
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -367,7 +379,7 @@ ${CAP_CARVED_GLSL}
 void main() {
   vW = vPackA.x; vR = vPackA.y; vU = vPackA.z; vArcLen = vPackA.w;
   vFade = vPackB.x; vCircShare = vPackB.y; circStay = vPackB.z; vHi = vPackB.w;
-  vUv = vPackC.xy; vUvB = vPackC.z; vBlend = vPackC.w;
+  vUv = vPackC.xy; vUvB = vPackC.z; vBlend = vPackC.w; vR0 = vPackD.x; vSkew = vPackD.y;
   loadEdgeFS(int(vEdge.x + 0.5));   // the dominant edge's state: the old shader's uniforms
   vec3 color = toneColor[int(tone + 0.5)];
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
