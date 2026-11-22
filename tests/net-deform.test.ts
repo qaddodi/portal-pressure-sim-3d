@@ -6,9 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
 import { fixtures } from './net-lib.ts';
-import { angleDeg, deformLive, junctionCapsules, liveBones, restEdge, sdUnion, shadeNormalAt, type LiveState } from './net-oracle.ts';
+import { angleDeg, deformLive, junctionCapsules, liveBones, liveStates as states, sdUnion, shadeNormalAt } from './net-oracle.ts';
 
-const MAP_K = 0.0065;
 /** Unit face normals of a triangle mesh, 3 per triangle. */
 function faceNormals(p: ArrayLike<number>, idx: ArrayLike<number>): Float32Array {
   const out = new Float32Array(idx.length);
@@ -20,15 +19,6 @@ function faceNormals(p: ArrayLike<number>, idx: ArrayLike<number>): Float32Array
   return out;
 }
 const quantile = (a: number[], p: number): number => a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(p * a.length))] ?? 0;
-
-type Skel = ReturnType<typeof fixtures>[number]['skel'];
-export function states(skel: Skel): [string, LiveState][] {
-  const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; f?.(x, i); return x; }) });
-  return [['rest', mk(0)], ['map t=1', mk(1)], ['t=.25', mk(0.25)], ['t=.5', mk(0.5)], ['t=.75', mk(0.75)],
-    ['swell 1.2/.85', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.85 : 1.2; })],
-    ['presence .3', mk(0.5, 1, (e, i) => { if (i === 1) e.presence = 0.3; })],
-    ['zoom-out', mk(1, 2.5, (e) => { e.leastCss = 4; })]];
-}
 
 // today's numbers (a ceiling: the blend must not get worse) and the owner's (todo)
 const NORMAL_P99_NOW = 80, UNION_NOW = 4.8, NORMAL_P99_OWNER = 3, UNION_OWNER = 0.05;

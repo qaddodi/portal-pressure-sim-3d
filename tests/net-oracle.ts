@@ -98,19 +98,21 @@ export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, norma
   const bones = liveBones(skel, live), V = mesh.position.length / 3;
   const position = new Float32Array(3 * V), nrm = new Float32Array(3 * V), fade = new Float32Array(V), blend = new Float32Array(V), rowA = new Int32Array(V), rowB = new Int32Array(V);
   for (let v = 0; v < V; v++) {
-    const p: V3 = [0, 0, 0], n: V3 = [0, 0, 0];
-    let pad = 0, wA = -1, wB = -1, eA = 0, eB = 0, f = 0;
+    const p: V3 = [0, 0, 0], n: V3 = [0, 0, 0], pB: V3 = [0, 0, 0], pM: V3 = [0, 0, 0];
+    let S = 0, pad = 0, wA = -1, wB = -1, eA = 0, eB = 0, f = 0;
     for (let i = 0; i < 4; i++) {
       const wk = mesh.weight[4 * v + i]!;
       if (!(wk > 0)) continue;
-      const b = bones[mesh.bone[4 * v + i]!]!, o: V3 = [mesh.offset[12 * v + 3 * i]!, mesh.offset[12 * v + 3 * i + 1]!, mesh.offset[12 * v + 3 * i + 2]!];
-      const off = add(add(mul(b.F[0], o[0]), mul(b.F[1], o[1])), mul(b.F[2], o[2]));
-      for (let d = 0; d < 3; d++) p[d] += wk * (b.cen[d]! + b.lumen * off[d]!);
+      const b = bones[mesh.bone[4 * v + i]!]!, at = (set: Float32Array): V3 => [set[12 * v + 3 * i]!, set[12 * v + 3 * i + 1]!, set[12 * v + 3 * i + 2]!];
+      const fr = (o: V3): V3 => add(add(mul(b.F[0], o[0]), mul(b.F[1], o[1])), mul(b.F[2], o[2])), off = fr(at(mesh.offset)), offM = fr(at(mesh.offsetMap ?? mesh.offset));
+      S += wk * b.share;
+      for (let d = 0; d < 3; d++) { p[d] += wk * b.cen[d]!; pB[d] += wk * b.lumen * off[d]!; pM[d] += wk * b.lumen * offM[d]!; }
       if (normal) { const q: V3 = [normal[12 * v + 3 * i]!, normal[12 * v + 3 * i + 1]!, normal[12 * v + 3 * i + 2]!]; const nn = add(add(mul(b.F[0], q[0]), mul(b.F[1], q[1])), mul(b.F[2], q[2])); for (let d = 0; d < 3; d++) n[d] += wk * nn[d]!; }
       pad += wk * b.pad;
       f += wk * b.fade;
       if (wk > wA) { wB = wA; eB = eA; wA = wk; eA = b.edge; } else if (wk > wB) { wB = wk; eB = b.edge; }
     }
+    for (let d = 0; d < 3; d++) p[d] += pB[d]! + (pM[d]! - pB[d]!) * Math.min(1, Math.max(0, S));
     const nu = norm(n);
     position.set([p[0] + nu[0] * pad, p[1] + nu[1] * pad, p[2] + nu[2] * pad], 3 * v); nrm.set(nu, 3 * v); fade[v] = f; blend[v] = wB > 0 ? wB / (wA + wB) : 0; rowA[v] = eA; rowB[v] = wB > 0 ? eB : eA;
   }
@@ -173,3 +175,13 @@ export function shadeNormalAt(caps: readonly Capsule[], k: number, x: number, y:
   return norm([gn[0] + t * (rad[0] - gn[0]), gn[1] + t * (rad[1] - gn[1]), gn[2] + t * (rad[2] - gn[2])]);
 }
 export { sdUnion };
+
+/** The named live states the deformation tests run in: rest, map, the Circuit's t = .25 / .5 / .75, a differential swell, presence .3 and zoom-out. */
+export function liveStates(skel: Skeleton): [string, LiveState][] {
+  const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; f?.(x, i); return x; }) });
+  return [['rest', mk(0)], ['map t=1', mk(1)], ['t=.25', mk(0.25)], ['t=.5', mk(0.5)], ['t=.75', mk(0.75)],
+    ['swell 1.2/.85', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.85 : 1.2; })],
+    ['presence .3', mk(0.5, 1, (e, i) => { if (i === 1) e.presence = 0.3; })],
+    ['zoom-out', mk(1, 2.5, (e) => { e.leastCss = 4; })]];
+}
+

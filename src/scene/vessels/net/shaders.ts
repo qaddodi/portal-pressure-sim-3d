@@ -89,6 +89,9 @@ attribute vec4 weight;
 attribute vec4 off0;      // the offset in each bone's frame over the bone's radius: 4 x vec3 as 12 floats, (o0.xyz, o1.x) (o1.yz, o2.xy) (o2.z, o3.xyz)
 attribute vec4 off1;
 attribute vec4 off2;
+attribute vec4 offM0;     // the MAP-pose offsets, the same layout (net/types.ts NetMesh.offsetMap; = off for a tube vertex): blended in by the vertex's peel share
+attribute vec4 offM1;
+attribute vec4 offM2;
 attribute vec4 nrm0;      // the rest normal in each bone's frame, the same layout (net/types.ts NetMesh.normal)
 attribute vec4 nrm1;
 attribute vec4 nrm2;
@@ -247,7 +250,7 @@ ${HIGHLIGHT_ALONG_GLSL}
   return o;
 }
 void main() {
-  vec3 pAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
+  vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
   float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
   for (int k = 0; k < 4; k++) {
@@ -256,7 +259,9 @@ void main() {
     NetBone b = netBone(int(bone[k] + 0.5));
     vec3 o = k == 0 ? off0.xyz : (k == 1 ? vec3(off0.w, off1.xy) : (k == 2 ? vec3(off1.zw, off2.x) : off2.yzw));
     vec3 nr = k == 0 ? nrm0.xyz : (k == 1 ? vec3(nrm0.w, nrm1.xy) : (k == 2 ? vec3(nrm1.zw, nrm2.x) : nrm2.yzw));
-    pAcc += wk * (b.cen + b.F * (o * b.lumen));
+    vec3 om = k == 0 ? offM0.xyz : (k == 1 ? vec3(offM0.w, offM1.xy) : (k == 2 ? vec3(offM1.zw, offM2.x) : offM2.yzw));
+    pAcc += wk * (b.F * (o * b.lumen));
+    pMapAcc += wk * (b.F * (om * b.lumen));
     padAcc += wk * b.pad;
     nAcc += wk * (b.F * nr);
     tAcc += wk * b.F[0];
@@ -268,6 +273,8 @@ void main() {
   }
   float nl = length(nAcc), tl = length(tAcc);
   vec3 nUnit = nl > 1e-6 ? nAcc / nl : vec3(0.0, 0.0, 1.0);
+  // the body set and the map set, blended by the vertex's peel share (a tube vertex has the same offsets in both, so it is unchanged; a junction vertex moves from its body shape to its shrink-wrap on the map)
+  pAcc = cenAcc + mix(pAcc, pMapAcc, clamp(shareAcc, 0.0, 1.0));
   pAcc += nUnit * padAcc;
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cenAcc, 1.0));
   vCen = vec3(cc.x, cc.y, cc.w);
