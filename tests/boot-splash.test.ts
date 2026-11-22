@@ -238,17 +238,17 @@ test('D: the percent follows the bar (never down, never 100 before the lift), th
   const c = run({ total: 1_000_000, entries: () => file(12), dcl: false, rows: true });
   c.advance(1600);
   const stage = c.boot.children['.boot-stage'], pct = c.boot.children['.boot-pct'];
-  assert.equal(stage.textContent, 'Getting ready'); assert.match(pct.textContent, /^\d+%$/); assert.ok(parseInt(pct.textContent) <= 55, 'bytes alone: up to 55%');
+  assert.equal(stage.innerHTML, 'Getting ready'); assert.match(pct.textContent, /^\d+%$/); assert.ok(parseInt(pct.textContent) <= 55, 'bytes alone: up to 55%');
   c.ctx.ppsBootStarted = true; c.advance(2500);
-  assert.equal(stage.textContent, 'Starting the engine');
+  assert.equal(stage.innerHTML, 'Starting <b><i>Hales Engine</i></b>', 'Hales Engine in bold italic');
   c.ctx.ppsBootStage('engine'); c.advance(3300);
   assert.equal(stage.attrs['data-swap'], undefined, 'the crossing is over by the next tick');
-  assert.equal(stage.textContent, 'Building the figure'); const p = parseInt(pct.textContent); assert.ok(p >= 66 && p < 78, `engine reached: ${p}%`);
+  assert.equal(stage.innerHTML, 'Building the figure'); const p = parseInt(pct.textContent); assert.ok(p >= 66 && p < 78, `engine reached: ${p}%`);
   // a change of name: first the words fade out (data-swap), then they change and fade back in (the CSS has the opacity transition)
-  c.ctx.ppsBootStage('scene'); c.advance(3600); assert.equal(stage.attrs['data-swap'], '1', 'fading out, the old words still there'); assert.equal(stage.textContent, 'Building the figure');
-  c.advance(3900); assert.equal(stage.textContent, 'Polishing the look'); assert.equal(stage.attrs['data-swap'], undefined);
+  c.ctx.ppsBootStage('scene'); c.advance(3600); assert.equal(stage.attrs['data-swap'], '1', 'fading out, the old words still there'); assert.equal(stage.innerHTML, 'Building the figure');
+  c.advance(3900); assert.equal(stage.innerHTML, 'Polishing the look'); assert.equal(stage.attrs['data-swap'], undefined);
   for (const st of ['compile', 'first-draw', 'labels']) c.ctx.ppsBootStage(st);
-  c.advance(9000); assert.equal(stage.textContent, 'Almost there'); assert.ok(parseInt(pct.textContent) <= 99, 'never 100 while the cover is up');
+  c.advance(9000); assert.equal(stage.innerHTML, 'Almost there'); assert.ok(parseInt(pct.textContent) <= 99, 'never 100 while the cover is up');
   let last = 0; const seen = parseInt(pct.textContent); assert.ok(seen >= last);
   c.ctx.ppsBootLift(); assert.equal(pct.textContent, '100%', '100 only as the cover lifts');
 });
@@ -258,7 +258,7 @@ test('D: the markup and the look: one row under the bar, the stage left in the m
   assert.match(HTML, /#boot \.boot-pct \{[^}]*font-variant-numeric: tabular-nums/);
   assert.match(HTML, /#boot \.boot-stage \{[^}]*transition: opacity 160ms/); assert.match(HTML, /#boot\[data-det\] \.boot-row \{ opacity: 1; \}/, 'shown with the bar, not before');
   const names = [...HTML.matchAll(/NAMES=\{([^}]*)\}/g)][0]![1]!;
-  for (const n of [...names.matchAll(/'([^']+)'(?=[,}]|$)/g)].map((m) => m[1]!).filter((x) => /\s/.test(x))) assert.ok(n.length <= 20, `${n} fits 140 px at 12 px beside the percent`);
+  for (const n of [...names.matchAll(/'([^']+)'(?=[,}]|$)/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '')).filter((x) => /\s/.test(x))) assert.ok(n.length <= 21, `${n} fits 172 px at 12 px beside the percent`);
   const c = run({ entries: () => file(3), dcl: false, realCover: true, fonts: 'now' }); c.advance(9000);
   assert.doesNotMatch(c.boot.innerHTML, /boot-prog|boot-row/, 'the slow note keeps the mark and the name only');
 });

@@ -106,8 +106,8 @@
     #boot[data-name] .boot-name { opacity: 1; animation: none; }
     #boot[data-name="fallback"] .boot-name { font-family: Georgia, "Times New Roman", serif; }
     /* the wait bar: sliding while nothing is known; once the build's byte total and the bytes that arrived are (data-det), it fills, easing its width (a scale, never a jump), and the sliding one fades out */
-    #boot .boot-prog { display: flex; flex-direction: column; width: 140px; margin-top: 4px; }
-    #boot .boot-bar { position: relative; width: 140px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,.08); background: color-mix(in srgb, var(--bt) 14%, transparent); opacity: 0; animation: boot-bar-in 240ms ease 1.2s forwards; }
+    #boot .boot-prog { display: flex; flex-direction: column; width: 172px; margin-top: 4px; }
+    #boot .boot-bar { position: relative; width: 172px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,.08); background: color-mix(in srgb, var(--bt) 14%, transparent); opacity: 0; animation: boot-bar-in 240ms ease 1.2s forwards; }
     #boot .boot-bar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--bt3); animation: boot-slide 1.2s ease-in-out infinite; transition: opacity 300ms ease; }
     #boot .boot-bar b { position: absolute; inset: 0; border-radius: 3px; background: var(--bt3); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); opacity: 0; transition: transform 600ms cubic-bezier(.2,.8,.2,1), opacity 300ms ease; }
     #boot[data-det] .boot-bar i { opacity: 0; }
@@ -174,10 +174,10 @@ var SHARE={started:.55,engine:.66,scene:.78,compile:.9,'first-draw':.94,labels:.
 w.ppsBootStage=function(s){var f=SHARE[s];if(f&&f>stageF){stageF=f;stageAt=now();stageKey=s}};
 function progress(t){if(!total)return 0;if(!startedAt)return bytes?.55*Math.min(1,bytes/total):0;if(stageF<SHARE.started){stageF=SHARE.started;stageAt=startedAt;stageKey='started'}var nx=1,k;for(k in SHARE)if(SHARE[k]>stageF&&SHARE[k]<nx)nx=SHARE[k];if(nx>.96)nx=.97;return stageF+(nx-stageF)*.85*(1-Math.exp(-(t-stageAt)/CREEP_MS))}
 /* The words under the bar (style D): the stage the start has reached, in plain words, and the percent. The percent follows the bar, never goes down, and is 100 only when the cover lifts. A new stage name crosses over (fades out, the words change, fades in), it never snaps. */
-var NAMES={bytes:'Getting ready',started:'Starting the engine',engine:'Building the figure',scene:'Polishing the look',compile:'Drawing the figure','first-draw':'Placing the labels',labels:'Almost there'},shown='',pct=0,stageKey='bytes';
+var NAMES={bytes:'Getting ready',started:'Starting <b><i>Hales Engine</i></b>',engine:'Building the figure',scene:'Polishing the look',compile:'Drawing the figure','first-draw':'Placing the labels',labels:'Almost there'},shown='',pct=0,stageKey='bytes';
 w.ppsBootStageName=function(){return NAMES[stageKey]};
 function words(el){var st=el.querySelector&&el.querySelector('.boot-stage'),pc=el.querySelector&&el.querySelector('.boot-pct');if(pc){var p=Math.min(frac>=1?100:99,Math.floor(frac*100));if(p>pct)pct=p;pc.textContent=pct+'%'}
-if(st&&NAMES[stageKey]!==shown){var t=NAMES[stageKey],first=shown==='';shown=t;if(first||still()){st.textContent=t}else{st.setAttribute('data-swap','1');setTimeout(function(){st.textContent=t;st.removeAttribute('data-swap')},170)}}}
+if(st&&NAMES[stageKey]!==shown){var t=NAMES[stageKey],first=shown==='';shown=t;if(first||still()){st.innerHTML=t}else{st.setAttribute('data-swap','1');setTimeout(function(){st.innerHTML=t;st.removeAttribute('data-swap')},170)}}}
 function bar(f){var el=document.getElementById('boot');if(!el||!el.style||!el.style.setProperty)return;if(f<frac)f=frac;frac=f;el.setAttribute('data-det','1');el.style.setProperty('--p',String(Math.round(f*1000)/1000));words(el)}
 function offlineNow(){var n=navigator;return n.onLine===false&&!(n.serviceWorker&&n.serviceWorker.controller)}
 function tick(){w.ppsBootTimer=0;if(w.ppsBootReady)return;sample();var t=now();if(!startedAt&&w.ppsBootStarted)startedAt=t||1;
