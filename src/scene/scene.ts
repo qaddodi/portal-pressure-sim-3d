@@ -13,7 +13,7 @@ import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, p
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
 import { CAPUT_FAN_ID, FAN_FRONT } from './vessels/feeder-fan.ts';
-import { CAUDATE_VEIN_ID, CAUDATE_WHEN } from './vessels/caudate-veins.ts';
+import { CAUDATE_VEIN_ID, CAUDATE_WHEN, caudateShownFor } from './vessels/caudate-veins.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -777,7 +777,7 @@ export class CelScene {
     }
   }
 
-  /** The caudate lobe and its short veins (2D stage.js caud): drawn only while a slide is about them, eased in and out; the lobe has grown as far as its veins carry the liver's outflow
+  /** The caudate lobe and its short veins (2D stage.js caud): drawn while a slide is about them or the disease says so (caudate-veins.ts caudateShownFor), eased in and out; the lobe has grown as far as its veins carry the liver's outflow
    *  (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
   setCaudate(lobe: boolean, veins: boolean): void {
     this.caudLobe = lobe; this.caudVeins = veins;
@@ -786,8 +786,10 @@ export class CelScene {
   }
   private caudLobe = false; private caudVeins = false;
   private syncCaudate(f: NonNullable<typeof latest.frame>, instant: boolean): void {
-    this.disease.organs.setCaudate(this.caudLobe, feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ), instant);
-    this.feeders.set(CAUDATE_VEIN_ID, this.caudLobe && this.caudVeins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
+    const live = feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ);
+    const shown = caudateShownFor(live, (patient.params ?? null) as DiseaseParams | null, { lobe: this.caudLobe, veins: this.caudVeins });   // (a slide's pin, or the disease: Budd-Chiari, the IVC web; eased on the same 0 to 1)
+    this.disease.organs.setCaudate(shown.lobe, live, instant);
+    this.feeders.set(CAUDATE_VEIN_ID, shown.lobe && shown.veins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */

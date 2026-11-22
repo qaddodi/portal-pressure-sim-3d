@@ -46,3 +46,16 @@ function vein([d]: readonly [string, number], width: number, hostW: number): Bra
 export function caudateVeinSet(hostW: number): BranchSet {
   return { host: CAUDATE_HOST, when: CAUDATE_WHEN, span: entrySpan(), list: CAUDATE_VEINS.map((c, i) => vein(c, CAUDATE_WIDTHS[i]!, hostW)) };
 }
+
+/** The veins that carry the liver's outflow to the cava: a clot in any of them, or a narrowing of the cava where they open (the IVC web), obstructs it (docs/pathology-spec.md). */
+const HV_OUTFLOW: readonly string[] = ['RHV_IVC', 'MHV_IVC', 'LHV_IVC'];
+export const hepaticOutflowObstructed = (p: { thrombus?: Record<string, number>; stenosis?: Record<string, number> } | null | undefined): boolean =>
+  HV_OUTFLOW.some((id) => (p?.thrombus?.[id] ?? 0) > 0) || (p?.stenosis?.IVCS_RA ?? 0) > 0;
+
+/** Whether the anatomy shows the caudate lobe and its short veins (Mohammad, 22 Nov audit 4: Budd-Chiari "names the caudate and draws none of it"). Shown when a slide pins it, or when the hepatic outflow is
+ *  obstructed (Budd-Chiari, the IVC web) and the caudate's veins carry more than twice the healthy flow (`live`: network.ts feederLive 'caudate', 0 to 1, which also sets how far the lobe has grown).
+ *  Not in SOS: its obstruction is in the sinusoids and the hepatic veins are patent, though the feeder reads 1 there too. Pure; the scene calls it on every frame. */
+export function caudateShownFor(live: number, params: Parameters<typeof hepaticOutflowObstructed>[0], pin: { lobe: boolean; veins: boolean }): { lobe: boolean; veins: boolean } {
+  const auto = live > 0 && hepaticOutflowObstructed(params);
+  return { lobe: pin.lobe || auto, veins: pin.veins || auto };
+}
