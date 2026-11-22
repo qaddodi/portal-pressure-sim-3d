@@ -6,6 +6,7 @@ import { centrelineOf } from '../centreline.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 import { braidRootEnds } from './braid-arm.ts';
+import { PHASE_2_NODES } from './nodes.ts';
 import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The kinds of vessel that are permanent (spec 4.1): a skin is built only where these meet. Collaterals and shunts grow from nothing and keep the fork method (`nbr`, `bury`); feeders are strands of a host. */
@@ -230,7 +231,7 @@ export function withoutGrowers(j: SkinJunction): SkinJunction | null {
 /** The nodes whose skins are built in each phase (spec 4.1, 6, 10): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2, those with an end behind the organs (spec 10.4) and the liver beds' nodes (SIN_R, SIN_L, spec 10.5: the node's far arm decides whether it is a junction, `SKIN_REACH`, below). */
 export const PHASE_1_NODES: ReadonlySet<string> = new Set(['CONF']);
 // (the nodes with an end behind the organs, spec 10.4: SVC_E and SVC where the superior cava's pieces meet the epigastric and azygos veins, IVCI where the left renal vein and the iliac run-on meet the cava, IVCS with its five arms)
-export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'SIN_R', 'SIN_L', 'IVCI', 'SVC_E', 'SVC', 'IVCS']);
+export { PHASE_2_NODES };
 export function skinNodesForPhase(phase: 1 | 2): ReadonlySet<string> {
   return phase === 1 ? PHASE_1_NODES : PHASE_2_NODES;
 }

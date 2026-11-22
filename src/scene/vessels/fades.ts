@@ -92,6 +92,8 @@ export const LIVER_FADE_IN: Readonly<Record<string, number>> = { RHV_IVC_1: 0.6,
 
 /** A vein whose start joins only a collateral (closed in health) would end blunt: the azygos arch's left end, over the top of the right atrium (Mohammad, 20 Nov: "this guy should also fade out on the left"). The share of its length it fades in over. */
 export const FREE_START_FADE: Readonly<Record<string, number>> = { AZY_SVC: 0.55 };
+/** The carried-on stretch beyond a landing (starts.ts START_IN_ORGAN) fades in from nothing, but its free end is still an end: it tapers to a point over its first radii and keeps its round cap, so it closes in ink and never ends in a flat cut (Mohammad, 22 Nov: "the azygos has a segment that's open"). `point` is the course's own free-end flags (or none); smooth joins on only. */
+export const leadInPoint = (id: string, point: readonly [boolean, boolean] | undefined, smooth: boolean): readonly [boolean, boolean] | undefined => (smooth && FREE_START_FADE[id] != null ? [true, point?.[1] ?? false] : point);
 
 /** The rectal varices run on further down (starts.ts END_ON): they fade out over the new stretch instead of the 2D one. */
 const FADE_DOWN_ON: Readonly<Record<string, readonly [number, number]>> = { C4: [940, 1005] };
