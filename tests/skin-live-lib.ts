@@ -34,6 +34,8 @@ export interface LiveVariant {
   absentInUnion?: boolean;
   /** the depth hold-out of each arm on its own (before 22 Nov, 18:00): a pixel every kept arm holds out (it lies on the stub of an arm that is not there) was dropped. The shipped rule takes it relative to the least-held kept arm (skin/shaders.ts skinSdPx). */
   absoluteHold?: boolean;
+  /** a pixel past the band that the arms' screen union (no depth rule) calls lumen stays: it takes the union's distance (the shipped rule; `noRescue` is the rule before it) */
+  noRescue?: boolean;
 }
 export interface LiveCase { swell: readonly number[]; keep: readonly boolean[] }
 /** `covered` pixels the skin's front faces cover; `lumenRef` of them the live union (kept arms, no depth rule) says are lumen; `hole` of those no fragment is drawn at (every face over it is dropped: the tube is cut there, so it is background); `inkOnly` of those the nearest drawn fragment is line only (black where it should be vessel). */
@@ -131,8 +133,8 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
         }
         return o;
       };
-      const sd = sdOf(true, !!variant.holdoutLive, !!variant.absentInUnion);
       const ref = sdOf(false, false, false);   // (the kept arms' union at their live widths: where the vessel is)
+      let sd = sdOf(true, !!variant.holdoutLive, !!variant.absentInUnion);
       let wMax = 0; for (let i = 0; i < n; i++) wMax = Math.max(wMax, variant.absentInUnion ? wAt[i]! : raw[i]! * (cs.keep[i] ? 1 : 0));
       const band = inkDev + 0.5 + SKIN_SEAM_PAD_PX * dpr * smooth(0.75, 0.97, wMax);
       if (opts?.probe && x === opts.probe.x && y === opts.probe.y) opts.probe.log(`tri ${t / 3} sd ${sd.toFixed(2)} ref ${ref.toFixed(2)} band ${band.toFixed(2)} w ${fragW.toFixed(4)} d/arm ${axes.map((_, i) => armPx(i, true, false).toFixed(1)).join(',')} nodepth ${axes.map((_, i) => armPx(i, false, false).toFixed(1)).join(',')} raw ${raw.map((r) => r.toFixed(2)).join(',')} kPx ${kPx.toFixed(1)}`);
@@ -147,6 +149,7 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
           if (dS > 0.2) nd.c++;
         }
       }
+      if (!variant.noRescue && sd > band && ref <= -0.5) sd = ref;
       const drop = sd > band, key = y * W2 + x, cur = best.get(key) ?? { w: Infinity, lumen: false, ref: false };
       cur.ref = cur.ref || ref <= -0.5;
       if (!drop && fragW < cur.w) { cur.w = fragW; cur.lumen = sd <= -0.5; }

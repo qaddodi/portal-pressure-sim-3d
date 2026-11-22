@@ -52,7 +52,7 @@ test('the test bites: with each arm held out on its own (the rule until 22 Nov) 
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     assert.deepEqual(keep, [true, true, false, true], 'C9 collapsed, the varices open');
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
-    const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
+    const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true, noRescue: true }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
     assert.ok(old.hole / old.covered > 0.08, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
     assert.ok(now.hole / now.covered < 0.03, `${(100 * now.hole / now.covered).toFixed(1)} % with it`);
   } finally { g.done(); }
@@ -76,5 +76,22 @@ test('the shade follows the outline: at the Schistosomiasis azygos, the stub pix
     assert.ok(r.newlyDrawnBandFlip / r.newlyDrawn > 0.4, `${r.newlyDrawnBandFlip} of ${r.newlyDrawn} would change cel band if shaded as a stub`);
     const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
     assert.match(SKIN_FS, /\* keepOf\(i\)\);/, 'and the shader leaves the arms that are not there out of the shade union');
+  } finally { g.done(); }
+});
+
+test('a pixel the arms\' screen union calls lumen is never dropped: the narrow varices\' stub at the Schistosomiasis azygos leaves no pixel of the skin unpainted (the black crescent under the purple\'s landing)', async () => {
+  const g = gateSkins();
+  try {
+    const s = g.skins.find((k) => k.node.startsWith('wall:AZY_SVC'))!, arms = s.mesh.junction.arms, fr = await frameOf('schisto');
+    const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
+    const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
+    assert.ok(swell[3]! < 0.5, `C1b is at swell ${swell[3]!.toFixed(2)} of its built width`);
+    const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
+    const before = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { noRescue: true }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
+    assert.ok(before.hole >= 20, `${before.hole} pixels are dropped inside the union without the rule`);
+    assert.equal(now.hole, 0, 'none with it');
+    const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
+    assert.match(SKIN_FS, /if \(sdFlat <= -0\.5\) sdPx = sdFlat;/);
+    assert.doesNotMatch(SKIN_FS, /\bbool flat\b/, '(flat is a reserved word in GLSL ES 3.00)');
   } finally { g.done(); }
 });
