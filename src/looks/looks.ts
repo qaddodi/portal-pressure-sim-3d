@@ -11,6 +11,7 @@ export interface Look {
   bg: string; /** card surface */ card: string; /** glass pill/tag fill */ glass: string; text: string; text2: string; text3: string; accent: string; accentSoft: string;
   /** hairline edge of a card */ edge: string; /** shadow strength (alpha scale) */ sa: number;
   ok: string; caution: string; danger: string;
+  /** ink on an accent fill (2D --on-accent, tokens.css: tests/colour-tokens.test.ts keeps the two equal) and on a danger fill (--on-danger, 3D's own) */ onAccent: string; onDanger: string;
   /** body plate behind the organs: flat, no shading, no ink */
   plate: string;
   /** hull outline colour */
@@ -26,17 +27,17 @@ export interface Look {
 }
 
 const darkOrgans = { liver: '#A88C82', spleen: '#93889A', kidney: '#A07E8E', gut: '#AC9289', stomach: '#A99088', heart: '#AE8387', portal: '#E06AA2', systemic: '#79AEEF' };
-const darkSignals = { ok: '#34C38F', caution: '#F0B43C', danger: '#F2634D', accent: '#7C9BFF', accentSoft: 'rgba(124,155,255,.13)' };
+const darkSignals = { ok: '#34C38F', caution: '#F0B43C', danger: '#F2634D', onDanger: '#15140F', accent: '#7C9BFF', accentSoft: 'rgba(124,155,255,.13)' };
 
 export const LOOKS: Record<LookId, Look> = {
-  light: { scheme: 'light', bg: '#F1EBE0', card: '#FCF9F3', glass: 'rgba(252,249,243,.92)', text: '#1B1710', text2: '#463F34', text3: '#5A5347', accent: '#2E4BB8', accentSoft: 'rgba(46,75,184,.10)', edge: 'rgba(59,44,34,.12)', sa: 0.16, ok: '#157A58', caution: '#B07A0A', danger: '#C23F2A',
+  light: { scheme: 'light', bg: '#F1EBE0', card: '#FCF9F3', glass: 'rgba(252,249,243,.92)', text: '#1B1710', text2: '#463F34', text3: '#5A5347', accent: '#2E4BB8', accentSoft: 'rgba(46,75,184,.10)', edge: 'rgba(59,44,34,.12)', sa: 0.16, ok: '#157A58', caution: '#8F6208', danger: '#C23F2A', onAccent: '#FFFFFF', onDanger: '#FFFFFF',
     plate: '#E8DFD0', ink: '#3B2C22', shadowRgb: '46 22 34', liver: '#905B49', spleen: '#7A5F78', kidney: '#895F7A', gut: '#AF826E', stomach: '#A67A6C', heart: '#9D575C', portal: '#B8326F', systemic: '#3F7FCB', shadeK: 0.62 },
   // Soft's two vessel tones are the proposed deeper ones, accepted by the owner on 19 Nov.
-  soft: { scheme: 'light', bg: '#DDD0B9', card: '#F0E9DC', glass: 'rgba(240,233,220,.84)', text: '#1F1A12', text2: '#463E31', text3: '#514838', accent: '#3652B8', accentSoft: 'rgba(54,82,184,.11)', edge: 'rgba(51,37,26,.14)', sa: 0.18, ok: '#0F6B57', caution: '#845200', danger: '#AA3622',
+  soft: { scheme: 'light', bg: '#DDD0B9', card: '#F0E9DC', glass: 'rgba(240,233,220,.84)', text: '#1F1A12', text2: '#463E31', text3: '#514838', accent: '#3652B8', accentSoft: 'rgba(54,82,184,.11)', edge: 'rgba(51,37,26,.14)', sa: 0.18, ok: '#0F6B57', caution: '#845200', danger: '#AA3622', onAccent: '#FFFFFF', onDanger: '#FFFFFF',
     plate: '#CEC6B7', ink: '#33251A', shadowRgb: '46 22 34', liver: '#774433', spleen: '#634962', kidney: '#724963', gut: '#956A57', stomach: '#8D6255', heart: '#834046', portal: '#A8306A', systemic: '#3A74B8', shadeK: 0.62 },
-  dark: { scheme: 'dark', bg: '#1A1917', card: '#242321', glass: 'rgba(30,29,27,.95)', text: '#EEEBE5', text2: '#B7B1A8', text3: '#A69E95', ...darkSignals, edge: 'rgba(255,255,255,.08)', sa: 0.5, plate: '#262421', ink: '#0E0B09', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
-  navy: { scheme: 'dark', bg: '#0E1422', card: '#161E30', glass: 'rgba(16,23,42,.95)', text: '#E9EDF6', text2: '#A9B2C7', text3: '#8F99B3', ...darkSignals, edge: 'rgba(255,255,255,.08)', sa: 0.5, plate: '#1A2238', ink: '#05080F', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
-  black: { scheme: 'dark', bg: '#000000', card: '#0D0D0E', glass: 'rgba(10,10,11,.95)', text: '#F4F4F5', text2: '#B6B6BC', text3: '#9C9CA4', ...darkSignals, edge: 'rgba(255,255,255,.09)', sa: 0.6, plate: '#0F0F11', ink: '#000000', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
+  dark: { scheme: 'dark', bg: '#1A1917', card: '#242321', glass: 'rgba(30,29,27,.95)', text: '#EEEBE5', text2: '#B7B1A8', text3: '#A69E95', ...darkSignals, onAccent: '#15140F', edge: 'rgba(255,255,255,.08)', sa: 0.5, plate: '#262421', ink: '#0E0B09', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
+  navy: { scheme: 'dark', bg: '#0E1422', card: '#161E30', glass: 'rgba(16,23,42,.95)', text: '#E9EDF6', text2: '#A9B2C7', text3: '#8F99B3', ...darkSignals, onAccent: '#0B1120', edge: 'rgba(255,255,255,.08)', sa: 0.5, plate: '#1A2238', ink: '#05080F', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
+  black: { scheme: 'dark', bg: '#000000', card: '#0D0D0E', glass: 'rgba(10,10,11,.95)', text: '#F4F4F5', text2: '#B6B6BC', text3: '#9C9CA4', ...darkSignals, onAccent: '#0A0A0B', edge: 'rgba(255,255,255,.09)', sa: 0.6, plate: '#0F0F11', ink: '#000000', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
 };
 
 /** The look a choice means right now ('system' follows the device). */
@@ -50,7 +51,7 @@ export function lookVars(id: LookId): Record<string, string> {
   return {
     // (names as in docs/mocks/slice-mocks.html, which the cards thread codes to)
     '--bg': l.bg, '--surface': l.card, '--glass': l.glass, '--text': l.text, '--text-2': l.text2, '--text-3': l.text3,
-    '--accent': l.accent, '--accent-soft': l.accentSoft, '--ok': l.ok, '--caution': l.caution, '--danger': l.danger,
+    '--accent': l.accent, '--accent-soft': l.accentSoft, '--ok': l.ok, '--caution': l.caution, '--danger': l.danger, '--on-danger': l.onDanger,
     '--sys': l.systemic, '--edge': l.edge, '--sa': String(l.sa),
     '--organ-body': l.plate, '--ink': l.ink, '--shadow-rgb': l.shadowRgb,
     '--organ-liver': l.liver, '--organ-spleen': l.spleen, '--organ-gut': l.gut, '--organ-stomach': l.stomach, '--organ-heart': l.heart,

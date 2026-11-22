@@ -29,6 +29,14 @@ export function fieldWide(d: number, rest: number): number {
   return t * t * (3 - 2 * t);
 }
 export const FIELD_Z = PLATE_Z - 0.1;
+/** Plan 31 part C: the lobule's own six corners (lobule radii, the tile's lattice: a flat-topped hexagon) and the tract's full radius there (the cuff's outer edge at growth 1). The neighbour plates' rounded corners reach into these
+ *  discs and showed through the tract's reveal as a stippled wedge with straight edges; inside them the field draws only its gap tone, so a home tract always lies on one ground. */
+export const HOME_CORNERS: readonly [number, number][] = Array.from({ length: 6 }, (_, i) => [Math.cos((i * Math.PI) / 3), Math.sin((i * Math.PI) / 3)] as [number, number]);
+export const HOME_TRACT_R = 1.84 * 0.1 * 1.06;   // (the cuff's outer edge, 1.7 x 1.08 of the tract's radius, and the most its wavy edge swells, 6 %)
+/** The plates give way entirely inside HOME_TRACT_R and ease back to the tile from there out to this many times it (outside the cuff, so nothing of the tract's reveal lies on the ease). */
+export const HOME_EASE = 1.25;
+/** The share of the neighbours' plates the shader keeps at r lobule radii from a home corner (the shader's own rule, in JS for the gate): 0 inside the tract disc, 1 from HOME_EASE times it. */
+export const plateShare = (r: number): number => { const x = Math.min(1, Math.max(0, (r - HOME_TRACT_R) / (HOME_TRACT_R * (HOME_EASE - 1)))); return x * x * (3 - 2 * x); };
 
 /** The field's state as 2D quantizes it (lobule-zoom-field.js fsQ: eighths, with a little hysteresis so a value on a step does not flip tiles). */
 export interface FieldState { su: number; pre: number; post: number; sin: number; cong: number }
@@ -88,6 +96,9 @@ ${CEL_TISSUE_GLSL}
 uniform sampler2D tile;
 uniform vec3 bg;
 uniform vec2 grey;
+uniform vec3 gapCol;   // the tile's gap tone (--og-liver-2), what lies between its plates
+uniform vec2 homeC[6];   // this lobule's six corners (lobule radii)
+uniform float homeR;   // the tract's full radius there (lobule radii)
 uniform float ready;
 uniform float wide;   // the dive's breadth (fieldWide): 0 at the lobule's framing (the field fades into the page past the lobule), 1 from afar (lobules to every edge of the screen)
 uniform float fade;   // the dive's one dissolve of the lobule going under the sinusoid (lobule3d.ts: 1 whole, 0 gone), the same value every tile, tube and mark of the lobule is dropping pixels at
@@ -111,8 +122,13 @@ void main() {
   float bias = mix(1.6 * smoothstep(r0d, r1d, d), 0.0, wide) + 4.0 * soft * (1.0 - 0.6 * wide);   // (from afar the mips alone keep the far tiles calm: the hexes read as a pattern, then blur, then resolve as the camera lands)
   vec2 uv = vec2(vLob.x / 6.0, vLob.y / 3.4641016151377544);
   vec3 col = texture2D(tile, uv, bias).rgb;
+  vec3 colB = texture2D(tile, uv, bias + 3.0).rgb;
+  // (a home tract lies on one ground: inside its full disc the neighbours' plates give way to the gap tone, eased back in over the next quarter of its radius, so no stippled wedge shows through the tract's reveal)
+  float home = 0.0;
+  for (int i = 0; i < 6; i++) home = max(home, 1.0 - smoothstep(homeR, homeR * ${HOME_EASE.toFixed(4)}, length(vLob - homeC[i])));
+  col = mix(col, gapCol, home); colB = mix(colB, gapCol, home);
   // the neighbours in the same three flat tones as the lobule (cel.ts), about their own local lightness; the blur they are drawn at softens the edge, and they carry no ink: they stay quiet
-  float lbN = celLight(texture2D(tile, uv, bias + 3.0).rgb);
+  float lbN = celLight(colB);
   float dvN = (celLight(col) - lbN) / max(lbN, 0.08);
   col = celTissue(col, lbN, max(fwidth(dvN) * CEL_EDGE_HALF, 1e-3) + ${FIELD_EDGE_PER_MIP.toFixed(4)} * bias);
   // the quiet copy (tile-gl.js): toward its luma by 0.45, the page's colour over it at 0.42, then NEIGHBOUR_FLAT more
@@ -145,7 +161,7 @@ export class NeighbourField {
     this.mk = mk;
     this.mat = new ShaderMaterial({ name: 'lobule field',
       vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
-      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 }, fade: { value: 1 } },
+      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, gapCol: { value: new Color() }, homeC: { value: HOME_CORNERS.map(([x, y]) => new Vector2(x, y)) }, homeR: { value: HOME_TRACT_R }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 }, fade: { value: 1 } },
       transparent: true, depthWrite: false,
       userData: { fadeKind: 'ground' },   // (an alpha draw: it takes the lobule's ground fade from LobuleRoot, one-fade.ts)
     });
@@ -162,6 +178,7 @@ export class NeighbourField {
     this.key = k;
     const L = lookColours(look), bg: RGB = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
     (this.mat.uniforms.bg!.value as Color).setRGB(bg[0], bg[1], bg[2]);
+    const gp = L.rgb01('--og-liver-2'); (this.mat.uniforms.gapCol!.value as Color).setRGB(gp[0], gp[1], gp[2]);
     this.paints++;
     const { cv } = paintFieldTile(look, fs, this.mk);
     if (!cv) return true;

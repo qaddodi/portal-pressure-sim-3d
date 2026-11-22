@@ -31,7 +31,7 @@ import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { PlateClient, type PlateExtra } from '../lobule/plate-client.ts';
-import { collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
+import { ATLAS_W, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
 import { collagenTau, flipRows } from '../lobule/collagen-tau.ts';
 import { easeGrow, growGoal } from '../lobule/growth.ts';
 import { CV_FILL, CV_OPEN_MIN, CV_RING_N, CV_WALL, cvInner, cvScarGrowth } from '../lobule/cv-intima.ts';
@@ -277,7 +277,7 @@ export class Lobule3D {
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
     this.canvas = defaultCanvas(PLATE_PX);   // (the plate's one canvas maker, plate.ts: a 2D canvas sent as a texture, no GL context of its own)
     this.tex = this.canvas ? new CanvasTexture(this.canvas) : null;
-    this.collCanvas = defaultCanvas(PLATE_PX);
+    this.collCanvas = defaultCanvas(PLATE_PX); if (this.collCanvas) this.collCanvas.width = PLATE_PX * ATLAS_W;   // (an atlas two plates wide: the tracts and the vein, the septa)
     this.collTex = this.collCanvas ? new CanvasTexture(this.collCanvas) : null;
     if (this.collTex) { this.collTex.flipY = true; this.collTex.premultiplyAlpha = true; this.collTex.generateMipmaps = true; this.collTex.minFilter = LinearMipmapLinearFilter; this.collTex.magFilter = LinearFilter; this.collTex.anisotropy = 4; }
     this.collFront = this.collTex;

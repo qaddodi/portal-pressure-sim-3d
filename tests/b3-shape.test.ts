@@ -154,7 +154,8 @@ test('a channel grows with the recruitment: none before it begins, whole after',
   assert.equal(cavGrowth(0, 0), 0);
   assert.equal(cavGrowth(5, 0.2), 0);
   assert.equal(cavGrowth(0, 1), 1);
-  assert.ok(cavGrowth(1, 0.2) > 0 && cavGrowth(1, 0.2) < 1);
+  assert.ok(cavGrowth(1, 0.5) > 0 && cavGrowth(1, 0.5) < 1);
+  assert.equal(cavGrowth(0, 0.27), 0, 'the acute opening of the preformed veins is not a cavernoma');
 });
 
 // ── the bands and the bead (the esophageal varices) ──

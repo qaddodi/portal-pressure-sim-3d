@@ -14,7 +14,7 @@ import { originsOf } from './vessels/starts.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
 import { CAPUT_FAN_ID, FAN_FRONT } from './vessels/feeder-fan.ts';
-import { CAUDATE_VEIN_ID, CAUDATE_WHEN } from './vessels/caudate-veins.ts';
+import { CAUDATE_VEIN_ID, CAUDATE_WHEN, caudateShownFor } from './vessels/caudate-veins.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -72,11 +72,11 @@ import { addOrganHalos, programPrototypes } from './materials/prototypes.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
-import { latest, live, patient } from '../engine/store.ts';
+import { latest, live, patient, shownParams } from '../engine/store.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
-import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
+import { LIVER_POINT, LIVER_Z, LOBULE_SCALE, setDivePlace, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { shortSide } from './sinusoid/portrait.ts';
@@ -85,6 +85,7 @@ import { Sinusoid3D } from './micro3d/sinusoid3d.ts';
 import { Lobule3D } from './micro3d/lobule3d.ts';
 import { framePoint, measureScreen } from './sinusoid/portrait.ts';
 import { U as SIN_UNIT } from './sinusoid/view.ts';
+import { diveLook } from './lobule/dive-look.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
@@ -96,7 +97,7 @@ import type { EusDrive } from './devices/probes/scope.ts';
 import { probeCards } from './devices/probes/cards.ts';
 import { probeAvoid } from './labels/probe-boxes.ts';
 import { useUi } from '../ui/ui-store.ts';
-import { organsReady } from './organs/meshes.ts';
+import { ORGAN_MESHES, organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { Ease, fadeRate } from '../clock/ease.ts';
@@ -397,6 +398,7 @@ export class CelScene {
     this.unJoins = useSettings.subscribe((st, prev) => {
       if (st.deviceShadow !== prev.deviceShadow) this.shadow.to(st.deviceShadow ? 1 : 0, fadeRate(FLOW_FADE_MS));
       if (st.hideBehind !== prev.hideBehind) this.occ.to(st.hideBehind ? 1 : 0, fadeRate(FLOW_FADE_MS));
+      if (st.particles !== prev.particles) clock.invalidate('streaks');   // (the cells read it per frame: a still figure wakes to ease the streaks, W8)
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
@@ -523,7 +525,7 @@ export class CelScene {
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
-    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide });
+    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide });
     this.sutures.sync(this.skins);   // (made with the skins, so the warm-up builds the program with the rest)
     this.shapes?.setPins(this.skins.pins());   // (the seams stand still while the collaterals coil: no skin is rebuilt for a growth)
     this.circuitSkins ??= new CircuitSkinSet({
@@ -722,9 +724,9 @@ export class CelScene {
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
     if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
-    this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
+    this.procs.syncStents(f, shownParams(), f ? !this.sawFrame : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
-    this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
+    this.procs.syncTamponade(shownParams() as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
     // A new patient's numbers that arrive while the camera is in flight (the slide's zoom into the lobule or the sinusoid) are laid at once: the views are dissolved or far then, and an ease
@@ -736,7 +738,7 @@ export class CelScene {
 
   /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
   private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
-    this.disease.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
+    this.disease.feed(f as never, (shownParams() ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
       instant: first,   // (a new patient eases: the organs, the disease and the collaterals glide from the old patient to the new, never swap; only the very first frame is at once)
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
@@ -775,7 +777,7 @@ export class CelScene {
     }
   }
   private syncStumps(): void {
-    const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;
+    const side = !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide;
     for (const [shunt, vein] of DIVIDED) {
       const o = this.byEdge.get(vein) as VesselObject | undefined;
       if (!o) continue;
@@ -791,7 +793,7 @@ export class CelScene {
     }
   }
 
-  /** The caudate lobe and its short veins (2D stage.js caud): drawn only while a slide is about them, eased in and out; the lobe has grown as far as its veins carry the liver's outflow
+  /** The caudate lobe and its short veins (2D stage.js caud): drawn while a slide is about them or the disease says so (caudate-veins.ts caudateShownFor), eased in and out; the lobe has grown as far as its veins carry the liver's outflow
    *  (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
   setCaudate(lobe: boolean, veins: boolean): void {
     this.caudLobe = lobe; this.caudVeins = veins;
@@ -800,8 +802,10 @@ export class CelScene {
   }
   private caudLobe = false; private caudVeins = false;
   private syncCaudate(f: NonNullable<typeof latest.frame>, instant: boolean): void {
-    this.disease.organs.setCaudate(this.caudLobe, feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ), instant);
-    this.feeders.set(CAUDATE_VEIN_ID, this.caudLobe && this.caudVeins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
+    const live = feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ);
+    const shown = caudateShownFor(live, (patient.params ?? null) as DiseaseParams | null, { lobe: this.caudLobe, veins: this.caudVeins });   // (a slide's pin, or the disease: Budd-Chiari, the IVC web; eased on the same 0 to 1)
+    this.disease.organs.setCaudate(shown.lobe, live, instant);
+    this.feeders.set(CAUDATE_VEIN_ID, shown.lobe && shown.veins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
@@ -863,7 +867,19 @@ export class CelScene {
   goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void {
     if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
     this.hold(null);
-    this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true;
+    this.rig.goTo(this.placeDive(shot, room), room, now, ms, false, ease ?? null); this.moving = true;
+  }
+  /** Plan 30b: a dive in from the body decides its place every time (`diveLook`, lobule/dive-look.ts): not zoomed in, the liver's default place; zoomed on the liver, where he looks (the centre of the room he is
+   *  looking at now); zoomed elsewhere, the nearest liver point on screen. The place moves while the dive frame is hidden; the shot, built on the old place, is carried by the same move, so nothing he sees
+   *  jumps (the picture only grows). Only a move between the lobule and the sinusoid (dive frame visible), or one begun inside the dive, keeps the place as it stands. The hand's pan bounds follow the place. */
+  private placeDive(shot: ShotName | Shot, room: Room): ShotName | Shot {
+    if (typeof shot === 'string' || !(this.figureView === 'lobule' || this.figureView === 'sinusoid') || this.dive.visible || !(this.rig.pose.shot.r > 0.5)) return shot;
+    const ls = this.disease.organs.liverShown, to = diveLook(this.rig, this.width, this.height, { cirrhosis: ls.cirrhosis, congestion: ls.congestion });
+    const dx = to.x - LIVER_POINT[0], dy = to.y - LIVER_POINT[1];
+    if (dx === 0 && dy === 0) return shot;
+    setDivePlace(to.x, to.y); this.dive.position.set(...LIVER_POINT); this.livePoint.set(...LIVER_POINT);
+    this.rig.setSubject(this.figureView === 'lobule' ? lobuleCorners() : (sinusoidBox() as Vec3[]));
+    return { ...shot, target: [shot.target[0] + dx, shot.target[1] + dy, shot.target[2]] };
   }
   /** The boot reveal (boot/ready.ts, splash plan A2): the camera a little closer than rest while the splash is up, and the glide home as it lifts. Only the body view settles; any other start just fades. */
   primeReveal(k: number): void { if (this.figureView === 'body' && this.rig.primeSettle(k)) this.moving = true; }
@@ -1035,9 +1051,9 @@ export class CelScene {
   private syncCircuitData(f: typeof latest.frame): void {
     const healthy = patient.reference ? { P: patient.reference.P, Q: patient.reference.Q } : null;
     const next: Partial<Record<ResKey, number>> = {};
-    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, patient.params); if (r != null) next[key] = r; }
+    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, shownParams()); if (r != null) next[key] = r; }
     this.resNow = next;
-    const cs = ((patient.params as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
+    const cs = ((shownParams() as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
     const open: Record<string, number> = {};
     for (const id of Object.keys(cs)) if (cs[id]! > 0 && (!f || !hasVessel(id) || (f.D[indexOf(id)] ?? 0) > 0)) open[id] = cs[id]!;
     this.openShunts = open;
@@ -1218,13 +1234,13 @@ export class CelScene {
   private snapMicroToModel(): void {
     const f = latest.frame;
     if (!f) return;
-    const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
+    const m = lobuleModel({ P: f.P, Q: f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
     this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
   }
   private feedViews(snap: boolean): void {
     const f = latest.frame;
     if (!f) return;
-    const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
+    const m = lobuleModel({ P: f.P, Q: f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
     if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
     else if (this.figureView === 'sinusoid') {
       snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));

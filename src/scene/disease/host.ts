@@ -119,3 +119,11 @@ export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
   const d0 = wall(k), d1 = wall(k + 1), w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0)));
   return (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length;
 }
+
+/** The lumen's radius (built width, scene units) at a share of the drawn vein. */
+export function radiusAtShare(h: Host, sh: number): number {
+  const d = Math.min(1, Math.max(0, sh)) * h.length;
+  let k = 1; while (k < h.s.length - 1 && h.s[k]! < d) k++;
+  const a = h.s[k - 1]!, w = Math.min(1, Math.max(0, (d - a) / (h.s[k]! - a || 1)));
+  return h.R[k - 1]! + (h.R[k]! - h.R[k - 1]!) * w;
+}

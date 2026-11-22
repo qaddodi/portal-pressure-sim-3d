@@ -13,16 +13,14 @@ export type MenuTab = 'present' | 'patients';
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
 export type LabelLevel = 'key' | 'all' | 'none';
 
+/** The figure's own choices the shell owns. The Blood menu's switches (chevrons, key chevrons, key streaks, pressure values, collaterals, organ names) live in `useBlood`
+ *  (scene/blood/options.ts); write any switch through `setFigureSwitch` (figure-switch.ts), never here. */
 export interface Figure {
-  /** Blood menu › Moving blood */
-  chevrons: boolean; keyChevrons: boolean;
-  /** Blood menu › Show on the figure */
-  chips: boolean; collaterals: boolean; labels: boolean;
   labelLevel: LabelLevel;
   /** Layers (the lobule view) */
   zones: boolean; lymph: boolean; bile: boolean;
 }
-export const FIGURE_DEFAULTS: Figure = { chevrons: true, keyChevrons: false, chips: true, collaterals: true, labels: true, labelLevel: 'key', zones: false, lymph: true, bile: true };
+export const FIGURE_DEFAULTS: Figure = { labelLevel: 'key', zones: false, lymph: true, bile: true };
 
 export interface ToastAction { label: string; run(): void }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad'; action?: ToastAction }
@@ -69,7 +67,7 @@ function loadFigure(): Figure {
   try {
     const o = JSON.parse(localStorage.getItem(KEY) || '{}');
     const b = (k: keyof Figure) => (typeof o[k] === 'boolean' ? o[k] : (FIGURE_DEFAULTS[k] as boolean));
-    return { chevrons: b('chevrons'), keyChevrons: b('keyChevrons'), chips: b('chips'), collaterals: b('collaterals'), labels: b('labels'), labelLevel: ['key', 'all', 'none'].includes(o.labelLevel) ? o.labelLevel : 'key', zones: b('zones'), lymph: b('lymph'), bile: b('bile') };
+    return { labelLevel: ['key', 'all', 'none'].includes(o.labelLevel) ? o.labelLevel : 'key', zones: b('zones'), lymph: b('lymph'), bile: b('bile') };
   } catch { return { ...FIGURE_DEFAULTS }; }
 }
 const saveFigure = (f: Figure) => { try { localStorage.setItem(KEY, JSON.stringify(f)); } catch { /* kept for this visit */ } };

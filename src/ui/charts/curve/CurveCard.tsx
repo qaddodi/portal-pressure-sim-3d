@@ -7,11 +7,14 @@ import { courseWork, curveKey, curveWork, goalOf, type CurveWork, type Fp, type 
 import { curveFrame, withAtX, type CurveOut, type CurveTool } from './frame.ts';
 import { courseFrame, type CourseTool } from './course-frame.ts';
 import { engineRun } from './run.ts';
+import { bakedCurve } from '../baked/store.ts';
 import '../charts.css';
 
 // What was worked out, kept for the session by slide and tool (2D keeps it per deck): a slide that comes up again draws its lines in the first drawing.
 const asked = new Map<string, Promise<unknown>>();
 const ready = new Map<string, unknown>();
+/** What is known on the spot: worked out this session, else baked at build time (charts/baked: the deck's file, fetched when the talk opened). The first drawing has it either way. */
+const known = (key: string, id: string | undefined): unknown | null => ready.get(key) ?? bakedCurve(id, key);
 function kept<T>(key: string, make: () => Promise<T | null>): Promise<T | null> {
   let p = asked.get(key) as Promise<T | null> | undefined;
   if (!p) {
@@ -25,6 +28,7 @@ function kept<T>(key: string, make: () => Promise<T | null>): Promise<T | null> 
 /** Works a curve or a course out ahead (the deck's slide after the one on show): its sweep runs the model through every point on the worker and takes a while, so a slide that opens on it
  *  finds it done and draws its lines in the first drawing, never an empty chart and then the lines. Asked once (`kept`); the card asks the same question with the same key. */
 export function warmCurve(tool: CurveTool | CourseTool, slide: SlideState | null, id: string, fpOf?: (slideId: string) => Fp | null): void {
+  if (known(curveKey(tool, id), id)) return;   // (baked: nothing to work out)
   if ((tool as { kind?: string }).kind === 'course') { const t = tool as CourseTool; void kept(curveKey(t, id), () => courseWork(t, engineRun(slide))).catch(() => undefined); return; }
   const t = tool as CurveTool;
   if (slide) void kept(curveKey(t, id), () => curveWork(t, slide, engineRun(slide), fpOf)).catch(() => undefined);
@@ -57,15 +61,18 @@ export function CurveCard(p: CardProps) {
 function ParamCurveCard({ tool, slide = null, live = null, fpOf, run, id, height, room }: CardProps) {
   const t = tool as CurveTool;
   const key = useMemo(() => curveKey(t, id ?? slide?.fp), [t, id, slide?.fp]);
-  const [work, setWork] = useState<CurveWork | null>(() => (ready.get(key) as CurveWork | undefined) ?? null);
+  const [work, setWork] = useState<CurveWork | null>(() => (known(key, id) as CurveWork | null) ?? null);
+  const pending = !!slide?.pending;
   useEffect(() => {
-    setWork((ready.get(key) as CurveWork | undefined) ?? null);
-    if (!slide) return;
+    const got = (known(key, id) as CurveWork | null) ?? null;
+    setWork(got);
+    // (a baked curve is the slide's whole sweep: nothing runs; a baked state has no snapshot to sweep from, so a live sweep waits for the live one)
+    if (!slide || got || pending) return;
     let on = true;
     kept(key, () => curveWork(t, slide, run ?? engineRun(slide), fpOf)).then((w) => { if (on && w) setWork(w); }, () => undefined);
     return () => { on = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, !!slide]);
+  }, [key, !!slide, pending]);
 
   const goal = useMemo(() => goalOf(t, work?.s ?? null, slide, live), [t, work, slide, live]);
   const painter = useRef<ChartPainter | null>(null);
@@ -105,9 +112,11 @@ function ParamCurveCard({ tool, slide = null, live = null, fpOf, run, id, height
 function CourseCard({ tool, slide = null, run, id, height, room }: CardProps) {
   const t = tool as CourseTool;
   const key = useMemo(() => curveKey(t, id ?? slide?.fp ?? 'course'), [t, id, slide?.fp]);
-  const [ser, setSer] = useState<unknown>(() => ready.get(key) ?? null);
+  const [ser, setSer] = useState<unknown>(() => known(key, id) ?? null);
   useEffect(() => {
-    setSer(ready.get(key) ?? null);
+    const got = known(key, id) ?? null;
+    setSer(got);
+    if (got) return;
     let on = true;
     // (the course is drawn on the patient the slide describes, a fresh model: it does not wait for the slide's own state)
     kept(key, () => courseWork(t, run ?? engineRun(slide))).then((s) => { if (on && s) setSer(s); }, () => undefined);

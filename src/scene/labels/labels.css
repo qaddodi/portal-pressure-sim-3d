@@ -201,7 +201,7 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .pl-dl { width: 1px; height: var(--w); margin-top: calc(var(--w) / -2); transform-origin: 0 50%; pointer-events: none; }
 .pl-dl-rim { background: var(--dop-rim, #000); }
 .pl-dl-line { background: var(--dop-mark, #fff); }
-.pl-scan { font: 700 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); }
+.pl-scan { font: 700 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }   /* (near-black ink: on the dark looks it needs the labels' halo like every figure label) */
 .pl-scan .pl-scan-unit { margin-left: 2px; font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--fibroscan) 30%, black); }
 
 /* A step's leader (plan 21: a thin line to the vessel's edge, no dot on a vessel; a dot, 5 px with the labels' halo, only where it names an area: an organ, the sinusoids a group stands for). Moved by transform; the layer fades it with the number. */

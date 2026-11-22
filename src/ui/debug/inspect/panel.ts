@@ -183,7 +183,7 @@ export function mountInspect(): void {
   vl.append(el('div', { className: 'hint', textContent: 'A green dot is drawn now. A junction skin is drawn while any of its arms is. Collateral braids (strands) are not vessels here and stay.' }));
   syncers.push(() => { for (const [id, r] of rows) { r.s.checked = state.solo.includes(id); r.m.checked = state.mute.includes(id); } });
   drawList();
-  useSelection.subscribe((st) => { if (state.tapSolo && st.sel?.type === 'edge') { commit({ solo: [st.sel.id] }); drawList(); } });
+  useSelection.subscribe((st) => { if (state.tapSolo && st.sel?.type === 'edge') { commit({ solo: [st.sel.id] }); drawList(); } }); // (lives for the page)
 
   // ---- Joins report: what the skins did not weld ----
   const jr = section('Joins report (unwelded ends)', false);
@@ -277,7 +277,7 @@ export function mountInspect(): void {
   clock.on('tags', () => {
     if (!labelsOn) return;
     for (const l of labelPts) { const inView = cel.inspectScreen(l.at, pt); l.tag.style.opacity = inView ? '1' : '0'; if (inView) l.tag.style.transform = `translate(${pt.x.toFixed(1)}px,${pt.y.toFixed(1)}px) translate(-50%,-50%)`; }
-  });
+  }); // (lives for the page)
   check(ov, 'Vessel id on every drawn vessel (follows the list filter)', () => labelsOn, (v) => { labelsOn = v; if (v) buildLabels(); else { labelLayer.textContent = ''; labelPts = []; } });
   ov.append(el('div', { className: 'hint', textContent: 'The tags sit at the middle of each vessel\'s course. Type in the Vessel list filter to label only some. A tag turns to a new vessel when the drawn set changes.' }));
   const labelsAgain = () => { if (labelsOn) buildLabels(); };

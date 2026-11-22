@@ -1,6 +1,7 @@
 // Compare's work: pin the moment now (or one from History), end it, and carry the figure's choice of Then, Now or Change out (the pinned frame held on show, or the Change lens counting
 // from the pinned pressures). 2D: timeline.js togglePin / pinFrom, main.js (compareView 'A' shows the pinned frame; 'D' colours by change).
 import { latest, holdFrame, patient } from '../../engine/index.ts';
+import { onLeaveHeld } from '../../engine/store.ts';
 import { clock } from '../../clock/frame.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { useLens } from '../../scene/lenses/store.ts';
@@ -35,7 +36,7 @@ export function togglePin(): void {
 let prevLens: ReturnType<typeof useLens.getState>['lens'] | null = null;
 function apply(): void {
   const { snap, view } = useCompare.getState();
-  holdFrame(snap && view === 'A' ? snap.frame : null);
+  holdFrame(snap && view === 'A' ? snap.frame : null, snap && view === 'A' ? snap.params : undefined);   // (Then is drawn with Then's own parameters)
   if (snap && view === 'D') {
     if (prevLens == null) prevLens = useLens.getState().lens;
     sceneApi.setLensRef(snap.P);
@@ -53,5 +54,6 @@ export function startCompare(): () => void {
   started = true;
   const off = useCompare.subscribe((s, p) => { if (s.snap !== p.snap || s.view !== p.view) apply(); });
   const offF = registerFeature('compare', togglePin);
-  return () => { started = false; off(); offF(); apply(); };
+  onLeaveHeld(() => useCompare.getState().setView('B'));   // (an edit while Then is shown goes back to Now first, eased like the Compare switch)
+  return () => { started = false; off(); offF(); onLeaveHeld(null); apply(); };
 }

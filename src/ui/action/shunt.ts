@@ -11,6 +11,7 @@ import { useSelection, selectStructure, holdScenePicks } from './selection.ts';
 import { currentParams, updateParams } from './params.ts';
 import { setLayer, clearLayer } from '../../scene/intent.ts';
 import { figurePlaces, shuntChange, shuntTargets } from './shunt-model.ts';
+import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { SHUNT_WORDS, SHUNT_CREATED } from './shunt-words.copied.ts';
 import type { ShuntRule } from './shunt-rules.copied.ts';
 
@@ -50,7 +51,8 @@ function aim(src: string, targets: ReadonlyMap<string, ShuntRule>): () => void {
   tip.setAttribute('aria-hidden', 'true');
   tip.style.cssText = `position:fixed;left:0;top:0;z-index:60;pointer-events:none;opacity:0;white-space:nowrap;padding:3px 9px;border-radius:9px;font:600 13px/1.3 var(--font-ui, system-ui, sans-serif);color:var(--accent);background:var(--surface, #fff);box-shadow:0 1px 6px rgba(0,0,0,.25);will-change:transform,opacity;transition:opacity ${D_FLIP}ms ${EASE_ARRIVE};`;
   document.body.append(tip);
-  const cs = getComputedStyle(document.documentElement), accent = cs.getPropertyValue('--accent').trim() || '#2f7cf6', danger = cs.getPropertyValue('--danger').trim() || '#d64545';
+  const cs = getComputedStyle(document.documentElement), look = LOOKS[(document.documentElement.dataset.look as LookId) in LOOKS ? (document.documentElement.dataset.look as LookId) : 'light'],   // (a token the page has not set yet falls back to the look's own, never a fixed blue or red)
+    accent = cs.getPropertyValue('--accent').trim() || look.accent, danger = cs.getPropertyValue('--danger').trim() || look.danger;
   let at: { x: number; y: number } | null = null, hover: string | null = null, word = '', done = '';
   const move = (e: PointerEvent) => { if (e.pointerType === 'touch') return; at = { x: e.clientX, y: e.clientY }; clock.invalidate('shunt-aim'); };
   const leave = () => { at = null; clock.invalidate('shunt-aim'); };

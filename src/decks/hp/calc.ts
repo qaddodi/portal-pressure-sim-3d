@@ -36,7 +36,7 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
         out[t.i! - 1] = seq.results[t.i!];
         useStates.setState((s) => ({ results: { ...s.results, [deck.id]: [...out] } }));
       }
-    });
+    }); // (lives for the page) the sequence client keeps one callback; a new one replaces it
     c.post({ type: 'sequence', steps, reqId });
     try { await seq.done; c.idle(); } catch (e) {
       c.idle();

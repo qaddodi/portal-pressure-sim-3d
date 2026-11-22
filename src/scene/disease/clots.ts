@@ -6,11 +6,12 @@
 import { Group } from 'three';
 import type { LookId } from '../../looks/looks.ts';
 import type { Palette } from '../palette.ts';
-import { type Host, type Swells, cavaWallShare, drawnHost, swellsOf } from './host.ts';
+import { type Host, type Swells, radiusAtShare, cavaWallShare, drawnHost, swellsOf } from './host.ts';
+import { CAUDATE_VEIN_ID } from '../vessels/caudate-veins.ts';
 import { ClotGrow } from './clot-ease.ts';
 import { clotTokens } from './paint.ts';
 import { setClotTones } from './clot-uniforms.ts';
-import { type ClotUniform, clotPhases, clotPiece, clotRange, CLOT_V_FROM } from './clot-field.ts';
+import { type ClotUniform, clotPhases, clotPiece, clotRange, ostialLength, CLOT_CAP_LEN, CLOT_V_FROM } from './clot-field.ts';
 
 /** What the layer needs of a drawn vessel: its piece's clot uniform. */
 export interface ClotSink { setClot(c: ClotUniform | null): void }
@@ -27,9 +28,25 @@ export function pieceRanges(host: Host): Array<[number, number]> {
   return host.pieces.map((_, k) => [k === 0 ? 0 : end[k - 1]!, end[k]!] as [number, number]);
 }
 
-/** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall), the vein's cava swell setting how far a cava-opening vein's clot runs (to the cava's wall). */
+/** Where a vein's clot is anchored (plan 34c): Budd-Chiari is hepatic vein thrombosis, so the hepatic veins and the caudate vein are clotted at their OSTIUM and upstream; every other vein (the portal trunk, the splenic confluence, the renal veins) keeps 2D's clot from the middle. A table, not inferred. */
+const OSTIUM = new Set(['RHV_IVC', 'MHV_IVC', 'LHV_IVC', CAUDATE_VEIN_ID]);
+export const clotAnchor = (id: string): 'ostium' | 'mid' => (OSTIUM.has(id) ? 'ostium' : 'mid');
+
+/** The ostial clot's ends (plan 34d), shares of the drawn vein: b is the IVC's drawn wall less the cap's length (the cap's tip touches the wall from the vein's side and never enters the IVC; the junction skin paints the clot across the seam from the arm's mirrored uniforms), a is b less
+ *  ostialLength (vein widths) upstream. b does not depend on v. Null for a vein that does not open into the cava. */
+export function ostialEnds(host: Host, v: number, cavaSwell: number): { a: number; b: number; D: number; wall: number } | null {
+  const wall = cavaWallShare(host, cavaSwell);
+  if (wall == null) return null;
+  let b = wall;
+  for (let i = 0; i < 4; i++) b = wall - CLOT_CAP_LEN * radiusAtShare(host, b) / host.length;   // (the cap's length is in lumen radii at the clot's own end: a fixed point)
+  const D = 2 * radiusAtShare(host, b);
+  return { ...clotRange(v, b, ostialLength(v, D, host.length) / host.length), D, wall };
+}
+
+/** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall). An 'ostium' vein's clot touches the IVC's wall with its cap and grows upstream (ostialEnds). */
 export function clotUniforms(host: Host, v: number, cavaSwell: number, id: string): ClotUniform[] {
-  const { a, b } = clotRange(v, cavaWallShare(host, cavaSwell)), { side } = clotPhases(id);
+  const e = clotAnchor(id) === 'ostium' ? ostialEnds(host, v, cavaSwell) : null;
+  const { a, b } = e ?? clotRange(v, null), { side } = clotPhases(id);
   return pieceRanges(host).map(([s0, s1]) => clotPiece(a, b, host.length, s0, s1, side * v, id));
 }
 
@@ -46,7 +63,7 @@ export class ClotLayer {
 
   applyLook(look: LookId, _p: Palette): void { setClotTones(clotTokens(look)); }
 
-  /** The params' thrombus map. `instant` (a new patient) takes it whole. `D`: the engine's diameter of every edge (mm): a cava-opening vein's clot runs to the cava's drawn wall. Returns true while a clot grows or shrinks. */
+  /** The params' thrombus map. `instant` (a new patient) takes it whole. `D`: the engine's diameter of every edge (mm): a cava-opening vein's clot ends at the cava's wall. Returns true while a clot grows or shrinks. */
   set(thrombus: Record<string, number>, dt: number, instant = false, D: ArrayLike<number> | null = null): boolean {
     for (const id of Object.keys(thrombus)) if (!this.clots.has(id) && drawnHost(id)) this.clots.set(id, { id, grow: new ClotGrow(), goal: 0, cur: 0, written: -1, cava: NaN });
     let moving = false;

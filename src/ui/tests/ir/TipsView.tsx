@@ -2,7 +2,7 @@
 // line of numbers (no tiles), the stent drawn to scale with its chart under it on the same x (tips-figure.ts, a frame on the shared chart GL), and the three rows that edit it (the stent editor, whose
 // tray unrolls under the tiles, under the chart). Tube vs patient is CurvesView, Compare is CompareView. The words, the numbers and the rules are the 2D file's own (copied/tips-parts.copied.js).
 import { useEffect, useRef } from 'react';
-import { latest, patient, useEngine } from '../../../engine/index.ts';
+import { latest, shownParams, useEngine } from '../../../engine/index.ts';
 import { useParamsTick } from '../../action/params.ts';
 import { StentEditor } from '../../action/stent/StentPanel.tsx';
 import { Chart } from '../../charts/Chart.tsx';
@@ -19,7 +19,7 @@ import { useState } from 'react';
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 /** What the figure is drawn from, in the words it prints: a re-draw only when a printed tenth changes. */
 function stentSig(id: StentId): string {
-  const s = stentState(latest.frame, id, patient.params as Any);
+  const s = stentState(latest.frame, id, shownParams() as Any);
   const r = (v: number, k = 10) => Math.round(v * k);
   return [s.have ? 1 : 0, r(s.flow, 100), r(s.dp), r(s.ppg), r(s.ivc), s.g.map((g) => r(g, 1)).join(), r(s.tract, 100), r(s.wall, 100), r(s.ends, 100), r(s.jet, 100), r(s.sh.len, 100), r(s.sh.waist, 100), r(s.sh.trans, 100), r(s.sh.red || 0, 1000), r(s.d), r(s.s, 1000), r(s.site, 1000)].join('|');
 }
@@ -32,7 +32,7 @@ function Figure({ id, lens }: { id: StentId; lens: IrLens }) {
   return (
     <div className="tf tf-chart">
       <Chart tag="ir-tips" deps={[sig, lens, id]} label={`${id}, drawn to scale, with its ${lens === 'pressure' ? 'pressure' : 'peak velocity'} chart`}
-        build={(c) => tipsFigureFrame(stentState(latest.frame, id, patient.params as Any), c, { lens, labels: true, chart: true, keep: keep.current })} />
+        build={(c) => tipsFigureFrame(stentState(latest.frame, id, shownParams() as Any), c, { lens, labels: true, chart: true, keep: keep.current })} />
     </div>
   );
 }

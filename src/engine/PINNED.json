@@ -2,16 +2,16 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "190f022548643ee24c59a0566f4fd8b82a8a3e1b"
+    "commit": "4671d259fcb50365f4205ae1d6543839823674bd"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
     "hales/core/gap.js": "3aabfbb29bc150a8a87d8fe1dfce6c9cc1458a9f5ddf8b1073daa90c0f14bc2a",
     "hales/core/linalg.js": "4f20e14f7cd672004733371223debe801bfc81243c76226dae7b5d81556c86ba",
     "hales/core/physiology.js": "6b0ff3aa7550ade04f13177babfebee7ca81acc2da1406c84e556ba9b7a5286f",
-    "hales/host/protocol.d.ts": "c63374cd5bf9562547ef55a44221a665c1263dcee9626b00c90c048b1e622cf8",
+    "hales/host/protocol.d.ts": "0dfa9568b6519f4cd4a1028d37018d200034fa926c61e43ee1eac352a1e0f30f",
     "hales/host/worker-core.d.ts": "e4be08c47a7708663807a3a3dae456856275c2fff3a314452089e5a762e35c8f",
-    "hales/host/worker-core.js": "ac4a5d442be03de8bab1976d09ce9de2e17e33fabf5707f49f6b8b19f577d046",
+    "hales/host/worker-core.js": "7f160e8cd06a11a3ae9a0b273c243d8c47befd2022f47b0ee151b4dfedb00b19",
     "hales/portal/ascites-cuts.js": "2c6d4c43ba48e1ccfdb98891bab2bbeff647b9e4cf8ff01996b82f458e0f9d4e",
     "hales/portal/bedside-mean.js": "cb58c2dca1688dc952e885df98d3b6347e44e401c4dbf31a3e804e90b6a3163e",
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",
@@ -40,7 +40,7 @@
     "hales/portal/stent-ease.js": "371c7231827ac20ebe9a94bd9ebe061ca3e4477e0740f70e6e33298911ac715e",
     "hales/portal/stent-geom.js": "c7d22183e39e87eaded35944376249df4ee9923e013873f38bdffd977517b642",
     "hales/portal/stent-trace.js": "4325e93743b3365c48661f8361efe4ef5eb972f89f67301cdc6b71d85ce05da4",
-    "hales/portal/topology.js": "753f0d86194e0ac2fde594bb516c681a6611ee6645b2190d07cb907f3fdc0932",
+    "hales/portal/topology.js": "4e4c07b291cbca209a023bded6909e717f424ee5a85ccc352a8024b183bcc26b",
     "hales/portal/trail-calm.js": "2c6799c883feda1a58edfe545f2b89306e2de712da7ce23af1bfefa9334855b1",
     "hales/portal/transfusion-cuts.js": "b71581e1c1f1d0955b61af7f30fcab6604cb59753b11145396563d470d90d360",
     "hales/portal/wall-read.js": "7ec9bf61d0efbfc815330621ec3d481bff9180aa1e34df9cffd8e62b4a996169",

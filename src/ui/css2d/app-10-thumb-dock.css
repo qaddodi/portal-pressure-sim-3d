@@ -456,7 +456,7 @@
 .app.thumb .vdock .readouts:not(.all) .metric .v .unit { display: none; }
 .app.thumb .vdock .readouts:not(.all) .ro-group + .ro-group::before { display: none; }
 .app.thumb .vdock .readouts { border-left: 0; }
-.app.thumb .vdock .readouts:not(.all) { width: auto; min-width: max-content; container-type: normal; }   /* (sized by its two numbers, and never narrower than them: flex let the timeline squeeze it and the reading ran 14 to 21 px off the right edge after a talk; iPhone audit) */
+.app.thumb .vdock .readouts:not(.all) { width: auto; container-type: normal; }   /* (sized by its two numbers) */
 .app.thumb .vdock .readouts:not(.all) :is(.ro-tiles, .metric) { flex: none; }
 .app.thumb .vdock .readouts:not(.all) .metric { width: max-content; }
 .app.thumb .vdock .readouts:not(.all) .metric .k { flex: none; overflow: visible; }
@@ -510,7 +510,7 @@
 @media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
   .vdock:not(.mini) { grid-template-columns: auto minmax(0, 1fr); }
   .vdock:not(.mini) .timeline .tl-jumps { margin-left: 0; }
-  .vdock:not(.mini) .readouts:not(.all) { width: auto; min-width: max-content; }
+  .vdock:not(.mini) .readouts:not(.all) { width: auto; }
   .vdock:not(.mini) .readouts:not(.all) :is(.ro-row, .ro-group, .ro-tiles) { flex: 1 1 auto; min-width: 0; padding-left: 0; padding-right: 0; }
   .vdock:not(.mini) .readouts:not(.all) .ro-tiles { justify-content: space-evenly; margin-right: -3px; }
   .vdock:not(.mini) .readouts:not(.all) .metric.primary { flex: none; width: max-content; }
@@ -615,6 +615,3 @@
 html.thumb-ui :where(.tl-split .ib.play, .tl-ff, .lens-btn, .card-close, .pal-x, .sheet-head .ib, .um-x, .um-link) { position: relative; }   /* (play-test C6, 16 Nov 2026: a phone's controls are 44 px to touch: the ones painted smaller keep their look and take an invisible 44 px box centred on them, by the layout and not the pointer; the speed chip and the pin keep their own, their ::after and border being taken) */
 html.thumb-ui :is(.tl-split .ib.play, .tl-ff, .lens-btn, .card-close, .pal-x, .sheet-head .ib, .um-x, .um-link)::after { content: ''; position: absolute; inset: auto; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); translate: -50% -50%; background: none; border: 0; }
 html.thumb-ui #labels .lb-pick { stroke: transparent; stroke-width: 24px; stroke-linejoin: round; }   /* (a label the GPU draws: a transparent stroke on its pointer rect reaches 12 px past it all round; the rect's size, which the label solver and the credit read, is the same) */
-
-/* An open action card (a vessel, the TIPS, a device) stands over the view pill's slot, so it takes the room the pill had and the pill fades out under it, eased (Mohammad, 21 Nov: "we don't need access to the anatomy pill when we open those cards"). */
-.app.thumb.ac-over-pill .vdock:not(.mini) > .nb-views { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }

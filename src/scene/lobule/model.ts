@@ -90,7 +90,7 @@ export function lobuleModel(f: LobuleFrame, healthy?: HealthyRef | null, params?
     s: sc, cong, fibSin,
     fibPre: clamp(Math.log(zone.pre) / 5.4, 0, 1) ** 0.6,
     fibPost: clamp(Math.log(zone.post) / 4.8, 0, 1) ** 0.6,
-    congU: clamp(cong / 12, 0, 1), shuntU: clamp((sc - 0.45) / 0.35, 0, 1), septU: clamp((sc - 0.3) / 0.5, 0, 1),
+    congU: clamp(cong / 12, 0, 1), shuntU: clamp((sc - 0.45) / 0.35, 0, 1), septU: clamp(sc / 0.85, 0, 1) ** 0.7,   // (cirrhosis is complete bridging septa at every stage: they lead from the first of it, not from c 0.3; docs/pathology-spec.md)
     act: clamp(Math.max(fibSin, sc * 0.9), 0, 1),
   };
 }

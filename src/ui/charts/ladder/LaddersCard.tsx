@@ -6,7 +6,7 @@ import type { RunSteps } from '../../../decks/rw/numbers.ts';
 import { ProfileCard } from '../profile/ProfileCard.tsx';
 import { chartScale } from '../profile/model.ts';
 import { ensureStates } from '../../../decks/hp/calc.ts';
-import { ladderData, type LadderData } from './data.ts';
+import { bakedLadders, ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
 import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
 import { observeThenFit } from '../../layout/fit-later.ts';
@@ -91,14 +91,15 @@ function LadderChart({ r, healthy, chart }: { r: LadderRow; healthy: Fp | null; 
  *  slide: the slide with its `of` rows; deck: the deck it is in (a row names a slide of it); data: the rows when the caller has them (a specimen, a test); run: how to ask the model. */
 export function LaddersCard({ slide, deck, data: given, run = engineRun, chart = inCell }: { slide: { id: string; of?: readonly OfRow[] }; deck: CopiedDeck; data?: LadderData | null; run?: RunSteps; chart?: (row: LadderRow, healthy: Fp | null, lad: number) => ReactNode }) {
   const [got, setGot] = useState<LadderData | null>(null);
+  const baked = useMemo(() => bakedLadders(slide, deck), [slide, deck]);   // (worked out at build time: the first drawing has it)
   useEffect(() => {
-    if (given !== undefined) return;
+    if (given !== undefined || baked) return;
     let live = true;
     // (the talk's states for this deck first: working the whole deck out again for these six rows is what held the card at its header for seconds)
     (run === engineRun ? ensureStates(deck as never).catch(() => undefined) : Promise.resolve()).then(() => ladderData(slide, deck, run)).then((d) => { if (live) setGot(d); }, () => undefined);
     return () => { live = false; };
-  }, [slide, deck, given, run]);
-  const data = given !== undefined ? given : got;
+  }, [slide, deck, given, run, baked]);
+  const data = given !== undefined ? given : baked ?? got;
   return (
     <div className="pz-grid">
       <div className="pz-grid-head" aria-hidden="true"><LadderNames /><LadderNames /></div>

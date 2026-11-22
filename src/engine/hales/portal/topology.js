@@ -335,12 +335,19 @@ export const isPortalLink = (e) => e?.shunt === 'custom' && !!e.portal;
 
 // Collaterals: diameter floor. R(d) = Ropen·(dMax/d)^4, closed ≈ 256·Ropen.
 export const COLLATERAL_DMIN_RATIO = 1 / 4;
+/** How far the periportal collaterals (C8, the cavernoma's route) are open the day a portal trunk clots, as the engine shows it: recruitFrac = (D - dMin)/(dMax - dMin) at the acute preset
+ *  (COLLATERAL.acuteClot opens the small preformed veins at once, to hold the portal vein near 30 mmHg). It is not a cavernoma: that forms over weeks, on the disease clock, above this floor.
+ *  The figure draws the cavernoma's extra channels only from recruitment above it. The app's tests/pathology-spec.test.ts reads the acute preset and fails if this value drifts from it. */
+export const ACUTE_CLOT_RECRUITMENT = 0.27;
 /** Resting (unrecruited) diameter of a collateral; a route may set its own ratio (dMinRatio). */
 export const dMinOf = (e) => e.dMax * (e.dMinRatio ?? COLLATERAL_DMIN_RATIO);
 /** Whether a collateral exists in this patient: a spontaneous shunt only when present, an
  *  anatomical variant unless absent, any other collateral always. */
-/** BRTO plugs the shunt (outflow) and the short gastric feeder (inflow) of the fundal varices. */
-export const isOccluded = (p, id) => !!p.occluded?.[id] || (id === 'C2' && !!p.occluded?.C5);
+/** BRTO plugs the shunt (outflow) and the short gastric feeder (inflow) of the fundal varices.
+ *  Isolated fundal varices (IGV1) have no communication with the coronary vein: the coronary-to-oesophageal route (C1a) and its run on to the azygos (C1b)
+ *  are shut for as long as the gastrorenal shunt (C5) is open; plugging the shunt (BRTO) lets them recruit again, as `occluded.C1a` shuts them by hand. */
+export const isOccluded = (p, id) => !!p.occluded?.[id] || (id === 'C2' && !!p.occluded?.C5)
+  || ((id === 'C1a' || id === 'C1b') && !!p.isolatedGV && !p.occluded?.C5);
 /** Whether a placed device (a stent, a surgical shunt, a shunt of the learner's own) is in the patient: the params key that places it (params.tips.on, params.dsrs,
  *  params.customShunts[id]…). Every other edge is in the patient whatever the params say (its own flow, or its variant, is edgePresent's business). */
 export const deviceInPlace = (e, p) => {

@@ -3,18 +3,19 @@
 // entry with its label (what History and Undo list). The engine owns the numbers: nothing here computes a pressure.
 import { deepMerge } from '../../engine/hales/portal/scenario.js';
 import { migratePieceKeys } from './piece-keys.ts';
-import { engine } from '../../engine/boot.ts';
-import { patient, setParams } from '../../engine/store.ts';
-import { create } from 'zustand';
+import { sendParams } from '../../engine/params-send.ts';
+import { patient, useParamsTick } from '../../engine/store.ts';
 
 /** The model's parameter record (engine/hales/portal/scenario.js defaultParams), as a loose tree: the engine is JavaScript. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Params = any;
 export interface Entry { params: Params; label: string }
-export interface UpdateOpts { label?: string; history?: boolean; settle?: boolean }
+export interface UpdateOpts { label?: string; history?: boolean; settle?: boolean;
+  /** the change is the new base (a slide's patient, a link, a restored patient): what the learner changes is counted from it, and the Undo history before it is gone (audit W9) */
+  base?: boolean }
 
-/** Bumps on every change to the params or the history, so a card that lists them re-reads (the numbers on a card come from frames, not from here). */
-export const useParamsTick = create<{ tick: number }>(() => ({ tick: 0 }));
+/** The tick lives with the copy it follows (engine/store.ts setParams bumps it on every change); `bump` here is for the history list only (the numbers on a card come from frames, not from here). */
+export { useParamsTick };
 const bump = () => useParamsTick.setState((s) => ({ tick: s.tick + 1 }));
 
 const MAX_HISTORY = 200;
@@ -33,6 +34,9 @@ let base: { id: string; params: Params } | null = null;
  *  as the 2D app's loadPreset does. `params` are the patient's own settings (the worker's `presetLoaded`). */
 export function presetStarted(id: string, params: Params): void { base = { id, params: structuredClone(params) }; past = []; future = []; bump(); }
 /** The loaded patient's own settings (the 2D `presetBase`), or null when there is none yet. */
+/** The patient as it stands now becomes the base: a slide's state, a link's or a restored patient's is a fact about the patient, not a change of the learner's. Treat's "Your changes" counts from
+ *  here, Clear all returns here, and Undo does not walk back through what came before it. */
+export function rebase(): void { const p = currentParams(); if (!p) return; base = { id: base?.id ?? '', params: structuredClone(p) }; past = []; future = []; bump(); }
 export const presetBase = (): Params | null => base?.params ?? null;
 
 /** Make a change: `patchOrFn` is a patch (deep merged) or a function that edits the copy it is given (and may return it). Returns false when nothing was made. */
@@ -46,10 +50,9 @@ export function updateParams(patchOrFn: Record<string, unknown> | ((p: Params) =
   if (typeof patchOrFn === 'function') { const copy = structuredClone(prev); next = (patchOrFn as (p: Params) => Params | void)(copy) ?? copy; } else next = deepMerge(prev, patchOrFn);
   if (!next) return false;
   next = migratePieceKeys(next);
-  if (history) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
-  setParams(next);
-  try { engine().send({ type: 'setParams', params: next, settle: opts.settle ?? false }); } catch { /* the engine is not up (a test): the local copy is the change */ }
-  bump();
+  if (history && !opts.base) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
+  sendParams(next, { settle: opts.settle ?? false, replace: true });
+  if (opts.base) rebase(); else bump();
   for (const h of hooks) h({ label, history });
   return true;
 }
@@ -62,7 +65,7 @@ export const historyNow = (): readonly Entry[] => past;
 export const canUndo = (): boolean => past.length > 0;
 export const canRedo = (): boolean => future.length > 0;
 
-function jump(params: Params): void { params = migratePieceKeys(params); setParams(params); try { engine().send({ type: 'setParams', params, settle: false }); } catch { /* no engine */ } bump(); }
+function jump(params: Params): void { sendParams(migratePieceKeys(params), { replace: true }); bump(); }
 /** Back one change; returns its label (or true when it had none), false when there is nothing to undo. */
 export function undo(): string | true | false {
   const h = past.pop();

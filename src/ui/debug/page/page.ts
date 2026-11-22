@@ -177,7 +177,7 @@ export async function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): P
     if (e.key === 'Escape') root.removeAttribute('data-shoot'); else if (e.key === '[') step(-1); else if (e.key === ']') step(1);
   });
   paintLooks();
-  useSettings.subscribe(() => clock.after(paintLooks, 50));
+  useSettings.subscribe(() => clock.after(paintLooks, 50)); // (lives for the page)
 
   attach('vessels', () => cel.probeVessels());
   attach('rigProject', (pts: number[][]) => pts.map((q) => { const o = cel.rig.project(new Vector3(q[0], q[1], q[2] ?? 0)); return [o.x, o.y]; }));   // where scene points are on the canvas now (CSS px): what the picture does, which the target alone does not show (the room moves the picture without moving the target)

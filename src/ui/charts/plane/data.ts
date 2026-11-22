@@ -3,6 +3,7 @@
 // (fpOf), a patient is worked out once in the engine's worker ('sequence', the same message the 2D presenter's ctx.run sends) and kept for the talk.
 import type { EngineClient } from '../../../engine/client.ts';
 import type { Fp, PlanePoint, Stop } from './model.ts';
+import { bakedPatient } from '../baked/store.ts';
 
 export interface PatientSpec { preset: string; params?: unknown; days?: number; presetDays?: number }
 export interface RowSpec extends Partial<PatientSpec> { id?: string; name?: string; title?: string; short?: string; site?: string; from?: string | RowSpec }
@@ -29,6 +30,8 @@ const patients = new Map<string, Promise<Fp | null>>();
 /** A patient's fingerprint, worked out once in the engine's worker and kept (2D: the presenter's ctx.run for one preset). */
 export function patientFp(client: Pick<EngineClient, 'sequence'>, o: PatientSpec): Promise<Fp | null> {
   const k = patientKey(o);
+  const baked = bakedPatient(k) as Fp | null;
+  if (baked) return Promise.resolve(baked);   // (worked out at build time: no worker call)
   if (!patients.has(k)) patients.set(k, client.sequence([{ preset: o.preset, params: o.params, days: o.days, presetDays: o.presetDays }]).then((out) => (out?.[0]?.fp as Fp) ?? null).catch(() => null));
   return patients.get(k)!.then((f) => { if (!f) patients.delete(k); return f; });
 }
@@ -43,6 +46,12 @@ export function fillRows(rows: PlaneRow[], fpOf: (id: string) => Fp | null | und
 }
 /** The summary's points from the rows that are ready. */
 export const pointsOfRows = (rows: readonly PlaneRow[]): PlanePoint[] => rows.filter((r) => r.f).map((r) => ({ f: r.f!, from: r.from, name: r.name, short: r.short || undefined, site: r.site }));
+
+/** The points whose readings are known on the spot (a slide's state, a patient baked at build time or already worked out): what a summary's first drawing holds. A row waiting on a reading is left out. */
+export function pointsSync(of: readonly unknown[] | null | undefined, slides: readonly SlideLike[], fpOf: (id: string) => Fp | null | undefined): PlanePoint[] {
+  const rows = planeRows(of, slides);
+  return pointsOfRows(fillRows(rows, fpOf, (o) => bakedPatient(patientKey(o)) as Fp | null));
+}
 
 /** Every row's readings, worked out: a slide's from fpOf, a patient's in the worker. Resolves with the points that came in. */
 export async function loadPoints(of: readonly unknown[] | null | undefined, slides: readonly SlideLike[], fpOf: (id: string) => Fp | null | undefined, client: Pick<EngineClient, 'sequence'>): Promise<PlanePoint[]> {

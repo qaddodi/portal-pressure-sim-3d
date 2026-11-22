@@ -3,6 +3,7 @@
 import { engine } from '../../engine/index.ts';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
+import { bakedById } from '../charts/baked/store.ts';
 import { ensureStates, useStates } from '../../decks/hp/calc.ts';
 
 export type Fp = Record<string, number | null>;
@@ -11,7 +12,7 @@ const stepOf = (s: Slide) => (s.model ? { preset: s.model.preset, ...(s.model.pa
 const cache = new Map<string, Promise<Fp[]>>();
 const known = new Map<string, Fp[]>();
 /** The numbers at each slide of the deck once they have been worked out (null before): what a card reads on the spot. */
-export const fpsNow = (deck: Deck): Fp[] | null => known.get(deck.id) ?? null;
+export const fpsNow = (deck: Deck): Fp[] | null => known.get(deck.id) ?? ((bakedById(deck.id)?.states.map((r) => r?.fp ?? {}) as Fp[] | undefined) ?? null);   // (before the worker has them: the ones baked at build time)
 /** The fingerprint at each of the deck's slides (the opening and the quick check have none: index 0 is the first slide). Kept per deck, so a second ask is free. */
 export function slideFps(deck: Deck): Promise<Fp[]> {
   // a talk ported from 2D (every deck but the slice's own): its states are the 2D presenter's chain, worked out by the second engine (decks/hp/calc.ts), the same ones its words print

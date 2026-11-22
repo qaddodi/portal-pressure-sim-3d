@@ -14,7 +14,7 @@ const ix = (id: string) => (EDGES as { id: string }[]).findIndex((e) => e.id ===
 const frame = (gen = 1): EngineFrame => ({
   type: 'frame', changed: true, gen, jump: false, t: gen, day: 0, running: true, speed: 1, clock: 'hemo', pulsing: false, morphing: false, settling: false, phase: 0,
   P: new Float32Array(60), Pf: new Float32Array(60), Q: new Float32Array(N).fill(1), Qf: new Float32Array(N).fill(1), ext: new Float32Array(N), D: new Float32Array(N).fill(5),
-  metrics: { hvpg: 5, whvp: 10, fhvp: 5 } as never, events: [],
+  metrics: { hvpg: 5, whvp: 10, fhvp: 5 } as never, events: [], paramsRev: 0,
 });
 
 test('forgeFrame opens every collateral to its full diameter and every fixed shunt, on a copy', () => {

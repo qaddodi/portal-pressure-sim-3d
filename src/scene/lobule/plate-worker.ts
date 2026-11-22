@@ -1,7 +1,7 @@
 // The marks plate's painter in a worker (plate-client.ts): 2D's own painter (lobule-paint.js) draws one state of the tissue into an OffscreenCanvas and hands the page the finished bitmap, so the 2048 px repaint
 // (100 to 300 ms on a phone) never runs on the page's own thread. Pure: the painter reads no page, and the look's colours are a table (lz-colours.ts).
 import { useTokens } from './from2d/lobule-paint.generated.js';
-import { collagenInput, paintCollagenWorld } from './collagen-paint.ts';
+import { ATLAS_W, collagenInput, paintCollagenWorld } from './collagen-paint.ts';
 import { collagenTau, flipRows } from './collagen-tau.ts';
 import { buildLobule } from './geometry.ts';
 import { PLATE_BOX, PLATE_PX, PLATE_S, paintPlateWorld, plateInput, plateShape, type PlateState } from './plate.ts';
@@ -41,7 +41,7 @@ self.onmessage = async (e: MessageEvent<PlateAsk>) => {
     const bmp = await createImageBitmap(canvas, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' });
     const out: { id: number; bmp: ImageBitmap; cbmp?: ImageBitmap; tau?: Uint8Array } = { id, bmp }, tr: Transferable[] = [bmp];
     if (collagen) {
-      cCanvas ??= new OffscreenCanvas(PLATE_PX, PLATE_PX);
+      cCanvas ??= new OffscreenCanvas(PLATE_PX * ATLAS_W, PLATE_PX);
       paintCollagenWorld(ctxOf(cCanvas), PLATE_PX, sc, -B, -B, collagenInput(shape, cvR, look));
       out.cbmp = await createImageBitmap(cCanvas, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' }); tr.push(out.cbmp);
     }

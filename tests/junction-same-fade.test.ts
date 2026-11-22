@@ -6,6 +6,7 @@ import { CelScene } from '../src/scene/scene.ts';
 import { CAVA_RECEDE, IVC_JOIN_ALPHA, fadeOf, ivcJoinSpan, opensIntoCava } from '../src/scene/vessels/fades.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { VDBG_GLSL } from '../src/scene/vessels/debug-view.ts';
 import { CAVA_RAMP_R, cavaRamp } from '../src/scene/vessels/fade-alpha.ts';
 import { drawnHost, cavaWallShare } from '../src/scene/disease/host.ts';
 
@@ -45,7 +46,11 @@ test('every vessel that ends on the faint cava comes to the cava\'s own opacity 
 });
 
 test('no vein end renders open: back faces are never drawn and the cut at the wall is a pixel wide, never along the cava\'s axis, never a feather into the lumen', () => {
-  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard;/);
+  // (993d1620 routed the shader's discards through DROP(n): the back face is still dropped, and the macro is pinned below so it cannot open the ends)
+  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) DROP\(8\);/);
+  const [inspector, plain] = VDBG_GLSL.split(/^#else$/m);
+  assert.match(plain!, /^#define DROP\(n\) discard;$/m, 'on a normal page DROP is exactly a discard');
+  assert.match(inspector!, /#define DROP\(n\) \{ if \(dbgWhy > 0\.5\) \{ gl_FragColor = vec4\(dbgWhyCol\(float\(n\)\), 1\.0\); return; \} discard; \}/, 'in the inspector it paints only behind the switch, and otherwise discards');
   assert.match(VESSEL_FS, /cavA = mix\(1\.0 - smoothstep\(-0\.5, 0\.5, cdPx\), 1\.0, circT\);/);
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 0\.6 \* vNbr\.y, cd\)/);
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\)/);

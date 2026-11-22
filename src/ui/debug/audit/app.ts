@@ -3,6 +3,8 @@
 import { UI } from '../../strings.generated.ts';
 import { builtinDecks } from '../../../decks/registry.ts';
 import { useShell } from '../../shell/store.ts';
+import { setFigureSwitch } from '../../shell/figure-switch.ts';
+import { useBlood } from '../../../scene/blood/options.ts';
 import { useUi } from '../../ui-store.ts';
 import { leaveTalk } from '../../shell/talk.ts';
 import { loadPatient } from '../../menu/patients.ts';
@@ -79,7 +81,7 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
   const entry = (id: string): Entry | undefined => cat.find((e) => e.id === id);
   const open = (id: string): Step | null => { const e = entry(id); return e ? { group: e.group, id, label: e.label, run: async () => { await openEntry(e); if (id.startsWith('slide:')) await until(talkUp, 25000); if (id.startsWith('sheet:')) { await sleep(300); const k = await clickSelectors(); if (k) return `${e.label} (${k} selectors clicked)`; } } } : null; };
   const shell = useShell.getState();
-  const keep = { collaterals: shell.figure.collaterals, patient: shell.patientId };
+  const keep = { collaterals: useBlood.getState().collaterals, patient: shell.patientId };
   const views = ['view:anatomic', 'view:lobule', 'view:sinusoid'].map(open);
   for (const s of views) if (s) yield s;
   // the Circuit is a free-play view too (the catalog leaves it out): the body's vessels fly onto the map, then back
@@ -91,8 +93,8 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
   const pt = (id: string, label: string): Step => ({ group: 'Patients', id: `patient:${id}`, label, run: async () => { await loadPatient(id); } });
   yield pt('healthy', 'Healthy');
   yield pt('cirr-decomp', 'Decompensated (collaterals grow)');
-  yield { group: 'Patients', id: 'collaterals:off', label: 'collaterals off (collapse)', run: () => useShell.getState().setFigure({ collaterals: false }) };
-  yield { group: 'Patients', id: 'collaterals:on', label: 'collaterals on (grow)', run: () => useShell.getState().setFigure({ collaterals: true }) };
+  yield { group: 'Patients', id: 'collaterals:off', label: 'collaterals off (collapse)', run: () => { setFigureSwitch('collaterals', false); } };
+  yield { group: 'Patients', id: 'collaterals:on', label: 'collaterals on (grow)', run: () => { setFigureSwitch('collaterals', true); } };
   yield pt('healthy', 'Healthy again (collaterals collapse)');
   if (depth === 'full') for (const p of UI.presets) { if (p.id !== 'healthy' && p.id !== 'cirr-decomp') yield pt(p.id, p.label); }
   // the talks: each one is opened straight at its outline, then every stop is jumped to by number (never by pressing Next from the one before, so a stop that will not advance cannot end the walk),
@@ -124,7 +126,7 @@ export async function* plan(depth: 'quick' | 'full', note: (s: string) => void, 
     yield { group: d.title, id: `${d.id}:leave`, label: 'leave the talk', run: async () => { leaveTalk(); await until(() => !talkOn(), 15000); } };
   }
   // put the app back as it was
-  yield { group: 'Views', id: 'restore', label: 'put the app back', run: async () => { useShell.getState().setFigure({ collaterals: keep.collaterals }); await loadPatient(keep.patient); } };
+  yield { group: 'Views', id: 'restore', label: 'put the app back', run: async () => { setFigureSwitch('collaterals', keep.collaterals); await loadPatient(keep.patient); } };
 }
 
 /** Where a Next press landed: "<talk>: slide 4 of 12, beat 2". */

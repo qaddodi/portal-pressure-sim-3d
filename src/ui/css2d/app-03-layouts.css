@@ -512,7 +512,7 @@ html[data-embed] .topbar, html[data-embed] button[aria-label="Exit the presentat
 /* (13 Nov 2026, menu recs P3) Over the thumb dock (an upright phone or iPad) Search is a sheet like the tabs beside it: it rests 8 px above the dock,
    or on the keyboard when it is up (--pal-kb, palette.js), rises from behind the dock and sinks back in 240 ms, has a close button, dims nothing
    (the dock and the figure stay as they are, like the other sheets), and keeps one height while it is open. The dock below it stays live. */
-html.thumb-ui .pal-back { bottom: max(0px, calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px))); align-items: flex-end; overflow: clip; animation: none;   /* (clip, not hidden: a hidden box is still a scroller, and the focus in the tap scrolled it 117 px to show the field while the sheet rose, then it snapped back as it landed) */
+html.thumb-ui .pal-back { bottom: max(0px, calc(var(--thumb-occ, 0px) - 8px)); align-items: flex-end; overflow: clip; animation: none;   /* (clip, not hidden: a hidden box is still a scroller, and the focus in the tap scrolled it 117 px to show the field while the sheet rose, then it snapped back as it landed) */
  
   padding: calc(8px + var(--safe-top)) calc(6px + env(safe-area-inset-right, 0px)) max(8px, calc(var(--pal-kb, 0px) + 16px - var(--thumb-occ, 0px))) calc(6px + env(safe-area-inset-left, 0px)); }
 html.thumb-ui .pal { --pal-veil: 0 0 0 0 transparent; width: 100%; animation: none; }   /* (it rises from behind the dock on the page's frames, palette.js and sheet-ride.js, so its glass and its words move as one) */

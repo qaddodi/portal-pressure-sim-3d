@@ -1,7 +1,6 @@
 import { UI } from '../strings.generated.ts';
-import { useShell, type Figure } from './store.ts';
+import { useShell } from './store.ts';
 import { useBlood } from '../../scene/blood/options.ts';
-import { useLabels } from '../../scene/labels/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { Anchored } from './Pop.tsx';
 import { Icon } from './icons.tsx';
@@ -12,6 +11,7 @@ import { refitFigure } from './view-actions.ts';
 import { runFeature } from './features.ts';
 import { figureRowsOwner } from './room.ts';
 import { useUi } from '../ui-store.ts';
+import { setFigureSwitch } from './figure-switch.ts';
 import { useSettings } from '../../state/settings.ts';
 import { STREAKS_ROW } from '../settings/depth-rows.ts';
 import { talkOn } from '../../state/deck.ts';
@@ -19,17 +19,17 @@ import { FIGURE_IMAGE } from './words.ts';
 import { copyFigure, saveFigure } from './figure-image-dom.ts';
 
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
-const KEY: Record<string, keyof Figure> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
+const KEY: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 
 const BLOOD_KEYS = new Set(['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels']);
 /** A Blood switch lives in the scene's own store (src/scene/blood); the lobule's layers live in the shell. */
 function Switch({ label, hint }: { label: string; hint?: string }) {
   const k = KEY[label];
   const blood = BLOOD_KEYS.has(k);
-  const on = useShell((s) => s.figure[k] as boolean);
+  const on = useShell((s) => (blood ? false : (s.figure[k as 'zones'] as boolean)));
   const bloodOn = useBlood((s) => (blood ? (s[k as 'chevrons'] as boolean) : false));
   const checked = blood ? bloodOn : on;
-  const flip = () => { if (blood) { sceneApi.setBlood({ [k]: !bloodOn }, talkOn()); if (k === 'labels') useLabels.getState().set({ organNames: !bloodOn }); } else { useShell.getState().setFigure({ [k]: !on }); if (k === 'zones' || k === 'lymph' || k === 'bile') sceneApi.setLobuleLayers({ [k]: !on }); } };
+  const flip = () => { setFigureSwitch(k, !checked); };
   return (
     <button type="button" role="switch" className="sh-row" aria-checked={checked} onClick={flip}>
       <Icon n={ICON[label] ?? 'info'} /><span className="sh-t">{label}</span><span className="sh-sw" aria-hidden="true" />{hint && <span className="sh-d">{hint}</span>}

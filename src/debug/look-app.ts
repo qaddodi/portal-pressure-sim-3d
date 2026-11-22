@@ -6,7 +6,8 @@ import { useSettings } from '../state/settings.ts';
 import { useShell } from '../ui/shell/store.ts';
 import { useEngine } from '../engine/index.ts';
 import { clock } from '../clock/frame.ts';
-import { cel } from '../scene/api.ts';
+import { cel, sceneApi } from '../scene/api.ts';
+import { useBlood } from '../scene/blood/options.ts';
 import { parseState, type LookState } from './look-states.ts';
 import { lookCapture } from './look-hook.ts';
 
@@ -21,8 +22,7 @@ export function applyBefore(search: string): void {
   const st = parseState(search);
   if (!st) return;
   if (st.look) useSettings.setState({ look: st.look as never, lookChosen: true });
-  const f = useShell.getState().figure;
-  if (!st.chevrons) useShell.setState({ figure: { ...f, chevrons: false, keyChevrons: false } });
+  if (!st.chevrons) useBlood.setState({ chevrons: false, keyChevrons: false });   // (memory only: the viewer's saved Blood choices are not touched)
 }
 
 let cur: { preset?: string; view?: string; look?: string; orbit: number } = { orbit: 0 };
@@ -33,7 +33,7 @@ async function apply(s: Partial<LookState> & { chevrons?: boolean }) {
   const { goToView } = await import('../ui/shell/view-actions.ts');
   const { play } = await import('../ui/shell/transport.ts');
   if (s.look && s.look !== cur.look) { useSettings.setState({ look: s.look as never, lookChosen: true }); cur.look = s.look; }
-  if (s.chevrons !== undefined) { const f = useShell.getState().figure; useShell.setState({ figure: { ...f, chevrons: s.chevrons, keyChevrons: false } }); }
+  if (s.chevrons !== undefined) { useBlood.setState({ chevrons: s.chevrons, keyChevrons: false }); sceneApi.setBlood({}); }
   await until(() => useEngine.getState().status === 'ready' && useEngine.getState().frames > 0, 60000);
   if (s.preset && s.preset !== useEngine.getState().presetId) {
     const f0 = useEngine.getState().frames;

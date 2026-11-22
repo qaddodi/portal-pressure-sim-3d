@@ -1,6 +1,7 @@
 // Every sheet and card that stands over the dock (vessel and device card, Tests, Treat, the menus) rests one gap above the dock's top edge: M.sheetGap, read through sheetFoot().
 // 22 Nov 2026, Mohammad (iPhone, build c001291c): the Portal vein card sat tight on the time bar. Root cause: the card's foot was the dock's top less 8 px (it overlapped the bar), while the
 // other sheets used +8 (Tests, menus) or a fallback of the dock plus the view pill's slot (Treat: --nb-occ was never published), and none of them included the bottom safe area the same way.
+import { merged2d } from './merged-2d.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -54,8 +55,8 @@ test('the vessel card\'s code stands it on sheetFoot (never overlapping the bar)
 test('the Treat and panel sheets read --nb-occ (published) and the clip under the sheet layer follows the same gap', () => {
   assert.match(read('src/ui/shell/Shell.tsx'), /vp\.safe\.bottom \+ sheetFoot\(d\)/);
   assert.match(read('src/ui/shell/Shell.tsx'), /setProperty\('--sheet-gap'/);
-  assert.match(read('src/ui/css2d/app-07-floating.css'), /calc\(var\(--sheet-foot-screen, 8px\) - var\(--sheet-gap, 8px\)\)/);
-  assert.match(read('src/ui/css2d/app-03-layouts.css'), /calc\(var\(--thumb-occ, 0px\) - var\(--sheet-gap, 8px\)\)/);
+  assert.match(merged2d('app-07-floating.css'), /calc\(var\(--sheet-foot-screen, 8px\) - var\(--sheet-gap, 8px\)\)/);
+  assert.match(merged2d('app-03-layouts.css'), /calc\(var\(--thumb-occ, 0px\) - var\(--sheet-gap, 8px\)\)/);
   assert.match(read('src/ui/treat/TreatCard.tsx'), /sheetPlace\(vp, sheetFoot\(layoutClass\(true\)\), h\)/);
 });
 
