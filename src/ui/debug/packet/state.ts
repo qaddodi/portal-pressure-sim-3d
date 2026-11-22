@@ -26,7 +26,7 @@ export interface Extras {
   /** what was changed from the patient's own settings: the sliders (the 2D share link's `params`, a nested difference, not the whole tree) */
   params?: Record<string, unknown>;
 }
-export interface PacketState { v: number; preset: string | null; script?: string; slide?: number; x: Extras }
+export interface PacketState { v: number; preset: string | null; script?: string; slide?: number; x: Extras; /** the last 60 s of what asked the figure to change (src/scene/intent-log.ts); in the packet, never in the link */ log?: unknown[] }
 
 const UNSAFE = new Set(['__proto__', 'constructor', 'prototype']);
 const KEY = /^[\w .:-]{1,48}$/;
