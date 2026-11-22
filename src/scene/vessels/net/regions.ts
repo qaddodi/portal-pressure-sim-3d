@@ -133,7 +133,8 @@ export function keyPlan(skel: { bones: readonly { edge: number; r: readonly numb
   let slot = 1;   // (slot 0 means no keys: the vertex attribute carries slot >= 1)
   regions.forEach((rg, ri) => {
     const rk = keys?.find((k) => k.node === rg.node && k.variant === rg.variant && k.vertStart === rg.vertStart && k.vertCount === rg.vertCount);
-    if (!rk || !rk.keys.length) return;
+    // ONE PATH (plan owner, 22 Nov): every region has keys from its real states (a single key for one state); a mesh baked without them is a bake error, not a second code path in the shader
+    if (!rk || !rk.keys.length) throw new Error(`net keys: region ${rg.node} (variant ${rg.variant}) has no keys: bake with the states (scripts/bake-skins.mjs --net)`);
     const nk = Math.min(KEY_MAX, rk.keys.length), header = slot++, first = slot;
     slot += rg.vertCount;
     region[ri] = { nk, header, first };

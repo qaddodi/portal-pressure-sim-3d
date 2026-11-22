@@ -381,7 +381,7 @@ void main() {
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
   // THE KEYED START of a wide junction: the offsets are the normalised blend of the keys' (weights 1 / (distance + 0.001)^2, the distance in ln lumen between the arms' live lumens, from the capsule pass, and each key's); the projection below is unchanged
   vec4 o0 = off0, o1 = off1, o2 = off2, m0 = offM0, m1 = offM1, m2 = offM2;
-  if (kslot > 0 && !fillOff) {
+  if (region > -0.5 && !fillOff) {   // (every region has keys: one path)
     vec4 kh = texelFetch(regionTex, ivec2(4, rrow), 0);
     int nk = int(kh.x + 0.5), hs = int(kh.y + 0.5), nArm = int(texelFetch(regionTex, ivec2(0, rrow), 0).y + 0.5);
     float lnLive[${REGION_CAPS}];
