@@ -14,7 +14,7 @@ import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keep
 import { NO_EXTRAS, WIDEST, WIDEST_DELTA, readingLensOf, type Extras } from './readings.ts';
 import { LabelFader, easeMove, lookKey, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
-import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
+import { type Form, type Item, type Placement, STAY, boxOf, solve } from './solver.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
 import { silhouettes, onOtherOrgan, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
@@ -210,6 +210,10 @@ const PATH_SAMPLES = 20;
 export class LabelController {
   private state: LabelState = NO_STATE;
   private readonly fader = new LabelFader();
+  /** When a dot last moved at all (a slow drag included). */
+  private lastDrift = -1e9;
+  /** A solve was made while the picture still moved (the labels kept their spots): one more is owed once it has come to rest. */
+  private settleSolve = false;
   private wants = new Map<string, Want>();
   private metas = new Map<string, Meta>();
   private readonly formCache = new Map<string, Form[]>();
@@ -451,6 +455,7 @@ export class LabelController {
     // every label keeps its place beside it, re-projected each frame.
     let moved = this.firstTick, cutDot = false;
     const byHand = this.hand.step(d.hand?.(), d.cameraMoving());   // (a pinch, a pan, the wheel: continuous, however far a dot goes in one frame)
+    let drifting = false;
     let following = d.cameraMoving();   // (a slide's glide carries the labels exactly as a hand does: they ride it and are placed again where it lands)
     this.firstTick = false;
     const anchors = new Map<string, { x: number; y: number }>();
@@ -464,6 +469,7 @@ export class LabelController {
       if (!was) this.dirty = true;   // (a station that comes in is placed when the picture is still; the others are not cut by it)
       else if (isCut(Math.hypot(was.x - a.x, was.y - a.y), FOLLOW_JUMP, byHand)) { moved = true; cutDot = true; }   // (a dot that jumped is a cut, not a hand: the names leave and return)
       else if (Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) following = true;
+      if (was && (Math.abs(was.x - a.x) > 0.01 || Math.abs(was.y - a.y) > 0.01)) drifting = true;   // (a slow drag moves a dot by less than 0.35 px a frame and never counts as following: still not at rest)
     }
     if (cutDot && !this.cutAnchors) this.cutAnchors = this.anchors;   // (the places the dots stood at before the cut: the fading names keep them)
     this.anchors = anchors;
@@ -503,6 +509,7 @@ export class LabelController {
     if (moved) { this.lastMove = now; this.dirty = true; }
     // a hand on the picture, or the camera in flight: the labels ride their dots (drawn below from the dots' own 3D points), and are solved again once it is still
     if (following) { this.lastFollow = now; this.dirty = true; }
+    if (following || drifting) this.lastDrift = now;
     const hold = now - this.lastMove < FADE.settleMs;
     const resting = now - this.lastFollow >= FOLLOW_MS;
 
@@ -525,12 +532,14 @@ export class LabelController {
         this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
       }
     }
-    if (!hold && resting && (this.dirty || sig !== this.sig)) {
-      this.sig = sig; this.dirty = false;
+    if (!hold && resting && (this.dirty || sig !== this.sig || (this.settleSolve && now - this.lastDrift >= FOLLOW_MS))) {
+      // (Plan 27b) A label keeps the spot it stands at while the picture is still moving, as long as that spot is legal; the free re-solve is made once it has come to rest, with the tuned STAY.
+      const still = now - this.lastDrift >= FOLLOW_MS;
+      this.sig = sig; this.dirty = false; this.settleSolve = !still;
       for (const [id, m] of next) this.metas.set(id, m);
       // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them
       this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
-      this.solveNow(metas, view, [...blockers, ...this.show.boxes]);
+      this.solveNow(metas, view, [...blockers, ...this.show.boxes], still ? STAY : Infinity);
       if (keyBox) this.wants.set('key', { p: { id: 'key', form: 0, dx: keyBox.x0, dy: keyBox.y0, w: keyBox.x1 - keyBox.x0, h: keyBox.y1 - keyBox.y0, leader: false, au: 0.5 }, dim: false });
     }
     for (const [id, m] of next) this.metas.set(id, m);   // (the words the label says now; the place it was solved at is in the fader)
@@ -600,7 +609,7 @@ export class LabelController {
         if (fp) {
           const fa = d.project(fp, this.pt2), fbox = boxOf(f.p, fa.x, fa.y), fform = m.forms[f.p.form];
           this.out.push({
-            id: id + GHOST, kind: m.kind, alpha, mix: 1 - s.mix, ringAlpha: 0, ghost: true, x: fbox.x0, y: fbox.y0, w: f.p.w, h: f.p.h, form: f.p.form, word: fs?.word ?? fform?.text ?? '',
+            id: id + GHOST, kind: m.kind, alpha, mix: s.oldMix, ringAlpha: 0, ghost: true, x: fbox.x0, y: fbox.y0, w: f.p.w, h: f.p.h, form: f.p.form, word: fs?.word ?? fform?.text ?? '',
             value: this.valueOf(m), tone: fs ? fs.tone : this.state.tones[m.station.id] ?? null, dot: null, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
             leader: f.p.leader && !organ ? leaderGeom(fa.x, fa.y, { x0: fbox.x0 + pad.x, y0: fbox.y0 + pad.y, x1: fbox.x1 - pad.x, y1: fbox.y1 - pad.y }) : null,
           });
@@ -654,7 +663,7 @@ export class LabelController {
     return m.station.node ? fmtPressure(d.pressure(m.station.node), null, false) : '';
   }
 
-  private solveNow(metas: Meta[], view: Box, blockers: Box[]): void {
+  private solveNow(metas: Meta[], view: Box, blockers: Box[], stay: number): void {
     const d = this.deps;
     const items: Item[] = [];
     const lines: [number, number, number, number][] = [];
@@ -699,7 +708,8 @@ export class LabelController {
     }
     // (?capwhy: for each label that stands on a leader, how many of its near spots each rule threw out and who stood in the way, to find what pushed it away)
     const why = typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search) ? new Map<string, Record<string, number>>() : undefined;
-    const res = solve({ items, view, blockers, lines, leaderLineCost: LEADER_LINE_COST, ...(why ? { why } : {}) });
+    for (const it of items) { const st = this.fader.frame.get(it.id); if (st && st.alpha > 0 && st.ref.form >= 0) it.was = { form: st.ref.form, dx: st.ref.dx, dy: st.ref.dy }; }
+    const res = solve({ items, view, blockers, lines, stay, leaderLineCost: LEADER_LINE_COST, ...(why ? { why } : {}) });
     if (why) for (const p of res.placed) if (p.leader) console.info('[anatomy-labels]', p.id, 'form', p.form, 'dx,dy', Math.round(p.dx), Math.round(p.dy), 'near spots lost to', JSON.stringify(why.get(p.id) ?? {}));
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();

@@ -10,6 +10,7 @@
 //  5. A `must` label (a station the slide names, the picked vessel) is searched all the way round and is dropped last.
 //  6. A station whose vessel is partly under a card slides its dot along the vessel to the middle of the part in view.
 //
+// A label's own standing spot (`was`) is worth `stay` to it: the answer then depends on where the label stands, as the fader keeps it; with no `was` the same input still gives the same answer.
 // Higher `pri` wins when space is short; ties break by id, so the order is total.
 
 import { COMPASS, RING_SPOTS, type Box, type Dir, boxGap, crosses, grow, hits, nearestOn, offsetOf, segsCross, within } from './geometry.ts';
@@ -61,9 +62,13 @@ export interface Item {
   /** An optional name (the 2D app's `minor`: a station shown only where it fits): whole (its first form), beside its vessel with no leader and on no vessel line, or not at all. It takes no room from a name that
    *  was asked for (ranked last) and is never counted as dropped (`skipped` lists it). */
   optional?: boolean;
+  /** Where the label stands now (the form and the box's offset from its dot): a spot within STAY_PX of it, once legal under every rule, costs `stay` less, so a label moves only when the new spot is better by more than that (plan 27). */
+  was?: { form: number; dx: number; dy: number };
 }
 
 export interface SolveInput {
+  /** What standing where it is is worth to a label (cost units, as a spot's own cost): the tuned STAY at rest, Infinity while the picture is still moving (a label then moves only when its spot became illegal). Absent: 0. */
+  stay?: number;
   items: readonly Item[];
   /** The canvas area labels may use (inside the safe areas). */
   view: Box;
@@ -113,6 +118,10 @@ const SLIDE_INSET = 18;
 const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
+/** Spots this near (px, dx and dy) to where a label stands are its standing spot: a readout's width ticking by a few px does not make a new spot. */
+export const STAY_PX = 8;
+/** The worth of standing where it is at rest: one long leader (LONG_LEAD), so a real need to move (a spot worth a leader's length less) still wins, and no flicker of a few cost units does. */
+export const STAY = 60;
 /** The least cost of a spot past the near ring (the compass gaps cost 2 a step, under this): the wide gaps and every ring beyond. */
 const NEAR_COST = 20;
 /** The least cost of a spot of the wide search (RING_SPOTS): the far last-resort spots. */
@@ -286,7 +295,7 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
 }
 
 export function solve(input: SolveInput): Solved {
-  const { view, lines = [], keep = [], leaderLineCost = 0 } = input;
+  const { view, lines = [], keep = [], leaderLineCost = 0, stay = 0 } = input;
   const grid = new LineGrid(lines);
   const blockersAir = input.blockers.map((b) => grow(b, AIR_BLOCKER));
   // (the last resort for a label that must stand: it may touch a card's edge, never lie under it)
@@ -327,7 +336,8 @@ export function solve(input: SolveInput): Solved {
         for (const c of candidates(it, f, !!it.must || relax > 0)) {
           if (nearOnly && c.cost >= 20) continue;   // (an optional name: the ring beside its vessel only)
           // (a spot whose own cost already reaches the best found cannot beat it: every penalty after this only adds. Skipped at once, not judged; `?capwhy` still judges them all, to count what threw each out)
-          if (best && !tally && fi * FORM_COST + c.cost >= best.cost) continue;
+          const bonus = it.was && stay > 0 && it.was.form === fi && Math.abs(c.dx - it.was.dx) <= STAY_PX && Math.abs(c.dy - it.was.dy) <= STAY_PX ? stay : 0;
+          if (best && !tally && fi * FORM_COST + c.cost - bonus >= best.cost) continue;
           const box: Box = { x0: it.ax + c.dx, y0: it.ay + c.dy, x1: it.ax + c.dx + f.w, y1: it.ay + c.dy + f.h };
           if (!within(box, inner)) { if (tally) no(c, 'view'); continue; }
           if (offOrgans && it.onOther?.(box)) continue;
@@ -386,7 +396,7 @@ export function solve(input: SolveInput): Solved {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
           }
-          const cost = fi * FORM_COST + c.cost + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
+          const cost = fi * FORM_COST + c.cost - bonus + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
           if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg, hits: lineHits };
         }
       }

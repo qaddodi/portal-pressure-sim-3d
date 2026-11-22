@@ -138,3 +138,47 @@ test('the dim value lives only in alpha.ts', () => {
   const opacities = [...css.matchAll(/opacity\s*:\s*([^;}]+)/g)].map((m) => m[1].trim());
   assert.deepEqual(opacities.filter((o) => o !== '0' && o !== '1'), [], 'the label stylesheet holds no opacity of its own');
 });
+
+// ── Plan 27b: no two equal copies; a crossing turned round never begins again ──
+import { inWeight, outWeight } from '../src/scene/labels/fade.ts';
+
+test('a crossing never shows two equal copies: at no moment are both pictures above 0.3, and together they never fall under 0.5', () => {
+  let worst = 0, least = 9;
+  for (let i = 0; i <= 1000; i++) { const u = i / 1000, a = outWeight(u), b = inWeight(u); worst = Math.max(worst, Math.min(a, b)); least = Math.min(least, a + b); }
+  assert.ok(worst <= 0.3, `the strongest moment of the weaker picture is ${worst.toFixed(3)}`);
+  assert.ok(least >= 0.5, `the two pictures together never fall under ${least.toFixed(3)}`);
+  assert.equal(outWeight(0), 1); assert.equal(inWeight(0), 0); assert.equal(outWeight(1), 0); assert.equal(inWeight(1), 1);
+  for (let i = 0; i <= 100; i++) assert.ok(Math.abs(outWeight(i / 100) - inWeight(1 - i / 100)) < 1e-12, 'mirror images: the turn round needs no jump');
+});
+
+test('wants that alternate A, B, A, B every 50 ms for 2 s: one ghost at most, no jump in either picture, and the two never show strongly together', () => {
+  const f = new LabelFader();
+  run(f, 400, want(P(10)));
+  let prev: Map<number, number> | null = null, both = 0, maxJump = 0;
+  for (let t = 0; t < 2000; t += 16) {
+    f.step(16, want(Math.floor(t / 50) % 2 ? P(200, 40) : P(10)), false);
+    const s = f.frame.get('a')!;
+    // each picture's share, by where it stands (the arriving one and the ghost swap parts when a crossing turns round)
+    const cur = new Map<number, number>([[s.p.dx, s.mix]]);
+    if (s.from) cur.set(s.from.p.dx, s.oldMix);
+    if (s.from && s.oldMix > 0.3 && s.mix > 0.3) both++;
+    if (prev && s.from) for (const [x, w] of cur) if (prev.has(x)) maxJump = Math.max(maxJump, Math.abs(w - prev.get(x)!));
+    prev = s.from ? cur : null;
+  }
+  assert.equal(both, 0, 'no frame shows both pictures above 0.3');
+  assert.ok(maxJump < 0.2, `a picture's share changes by ${maxJump.toFixed(3)} in a frame at most (a 16 ms step of a 240 ms crossing)`);
+});
+
+test('A, B, A: a want for the spot the ghost stands at turns the crossing round from where it is (u becomes 1 - u), it does not begin again', () => {
+  const f = new LabelFader();
+  run(f, 400, want(P(10)));
+  for (let t = 0; t < 96; t += 16) f.step(16, want(P(200, 40)), false);
+  const s = f.frame.get('a')!, u = s.u, newW = s.mix, oldW = s.oldMix;
+  assert.ok(s.from && u > 0.2 && u < 0.8);
+  f.step(0, want(P(10)), false);
+  const r = f.frame.get('a')!;
+  assert.equal(r.p.dx, 10, 'the picture arriving is the one that was leaving');
+  assert.equal(r.from?.p.dx, 200, 'the one that was arriving is now the ghost');
+  assert.ok(Math.abs(r.u - (1 - u)) < 1e-9, 'u turned round, not reset to 0');
+  assert.ok(Math.abs(r.mix - oldW) < 1e-9 && Math.abs(r.oldMix - newW) < 1e-9, 'each picture keeps the share it had: no jump');
+});

@@ -240,7 +240,7 @@ test('a label that comes to stand under a card or past the edge fades out whole 
   assert.ok(partial, 'and they eased out, none shown cut');
 });
 
-test('a label wanted at a new spot is drawn twice while it crosses over, the old picture as it was and the new, their shares summing to one', () => {
+test('a label wanted at a new spot is drawn twice while it crosses over, the old picture as it was and the new, their shares staggered (together at least a half)', () => {
   const w = world(mac, {}, shown);
   w.step();
   const before = w.byId('CONF')!;
@@ -250,7 +250,7 @@ test('a label wanted at a new spot is drawn twice while it crosses over, the old
   for (let i = 0; i < 80; i++) {
     w.step(16);
     const main = w.ctl.out.find((x) => x.id === 'CONF' && !x.ghost), ghost = w.ctl.out.find((x) => x.id === 'CONF~old');
-    if (ghost && main) { saw = true; assert.ok(Math.abs(main.mix + ghost.mix - 1) < 1e-9); assert.equal(ghost.dot, null); assert.ok(main.dot, 'the ring stays'); }
+    if (ghost && main) { saw = true; assert.ok(main.mix + ghost.mix >= 0.5 - 1e-9 && main.mix + ghost.mix <= 1 + 1e-9, 'the two shares together stay between a half and one, never two equal copies (fade.ts outWeight, inWeight)'); assert.ok(Math.min(main.mix, ghost.mix) <= 0.3); assert.equal(ghost.dot, null); assert.ok(main.dot, 'the ring stays'); }
   }
   assert.ok(saw || w.byId('CONF') === undefined, 'crossed over (or the card took the label away)');
 });
