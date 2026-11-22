@@ -5,7 +5,23 @@ import { indexOf } from '../src/engine/vessel-data.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
 
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// The states take the engine ten seconds to run, and change only when the engine pin, the width rule, the vessel data or the skeleton's edges do: they are kept in node_modules/.cache, named by a hash of those.
+const sources = ['../src/engine/PINNED.json', '../src/engine/vessel-data.ts', '../src/scene/vessels/network.ts', '../src/scene/vessels/live-width.ts', './net-states.mjs'];
+const cacheKey = (skel) => { const h = createHash('sha256'); for (const f of sources) h.update(readFileSync(fileURLToPath(new URL(f, import.meta.url)))); h.update(skel.edges.map((e) => e.id).join(',')); return h.digest('hex').slice(0, 16); };
+
 export async function presetSwells(skel) {
+  const dir = fileURLToPath(new URL('../node_modules/.cache/', import.meta.url)), file = `${dir}net-states.json`, key = cacheKey(skel);
+  try { if (existsSync(file)) { const c = JSON.parse(readFileSync(file, 'utf8')); if (c.key === key) return c.states; } } catch { /* a bad cache is recomputed */ }
+  const states = await computeSwells(skel);
+  try { mkdirSync(dir, { recursive: true }); writeFileSync(file, JSON.stringify({ key, states })); } catch { /* read-only checkout: no cache */ }
+  return states;
+}
+
+async function computeSwells(skel) {
   const out = [], core = createCore((m) => out.push(m));
   await core.handle({ type: 'init' }); await core.handle({ type: 'run', running: false });
   await core.handle({ type: 'presets', reqId: 0 });

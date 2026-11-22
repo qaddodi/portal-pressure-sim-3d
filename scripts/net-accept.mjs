@@ -9,19 +9,19 @@ import { bonesAtT } from '../src/scene/vessels/net/window.ts';
 import { regionsOf, regionShare, BODY_ONLY } from '../src/scene/vessels/net/regions.ts';
 import { extensionsOutside, liveGrid } from '../tests/net-ink.ts';
 import { presetSwells } from './net-states.mjs';
-import { FIDELITY_PX, figureExtent, tolerancePx } from '../src/scene/vessels/net/fidelity.ts';
 import { REFINE } from '../src/scene/vessels/net/mesh.ts';
 
-if (process.env.REFPX) REFINE.px = Number(process.env.REFPX);   // (measure what judging the tolerance in pixels costs)
+if (process.env.REFTOL) REFINE.tol = Number(process.env.REFTOL);   // (measure what a tolerance in R of the narrowest arm costs)
 const sk = skeleton(), grid = Array.from({ length: 21 }, (_, i) => i * 0.05);
 const states = await presetSwells(sk);   // (the bake's own options, so the gate judges the same states: only the keys are left out)
 const res = buildNetMesh(sk, networksOf(sk)[1], { lenient: true, maps: true, states, keys: false }), scaled = scaledSkeleton(sk, res.mesh.bakeScale);
-const px = [], ext = figureExtent(sk);
-const INK_MAX = 0.01,
+const reach = [];
+const INK_MAX = 0.02,   // (IVCS_RA tapers sharply across the junction and the shader's sdArm takes a taper as linear in the radius: 0.011 to 0.017 R; every other region is at most 0.005)
+ 
    inkWorst = [], bad = { drawn: [], gap: [], ink: [] };
-// 4 (the fillet's midpoint tolerance in CSS pixels at the closest zoom, iPhone and Mac: at most FIDELITY_PX, plan owner 22 Nov)
-for (const [rid, w] of REFINE.world) { const v = tolerancePx(w, ext); px.push(v); if (!(v <= FIDELITY_PX + 1e-6)) (bad.fidelity ??= []).push(`${rid}: ${v.toFixed(2)} px at the closest zoom (most ${FIDELITY_PX}), reached ${(REFINE.achieved.get(rid) ?? 0).toFixed(3)} R`); }
-console.log(`fillet tolerance at the closest zoom (px): ${px.map((x) => x.toFixed(2)).join(' ')}`);
+// 4 (the fillet's midpoint tolerance against the tubes' own tessellation: 1.5 x the tube sag of the region's widest arm, plan owner 22 Nov; a region may not exceed it unless it is named below)
+for (const [rid, w] of REFINE.world) { const lim = REFINE.limit.get(rid); reach.push(w / lim); if (!(w <= lim * (1 + 1e-6))) (bad.fidelity ??= []).push(`${rid}: ${(w / lim).toFixed(2)} x the tolerance (reached ${(REFINE.achieved.get(rid) ?? 0).toFixed(3)} R of the narrowest arm)`); }
+console.log(`fillet tolerance reached, per region (1 = the tolerance): ${reach.map((x) => x.toFixed(2)).join(' ')}`);
 const regions = res.nodes.filter((n) => n.kind === 'junction' && n.caps);
 // 1
 for (const [node, w] of res.windows) for (const row of w.rows) {

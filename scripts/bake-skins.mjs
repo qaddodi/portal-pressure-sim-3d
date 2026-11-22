@@ -12,7 +12,7 @@ if (process.argv.includes('--net')) {
   if (!existsSync(fileURLToPath(sk))) { console.error('net bake: src/scene/vessels/net/skeleton.ts does not exist yet (WP0)'); process.exit(1); }
   const { skeleton } = await import(sk.href);
   const { buildNetMesh, networksOf, REFINE } = await import('../src/scene/vessels/net/mesh.ts');
-  if (process.env.REFPX) REFINE.px = Number(process.env.REFPX);   // (measure what judging the fillet's tolerance in pixels costs)
+  if (process.env.REFTOL) REFINE.tol = Number(process.env.REFTOL);   // (measure what a tolerance in R of the narrowest arm costs)
   const { encodeNet, skeletonDigest } = await import('../src/scene/vessels/net/baked.ts');
   const { presetSwells } = await import('./net-states.mjs');
   const skel = skeleton(), digest = skeletonDigest(skel), states = await presetSwells(skel);   // (the real states: the wide junctions' keys, net/keys.ts)

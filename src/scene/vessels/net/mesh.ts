@@ -19,7 +19,7 @@ import { windowOf, type Window } from './window.ts';
 import { REGION_PTS } from './regions.ts';
 import { shaderBones, stateScales } from './shader-caps.ts';
 import { refineSag } from './refine.ts';
-import { figureExtent, pixelsPerUnitAtMaxZoom } from './fidelity.ts';
+import { filletTolerance } from './fidelity.ts';
 import { regionKeys } from './keys.ts';
 import { bakeScaleOf } from './ranges.ts';
 import { sewnEnds } from './sewn.ts';
@@ -65,9 +65,9 @@ function dropCaps(tris: number[], fixed: Uint8Array): void {
   }
 }
 
-/** The fillet's fidelity (refine.ts): the most an edge's midpoint may stand off the union, in units of the narrowest arm's radius at the junction (0: off). The plan owner asked for 0.01; measured on the real figure (22 Nov, keys for every region): 0.01 bakes 187k triangles / 18.5 MB / 4.0 M junction texel reads per frame and fails 15 stretch tests (tests/net-deform), 0.05 bakes 113k / 6.8 MB / 1.29 M reads and fails none, so 0.05 stands until the plan owner rules on the trade. A mutable setting so the acceptance can measure what each tolerance costs. */
+/** The fillet's fidelity (refine.ts): the most an edge's midpoint may stand off the union. 'tubes' (plan owner, 22 Nov): 1.5 x the sag of the tubes' own tessellation on the region's widest arm (fidelity.ts, about 0.038 R of it); a number: that share of the narrowest arm's radius (0: off). Measured on the real figure: 0.01 R bakes 187k triangles and 4.0 M junction texel reads per frame and fails the stretch tests; 0.05 R bakes 113k and 1.29 M. A mutable setting so the acceptance can measure what a tolerance costs. `achieved` (the multiple reached, in R of the narrowest arm), `world` (the same in scene units) and `limit` (the tolerance asked, in scene units) are per region, the worst of its meshes; Infinity: dropped. */
 export { BULGE_MAX };
-export const REFINE = { tol: 0.05, /** > 0: judge in CSS pixels at the closest zoom instead (fidelity.ts): each region's tolerance is `px` / pixels-per-unit, as a multiple of its narrowest arm's radius */ px: 0, achieved: new Map<string, number>(), /** per region: the midpoint tolerance reached, in scene units (the multiple of the tolerance times the narrowest arm's radius; the worst of the region's meshes; Infinity: dropped) */ world: new Map<string, number>() };
+export const REFINE: { tol: number | 'tubes'; achieved: Map<string, number>; world: Map<string, number>; limit: Map<string, number> } = { tol: 'tubes', achieved: new Map<string, number>(), world: new Map<string, number>(), limit: new Map<string, number>() };
 /** a node of two edges whose BAKED radii differ by more than this share is a step, not a run-on (the edges of a run are different vessels, baked at their own swell ranges: ranges.ts, so the baked radii part by a few percent at a node where the rest ones agree; 5 % is where the neck rule sees a ledge) */
 const STEP_RATIO = 0.05;
 /** the points tried along each segment of another capsule when a seam's cut cylinder is checked */
@@ -123,6 +123,7 @@ export function scaledSkeleton(skel: Skeleton, bakeScale: ArrayLike<number>): Sk
 /** Takes the given regions' meshes (their vertices and triangles) out of a built mesh and closes the gaps. Region vertices all follow the tube vertices, so the rings the reports name keep their ids. */
 function dropMeshes(res: NetMeshResult, drop: ReadonlySet<NodeReport>): void {
   const m = res.mesh, V = m.position.length / 3, keepV = new Uint8Array(V).fill(1), T = m.index.length / 3, keepT = new Uint8Array(T).fill(1);
+  for (const r of drop) { const kk = `${r.node}#1`; REFINE.achieved.delete(kk); REFINE.world.delete(kk); REFINE.limit.delete(kk); }
   // (a dropped mesh's keys go with it: they would bind to vertices that no longer exist)
   if (m.keys) m.keys = m.keys.filter((k) => ![...drop].some((r) => r.node === k.node && (r.variant ?? 0) === k.variant && r.vertStart === k.vertStart));
   for (const r of drop) { keepV.fill(0, r.vertStart, r.vertStart + r.vertCount); keepT.fill(0, r.triStart, r.triStart + r.triCount); }
@@ -603,7 +604,8 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       arms.forEach((a, i) => { const S = sample(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!), r = ringOf(S, a.ctx.alpha); rings.push(r.p); normals.push(r.nrm); });
       const junction: SkinJunction = { node: rid, J, arms: skinArms, surface: true, ...(arms.length > 6 ? { maxArms: MAX_ARMS } : {}) };
       const cuts: SkinCut[] = arms.map((a, i) => ({ vesselId: a.ctx.id, end: a.end, ring: seams[i]!, u: seams[i]! / (a.ctx.count - 1) }));
-      const cleaned = (skin0: ReturnType<typeof buildSkinSteady>, capsX: readonly Capsule[], kX: number): ReturnType<typeof buildSkinSteady> => {
+      const cleaned = (skin0: ReturnType<typeof buildSkinSteady>, capsX: readonly Capsule[], kX: number, variant: 0 | 1 = 0): ReturnType<typeof buildSkinSteady> => {
+        const rkey = variant ? `${rid}#1` : rid;   // (REFINE's records: a map mesh has its own, and is dropped with it)
         // a sliver the remesh left is cleaned here, once, on the same union: edges flipped where that raises the smallest angle, the free vertices evened out along the surface (relax.ts); the seam rings stay
         let V0 = skin0.position.length / 3, P = Float64Array.from(skin0.position), tr = Array.from(skin0.index), fixed = new Uint8Array(V0).fill(1, 0, arms.length * RADIAL).fill(0, arms.length * RADIAL);
         dropCaps(tr, fixed);
@@ -613,10 +615,12 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         const base = { P, tr, V0 };
         const angleOf = (Q: ArrayLike<number>, a: number, b: number, c: number): number => minAngleDeg(Q as Float32Array, a, b, c);
         const worstOf = (Q: ArrayLike<number>, tt: number[]): number => { let w = 180; for (let t = 0; t < tt.length; t += 3) w = Math.min(w, angleOf(Q, tt[t]!, tt[t + 1]!, tt[t + 2]!)); return w; };
-        const Rn = kX / SKIN_K, tol0 = REFINE.px > 0 ? REFINE.px / pixelsPerUnitAtMaxZoom(figureExtent(skel)) / Rn : REFINE.tol;
-        let got = REFINE.tol > 0 || REFINE.px > 0 ? Infinity : 0;   // (the tolerance this mesh reached, as a multiple of REFINE.tol)
+        const Rn = kX / SKIN_K, tol0 = REFINE.tol === 'tubes' ? filletTolerance(Math.max(...arms.map((a) => a.r)), RADIAL) / Rn : REFINE.tol;
+        let got = tol0 > 0 ? Infinity : 0;   // (the tolerance this mesh reached, as a multiple of REFINE.tol)
         // First at the tolerance itself: an edge whose split leaves a sliver stays whole (the sliver's new vertices name their edges), the rest of the region keeps the tolerance
         if (tol0 > 0) {
+          // (a forbidden edge is named by the ORIGINAL edge its split descends from: the ids of the later splits change from one round to the next)
+          const rootEdge = (parent: Map<number, [number, number]>, v: number, nBase: number): [number, number] | null => { let at: number | null = v; for (let guard = 0; at !== null && guard < 16; guard++) { const par = parent.get(at); if (!par) return null; if (par[0] >= nBase) at = par[0]; else if (par[1] >= nBase) at = par[1]; else return par; } return null; };
           const forbid = new Set<string>(), nFix = arms.length * RADIAL, key = (a: number, b: number): string => (a < b ? `${a}_${b}` : `${b}_${a}`);
           for (let round = 0; round < 8; round++) {
             const dense = refineSag(base.P, base.tr, nFix, capsX, kX, Rn, tol0, 4, forbid);
@@ -624,7 +628,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
             const P2 = new Float64Array(dense.pos), tr2 = dense.tris, fx = new Uint8Array(P2.length / 3).fill(1, 0, nFix);
             relax({ pos: P2, tris: tr2, fixed: fx, caps: capsX, k: kX }, { rounds: 12, flips: true });
             let bad = 0;
-            for (let t = 0; t < tr2.length; t += 3) if (angleOf(P2, tr2[t]!, tr2[t + 1]!, tr2[t + 2]!) <= MIN_ANGLE) for (let c = 0; c < 3; c++) { const par = dense.parent.get(tr2[t + c]!); if (par) { forbid.add(key(par[0], par[1])); bad++; } }
+            for (let t = 0; t < tr2.length; t += 3) if (angleOf(P2, tr2[t]!, tr2[t + 1]!, tr2[t + 2]!) <= MIN_ANGLE) for (let c = 0; c < 3; c++) { const root = rootEdge(dense.parent, tr2[t + c]!, base.P.length / 3); if (root) { forbid.add(key(root[0], root[1])); bad++; } }
             if (!bad) { P = P2; tr = tr2; V0 = P2.length / 3; // (the edges left whole stand off the union by what they stand: the tolerance reached is the worst of them)
               let sag = tol0; for (const kk of forbid) { const [a, b] = kk.split('_').map(Number) as [number, number]; sag = Math.max(sag, Math.abs(sdUnion(capsX, kX, (P2[3 * a]! + P2[3 * b]!) / 2, (P2[3 * a + 1]! + P2[3 * b + 1]!) / 2, (P2[3 * a + 2]! + P2[3 * b + 2]!) / 2)) / Rn); }
               got = sag; break; }
@@ -641,7 +645,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
           if (worstOf(P2, tr2) > MIN_ANGLE) { P = P2; tr = tr2; V0 = P2.length / 3; got = tol0 * mul; break; }
         }
         if (kept && kept.got < got) { P = kept.P; tr = kept.tr; V0 = kept.V0; got = kept.got; }
-        if (tol0 > 0) { REFINE.achieved.set(rid, Math.max(got, REFINE.achieved.get(rid) ?? 0)); REFINE.world.set(rid, Math.max(got * Rn, REFINE.world.get(rid) ?? 0)); }
+        if (tol0 > 0) { REFINE.achieved.set(rkey, Math.max(got, REFINE.achieved.get(rkey) ?? 0)); REFINE.world.set(rkey, Math.max(got * Rn, REFINE.world.get(rkey) ?? 0)); REFINE.limit.set(rkey, tol0 * Rn); }
         // vertices no triangle uses any more (a cap dropped) leave the list; the seam rings come first and are all used
         const remap = new Int32Array(V0).fill(-1);
         for (const v of tr) remap[v] = 0;
@@ -736,7 +740,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
           let skinV;
           try { skinV = buildSkinSteady(junctionV, cuts, ringsV, normalsV, capsV, arms.length > 6 || internal.length ? 48000 : undefined, new Map()); }
           catch (e) { if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the ${label} mesh will not mesh: ${e.message}`); throw e; }
-          skinV = cleaned(skinV, capsV, kV);
+          skinV = cleaned(skinV, capsV, kV, 1);
           let worstV = 180;
           for (let t = 0; t < skinV.index.length; t += 3) worstV = Math.min(worstV, minAngleDeg(skinV.position, skinV.index[t]!, skinV.index[t + 1]!, skinV.index[t + 2]!));
           if (worstV <= MIN_ANGLE) throw new NetMeshError(rid, `the ${label} mesh has a triangle with a ${worstV.toFixed(1)} degree angle (the least is ${MIN_ANGLE})`);
