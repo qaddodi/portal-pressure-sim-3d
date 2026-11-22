@@ -94,6 +94,7 @@ uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
 uniform vec4 armFade[${SKIN_ARMS}];   // per arm (a0, 1 / (a1 - a0), a2, a3): the tube's own fade by its length share u (arm-twins.ts uFadeOf), so the skin's alpha at each vertex is the tube's at that place along the arm and not its value at the seam; a2 < 0: none (the seam's value stands)
 uniform vec4 armArc[${SKIN_ARMS}];   // (as the fragment stage's) the arc at the seam, which way it grows toward the node, the vessel's length, its rest radius
+uniform vec4 armColor[${SKIN_ARMS}];   // (as the fragment stage's; here only its .a, the arm's lens flag: 0 an artery) the share of the junction that is an artery sets the wall's line (cel-style ARTERY)
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // (as the fragment stage's)
 varying vec4 vFadeA;     // each arm's fade at this vertex (arms 0 to 3), -1 where the arm has no u-fade: the seam's value stands
 varying vec2 vFadeB;
@@ -152,7 +153,8 @@ void main() {
   float rCssV = lumenW * SKIN_U / max(wpcV, 1e-6);   // the lumen's radius in CSS px
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
-  float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
+  float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);   // (the arms' share that is an artery: 0 at a vein's junction, 1 at an artery's, a gradient where one runs into the other)
+  float inkPx = ${inkPxGlsl('rCssV', 'rCssV', 'skinArt')};
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, skinCirc);   // (the Circuit's line is bolder: the tube's own, vessels/shaders.ts)
   float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
@@ -449,7 +451,8 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
-  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
+  float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx, inkDev);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
@@ -481,7 +484,7 @@ void main() {
 #ifdef GLOW
   // THE GLOW'S MASK (glow.ts, glow-fx.ts): the skin as it is drawn, weighted by the arms' blended pick weight, painted into the mask texture by max with the tubes' own: the junction is part of the one mask the blur turns into a halo
   {
-    float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx')};   // CSS px past the line's outer edge
+    float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')};   // CSS px past the line's outer edge
     float wG = ${glowWeightGlsl('hi')} * alpha * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     if (wG < 0.002) discard;
     gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
@@ -489,7 +492,7 @@ void main() {
   }
 #endif
   float rDev = vR / max(${wpcGlsl('vW', 'projY', 'SKIN_U')}, 1e-6) * dpr;
-  vec3 c = celTubeTone(base, sT, swT, rDev);   // two flat tones, matte and opaque: the tube's own
+  vec3 c = celTubeToneArt(base, sT, swT, rDev, skinArt);   // two flat tones, matte and opaque: the tube's own
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
 #endif

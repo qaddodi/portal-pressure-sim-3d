@@ -27,17 +27,33 @@ vec3 celTubeBase(vec3 b) {
   float lcap = mix(0.62, 0.82, tubeDark), vcap = mix(0.78, 0.96, tubeDark);
   return c * min(min(1.0, lcap / max(celTubeLum(c), 1e-3)), vcap / max(max(c.r, max(c.g, c.b)), 1e-3));
 }
+// OKLab lightness lift (the JS twin: cel-ink.ts celTubeLift): sRGB in and out as the scene writes it, hue and chroma kept, clamped to the gamut
+vec3 celTubeLift(vec3 c, float dL) {
+  vec3 q = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+  vec3 lms = pow(max(vec3(dot(vec3(0.4122214708, 0.5363325363, 0.0514459929), q), dot(vec3(0.2119034982, 0.6806995451, 0.1073969566), q), dot(vec3(0.0883024619, 0.2817188376, 0.6299787005), q)), vec3(0.0)), vec3(1.0 / 3.0));
+  vec3 lab = vec3(dot(vec3(0.2104542553, 0.793617785, -0.0040720468), lms), dot(vec3(1.9779984951, -2.428592205, 0.4505937099), lms), dot(vec3(0.0259040371, 0.7827717662, -0.808675766), lms));
+  lab.x += dL;
+  vec3 k = vec3(lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z, lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z, lab.x - 0.0894841775 * lab.y - 1.291485548 * lab.z);
+  k = k * k * k;
+  vec3 o = vec3(dot(vec3(4.0767416621, -3.3077115913, 0.2309699292), k), dot(vec3(-1.2684380046, 2.6097574011, -0.3413193965), k), dot(vec3(-0.0041960863, -0.7034186147, 1.707614701), k));
+  o = clamp(o, 0.0, 1.0);
+  return clamp(mix(12.92 * o, 1.055 * pow(o, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), o)), 0.0, 1.0);
+}
 // the fill: TWO flat tones across the tube, matte and opaque: the saturated base on the lit side, a hue-preserving darker step (a touch more saturated) on the other, one hard edge EDGE_PX device px across between them at
 // VESSEL_STEP_AT. No highlight, no rim, no translucency. s the lit-side measure (n.L against the world light, celLightView), sw its change per device pixel (fwidth(s), taken
 // outside any branch), rDev the radius in device px; a hairline (under TONES_FROM) is the base alone.
-vec3 celTubeTone(vec3 base, float s, float sw, float rDev) {
+vec3 celTubeToneArt(vec3 base, float s, float sw, float rDev, float art) {
   float et = max(0.5 * 0.4 * sw, 1e-4), hw = celTubeHw(rDev);
   float shadowT = 1.0 - smoothstep(0.25 - et, 0.25 + et, s);
   vec3 b = celTubeBase(base);
   vec3 sh = b * (1.0 - 0.38);
   sh = clamp(mix(vec3(celTubeLum(sh)), sh, 1.2), 0.0, 1.0);
-  return mix(b, sh, hw * shadowT);
+  vec3 c = mix(b, sh, hw * shadowT);
+  // an ARTERY's lumen is one tone step lighter (CEL_STYLE.ARTERY.LIFT_L in OKLab lightness, hue and chroma kept), both tones, easing in with the tones' own radius gate: a hairline is the base alone, and art 0 (a vein) takes no part
+  float lift = art * hw * 0.07;
+  return lift > 0.0 ? celTubeLift(c, lift) : c;
 }
+vec3 celTubeTone(vec3 base, float s, float sw, float rDev) { return celTubeToneArt(base, s, sw, rDev, 0.0); }
 
 
 const vec3 CEL_LIGHT = vec3(-0.5014059075751371, 0.62174332539317, 0.6016870890901646);
@@ -145,7 +161,15 @@ uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
 varying float vW;
 varying float vR;
-varying float vU;
+// ONE packed varying (a phone's floor is 15 vectors, and every one counts): x vU, the figure's units in one scene unit here (300 on the body, 1 / MAP_K on the map, the Circuit share of this vertex); y vArcLen, the vessel's
+// length along the course it is drawn on now (the body course's len at rest, the map course's cl.y in the Circuit, by the same share); z vR0, the lumen's half width before a stenosis or the stent's waist pinches it (figure units:
+// the stent's cells and bare length are sized from it); w vSkew, the stent's wires' shift along the tube here (figure units: the lateral offset in the map's plane times the bend turned since the stent began, so a cell keeps
+// its length round a corner). Named by macros, so every use reads as before.
+varying vec4 vUp;
+#define vU vUp.x
+#define vArcLen vUp.y
+#define vR0 vUp.z
+#define vSkew vUp.w
 float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
   float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
@@ -723,7 +747,7 @@ bool capCarved(float across) {
   if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
   float wpc = vCen.z * 2.0 / (res.y * projY) * vU;   // (the axis's depth, the one the vertex stage built the line from)
   float rCss = vR / max(wpc, 1e-6);   // CSS px, as the vertex stage's line is (the same clamp)
-  float ink = clamp(0.3 * rCss, 1.6, 3.0) * mix(1.0, 1.1, circT) * wpc * inkOn;
+  float ink = min(3.0, clamp(0.3 * rCss, 1.6, 3.0) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCss))) * mix(1.0, 1.1, circT) * wpc * inkOn;
   float R = (vR + ink) * k, a = dd + ink * k;
   if (a >= R) return false;
   float q = 1.0 - a / R;
@@ -738,7 +762,7 @@ void main() {
   vec3 sideD = cross(normalize(vT), normalize(vV));
   float sideDL = length(sideD);
   sideD = sideDL > 1e-4 ? sideD / sideDL : vec3(1.0, 0.0, 0.0);
-  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * len * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
+  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * vArcLen * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
   lensAcrossFw = fwidth(dot(nD, sideD) * 0.5 + 0.5);
   // (the stent crowns, the suture dashes and the smoke below each want one more: the across angle's, the raw across's and the smoke's own, taken here for the same reason)
   float acrossD = dot(nD, sideD), fwAcr = fwidth(acrossD), fwTh = fwidth(asin(clamp(acrossD, -0.999, 0.999)));
@@ -829,7 +853,7 @@ void main() {
   // by max (so the pieces of a vein and the skins at its joins overlap without adding up). Only the lumen and its line: the blur makes the halo outside it.
   {
     float rCssG = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
-    float lineG = clamp(0.3 * rCssG, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssG) * mix(1.0, 1.1, circT) * inkOn;
+    float lineG = min(3.0, clamp(0.3 * rCssG, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssG) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCssG))) * mix(1.0, 1.1, circT) * inkOn;
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
     float wG = (smoothstep(0.0, 1.0, vHi) * (1.0 - smoothstep(0.0, 0.15, circT))) * glowK * fadeHere * cavA * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     gl_FragColor = vec4(mix(celTubeBase(base), vec3(1.0), 0.25 * tubeDark) * wG, wG);
@@ -842,7 +866,7 @@ void main() {
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
-  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
@@ -913,24 +937,26 @@ void main() {
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
-    float kS = stentU.x * circT, Lw = len * vU, s = vUv.x * Lw, un = max(vR, 0.3) / 12.0, s0 = stentU.y * Lw, sB = stentU.w * Lw, sE = stentU.z * Lw;
+    float kS = stentU.x * circT, Lw = vArcLen * vU, s = vUv.x * Lw, un = max(vR0, 0.3) / 12.0, s0 = stentU.y * Lw, sE = stentU.z * Lw, sB = s0 + stentU.w * vR0;
+    float sp = s - vSkew;
     float th = asin(clamp(across, -1.0, 1.0)), px = max(pxArc, 1e-4), cov = 0.0, gold = 0.0;
-    float bEnd = sB > s0 + 6.0 * un ? sB : sE - 1.2 * un, t0 = s0 + 1.2 * un;
+    bool hasG = stentU.w > 0.0 && sB > s0 + 6.0 * un && sB < sE - 4.0 * un;
+    float bEnd = hasG ? sB : sE - 1.2 * un, t0 = s0 + 1.2 * un;
     float Nb = max(1.0, floor((bEnd - t0) / (17.0 * un) + 0.5)), Pb = (bEnd - t0) / Nb, Ab = 0.5 * Pb;
-    float jb = floor((s - t0) / Pb);
+    float jb = floor((sp - t0) / Pb);
     for (int i = -1; i <= 1; i++) {
-      float j = jb + float(i), ok = (j < 0.0 || j >= Nb || s > bEnd + Ab) ? 0.0 : 1.0;
+      float j = jb + float(i), ok = (j < 0.0 || j >= Nb || sp > bEnd + Ab) ? 0.0 : 1.0;
       float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
       // (a wire's distance in SCREEN pixels, the distance over its own slope: a crown's steep flank stays one even line instead of breaking into dashes)
-      float dv = s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
+      float dv = sp - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
       cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pb, 0.7 * Pb, fwPx + 5.0 * Ab * fwTh)));
     }
-    if (sB > s0 + 6.0 * un) {
+    if (hasG) {
       float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
-      float jc = floor((s - c0) / Pc + 0.5);
+      float jc = floor((sp - c0) / Pc + 0.5);
       for (int i = -1; i <= 1; i++) {
         float j = jc + float(i), ok = (j < 0.0 || j > Kc) ? 0.0 : 1.0;
-        float dv = s - (c0 + j * Pc + Ac * cos(5.0 * th));
+        float dv = sp - (c0 + j * Pc + Ac * cos(5.0 * th));
         cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ac * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pc, 0.7 * Pc, fwPx + 5.0 * Ac * fwTh)));
       }
       c = mix(c, vec3(1.0), 0.10 * kS * smoothstep(sB - px, sB + px, s));

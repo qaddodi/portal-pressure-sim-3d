@@ -68,9 +68,12 @@ export const glowWeightGlsl = (hi: string): string => `(smoothstep(0.0, 1.0, ${h
 /** The halo's colour (a GLSL expression) on a body colour `base`: the vessel's own colour as drawn, lifted toward white on the dark looks. Reads: tubeDark, celTubeBase. */
 export const glowToneGlsl = (base: string): string => `mix(celTubeBase(${base}), vec3(1.0), ${F(GLOW_LIFT)} * tubeDark)`;
 
-/** The ink line's width in CSS px (a GLSL expression) for a lumen of `rCss` CSS px of radius: LINE_R of it held between LINE_MIN and LINE_MAX, thinned with a hairline lumen (cel-ink.ts inkTaper, judged on `taperR`). */
-export const inkPxGlsl = (rCss: string, taperR: string): string =>
-  `clamp(${F(CEL_STYLE.LINE_R)} * ${rCss}, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, ${taperR})`;
+/** The ink line's width in CSS px (a GLSL expression) for a lumen of `rCss` CSS px of radius: LINE_R of it held between LINE_MIN and LINE_MAX, thinned with a hairline lumen (cel-ink.ts inkTaper, judged on `taperR`).
+ *  `art` (a GLSL float expression, 0 a vein, 1 an artery; default none) is the artery's wall: the line INK_K times as heavy, held to LINE_MAX, easing in with the same taper (cel-ink.ts inkWidthCss). Without it the expression is the vein's, unchanged. */
+export const inkPxGlsl = (rCss: string, taperR: string, art?: string): string => {
+  const base = `clamp(${F(CEL_STYLE.LINE_R)} * ${rCss}, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, ${taperR})`;
+  return art === undefined ? base : `min(${F(CEL_STYLE.LINE_MAX)}, ${base} * (1.0 + ${F(CEL_STYLE.ARTERY.INK_K - 1)} * (${art}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, ${taperR})))`;
+};
 
 /** The figure's units under one CSS pixel at clip depth `w` (a GLSL expression): w * 2 / (res.y * the projection's y scale), times `scale` (the figure's units in one scene unit here, vU). Reads: res. */
 export const wpcGlsl = (w: string, projY: string, scale: string): string => `${w} * 2.0 / (res.y * ${projY}) * ${scale}`;
