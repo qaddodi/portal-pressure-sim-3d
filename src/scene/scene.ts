@@ -83,6 +83,7 @@ import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
+import type { ScopeRingScreen } from './disease/scope-ring.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
 import { VESSEL_LAYER, inVesselPass } from './layers.ts';
 import { ShuntGuide } from './shunt-guide.ts';
@@ -698,6 +699,16 @@ export class CelScene {
     }, false);
   }
 
+  /** The scope ring on the varices: stands or not (it eases), its dashes closed into a line while its lens is open (disease/scope-ring.ts). */
+  setScopeRing(on: boolean, open: boolean): void { this.disease.scopeRing.set(on, open); this.moving = true; clock.invalidate('scope-ring'); }
+  /** The ring's place on the screen now (CSS px; centre and radius, the badge's): null while it is not drawn (the Circuit, a dive, not yet in). Valid after the camera's update. */
+  scopeRingScreen(out: ScopeRingScreen): ScopeRingScreen | null {
+    const r = this.disease.scopeRing;
+    if (r.alpha < 0.05) return null;
+    this.camRight.setFromMatrixColumn(this.rig.camera.matrixWorld, 0);
+    return r.screen((p, o) => this.rig.project(p, o), (p) => this.body.localToWorld(p.clone()), this.camRight, out);
+  }
+  private readonly camRight = new Vector3();
   private readonly focusP = new Vector3();
   /** Where the exam the Tests card is about stands on the screen now, CSS px (a probe's gate or tip); null with no probe up. */
   testFocus(out: { x: number; y: number }): { x: number; y: number } | null {
@@ -1373,6 +1384,7 @@ export class CelScene {
         return procMoving;   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
       } },
       { id: 'disease', step: ({ now }) => {
+        this.disease.bleed.seat = this.procs.tamponade.seat;   // (a seated tamponade balloon covers the tear: the jet never runs through it)
         const diseaseMoving = this.disease.update(now, this.flowRate.value);
         if (diseaseMoving) this.tagOverOrgans();
         return diseaseMoving;

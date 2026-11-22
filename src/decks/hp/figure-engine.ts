@@ -1,6 +1,6 @@
 // What the deck's figure link reads from the engine client: a node's pressure from the newest frame, and a vessel's texel. The talk's own folder (src/ui/deck) never imports the engine
 // (tests/ui-text-deck.test.ts); the readings come through here.
-import { latest, indexOf, patient, engine } from '../../engine/index.ts';
+import { latest, indexOf, patient, engine, onFrame } from '../../engine/index.ts';
 import { fingerprintOf } from '../../engine/hales/portal/fingerprint.js';
 import { NODES, EDGES } from '../../engine/hales/portal/topology.js';
 
@@ -31,3 +31,6 @@ export function liveFp(): Record<string, number | null | undefined> | null {
 
 /** Tells the engine something (the procedures that are engine actions: a morph to a slide's state or back). The talk's folder sends through here, as it reads through here. */
 export const engineSend = (m: Parameters<ReturnType<typeof engine>['send']>[0]): void => { engine().send(m); };
+
+/** The newest engine frame, and a tap on each new one (the procedure graph's live run reads the model through these, ui/charts/evgraph/live.ts). */
+export const engineFrames = { now: () => latest.frame, on: onFrame };

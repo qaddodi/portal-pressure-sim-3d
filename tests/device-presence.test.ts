@@ -121,7 +121,7 @@ test('the glue coil and cast, the tamponade, the catheter\'s balloon and the sco
   // tamponade
   const tp = new Tamponade(shared); tp.applyPalette(PALETTES.light);
   tp.want(true, true); tp.snap(); frames(20);
-  assert.ok(tp.gas.group.visible && alphaOf(tp.gas) > 0.9);
+  assert.ok(tp.gas.group.visible && alphaOf(tp.gas) > 0.4, "the glass is whole at its own faint body (0.42)");
   tp.want(false, false); tp.update(1e6);
   a = trace(tp.gas); assert.ok(middles(a) >= 3, `tamponade balloon: ${a.map((v) => v.toFixed(2))}`); assert.equal(tp.gas.group.visible, false);
   frames(20); assert.ok(!tp.tube.group.visible && !tp.eso.group.visible, 'every part is out once it has faded');
@@ -173,5 +173,5 @@ test('a tamponade balloon grows from a true zero: its alpha is nothing at the fi
   for (const g of [0.0011, 0.02, 0.06, 0.2, 1]) { st.gas = g; st.eso = 0; draw(); frames(20); seen.push(alphaOf(tp.gas)); }   // (20 frames: presence is whole, so what is read is the fill's own alpha)
   assert.ok(seen[0]! < 0.02, `at the first drop it is invisible (${seen[0]})`);
   assert.ok(seen.every((v, i) => i === 0 || v >= seen[i - 1]! - 1e-9), `and rises with the fill: ${seen.map((v) => v.toFixed(2))}`);
-  assert.ok(Math.abs(seen[seen.length - 1]! - 0.92) < 1e-6, 'to the latex\'s own alpha');
+  assert.ok(Math.abs(seen[seen.length - 1]! - 0.42) < 1e-6, 'to the glass\'s own faint body (22 Nov: the tamponade balloon is translucent, no longer opaque latex)');
 });

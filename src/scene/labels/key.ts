@@ -1,9 +1,11 @@
 // The figure key: a slide's colour key, drawn small on the figure instead of in the teaching card (Mohammad, 15 Oct, 2D app). Pure:
-// the words and colours of a key for a lens in a look. Its words are the 2D app's (names.copied.ts LENS_KEY); its colours are the 2D
-// tokens' (KEY_COLOURS), so a key reads the same in both apps until the 3D lenses (batch B3) draw their own ramps, which then replace
-// `rampStops` (the test lists every key whose colours still come from the 2D table).
+// the words and colours of a key for a lens in a look. Its words are the 2D app's (names.copied.ts LENS_KEY). Its COLOURS are the lens colour key's
+// own (scene/lenses/legend.ts: the ramps the vessels are painted from, through the vessels' transform), never the 2D table: a key that kept its own
+// copy drew green for Pressure drop while the vessels were purple (Mohammad, 22 Nov). `tests/key-colours.test.ts` fails on any divergence.
 import { LABEL_NAMES } from './names.copied.ts';
 import type { LookId } from '../../looks/looks.ts';
+import { rampStops as lensRampStops, deltaStops, LG_MAX } from '../lenses/legend.ts';
+import { figureHex } from '../vessels/cel-ink.ts';
 
 export type Scheme = 'light' | 'soft' | 'dark';
 export const schemeOf = (look: LookId): Scheme => (look === 'light' ? 'light' : look === 'soft' ? 'soft' : 'dark');
@@ -25,22 +27,13 @@ const ENDS = new Set(['drop']);
 type Table = Record<string, string>;
 const colours = (scheme: Scheme): Table => LABEL_NAMES.KEY_COLOURS[scheme] as unknown as Table;
 
-/** A ramp token ("#colour position, ...") as CSS stops. Positions run 0 to the last stop's own (30 mmHg for pressure, 1 for the others). */
-export function rampStops(token: string): { colour: string; at: number }[] {
-  const stops = token.split(',').map((s) => { const [c, p] = s.trim().split(/\s+/); return { colour: c, p: Number(p) }; });
-  const top = stops[stops.length - 1].p || 1;
-  return stops.map((s) => ({ colour: s.colour, at: s.p / top }));
+/** The key's gradient for a ramp lens in a look: the legend's own stops (the vessels' colours), in OKLab like the legend bar. */
+export function gradientOf(lens: string, look: LookId): string {
+  const stops = lens === 'delta' ? deltaStops(look) : lensRampStops(look, lens as Parameters<typeof lensRampStops>[1], lens === 'pressure' ? LG_MAX : 1);
+  return `linear-gradient(in oklab to right, ${stops.map(([c, at]) => `${c} ${+at.toFixed(1)}%`).join(', ')})`;
 }
 
-export function gradientOf(lens: string, scheme: Scheme): string {
-  const t = colours(scheme);
-  if (lens === 'delta') return `linear-gradient(in oklab to right, ${t['delta-low']}, ${t['delta-mid']}, ${t['delta-high']})`;
-  const token = t[`ramp-${lens}`];
-  if (!token) throw new Error(`no colour ramp for the key of "${lens}"`);
-  return `linear-gradient(in oklab to right, ${rampStops(token).map((s) => `${s.colour} ${+(s.at * 100).toFixed(1)}%`).join(', ')})`;
-}
-
-export function keyModel(lens: string | null, scheme: Scheme): KeyModel | null {
+export function keyModel(lens: string | null, look: LookId): KeyModel | null {
   if (!lens) return null;
   const spec = (LABEL_NAMES.LENS_KEY as unknown as Record<string, { name: string; ramp?: string; lo?: string; hi?: string; swatches?: { cssVar: string; label: string; short?: string }[] }>)[lens];
   if (!spec) throw new Error(`no figure key for the lens "${lens}"`);
@@ -48,16 +41,19 @@ export function keyModel(lens: string | null, scheme: Scheme): KeyModel | null {
   if (spec.ramp) {
     return {
       lens, name, swatches: null,
-      scale: { gradient: gradientOf(spec.ramp, scheme), lo: spec.lo!, hi: spec.hi!, ends: ENDS.has(lens) },
+      scale: { gradient: gradientOf(spec.ramp, look), lo: spec.lo!, hi: spec.hi!, ends: ENDS.has(lens) },
       aria: `Vessels colored by ${spec.name}, ${spec.lo} to ${spec.hi}`,
     };
   }
-  const t = colours(scheme);
+  const t = colours(schemeOf(look));
+  // Velocity's two ends are the ends of its ramp (what the vessels wear); every other swatch is a token colour put through the vessels' transform, as the legend's dots are.
+  const vel = lens === 'velocity' ? lensRampStops(look, 'velocity', 1) : null;
   return {
     lens, name, scale: null,
-    swatches: spec.swatches!.map((s) => {
-      const colour = t[s.cssVar.replace(/^--/, '')];
-      if (!colour) throw new Error(`no colour for ${s.cssVar} in the key of "${lens}"`);
+    swatches: spec.swatches!.map((s, i) => {
+      const token = t[s.cssVar.replace(/^--/, '')];
+      if (!token) throw new Error(`no colour for ${s.cssVar} in the key of "${lens}"`);
+      const colour = vel ? vel[i === 0 ? 0 : vel.length - 1]![0] : figureHex(token, look);
       return { colour, label: s.label, ...(s.short ? { short: s.short } : {}) };
     }),
     aria: `Vessels colored by ${spec.name}`,

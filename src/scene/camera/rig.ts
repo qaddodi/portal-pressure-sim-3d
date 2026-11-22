@@ -191,6 +191,10 @@ export class CameraRig {
   private dur = 0;
   /** The camera's distance at the move's two ends as the room fits them: what the even glide's zoom share is measured on (blendPose). */
   private zoomEnds: ZoomEnds | null = null;
+  /** The camera's distance now while a plain (not a dive) move is in flight: the move's zoom as ONE geometric glide between the two ends' distances (2D's even glide, `geo(da, db, share)`), or 0 (the pose's own `effectiveDistance`:
+   *  at rest, in a dive, and at the move's landing, where the two are the same number). The pose's own is the farther of `r` and what its two half extents need, each blended on its own, so it is not monotone: when the
+   *  fitting axis changes between two shots (one frames the height, the next the width) the distance dipped between them, a zoom in and back out inside one move: the zigzag (22 Nov). tests/camera-slide-paths.test.ts. */
+  private distNow = 0;
   /** The speed the move began with (easeCarry's slope): zero from a standstill. */
   private carry = 0;
   /** The progress the last frame was drawn at (the eased value the pose is at now). */
@@ -341,8 +345,8 @@ export class CameraRig {
     return { d: Math.hypot(pan, zoom), dive: Math.max(a.r, t.r) / Math.max(1e-9, Math.min(a.r, t.r)) > DIVE_RATIO };
   }
   /** The move's zoom ends: the camera's distance at its start and end as the room fits them, and the lens's pixels per unit (blendPose's even glide). */
-  private measureZoom(): ZoomEnds {
-    return { da: effectiveDistance(this.from.shot, this.scaleFrom, this.height, this.width), db: effectiveDistance(this.to.shot, this.scaleTo, this.height, this.width), px: this.height / (2 * Math.tan((FOV * Math.PI) / 360)) };
+  private measureZoom(live = false): ZoomEnds {
+    return { da: live && this.distNow > 0 ? this.distNow : effectiveDistance(this.from.shot, this.scaleFrom, this.height, this.width), db: effectiveDistance(this.to.shot, this.scaleTo, this.height, this.width), px: this.height / (2 * Math.tan((FOV * Math.PI) / 360)) };
   }
   /** The hand view that frames the whole figure (`whole`: the body's play shot, the Circuit's whole map) in the room the camera is fitted to, seen from the shot it is going to; null when that shot already is it.
    *  What the hand's zoom limits and its zoomed-out resting place are measured on (2D measures them on the whole plate: scene/gesture/view.ts zoomLimits). */
@@ -372,7 +376,7 @@ export class CameraRig {
       this.cur = { shot: copyShot(s), room: copyRoom(room) };
       this.from = this.to = this.cur;
       this.scaleFrom = { w: room.w, h: room.h }; this.scaleTo = { w: room.w, h: room.h }; this.scaleNow = { w: room.w, h: room.h };
-      this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
+      this.orbit = this.orbitFrom = 0; this.active = false; this.distNow = 0; this.handTween = false; this.dirty = true;
       return;
     }
     // retargeted in flight: carry the speed on, 2D's carryRate: the view's speed (the aim in screens a second, the zoom with a doubling counting half a screen) projected on the way to the new framing,
@@ -425,7 +429,7 @@ export class CameraRig {
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
-    this.zoomEnds = this.measureZoom();
+    this.zoomEnds = this.measureZoom(this.active);   // (a move retargeted in flight starts from the distance the camera is really at: distNow)
     this.at = carry > 0 || hv || (this.active && this.vel.on) ? 16 : 0; this.lastT = -1; this.eNow = 0; this.roomP = 0; this.lateRoom = null;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
@@ -532,7 +536,7 @@ export class CameraRig {
   }
 
   /** The aim and the width of a retargeted move on a cubic Hermite from where it was, starting at the speed it had and ending at rest. */
-  private hermiteAim(k: number): void {
+  private hermiteAim(k: number): number {
     const hv = this.hv!, a = this.from.shot, b = this.to.shot, c = this.cur.shot, k2 = k * k, k3 = k2 * k;
     const h01 = 3 * k2 - 2 * k3, h10 = k3 - 2 * k2 + k;
     c.target[0] = a.target[0] + (b.target[0] - a.target[0]) * h01 + hv.x * h10;
@@ -542,6 +546,7 @@ export class CameraRig {
     c.half[0] = a.half[0] * f;
     c.half[1] = (a.half[1] + (b.half[1] - a.half[1]) * q) * (c.half[0] / (a.half[0] + (b.half[0] - a.half[0]) * q));
     c.r = a.r * Math.pow(b.r / a.r, q);
+    return q;
   }
   private sampleVel(now: number, step: number): void {
     const c = this.cur.shot, L = this.velLast, lh = Math.log(Math.max(1e-6, c.half[0]));
@@ -569,7 +574,8 @@ export class CameraRig {
         const L = this.lateRoom, u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))), c = this.cur.room = copyRoom(this.cur.room), b = this.to.room;
         c.x = lerp(L.from.x, b.x, u); c.y = lerp(L.from.y, b.y, u); c.w = lerp(L.from.w, b.w, u); c.h = lerp(L.from.h, b.h, u);
       }
-      if (this.hv && e < 1) this.hermiteAim(k);
+      const z = this.zoomEnds, zq = this.hv && e < 1 ? this.hermiteAim(k) : e;
+      this.distNow = !isDive(this.from, this.to) && z && z.da > 0 && z.db > 0 && e < 1 ? geo(z.da, z.db, zq) : 0;
       this.sampleVel(now, this.step);
       if (this.long && e < 1) this.long.at(e, this.cur.shot);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
@@ -610,7 +616,7 @@ export class CameraRig {
     const fov = fovAt(this.bump);
     // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
     const sc = this.scaleNow.w > 1 ? { x: 0, y: 0, w: this.scaleNow.w, h: this.scaleNow.h } : room.w > 1 ? room : { x: 0, y: 0, w, h };
-    const r = dollyDistance(effectiveDistance(shot, sc, h, w), fov);
+    const r = dollyDistance(this.distNow > 0 ? this.distNow : effectiveDistance(shot, sc, h, w), fov);
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     // (the viewer's turn and tilt are about the SCREEN's axes: a rolled camera (the sinusoid on a portrait screen) carries them round with the roll, so a drag to the right still swings the picture to the right)

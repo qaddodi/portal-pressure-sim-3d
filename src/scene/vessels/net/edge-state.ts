@@ -33,6 +33,7 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   // identity (written once)
   col('tone', 1, (e) => [TONES.indexOf(e.tone)], null),
   col('tier', 1, (e) => [TIERS.indexOf(e.tier)], null),
+  col('sewn', 4, [-1, -1, 0, 0], null),   // the edge's sewn ends (net/sewn.ts, written once): the host's bone at end 0 and end 1 (-1: none) and the flags of each (SEWN_INSIDE 1, SEWN_SINK 2, SEWN_FLARE 4, SEWN_CAPPED 8)
   col('radius', 1, [0.02]),   // the vessel's nominal radius, scene units: what the Circuit's live width is measured against (shaders.ts circSwell: map half-width over this), and the dust's section
   col('waist', 3, [0, 0.2, 0.5], null),   // a stenosis's waist (disease/clamps.ts waistNarrow): how narrowed (0 none), the bell's sigma, its centre along THIS edge (the old `narrow` attribute, one value per vertex, is a function of u)
   col('lenMap', 1, [1], null),   // the vessel's length along its MAP course, scene units (the old `cl.y`): the Circuit's stent cells tile by it (shaders.ts vArcLen)

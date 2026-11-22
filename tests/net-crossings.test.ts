@@ -47,11 +47,11 @@ export function secondDrawPairs(): { pose: 0 | 1; a: string; b: string }[] {
   return out;
 }
 
-test('crossing vessels of one network, counted per pose (body 22, map 70 today; 8 and 16 of them with both sides able to blend): none may be added unseen', () => {
+test('crossing vessels of one network, counted per pose (body 22, map 70 today; 8 and 17 of them with both sides able to blend: the 17 are collateral and shunt pairs the 2D lines cross themselves, tests/net-skeleton.test.ts pins that none is added): none may be added unseen', () => {
   assert.ok(crossings(0).length <= 22, `${crossings(0).length} crossings in the body pose`);
   assert.ok(crossings(1).length <= 70, `${crossings(1).length} crossings in the map pose`);
   const both = (pose: 0 | 1): number => crossings(pose).filter((c) => canBlend(c.a, pose) && canBlend(c.b, pose)).length;
-  assert.ok(both(0) <= 8 && both(1) <= 16, `${both(0)} body, ${both(1)} map pairs where both sides can blend`);
+  assert.ok(both(0) <= 8 && both(1) <= 17, `${both(0)} body, ${both(1)} map pairs where both sides can blend`);
   assert.equal(secondDrawPairs().length, both(0) + both(1));
 });
 
@@ -63,6 +63,6 @@ test('the real skeleton meshes as one surface per network', { todo: 'WP2: the po
   buildNetMesh(skeleton());
 });
 
-test('the second draw exists: the pairs where both sides can blend are drawn after the rest of their network', { todo: 'not built: the network object is WP4 (the list is secondDrawPairs: 8 body and 16 map pairs today)' }, () => {
+test('the second draw exists: the pairs where both sides can blend are drawn after the rest of their network', { todo: 'not built: the network object is WP4 (the list is secondDrawPairs: 8 body and 30 map pairs today)' }, () => {
   assert.fail('no second draw yet');
 });

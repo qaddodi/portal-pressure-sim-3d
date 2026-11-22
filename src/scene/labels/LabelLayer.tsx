@@ -33,7 +33,7 @@ import { buildProbeLabels } from './probe-labels-dom.ts';
 import { addLabelBox, beginLabelBoxes } from './probe-boxes.ts';
 import { coverClip } from './probe-cover.ts';
 import { cathVars, cathLook } from './cath.ts';
-import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
+import { KEY_LENSES, keyModel } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
 import { useLabels, useFigure } from './store.ts';
 import { FigureCards } from './figure-cards.ts';
@@ -122,11 +122,10 @@ export function LabelLayer() {
   const key = useLabels((s) => s.key);
   const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
   const lookId = resolveLook(look, dark);
-  const scheme = schemeOf(lookId);
   const lookRef = useRef(lookId); lookRef.current = lookId;
   const applyTypeRef = useRef<() => void>(() => {});
   useEffect(() => { applyTypeRef.current(); }, [lookId]);
-  const model = useMemo(() => keyModel(key, scheme), [key, scheme]);
+  const model = useMemo(() => keyModel(key, lookId), [key, lookId]);
   // The key never pops: one that goes (no key, or another lens) stays drawn while the layer eases its pill out (the controller's alpha), and a lens that follows another fades in over the old one fading out.
   const { now: keyNow, leaving: keyOut } = useKeyBlend(model);
   const vpNow = useUi((s) => s.vp);
@@ -245,14 +244,15 @@ export function LabelLayer() {
     // (two elements: the key as drawn, which the dock may wrap, and a hidden twin that never wraps and reports the key's size on one line)
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
-        const t = e.target as HTMLElement;
-        if (t.classList.contains('lb-key-twin')) ctl.setKeyNatural(t.offsetWidth, t.offsetHeight); else if (!t.classList.contains('lb-key-out')) ctl.setKeySize(t.offsetWidth, t.offsetHeight);
+        const t = e.target as HTMLElement, w = t.offsetWidth, h = t.offsetHeight;
+        if (t.classList.contains('lb-key-short')) ctl.setKeyShort(w, h);
+        else if (t.classList.contains('lb-key-twin')) ctl.setKeyNatural(w, h); else if (!t.classList.contains('lb-key-out')) ctl.setKeySize(w, h);
       }
       clock.invalidate('labels-key');
     });
     // (both: the drawn key in the wrap AND its twin in the probe: the dock decides by the twin, so a twin nobody watches leaves it deciding by the wrapped key's own size, which flips it
     //  between one line and two for ever: the key flickered and stood at two heights)
-    const watchKey = () => { ro.disconnect(); keyLayer.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
+    const watchKey = () => { if (!probeHost.current?.querySelector('.lb-key-short')) ctl.setKeyShort(0, 0); ro.disconnect(); keyLayer.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
     watchKey();
     const keyMo = new MutationObserver(watchKey);
     for (const h of [keyHost.current!, probeHost.current!]) keyMo.observe(h, { childList: true });
@@ -318,7 +318,7 @@ export function LabelLayer() {
           {keyNow && <KeyBody key={keyNow.lens} model={keyNow} vp={vpNow} fade={keyOut ? 'in' : undefined} />}
         </div>
         {/* its twin: never wrapped, never seen; reports the key's size on one line, which is what the dock decides by */}
-        <div ref={probeHost} className="lb-key-probe">{keyNow && <KeyBody model={keyNow} vp={vpNow} twin />}</div>
+        <div ref={probeHost} className="lb-key-probe">{keyNow && <KeyBody model={keyNow} vp={vpNow} twin />}{keyNow?.swatches?.some((s) => s.short) && <KeyBody model={keyNow} vp={vpNow} twin short />}</div>
       </div>
       <VesselWalk />
     </>
@@ -340,6 +340,10 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     const dock = d.dock, room = dock?.wrap != null ? `${px(dock.wrap)}px` : 'none', minh = `${dock?.minH ?? 0}px`;
     if (el.style.getPropertyValue('--lb-key-room') !== room) el.style.setProperty('--lb-key-room', room);
     if (el.style.getPropertyValue('--lb-key-minh') !== minh) el.style.setProperty('--lb-key-minh', minh);
+    // (the short names, and the title-over-swatches stack of a key on a row of its own: the dock's decision, written where the stylesheet reads it)
+    const short = dock?.short ? '' : null, stack = dock?.at === 'above-pill' && dock.wrap != null ? '' : null;
+    if ((el.getAttribute('data-short') === null) !== (short === null)) { if (short === null) el.removeAttribute('data-short'); else el.setAttribute('data-short', ''); }
+    if ((el.getAttribute('data-stack') === null) !== (stack === null)) { if (stack === null) el.removeAttribute('data-stack'); else el.setAttribute('data-stack', ''); }
     return;
   }
   // a new spot or form is taken while the label is invisible: its size and words are written then, never in a visible frame
@@ -442,16 +446,16 @@ function useKeyBlend(model: KeyM | null): { now: KeyM | null; leaving: KeyM | nu
   return { now: model ?? last.current, leaving: leaving && model && leaving.lens !== model.lens ? leaving : null };
 }
 
-function KeyBody({ model, vp, twin = false, fade }: { model: KeyM; vp: ReturnType<typeof useUi.getState>['vp']; twin?: boolean; fade?: 'in' | 'out' }) {
+function KeyBody({ model, vp, twin = false, short = false, fade }: { model: KeyM; vp: ReturnType<typeof useUi.getState>['vp']; twin?: boolean; short?: boolean; fade?: 'in' | 'out' }) {
   const grad = !!model.scale;
   return (
-    <div className={twin ? 'lb-key lb-key-twin' : `lb-key${fade ? ` lb-key-${fade}` : ''}`} role={twin ? undefined : 'img'} aria-label={twin ? undefined : model.aria} aria-hidden={twin ? true : undefined}
+    <div className={twin ? `lb-key lb-key-twin${short ? ' lb-key-short' : ''}` : `lb-key${fade ? ` lb-key-${fade}` : ''}`} role={twin ? undefined : 'img'} aria-label={twin ? undefined : model.aria} aria-hidden={twin ? true : undefined}
       data-lens={model.lens} data-grad={grad ? '' : undefined} style={keyVars(vp, grad) as React.CSSProperties}>
       <b>{model.name}</b>
       {model.scale && (model.scale.ends
         ? <span className="lb-ends"><span>{model.scale.lo}</span><i className="lb-bar" style={{ background: model.scale.gradient }} /><span>{model.scale.hi}</span></span>
         : <i className="lb-bar" style={{ background: model.scale.gradient }} />)}
-      {model.swatches && <span className="lb-items">{model.swatches.map((s) => <span key={s.label} className="lb-k"><i className="lb-sw" style={{ background: s.colour }} />{s.label}</span>)}</span>}
+      {model.swatches && <span className="lb-items">{model.swatches.map((s) => <span key={s.label} className="lb-k"><i className="lb-sw" style={{ background: s.colour }} /><span className="lb-lk-l">{s.label}</span>{s.short && <span className="lb-lk-s">{s.short}</span>}</span>)}</span>}
     </div>
   );
 }
