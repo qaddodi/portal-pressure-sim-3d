@@ -21,10 +21,15 @@ export interface GlideEnv {
 
 export function createLookGlide(env: GlideEnv) {
   const appliers = new Set<Applier>();
+  const watchers = new Set<() => void>();
   let current: LookId | null = null;
-  const all = (look: LookId) => { for (const fn of [...appliers]) fn(look); };
+  // The appliers paint the new look (page, figure); only then are the watchers told, so a React component that draws in the look (the labels, the key, the charts, the cards) re-renders INSIDE the
+  // same transition as the figure and fades with it. A component reading the settings store directly changed on the store's clock, ahead of the transition (the labels turned first).
+  const all = (look: LookId) => { for (const fn of [...appliers]) fn(look); for (const fn of [...watchers]) fn(); };
   return {
     get current() { return current; },
+    /** Tells `fn` after every applier has run for a change (inside the transition); for useSyncExternalStore (looks/use-look.ts). Returns its remover. */
+    watch(fn: () => void): () => void { watchers.add(fn); return () => { watchers.delete(fn); }; },
     /** Registers an applier; it is run at once with the look in force. Returns its remover. */
     onLook(fn: Applier): () => void { appliers.add(fn); if (current) fn(current); return () => { appliers.delete(fn); }; },
     /** The look is now `next`: at once the first time or with Reduce Motion, otherwise eased. A change to the look already in force does nothing. */

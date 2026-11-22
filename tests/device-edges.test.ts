@@ -58,8 +58,8 @@ for (const id of LOOK_IDS) {
   test(`${id}: the endoscope is black polymer with a soft edge, its needle steel in the dark edge, its port and rings with none`, () => {
     const t = DEVICE_TOKENS[id], sc = new EndoScope(sh);
     sc.applyPalette(PALETTES[id]);
-    const [shaft, bend, tip, lens, , band, needle, face, port, array, light0, light1, chan, ...rest] = sc.parts as unknown as DeviceObject[];
-    const rings = rest.slice(0, 4);   // (then the needle's sheath)
+    const [shaft, bend, tip, lens, needle, face, port, array, light0, light1, chan, ...rest] = sc.parts as unknown as DeviceObject[];
+    const rings = rest.slice(0, 3);   // (the two ripples and the flashback; then the needle's sheath, which has the scope's own soft edge)
     // (the redesign, 20 Nov 2026: the shaft is 2D's black polymer; the bending section a lifted black; the distal housing polished silver; the transducer cap cream with a dark face; the needle bright steel)
     assert.equal(fill(shaft!), raw(SCOPE_TUBE(t)), 'insertion tube: --dev-scope, softened'); assert.equal(edge(shaft!), raw(scopeSoftHex(t))); assert.equal(edgeA(shaft!), SCOPE_EDGE_A);
     assert.equal(fill(bend!), raw(SCOPE_BEND(t))); assert.equal(edge(bend!), raw(scopeSoftHex(t))); assert.equal(edgeA(bend!), SCOPE_EDGE_A);
@@ -71,8 +71,7 @@ for (const id of LOOK_IDS) {
     assert.equal(fill(port!), raw(t.port)); assert.equal(edgeA(port!), 0); assert.equal(port!.ink.visible, false);
     assert.equal(fill(needle!), raw(SCOPE_NEEDLE)); assert.equal(edge(needle!), raw(t.polyEdge)); assert.equal(edgeA(needle!), 0.8);
     assert.equal(bend!.toon.uniforms.stripeP!.value, 0, 'the bending section is a smooth cover, no grooves'); assert.equal(bend!.toon.uniforms.gloss!.value, 1, 'glossy');
-    assert.equal(edgeA(band!), 0, 'the ligator\'s band is plain platinum');
-    assert.ok(lens && rings.length === 4); for (const r of rings) assert.equal(edgeA(r as unknown as DeviceObject), 0, 'the hit\'s rings are discs with no outline');
+    assert.ok(lens && rings.length === 3); for (const r of rings) assert.equal(edgeA(r as unknown as DeviceObject), 0, 'the hit\'s rings are discs with no outline');
     assert.notEqual(fill(shaft!), raw(DEVICE_TOKENS[id].steel), 'no longer the grey steel');
     sc.dispose();
   });
@@ -236,13 +235,13 @@ test('every scope has a bending section behind its rigid tip: straight and groov
 
 test('the plain endoscope has a tip face (lens, two light guides, the working channel); the echoendoscope has its transducer (cream cap, dark face), a bright needle and a see-through fan', () => {
   const plain = driveScope('scope'), pp = plain.parts as unknown as DeviceObject[];
-  const [, , , lens, , , , face, , array, l0, l1, chan] = pp;
+  const [, , , lens, , face, , array, l0, l1, chan] = pp;
   for (const o of [lens!, l0!, l1!, chan!]) assert.equal(o.group.visible, true, 'plain scope: the tip face is drawn');
   for (const o of [face!, array!]) assert.equal(o.group.visible, false, 'plain scope: no transducer');
   assert.equal(fill(l0!), raw(SCOPE_LIGHT));
   plain.dispose();
   const eus = driveScope('eus'), ep = eus.parts as unknown as DeviceObject[];
-  const [, , tip, elens, , , needle, eface, , earray, el0, el1, echan] = ep;
+  const [, , tip, elens, needle, eface, , earray, el0, el1, echan] = ep;
   assert.equal(eface!.group.visible, true); assert.equal(earray!.group.visible, true);
   for (const o of [el0!, el1!, echan!]) assert.equal(o.group.visible, false, 'echoendoscope: the light guides and channel face are not drawn');
   assert.equal(elens!.group.visible, true);

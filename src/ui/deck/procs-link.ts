@@ -124,7 +124,7 @@ export function linkProcs(): () => void {
   /** Start one kind of the slide's procedure standing before its first step, then send it to a stop. `base` is the card's index of the kind's first step. */
   function begin(kind: string, base: number, g: number, onOver: (done: boolean) => void): void {
     const sp = specFor(kind)!, eus = kind === 'eus', hold = HOLD_KINDS.has(kind), n = sp.steps.length;
-    const morph = !!(sp as { morph?: boolean }).morph, scope = (sp as { scope?: 'band' }).scope ?? null, snaps = morph ? snapsOfSlide() : null;
+    const morph = !!(sp as { morph?: boolean }).morph, scope = (sp as { scope?: 'scope' }).scope ?? null, snaps = morph ? snapsOfSlide() : null;
     const c: Ctl = { kind, base, n, at: -1, hold, applied: false, last: { name: '', at: 0 }, snaps };
     // (a morph procedure's change is the engine's: from the state before the slide to the slide's own, or back)
     const change = (on: boolean): void => { evChange(kind, on); if (c.snaps) engineSend({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };

@@ -21,7 +21,8 @@ test('each varix strand starts exactly as wide as the coronary vein it comes fro
       assert.ok(cs.length >= 3, 'three columns');
       for (const c of cs) {
         // (the strands land on one point and together make the trunk's width there: each takes 1/sqrt(n) of it, shape.ts bundleShare; before 21 Nov each took all of it, a bulb)
-        const w0 = bundleShare(c.sewn?.[0], cs.length), w1 = bundleShare(c.sewn?.[1], cs.length);
+        // (the weave gathers the strands onto one axis at both ends: their union is one strand wide there, so each is the trunk's whole width: bundleShare of one; 22 Nov, "coronary vein into varices look not welded")
+        const w0 = bundleShare(c.sewn?.[0], 1), w1 = bundleShare(c.sewn?.[1], 1);
         assert.ok(Math.abs(endR(c, 0) - lgv * w0) < 1e-9, `starts at the coronary vein's calibre shared among the strands (${endR(c, 0)} vs ${lgv * w0})`);
         assert.ok(Math.abs(endR(c, 1) - c1b * w1) < 1e-9, 'ends at the trunk\'s calibre, shared');
         // monotone ease from the foot to the column's own width: never a dip below the column (a pinch)

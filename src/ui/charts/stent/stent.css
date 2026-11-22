@@ -1,5 +1,7 @@
 /* The stent cards (tool-stent.js): the pictures stack in one column; the switches are the Tests dock's switch look (2D app-11-deck-visuals.css .sc-color, .sc-lens, .sc-tracesw). */
 .pz-stent { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); }
-.pz-stent-sw { display: flex; gap: 2px; flex: none; align-self: center; padding: 2px; border-radius: 9px; background: var(--surface-2); }
-.pz-stent-btn { appearance: none; border: 0; background: transparent; color: var(--text-2); font: 600 max(12px, var(--fs-data, 13px)) / 1 var(--ui, system-ui); padding: 7px 12px; border-radius: 7px; cursor: pointer; min-height: 32px; }
-.pz-stent-btn[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 18%, transparent); }
+.pz-stent-sw { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 18px; flex: none; align-self: center; }   /* (a choice told by weight, as the action card's: .ac-seg in action/action.css) */
+.pz-stent-btn { position: relative; appearance: none; display: inline-flex; flex-direction: column; align-items: center; border: 0; background: transparent; color: var(--text-3); font: 500 max(12px, var(--fs-data, 13px)) / 32px var(--ui, system-ui); padding: 0; cursor: pointer; min-height: 32px; transition: color var(--d-small) var(--ease); }
+.pz-stent-btn::before { content: attr(data-t); height: 0; overflow: hidden; visibility: hidden; font-weight: 600; }
+.pz-stent-btn::after { content: ''; position: absolute; inset: -6px -4px; }
+.pz-stent-btn[aria-pressed="true"] { color: var(--text); font-weight: 600; }

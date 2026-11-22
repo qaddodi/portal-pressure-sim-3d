@@ -24,9 +24,8 @@ import { detailsFor } from './details.ts';
 import { DetailsFace } from './DetailsFace.tsx';
 import { useEngine } from '../../engine/store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
-import { useSettings } from '../../state/settings.ts';
 import { rampStops, LG_MAX } from '../../scene/lenses/legend.ts';
-import { resolveLook } from '../../looks/looks.ts';
+import { useLookId } from '../../looks/use-look.ts';
 import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
 
@@ -56,7 +55,7 @@ const SEV = { ok: 'ac-cut ok', caution: 'ac-cut caution', danger: 'ac-cut danger
 const STATE_CLS: Record<string, string> = { ok: 'ok', rev: 'rev', bad: 'bad', warn: 'warn' };
 
 function SpanBar({ card, snap }: { card: Card; snap: Snap }) {
-  const sp = card.span!, s = snap.span!, look = resolveLook(useSettings((x) => x.look), typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const sp = card.span!, s = snap.span!, look = useLookId();
   const ramp = useMemo(() => `linear-gradient(to right, ${rampStops(look, 'pressure', LG_MAX).map(([c, at]) => `${c} ${at.toFixed(1)}%`).join(', ')})`, [look]);
   // The strip runs 0 to 30 mmHg across its own width; stretched by 1/(ub − ua) and slid by −ua of that, the track shows ua to ub (two the same draw 0.2 mmHg wide: a still vessel shows its one colour).
   const ua = s.ok ? Math.min(1, Math.max(0, s.a / LG_MAX)) : 0.5, ub0 = s.ok ? Math.min(1, Math.max(0, s.b / LG_MAX)) : 0.5;
@@ -115,7 +114,7 @@ function VerbView({ card, v, vs, index, setRef }: { card: Card; v: Verb; vs: Ver
         <div className="ac-c ac-segrow">
           {v.label && <div className="ctl-top"><span className="ctl-name">{v.label}</span></div>}
           <div className="ac-seg" role="group" aria-label={v.label || 'Options'}>
-            {v.options.map(([val, name]) => <button key={String(val)} type="button" aria-pressed={vs.pick === val} onClick={() => v.set(appAct, val, currentParams())}>{name}</button>)}
+            {v.options.map(([val, name]) => <button key={String(val)} type="button" data-t={name} aria-pressed={vs.pick === val} onClick={() => v.set(appAct, val, currentParams())}>{name}</button>)}
           </div>
         </div>
       );

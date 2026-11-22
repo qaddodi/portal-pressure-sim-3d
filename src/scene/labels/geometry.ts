@@ -14,7 +14,7 @@ export const hits = (a: Box, b: Box): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a
 /** Whether box r lies wholly inside box B. */
 export const within = (r: Box, B: Box): boolean => r.x0 >= B.x0 && r.y0 >= B.y0 && r.x1 <= B.x1 && r.y1 <= B.y1;
 /** How far the point (x, y) stands from the box; 0 when it lies inside. */
-export const boxGap = (b: Box, x: number, y: number): number => Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1));
+export const boxGap = (b: Box, x: number, y: number): number => { const dx = Math.max(b.x0 - x, 0, x - b.x1), dy = Math.max(b.y0 - y, 0, y - b.y1); return Math.sqrt(dx * dx + dy * dy); };   // (not Math.hypot: the solver asks this a million times a solve, and hypot is several times slower)
 
 /** Whether the segment (x0, y0) to (x1, y1) passes through the box (Liang-Barsky). */
 export function crosses(x0: number, y0: number, x1: number, y1: number, b: Box): boolean {

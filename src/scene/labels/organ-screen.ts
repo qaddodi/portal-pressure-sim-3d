@@ -34,30 +34,64 @@ export const organOfName = (name: string): string => (NAME_ORGAN as Record<strin
 export type To2Screen = (x2d: number, y2d: number) => [number, number];
 
 /** The organs' silhouettes on the canvas now: rings of screen points, by organ id. */
-export interface Silhouettes { rings: Map<string, Ring[]> }
+export interface Silhouettes { rings: Map<string, Ring[]>; /** each ring's box and its edges filed by horizontal band (`bands`), so a caption's box is tested only against the rings it can touch and a point only against the edges that cross its line */ bounds: Map<string, Box[]>; edges: Map<string, Edges[]> }
+const BAND = 8;
+/** A ring's edges filed under every horizontal band of BAND px they span (the crossing test of `inRing` only needs the edges that straddle the point's line). */
+interface Edges { y0: number; bands: number[][] }
 export function silhouettes(to: To2Screen): Silhouettes {
-  const rings = new Map<string, Ring[]>();
-  for (const id of OTHER) rings.set(id, ringsOf(id).map((r) => r.map(([x, y]) => to(x, y))));
-  return { rings };
+  const rings = new Map<string, Ring[]>(), bounds = new Map<string, Box[]>(), edges = new Map<string, Edges[]>();
+  for (const id of OTHER) {
+    const rs = ringsOf(id).map((r) => r.map(([x, y]) => to(x, y)));
+    rings.set(id, rs);
+    const bb: Box[] = [], ee: Edges[] = [];
+    for (const r of rs) {
+      const b: Box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      for (const [x, y] of r) { if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y; }
+      bb.push(b);
+      const e: Edges = { y0: b.y0, bands: [] };
+      const n = Number.isFinite(b.y1 - b.y0) ? Math.floor((b.y1 - b.y0) / BAND) + 1 : 0;
+      for (let k = 0; k < n; k++) e.bands.push([]);
+      for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const lo = Math.min(r[i]![1], r[j]![1]), hi = Math.max(r[i]![1], r[j]![1]);
+        for (let k = Math.floor((lo - b.y0) / BAND); k <= Math.floor((hi - b.y0) / BAND); k++) e.bands[k]?.push(i);
+      }
+      ee.push(e);
+    }
+    bounds.set(id, bb); edges.set(id, ee);
+  }
+  return { rings, bounds, edges };
 }
 
-const inRing = (x: number, y: number, P: Ring): boolean => {
+/** Whether (x, y) is inside the ring (even-odd): `inRing`'s crossing count over the edges of the point's band only. */
+const inRing = (x: number, y: number, P: Ring, e: Edges): boolean => {
   let c = false;
-  for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < ((P[j][0] - P[i][0]) * (y - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+  const band = e.bands[Math.floor((y - e.y0) / BAND)];
+  if (!band) return false;
+  for (const i of band) {
+    const j = i === 0 ? P.length - 1 : i - 1;
+    if ((P[i]![1] > y) !== (P[j]![1] > y) && x < ((P[j]![0] - P[i]![0]) * (y - P[i]![1])) / (P[j]![1] - P[i]![1]) + P[i]![0]) c = !c;
+  }
   return c;
 };
-const inside = (rings: Ring[], x: number, y: number): boolean => rings.reduce((n, P) => n + (inRing(x, y, P) ? 1 : 0), 0) % 2 === 1;   // even-odd: a ring's hole is outside
 /** Organ-names.js boxOn: a vertex of the outline inside the box, or a point of a 5 by 3 grid over the box inside the outline. */
-const boxOn = (rings: Ring[], b: Box): boolean => {
-  for (const P of rings) for (const [x, y] of P) if (x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1) return true;
-  for (let i = 0; i <= 4; i++) for (let j = 0; j <= 2; j++) if (inside(rings, b.x0 + ((b.x1 - b.x0) * i) / 4, b.y0 + ((b.y1 - b.y0) * j) / 2)) return true;
+const boxOn = (rings: Ring[], bounds: Box[], edges: Edges[], b: Box): boolean => {
+  const near: number[] = [];
+  rings.forEach((_, i) => { const r = bounds[i]!; if (r.x1 >= b.x0 && r.x0 <= b.x1 && r.y1 >= b.y0 && r.y0 <= b.y1) near.push(i); });   // (a ring the box does not meet has no vertex in it and no point of it inside the ring)
+  if (!near.length) return false;
+  for (const k of near) for (const [x, y] of rings[k]!) if (x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1) return true;
+  for (let i = 0; i <= 4; i++) for (let j = 0; j <= 2; j++) {
+    const x = b.x0 + ((b.x1 - b.x0) * i) / 4, y = b.y0 + ((b.y1 - b.y0) * j) / 2;
+    let n = 0;
+    for (const k of near) if (inRing(x, y, rings[k]!, edges[k]!)) n++;
+    if (n % 2 === 1) return true;   // (even-odd: a ring's hole is outside)
+  }
   return false;
 };
 
 /** Whether a caption's box (canvas px) lies on an organ other than its own (organ-names.js onOtherOrgan, on the screen). */
 export function onOtherOrgan(name: string, sil: Silhouettes, b: Box): boolean {
   const own = famOf(organOfName(name));
-  for (const id of OTHER) if (famOf(id) !== own && boxOn(sil.rings.get(id) ?? [], b)) return true;
+  for (const id of OTHER) if (famOf(id) !== own && boxOn(sil.rings.get(id) ?? [], sil.bounds.get(id) ?? [], sil.edges.get(id) ?? [], b)) return true;
   return false;
 }
 

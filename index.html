@@ -106,8 +106,8 @@
     #boot[data-name] .boot-name { opacity: 1; animation: none; }
     #boot[data-name="fallback"] .boot-name { font-family: Georgia, "Times New Roman", serif; }
     /* the wait bar: sliding while nothing is known; once the build's byte total and the bytes that arrived are (data-det), it fills, easing its width (a scale, never a jump), and the sliding one fades out */
-    #boot .boot-prog { display: flex; flex-direction: column; width: 140px; margin-top: 4px; }
-    #boot .boot-bar { position: relative; width: 140px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,.08); background: color-mix(in srgb, var(--bt) 14%, transparent); opacity: 0; animation: boot-bar-in 240ms ease 1.2s forwards; }
+    #boot .boot-prog { display: flex; flex-direction: column; width: 172px; margin-top: 4px; }
+    #boot .boot-bar { position: relative; width: 172px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,.08); background: color-mix(in srgb, var(--bt) 14%, transparent); opacity: 0; animation: boot-bar-in 240ms ease 1.2s forwards; }
     #boot .boot-bar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--bt3); animation: boot-slide 1.2s ease-in-out infinite; transition: opacity 300ms ease; }
     #boot .boot-bar b { position: absolute; inset: 0; border-radius: 3px; background: var(--bt3); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); opacity: 0; transition: transform 600ms cubic-bezier(.2,.8,.2,1), opacity 300ms ease; }
     #boot[data-det] .boot-bar i { opacity: 0; }
@@ -115,8 +115,12 @@
     /* the stage and the percent under the bar (splash style D, 22 Nov): the stage in words on the left, the percent on the right in tabular digits, in the cover's own tokens */
     #boot .boot-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; height: 16px; font: 400 12px/16px var(--ui, system-ui, -apple-system, "Segoe UI", Arial, sans-serif); opacity: 0; transition: opacity 240ms ease; }
     #boot[data-det] .boot-row { opacity: 1; }
-    #boot .boot-stage { color: var(--bt3); white-space: nowrap; transition: opacity 160ms ease; }
-    #boot .boot-stage[data-swap] { opacity: 0; }
+    #boot .boot-stage { display: grid; color: var(--bt3); white-space: nowrap; }
+    #boot .boot-stage > span { grid-area: 1 / 1; }
+    #boot .boot-stage > .o { animation: boot-stage-out 160ms ease forwards; }
+    #boot .boot-stage > .n { animation: boot-stage-in 200ms ease 140ms backwards; }
+    @keyframes boot-stage-out { to { opacity: 0; } }
+    @keyframes boot-stage-in { from { opacity: 0; } }
     #boot .boot-pct { color: var(--bt); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 3.4ch; text-align: right; }
     #boot .boot-msg { max-width: min(520px, calc(100vw - 32px)); margin: auto 16px; padding: 22px 24px; border-radius: 14px; background: color-mix(in srgb, var(--bt) 8%, var(--bg, #fff)); color: var(--bt); box-shadow: 0 6px 30px rgba(0,0,0,.12); font: 400 15px/1.5 var(--ui, system-ui, -apple-system, "Segoe UI", Arial, sans-serif); text-align: left; animation: boot-msg-in 240ms cubic-bezier(.2,.8,.2,1) both; }
     #boot .boot-msg.leaving { opacity: 0; transition: opacity 160ms ease; animation: none; }
@@ -135,7 +139,7 @@
     /* a note comes in over 240 ms (the cover's own curve) rising 4 px; Reduce Motion gets the fade only */
     @keyframes boot-msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
     @keyframes boot-msg-fade { from { opacity: 0; } to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { #boot .boot-bar i, #boot .boot-msg code { animation: none; } #boot .boot-bar b, #boot .boot-bar i, #boot .boot-name { transition: none; } #boot .boot-stage { transition-duration: 1ms; } #boot .boot-msg { animation-name: boot-msg-fade; } }
+    @media (prefers-reduced-motion: reduce) { #boot .boot-bar i, #boot .boot-msg code { animation: none; } #boot .boot-bar b, #boot .boot-bar i, #boot .boot-name { transition: none; } #boot .boot-stage > .o, #boot .boot-stage > .n { animation-duration: 1ms; animation-delay: 0s; } #boot .boot-msg { animation-name: boot-msg-fade; } }
   </style>
 </head>
 <body>
@@ -173,11 +177,11 @@ function sample(){var pe=w.performance;if(!pe||!pe.getEntriesByType)return;var e
 var SHARE={started:.55,engine:.66,scene:.78,compile:.9,'first-draw':.94,labels:.96},CREEP_MS=2500;
 w.ppsBootStage=function(s){var f=SHARE[s];if(f&&f>stageF){stageF=f;stageAt=now();stageKey=s}};
 function progress(t){if(!total)return 0;if(!startedAt)return bytes?.55*Math.min(1,bytes/total):0;if(stageF<SHARE.started){stageF=SHARE.started;stageAt=startedAt;stageKey='started'}var nx=1,k;for(k in SHARE)if(SHARE[k]>stageF&&SHARE[k]<nx)nx=SHARE[k];if(nx>.96)nx=.97;return stageF+(nx-stageF)*.85*(1-Math.exp(-(t-stageAt)/CREEP_MS))}
-/* The words under the bar (style D): the stage the start has reached, in plain words, and the percent. The percent follows the bar, never goes down, and is 100 only when the cover lifts. A new stage name crosses over (fades out, the words change, fades in), it never snaps. */
-var NAMES={bytes:'Getting ready',started:'Starting the engine',engine:'Building the figure',scene:'Polishing the look',compile:'Drawing the figure','first-draw':'Placing the labels',labels:'Almost there'},shown='',pct=0,stageKey='bytes';
+/* The words under the bar (style D): the stage the start has reached, in plain words, and the percent. The percent follows the bar, never goes down, and is 100 only when the cover lifts. A new stage name crosses over (the old words fade out as the new fade in, both written at once and faded by CSS alone, so a busy main thread can never leave the line empty), it never snaps. */
+var NAMES={bytes:'Getting ready',started:'Starting <b><i>Hales Engine</i></b>',engine:'Building the figure',scene:'Polishing the look',compile:'Drawing the figure','first-draw':'Placing the labels',labels:'Almost there'},shown='',pct=0,stageKey='bytes';
 w.ppsBootStageName=function(){return NAMES[stageKey]};
 function words(el){var st=el.querySelector&&el.querySelector('.boot-stage'),pc=el.querySelector&&el.querySelector('.boot-pct');if(pc){var p=Math.min(frac>=1?100:99,Math.floor(frac*100));if(p>pct)pct=p;pc.textContent=pct+'%'}
-if(st&&NAMES[stageKey]!==shown){var t=NAMES[stageKey],first=shown==='';shown=t;if(first||still()){st.textContent=t}else{st.setAttribute('data-swap','1');setTimeout(function(){st.textContent=t;st.removeAttribute('data-swap')},170)}}}
+if(st&&(NAMES[stageKey]!==shown||!st.innerHTML)){var t=NAMES[stageKey],was=st.innerHTML?shown:'';shown=t;st.innerHTML=was===''||still()?'<span>'+t+'</span>':'<span class="o">'+was+'</span><span class="n">'+t+'</span>'}}
 function bar(f){var el=document.getElementById('boot');if(!el||!el.style||!el.style.setProperty)return;if(f<frac)f=frac;frac=f;el.setAttribute('data-det','1');el.style.setProperty('--p',String(Math.round(f*1000)/1000));words(el)}
 function offlineNow(){var n=navigator;return n.onLine===false&&!(n.serviceWorker&&n.serviceWorker.controller)}
 function tick(){w.ppsBootTimer=0;if(w.ppsBootReady)return;sample();var t=now();if(!startedAt&&w.ppsBootStarted)startedAt=t||1;

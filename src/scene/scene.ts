@@ -199,7 +199,7 @@ export class CelScene {
   readonly catheter: Catheter;
   /** Every device a procedure puts on the figure (B5): the catheters on their routes, the stent, the tamponade tube, bands. */
   readonly procs: ProcedureLayer;
-  /** The Tests card's devices on the figure (B11): the Doppler probe, the FibroScan probe, the endoscope with its ligator cap and EUS needle. */
+  /** The Tests card's devices on the figure (B11): the Doppler probe, the FibroScan probe, the endoscope with its EUS needle. */
   readonly probes: ProbeLayer;
   readonly highlight: Highlight;
   /** The organs a slide outlines (and the normal spleen's line). */

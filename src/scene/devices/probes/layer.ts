@@ -1,4 +1,4 @@
-// The Tests devices on the figure (B11): the Doppler probe, the FibroScan probe and the endoscope with its ligator cap and EUS needle. They follow `useProbes` (state.ts; bind-tests.ts keeps it in step with the
+// The Tests devices on the figure (B11): the Doppler probe, the FibroScan probe and the endoscope with its EUS needle. They follow `useProbes` (state.ts; bind-tests.ts keeps it in step with the
 // Tests card), ease in and out, and leave when the figure goes to the Circuit (like the other devices). `update` is called from the scene's frame and answers whether it needs another.
 import { Box3, Group, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';

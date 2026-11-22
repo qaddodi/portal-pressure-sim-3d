@@ -5,7 +5,7 @@ import { NEEDLE_POINT } from '../src/scene/devices/probes/scope.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { Box3, Vector3 } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { PALETTES } from '../src/scene/palette.ts';
@@ -19,6 +19,7 @@ import { ProbeLayer } from '../src/scene/devices/probes/layer.ts';
 import { useProbes } from '../src/scene/devices/probes/state.ts';
 import { bindTests } from '../src/scene/devices/probes/bind-tests.ts';
 import { useTests } from '../src/ui/tests/store.ts';
+import { useScope } from '../src/ui/tests/endo/scope-state.ts';
 import { len3 } from '../src/scene/frame2d.ts';
 
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -71,10 +72,9 @@ test('the Doppler gate stands where 2D puts it: the vessel\'s middle, the hepati
   assert.ok(a && b && a.gate.distanceTo(b.gate) > 0.01, 'two thirds of a stent are two places');
 });
 
-test('the scope\'s way runs in at the top, down the esophagus and through the cardia: the band\'s place, the hepatic vein\'s station, the cardia, the portal vein\'s station, in that order', () => {
+test('the scope\'s way runs in at the top, down the esophagus and through the cardia: the plain scope\'s place, the hepatic vein\'s station, the cardia, the portal vein\'s station, in that order', () => {
   const w = scopeWay();
   assert.ok(w.total > 400);
-  assert.ok(workD('band', 'pv') < workD('eus', 'hv'), 'the lowest band is above the hepatic vein\'s station');
   assert.ok(workD('scope', 'pv') < w.cardiaD && workD('scope', 'pv') < workD('eus', 'hv') && workD('scope', 'pv') < workD('eus', 'pv'), 'the plain scope stops in the oesophagus, above the cardia (owner, 20 Nov 2026)');
   assert.equal(workD('eus', 'pv'), w.total);
   const end = w.at(w, w.total).p, st = EUS_STATIONS.pv.at;
@@ -127,7 +127,7 @@ test('a new vessel eases the probe out and in at its new place; a new organ does
 
 test('the EUS scope bends to aim, fans its sector and puts the needle out, in that order, and the station changes pull it back first', () => {
   const sc = new EndoScope(createShared());
-  const step = (ms: number, mode: 'scope' | 'band' | 'eus' = 'eus', station: 'pv' | 'hv' = 'pv') => { for (let t = 0; t < ms; t += 16) sc.update(16, true, mode, station); };
+  const step = (ms: number, mode: 'scope' | 'eus' = 'eus', station: 'pv' | 'hv' = 'pv') => { for (let t = 0; t < ms; t += 16) sc.update(16, true, mode, station); };
   step(Math.ceil((scopeWay().total / SCOPE_SPEED) * 1000) + 400);
   assert.ok(Math.abs(sc.d - scopeWay().total) < 1e-6);
   assert.ok(sc.aim > 0, 'the bend has begun');
@@ -142,14 +142,30 @@ test('the EUS scope bends to aim, fans its sector and puts the needle out, in th
   sc.dispose();
 });
 
-test('the band ligator\'s cap goes on only in the band job', () => {
+test('banding adds nothing to the scope and never moves it: no ligator cap, no ring, no band mode, no band press that touches the scope (owner, 22 Nov 2026)', () => {
+  // the scope's parts: the tube, the bending section, the tip, the lens, the needle, the transducer's face, port and array, two lights and the channel, the two ripples, the flashback and the sheath. No cap, no band ring.
   const sc = new EndoScope(createShared());
-  for (let t = 0; t < 6000; t += 16) sc.update(16, true, 'band', 'pv');
-  assert.equal(sc.cap, 1);
-  assert.ok(Math.abs(sc.d - workD('band', 'pv')) < 1e-6);
+  assert.equal(sc.parts.length, 11 + 2 + 1 + 1, 'no ligator cap and no band ring among the scope\'s parts');
   for (let t = 0; t < 6000; t += 16) sc.update(16, true, 'scope', 'pv');
-  assert.equal(sc.cap, 0);
+  const d = sc.d, tip = sc.pose.tip.clone();
+  assert.ok(Math.abs(d - workD('scope', 'pv')) < 1e-6, 'the plain scope stands at its own place');
+  assert.equal((sc as unknown as { cap?: number }).cap, undefined, 'the scope has no cap to ease');
   sc.dispose();
+  // the sources carry no band mode, no cap and no ring on the scope
+  const read = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
+  for (const f of ['../src/scene/devices/probes/scope.ts', '../src/scene/devices/probes/state.ts', '../src/scene/devices/probes/bind-tests.ts']) {
+    assert.doesNotMatch(read(f), /'band'|bandD|bandBuf|capBuf|bandTick/, `${f}: no band mode, band place, cap or ring on the scope`);
+  }
+  // pressing Band (the model's bands changing) leaves the endoscope exactly as it was
+  const off = bindTests(), T = useTests.getState();
+  T.show('endoscopy');
+  const before = { ...useProbes.getState().endoscope };
+  assert.equal(before.mode, 'scope');
+  useScope.getState().setBands(2); useScope.getState().setBands(3);
+  assert.deepEqual(useProbes.getState().endoscope, before, 'the endoscope\'s state is the same after the bands apply');
+  assert.equal((useScope.getState() as unknown as { band?: unknown; bandTick?: unknown }).band, undefined, 'no band press reaches the scope');
+  assert.equal(workD('scope', 'pv'), d, 'and its work place is unchanged');
+  void tip; off(); T.close();
 });
 
 test('the Tests card drives the devices: Doppler, FibroScan (with the exam\'s organ) and Endoscopy put theirs on the figure, and closing the card takes it off', () => {

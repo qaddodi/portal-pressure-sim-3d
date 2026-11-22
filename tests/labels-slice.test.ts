@@ -166,6 +166,21 @@ test('the figure key stands where the 2D app docks it, clear of every label, and
   }
 });
 
+test('the key belongs to its slide: a slide with no key withdraws it at once, while the camera is still in flight, and it is gone with the slide (Mohammad, 22 Nov: "the lens legend sticks around when going from slide to slide")', () => {
+  for (const screen of Object.keys(SCREENS) as (keyof typeof SCREENS)[]) {
+    const h = harness(screen, 3);
+    h.ctl.setState({ ...NO_STATE, named: h.lab.named, cath: h.lab.cath, key: 'velocity' });
+    h.ctl.setKeyNatural(180, 30); h.ctl.setKeySize(180, 30);
+    h.settle();
+    assert.ok(h.ctl.out.some((d) => d.kind === 'key' && d.alpha > 0.99), `${screen}: the key stands`);
+    // the next slide has no key, and its camera is on the move (a slide change always moves it): the key must not wait for the picture to come to rest
+    h.setMoving(true);
+    h.ctl.setState({ ...NO_STATE, named: new Set(), cath: null, key: null });
+    h.settle(600);
+    assert.ok(!h.ctl.out.some((d) => d.kind === 'key'), `${screen}: the key eased out within 600 ms of the slide that has none, camera still moving`);
+  }
+});
+
 test('the organs\' names (Figure > Labels) stand in the view, clear of the cards and of one another, on every screen and every slide', () => {
   let most = 0;
   for (const screen of Object.keys(SCREENS) as (keyof typeof SCREENS)[]) {

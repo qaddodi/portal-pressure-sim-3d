@@ -74,9 +74,9 @@ test('no bleed is drawn when it has eased out; the overlays ease in and land at 
 
 test('the scope store tells the scene devices what the tab is doing', () => {
   const s = useScope.getState();
-  s.setActive(true); s.setBands(3); s.band(); s.setEus('run', 2);
+  s.setActive(true); s.setBands(3); s.setEus('run', 2);
   const n = useScope.getState();
-  assert.deepEqual([n.active, n.bands, n.bandTick, n.eus, n.step], [true, 3, 1, 'run', 2]);
+  assert.deepEqual([n.active, n.bands, n.eus, n.step], [true, 3, 'run', 2]);
   s.setActive(false); s.setEus('idle');
   assert.equal(useScope.getState().eus, 'idle');
   assert.equal(useScope.getState().step, -1);

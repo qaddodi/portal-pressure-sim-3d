@@ -5,8 +5,8 @@ import { FAN_TIP_FROM, fanCaps, fanLensRanges, fanTips } from './feeder-fan.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
-import { coilCourses, type Pin } from './coil.ts';
-import { NETWORK, NETWORK_BY_ID, NODE_Z, SVC_TRIBUTARY_IDS, cutEnd, type NetVessel } from './network.ts';
+import { WEAVE, coilCourses, type Pin } from './coil.ts';
+import { NETWORK, NETWORK_BY_ID, NODE_Z, SEGMENT_OF, SVC_TRIBUTARY_IDS, cutEnd, type NetVessel } from './network.ts';
 import { LIVER_BRANCH_HOSTS, SPLIT_AT, TIP } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
@@ -42,6 +42,8 @@ const narrowTo = (v: NetVessel, end: 0 | 1): number => {
 export const VARIX_THICK = 1.22;
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
+/** Whether end `e` of vessel `id` is the outer end of its segment (it meets another vessel, not its own other half): true for a vessel that is not in a segment. */
+export const outerEnd = (id: string, e: 0 | 1): boolean => { const seg = SEGMENT_OF.get(id); return !seg || (e === 0 ? seg[0] === id : seg[seg.length - 1] === id); };
 /** How far strand `i` of `n` has opened at the varix's spread `spr` (coil.ts varixSpreadK: 0.55 for a resting vein to 1 for a full varix), 0 to 1: the strands open one after another (V2, Mohammad 22 Nov), the last of the list first (the bands close the first), each over
  *  45% of the growth, and never all at once; a full varix has them all open, as at rest. */
 export const strandOpen = (i: number, n: number, spr: number): number => {
@@ -252,11 +254,17 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     if (sewn) taper = [Math.min(taper?.[0] ?? 1, endShare(sewn[0], rad)), Math.min(taper?.[1] ?? 1, endShare(sewn[1], rad))];
     // (the paraumbilical vein ends in the caput's hub, where the fan's roots start: it narrows over its last stretch to the widest root, so one round hub of their width, not a ball wider than every tube that leaves it)
     if (v.id === 'C3') { const hub = hubRootRadius(s); if (hub > 0 && rad > 0) taper = [taper?.[0] ?? 1, Math.min(taper?.[1] ?? 1, Math.min(1, hub / rad))]; }
+    // (THE BANDS NARROW THE SEGMENT, NOT ITS HANDOVERS: the coronary vein and the azygos are not banded, so the end of the segment that meets one keeps the width it meets it at, however many bands there are, and the strands' ends too: a band-narrowed end
+    //  met the coronary vein at 0.44 of its width and left its square cut end showing, Mohammad, 22 Nov: "coronary vein into varices look not welded". The station inside the segment narrows with both halves, as before.)
+    if (banded && rad > 0 && rad < v.radius) for (const e of [0, 1] as const) if (outerEnd(v.id, e) && !(s.pin && s.pin[e] > 0)) {   // (a held end, under a skin, already keeps its rest width: `held`)
+      const t: [number, number] = [taper?.[0] ?? 1, taper?.[1] ?? 1]; t[e] *= v.radius / rad; taper = t; }
     const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)
     if (bundle) own.radius = 0;
+    // (strands that wind round one axis meet on it: their union at a gathered end is one strand wide, so each is the trunk's whole width there; strands that part at once share it, coil.ts WEAVE)
+    const gathered = WEAVE[v.id] ? 1 : strands.length;
     const fit = bundle && FAN_IDS.has(v.id), thick = BANDED.has(v.id) ? VARIX_THICK : 1;
     const out = [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
@@ -272,7 +280,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
         ...(bundle && v.id !== 'C8' && own.sewn ? { sewn: own.sewn } : {}),
         ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: [true, true] as const } : {}),
         // (the ends keep the trunk's calibre however far a strand has closed (banded, or not yet open): a cord that met its trunk at the cord's own width left a step at the station of the one segment, where the azygos' drain begins at its full width)
-        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[0], strands.length), (own.taper?.[1] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[1], strands.length)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
+        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[0], gathered), (own.taper?.[1] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[1], gathered)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];

@@ -79,9 +79,13 @@
 .ac-switch { margin-left: auto; position: relative; width: 34px; height: 20px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 18%, transparent); transition: background-color var(--d-flip) var(--ease-arrive); }
 .ac-switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.3); transition: transform var(--d-flip) var(--ease-arrive); }
 .ac-switch[data-on] { background: var(--accent); } .ac-switch[data-on] i { transform: translateX(14px); }
-.ac-seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
-.ac-seg button { flex: 1 1 0; min-width: 0; padding: 5px 8px; border: 0; border-radius: var(--r-control); background: none; color: var(--text-2); font-size: var(--t-cap); font-weight: 600; white-space: nowrap; }
-.ac-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.14), 0 0 0 0.5px var(--edge); }
+/* A two-way (or three-way) choice is told by weight, not by a pill (layout M1, owner 22 Nov 2026; docs/HUMANIZED-DESIGN.md): plain words, the chosen one heavier and darker, the others quiet. The heavy word's width is kept
+   by both (data-t), so choosing moves nothing. The same look serves the stent editor's choice (stent/stent-editor.css) and the stent chart's switch (charts/stent/stent.css). */
+.ac-seg { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.ac-card .ac-seg.ac-seg button { position: relative; display: inline-flex; flex-direction: column; align-items: center; flex: none; min-width: 0; min-height: 28px; padding: 0; border: 0; background: none; color: var(--text-3); font-size: var(--t-cap); font-weight: 500; line-height: 28px; white-space: nowrap; }
+.ac-card .ac-seg.ac-seg button::before { content: attr(data-t); height: 0; overflow: hidden; visibility: hidden; font-weight: 600; }
+.ac-card .ac-seg.ac-seg button::after { content: ''; position: absolute; inset: -8px -4px; }   /* (28 px to see, 44 px to tap) */
+.ac-card .ac-seg.ac-seg button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
 /* the actions: the app's icon and one word, in the accent; taking a device out (Remove) in red at the right */
 .ac-as { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; min-width: 0; margin-top: 6px; }
 .ac-cs + .ac-as { margin-top: 6px; }

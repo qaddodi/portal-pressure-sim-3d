@@ -5,13 +5,14 @@ import { EDGE_PATH_2D } from './paths.copied.ts';
 import { NETWORK_BY_ID } from './network.ts';
 import { firstPiece } from '../procedures/copied/part-names.js';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
+import { PINCH_K, PINCH_W } from './glsl-shared.ts';
 
 /** The portal trunk's first stretch, at the confluence (the trunk is cut where the coronary vein joins it). */
 export const PV_START: string = firstPiece('PV_TRUNK') as string;
 /** [shunt, the vein it divides] (2D LIGATED). */
 export const DIVIDED: readonly (readonly [string, string])[] = [['S_DSR', 'SV_MID'], ['S_PC', PV_START]];
 /** The tie's pinch (suture-marks.js PINCH_K, PINCH_W) and where the tie sits on a stump cut `cut` long on a vein `len` long (stumpCentre). */
-export const PINCH_K = 0.2, PINCH_W = 5.5;
+export { PINCH_K, PINCH_W };
 export const stumpCentre = (cut: number, len: number): number => Math.min(cut + 5, len * 0.6) + 4;
 const WALL = 1;   // (2D's wallPx: the outline's width on each side of a vessel)
 
@@ -54,6 +55,9 @@ export function divideOf(shunt: string, vein: string): Divide | null {
   memo.set(key, out);
   return out;
 }
+/** Where a ring at arc `a` (figure units from the vein's start) is laid when the stretch is divided: the vein's first `cut + R` units, the cut and the round end's one radius, are laid over the cap (`cut` to `cut + R`), ring by ring, so the quarter circle
+ *  is made of every ring the stretch has and not of the few that lay in it (the vertex stage's own sum: shaders.ts, "THE STUMP'S ROUND END"). Past `cut + R` a ring stays where it is. */
+export const capArc = (a: number, cut: number, R: number): number => (cut > 0 && a < cut + R ? cut + R * (a / (cut + R)) : a);
 /** What the shader gets for one divided vein: the cut and the tie in units, the pinch share; `amount` is the shunt's drawing (0..1), `keepWhole` a side-to-side portocaval shunt. */
 export function stumpOf(shunt: string, vein: string, amount: number, keepWhole: boolean): [number, number, number] {
   const d = divideOf(shunt, vein);

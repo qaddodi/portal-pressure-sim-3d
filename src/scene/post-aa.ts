@@ -17,6 +17,15 @@ export function aaMode(search: string = typeof location === 'undefined' ? '' : l
   return v === 'msaa' || v === 'off' ? v : 'fxaa';
 }
 
+/** The depth and stencil the canvas itself is made with. With the pass on the figure is drawn into the pass's own target (which has both), so the canvas keeps neither (about 12 MB less on a 3x phone).
+ *  Any page that can ever draw straight to the canvas keeps both: `?aa=msaa` and `?aa=off`, and a page with the inspector (`?inspect`), whose "Anti-aliasing pass" switch turns the pass off LIVE, on a
+ *  canvas made with the pass on: with none, every depth test passed and the stencil was a no-op, so the vessels drew in list order (the artery over the portal vein, the IVC through it) and the chevrons'
+ *  outlines doubled. The look with the pass off must be the look with it on, edges aside. */
+export function canvasBuffers(mode: AaMode, inspector: boolean): { depth: boolean; stencil: boolean } {
+  const need = mode !== 'fxaa' || inspector;
+  return { depth: need, stencil: need };
+}
+
 export const AA_VS = /* glsl */ `
 varying vec2 vUv;
 void main() {
