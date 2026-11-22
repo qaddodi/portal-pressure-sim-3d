@@ -283,3 +283,11 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 /* A value's pill gives up its own padding beside punctuation (21 Nov): the pill's .45em side room read as a space, "2.2 g/dL ." and "( 59.4 kPa )". The stop (or bracket) sits at the pill's edge. */
 .pz-stop > :is(.pz-val, .pz-term) { padding-inline-end: .2em; margin-inline-end: .02em; }
 .pz-open > :is(.pz-val, .pz-term), .pz-open > .pz-nw > .pz-val { padding-inline-start: .2em; }
+
+/* Words that are "not yet" or "earlier" are dimmed by COLOUR, never by opacity (22 Nov, the Mac audit): the HVPG tracing's reading steps (FHVP, WHVP, HVPG and their 1 2 3 dots) stood at 55% opacity, 3.24:1 on the card;
+   the ghost reading beside a live one at 70%. Opacity thins the ink toward the paper, so no token could pass; a text token on its surface always does (--text-3 is 4.8:1 or more in every look,
+   tests/dimmed-words.test.ts). The ease is the colour's own. The step's ring and fill keep their own borders (they are not words). */
+:root .mon-steps li { opacity: 1; color: var(--text-3); transition: color var(--d-small) var(--ease); }
+:root .mon-steps li[data-state="done"] { color: var(--text-2); }
+:root .mon-steps li[data-state="now"] { color: var(--text); }
+:root .pz-ghost b { opacity: 1; color: var(--text-2); }
