@@ -21,11 +21,15 @@ float celTubeHw(float rDev) { return smoothstep(1.0, 2.0, rDev); }
 // the lens colour made saturated and deep (a pale end of a ramp is darkened, its hue kept): the one flat base every tone is cut from
 float celTubeLum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 // (tubeDark: 1 on the dark looks (Dark, Navy, Black), the brighter caps; declared once by the program that includes this: vessels/shaders.ts, materials/shaders.ts)
+// tubeRawK: how much of the colour about to be made is AUTHORED AS DRAWN (the pressure ramp, lenses/pressure-ramp.ts): 0 for every other colour (a lens's 2D ramp, an artery, the tone colours), 1 where the lens colour is the
+// pressure ramp. Each program sets it where it mixes the lens colour into base (vessels/shaders.ts, skin/shaders.ts, blood/cells/shader.ts: la.a x lensRawA, lb.a x lensRawB, crossfaded by lensMix, so a lens switch eases
+// from the transform to the raw colour with the colours themselves and nothing pops). celTubeBase reads it, so every consumer (tone, ink, dust, heads, streaks, glow) agrees.
+float tubeRawK = 0.0;
 vec3 celTubeBase(vec3 b) {
   float l = celTubeLum(b);
   vec3 c = clamp(mix(vec3(l), b, 1.5), 0.0, 1.0);
   float lcap = mix(0.62, 0.82, tubeDark), vcap = mix(0.78, 0.96, tubeDark);
-  return c * min(min(1.0, lcap / max(celTubeLum(c), 1e-3)), vcap / max(max(c.r, max(c.g, c.b)), 1e-3));
+  return mix(c * min(min(1.0, lcap / max(celTubeLum(c), 1e-3)), vcap / max(max(c.r, max(c.g, c.b)), 1e-3)), b, tubeRawK);
 }
 // the fill: TWO flat tones across the tube, matte and opaque: the saturated base on the lit side, a hue-preserving darker step (a touch more saturated) on the other, one hard edge EDGE_PX device px across between them at
 // VESSEL_STEP_AT. No highlight, no rim, no translucency. s the lit-side measure (n.L against the world light, celLightView), sw its change per device pixel (fwidth(s), taken
@@ -95,6 +99,8 @@ uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
@@ -145,7 +151,15 @@ uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
 varying float vW;
 varying float vR;
-varying float vU;
+// ONE packed varying (a phone's floor is 15 vectors, and every one counts): x vU, the figure's units in one scene unit here (300 on the body, 1 / MAP_K on the map, the Circuit share of this vertex); y vArcLen, the vessel's
+// length along the course it is drawn on now (the body course's len at rest, the map course's cl.y in the Circuit, by the same share); z vR0, the lumen's half width before a stenosis or the stent's waist pinches it (figure units:
+// the stent's cells and bare length are sized from it); w vSkew, the stent's wires' shift along the tube here (figure units: the lateral offset in the map's plane times the bend turned since the stent began, so a cell keeps
+// its length round a corner). Named by macros, so every use reads as before.
+varying vec4 vUp;
+#define vU vUp.x
+#define vArcLen vUp.y
+#define vR0 vUp.z
+#define vSkew vUp.w
 float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
   float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
@@ -656,9 +670,13 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
 }
 // the flow heads' tone on a vessel under one lens set (1 cream .. 0 dark ink): the vessel's latched, eased ink from the fifth row of the colour texture (lenses/chevron-ink.ts) where the lens runs a colour along it (la.a, a set of
 // colours and not lanes), else the short eased step on the colour it is drawn in
-float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
+float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col, float raw) {
   if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(idx), 4), 0).r);
-  return chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
+  float rawKeep = tubeRawK;
+  tubeRawK = la.a * raw;   // (this set's colour is the pressure ramp: drawn as authored, cel-glsl.ts tubeRawK)
+  float cr = chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
+  tubeRawK = rawKeep;
+  return cr;
 }
 // the dust's frame for one vessel at this pixel (blood/dust-glsl.ts DFrame): fr the section frame (dustFrame), and the gate it shows by (the streak amount, the flow, the lumen's width), returned; rev its stream's eased reversed flag
 float flowFrame(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, float vUn, out DFrame F, out float rev) {
@@ -703,7 +721,7 @@ vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float w
   float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
   // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one. The tone is the VESSEL's own latched, eased value (lenses/chevron-ink.ts), read from the lens texture's fifth row
   float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-  float cream = mix(chevCreamOf(la, lensGradA, lensModeA, lensI, col), chevCreamOf(lb, lensGradB, lensModeB, lensI, col), lensMix);
+  float cream = mix(chevCreamOf(la, lensGradA, lensModeA, lensI, col, lensRawA), chevCreamOf(lb, lensGradB, lensModeB, lensI, col, lensRawB), lensMix);
   vec3 core = mix(mix(chevInk(cream, markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
   float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
   return vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ac + ar * (1.0 - ac));   // (the head's outline is always the dark ink: a flat head with a dark line, never a pale ring)
@@ -738,7 +756,7 @@ void main() {
   vec3 sideD = cross(normalize(vT), normalize(vV));
   float sideDL = length(sideD);
   sideD = sideDL > 1e-4 ? sideD / sideDL : vec3(1.0, 0.0, 0.0);
-  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * len * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
+  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * vArcLen * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
   lensAcrossFw = fwidth(dot(nD, sideD) * 0.5 + 0.5);
   // (the stent crowns, the suture dashes and the smoke below each want one more: the across angle's, the raw across's and the smoke's own, taken here for the same reason)
   float acrossD = dot(nD, sideD), fwAcr = fwidth(acrossD), fwTh = fwidth(asin(clamp(acrossD, -0.999, 0.999)));
@@ -786,6 +804,7 @@ void main() {
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
+  tubeRawK = mix(la.a * lensRawA, lb.a * lensRawB, lensMix);   // (the pressure ramp is authored as drawn: cel-glsl.ts tubeRawK)
 
   // the fill: exactly TWO flat tones, lit by the one world light (cel-glsl.ts: the base, a hard edge EDGE_PX device px across, the shade, no gradient), so two pieces of one vein shade alike at their join and a turned camera
   // changes nothing; no rim, no highlight. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
@@ -814,6 +833,7 @@ void main() {
     if (cavaCut < 1.5) {
       vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
       base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+      tubeRawK = mix(tubeRawK, mix(la2.a * lensRawA, lb2.a * lensRawB, lensMix), wB);
       float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
@@ -907,30 +927,35 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
+    float rawKeep = tubeRawK;
+    tubeRawK = mix(laH.a * lensRawA, lbH.a * lensRawB, lensMix);
     vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75);
+    tubeRawK = rawKeep;
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
-    float kS = stentU.x * circT, Lw = len * vU, s = vUv.x * Lw, un = max(vR, 0.3) / 12.0, s0 = stentU.y * Lw, sB = stentU.w * Lw, sE = stentU.z * Lw;
+    float kS = stentU.x * circT, Lw = vArcLen * vU, s = vUv.x * Lw, un = max(vR0, 0.3) / 12.0, s0 = stentU.y * Lw, sE = stentU.z * Lw, sB = s0 + stentU.w * vR0;
+    float sp = s - vSkew;
     float th = asin(clamp(across, -1.0, 1.0)), px = max(pxArc, 1e-4), cov = 0.0, gold = 0.0;
-    float bEnd = sB > s0 + 6.0 * un ? sB : sE - 1.2 * un, t0 = s0 + 1.2 * un;
+    bool hasG = stentU.w > 0.0 && sB > s0 + 6.0 * un && sB < sE - 4.0 * un;
+    float bEnd = hasG ? sB : sE - 1.2 * un, t0 = s0 + 1.2 * un;
     float Nb = max(1.0, floor((bEnd - t0) / (17.0 * un) + 0.5)), Pb = (bEnd - t0) / Nb, Ab = 0.5 * Pb;
-    float jb = floor((s - t0) / Pb);
+    float jb = floor((sp - t0) / Pb);
     for (int i = -1; i <= 1; i++) {
-      float j = jb + float(i), ok = (j < 0.0 || j >= Nb || s > bEnd + Ab) ? 0.0 : 1.0;
+      float j = jb + float(i), ok = (j < 0.0 || j >= Nb || sp > bEnd + Ab) ? 0.0 : 1.0;
       float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
       // (a wire's distance in SCREEN pixels, the distance over its own slope: a crown's steep flank stays one even line instead of breaking into dashes)
-      float dv = s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
+      float dv = sp - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
       cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ab * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pb, 0.7 * Pb, fwPx + 5.0 * Ab * fwTh)));
     }
-    if (sB > s0 + 6.0 * un) {
+    if (hasG) {
       float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
-      float jc = floor((s - c0) / Pc + 0.5);
+      float jc = floor((sp - c0) / Pc + 0.5);
       for (int i = -1; i <= 1; i++) {
         float j = jc + float(i), ok = (j < 0.0 || j > Kc) ? 0.0 : 1.0;
-        float dv = s - (c0 + j * Pc + Ac * cos(5.0 * th));
+        float dv = sp - (c0 + j * Pc + Ac * cos(5.0 * th));
         cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwPx + 5.0 * Ac * fwTh, 1e-5))) * (1.0 - smoothstep(0.35 * Pc, 0.7 * Pc, fwPx + 5.0 * Ac * fwTh)));
       }
       c = mix(c, vec3(1.0), 0.10 * kS * smoothstep(sB - px, sB + px, s));

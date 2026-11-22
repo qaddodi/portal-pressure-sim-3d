@@ -227,6 +227,8 @@ uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform vec4 armData[${SKIN_ARMS}];
@@ -457,6 +459,7 @@ void main() {
   if (sdPx > inkDev + 0.5 + seamPad) discard;   // (past the band: the mesh is a little wider than the union's line where the arms spread)
   // THE BODY COLOUR: each arm's lens colour at its seam's ramp position (the tube's own rule, the two lens sets crossfaded by lensMix), then the arms blended by weight: a gradient through the junction, the tube's colour on a seam
   vec3 base = vec3(0.0);
+  float rawAcc = 0.0;   // (the arms' as-drawn share, weighted as the colour is: cel-glsl.ts tubeRawK)
   vec4 laArm[${SKIN_ARMS}];
   vec4 lbArm[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -470,7 +473,9 @@ void main() {
     lb.a *= armColor[i].a;
     laArm[i] = la; lbArm[i] = lb;
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
+    rawAcc += wAt(i) * mix(la.a * lensRawA, lb.a * lensRawB, lensMix);
   }
+  tubeRawK = rawAcc;
 #ifdef GLOW
   // THE GLOW'S MASK (glow.ts, glow-fx.ts): the skin as it is drawn, weighted by the arms' blended pick weight, painted into the mask texture by max with the tubes' own: the junction is part of the one mask the blur turns into a halo
   {
