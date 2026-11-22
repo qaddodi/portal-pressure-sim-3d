@@ -5,11 +5,11 @@ import type { NodeReport } from './mesh.ts';
 
 const MAGIC = 0x4d54454e, VERSION = 7;
 
-/** A digest of the skeleton a mesh was baked from (FNV-1a over every bone's numbers, rounded to 1e-6 so a browser whose sin and cos differ from node's in the last bit still knows its own file, and every edge's and node's ids): the file is current when it matches. */
+/** A digest of the skeleton a mesh was baked from (FNV-1a over every bone's numbers, rounded to 1e-6 so a browser whose sin and cos differ from node's in the last bit still knows its own file (and a value that is +1e-17 here and -1e-17 there, which rounds to +0 and -0, hashes alike: the sign bit of a zero made the iPhone's digest differ from the build's in the top bit, 22 Nov), and every edge's and node's ids): the file is current when it matches. */
 export function skeletonDigest(skel: Skeleton): string {
   let h = 0x811c9dc5;
   const f64 = new Float64Array(1), u = new Uint32Array(f64.buffer);
-  const num = (x: number): void => { f64[0] = Math.round(x * 1e6); for (const w of u) { h ^= w; h = Math.imul(h, 0x01000193) >>> 0; } };
+  const num = (x: number): void => { f64[0] = Math.round(x * 1e6) || 0; for (const w of u) { h ^= w; h = Math.imul(h, 0x01000193) >>> 0; } };
   const str = (s: string): void => { for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } };
   for (const e of skel.edges) { str(e.id); str(e.from); str(e.to); num(e.bones[0]); num(e.bones[1]); }
   for (const n of skel.nodes) { str(n.id); for (const p of n.pos) p.forEach(num); for (const x of n.edges) { num(x.edge); num(x.end); } if (n.runOn) n.runOn.forEach(num); }

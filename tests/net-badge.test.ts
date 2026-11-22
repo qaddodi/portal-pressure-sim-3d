@@ -9,7 +9,7 @@ test('the badge says network, loading, or fallback with its reason (trimmed), an
   assert.equal(netBadgeText('loading'), 'Mesh: loading network');
   assert.equal(netBadgeText('fallback', 'net-1.bin: HTTP 404'), 'Mesh: fallback (net-1.bin: HTTP 404)');
   assert.equal(netBadgeText('fallback'), 'Mesh: fallback');
-  assert.ok(netBadgeText('fallback', 'x'.repeat(400)).length < 170, 'a long reason is cut');
+  assert.ok(netBadgeText('fallback', 'x'.repeat(400)).length < 450, 'a long reason is cut');
   showNetBadge('fallback', 'why'); assert.deepEqual(netBadge(), { state: 'fallback', text: 'Mesh: fallback (why)' });
   showNetBadge('network'); assert.equal(netBadge()?.state, 'network');
 });

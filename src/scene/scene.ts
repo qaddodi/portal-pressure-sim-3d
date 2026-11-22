@@ -635,7 +635,10 @@ export class CelScene {
       showNetBadge('network');
       // (a program the device refuses is drawn plain by the shader guard: the badge then says the network is not drawn as designed)
       const { onShaderFailure, shaderFailures } = await import('../debug/shader-fail.ts');
-      this.netFailOff = onShaderFailure(() => { const f = shaderFailures().at(-1); if (f) showNetBadge('fallback', `a shader was refused by this device, drawn plain: ${f.log.split('\n').find((l) => l.trim()) ?? f.kind}`); });
+      this.netFailOff = onShaderFailure(() => {
+        const f = shaderFailures().at(-1);
+        if (f && f.kind.startsWith('net')) showNetBadge('fallback', `the ${f.kind} shader was refused by this device, drawn plain: ${f.log.split('\n').filter((l) => l.trim()).slice(0, 3).join(' | ') || 'no log'}`);
+      });
     } catch (e) {
       // (a failure while the figure is built: the old tubes stay, and the badge says so rather than the page silently looking the same)
       console.warn('[?geom=net] the network figure failed to build; the old tubes stay', e);

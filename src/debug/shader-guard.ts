@@ -26,7 +26,7 @@ export function plainFor(m: ShaderMaterial): MeshBasicMaterial {
 }
 
 /** The kind a failure is filed under: a vessel's program has the `inkColor` uniform, the rest are named by the material or the mesh. */
-export const kindOf = (m: ShaderMaterial, mesh: Object3D): string => (m.name === 'skin' ? 'skin' : (m.uniforms as Record<string, unknown>).inkColor ? 'vessel' : m.name || mesh.name || 'scene');   // (a junction skin shares the vessels' ink uniform but is its own program)
+export const kindOf = (m: ShaderMaterial, mesh: Object3D): string => (m.name === 'skin' ? 'skin' : m.name.startsWith('net') ? m.name : (m.uniforms as Record<string, unknown>).inkColor ? 'vessel' : m.name || mesh.name || 'scene');   // (a junction skin shares the vessels' ink uniform but is its own program)
 
 /** `extras`: materials drawn outside the scene graph (the anti-aliasing pass's); one whose program is refused is told through its `userData.onFail`. */
 export function installShaderGuard(renderer: GuardRenderer, root: Object3D, after: () => void = () => undefined, extras: () => readonly Material[] = () => []): () => void {

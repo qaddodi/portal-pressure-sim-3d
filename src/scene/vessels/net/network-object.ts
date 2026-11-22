@@ -133,7 +133,7 @@ export class NetFigure {
     // the sewn pass: one point per (edge, end); its own copy of the uniforms has a blank sewn texture, because it writes the real one (a program may not sample the target it draws into)
     {
       const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * 2 * E), 3)); g.setAttribute('sewnId', new BufferAttribute(sewnPointIds(E), 1));
-      const m = new ShaderMaterial({ vertexShader: NET_SEWN_VS, fragmentShader: NET_SEWN_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...u, sewnTex: { value: blankTex } }, defines: vdbgDefines() });
+      const m = new ShaderMaterial({ name: 'net-sewn', vertexShader: NET_SEWN_VS, fragmentShader: NET_SEWN_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...u, sewnTex: { value: blankTex } }, defines: vdbgDefines() });
       this.geometries.push(g); this.materials.push(m);
       this.sewn = new Points(g, m); this.sewn.frustumCulled = false;
     }
@@ -159,14 +159,14 @@ export class NetFigure {
     if (capTarget) this.targets.push(capTarget);
     const own: Record<string, IUniform> = { ...u, regionTex: { value: regionTex }, keyTex: { value: keyTex }, capTex: { value: capTarget ? capTarget.texture : blankTex }, capRows: { value: Math.max(1, regions.length) } };
     // the two programs of the figure: the organs-pass copy (the program as it is: solidK) and the vessel-pass copy (VEIL: veilK)
-    const mk = (defines: Record<string, number>): ShaderMaterial => { const m = markBlends(new ShaderMaterial({ vertexShader: NET_VS, fragmentShader: NET_FS, precision: 'highp', side: DoubleSide, uniforms: own, defines: { ...defines, ...vdbgDefines() } })); setBlendState(m, true); this.materials.push(m); return m; };
+    const mk = (defines: Record<string, number>): ShaderMaterial => { const m = markBlends(new ShaderMaterial({ name: 'net', vertexShader: NET_VS, fragmentShader: NET_FS, precision: 'highp', side: DoubleSide, uniforms: own, defines: { ...defines, ...vdbgDefines() } })); setBlendState(m, true); this.materials.push(m); return m; };
     const meshes: Mesh[] = [];
     if (organs) { const a = new Mesh(organs, mk({})); a.name = `net:${name}:organs`; a.renderOrder = 0; a.frustumCulled = false; a.matrixAutoUpdate = true; a.layers.set(0); meshes.push(a); }
     const b = new Mesh(full, mk({ VEIL: 1 })); b.name = `net:${name}:vessels`; b.renderOrder = 1; b.frustumCulled = false; b.layers.set(VESSEL_LAYER); meshes.push(b);
     for (const m of meshes) { m.raycast = () => {}; this.group.add(m); }   // (the pick is the old tubes': the figure keeps them as the picking proxies)
     if (capTarget) {
       const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * regions.length * REGION_CAPS * REGION_PTS), 3)); g.setAttribute('capId', new BufferAttribute(capPointIds(regions.length), 1));
-      const m = new ShaderMaterial({ vertexShader: NET_CAP_VS, fragmentShader: NET_CAP_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...own, capTex: { value: blankTex } }, defines: vdbgDefines() });
+      const m = new ShaderMaterial({ name: 'net-capsules', vertexShader: NET_CAP_VS, fragmentShader: NET_CAP_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...own, capTex: { value: blankTex } }, defines: vdbgDefines() });
       this.geometries.push(g); this.materials.push(m);
       const p = new Points(g, m); p.frustumCulled = false; this.capPasses.push({ target: capTarget, points: p });
     }
