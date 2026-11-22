@@ -75,6 +75,13 @@ export const footReserve = (vp: Viewport) => (screenRadius(vp) > 0 ? CARD_INSET 
 /** How far the card's foot is lower than the safe-area rule had it (what things standing beside the pill follow). */
 export const footDrop = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8 - footReserve(vp);
 
+/** ONE geometry for the gaps between cards, strips, the pill and the screen's edges (Plan 37: several literals for one gap, some ignoring the safe areas, put the words over the data strip,
+ *  the data card over the words strip, the pill on the strip and a card under the home bar). Every top is `topEdge`, every bottom `footEdge`; the strip's lift and the cards' caps derive from them. */
+export const CARD_GAP = 8;   // least room between two cards, or a card and a strip
+export const PILL_GAP = 6;   // least room between a strip and the pill
+export const topEdge = (vp: Viewport, m: number): number => Math.max(m, vp.safe.top);
+export const footEdge = (vp: Viewport, m: number): number => vp.h - Math.max(m, vp.safe.bottom);
+
 export interface BarPlace { edge: 'foot' | 'card'; rect: Rect }
 /** Where the pill stands: lower right of a wide screen (2D `pzb-pill`), centred in the foot of the words' card on a phone, at its lower right on an upright iPad. */
 export function barOf(vp: Viewport): BarPlace {
@@ -94,6 +101,13 @@ export function barOf(vp: Viewport): BarPlace {
   const x = vp.w - Math.max(safe.right, cm) - w, y = vp.h - Math.max(cm, safe.bottom + 8) - BAR_H;
   return { edge: 'foot', rect: { x, y, w, h: BAR_H } };
 }
+
+/** The words strip an iPhone (or upright iPad) shows under its data card: its foot stands PILL_GAP above the Back / Next pill, whatever the credit row or the safe area make of the pill's place. */
+export function stripRect(vp: Viewport, x: number, w: number): Rect {
+  return { x, y: barOf(vp).rect.y - PILL_GAP - STRIP_H, w, h: STRIP_H };
+}
+/** The tallest the words card may be while the data card stands shut as a strip at the top: from CARD_GAP under the strip to the card's foot. */
+export const shutWordsCap = (bottom: number, dtop: number): number => bottom - (dtop + STRIP_H + CARD_GAP);
 
 /** The cards that stand alone in the middle of the screen (2D: the outline's and the quick check's `.pz-panel`, a case's `.pz-case`): they have no data card beside them and the page behind them is veiled.
  *  Measures are 2D's own CSS (styles app-04-presenter.css .pz-panel, .pz-case; app-05 .pz.stack .pz-panel), worked out from the screen. */
@@ -189,14 +203,17 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const x = Math.round(Math.max(lo, Math.min((vp.w - w) / 2, hi)));
     if (words && data) {
       const shown = active === 'data' ? data : words, other = shown === data ? words : data;
-      maxH.words = maxH.data = shufMaxH(vp.h, st.room);
+      // the wallet stands between the top safe edge and the home bar: its numbers are the 2D wallet's for a screen that tall
+      const top = topEdge(vp, 0), room = footEdge(vp, 0) - top;
+      maxH.words = maxH.data = shufMaxH(room, st.room);
       const h = shown.h;
-      placed.push({ id: shown.id, slot: shown.slot, rect: { x, y: Math.round(shufTop(vp.h, h, SHUF.edge)), w, h } });
-      strip = { id: other.id, slot: other.slot, rect: { x, y: vp.h - STRIP_H, w, h: STRIP_H } };
+      placed.push({ id: shown.id, slot: shown.slot, rect: { x, y: Math.round(top + shufTop(room, h, SHUF.edge)), w, h } });
+      strip = { id: other.id, slot: other.slot, rect: { x, y: footEdge(vp, 0) - STRIP_H, w, h: STRIP_H } };
     } else if (words || data) {
       const only = (words ?? data)!;
-      maxH.words = maxH.data = vp.h - 20;
-      placed.push({ id: only.id, slot: only.slot, rect: { x, y: Math.round(pairTop(vp.h, only.h, 10, vp.h - 10)), w, h: only.h } });
+      const top = topEdge(vp, 10), foot = footEdge(vp, 10);
+      maxH.words = maxH.data = foot - top;
+      placed.push({ id: only.id, slot: only.slot, rect: { x, y: Math.round(pairTop(vp.h, only.h, top, foot)), w, h: only.h } });
     }
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
     extra.push(bar.rect);
@@ -210,6 +227,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const dmax = Math.round(0.42 * vp.h);
     const plan = phonePlan({ room, dtop, data: dh, dmax, lip: 0, regular: wh, mine: Math.round(0.62 * vp.h), grip: GRIP, figMin: FIG_MIN(vp.h), figFloor: figFloorOf(vp.h), gone: !data, hasData: !!data });
     shut = plan.shut && !!data && !!words;
+    const stripAt = stripRect(vp, x, w);
     if (!shut) {
       maxH.words = Math.round(plan.cap);
       maxH.data = dmax;
@@ -220,9 +238,10 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
       if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
     } else {
       const shown = active === 'data' ? data! : words!, other = shown === data ? words! : data!;
-      maxH.words = Math.round(plan.cap);
-      maxH.data = Math.round(room - dtop - STRIP_H - 8);
-      if (shown === data) { placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } }); strip = { id: other.id, slot: 'words', rect: { x, y: bottom - STRIP_H - 56, w, h: STRIP_H } }; }
+      // 2D's `room - grip` assumes a 34 px edge at the top; the strip here is STRIP_H and starts at dtop, so the words end CARD_GAP under it
+      maxH.words = Math.round(Math.min(plan.cap, shutWordsCap(bottom, dtop)));
+      maxH.data = Math.round(stripAt.y - CARD_GAP - dtop);
+      if (shown === data) { placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } }); strip = { id: other.id, slot: 'words', rect: stripAt }; }
       else { placed.push({ id: words!.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } }); strip = { id: other.id, slot: 'data', rect: { x, y: dtop, w, h: STRIP_H } }; }
     }
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: bottom - safe.top };
@@ -239,7 +258,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const foot = overBar ? bar.rect.y - 8 : limit;
     const total = wh + dh + (words && data ? gap : 0);
     // a pair a few px too tall rises into the top margin, never nearer than 4 px; past that it stays stacked (2D shrinks the data card's blocks, here the words page)
-    const rise = Math.max(0, Math.min(top0 + total - foot, top0 - 4));
+    const rise = Math.max(0, Math.min(top0 + total - foot, top0 - topEdge(vp, 4)));
     const y0 = rise > 0 ? top0 - rise : pairTop(vp.h, total, top0, foot);
     // The room a card has is what the pair could take standing at its highest (the top margin, or where it rose to), NOT where it stands now: the pair is centred by its own height, so
     // a cap measured from the centred top shrank with the data card (a chart that had drawn its small map left less room, which kept it the small map: the algorithm cards showed the iPhone

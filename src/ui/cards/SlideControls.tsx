@@ -106,12 +106,12 @@ function Strain({ label, slideKey }: { label: string; slideKey: string }) {
   );
 }
 
-function ScalePill({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
+export function ScalePill({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   const { own, list, cam } = slide.controls!.scales!;
   const [on, setOn] = useState(own);
   useEffect(() => setOn(own), [slide.id, own]);
   return (
-    <div className="pz-ab pz-scales" role="group" aria-label="Scale">
+    <div className="pz-ab" role="group" aria-label="Scale">
       {list.map((sc) => (
         <button key={sc} type="button" className="pz-abb" aria-pressed={on === sc} onClick={() => { setOn(sc); pickScale(deck, i, sc, sc === own ? undefined : cam[sc]); }}>{SCALE_LABEL[sc]}</button>
       ))}
