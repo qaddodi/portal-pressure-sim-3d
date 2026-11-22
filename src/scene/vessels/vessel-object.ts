@@ -102,7 +102,7 @@ export class VesselObject extends CelObject {
     this.artery = !!opts.artery;
     const old = this.toon;
     const u = old.uniforms;
-    const toon = markBlends(new ShaderMaterial({
+    const toon = markBlends(new ShaderMaterial({ name: 'vessel toon',
       vertexShader: VESSEL_VS,
       fragmentShader: VESSEL_FS,
       precision: 'highp',   // the ink's lateral distance is a device-pixel difference of two large clip-space numbers: never mediump (a phone's default for a missing statement)
@@ -135,7 +135,7 @@ export class VesselObject extends CelObject {
     for (const k of ['hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiEnds', 'hiFade', 'hiPx']) iu[k] = tu[k]!;
     // THE GLOW'S MASK (glow.ts, glow-fx.ts): the same geometry and the very same uniforms (so every width, fade, join and pick weight is the tube's own), through the program built with GLOW: the vessel as it is drawn, in its
     // colour, premultiplied by its pick weight, painted by MAX into the mask texture on the glow's own layer. Hidden until a pick.
-    const glow = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { GLOW: 1 }, uniforms: tu,
+    const glow = new ShaderMaterial({ name: 'vessel glow', vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { GLOW: 1 }, uniforms: tu,
       blending: CustomBlending, blendEquation: MaxEquation, blendSrc: OneFactor, blendDst: OneFactor });
     const gm = (this.glowMesh = new Mesh(this.toonMesh.geometry, glow));
     gm.frustumCulled = false; gm.visible = false; gm.name = 'highlight/glow'; gm.renderOrder = 30;
@@ -144,7 +144,7 @@ export class VesselObject extends CelObject {
     // THE CROSSING SHADOW (cel-ink.ts SHADOW): the same geometry and uniforms once more, through the program built with SHADOW: the tube made SHADOW_PX wider than its line, laid behind its own depth, blended over what is behind it.
     // After every opaque tube of the vessels' pass (transparent, so the sort puts it last), depth test on, no depth write; it takes the tube's fades, reveal and cuts, so it eases with the vessel it belongs to.
     if (opts.shadow) {
-      const mat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: true, defines: { SHADOW: 1 }, uniforms: tu });
+      const mat = new ShaderMaterial({ name: 'vessel crossing shadow', vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: true, defines: { SHADOW: 1 }, uniforms: tu });
       const sm = (this.shadowMesh = new Mesh(this.toonMesh.geometry, mat));
       sm.frustumCulled = false; sm.name = 'crossing/shadow'; sm.renderOrder = 3;
       sm.raycast = () => {};   // (the pick is the tube's)
@@ -396,7 +396,7 @@ export class VesselObject extends CelObject {
    *  organs is the same one-draw tube as any vessel's). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = markBlends(new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } }));
+    const mat = markBlends(new ShaderMaterial({ name: 'vessel veil', vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } }));
     if (this.tip) setBlendState(mat, true);   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;

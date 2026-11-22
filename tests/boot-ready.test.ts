@@ -123,8 +123,9 @@ test('inline cover: Keep waiting restores the splash and a ready signal after it
   assert.equal(c.boot.className, '', 'Keep waiting buys a fresh 8 s'); c.advance(12000); assert.equal(c.boot.className, ''); c.ready(); c.advance(13000);
   assert.equal(c.boot.className, 'done');
   // the unguarded 20 s timer also lifts a slow note whatever happened (the 2D page's last word)
-  const d = await runCover('slow-then-ready'); d.advance(8500); d.advance(21000);
-  assert.equal(d.boot.className, 'done', 'the 20 s timer lifts a slow (not failed) cover');
+  const d = await runCover('slow-then-ready'); d.advance(8500); d.advance(21000); assert.equal(d.boot.className, 'slow', 'a held app is not lifted at 20 s');
+  d.advance(46000);
+  assert.equal(d.boot.className, 'done', 'the last word lifts a slow (not failed) cover 25 s later');
 });
 
 test('inline cover: a genuinely failed renderer stays up with Reload and a link to the 2D simulator, and nothing lifts it', async () => {
@@ -179,8 +180,28 @@ test('watchStall: a new stage stamped restarts the quiet time; no stage for the 
 
 test('the failsafe is the stall watch, not a fixed timer, and the warm-up\'s cap is the same watch', () => {
   const ready = readFileSync('src/boot/ready.ts', 'utf8'), stage = readFileSync('src/scene/Stage.tsx', 'utf8');
-  assert.match(ready, /stallOff = watchStall\(release\)/);
+  assert.match(ready, /stallOff = watchStall\(\(hard\) => \(hard || frames >= 0 \? release\(\) : false\)\)/);
   assert.doesNotMatch(ready, /BOOT_FAILSAFE_MS/);
-  assert.match(stage, /watchStall\(r, undefined, \(\) => alive && !compiled\.current\)/);
+  assert.match(stage, /watchStall\(\(\) => r\(\), undefined, \(\) => alive && !compiled\.current\)/);
   assert.doesNotMatch(stage, /WARM_CAP_MS/);
+});
+
+// ---- 22 Nov, Mohammad: "even after the loading finishes, black screen for a bit, then the figure pops out without labels, then the labels pop out". Root cause: the cover was lifted by a quiet spell
+// (watchStall) BEFORE the figure had drawn: the warm-up's own cap fires on the same spell, so the cover went up as the first frame was about to be drawn, onto the bare ground; then the figure came in, then the labels.
+test('a quiet spell before the first frame never lifts the cover (only the hard limit does); after the first frame it does; labels still coming in are waited for', async () => {
+  resetTimeline();
+  let lifted = 0;
+  holdSplash(() => { lifted++; });
+  const calls: boolean[] = []; const keep = watchStall((hard) => { calls.push(hard); return false; }, 300, () => true);
+  await wait(2300); keep();
+  assert.ok(calls.length >= 3 && calls.every((h) => h === false), `a handler that says "not yet" is asked again after each new quiet spell (${calls.length})`);
+  const src = readFileSync('src/boot/ready.ts', 'utf8');
+  assert.match(src, /watchStall\(\(hard\) => \(hard \|\| frames >= 0 \? release\(\) : false\)\)/, 'the cover\'s own stall watch lifts before the first frame only at the hard limit');
+  assert.equal(lifted, 0);
+  release();
+  // labels: progress restarts the grace; the same sum does not
+  const lab = readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8');
+  assert.match(lab, /labelsProgress\(ctl\.out\.reduce/);
+  assert.match(src, /Math\.max\(firstAt, labelsAt\) > LABELS_GRACE_MS/);
+  assert.match(src, /export function compileDone\(\): void \{\n  compiled = true;\n  reveal\?\.prime\(REVEAL_ZOOM\)/, 'the closer view is in before the first frame: the labels are placed over the view they are lifted over');
 });

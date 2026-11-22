@@ -103,7 +103,7 @@ function SceneBridge() {
     rewarm.current = () => { rebaseLateWatch(); void warmP().then(rebaseLateWatch); cel.onMicroPrimed?.(); };   // (what a restore rebuilds is not late)   // (after a lost context: the programs and the geometry again, off the frame)
     // (the organs arrive after their geometry and art files do, and are the largest set of programs: the compile waits for them, within the cap; one that comes in after the cap is compiled when it does)
     const all = cel.organsBuilt.then(() => warmP());
-    void Promise.race([all, new Promise<void>((r) => { watchStall(r, undefined, () => alive && !compiled.current); })]).then(() => {
+    void Promise.race([all, new Promise<void>((r) => { watchStall(() => r(), undefined, () => alive && !compiled.current); })]).then(() => {
       if (!alive || compiled.current) return;
       compiled.current = true; compileDone(); clock.invalidate('compiled');
     });

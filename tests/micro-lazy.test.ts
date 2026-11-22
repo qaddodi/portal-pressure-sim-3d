@@ -94,7 +94,8 @@ test('render() laps its phases into systemMs, and the audit row carries the per-
 test('the idle slices prime the lobule and the sinusoid hidden, so the first shown frame builds nothing', () => {
   const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
   assert.match(sc, /this\.micro\.lobule\.update\(true, 0, 0, 1, true\)/);
-  assert.match(sc, /this\.micro\.sinus\.update\(true, 1, true\)/);
+  assert.match(sc, /this\.micro\.lobule\.primeCells\(\)/);
+  assert.match(sc, /this\.micro\.sinus\.update\(true, 1, true, up\)/);
   assert.match(sc, /get microPrimedNow/);
 });
 

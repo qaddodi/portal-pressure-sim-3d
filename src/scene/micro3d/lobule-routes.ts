@@ -25,7 +25,7 @@ export function* lobuleRoutesSteps(courses: readonly LobuleRouteCourse[], tol: n
   const groups = new Map<string, LobuleRouteCourse[]>();
   for (const c of courses) { const f = famOf(c.kind) === 'in' ? 'sin' : famOf(c.kind); (groups.get(f) ?? groups.set(f, []).get(f)!).push(c); }
   const out = new Map<number, Seg[]>();
-  for (const g of groups.values()) { for (const [col, segs] of lobuleRoutes(g, tol)) out.set(col, segs); yield; }
+  for (const g of groups.values()) { for (const [col, segs] of yield* routesSteps(g, tol)) out.set(col, segs); yield; }
   return out;
 }
 
@@ -33,13 +33,31 @@ const famOf = (k: string): string => (k === 's0' || k === 's1' || k === 's2' || 
 
 /** The route segments of every course (by column). `tol`: how close two ends must be to be one node (local units). */
 export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number): Map<number, Seg[]> {
+  const g = routesSteps(courses, tol);
+  for (;;) { const r = g.next(); if (r.done) return r.value; }
+}
+
+/** One family's routes; a `yield` in the side-joins (every few channels), the only part that grows with the family squared (a bile tree's 60 channels each look along all 60), so no step holds a frame for the whole. */
+function* routesSteps(courses: readonly LobuleRouteCourse[], tol: number): Generator<void, Map<number, Seg[]>> {
   // each family is joined only to itself (a bile channel's end beside a sinusoid's is no joint): the blood's sinusoids, the arterioles' twigs, the lymph, the bile. The inlets are roots the sinusoids leave from the side
   const sin = courses.filter((c) => famOf(c.kind) !== 'in');
   const inlets = courses.filter((c) => c.kind === 'in');
   // nodes: the ends that meet, within a family (a merge's inflows end where the next begins)
   const nodes: { p: readonly [number, number]; f: string }[] = [];
-  const nodeOf = (p: readonly [number, number], f: string): string => { let i = nodes.findIndex((q) => q.f === f && near(p, q.p, tol)); if (i < 0) { nodes.push({ p, f }); i = nodes.length - 1; } return `n${i}`; };
+  // (a grid of `tol`-wide cells per family: an end only looks at its own and the 8 cells round it, the lowest index among them being the first match a scan of every node would have found)
+  const grid = new Map<string, number[]>();
+  const cellOf = (p: readonly [number, number]): [number, number] => [Math.floor(p[0] / tol), Math.floor(p[1] / tol)];
+  const nodeOf = (p: readonly [number, number], f: string): string => {
+    const [cx, cy] = cellOf(p);
+    let i = -1;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const k of grid.get(`${f}|${cx + dx}|${cy + dy}`) ?? []) if ((i < 0 || k < i) && near(p, nodes[k]!.p, tol)) i = k;
+    if (i < 0) { nodes.push({ p, f }); i = nodes.length - 1; const key = `${f}|${cx}|${cy}`; (grid.get(key) ?? grid.set(key, []).get(key)!).push(i); }
+    return `n${i}`;
+  };
   const ends = new Map(sin.map((c) => [c.col, { from: nodeOf(c.path[0]!, famOf(c.kind)), to: nodeOf(c.path[c.path.length - 1]!, famOf(c.kind)) }]));
+  // (the courses by the node they end at and by the one they start at, counted once: a scan of every course for each one was the build's quadratic lump)
+  const byTo = new Map<string, LobuleRouteCourse[]>(), fromN = new Map<string, number>(), toN = new Map<string, number>();
+  for (const o of sin) { const e = ends.get(o.col)!; (byTo.get(e.to) ?? byTo.set(e.to, []).get(e.to)!).push(o); fromN.set(e.from, (fromN.get(e.from) ?? 0) + 1); toN.set(e.to, (toN.get(e.to) ?? 0) + 1); }
   // each course's flow: a first one 1, a merged one the sum of what runs into it
   const q = new Map<number, number>();
   const flowOf = (c: LobuleRouteCourse, seen = new Set<number>()): number => {
@@ -48,7 +66,7 @@ export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number)
     if (seen.has(c.col)) return 1;
     seen.add(c.col);
     const from = ends.get(c.col)!.from;
-    const ins = sin.filter((o) => o !== c && ends.get(o.col)!.to === from);
+    const ins = (byTo.get(from) ?? []).filter((o) => o !== c);
     const v = ins.length ? ins.reduce((t, o) => t + flowOf(o, seen), 0) : 1;
     q.set(c.col, v);
     return v;
@@ -93,10 +111,12 @@ export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number)
   const out = buildRoutes(list, undefined, seed);
   // a channel that ends on the SIDE of another of its family (a bile canal into a duct partway along, no node there): it carries the host's own particles on a strip of the host's lanes on that side, at the host's
   // place along it, so at the join each particle runs on into the host where the host carries it (the host's segments composed, so a host that is itself a merge hands on its roots). Only a channel nothing runs into
+  let joined = 0;
   for (const c of sin) {
     if (famOf(c.kind) === 'sin') continue;
+    if (++joined % 4 === 0) yield;
     const e = ends.get(c.col)!, f = famOf(c.kind);
-    if (sin.some((o) => o !== c && ends.get(o.col)!.from === e.to) || sin.some((o) => o !== c && ends.get(o.col)!.to === e.from)) continue;
+    if ((fromN.get(e.to) ?? 0) - (e.from === e.to ? 1 : 0) > 0 || (toN.get(e.from) ?? 0) - (e.from === e.to ? 1 : 0) > 0) continue;
     const P = c.path[c.path.length - 1]!;
     let best: { host: LobuleRouteCourse; arc: number; side: number; d: number } | null = null;
     for (const h of sin) {

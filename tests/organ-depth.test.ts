@@ -84,7 +84,7 @@ test('with the switch off the shader adds nothing: the depth block is behind dep
 
 test('the organ fill is the see-through wash only: the layer\'s opacity, no cel branch, no solid uniform', () => {
   assert.doesNotMatch(ORGAN_FS, /uniform float solid;|celBands|celBase|uniform float wash;/, 'no cel fill and no wash switch');
-  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, layer \* fade \* win\)/);
+  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, lay \* fade \* win\)/);
   assert.doesNotMatch(ORGAN_FS, /mix\(page, fill, layer\)/);
 });
 
