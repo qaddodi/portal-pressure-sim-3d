@@ -20,7 +20,7 @@ async function figure() {
 
 test('the flag is off by default and on only for ?geom=net', () => {
   assert.equal(geomNet(''), false); assert.equal(geomNet('?geom=old'), false); assert.equal(geomNet('?joins=old'), false);
-  assert.equal(geomNet('?geom=net'), true);
+  assert.equal(geomNet('?geom=net'), true); assert.equal(geomNet('?geom=netplain'), true);
 });
 
 test('no hand-over to the old figure is left: the network program has no handOld and the flag file no oldShare', async () => {
