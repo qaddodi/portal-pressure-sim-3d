@@ -7,8 +7,7 @@ import '../labels/labels.css';
 import '../circuit/captions.css';
 import './names.css';
 import { clock } from '../../clock/frame.ts';
-import { useSettings } from '../../state/settings.ts';
-import { resolveLook } from '../../looks/looks.ts';
+import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
@@ -36,9 +35,7 @@ interface El { root: HTMLElement; lead: HTMLElement | null; ring: HTMLElement | 
 
 export function SinusoidCaptions() {
   const layer = useRef<HTMLDivElement>(null);
-  const look = useSettings((s) => s.look);
-  const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-  const lookId = resolveLook(look, dark);
+  const lookId = useLookId();
   const lookRef = useRef(lookId); lookRef.current = lookId;
   const retype = useRef<() => void>(() => {});
   useEffect(() => { retype.current(); }, [lookId]);

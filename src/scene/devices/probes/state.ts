@@ -1,8 +1,8 @@
-// What the Tests devices on the figure are asked to show: the Doppler probe on a vessel, the FibroScan probe on an organ, the endoscope (plain, with the band ligator, or the EUS echoendoscope and its needle).
+// What the Tests devices on the figure are asked to show: the Doppler probe on a vessel, the FibroScan probe on an organ, the endoscope (plain, or the EUS echoendoscope and its needle; banding never changes it).
 // A small store the scene reads and the Tests panes (and the cards' buttons) write; nothing here draws. bind-tests.ts keeps `on` in step with the Tests card (open on that instrument).
 import { create } from 'zustand';
 
-export type ScopeMode = 'scope' | 'band' | 'eus' | 'glue';
+export type ScopeMode = 'scope' | 'eus' | 'glue';
 export type FibroOrgan = 'liver' | 'spleen';
 /** A stent's three places the Doppler samples (topology STENT_SITES keys), or null for the vessel's own gate. */
 export type DopplerSeg = 'proximal' | 'mid' | 'distal' | null;

@@ -10,6 +10,7 @@ import { CIRCUIT_MATES } from '../src/scene/circuit/mates.ts';
 import { WEAVE, weave } from '../src/scene/vessels/coil.ts';
 import { EDGES } from '../src/engine/hales/portal/topology.js';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
+import { factorSpan } from '../src/scene/vessels/tubes.ts';
 
 const edges = EDGES as { id: string; kind: string; code?: string; dMax?: number }[];
 const idx = (id: string) => edges.findIndex((e) => e.id === id);
@@ -120,4 +121,27 @@ test('on the Circuit the segment is one lane: its resistor and caption run along
   const m = mid(whole), mb = mid(b);
   assert.ok(Math.hypot(m[0] - mb[0], m[1] - mb[1]) > 20, 'the middle of the lane is not the middle of its azygos half');
   assert.deepEqual(laneCourseOf('C2'), COURSES.get('C2')!.mapPts, 'a lane that is not a segment is its own course');
+});
+
+// Mohammad, 22 Nov: "coronary vein into varices look not welded" (the varices' tube pinched to a neck where the coronary vein's square cut end stood).
+// The root: three strands that wind round one axis meet on it, so their union at the gathered end is ONE strand wide, yet each had been given 1/sqrt(3) of the trunk's width (shape.ts bundleShare, made for strands that part at once): a neck of 0.58.
+// And the bands narrowed the segment's ends too, where the coronary vein and the azygos, which are not banded, meet it.
+test('the segment meets the coronary vein and the azygos at their own width, whatever the size of the varix and the number of bands (no neck, no square end showing)', () => {
+  setSmoothJoins(true);
+  const r = (c: { radius: number; taper?: readonly [number, number]; taperSpan?: readonly [number, number] }, u: number) => c.radius * factorSpan(c.taper ?? [1, 1], c.taperSpan ?? [0.3, 0.3], u);
+  const lgv = coursesOf(NETWORK_BY_ID.get('LGV_CONF')!, REST)[0]!, azy = NETWORK_BY_ID.get('AZY_SVC')!.radius;
+  for (const bands of [0, 1, 2, 3, 4]) for (const spr of [0.55, 0.7, 1]) {
+    const st = { ...REST, bands, spr, strandsOn: true };
+    const strands = coursesOf(NETWORK_BY_ID.get('C1a')!, st).filter((c) => c.radius > 0), c1b = coursesOf(NETWORK_BY_ID.get('C1b')!, st)[0]!;
+    const here = `bands ${bands}, spread ${spr}`;
+    for (const c of strands) {
+      assert.ok(Math.abs(r(c, 0) - r(lgv, 1)) < 1e-9, `a strand starts as wide as the coronary vein ends (${here}): ${r(c, 0)} vs ${r(lgv, 1)}`);
+      assert.ok(Math.abs(r(c, 1) - r(c1b, 0)) < 1e-9, `and ends as wide as the azygos' drain begins, the station inside the segment (${here})`);
+    }
+    assert.ok(Math.abs(r(c1b, 1) - azy) < 1e-9, `the drain meets the azygos at its width (${here}): ${r(c1b, 1)} vs ${azy}`);
+  }
+  // (the tube is not capped there either: the other tube covers the join)
+  const strands = coursesOf(NETWORK_BY_ID.get('C1a')!, { ...REST, strandsOn: true }).filter((c) => c.radius > 0);
+  for (const c of strands) assert.deepEqual([...(c.capless ?? [])], [true, true]);
+  assert.deepEqual([...(lgv.capless ?? [])][0], true);
 });

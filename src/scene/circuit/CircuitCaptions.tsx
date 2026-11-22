@@ -8,8 +8,7 @@ import './captions.css';
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { latest } from '../../engine/index.ts';
 import { NODES } from '../../engine/hales/portal/topology.js';
-import { useSettings } from '../../state/settings.ts';
-import { resolveLook } from '../../looks/looks.ts';
+import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi, talkRects } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
@@ -45,9 +44,7 @@ interface El { root: HTMLElement; name: HTMLElement | null; val: HTMLElement | n
 
 export function CircuitCaptions() {
   const layer = useRef<HTMLDivElement>(null);
-  const look = useSettings((s) => s.look);
-  const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-  const lookId = resolveLook(look, dark);
+  const lookId = useLookId();
   const lookRef = useRef(lookId); lookRef.current = lookId;
   const retype = useRef<() => void>(() => {});
   useEffect(() => { retype.current(); }, [lookId]);

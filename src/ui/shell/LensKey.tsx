@@ -3,17 +3,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLens } from '../../scene/lenses/store.ts';
 import { legendFor } from '../../scene/lenses/legend.ts';
-import { resolveLook } from '../../looks/looks.ts';
-import { useSettings } from '../../state/settings.ts';
+import { useLookId } from '../../looks/use-look.ts';
 import { useCompare } from '../compare/store.ts';
 import { I } from './icons.tsx';
 
 import { clock } from '../../clock/frame.ts';
-function useLookId() {
-  const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => { const m = matchMedia('(prefers-color-scheme: dark)'); const f = () => setDark(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
-  return resolveLook(useSettings((s) => s.look), dark);
-}
 
 /** The key that was showing, kept on for one fade while the new one fades in on the same spot (grid, one cell): a lens or look change is a cross-fade, never a swap. */
 const KEY_FADE_MS = 240;

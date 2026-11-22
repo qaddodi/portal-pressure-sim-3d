@@ -46,7 +46,7 @@ test('the model change of each: params for the balloon, the DIPS and the DSRS (t
   assert.equal(treat('dips', { dips: { on: false, d: 0 } }).dips.d, 8, 'Treat\'s default diameter');
   assert.equal(treat('dsrs', { dsrs: false }).dsrs, true);
   for (const k of ['evl', 'paracentesis']) { const sp = INSTRUMENT_SPECS[k]!; assert.equal(sp.morph, true); assert.equal(sp.had({}), false); assert.equal(sp.can({}), ''); }
-  assert.equal(INSTRUMENT_SPECS.evl!.scope, 'band', 'EVL puts the ligator scope on the figure');
+  assert.equal(INSTRUMENT_SPECS.evl!.scope, 'scope', 'EVL puts the plain scope on the figure, with nothing on its tip');
   assert.equal(INSTRUMENT_SPECS.dips!.can({ dips: { on: true } }) !== '', true, 'a DIPS already in is said');
   for (const k of ['tamponade', 'dips', 'dsrs']) assert.ok(INSTRUMENT_SPECS[k]!.before, `${k}: the state before, for the slide's sequence`);
   assert.equal(Object.keys(GRAFTS).includes('rex'), true, 'the Meso-Rex graft is still there, untouched');
@@ -81,6 +81,6 @@ test('the link plays a morph kind between the slide before and the slide itself,
   assert.match(link, /type: 'morph', snap: on \? c\.snaps\.own : c\.snaps\.before/, 'the change is a morph between the two states');
   assert.match(link, /res\?\.\[i - 1\]\?\.snap/, 'the state before is the slide before it in the chain');
   assert.doesNotMatch(link, /snap: c\.snaps\.own, ms: MORPH_BACK_MS/, 'Back from step 1 leaves the slide as it landed (before its procedure), it never puts the result back');
-  assert.match(link, /setEndoscope\(\{ on: want, mode: scope \}\)/, 'the ligator scope follows the run');
+  assert.match(link, /setEndoscope\(\{ on: want, mode: scope \}\)/, 'the plain scope follows the run');
   assert.match(link, /snap: sn\.before/, 'the first Next goes to the state before');
 });

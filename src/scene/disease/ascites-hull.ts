@@ -9,7 +9,7 @@
 // -1 to 1, aLid = 1). Topology is built once; only the attributes are rewritten, into preallocated arrays (no allocation per lay, apart from wallBelow's small point list).
 // Imports ascites-pool.ts (the shared numbers), never ascites.ts, which imports this.
 import { BufferAttribute, BufferGeometry } from 'three';
-import { x2d, x3, y2d, y3 } from '../frame2d.ts';
+import { UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../frame2d.ts';
 import * as A from './ascites-pool.ts';
 import { fluidBase } from './copied/fluid-step.js';
 
@@ -18,10 +18,12 @@ export const HULL = {
   NS: 96, NT: 20, NK: 9,
   /** The gut's middle plane (scene z): the rim plane, the flank line and the tap lie on it (organs.bin: bowel -0.224..-0.035, colon -0.104..0.040). */
   MID: -0.09,
-  /** The most the front and the back reach beyond MID (scene units): the front to 0.07, the back to -0.26. */
-  TF_MAX: 0.16, TB_MAX: 0.17,
-  /** A full belly's volume, and the first film's radius (2D units) over which the body grows from a thin lens. */
-  FULL_ML: 6000, SMALL_R: 160,
+  /** How deep the water is front to back (22 Nov 2026, Mohammad: "the ascites should be more depth like anteroposteriorly"). Root cause of the thin sliver: the reach was a fixed 0.16 / 0.17, set only to just clear the gut (the figure's gut is
+   *  0.19 deep), against a cavity 2.5 scene units wide, so the water was 1/8 as deep as it is wide. The reach is now the water's own half-width (the deepest distance from the wall, R, scene units) times an aspect, so a belly is as round
+   *  from the side as from the front at every volume: the front sheet bulges forward by 0.42 R and the back sheet reaches back by 0.30 R (the fluid lies in front of the spine, so less behind). TF_MAX / TB_MAX only cap it. */
+  ASPECT_F: 0.42, ASPECT_B: 0.30, TF_MAX: 0.6, TB_MAX: 0.42,
+  /** The first film's radius (2D units) over which the body grows from a thin lens. */
+  SMALL_R: 160,
 } as const;
 
 const { NS, NT, NK } = HULL;
@@ -54,11 +56,11 @@ const smooth01 = (a: number, b: number, x: number): number => { const t = Math.m
 /** The profile of the body: 0 on the wall, 1 at w = 1 (the deepest point), vertical tangent at the wall: sqrt(w (2 - w)), an ellipse. w is the distance from the wall over the deepest distance. */
 export const hullProfile = (w: number): number => { const c = Math.min(1, Math.max(0, w)); return Math.sqrt(c * (2 - c)); };
 
-/** How far the front and back reach from MID (scene units): TF_MAX and TB_MAX times the fill (1 L is about a third as thick as a full belly: (ml / 6000)^0.6, whole from 6 L), times `small` (a first film, radius R in 2D
- *  units, is a thin lens, not a ball) and the living switch (0 is 2D's flat pool). */
-export function hullThickness(ml: number, R: number, living: number): { tf: number; tb: number } {
-  const fill = Math.pow(Math.min(1, Math.max(0, ml / HULL.FULL_ML)), 0.6), k = fill * smooth01(0, HULL.SMALL_R, R) * Math.min(1, Math.max(0, living));
-  return { tf: HULL.TF_MAX * k, tb: HULL.TB_MAX * k };
+/** How far the front and back reach from MID (scene units): the aspect times the deepest distance from the wall (R, 2D units, in scene units), times `small` (a first film, radius R under SMALL_R, is a thin lens, not a ball) and the
+ *  living switch (0 is 2D's flat pool). R grows with the volume and the cavity's bulge, so the depth scales with severity without a second volume curve. */
+export function hullThickness(R: number, living: number): { tf: number; tb: number } {
+  const r = Math.max(0, R) / UNITS_PER_SCENE, k = smooth01(0, HULL.SMALL_R, R) * Math.min(1, Math.max(0, living));
+  return { tf: Math.min(HULL.TF_MAX, HULL.ASPECT_F * r) * k, tb: Math.min(HULL.TB_MAX, HULL.ASPECT_B * r) * k };
 }
 
 export class HullLayout {

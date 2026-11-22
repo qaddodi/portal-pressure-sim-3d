@@ -1,20 +1,20 @@
 // Slide procedures that play a Treat order on the figure (22 Nov 2026, the review round's R4): EVL, balloon tamponade, DIPS, DSRS and paracentesis. The 2D procedure table (copied/proc-anim.js) has
 // catheters, the scope's measurements and the graft; these five have no catheter on a route, so each is a graft-style timeline (a clock, numbered steps, a callout on the part it works on) whose
-// model change is the Treat order's own, and the figure draws what the model says with the devices Treat already uses: the ligator scope and the bands (devices/bands.ts), the tamponade tube
+// model change is the Treat order's own, and the figure draws what the model says with the devices Treat already uses: the bands (devices/bands.ts), the tamponade tube
 // (devices/balloons), the DIPS stent and the surgical shunt's vessel, the ascites and the abdomen card's IAP dial.
 //
 // Two ways to make the change, both the order's own:
 //  - params (balloon, DIPS, DSRS): `apply` / `undo` / `had` edit the params as Treat's button does (ui/treat/orders.ts), so a patient who has the result has it taken back first and put back;
 //  - morph (EVL, paracentesis): the order is an engine action (a band, a tap), which the engine cannot take back, so the run goes from the state before the slide (the slide before it in the
 //    deck's own chain) to the slide's own state, as the talk's time-lapse does (decks/hp/lapse.ts): ui/deck/procs-link.ts sends the engine a morph to each snapshot. `morph` marks them.
-// `scope` puts the endoscope on the figure for the run ('band': the ligator's cap). The specs are registered into the table the layer, the card and the readiness checks read (GRAFTS), once, on import.
+// `scope` puts the plain endoscope on the figure for the run ('scope': the Endoscopy card's own scope with nothing on its tip; owner, 22 Nov 2026: banding adds nothing to the scope and never moves it). The specs are registered into the table the layer, the card and the readiness checks read (GRAFTS), once, on import.
 import { GRAFTS } from './copied/proc-anim.js';
 
 type Step = readonly [id: string, word: string, caption: string, short: string, shot: string, vessel: string, stations: readonly string[], f: number];
 export interface InstrumentSpec {
   name: string; label: string; graft: true;
   T: { apply: number; back: number; end: number; [k: string]: number }; stops: number[]; steps: Step[];
-  morph?: true; scope?: 'band';
+  morph?: true; scope?: 'scope';
   /** a catheter route the procedure runs a device on (route.ts), with the stretch its balloon lies along */
   route?: string; balloonSpan?: string;
   /** the step whose words describe the result the model takes at `T.apply`: the result must come in during that step, never before it (tests/instrument-procedures.test.ts) */
@@ -27,11 +27,11 @@ const nothing = (): string => '';
 
 export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   evl: {
-    name: 'Band (EVL)', label: 'Band (EVL)', graft: true, morph: true, scope: 'band',
+    name: 'Band (EVL)', label: 'Band (EVL)', graft: true, morph: true, scope: 'scope',
     T: { apply: 2500, back: 6200, end: 7800 }, stops: [2200, 5200, 7800], resultStep: 1,
     steps: [
-      step('scope', 'Scope in', 'The endoscope, with the ligator cap and a band loaded on its tip, is passed through the esophagus to the varices.', 'Scope', 'C1b'),
-      step('band', 'Bands placed', 'Each varix is suctioned into the cap and a band is released around its base, starting at the gastroesophageal junction and working upward.', 'Bands', 'C1b'),
+      step('scope', 'Scope in', 'The endoscope is passed through the esophagus to the varices.', 'Scope', 'C1b'),
+      step('band', 'Bands placed', 'A band is released around the base of each varix, starting at the gastroesophageal junction and working upward.', 'Bands', 'C1b'),
       step('done', 'Varices banded', 'The banded varices thrombose and slough over the following days. Banding is repeated until the varices are gone.', 'Banded', 'C1b'),
     ],
     can: nothing, offered: () => true, apply: (p) => p, had: () => false, undo: (p) => p,

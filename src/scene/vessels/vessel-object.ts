@@ -14,6 +14,7 @@ import { CASING, RIM_A, RIM_INK, SHADOW, SHADOW_DEPTH, SHADOW_DEPTH_MAP, SHADOW_
 import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
+import { cavaWholeAlpha } from './fades.ts';
 import { SKIN_CUT_C_NONE, SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
 import { GLOW_LAYER } from '../glow.ts';
 
@@ -412,7 +413,7 @@ export class VesselObject extends CelObject {
     const v = this.veil;
     if (!v) return;
     this.whole = k;
-    if (this.tip) { const a = this.toon.uniforms.fadeA!.value as Vector4; a.z = this.tip.a0 + (1 - this.tip.a0) * k; a.w = this.tip.a1 + (1 - this.tip.a1) * k; }   // (the faint cava rises to whole: body, outline and chevrons)
+    if (this.tip) { const a = this.toon.uniforms.fadeA!.value as Vector4, w0 = cavaWholeAlpha(this.tip.a0), w1 = cavaWholeAlpha(this.tip.a1); a.z = this.tip.a0 + (w0 - this.tip.a0) * k; a.w = this.tip.a1 + (w1 - this.tip.a1) * k; }   // (the faint cava rises to whole: body, outline and chevrons; its fade at a free end stays a fade: cavaWholeAlpha)
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * k + this.lift * (1 - k));
     const whole = k >= 1;
     if (whole !== v.whole) { v.whole = whole; this.applyBehind(); }
