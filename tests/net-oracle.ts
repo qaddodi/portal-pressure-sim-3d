@@ -6,6 +6,7 @@
 import type { Vec3 } from '../src/scene/anatomy/vessels.ts';
 import type { NetMesh, Skeleton } from '../src/scene/vessels/net/types.ts';
 import type { NodeReport } from '../src/scene/vessels/net/mesh.ts';
+import type { Region } from '../src/scene/vessels/net/regions.ts';
 import { SKIN_K, closestOnArm, sdUnion, sdUnionGrad, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../src/scene/vessels/skin/exact-normal.ts';
 import { peelAt, peelRank, peelSlope, PEEL_SPAN } from '../src/scene/circuit/peel.ts';
@@ -52,6 +53,8 @@ export interface LiveBone {
   cen: V3; F: [V3, V3, V3];
   /** the lumen's half width, scene units, and the radius a vertex's unit offset is scaled by (here: the lumen's, ink and ring sag are not modelled) */
   lumen: number;
+  /** the radius a vertex's unit offset is scaled by when the junction vertex STARTS (before the projection onto the live union): the course's own radius share, with no swell, width or presence, so a fillet vertex keeps its rest arrangement and the projection alone follows the live radii */
+  lumenRest: number;
   /** what the surface is pushed out along its normal: the ink, the ring's sag, (the lift is 0 here) */
   pad: number;
   share: number; fade: number; presence: number; u: number; edge: number;
@@ -88,29 +91,31 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
     const swell = E.swell + (Math.max(E.wc, E.leastCss * live.perPx) * 0.5 * MAP_K / Math.max(E.radiusN, 1e-6) - E.swell) * share;
     const rest = B.r[0] + (B.r[1] - B.r[0]) * share;
     const lumen = rest * swell * E.liveW * E.presence, ink = live.ink ?? 0;
-    out.push({ cen, F, lumen, pad: ink + (lumen + ink) * (live.sag ?? 0), share, fade: E.fade * E.presence, presence: E.presence, u: B.u, edge: B.edge });
+    out.push({ cen, F, lumen, lumenRest: rest, pad: ink + (lumen + ink) * (live.sag ?? 0), share, fade: E.fade * E.presence, presence: E.presence, u: B.u, edge: B.edge });
   });
   return out;
 }
 
 /** Positions of the bound mesh in a live state (the shader's main: no ink, no ring sag). `normal` (4 x vec3, in each bone's frame) gives the blended normals as well. */
-export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, normal: Float32Array | undefined = mesh.normal): { position: Float32Array; normal: Float32Array; fade: Float32Array; blend: Float32Array; rowA: Int32Array; rowB: Int32Array } {
+export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, normal: Float32Array | undefined = mesh.normal, restStart?: ArrayLike<number>): { position: Float32Array; normal: Float32Array; fade: Float32Array; blend: Float32Array; rowA: Int32Array; rowB: Int32Array } {
   const bones = liveBones(skel, live), V = mesh.position.length / 3;
   const position = new Float32Array(3 * V), nrm = new Float32Array(3 * V), fade = new Float32Array(V), blend = new Float32Array(V), rowA = new Int32Array(V), rowB = new Int32Array(V);
   for (let v = 0; v < V; v++) {
-    const p: V3 = [0, 0, 0], n: V3 = [0, 0, 0];
-    let pad = 0, wA = -1, wB = -1, eA = 0, eB = 0, f = 0;
+    const p: V3 = [0, 0, 0], n: V3 = [0, 0, 0], pB: V3 = [0, 0, 0], pM: V3 = [0, 0, 0];
+    let S = 0, pad = 0, wA = -1, wB = -1, eA = 0, eB = 0, f = 0;
     for (let i = 0; i < 4; i++) {
       const wk = mesh.weight[4 * v + i]!;
       if (!(wk > 0)) continue;
-      const b = bones[mesh.bone[4 * v + i]!]!, o: V3 = [mesh.offset[12 * v + 3 * i]!, mesh.offset[12 * v + 3 * i + 1]!, mesh.offset[12 * v + 3 * i + 2]!];
-      const off = add(add(mul(b.F[0], o[0]), mul(b.F[1], o[1])), mul(b.F[2], o[2]));
-      for (let d = 0; d < 3; d++) p[d] += wk * (b.cen[d]! + b.lumen * off[d]!);
+      const b = bones[mesh.bone[4 * v + i]!]!, at = (set: Float32Array): V3 => [set[12 * v + 3 * i]!, set[12 * v + 3 * i + 1]!, set[12 * v + 3 * i + 2]!];
+      const fr = (o: V3): V3 => add(add(mul(b.F[0], o[0]), mul(b.F[1], o[1])), mul(b.F[2], o[2])), off = fr(at(mesh.offset)), offM = fr(at(mesh.offsetMap ?? mesh.offset));
+      S += wk * b.share;
+      for (let d = 0; d < 3; d++) { p[d] += wk * b.cen[d]!; const sc = restStart && restStart[v]! >= 0 ? b.lumenRest : b.lumen; pB[d] += wk * sc * off[d]!; pM[d] += wk * sc * offM[d]!; }
       if (normal) { const q: V3 = [normal[12 * v + 3 * i]!, normal[12 * v + 3 * i + 1]!, normal[12 * v + 3 * i + 2]!]; const nn = add(add(mul(b.F[0], q[0]), mul(b.F[1], q[1])), mul(b.F[2], q[2])); for (let d = 0; d < 3; d++) n[d] += wk * nn[d]!; }
       pad += wk * b.pad;
       f += wk * b.fade;
       if (wk > wA) { wB = wA; eB = eA; wA = wk; eA = b.edge; } else if (wk > wB) { wB = wk; eB = b.edge; }
     }
+    for (let d = 0; d < 3; d++) p[d] += pB[d]! + (pM[d]! - pB[d]!) * Math.min(1, Math.max(0, S));
     const nu = norm(n);
     position.set([p[0] + nu[0] * pad, p[1] + nu[1] * pad, p[2] + nu[2] * pad], 3 * v); nrm.set(nu, 3 * v); fade[v] = f; blend[v] = wB > 0 ? wB / (wA + wB) : 0; rowA[v] = eA; rowB[v] = wB > 0 ? eB : eA;
   }
@@ -173,3 +178,50 @@ export function shadeNormalAt(caps: readonly Capsule[], k: number, x: number, y:
   return norm([gn[0] + t * (rad[0] - gn[0]), gn[1] + t * (rad[1] - gn[1]), gn[2] + t * (rad[2] - gn[2])]);
 }
 export { sdUnion };
+
+/** The named live states the deformation tests run in: rest, map, the Circuit's t = .25 / .5 / .75, a differential swell, presence .3 and zoom-out. */
+export function liveStates(skel: Skeleton): [string, LiveState][] {
+  const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; f?.(x, i); return x; }) });
+  return [['rest', mk(0)], ['map t=1', mk(1)], ['t=.25', mk(0.25)], ['t=.5', mk(0.5)], ['t=.75', mk(0.75)],
+    ['swell 1.2/.85', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.85 : 1.2; })],
+    ['swell .5/2', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.5 : 2; })],
+    ['presence .3', mk(0.5, 1, (e, i) => { if (i === 1) e.presence = 0.3; })],
+    ['zoom-out', mk(1, 2.5, (e) => { e.leastCss = 4; })]];
+}
+
+
+/** THE JUNCTION PROJECTION (review doc, WP3 ruling, implicit skinning): the CPU twin of the vertex stage's. Each fillet vertex starts at the bone blend (`d`, from `deformLive`) and is moved onto the live smooth union of its region's capsules
+ *  (axes through the live bone centres, radii the live lumen, presence and swell included; k = SKIN_K x the narrowest arm's live radius at the junction) by `steps` Newton steps `p -= f grad f / |grad f|^2`; its normal is the SHADE normal of that union
+ *  (the soft gradient, eased to the nearest arm's radial direction where one arm is nearly all there is, as the mesher's rest normal is). Tube vertices are untouched. */
+export function projectRegions(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState, d: { position: Float32Array; normal: Float32Array }, steps = 3): { position: Float32Array; normal: Float32Array; /** the unit gradient of the union at the sharp width k, the direction the ink hull, the ring's sag and the lift push along (the SURFACE's normal, not the soft shade one) */ push: Float32Array; moved: Float32Array; regionOf: Int32Array; k: number[] } {
+  const bones = liveBones(skel, live), push = new Float32Array(d.normal), position = Float32Array.from(d.position), normal = Float32Array.from(d.normal), V = position.length / 3, moved = new Float32Array(V), regionOf = new Int32Array(V).fill(-1), ks: number[] = [];
+  regions.forEach((rg, ri) => {
+    const caps: Capsule[] = rg.caps.map((c) => { const pts = new Float64Array(3 * c.bones.length), r = new Float64Array(c.bones.length); c.bones.forEach((bi, j) => { pts.set(bones[bi]!.cen, 3 * j); r[j] = bones[bi]!.lumen; }); return { n: c.bones.length, pts, r, mate: c.mate >= 0 ? c.mate : undefined }; });
+    const k = SKIN_K * Math.min(...rg.caps.slice(0, rg.arms).map((c) => bones[c.bones[0]!]!.lumen));
+    ks.push(k);
+    const g = [0, 0, 0];
+    for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) {
+      regionOf[v] = ri;
+      const x = [position[3 * v]!, position[3 * v + 1]!, position[3 * v + 2]!], x0 = [...x];
+      for (let s = 0; s < steps; s++) {
+        const f = sdUnionGrad(caps, k, x[0]!, x[1]!, x[2]!, g), l2 = g[0]! ** 2 + g[1]! ** 2 + g[2]! ** 2;
+        if (l2 > 1e-12) for (let q = 0; q < 3; q++) x[q]! -= (f * g[q]!) / l2;
+      }
+      { const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1; push.set([g[0]! / gl, g[1]! / gl, g[2]! / gl], 3 * v); }
+      position.set(x, 3 * v);
+      moved[v] = Math.hypot(x[0]! - x0[0]!, x[1]! - x0[1]!, x[2]! - x0[2]!);
+      const ws = new Map<number, number>();
+      for (let i = 0; i < 4; i++) { const e = skel.bones[mesh.bone[4 * v + i]!]!.edge; ws.set(e, (ws.get(e) ?? 0) + mesh.weight[4 * v + i]!); }
+      normal.set(shadeNormalAt(caps, k, x[0]!, x[1]!, x[2]!, Math.max(...ws.values())), 3 * v);
+    }
+  });
+  return { position, normal, push, moved, regionOf, k: ks };
+}
+
+/** The whole junction pose as the vertex stage computes it: the bone blend of the two offset sets with the junction vertices STARTED at the rest arrangement (`lumenRest`), then the projection and the shade normal. */
+export function junctionPose(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState): ReturnType<typeof projectRegions> & { start: ReturnType<typeof deformLive> } {
+  const V = mesh.position.length / 3, regionOf = new Int32Array(V).fill(-1);
+  for (const [ri, rg] of regions.entries()) for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) regionOf[v] = ri;
+  const start = deformLive(mesh, skel, live, mesh.normal, regionOf);
+  return { ...projectRegions(mesh, skel, regions, live, start), start };
+}

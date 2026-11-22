@@ -7,6 +7,10 @@
 // For every bone the stage evaluates, with the vessel's OWN rules, the live radius R_i, the morph's share (the flow peel on the bone's rank), the fade and the highlight; the vertex then holds their blend.
 // A junction's fillet vertices are bound to the arms' bones, so every one of those values is continuous through the junction by construction: no mate, no cut, no seam to match.
 //
+// JUNCTION VERTICES ARE PROJECTED (implicit skinning, review doc "Rulings on WP3"): the bone blend above is only their START (taken at the REST radii, blending the body and the map offset sets by the peel share); the stage then moves each onto the LIVE smooth union of its
+// region's capsules (net/regions.ts: eight bones along each, live centre and live lumen with swell, width and presence; k = SKIN_K x the narrowest arm's live lumen) by three Newton steps, and takes the union's gradient at the shade width (eased to the nearest arm's own
+// direction near a seam ring) for the shade normal; the ink, the ring's sag and the lift push along the union's gradient at the sharp width. Tube vertices stay on bones. tests/net-oracle.ts junctionPose is its twin; tests/net-implicit.test.ts holds the numbers.
+//
 // THE RULES ARE THE OLD SHADER'S, NOT COPIES: the live width (swellOf, circWidthOf, stumpK), the free ends' fade (FADE_ALPHA_GLSL), the highlight (HIGHLIGHT_ALONG_GLSL), the morph's peel and turn (CIRC_PEEL_GLSL), the flow marks
 // (FLOW_MARKS_GLSL, CHEV_ONE_GLSL, DUST_GLSL), the cel tones, the lens (LENS_OF_AT_GLSL) and the procedure marks (PROCEDURE_MARKS_GLSL) are the very GLSL vessels/shaders.ts splices, taken from vessels/glsl-shared.ts, circuit/shader.ts and
 // materials/shaders.ts. They read per-vessel names (`len`, `stump`, `fadeA`, `lensSpan`, ...): here those names are GLOBAL VARIABLES that `loadEdgeVS` / `loadEdgeFS` fill from the edge's row of the texture, where the old shader
@@ -34,6 +38,9 @@ import { CAP_CARVED_GLSL, CHEV_CREAM_GLSL, CHEV_ONE_GLSL, CIRC_WIDTH_OF_GLSL, FA
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { VDBG_GLSL } from '../debug-view.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
+import { SKIN_K } from '../skin/sdf.ts';
+import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
+import { REGION_CAPS, REGION_PTS } from './regions.ts';
 import { BONE_TEXELS, BONES_PER_ROW } from './bones.ts';
 import { EDGE_LAYOUT } from './edge-state.ts';
 
@@ -68,7 +75,7 @@ export const NET_FS_COLUMNS: readonly string[] = [
 /** What the network object must carry as plain uniforms (and the textures): one set for the whole network, never per vessel. WP4 builds the material's uniforms from this list; tests/net-shader.test.ts holds it to the shaders. */
 export const NET_GLOBALS: Readonly<Record<string, string>> = {
   // both stages
-  boneTex: 'sampler2D', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
+  boneTex: 'sampler2D', regionTex: 'sampler2D', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
   // vertex stage
   circRot: 'vec2', circM: 'vec3', circTrackSize: 'vec2', circTrack: 'sampler2D', circBoost: 'float', circPerPx: 'float', ringSag: 'float',
   // fragment stage
@@ -89,10 +96,15 @@ attribute vec4 weight;
 attribute vec4 off0;      // the offset in each bone's frame over the bone's radius: 4 x vec3 as 12 floats, (o0.xyz, o1.x) (o1.yz, o2.xy) (o2.z, o3.xyz)
 attribute vec4 off1;
 attribute vec4 off2;
+attribute vec4 offM0;     // the MAP-pose offsets, the same layout (net/types.ts NetMesh.offsetMap; = off for a tube vertex): blended in by the vertex's peel share
+attribute vec4 offM1;
+attribute vec4 offM2;
+attribute float region;   // the junction region this vertex belongs to (a row of regionTex, net/regions.ts), -1 for a tube vertex: bones only
 attribute vec4 nrm0;      // the rest normal in each bone's frame, the same layout (net/types.ts NetMesh.normal)
 attribute vec4 nrm1;
 attribute vec4 nrm2;
 uniform sampler2D boneTex;
+uniform sampler2D regionTex;   // one row per junction region: capsule count, arm count, the mates, the bones along each capsule (net/regions.ts)
 uniform sampler2D edgeTex;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -167,14 +179,16 @@ mat3 frameTo(mat3 F, vec3 T) {
   float k = 1.0 / (1.0 + c);
   return mat3(T, F[1] * c + cross(ax, F[1]) + ax * (dot(ax, F[1]) * k), F[2] * c + cross(ax, F[2]) + ax * (dot(ax, F[2]) * k));
 }
-struct NetBone { vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; };
-NetBone netBone(int bi) {
+struct NetBone { vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; float lumenRest; };
+int netRowLoaded = -1;   // (the edge row the globals hold now: a junction's capsules read their bones edge by edge, so most reads reuse it)
+// lite: only the bone's live centre and live lumen (the junction projection's capsules); the rest of the struct is not set
+NetBone netBone(int bi, bool lite) {
   NetBone o;
   ivec2 t0 = boneTexel(bi, 0);
   vec4 A = texelFetch(boneTex, t0, 0), M = texelFetch(boneTex, t0 + ivec2(1, 0), 0), Q = texelFetch(boneTex, t0 + ivec2(2, 0), 0);
   int row = int(floor(Q.w));
   float u = clamp((Q.w - float(row)) * 2.0, 0.0, 1.0);
-  loadEdgeVS(row);
+  if (row != netRowLoaded) { loadEdgeVS(row); netRowLoaded = row; }
   mat3 Fb = quatFrame(Q.xyz);
   float w = 0.0, stay = 1.0, dturn = 0.0;
   vec3 cen = A.xyz;
@@ -226,6 +240,7 @@ NetBone netBone(int bi) {
   float narrowK = 1.0 - clamp(waistNarrow(waist, u), 0.0, 0.97);
   float lumen0W = rest * swell * presence;   // (before a stenosis or the stent's waist pinches it: the stent's cells are sized from it)
   float lumenW = lumen0W * narrowK;
+  if (lite) { o.cen = cen; o.lumen = lumenW; return o; }
   // the free ends' fade and the cava end's ease (FADE_ALPHA_GLSL), on this bone's own place along its edge
   float fa = 1.0;
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
@@ -244,19 +259,68 @@ ${HIGHLIGHT_ALONG_GLSL}
   // The outline's ink, the ring polygon's sag and the lift push the surface along its NORMAL (the vertex stage adds them once, along the blended bound normal): in a tube that is the ring direction, as the old shader's, and in a fillet it
   // is the shade normal, so the outline keeps its width across a junction (an offset pushed along each arm's own direction would thin it where the arms diverge). The ring's flats sit at the lumen + ink, its corners ringSag farther out.
   o.pad = inkW + (lumenW + inkW) * ringSag + inflate;
+  o.lumenRest = rest;
   return o;
 }
+// ---- THE JUNCTION PROJECTION (implicit skinning, review doc "Rulings on WP3"): the live smooth union of a region's capsules and its gradient, sdf.ts sdUnionGrad in GLSL.
+// Each capsule is ${REGION_PTS} bones: the axis runs through their live centres, the radius is their live lumen (swell, width, presence). capP = (centre, lumen) of every point, capMate the mate's index or -1 (the two halves of a run-on: a plain minimum).
+vec4 capP[${REGION_CAPS * REGION_PTS}];
+float capMate[${REGION_CAPS}];
+float netArmSd(int c, vec3 p, out vec3 g, out vec3 cpt) {
+  float best = 1.0e20, bt = 0.0;
+  int bi = 0;
+  for (int s = 0; s < ${REGION_PTS - 1}; s++) {
+    vec3 a = capP[c * ${REGION_PTS} + s].xyz, b = capP[c * ${REGION_PTS} + s + 1].xyz - a, q = p - a;
+    float bb = dot(b, b), t = bb > 1.0e-12 ? clamp(dot(q, b) / bb, 0.0, 1.0) : 0.0;
+    vec3 dv = q - t * b;
+    float d2 = dot(dv, dv);
+    if (d2 < best) { best = d2; bt = t; bi = s; }
+  }
+  vec4 P0 = capP[c * ${REGION_PTS} + bi], P1 = capP[c * ${REGION_PTS} + bi + 1];
+  vec3 bv = P1.xyz - P0.xyz;
+  float d = sqrt(best), inv = d > 1.0e-12 ? 1.0 / d : 0.0, bb = dot(bv, bv);
+  cpt = P0.xyz + bv * bt;
+  g = (p - cpt) * inv;
+  if (bt > 0.0 && bt < 1.0 && bb > 1.0e-12) g -= (P1.w - P0.w) / bb * bv;
+  return d - mix(P0.w, P1.w, bt);
+}
+float netUnion(vec3 p, float k, int nc, out vec3 g) {
+  float acc = 0.0;
+  vec3 gacc = vec3(0.0);
+  bool first = true;
+  for (int i = 0; i < ${REGION_CAPS}; i++) {
+    if (i >= nc) break;
+    int m = int(floor(capMate[i] + 0.5));
+    if (m >= 0 && m < i) continue;
+    vec3 ug, cp;
+    float b = netArmSd(i, p, ug, cp);
+    if (m > i) { vec3 mg; float o = netArmSd(m, p, mg, cp); if (o < b) { b = o; ug = mg; } }
+    if (first) { acc = b; gacc = ug; first = false; continue; }
+    float a = acc, raw = 0.5 + 0.5 * (b - a) / max(k, 1.0e-6), h = clamp(raw, 0.0, 1.0);
+    bool inside = raw > 0.0 && raw < 1.0;
+    float dfdh = a - b - k + 2.0 * k * h, dha = inside ? -0.5 / max(k, 1.0e-6) : 0.0, dhb = inside ? 0.5 / max(k, 1.0e-6) : 0.0;
+    gacc = (h + dfdh * dha) * gacc + (1.0 - h + dfdh * dhb) * ug;
+    acc = b + (a - b) * h - k * h * (1.0 - h);
+  }
+  g = gacc;
+  return acc;
+}
 void main() {
-  vec3 pAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
+  vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
   float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
+  int rowOf[4] = int[4](-1, -1, -1, -1);
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
   for (int k = 0; k < 4; k++) {
     float wk = weight[k];
     if (wk <= 0.0) continue;
-    NetBone b = netBone(int(bone[k] + 0.5));
+    NetBone b = netBone(int(bone[k] + 0.5), false);
+    rowOf[k] = b.row;
+    float sc = region > -0.5 ? b.lumenRest : b.lumen;   // (a junction vertex STARTS from the rest arrangement, the projection below follows the live radii)
     vec3 o = k == 0 ? off0.xyz : (k == 1 ? vec3(off0.w, off1.xy) : (k == 2 ? vec3(off1.zw, off2.x) : off2.yzw));
     vec3 nr = k == 0 ? nrm0.xyz : (k == 1 ? vec3(nrm0.w, nrm1.xy) : (k == 2 ? vec3(nrm1.zw, nrm2.x) : nrm2.yzw));
-    pAcc += wk * (b.cen + b.F * (o * b.lumen));
+    vec3 om = k == 0 ? offM0.xyz : (k == 1 ? vec3(offM0.w, offM1.xy) : (k == 2 ? vec3(offM1.zw, offM2.x) : offM2.yzw));
+    pAcc += wk * (b.F * (o * sc));
+    pMapAcc += wk * (b.F * (om * sc));
     padAcc += wk * b.pad;
     nAcc += wk * (b.F * nr);
     tAcc += wk * b.F[0];
@@ -268,7 +332,54 @@ void main() {
   }
   float nl = length(nAcc), tl = length(tAcc);
   vec3 nUnit = nl > 1e-6 ? nAcc / nl : vec3(0.0, 0.0, 1.0);
-  pAcc += nUnit * padAcc;
+  vec3 nPush = nUnit;   // (the direction the ink, the ring's sag and the lift push along: a tube's is its normal; a junction vertex's is the union's gradient at the sharp width, below)
+  // the body set and the map set, blended by the vertex's peel share (a tube vertex has the same offsets in both, so it is unchanged; a junction vertex moves from its body shape to its shrink-wrap on the map)
+  pAcc = cenAcc + mix(pAcc, pMapAcc, clamp(shareAcc, 0.0, 1.0));
+  if (region > -0.5) {
+    // THE PROJECTION: the capsules from their bones (live centre and lumen), k from the narrowest ARM's live lumen at the junction, three Newton steps onto the live union, the normal the union's gradient at the shade width
+    int rr = int(region + 0.5);
+    vec4 hd = texelFetch(regionTex, ivec2(0, rr), 0);
+    int nc = int(hd.x + 0.5), na = int(hd.y + 0.5);
+    float kMin = 1.0e9;
+    for (int c = 0; c < ${REGION_CAPS}; c++) {
+      if (c >= nc) break;
+      vec4 mt = texelFetch(regionTex, ivec2(1 + c / 4, rr), 0);
+      int mc = c - (c / 4) * 4;
+      capMate[c] = mc == 0 ? mt.x : (mc == 1 ? mt.y : (mc == 2 ? mt.z : mt.w));
+      for (int h = 0; h < ${REGION_PTS / 4}; h++) {
+        vec4 bi4 = texelFetch(regionTex, ivec2(3 + c * ${REGION_PTS / 4} + h, rr), 0);
+        for (int j = 0; j < 4; j++) {
+          NetBone nb = netBone(int(bi4[j] + 0.5), true);
+          capP[c * ${REGION_PTS} + h * 4 + j] = vec4(nb.cen, nb.lumen);
+          if (h == 0 && j == 0 && c < na) kMin = min(kMin, nb.lumen);
+        }
+      }
+    }
+    float kU = ${F(SKIN_K)} * kMin;
+    vec3 gU = vec3(0.0, 0.0, 1.0);
+    for (int s = 0; s < 3; s++) {
+      float f = netUnion(pAcc, kU, nc, gU);
+      float l2 = dot(gU, gU);
+      if (l2 > 1.0e-12) pAcc -= f * gU / l2;
+    }
+    nPush = gU / max(length(gU), 1.0e-9);
+    // the normal: the union's gradient at the SHADE width, eased to the nearest arm's own radial direction where one arm is nearly all there is (exact-normal.ts: a seam ring is the tube's)
+    float wmax = 0.0;
+    for (int a = 0; a < 4; a++) { float sw = 0.0; for (int b2 = 0; b2 < 4; b2++) if (rowOf[b2] == rowOf[a] && rowOf[a] >= 0) sw += weight[b2]; wmax = max(wmax, sw); }
+    vec3 gS;
+    netUnion(pAcc, ${F(SKIN_SHADE_K)} * kU, nc, gS);
+    float bestSd = 1.0e20;
+    vec3 bestC = pAcc;
+    for (int c = 0; c < ${REGION_CAPS}; c++) {
+      if (c >= nc) break;
+      vec3 ug, cp;
+      float sd = netArmSd(c, pAcc, ug, cp);
+      if (sd < bestSd) { bestSd = sd; bestC = cp; }
+    }
+    vec3 gn = gS / max(length(gS), 1.0e-9), rad = (pAcc - bestC) / max(length(pAcc - bestC), 1.0e-9);
+    nUnit = normalize(mix(gn, rad, smoothstep(0.6, ${F(SKIN_RING_W_FROM)}, wmax)));
+  }
+  pAcc += nPush * padAcc;
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cenAcc, 1.0));
   vCen = vec3(cc.x, cc.y, cc.w);
   vec4 mv = modelViewMatrix * vec4(pAcc, 1.0);

@@ -95,10 +95,11 @@ export class SkinObject implements SkinDraw {
   private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
-  private readonly kw = new Vector3(0, 0, 1);   // (x the blend width skinK, y the mode, z the share: skinKW in the fragment stage)
+  private readonly kw = new Vector4(0, 0, 1, SKIN_FIGURE_UNITS);   // (x the blend width skinK, y the mode, z the share, w the units in a scene unit, negative on the Circuit's own skins: skinKW in the shader stages)
 
   /** `circuit`: this is a skin of the Circuit's map (circuit/skins.ts): its mesh is built on the map's courses, its program is the one built with SKIN_CIRC and its name says so. */
   constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[], circuit = false) {
+    if (circuit) this.kw.w = -1 / MAP_K;   // (the Circuit's own skins: the map's units, the sign says which: skinKW.w in the shaders)
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(skin.position, 3));
     g.setAttribute('normal', new BufferAttribute(skin.normal, 3));
@@ -127,13 +128,11 @@ export class SkinObject implements SkinDraw {
       ...shared,
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
-      lensUse: { value: 1 },
       armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       
-      // the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units and its widths, line and fade are a uniform, so a map skin compiles nothing the body's skins have not
-      skinMap: { value: new Vector2(circuit ? 1 / MAP_K : SKIN_FIGURE_UNITS, circuit ? 1 : 0) },
+      // (the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units, with the sign flipped, are skinKW.w, so a map skin compiles nothing the body's skins have not)
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
