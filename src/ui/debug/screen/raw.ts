@@ -2,6 +2,8 @@
 // rules judge the parts, so a Node test drives readers and rules with hand-made raw reads; the collectors below run on the device and are tried there.
 // Debug only: a read of layout per call, never per frame (the recorder's sampler reads the same way, only while it is on).
 
+import { srOnlyStyle } from '../sr-only.ts';
+
 export interface RawText { role: 'kicker' | 'title' | 'body' | 'data' | 'other'; px: number; text: string; left: number; top: number; right: number; bottom: number }
 export interface RawCard {
   id: string; phase: string; x: number; y: number; w: number; h: number; opacity: number;
@@ -36,7 +38,8 @@ export const clipsAway = (w: number, h: number, overflow: string): boolean => w 
 function hiddenFromEyes(win: Window, el: Element, card: Element): boolean {
   for (let e: Element | null = el; e && e !== card; e = e.parentElement) {
     const b = e.getBoundingClientRect();
-    if (b.width <= 2 && b.height <= 2 && clipsAway(b.width, b.height, win.getComputedStyle(e).overflow)) return true;
+    const cs = win.getComputedStyle(e);
+    if (srOnlyStyle(cs) || (b.width <= 2 && b.height <= 2 && clipsAway(b.width, b.height, cs.overflow))) return true;
   }
   return false;
 }
