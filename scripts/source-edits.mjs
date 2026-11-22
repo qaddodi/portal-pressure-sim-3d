@@ -70,6 +70,9 @@ export const SOURCE_PATCHES = [
   P('tips-complete', 'slides.baseline.cite', ' or AASLD 2024', ''),
   P('variceal-bleed', 'slides.path2.ask.1', '(AASLD 2024).', '(Baveno VIII 5.35, 5.36, 4.13).'),
   P('varices', 'slides.summary.ask.1', ' (AASLD 2024)', ''),
+
+  // ---- the velocity lens's colours (ramp F, 22 Nov 2026: scripts/../src/scene/lenses/velocity-ramp.ts): the note names what the figure draws now ----
+  P('tips-doppler', 'slides.before.notes', 'pale sand when slower, teal when normal and violet when faster', 'indigo when slower, teal when normal and coral when faster'),
 ];
 
 function step(node, key) {

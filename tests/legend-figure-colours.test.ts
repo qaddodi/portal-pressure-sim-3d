@@ -8,7 +8,7 @@ import { legendFor, rampStops } from '../src/scene/lenses/legend.ts';
 import { figureHex, celTubeBase, isDarkLook } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { LENS_SHARED } from '../src/scene/lenses/tokens.copied.ts';
-import { PRESSURE_RAMP } from '../src/scene/lenses/pressure-ramp.ts';
+import { PRESSURE_RAMP, isRawLens } from '../src/scene/lenses/pressure-ramp.ts';
 import { hexToRgb01, rgb01ToHex } from '../src/scene/lenses/oklab.ts';
 import { lensSwatch } from '../src/ui/shell/lens-art.ts';
 import type { LensId } from '../src/scene/lenses/model.ts';
@@ -26,11 +26,11 @@ test('figureHex is the vessels\' transform: the same colour celTubeBase gives, p
   assert.notEqual(figureHex('#B8D5ED', 'light'), figureHex('#B8D5ED', 'dark'), 'and the dark looks cap it brighter');
 });
 
-test('no key colour is lighter or more saturated than a vessel can be: every stop and dot of every lens but the pressure one (authored as drawn, pressure-ramp.ts), in every look, is under the caps', () => {
+test('no key colour is lighter or more saturated than a vessel can be: every stop and dot of every lens but the as-drawn ones (pressure and velocity, RAW_LENSES in pressure-ramp.ts), in every look, is under the caps', () => {
   const T = CEL_STYLE.TUBE;
   for (const look of LOOKS) {
     const dark = isDarkLook(look), lcap = (dark ? T.LCAP_DARK : T.LCAP) + 0.01, vcap = (dark ? T.VCAP_DARK : T.VCAP) + 0.01;
-    for (const lens of LENSES.filter((l) => l !== 'pressure')) {
+    for (const lens of LENSES.filter((l) => !isRawLens(l))) {
       const g = legendFor(lens, look);
       const colours = [...(g.bar?.stops.map((s) => s[0]) ?? []), ...((g.dots ?? []).map((d) => d.colour).filter(Boolean))];
       for (const c of colours) { const rgb = hex2(c); assert.ok(lum(rgb) <= lcap && Math.max(...rgb) <= vcap, `${look} ${lens} ${c} is under the vessel caps`); }
