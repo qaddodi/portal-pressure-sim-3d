@@ -13,7 +13,7 @@ const cssFiles = files.filter((f) => f.endsWith('.css'));
 const srcText = files.filter((f) => /\.(tsx?|js)$/.test(f) && !f.includes('/css2d/') && !f.includes('/debug/') && !f.startsWith('src/decks/')).map((f) => readFileSync(f, 'utf8')).join('\n');
 
 /** Classes whose pill paint humanized.css strips. */
-const RETIRED = ['pz-val', 'pz-gpill', 'hp-chip', 'cmp-badge', 'tr-chip', 'ir-chip', 'pt-chip', 'fr-pill', 'fr-pillnote', 'sv-legend', 'pz-site', 'pz-dz', 'pz-lens-t'];
+const RETIRED = ['tl-hc', 'tb-hc', 'fd-count', 'pzc-hint', 'pz-miss', 'pzt-r', 'cmp-seg', 'dop-tint', 'cmp-table-btn', 'cmp-banner', 'sh-waitcue', 'sh-glnote', 'pz-val', 'pz-gpill', 'hp-chip', 'cmp-badge', 'tr-chip', 'ir-chip', 'pt-chip', 'fr-pill', 'fr-pillnote', 'fr-mark', 'fr-rc', 'sv-legend', 'pz-site', 'pz-dz', 'pz-lens-t'];
 /** Exceptions, each with its reason. None carries a dot beside words. */
 const ALLOWED: Record<string, string> = {
   'zoom-pill': 'a rounded bar of icon buttons (no words, no dot)', 'float-pill': 'a rounded bar of controls', 'sh-pill': 'a plain button',
@@ -54,7 +54,7 @@ test('humanized.css strips the paint of every retired class', () => {
   for (const c of RETIRED) {
     const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => new RegExp(`\\.${c}\\b`).test(m[1]!));
     assert.ok(rules.length, `${c} has no rule in humanized.css`);
-    assert.ok(rules.some((m) => /background:\s*none/.test(m[2]!) || /border-radius:\s*0/.test(m[2]!)), `${c} is not stripped of its fill or rounding`);
+    assert.ok(rules.some((m) => /background:\s*none/.test(m[2]!) || /border-radius:\s*(0|var\(--r-sheet\))/.test(m[2]!)), `${c} is not stripped of its fill or rounding`);
   }
 });
 
@@ -116,4 +116,38 @@ test('humanized.css strips every retired round mark', () => {
   for (const r of ROUND_RETIRED.filter((x) => x !== '.dk-obj')) assert.ok(css.includes(r), `${r} is not stripped in humanized.css`);
   assert.doesNotMatch(readFileSync('src/ui/deck-ui.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''), /\.dk-obj li::before/, 'the title card has no dot bullets');
   assert.doesNotMatch(readFileSync('src/ui/trials/TrialsPane.tsx', 'utf8'), /<i key=\{i\} className=\{c\} \/>/, 'the trial rows have no pips');
+});
+
+// G2 (Plan 39, Audit 5): the name filter above only sees classes called pill, chip, badge or dot, so a pill named `.tl-hc` or `.cmp-seg` passed. This one has no name filter:
+// any class the app makes whose rule rounds it to a pill (999px, 50 %, --r-pill) and paints a fill or a ring must be stripped in humanized.css (RETIRED) or listed with its reason.
+const ALLOWED_ANY: Record<string, string> = {
+  'pz-step': 'the numbered step disc on a slide (owner-approved)', 'pz-prail-dot': 'the owner-picked step rail (mock A)', 'pz-prail-go': 'the step rail\'s play button (mock A)', 'pz-prail-at': 'the step rail\'s ring (mock A)',
+  'ms-dot': 'owner-approved numbered step', 'lead-dot': 'the callout leader\'s anchor on the figure', 'look-chip': 'the Appearance swatch (a theme preview)', 'sh-toast': 'a note (f99c7155)', 'toast': 'a note (f99c7155)',
+  'zoom-pill': 'a rounded bar of icon buttons', 'float-pill': 'a rounded bar of controls', 'pzb-pill': 'the presenter bar of buttons', 'chip-btn': 'a top-bar button',
+};
+Object.assign(ALLOWED_ANY, {
+  'lb-anchor': 'a leader\'s anchor mark on the figure', 'lz-co-ring': 'a ring drawn on the figure', 'lb-bar': 'the lens key\'s colour bar (no words in it)', 'pzc-rule': 'a thin rule line, no words',
+  'info-i': 'the info button\'s "i"', 'sl-start': 'slider thumb', 'switch-vis': 'on/off switch knob', 'sh-sw': 'on/off switch knob', 'mt-sw': 'on/off switch knob', 'look-spin': 'a spinner',
+  'ab-belly': 'figure art (the belly drawing)', 'pz-lens-disc': 'the scope lens on the figure', 'pz-lens-x': 'the scope lens\' close button (an icon)', 'pz-lens-hit': 'the scope lens\' hit area',
+  'sh-x': 'an icon close button (no words)', 'sh-btn': 'a dialog button: owner call pending, not in Plan 39', 'pz-nm': 'retired in humanized.css (ROUND_RETIRED)', 'ms-fill': 'retired in humanized.css (display: none)',
+  'instr-tab': 'retired in humanized.css (ROUND_RETIRED)', 'pzc-c': 'retired in humanized.css (ROUND_RETIRED)',
+});
+const LISTED_DEBUG: Record<string, string> = { 'perf-mount': 'debug only', 'charts-gallery': 'debug only', 'handout': 'debug only' };
+test('G2: no class the app makes (any name) is a pill with a fill or a ring, except the retired, the owner-approved and the debug-only', () => {
+  const seen = new Map<string, string>();
+  for (const f of cssFiles) {
+    if (f.endsWith('humanized.css')) continue;
+    const css = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of css.matchAll(/([^{}@;][^{}]*)\{([^{}]*)\}/g)) {
+      const sel = m[1]!.trim(), body = m[2]!;
+      if (!/border-radius:\s*(999px|50%|var\(--r-pill\))/.test(body)) continue;
+      if (!/(^|;|\s)(background(-color)?:\s*(?!none|transparent|inherit|initial|unset)|box-shadow:\s*(inset|0 0 0)|border:\s*[1-9]|border:\s*var)/.test(body)) continue;
+      for (const one of sel.split(/,(?![^()]*\))/)) {
+        const subject = one.trim().replace(/::?[\w-]+(\([^()]*\))?$/, '').split(/[\s>+~]+/).pop() ?? '';
+        for (const c of subject.matchAll(/\.([A-Za-z][\w-]*)/g)) seen.set(c[1]!, `${f}: ${one.trim().slice(0, 80)}`);
+      }
+    }
+  }
+  const bad = [...seen].filter(([c]) => made(c) && !RETIRED.includes(c) && !(c in ALLOWED) && !(c in ALLOWED_ANY) && !(c in LISTED_DEBUG)).map(([c, w]) => `${c} (${w})`);
+  assert.deepEqual(bad, [], 'a pill with a fill or a ring: strip it in humanized.css (words in their colour) or list it with its reason');
 });
