@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createUpdater, parseBuildCommit, newerBuild, whenToApply, takesOverNow, IDLE_APPLY_MS, FADE_MS, type UpdaterEnv } from '../src/pwa/update.ts';
+import { mayAutoReload, MAX_AUTO_RELOADS, createUpdater, parseBuildCommit, newerBuild, whenToApply, takesOverNow, IDLE_APPLY_MS, FADE_MS, type UpdaterEnv } from '../src/pwa/update.ts';
 import { useUpdate } from '../src/pwa/update-state.ts';
 import { updateText, buildLabel } from '../src/ui/shell/build-pill.ts';
 import { buildSw } from '../scripts/pwa.mjs';
@@ -131,4 +131,14 @@ test('the wiring: the worker\'s takeover tells the updater, the page asks the ho
   let answered = false;
   on.fetch!({ request: { method: 'GET', url: 'https://x.test/app/build-info.txt', mode: 'cors' }, respondWith: () => { answered = true; }, waitUntil() {} });
   assert.equal(answered, false);
+});
+
+
+test('a page that reloads onto a "newer" build and comes back on the same one does not loop: two tries per build', () => {
+  const mem = new Map<string, string>(); const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
+  for (let i = 0; i < MAX_AUTO_RELOADS; i++) assert.equal(mayAutoReload(store, 'aaaaaaaa'), true);
+  assert.equal(mayAutoReload(store, 'aaaaaaaa'), false, 'the same build again: stop');
+  assert.equal(mayAutoReload(store, 'bbbbbbbb'), true, 'a different build is a fresh count');
+  assert.equal(mayAutoReload(null, 'x'), true, 'no storage: once per found build');
+  assert.match(readFileSync('src/pwa/update.ts', 'utf8'), /mayAutoReload\(session\(\), buildLabel/);
 });

@@ -10,6 +10,7 @@ import { sharedContext } from '../ui/charts/gl.ts';
 import { PROGRAM_SETS, warmSet } from './warm-programs.ts';
 import { lowData } from './data-saver.ts';
 import { spanAsync } from './spans.ts';
+import { splashHeld } from './ready.ts';
 
 import { clock } from '../clock/frame.ts';
 
@@ -39,10 +40,14 @@ export async function runLadder(rungs: readonly Rung[] = RUNGS, slot: Slot = idl
   return ran;
 }
 
-/** The slot of today: the idle callback where there is one, else a short timer (Safari). */
+/** The slot of today: the idle callback where there is one, else a short timer (Safari). Never while the cover is up: the figure's first frame is what the person waits for, and a phone has one CPU
+ *  to give it (a rung reading six instruments in and making a second WebGL context in the middle of the boot slowed the cover's lift: 22 Nov). */
+export const COVER_RETRY_MS = 500;
 const idleSlot: Slot = (go) => {
   const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
-  if (ric) ric(go, { timeout: 4000 }); else clock.after(go, 1500);
+  const ask = (): void => { if (ric) ric(go, { timeout: 4000 }); else clock.after(go, 1500); };
+  const wait = (): void => { if (splashHeld()) clock.after(wait, COVER_RETRY_MS); else ask(); };
+  wait();
 };
 
 export function warmLater(delayMs = 3000): void {

@@ -1,5 +1,6 @@
 // Boot order: the saved look (before anything paints) → fonts and the engine's first patient, in parallel → React → the first card.
 // Nothing is shown before it is ready: the screen is the look's ground until then, never white, never half-styled.
+import './boot/started.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';

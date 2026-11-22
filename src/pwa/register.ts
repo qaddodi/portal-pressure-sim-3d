@@ -5,6 +5,7 @@
 import { useShell } from '../ui/shell/store.ts';
 import { reloadKeepingState } from '../boot/reload.ts';
 import { startUpdateWatch } from './update.ts';
+import { splashHeld } from '../boot/ready.ts';
 import { talkOn } from '../state/deck.ts';
 import { lowData } from '../boot/data-saver.ts';
 
@@ -94,10 +95,12 @@ export function registerPwa(): void {
     addEventListener('pageshow', ask); addEventListener('online', ask);
     clock.every(ask, CHECK_MS);
   };
-  const go = () => idle(() => {
+  // (not while the cover is up: the worker's install copies megabytes into the cache, and the first frame is what the person waits for)
+  const go = (): void => { if (splashHeld()) { clock.after(go, 500); return; } idle(install); };
+  const install = () => {
     // (once the worker is active, its install list is held: the site may keep it (persistOnce); the fill of the parts opened later waits on Save-Data and 2g, those parts are fetched on use and kept)
     sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { void persistOnce(navigator.storage, door()); if (!lowData()) idle(() => r.active?.postMessage('pps:fill')); })
       .catch((e) => console.warn('[pwa] no offline copy:', e));
-  });
+  };
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
 }
