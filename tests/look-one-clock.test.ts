@@ -41,3 +41,12 @@ test('the labels, captions, key, legend, charts and cards draw in the glided loo
   assert.match(readFileSync('src/scene/lenses/Legend.tsx', 'utf8'), /use-look\.ts/);
   assert.match(readFileSync('src/looks/use-look.ts', 'utf8'), /lookGlide\.watch/);
 });
+
+test('the fade has one duration: the group and both pictures use --d-look, with a selector that outranks the copied 2D rule', () => {
+  const css = readFileSync('src/ui/shell/global.css', 'utf8');
+  const rules = css.match(/[^\n{}]*::view-transition-(?:group|old|new)\([^{]*\{[^}]*\}/g) ?? [];
+  assert.equal(rules.length, 2, 'the group rule and the old/new rule');
+  for (const r of rules) { assert.match(r, /^\s*html::/, r); assert.match(r, /animation-duration: var\(--d-look\)/); assert.ok(!/--d-surface/.test(r)); }
+  assert.match(readFileSync('src/looks/glide.ts', 'utf8'), /GLIDE_MS = 320/);
+  assert.match(css, /--d-look: 320ms/);
+});
