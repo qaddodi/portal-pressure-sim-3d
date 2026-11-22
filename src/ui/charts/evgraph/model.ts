@@ -20,16 +20,17 @@ export const EVENT_WORD: Record<string, string> = { tips: 'Stent open', tipscoil
 const PLUG_TARGETS: Record<string, Record<string, string>> = { brto: { C5: 'brto', C6: 'brtoC6' }, tips: { C1a: 'tipscoil' } };
 const PLUG_STENTED: Record<string, string> = { tipscoil: 'tipscoilin' };
 export type Procedure = string | { kind: string; target?: string | null; stented?: boolean } | null | undefined;
-export function procKindOf(proc: Procedure): string | null {
-  const kind = typeof proc === 'string' ? proc : proc?.kind;
+export function procKindOf(proc: unknown): string | null {
+  const o = (typeof proc === 'object' && proc ? proc : null) as { kind?: string; target?: string | null; stented?: boolean } | null;
+  const kind = typeof proc === 'string' ? proc : o?.kind;
   if (!kind) return null;
-  const t = typeof proc === 'object' && proc ? proc.target : null;
+  const t = o?.target;
   const k = t == null ? kind : PLUG_TARGETS[kind]?.[t] || `${kind}:${t}`;
-  return typeof proc === 'object' && proc?.stented && PLUG_STENTED[k] ? PLUG_STENTED[k]! : k;
+  return o?.stented && PLUG_STENTED[k] ? PLUG_STENTED[k]! : k;
 }
 
 /** The slide fields the graph reads (the 2D slide's). */
-export interface EvSlide { procedure?: Procedure; visual?: unknown; lapse?: unknown; graph?: false | readonly string[]; tiles?: readonly string[] | { keys?: readonly string[] } }
+export interface EvSlide { procedure?: unknown; visual?: unknown; lapse?: unknown; graph?: false | readonly string[]; tiles?: readonly string[] | { keys?: readonly string[] } | null }
 export interface EvSpec { kind: string; word: string; lines: [string, string]; /** the PPG's goal after a TIPS, mmHg, on the line that has it */ target: number | null }
 
 const isP = (k: string) => LINE[k]?.[1] === 'mmHg';

@@ -33,7 +33,7 @@ import { buildProbeLabels } from './probe-labels-dom.ts';
 import { addLabelBox, beginLabelBoxes } from './probe-boxes.ts';
 import { coverClip } from './probe-cover.ts';
 import { cathVars, cathLook } from './cath.ts';
-import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
+import { KEY_LENSES, keyModel } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
 import { useLabels, useFigure } from './store.ts';
 import { FigureCards } from './figure-cards.ts';
@@ -122,11 +122,10 @@ export function LabelLayer() {
   const key = useLabels((s) => s.key);
   const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
   const lookId = resolveLook(look, dark);
-  const scheme = schemeOf(lookId);
   const lookRef = useRef(lookId); lookRef.current = lookId;
   const applyTypeRef = useRef<() => void>(() => {});
   useEffect(() => { applyTypeRef.current(); }, [lookId]);
-  const model = useMemo(() => keyModel(key, scheme), [key, scheme]);
+  const model = useMemo(() => keyModel(key, lookId), [key, lookId]);
   // The key never pops: one that goes (no key, or another lens) stays drawn while the layer eases its pill out (the controller's alpha), and a lens that follows another fades in over the old one fading out.
   const { now: keyNow, leaving: keyOut } = useKeyBlend(model);
   const vpNow = useUi((s) => s.vp);
