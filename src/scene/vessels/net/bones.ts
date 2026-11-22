@@ -9,6 +9,7 @@
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import type { Vec3 } from '../../anatomy/vessels.ts';
 import type { Bone } from './types.ts';
+import { rangedUpload } from './texture-upload.ts';
 
 export const BONE_TEXELS = 3;
 export const BONES_PER_ROW = 64;
@@ -78,6 +79,7 @@ export class BoneTable {
   writes = 0;
   private lo = Infinity; private hi = -1;   // (bone indices)
   private tex: DataTexture | null = null;
+  private upload: ((start: number, count: number) => void) | null = null;
 
   constructor(bones: readonly Bone[], edges?: readonly { bones: readonly [number, number] }[]) {
     if (edges) for (const e of edges) if (e.bones[1] > MAX_BONES_PER_EDGE) throw new RangeError(`bones: an edge has ${e.bones[1]} bones, the texture holds ${MAX_BONES_PER_EDGE}`);
@@ -107,7 +109,7 @@ export class BoneTable {
     if (!this.tex) {
       const t = new DataTexture(this.data, BONE_ROW_TEXELS, this.rows, RGBAFormat, FloatType);
       t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
-      this.tex = t;
+      this.tex = t; this.upload = rangedUpload(t);
       this.lo = Infinity; this.hi = -1;
     }
     return this.tex;
@@ -115,11 +117,10 @@ export class BoneTable {
 
   /** Hands the rows the written bones lie in to the GPU, then forgets them. A no-op when nothing was written. */
   flush(): void {
-    const r = this.dirtyRows(), t = this.tex;
-    if (!r || !t) return;
+    const r = this.dirtyRows();
+    if (!r || !this.upload) return;
     const stride = BONE_ROW_TEXELS * 4;
-    t.addUpdateRange(r[0] * stride, (r[1] - r[0] + 1) * stride);
-    t.needsUpdate = true;
+    this.upload(r[0] * stride, (r[1] - r[0] + 1) * stride);
     this.lo = Infinity; this.hi = -1;
   }
 }
