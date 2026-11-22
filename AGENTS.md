@@ -21,8 +21,9 @@ card. Clinical text is for US physicians: Baveno VIII (never VII) is the only gu
 - **Root cause, everywhere, every time (rule #1, owner, 20 Nov).** Every bug the owner reports or you find is fixed at its root cause in the shared place, not at the symptom; then check every view, vessel and card for the same cause, fix those too, and add a test that pins it. Name the root cause in the report.
 
 ## How to work (owner's standing rules)
-- **No headless browsers, no screenshots, no Playwright** in the cloud. Work from code. Play-tests run on the owner's Mac in the Claude
-  desktop app's built-in browser, through a Remote Control thread, only when he asks.
+- **Check your own work on screen in the built-in browser (owner, 22 Nov 2026).** Threads open the preview in the Claude desktop app's
+  built-in browser themselves, run the `?inspect` toggles and look at their fix before reporting it; never ask the owner for screenshots
+  or to run toggles. **Headless browsers stay banned**: no Playwright, no headless Chromium, no scripted cloud screenshots.
 - **No GitHub Actions runners for checks or sweeps.** `.github/workflows/pages.yml` (build and publish only) is the one workflow.
 - **Tests are fast and targeted**: `npm run typecheck`, `npm run lint`, `npm test` (node only; in the cloud run just the test files for what you touched: `node --test tests/talk-state.test.ts`, for example). Never the whole suite in the cloud.
 - **Before every push: `npm run pre-push`** (`scripts/pre-push.mjs`): the typecheck (must print 0 errors), the lint, and only the test files that mention the files you changed, against the integration branch. `npm run hooks` installs it as the git pre-push hook. `--all` adds the whole suite (not in the cloud). No new workflow, no Actions minutes.
