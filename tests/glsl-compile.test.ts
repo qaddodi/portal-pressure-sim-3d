@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { CelScene } from '../src/scene/scene.ts';
-import { type Program, ES3_FLOOR, assemble, budget, declarations, uniformProblems, THREE_FRAGMENT_NAMES, THREE_VERTEX_NAMES } from '../src/debug/gl-programs.ts';
+import { type Program, ES3_FLOOR, assemble, budget, packedRows, declarations, uniformProblems, THREE_FRAGMENT_NAMES, THREE_VERTEX_NAMES } from '../src/debug/gl-programs.ts';
 import { GL_FILES, allPrograms } from '../src/debug/gl-registry.ts';
 import { onSceneGraph, programsOfModule } from '../src/debug/gl-auto.ts';
 import { glslFiles } from '../scripts/gl-scan.mjs';
@@ -128,7 +128,18 @@ test('every file that holds GLSL is compiled: on the closed hand list, or giving
 test('the ?gl page reads the same scan: the build makes `virtual:gl-modules` from scripts/gl-scan.mjs and the check imports it, so a new shader file is checked on the device with nothing registered', () => {
   const vite = readFileSync('vite.config.ts', 'utf8'), run = readFileSync(join('src', 'debug', 'gl-check-run.ts'), 'utf8');
   assert.match(vite, /import \{ glslFiles \} from '\.\/scripts\/gl-scan\.mjs'/);
-  assert.match(vite, /virtual:gl-modules/); assert.match(vite, /plugins: \[react\(\), glModules\(\)(, csp\(\))?\]/);
+  assert.match(vite, /virtual:gl-modules/); assert.match(vite, /plugins: \[react\(\), glModules\(\)[,\]]/);
   assert.match(run, /import\('virtual:gl-modules'\)/);
   assert.match(readFileSync(join('src', 'debug', 'gl-registry.ts'), 'utf8'), /autoPrograms\(fresh\)/);
+});
+
+test('the varying budget counts the rows after the GPU packs them (ES 2.0 Appendix A): floats fill the free column of a vec3, two vec2s share a row, a vec4 and an array take their own', () => {
+  const d = (type: string, n: number, array = 1) => Array.from({ length: n }, (_, i) => ({ storage: 'varying', type, name: `${type}${i}`, array }));
+  assert.equal(packedRows(d('vec4', 3)), 3);
+  assert.equal(packedRows([...d('vec3', 4), ...d('float', 4)]), 4, 'a float in the spare column of each vec3');
+  assert.equal(packedRows([...d('vec3', 4), ...d('float', 5)]), 5);
+  assert.equal(packedRows(d('vec2', 3)), 2);
+  assert.equal(packedRows(d('float', 5)), 2);
+  assert.equal(packedRows(d('vec3', 1, 4)), 4, 'an array takes a row an element');
+  assert.equal(packedRows(d('mat3', 1)), 3);
 });
