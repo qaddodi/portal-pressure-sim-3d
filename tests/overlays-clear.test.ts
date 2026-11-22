@@ -9,7 +9,7 @@ const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'u
 test('the toast is centred in the room left of the side panel and capped to it (a thumb layout has no panel)', () => {
   const css = read('src/ui/shell/shell.css');
   assert.match(css, /\.sh-toast \{[^}]*left: calc\(50% - var\(--panel-w, 360px\) \/ 2\)/);
-  assert.match(css, /\.sh-toast \{[^}]*max-width: min\(420px, calc\(100vw - var\(--panel-w, 360px\) - 24px\)\)/);
+  assert.match(css, /\.sh-toast \{[^}]*width: min\(440px, calc\(100vw - var\(--panel-w, 360px\) - 24px\)\)/);
   assert.match(css, /html\.thumb-ui \.sh-toast \{ left: 50%/);
 });
 
