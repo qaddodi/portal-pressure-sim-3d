@@ -1,6 +1,6 @@
-// "Add shunt" (the card button, 2D: startShunt in stage-hover.js): from the selected vessel, the vessels it can be joined to light up, a hint card says what each makes, and a tap on one makes it
+// "Add shunt" (the card button, 2D: startShunt in stage-hover.js): from the selected vessel, the vessels it can be joined to light up, and a tap on one makes it
 // (TIPS, DIPS, portocaval, distal splenorenal, mesocaval or a custom shunt between the two stations), says "<name> created." and selects the new vessel. A tap on nothing, Esc or Cancel calls it off
-// ("Shunt canceled."). The card is put away while it waits (2D: a card is not shown while shunting) and comes back when it is called off. Registered as the 'shunt' feature by startShunting().
+// ("Shunt canceled."). The card is put away while it waits (2D: a card is not shown while shunting) and comes back when it is called off. No hint card says what to tap (no tutorial popups, owner 22 Nov): the lit vessels are the cue. Registered as the 'shunt' feature by startShunting().
 import { create } from 'zustand';
 import { clock } from '../../clock/frame.ts';
 import { D_FLIP, EASE_ARRIVE } from '../motion.ts';
@@ -15,7 +15,7 @@ import { SHUNT_WORDS, SHUNT_CREATED } from './shunt-words.copied.ts';
 import type { ShuntRule } from './shunt-rules.copied.ts';
 
 export interface Shunting { src: string; only: string | null; targets: ReadonlyMap<string, ShuntRule> }
-/** The shunt waiting for its target (null when none): the hint card reads it. */
+/** The shunt waiting for its target (null when none). */
 export const useShunting = create<{ now: Shunting | null }>(() => ({ now: null }));
 
 let release: (() => void)[] = [];
@@ -97,15 +97,5 @@ export function startShunt(src?: string, o: { only?: string | null } = {}): bool
 /** Registers the Add shunt button's work; returns the remover. */
 export function startShunting(): () => void {
   const off = registerFeature('shunt', () => { startShunt(); });
-  // the hint card: its own small root (the shell has no slot for it), made once the first shunt asks for it
-  let root: { unmount(): void } | null = null, host: HTMLElement | null = null;
-  const unsub = useShunting.subscribe((s, prev) => {
-    if (!s.now || prev.now || root || typeof document === 'undefined') return;
-    void Promise.all([import('react-dom/client'), import('./ShuntHint.tsx'), import('react')]).then(([{ createRoot }, { ShuntHint }, { createElement }]) => {
-      if (root) return;
-      host = document.createElement('div'); document.body.append(host);
-      const r = createRoot(host); r.render(createElement(ShuntHint)); root = r;
-    });
-  });
-  return () => { off(); unsub(); end(); root?.unmount(); host?.remove(); root = null; };
+  return () => { off(); end(); };
 }

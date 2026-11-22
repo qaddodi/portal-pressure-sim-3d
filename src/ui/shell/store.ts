@@ -53,6 +53,8 @@ interface ShellState {
   toggle(sheet: Exclude<Sheet, null>): void;
   /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy the full report"). */
   say(text: string, tone?: 'info' | 'bad', action?: ToastAction, sticky?: boolean): void;
+  /** A finger or the pointer is on the note (true) or has left it (false): it stays while held, then fades TOAST_LINGER_MS after. A sticky note is never timed. */
+  holdToast(on: boolean): void;
   setFigure(p: Partial<Figure>): void;
   markViewReady(v: ViewId): void;
 }
@@ -67,8 +69,14 @@ function loadFigure(): Figure {
 }
 const saveFigure = (f: Figure) => { try { localStorage.setItem(KEY, JSON.stringify(f)); } catch { /* kept for this visit */ } };
 
-let toastId = 0, toastTimer: TimerId | undefined;
+let toastId = 0, toastTimer: TimerId | undefined, toastSticky = false, toastHeld = false;
+/** The least a note stays (also 2D's own 3.2 s). */
 export const TOAST_MS = 3200;
+/** A note stays about a word's reading time per word (250 ms), never under TOAST_MS or over TOAST_MAX_MS, so a long one is not gone mid-sentence. */
+export const TOAST_WORD_MS = 250, TOAST_MAX_MS = 10000;
+/** How long a note lingers after the finger or pointer that held it lets go. */
+export const TOAST_LINGER_MS = 1500;
+export const toastMs = (text: string): number => Math.min(TOAST_MAX_MS, Math.max(TOAST_MS, text.trim().split(/\s+/).filter(Boolean).length * TOAST_WORD_MS));
 /** A toast with a button stays long enough to reach it. */
 export const ACTION_MS = 9000;
 
@@ -88,7 +96,14 @@ export const useShell = create<ShellState>((set, get) => ({
     clock.cancel(toastTimer);
     set({ toast: { id: ++toastId, text, tone, ...(action ? { action } : {}) } });
     // (a sticky note, the first-run hint, stays until its owner closes it, as 2D's toast with `sticky`)
-    if (!sticky) toastTimer = clock.after(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : TOAST_MS);
+    toastSticky = sticky; toastHeld = false;   // (a new note is timed on its own, even when the pointer still rests where the last one was)
+    if (!sticky && !toastHeld) toastTimer = clock.after(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : toastMs(text));
+  },
+  holdToast: (on) => {
+    toastHeld = on;
+    if (!get().toast || toastSticky) return;
+    clock.cancel(toastTimer);
+    if (!on) { const id = toastId; toastTimer = clock.after(() => { if (get().toast?.id === id) set({ toast: null }); }, TOAST_LINGER_MS); }
   },
   setFigure: (p) => { const f = { ...get().figure, ...p }; set({ figure: f }); saveFigure(f); },
   markViewReady: (v) => set({ ready: { ...get().ready, [v]: true } }),

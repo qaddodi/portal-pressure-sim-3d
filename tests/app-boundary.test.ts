@@ -33,7 +33,7 @@ const html = (n: unknown) => renderToStaticMarkup(n as never);
 test('figure layer: the fallback says the figure stopped, with Reload, Copy details and the 2D link', () => {
   const b = caught(m.AppBoundary, { layer: 'figure', children: 'KID' }, new Error('three exploded'));
   const h = html(b.render());
-  assert.match(h, /role="alert"/); assert.match(h, /The 3D figure stopped/); assert.match(h, /three exploded/);
+  assert.match(h, /role="alert"/); assert.match(h, /The figure stopped drawing/); assert.match(h, /three exploded/);
   assert.match(h, />Reload</); assert.match(h, />Copy details</); assert.match(h, /href="https:\/\/qaddodi\.github\.io\/portal-pressure-simulator\/"/);
   assert.ok(!/KID/.test(h), 'the failed child is gone');
 });
@@ -80,7 +80,7 @@ test('the fallbacks fade in (never pop) and respect reduced motion', () => {
 
 test('the engine stopping AFTER the app is up shows the same card with Reload, not a frozen figure (R12)', () => {
   const stopped = html(m.CrashCard({ layer: 'engine', message: 'The simulation did not answer.' }));
-  assert.match(stopped, /The simulation stopped/); assert.match(stopped, /The simulation did not answer\./); assert.match(stopped, />Reload</); assert.match(stopped, /role="alert"/);
+  assert.match(stopped, /The model stopped/); assert.match(stopped, /The simulation did not answer\./); assert.match(stopped, />Reload</); assert.match(stopped, /role="alert"/);
   const app = readFileSync('src/App.tsx', 'utf8');
   assert.match(app, /status === 'crashed' && <EngineStopped \/>/, 'App shows it when the engine store says crashed');
   assert.ok(!/location\.reload\(\)/.test(app), 'Reload keeps the talk or the patient (boot/reload.ts)');

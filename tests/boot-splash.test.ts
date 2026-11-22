@@ -9,7 +9,7 @@ const HTML = readFileSync('index.html', 'utf8');
 interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean }
 
 function run(o: Opts = {}) {
-  const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;
+  const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootFail'))!;   // (the page has an earlier script for the saved look's ground)
   const timers: { at: number; fn: () => void; id: number }[] = []; let now = 0, nid = 0;
   const mkEl = (id: string) => {
     const attrs: Record<string, string> = {}, css: Record<string, string> = {}, history: number[] = [];
@@ -139,13 +139,13 @@ test('a start that never gets anywhere after the code ran is still told, at 15 s
   const c = run({ total: 4_000_000, entries: () => file(40), dcl: false });
   c.advance(1000); c.ctx.ppsBootStarted = true;
   c.advance(17000);
-  assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /taking longer than usual/); assert.doesNotMatch(c.boot.innerHTML, /slow connection/);
+  assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /Taking longer than usual/); assert.doesNotMatch(c.boot.innerHTML, /connection looks slow/);
   assert.match(c.boot.innerHTML, /entry running · 3906 of 3906 kB · 40 files/);
 });
 
 test('before the code runs the byte rule is unchanged, and says where it stood (entry not started)', () => {
   const c = run({ total: 4_000_000, entries: () => file(3), dcl: false });
-  c.advance(9000); assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /slow connection/); assert.match(c.boot.innerHTML, /entry not started · 293 of 3906 kB · 3 files/);
+  c.advance(9000); assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /connection looks slow/); assert.match(c.boot.innerHTML, /entry not started · 293 of 3906 kB · 3 files/);
 });
 
 test('files a worker served (their sizes read 0) still count as arriving: the entries themselves are the sign of life', () => {
@@ -169,4 +169,12 @@ test('main.tsx runs boot/started.ts first (the cover reads ppsBootStarted), and 
   assert.match(readFileSync('src/boot/started.ts', 'utf8'), /ppsBootStarted: true/);
   assert.match(readFileSync('src/boot/warm.ts', 'utf8'), /if \(splashHeld\(\)\) clock\.after\(wait, COVER_RETRY_MS\)/, 'the preload ladder waits for the cover to lift');
   assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /if \(splashHeld\(\)\) \{ clock\.after\(go, 500\); return; \}/, 'so does the worker\'s install');
+});
+
+// ---- 22 Nov, popups: the note's code box (where the entry stood, bytes, files) means nothing to a tester, so it sits behind a small "Details" link; it stays in the page for a copied report.
+test('the splash notes keep their technical line behind a Details link, hidden until it is pressed', () => {
+  const c = run({ total: 4_000_000, entries: () => file(3), dcl: false });
+  c.advance(9000);
+  assert.match(c.boot.innerHTML, /<button type="button" class="boot-det" data-details>Details<\/button><code hidden>entry not started/);
+  assert.match(HTML, /#boot \.boot-msg code\[hidden\] \{ display: none; \}/);
 });
