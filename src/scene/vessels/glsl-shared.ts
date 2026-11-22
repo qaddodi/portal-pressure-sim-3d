@@ -196,8 +196,29 @@ export const CAP_CARVED_GLSL = /* glsl */ `bool capCarved(float across) {
   return across * across + q * q > 1.0;
 }`;
 
+/** The suture's thread and its edge, on every look: a pale thread and its dark edge. One declaration for the tube's marks (PROCEDURE_MARKS_GLSL) and the welded ends' suture (vessels/suture.ts). */
+export const THREAD_GLSL = /* glsl */ `const vec3 THREAD = vec3(0.953, 0.918, 0.816), THREAD_EDGE = vec3(0.145, 0.133, 0.20);`;
+
+/** seamStitch(A, B, sl, aa, rr, fwAcr): the running stitch at a surgical shunt's sewn end (suture-marks.js seamDashes) at one place: `A`, `B` the seam as seams.ts gives it (the distance in from the end as a quartic in the place across; how many dashes, one dash, one dash and its gap),
+ *  `sl` the distance in from the end (figure units), `aa` the place across the shunt (-1..1, the shader's `across`), `rr` the lumen's half width (figure units), `fwAcr` the screen derivative of `aa`. Returns the thread's coverage (x) and its halo's (y). A function of its own, so the tube's marks and the
+ *  suture a welded end wears (vessels/suture.ts: the skin has cut the tube's own away) are the one rule. A function of no uniform: it declares none. */
+export const SEAM_STITCH_GLSL = /* glsl */ `// the running stitch at a sewn end: the thread's coverage (x) and its halo's (y) at the distance sl in from the end and the place aa across (one rule for the tube's marks and a welded end's suture)
+vec2 seamStitch(vec4 A, vec4 B, float sl, float aa, float rr, float fwAcr) {
+  float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
+  float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
+  float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
+  if (B.y > 0.5) {
+    float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
+    dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
+  } else {
+    dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
+    dsh = smoothstep(1.0, 0.92, abs(aa));
+  }
+  return vec2((1.0 - smoothstep(0.2, 0.36, dd)) * dsh, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+}`;
+
 /** The stent in the Circuit, the surgical stitches, the stump's tie and the wedge's amber column, painted on the tube (a part of main, in its own locals: c, across, pxArc, fwPx, fwTh, fwAcr, inkT; with stentU, stentWire, stentGoldC, seamA, seamB, stump, wedge, wedgeD, wedgeCol, circT, len, vU, vR, vR0, vArcLen, vUv, and what the stent's heading needs). Spliced exactly where it stood in vessels/shaders.ts. */
-export const PROCEDURE_MARKS_GLSL = /* glsl */ `  const vec3 THREAD = vec3(0.953, 0.918, 0.816), THREAD_EDGE = vec3(0.145, 0.133, 0.20);   // (a pale suture and its dark edge, on every look)
+export const PROCEDURE_MARKS_GLSL = /* glsl */ `  ${THREAD_GLSL}   // (a pale suture and its dark edge, on every look)
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
@@ -237,18 +258,9 @@ export const PROCEDURE_MARKS_GLSL = /* glsl */ `  const vec3 THREAD = vec3(0.953
       vec4 A = seamA[e], B = seamB[e];
       if (A.x <= 0.0) continue;
       float sl = e == 0 ? aF : Lw - aF;
-      float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
-      float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
-      float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
-      if (B.y > 0.5) {
-        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
-        dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
-      } else {
-        dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
-        dsh = smoothstep(1.0, 0.92, abs(aa));
-      }
-      tw = max(tw, (1.0 - smoothstep(0.2, 0.36, dd)) * dsh);
-      te = max(te, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+      vec2 st = seamStitch(A, B, sl, aa, rr, fwAcr);
+      tw = max(tw, st.x);
+      te = max(te, st.y);
     }
     c = mix(c, THREAD_EDGE, te * 0.4);
     c = mix(c, THREAD, tw);

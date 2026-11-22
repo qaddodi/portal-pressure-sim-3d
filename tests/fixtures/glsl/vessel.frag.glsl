@@ -780,6 +780,20 @@ bool capCarved(float across) {
   float q = 1.0 - a / R;
   return across * across + q * q > 1.0;
 }
+// the running stitch at a sewn end: the thread's coverage (x) and its halo's (y) at the distance sl in from the end and the place aa across (one rule for the tube's marks and a welded end's suture)
+vec2 seamStitch(vec4 A, vec4 B, float sl, float aa, float rr, float fwAcr) {
+  float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
+  float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
+  float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
+  if (B.y > 0.5) {
+    float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
+    dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
+  } else {
+    dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
+    dsh = smoothstep(1.0, 0.92, abs(aa));
+  }
+  return vec2((1.0 - smoothstep(0.2, 0.36, dd)) * dsh, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+}
 
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
@@ -1028,18 +1042,9 @@ void main() {
       vec4 A = seamA[e], B = seamB[e];
       if (A.x <= 0.0) continue;
       float sl = e == 0 ? aF : Lw - aF;
-      float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
-      float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
-      float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
-      if (B.y > 0.5) {
-        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
-        dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
-      } else {
-        dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
-        dsh = smoothstep(1.0, 0.92, abs(aa));
-      }
-      tw = max(tw, (1.0 - smoothstep(0.2, 0.36, dd)) * dsh);
-      te = max(te, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+      vec2 st = seamStitch(A, B, sl, aa, rr, fwAcr);
+      tw = max(tw, st.x);
+      te = max(te, st.y);
     }
     c = mix(c, THREAD_EDGE, te * 0.4);
     c = mix(c, THREAD, tw);
