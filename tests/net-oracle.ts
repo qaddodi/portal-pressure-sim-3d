@@ -38,7 +38,11 @@ export interface LiveEdge {
   noMap?: boolean;
   /** the vessel's nominal radius, scene units */
   radiusN: number;
+  /** the radius its MAP bones were built at (mapRadiusOf): the live width on the map is measured against THIS, never the body's (shaders.ts circSwellNet; net-map-radius.test.ts) */
+  mapBase?: number;
 }
+/** The radius an edge's map bones were built at: the widest of them (a run-on's taper only narrows an end). */
+export const mapBaseOf = (skel: Skeleton, edge: number): number => { const [f, c] = skel.edges[edge]!.bones; let m = 0; for (let k = 0; k < c; k++) m = Math.max(m, skel.bones[f + k]!.r[1]); return m; };
 export const restEdge = (radiusN: number): LiveEdge => ({ swell: 1, wc: 6, leastCss: 0, liveW: 1, presence: 1, fade: 1, radiusN });
 
 export interface LiveState {
@@ -108,7 +112,7 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
       F = frameTo(B.frame, dot(Tm, Tm) > 1e-9 ? norm(Tm) : B.frame[0]);
     }
     const share = w;
-    const swell = E.swell + (Math.max(E.wc, E.leastCss * live.perPx) * 0.5 * MAP_K / Math.max(E.radiusN, 1e-6) - E.swell) * share;
+    const swell = E.swell + (Math.max(E.wc, E.leastCss * live.perPx) * 0.5 * MAP_K / Math.max(E.mapBase ?? E.radiusN, 1e-6) - E.swell) * share;
     const rest = B.r[0] + (B.r[1] - B.r[0]) * share;
     const lumen = rest * swell * E.liveW * E.presence, ink = live.ink ?? 0;
     out.push({ cen, F, lumen, lumenRest: rest, pad: ink + (lumen + ink) * (live.sag ?? 0), share, fade: E.fade * E.presence, presence: E.presence, u: B.u, edge: B.edge });
@@ -217,7 +221,7 @@ export { sdUnion };
 
 /** The named live states the deformation tests run in: rest, map, the Circuit's t = .25 / .5 / .75, a differential swell, presence .3 and zoom-out. */
 export function liveStates(skel: Skeleton): [string, LiveState][] {
-  const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; f?.(x, i); return x; }) });
+  const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.mapBase = mapBaseOf(skel, i); x.wc = (2 * x.mapBase * 0.85) / MAP_K; f?.(x, i); return x; }) });
   return [['rest', mk(0)], ['map t=1', mk(1)], ['t=.25', mk(0.25)], ['t=.5', mk(0.5)], ['t=.75', mk(0.75)],
     ['swell 1.2/.85', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.85 : 1.2; })],
     // the app's real range (the engine's D through widthSwell over the 20 presets, +/-10%): arms between 0.4 and 1.27 (the worst arm ratio at one junction in one preset, 3.17) and a milder 0.6 / 1.2 (2.0), every arm at the low end, at the high end, and one thin arm among thick ones

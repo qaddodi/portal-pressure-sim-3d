@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
 import type { Skeleton } from '../src/scene/vessels/net/types.ts';
 import { makeSkeleton } from './net-lib.ts';
-import { deformLive, liveBones, restEdge, type LiveState } from './net-oracle.ts';
+import { deformLive, liveBones, mapBaseOf, restEdge, type LiveState } from './net-oracle.ts';
 
 const MAP_K = 0.0065;
 /** The fixture with the named edge collapsed onto its `from` node at the map pose: the short piece between two junctions that land at one map point (the host's split piece of the real network). */
@@ -16,7 +16,7 @@ function collapsed(skel: Skeleton, edgeId: string): Skeleton {
   const bones = skel.bones.map((b) => (b.edge === skel.edges.indexOf(e) ? { ...b, pos: [b.pos[0], [...node.pos[1]]] as typeof b.pos } : b));
   return { ...skel, bones };
 }
-const state = (skel: Skeleton, circT: number): LiveState => ({ circT, perPx: 1, ink: 0, sag: 0, edges: skel.edges.map((ed) => { const r = skel.bones[ed.bones[0]]!.r[0], x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; return x; }) });
+const state = (skel: Skeleton, circT: number): LiveState => ({ circT, perPx: 1, ink: 0, sag: 0, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0], x = restEdge(r); x.mapBase = mapBaseOf(skel, i); x.wc = (2 * x.mapBase * 0.85) / MAP_K; return x; }) });
 const faceN = (p: ArrayLike<number>, i: ArrayLike<number>, t: number): number[] => {
   const a = i[3 * t]!, b = i[3 * t + 1]!, c = i[3 * t + 2]!, e1 = [0, 1, 2].map((k) => p[3 * b + k]! - p[3 * a + k]!), e2 = [0, 1, 2].map((k) => p[3 * c + k]! - p[3 * a + k]!);
   return [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];

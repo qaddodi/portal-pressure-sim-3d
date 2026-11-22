@@ -1,7 +1,7 @@
 // THE EXTENSIONS' INK, ONE ORACLE (plan owner, 22 Nov; WP2 and WP3 share it): how far a tube vertex between an arm's seam ring and its node stands outside the smooth union the vertex stage holds for the region. The vertex is placed by the oracle's own `deformLive`
 // (the shader's CPU twin: the live bones' centres, frames and lumen, the offsets of the mesh, no ink and no ring sag) and the union is built from the region's ROW (net/regions.ts `regionsOf`: at most REGION_PTS bones a capsule, their live centres and lumen, the mates, k = SKIN_K x the
 // narrowest arm's live lumen at the node), the very capsules the shader reads. A positive distance is a hull that doubles the fillet's outline; it is in units of the narrowest arm's live lumen.
-import { liveBones, deformLive, restEdge, type LiveState } from './net-oracle.ts';
+import { liveBones, deformLive, mapBaseOf, restEdge, type LiveState } from './net-oracle.ts';
 import { MAP_K } from '../src/scene/circuit/map.ts';
 import { regionsOf } from '../src/scene/vessels/net/regions.ts';
 import { sdUnion, SKIN_K, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
@@ -42,6 +42,6 @@ export function extensionsOutside(mesh: NetMesh, skel: Skeleton, reports: readon
 /** The live states to judge in: each swell vector (per edge; none: rest) at each t of the Circuit, widths on the map as the oracle's own named states (`liveStates`). */
 export function liveGrid(skel: Skeleton, swells: readonly (readonly number[])[] | undefined, ts: readonly number[]): LiveState[] {
   const out: LiveState[] = [];
-  for (const sw of swells?.length ? swells : [null]) for (const t of ts) out.push({ circT: t, perPx: 1, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0], x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; if (sw) x.swell = sw[i] ?? 1; return x; }) });
+  for (const sw of swells?.length ? swells : [null]) for (const t of ts) out.push({ circT: t, perPx: 1, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0], x = restEdge(r); x.mapBase = mapBaseOf(skel, i); x.wc = (2 * x.mapBase * 0.85) / MAP_K; if (sw) x.swell = sw[i] ?? 1; return x; }) });
   return out;
 }
