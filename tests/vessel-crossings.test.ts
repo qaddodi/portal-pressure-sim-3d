@@ -37,7 +37,7 @@ test('no two tubes share anything that would merge a crossing: one opaque depth-
   const s = new CelScene();
   for (const o of s.vessels) {
     const m = o.toonMesh.material as import('three').ShaderMaterial;
-    assert.ok(!m.stencilWrite && m.depthTest !== false && m.depthWrite, `${o.edge!.id}: depth-tested and written, no stencil`);
+    assert.ok(m.stencilFunc === 519 && m.depthTest !== false && m.depthWrite, `${o.edge!.id}: depth-tested and written, only the vessel bit written (Always: nothing tests it)`);
   }
   s.dispose();
   assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(uv\.x \* len \* vU, \(1\.0 - uv\.x\) \* len \* vU\);/, 'the burial reads the declared branch ends only');

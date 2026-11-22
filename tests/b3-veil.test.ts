@@ -57,6 +57,6 @@ test('the copy over the organs is the vessel\'s own one draw: an opaque (outside
     const ms = matsOf(veilAll(id)[0]);
     assert.equal(ms.length, 1, `${id}: one material`);
     assert.equal(ms[0]!.transparent, (s.vesselObject(id)!.toon.uniforms.fadeMode!.value as number) > 0); assert.equal(ms[0]!.depthWrite, true);
-    assert.equal(ms[0]!.stencilWrite, false, 'no stencil bit to share');
+    assert.equal(ms[0]!.stencilWrite, true, 'it writes the vessel bit (never tests it), for the crossing shadow only');
   }
 });

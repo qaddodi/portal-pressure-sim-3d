@@ -10,7 +10,7 @@ import type { BloodShared } from '../blood/field.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES, withCircuitAttributes } from '../circuit/geometry.ts';
-import { CASING, RIM_A, RIM_INK, SHADOW, SHADOW_DEPTH, SHADOW_DEPTH_MAP, SHADOW_PX } from './cel-ink.ts';
+import { CASING, RIM_A, RIM_INK, markVesselStencil, shadowStencil, SHADOW, SHADOW_DEPTH, SHADOW_DEPTH_MAP, SHADOW_PX } from './cel-ink.ts';
 import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
@@ -105,7 +105,7 @@ export class VesselObject extends CelObject {
     this.artery = !!opts.artery;
     const old = this.toon;
     const u = old.uniforms;
-    const toon = markBlends(new ShaderMaterial({ name: 'vessel toon',
+    const toon = markVesselStencil(markBlends(new ShaderMaterial({ name: 'vessel toon',
       vertexShader: VESSEL_VS,
       fragmentShader: VESSEL_FS,
       precision: 'highp',   // the ink's lateral distance is a device-pixel difference of two large clip-space numbers: never mediump (a phone's default for a missing statement)
@@ -124,7 +124,7 @@ export class VesselObject extends CelObject {
         ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
       },
       defines: vdbgDefines(),
-    }));
+    })));
     old.dispose();
     // One mesh, one material, one draw: the outline is part of the tube (the vertex stage builds it ink wider than its lumen, the fragment stage paints the band), so it is continuous by construction.
     this.toonMesh.material = toon;
@@ -147,7 +147,7 @@ export class VesselObject extends CelObject {
     // THE CROSSING SHADOW (cel-ink.ts SHADOW): the same geometry and uniforms once more, through the program built with SHADOW: the tube made SHADOW_PX wider than its line, laid behind its own depth, blended over what is behind it.
     // After every opaque tube of the vessels' pass (transparent, so the sort puts it last), depth test on, no depth write; it takes the tube's fades, reveal and cuts, so it eases with the vessel it belongs to.
     if (opts.shadow) {
-      const mat = new ShaderMaterial({ name: 'vessel crossing shadow', vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: true, defines: { SHADOW: 1 }, uniforms: tu });
+      const mat = shadowStencil(new ShaderMaterial({ name: 'vessel crossing shadow', vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: true, defines: { SHADOW: 1 }, uniforms: tu }));
       const sm = (this.shadowMesh = new Mesh(this.toonMesh.geometry, mat));
       sm.frustumCulled = false; sm.name = 'crossing/shadow'; sm.renderOrder = 3;
       sm.raycast = () => {};   // (the pick is the tube's)
@@ -399,7 +399,7 @@ export class VesselObject extends CelObject {
    *  organs is the same one-draw tube as any vessel's). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = markBlends(new ShaderMaterial({ name: 'vessel veil', vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } }));
+    const mat = markVesselStencil(markBlends(new ShaderMaterial({ name: 'vessel veil', vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } })));
     if (this.tip) setBlendState(mat, true);   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = VEIL_ORDER; mesh.frustumCulled = false;
