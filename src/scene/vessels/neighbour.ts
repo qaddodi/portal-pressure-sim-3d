@@ -63,7 +63,7 @@ function axisOf(id: string, state: ShapeState): MateAxis | null {
   return { P, R: P.map((_, i) => radiusAtU(c, cum[i]! / L, L)), n };
 }
 
-/** `nbr` for every vertex of vessel `id`'s tube (`positions`: its xyz, as built): (signed distance of the vertex from its fork mate's axis in the figure's plane, positive left of the mate's heading; the mate's radius there; 0 where the vertex lies past the mate's ends).
+/** `nbr` for every vertex of vessel `id`'s tube (`positions`: its xyz, as built): (distance of the vertex from its fork mate's axis in the figure's plane, signed (positive left of the mate's heading) with ONE mate and unsigned with several (see below); the mate's radius there; 0 where the vertex lies past the mate's ends).
  *  With several mates (a trunk with branches on it, a branch on a trunk of two pieces) each vertex takes the one it lies deepest in. Null for a vessel with no mate. */
 export function neighbourAttr(id: string, positions: ArrayLike<number>, state: ShapeState = REST): Float32Array | null {
   const cava = forkMateOf(id) == null && cavaMateOf(id) != null;
@@ -88,7 +88,10 @@ export function neighbourAttr(id: string, positions: ArrayLike<number>, state: S
       const depth = rad > 0 ? Math.abs(dist) - rad : Infinity;   // (how far inside this mate's lumen: negative is inside)
       if (first || depth < bestDepth) { bestDepth = depth; bd = dist; br = rad; first = false; }
     }
-    out[v * 2] = bd; out[v * 2 + 1] = br;
+    // (with several mates the vertices of one triangle can read different mates, whose signs (sides of their headings) differ: the GPU's blend of a +0.02 and a -0.6 passes through 0 between them, "on the other tube's axis", deep inside a lumen that is not there, and the tube
+    //  dropped a dotted row of pixels along its edge (Mohammad, 22 Nov, splenic vein; simulated on the real tubes: SV_CONF, PV_TRUNK_1). The shader only reads |x|, so such a vertex carries it unsigned and the blend never crosses zero. One mate keeps the sign: it is the same
+    //  mate over the whole tube, so its blend is exact where a mate's lumen lies between a triangle's vertices.)
+    out[v * 2] = axes.length > 1 ? Math.abs(bd) : bd; out[v * 2 + 1] = br;
   }
   return out;
 }
