@@ -130,3 +130,24 @@ test('every command the search registers has its work behind it and is counted a
   run('Tests', 'Doppler of the portal vein'); assert.equal(useTests.getState().pane, 'doppler');
   assert.equal(useShell.getState().toast, null, 'no command said "not in the 3D app yet"');
 });
+
+// ---- N4: a link restores the figure's own choices too (the lens, the label level, the figure's switches) ----------------------------------------------------------
+test('N4: the lens, label level and figure switches ride in the link, read back cleaned, and are put back before the view opens', async () => {
+  const fig = { lens: 'delta', labels: 'all', figure: { chevrons: false, lymph: true, zones: true, bile: false } };
+  const url = shareUrl(now({ fig, view: 'lobule', cam: null, sel: null }), BASE);
+  const s = readShare(url.slice(url.indexOf('#')), IDS)!;
+  assert.deepEqual(s.fig, fig);
+  const { d, log } = fake(); let put: unknown = null;
+  assert.equal(await loadShared(s, { ...d, setFigure: (f) => { put = f; log.push('figure'); } }), true);
+  assert.deepEqual(put, fig);
+  assert.ok(log.indexOf('figure') >= 0 && log.indexOf('figure') < log.indexOf('view lobule'), `figure before the view: ${log}`);
+  // an app with no figure setter, and a link with none, are unchanged
+  assert.equal(await loadShared(s, d), true);
+  assert.equal(readShare(shareUrl(now(), BASE).replace(/^[^#]*/, ''), IDS)!.fig, undefined);
+});
+
+test('N4: an edited link keeps only what the app can apply of the figure part', () => {
+  const payload = { v: 1, preset: 'csph', params: params(), view: 'anatomic', x: { lens: 'not a lens!', labels: 'everything', figure: { chevrons: 'yes', lymph: true, __proto__: { bad: 1 }, evil: true } } };
+  const s = readShare(`#s=${encodeShare(payload)}`, IDS)!;
+  assert.deepEqual(s.fig, { figure: { lymph: true } });
+});
