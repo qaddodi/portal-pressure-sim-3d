@@ -92,3 +92,25 @@ test('every card\'s two-way choice has the same look: the action card\'s .ac-seg
 test('the card that holds the editor stands up to 560 px tall on a side card, so its actions, rows and open controls all fit without scrolling inside it', () => {
   assert.match(editorCss, /\.ac-card:not\(\[data-bottom\]\):has\(\.stent-editor\) \{ max-height: min\(560px/);
 });
+
+test('the action card\'s height glides when its content changes height: the paper is a plate scaled by a transform, the words ride on a sheet, the first frame is written inline, nothing animates a layout property', () => {
+  const card = read('src/ui/action/ActionCard.tsx');
+  assert.match(card, /<i ref=\{plate\} className="ac-plate" aria-hidden="true" \/>/);
+  assert.match(card, /scaleY\(\$\{k\.toFixed\(4\)\}\)/);
+  assert.match(card, /translateY\(\$\{d\.toFixed\(1\)\}px\)/);
+  assert.match(card, /el\.style\.transform = from;/, 'the frame that finds the new height never shows it');
+  assert.match(card, /new ResizeObserver\(\(es\) => \{[\s\S]*?glideHeight\(/);
+  assert.match(card, /reducedMotion\(\)/);
+  assert.doesNotMatch(card, /\.animate\(\[\{ ?(height|width|top|left)/);
+  const plateRule = bodyOf(actionCss, '.ac-card > .ac-plate');
+  assert.match(plateRule, /background: var\(--surface\)/);
+  assert.match(plateRule, /box-shadow:/);
+  assert.match(bodyOf(actionCss, '.ac-card'), /border: 1px solid transparent/);
+  assert.doesNotMatch(bodyOf(actionCss, '.ac-card'), /background:|box-shadow:|opacity:/, 'the card itself is clear; its plate and words carry the fade, so the frost is drawn while it fades');
+  assert.match(actionCss, /\.ac-card\[data-bottom\] > \.ac-plate \{ transform-origin: 50% 100%; \}/);
+  assert.match(actionCss, /\.ac-card\[data-glide\] \{ overflow: visible; \}/);
+  assert.match(read('src/ui/glass.css'), /\.ac-card > \.ac-plate/);
+});
+test('the editor\'s rows ride relative to the editor itself, so a sheet\'s own ride is not counted twice', () => {
+  assert.match(panel, /box\(el\)\.top - box\(root\.current!\)\.top/);
+});
