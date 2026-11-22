@@ -1,6 +1,6 @@
 // The patient a compare button puts the model in, as the numbers the slide's charts read (its fingerprint and parameters), worked out off screen by the engine's 'sequence'. One function for the app and
 // the tests (controls-run.ts gives it the live engine's `sequence`; tests/variant-state.test.ts gives it the host in node), so the chart, the card and the figure cannot be fed from different states.
-import type { CompareOpt } from '../../decks/controls.ts';
+import { patchOf, type CompareOpt } from '../../decks/controls.ts';
 import type { VariantState } from './variant-words.ts';
 
 /** What the engine's `sequence` gives (src/engine/client.ts): a step per answer. */
@@ -32,3 +32,6 @@ export function variantStateOf(seq: Seq, cache: Map<string, Promise<Picked>>, ct
   const at = other ?? own;
   return Promise.resolve({ snap: at?.snap, state: o.own ? null : asState(at) });
 }
+
+/** A what-if slider at x as a parameter button (the value at each of its paths): the same change the live model is eased by (controls-run.ts dragWhatIf), so the slide's charts read it as they read a button's. */
+export const sliderOpt = (paths: readonly string[], x: number): CompareOpt => ({ label: `what if ${paths.join()} ${x}`, how: 'params', params: patchOf(paths, x) } as CompareOpt);
