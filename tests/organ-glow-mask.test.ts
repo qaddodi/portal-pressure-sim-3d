@@ -6,7 +6,8 @@ import { MaxEquation } from 'three';
 import { ORGAN_MASK_FLAGS, ORGAN_MASK_FS, ORGAN_MASK_VS, ORGAN_WINDOW_Q, ORGAN_WINDOW_WIN } from '../src/scene/organs/glow-mask.ts';
 import { ORGAN_FS } from '../src/scene/organs/organ-shader.ts';
 import { GLOW_LAYER, GLOW_SIGMA, ORGAN_GLOW_LAYER } from '../src/scene/glow.ts';
-import { GlowFx } from '../src/scene/glow-fx.ts';
+import { GlowFx, LAY_FS, LAY_HARD_FS, LAY_INSIDE_LINE } from '../src/scene/glow-fx.ts';
+import { GLOW_A_MAX, GLOW_GAIN } from '../src/scene/glow.ts';
 
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 
@@ -36,9 +37,10 @@ test('the mask draws only what the organ draws: its own positions, its fade, the
 });
 
 test('the lay is the vessels\' own (same blur sigma and the same lay shader); the organs\' lay is a quad of the figure, drawn before the vessels\' pass', async () => {
-  const fx = new GlowFx(ORGAN_GLOW_LAYER), vx = new GlowFx();
+  const fx = new GlowFx(ORGAN_GLOW_LAYER, true), vx = new GlowFx();
   assert.equal(fx.materials.length, 2);
-  assert.equal((fx.materials[1] as { fragmentShader: string }).fragmentShader, (vx.materials[1] as { fragmentShader: string }).fragmentShader, 'one lay shader');
+  assert.equal((vx.materials[1] as { fragmentShader: string }).fragmentShader, LAY_FS, 'the vessels\' lay is LAY_FS, untouched');
+  assert.equal((fx.materials[1] as { fragmentShader: string }).fragmentShader, LAY_HARD_FS, 'the organs\' lay is the same shader with the one inside line');
   assert.equal((fx.materials[0] as { fragmentShader: string }).fragmentShader, (vx.materials[0] as { fragmentShader: string }).fragmentShader, 'one blur shader');
   assert.ok(GLOW_SIGMA > 0);
   assert.equal(fx.figure.material, fx.materials[1], 'the quad shares the lay material: no second program');
@@ -66,4 +68,38 @@ test('the lay quad stands just before the lit organ\'s own line, so it lies over
   assert.ok(pins.glowOrder > sp.toonMesh.renderOrder, 'after the organ\'s own fill (which the sharp mask gates away) and its seat');
   assert.ok(pins.glowOrder < ink.renderOrder, 'before its line: the line is never tinted');
   s.dispose?.();
+});
+
+test('the vessels\' lay is unchanged and the organs\' lay differs from it by the one inside line', () => {
+  assert.ok(LAY_FS.includes(LAY_INSIDE_LINE), 'the vessels\' lay still eases inside with smoothstep');
+  assert.equal(LAY_FS.split('\n').length, LAY_HARD_FS.split('\n').length);
+  const a = LAY_FS.split('\n'), b = LAY_HARD_FS.split('\n');
+  const diff = a.map((l, i) => (l === b[i] ? -1 : i)).filter((i) => i >= 0);
+  assert.equal(diff.length, 1, 'exactly one line differs');
+  assert.match(b[diff[0]!]!, /float inside = step\(0\.5 \/ 255\.0, texture2D\(tMask, vUv\)\.a\);/);
+});
+
+test('both lay variants parse as GLSL (pure JS parser, no browser)', async () => {
+  const { parser } = await import('@shaderfrog/glsl-parser');
+  for (const fs of [LAY_FS, LAY_HARD_FS]) assert.doesNotThrow(() => parser.parse(fs), 'parses');
+});
+
+// JS twin of the lay (glow-fx.ts LAY_HARD_FS): inside = step(0.5/255, mask.a); a = clamp(g.a * GAIN, 0, MAX) * (1 - inside).
+test('while the pick weight eases 0 to 1 the organ\'s interior takes no glow at any step, and the halo outside the rim rises monotonically from 0', () => {
+  const step = (e: number, x: number): number => (x < e ? 0 : 1);
+  const lay = (g: number, m: number): number => Math.min(Math.max(g * GLOW_GAIN, 0), GLOW_A_MAX) * (1 - step(0.5 / 255, m));
+  // the mask is amt inside the organ and 0 outside; the blurred mask just outside the rim is a fraction of amt (a Gaussian of a step edge: half at the rim)
+  let prev = 0;
+  for (let i = 0; i <= 20; i++) {
+    const amt = i / 20;
+    assert.equal(lay(amt, amt) , i === 0 ? lay(0, 0) : 0, `interior at amt ${amt}`);
+    const outside = lay(amt * 0.5, 0);
+    assert.ok(outside >= prev, `halo rises at amt ${amt}`);
+    prev = outside;
+  }
+  assert.equal(lay(0, 0), 0);
+  assert.ok(prev > 0);
+  // the old lay for contrast: at amt 0.1 the interior took glow (the flash)
+  const old = (g: number, m: number): number => Math.min(g * GLOW_GAIN, GLOW_A_MAX) * (1 - m * m * (3 - 2 * m));
+  assert.ok(old(0.1, 0.1) > 0.05, 'the smoothstep lay let early glow over the interior');
 });
