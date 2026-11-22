@@ -738,7 +738,10 @@ export class CelScene {
     this.body.localToWorld(tip); this.body.localToWorld(ahead);
     return true;
   }
-  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number }): void {
+  /** The tracing has settled and the free reading is taken (the deck's catheter clock reached it): only then does the FHVP callout come. True when the caller says nothing (a catheter that is not the deck's). */
+  catheterRead = true;
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number; read?: boolean }): void {
+    this.catheterRead = s.read ?? true;
     // (the still column fills after the balloon is up and the WHVP pill comes after the column, 2D cathTo: the labels read the slice's balloon as "wedged" at 0.999, so it says so only once the column is full)
     const col = s.column ?? s.balloon;
     this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });

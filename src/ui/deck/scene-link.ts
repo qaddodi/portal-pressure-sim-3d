@@ -8,7 +8,7 @@ import { easeArrive } from '../../clock/tween.ts';
 import { useUi } from '../ui-store.ts';
 import { DOCK_MS } from '../cards/dock.ts';
 import { viewAt, cathPlace } from './presenter-machine.ts';
-import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, type CathPose } from './cath-clock.ts';
+import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, readTaken, type CathPose } from './cath-clock.ts';
 import { tipCloseShot, closeUpOf } from './cath-shot.ts';
 import type { Shot, ShotName } from '../../scene/camera/shots.ts';
 import { DEFAULT_LENS, type LensId } from '../../scene/lenses/model.ts';
@@ -19,7 +19,7 @@ export { ARRIVE_MS };
 
 export function linkScene(): () => void {
   const cc = makeCathClock(), pose: CathPose = { advance: 0, balloon: 0, column: 0 };
-  let place: CathState | null = null, drawn = false, hold: Hold | null = null;
+  let readWas = false, place: CathState | null = null, drawn = false, hold: Hold | null = null;
   let shot: ShotName | Shot | null = null;
   // the lens (2D start() sets pressure; each slide sets its own with slideLens; a stop returns to pressure): a slide that says none, and the title, stand on pressure, never on the last slide's
   let lens: LensId | null = null;
@@ -29,9 +29,11 @@ export function linkScene(): () => void {
   const offClock = clock.on('tween', (f) => {
     const moving = stepCath(cc, f.dt);
     cathScript.t = cc.clk.t;
-    if (moving || !drawn) {
+    const rd = readTaken(cc.clk.t);
+    if (moving || !drawn || rd !== readWas) {
+      readWas = rd;
       poseAt(cc.clk.t, pose);
-      sceneApi.setCatheter({ advance: pose.advance, balloon: pose.balloon, column: pose.column });
+      sceneApi.setCatheter({ advance: pose.advance, balloon: pose.balloon, column: pose.column, read: rd });
       drawn = true;
     }
     if (!moving && hold) { hold.release(); hold = null; }
