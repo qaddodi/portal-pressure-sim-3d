@@ -216,8 +216,8 @@ float circSwell() {
 // The stump of a divided vein: the first stump.x of it is not drawn, its end is round (a quarter circle over one radius) and it narrows a little at its tie (stage-tubes.js tubeRadius stumpPinch: 1 - 0.2 exp(-((a - tie) / 5.5)^2)).
 float stumpK(float a, float R) {
   float q = clamp((a - stump.x) / max(R, 1e-3), 0.0, 1.0);
-  float pq = (a - stump.y) / 5.5;
-  return max(sqrt(max(0.0, 1.0 - (1.0 - q) * (1.0 - q))), 0.02) * (1.0 - 0.2 * stump.z * exp(-pq * pq));
+  float pq = (a - stump.y) / 3.2;
+  return max(sqrt(max(0.0, 1.0 - (1.0 - q) * (1.0 - q))), 0.02) * (1.0 - 0.28 * stump.z * exp(-pq * pq));
 }
 void main() {
 
@@ -238,7 +238,8 @@ void main() {
   }
   // smooth joins: where this vessel carries on into another, both ease to the mean of their two live widths over the same stretch the tube's own taper takes (tubes.ts factorAt: the first and
   // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
-  if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
+  if (mate0.x >= 0.0) { float k0 = (1.0 - smoothstep(0.0, 0.3, uv.x)) * (1.0 - stump.z);   // (a divided vein's cut start carries on into nothing: it eases to its own width as the cut opens)
+    if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
   if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
   swell *= liveW;
@@ -246,7 +247,20 @@ void main() {
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vArcLen = mix(len, cl.y, circShare);
   vSkew = 0.0;
-  if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
+  // THE STUMP'S ROUND END is drawn from the whole divided stretch's rings, never from the few that happen to lie in the cap: the stretch up to the cap's far end (the cut and one radius) is laid over the cap, ring by ring along each ring's own tangent
+  // (uv and the ring's place move together, so the tie, the fade and the marks all read the new arc), so a quarter circle one radius long is always made of every ring the stretch has: before, the cap took the three rings (a ring every 1/180 of a
+  // scene unit against a radius of 0.017) that lay in it and was a flat cut whose end moved with the cut (Mohammad, 22 Nov: "tied off the portal vein looks bad")
+  vec2 uvS = uv;   // (the attribute is read-only: from here the stretch laid over the cap is uv from here)
+#define uv uvS
+  if (stump.x > 0.0 && circShare < 0.001) {
+    float capR = radius * swell * vU, capZ = stump.x + capR, arcA = uv.x * len * vU;
+    if (arcA < capZ) {
+      float arcB = stump.x + capR * (arcA / capZ);
+      aPos += aTan * ((arcB - arcA) / vU);
+      uv.x = arcB / (len * vU);
+    }
+    swell *= stumpK(uv.x * len * vU, capR);
+  }
   float fa = 1.0;
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;

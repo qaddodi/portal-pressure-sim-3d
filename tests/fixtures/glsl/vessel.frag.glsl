@@ -909,9 +909,11 @@ void main() {
   // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
   float sD = vUv.x * len * vU;
+  // the blind end of a divided vein's stump (between its round end and its tie, and a head's length past the tie) holds no flow: no dust, no chevron, and so none half cut off by the cap or standing past the tie (Mohammad, 22 Nov); it eases in with the cut
+  float stumpMk = (stump.x > 0.0 && circT < 0.001) ? mix(1.0, smoothstep(stump.y + 2.5, stump.y + 2.5 + 1.6 * vR, sD), stump.z) : 1.0;
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
-  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
+  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
   fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere * cavA);   // (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
@@ -941,7 +943,7 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU), la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * stumpMk, la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);
@@ -972,6 +974,7 @@ void main() {
     tubeRawK = rawKeep;
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
+  const vec3 THREAD = vec3(0.953, 0.918, 0.816), THREAD_EDGE = vec3(0.145, 0.133, 0.20);   // (a pale suture and its dark edge, on every look)
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
@@ -1021,22 +1024,27 @@ void main() {
         dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
         dsh = smoothstep(1.0, 0.92, abs(aa));
       }
-      tw = max(tw, (1.0 - smoothstep(0.32, 0.5, dd)) * dsh);
-      te = max(te, (1.0 - smoothstep(0.7, 1.0, dd)) * dsh);
+      tw = max(tw, (1.0 - smoothstep(0.2, 0.36, dd)) * dsh);
+      te = max(te, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
     }
-    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4);
-    c = mix(c, vec3(0.910, 0.455, 0.165), tw);
+    c = mix(c, THREAD_EDGE, te * 0.4);
+    c = mix(c, THREAD, tw);
   }
-  // the tie on a divided vein's stump (suture-marks.js woundTie): three turns of thread, 2.2 units apart, a little slanted across the vein, with the 2D's own thread and edge colours (--suture-thread, --suture-edge)
+  // the tie on a divided vein's stump: a ligature of two fine turns a hair apart, leaning a little across the front of the vein (never a stripe round it), and the knot where the ends meet, in the one thread colour (THREAD, a pale suture, never orange)
+  // with a faint dark edge. It lies on the pinch the tie makes (stumpK), and not past the vein's own outline.
   if (stump.z > 0.001 && circT < 0.001) {
-    float aF = vUv.x * len * vU, ph = vUv.y * 6.2831853, tw = 0.0, te = 0.0;
-    for (int j = 0; j < 3; j++) {
-      float dd = abs(aF - (stump.y + (float(j) - 1.0) * 2.2 + 0.5 * sin(ph)));
-      tw = max(tw, 1.0 - smoothstep(0.32, 0.5, dd));
-      te = max(te, 1.0 - smoothstep(0.7, 1.0, dd));
+    float aF = vUv.x * len * vU, aa = clamp(across, -1.0, 1.0), rr = max(vR, 0.3), tw = 0.0, te = 0.0;
+    for (int j = 0; j < 2; j++) {
+      float dd = abs(aF - (stump.y + (float(j) - 0.5) * 1.3 + 0.3 * aa));
+      tw = max(tw, 1.0 - smoothstep(0.2, 0.36, dd));
+      te = max(te, 1.0 - smoothstep(0.45, 0.8, dd));
     }
-    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
-    c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
+    float kd = length(vec2(aF - stump.y, (aa + 0.4) * rr)) / 0.7;   // (the knot: a small bead on the near side)
+    tw = max(tw, 1.0 - smoothstep(0.7, 1.0, kd));
+    te = max(te, 1.0 - smoothstep(1.2, 1.7, kd));
+    float eK = smoothstep(1.0, 0.86, abs(aa)) * stump.z;
+    c = mix(c, THREAD_EDGE, te * 0.4 * eK);
+    c = mix(c, THREAD, tw * eK);
   }
   // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
   if (wedge.x > 0.001 && circT < 0.001) {
