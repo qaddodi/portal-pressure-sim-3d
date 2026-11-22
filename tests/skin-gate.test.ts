@@ -12,6 +12,7 @@ const SCREENS = [{ name: 'iPhone', w: 393, h: 852, dpr: 2 }, { name: 'laptop', w
 /** The least share of a skin's pixels that must be lumen (the line is a band round it: a vessel a few px wide is about half line, a broken joint is all of it), for a skin big enough on the screen to judge. */
 const LUMEN_MIN = 0.3, JUDGED_PIXELS = 100;
 /** The share of a skin's pixels the shader may drop for lying past the line's band. */
+const HELD_MAX = 0.04;
 const DROPPED_MAX = 0.08;   // (a skin whose arms really lie at other depths, a wall skin or the renal vein under the cava, drops the pixels of the arm out of reach by design: 5 % at most at a laptop)
 
 test('the depth rule counts the line: an arm is held out only by a depth beyond its radius plus the ink the mesh stands out by', () => {
@@ -41,6 +42,8 @@ test('every junction skin is a vessel at every screen: its lumen is there (no sk
         rows.push(`${s.name} ${k.node}: lumen ${(100 * lumen).toFixed(0)} %, dropped ${(100 * dropped).toFixed(0)} % of ${k.pixels}`);
         assert.ok(lumen >= LUMEN_MIN, `${s.name} ${k.node}: only ${(100 * lumen).toFixed(0)} % of its pixels are lumen (the joint is drawn as line)`);
         assert.ok(dropped <= DROPPED_MAX, `${s.name} ${k.node}: ${(100 * dropped).toFixed(0)} % of its pixels dropped past the line's band`);
+        // THE AZYGOS WELD (Mohammad, 21 Nov: "Azygos weld into SVC sucks"): the arch dived 45 degrees in depth onto the superior cava, so the depth rule held 9 % of the joint's pixels away from where the shape puts its outline (ragged ink in the lumen). It now comes down on one gentle slope: 1 to 2 %.
+        if (k.node === 'SVC_E+SVC') assert.ok(k.held / k.pixels <= HELD_MAX, `${s.name} ${k.node}: the depth rule moves the outline of ${(100 * k.held / k.pixels).toFixed(1)} % of the weld's pixels by more than a pixel`);
       }
     }
     assert.ok(rows.length >= 30, `${rows.length} skin x screen cases judged`);
