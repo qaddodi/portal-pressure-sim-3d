@@ -168,3 +168,71 @@ test('the ring on the screen: its radius is the 2D ring\'s in the figure\'s unit
   assert.equal(RING_Z, 0.36, 'the ring stands in the plane the bleed leaves the varix in');
   r.dispose();
 });
+
+// ── the lens draws the scope (22 Nov, the owner's screenshot of 288976dd: a flat red disc) ──
+import { readFileSync } from 'node:fs';
+import { scopeFrame } from '../src/ui/tests/endo/frame.ts';
+import { FieldMotion } from '../src/ui/tests/endo/motion.ts';
+import { paletteOf } from '../src/ui/charts/palette.ts';
+import { curveOf } from '../src/scene/labels/stations.ts';
+import { scopeClaims, clearParam, circleBox, unionBox } from '../src/scene/labels/scope-claims.ts';
+import { VARIX_CALIPERS } from '../src/scene/labels/figure-cards.ts';
+
+/** The last value a stylesheet gives `prop` to exactly `selector`, files read in the order the page loads them. */
+function cascade(files: string[], selector: string, prop: string): string | null {
+  let v: string | null = null;
+  for (const f of files) {
+    const css = readFileSync(new URL(`../src/ui/${f}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!m[1]!.split(',').some((s) => s.trim() === selector)) continue;
+      const d = m[2]!.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`));
+      if (d) v = d[1]!.trim();
+    }
+  }
+  return v;
+}
+const SHEETS = ['css2d/app-11-deck-visuals.css', 'deck-ui.css'];
+
+test('the lens never changes its box by a transform: a chart measures its box by its rect, so a scaled disc drew the scope at a fraction of the lens', () => {
+  for (const sel of ['.pz-lens', '.pz-lens.on', '.pz-lens-disc', '.pz-lens.on .pz-lens-disc', '.pz-lens .pz-lens-inst']) {
+    for (const prop of ['transform', 'scale', 'zoom']) {
+      const v = cascade(SHEETS, sel, prop);
+      assert.ok(v == null || v === 'none' || v === '1' || !/scale|0?\.\d/.test(v), `${sel} { ${prop}: ${v} } would shrink the scope's box while the lens opens`);
+    }
+  }
+  assert.match(cascade(SHEETS, '.pz-lens-disc', 'clip-path') ?? '', /^circle\(/, 'it grows out of the ring by a clip');
+  assert.match(cascade(SHEETS, '.pz-lens.on .pz-lens-disc', 'clip-path') ?? '', /^circle\(100%/, 'and ends as the whole disc, shadow and all');
+});
+
+test('the scope is drawn whole at the lens\'s size: the clip, the bezel and the field it is shaded over', () => {
+  const m = new FieldMotion();
+  for (let t = 1000; t < 4000; t += 50) m.step({ d: 7.3, ratio: 1.2, bands: 0, snap: false }, t);
+  for (const size of [140, 300]) {
+    const f = scopeFrame({ field: m.state, over: { balloon: 0, jet: 0, pool: 0, seconds: 1, tearGrow: m.state.g } }, size, paletteOf('light'));
+    assert.equal(f.w, size); assert.equal(f.h, size);
+    const clip = f.shapes.find((s) => s.k === 'clip') as { r: number } | undefined, bezel = f.shapes.filter((s) => s.k === 'circle' && 'pen' in s);
+    assert.ok(clip && Math.abs(clip.r - (size / 2 - 4)) < 1e-9, 'the lumen fills the lens');
+    assert.ok(bezel.length >= 1, 'the bezel');
+  }
+});
+
+test('the ruler across the varices stands clear of the ring and its badge, above it; the names and callouts keep off the ring and an open lens', () => {
+  assert.ok(VARIX_CALIPERS.has('varix') && VARIX_CALIPERS.has('C1a'));
+  const curve = curveOf('C1a')!, p = new Vector3(), centre = { x: x3(RING.x), y: y3(RING.y) }, clear = (RING.r + BADGE_R + 4) / U;
+  const at = (t: number, o: { x: number; y: number }) => { curve.getPointAt(t, p); o.x = p.x; o.y = p.y; };
+  const mid = { x: 0, y: 0 }; at(0.5, mid);
+  assert.ok(Math.hypot(mid.x - centre.x, mid.y - centre.y) < clear, 'the middle of the varix vessel is inside the ring: the overlap the owner saw');
+  const t = clearParam(at, centre, clear);
+  const q = { x: 0, y: 0 }; at(t, q);
+  assert.ok(Math.hypot(q.x - centre.x, q.y - centre.y) >= clear, 'the ruler is clear');
+  assert.ok(q.y > centre.y, 'above the ring (the tear and the stream into the stomach are below it)');
+  assert.ok(t > 0.5 && t < 0.8, `a short way along (${t})`);
+  assert.equal(clearParam(at, { x: 99, y: 99 }, 0.1), 0.5, 'already clear: the middle, unmoved');
+  // the claims
+  assert.deepEqual(scopeClaims.boxes, []);
+  const ring = unionBox(circleBox(100, 100, 30, 5), circleBox(130, 70, 10, 5));
+  assert.ok(ring.x0 <= 65 && ring.x1 >= 145 && ring.y0 <= 65 && ring.y1 >= 135);
+  scopeClaims.set([ring]); assert.equal(scopeClaims.boxes.length, 1);
+  scopeClaims.set([]); assert.equal(scopeClaims.boxes.length, 0);
+  scopeClaims.setWants(true); assert.equal(scopeClaims.wantsRing, true); scopeClaims.setWants(false);
+});

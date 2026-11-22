@@ -14,7 +14,9 @@ import { LS, RING_STROKE, type Vp } from './type.ts';
 import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
 import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
-import { x3, y3 } from '../frame2d.ts';
+import { x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
+import { scopeClaims, clearParam } from './scope-claims.ts';
+import { RING, BADGE_R } from '../disease/copied/scope-lens-rule.js';
 import { spanOf, spanStrokes } from './span-math.ts';
 import { TIP_FADE_2D } from '../vessels/fades.copied.ts';
 
@@ -42,6 +44,8 @@ export interface FigCard {
   /** A step: the vessel's half width on screen is read live; a group's number stands between its vessels with a leader to the middle of each (2D stage-label-solve.js, `fans`). */
   group?: readonly string[];
 }
+/** The calipers across the varices' own vessels (the slide's `calipers: ['varix']` and the marked columns): the ones that keep clear of the scope ring. */
+export const VARIX_CALIPERS: ReadonlySet<string> = new Set(['varix', 'C1a', 'C1b']);
 export interface FigCaliper {
   id: string;
   /** A spleen's long axis (the 2D plate's two ends, scaled about its centre by the spleen's size), or a line across a vessel at its middle. */
@@ -491,7 +495,10 @@ export class FigureCards {
     }
     const curve = curveOf(c.line.across), v = NETWORK_BY_ID.get(c.line.across);
     if (!curve || !v) return null;
-    curve.getPointAt(0.5, this.p); curve.getPointAt(0.52, this.q);
+    // (a slide that has the scope ring on the varices: the ruler across them stands above the ring, never inside it or under its badge)
+    let t = 0.5;
+    if (scopeClaims.wantsRing && VARIX_CALIPERS.has(c.id)) t = clearParam((u, o) => { curve.getPointAt(u, this.q); o.x = this.q.x; o.y = this.q.y; }, { x: x3(RING.x), y: y3(RING.y) }, (RING.r + BADGE_R + 4) / UNITS_PER_SCENE, 0.5);
+    curve.getPointAt(t, this.p); curve.getPointAt(Math.min(1, t + 0.02), this.q);
     const a = d.project(this.p, this.pt), b = d.project(this.q, this.pt2);
     const tx = b.x - a.x, ty = b.y - a.y, n = Math.hypot(tx, ty) || 1;
     // the tube's radius on screen: its scene radius times the pixels one scene unit covers here
