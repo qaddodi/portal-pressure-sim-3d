@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { opensIntoCava } from '../src/scene/vessels/fades.ts';
+import { landsOnCava, opensIntoCava } from '../src/scene/vessels/fades.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { cavaMateOf } from '../src/scene/vessels/neighbour.ts';
 
@@ -20,7 +20,7 @@ test('only a vessel that ends on the cava has the cava\'s cut and fade; every ot
       const o = s.vesselObject(v.id);
       if (!o) continue;
       const u = o.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number } };
-      if (opensIntoCava(v.id)) { ends++; assert.equal(u.cavaCut.value, skinnedAtCava(s, v.id) ? 2 : 1, v.id); assert.ok(cavaMateOf(v.id), v.id); }   // (a skin that has taken the cava end is the opening: no cut there, spec 10.4)
+      if (opensIntoCava(v.id) || landsOnCava(v.id)) { ends++; assert.equal(u.cavaCut.value, skinnedAtCava(s, v.id) ? 2 : 1, v.id); assert.ok(cavaMateOf(v.id), v.id); }   // (a skin that has taken the cava end is the opening: no cut there, spec 10.4)
       else { others++; assert.equal(u.cavaCut.value, 0, `${v.id} only crosses or lies near the cava`); assert.equal(cavaMateOf(v.id), null, v.id); assert.equal(u.cavaA.value, 1, v.id); }
     }
     assert.ok(ends >= 4 && others > 30);
