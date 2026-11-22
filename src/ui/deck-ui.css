@@ -98,8 +98,9 @@
 
 /* ── the wallet's strip (iPhone) ── */
 .dk-strip { box-sizing: border-box; display: block; width: 100%; height: 48px; padding: 0; margin: 0; color: var(--text); text-align: left; cursor: pointer; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; font: inherit; }
+/* (width !important: the 2D phone rule `.pz-shade.stack { width: auto !important }` shrank this button to its empty content, so on a phone the strip of a data card too tall to show was a 2 px stub with its grab bar hanging off the left edge: the grey bar at top left on fibrosis and spleen stiffness, 22 Nov) */
 /* the strip is the 2D wallet's: its glass, hairline and radius are .pz-shade.pz-card, its grab bar and name the .pz-shuf pseudo-elements; the planner places it (.dk-pos) */
-.deck-ui.pz .dk-strip.pz-shade { position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: 100%; max-height: none; margin: 0; padding: 0; }
+.deck-ui.pz .dk-strip.pz-shade { position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: 100% !important; max-height: none; margin: 0; padding: 0; }
 .deck-ui.pz .dk-strip.pz-shuf::after { opacity: 1; }
 .dk-strip[data-dock] { height: 34px; }   /* the data card put away: 2D's closed card's edge, 34 px, its grab bar in the foot (.pz-grip's place) and no name */
 .deck-ui.pz .dk-strip[data-dock].pz-shuf::after { content: none; }

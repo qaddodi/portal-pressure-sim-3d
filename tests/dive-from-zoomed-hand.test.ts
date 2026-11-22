@@ -38,7 +38,8 @@ for (const out of [false, true]) {
       // in: the hand's offset is gone with the dive's own aim, before the close part (the neighbours never sweep past); out: it shrinks with the picture, so it is never bigger than it was
       for (const [i, a] of pts.entries()) {
         const off = Math.hypot(a.x - plain[i]!.x, a.y - plain[i]!.y);
-        if (!out && i >= Math.floor(pts.length * 0.5)) assert.ok(off <= 0.15 * d0 + 3, `frame ${i}: ${off.toFixed(0)} px off the plain dive (in)`);
+        // (plan 30: no front-loaded lurch. The path is one eased share of the way: never further off than it started, and only ever closer, a few percent of the screen a frame at most; scene.placeDive makes the usual case travel not at all)
+        if (!out) { assert.ok(off <= d0 + 3, `frame ${i}: ${off.toFixed(0)} px off the plain dive (in)`); if (i > 0) assert.ok(off <= Math.hypot(pts[i - 1]!.x - plain[i - 1]!.x, pts[i - 1]!.y - plain[i - 1]!.y) + 1, `frame ${i}: only comes closer`); }
         if (out) assert.ok(off <= d0 + 3, `frame ${i}: ${off.toFixed(0)} px off the plain dive (out)`);
       }
       assert.ok(Math.hypot(end.x - plain[plain.length - 1]!.x, end.y - plain[plain.length - 1]!.y) < 0.5, 'it lands where the plain dive lands');

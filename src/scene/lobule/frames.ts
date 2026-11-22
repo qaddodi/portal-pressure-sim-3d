@@ -14,6 +14,8 @@ export const LIVER_2D = { x: 515, y: 330 } as const;
 export const LIVER_Z = -0.15;
 /** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule (about 1 mm) is well over a thousand times smaller than a liver (owner, 20 Nov: it was ~10x too big and showed on the liver): 1/1500 of the scene. */
 export const LIVER_POINT: V3 = [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
+/** The liver's own default place (the fit's), which `LIVER_POINT` returns to on `resetDivePlace`. The array above is the live place: `setDivePlace` rewrites it in place, so every reader (the dive frame, the shots, the captions) sees the move at once. */
+export const DEFAULT_DIVE_PLACE: V3 = [LIVER_POINT[0], LIVER_POINT[1], LIVER_POINT[2]];
 export const LOBULE_SCALE = 1 / 1500;
 
 /** Where the sinusoid stands in the lobule's local units (the 2D 'lobule:sinusoid' station: half-way from the left portal corner to the centre, on the slab), and its scale
@@ -33,6 +35,23 @@ export function lobuleWorld(p: V3, out: V3 = [0, 0, 0]): V3 {
 }
 /** The sinusoid's place in the scene (its local origin). */
 export const SIN_POINT: V3 = lobuleWorld(SIN_LOCAL);
+/** Moves the dive's place (plan 30: a lobule is any lobule of the liver, so it goes where the viewer looks). Moves the lobule's and the sinusoid's frames together; only called while the dive frame is hidden. */
+export function setDivePlace(x: number, y: number, z: number = LIVER_Z): void {
+  LIVER_POINT[0] = x; LIVER_POINT[1] = y; LIVER_POINT[2] = z;
+  lobuleWorld(SIN_LOCAL, SIN_POINT);
+}
+export function resetDivePlace(): void { setDivePlace(DEFAULT_DIVE_PLACE[0], DEFAULT_DIVE_PLACE[1], DEFAULT_DIVE_PLACE[2]); }
+/** Where the dive goes for a viewer looking at the liver's plane at (x, y): that point when it is inside the liver's box (shrunk by `pad`), else the first point inside it on the line towards the default place, so he dives into the liver nearest where he looks. */
+export function chooseDivePlace(x: number, y: number, box: { minX: number; maxX: number; minY: number; maxY: number }, pad = 0.05): { x: number; y: number } {
+  const inb = (px: number, py: number) => px > box.minX + pad && px < box.maxX - pad && py > box.minY + pad && py < box.maxY - pad;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { x: DEFAULT_DIVE_PLACE[0], y: DEFAULT_DIVE_PLACE[1] };
+  const hx = DEFAULT_DIVE_PLACE[0], hy = DEFAULT_DIVE_PLACE[1];
+  if (inb(x, y)) return { x, y };
+  if (!inb(hx, hy)) return { x: hx, y: hy };
+  let lo = 0, hi = 1;   // (bisection on the line from the look to the default place: lo outside, hi inside)
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (inb(x + (hx - x) * m, y + (hy - y) * m)) hi = m; else lo = m; }
+  return { x: x + (hx - x) * hi, y: y + (hy - y) * hi };
+}
 /** A point of the sinusoid's local units in the scene. */
 export function sinusoidWorld(p: V3, out: V3 = [0, 0, 0]): V3 {
   out[0] = SIN_POINT[0] + p[0] * SIN_SCALE; out[1] = SIN_POINT[1] + p[1] * SIN_SCALE; out[2] = SIN_POINT[2] + p[2] * SIN_SCALE;

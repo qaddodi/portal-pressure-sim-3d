@@ -21,13 +21,16 @@ export function front(byte: number, p: number): number {
   return x * x * (3 - 2 * x);
 }
 
-/** The septa multiply their reveal by this (today's `aa`, 0.55 + 0.45 su). */
-export const septaStrength = (pS: number): number => 0.55 + 0.45 * pS;
+/** The septa multiply their reveal by this (Plan 31: 0.75 + 0.25 su, so early septa are already legible; it was 0.55 + 0.45 su). */
+export const septaStrength = (pS: number): number => 0.75 + 0.25 * pS;
+/** Plan 31: in cirrhosis the bridging septa lead, so the portal tracts and the vein's cuff and ring yield as the septa grow (tract area to about 43 %, the vein to a thin collar). The share of each channel drawn at septa growth 1. */
+export const TRACT_YIELD = 0.65, CV_YIELD = 0.7;
 
 /** The three channels' growth goals, from the lobule's fibrosis values: the septa by cirrhosis, the portal tracts and the vein by 2D's scarGrowth (with the painter's own onsets, 0.03 and 0.05). */
 export function growGoal(s: { septU: number; fibPre: number; fibPost: number }): [number, number, number] {
   const g = (x: number) => clamp(x, 0, 1) ** 1.1;
-  return [clamp(s.septU, 0, 1), s.fibPre > 0.03 ? g(s.fibPre) : 0, s.fibPost > 0.05 ? g(s.fibPost) : 0];
+  const pS = clamp(s.septU, 0, 1);   // (the yield rides the same eased growth: with septU 0, schistosomiasis, NCPH, SOS and Budd-Chiari, nothing changes)
+  return [pS, s.fibPre > 0.03 ? g(s.fibPre) * (1 - TRACT_YIELD * pS) : 0, s.fibPost > 0.05 ? g(s.fibPost) * (1 - CV_YIELD * pS) : 0];
 }
 
 /** One step of a channel's growth towards its goal, dt seconds: at most GROW_RATE a second, slowing into the goal. */

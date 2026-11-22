@@ -18,7 +18,7 @@ export const cavaWholeAlpha = (rest: number): number => Math.min(1, rest / CAVA_
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
 const IVC_NODES: ReadonlySet<string> = new Set(['IVCS', 'IVCI', 'RA', 'IVC_D', 'ILI_R']);
 export const HEPATIC_VEINS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC', 'RRV_IVC']);
-const IVC_JOIN_LEN = 60;
+export const IVC_JOIN_LEN = 60;
 /** A hepatic vein that opens into the cava: one of the hepatic veins whose END is on the cava's node. The right hepatic vein is two pieces (RHV_IVC_1 from the liver to the TIPS junction, RHV_IVC from there to the cava), and only the second one opens into
  *  the cava: the rules for "a vein into the cava" (the end eased to the cava's alpha, the ink held back inside the cava, the part inside the lumen cut away) are keyed by where the vein ENDS, never by its name (root cause of the broken outline and the light line
  *  at the join of the two pieces in the Circuit, 20 Nov). */

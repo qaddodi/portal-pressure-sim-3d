@@ -7,6 +7,7 @@ import { viewAt } from '../deck/presenter-machine.ts';
 import { useShell } from '../shell/store.ts';
 import { loadPatient } from '../menu/patients.ts';
 import { patient } from '../../engine/store.ts';
+import { sendParams } from '../../engine/params-send.ts';
 import type { SlideModel } from '../../decks/schema.ts';
 import type { Stop, Pos } from '../deck/presenter-machine.ts';
 
@@ -25,12 +26,12 @@ export async function applyModel(m: SlideModel, dip = false): Promise<boolean> {
     const who = {};
     if (dip) await dipIn(who);
     const ok = (await loadPatient(m.preset)) && mine === token;
-    if (ok && m.params) engine().send({ type: 'setParams', params: m.params, settle: true });
+    if (ok && m.params) sendParams(m.params, { settle: true });
     if (dip) { if (ok) await new Promise((r) => clock.after(r, 180)); await dipOut(who); }   // (the new patient's first frames are drawn before the dim lifts)
     return ok;
   }
   if (!m.params) return true;
-  engine().send({ type: 'setParams', params: m.params, settle: true });
+  sendParams(m.params, { settle: true });
   return true;
 }
 
@@ -58,6 +59,6 @@ export const captureSaved = (): Saved => ({ preset: useEngine.getState().presetI
 export async function restoreSaved(s: Saved): Promise<void> {
   if (!s.preset) return;
   if (!(await loadPatient(s.preset))) return;
-  if (s.params) engine().send({ type: 'setParams', params: s.params, settle: true });
+  if (s.params) sendParams(s.params, { settle: true, replace: true });
   useShell.setState({ patientId: s.preset });
 }
