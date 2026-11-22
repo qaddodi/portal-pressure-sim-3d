@@ -7,6 +7,8 @@
 import type { IUniform } from 'three';
 import { EDGE_COLUMNS, type EdgeStateTable } from './edge-state.ts';
 import { sewnEnds } from './sewn.ts';
+import { peelTable, type PeelEnds } from './peel.ts';
+import type { NodeReport } from './mesh.ts';
 import type { Skeleton } from './types.ts';
 
 /** The vessel an edge draws and the stretch of that vessel's course the edge covers (0..1 of its u): [0, 1] for a whole vessel. */
@@ -96,12 +98,13 @@ export class NetRows {
     this.vessels = edgeVessels(skel);
   }
 
-  /** The identity columns: the sewn ends (net/sewn.ts) and the bake scale (the mesh's own, per edge). Written once. */
-  writeStatic(bakeScale: ArrayLike<number> | undefined): void {
-    const sewn = sewnEnds(this.skel);
+  /** The identity columns: the sewn ends (net/sewn.ts), the bake scale (the mesh's own, per edge) and the junction peel's anchors (net/peel.ts, from the junction reports). Written once. */
+  writeStatic(bakeScale: ArrayLike<number> | undefined, reports: readonly Partial<NodeReport>[] = []): void {
+    const sewn = sewnEnds(this.skel), peel: PeelEnds[] = peelTable(this.skel, reports as NodeReport[]);
     sewn.forEach(([a, b], row) => {
       this.table.set(row, 'sewn', [a ? a.host : -1, b ? b.host : -1, a ? a.flags : 0, b ? b.flags : 0]);
       if (bakeScale) this.table.set(row, 'bakeScale', bakeScale[row] ?? 1);
+      this.table.set(row, 'peelA', peel[row]!);
     });
   }
 

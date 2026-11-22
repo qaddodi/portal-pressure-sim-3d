@@ -12,6 +12,7 @@ import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../src/scene/vessels/skin/exact-
 import { peelAt, peelRank, peelSlope, PEEL_SPAN } from '../src/scene/circuit/peel.ts';
 import { MAP_K, sceneToMap } from '../src/scene/circuit/map.ts';
 import { flareScale, sideEndScale } from '../src/scene/vessels/fork-joins.copied.js';
+import { PEEL_EASE_RADII, type PeelEnds } from '../src/scene/vessels/net/peel.ts';
 import { SEWN_CAPPED, SEWN_FLARE, SEWN_INSIDE, SEWN_SINK, type SewnEnd } from '../src/scene/vessels/net/sewn.ts';
 
 export type V3 = [number, number, number];
@@ -51,6 +52,27 @@ export interface LiveState {
   edges: LiveEdge[];
   /** the sewn ends of every edge (net/sewn.ts): the collar is applied to those edges' bones, sized from the host's live lumen */
   sewn?: readonly (readonly [SewnEnd | null, SewnEnd | null])[];
+  /** the junction peel (net/peel.ts): per edge, the region's anchor bone and boundary u at each end; absent: every bone peels by its own flow share (2D) */
+  peel?: readonly PeelEnds[];
+}
+
+/** The peel share of a point of an edge (the shader's peelShareAt): its own flow-peel share, pulled to the region's node's share inside the region and eased back to its own over PEEL_EASE_RADII arm radii outside it. */
+export function peelShare(skel: Skeleton, live: LiveState, edge: number, Mq: V3, uq: number, rr: number): number {
+  const own = peelAt(live.circT, peelRank(sceneToMap(Mq[0], Mq[1])[0])), pe = live.peel?.[edge];
+  if (!pe) return own;
+  const ed = skel.edges[edge]!, [f, c] = ed.bones;
+  let len = 0; for (let k = 1; k < c; k++) len += Math.hypot(...sub(skel.bones[f + k]!.pos[0], skel.bones[f + k - 1]!.pos[0]));
+  let w = own, inside = -1;
+  const both = pe[0]! >= 0 && pe[2]! >= 0, span = both ? (pe[3]! - pe[1]!) * len : 1e9;
+  for (const e of [0, 1] as const) {
+    const anchor = pe[2 * e]!;
+    if (anchor < 0) continue;
+    const seam = pe[2 * e + 1]!, Ma = skel.bones[anchor]!.pos[1], wn = peelAt(live.circT, peelRank(sceneToMap(Ma[0], Ma[1])[0])), dd = e === 0 ? uq - seam : seam - uq;
+    if (dd <= 0) { if (inside < 0) inside = wn; continue; }
+    const Le = Math.min(PEEL_EASE_RADII * Math.max(rr, 1e-6), 0.5 * Math.max(span, 0)), x = Le > 0 ? Math.min(1, (dd * len) / Le) : 1, sm = x * x * (3 - 2 * x);
+    w += (wn - own) * (1 - sm);
+  }
+  return inside >= 0 ? inside : Math.min(1, Math.max(0, w));
 }
 
 /** The collar of a sewn end (the shader's sewnCollar, from 2D's own sideEndScale and flareScale): the scale of an edge's radius at a bone `u` along it (edge length `arc`), given the live lumen the bone would have and its two hosts' live lumens. */
@@ -97,13 +119,15 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
     let w = 0, cen: V3 = [...A], F: [V3, V3, V3] = [B.frame[0], B.frame[1], B.frame[2]];
     if (live.circT > 0 && !E.noMap) {
       const rank = peelRank(sceneToMap(M[0], M[1])[0]);
-      w = peelAt(live.circT, rank);
+      const peeled = !!live.peel && (live.peel[B.edge]![0] >= 0 || live.peel[B.edge]![2] >= 0);
+      w = peeled ? peelShare(skel, live, B.edge, M, B.u, B.r[0]) : peelAt(live.circT, rank);
       cen = [0, 1, 2].map((d) => A[d]! + (M[d]! - A[d]!) * w) as V3;
       const p = skel.bones[first + Math.max(0, k - 1)]!, n = skel.bones[first + Math.min(count - 1, k + 1)]!;
       const du = Math.max(n.u - p.u, 1e-6);
       const dA = mul(sub(n.pos[0], p.pos[0]), 1 / du), dM = mul(sub(n.pos[1], p.pos[1]), 1 / du);
       const rs = rank > 0 && rank < 1 ? dM[0] / MAP_K / PEEL_SPAN : 0;
-      const Tm = add(add(mul(dA, 1 - w), mul(dM, w)), mul(sub(M, A), peelSlope(live.circT, rank) * rs));
+      const dwdu = peeled ? (peelShare(skel, live, B.edge, n.pos[1], n.u, B.r[0]) - peelShare(skel, live, B.edge, p.pos[1], p.u, B.r[0])) / du : peelSlope(live.circT, rank) * rs;
+      const Tm = add(add(mul(dA, 1 - w), mul(dM, w)), mul(sub(M, A), dwdu));
       F = frameTo(B.frame, dot(Tm, Tm) > 1e-9 ? norm(Tm) : B.frame[0]);
     }
     const share = w;
