@@ -44,6 +44,7 @@ import { KEY_COLS, KEY_MAX, KEY_RIDX, KEY_TEX, REGION_CAPS, REGION_HEAD, REGION_
 import { SIDE_END_MIN, FLARE_K, FLARE_SPAN } from '../fork-joins.copied.js';
 import { BONE_TEXELS, BONES_PER_ROW } from './bones.ts';
 import { EDGE_LAYOUT } from './edge-state.ts';
+import { JUNC_CUT_GLSL } from './junc-cut-glsl.ts';
 
 // ---- the edge-state texture, as GLSL ----
 const TYPE = ['', 'float', 'vec2', 'vec3', 'vec4'] as const;
@@ -83,7 +84,7 @@ export const NET_GLOBALS: Readonly<Record<string, string>> = {
   toneColor: 'vec3[3]', tubeDark: 'float', inkColor: 'vec3', inkColorCirc: 'vec3', shadeK: 'float', light: 'vec3', bands: 'float', spec: 'float', time: 'float', projY: 'float', dpr: 'float',
   markDark: 'vec3', markLight: 'vec3', markRev: 'vec3', lensMix: 'float', lensTail: 'float', lensGradA: 'sampler2D', lensLaneA: 'sampler2D', lensGradB: 'sampler2D', lensLaneB: 'sampler2D',
   lensModeA: 'float', lensModeB: 'float', lensRawA: 'float', lensRawB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
-  wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
+  wedgeCol: 'vec3', pageCol: 'vec3', juncGeom: 'sampler2D', juncOn: 'float', dustP: 'vec4[]', routeTex: 'sampler2D',
   // the inspector's (VDBG), as the old program's
   dbgShade: 'float', dbgDust: 'float', dbgHeads: 'float', dbgInk: 'float', dbgTint: 'float', dbgCol: 'vec4',
 };
@@ -148,6 +149,7 @@ varying float vDraw;   // a junction region's fillet: the share of its pixels th
 varying float vOff;    // 1 at a vertex that is not drawn (a fillet with no share, an extension its fillet hides), 0 elsewhere: a triangle with such a vertex is discarded WHOLE (an interpolated vDraw of 1 against 0 dithered the whole strip between them: the checker noise at a confluence)
 varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
+varying vec3 vMp;   // the point in the figure's space (after the ink's push): the cut against a ray-marched junction (junc-cut-glsl.ts)
 flat varying vec2 vEdge;   // the edge of the bone that holds the vertex most, and the second's: the fragment stage's discrete state (flat: one per triangle)
 ${SWELL_OF_GLSL}
 const float MAP_X0 = ${F(MAP_X0)};
@@ -499,6 +501,7 @@ void main() {
     nUnit = normalize(mix(gn, rad, smoothstep(0.6, ${F(SKIN_RING_W_FROM)}, wmax)));
   }
   pAcc += nPush * padAcc;
+  vMp = pAcc;
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cenAcc, 1.0));
   vCen = vec3(cc.x, cc.y, cc.w);
   vec4 mv = modelViewMatrix * vec4(pAcc, 1.0);
@@ -596,7 +599,9 @@ varying float vDraw;
 varying float vOff;
 varying vec4 vPackC;
 varying vec2 vPackD;
+varying vec3 vMp;
 flat varying vec2 vEdge;
+${JUNC_CUT_GLSL}
 // (plain globals the shared GLSL reads, unpacked at the top of main)
 float vW, vR, vR0, vSkew, vU, vArcLen, vFade, vCircShare, circStay, vHi, vUvB, vBlend;
 vec2 vUv;
@@ -654,6 +659,7 @@ void main() {
   if (circStay < 0.999 && ${SCREEN_DITHER_GLSL} >= circStay) discard;
   // a junction region's fillet dissolves in the same pattern: it keeps the pixels whose pattern value is below its share
   if (vOff > 0.001) discard;
+  if (juncCut(vMp, vEdge.x)) discard;   // (inside a ray-marched junction: it draws the union there, junc-sdf.ts)
   if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;
   if (vFade < 0.004) discard;
   vec3 n = normalize(vN);

@@ -4,8 +4,9 @@
 //
 // HOW IT FITS THE NETWORK FIGURE, WITHOUT CHANGING IT:
 // - the region's fillet meshes are switched off by their fade ramps (texel 3 of their row in the region texture: share 0 at every t), so the arms' tubes and their extensions to the node are what the mesh draws there;
-// - a proxy sphere round the region's capsules is drawn in the vessel pass; each pixel marches its ray through the union. The union contains every arm's capsule, so where a tube and the union are the
-//   same surface the union wins by a small depth bias, and the tube shows only where it really lies outside (beyond the capsules' ends);
+// - a proxy sphere round the region's capsules is drawn in the vessel pass; each pixel marches its ray through the union. THE CUT (junc-cut-glsl.ts): each arm's tube stops at a plane across its capsule's
+//   outer end and the union is drawn only on the node side of the planes, so at the hand-over both are the same capsule surface: no tube end, dome or tube ink inside the junction, and its outline is the
+//   union's silhouette alone (Mohammad's iPhone, 22 Nov: the tube ends showed as capped pieces with their own ink arcs, because the tubes ran on into the junction and their ink band stood outside the union);
 // - the colour is the network's own fragment stage (NET_FS), run as a function: the varyings it reads are filled per pixel from the nearest capsule's bones (two small passes write each capsule
 //   point's edge row, place, fade, morph share, stay, highlight, units and arc length: the same netBone the vertex stage runs), so the tones, the lens colours, the fade, the dust and the marks are
 //   the tubes' rules, not copies. The outline: a ray that misses the union but passes within the line's width of it (CSS px, the tubes' inkPx rule) is ink.
@@ -24,6 +25,7 @@ import { SKIN_K } from './junction/sdf.ts';
 import { SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { NET_CAP_VS, NET_FS } from './shaders.ts';
 import { REGION_CAPS, REGION_PTS } from './regions.ts';
+import { JUNC_CUT_TEXELS } from './junc-cut-glsl.ts';
 import type { NetDraw } from './network-object.ts';
 import { flagValue } from '../../../ui/debug/flags.ts';
 
@@ -33,8 +35,6 @@ export const juncSdf = (search?: string): boolean => flagValue('junc', search ??
 export const JUNC_NODE = 'CONF';
 /** The most steps a ray takes through the proxy, the share of a step it moves (the smooth minimum is not an exact distance: a full step can overshoot), and the hit tolerance in blend widths. */
 export const JUNC_STEPS = 48, JUNC_STEP_K = 0.9, JUNC_EPS_K = 0.003;
-/** How far the union's depth is pulled toward the eye, in the arm's lumen: where an arm's tube is the same surface as the union, the union draws (the tube's ring corners stand TUBE_SAG outside). */
-export const JUNC_DEPTH_BIAS = 0.15;
 /** A fade ramp that keeps a fillet at share 0 for every t (regions.ts regionFades: in over [2, 3] never starts inside [0, 1]). */
 export const NO_FILLET: readonly [number, number, number, number] = [2, 3, 2, 3];
 
@@ -53,32 +53,64 @@ export const JUNC_INFO_FS = /* glsl */ `
 varying vec4 vCapOut;
 void main() { gl_FragColor = vCapOut; }`;
 
-// ---- the proxy: a sphere round every capsule point of the region (plus the blend's bulge and the line), drawn back faces so a camera inside it still marches ----
-export const JUNC_VS = /* glsl */ `
+// ---- the cut: one point per texel of the cut texture (junc-cut-glsl.ts), from the live capsules and the edge rows of their ends ----
+export const JUNC_GEOM_VS = /* glsl */ `
 uniform sampler2D regionTex;
 uniform sampler2D capTex;
+uniform sampler2D juncInfoA;
 uniform float juncRow;
-uniform vec2 res;
-varying vec3 vJuncP;
-flat varying vec4 vJuncBound;
+attribute float geomId;
+varying vec4 vCapOut;
+vec4 capAt(int c, int q, int rr) { return texelFetch(capTex, ivec2(c * ${PTS} + q, rr), 0); }
 void main() {
-  int rr = int(juncRow + 0.5);
+  int rr = int(juncRow + 0.5), id = int(geomId + 0.5);
   int nc = int(texelFetch(regionTex, ivec2(0, rr), 0).x + 0.5);
   vec3 lo = vec3(1.0e20), hi = vec3(-1.0e20);
   float rmax = 0.0;
   for (int c = 0; c < ${CAPS}; c++) {
     if (c >= nc) break;
-    for (int q = 0; q < ${PTS}; q++) { vec4 P = texelFetch(capTex, ivec2(c * ${PTS} + q, rr), 0); lo = min(lo, P.xyz - P.w); hi = max(hi, P.xyz + P.w); rmax = max(rmax, P.w); }
+    for (int q = 0; q < ${PTS}; q++) { vec4 P = capAt(c, q, rr); lo = min(lo, P.xyz - P.w); hi = max(hi, P.xyz + P.w); rmax = max(rmax, P.w); }
   }
   vec3 cen = 0.5 * (lo + hi);
+  vec4 o = vec4(0.0);
+  // the bound: the capsules' box and three widest lumens (the blend's bulge and the ink band of the arms near the node; the proxy adds the line's width on screen)
+  if (id == 0) o = vec4(cen, 0.5 * length(hi - lo) + 3.0 * rmax);
+  else {
+    int k = id - 1, c = k - (k / ${CAPS}) * ${CAPS};
+    if (c < nc) {
+      // the outer end: the capsule end farther from the bound's centre; its plane's normal runs from the first distinct point inward to it
+      bool aOut = distance(capAt(c, 0, rr).xyz, cen) > distance(capAt(c, ${PTS - 1}, rr).xyz, cen);
+      int qo = aOut ? 0 : ${PTS - 1}, qn = aOut ? ${PTS - 1} : 0, st = aOut ? 1 : -1;
+      vec3 Po = capAt(c, qo, rr).xyz, n = vec3(0.0);
+      for (int j = 1; j < ${PTS}; j++) { vec3 d = Po - capAt(c, qo + st * j, rr).xyz; if (dot(d, d) > 1.0e-12) { n = d; break; } }
+      if (dot(n, n) <= 1.0e-12) n = Po - cen;
+      n = normalize(n);
+      o = k >= ${CAPS} ? vec4(floor(texelFetch(juncInfoA, ivec2(c * ${PTS} + qo, rr), 0).x), floor(texelFetch(juncInfoA, ivec2(c * ${PTS} + qn, rr), 0).x), 1.0, 0.0) : vec4(n, dot(n, Po));
+    }
+  }
+  vCapOut = o;
+  gl_PointSize = 1.0;
+  gl_Position = vec4((float(id) + 0.5) / ${F(JUNC_CUT_TEXELS)} * 2.0 - 1.0, 0.0, 0.0, 1.0);
+}`;
+
+// ---- the proxy: a sphere round every capsule point of the region (plus the blend's bulge and the line), drawn back faces so a camera inside it still marches ----
+export const JUNC_VS = /* glsl */ `
+uniform sampler2D juncGeom;
+uniform vec2 res;
+varying vec3 vJuncP;
+flat varying vec4 vJuncBound;
+void main() {
+  vec4 S = texelFetch(juncGeom, ivec2(0, 0), 0);
+  vec3 cen = S.xyz;
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cen, 1.0));
-  // the bound: the capsules' box, the blend's bulge (under one widest lumen) and the line (LINE_MAX CSS px at the centre's depth, doubled for depth spread)
-  float R = 0.5 * length(hi - lo) + rmax + 2.0 * ${F(CEL_STYLE.LINE_MAX)} * cc.w * 2.0 / (res.y * projectionMatrix[1][1]);
+  // the cut's bound and the line (LINE_MAX CSS px at the centre's depth, doubled for depth spread)
+  float R = S.w + 2.0 * ${F(CEL_STYLE.LINE_MAX)} * cc.w * 2.0 / (res.y * projectionMatrix[1][1]);
+  float nc = S.w > 0.0 ? 1.0 : 0.0;
   vJuncBound = vec4(cen, R);
   vec3 p = cen + position * R * 1.08;   // (the polyhedron's faces lie inside its sphere: grown so they cover it)
   vJuncP = p;
   gl_Position = projectionMatrix * (modelViewMatrix * vec4(p, 1.0));
-  if (nc <= 0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+  if (nc <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 
 // ---- the fragment stage: NET_FS as a function, its varyings plain globals the march fills ----
@@ -90,6 +122,7 @@ export function netShadeOf(fs: string): string {
   step(/void main\(\) \{/, 'void netShade() {', 'main');
   step(/float dLat = [^;]*;/, 'float dLat = rmLat;', 'lateral distance (dLat)');
   step(/gl_FrontFacing/g, 'true', 'front-facing test');
+  step(/juncCut\(vMp, vEdge\.x\)/, 'false', 'cut test (juncCut)');
   return s;
 }
 
@@ -163,10 +196,19 @@ vec3 juncGrad(vec3 p, float k, float e) {
   const vec2 g = vec2(1.0, -1.0);
   return g.xyy * juncUnion(p + g.xyy * e, k) + g.yyx * juncUnion(p + g.yyx * e, k) + g.yxy * juncUnion(p + g.yxy * e, k) + g.xxx * juncUnion(p + g.xxx * e, k);
 }
+vec4 jPl[${CAPS}];
+int jArms = 0;
+void juncPlanes() {
+  jArms = 0;
+  for (int c = 0; c < ${CAPS}; c++) { if (texelFetch(juncGeom, ivec2(1 + ${CAPS} + c, 0), 0).z < 0.5) break; jPl[c] = texelFetch(juncGeom, ivec2(1 + c, 0), 0); jArms = c + 1; }
+}
+// beyond an arm's cut plane: the tube draws there, not the march
+bool juncBeyond(vec3 p) { for (int c = 0; c < ${CAPS}; c++) { if (c >= jArms) break; if (dot(jPl[c].xyz, p) - jPl[c].w > 0.0) return true; } return false; }
 float juncNdc(vec3 p) { vec4 c = juncP * (juncMV * vec4(p, 1.0)); return c.z / c.w; }
 void main() {
   int rr = int(juncRow + 0.5);
   juncLoad(rr);
+  juncPlanes();
   float kU = ${F(SKIN_K)} * jKMin;
   vec3 ro = juncEye, rd = normalize(vJuncP - juncEye);
   vec3 oc = ro - vJuncBound.xyz;
@@ -181,8 +223,9 @@ void main() {
     float d = juncUnion(p, kU);
     float w = max(-(juncMV * vec4(p, 1.0)).z, 1.0e-6);
     float px = d / (w * 2.0 / (res.y * projY));
-    if (px < minPx) { minPx = px; tMin = t; }
-    if (d < ${F(JUNC_EPS_K)} * kU) { hit = true; tMin = t; break; }
+    bool beyond = juncBeyond(p);
+    if (!beyond && px < minPx) { minPx = px; tMin = t; }   // (the outline counts only the union inside the cut: beyond it the tube's own line is drawn)
+    if (d < ${F(JUNC_EPS_K)} * kU) { if (beyond) discard; hit = true; tMin = t; break; }
     t += max(d * ${F(JUNC_STEP_K)}, ${F(JUNC_EPS_K)} * kU);
     if (t > t1) break;
   }
@@ -240,9 +283,8 @@ void main() {
   float rDevAx = vRm / max(cAx.w * 2.0 / (res.y * projY) * unit, 1.0e-6) * dpr;
   float nv = dot(vN, vV);
   rmLat = hit ? rDevAx * sqrt(max(0.0, 1.0 - nv * nv)) : rDevAx + 1.0 + minPx * dpr;
-  // the depth: the tubes' rule (between the axis's depth and the surface's, TUBE_DEPTH_SHARE), both pulled toward the eye by the bias so the union draws where a tube is the same surface
-  vec3 toEye = normalize(juncEye - q) * ${F(JUNC_DEPTH_BIAS)} * lumen;
-  gl_FragDepth = clamp(0.5 * mix(juncNdc(axis + toEye), juncNdc(q + toEye), ${F(TUBE_DEPTH_SHARE)}) + 0.5, 0.0, 1.0);
+  // the depth: the tubes' rule (between the axis's depth and the surface's, TUBE_DEPTH_SHARE, none on the Circuit's plate)
+  gl_FragDepth = clamp(0.5 * mix(juncNdc(axis), juncNdc(q), ${F(TUBE_DEPTH_SHARE)} * (1.0 - circT)) + 0.5, 0.0, 1.0);
   netShade();
 }`;
 
@@ -251,6 +293,7 @@ export const GL_PROGRAMS = [
   { name: 'junction SDF trial', vs: JUNC_VS, fs: JUNC_FS, defines: { VEIL: 1 } },
   { name: 'junction SDF info A', vs: JUNC_INFO_A_VS, fs: JUNC_INFO_FS },
   { name: 'junction SDF info B', vs: JUNC_INFO_B_VS, fs: JUNC_INFO_FS },
+  { name: 'junction SDF cut', vs: JUNC_GEOM_VS, fs: JUNC_INFO_FS },
 ] as const;
 
 const floatTarget = (w: number, h: number): WebGLRenderTarget => new WebGLRenderTarget(w, Math.max(1, h), { type: FloatType, format: RGBAFormat, minFilter: NearestFilter, magFilter: NearestFilter, depthBuffer: false, generateMipmaps: false });
@@ -278,6 +321,7 @@ export class JuncSdf {
   private readonly nm = new Matrix3();
   private readonly eye = new Vector3();
   private readonly restore: () => void;
+  private own: Record<string, IUniform> | null = null;
 
   /** null when no draw has the node (the badge then says so through `why`). */
   static build(draws: readonly NetDraw[], node = JUNC_NODE): JuncSdf | { why: string } {
@@ -303,6 +347,17 @@ export class JuncSdf {
       this.disposables.push(g, m);
       const p = new Points(g, m); p.frustumCulled = false; return p;
     });
+    // the cut (junc-cut-glsl.ts): written after the info passes (it reads the arms' edge rows from the first), read by this network's tubes and by the march
+    {
+      const geom = floatTarget(JUNC_CUT_TEXELS, 1); this.targets.push(geom);
+      const g = new BufferGeometry(); g.setAttribute('position', new BufferAttribute(new Float32Array(3 * JUNC_CUT_TEXELS), 3)); g.setAttribute('geomId', new BufferAttribute(Float32Array.from({ length: JUNC_CUT_TEXELS }, (_, i) => i), 1));
+      const m = new ShaderMaterial({ name: 'junc-cut', vertexShader: JUNC_GEOM_VS, fragmentShader: JUNC_INFO_FS, precision: 'highp', depthTest: false, depthWrite: false, blending: NoBlending, side: DoubleSide, uniforms: { ...own, juncRow: { value: row }, juncInfoA: { value: this.targets[0]!.texture } } });
+      this.disposables.push(g, m);
+      const p = new Points(g, m); p.frustumCulled = false; this.passes.push(p);
+      own.juncGeom = { value: geom.texture }; own.juncOn = { value: 1 };   // (the network's own uniforms, by reference: its tubes cut from now on)
+      this.own = own;
+      for (const m of draw.meshes) (m.material as ShaderMaterial).needsUpdate = true;   // (a program already linked lists its uniforms once: the two new ones must be in that list)
+    }
     const u: Record<string, IUniform> = {
       ...own, juncRow: { value: row }, juncInfoA: { value: this.targets[0]!.texture }, juncInfoB: { value: this.targets[1]!.texture },
       juncMV: { value: new Matrix4() }, juncP: { value: new Matrix4() }, juncN: { value: new Matrix3() }, juncEye: { value: new Vector3() },
@@ -337,6 +392,7 @@ export class JuncSdf {
 
   dispose(): void {
     this.restore();
+    if (this.own?.juncOn) this.own.juncOn.value = 0;
     this.mesh.removeFromParent();
     for (const d of this.disposables) d.dispose();
     for (const t of this.targets) t.dispose();

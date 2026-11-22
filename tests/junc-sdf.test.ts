@@ -55,3 +55,12 @@ test('the flag is ?junc=sdf only', () => {
   assert.equal(juncSdf('?geom=net'), false);
   assert.equal(juncSdf('?junc=mesh'), false);
 });
+
+test('the cut: a tube inside the junction is not drawn, the march draws nothing beyond an arm\'s plane and draws its outline only inside the cut', () => {
+  assert.match(NET_FS, /if \(juncCut\(vMp, vEdge\.x\)\) discard;/);
+  assert.doesNotMatch(netShadeOf(NET_FS), /juncCut\(vMp/);
+  const main = JUNC_FS.slice(JUNC_FS.lastIndexOf('void main() {'));
+  assert.match(main, /if \(!beyond && px < minPx\)/);
+  assert.match(main, /if \(beyond\) discard; hit = true;/);
+  assert.doesNotMatch(main, /JUNC_DEPTH_BIAS|toEye/);
+});
