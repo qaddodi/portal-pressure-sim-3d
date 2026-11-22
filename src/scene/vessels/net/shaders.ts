@@ -38,7 +38,7 @@ import { CAP_CARVED_GLSL, CHEV_CREAM_GLSL, CHEV_ONE_GLSL, CIRC_WIDTH_OF_GLSL, FA
 import { CIRC_INK_K, CIRC_INNER, SHADOW_FEATHER } from '../cel-ink.ts';
 import { VDBG_GLSL } from '../debug-view.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { SKIN_K } from '../skin/sdf.ts';
+import { SKIN_K } from './junction/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { KEY_COLS, KEY_MAX, KEY_RIDX, KEY_TEX, REGION_CAPS, REGION_HEAD, REGION_PTS } from './regions.ts';
 import { SIDE_END_MIN, FLARE_K, FLARE_SPAN } from '../fork-joins.copied.js';

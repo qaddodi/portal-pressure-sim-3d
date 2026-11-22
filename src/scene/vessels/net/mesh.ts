@@ -7,10 +7,10 @@
 // Every vertex stores (bone, weight) pairs and its offset in each bone's frame divided by the bone's radius, `p = sum w_i (P_i + r_i (o_i.x t_i + o_i.y n_i + o_i.z b_i))`, so the rest shape is rebuilt exactly (net/oracle in tests) and the vertex shader (WP3)
 // only has to move the bones. There is NO fallback: a junction that will not mesh throws `NetMeshError` naming the node, and the bake fails.
 import { TUBE_RADIAL } from '../tubes.ts';
-import { SkinBuildError, buildSkinSteady, minAngleDeg } from '../skin/mesh.ts';
-import { ARM_REACH, CAPSULE_SEGS, SKIN_K, armCapsule, closestOnArm, sdArm, sdUnion, sdUnionGrad, skinKOf, type Capsule } from '../skin/sdf.ts';
+import { SkinBuildError, buildSkinSteady, minAngleDeg } from './junction/mesh.ts';
+import { ARM_REACH, CAPSULE_SEGS, SKIN_K, armCapsule, closestOnArm, sdArm, sdUnion, sdUnionGrad, skinKOf, type Capsule } from './junction/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
-import { SHEET_CUT_R } from '../skin/sheet.ts';
+import { SHEET_CUT_R } from './junction/sheet.ts';
 import { BULGE_MAX, throughNeck, type NeckResult } from './neck.ts';
 import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
@@ -66,6 +66,8 @@ function dropCaps(tris: number[], fixed: Uint8Array): void {
 }
 
 /** The fillet's fidelity (refine.ts): the most an edge's midpoint may stand off the union. 'tubes' (plan owner, 22 Nov): 1.5 x the sag of the tubes' own tessellation on the region's widest arm (fidelity.ts, about 0.038 R of it); a number: that share of the narrowest arm's radius (0: off). Measured on the real figure: 0.01 R bakes 187k triangles and 4.0 M junction texel reads per frame and fails the stretch tests; 0.05 R bakes 113k and 1.29 M. A mutable setting so the acceptance can measure what a tolerance costs. `achieved` (the multiple reached, in R of the narrowest arm), `world` (the same in scene units) and `limit` (the tolerance asked, in scene units) are per region, the worst of its meshes; Infinity: dropped. */
+/** Regions whose map fillet is left out until its root cause is fixed (plan owner, 22 Nov): on the map the body fillet dissolves to the plain tubes, like the regions with no map mesh. */
+export const MAP_FILLET_OPEN = new Map<string, string>([['PVT_L', 'no map mesh (open): its base map mesh holds a 2 R long edge across a crease whose split leaves a sliver; the body fillet dissolves and the plain tubes show on the map until that is fixed']]);
 export { BULGE_MAX };
 export const REFINE: { tol: number | 'tubes'; achieved: Map<string, number>; world: Map<string, number>; limit: Map<string, number> } = { tol: 'tubes', achieved: new Map<string, number>(), world: new Map<string, number>(), limit: new Map<string, number>() };
 /** a node of two edges whose BAKED radii differ by more than this share is a step, not a run-on (the edges of a run are different vessels, baked at their own swell ranges: ranges.ts, so the baked radii part by a few percent at a node where the rest ones agree; 5 % is where the neck rule sees a ledge) */
@@ -160,14 +162,16 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: {
     const region = (n: NodeReport) => ({ node: n.node, variant: (n.variant ?? 0) as 0 | 1, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, triStart: n.triStart, triCount: n.triCount, capBones: n.capBones!, mates: n.caps!.map((c) => c.mate) });
     const drop = new Set<NodeReport>();
     for (const [node, list] of byNode) {
-      const body = list.find((n) => (n.variant ?? 0) === 0), map = list.find((n) => n.variant === 1);
+      const body = list.find((n) => (n.variant ?? 0) === 0), mapMesh = list.find((n) => n.variant === 1);
       if (!body) continue;
+      const open = mapMesh && MAP_FILLET_OPEN.get(node), map = open ? undefined : mapMesh;   // an open region's map mesh is dropped: its body window is the no-map one
       const w = windowOf(scaled, res.mesh, region(body), map && region(map));
       res.windows.set(node, w);
       // [b, a] for both meshes (the shader reads a for the body mesh and b for the map mesh); a body mesh whole at every t keeps none (always drawn)
       const sw: [number, number] = [w.b, w.a];
       if (w.a < 1) body.switchT = sw;
-      if (map) { if (w.b < 1) map.switchT = sw; else { drop.add(map); res.mapNotes.push({ node, why: `the map mesh is never whole (body whole to t ${w.a.toFixed(2)}): dropped, plain tubes at the map layout` }); } }
+      if (mapMesh && open) { drop.add(mapMesh); res.mapNotes.push({ node, why: open }); }
+      else if (map) { if (w.b < 1) map.switchT = sw; else { drop.add(map); res.mapNotes.push({ node, why: `the map mesh is never whole (body whole to t ${w.a.toFixed(2)}): dropped, plain tubes at the map layout` }); } }
       else res.mapNotes.push({ node, why: `no map mesh: the body fillet dissolves over [${Math.max(0, w.a - 0.1).toFixed(2)}, ${w.a.toFixed(2)}] and the plain tubes show after it` });
     }
     if (drop.size) dropMeshes(res, drop);

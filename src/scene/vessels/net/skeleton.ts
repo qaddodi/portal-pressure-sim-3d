@@ -18,7 +18,7 @@ import { circuitWidthMap } from '../../circuit/width.ts';
 import { fadeOf } from '../fades.ts';
 import { tipAlpha, vesselAlphaAt } from '../fade-alpha.ts';
 import { MAPPED, NETWORK_BY_ID, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
-import { SKIN_K } from '../skin/sdf.ts';
+import { SKIN_K } from './junction/sdf.ts';
 import { radiusAtU } from '../tubes.ts';
 import type { Bone, SkelEdge, SkelNode, Skeleton } from './types.ts';
 

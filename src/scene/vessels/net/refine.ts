@@ -1,7 +1,7 @@
 // THE FILLET'S FIDELITY (plan owner, 22 Nov, "Rulings on the neck gate"): the projected mesh stays within a tolerance of the live union INCLUDING the sag of each edge's midpoint (a flat triangle between two vertices on the surface dips inside a convex one and floats over a concave one).
 // Where an edge's midpoint is further than `tol` x R off the union (R the narrowest arm's radius at the junction), the edge is split at its midpoint, moved onto the union by Newton steps; every triangle then takes the pattern of its split edges (1, 2 or 3), so the mesh stays
 // conforming (a split edge is split for both its triangles). The seam rings' own edges are the tubes' polygon (the shader's TUBE_SAG owns it) and never split. A few passes; each halves the sag by four.
-import { sdUnion, sdUnionGrad, type Capsule } from '../skin/sdf.ts';
+import { sdUnion, sdUnionGrad, type Capsule } from './junction/sdf.ts';
 
 /** `forbid`: edge keys (`a_b`, a < b) that are never split. `fixedCount`: the vertices [0, fixedCount) are the seam rings: an edge between two of them is never split. Returns the refined positions and triangles (the vertices keep their order, new ones follow). */
 export function refineSag(pos: Float64Array, tris: readonly number[], fixedCount: number, caps: readonly Capsule[], k: number, R: number, tol: number, passes = 4, forbid: ReadonlySet<string> = new Set()): { pos: Float64Array; tris: number[]; added: number; /** each new vertex's split edge (its two endpoints at the time) */ parent: Map<number, [number, number]> } {

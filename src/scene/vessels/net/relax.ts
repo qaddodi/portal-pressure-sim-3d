@@ -2,8 +2,8 @@
 // of the way onto the surface itself (the shrink), along the union's gradient; a move that would turn one of its faces against its old normal is halved, twice, then given up. Optionally the interior edges are flipped where that raises the
 // smallest angle of the pair (the same vertices, other triangles: used once, at the body pose, to clean a sliver the skin builder's remesh left; never at the map pose, where the triangles must be the body pose's). The same rules as skin/mesh.ts's
 // remesh loop (which this cannot reuse: it is a closure of the build), on plain arrays.
-import { sdUnionGrad, type Capsule } from '../skin/sdf.ts';
-import { minAngleSin } from '../skin/mesh.ts';
+import { sdUnionGrad, type Capsule } from './junction/sdf.ts';
+import { minAngleSin } from './junction/mesh.ts';
 
 const LAMBDA = 0.5;
 

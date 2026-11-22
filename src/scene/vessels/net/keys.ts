@@ -4,7 +4,7 @@
 // the ramp gives none). Each key is stored in the bones' frames at BOTH poses (the body's, and the map's, which ramps from the map fit), in units of the bone radius AT THE KEY'S STATE (so at that state the shader's start is the key exactly, and at another it is the key scaled by the live radii, the way `offset` is).
 // Which states: the vector of every arm's swell (widthSwell of the engine's diameter) over the real states (every preset), clustered by farthest point in log space into at most MAX_KEYS keys, the largest state first.
 import { fitCaps, fitK, boundPositions, offsetsAt, project, type FitDone, type FitMesh } from './fit.ts';
-import { sdUnionGrad } from '../skin/sdf.ts';
+import { sdUnionGrad } from './junction/sdf.ts';
 import { relax } from './relax.ts';
 import type { Skeleton } from './types.ts';
 

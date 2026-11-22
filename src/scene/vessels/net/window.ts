@@ -2,7 +2,7 @@
 // `b` up to t = 1; where b < a both are fine and the hand-over (the screen dither, WP3) happens inside [b, a]. This file finds them: it evaluates each mesh's junction start at every 0.05 of t the way the vertex stage does (the bones at the Circuit's t by
 // their peel, the two offset sets blended by the vertex's share, the radii at rest, the baked scale) and projects it onto the live union with 3 Newton steps, then counts the triangles that face into the union and the vertices that stay off it.
 // A CPU twin of tests/net-oracle.ts (WP3's), which holds the same rules under test; the oracle checks this file's windows on the real regions.
-import { sdUnion, sdUnionGrad, SKIN_K, type Capsule } from '../skin/sdf.ts';
+import { sdUnion, sdUnionGrad, SKIN_K, type Capsule } from './junction/sdf.ts';
 import { MAP_K, sceneToMap } from '../../circuit/map.ts';
 import { PEEL_SPAN, peelAt, peelRank, peelSlope } from '../../circuit/peel.ts';
 import { foldCount } from './keys.ts';

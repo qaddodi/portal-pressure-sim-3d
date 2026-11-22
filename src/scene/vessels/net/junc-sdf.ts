@@ -20,7 +20,7 @@ import { CEL_STYLE } from '../../cel-style.ts';
 import { CIRC_INK_K } from '../cel-ink.ts';
 import { inkPxGlsl } from '../glsl-shared.ts';
 import { TUBE_DEPTH_SHARE } from '../shaders.ts';
-import { SKIN_K } from '../skin/sdf.ts';
+import { SKIN_K } from './junction/sdf.ts';
 import { SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { NET_CAP_VS, NET_FS } from './shaders.ts';
 import { REGION_CAPS, REGION_PTS } from './regions.ts';

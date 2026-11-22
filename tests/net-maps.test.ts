@@ -3,7 +3,7 @@
 // whole at every grid t inside it; a default build has no map mesh; a region whose meshes share no t is named, not hidden.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
+import { buildNetMesh, MAP_FILLET_OPEN } from '../src/scene/vessels/net/mesh.ts';
 import { RADIAL } from '../src/scene/vessels/net/mesh.ts';
 import { OFF_MAX } from '../src/scene/vessels/net/window.ts';
 import { BODY_ONLY, regionShare } from '../src/scene/vessels/net/regions.ts';
@@ -54,6 +54,23 @@ for (const fx of fixtures()) {
     }
   });
 }
+
+// A REGION WHOSE MAP FILLET IS OPEN (plan owner, 22 Nov: PVT_L's sliver root cause) has no map mesh: it dissolves to the plain tubes on the map, named in mapNotes.
+test('a region listed in MAP_FILLET_OPEN keeps its body mesh only, with a window like a region that has no map mesh, and is named', () => {
+  assert.ok(MAP_FILLET_OPEN.has('PVT_L'), 'PVT_L is listed');
+  for (const fx of fixtures()) {
+    const base = buildNetMesh(fx.skel, undefined, { maps: true }), node = base.nodes.find((n) => n.kind === 'junction' && n.variant === 1)?.node;
+    if (!node) continue;
+    MAP_FILLET_OPEN.set(node, 'test: open');
+    try {
+      const r = buildNetMesh(fx.skel, undefined, { maps: true });
+      assert.ok(!r.nodes.some((n) => n.node === node && n.variant === 1), `${fx.name} ${node}: no map mesh`);
+      assert.ok(r.mapNotes.some((x) => x.node === node && x.why === 'test: open'), `${fx.name} ${node}: named in mapNotes`);
+      assert.ok((r.mesh.keys ?? []).every((k) => !(k.node === node && k.variant === 1)), `${fx.name}: its map keys are gone`);
+    } finally { MAP_FILLET_OPEN.delete(node); }
+    return;
+  }
+});
 
 // THE ARMS' EXTENSIONS STAY INSIDE THE UNION THE SHADER HOLDS at every t and any swell (plan owner, 22 Nov): judged by the shared oracle (tests/net-ink.ts: the oracle's live bones and deformLive against the capsules of the shader's row), in units of the narrowest arm's radius
 // (the ink hull is 0.15 R; the tolerance here is 0.01). A run-on pair's edges are one vessel and swell together, so the swells here are uniform.

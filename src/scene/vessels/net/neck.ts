@@ -1,7 +1,7 @@
 // The no-neck rule for a THROUGH PAIR (two arms that run on through a junction: the trunk above and below a side vein, or across a short edge that merged two junctions): along the pair's axis the union's surface must keep its radius at least
 // `NECK_FLOOR` of the narrower arm's (plan owner's ruling 4, 22 Nov; the step in the slope is no longer judged here: the fidelity of the projected mesh to the live union is, net/refine.ts). It reads the SAME shape the mesh is made on (the smooth union of the capsules, skin/sdf.ts), so it judges the junction before
 // it is meshed: the radius at a station is where the union's field changes sign along the ray out of the axis, over 28 azimuths; the profile is the NARROWEST of them (the branches' fillets only add material, so the narrowest side is the trunk's own; the field has no facets, so nothing needs averaging out).
-import { sdUnion, type Capsule } from '../skin/sdf.ts';
+import { sdUnion, type Capsule } from './junction/sdf.ts';
 import type { Vec3 } from '../../anatomy/vessels.ts';
 
 /** The least the profile may reach, as a share of the narrower arm's radius (2 % under it). */

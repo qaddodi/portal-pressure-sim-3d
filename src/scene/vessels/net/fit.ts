@@ -3,7 +3,7 @@
 //   - the MAP fit (`NetMesh.offsetMap`): shrink-wrapped onto the union of the arms' capsules at the map pose (their map positions and radii), the free vertices pulled onto the surface and evened out along it
 //     (relax.ts, no flips, no splits, no collapses), the seam rings staying where the tubes put them;
 // A fit is stored as offsets in the vertices' own bones' frames at the fitted pose (divided by the bone's radius there), exactly the layout of `offset`.
-import { closestOnArm, sdUnionGrad, SKIN_K, type Capsule } from '../skin/sdf.ts';
+import { closestOnArm, sdUnionGrad, SKIN_K, type Capsule } from './junction/sdf.ts';
 import { relax } from './relax.ts';
 import { boneFrame, bonePos, boneRadius, type Pose } from './pose.ts';
 import type { Skeleton } from './types.ts';
