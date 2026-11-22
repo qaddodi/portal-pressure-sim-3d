@@ -34,6 +34,8 @@ export const juncSdf = (search?: string): boolean => flagValue('junc', search ??
 /** The region the trial draws: the portal confluence (splenic + SMV into the portal vein). */
 export const JUNC_NODE = 'CONF';
 /** The most steps a ray takes through the proxy, the share of a step it moves (the smooth minimum is not an exact distance: a full step can overshoot), and the hit tolerance in blend widths. */
+/** The marks' gate: an arm's chevrons and streaks fade out over this many blend widths outside its capsule (inside the crotch both arms' run on and overlap). */
+export const JUNC_MARK_GATE = 0.5;
 export const JUNC_STEPS = 48, JUNC_STEP_K = 0.9, JUNC_EPS_K = 0.003;
 /** A fade ramp that keeps a fillet at share 0 for every t (regions.ts regionFades: in over [2, 3] never starts inside [0, 1]). */
 export const NO_FILLET: readonly [number, number, number, number] = [2, 3, 2, 3];
@@ -123,10 +125,32 @@ export function netShadeOf(fs: string): string {
   step(/float dLat = [^;]*;/, 'float dLat = rmLat;', 'lateral distance (dLat)');
   step(/gl_FrontFacing/g, 'true', 'front-facing test');
   step(/juncCut\(vMp, vEdge\.x\)/, 'false', 'cut test (juncCut)');
+  // THE SECOND ARM'S MARKS: the dust's and the heads' own calls, copied from the lines above and read in the second arm's frame (its edge row, place, tangent, radial normal, lumen, units), each
+  // gated by how far the pixel lies outside that arm's capsule, laid over the first's. So each arm's chevrons and streaks run on along its own flow into the crotch, with no line where the nearest arm switches.
+  const line = (re: RegExp, what: string): string => { const m = s.match(re); if (!m) throw new Error(`junc-sdf: NET_FS has no ${what}`); return m[0]; };
+  const inB = (src: string): string => src.replace(/\bacross\b/g, 'acrossB').replace(/\bside\b/g, 'sideB').replace(/\bvT\b/g, 'jTB').replace(/\bsD\b/g, 'sDB').replace(/\blenH\b/g, 'lenHB').replace(/\bvR\b/g, 'jRB').replace(/\bvU\b/g, 'jUnitB').replace(/\barcS\b/g, 'arcSB').replace(/\bfd\b/g, 'fdB').replace(/\bhd\b/g, 'hdB');
+  const sD = line(/^ *float sD = [^;]*;$/m, 'dust arc (sD)'), fdCall = line(/^ *vec4 fd = flowDust\(.*\);$/m, 'dust call (flowDust)'), hdCall = line(/^ *vec4 hd = flowHeads\(.*\);$/m, 'heads call (flowHeads)');
+  const armB = (body: string): string => `  if (jHasB) {
+    loadEdgeFS(int(jRowB + 0.5));
+    float arcSB = jUB * len + arcHost.x, lenHB = arcHost.y > 0.0 ? arcHost.y : len;
+    vec3 sideB = cross(jTB, normalize(vV));
+    sideB = length(sideB) > 1e-4 ? normalize(sideB) : vec3(1.0, 0.0, 0.0);
+    float acrossB = dot(jNB, sideB);
+${body}
+    loadEdgeFS(int(vEdge.x + 0.5));
+  }
+`;
+  const fdAt = /^ *fd = clamp\(fd, 0\.0, 1\.0\) \* dHold\(fadeHere\) \* markK;\n/m, hdAt = /^ *hd = clamp\(hd, 0\.0, 1\.0\) \* markK;\n/m;
+  step(fdAt, `${line(fdAt, 'dust clamp')}${armB(`  ${inB(sD).trim()}\n    ${inB(fdCall).trim()}\n    fd += clamp(fdB, 0.0, 1.0) * dHold(fadeHere) * jGateB * (1.0 - fd.a);`)}`, 'dust clamp');
+  step(hdAt, `${line(hdAt, 'heads clamp')}${armB(`    ${inB(hdCall).trim()}\n    hd += clamp(hdB, 0.0, 1.0) * jGateB * (1.0 - hd.a);`)}`, 'heads clamp');
   return s;
 }
 
 export const JUNC_FS = /* glsl */ `
+// the second arm at the pixel (the marks run in its own frame too): there, its edge row, place, tangent and radial normal (view space), lumen (figure units), units, and its gate
+bool jHasB = false;
+float jRowB = 0.0, jUB = 0.0, jRB = 0.0, jUnitB = 1.0, jGateB = 0.0;
+vec3 jTB = vec3(1.0, 0.0, 0.0), jNB = vec3(0.0, 0.0, 1.0);
 float rmLat;   // the march's lateral distance from the arm's axis, device px (netShade's dLat): the outline's place
 ${netShadeOf(NET_FS)}
 uniform sampler2D regionTex;
@@ -231,14 +255,22 @@ void main() {
   }
   vec3 q = ro + rd * tMin;
   // THE NEAREST ARMS at the point: the first gives the edge state, the second the blend (the fillet's vBlend: up to a half where the two are equally near)
+  // (the second is the nearest arm that is not the first nor its mate: the two halves of a run-on are one course)
   int cA = 0, cB = -1, sA = 0, sB = 0;
   float dA = 1.0e20, dB = 1.0e20, tA = 0.0, tB = 0.0;
   for (int c = 0; c < ${CAPS}; c++) {
     if (c >= jNc) break;
     int sg; float st;
     float d = juncArm(c, q, sg, st);
-    if (d < dA) { dB = dA; cB = cA; sB = sA; tB = tA; dA = d; cA = c; sA = sg; tA = st; }
-    else if (d < dB) { dB = d; cB = c; sB = sg; tB = st; }
+    if (d < dA) { dA = d; cA = c; sA = sg; tA = st; }
+  }
+  int mateA = int(floor(jMate[cA] + 0.5));
+  for (int c = 0; c < ${CAPS}; c++) {
+    if (c >= jNc) break;
+    if (c == cA || c == mateA || int(floor(jMate[c] + 0.5)) == cA) continue;
+    int sg; float st;
+    float d = juncArm(c, q, sg, st);
+    if (d < dB) { dB = d; cB = c; sB = sg; tB = st; }
   }
   if (cB < 0) { cB = cA; sB = sA; tB = tA; }
   int iA = cA * ${PTS} + sA, iB = cB * ${PTS} + sB;
@@ -251,6 +283,7 @@ void main() {
   float uB = rowB0 == rowB1 ? mix(b0.x - rowB0, b1.x - rowB1, tB) * 2.0 : (tB < 0.5 ? b0.x - rowB0 : b1.x - rowB1) * 2.0;
   float blend = rowB != rowA ? 0.5 * (1.0 - smoothstep(0.0, kU, dB - dA)) : 0.0;
   vec4 ia = mix(a0, a1, tA), ib = mix(b0, b1, tB), xa = mix(x0, x1, tA);
+  vec4 xb = mix(texelFetch(juncInfoB, ivec2(iB, rr), 0), texelFetch(juncInfoB, ivec2(iB + 1, rr), 0), tB);
   vec4 P0 = jP[iA], P1 = jP[iA + 1];
   vec3 axis = mix(P0.xyz, P1.xyz, tA);
   float lumen = mix(P0.w, P1.w, tA), unit = xa.z;
@@ -279,6 +312,19 @@ void main() {
   vPackD = vec2(ia.w * unit, 0.0);
   vDraw = 1.0;
   vEdge = vec2(rowA, rowB);
+  // THE MARKS of each arm, gated by how far the pixel lies outside its capsule (0 on its own surface, faded out over half a blend width): the first arm's through vMarkE (netShade's markK),
+  // the second's in its own frame (netShadeOf); the two halves of a run-on are one course, so a mate is not a second arm
+  float gate = ${F(JUNC_MARK_GATE)} * kU;
+  vMarkE = vec2(1.0 - smoothstep(0.0, gate, dA), rowA);
+  jHasB = cB != cA;
+  if (jHasB) {
+    vec4 Q0 = jP[iB], Q1 = jP[iB + 1];
+    vec3 axisB = mix(Q0.xyz, Q1.xyz, tB), dirB = Q1.xyz - Q0.xyz;
+    jRowB = rowB; jUB = uB; jUnitB = xb.z; jRB = mix(Q0.w, Q1.w, tB) * jUnitB;
+    jTB = normalize(juncN * (dot(dirB, dirB) > 1.0e-12 ? dirB : vec3(1.0, 0.0, 0.0)));
+    jNB = normalize(juncN * (q - axisB));
+    jGateB = 1.0 - smoothstep(0.0, gate, dB);
+  }
   // the outline: a hit lies |sin| of the way from the axis to the silhouette (a tube seen side on); a near miss lies beyond the lumen, in the line
   float rDevAx = vRm / max(cAx.w * 2.0 / (res.y * projY) * unit, 1.0e-6) * dpr;
   float nv = dot(vN, vV);

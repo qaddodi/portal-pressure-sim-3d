@@ -64,3 +64,25 @@ test('the cut: a tube inside the junction is not drawn, the march draws nothing 
   assert.match(main, /if \(beyond\) discard; hit = true;/);
   assert.doesNotMatch(main, /JUNC_DEPTH_BIAS|toEye/);
 });
+
+test('the marks run on through the junction: each arm\'s dust and heads, in its own frame, gated by its own capsule, with no derivative in the second arm\'s branch', () => {
+  const shade = netShadeOf(NET_FS);
+  // the same calls as the tube's, once for the first arm and once for the second
+  const n = (src: string, re: RegExp): number => src.match(re)?.length ?? 0;
+  assert.equal(n(shade, /= flowHeads\(/g), n(NET_FS, /= flowHeads\(/g) + 1);
+  assert.equal(n(shade, /= flowDust\(/g), n(NET_FS, /= flowDust\(/g) + 1);
+  assert.match(shade, /hdB = flowHeads\(acrossB, acrossW, arcSB \* jUnitB, lenHB \* jUnitB, jRB,/);
+  assert.match(shade, /fd \+= clamp\(fdB, 0\.0, 1\.0\) \* dHold\(fadeHere\) \* jGateB \* \(1\.0 - fd\.a\);/);
+  assert.match(shade, /hd \+= clamp\(hdB, 0\.0, 1\.0\) \* jGateB \* \(1\.0 - hd\.a\);/);
+  // the second arm's state is loaded for its marks and the first's put back
+  assert.equal(shade.match(/loadEdgeFS\(int\(jRowB \+ 0\.5\)\);/g)?.length, 2);
+  assert.equal(shade.match(/loadEdgeFS\(int\(vEdge\.x \+ 0\.5\)\);/g)?.length, 2);
+  // the gates and the second arm are set by the march before netShade runs
+  const main = JUNC_FS.slice(JUNC_FS.lastIndexOf('void main() {'));
+  assert.ok(main.indexOf('vMarkE = vec2(1.0 - smoothstep(0.0, gate, dA), rowA);') < main.indexOf('netShade();'));
+  assert.ok(main.indexOf('jGateB = 1.0 - smoothstep(0.0, gate, dB);') < main.indexOf('netShade();'));
+  // the second arm is never the first's mate
+  assert.match(main, /if \(c == cA \|\| c == mateA \|\| int\(floor\(jMate\[c\] \+ 0\.5\)\) == cA\) continue;/);
+  const b = shade.slice(shade.indexOf('if (jHasB) {'), shade.lastIndexOf('loadEdgeFS(int(vEdge.x + 0.5));'));
+  assert.doesNotMatch(b, /fwidth|dFdx|dFdy/);
+});
