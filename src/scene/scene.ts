@@ -760,12 +760,14 @@ export class CelScene {
     return p ? this.rig.project(this.body.localToWorld(p.clone()), out) : null;
   }
 
-  /** A fading tip with a collateral attached is solid as far as that collateral is drawn on: its start alpha follows the collateral's amount, so it eases in and out with it (the azygos's start with the ascending lumbar vein, the coronary vein's with the varices). */
+  /** A fading tip with a collateral attached is solid as far as that collateral is drawn on: its start alpha follows the collateral's amount, so it eases in and out with it
+   *  (the azygos's start with the ascending lumbar vein, the coronary vein's with the varices). */
   private syncTipJoins(): void {
     for (const t of this.tipFades) if (t.connect.length && t.o.setTipJoined(Math.max(...t.connect.map((c) => this.presence.solidAmountOf(c))))) this.moving = true;
   }
   /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
-  /** A start that carries on from a vessel that is drawn on and off (the azygos's from the ascending lumbar vein, starts.ts RUNS_INTO) takes that vessel's live width into its own only as far as it is drawn: with it closed the start keeps its width, and it eases with the drawing. */
+  /** A start that carries on from a vessel that is drawn on and off (the azygos's from the ascending lumbar vein, starts.ts RUNS_INTO) takes that vessel's live width into its own only as far
+   *  as it is drawn: with it closed the start keeps its width, and it eases with the drawing. */
   private syncMateK(): void {
     for (const v of ORIGIN_FED) {
       const o = this.byEdge.get(v.id) as VesselObject | undefined;

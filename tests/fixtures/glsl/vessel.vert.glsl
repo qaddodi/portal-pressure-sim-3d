@@ -29,6 +29,7 @@ uniform vec2 res;
 // x < 0 where nothing, which is every vessel with the switch off
 uniform vec3 mate0;
 uniform vec3 mate1;
+uniform vec2 mateK;   // how far each mate counts (1: always, the tube beside it is there; a mate that is drawn on and off, the ascending lumbar vein into the azygos's start, counts as far as it is drawn)
 uniform vec3 nbrMate;   // the vessel nbr is measured against (a fork's other tube, the cava): its data index, the diameter it was built at, its width kind (-1: none)
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform float hiOn;
@@ -238,9 +239,9 @@ void main() {
   }
   // smooth joins: where this vessel carries on into another, both ease to the mean of their two live widths over the same stretch the tube's own taper takes (tubes.ts factorAt: the first and
   // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
-  if (mate0.x >= 0.0) { float k0 = (1.0 - smoothstep(0.0, 0.3, uv.x)) * (1.0 - stump.z);   // (a divided vein's cut start carries on into nothing: it eases to its own width as the cut opens)
+  if (mate0.x >= 0.0) { float k0 = (1.0 - smoothstep(0.0, 0.3, uv.x)) * (1.0 - stump.z) * mateK.x;   // (a divided vein's cut start carries on into nothing: it eases to its own width as the cut opens)
     if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
-  if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
+  if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x) * mateK.y; if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
   swell *= liveW;
   vCircShare = circShare;

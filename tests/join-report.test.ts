@@ -46,7 +46,7 @@ test('the real skins: every growing arm they leave out is named "dropped", the n
     for (const d of set.dropped) {
       const { node, id } = splitDropped(d);
       // (a growing arm one skin drops can be welded by another: S_PC and C9 above IVCI are arms of a wall node's skin, so that end is skinned and not unwelded; a wall node is a virtual node of the host's wall, named by the key)
-      const ends = ([0, 1] as const).filter((e) => droppedAt(d, node, id, e) || (NETWORK_BY_ID.get(id) && node === (e === 0 ? NETWORK_BY_ID.get(id)!.from : NETWORK_BY_ID.get(id)!.to)));
+      const v = NETWORK_BY_ID.get(id), ends = ([0, 1] as const).filter((e) => (node.startsWith('wall:') ? droppedAt(d, node, id, e) : !!v && node === (e === 0 ? v.from : v.to)));   // (a plain node names the end of the vessel that is AT it: the lumbar vein's other end is the azygos's start, a run-on, Plan 16D)
       assert.ok(ends.length, `${d}: an end of ${id} is named by the key`);
       for (const e of ends) {
         if (set.endsOf(id)[e]) assert.ok(!r.unwelded.some((u) => u.id === id && u.end === e), `${d} is dropped here but welded by another skin: not listed as unwelded`);
