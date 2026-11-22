@@ -108,7 +108,7 @@ uniform sampler2D map;
 uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
 uniform float mixB;
 uniform float opacity;
-uniform sampler2D mapC;    // the collagen layer (collagen-paint.ts: the septa, the tracts and the vein's wall at their fullest)
+uniform sampler2D mapC;    // the collagen atlas (collagen-paint.ts: the tracts and the vein's wall at their fullest on the left plate, the septa on the right)
 uniform sampler2D mapCB;   // its twin for a crossfade (the same texture when only the tissue changed); sampled in plateAt, so it must be declared (Plan 28: it was not, and the device refused the program)
 uniform sampler2D mapT;    // its arrival times (collagen-tau.ts): R septa, G tracts, B the vein's cuff and ring; 255 never
 uniform vec3 uP;           // the growth of the three channels now (growth.ts: eased on the clock, so a change of fibrosis shows more or less of the one layer and repaints nothing)
@@ -121,14 +121,17 @@ float front(float t, float p) { return t > 0.995 ? 0.0 : smoothstep(t - GROW_H, 
 // the plate at a point: the tissue (the two plates of a crossfade mixed, premultiplied) with the collagen layer over it, as much of it as has grown; the vein's scar (uBaseK 1) is that collagen, whole, over the tissue's tone
 vec4 plateAt(vec2 uv, float bias) {
   vec4 a = texture2D(map, uv, bias);
-  vec4 cu = texture2D(mapC, uv, bias);
-  if (mixB > 0.0) { a = mix(a, texture2D(mapB, uv, bias), mixB); cu = mix(cu, texture2D(mapCB, uv, bias), mixB); }
+  // (the collagen layer is an atlas two plates wide, collagen-paint.ts paintCollagenWorld: the tracts and the vein on the left, the septa on the right)
+  vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
+  vec4 cu = texture2D(mapC, uvT, bias), cs = texture2D(mapC, uvS, bias);
+  if (mixB > 0.0) { a = mix(a, texture2D(mapB, uv, bias), mixB); cu = mix(cu, texture2D(mapCB, uvT, bias), mixB); cs = mix(cs, texture2D(mapCB, uvS, bias), mixB); }
   if (uP.x + uP.y + uP.z <= 0.0) return uBaseK > 0.5 ? vec4(0.0) : a;
   vec3 t = texture2D(mapT, uv).rgb * (255.0 / 254.0);
   float fb = front(t.b, uP.z);
   if (uBaseK > 0.5) { float cov = fb * smoothstep(0.0, 0.08, cu.a); return vec4((uBase * (1.0 - cu.a) + cu.rgb) * cov, cov); }
-  float f = max(front(t.r, uP.x) * (0.75 + 0.25 * uP.x), max(front(t.g, uP.y), fb));
-  return cu * f + a * (1.0 - cu.a * f);
+  float fs = front(t.r, uP.x) * (0.75 + 0.25 * uP.x), ft = max(front(t.g, uP.y), fb);
+  a = cs * fs + a * (1.0 - cs.a * fs);   // (the septa over the tissue, then the tracts and the vein over both, as the painter lays them)
+  return cu * ft + a * (1.0 - cu.a * ft);
 }
 vec4 plateTex(vec2 uv) { return plateAt(uv, 0.0); }
 vec4 plateTexLod(vec2 uv, float bias) { return plateAt(uv, bias); }

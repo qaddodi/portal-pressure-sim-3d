@@ -21,7 +21,8 @@ const N = 512, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), cv = DISC_R.cv;
 const H = { congU: 0, septU: 0, fibSin: 0, act: 0, fibPre: 0, fibPost: 0 }, FULL = { ...H, septU: 1, fibPre: 1, fibPost: 1 };
 const tau = collagenTau(shape, cv * PLATE_S, N, B);
 const rasterOf = (s: typeof H) => { const r = rasterCtx(N); r.skipFills(2); paintPlateWorld(r.ctx, N, sc, -B, -B, { ...plateInput(shape, sins, cv, s, look), zonesOn: false }); return r; };
-const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look)); return r; })();
+const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts'); return r; })();
+const layerS = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa'); return r; })();
 
 test('the collagen layer over the tissue with none of it equals today\'s one-pass painting at both ends (within 2/255 on 99.5 % of pixels)', () => {
   const one = rasterOf(FULL), tissue = rasterOf(H), none = rasterOf(H);
@@ -43,7 +44,7 @@ test('the collagen layer over the tissue with none of it equals today\'s one-pas
 });
 
 /** The visible collagen of a channel at growth p (the shader's own rule on the layer's alpha). */
-const visible = (ch: number, p: number, i: number): boolean => layer.alpha[i]! * front(tau[4 * i + ch]!, p) * (ch === 0 ? septaStrength(p) : 1) > 0.05;
+const visible = (ch: number, p: number, i: number): boolean => (ch === 0 ? layerS : layer).alpha[i]! * front(tau[4 * i + ch]!, p) * (ch === 0 ? septaStrength(p) : 1) > 0.05;
 
 test('nested by construction: each channel\'s collagen at p is a subset of its collagen at any larger p (101 steps, pixel by pixel), and it grows', () => {
   for (const ch of [0, 1, 2]) {
@@ -111,7 +112,7 @@ test('deterministic: the same layout gives the same arrival times, byte for byte
 test('the layer and the times at the plate\'s size, in bytes (an iPhone paints the same 2048 px plate)', () => {
   const layerBytes = PLATE_PX * PLATE_PX * 4, mips = Math.round(layerBytes * 4 / 3), tauRGBA = PLATE_PX * PLATE_PX * 4, tauRGB = PLATE_PX * PLATE_PX * 3;
   console.log(`# memory: collagen layer ${(layerBytes / 1048576).toFixed(1)} MB (${(mips / 1048576).toFixed(1)} MB with mips), arrival times ${(tauRGB / 1048576).toFixed(1)} MB as RGB (${(tauRGBA / 1048576).toFixed(1)} MB held as RGBA); about ${((mips + tauRGBA) / 1048576).toFixed(1)} MB in all`);
-  assert.equal(layerBytes, 16 * 1048576);
+  assert.equal(layerBytes, 16 * 1048576, 'each plate of the collagen atlas (Plan 31: the tracts and the vein, the septa)');
 });
 
 test('no repaint: easing the model from healthy to cirrhosis 100 % and fibrosis, and back, asks the worker for no tissue plate and paints none on the page', async () => {

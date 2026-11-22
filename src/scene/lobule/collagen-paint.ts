@@ -49,14 +49,21 @@ export function tractCorners(G: CollagenShape): [number, number, number][] {
   return out;
 }
 
-/** The collagen at its fullest into a context whose transform is set (world units): the septa, the tracts, the vein's cuff, then Plan 24's ring. */
-export function paintCollagen(c: CanvasRenderingContext2D, P: CollagenInput): void {
-  const { G, dark, rgb } = P, COL = rgb.col, PRE = dark ? PRE_DARK : PRE_LIGHT;
+/** The septa at their fullest into a context whose transform is set (world units), with the nodules' shade beside them. Plan 31: painted on a layer of their own (see paintCollagenWorld), so a tract or the vein never carries a septum's ghost beneath it
+ *  while the septa have not grown (schistosomiasis, SOS), and the wide septa never tint a tract's translucent cuff. */
+export function paintSepta(c: CanvasRenderingContext2D, P: CollagenInput): void {
+  const { G, rgb } = P, COL = rgb.col;
   c.save();
-  c.shadowColor = P.shadow; c.shadowBlur = G.R * 0.06;   // (nodules bulge beside the bands)
-  // (Plan 31: each band twice, the second without the shade and the fibres, so the core is as dense as the bands' width is wide: coverage 0.67 to 0.89)
-  for (const b of septaBands(G, COL)) { c.shadowBlur = G.R * 0.06; fibrousBand(c, b.A, b.B, b.o); c.shadowBlur = 0; fibrousBand(c, b.A, b.B, { ...b.o, detail: 0 } as BandOpt); }
+  c.shadowColor = P.shadow;
+  // (each band twice, the second without the shade and the fibres, so the core is as dense as the bands' width is wide: coverage 0.67 to 0.89)
+  for (const b of septaBands(G, COL)) { c.shadowBlur = G.R * 0.06; fibrousBand(c, b.A, b.B, b.o); c.shadowBlur = 0; fibrousBand(c, b.A, b.B, { ...b.o, detail: 0 } as BandOpt); }   // (nodules bulge beside the bands)
   c.restore();
+  c.globalAlpha = 1;
+}
+
+/** The portal tracts, the vein's cuff and Plan 24's ring at their fullest, in the painter's order. */
+export function paintTracts(c: CanvasRenderingContext2D, P: CollagenInput): void {
+  const { G, dark, rgb } = P, COL = rgb.col, PRE = dark ? PRE_DARK : PRE_LIGHT;
   c.globalAlpha = 1;
   const rt = G.rt * 1.7;
   for (const [x, y, ci] of tractCorners(G)) {
@@ -67,11 +74,17 @@ export function paintCollagen(c: CanvasRenderingContext2D, P: CollagenInput): vo
   paintIntima(c, { m: { fibPost: 1 }, G, rgb: { col: COL }, cvIn: P.cvIn });
 }
 
-/** The same into an n × n bitmap's context, at sc px per world unit, its corner at world (bx, by): cleared first, so a layer is a transparent canvas with the collagen on it. */
-export function paintCollagenWorld(w: CanvasRenderingContext2D, n: number, sc: number, bx: number, by: number, P: CollagenInput): void {
-  w.setTransform(1, 0, 0, 1, 0, 0); w.clearRect(0, 0, n, n);
-  w.setTransform(sc, 0, 0, sc, -bx * sc, -by * sc);
-  paintCollagen(w, P);
+/** The collagen layer is an atlas two plates wide, n × n each: the tracts and the vein on the left, the septa on the right (the shader reads each at its own uv). `which` paints one plate alone at the left (a node twin that is one plate square). */
+export const ATLAS_W = 2;
+export function paintCollagenWorld(w: CanvasRenderingContext2D, n: number, sc: number, bx: number, by: number, P: CollagenInput, which: 'atlas' | 'tracts' | 'septa' = 'atlas'): void {
+  w.setTransform(1, 0, 0, 1, 0, 0); w.clearRect(0, 0, n * (which === 'atlas' ? ATLAS_W : 1), n);
+  const plate = (dx: number, paint: (c: CanvasRenderingContext2D, P: CollagenInput) => void): void => {
+    w.save(); w.beginPath(); w.rect(dx, 0, n, n); w.clip();
+    w.setTransform(sc, 0, 0, sc, dx - bx * sc, -by * sc);
+    paint(w, P); w.restore();
+  };
+  if (which !== 'septa') plate(0, paintTracts);
+  if (which === 'septa') plate(0, paintSepta); else if (which === 'atlas') plate(n, paintSepta);
 }
 
 /** What the collagen painter reads for a look (the plate's own input, plate.ts plateInput, with the septa, tracts and wall at full): the shape, the look's colours, the vein's wall radius (cvR lobule radii). */

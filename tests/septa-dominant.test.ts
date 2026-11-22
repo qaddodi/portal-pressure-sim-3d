@@ -17,16 +17,17 @@ const look = 'light' as never, L = lookColours(look);
 useTokens((n: string, a?: number | string) => L.tk(n, a));
 const N = 512, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), cv = DISC_R.cv;
 const tau = collagenTau(shape, cv * PLATE_S, N, B);
-const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look)); return r; })();
+const layerT = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts'); return r; })();
+const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa'); return r; })();   // (the septa's own plate)
 
 /** The visible collagen's alpha-weighted area by the last-painted channel that shows it (septa, tracts, vein), at the goals of a state. */
 function shares(s: { septU: number; fibPre: number; fibPost: number }) {
   const g = growGoal(s), area = [0, 0, 0];
   for (let i = 0; i < N * N; i++) {
-    const a = layer.alpha[i]!; if (a <= 0) continue;
+    const sa = layer.alpha[i]!, ta = layerT.alpha[i]!; if (sa <= 0 && ta <= 0) continue;
     // (the painter's order: the septa first, the tracts over them, the vein's cuff and ring last: a pixel belongs to the last channel that shows it)
     const f = [front(tau[4 * i]!, g[0]) * septaStrength(g[0]), front(tau[4 * i + 1]!, g[1]), front(tau[4 * i + 2]!, g[2])];
-    const k = f[2]! > 0.5 ? 2 : f[1]! > 0.5 ? 1 : 0; area[k]! += a * f[k]!;
+    if (ta * Math.max(f[1]!, f[2]!) > 0.05) { const k = f[2]! > 0.5 ? 2 : 1; area[k]! += ta * f[k]!; } else area[0]! += sa * f[0]!;
   }
   const tot = area[0]! + area[1]! + area[2]!;
   return { septa: area[0]! / tot, tracts: area[1]! / tot, cv: area[2]! / tot, tot };
@@ -76,8 +77,51 @@ test('Plan 31 C: the field gives every home corner\'s tract disc to the gap tone
   for (const u of ['uniform vec3 gapCol;', 'uniform vec2 homeC[6];', 'uniform float homeR;']) assert.ok(LOBULE_FIELD_FS.includes(u), u);
   assert.match(LOBULE_FIELD_FS, /col = mix\(col, gapCol, home\)/);
   assert.equal(HOME_CORNERS.length, 6);
-  assert.ok(Math.abs(HOME_TRACT_R - 1.84 * net.rt) < 1e-12, 'the cuff\'s outer edge at growth 1');
+  assert.ok(Math.abs(HOME_TRACT_R - 1.84 * 1.06 * net.rt) < 1e-12, 'the cuff\'s outer edge at growth 1, at its widest');
   for (const [i, c] of net.corners.entries()) assert.ok(Math.hypot(c[0] - HOME_CORNERS[i]![0], Math.abs(c[1]) - Math.abs(HOME_CORNERS[i]![1])) < 1e-6 || net.corners.some((q) => Math.hypot(q[0] - HOME_CORNERS[i]![0], q[1] - HOME_CORNERS[i]![1]) < 1e-6), 'the corners are the lobule\'s own');
   const name = '@shaderfrog/glsl-parser', m = await import(name);
   m.parser.parse(LOBULE_FIELD_FS.replace(/^\n/, '').replace(/^#include.*$/gm, ''), { quiet: true });
+});
+
+test('Plan 31 C gate: at every home corner and at tract growth 0.25, 0.5, 0.75 and 1, no pixel of the visible tract or vein takes any of a neighbour plate; Healthy changes only inside the six discs', async () => {
+  const { HOME_CORNERS, HOME_TRACT_R, plateShare } = await import('../src/scene/lobule/field.ts');
+  const { PLATE_PX } = await import('../src/scene/lobule/plate.ts');
+  const S = PLATE_S, hexOut = (x: number, y: number) => { const ax = Math.abs(x), ay = Math.abs(y); return !(ay <= Math.sqrt(3) / 2 && Math.sqrt(3) * ax + ay <= Math.sqrt(3)); };
+  assert.equal(plateShare(HOME_TRACT_R), 0); assert.equal(plateShare(HOME_TRACT_R * 1.25), 1);
+  for (const p of [0.25, 0.5, 0.75, 1]) {
+    let shown = 0, worst = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x, wx = ((x + 0.5) / sc - B) / S, wy = ((y + 0.5) / sc - B) / S;
+      if (!hexOut(wx, wy) || layerT.alpha[i]! * front(tau[4 * i + 1]!, p) <= 0.02) continue;
+      const corner = HOME_CORNERS.reduce((m, c) => Math.min(m, Math.hypot(wx - c[0], wy - c[1])), 9);
+      if (corner > HOME_TRACT_R * 1.3) continue;   // (the vein is inside the hexagon; a tract pixel lies at a corner)
+      shown++; worst = Math.max(worst, plateShare(corner));
+    }
+    console.log(`# source map at tract growth ${p}: ${shown} visible tract pixels outside the hexagon, the largest neighbour-plate share on any of them ${worst}`);
+    assert.ok(shown > 0 && worst === 0, `p ${p}: ${worst}`);
+  }
+  let disc = 0; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const wx = ((x + 0.5) / sc - B) / S, wy = ((y + 0.5) / sc - B) / S; if (hexOut(wx, wy) && HOME_CORNERS.some((c) => Math.hypot(wx - c[0], wy - c[1]) < HOME_TRACT_R * 1.25)) disc++; }
+  const pxScale = (PLATE_PX / N) ** 2;
+  console.log(`# healthy: the field's tile differs only inside the six discs outside the hexagon: at most ${Math.round(disc * pxScale)} plate px (${(disc / (N * N) * 100).toFixed(2)} % of the plate square, ${(100 * disc * (1 / sc / S) ** 2 / 2.598).toFixed(1)} % of the lobule's area)`);
+});
+
+test('Plan 31 no pop: moving cirrhosis 0 to 1 and back at the eased rates, no pixel of the composite changes by more than 0.08 in a frame (septa growing, tracts and vein yielding)', async () => {
+  const { easeGrow } = await import('../src/scene/lobule/growth.ts');
+  const A0 = { septU: 0, fibPre: 1, fibPost: 1 }, A1 = { septU: 1, fibPre: 1, fibPost: 1 };
+  const comp = (g: number[], i: number): number => {
+    const fs = front(tau[4 * i]!, g[0]!) * septaStrength(g[0]!), ft = Math.max(front(tau[4 * i + 1]!, g[1]!), front(tau[4 * i + 2]!, g[2]!));
+    return 1 - (1 - layer.alpha[i]! * fs) * (1 - layerT.alpha[i]! * ft);
+  };
+  const idx: number[] = []; for (let i = 0; i < N * N; i++) if (layer.alpha[i]! > 0 || layerT.alpha[i]! > 0) idx.push(i);
+  let worst = 0, frames = 0;
+  for (const [from, to] of [[A0, A1], [A1, A0]] as const) {
+    const g = growGoal(from), goal = growGoal(to); let prev = idx.map((i) => comp(g, i));
+    for (let f = 0; f < 400; f++, frames++) {
+      for (let c = 0; c < 3; c++) g[c] = easeGrow(g[c]!, goal[c]!, 1 / 60);
+      const cur = idx.map((i) => comp(g, i)); for (let k = 0; k < cur.length; k++) worst = Math.max(worst, Math.abs(cur[k]! - prev[k]!)); prev = cur;
+    }
+    assert.deepEqual(g.map((v, c) => Math.round((v - goal[c]!) * 1e6)), [0, 0, 0], 'ends at the goal');
+  }
+  console.log(`# no pop (cirrhosis 0 to 1 and back, ${frames} frames, ${idx.length} px): largest per-frame change of the composite alpha ${worst.toFixed(4)}`);
+  assert.ok(worst <= 0.08, `${worst}`);
 });
