@@ -3,7 +3,7 @@
 // (eus-scope.js layCoil, run as it is: its wire's centreline is read back from the vertices it lays), the cyanoacrylate cast that sets on the coil and then fills the lumen (an opaque plug in the
 // glue's own material, stage-cath.js: first along the coil's span, then out to the spread each way), and the hit's two rings at the needle's point. All of it is laid on C2's own course (the short
 // gastric feeder, EUS_GLUE_TARGET) and drawn as cel parts in the device materials, like the vein stent and the bands. It comes and goes with `procFrame('eusglue', t)`: coil, column, flash, opacity.
-import { Group, RingGeometry, Float32BufferAttribute, Vector3, type BufferGeometry } from 'three';
+import { Group, Vector3, type BufferGeometry } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
@@ -76,7 +76,6 @@ export class GlueCast {
   readonly objects: DeviceObject[] = [];
   readonly coil: DeviceObject; private readonly coilGeo: BufferGeometry; private readonly coilRings = makeRings(COIL_RINGS);
   readonly cast: DeviceObject; private readonly castGeo: BufferGeometry; private readonly castRings = makeRings(CAST_RINGS);
-  readonly flashes: DeviceObject[] = [];
   private varix: GlueVarix;
   private readonly course: { P: P2[]; cum: number[]; L: number };
   private key = '';
@@ -100,11 +99,6 @@ export class GlueCast {
     this.cast = mk(this.castGeo, 'glue', 1, 0.6);
     this.coilGeo = allocTube(COIL_RINGS, COIL_RADIAL); writeRings(this.coilGeo, this.coilRings, COIL_RADIAL);
     this.coil = mk(this.coilGeo, 'platinum', 2, 0.7);
-    for (let i = 0; i < 2; i++) {
-      const g = new RingGeometry(0.8, 1, 36);
-      if (!g.getAttribute('tang')) g.setAttribute('tang', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3));
-      this.flashes.push(mk(g, 'trPv', 3, 0));
-    }
   }
 
   /** The varix's centreline at share f of its course and the unit direction there (scene units). */
@@ -159,14 +153,7 @@ export class GlueCast {
       writeRings(this.castGeo, rs, CAST_RADIAL);
     }
     this.cast.show(!!range); if (range) this.cast.setAlpha(op);
-    // the hit's rings at the needle's point
-    const f = s.flash, tg = glueTarget3();
-    this.flashes.forEach((o, i) => {
-      const on = f > 0 && op > 0.002, k = i ? (f + 0.5) % 1 : f;
-      o.show(on);
-      if (!on) return;
-      o.setAlpha((1 - k) * (1 - k) * 0.85 * op); o.group.position.copy(tg); o.group.scale.setScalar((1.4 + 6 * k) / U);
-    });
+    // (the hit is the scope's needle filling with blood: scope.ts flashback; this cast draws no ring)
   }
 
   /** Take it all away (the slide is left, or the procedure is played again). */
