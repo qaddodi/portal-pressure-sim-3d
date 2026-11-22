@@ -97,6 +97,10 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
 }
 
 /** Positions of the bound mesh in a live state (the shader's main: no ink, no ring sag). `normal` (4 x vec3, in each bone's frame) gives the blended normals as well. */
+/** The fitted-start rule under test (plan owner, 22 Nov): `grow` = for an arm swelled past rest (s > 1) the bone blend takes the live radius, below rest the rest radius; `fit` = the start is moved by sum (1 - s_i)(absent_i - full) toward each shrunk arm's baked 'arm absent' fit. */
+export const AXIS = { on: false };
+export const START = { grow: false, fit: false };
+
 export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, normal: Float32Array | undefined = mesh.normal, restStart?: ArrayLike<number>): { position: Float32Array; normal: Float32Array; fade: Float32Array; blend: Float32Array; rowA: Int32Array; rowB: Int32Array } {
   const bones = liveBones(skel, live), V = mesh.position.length / 3;
   const position = new Float32Array(3 * V), nrm = new Float32Array(3 * V), fade = new Float32Array(V), blend = new Float32Array(V), rowA = new Int32Array(V), rowB = new Int32Array(V);
@@ -109,7 +113,7 @@ export function deformLive(mesh: NetMesh, skel: Skeleton, live: LiveState, norma
       const b = bones[mesh.bone[4 * v + i]!]!, at = (set: Float32Array): V3 => [set[12 * v + 3 * i]!, set[12 * v + 3 * i + 1]!, set[12 * v + 3 * i + 2]!];
       const fr = (o: V3): V3 => add(add(mul(b.F[0], o[0]), mul(b.F[1], o[1])), mul(b.F[2], o[2])), off = fr(at(mesh.offset)), offM = fr(at(mesh.offsetMap ?? mesh.offset));
       S += wk * b.share;
-      for (let d = 0; d < 3; d++) { p[d] += wk * b.cen[d]!; const sc = restStart && restStart[v]! >= 0 ? b.lumenRest : b.lumen; pB[d] += wk * sc * off[d]!; pM[d] += wk * sc * offM[d]!; }
+      for (let d = 0; d < 3; d++) { p[d] += wk * b.cen[d]!; const sc = restStart && restStart[v]! >= 0 ? (START.grow ? b.lumenRest * Math.max(1, b.lumen / Math.max(b.lumenRest, 1e-9)) : b.lumenRest) : b.lumen; pB[d] += wk * sc * off[d]!; pM[d] += wk * sc * offM[d]!; }
       if (normal) { const q: V3 = [normal[12 * v + 3 * i]!, normal[12 * v + 3 * i + 1]!, normal[12 * v + 3 * i + 2]!]; const nn = add(add(mul(b.F[0], q[0]), mul(b.F[1], q[1])), mul(b.F[2], q[2])); for (let d = 0; d < 3; d++) n[d] += wk * nn[d]!; }
       pad += wk * b.pad;
       f += wk * b.fade;
@@ -184,7 +188,12 @@ export function liveStates(skel: Skeleton): [string, LiveState][] {
   const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; f?.(x, i); return x; }) });
   return [['rest', mk(0)], ['map t=1', mk(1)], ['t=.25', mk(0.25)], ['t=.5', mk(0.5)], ['t=.75', mk(0.75)],
     ['swell 1.2/.85', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.85 : 1.2; })],
-    ['swell .5/2', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.5 : 2; })],
+    // the app's real range (the engine's D through widthSwell over the 20 presets, +/-10%): arms between 0.4 and 1.27 (the worst arm ratio at one junction in one preset, 3.17) and a milder 0.6 / 1.2 (2.0), every arm at the low end, at the high end, and one thin arm among thick ones
+    ['swell real 2.0', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.6 : 1.2; })],
+    ['swell real 3.2', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.4 : 1.27; })],
+    ['swell real all low', mk(0, 1, (e) => { e.swell = 0.4; })],
+    ['swell real all high', mk(0, 1, (e) => { e.swell = 1.27; })],
+    ['swell real one thin', mk(0, 1, (e, i) => { e.swell = i === 0 ? 0.4 : 1.27; })],
     ['presence .3', mk(0.5, 1, (e, i) => { if (i === 1) e.presence = 0.3; })],
     ['zoom-out', mk(1, 2.5, (e) => { e.leastCss = 4; })]];
 }
@@ -219,9 +228,34 @@ export function projectRegions(mesh: NetMesh, skel: Skeleton, regions: readonly 
 }
 
 /** The whole junction pose as the vertex stage computes it: the bone blend of the two offset sets with the junction vertices STARTED at the rest arrangement (`lumenRest`), then the projection and the shade normal. */
-export function junctionPose(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState): ReturnType<typeof projectRegions> & { start: ReturnType<typeof deformLive> } {
+export const NEWTON = { steps: 3 };
+export function junctionPose(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState, fits?: Float32Array[][]): ReturnType<typeof projectRegions> & { start: ReturnType<typeof deformLive> } {
   const V = mesh.position.length / 3, regionOf = new Int32Array(V).fill(-1);
   for (const [ri, rg] of regions.entries()) for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) regionOf[v] = ri;
   const start = deformLive(mesh, skel, live, mesh.normal, regionOf);
-  return { ...projectRegions(mesh, skel, regions, live, start), start };
+  if (START.fit && fits) {
+    const bones = liveBones(skel, live);
+    regions.forEach((rg, ri) => rg.caps.slice(0, rg.arms).forEach((c, arm) => { const b = bones[c.bones[0]!]!, sI = Math.min(1, Math.max(0, b.lumen / Math.max(b.lumenRest, 1e-9))), w = 1 - sI; if (w <= 0) return; const d = fits[ri]![arm]!; for (let v = 0; v < rg.vertCount; v++) for (let q = 0; q < 3; q++) start.position[3 * (rg.vertStart + v) + q] += w * d[3 * v + q]!; }));
+  }
+  return { ...projectRegions(mesh, skel, regions, live, start, NEWTON.steps), start };
+}
+
+
+/** The stand-in for WP2's baked "arm absent" fits, REST pose only: for each region and each arm, where every fillet vertex of the region lies when that arm is gone (the rest vertex projected onto the union of the other capsules at rest radii, 30 steps), as a delta from the rest position. */
+export function absentFits(mesh: NetMesh, skel: Skeleton, regions: readonly Region[]): Float32Array[][] {
+  const rest = liveStates(skel)[0]![1], bones = liveBones(skel, rest);
+  return regions.map((rg) => Array.from({ length: rg.arms }, (_, arm) => {
+    const caps: Capsule[] = rg.caps.filter((_, c) => c !== arm).map((c) => { const pts = new Float64Array(3 * c.bones.length), r = new Float64Array(c.bones.length); c.bones.forEach((bi, j) => { pts.set(bones[bi]!.cen, 3 * j); r[j] = bones[bi]!.lumen; }); return { n: c.bones.length, pts, r, mate: undefined }; });
+    const rest0 = rg.caps.filter((_, c) => c !== arm && c < rg.arms).map((c) => bones[c.bones[0]!]!.lumen), k = SKIN_K * Math.min(...rest0), out = new Float32Array(3 * rg.vertCount), g = [0, 0, 0];
+    for (let v = 0; v < rg.vertCount; v++) {
+      const i = rg.vertStart + v, x = [mesh.position[3 * i]!, mesh.position[3 * i + 1]!, mesh.position[3 * i + 2]!];
+      for (let it = 0; it < 30; it++) { const f = sdUnionGrad(caps, k, x[0]!, x[1]!, x[2]!, g), l2 = g[0]! ** 2 + g[1]! ** 2 + g[2]! ** 2; if (l2 > 1e-12) for (let q = 0; q < 3; q++) x[q]! -= (f * g[q]!) / l2; }
+      // a vertex held by the absent arm's own bones goes to that arm's axis (the ring shrinks into it), not onto the others
+      const armEdge = skel.bones[rg.caps[arm]!.bones[0]!]!.edge; let share = 0; const axis = [0, 0, 0];
+      for (let j = 0; j < 4; j++) { const wk = mesh.weight[4 * i + j]!; if (!(wk > 0)) continue; const bj = mesh.bone[4 * i + j]!; if (skel.bones[bj]!.edge !== armEdge) continue; share += wk; for (let q = 0; q < 3; q++) axis[q]! += wk * bones[bj]!.cen[q]!; }
+      const sh = AXIS.on ? Math.min(1, share) : 0;
+      for (let q = 0; q < 3; q++) out[3 * v + q] = (1 - sh) * x[q]! + (share > 0 ? sh * axis[q]! / share : 0) - mesh.position[3 * i + q]!;
+    }
+    return out;
+  }));
 }

@@ -28,7 +28,7 @@ export const REACH_MIN = 0.12, REACH_MAX = 0.45, REACH_PER_MOVE = 6;
 /** Two courses run on into one another when their outward directions at the node are within this of opposite (network.ts `joined`: cos < -0.9, about 25 degrees). */
 export const RUN_COS = -0.9;
 
-export interface SkelEnd { edge: string; end: 0 | 1; node: string; pose: 0 | 1; /** how far the end moved onto its node (scene units) */ move: number; /** the length it eased over (scene units) */ reach: number; /** the move as a share of the whole course */ share: number; /** the move in radii of the widest vessel at the node */ radii: number; /** the part of it across the plane (x and y), in the same radii: the rest is depth, which the drawn tubes ease to their node's depth too (NODE_Z) */ planar: number }
+export interface SkelEnd { edge: string; end: 0 | 1; node: string; pose: 0 | 1; /** how far the end moved onto its node (scene units) */ move: number; /** the length it eased over (scene units) */ reach: number; /** the move as a share of the whole course */ share: number; /** the move in radii of the widest vessel at the node */ radii: number; /** the part of it across the plane (x and y), in the same radii: the rest is depth, which the drawn tubes ease to their node's depth too (NODE_Z) */ planar: number; /** the move is the map's own station layout (a branch the body lands mid-host, drawn by 2D at the host's end): by ruling, not a misplaced node */ layout?: boolean }
 /** What building the skeleton found: every end that had to move (to read the cost), the landings that split a host, the map's rounded corners, and which run-ons carry straight on in each pose. */
 
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -95,6 +95,88 @@ function layTail(P: Vec3[], end: 0 | 1, n: number, to: Vec3): void {
     P[at(n - q)] = add(add(scale(B, h00), scale(T0, h10)), add(scale(to, h01), scale(T1, h11)));
   }
 }
+
+
+/** A map corner takes at least CORNER_BONES bones (22 Nov ruling): wherever the course turns more than CORNER_STEP degrees between two consecutive bone steps, the bones round it (from three before to three after, whose own directions are kept) are re-laid on one curve through the corner, spaced so that the tangent turns evenly over them, until no step is over the limit. A node's bone (`keep`) is never moved: the window ends at it. Returns the corners it rounded (their middle bones). */
+export const CORNER_BONES = 5, CORNER_STEP = 20;
+function softenCorners(P: Vec3[], keep: ReadonlySet<number> = new Set()): number[] {
+  const n = P.length, done: number[] = [], skip = new Set<number>();
+  const step = (k: number): number => { const a = sub(P[k]!, P[k - 1]!), b = sub(P[k + 1]!, P[k]!), la = len(a), lb = len(b); return la < 1e-12 || lb < 1e-12 ? 0 : Math.acos(Math.max(-1, Math.min(1, dot(a, b) / (la * lb)))) * 180 / Math.PI; };
+  for (let it = 0; it < 24; it++) {
+    let worst = CORNER_STEP, at = -1;
+    for (let k = 1; k < n - 1; k++) { const t = step(k); if (t > worst && !skip.has(k)) { worst = t; at = k; } }
+    if (at < 0) break;
+    skip.add(at);
+    let a = Math.max(1, at - (CORNER_BONES + 1) / 2), b = Math.min(n - 2, at + (CORNER_BONES + 1) / 2);
+    for (const f of keep) { if (f <= at && f > a) a = f; if (f >= at && f < b) b = f; }
+    if (b - a < 2) continue;
+    const d1 = unit(sub(P[a]!, P[a - 1]!)), d2 = unit(sub(P[b + 1]!, P[b]!)), A = P[a]!, B = P[b]!;
+    // the two tangent lines meet (in the plane) at X: B = A + t d1 + u d2
+    const det = d1[0] * d2[1] - d1[1] * d2[0], dx = B[0] - A[0], dy = B[1] - A[1], t = (dx * d2[1] - dy * d2[0]) / (det || 1e-12), uu = (dy * d1[0] - dx * d1[1]) / (det || 1e-12);
+    const X: Vec3 = [A[0] + d1[0] * t, A[1] + d1[1] * t, (A[2] + B[2]) / 2];
+    if (Math.abs(det) < 1e-6 || !(t > 0) || !(uu > 0) || dist(X, A) > 3 * dist(A, B) || dist(X, B) > 3 * dist(A, B)) {   // (a jog: its tangent lines are parallel or meet behind it: one cubic between the two bones, their directions kept)
+      const Lh = dist(A, B);
+      for (let i = a + 1; i < b; i++) { const u = (i - a) / (b - a), u2 = u * u, u3 = u2 * u; P[i] = add(add(scale(A, 2 * u3 - 3 * u2 + 1), scale(d1, (u3 - 2 * u2 + u) * Lh)), add(scale(B, -2 * u3 + 3 * u2), scale(d2, (u3 - u2) * Lh))); }
+      done.push(at);
+      continue;
+    }
+    const bez = (u: number): Vec3 => { const m = 1 - u; return add(add(scale(A, m * m), scale(X, 2 * m * u)), scale(B, u * u)); };
+    const tan = (u: number): Vec3 => unit(add(scale(sub(X, A), 2 * (1 - u)), scale(sub(B, X), 2 * u))), turn = (u: number): number => Math.acos(Math.max(-1, Math.min(1, dot(d1, tan(u)))));
+    const T = turn(1), tab: number[] = Array.from({ length: 201 }, (_, j) => turn(j / 200));
+    for (let i = a + 1; i < b; i++) {
+      const want = T * (i - a) / (b - a); let j = 1; while (j < 200 && tab[j]! < want) j++;
+      P[i] = bez((j - 1 + (want - tab[j - 1]!) / Math.max(tab[j]! - tab[j - 1]!, 1e-12)) / 200);
+    }
+    done.push(at);
+  }
+  return done;
+}
+/** One arm of a node at one pose: the bones from the node outward (`idx[0]` is the node's own bone). */
+interface Arm { w: Work; idx: number[]; free: boolean; host: boolean; id: string; keep?: boolean }
+export const ARM_MIN_NEIGHBOUR = 25, ARM_MIN_HOST = 45, ARM_RUN_RADII = 2;   // degrees, degrees, radii (22 Nov ruling: the map's node structure equals the body's)
+
+/** Makes an arm leave its node straight along `dir` for `run` (the bones within it, and the first one past it, on the line), then Hermite-blends onto its own course over `blend` more arc: positions only, the course past that unchanged. */
+function layArm(P: Vec3[], idx: readonly number[], dir: Vec3, run: number, blend: number): number[] {
+  const node = P[idx[0]!]!, s: number[] = [0];
+  for (let q = 1; q < idx.length; q++) s.push(s[q - 1]! + dist(P[idx[q]!]!, P[idx[q - 1]!]!));
+  let kS = 1; while (kS < idx.length - 2 && s[kS]! < run) kS++;
+  const sE = s[kS]! + blend;
+  const old = idx.map((i) => P[i]!), q0 = add(node, scale(dir, s[kS]!));
+  const ahead = (k: number): boolean => { const d = sub(old[k]!, q0), l = len(d); return l > 1e-12 && dot(d, dir) > 0.5 * l; };   // (the course point it blends onto lies ahead of the straight run, inside a 60 degree cone: never behind it)
+  let kE = kS + 1; while (kE < idx.length - 1 && (s[kE]! < sE || !ahead(kE))) kE++;
+  if (kE <= kS + 1) kE = Math.min(idx.length - 1, kS + 2);
+  const S = old[kE]!, Tn = unit(sub(old[Math.min(idx.length - 1, kE + 1)]!, old[Math.max(0, kE - 1)]!));
+  const span = s[kE]! - s[kS]!, L = Math.max(dist(q0, S), 1e-9);
+  for (let q = 1; q <= kS; q++) P[idx[q]!] = add(node, scale(dir, s[q]!));
+  const laid = idx.slice(0, kS + 1);
+  for (let q = kS + 1; q < kE; q++) {
+    const t = (s[q]! - s[kS]!) / span, t2 = t * t, t3 = t2 * t;
+    P[idx[q]!] = add(add(scale(q0, 2 * t3 - 3 * t2 + 1), scale(dir, (t3 - 2 * t2 + t) * L)), add(scale(S, -2 * t3 + 3 * t2), scale(Tn, (t3 - t2) * L)));
+  }
+  return laid;
+}
+const planar = (a: Vec3): number => Math.atan2(a[1], a[0]) * 180 / Math.PI;
+const wrap = (a: number): number => ((a % 360) + 540) % 360 - 180;
+
+/** Spreads the free arms of one node so that every pair is at least ARM_MIN_NEIGHBOUR degrees apart and a free arm at least ARM_MIN_HOST from a fixed host arm, in the plane (angles in degrees, one per arm; `fixed` ones stay): the cyclic order is kept. Returns the new angles. */
+function spreadArms(ang: number[], fixed: boolean[], hostArm: boolean[]): number[] {
+  const a = ang.slice();
+  for (let it = 0; it < 60; it++) {
+    const order = a.map((_, i) => i).sort((i, j) => wrap(a[i]!) - wrap(a[j]!));
+    let moved = false;
+    for (let k = 0; k < order.length; k++) {
+      const i = order[k]!, j = order[(k + 1) % order.length]!;
+      if (fixed[i] && fixed[j]) continue;
+      const need = ((hostArm[i] && !fixed[j]) || (hostArm[j] && !fixed[i]) ? ARM_MIN_HOST : ARM_MIN_NEIGHBOUR) + 5, gap = (wrap(a[j]! - a[i]!) + 360) % 360;
+      if (gap >= need - 1e-6) continue;
+      const d = need - gap + 0.01;
+      if (fixed[i]) a[j] = a[j]! + d; else if (fixed[j]) a[i] = a[i]! - d; else { a[i] = a[i]! - d / 2; a[j] = a[j]! + d / 2; }
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return a;
+}
 /** The direction a course leaves its end in, into the course (the first secant: what the bones themselves say). */
 const intoOf = (P: readonly Vec3[], end: 0 | 1): Vec3 => (end ? unit(sub(P[P.length - 2]!, P[P.length - 1]!)) : unit(sub(P[1]!, P[0]!)));
 
@@ -148,6 +230,8 @@ function transport(P: readonly Vec3[], from: 0 | 1, n0: Vec3 | null): [Vec3, Vec
 export const LAND_RADII = 3;
 /** The fewest bones a landing keeps from its host's ends and from another landing. */
 const MIN_PIECE = 5, MIN_GAP = 3;
+/** Stations on one host are at least this many of its map radii apart on the map (22 Nov ruling), or the longest equal spacing its map course allows (a short map host is reported, `stations`). */
+export const LAND_STATION_RADII = 3;
 /** Procedure shunts that run along a trunk from its end (DIPS from the portal vein, REX from the superior mesenteric vein) start on the trunk's wall MIN_PIECE bones in, a junction of their own outside the cluster at the trunk's end (WP2 ruling, 22 Nov: the sheet rung cannot take them in the cluster). `edge|end`. */
 export const WALL_STARTS: ReadonlySet<string> = new Set(['DIPS|0', 'REX|0']);
 /** The most an end may move onto its node: a share of its course, and a count of radii. A move past either fails the skeleton test unless `KNOWN_BIG_MOVES` names it with a reason. */
@@ -170,12 +254,10 @@ export const KNOWN_BIG_MOVES: Readonly<Record<string, { why: 'fade' | 'depth' | 
 
 export interface SkelLanding { host: string; branch: string; branchEnd: 0 | 1; /** the host's bone the node sits on */ bone: number; node: string }
 /** A host whose map course is re-laid so that a landing the body has and the map does not stays whole: the map draws the branch ending at the host's end `hostEnd` (its station), so on the map the host's bones from `bone` to that end are all at the station (the pieces between the landings have no length there, as in the 2D diagram, where the branches meet in one point) and the rest of the course is spread over its whole length. */
-export interface SkelCollapse { host: string; hostEnd: 0 | 1; bone: number }
-export interface SkeletonReport { ends: SkelEnd[]; collapses: SkelCollapse[]; landings: SkelLanding[]; runOns: { node: string; a: string; b: string; opposed: [boolean, boolean] }[]; fillets: { node: string; a: string; b: string; reach: number }[] }
+export interface SkeletonReport { ends: SkelEnd[]; landings: SkelLanding[]; arms: { node: string; arms: string[] }[]; /** per host with landings: its stations' bones, the spacing the map has them at (host radii), the spacing wanted, and the map course's length (radii): spacing < wanted means the map host is too short for the rule */ /** the map corners rounded to CORNER_BONES bones (the corner's bone) */ softened: { edge: string; bones: number[] }[]; stations: { host: string; stations: number[]; spacing: number; wanted: number; length: number }[]; runOns: { node: string; a: string; b: string; opposed: [boolean, boolean] }[]; fillets: { node: string; a: string; b: string; reach: number }[] }
 
 const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 /** The point at fractional bone `f` of the samples. */
-const atBone = (P: readonly Vec3[], f: number): Vec3 => { const i = Math.min(P.length - 2, Math.max(0, Math.floor(f))); return lerp3(P[i]!, P[i + 1]!, f - i); };
 /** The nearest point of the samples to `q`: its distance and fractional bone. */
 function nearest(P: readonly Vec3[], q: Vec3): { d: number; f: number } {
   let best = Infinity, f = 0;
@@ -196,12 +278,13 @@ function atArcFromEnd(P: readonly Vec3[], arc: readonly number[], end: 0 | 1, s:
 /** Builds the skeleton from the drawn network (the vessels with a map course; the fans of tributaries have none and join the skeleton in WP5, with their presence). */
 export function buildSkeletonWithReport(): { skeleton: Skeleton; report: SkeletonReport } {
   const order: NetVessel[] = [...MAPPED], byId = new Map(order.map((v) => [v.id, v]));
-  const work = new Map<string, Work>();
+  const work = new Map<string, Work>(), softened: { edge: string; bones: number[] }[] = [];
   for (const v of order) {
-    const g = COURSES.get(v.id)!, P: [Vec3[], Vec3[]] = [g.A.map((p): Vec3 => [p.x, p.y, p.z]), g.C.map((p): Vec3 => [p.x, p.y, p.z])];
+    const g = COURSES.get(v.id)!, P: [Vec3[], Vec3[]] = [g.A.map((p): Vec3 => [p.x, p.y, p.z]), g.C.map((p): Vec3 => [p.x, p.y, p.z])], rounded = softenCorners(P[1]);
     work.set(v.id, { v, P, arc: [arcOf(P[0]), arcOf(P[1])], r: [[], []] });
+    if (rounded.length) softened.push({ edge: v.id, bones: rounded });
   }
-  const report: SkeletonReport = { ends: [], collapses: [], landings: [], runOns: [], fillets: [] };
+  const report: SkeletonReport = { ends: [], landings: [], arms: [], stations: [], softened, runOns: [], fillets: [] };
   const radius = (v: NetVessel, pose: 0 | 1): number => (pose ? mapRadiusOf(v) : v.radius);
   const endOf = (w: Work, end: 0 | 1, pose: 0 | 1): Vec3 => w.P[pose][end ? BONES_PER_EDGE - 1 : 0]!;
   const keyOf = (v: NetVessel, end: 0 | 1): string => `${v.id}|${end}`;
@@ -261,49 +344,63 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
   }
 
   // ---- side-wall landings: a branch whose end lies on a trunk's wall (nearer to the trunk's course than to the node) splits that trunk there, at the trunk's own bone: the trunk is kept as drawn and the branch's end goes the short way to it
-  const landings: (SkelLanding & { collapse?: 0 | 1 })[] = [], landed = new Set<string>();
+  const landings: SkelLanding[] = [], landed = new Set<string>();
   for (const [id, l] of groups) {
     if (l.length < 2) continue;
-    for (const { v, end } of l) {
+    for (const { v, end } of [...l].sort((a, b) => Number(WALL_STARTS.has(keyOf(a.v, a.end))) - Number(WALL_STARTS.has(keyOf(b.v, b.end))))) {   // (the wall starts last: they go where the stations leave room)
       if (trunk.has(keyOf(v, end))) continue;
-      const q = endOf(work.get(v.id)!, end, 0), toNode = dist(q, nodePos.get(id)![0]);
+      const q = endOf(work.get(v.id)!, end, 0), toNode = dist(q, nodePos.get(id)![0]), wall = WALL_STARTS.has(keyOf(v, end));
+      // two stations on a host are MIN_GAP bones apart at least (the map then spaces them, below); nearer ones are one node
+      const apart = (_h: NetVessel, a: number, b: number): boolean => Math.abs(a - b) >= MIN_GAP;
       let best: { h: NetVessel; d: number; f: number } | null = null;
       for (const t of l) {
         if (!trunk.has(keyOf(t.v, t.end)) || t.v === v) continue;
+        if (wall) {   // (a wall start: the free bone nearest its start on any trunk here, MIN_PIECE in from the ends and clear of the stations already there)
+          for (let b = MIN_PIECE; b <= BONES_PER_EDGE - 1 - MIN_PIECE; b++) {
+            if (!landings.filter((x) => x.host === t.v.id).every((x) => apart(t.v, x.bone, b))) continue;
+            const d = dist(work.get(t.v.id)!.P[0][b]!, q);
+            if (!best || d < best.d) best = { h: t.v, d, f: b };
+          }
+          continue;
+        }
         const r = nearest(work.get(t.v.id)!.P[0], q);
         if (!best || r.d < best.d) best = { h: t.v, d: r.d, f: r.f };
       }
-      const wall = WALL_STARTS.has(keyOf(v, end));
       if (!best || (!wall && (best.f < MIN_PIECE || best.f > BONES_PER_EDGE - 1 - MIN_PIECE))) continue;
-      // (the node is the host's own bone, the host as drawn: the branch's end goes to it, a short way (under LAND_RADII radii and a quarter of the branch), where the host passes it; a wall start takes the bone MIN_PIECE in from the host's end, however near the node is)
-      let bone = wall ? Math.min(BONES_PER_EDGE - 1 - MIN_PIECE, Math.max(MIN_PIECE, Math.round(best.f))) : Math.round(best.f);
-      const hw = work.get(best.h.id)!, bw = work.get(v.id)!;
-      if (wall) {   // (its own junction: MIN_GAP bones from any other landing on the host, on the side nearer its start)
-        const taken = landings.filter((x) => x.host === best!.h.id).map((x) => x.bone), free = (b: number) => b >= MIN_PIECE && b <= BONES_PER_EDGE - 1 - MIN_PIECE && taken.every((t) => Math.abs(t - b) >= MIN_GAP);
-        if (!free(bone)) { const c = [...taken.flatMap((t) => [t - MIN_GAP, t + MIN_GAP]), bone].filter(free).sort((a, b) => dist(q, hw.P[0][a]!) - dist(q, hw.P[0][b]!))[0]; if (c == null) continue; bone = c; }
-      }
+      // (the node is the host's own bone, the host as drawn: the branch's end goes to it, a short way (under LAND_RADII radii and a quarter of the branch), where the host passes it)
+      const bone = Math.round(best.f), hw = work.get(best.h.id)!, bw = work.get(v.id)!;
       const dBone = dist(q, hw.P[0][bone]!);
       if (dBone > LAND_RADII * Math.max(best.h.radius, v.radius) || dBone > MAX_MOVE_SHARE * bw.arc[0][BONES_PER_EDGE - 1]! || (!wall && dBone + 0.5 * best.h.radius >= toNode)) continue;
-      // (the map takes the landing too, at the host's same bone. Where the map draws the branch at the host's end instead (its station), the host's map bones from the landing to that end are laid at the station, so the map keeps its one meeting point: `collapse`)
-      const mapMove = dist(endOf(bw, end, 1), hw.P[1][bone]!), mapShare = mapMove / bw.arc[1][BONES_PER_EDGE - 1]!, mapRadii = mapMove / Math.max(mapRadiusOf(best.h), mapRadiusOf(v));
-      let collapse: 0 | 1 | undefined;
-      if (mapShare > MAX_MOVE_SHARE || mapRadii > MAX_MOVE_RADII) {
-        const d0 = dist(endOf(bw, end, 1), hw.P[1][0]!), d1 = dist(endOf(bw, end, 1), hw.P[1][BONES_PER_EDGE - 1]!), e: 0 | 1 = d1 < d0 ? 1 : 0;
-        if (Math.min(d0, d1) > MAX_MOVE_RADII * Math.max(mapRadiusOf(best.h), mapRadiusOf(v))) continue;   // (the map draws it nowhere near the host's end: no landing, its end eases onto the node)
-        if (landings.some((x) => x.host === best!.h.id && x.collapse != null && x.collapse !== e)) continue;
-        collapse = e;
-      }
+      // (the map takes the landing at the host's same bone: every body node has its own map station, 22 Nov ruling; the map's one-point stars are gone)
       // (two branches within MIN_GAP bones of one another share one node)
-      const near = wall ? undefined : landings.find((x) => x.host === best!.h.id && Math.abs(x.bone - bone) < MIN_GAP);
-      const rec = { host: best.h.id, branch: v.id, branchEnd: end, bone: near ? near.bone : bone, node: near ? near.node : `${best.h.id}@${v.id}`, ...(collapse != null ? { collapse } : {}) };
+      const near = wall ? undefined : landings.find((x) => x.host === best!.h.id && !apart(best!.h, x.bone, bone));
+      const rec = { host: best.h.id, branch: v.id, branchEnd: end, bone: near ? near.bone : bone, node: near ? near.node : `${best.h.id}@${v.id}` };
       landings.push(rec); landed.add(keyOf(v, end));
     }
   }
 
+  // ---- every station its own place on the map: the host's map bones are re-spaced along its map course so that its stations (and its two ends) are at least LAND_STATION_RADII radii apart, in the body's order, or the equal spacing the course allows
+  const stations: SkeletonReport['stations'] = [];
+  for (const host of new Set(landings.map((x) => x.host))) {
+    const w = work.get(host)!, n = BONES_PER_EDGE, bs = [...new Set(landings.filter((x) => x.host === host).map((x) => x.bone))].sort((a, b) => a - b);
+    const nodes = [0, ...bs, n - 1], arc = arcOf(w.P[1]), L = arc[n - 1]!, m = nodes.length, r = mapRadiusOf(w.v), g = Math.min(LAND_STATION_RADII * r, L / (m - 1)), a = nodes.map((b) => arc[b]!);
+    for (let it = 0; it < m; it++) { for (let k = 1; k < m - 1; k++) a[k] = Math.max(a[k]!, a[k - 1]! + g); for (let k = m - 2; k >= 1; k--) a[k] = Math.min(a[k]!, a[k + 1]! - g); }
+    const old = w.P[1].slice();
+    for (let i = 1; i < n - 1; i++) {
+      let k = 0; while (k + 2 < m && nodes[k + 1]! <= i) k++;
+      const t = (i - nodes[k]!) / (nodes[k + 1]! - nodes[k]!), sArc = a[k]! + (a[k + 1]! - a[k]!) * t;
+      let j = 1; while (j < n - 1 && arc[j]! < sArc) j++;
+      w.P[1][i] = lerp3(old[j - 1]!, old[j]!, (sArc - arc[j - 1]!) / Math.max(arc[j]! - arc[j - 1]!, 1e-12));
+    }
+    w.arc[1] = arcOf(w.P[1]);
+    stations.push({ host, stations: bs, spacing: g / r, wanted: LAND_STATION_RADII, length: L / r });
+  }
+  report.stations = stations;
+
   // ---- ease each end onto its node
   const reachOfEnd = new Map<string, number>();
-  const note = (v: NetVessel, end: 0 | 1, node: string, pose: 0 | 1, delta: Vec3, total: number, reach: number, rad: number) =>
-    report.ends.push({ edge: v.id, end, node, pose, move: len(delta), reach, share: len(delta) / total, radii: len(delta) / rad, planar: Math.hypot(delta[0], delta[1]) / rad });
+  const note = (v: NetVessel, end: 0 | 1, node: string, pose: 0 | 1, delta: Vec3, total: number, reach: number, rad: number, layout = false) =>
+    report.ends.push({ edge: v.id, end, node, pose, move: len(delta), reach, share: len(delta) / total, radii: len(delta) / rad, planar: Math.hypot(delta[0], delta[1]) / rad, ...(layout ? { layout } : {}) });
   const nodeRadius = (l: { v: NetVessel }[], pose: 0 | 1): number => Math.max(...l.map((e) => radius(e.v, pose)));
   for (const [id, l] of groups) {
     if (l.length < 2) continue;
@@ -346,16 +443,6 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
 
   // the landings: the host is final (its ends eased and aimed): each landing branch's end eases onto the host's bone, in both poses
   const landNode = new Map<string, [Vec3, Vec3]>(), landedAt = new Map<string, string>();
-  for (const host of new Set(landings.filter((x) => x.collapse != null).map((x) => x.host))) {
-    const mine = landings.filter((x) => x.host === host && x.collapse != null), e = mine[0]!.collapse!, hw = work.get(host)!, orig = hw.P[1].slice(), n = BONES_PER_EDGE;
-    const at = e ? Math.min(...mine.map((x) => x.bone)) : Math.max(...mine.map((x) => x.bone));
-    for (let k = 0; k < n; k++) {
-      if (e ? k >= at : k <= at) { hw.P[1][k] = orig[e ? n - 1 : 0]!; continue; }
-      hw.P[1][k] = atBone(orig, e ? (k / at) * (n - 1) : (n - 1) - ((n - 1 - k) / (n - 1 - at)) * (n - 1));
-    }
-    hw.arc[1] = arcOf(hw.P[1]);
-    report.collapses.push({ host, hostEnd: e, bone: at });
-  }
   for (const L of landings) {
     landedAt.set(keyOf(byId.get(L.branch)!, L.branchEnd), L.node);
     const hw = work.get(L.host)!, bw = work.get(L.branch)!, pos = landNode.get(L.node) ?? ([hw.P[0][L.bone]!, hw.P[1][L.bone]!] as [Vec3, Vec3]);
@@ -365,7 +452,7 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
       if (move <= 0) continue;
       const total = bw.arc[pose][P.length - 1]!, reach = reachOf(move, total);
       easeEnd(P, bw.arc[pose], L.branchEnd, delta, reach);
-      note(bw.v, L.branchEnd, L.node, pose, delta, total, reach, Math.max(pose ? mapRadiusOf(hw.v) : hw.v.radius, pose ? mapRadiusOf(bw.v) : bw.v.radius));
+      note(bw.v, L.branchEnd, L.node, pose, delta, total, reach, Math.max(pose ? mapRadiusOf(hw.v) : hw.v.radius, pose ? mapRadiusOf(bw.v) : bw.v.radius), pose === 1);
     }
     report.landings.push({ host: L.host, branch: L.branch, branchEnd: L.branchEnd, bone: L.bone, node: L.node });
   }
@@ -374,6 +461,62 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
     const P = work.get(v.id)!.P[pose], L = landings.find((x) => x.branch === v.id && x.branchEnd === end);
     if (l.length < 2 && !L) continue;
     P[end ? P.length - 1 : 0] = L ? landNode.get(L.node)![pose] : nodePos.get(id)![pose];
+  }
+
+  // ---- the stations and the node eases may have left a corner on a course: rounded again, over at least CORNER_BONES bones, round the nodes' bones
+  for (const w of work.values()) {
+    const keep = new Set(landings.filter((x) => x.host === w.v.id).map((x) => x.bone)), done = softenCorners(w.P[1], keep);
+    if (done.length) { w.arc[1] = arcOf(w.P[1]); const e = softened.find((x) => x.edge === w.v.id); if (e) e.bones.push(...done); else softened.push({ edge: w.v.id, bones: done }); }
+  }
+  // ---- the map's node structure equals the body's: at every node of three or more arms, the map's free (branch) arms leave at least ARM_MIN_NEIGHBOUR degrees from their neighbours and ARM_MIN_HOST from the host line, on the side the body has them, each straight for ARM_RUN_RADII radii
+  const armsAt = new Map<string, Arm[]>();
+  // (an arm's bones stop half way to the next station on the same vessel, or at the course's own end: two stretches never overlap)
+  const half = (v: NetVessel, from: number, sign: 1 | -1, toEdge = false): number => {
+    const stops = landings.filter((x) => x.host === v.id && (sign > 0 ? x.bone > from : x.bone < from)).map((x) => x.bone), edge = sign > 0 ? BONES_PER_EDGE - 1 : 0;
+    const near = stops.length ? (sign > 0 ? Math.min(...stops) : Math.max(...stops)) : edge, d = Math.abs(near - from);
+    return stops.length || toEdge ? Math.max(3, Math.floor(d / 2) + 1) : d + 1;
+  };
+  const armOf = (v: NetVessel, end: 0 | 1, free: boolean): Arm => ({ w: work.get(v.id)!, idx: Array.from({ length: half(v, end ? BONES_PER_EDGE - 1 : 0, end ? -1 : 1) }, (_, q) => (end ? BONES_PER_EDGE - 1 - q : q)), free, host: false, id: v.id, ...(filleted.has(keyOf(v, end)) ? { keep: true } : {}) });
+  for (const [id, l] of groups) { const a = l.filter(({ v, end }) => !landed.has(keyOf(v, end))).map(({ v, end }) => armOf(v, end, !trunk.has(keyOf(v, end)))); if (a.length >= 3) armsAt.set(id, a); }
+  const hostArms = (L: SkelLanding, sign: 1 | -1): Arm => {   // (the host's own bones either side of the station, half way to the next station or the course's end: those stay put)
+    const w = work.get(L.host)!, h = byId.get(L.host)!, d = Math.max(3, half(h, L.bone, sign, true));
+    return { w, idx: Array.from({ length: Math.max(1, Math.min(d, sign > 0 ? BONES_PER_EDGE - L.bone : L.bone + 1)) }, (_, q) => L.bone + sign * q), free: false, host: true, id: L.host };
+  };
+  const landedNodes = new Map<string, SkelLanding[]>();
+  for (const L of landings) landedNodes.set(L.node, [...(landedNodes.get(L.node) ?? []), L]);
+  for (const [node, ls] of landedNodes) armsAt.set(node, [hostArms(ls[0]!, 1), hostArms(ls[0]!, -1), ...ls.map((L) => armOf(byId.get(L.branch)!, L.branchEnd, true))]);
+  const dirOf = (a: Arm, pose: 0 | 1, run: number): Vec3 => { const P = a.w.P[pose]; let q = 1; while (q < a.idx.length - 1 && dist(P[a.idx[q]!]!, P[a.idx[0]!]!) < run) q++; return unit(sub(P[a.idx[q]!]!, P[a.idx[0]!]!)); };
+  const runKeep = new Map<string, Set<number>>(), keepRun = (a: Arm, laid: number[]) => { const k = runKeep.get(a.id) ?? new Set<number>(); laid.forEach((b) => k.add(b)); runKeep.set(a.id, k); };
+  for (const [node, arms] of armsAt) {
+    const run = (a: Arm): number => ARM_RUN_RADII * mapRadiusOf(a.w.v);
+    const d1 = arms.map((a) => dirOf(a, 1, run(a))), ang = d1.map((d) => planar(d)), fixed = arms.map((a) => !a.free);
+    // the host line: through-direction at the node (the host's two arms, or the trunk run-on pair), and which side of it each free arm has in the body
+    const hostIdx = arms.map((a, i) => (a.host || (!a.free && arms.filter((b) => !b.free).length === 2) ? i : -1)).filter((i) => i >= 0);
+    const through = hostIdx.length === 2 && arms[hostIdx[0]!]!.host ? unit(sub(d1[hostIdx[0]!]!, d1[hostIdx[1]!]!)) : null;   // (the host's own through-direction at the station: both its arms are straight along it)
+    if (through) { ang[hostIdx[0]!] = planar(through); ang[hostIdx[1]!] = planar(scale(through, -1)); }
+    if (hostIdx.length === 2) {
+      const h = hostIdx[0]!, side = (pose: 0 | 1, i: number): number => { const t = dirOf(arms[h]!, pose, run(arms[h]!)), d = dirOf(arms[i]!, pose, run(arms[i]!)); return Math.atan2(t[0] * d[1] - t[1] * d[0], t[0] * d[0] + t[1] * d[1]) * 180 / Math.PI; };
+      for (let i = 0; i < arms.length; i++) {
+        if (!arms[i]!.free) continue;
+        const b = side(0, i), m = side(1, i);
+        if (Math.abs(b) > 20 && Math.abs(b) < 160 && Math.sign(b) !== Math.sign(m)) ang[i] = 2 * ang[h]! - ang[i]!;   // (the body has it on the other side of the host: mirrored)
+      }
+    }
+    const out = spreadArms(ang, fixed, arms.map((a) => a.host || !a.free));
+    const P = (a: Arm): Vec3[] => a.w.P[1];
+    arms.forEach((a, i) => {
+      if (a.host) { if (through) { const r = run(a), tot = arcOf(P(a))[BONES_PER_EDGE - 1]!; keepRun(a, layArm(P(a), a.idx, i === hostIdx[0] ? through : scale(through, -1), r, Math.min(Math.max(2 * r, 0.1 * tot), 0.3 * tot))); } return; }
+      const d = d1[i]!, c = Math.hypot(d[0], d[1]) || 1e-6, th = out[i]! * Math.PI / 180, dir = unit([Math.cos(th) * c, Math.sin(th) * c, d[2]]);
+      if (a.keep) return;   // (a rounded corner's arm is the corner's own curve)
+      const r = run(a), tot = arcOf(P(a))[BONES_PER_EDGE - 1]!;
+      keepRun(a, layArm(P(a), a.idx, a.free ? dir : d, r, Math.min(Math.max(2 * r, 0.1 * tot), 0.3 * tot)));
+    });
+    report.arms.push({ node, arms: arms.map((a) => a.id) });
+  }
+  // (the arm layout's blends may have left a corner: rounded again, clear of the nodes' bones and the straight runs)
+  for (const w of work.values()) {
+    const keep = new Set([...landings.filter((x) => x.host === w.v.id).map((x) => x.bone), ...(runKeep.get(w.v.id) ?? [])]), done = softenCorners(w.P[1], keep);
+    if (done.length) { w.arc[1] = arcOf(w.P[1]); const e = softened.find((x) => x.edge === w.v.id); if (e) e.bones.push(...done); else softened.push({ edge: w.v.id, bones: done }); }
   }
   // ---- radii: the body's own rule (taper to the shared width), the map's likewise with the map's widths
   const mapTaper = new Map<string, [number, number]>();
