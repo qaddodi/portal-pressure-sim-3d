@@ -4,7 +4,8 @@ import { stamp } from '../boot/timeline.ts';
 import { whenQuiet, type QuietJob } from '../clock/idle.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { runSystems, type FrameCtx, type FrameSystem } from './frame-systems.ts';
-import { Box3, type BufferAttribute, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, type BufferAttribute, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane,
+  Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -618,7 +619,8 @@ export class CelScene {
   /** the share of the OLD figure drawn now (net/flag.ts oldShare; TEMPORARY): 0 at the body's rest, 1 once the Circuit's change is a tenth in */
   private netOld = 0;
   private netHidden = false;
-  /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw). Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
+  /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw).
+   *  Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
   private async mountNet(): Promise<void> {
     const { loadNet } = await import('./vessels/net/load.ts');
     const data = await loadNet();
@@ -1109,7 +1111,7 @@ export class CelScene {
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
-    if (withHandOver && this.net && this.byEdge.get(o.edge?.id ?? '') === o) f = Math.min(f, this.netOld);   // (?geom=net, TEMPORARY: the old tubes and the skins that follow their fade come in by the screen pattern over the Circuit's first tenth, vessels/net/flag.ts)
+    if (withHandOver && this.net && this.byEdge.get(o.edge?.id ?? '') === o) f = Math.min(f, this.netOld);   // (?geom=net, TEMPORARY: the old tubes and skins come in by the screen pattern over the Circuit's first tenth, net/flag.ts)
     return f;
   }
   /**
