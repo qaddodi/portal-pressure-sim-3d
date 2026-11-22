@@ -15,7 +15,9 @@ import { throughNeck } from './neck.ts';
 import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
 import { bakeScaleOf } from './ranges.ts';
-import { flareScale, sideEndScale } from '../fork-joins.copied.js';
+import { sewnEnds } from './sewn.ts';
+import { NETWORK_BY_ID } from '../network.ts';
+import { isPermanent } from '../skin/inventory.ts';
 import type { SkinArm, SkinCut, SkinJunction } from '../skin/types.ts';
 import type { Vec3 } from '../../anatomy/vessels.ts';
 import type { Bone, NetMesh, Skeleton } from './types.ts';
@@ -32,13 +34,6 @@ export const MAX_ARMS = 8;
 /** The least angle (degrees) any triangle of a junction's fillet may have. */
 /** how far out, in radii, an arm's capsule runs while seams are only being planned */
 const PLAN_REACH = 24;
-/** The vessels that do not take part in a fillet (their width changes threefold with the case or they come and go): the collaterals and the procedure shunts. Until WP0 flags them on the edge this is the list. */
-const SEWN_VESSEL = /^(C\d+[ab]?|TIPS|DIPS|S_PC|S_DSR|S_MC|REX)$/;
-const isSewnEnd = (edgeId: string, _end: 0 | 1): boolean => SEWN_VESSEL.test(edgeId.split('#')[0]!);
-/** 2D sinks the end 0.4 of the host's radius short of its centreline; the extension past the end bone is capped at this many host radii. */
-const SEWN_SHORT = 0.4, SEWN_MAX_EXTRA = 0.8;
-/** A buried ring keeps this share of the host's radius off its wall (the ink's width, with room) and is never narrower than SEWN_MIN_R of it. */
-const SEWN_INK = 0.06, SEWN_MIN_R = 0.03;
 const scratch7 = new Float64Array(7);
 
 /** A free vertex with exactly three triangles around it is a cap the skin builder's remesh leaves (a pinhole of three slivers): the three become one triangle on its three neighbours, same winding. Repeats until none is left. */
@@ -138,30 +133,19 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   }
   const inNodes = skel.nodes.filter((n) => n.edges.length && n.edges.every((x) => inNet.has(x.edge)));
   for (const n of skel.nodes) if (n.edges.some((x) => inNet.has(x.edge)) && !inNodes.includes(n)) throw new NetMeshError(n.id, 'the node joins an edge outside this network');
-  // SEWN ENDS (review doc, "Rulings on WP3": fillets only for arms with a narrow range of swell). A collateral, a procedure shunt or anything with presence does not take part in a junction: its end sinks past the host's wall with 2D's own
-  // collar (sideEndScale, flareScale) in the same mesh. The node the host passes through keeps its host edges only, so it is a run-on, a step or a junction of the permanent arms alone. A node with fewer than two other edges (no host) keeps them all.
-  const endBoneOf = (edge: number, end: 0 | 1): number => { const [first, count] = skel.edges[edge]!.bones; return first + (end === 0 ? 0 : count - 1); };
-  const sewn = new Map<string, { hostR: number; extra: number; node: string; host: Capsule[] }>();
+  // SEWN ENDS (review doc, "Rulings on WP3's sewn-end proposal"): an arm that is not a permanent vessel (a collateral, a shunt, TIPS, DIPS, REX, a feeder) takes no part in a fillet. Its end at a node that holds a permanent vessel is sewn into that host:
+  // the tube simply ends there with its own cap, and the COLLAR (2D's sideEndScale and flareScale, from the host's LIVE radius) is the shader's (net/sewn.ts, shaders.ts sewnCollar), so it is not baked here. The node keeps its host edges only, so it is
+  // a run-on, a step or a junction of the permanent arms alone. A node with fewer than two permanent edges keeps them all.
+  const sewnTable = sewnEnds(skel, (id) => { const v = NETWORK_BY_ID.get(id.split('#')[0]!); return v ? isPermanent(v) : true; });   // (an id the network does not know, a fixture's, is permanent)
+  const sewn = new Set<string>();
   const nodes = inNodes.map((n): (typeof inNodes)[number] => {
-    const keep = n.edges.filter((x) => !isSewnEnd(skel.edges[x.edge]!.id, x.end));
+    const keep = n.edges.filter((x) => !sewnTable[x.edge]![x.end]);
     if (keep.length < 2 || keep.length === n.edges.length) return n;
-    const hostR = Math.max(...keep.map((x) => skel.bones[endBoneOf(x.edge, x.end)]!.r[0]));
-    const host: Capsule[] = keep.map((h) => {
-      const [first, count] = skel.edges[h.edge]!.bones, pts = new Float64Array(3 * count), r = new Float64Array(count);
-      for (let q = 0; q < count; q++) { const b = skel.bones[first + q]!; pts[3 * q] = b.pos[0][0]; pts[3 * q + 1] = b.pos[0][1]; pts[3 * q + 2] = b.pos[0][2]; r[q] = b.r[0]; }
-      return { n: count, pts, r };
-    });
-    for (const x of n.edges) if (!keep.includes(x)) {
-      const at = skel.bones[endBoneOf(x.edge, x.end)]!.pos[0];
-      let dAxis = Infinity;
-      for (const h of host) dAxis = Math.min(dAxis, closestOnArm(h, at[0], at[1], at[2], scratch7));
-      // 2D ends it a little short of the host's centreline (0.4 of its radius): the part of that the end bone has not already covered is the extension past it
-      sewn.set(`${x.edge}:${x.end}`, { hostR, extra: Math.min(SEWN_MAX_EXTRA * hostR, Math.max(0, dAxis - SEWN_SHORT * hostR)), node: n.id, host });
-    }
+    for (const x of n.edges) if (!keep.includes(x)) sewn.add(`${x.edge}:${x.end}`);
     const at = new Map(keep.map((x, q) => [x, q] as const)), ro = n.runOn && at.has(n.edges[n.runOn[0]]!) && at.has(n.edges[n.runOn[1]]!) ? ([at.get(n.edges[n.runOn[0]]!)!, at.get(n.edges[n.runOn[1]]!)!] as [number, number]) : keep.length === 2 ? ([0, 1] as [number, number]) : undefined;
     return { ...n, edges: keep, ...(ro ? { runOn: ro } : {}) };
   });
-  const sewnEdges = new Set([...sewn.keys()].map((k) => Number(k.split(':')[0])));
+  const sewnEdges = new Set([...sewn].map((k) => Number(k.split(':')[0])));
   const endBone = (c: EdgeCtx, end: 0 | 1): number => (end === 0 ? 0 : c.count - 1);
 
   // ---- sampling: the ring frame at bone coordinate s (0 .. count-1) of an edge ----
@@ -505,26 +489,12 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       if (over >= 0) throw new NetMeshError(rid, `the junction will not mesh: the seams do not fit inside the edges (${arms[over]!.ctx.id} is too short for its two junctions)`);
       const rings: Float32Array[] = [], normals: Float32Array[] = [];
       arms.forEach((a, i) => { const S = sample(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!), r = ringOf(S, a.ctx.alpha); rings.push(r.p); normals.push(r.nrm); });
-      const junction: SkinJunction = { node: rid, J, arms: skinArms, surface: true, ...(arms.length > 6 ? { maxArms: MAX_ARMS } : {}), ...(process.env.NCELLS ? { maxCells: Number(process.env.NCELLS) } : {}) };
+      const junction: SkinJunction = { node: rid, J, arms: skinArms, surface: true, ...(arms.length > 6 ? { maxArms: MAX_ARMS } : {}) };
       const cuts: SkinCut[] = arms.map((a, i) => ({ vesselId: a.ctx.id, end: a.end, ring: seams[i]!, u: seams[i]! / (a.ctx.count - 1) }));
       let skin;
-      const t0n = Date.now();   // NDBGTEMP
       try { skin = buildSkinSteady(junction, cuts, rings, normals, caps, arms.length > 6 || internal.length ? 48000 : undefined, memo); }
       catch (e) {
-        if (process.env.NDBG && e instanceof SkinBuildError) {   // NDBGTEMP
-          console.log('NDBG', rid.slice(0, 80), 'k', +k.toFixed(4), 'caps', caps.length, 'arms', arms.length);
-          for (let i = 0; i < caps.length; i++) {
-            const c0 = caps[i]!, nm = i < arms.length ? arms[i]!.ctx.id : 'internal:' + capOf[i]?.ctx.id;
-            const row: string[] = [];
-            if (i < arms.length) {
-              const a = arms[i]!, m = seams[i]!, C = a.pts[m]!, B = a.pts[m - 1]!, nl = Math.hypot(C[0] - B[0], C[1] - B[1], C[2] - B[2]) || 1, nx = (C[0] - B[0]) / nl, ny = (C[1] - B[1]) / nl, nz = (C[2] - B[2]) / nl;
-              for (let q = 0; q < caps.length; q++) { if (q === i) continue; const c = caps[q]!; let cyl = Infinity; for (let u = 0; u < c.n - 1; u++) for (let sub = 0; sub <= CYL_STEPS; sub++) { const f = sub / CYL_STEPS, px = c.pts[3 * u]! + (c.pts[3 * u + 3]! - c.pts[3 * u]!) * f - C[0], py = c.pts[3 * u + 1]! + (c.pts[3 * u + 4]! - c.pts[3 * u + 1]!) * f - C[1], pz = c.pts[3 * u + 2]! + (c.pts[3 * u + 5]! - c.pts[3 * u + 2]!) * f - C[2], rq = c.r[u]! + (c.r[u + 1]! - c.r[u]!) * f, h = px * nx + py * ny + pz * nz, lat = Math.hypot(px - h * nx, py - h * ny, pz - h * nz); if (h + rq + k > 0) cyl = Math.min(cyl, (lat - rq - k) / a.rad[m]!); } if (cyl < 3) row.push(`q${q}:${cyl.toFixed(2)}R`); }
-            }
-            console.log('  cap', i, nm, 'seam', i < arms.length ? seams[i] : '-', 'pts', c0.n, row.join(' '));
-          }
-        }
         if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the junction will not mesh: ${e.message}`); throw e; }
-      if (process.env.NTIME) console.log('NTIME', rid.slice(0, 50), Date.now() - t0n, 'ms');   // NDBGTEMP
       // a sliver the remesh left is cleaned here, once, on the same union: edges flipped where that raises the smallest angle, the free vertices evened out along the surface (relax.ts); the seam rings stay
       {
         const V0 = skin.position.length / 3, P = Float64Array.from(skin.position), tr = Array.from(skin.index), fixed = new Uint8Array(V0).fill(1, 0, arms.length * RADIAL).fill(0, arms.length * RADIAL);
@@ -607,24 +577,6 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   }
 
   // ---- sweeps ----
-  /** The scale of a sewn end's radius (2D's collar) at bone coordinate `s` of an edge: `sideEndScale` (the end narrows to 0.35 inside the host) times `flareScale` (the heel widens toward the wall, never past the host's own radius), by the distance to the end's very tip (the extension past the end bone counts). 1 away from a sewn end. */
-  /** The largest radius a ring centred at `P` may have and still lie inside the host's lumen (less the ink's margin): the buried part of a sewn end must never show through the wall, whatever angle the vessel arrives at (2D's collar assumes a square landing). Infinity while the centre is outside the lumen. */
-  const insideFit = (w: { host: Capsule[] }, P: ArrayLike<number>): number => {
-    let allow = Infinity;
-    for (const h of w.host) { const d = closestOnArm(h, P[0]!, P[1]!, P[2]!, scratch7), R = scratch7[3]!; if (d < R) allow = Math.min(allow, Math.max(SEWN_MIN_R * R, R - d - SEWN_INK * R)); }
-    return allow;
-  };
-  const sewnScale = (c: EdgeCtx, s: number, P: ArrayLike<number>): number => {
-    let k = 1;
-    for (const end of [0, 1] as const) {
-      const w = sewn.get(`${c.idx}:${end}`);
-      if (!w) continue;
-      const kk = Math.min(c.count - 2, Math.max(0, Math.floor(s))), f = Math.min(1, Math.max(0, s - kk)), at = c.cum[kk]! + (c.cum[kk + 1]! - c.cum[kk]!) * f;
-      const d = w.extra + (end === 1 ? c.cum[c.count - 1]! - at : at), rr = c.bones[Math.min(c.count - 1, Math.max(0, Math.round(s)))]!.r[0];
-      k *= Math.min((sideEndScale(d, w.hostR) as number) * Math.min(flareScale(d, w.hostR) as number, Math.max(1, w.hostR / rr)), insideFit(w, P) / rr);
-    }
-    return k;
-  };
   const sweepStart = tris.length;
   for (const c of ctx.values()) {
     if (shortEdges.has(c.idx)) continue;   // (a short edge inside a merged region is the fillet's, not swept)
@@ -632,7 +584,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
     if (sb <= sa) throw new NetMeshError(c.id, `the edge is cut away by its junctions (seams at bones ${sa} and ${sb} of ${c.count})`);
     const ends: (0 | 1)[] = [0, 1];
     const ringAt = (s: number): number[] => {
-      const S = sample(c, s), ks = sewnScale(c, s, S.P), r = ringOf(ks === 1 ? S : { ...S, r: S.r * ks }, c.alpha), { bones, weights } = boneOfSample(c, S);
+      const S = sample(c, s), r = ringOf(S, c.alpha), { bones, weights } = boneOfSample(c, S);
       // a ring at an end that is welded to another edge's is the shared one
       for (const end of ends) {
         if (Math.abs(s - endBone(c, end)) > 1e-9) continue;
@@ -663,39 +615,10 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         if (i === c.seg[k]! && k + 1 === sb) { if (sb < c.count - 1) seamRings.set(seamKey(c.idx, sb), cur); }
       }
     }
-    // sewn ends: the tube runs on past its end bone to the tip 2D would put it at, narrowing as the collar does, and closes with a dome inside the host
-    for (const end of ends) {
-      const w = sewn.get(`${c.idx}:${end}`);
-      if (!w) continue;
-      const S = sample(c, endBone(c, end)), up = end === 1 ? 1 : -1, bone = gbone(c, S.k), ring = end === 0 ? first : prev;
-      let outer = ring;
-      const n = w.extra > 0 ? Math.max(1, Math.ceil(w.extra / (RING_STEP * S.r))) : 0, scaleAt = (d: number): number => (sideEndScale(d, w.hostR) as number) * Math.min(flareScale(d, w.hostR) as number, Math.max(1, w.hostR / S.r));
-      const ringAtX = (x: number): number[] => {
-        const Pc: V3 = [S.P[0] + up * x * S.t[0], S.P[1] + up * x * S.t[1], S.P[2] + up * x * S.t[2]], R = Math.min(S.r * scaleAt(w.extra - x), insideFit(w, Pc)), ids: number[] = [];
-        for (let j = 0; j < RADIAL; j++) {
-          const a = theta(j, c.alpha), rad = [0, 1, 2].map((d) => Math.cos(a) * S.n[d]! + Math.sin(a) * S.b[d]!), p = [0, 1, 2].map((d) => S.P[d]! + up * x * S.t[d]! + R * rad[d]!);
-          ids.push(addVertex(p, 0, [bone], [1], rad, 0));
-        }
-        return ids;
-      };
-      for (let i = 1; i <= n; i++) { const ids = ringAtX((w.extra * i) / n); if (end === 1) bridge(outer, ids); else bridge(ids, outer); outer = ids; }
-      const tip: V3 = [S.P[0] + up * w.extra * S.t[0], S.P[1] + up * w.extra * S.t[1], S.P[2] + up * w.extra * S.t[2]], Rt = Math.min(S.r * scaleAt(0), insideFit(w, tip));
-      for (const lat of CAP_LATS) {
-        const phi = (lat * Math.PI) / 180, rr = Rt * Math.cos(phi), along = up * Rt * Math.sin(phi), ids: number[] = [];
-        for (let j = 0; j < RADIAL; j++) {
-          const a = theta(j, c.alpha), rad = [0, 1, 2].map((d) => Math.cos(a) * S.n[d]! + Math.sin(a) * S.b[d]!), p = [0, 1, 2].map((d) => tip[d]! + along * S.t[d]! + rr * rad[d]!), nrm = [0, 1, 2].map((d) => Math.cos(phi) * rad[d]! + up * Math.sin(phi) * S.t[d]!);
-          ids.push(addVertex(p, 0, [bone], [1], nrm, 0));
-        }
-        if (end === 1) bridge(outer, ids); else bridge(ids, outer);
-        outer = ids;
-      }
-      const pole = addVertex([tip[0] + up * Rt * S.t[0], tip[1] + up * Rt * S.t[1], tip[2] + up * Rt * S.t[2]], 0, [bone], [1], [up * S.t[0], up * S.t[1], up * S.t[2]], 0), poleRing = new Array<number>(RADIAL).fill(pole);
-      if (end === 1) bridge(outer, poleRing); else bridge(poleRing, outer);
-    }
-    // free ends: a dome
+    // free ends and sewn ends (the collar is the shader's): a dome
     for (const end of ends) {
       const nd = nodeOf(c, end);
-      if (nd.edges.length !== 1) continue;
+      if (nd.edges.length !== 1 && !sewn.has(`${c.idx}:${end}`)) continue;
       const s = endBone(c, end), S = sample(c, s), ring = end === 0 ? first : prev;
       let outer = ring;
       for (const lat of CAP_LATS) {
