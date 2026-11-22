@@ -11,6 +11,7 @@ import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
+import { CAPUT_FAN_ID, FAN_FRONT } from './vessels/feeder-fan.ts';
 import { CAUDATE_VEIN_ID, CAUDATE_WHEN } from './vessels/caudate-veins.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
@@ -603,6 +604,7 @@ export class CelScene {
       }
     }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
+    if (def.id === CAPUT_FAN_ID) o.setFrontDepth(FAN_FRONT);   // (the caput veins lie on the abdominal wall: over every other vein)
     if (!def.feeder) { const e = shadowEndsOf(def); o.setShadowEnds(e[0], e[1]); o.setMapDepth(mapDepthOf(def.id)); }   // (the crossing shadow's joins, and the Circuit's over and under)
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));

@@ -61,3 +61,62 @@ test('a braid landing on a host: the strands together make the trunk width there
     }
   }
 });
+
+test('the tube geometry keeps every attribute the build makes (a fan\'s colour stretch and fading tip were dropped by withRk: a pink-to-violet step at every fork, no fade)', async () => {
+  const { withRk, TUBE_ATTRIBUTES } = await import('../src/scene/vessels/vessel-object.ts');
+  const { geometry } = buildTubes(fan, fan.map(() => 16), fanV.radius);
+  for (const name of Object.keys(geometry.attributes)) assert.ok((TUBE_ATTRIBUTES as readonly string[]).includes(name), `${name} is carried through withRk`);
+  const kept = withRk(geometry);
+  for (const name of ['lensR', 'tipK']) assert.deepEqual([...kept.getAttribute(name).array], [...geometry.getAttribute(name).array], name);
+  const lensR = kept.getAttribute('lensR');
+  let spanned = 0;
+  for (let i = 0; i < lensR.count; i++) if (lensR.getY(i) > 0) spanned++;
+  assert.equal(spanned, lensR.count, 'every vertex of the fan wears its own stretch of the ramp');
+});
+
+test('a free tip of the fan narrows to a point and eases to transparent; the rest of the tree keeps its alpha', async () => {
+  const { tipK } = await import('../src/scene/vessels/tubes.ts');
+  const { fanTips, FAN_TIP_FROM } = await import('../src/scene/vessels/feeder-fan.ts');
+  const tips = fanTips(fan);
+  assert.ok(tips.filter(Boolean).length >= 10, 'the fan has its tips');
+  assert.ok(tips.filter((t) => !t).length >= 10, 'and its inner courses');
+  fan.forEach((c, i) => {
+    assert.equal(c.tipFade, tips[i] ? FAN_TIP_FROM : undefined);
+    assert.equal(!!c.point?.[1], tips[i]);
+  });
+  assert.equal(tipK(FAN_TIP_FROM, 0), 0);
+  assert.equal(tipK(FAN_TIP_FROM, FAN_TIP_FROM), 0);
+  assert.equal(tipK(FAN_TIP_FROM, 1), 1, 'nothing at the tip');
+  let last = 0;
+  for (let k = 0; k <= 100; k++) { const t = tipK(FAN_TIP_FROM, k / 100); assert.ok(t >= last - 1e-12, 'monotone'); last = t; }
+  assert.equal(tipK(undefined, 1), 0);
+  const { geometry, runs } = buildTubes(fan, fan.map(() => 16), fanV.radius);
+  const tk = geometry.getAttribute('tipK');
+  fan.forEach((c, i) => {
+    const r = runs[i]!, ring = r.radial + 1;
+    assert.equal(tk.getX(r.tubeStart), 0, 'a course starts whole');
+    assert.equal(tk.getX(r.tubeStart + r.tubular * ring), tips[i] ? 1 : 0, 'and ends at nothing only at a free tip');
+  });
+});
+
+test('the caput fan is drawn over every other vessel (a depth offset, nothing moves), and the navel ring is gone', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { FAN_FRONT, CAPUT_FAN_ID } = await import('../src/scene/vessels/feeder-fan.ts');
+  assert.equal(CAPUT_FAN_ID, 'C3~F:caput');
+  assert.ok(NETWORK_BY_ID.has(CAPUT_FAN_ID));
+  assert.ok(FAN_FRONT > 0.01 && FAN_FRONT < 0.1);
+  const { NETWORK } = await import('../src/scene/vessels/network.ts');
+  // the epigastric veins reach the fan's own depth at the navel, so a depth tie went to the wider tube: the offset is what puts the fan over them
+  let tie = 0;
+  for (const v of NETWORK) {
+    if (v.feeder) continue;
+    for (const c of coursesOf(v, { ...REST, live: 1 })) for (const p of c.pts) for (const f of fan) for (const q of f.pts) if (Math.hypot(p[0] - q[0], p[1] - q[1]) < c.radius + f.radius && p[2] > q[2] - 0.2 * FAN_FRONT) tie++;
+  }
+  assert.ok(tie > 0, 'there are crossings that tie in depth');
+  assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /def\.id === CAPUT_FAN_ID\) o\.setFrontDepth\(FAN_FRONT\)/);
+  assert.match(readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8'), /c\.z -= frontDepth \* \(-projectionMatrix\[3\]\[2\]\) \/ c\.w;/);
+  const { Landmarks } = await import('../src/scene/disease/landmarks.ts');
+  const l = new Landmarks();
+  l.setCaput(1, 0.016, true);
+  assert.equal(l.group.children.length, 1, 'only the flank line: no ring or disc at the navel');
+});

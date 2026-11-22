@@ -55,10 +55,13 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
 /** 2D stage-tubes.js widthAt at the Circuit (t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) and the boost, an artery 3 (finer shunts less), a liver bed 8 and the boost. */
 export const circuitWidth = (widthKind: 0 | 1 | 2, fine = 1): readonly [number, number, number, number] => (widthKind === 1 ? [CIRC_ARTERY * fine, 0, 0, MIN_PX.artery] : widthKind === 2 ? [CIRC_BED, 1, 0, MIN_PX.bed] : [-1, 1, 0, MIN_PX.vein]);
 
+/** Every per-vertex attribute a built tube carries for the vessel shader. `lensR` (a fan's stretch of the host's colour ramp) and `tipK` (a fan's fading tip) were left off this list, so `withRk` dropped them and every course of a fan wore the whole ramp
+ *  from its own start (a pink-to-violet step at every fork) and none faded: one list, and tests/fan-joins.test.ts reads it against what buildTubes makes. */
+export const TUBE_ATTRIBUTES = ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr', 'lensR', 'tipK'] as const;
 /** The tube's geometry with the attributes the vessel shader reads (a missing `rk`, the tube's radius share, is 1). One copy: the outline is part of the tube (vessels/shaders.ts), not a second mesh. */
 export function withRk(g: BufferGeometry): BufferGeometry {
   const out = new BufferGeometry();
-  for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr', ...CIRCUIT_ATTRIBUTES]) {
+  for (const name of [...TUBE_ATTRIBUTES, ...CIRCUIT_ATTRIBUTES]) {
     const a = g.getAttribute(name);
     if (a) out.setAttribute(name, a.clone());   // (a copy: reshape writes in place)
   }
@@ -107,7 +110,7 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
-        mapDepth: { value: 0 }, shadowPx: { value: SHADOW_PX }, shadowDepth: { value: SHADOW_DEPTH }, shadowDepthC: { value: SHADOW_DEPTH_MAP }, shadowA: { value: SHADOW.light.a }, shadowCol: { value: new Color() }, shadowEnd: { value: new Vector2(0, 0) },
+        mapDepth: { value: 0 }, frontDepth: { value: 0 }, shadowPx: { value: SHADOW_PX }, shadowDepth: { value: SHADOW_DEPTH }, shadowDepthC: { value: SHADOW_DEPTH_MAP }, shadowA: { value: SHADOW.light.a }, shadowCol: { value: new Color() }, shadowEnd: { value: new Vector2(0, 0) },
         liveW: { value: 1 }, skinWeld: { value: new Vector3(1, 1, 1) }, skinWeldC: { value: new Vector2(1, 1) }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, stentT0: { value: 0 }, stentWire: { value: new Vector4(0.9, 0.8, 0.5, 0) }, stentGoldC: { value: new Vector4(0.7, 0.5, 0.1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
@@ -155,6 +158,8 @@ export class VesselObject extends CelObject {
   setShadowEnds(start: number, end: number): void { (this.toon.uniforms.shadowEnd!.value as Vector2).set(start, end); }
   /** How far toward the viewer this vessel's line stands on the Circuit's plate (circuit/map-depth.ts). */
   setMapDepth(z: number): void { this.toon.uniforms.mapDepth!.value = z; }
+  /** This vessel is drawn this far toward the viewer in the depth buffer, scene units (the caput fan: feeder-fan.ts FAN_FRONT); a depth offset only, always (not the Circuit's). */
+  setFrontDepth(z: number): void { this.toon.uniforms.frontDepth!.value = z; }
 
   /** Colours for a look. An artery wears the look's artery red; a vein its portal or systemic tone; a lens covers veins on top of it. The scene
    *  calls this through CelObject.applyPalette, with the look's palette. */

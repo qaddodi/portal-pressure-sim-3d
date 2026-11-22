@@ -29,6 +29,8 @@ export interface Course {
   point?: readonly [boolean, boolean];
   /** a fan's course wears this stretch `[from, to]` of the host's colour ramp (feeder-fan.ts), so a child begins in the colour its parent ends in; none: the vessel's own `lensSpan` */
   lens?: readonly [number, number];
+  /** a fan's free tip (feeder-fan.ts): from this share of the course the tube eases to transparent, to nothing at its end, so no cut end is ever seen; none: it keeps its alpha to the end */
+  tipFade?: number;
   /** a junction skin stands on this course's end(s) and the course is coiling (coil.ts pinCourse): `len` the course's length at rest, `a` and `b` the share of it, from its start and from its end, held as at rest. The rings there sit at the same distances from the end whatever the length now is
    *  (the rings are spaced along the arc, so a longer course would slide the skin's seam ring along its axis), and the varix's bead is not applied there; both ease in over PIN_RAMP of the course after it. */
   hold?: { len: number; a: number; b: number; /** the course's radius at rest (no bands): held inside the held stretch, easing to `radius` past the ramp, so a band thins the tube but never the seam */ r0?: number };
@@ -36,6 +38,8 @@ export interface Course {
 /** A branch end buried in its trunk (smooth-joins.ts): `max` the radius its end ring and cap may take, held for `d0` of course from the end and easing back by `d1`; `ceil` the most its collar may reach anywhere (never wider than the trunk). */
 export interface Buried { max: number; d0: number; d1: number; ceil?: number }
 const smooth = (u: number) => u * u * (3 - 2 * u);
+/** The share of alpha a fan's free tip has taken off at `u` along its course: 0 before `from`, a smooth ease to 1 (nothing) at the end. */
+export const tipK = (from: number | undefined, u: number): number => (from == null ? 0 : smooth(Math.min(1, Math.max(0, (u - from) / Math.max(1 - from, 1e-4)))));
 /** The same with each end's own span (the share of the course it eases over); with 0.3 and 0.3 it is `factorAt`. */
 export const factorSpan = (t: readonly [number, number], sp: readonly [number, number], u: number): number => {
   const fs = u < sp[0] ? t[0] + (1 - t[0]) * smooth(u / sp[0]) : 1, fe = u > 1 - sp[1] ? 1 + (t[1] - 1) * smooth((u - (1 - sp[1])) / sp[1]) : 1;
@@ -121,7 +125,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     // the fillet's collar, never wider than the trunk it ends on (smooth joins: a bulb wider than the trunk reads as a blob at the junction)
     const collar = (end: number, d: number): number => { const a = flareAdd(c.flare?.[end], d), cl = c.clamp?.[end]; return cl?.ceil != null ? Math.min(a, Math.max(0, cl.ceil - c.radius)) : a; };
     const tube = new TubeGeometry(curve, seg, R0, RADIAL, false);
-    const rks: number[] = [], rkcs: number[] = [];
+    const rks: number[] = [], rkcs: number[] = [], tks: number[] = [];
     const clen = curve.getLength();
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
@@ -150,6 +154,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
         if (f !== 1) pos.setXYZ(at, P.x + (pos.getX(at) - P.x) * f, P.y + (pos.getY(at) - P.y) * f, P.z + (pos.getZ(at) - P.z) * f);
         rks.push(open ? (c.radius * f) / radius0 : 0);
         rkcs.push(open ? c.radius / radius0 : 0);
+        tks.push(tipK(c.tipFade, u));
       }
     }
     tube.setAttribute('rk', new Float32BufferAttribute(rks, 1));
@@ -158,6 +163,8 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('lensR', new Float32BufferAttribute(Array.from({ length: (seg + 1) * (RADIAL + 1) }, () => lensRange).flat(), 2));
     // (`rkc`: the radius share on the Circuit's map, the course's own: the body's tapers, collars, beads and buried ends are the 3D figure's, and the map draws a vessel one width along its length)
     tube.setAttribute('rkc', new Float32BufferAttribute(rkcs, 1));
+    // (`tipK`: how much of this vertex's alpha a fan's free tip has taken off, 0 to 1; a vessel with no fading tip carries 0)
+    tube.setAttribute('tipK', new Float32BufferAttribute(tks, 1));
     const tang: number[] = [];
     for (let k = 0; k <= seg; k++) { const t = curve.getTangentAt(k / seg); for (let j = 0; j <= RADIAL; j++) tang.push(t.x, t.y, t.z); }
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
@@ -182,6 +189,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       group.push(s);
     }
     for (const e of [1, 2]) group[e]!.setAttribute('lensR', new Float32BufferAttribute(Array.from({ length: group[e]!.attributes.position!.count }, () => lensRange).flat(), 2));
+    for (const e of [1, 2]) group[e]!.setAttribute('tipK', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(tipK(c.tipFade, e - 1)), 1));
     for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? capRadius(e - 1) / radius0 : 0), 1));
     for (const e of [1, 2]) group[e]!.setAttribute('rkc', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? c.radius / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
