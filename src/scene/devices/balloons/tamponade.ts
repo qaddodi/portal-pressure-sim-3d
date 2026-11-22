@@ -47,8 +47,7 @@ export class Tamponade {
     this.pullLine = new DeviceObject(allocTube(PULL_N, WIRE_SIDES), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
     this.pullHead = new DeviceObject(allocTube(HEAD_N, DEVICE_SIDES), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
     this.objects = [this.tube, this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead];
-    for (const o of this.objects) { this.group.add(o.group); o.group.visible = false; }
-    this.group.visible = false;
+    for (const o of this.objects) { this.group.add(o.group); o.park(); }
   }
 
   applyPalette(p: Palette): void { for (const o of this.objects) o.applyPalette(p); }
@@ -83,9 +82,9 @@ export class Tamponade {
   private draw(): void {
     const { adv, gas, eso } = this.state;
     const show = adv > 0.001;
-    this.group.visible = show;
-    this.tube.group.visible = show;
-    if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.group.visible = false; this.pull = 0; return; }
+    // (every part is asked to show or go and fades by itself: DeviceObject.show; the container stays drawn until the last of them is gone)
+    this.tube.show(show);
+    if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.show(false); this.pull = 0; this.settle(); return; }
     const k = easeMove(gas), ke = easeMove(eso);
     const q = easeMove(clamp01((gas - 0.45) / 0.55));   // the traction runs in the second half of the gastric balloon's filling (stage-balloon.js `pull`)
     const path = tubePath();
@@ -99,7 +98,7 @@ export class Tamponade {
     writeRings(this.tube.toonMesh.geometry, this.tubeRings, DEVICE_SIDES);
     // the gastric balloon: the pear along its axis (gasShape's p0, dir, L and half width u along it)
     const showGas = gas > 0.001;
-    this.gas.group.visible = showGas;
+    this.gas.show(showGas);
     if (showGas) {
       const g = gasShape(k, q, 40) as unknown as { p0: [number, number]; dir: [number, number]; L: number; half: (u: number) => number };
       for (let i = 0; i < GAS_N; i++) {
@@ -111,7 +110,7 @@ export class Tamponade {
     }
     // the esophageal balloon: the long balloon on the tube, its centre and half width at each height from balloonShape's outline
     const showEso = eso > 0.001;
-    this.eso.group.visible = showEso;
+    this.eso.show(showEso);
     if (showEso) {
       const { outline } = balloonShape(ke, ESO_N - 1) as unknown as { outline: [number, number][] };
       const n = ESO_N, Lft = outline.slice(0, n), Rgt = outline.slice(n).reverse();
@@ -127,8 +126,9 @@ export class Tamponade {
     const markR = (BALLOON.shaftR + 0.3) / U;
     [3, BALLOON.bottom - BALLOON.top - 3].forEach((o, k) => {
       const sb = arcs.eso[0] + o * per, mark = this.marks[k]!, rings = this.markRings[k]!;
-      mark.group.visible = sb >= 0 && sb <= path.total;
-      if (!mark.group.visible) return;
+      const on = sb >= 0 && sb <= path.total;
+      mark.show(on);
+      if (!on) return;
       for (let i = 0; i < MARK_N; i++) {
         const { p, t } = pathAt(Math.max(0, sb + (i - 1) * 0.5), path), r = rings[i]!;
         this.pt(p[0], p[1], r.c); r.t.set(t[0], -t[1], 0); r.r = markR;
@@ -138,13 +138,16 @@ export class Tamponade {
     // the traction: an arrow up the esophagus's side as the tube is drawn up, easing in with it
     this.pull = q;
     const showPull = q > 0.01;
-    this.pullLine.group.visible = this.pullHead.group.visible = showPull;
+    this.pullLine.show(showPull); this.pullHead.show(showPull);
     if (showPull) {
       if (!this.pullBuilt) this.buildPull();
       this.pullLine.setAlpha(q); this.pullHead.setAlpha(q);
     }
     void esoAt; void GAS;
+    this.settle();
   }
+  /** The container is drawn while any part still is (a part that is going fades in place). */
+  private settle(): void { this.group.visible = this.objects.some((o) => o.group.visible); }
 
   /** The arrow is fixed to the esophagus (balloon-gas.js `pullArrow`), so it is built once: a round shaft of the 2D stroke's width (1.5) and a cone for the head's triangle. */
   private buildPull(): void {

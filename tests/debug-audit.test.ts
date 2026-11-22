@@ -186,9 +186,13 @@ test('the sweep: text or a picture cut by a clipping ancestor, past the screen, 
   assert.deepEqual(k(scan({ items: [item({ what: 'Alpha', box: [20, 100, 120, 118] }), item({ what: 'Beta', box: [60, 104, 160, 122] })] })), ['text-overlap']);
   assert.deepEqual(k(scan({ items: [item({ what: 'Same', box: [20, 100, 120, 118] }), item({ what: 'Same', box: [21, 101, 121, 119] })] })), [], 'the same words twice is a halo, not an overlap');
   assert.deepEqual(k(scan({ items: [item({ what: 'tiny', box: [20, 100, 60, 108], px: 7 })] })), ['small-text']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'fitted', box: [20, 100, 60, 108], px: 10.5, fitted: true })] })), [], 'a card the app zoomed down to fit keeps its shrink (22 Nov: keep shrink)');
   assert.deepEqual(k(scan({ items: [item({ what: 'pale', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)' })] })), ['low-contrast']);
   assert.deepEqual(k(scan({ items: [item({ what: 'mid-fade', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5, fading: true })] })), [], 'text under a running fade is judged when it lands');
   assert.deepEqual(k(scan({ items: [item({ what: 'dim at rest', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5 })] })), ['low-contrast'], 'text translucent at rest is still judged');
+  // (a pale word names where it stands and how translucent it is: the 21 Nov run gave "WHVP" and "2" at 3.24:1 with nothing to find them by)
+  const pale = judgeScan(scan({ items: [item({ what: 'WHVP', box: [20, 100, 60, 118], fg: 'rgba(90, 83, 71, 1)', bg: 'rgb(252, 249, 243)', opacity: 0.65, by: 'li.step < ol.hvpg' })] }))[0]!;
+  assert.match(pale.what, /drawn at 65% opacity \(in li\.step < ol\.hvpg\)/);
   assert.deepEqual(k(scan({ items: [item({ what: 'fine', box: [20, 100, 60, 118] })] })), []);
   assert.deepEqual(k(scan({ covered: [{ what: 'button "Next"', by: 'div.dock', points: 4 }], zero: [{ what: 'svg.plot', why: 'has no size' }], broken: [{ what: 'img logo.png' }] })), ['covered-by', 'zero-size', 'broken-image']);
   assert.ok(judgeScan(scan({ items: Array.from({ length: 40 }, (_, i) => item({ what: `t${i}`, box: [20, 100 + i * 20, 60, 118 + i * 20], px: 6 })) })).some((f) => f.sev === 'note'), 'a flood is capped and says how many more');

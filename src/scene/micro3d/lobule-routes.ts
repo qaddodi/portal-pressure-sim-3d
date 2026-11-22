@@ -20,10 +20,20 @@ export interface LobuleRouteCourse {
 const near = (a: readonly [number, number], b: readonly [number, number], tol: number): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) <= tol;
 const arcs = (p: readonly (readonly [number, number])[]): number[] => { const a = [0]; for (let i = 1; i < p.length; i++) a.push(a[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1])); return a; };
 
+/** The same, one family at a time (each family is joined only to itself, so they are independent: the blood with its inlets, each lymph channel, the twigs, the bile): each `yield` is a place a slice may end. */
+export function* lobuleRoutesSteps(courses: readonly LobuleRouteCourse[], tol: number): Generator<void, Map<number, Seg[]>> {
+  const groups = new Map<string, LobuleRouteCourse[]>();
+  for (const c of courses) { const f = famOf(c.kind) === 'in' ? 'sin' : famOf(c.kind); (groups.get(f) ?? groups.set(f, []).get(f)!).push(c); }
+  const out = new Map<number, Seg[]>();
+  for (const g of groups.values()) { for (const [col, segs] of lobuleRoutes(g, tol)) out.set(col, segs); yield; }
+  return out;
+}
+
+const famOf = (k: string): string => (k === 's0' || k === 's1' || k === 's2' || k === 'an' ? 'sin' : k === 'in' ? 'in' : k.startsWith('bile') ? 'bile' : k);
+
 /** The route segments of every course (by column). `tol`: how close two ends must be to be one node (local units). */
 export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number): Map<number, Seg[]> {
   // each family is joined only to itself (a bile channel's end beside a sinusoid's is no joint): the blood's sinusoids, the arterioles' twigs, the lymph, the bile. The inlets are roots the sinusoids leave from the side
-  const famOf = (k: string): string => (k === 's0' || k === 's1' || k === 's2' || k === 'an' ? 'sin' : k === 'in' ? 'in' : k.startsWith('bile') ? 'bile' : k);
   const sin = courses.filter((c) => famOf(c.kind) !== 'in');
   const inlets = courses.filter((c) => c.kind === 'in');
   // nodes: the ends that meet, within a family (a merge's inflows end where the next begins)

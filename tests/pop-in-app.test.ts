@@ -23,5 +23,5 @@ test('a popover is put by the 2D placer (`translate` from the corner, left and t
   assert.match(src, /placePopover\(p, b, \{ align, place \}\)/);
   assert.match(src, /vv\?\.addEventListener\('resize', put\)/, 'a keyboard coming up moves it');
   const css = readFileSync('src/ui/shell/shell.css', 'utf8');
-  assert.match(css, /\.sh-pop\[data-place="above"\] \{ bottom: calc\(100% \+ 8px\)/);
+  assert.match(css, /\.sh-pop\[data-place="above"\] \{ bottom: calc\(100% \+ var\(--sh-gap\)\)/);
 });

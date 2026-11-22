@@ -65,7 +65,7 @@ export function clotShapeOf(host: Host, swells: readonly number[] & { cava?: num
 }
 
 /** The clot's geometry: the tube along its rings, each vertex carrying the vein's opacity at its ring. */
-function clotGeometry(shape: ClotShape): BufferGeometry {
+export function clotGeometry(shape: ClotShape): BufferGeometry {
   const radial = 12, g = ringTube(shape.centres, shape.radii, radial, true);
   const n = shape.centres.length, a: number[] = [];
   for (let i = 0; i < n; i++) for (let j = 0; j <= radial; j++) a.push(shape.alpha[i]!);

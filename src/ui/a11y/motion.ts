@@ -3,8 +3,9 @@
 // Two moves keep a short form instead of a jump, because a jump of the whole figure is harder to follow: the camera's glide and the lobule dive run
 // REDUCED_MOVE_MS. The figure still follows the hand (following is not an animation). Pure: no DOM at import, so a Node test loads it.
 
-/** A state change; a word, chip, row or popover; a card, sheet, menu or lens crossfade (the 2D app's D_FLIP, D_SMALL, D_SURFACE, ms). */
-export const D_FLIP = 120, D_SMALL = 240, D_SURFACE = 420;
+import { D_FLIP, D_SMALL, D_SURFACE } from '../motion.ts';
+/** A state change; a word, chip, row or popover; a card, sheet, menu or lens crossfade (the 2D app's D_FLIP, D_SMALL, D_SURFACE, ms: src/ui/motion.ts, the one TS copy of tokens.css). */
+export { D_FLIP, D_SMALL, D_SURFACE };
 /** Under Reduce Motion, how long the moves that keep a short form take (the camera's glide), ms. */
 export const REDUCED_MOVE_MS = 300;
 

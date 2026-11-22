@@ -111,6 +111,10 @@ export class ProcCatheter {
   private readonly rings: DeviceObject[] = []; private readonly flashes: DeviceObject[] = [];
   private readonly coil: DeviceObject | null; private readonly coilGeo: BufferGeometry | null; private readonly coilN = 120;
   private last: CatheterState = { ...CATHETER_IDLE };
+  /** The last `set` showed the catheter (its parts fade in and out on their own: `group` stays drawn until the last of them is gone). */
+  private active = false;
+  /** The parts the current `set` shows (a part not in it is asked to go, and fades). */
+  private readonly lit = new Set<DeviceObject>();
   private liveSeen = 0;
   private readonly v = new Vector3();
   private readonly w = new Vector3();
@@ -124,7 +128,7 @@ export class ProcCatheter {
     const nS = (this.n = Math.max(24, Math.ceil(r.total / 2.4)));
     const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: EdgeRule = 'ink', px = 0.9, more: { bands?: 2 | 3; tubeTones?: boolean; fat?: number; shadow?: number } = {}): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order, ...more }, edge);
-      this.group.add(o.group); this.objects.push(o); return o;
+      o.park(); this.group.add(o.group); this.objects.push(o); return o;
     };
     // the shaft (a polymer tube with its dark hairline), revealed along its length up to the tip
     const rings = makeRings(nS);
@@ -196,7 +200,7 @@ export class ProcCatheter {
     if (this.liveSeen === this.r3.liveVersion()) return false;
     this.liveSeen = this.r3.liveVersion();
     this.shaftAt = -1;
-    if (this.group.visible) this.set(this.last);
+    if (this.active) this.set(this.last);
     return true;
   }
 
@@ -204,7 +208,7 @@ export class ProcCatheter {
    *  `pieces`: for each vessel id, how far up its own course the tint reaches (a share of the course from its outer end; 2 is all of it) and over how much of it it thins toward the tip. Null when there is none. */
   wedgeTint(): { amount: number; color: Color; front: number; frontSoft: number; behind: number; pieces: Map<string, WedgePiece> } | null {
     const { r3 } = this, r = r3.route, s = this.last, col = clamp01(s.column);
-    if (r.kind !== 'hvpg' || col <= 0.001 || !this.group.visible) return null;
+    if (r.kind !== 'hvpg' || col <= 0.001 || !this.active) return null;
     // ONE FIELD (wedge-glsl.ts). The tint starts AT the balloon's distal edge (the glass ends 4.2 shaft radii behind the tip: fitBalloon's `gap`) and is a function of the distance along the network from there:
     // every vessel of the hepatic tree (the vein, its forks, the branch) is given the line `d0 + slope u` of its own drawn length, the junction skins blend their arms' seams' values, and the column's front is ONE
     // advancing distance with a soft edge, so it flows from the balloon through the vein, the join and out to every branch at one speed, and nothing lags or jumps (Mohammad, 21 Nov: "the tubes filled, the join did
@@ -263,20 +267,20 @@ export class ProcCatheter {
     this.last = s;
     const { r3, rc } = this, r = r3.route, op = clamp01(s.opacity), showing = s.u > 0.001 && op > 0.002;
     const tipD = r3.tipD(s.u);
-    for (const o of this.objects) o.group.visible = false;
-    if (!showing) { this.group.visible = false; return; }
-    this.group.visible = true;
-    this.shaft.group.visible = true; this.shaft.setAlpha(op);
+    const lit = this.lit; lit.clear();
+    this.active = showing;
+    if (!showing) { this.settle(); return; }
+    lit.add(this.shaft); this.shaft.setAlpha(op);
     this.layShaft(tipD);
 
     // the wire (a fine dark line on into the portal trunk) and the needle (steel, narrowing to a bevelled point), only ahead of the catheter's tip
     const toD = (u: number): number => r3.tipD(u);
     const wD = s.wire > 0 ? toD(s.wire) : 0, nD = s.needle > 0 ? toD(s.needle) : 0;
     const wShow = wD > tipD + rc * U * 0.6;
-    this.wire.group.visible = wShow; if (wShow) { this.wire.setAlpha(op); this.wire.setReveal(Math.min(1, wD / r.total)); }
+    if (wShow) { lit.add(this.wire); this.wire.setAlpha(op); this.wire.setReveal(Math.min(1, wD / r.total)); }
     const nShow = nD > tipD + rc * U * 0.6;
-    this.needle.group.visible = this.needleCone.group.visible = nShow;
     if (nShow) {
+      lit.add(this.needle); lit.add(this.needleCone);
       this.needle.setAlpha(op); this.needleCone.setAlpha(op);
       const bev = rc * U * 1.4;
       this.needle.setReveal(Math.min(1, Math.max(0, (nD - bev * 0.5) / r.total)));
@@ -287,8 +291,8 @@ export class ProcCatheter {
     // the column of wedged blood or sclerosant from the tip on (a hepatic vein beyond the wedged balloon, or the shunt the sclerosant fills)
     const col = clamp01(s.column);
     // (the HVPG's column is a tint on the vessels themselves, upstream of the balloon: wedgeTint, laid by the scene; the other procedures' columns are still this tube)
-    this.column.group.visible = col > 0.001 && r.kind !== 'hvpg';
     if (col > 0.001 && r.kind !== 'hvpg') {
+      lit.add(this.column);
       // (2D's `reach = a + (total - a) * col`, ONE arc length over the whole route: it flows out of the tip's vessel on into the next and its branches, never stopping at the end of the part the tip is in)
       this.column.setTone(s.columnTone ?? 'trWedge'); this.column.setAlpha(WEDGE_COLUMN_ALPHA * op);
       const reach = tipD + (r.total - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
@@ -297,14 +301,17 @@ export class ProcCatheter {
 
     // the balloon
     const bl = clamp01(s.balloon);
-    this.balloon.group.visible = bl > 0.001;
-    for (const b of this.balloonBands) b.group.visible = bl > 0.001;
-    for (const q of this.glints) q.o.group.visible = bl > 0.001;
-    if (bl > 0.001) this.fitBalloon(bl, tipD, op); else this.shaft.setHole(0, 0, 0);
+    if (bl > 0.001) { lit.add(this.balloon); for (const b of this.balloonBands) lit.add(b); for (const q of this.glints) lit.add(q.o); this.fitBalloon(bl, tipD, op); } else this.shaft.setHole(0, 0, 0);
 
     // the tip's reading ripples, and the coil
     if (s.ring) this.ripple(s.ring, tipD, s.clock, op);
     if (this.coil && s.coil > 0.001) this.layCoil(s.coil, op);
+    this.settle();
+  }
+  /** Every part is asked to show or go as the last `set` lit it (each fades over DEVICE_FADE_MS); the container stays drawn while any part still is. */
+  private settle(): void {
+    for (const o of this.objects) o.show(this.lit.has(o));
+    this.group.visible = this.active || this.objects.some((o) => o.group.visible);
   }
 
   /** The shaft from the route's start to the tip, tip included: the body's rings are spread evenly over the way, the last TIP_RINGS (closer together toward the end) are the taper and its rounded point (tipRadius).
@@ -378,7 +385,7 @@ export class ProcCatheter {
     this.r3.point(nD, this.v);
     this.flashes.forEach((o, i) => {
       const k = i ? (f + 0.5) % 1 : f, s = (this.rc * (1.2 + 5 * k)), a = (1 - k) * (1 - k) * 0.85;
-      o.group.visible = true; o.setAlpha(a * op); o.group.position.copy(this.v); o.group.scale.setScalar(s);
+      this.lit.add(o); o.setAlpha(a * op); o.group.position.copy(this.v); o.group.scale.setScalar(s);
     });
   }
   /** The tip's reading, two ripples running out of it in the reading's colour. */
@@ -387,7 +394,7 @@ export class ProcCatheter {
     this.r3.point(tipD, this.v);
     this.rings.forEach((o, i) => {
       const k = i ? (ph + 0.5) % 1 : ph, s = this.rc * (1.6 + 4.2 * k), a = (1 - k) * (1 - k) * 0.9;
-      o.setTone(RING_TONE[ring]); o.group.visible = true; o.setAlpha(a * op); o.group.position.copy(this.v); o.group.scale.setScalar(s);
+      o.setTone(RING_TONE[ring]); this.lit.add(o); o.setAlpha(a * op); o.group.position.copy(this.v); o.group.scale.setScalar(s);
     });
   }
 
@@ -406,7 +413,7 @@ export class ProcCatheter {
     }
     writeRings(geo, rs, WIRE_SIDES);
     showRings(geo, 0, Math.round(k * (N - 1)), WIRE_SIDES);
-    this.coil!.group.visible = true; this.coil!.setAlpha(op);
+    this.lit.add(this.coil!); this.coil!.setAlpha(op);
   }
   private coilRings: ReturnType<typeof makeRings> | null = null;
 }

@@ -11,7 +11,8 @@ import { resetUrl } from './reset.ts';
 import { thisRelease } from '../../boot/release.ts';
 
 import { clock } from '../../clock/frame.ts';
-const LEAVE_MS = 180;   // 2D --d-flip: the dialog sinks back, then is hidden (closeModal)
+import { D_FLIP, LEAVE_SLACK_MS } from '../motion.ts';
+const LEAVE_MS = D_FLIP + LEAVE_SLACK_MS;   // 2D --d-flip: the dialog sinks back, then is hidden (closeModal)
 
 /** 2D clearRow(): "Clear my data on this device" asks in place, in the dialog's own words, and its two answers; Cancel brings the button back. */
 function ClearRow() {

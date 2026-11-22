@@ -7,9 +7,7 @@
   position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none;
   font-family: var(--ui, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
   color: var(--text); font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --move: 280ms;
-  --pad-x: 26px; --pad-y: 24px; --r: 16px;
+  --pad-x: 26px; --pad-y: 24px; --r: var(--r-sheet);
   --rise: 20px; --drop: 28px;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
 }
@@ -24,8 +22,8 @@
 
 /* ── a card's place (transform only) and its surface ── */
 .dk-pos { position: absolute; left: 0; top: 0; will-change: transform; }
-.dk-pos[data-live="true"] { transition: transform var(--move) var(--ease), translate var(--move) var(--ease); }
-.dk-pos[data-slot="data"] .dk-in { transition: opacity 240ms var(--ease); }   /* (the dock: the docked card's words fade as it slides away; a finger or a glide writes them per frame) */
+.dk-pos[data-live="true"] { transition: transform var(--d-card-in) var(--ease-arrive), translate var(--d-card-in) var(--ease-arrive); }
+.dk-pos[data-slot="data"] .dk-in { transition: opacity var(--d-small) var(--ease-arrive); }   /* (the dock: the docked card's words fade as it slides away; a finger or a glide writes them per frame) */
 
 /* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour. The glass (frosted blur) is the block at the end of this file. */
 .dk-card {
@@ -96,7 +94,7 @@
 .dk-q { margin-top: 12px; }
 .dk-q-count { margin: 0 0 6px; }
 .dk-q-text { font-weight: 600; }
-.dk-a { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--edge); animation: dk-fade var(--move) var(--ease) both; }
+.dk-a { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--edge); animation: dk-fade var(--d-card-in) var(--ease-arrive) both; }
 .dk-q-nav { display: flex; gap: 10px; margin-top: 14px; }
 
 /* ── the wallet's strip (iPhone) ── */
@@ -108,20 +106,20 @@
 .deck-ui.pz .dk-strip[data-dock].pz-shuf::after { content: none; }
 .deck-ui.pz .dk-strip[data-dock].pz-shuf::before { top: auto; bottom: 3px; width: 34px; height: 3px; margin-left: -17px; }
 .dk-strip[data-phase="wait"] { opacity: 0; visibility: hidden; }
-.dk-strip[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
-.dk-strip[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+.dk-strip[data-phase="in"] { animation: dk-in var(--d-card-in) var(--ease-arrive) both; }
+.dk-strip[data-phase="out"] { animation: dk-out var(--d-small) var(--ease-in) both; pointer-events: none; }
 
 /* ── the presenter bar ── */
 /* the 2D app's pill (.pz-bar.pzb-pill): 44 px tall, back, where you are, next, settings; a wide screen's lower right, a phone's inside the words card's foot */
 .dk-bar { position: absolute; z-index: 4; pointer-events: auto; box-sizing: border-box; }   /* above the cards: on a phone the pill stands inside the words card's foot, and the cards come after it in the page */
 .deck-ui .pz-jump { z-index: 5; }   /* the slide list over the pill */
-.deck-ui[data-layout="stack"] .dk-bar.phone { display: inline-flex; border-radius: 16px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone { display: inline-flex; border-radius: var(--r-sheet); }
 /* the phone's pill is small: 32 px, its icons 16 px; every button keeps its 44 px tap box by reaching over its neighbours' edges (a 6 px negative margin each side), so a smaller look is not a smaller target */
 .deck-ui[data-layout="stack"] .dk-bar.phone { --tap-ox: 6px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
 .deck-ui[data-layout="tab"] .dk-bar.phone { --tap-ox: 3px; }   /* (an upright iPad: 2D's own `.pz.stack .pz-bar .ib { margin: -4px -3px }`, tests/tap-cells.test.ts holds the 3) */
 .deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px calc(-1 * var(--tap-ox)); }
 .deck-ui[data-layout="stack"] .dk-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
-.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 2px; font-size: 13px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 2px; font-size: var(--t-lab); }
 /* ── the pill's tap cells (root fix, 20 Nov, review item P2): a button's 44 px box reaches over its neighbours, so the boxes overlapped (12 px between two buttons here, 6 px on an
    upright iPad) and whichever came later in the page took the shared strip: Back lost 6 px to the count, Next and the gear were 32 px wide. The boxes stay as they are (they paint
    the press tint and place the icon, so the look is the same); the touch moves off them onto a pseudo-element that is each button's own cell: its slot (the 32 px it takes in the pill)
@@ -142,8 +140,8 @@
 .dk-roll-sizer { visibility: hidden; display: block; height: 0; overflow: hidden; }
 .dk-roll-in, .dk-roll-now { display: inline-block; }
 .dk-roll-out { position: absolute; left: 0; right: 0; top: 0; text-align: inherit; }
-.dk-roll-in { animation: dk-roll-in 400ms var(--ease) both; }
-.dk-roll-out { animation: dk-roll-out 400ms var(--ease) both; }
+.dk-roll-in { animation: dk-roll-in var(--d-roll) var(--ease-arrive) both; }
+.dk-roll-out { animation: dk-roll-out var(--d-roll) var(--ease-arrive) both; }
 @keyframes dk-roll-in { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
 @keyframes dk-roll-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-70%); } }
 
@@ -157,31 +155,31 @@
 .dk-outline-title { font-size: var(--fs-title-trim); line-height: var(--lh-title); font-weight: 600; }
 .dk-outline { display: grid; gap: 18px; margin-top: 14px; align-items: start; }
 .dk-outline section { min-width: 0; }
-.dk-sub { display: flex; align-items: center; gap: 0.8em; margin: 0 0 0.7em; font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
+.dk-sub { display: flex; align-items: center; gap: 0.8em; margin: 0 0 0.7em; font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .dk-sub::after { content: ""; flex: 1; height: 1px; background: var(--edge); }
 .dk-outline :is(ol, ul) { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: var(--fs-body); line-height: 1.35; color: var(--text); }
 .dk-outline ol { counter-reset: dko; }
 .dk-outline ol li { counter-increment: dko; display: grid; grid-template-columns: 2.1em minmax(0, 1fr); align-items: baseline; padding: 0.5em 0; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); text-wrap: pretty; }
 .dk-outline ol li:first-child { border-top: 0; padding-top: 0.1em; }
 .dk-outline ol li::before { content: counter(dko, decimal-leading-zero); font: 600 0.74em / 1 var(--ui, system-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; color: var(--accent); }
-.dk-obj-card { padding: 16px 18px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent); }
+.dk-obj-card { padding: 16px 18px; border-radius: var(--r-sheet); background: color-mix(in srgb, var(--accent) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent); }
 .dk-obj-card .dk-sub::after { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .dk-outline ul { gap: 0.75em; }
 .dk-outline ul li { position: relative; padding-left: 1.7em; text-wrap: pretty; }
 .dk-outline ul li::before { content: ""; position: absolute; left: 0.3em; top: 0.28em; width: 0.32em; height: 0.6em; border: solid var(--accent); border-width: 0 0.14em 0.14em 0; transform: rotate(45deg); }
-.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-obj-card { padding: 12px 14px; border-radius: 14px; }
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-obj-card { padding: 12px 14px; border-radius: var(--r-sheet); }
 
 /* ── the quick check (2D `.pz-check`): numbered questions, a tap opens the answer under its question ── */
 .dk-check { margin: 0; padding: 0; list-style: none; counter-reset: dkc; display: flex; flex-direction: column; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text); }
 .dk-check li { counter-increment: dkc; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
 .dk-check li:first-child { border-top: 0; }
-.dk-chk-q { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; cursor: pointer; display: grid; grid-template-columns: 2.1em minmax(0, 1fr) auto; align-items: baseline; gap: 0 0.8em; padding: 0.6em 0.2em; border-radius: 12px; -webkit-tap-highlight-color: transparent; }
+.dk-chk-q { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; cursor: pointer; display: grid; grid-template-columns: 2.1em minmax(0, 1fr) auto; align-items: baseline; gap: 0 0.8em; padding: 0.6em 0.2em; border-radius: var(--r-card); -webkit-tap-highlight-color: transparent; }
 .dk-chk-q::before { content: counter(dkc, decimal-leading-zero); font: 600 0.74em / 1 var(--ui, system-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; color: var(--accent); }
 .dk-chk-q:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dk-chk-t { text-wrap: pretty; }
-.dk-chk-hint { font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); color: var(--accent); white-space: nowrap; padding: 0.45em 0.8em; border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); transition: opacity 180ms linear; }
+.dk-chk-hint { font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); color: var(--accent); white-space: nowrap; padding: 0.45em 0.8em; border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); transition: opacity var(--d-small) linear; }
 .dk-check li[data-open] .dk-chk-hint { opacity: 0; }
-.dk-chk-a { animation: dk-fade var(--move) var(--ease) both; }
+.dk-chk-a { animation: dk-fade var(--d-card-in) var(--ease-arrive) both; }
 .dk-chk-a > p { margin: 0; padding: 0 0 0.7em calc(2.1em + 0.8em + 0.2em); color: var(--text-2); text-wrap: pretty; }
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-chk-q { grid-template-columns: 1.8em minmax(0, 1fr); }
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-chk-hint { display: none; }
@@ -206,7 +204,7 @@
   .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
   .pz-table.dk-pztable tbody tr.dk-tgroup { display: grid; cursor: default; background: none; border-top: 0; }
   .pz-table.dk-pztable tbody tr.dk-tgroup th { display: block; padding: .7em 10px .05em; text-align: left; font-weight: inherit; }
-  .pz-table.dk-pztable tbody tr.dk-tgroup .pz-kick { display: block; font-size: var(--s-cap); letter-spacing: .08em; opacity: .85; }
+  .pz-table.dk-pztable tbody tr.dk-tgroup .pz-kick { display: block; font-size: var(--s-cap); letter-spacing: var(--caps-ls); opacity: .85; }
   .pz-table.dk-pztable tbody tr.dk-tgroup + tr { border-top: 0; }
   .pz-table.dk-pztable tbody tr:not(.dk-tgroup):not(.dk-tnrow) th[scope="row"] { padding-block: .3em; }
   .pz-table.dk-pztable .dk-tnrow td { grid-column: 1 / -1; padding: 0 10px 8px; }
@@ -217,26 +215,26 @@
 .dk-settings svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .dk-settings > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.dk-pageno { letter-spacing: 0.09em; }
-.dk-page { animation: dk-fade var(--move) var(--ease) both; }
+.dk-pageno { letter-spacing: var(--caps-ls); }
+.dk-page { animation: dk-fade var(--d-card-in) var(--ease-arrive) both; }
 
 /* (The glass is one style in glass.css, for every panel, menu, pill and card.) */
 
 /* The level rail's block (2D presenter-cards.js railBlock: a rounded box in the danger colour, hatched at 45 degrees, round the blocked level's whole bar). 2D draws it as a GPU
    model; here it is one static background, so nothing is painted per frame. The rest of the rail is 2D's own stylesheet (css2d/app-04-presenter.css). */
-.pz-rail-blk { box-sizing: border-box; border: 1.2px solid color-mix(in srgb, var(--danger) 70%, transparent); border-radius: 6px;
+.pz-rail-blk { box-sizing: border-box; border: 1.2px solid color-mix(in srgb, var(--danger) 70%, transparent); border-radius: var(--r-control);
   background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--danger) 55%, transparent) 0 3.5px, color-mix(in srgb, var(--danger) 10%, transparent) 3.5px 7px); }
 
 /* A table row's note names its column (2D: the note column's head, "Choice"), as a small label before the words. */
 .dk-tnote .dk-tnh { margin-right: .5em; font-weight: 600; color: var(--text-3); }
 
 /* ── card zoom (2D card-zoom.js, app.css .pz-zscrim): the tapped card grows to the middle, the page dims a little, the figure's labels sit out ── */
-.deck-ui .pz-zveil { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--stage-bg) 20%, transparent); opacity: 0; pointer-events: none; cursor: zoom-out; transition: opacity var(--d-zoom-out, 440ms) var(--ease); }
-.deck-ui .pz-zveil.on { opacity: 1; pointer-events: auto; transition-duration: var(--d-zoom-in, 520ms); }
+.deck-ui .pz-zveil { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--stage-bg) 20%, transparent); opacity: 0; pointer-events: none; cursor: zoom-out; transition: opacity var(--d-zoom-out) var(--ease-arrive); }
+.deck-ui .pz-zveil.on { opacity: 1; pointer-events: auto; transition-duration: var(--d-zoom-in); }
 .deck-ui .dk-card[data-zoomable] { cursor: zoom-in; }
 body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
-body[data-card-zoom] .lb-layer:not(.lb-key-layer) { opacity: 0; transition: opacity 240ms var(--ease); }
-.lb-key-layer .lb-key { transition: opacity 240ms var(--ease); }
+body[data-card-zoom] .lb-layer:not(.lb-key-layer) { opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
+.lb-key-layer .lb-key { transition: opacity var(--d-small) var(--ease-arrive); }
 body[data-card-zoom] .lb-key-layer .lb-key { opacity: 0; }   /* (the key fades itself: its layer holds glass, deck-fade-blur.test.ts) */
 .dk-card { z-index: 2; }
 .dk-pos { z-index: 2; }
@@ -285,3 +283,11 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 /* A value's pill gives up its own padding beside punctuation (21 Nov): the pill's .45em side room read as a space, "2.2 g/dL ." and "( 59.4 kPa )". The stop (or bracket) sits at the pill's edge. */
 .pz-stop > :is(.pz-val, .pz-term) { padding-inline-end: .2em; margin-inline-end: .02em; }
 .pz-open > :is(.pz-val, .pz-term), .pz-open > .pz-nw > .pz-val { padding-inline-start: .2em; }
+
+/* Words that are "not yet" or "earlier" are dimmed by COLOUR, never by opacity (22 Nov, the Mac audit): the HVPG tracing's reading steps (FHVP, WHVP, HVPG and their 1 2 3 dots) stood at 55% opacity, 3.24:1 on the card;
+   the ghost reading beside a live one at 70%. Opacity thins the ink toward the paper, so no token could pass; a text token on its surface always does (--text-3 is 4.8:1 or more in every look,
+   tests/dimmed-words.test.ts). The ease is the colour's own. The step's ring and fill keep their own borders (they are not words). */
+:root .mon-steps li { opacity: 1; color: var(--text-3); transition: color var(--d-small) var(--ease); }
+:root .mon-steps li[data-state="done"] { color: var(--text-2); }
+:root .mon-steps li[data-state="now"] { color: var(--text); }
+:root .pz-ghost b { opacity: 1; color: var(--text-2); }

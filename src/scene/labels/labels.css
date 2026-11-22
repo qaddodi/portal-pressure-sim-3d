@@ -9,7 +9,7 @@
 .lb-key-layer { z-index: calc(var(--z-cards, 10) + 1); }   /* (over the cards: the key stands in the words card's foot; under the chrome: menus and sheets cover it) */
 /* The key's frost is the browser's backdrop blur, which sees nothing past an ancestor that fades or is promoted for opacity (a backdrop root). So the key's layer and wrap never fade or carry will-change: opacity;
    the key itself fades (tests/deck-fade-blur.test.ts). */
-.lb-key-layer .lb-key { transition: opacity 240ms var(--ease, ease); }
+.lb-key-layer .lb-key { transition: opacity var(--d-small) var(--ease-arrive); }
 body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0; }
 .lb, .lb-lead, .lb-anchor, .cm, .wb { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
 .lb-key-wrap { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform; }   /* (it holds the key's glass: no opacity promotion, see above) */
@@ -23,6 +23,9 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 /* (a strut stands the baseline where the 2D app writes it: --b from the top of the box, written with the size) */
 .lb::before { content: ""; align-self: baseline; display: block; width: 0; height: var(--b, 0px); }
 .lb > span { line-height: 1; -webkit-text-stroke: var(--lb-halo-w) var(--lb-halo); paint-order: stroke fill; stroke-linejoin: round; }
+.lb .lb-name:empty, .cl .cl-n:empty, .cl .cl-u:empty, .lb.cc .cc-key:empty { display: none; }   /* (an empty part takes no room: written as text, never as style.display) */
+/* a label's old look, crossing over to its new one (roll.ts restyle): drawn, never hit */
+.lb-was { pointer-events: none; }
 .lb .lb-name { min-width: 0; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
 .lb .lb-val { margin-left: var(--lb-g-val); position: relative; display: inline-block; font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
 .lb[data-form="2"] .lb-val { margin-left: 0; }
@@ -139,8 +142,8 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
   background: var(--glass); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   box-shadow: 0 14px 34px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6)), 0 2px 6px -1px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2));
   font: var(--lb-key-weight, 400) var(--lb-key-fs, 12px) / var(--lb-key-line, 1.25) var(--font-ui, Inter, system-ui, sans-serif); color: var(--text-2); }
-.lb-key-in { animation: lb-key-in 240ms var(--ease, ease) both; }
-.lb-key-out { position: absolute; left: 0; top: 0; pointer-events: none; animation: lb-key-out 240ms var(--ease, ease) both; }
+.lb-key-in { animation: lb-key-in var(--d-small) var(--ease-arrive) both; }
+.lb-key-out { position: absolute; left: 0; top: 0; pointer-events: none; animation: lb-key-out var(--d-small) var(--ease-arrive) both; }
 @keyframes lb-key-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lb-key-out { from { opacity: 1; } to { opacity: 0; } }
 .lb-key-twin { flex-wrap: nowrap; max-width: none; min-height: 0; }
@@ -188,12 +191,12 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 
 /* A step's leader (2D: a dot on the vessel the number names and a thin line to the chip; a group's number a line to each of its vessels). Moved by transform; the layer fades it with the number. */
 .cl-lead { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
-.cl-lead-line { position: absolute; left: 0; top: 0; width: 1px; height: 1.5px; margin-top: -0.75px; transform-origin: 0 50%; background: var(--text); will-change: transform; visibility: hidden; }
-.cl-lead-dot { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--text); will-change: transform; visibility: hidden; }
+.cl-lead-line { position: absolute; left: 0; top: 0; width: 1px; height: 1.5px; margin-top: -0.75px; transform-origin: 0 50%; background: var(--text); will-change: transform; }
+.cl-lead-dot { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--text); will-change: transform; }   /* (a leader or dot that is not wanted is scaled to 0, never visibility) */
 
 /* The stent's waist bracket (waist-bracket.ts): a flat bar and two ticks in the label ink with the labels' halo, laid by transform and opacity; it fades with the waist and leaves the same way (visibility waits for the fade). */
-.wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s linear var(--d-small, 200ms); }
-.wb[data-on] { transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s; }
+.wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
+.wb[data-on] { transition: opacity var(--d-small) var(--ease-arrive), visibility 0s; }
 .wb { --wb-w: 1px; --wb-a: 0.8; }
 /* a quiet dimension line: one hairline in the label ink, a soft halo (a blur, not a hard ring: the hard 1px ring read as a thick black bar with a white core on the dark look), fine end ticks the same weight */
 .wb-bar { width: 100px; height: var(--wb-w); margin-top: calc(var(--wb-w) / -2); background: var(--lb-val); filter: drop-shadow(0 0 1.5px var(--lb-halo)); border-radius: 0.5px; }
@@ -208,8 +211,8 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 /* the soft focus: the one glass (glass.css `.cl-glass`) with its numbers turned down: a light blur, a breath of the callout's colour, round; off with Settings > Blur effect and with reduced transparency */
 .lz-co-focus { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; will-change: transform; --glass-blur: 4px; --glass-sat: 1.05; --glass-tint: color-mix(in srgb, var(--co) 7%, transparent); }
 @media (prefers-reduced-transparency: reduce) { .lz-co-focus { display: none; } }
-.lz-co-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border: 4px solid var(--co); border-radius: 50%; will-change: transform; }
-.lz-co-line { position: absolute; left: 0; top: 0; width: 1px; height: 4px; margin-top: -2px; transform-origin: 0 50%; background: var(--co); will-change: transform; visibility: hidden; }
+.lz-co-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border: var(--co-w) solid var(--co); border-radius: 50%; will-change: transform; }
+.lz-co-line { position: absolute; left: 0; top: 0; width: 1px; height: var(--co-w); margin-top: calc(var(--co-w) / -2); transform-origin: 0 50%; background: var(--co); will-change: transform; }   /* (no leader: scaleX 0, never visibility) */
 .cl[data-fig="callout"] .cl-glass, .cl[data-fig="callout"] .cl-ring { display: none; }
 .cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 650; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl[data-fig="callout"][data-co="accent"] .cl-k { color: var(--accent); }

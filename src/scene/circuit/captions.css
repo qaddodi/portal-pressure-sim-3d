@@ -15,6 +15,6 @@
 
 /* a zone title that opens a card (the Liver's and the Heart's, as in 2D): the one caption that takes the pointer */
 .lb.cc-zone.cc-link { pointer-events: auto; cursor: pointer; }
-.lb.cc-zone.cc-link .lb-name { transition: color 240ms var(--ease, ease); }
+.lb.cc-zone.cc-link .lb-name { transition: color var(--d-small) var(--ease-arrive); }
 .lb.cc-zone.cc-link:hover .lb-name, .lb.cc-zone.cc-link:focus-visible .lb-name { color: var(--accent-ink, var(--accent)); }   /* (2D: the link lights in the accent) */
 .lb.cc-zone, .lb.cc-lane { transform-origin: 50% 50%; }

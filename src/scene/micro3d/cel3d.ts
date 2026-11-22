@@ -674,6 +674,25 @@ export class MicroMany {
 
 // ---- geometry ----------------------------------------------------------------------------------------------------------------------
 
+/** The slicing meter (L4, 21 Nov): every vertex a MeshBuilder writes counts one, and every vertex it copies into a geometry counts one more, so the work of a build step is a NUMBER, the same on every
+ *  machine. The micro views' builders yield when `STEP_WORK` has gone by (`Pacer`), and tests/micro-slices.test.ts judges every step of both builds by this meter, never by a clock. */
+export const meshWork = { n: 0 };
+/** What a build step may take before it yields (vertices written plus vertices copied). One whole step is this plus its one unsplittable unit (a course, a cell), so it stays under `STEP_WORK_CAP`. */
+export const STEP_WORK = 8_000;
+/** The pace a build step takes (STEP_WORK); tests set it to Infinity to build each section whole and compare the result with the sliced one. */
+export const pacing = { stepWork: STEP_WORK };
+/** What copying or turning one vertex costs against writing it (measured on the build: a write is about 16 times a copy). */
+export const COPY_W = 1 / 16;
+/** The cap tests hold every step of the micro views' builds to: the plan's 40 000 vertices. */
+export const STEP_WORK_CAP = 40_000;
+/** One generator's pace: `due()` is true once `STEP_WORK` of the meter has gone by since it last was (or since it was made), and starts the next step's count. `if (pace.due()) yield;` is a place a slice may end. */
+export class Pacer {
+  private mark = meshWork.n;
+  due(): boolean { if (meshWork.n - this.mark < pacing.stepWork) return false; this.mark = meshWork.n; return true; }
+  /** Starts a step now (after a yield that was not asked for by `due`). */
+  restart(): void { this.mark = meshWork.n; }
+}
+
 /** A growing indexed mesh: positions, normals, optional colours. */
 export class MeshBuilder {
   p: number[] = []; n: number[] = []; c: number[] = []; idx: number[] = [];
@@ -686,6 +705,7 @@ export class MeshBuilder {
     const l = Math.hypot(nx, ny, nz) || 1;
     this.p.push(x, y, z); this.n.push(nx / l, ny / l, nz / l);
     if (col) this.c.push(col[0]!, col[1]!, col[2]!);
+    meshWork.n++;
     return this.count - 1;
   }
   tri(a: number, b: number, c: number): void { this.idx.push(a, b, c); }
@@ -697,26 +717,37 @@ export class MeshBuilder {
   }
   build(into?: BufferGeometry): BufferGeometry {
     const g = into ?? new BufferGeometry();
-    this.orient();
+    for (const _ of this.buildSteps(g));
+    return g;
+  }
+  /** `build` in sections (each `yield` is a place a slice may end): the triangles are turned in chunks, then each attribute and the index are copied, one section each. Same result as `build`, byte for byte. */
+  *buildSteps(into?: BufferGeometry, pace: Pacer = new Pacer()): Generator<void, BufferGeometry> {
+    const g = into ?? new BufferGeometry();
+    for (const _ of this.orientSteps()) { if (pace.due()) yield; }
     const set = (name: string, arr: number[], k: number) => {
       const old = g.getAttribute(name) as BufferAttribute | undefined;
       if (old && old.array.length === arr.length) { (old.array as Float32Array).set(arr); old.needsUpdate = true; } else g.setAttribute(name, new BufferAttribute(new Float32Array(arr), k));
+      meshWork.n += COPY_W * arr.length / k;
     };
-    set('position', this.p, 3); set('normal', this.n, 3);
-    if (this.c.length) set('color', this.c, 3);
-    if (this.aux.length) set('aux', this.aux, 1);
-    if (this.aux2.length) set('aux2', this.aux2, 1);
+    const attrs: [string, number[], number][] = [['position', this.p, 3], ['normal', this.n, 3]];
+    if (this.c.length) attrs.push(['color', this.c, 3]);
+    if (this.aux.length) attrs.push(['aux', this.aux, 1]);
+    if (this.aux2.length) attrs.push(['aux2', this.aux2, 1]);
+    for (const [name, arr, k] of attrs) { set(name, arr, k); if (pace.due()) yield; }
     const ix = g.getIndex();
     if (ix && ix.array.length === this.idx.length) { (ix.array as Uint32Array).set(this.idx); ix.needsUpdate = true; } else g.setIndex(new BufferAttribute(new Uint32Array(this.idx), 1));
+    if (pace.due()) yield;
     g.computeBoundingSphere();
+    meshWork.n += COPY_W * this.count;
     return g;
   }
   /** Every triangle wound to face the way its vertices' normals do. A triangle wound against its normals is culled by its toon (front faces only) and drawn by its ink (back faces),
    *  so it shows as a hole of ink colour: the dark red cells (a lathe wound inside out) and the X across every hepatocyte (the top's fan folding where the inset ring crosses itself at a
    *  rounded corner), 20 Nov 2026. Turning each one here fixes every shape built, whatever builds it. */
-  private orient(): void {
+  private *orientSteps(): Generator<void> {
     const p = this.p, n = this.n, ix = this.idx;
     for (let t = 0; t + 2 < ix.length; t += 3) {
+      if (t % 3000 === 0) { meshWork.n += COPY_W * 1000 * 3; yield; }   // (a thousand triangles turned)
       const a = ix[t]! * 3, b = ix[t + 1]! * 3, c = ix[t + 2]! * 3;
       const e1x = p[b]! - p[a]!, e1y = p[b + 1]! - p[a + 1]!, e1z = p[b + 2]! - p[a + 2]!;
       const e2x = p[c]! - p[a]!, e2y = p[c + 1]! - p[a + 1]!, e2z = p[c + 2]! - p[a + 2]!;
