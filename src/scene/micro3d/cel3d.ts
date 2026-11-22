@@ -678,7 +678,7 @@ export class MicroMany {
  *  machine. The micro views' builders yield when `STEP_WORK` has gone by (`Pacer`), and tests/micro-slices.test.ts judges every step of both builds by this meter, never by a clock. */
 export const meshWork = { n: 0 };
 /** What a build step may take before it yields (vertices written plus vertices copied). One whole step is this plus its one unsplittable unit (a course, a cell), so it stays under `STEP_WORK_CAP`. */
-export const STEP_WORK = 8_000;
+export const STEP_WORK = 4_000;
 /** The pace a build step takes (STEP_WORK); tests set it to Infinity to build each section whole and compare the result with the sliced one. */
 export const pacing = { stepWork: STEP_WORK };
 /** What copying or turning one vertex costs against writing it (measured on the build: a write is about 16 times a copy). */

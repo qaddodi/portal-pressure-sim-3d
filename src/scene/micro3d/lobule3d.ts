@@ -150,6 +150,9 @@ export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Co
 }
 
 
+/** The key of the state the tiles are built for (the model's congestion and septal asks, in 32 steps). */
+const cellKeyOf = (g: { congU: number; septU: number }): string => { const q = (x: number): number => Math.round(clamp(x || 0, 0, 1) * 32); return `${q(g.congU)}|${q(g.septU)}`; };
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -159,6 +162,7 @@ export class Lobule3D {
   private cellKey = '';
   private cellLook = '';
   private cellGen: Generator<void> | null = null;
+  private cellPrime: Generator<void> | null = null;
   private cellNext: { cb: MeshBuilder; nb: MeshBuilder } | null = null;
   private cellTween: { from: Float32Array[]; to: Float32Array[]; t: number } | null = null;
   private cellAt = -1;
@@ -358,10 +362,9 @@ export class Lobule3D {
     if (hide) return changed;
     if (!shown) return changed;
     const look = f.look, c = f.cur;
-    const q = (x: number) => Math.round(clamp(x || 0, 0, 1) * 32);
     // The tiles are built for the state the model ASKS for, once, in small steps across frames, and eased between the two builds on the CPU (no rebuild per eased step: 388 cells a step, a stall each on a phone).
     // The first build, a look change, or a build that lands while the lobule is still dissolved (the zoom's far end) is laid at once.
-    const goal = f.goalState, ck = `${q(goal.congU)}|${q(goal.septU)}`, unseen = fs < 0.05;
+    const goal = f.goalState, ck = cellKeyOf(goal), unseen = fs < 0.05;
     if (look !== this.cellLook) { this.cellLook = look; this.cellKey = ck; this.cellGen = null; this.cellTween = null; this.buildCells(look, goal.congU, goal.septU); }
     else if (ck !== this.cellKey) { this.cellKey = ck; this.cellGen = this.cellSteps(look, goal.congU, goal.septU); }
     const cellsBusy = this.stepCells(unseen);
@@ -492,6 +495,21 @@ export class Lobule3D {
   }
 
   // ---- the tiles -----------------------------------------------------------------------------------------------------------------
+
+  /** The first cell build in steps (`primeCells`), so the idle priming of the lobule never lays every tile inside one slice: false while there is more, true once the tiles for the model's state stand (update() then finds
+   *  them built and builds nothing). */
+  primeCells(): boolean {
+    const look = this.flat.look, goal = this.flat.goalState;
+    if (look === this.cellLook) return true;
+    this.cellPrime ??= this.cellSteps(look, goal.congU, goal.septU);
+    if (!this.cellPrime.next().done) return false;
+    this.cellPrime = null;
+    const { cb, nb } = this.cellNext!; this.cellNext = null;
+    cb.build(this.cells.geometry); nb.build(this.nuclei.geometry);
+    this.cells.setTint([1, 1, 1]); this.nuclei.setTint([1, 1, 1]);
+    this.cellLook = look; this.cellKey = cellKeyOf(goal); this.cellGen = null; this.cellTween = null;
+    return true;
+  }
 
   /** Every hepatocyte as 2D paints it (lobule-paint.js paintLobule): its colour by zone and tone, zone 3's cells dead in congestion, the plates thickening and losing order in cirrhosis. */
   private buildCells(look: LookId, cu: number, sj: number): void {

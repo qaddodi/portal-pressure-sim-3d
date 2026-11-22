@@ -292,7 +292,7 @@ export class Sinusoid3D {
   private readonly rimKAlb = { value: 1 };
 
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden. */
-  update(on: boolean, rate = 1, force = false): boolean {
+  update(on: boolean, rate = 1, force = false, upTo = 9): boolean {
     const f = this.flat;
     const changed = on !== this.on;
     this.on = on;
@@ -318,12 +318,15 @@ export class Sinusoid3D {
     const key = shapeKey(S, f.geo.xk);
     if (key !== this.builtKey) { this.builtKey = key; this.tailKey = tailKey(S); this.buildTail(); this.kupT = Number.NaN; this.stepLife(true); this.gapKey = -1; }
     else if (tailKey(S) !== this.tailKey) { this.tailKey = tailKey(S); this.buildTail(); }
+    if (upTo < 2) return changed;   // (the idle priming does one piece a step, `upTo` 1..4: each piece is keyed, so the next call skips what is done and nothing is built twice)
     // (the colours are the palette's: the stellate cell's activation tints only the stellate cell, `colourHsc`; before, an activation different from the one the idle priming saw repainted the whole wall's
     //  per-vertex colours inside the first shown frame, 8 ms on a laptop, 100 ms and more on an iPhone)
     const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}`;
     if (lk !== this.lookKey) { this.lookKey = lk; this.hscKey = -1; this.colour(P); }
+    if (upTo < 3) return changed;
     const ak = q(S.act);
     if (ak !== this.hscKey) { this.hscKey = ak; this.colourHsc(P, S.act); }
+    if (upTo < 4) return changed;
     this.stepPores(S.por);
     this.stepLife();
     this.stepAlbumin();
@@ -628,12 +631,14 @@ export class Sinusoid3D {
       for (let k = 0; k < z.length; k++) dd[k] = c[k]! - z[k]!;
       p.geometry.setAttribute('dD', new Float32BufferAttribute(dd, 3));
       meshWork.n += COPY_W * z.length / 3;
+      yield;   // (a big part's own moves are several steps: its first, the second linear one below, then the anchored one)
       if (!second) {
         // (linear in H: one sample is the whole move)
         const dh = new Float32Array(z.length), a = samples[0]!, n = SHAPE_NODES[0]!;
         for (let k = 0; k < z.length; k++) dh[k] = (a[k]! - z[k]!) / n;
         p.geometry.setAttribute('dH', new Float32BufferAttribute(dh, 3));
         meshWork.n += COPY_W * z.length / 3;
+        yield;
         if (this.anchored.has(p)) {
           // (the x each vertex follows: its move at H = rest + 1 + RAMP x is its slope times 1 + RAMP times that x)
           const r = pR[i]!, ax = new Float32Array(z.length / 3);

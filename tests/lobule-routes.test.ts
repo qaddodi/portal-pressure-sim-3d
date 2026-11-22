@@ -1,7 +1,7 @@
 // The lobule's dust routes (lobule-routes.ts): every particle keeps one identity through the lobule's joints (Mohammad, 20 Nov: "also same streaks in lobule view please").
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lobuleRoutes, type LobuleRouteCourse } from '../src/scene/micro3d/lobule-routes.ts';
+import { lobuleRoutes, lobuleRoutesSteps, type LobuleRouteCourse } from '../src/scene/micro3d/lobule-routes.ts';
 
 // an inlet along y = 0 from x 0 to 4; two first sinusoids leave its left (y > 0) at x 1 and x 3, merge at (2, 2), and the merged one runs to (2, 4)
 const line = (a: [number, number], b: [number, number], n = 8): [number, number][] => Array.from({ length: n + 1 }, (_, i) => [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n]);
@@ -69,4 +69,15 @@ test('a bile canal ending on the side of a duct carries the duct\'s particles, s
   const len = 2.9;
   for (const s of g) assert.ok(Math.abs(s.A + s.B * len - 4) < 0.15, `at the join it is at the duct's place: ${s.A + s.B * len}`);
   for (const s of g) { const lo = s.c0 + s.c1 * s.y0, hi = s.c0 + s.c1 * s.y1; assert.ok(Math.min(lo, hi) >= 0.6 - 1e-9 && Math.max(lo, hi) <= 1 + 1e-9, 'a strip on the duct\'s left wall'); }
+});
+
+test('a family\'s side-joins are steps of their own: a bile tree of channels that end on the side of another yields inside the family, and the stepped result is the whole result', () => {
+  const bile: LobuleRouteCourse[] = [{ col: 0, kind: 'bile0', path: line([0, 0], [10, 0], 40), radius: 0.05 }];
+  for (let i = 0; i < 24; i++) { const x = 1 + i * 0.35, y = i % 2 ? 1.5 : -1.5; bile.push({ col: 1 + i, kind: 'bile1', path: line([x, y], [x, 0.01], 8), radius: 0.03 }); }
+  const g = lobuleRoutesSteps(bile, 0.01);
+  let yields = 0, r = g.next();
+  while (!r.done) { yields++; r = g.next(); }
+  assert.ok(yields >= 6, `the bile family alone gave ${yields} places to stop (the 24 side-joins, 4 at a time, and the family's end)`);
+  assert.deepEqual([...r.value], [...lobuleRoutes(bile, 0.01)]);
+  assert.ok(r.value.get(1)!.length >= 1 && r.value.get(1)![0]!.root === 0, 'a channel ending on the trunk\'s side carries the trunk\'s particles');
 });

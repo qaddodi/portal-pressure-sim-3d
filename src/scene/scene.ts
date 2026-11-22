@@ -226,6 +226,8 @@ export class CelScene {
   private microJob: QuietJob | null = null;
   private microPrimed = false;
   private microPrimed2 = false;
+  private primeSnapped = false;
+  private primeSinusAt = 0;
   onMicroBuilt: (() => void) | null = null;
   /** Called once the micro views are built AND primed: the page then sends every geometry no frame has drawn yet (the two views, the Circuit's tubes, skins and map) to the GPU, one per idle slice (materials/warm.ts GeometryUploader). */
   onMicroPrimed: (() => void) | null = null;
@@ -278,8 +280,15 @@ export class CelScene {
       if (!this.micro) { if (!this.microSinus) this.makeSinus(); else this.buildMicro(); }   // (one constructor a step)
       else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
       else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
-      else if (!this.microPrimed) { this.microPrimed = true; this.snapMicroToModel(); this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
-      else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
+      else if (!this.microPrimed) {   // (what the lobule's first shown frame would build: built now, hidden; the tiles in steps of their own, then the rest of the frame)
+        if (!this.primeSnapped) { this.primeSnapped = true; this.snapMicroToModel(); }
+        if (this.micro.lobule.primeCells()) { this.microPrimed = true; this.micro.lobule.update(true, 0, 0, 1, true); }
+      }
+      else if (!this.microPrimed2) {   // (the same for the sinusoid's tail, Kupffer cell, pores and colours: one keyed piece a step)
+        const up = ++this.primeSinusAt;
+        this.micro.sinus.update(true, 1, true, up);
+        if (up >= 4) this.microPrimed2 = true;
+      }
       if (this.microReady && this.microPrimed && this.microPrimed2) { this.microJob = null; this.moving = true; this.releaseDive(); this.onMicroPrimed?.(); return true; }
       return false;
     }

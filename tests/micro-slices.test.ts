@@ -104,3 +104,30 @@ test('with a weld plan laid in (the device\'s path), the lobule\'s steps stay in
   pacing.stepWork = Infinity;
   try { assert.equal(run().d, sliced.d); } finally { pacing.stepWork = STEP_WORK; }
 });
+
+test('the priming is steps of its own: the lobule\'s tiles in several, the sinusoid\'s tail a keyed piece a step, and the scene is primed once they end', () => {
+  const sc = new CelScene();
+  let tileSteps = 0, tailSteps = 0;
+  const cells = Lobule3D.prototype.primeCells, upd = Sinusoid3D.prototype.update;
+  Lobule3D.prototype.primeCells = function (this: InstanceType<typeof Lobule3D>) { const r = cells.call(this); if (!r) tileSteps++; return r; };
+  Sinusoid3D.prototype.update = function (this: InstanceType<typeof Sinusoid3D>, on: boolean, rate?: number, force?: boolean, upTo?: number) { if (upTo != null && upTo < 9) tailSteps++; return upd.call(this, on, rate, force, upTo); };
+  try {
+    let n = 0;
+    while (!(sc as unknown as { microStep(): boolean }).microStep()) if (++n > 20000) assert.fail('the priming never ended');
+  } finally { Lobule3D.prototype.primeCells = cells; Sinusoid3D.prototype.update = upd; }
+  assert.ok(tileSteps >= 5, `the tiles took ${tileSteps} steps (they were one)`);
+  assert.equal(tailSteps, 4, 'the sinusoid\'s tail: the tail, the colours, the stellate cell\'s, the rest');
+  assert.ok(sc.microPrimedNow);
+});
+
+test('the lobule\'s first cell build in steps is the one-shot build: the same tiles, and nothing left to build once it is done', () => {
+  type Tiles = { cells: { geometry: { getAttribute(n: string): { array: Float32Array } } }; flat: { look: string } };
+  const mk = (): InstanceType<typeof Lobule3D> => { const sc = new CelScene(); return new Lobule3D(sc.lobule, sc.shared, true); };
+  const tiles = (l: InstanceType<typeof Lobule3D>): string => { const a = (l as unknown as Tiles).cells.geometry.getAttribute('position').array; return createHash('sha1').update(Buffer.from(a.buffer, a.byteOffset, a.byteLength)).digest('hex'); };
+  const a = mk(); let steps = 0;
+  while (!a.primeCells()) steps++;
+  assert.ok(steps >= 5, `${steps} steps for the tiles`);
+  assert.equal(a.primeCells(), true, 'built: nothing more to do');
+  const b = mk(); b.buildForTest((b as unknown as Tiles).flat.look as never, 0, 0);
+  assert.equal(tiles(a), tiles(b));
+});
