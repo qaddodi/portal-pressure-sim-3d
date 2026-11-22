@@ -83,7 +83,7 @@ export const NET_GLOBALS: Readonly<Record<string, string>> = {
   toneColor: 'vec3[3]', tubeDark: 'float', inkColor: 'vec3', inkColorCirc: 'vec3', shadeK: 'float', light: 'vec3', bands: 'float', spec: 'float', time: 'float', projY: 'float', dpr: 'float',
   markDark: 'vec3', markLight: 'vec3', markRev: 'vec3', lensMix: 'float', lensTail: 'float', lensGradA: 'sampler2D', lensLaneA: 'sampler2D', lensGradB: 'sampler2D', lensLaneB: 'sampler2D',
   lensModeA: 'float', lensModeB: 'float', lensRawA: 'float', lensRawB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
-  handOld: 'float', wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
+  wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
   // the inspector's (VDBG), as the old program's
   dbgShade: 'float', dbgDust: 'float', dbgHeads: 'float', dbgInk: 'float', dbgTint: 'float', dbgCol: 'vec4',
 };
@@ -466,7 +466,6 @@ uniform vec3 light;
 uniform float bands;
 uniform float spec;
 uniform float time;
-uniform float handOld;   // the share of the OLD figure drawn now (net/flag.ts oldShare): the old tubes and skins come in by the screen pattern, this program draws the pixels they leave (TEMPORARY, flag.ts)
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -562,8 +561,6 @@ void main() {
   if (fadedOut()) discard;
   // a part with no map course fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve
   if (circStay < 0.999 && ${SCREEN_DITHER_GLSL} >= circStay) discard;
-  // the Circuit's hand-over to the old tubes (TEMPORARY, net/flag.ts): the old program keeps the pixels whose pattern value is below its share, so this one keeps the rest
-  if (handOld > 0.0 && ${SCREEN_DITHER_GLSL} < handOld) discard;
   // a junction region's fillet dissolves in the same pattern: it keeps the pixels whose pattern value is below its share
   if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;
   if (vFade < 0.004) discard;

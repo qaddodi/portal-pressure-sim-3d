@@ -126,7 +126,7 @@ export class NetFigure {
     for (const k of Object.keys(tpl)) if (k.startsWith('dbg')) u[k] = tpl[k]!;
     u.boneTex = { value: this.bones.texture() }; u.edgeTex = { value: this.state.texture() };
     u.sewnTex = { value: this.sewnTarget.texture }; u.sewnRows = { value: E };
-    u.toneColor = { value: this.toneColor }; u.handOld = { value: 0 }; u.ringSag = { value: NET_RING_SAG };
+    u.toneColor = { value: this.toneColor }; u.ringSag = { value: NET_RING_SAG };
     this.uniforms = u;
     this.refreshTones();
     const blankTex = blank(); this.textures.push(blankTex);
@@ -181,15 +181,6 @@ export class NetFigure {
     const changed = this.rows.sync();
     this.state.flush(); this.bones.flush();
     return changed;
-  }
-
-  /** The Circuit's hand-over (TEMPORARY, net/flag.ts): the share of the old figure drawn now; the network draws the pixels it leaves. Returns whether it changed. */
-  setOldShare(s: number): boolean {
-    const v = this.uniforms.handOld!;
-    if (v.value === s) return false;
-    v.value = s;
-    this.group.visible = s < 0.999;   // (the old figure holds the whole picture: the network's vertex stage is not run for nothing)
-    return true;
   }
 
   /** The passes that make the textures the vertex stage reads, once per DRAWN frame before the figure: the sewn hosts' live radii, then each region's live capsules. */

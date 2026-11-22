@@ -25,7 +25,7 @@ import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
-import { geomNet, oldShare } from './vessels/net/flag.ts';
+import { geomNet } from './vessels/net/flag.ts';
 import type { NetFigure } from './vessels/net/network-object.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -616,9 +616,6 @@ export class CelScene {
 
   // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
   private net: NetFigure | null = null;
-  /** the share of the OLD figure drawn now (net/flag.ts oldShare; TEMPORARY): 0 at the body's rest, 1 once the Circuit's change is a tenth in */
-  private netOld = 0;
-  private netHidden = false;
   /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw).
    *  Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
   private async mountNet(): Promise<void> {
@@ -642,22 +639,13 @@ export class CelScene {
       template: () => vo(NETWORK[0]!.id)!.toon.uniforms, tones: () => [first('portal'), first('sys'), first('artery')],
     }, behind);
     this.body.add(this.net.group);
+    for (const o of this.vessels) (o as VesselObject).setNetHidden(true);   // (the tubes hold the state and the picking; the network draws them)
     this.stepNet();
     this.pushFades();
     this.moving = true; clock.invalidate('net');
   }
-  /** One frame of the network figure: the Circuit's hand-over share (TEMPORARY), then the rows from the vessels' state. */
-  private stepNet(): boolean {
-    const n = this.net;
-    if (!n) return false;
-    const share = oldShare(this.circuit.t);
-    let moving = false;
-    if (share !== this.netOld) { this.netOld = share; this.pushFades(); moving = true; }
-    if (n.setOldShare(share)) moving = true;
-    const hide = share <= 0;   // (the tubes are not drawn at all while the network holds the whole picture)
-    if (hide !== this.netHidden || moving) { this.netHidden = hide; for (const o of this.vessels) (o as VesselObject).setNetHidden(hide); }
-    return n.sync() || moving;
-  }
+  /** One frame of the network figure: the rows from the vessels' state. */
+  private stepNet(): boolean { return this.net ? this.net.sync() : false; }
   /** The network figure now drawn (null without ?geom=net, or while it loads): for the tests and the debug page. */
   get netFigure(): NetFigure | null { return this.net; }
 
@@ -1106,12 +1094,12 @@ export class CelScene {
   }
   /** What an object's `fade` is: ONE value composed of everything that dissolves it (before, the dive's dissolve and the Circuit's change both wrote the uniform and the last writer won): the dive's
    *  dissolve of the body, the Circuit's change for what leaves with the organs (1 - t), and a conditional tributary group's own `live`. (A fan's Circuit fade, 2D's 1 - 2 * T0, is the vertex shader's.) */
-  private composeFade(o: CelObject, withHandOver = true): number {
+  private composeFade(o: CelObject, forOld = true): number {
     let f = this.fadeNow;
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
-    if (withHandOver && this.net && this.byEdge.get(o.edge?.id ?? '') === o) f = Math.min(f, this.netOld);   // (?geom=net, TEMPORARY: the old tubes and skins come in by the screen pattern over the Circuit's first tenth, net/flag.ts)
+    if (forOld && this.net && this.byEdge.get(o.edge?.id ?? '') === o) f = 0;   // (?geom=net: the old tubes and the skins that follow their fade are not drawn: the network draws them)
     return f;
   }
   /**
