@@ -24,6 +24,7 @@ import { UPDATE_TOAST } from './pwa/register.ts';
 import { reloadKeepingState } from './boot/reload.ts';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { holdSplash } from './boot/ready.ts';
+import { stamp } from './boot/timeline.ts';
 import { bakedReady } from './scene/vessels/skin/baked.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
@@ -110,6 +111,7 @@ async function start() {
   const eng = useEngine.getState();
   if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
   if (DEBUG && isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
+  stamp('engine');
   holdSplash();   // the splash stays until the figure has drawn and its labels are placed (boot/ready.ts), then eases away over the app
   createRoot(document.getElementById('root')!).render(<StrictMode><AppBoundary layer="root"><App /></AppBoundary></StrictMode>);
   if (DEBUG && isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));

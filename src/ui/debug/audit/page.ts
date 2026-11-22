@@ -1,5 +1,6 @@
 // ?audit, the page: the panel (Run, Stop, Copy, Copy JSON) on the app itself, for `?audit=here` (this screen) and for `?audit=run` (the app inside a frame, which starts at once and posts
 // its progress and its result to the outer page, outer.ts). Loaded only when the address asks (debug/mount.ts); nothing runs until a button, or the frame's start.
+import { bootDigest } from '../../../boot/digest.ts';
 import { runAudit } from './run.ts';
 import { plan, planTotal, startTaps, settle, QUIET_MS } from './app.ts';
 import { pace } from './progress.ts';
@@ -40,8 +41,8 @@ export async function runHere(depth: 'quick' | 'full', ui: { status(s: string): 
   try {
     const data = await runAudit(plan(depth, (s) => notes.push(s), (c) => coverage.push(c), (p) => sequenceProofs.push(p)), {
       size, mark: () => taps.mark(), settle, read: (t0) => taps.read(t0), now: () => clock.now(), quietMs: QUIET_MS,
-    }, { depth, notes, coverage, sequence: sequenceProofs, onPartial: (d) => ui.partial?.({ ...d, build: buildInfo().badge, speed: speed > 1 ? speed : undefined }), shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`, total); } });
-    return { ...data, build: buildInfo().badge, speed: speed > 1 ? speed : undefined };
+    }, { depth, notes, coverage, sequence: sequenceProofs, onPartial: (d) => ui.partial?.({ ...d, build: buildInfo().badge, speed: speed > 1 ? speed : undefined, boot: bootDigest() }), shouldStop: ui.stop, onStep: (n, row) => { ui.status(`${size.id}: step ${n}: ${row.group} > ${row.label}`); ui.step?.(n, `${row.group} > ${row.label}`, total); } });
+    return { ...data, build: buildInfo().badge, speed: speed > 1 ? speed : undefined, boot: bootDigest() };
   } finally { taps.stop(); clock.setScale(1); if (glassOff) document.documentElement.removeAttribute('data-noglass'); }
 }
 

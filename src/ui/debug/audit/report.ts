@@ -6,6 +6,7 @@ import { CHECKS, GAPS } from './scan-judge.ts';
 import { FRAME_LIMITED_KINDS, FRAME_LIMIT_SPEED } from './speed.ts';
 import { memoryClimb, LEAK_BASELINE_STEPS } from '../../../clock/render-stats.ts';
 import type { SequenceProof } from './sequence.ts';
+import { bootLines, type BootDigest } from '../../../boot/boot-lines.ts';
 
 export interface AuditSize { id: string; w: number; h: number; dpr: number }
 /** What the renderer and the clock saw during a step (code review 21 Nov #4 #5 #6): the last frame's draw calls and triangles, the live programs, geometries and textures (`gl.info`), the junction-skin rebuilds that ran,
@@ -44,6 +45,8 @@ export interface AuditData {
   sequence?: SequenceProof[];
   /** the page's clock speed for the run (`?audit&speed=N`), absent at 1 */
   speed?: number;
+  /** the start of the page and what ran after the lift (boot/digest.ts): the boot timeline, programs built late, long tasks, the background slots */
+  boot?: BootDigest;
 }
 export interface Bundle {
   build: string; /** the exact deployment commit the run was served from */ sha?: string; device: string; at: string; depth: 'quick' | 'full'; framed: boolean;
@@ -171,6 +174,8 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   else if (!lg.length) L.push('none: every step stayed at or above 30 fps with no gap over 100 ms');
   else for (const l of lg.slice(0, o.short ? 15 : 40)) L.push(`${l.serious ? 'SERIOUS LAG: ' : ''}${l.fps != null ? `${l.fps} fps` : 'fps n/a'}, worst gap ${l.worstGap} ms, ${l.stalls} stall${l.stalls === 1 ? '' : 's'}  ${l.where}\n    ${l.transition}; ${l.cause}`);
   if (lg.length > (o.short ? 15 : 40)) L.push(`and ${lg.length - (o.short ? 15 : 40)} more (all in the JSON rows)`);
+  // (what a stall was made of, named on the device: a program built after the splash lifted, a long task and who ran it; zero late programs is the rule)
+  for (const p of b.parts) if (p.boot) { L.push(`LATE WORK ${p.size.id} (programs built after the splash lifted, long tasks, the boot timeline):`); for (const l of bootLines(p.boot)) L.push(`  ${l}`); }
   L.push('');
   if (kinds.size) L.push(`FINDINGS BY KIND: ${[...kinds].sort((a, b2) => b2[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   if (b.parallel) L.push(`PARALLEL RUN: the frames shared this computer, so every frame rate, stall and settle time below is NOT valid, and ${rows.reduce((n, { r }) => n + r.flags.filter((f) => TIMING_KINDS.has(f.kind)).length, 0)} timing findings (stall, low-fps, slow-load, fade-slow, unsettled) are left out. Layout, snaps, coverage and console errors are valid.`);
