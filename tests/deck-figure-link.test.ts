@@ -13,7 +13,7 @@ import { anchorPoint, placeCards, toneOf } from '../src/scene/labels/figure-card
 import { STATIONS, TERM_STATIONS, stationsOfTerms } from '../src/scene/labels/stations.ts';
 import { ORGAN_STYLE } from '../src/scene/organs/layer.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
-import { TARGETS_FIG, SETS_FIG } from '../src/scene/labels/figure2d.copied.ts';
+import { TARGETS_FIG, SETS_FIG, SITE_NODE_2D } from '../src/scene/labels/figure2d.copied.ts';
 import { missingStations, missingTerms } from '../src/decks/hp/hooks.ts';
 
 const decks: CopiedDeck[] = [];
@@ -71,7 +71,7 @@ test('each field lands as scene calls: the ones that draw something draw it, the
     if (has(s, 'sites')) {
       bump('sites');
       for (const k of s.sites as string[]) {
-        const shown = c.cards.some((x) => x.id === `site:${k}`) || c.res.some((r) => r === k) || p.labels.length > 0;
+        const shown = c.cards.some((x) => x.id === `site:${k}`) || c.res.some((r) => r === k) || (!!SITE_NODE_2D[k] && p.labels.includes(SITE_NODE_2D[k]!));
         assert.ok(shown, `${id}: site ${k} shows nowhere`);
       }
     }
@@ -127,14 +127,22 @@ test('a mark with a live word carries the reading; a clot mark follows the clot;
   assert.equal(figureCalls(figurePlan(clot), { ...reads, params: { thrombus: { PV_TRUNK: 0 } } }).cards.length, 0);
 });
 
-test('the sites: a reading on a station, the portal blood split, the resistors go to the Circuit; a station the label names is not called out twice', () => {
-  const s = { id: 's', line: '', sites: ['pv', 'ra', 'split', 'rLiver'], labels: ['RA'] } as unknown as CopiedSlide;
+test('the sites: a reading on a station is that station\'s label, never a bubble; the portal blood split is a card, the resistors go to the Circuit', () => {
+  const s = { id: 's', line: '', sites: ['pv', 'ivc', 'ra', 'split', 'rLiver'] } as unknown as CopiedSlide;
   const p = figurePlan(s), c = figureCalls(p, reads);
-  assert.deepEqual(p.sites.sort(), ['pv', 'rLiver', 'split']);
-  assert.ok(c.cards.some((k) => k.id === 'site:pv' && k.value === '12.3'));
+  assert.deepEqual(p.sites.sort(), ['rLiver', 'split']);
+  assert.deepEqual(['CONF', 'IVCS', 'RA'].filter((n) => !p.labels.includes(n)), [], 'each site on a station names that station\'s label');
+  assert.ok(p.tones.IVCS && p.tones.CONF && p.tones.RA, 'and lends it its colour');
+  assert.ok(!c.cards.some((k) => k.kind === 'site'), 'no site bubble');
   assert.ok(c.cards.some((k) => k.kind === 'split' && k.split!.shunt === 30 && k.split!.liver === 70));
-  assert.ok(!c.cards.some((k) => k.id === 'site:ra'));
   assert.deepEqual(c.res, ['rLiver']);
+});
+
+test('no slide of any deck stands a site bubble on a station', () => {
+  for (const { id, s } of slides) {
+    const c = figureCalls(figurePlan(s), reads);
+    assert.deepEqual(c.cards.filter((k) => k.kind === 'site').map((k) => `${id}:${k.id}`), [], `${id}: a site on a station is a label`);
+  }
 });
 
 test('the calipers: the spleen along its axis, a varix across its vessel, a stent by its set diameter', () => {

@@ -69,9 +69,10 @@ test('the content under the ring is softly blurred by the app\'s one glass, ease
   assert.match(css, /reduced-transparency: reduce\) \{ \.lz-co-focus \{ display: none/, 'no solid disc under reduced transparency');
 });
 
-test('a mark on a vessel or an organ is 2D\'s solid pill in its colour', () => {
+test('a mark on a vessel or an organ is a coloured label with a leader, never a solid pill', () => {
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
-  assert.match(css, /data-fig="mark"\]\[data-tone="danger"\] \.cl-glass[^{]*\{ background: var\(--cl-danger\) !important/);
+  assert.doesNotMatch(css, /data-fig="mark"\]\[data-tone="danger"\] \.cl-glass[^{]*\{ background: var\(--cl-danger\) !important/);
+  assert.match(css, /\.cl\[data-fig="mark"\] \.cl-glass, \.cl\[data-fig="mark"\] \.cl-ring \{ display: none/);
 });
 
 test('the ring and the leader only move by transform and fade by opacity', () => {

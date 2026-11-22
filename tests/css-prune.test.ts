@@ -21,3 +21,16 @@ test('prune removes only the rules that need a class nobody makes', () => {
   assert.doesNotMatch(out, /dead-three/); assert.doesNotMatch(out, /@media/, 'an emptied media block goes');
   assert.match(out, /@keyframes k/); assert.match(out, /body\{j:10\}/);
 });
+
+// The prune once looked for `index-*.css` and silently stopped when the entry became `main-*.css` (22 Nov): the finder takes every stylesheet, whatever its name, and says so when there is none.
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { builtStylesheets } from '../scripts/css-unused.mjs';
+
+test('the stylesheet finder takes every built .css whatever the entry is called, and throws on none', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'css-'));
+  assert.throws(() => builtStylesheets(dir), /no stylesheet/);
+  for (const n of ['main-AbC123.css', 'params-x9.css', 'main-AbC123.js']) writeFileSync(join(dir, n), '');
+  assert.deepEqual(builtStylesheets(dir).map((f) => f.split('/').pop()), ['main-AbC123.css', 'params-x9.css']);
+});

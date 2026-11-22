@@ -10,7 +10,7 @@
 //   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
 import { IVC_EDGES } from './paths.copied.ts';
 import { TIER_Z } from '../frame2d.ts';
-import { NETWORK, RUN_ONS, type NetVessel } from './network.ts';
+import { NETWORK, RUN_ONS, sameSegment, type NetVessel } from './network.ts';
 
 /** A node the cava runs into, and its depth: the cava's own, so it runs level into the atrium and a tilted view shows no S (Mohammad, 20 Nov: "move the RA to the same plane as the IVC"; the atrium's mesh is moved to this plane by ORGAN_Z['heart-ra']). */
 export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z: TIER_Z.back }]]);
@@ -65,7 +65,8 @@ function build(): ReadonlyMap<string, SmoothEnds> {
     // strands it feeds (Mohammad, 20 Nov: "this junction should be smooth. I thought you smoothened every junction"). Only the live width and the cap: a collateral keeps its own end radius (shape.ts narrowTo, the strands' own taper), so
     // no `taper`, no funnel here.
     if (isCollateral(a.v) || isCollateral(b.v)) {
-      if (isCollateral(a.v) && isCollateral(b.v)) return;
+      // (two collaterals are one vessel when the engine's route is: the coronary vein and the varices' drain to the azygos, one segment: network.ts SEGMENT_OF. Any other two are branches of a node and meet as before)
+      if (isCollateral(a.v) && isCollateral(b.v) && !sameSegment(a.v.id, b.v.id)) return;
       taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
       const da = outward(a.v, a.end), db = outward(b.v, b.end);
       const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;

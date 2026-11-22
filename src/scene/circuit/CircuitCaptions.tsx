@@ -28,6 +28,7 @@ import { COURSES } from './course.ts';
 import { type CapMeta, ZONE_PX, buildCaptions } from './captions.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
+import { laneCourseOf, laneKeyOf } from './segment-lane.ts';
 import { halfWidthOfVessel, halfWidthPx } from './cap-width.ts';
 import { readUiWalls } from './ui-walls.ts';
 import { resSig, resText } from './res-model.ts';
@@ -122,7 +123,7 @@ export function CircuitCaptions() {
       const zoom = cel.handZoom;
       const upright = cel.circuit.upright;
       const free = rectToBox(boxes.free), room = view();   // (the words stand in the screen's room, kept off the cards by the blockers: `boxes.free` is empty in free play and is the cards' leftovers otherwise, it must not clip a tier's title or a lane's caption)
-      const laneOf = (id: string): readonly (readonly [number, number])[] | null => COURSES.get(id)?.mapPts ?? (CIRCUIT_D[id] ? courseOf(CIRCUIT_D[id]!) : null);
+      const laneOf = laneCourseOf;   // (a segment is one lane: its caption and its resistor run along the whole of it)
       // the vessels' centrelines on the canvas, for the soft cost of standing on one (and, by vessel, for a lane's caption to stand clear of every other)
       const lines: [number, number, number, number, number][] = [];   // (the fifth: half the width it is drawn at, so a name keeps off the tube's edge and not only its middle)
       const owned: { id: string; s: [number, number, number, number]; w: number }[] = [];
@@ -133,7 +134,7 @@ export function CircuitCaptions() {
         let px = NaN, py = NaN;
         for (let i = 0; i < p.length; i += Math.max(1, Math.floor(p.length / 24))) {
           cel.mapPoint(p[i]![0], p[i]![1], tmp);
-          if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y, hw]); owned.push({ id, s: [px, py, tmp.x, tmp.y], w: hw }); }
+          if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y, hw]); owned.push({ id: laneKeyOf(id), s: [px, py, tmp.x, tmp.y], w: hw }); }
           px = tmp.x; py = tmp.y;
         }
       }

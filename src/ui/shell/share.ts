@@ -38,15 +38,15 @@ export interface ShareDeps {
   openSheet?(sheet: string): void;
 }
 
-/** 2D: src/ui/share-flow.js (its toasts, word for word) */
+/** 2D: src/ui/share-flow.js (its toasts; rewritten in the app's voice 22 Nov, tests/voice.test.ts) */
 export const SHARE_WORDS = {
-  copied: 'Link to this exact scenario copied.',
-  loaded: 'Loaded the shared scenario.',
-  unread: 'This shared link could not be read, so the healthy patient opened.',
-  unreadOpen: 'This shared link could not be read.',
-  missing: (id: string) => `This link names a patient the app does not have (“${id}”), so its settings opened on the healthy patient.`,
-  fromYours: 'This link comes from a patient made from readings, which is saved on the sender’s device only, so its settings opened on the healthy patient.',
-  clamped: (fields: string) => `This link had values the model does not accept${fields ? ` (${fields})` : ''}; they were set to the nearest allowed value or the default.`,
+  copied: 'Link copied. It opens this exact scenario.',
+  loaded: 'Here’s the shared scenario.',
+  unread: 'This link didn’t open, so you’re on the healthy patient.',
+  unreadOpen: 'This link didn’t open.',
+  missing: (id: string) => `This link asks for a patient this version doesn’t have (“${id}”). Its settings are shown on the healthy patient.`,
+  fromYours: 'This link was made from someone’s own readings, which stay on their device. You’re seeing its settings on the healthy patient.',
+  clamped: (fields: string) => `A few values in this link were out of range${fields ? ` (${fields})` : ''}, so they’ve been set to the nearest allowed value.`,
 } as const;
 
 const EDGE_IDS = new Set((EDGES as { id: string }[]).map((e) => e.id));
@@ -107,7 +107,7 @@ export async function loadShared(s: Shared, d: ShareDeps, { quiet = false } = {}
   if (!(await d.loadPatient(s.preset))) return false;
   let clamped = false, repaired = '';
   const missing = s.missing ? SHARE_WORDS.missing(s.missing) : '';
-  if (s.fromYours) d.say(SHARE_WORDS.fromYours, 'bad');
+  if (s.fromYours) d.say(SHARE_WORDS.fromYours);
   if (s.params) {
     const merged = deepMerge(d.currentParams(), s.params);
     const { params: clean, repairs } = sanitizeParamsReport(merged) as { params: unknown; repairs: { path?: string }[] };
@@ -120,8 +120,8 @@ export async function loadShared(s: Shared, d: ShareDeps, { quiet = false } = {}
   if (s.sel) d.select(s.sel);
   if (s.cam) d.setCamera(s.cam);
   if (s.fig?.sheet) d.openSheet?.(s.fig.sheet);
-  if (clamped) d.say(missing || SHARE_WORDS.clamped(repaired), missing ? 'bad' : 'info');
-  else if (missing) d.say(missing, 'bad');
+  if (clamped) d.say(missing || SHARE_WORDS.clamped(repaired));   // (a note that explains what the app chose to do is not a failure: the normal dot, never red)
+  else if (missing) d.say(missing);
   else if (!quiet && !s.fromYours) d.say(SHARE_WORDS.loaded);
   return true;
 }
