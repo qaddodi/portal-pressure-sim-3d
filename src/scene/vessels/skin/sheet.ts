@@ -21,7 +21,7 @@ export interface Sheet { pos: number[]; tris: number[] }
  * The sheet of a junction: `pos` the seam rings' vertices first (arm * n + j, as given), then the surface's own; `tris` outward triangles, closed except along the seam rings' edges (each of which is on exactly one triangle).
  * Throws `SkinBuildError` when the surface is not one clean piece per seam (an arm whose cut leaves no loop, two loops, a loop that touches itself, an edge on three faces).
  */
-export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seamRings: readonly Float32Array[], J: V3, anchors?: readonly V3[]): Sheet {
+export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seamRings: readonly Float32Array[], J: V3, anchors?: readonly V3[], maxCells: number = SHEET_MAX_CELLS): Sheet {
   const A = seamRings.length, n = seamRings[0]!.length / 3;
   // each seam: the ring's centre, mean radius, and the plane normal turned away from J
   const cen: V3[] = [], nor: V3[] = [], rad: number[] = [];
@@ -48,7 +48,7 @@ export function sdfSheet(node: string, caps: readonly Capsule[], k: number, seam
   for (let d = 0; d < 3; d++) { lo[d]! -= pad; hi[d]! += pad; }
   let h = SHEET_CELL * Rmin;
   const cells = () => Math.ceil((hi[0]! - lo[0]!) / h) * Math.ceil((hi[1]! - lo[1]!) / h) * Math.ceil((hi[2]! - lo[2]!) / h);
-  while (cells() > SHEET_MAX_CELLS) h *= 1.15;
+  while (cells() > maxCells) h *= 1.15;
   const nx = Math.ceil((hi[0]! - lo[0]!) / h), ny = Math.ceil((hi[1]! - lo[1]!) / h), nz = Math.ceil((hi[2]! - lo[2]!) / h);
   const sx = nx + 1, sy = ny + 1, plane = sx * sy;
   const sd = new Float32Array(sx * sy * (nz + 1));

@@ -37,6 +37,8 @@ export interface SkinJunction {
   surface?: boolean;
   /** the arm limit when more than `MAX_SKIN_ARMS` (6) are wanted: the network mesher's busiest cluster (net/mesh.ts, 8). Absent: 6, as ever. */
   maxArms?: number;
+  /** the sampling grid's cell budget when a larger region than the usual needs a finer one (sheet.ts SHEET_MAX_CELLS by default): the network mesher's merged clusters */
+  maxCells?: number;
 }
 
 /** Where an arm's tube hands over to the skin. */

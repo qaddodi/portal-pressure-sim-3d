@@ -190,7 +190,7 @@ test('the baked file round-trips a mesh bit for bit, and its digest follows the 
   const fx = fixtures().find((f) => f.name === 'FOUR')!, m = buildNetMesh(fx.skel).mesh, digest = skeletonDigest(fx.skel);
   const back = decodeNet(encodeNet(m, digest))!;
   assert.equal(back.digest, digest);
-  for (const k of ['position', 'bone', 'weight', 'offset', 'index'] as const) assert.deepEqual(Array.from(back.mesh[k]), Array.from(m[k]), k);
+  for (const k of ['position', 'bone', 'weight', 'offset', 'normal', 'offsetMap', 'index'] as const) assert.deepEqual(Array.from(back.mesh[k]), Array.from(m[k]), k);
   assert.equal(decodeNet(new ArrayBuffer(32)), null);
   const moved = fixtures().find((f) => f.name === 'FOUR')!.skel;
   moved.bones[3]!.pos[0] = [9, 9, 9];
