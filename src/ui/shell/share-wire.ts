@@ -9,9 +9,20 @@ import { currentParams, updateParams } from '../action/params.ts';
 import { selectStructure, useSelection } from '../action/selection.ts';
 import { loadPatient } from '../patients/index.ts';
 import { goToView } from './view-actions.ts';
-import { hasShare, loadShared, readShare, shareUrl, SHARE_WORDS, type ShareDeps, type ShareNow } from './share.ts';
+import { hasShare, loadShared, readShare, shareUrl, SHARE_WORDS, type ShareDeps, type ShareNow, type FigureExtras } from './share.ts';
 import type { Cam } from '../debug/packet/state.ts';
+import { applyExtras } from './share-apply.ts';
+import { useLens } from '../../scene/lenses/store.ts';
+import { DEFAULT_LENS } from '../../scene/lenses/model.ts';
 
+import { clock } from '../../clock/frame.ts';
+/** What the figure wears beyond its view (N4): the lens when it is not the default, the label level and the figure's switches. */
+function figureNow(): FigureExtras {
+  const f = useShell.getState().figure as unknown as Record<string, unknown>, lens = useLens.getState().lens;
+  const flags: Record<string, boolean> = {};
+  for (const k of ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile']) if (typeof f[k] === 'boolean') flags[k] = f[k] as boolean;
+  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...(typeof f.labelLevel === 'string' ? { labels: f.labelLevel } : {}), figure: flags };
+}
 /** The scenario on the screen now. The camera rides only when the hand has moved it (a view frames itself). */
 export function shareNow(): ShareNow {
   const sh = useShell.getState(), hand = cel.rig.handView, orbit = Math.round(((cel.rig.orbitAngle * 180) / Math.PI) * 10) / 10;
@@ -21,6 +32,7 @@ export function shareNow(): ShareNow {
     preset: useEngine.getState().presetId ?? sh.patientId, params: currentParams(), view: sh.view, sel: useSelection.getState().sel,
     cam: moved ? { orbit, k: hand.k, x: hand.x, y: hand.y } : null,
     deck: deckId ? { id: deckId, slide: useUi.getState().pos.stop + 1 } : null,
+    fig: figureNow(),
   };
 }
 /** The address that reopens what is on the screen (2D share(): the page's own path and `#s=`; in a talk, the talk and its slide). */
@@ -32,9 +44,9 @@ function cameraWhenLanded(cam: Cam): void {
   const gen = ++camGen, t0 = Date.now();
   const put = () => sceneApi.setCameraView({ orbit: (cam.orbit * Math.PI) / 180, k: cam.k, x: cam.x, y: cam.y });
   const ready = () => sceneApi.placed && !sceneApi.cameraMoving;
-  const t = setInterval(() => {
-    if (gen !== camGen) { clearInterval(t); return; }
-    if (ready() || Date.now() - t0 > 20000) { clearInterval(t); put(); }
+  const t = clock.every(() => {
+    if (gen !== camGen) { clock.cancel(t); return; }
+    if (ready() || Date.now() - t0 > 20000) { clock.cancel(t); put(); }
   }, 150);
 }
 
@@ -47,6 +59,7 @@ const deps: ShareDeps = {
   select: (sel) => selectStructure(sel),
   setCamera: cameraWhenLanded,
   say: (text, tone) => useShell.getState().say(text, tone),
+  setFigure: (fig) => { applyExtras(fig); },
 };
 const presetIds = () => UI.presets.map((p) => p.id);
 

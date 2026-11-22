@@ -23,11 +23,11 @@ const toggleFull = () => {
 /** The clicker's keys (clicker.ts decides; this carries it out). While a sheet, a menu or a dialog is open its own keys win (Esc closes it first). */
 export function useDeckInput() {
   useEffect(() => {
-    let digits = '', timer: ReturnType<typeof setTimeout> | undefined;
+    let digits = '', timer: TimerId | undefined;
     // the laser is the talk's own: made with it, kept from slide to slide, put away under the black screen and when the talk ends (2D ink-gl.js: active() is "a talk, not blacked")
     const laser = createLaser({ active: () => { const u = useUi.getState(); return !!u.deck && !u.black; } });
     const offPos = useUi.subscribe((st, prev) => { if (st.black && !prev.black) laser.set(false); });
-    const clear = () => { digits = ''; clearTimeout(timer); };
+    const clear = () => { digits = ''; clock.cancel(timer); };
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Tab') keyboardNav = true;
       const ui = useUi.getState(), sh = useShell.getState();
@@ -43,7 +43,7 @@ export function useDeckInput() {
       });
       if (!a) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      carryOut(a, ui, sh, laser, { digits: () => digits, set: (d) => { digits = d; clearTimeout(timer); if (d) timer = setTimeout(clear, DIGIT_MS); }, clear });
+      carryOut(a, ui, sh, laser, { digits: () => digits, set: (d) => { digits = d; clock.cancel(timer); if (d) timer = clock.after(clear, DIGIT_MS); }, clear });
     };
     const mouse = () => { keyboardNav = false; };
     window.addEventListener('keydown', down, true);
@@ -53,6 +53,7 @@ export function useDeckInput() {
 }
 
 import { useDialogs } from './dialogs.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 const useDialogOpen = () => !!useDialogs.getState().dialog;
 
 function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: ReturnType<typeof useShell.getState>, laser: Laser, d: { digits(): string; set(v: string): void; clear(): void }): void {

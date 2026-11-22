@@ -11,6 +11,7 @@ import { releaseSpeed, carryCurve, cssCurve, D_SMALL } from '../copied/ease.copi
 import { follow, glide, type Glide } from '../../menu/motion.ts';
 import type { PaneId } from '../panes.ts';
 
+import { clock } from '../../../clock/frame.ts';
 const owns = ownsSideways as unknown as (el: EventTarget | null, o: { stop: Element; scrollers: boolean }) => boolean;
 
 export interface SwipeApi {
@@ -47,12 +48,12 @@ export function attachSwipe(body: HTMLElement, width: () => number, api: SwipeAp
   let easing: { el: HTMLElement; from: number; to: number; t0: number; f: (k: number) => number } | null = null;
   let runs: Glide[] = [];
   // (Where a pane still easing from the last swipe is drawn, worked out from that ease rather than read back from the page.)
-  const shiftX = (el: HTMLElement) => { const e = easing; if (!e || e.el !== el) return 0; const k = Math.min(1, (performance.now() - e.t0) / D_SMALL); return e.from + (e.to - e.from) * e.f(k); };
+  const shiftX = (el: HTMLElement) => { const e = easing; if (!e || e.el !== el) return 0; const k = Math.min(1, (clock.now() - e.t0) / D_SMALL); return e.from + (e.to - e.from) * e.f(k); };
 
   const onStart = (e: TouchEvent) => {
     // (A second swipe before the first has settled finishes the first once it moves, not on the touch: a tap leaves the panes easing.)
     sw = e.touches.length === 1 && api.enabled() && !owns(e.target, { stop: body, scrollers: false })
-      ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t: performance.now(), on: false, dx: 0, w: 0, carry: 0, trail: [], i: 0, j: 0, cur: null, nb: null, peerId: null, mc: null, mn: null }
+      ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t: clock.now(), on: false, dx: 0, w: 0, carry: 0, trail: [], i: 0, j: 0, cur: null, nb: null, peerId: null, mc: null, mn: null }
       : null;
   };
   const onMove = (e: TouchEvent) => {
@@ -82,14 +83,14 @@ export function attachSwipe(body: HTMLElement, width: () => number, api: SwipeAp
     }
     s.j = j;
     s.dx = s.nb ? tdx : tdx / 3;   // (past the first or last tab it gives a little and springs back)
-    s.trail.push([performance.now(), t.clientX]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([clock.now(), t.clientX]); if (s.trail.length > 8) s.trail.shift();
     s.mc!.set(s.dx);
     if (s.nb) s.mn!.set(s.dx + d * s.w);
   };
   function end() {
     const s = sw; sw = null;
     if (!s?.on || !s.cur) return;
-    const now = performance.now(), v: number = releaseSpeed(s.trail, now);   // (the finger's, px per ms to the right: the panes carry it on)
+    const now = clock.now(), v: number = releaseSpeed(s.trail, now);   // (the finger's, px per ms to the right: the panes carry it on)
     const go = !!s.nb && pageGo(s.dx, now - s.t, s.w, v);
     const d = s.dx < 0 ? 1 : -1, curve = carryCurve(s.nb ? v : v / 3, (go ? -d * s.w : 0) - s.dx, D_SMALL) as string;
     const f = cssCurve(curve) as (u: number) => number;
@@ -108,7 +109,7 @@ export function attachSwipe(body: HTMLElement, width: () => number, api: SwipeAp
     const part = () => { if (++finished === (nb ? 2 : 1)) done(); };
     runs = [glide({ ms: D_SMALL, curve: f, tag: 'tests-swipe', apply: (k) => tx(cur)(s.dx + (toC - s.dx) * k), done: part })];
     if (nb) runs.push(glide({ ms: D_SMALL, curve: f, tag: 'tests-swipe', apply: (k) => tx(nb)(fromN + (toN - fromN) * k), done: part }));
-    if (finished < (nb ? 2 : 1)) { settle = () => { for (const r of runs) r.stop(); done(); }; resting = go ? nb : cur; easing = { el: resting!, from: go ? fromN : s.dx, to: 0, t0: performance.now(), f }; }
+    if (finished < (nb ? 2 : 1)) { settle = () => { for (const r of runs) r.stop(); done(); }; resting = go ? nb : cur; easing = { el: resting!, from: go ? fromN : s.dx, to: 0, t0: clock.now(), f }; }
   }
   const tapDone = () => end();
   body.addEventListener('touchstart', onStart, { passive: true });

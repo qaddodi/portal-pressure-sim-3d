@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
+import type { SumDraw } from '../src/scene/labels/cath-show.ts';
 import { LabelController, NO_STATE, type LabelDeps } from '../src/scene/labels/controller.ts';
 
 const vp = { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
@@ -34,7 +35,7 @@ test('the stack leaving with the slide keeps the numbers it had while the next p
   let seen = 0;
   for (let i = 0; i < 40; i++) {
     w.step(16);
-    const s = w.ctl.cath.sum;
+    const s: SumDraw | null = w.ctl.cath.sum;
     if (!s) continue;
     seen++;
     assert.equal(JSON.stringify(s.rows.map((r) => r.value).concat(s.calc.value)), before, 'frozen while it fades');

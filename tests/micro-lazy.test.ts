@@ -54,7 +54,8 @@ import { Sinusoid3D, shapeKey, tailKey } from '../src/scene/micro3d/sinusoid3d.t
 
 test('the shape key reads only the lumen, the pinch and the collagen; the tail key only the activation', () => {
   const S = { lum: 1, pinch: 0.2, col: 0.1, act: 0.3, mv: 1, bm: 0 };
-  assert.equal(shapeKey({ ...S, act: 0.9, mv: 0.2, bm: 1 }, 5), shapeKey(S, 5), 'activation, microvilli and basement membrane are not shapes');
+  const moved = { ...S, act: 0.9, mv: 0.2, bm: 1 };
+  assert.equal(shapeKey(moved, 5), shapeKey(S, 5), 'activation, microvilli and basement membrane are not shapes');
   assert.notEqual(shapeKey({ ...S, lum: 1.2 }, 5), shapeKey(S, 5));
   assert.notEqual(shapeKey({ ...S, col: 0.5 }, 5), shapeKey(S, 5));
   assert.notEqual(shapeKey(S, 6), shapeKey(S, 5));
@@ -69,7 +70,7 @@ test('easing the basement membrane or the microvilli rebuilds nothing; the activ
   s3.update(true);   // (the first: the shapes are prepared, the tail laid)
   let full = 0, tail = 0; const b = p.buildShape.bind(s3), t = p.buildTail.bind(s3);
   p.buildShape = () => { full++; b(); }; p.buildTail = () => { tail++; t(); };
-  const cur = flat.cur as unknown as Record<string, number>;
+  const cur = flat.cur;
   for (let i = 0; i <= 64; i++) { cur.bm = i / 64; cur.mv = 1 - i / 64; s3.update(true); }
   assert.equal(full + tail, 0, 'bm and mv ease with no rebuild');
   for (let i = 0; i <= 32; i++) { cur.act = i / 32; s3.update(true); }
@@ -119,5 +120,5 @@ test('the sinusoid shape passes are cut into sections: many small steps, then re
   while (!sc.micro.sinus.prepareShapeStep()) steps++;
   assert.ok(steps > 40, `${steps} steps for the passes (was 8, one pass each)`);
   assert.equal(sc.micro.sinus.shapeReady, true);
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /do \{ if \(this\.microStep\(\)\) return; \} while \(!this\.disposed && performance\.now\(\) - t0 < SLICE_MS\)/);
+  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /do \{ if \(this\.microStep\(\)\) return; \} while \(!this\.disposed && clock\.now\(\) - t0 < SLICE_MS\)/);
 });

@@ -10,6 +10,7 @@ import { patient } from '../../engine/store.ts';
 import type { SlideModel } from '../../decks/schema.ts';
 import type { Stop, Pos } from '../deck/presenter-machine.ts';
 
+import { clock } from '../../clock/frame.ts';
 export const modelAt = (stops: Stop[], pos: Pos): SlideModel | null => { const s = stops[pos.stop]; return s?.kind === 'slide' ? s.slide.model ?? null : null; };
 
 /** The first slide's patient (the title and the outline stand on it). */
@@ -25,7 +26,7 @@ export async function applyModel(m: SlideModel, dip = false): Promise<boolean> {
     if (dip) await dipIn(who);
     const ok = (await loadPatient(m.preset)) && mine === token;
     if (ok && m.params) engine().send({ type: 'setParams', params: m.params, settle: true });
-    if (dip) { if (ok) await new Promise((r) => setTimeout(r, 180)); await dipOut(who); }   // (the new patient's first frames are drawn before the dim lifts)
+    if (dip) { if (ok) await new Promise((r) => clock.after(r, 180)); await dipOut(who); }   // (the new patient's first frames are drawn before the dim lifts)
     return ok;
   }
   if (!m.params) return true;

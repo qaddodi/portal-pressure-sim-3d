@@ -54,7 +54,8 @@ export class SinusoidView {
   readonly objects: CelObject[] = [];
   /** How many albumin the traffic has out this frame (their x, y, radius, alpha, kind are traffic.pts, five numbers each). */
   spriteCount = 0;
-  private cur: Cur = { ...REST };
+  /** The eased state the picture is drawn from (Sinusoid3D reads it as its host; tests drive it). */
+  readonly cur: Cur = { ...REST };
   /** The way the blood runs along the sinusoid (+1 toward the central vein, -1 reversed). */
   get flowDir(): number { return Math.sign(this.cur.v || 1); }
   private goal: Cur = { ...REST };
@@ -81,7 +82,8 @@ export class SinusoidView {
   private readonly VW = { vis: [-VIS, VIS] as [number, number] };
   /** How fast the traffic (albumin, the flow's run) goes against 2D's (1); the 3D scene sets its own. */
   trafficSpeed = 1;
-  private readonly g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
+  /** The host's width and wall functions (Sinusoid3D reads them; tests compare them). */
+  readonly g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
   private readonly traffic: { stepMovers(dt: number): void; sprites(): number; pts: Float32Array; readonly flowX: number; readonly lymX: number; setDt(v: number): void };
   private readonly pal: { palette(dark: boolean): Record<string, unknown>; PAL: Record<string, unknown>; bump(): void };
 

@@ -9,6 +9,7 @@ import { scriptOf, phaseOf, takenOf, readingWords, readingTitle } from '../ir/co
 import { monitorFrame, type MonitorState } from '../ir/monitor.ts';
 import type { MonSource } from '../ir/Monitor.tsx';
 
+import { clock } from '../../../clock/frame.ts';
 type Fp = Record<string, unknown> | null | undefined;
 type Obj = Record<string, number>;
 interface Script { id: string; kinds: string[]; clock: { now(tk: Obj): number }; vals(fp: unknown, o: Obj): Obj; keys: string[] }
@@ -41,7 +42,7 @@ class Reading implements MonSource {
     const t = S.clock.now(this.tk);
     this.st.t = Number.isFinite(t) ? t : 0;
     this.st.v = this.v;
-    if (this.st.ph === 'run') syncWave(this.wave, latest.frame, this.st.t, performance.now());
+    if (this.st.ph === 'run') syncWave(this.wave, latest.frame, this.st.t, clock.now());
     return monitorFrame(this.key, S, this.st, w, h, this.label());
   }
   /** What the screen reader and the header hold: the readings taken so far (written only when one is taken). */

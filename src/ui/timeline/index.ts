@@ -3,7 +3,7 @@
 import { yoursName } from '../readings/yours.ts';
 import { engine, latest, live, patient, useEngine } from '../../engine/index.ts';
 import { setParams } from '../../engine/store.ts';
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { UI } from '../strings.generated.ts';
 import { useShell } from '../shell/store.ts';
 import { registerFeature } from '../shell/features.ts';
@@ -32,9 +32,9 @@ const host: TimelineHost = {
   labelsOf: (p) => labels(p),
   say: (t) => useShell.getState().say(t),
   announce,
-  now: () => performance.now(),
-  later: (fn, ms) => setTimeout(fn, ms),
-  cancel: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+  now: () => clock.now(),
+  later: (fn, ms) => clock.after(fn, ms),
+  cancel: (h) => clock.cancel(h as TimerId),
 };
 
 export const timeline = new Timeline(host);

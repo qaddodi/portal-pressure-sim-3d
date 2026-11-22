@@ -160,7 +160,7 @@ export const useUi = create<UiState>((set, get) => ({
     const words = plan.cards.find((c) => c.slot === 'words')?.rect ?? null;
     const data = plan.cards.find((c) => c.slot === 'data')?.rect ?? null;
     const strip = plan.strip?.rect ?? null;
-    const bars = [plan.bar?.rect, plan.bar?.title].filter((r): r is Rect => !!r);
+    const bars = [plan.bar?.rect].filter((r): r is Rect => !!r);
     const b = get().boxes;
     if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && b.bars.length === bars.length
       && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && get().dockShown === plan.docked) return;

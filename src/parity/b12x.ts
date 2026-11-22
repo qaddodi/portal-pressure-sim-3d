@@ -12,6 +12,7 @@
 //                          Toast.tsx (tests/b12x-cards.test.ts reads it). 2D's note has a warning mark, role="alert", up to two buttons under the words and stays until it is dealt with; the 3D line has
 //                          none of that, so the two with a difference are present only.
 // Not claimed, listed in the batch report: `teaching/scope-tile` (the endoscopic view as a readout tile: the tile key is dropped by the tiles card), `visual/scale` and `visual/quadrant` (no chart draws them).
+import { clock, type TimerId } from '../clock/frame.ts';
 import { CARD_CATALOG, type CardSpecimen } from '../ui/cards/gallery/catalog.generated.ts';
 import { slideOf } from '../decks/hp/deck.ts';
 import { hooksOf, hasHook, missingHooks, type Hook } from '../decks/rw/hooks.ts';
@@ -115,17 +116,18 @@ const SHEETS: Record<string, () => Sheet> = {
 // ── the toasts: `say` is run (its timer is cancelled, and a page with the app mounted is not the page this runs on) ──
 interface Said { tone: string; action: boolean; ms: number }
 function say(tone: 'info' | 'bad', withAction: boolean): Said | null {
-  const timers: ReturnType<typeof setTimeout>[] = [];
-  const real = globalThis.setTimeout;
+  const ids: TimerId[] = [];
+  const real = clock.after;
   let ms = 0;
-  globalThis.setTimeout = ((fn: () => void, t?: number, ...a: unknown[]) => { ms = t ?? 0; const h = real(fn, t, ...a) as unknown as ReturnType<typeof setTimeout>; timers.push(h); return h; }) as unknown as typeof setTimeout;
+  // (the toast's length is the wait it asks the clock for)
+  clock.after = ((fn: () => void, t: number, tag?: string) => { ms = t ?? 0; const id = real.call(clock, fn, t, tag); ids.push(id); return id; }) as typeof clock.after;
   try {
     useShell.getState().say('A message.', tone, withAction ? { label: 'Undo', run: () => undefined } : undefined);
     const t = useShell.getState().toast;
     return t ? { tone: t.tone, action: !!t.action, ms } : null;
   } finally {
-    globalThis.setTimeout = real;
-    for (const h of timers) clearTimeout(h);
+    clock.after = real;
+    for (const h of ids) clock.cancel(h);
     useShell.setState({ toast: null });
   }
 }

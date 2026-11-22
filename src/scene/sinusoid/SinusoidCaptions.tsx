@@ -158,7 +158,7 @@ export function SinusoidCaptions() {
     };
 
     const tick = () => {
-      const now = performance.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
+      const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
       const on = namesOn(cel.view, cel.sinus.group.visible);
       const a = on ? proj(0, 0) : [0, 0], b = on ? proj(1, 0) : [0, 0];

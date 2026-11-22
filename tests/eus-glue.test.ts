@@ -173,8 +173,10 @@ test('the procedure layer draws the glue as the 2D frame says, drives the scope,
   assert.ok(pr.glueDrive!.needle < 0.01 && pr.glueDrive!.fan < 0.01 && pr.glueDrive!.u > 0.99);
   assert.ok(pr.glue.coil.group.visible && pr.glue.cast.group.visible);
   pr.stop();
-  assert.equal(pr.glueDrive, null);
-  assert.equal(pr.glue.group.visible, false);
+  assert.equal(pr.glueDrive, null, 'the scope is let go of at once');
+  assert.equal(pr.glue.group.visible, true, 'the coil and the cast ease out in place, they do not pop (stop() fades them over LEAVE_MS)');
+  for (let t = 0; t <= 800; t += 16) pr.update(1000 + t);
+  assert.equal(pr.glue.group.visible, false, 'and are gone when the fade is done');
 });
 
 test('the last step holds: the play stops at its last stop (not on the fade-out leg), and the scope stays parked until the slide is left', async () => {

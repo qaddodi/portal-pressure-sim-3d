@@ -123,12 +123,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // every segmented control and tab row has one gliding piece (2D seg-glide.js)
   useEffect(() => runSegGlide(), []);
   // the instruments that load after the first paint come in when the card opens, and when the app is idle (2D load(), main.js lazy())
-  useEffect(() => { if (open) needAll(); }, [open]);
-  useEffect(() => {
-    const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
-    const t = idle ? idle(needAll) : window.setTimeout(needAll, 4000);
-    return () => { if (!idle) clearTimeout(t); };
-  }, []);
+  useEffect(() => { if (open) needAll(); }, [open]);   // (when the app is idle the preload ladder reads them in, one a slot: boot/warm.ts)
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)

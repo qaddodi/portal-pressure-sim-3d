@@ -3,6 +3,7 @@
 // scripts/copy-chart-profile.mjs into layout.generated.js; this file types it and adds the drawing's own numbers (the smooth line, the cuts the readings
 // make in it, the gridlines, the brace, the hatching), each lifted from the 2D tool's model builder (buildModel / paintNow).
 import { measure } from '../measure.ts';
+import { fmt } from '../fmt.ts';
 import * as L from './layout.generated.js';
 import { hvpgSentence } from './wedge.ts';
 
@@ -52,6 +53,8 @@ export const FADE_MS = 420;
 export const SEG_K = 10;
 /** A reading's width is tabled to here, a whole mmHg at a time; past it the last one stands. */
 export const V_MAX = 300;
+/** A bracket's or pill's reading (HVPG, PPG, EUS-PPG): one decimal, as the card's pill prints it ("0.5", never "1"). The stations' own readings stay whole numbers. */
+export const gap1 = (v: number): string => fmt(v, 1);
 export const whole0 = (v: number) => { const r = Math.round(v); return r > V_MAX ? V_MAX : r > 0 ? r : 0; };
 export const toneOf = (r: Rate) => (r === 'hi' ? 2 : r === 'mid' ? 1 : 0);
 
@@ -200,7 +203,7 @@ export interface BracketGeom { x0: number; x1: number; mid: number; yy: number; 
 export function bracketGeom(G: Geo, f: number, tw: Tw, r: number, v: number): BracketGeom {
   const [, name, a, b] = G.spans[r]!;
   const x0 = G.x(STATIONS.indexOf(a)), x1 = G.x(STATIONS.indexOf(b)), fs = G.brFs[r]!, z = fs / f, stack = G.brMode[r] === 'stack', mid = (x0 + x1) / 2, yy = G.brY(r);
-  const s = String(whole0(v));
+  const s = gap1(v);
   let gap: [number, number];
   if (stack) { const ws = Math.max(tw(name, 600), tw(s, 700)); gap = ws + 20 <= x1 - x0 ? [mid - ws / 2 - 5, mid + ws / 2 + 5] : [x0, x1]; }
   else { const lw = z * tw(`${name} ${s}`, 700), wide = (x1 - x0 - lw) / 2 - 5 >= 4; gap = wide ? [mid - lw / 2 - 5, mid + lw / 2 + 5] : [x0, x1]; }
@@ -213,7 +216,7 @@ export function bracketGeom(G: Geo, f: number, tw: Tw, r: number, v: number): Br
 export function profileWords(goal: Prof, spans: readonly Span[]): string {
   const labels = goal.v.map(whole), g = goal as Goal;
   const hv = spans.some(([k]) => k === 'hvpg') ? hvpgSentence(g.whvp, g.fhvp) : null;   // (where the HVPG's two ends come from: the same sentence as Tests > Pressure)
-  return `Pressure from gut to heart: ${STATIONS.map((n, i) => `${SPOKEN[n]} ${labels[i]}`).join(', ')} mmHg.${spans.length ? ` ${spans.map(([k, name]) => `${name} ${whole((goal as unknown as Record<string, number>)[k]!)}`).join(', ')}.` : ''}${hv ? ` ${hv}.` : ''}`;
+  return `Pressure from gut to heart: ${STATIONS.map((n, i) => `${SPOKEN[n]} ${labels[i]}`).join(', ')} mmHg.${spans.length ? ` ${spans.map(([k, name]) => `${name} ${gap1((goal as unknown as Record<string, number>)[k]!)}`).join(', ')}.` : ''}${hv ? ` ${hv}.` : ''}`;
 }
 
 /** The brackets in force: the slide's, less the HVPG once a stent is in (2D setSpans). */

@@ -8,6 +8,7 @@ import { useSettings } from '../../state/settings.ts';
 import { useCompare } from '../compare/store.ts';
 import { I } from './icons.tsx';
 
+import { clock } from '../../clock/frame.ts';
 function useLookId() {
   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => { const m = matchMedia('(prefers-color-scheme: dark)'); const f = () => setDark(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
@@ -25,8 +26,8 @@ function useLeaving(key: string, node: ReactNode): ReactNode {
     if (was.key === key) return;
     if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     setOut(was);
-    const t = setTimeout(() => setOut(null), KEY_FADE_MS + 40);
-    return () => clearTimeout(t);
+    const t = clock.after(() => setOut(null), KEY_FADE_MS + 40);
+    return () => clock.cancel(t);
   }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- (the leaving key is the old render, taken when the key changes)
   return out && out.key !== key ? out.node : null;
 }

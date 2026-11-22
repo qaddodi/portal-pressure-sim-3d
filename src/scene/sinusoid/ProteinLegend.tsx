@@ -7,6 +7,7 @@ import { useShell } from '../../ui/shell/store.ts';
 import { legendOn } from './legend.ts';
 import './legend.css';
 
+import { clock } from '../../clock/frame.ts';
 const FADE_MS = 240;
 
 export function ProteinLegend() {
@@ -18,8 +19,8 @@ export function ProteinLegend() {
     if (on) { setShown(true); setLeaving(false); return; }
     if (!shown) return;
     setLeaving(true);
-    const t = window.setTimeout(() => { setShown(false); setLeaving(false); }, FADE_MS + 40);
-    return () => window.clearTimeout(t);
+    const t = clock.after(() => { setShown(false); setLeaving(false); }, FADE_MS + 40);
+    return () => clock.cancel(t);
   }, [on, shown]);
   if (!host || !shown) return null;
   return createPortal(<div className={`sv-legend${leaving ? ' out' : ''}`} aria-hidden="true"><span><i className="alb" />Protein</span></div>, host);

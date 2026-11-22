@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
@@ -47,6 +47,8 @@ cel.bindData(vesselData.texture);
 clock.on('engine', (f) => { if (vesselData.update(latest.frame, latest.version, f.time)) { if (vesselData.fresh) cel.dataChanged(); clock.invalidate('vessel-data'); } if (vesselData.easing) clock.invalidate('patient-glide'); }, 0);
 clock.on('tween', (f) => frames.run(f.time), 0);
 clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0);
+let gestureTimerN = 0;
+const gestureTimers = new Map<number, TimerId>();
 export { vesselData };
 
 /** A phone is the small side under 500 CSS px (portrait or landscape): its ink is 0.2 px lighter on organs (spec section 3). */
@@ -103,12 +105,12 @@ function SceneBridge() {
         const next = () => {
           let more = false;
           try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ }
-          if (more) { if (ric) ric(next, { timeout: 300 }); else setTimeout(next, 60); } else up.dispose(); };
+          if (more) { if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60); } else up.dispose(); };
         spanAsync('upload:geometries', () => Promise.resolve()).catch(() => undefined);
-        if (ric) ric(next, { timeout: 300 }); else setTimeout(next, 60);
+        if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60);
       };   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
       // One thing at a time: the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in one slot (docs/decisions.md "Warm-up before the micro views").
-      setTimeout(() => { void Promise.race([warmP(), new Promise((r) => setTimeout(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
+      clock.after(() => { void Promise.race([warmP(), new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }
   }, 1);
 
@@ -149,20 +151,20 @@ function SceneBridge() {
   // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
   const setDpr = useThree((s) => s.setDpr);
   useEffect(() => {
-    let was = -1, settle = 0;
+    let was = -1, settle: TimerId | null = null;
     const apply = () => {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
       const d = figureDpr(st.figureDetail, st.sharpMoving, moving, window.devicePixelRatio || 1);
       if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
-      window.clearTimeout(settle);
-      if (moving && !st.sharpMoving) settle = window.setTimeout(apply, 200);
+      clock.cancel(settle);
+      if (moving && !st.sharpMoving) settle = clock.after(apply, 200);
     };
     apply();
     const off = clock.on('camera', apply, 1);
     const un = useSettings.subscribe(apply);
-    return () => { off(); un(); window.clearTimeout(settle); };
+    return () => { off(); un(); clock.cancel(settle); };
   }, [setDpr]);
 
   // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
@@ -202,9 +204,11 @@ function SceneBridge() {
       // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
       context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
-      now: () => performance.now(),
+      now: () => clock.now(),
       ask: frames.ask, cancel: frames.cancel,
-      timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
+      // (the controller keeps numeric handles, as its tests do; the clock's own handles are opaque, so they are kept here by number)
+      timer: (fn, ms) => { const n = ++gestureTimerN; gestureTimers.set(n, clock.after(() => { gestureTimers.delete(n); fn(); }, ms)); return n; },
+      clearTimer: (id) => { clock.cancel(gestureTimers.get(id)); gestureTimers.delete(id); },
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
       locked: () => talkOn(),   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,

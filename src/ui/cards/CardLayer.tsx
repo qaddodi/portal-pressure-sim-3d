@@ -38,6 +38,7 @@ import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** True once the page's fonts are in (cards show only then). */
 function useFontsReady(): boolean {
   const [ok, setOk] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
@@ -183,7 +184,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const growing = ladBusy || fitBusy || (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1));
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig)) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
-  useEffect(() => { const t = setTimeout(() => setLate(pagesKey), 320); return () => clearTimeout(t); }, [pagesKey]);
+  useEffect(() => { const t = clock.after(() => setLate(pagesKey), 320); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
   const states = useStates((st) => st.results[deck.id]);
   const toolAt = view?.data && here?.key.startsWith('tool:') && carried && copiedOf(deck.id) ? deck.slides.findIndex((x) => x.id === carried.id) : -1;
@@ -193,8 +194,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (numbers) return;
     const c = copiedOf(deck.id);
     if (c) void ensureStates(c);
-    const t = setTimeout(() => setGaveUp(`${deck.id}:${toolAt}`), GIVE_UP_MS);
-    return () => clearTimeout(t);
+    const t = clock.after(() => setGaveUp(`${deck.id}:${toolAt}`), GIVE_UP_MS);
+    return () => clock.cancel(t);
   }, [numbers, deck.id, toolAt]);
   const go = fonts && !growing && (numbers || gaveUp === `${deck.id}:${toolAt}`) && (measured || late === pagesKey);
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)

@@ -29,6 +29,15 @@ export interface FrameInfo {
 export type System = (f: FrameInfo) => void;
 export interface Hold { release(): void }
 
+/** The handle of a wait made by `clock.after` / `afterReal` / `every`. Opaque on purpose: it is not a number, so it cannot be handed to the browser's `clearTimeout` (which would cancel nothing, or someone else's timer),
+ *  and a number from `window.setTimeout` cannot be handed to `clock.cancel`. A timer is cancelled by the source that made it, and the compiler checks the pairing. */
+export class TimerId {
+  readonly #n: number;
+  constructor(n: number) { this.#n = n; }
+  /** the clock's own key (only the clock reads it) */
+  get key(): number { return this.#n; }
+}
+
 export interface SlowFrame {
   frame: number;
   at: number;
@@ -48,7 +57,16 @@ export interface Env {
   raf(cb: (t: number) => void): number;
   cancel(id: number): void;
   now(): number;
+  /** a timer that fires `cb` after `ms` (default: setTimeout, looked up at the call so a test's fake timers answer) */
+  timer?(cb: () => void, ms: number): unknown;
+  untimer?(id: unknown): void;
+  /** a repeating timer in real time (default: setInterval) */
+  every?(cb: () => void, ms: number): unknown;
+  unevery?(id: unknown): void;
 }
+
+/** A timer's scaled wait: 1/n of it, but a short one (a poll, a retry, a debounce) keeps at least 16 ms, or it becomes a hot loop (a 50 ms poll at 20x would run every 2.5 ms and starve the page). */
+export const scaledDelay = (ms: number, n: number): number => (ms <= 0 ? ms : Math.max(ms / n, Math.min(ms, 16)));
 
 const RING = 240;      // frames of history kept for ?perf
 const SLOW_KEEP = 40;  // slowest frames listed
@@ -59,6 +77,22 @@ let faultSink: ((phase: string, err: unknown) => void) | null = null;
 export const setClockFaultSink = (fn: ((phase: string, err: unknown) => void) | null): void => { faultSink = fn; };
 
 export function createClock(env: Env) {
+  // ONE source of time (R3). `now()` is page time: the real clock times `scale` from the moment the scale was set, so the audit's speed mode
+  // (?audit&speed=N) changes one number and every tween, delay and sampler that reads the clock follows. Nothing else reads performance.now().
+  let scale = 1, page0 = 0, real0 = 0;
+  const now = () => (scale === 1 && page0 === real0 ? env.now() : page0 + (env.now() - real0) * scale);
+  const sched = env.timer ?? ((cb, ms) => setTimeout(cb, ms));
+  const unsched = env.untimer ?? ((id) => clearTimeout(id as number));
+  const repeat = env.every ?? ((cb, ms) => setInterval(cb, ms));
+  const unrepeat = env.unevery ?? ((id) => clearInterval(id as number));
+  let nextTimer = 1;
+  const timers = new Map<number, { tag: string; cancel: () => void }>();
+  const wait = (fn: (...a: never[]) => void, ms: number, tag: string): TimerId => {
+    const id = nextTimer++;
+    const h = sched(() => { timers.delete(id); (fn as () => void)(); }, ms);
+    timers.set(id, { tag, cancel: () => unsched(h) });
+    return new TimerId(id);
+  };   // waits made by after()/every() and not yet fired or cancelled
   const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System }[]])) as Record<Phase, { order: number; fn: System }[]>;
   const holds = new Map<symbol, string>();
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
@@ -76,13 +110,13 @@ export function createClock(env: Env) {
 
   function schedule() {
     if (rafId || !wanted()) return;
-    if (!running) { running = true; last = 0; wokeAt = env.now(); for (const l of listeners) l(true); }
+    if (!running) { running = true; last = 0; wokeAt = now(); for (const l of listeners) l(true); }
     rafId = env.raf(run);
   }
 
   function run() {
     rafId = 0;
-    const start = env.now();
+    const start = now();
     const tags = [...holds.values(), ...asked, ...nextAsked];
     // (asked and nextAsked are both answered by this frame; an invalidate made while it runs asks for the next)
     nextAsked = new Set();
@@ -91,14 +125,14 @@ export function createClock(env: Env) {
     asked.clear();
     const phases = { engine: 0, tween: 0, camera: 0, render: 0, tags: 0 } as Record<Phase, number>;
     for (const p of PHASES) {
-      const t0 = env.now();
+      const t0 = now();
       // (copy: a system may add or remove systems while it runs)
       for (const s of systems[p].slice()) {
         try { s.fn(info); } catch (err) { console.error(`[clock] ${p} system threw`, err); try { faultSink?.(p, err); } catch { /* (the net must never stop a frame) */ } }
       }
-      phases[p] = env.now() - t0;
+      phases[p] = now() - t0;
     }
-    const ms = env.now() - start;
+    const ms = now() - start;
     const gap = lastStart ? start - lastStart : 0;
     lastStart = start;
     ring[ringAt] = ms; gaps[ringAt] = gap; ringAt = (ringAt + 1) % RING; drawn++;
@@ -132,7 +166,36 @@ export function createClock(env: Env) {
     /** Ask for frames for `ms` milliseconds (a motion whose length is known). */
     frameFor(tag: string, ms: number) {
       const h = this.hold(tag);
-      setTimeout(() => h.release(), ms);   // (a timer that only lets go: it paints nothing)
+      this.after(() => h.release(), ms, tag);   // (a timer that only lets go: it paints nothing)
+    },
+    /** Page time in ms: the one reader of time (replaces performance.now()). Scaled by `scale`. */
+    now,
+    /** The speed of page time (1 = real). Only the audit sets it. */
+    get scale() { return scale; },
+    setScale(n: number) {
+      const k = Number.isFinite(n) && n > 0 ? n : 1;
+      page0 = now(); real0 = env.now(); scale = k;
+    },
+    /** Run `fn` after `ms` of PAGE time (1/scale of the wall time, never under 16 ms for a short wait). Holds no frames. Returns an id for cancel(). `tag` names it in ?perf. */
+    after(fn: (...a: never[]) => void, ms: number, tag = 'after'): TimerId {
+      return wait(fn, scaledDelay(ms, scale), tag);
+    },
+    /** Like `after`, but in REAL time, never scaled: a human's wait (a press-and-hold, a double-tap window) must not be shortened by the audit's speed mode. */
+    afterReal(fn: (...a: never[]) => void, ms: number, tag = 'after-real'): TimerId {
+      return wait(fn, ms, tag);
+    },
+    /** Run `fn` every `ms` of REAL time (a poll, a readout; not scaled, as setInterval never was). Returns an id for cancel(). */
+    every(fn: (...a: never[]) => void, ms: number, tag = 'every'): TimerId {
+      const id = nextTimer++;
+      const h = repeat(fn as () => void, ms);
+      timers.set(id, { tag, cancel: () => unrepeat(h) });
+      return new TimerId(id);
+    },
+    /** Cancel an after() or every() (an id that already fired, was cancelled, or is undefined does nothing, like clearTimeout). */
+    cancel(id: TimerId | null | undefined) {
+      if (id == null) return;
+      const t = timers.get(id.key);
+      if (t) { timers.delete(id.key); t.cancel(); }
     },
     /** Ask for exactly one more frame. */
     invalidate(tag: string) {
@@ -145,7 +208,7 @@ export function createClock(env: Env) {
     stats() {
       const n = Math.min(drawn, RING), times = Array.from(ring.subarray(0, n)).sort((a, b) => a - b);
       const q = (p: number) => (n ? times[Math.min(n - 1, Math.floor(p * n))]! : 0);
-      return { framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], wokeAt, boundCpu, boundGpu };
+      return { timers: [...timers.values()].map((t) => t.tag), framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], wokeAt, boundCpu, boundGpu };
     },
     resetStats() { ring.fill(0); gaps.fill(0); ringAt = 0; drawn = 0; slow.length = 0; boundCpu = 0; boundGpu = 0; },
     /** A reader of the renderer's numbers, called only for a frame kept as slow. */

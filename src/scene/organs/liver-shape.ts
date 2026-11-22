@@ -6,6 +6,7 @@ import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { noduleBumpAt, rimDomeAt, rimScale, surfaceAt } from './liver-texture.ts';
 
 
+import { clock } from '../../clock/frame.ts';
 /** Nodule bump height at full strength, scene units (the 2D nodules stand out about 2 to 3 units: 0.01). */
 export const NODULE_HEIGHT = 0.011;
 /** How far a nodule at the liver's rim stands out of its outline at full scarring, scene units (about 4 units of the 2D figure: a scalloped edge, never inward, so the vessels keep their margin). */
@@ -38,14 +39,14 @@ export class LiverShape {
   warm(ms = 0): boolean {
     const r = this.rest, n = this.normals, cnt = r.length / 3;
     if (!this.nb) { this.nb = new Float32Array(cnt); this.nbk = new Float32Array(cnt); this.rk = new Float32Array(cnt); }
-    const t0 = performance.now();
+    const t0 = clock.now();
     while (this.baked < cnt) {
       for (let e = Math.min(cnt, this.baked + 256); this.baked < e; this.baked++) {
         const v = this.baked, i = v * 3, x2 = x2d(r[i]!), y2 = y2d(r[i + 1]!), h = noduleBumpAt(x2, y2), k = edgeFree(Math.abs(n[i + 2]!)), m = Math.hypot(n[i]!, n[i + 1]!);
         this.nb[v] = h; this.nbk[v] = h * k;
         this.rk[v] = m > 1e-3 ? ((1 - k) * rimDomeAt(x2, y2)) / m : 0;
       }
-      if (ms > 0 && performance.now() - t0 >= ms) break;
+      if (ms > 0 && clock.now() - t0 >= ms) break;
     }
     return this.baked >= cnt;
   }

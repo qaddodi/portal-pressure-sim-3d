@@ -10,6 +10,7 @@
 import { releaseSpeed, carryCurve, cssCurve, isFlick, D_SMALL, EASE_ARRIVE, SHEET_FLICK_MIN, SHEET_FLICK_FAR, SHEET_CLOSE_PX, SHEET_CLOSE_SHARE } from '../copied/ease.copied.js';
 import { follow, glide, type Glide } from '../../menu/motion.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export interface PullApi {
   /** a phone's sheet over the thumb dock */
   enabled(): boolean;
@@ -48,7 +49,7 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
     const h = api.heights(), sc = scroller(t, card);
     const carry = run ? off : 0;
     if (run) { run.stop(); run = null; }
-    st = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: performance.now(), moved: false, dy: 0, h0: h.h0, half: h.half, full: h.full, peek: h.peek, size: h.size, sc, scTop: sc ? sc.scrollTop : 0, trail: [], m: null, carry };
+    st = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: clock.now(), moved: false, dy: 0, h0: h.h0, half: h.half, full: h.full, peek: h.peek, size: h.size, sc, scTop: sc ? sc.scrollTop : 0, trail: [], m: null, carry };
   };
   // A pull down from anywhere on the card, its content at the top, is claimed by the touch's first move, before 6 px: iOS hands a pull on scrollable content to the page and cancels the
   // touch before then, and the card would never follow. Once the card follows the finger the page never scrolls under it. (2D dock-sheet.js touchmove.)
@@ -75,7 +76,7 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
       try { card.setPointerCapture(e.pointerId); } catch { /* (a pointer that is not down: nothing to capture) */ }
     }
     s.dy = dy;
-    s.trail.push([performance.now(), e.clientY]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([clock.now(), e.clientY]); if (s.trail.length > 8) s.trail.shift();
     // (the card follows the finger, up to the room Full gives and down to its own height; past either it gives a quarter)
     const room = s.size === 0 ? s.full - s.h0 : s.size === 2 ? s.half - s.h0 : 0, d = s.carry + dy;
     off = d < -room ? -room + (d + room) * 0.25 : d > s.h0 ? s.h0 + (d - s.h0) * 0.25 : d;
@@ -86,12 +87,12 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
     if (!s || (e && e.pointerId !== s.id)) return;
     st = null;
     if (!s.moved) return;
-    swallow = performance.now() + 350;
+    swallow = clock.now() + 350;
     s.m?.flush(); s.m?.stop();
-    const speed: number = releaseSpeed(s.trail, performance.now());   // (px per ms down)
+    const speed: number = releaseSpeed(s.trail, clock.now());   // (px per ms down)
     const dy = s.dy + s.carry, from = s.size;
     let to: 0 | 1 | 2 | 'close' = from;
-    const flick = dy > 0 && isFlick(dy, speed, dy / Math.max(1, performance.now() - s.t0), SHEET_FLICK_MIN, SHEET_FLICK_FAR);
+    const flick = dy > 0 && isFlick(dy, speed, dy / Math.max(1, clock.now() - s.t0), SHEET_FLICK_MIN, SHEET_FLICK_FAR);
     if (dy > 0) {
       if (from === 1) to = dy > STAY_FULL ? 0 : 1;   // (From Full a pull down settles at Half)
       else to = flick || dy > Math.min(SHEET_CLOSE_PX, s.h0 * SHEET_CLOSE_SHARE) ? 'close' : from;   // (From Half: one pull or flick closes it, 2D's rule; a short pull eases back)
@@ -118,7 +119,7 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
     run = glide({ ms: D_SMALL, curve, tag: 'tests-pull', apply: (k) => { off = start * (1 - k); w(off); }, done: () => { run = null; off = 0; pos.style.translate = ''; tail(pos, 0); } });
   };
   // (The click a drag's release makes is not a tap: swallowed if it comes within 350 ms.)
-  const onClick = (e: MouseEvent) => { if (performance.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
+  const onClick = (e: MouseEvent) => { if (clock.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
   card.addEventListener('pointerdown', onDown);
   card.addEventListener('pointermove', onMove);
   card.addEventListener('pointerup', end);

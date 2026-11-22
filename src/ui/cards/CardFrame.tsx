@@ -11,6 +11,7 @@ import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 
+import { clock } from '../../clock/frame.ts';
 interface Props {
   entry: Entry;
   /** Where the card goes (its height is the one measured; 0 until measured). */
@@ -194,8 +195,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   useEffect(() => {
     if (!out) { setLate(false); return; }
     if (go !== false) return;
-    const t = setTimeout(() => setLate(true), HOLD_OUT_MS);
-    return () => clearTimeout(t);
+    const t = clock.after(() => setLate(true), HOLD_OUT_MS);
+    return () => clock.cancel(t);
   }, [out, go]);
   const leave = out && (go !== false || late);
 
@@ -214,8 +215,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // (the net, if the clock never reports a landing)
   useEffect(() => {
     if (!leave) return;
-    const t = setTimeout(() => onGone(entry.key), RAIL_MS + 500);
-    return () => clearTimeout(t);
+    const t = clock.after(() => onGone(entry.key), RAIL_MS + 500);
+    return () => clock.cancel(t);
   }, [leave, entry.key, onGone]);
   // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
   const lay = layoutOf(vp.w, vp.h), stackCls = lay === 'stack' ? ' stack' : lay === 'tab' ? ' stack tab' : '';

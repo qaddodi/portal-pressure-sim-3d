@@ -4,7 +4,7 @@
 // (LabelLayer.tsx calls `labelsShown()`; owner, 20 Nov: "labels should already be loaded, so we just fade into the figure with labels"). The cover then eases away while the figure settles in from a
 // mild zoom (`html[data-reveal]`, global.css). Only the main app's path holds the cover (`data-boot="wait"` on <html>); every other page
 // (the crash and no-WebGL notes, the parity and debug pages) lifts it as soon as React has put something in #root, as before. A start that never gets there lifts it anyway.
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 
 export const BOOT_FAILSAFE_MS = 8000;
 /** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame it lifts. */
@@ -15,15 +15,15 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: ReturnType<typeof setTimeout> | undefined, done = false;
+let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
   waiting = true; done = false; frames = -1; labels = false;
   document.documentElement.dataset.boot = 'wait';
-  clearTimeout(timer);
-  timer = setTimeout(release, BOOT_FAILSAFE_MS);
+  clock.cancel(timer);
+  timer = clock.after(release, BOOT_FAILSAFE_MS);
 }
 
 /** True from holdSplash() until the cover is released or failed: the figure has not been drawn yet, so a lost context is a boot failure, not something to recover from. */
@@ -33,8 +33,8 @@ export const splashHeld = (): boolean => waiting && !done;
 export function figureDrawn(): void {
   if (!waiting || done) return;
   if (frames < 0) {
-    frames = 0; firstAt = performance.now();
-    off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || performance.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
+    frames = 0; firstAt = clock.now();
+    off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
     clock.invalidate('boot-ready');
   }
 }
@@ -43,7 +43,7 @@ export function figureDrawn(): void {
 export function rendererFailed(reason: string): void {
   if (done || !waiting) return;
   done = true; waiting = false;
-  clearTimeout(timer); off?.(); off = null;
+  clock.cancel(timer); off?.(); off = null;
   (window as unknown as { ppsBootRendererFail?: (r: string) => void }).ppsBootRendererFail?.(reason);
 }
 
@@ -53,10 +53,10 @@ export function labelsShown(): void { if (waiting) labels = true; }
 export function release(): void {
   if (done || !waiting) return;
   done = true; waiting = false;
-  clearTimeout(timer); off?.(); off = null;
+  clock.cancel(timer); off?.(); off = null;
   delete document.documentElement.dataset.boot;
   const root = document.documentElement;
   root.dataset.reveal = '1';   // (the figure and its labels settle in from a mild zoom as the cover fades)
-  setTimeout(() => { delete root.dataset.reveal; }, REVEAL_MS);
+  clock.after(() => { delete root.dataset.reveal; }, REVEAL_MS);
   lift();
 }

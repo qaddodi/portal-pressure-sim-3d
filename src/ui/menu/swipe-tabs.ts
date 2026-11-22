@@ -9,6 +9,7 @@ import { releaseSpeed, carryCurve, cssCurve, D_SMALL } from '../tests/copied/eas
 import { follow, glide, type Glide } from './motion.ts';
 import { reduced } from '../a11y/motion.ts';
 
+import { clock } from '../../clock/frame.ts';
 const owns = ownsSideways as unknown as (el: EventTarget | null, o: { stop: Element }) => boolean;
 
 export type Tab = 'present' | 'patients';
@@ -37,12 +38,12 @@ export function swipeTabs(panel: HTMLElement, api: TabsApi): () => void {
   let easing: { el: HTMLElement; from: number; to: number; t0: number; f: (k: number) => number } | null = null;
   let runs: Glide[] = [];
   // (Where the easing list is drawn now: worked out from the release's own numbers and its curve, no style read.)
-  const shiftX = (el: HTMLElement) => { const e = easing; if (!e || e.el !== el) return 0; const k = Math.min(1, (performance.now() - e.t0) / D_SMALL); return e.from + (e.to - e.from) * e.f(k); };
+  const shiftX = (el: HTMLElement) => { const e = easing; if (!e || e.el !== el) return 0; const k = Math.min(1, (clock.now() - e.t0) / D_SMALL); return e.from + (e.to - e.from) * e.f(k); };
 
   const onStart = (e: TouchEvent) => {
     // (A second swipe before the first has settled finishes the first once it moves, not on the touch: a tap leaves the lists easing.)
     sw = e.touches.length === 1 && !owns(e.target, { stop: panel })
-      ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t: performance.now(), on: false, dx: 0, w: 0, top: 0, h: 0, carry0: 0, carry: 0, peers: [], trail: [], i: 0, j: 0, cur: null, nb: null, mc: null, mn: null }
+      ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t: clock.now(), on: false, dx: 0, w: 0, top: 0, h: 0, carry0: 0, carry: 0, peers: [], trail: [], i: 0, j: 0, cur: null, nb: null, mc: null, mn: null }
       : null;
     if (!sw) return;
     // Everything the drag needs from the page is read here, at the touch, never as the finger moves: the lists' width, the room in view (where the other list shows from), and where an easing list is drawn now.
@@ -76,14 +77,14 @@ export function swipeTabs(panel: HTMLElement, api: TabsApi): () => void {
       nb?.classList.add('um-peer');
     }
     s.dx = nb ? tdx : tdx / 3;   // (past the end the list moves a third of the finger)
-    s.trail.push([performance.now(), t.clientX]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([clock.now(), t.clientX]); if (s.trail.length > 8) s.trail.shift();
     s.mc!.set(s.dx);
     if (nb) s.mn!.set(s.dx + d * s.w);
   };
   const end = () => {
     const s = sw; sw = null;
     if (!s?.on || !s.cur) return;
-    const now = performance.now(), v: number = releaseSpeed(s.trail, now);   // (the finger's, px per ms to the right: the lists carry it on)
+    const now = clock.now(), v: number = releaseSpeed(s.trail, now);   // (the finger's, px per ms to the right: the lists carry it on)
     const go = !!s.nb && pageGo(s.dx, now - s.t, s.w, v);
     const d = s.dx < 0 ? 1 : -1, curve = carryCurve(s.nb ? v : v / 3, (go ? -d * s.w : 0) - s.dx, D_SMALL) as string;
     const f = cssCurve(curve) as (u: number) => number;
@@ -106,7 +107,7 @@ export function swipeTabs(panel: HTMLElement, api: TabsApi): () => void {
     const part = () => { if (++finished === (nb ? 2 : 1)) done(); };
     runs = [glide({ ms: D_SMALL, curve: f, tag: 'menu-swipe', apply: (k) => tx(cur)(s.dx + (toC - s.dx) * k), done: part })];
     if (nb) runs.push(glide({ ms: D_SMALL, curve: f, tag: 'menu-swipe', apply: (k) => tx(nb)(fromN + (toN - fromN) * k), done: part }));
-    if (finished < (nb ? 2 : 1)) { settle = () => { for (const r of runs) r.stop(); done(); }; resting = go ? nb : cur; easing = { el: resting!, from: go ? fromN : s.dx, to: 0, t0: performance.now(), f }; }
+    if (finished < (nb ? 2 : 1)) { settle = () => { for (const r of runs) r.stop(); done(); }; resting = go ? nb : cur; easing = { el: resting!, from: go ? fromN : s.dx, to: 0, t0: clock.now(), f }; }
     else resting = null;
   };
   // (A touch that never became a drag, a tap: the places set at the touch go, as the finger lifts.)

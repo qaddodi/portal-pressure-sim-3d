@@ -1,3 +1,4 @@
+import { clock } from '../../clock/frame.ts';
 // Screen-reader announcements through the page's polite live region (#live). Messages closer together than the gap are not dropped: the newest one waiting is
 // spoken once the gap has passed, so the last word (a patient loaded, a reading changed) always reaches the listener without a burst of chatter.
 // (The 2D app's live.js, the same gap.) Pure over an injectable clock, timer and writer: a Node test drives it without a page.
@@ -6,7 +7,7 @@ export const LIVE_GAP = 3000;
 
 export interface AnnouncerEnv { now?: () => number; later?: (fn: () => void, ms: number) => unknown; write: (msg: string) => void; gap?: number }
 
-export function createAnnouncer({ now = () => Date.now(), later = (fn, ms) => setTimeout(fn, ms), write, gap = LIVE_GAP }: AnnouncerEnv): (msg: string | null | undefined) => void {
+export function createAnnouncer({ now = () => Date.now(), later = (fn, ms) => clock.after(fn, ms), write, gap = LIVE_GAP }: AnnouncerEnv): (msg: string | null | undefined) => void {
   let last = -Infinity, pending: string | null = null, timer = false;
   const speak = (msg: string) => { last = now(); write(msg); };
   return (msg) => {

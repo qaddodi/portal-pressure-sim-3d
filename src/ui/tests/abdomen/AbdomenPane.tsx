@@ -18,7 +18,7 @@ const hold = balanceHold();
 let held: number | null = null;
 /** The view of the newest frame, with the daily balance held steady (it swings with every breath: balance-hold.js). */
 function viewNow(): AbView | null {
-  const b = hold.step(metricsOf(latest.frame)?.ascites?.ratePerDay, performance.now());
+  const b = hold.step(metricsOf(latest.frame)?.ascites?.ratePerDay, clock.now());
   if (b != null) held = b;
   return abView(metricsOf(latest.frame), paramsNow(), hold.shown ?? held);
 }

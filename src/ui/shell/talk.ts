@@ -16,12 +16,13 @@ import { onLanded } from '../deck/landing.ts';
 import { rail, OUT_DONE } from '../cards/rail.ts';
 import { D_SMALL, reduced } from '../a11y/motion.ts';
 
+import { clock } from '../../clock/frame.ts';
 let saved: Saved | null = null;
 let chartsAsked = false;
 /** A start overtaken by a newer start, or by leaving (2D startGen): the older one installs nothing. */
 let startGen = 0;
 let stopping = false;
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const wait = (ms: number) => new Promise<void>((r) => clock.after(r, ms));
 /** The slides' fonts, every subset they draw from, loaded under the start's cover (2D fontsIn): a subset is otherwise fetched on its first use and its words show in a stand-in first, then swap and change size. */
 const fontsIn = (): Promise<unknown> => (typeof document !== 'undefined' && document.fonts?.load
   ? Promise.race([Promise.all(['400 16px Inter', '600 16px Inter', '600 32px "Source Serif 4"'].map((f) => document.fonts.load(f, 'Aāαἀ').catch(() => undefined))), wait(1500)])

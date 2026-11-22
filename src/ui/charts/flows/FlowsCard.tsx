@@ -5,17 +5,18 @@ import { flowsFrame } from './frame.ts';
 import type { Tiers } from './layout.ts';
 import '../charts.css';
 
+import { clock, type TimerId } from '../../../clock/frame.ts';
 /** The parts the bar shows: a split that moves no part by more than a whole percent waits until the readings rest (HOLD_MS), so the bar never flips on a wobble. */
 function useHeld(next: Part[] | null): Part[] | null {
   const [shown, setShown] = useState<Part[] | null>(next);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const timer = useRef<TimerId | undefined>(undefined);
   useEffect(() => {
-    clearTimeout(timer.current);
+    clock.cancel(timer.current);
     if (!next) return;
     if (!shown || !smallMove(shown, next)) { setShown(next); return; }
     if (sameShares(shown, next)) return;
-    timer.current = setTimeout(() => setShown(next), HOLD_MS);
-    return () => clearTimeout(timer.current);
+    timer.current = clock.after(() => setShown(next), HOLD_MS);
+    return () => clock.cancel(timer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [next && next.map((p) => `${p.id}:${p.pct}`).join(',')]);
   return shown;

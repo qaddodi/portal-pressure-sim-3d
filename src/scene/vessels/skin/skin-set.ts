@@ -32,6 +32,7 @@ import { SKIN_FIGURE_UNITS } from './shaders.ts';
 import { weldThrough } from './through.ts';
 import { armTube, strandCutU } from './braid-arm.ts';
 
+import { clock } from '../../../clock/frame.ts';
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
   readonly object: Object3D;
@@ -45,6 +46,8 @@ export interface SkinDraw {
   setWedge?(i: number, d: number, col?: { amount: number; behind: number; front: number; frontSoft: number; color: Color }): void;
   /** this skin is one of a growing arm's pair (a welded skin, mode +1, or the plain trunk, mode -1): how far the weld is, 0 the flared tubes alone, 1 the welded skin; the pair draw complementary pixels (skin-object.ts) */
   setWeld?(mode: 1 | -1, w: number): void;
+  /** the weld mode and share a skin was last given (a test reads them) */
+  weldOf?(): readonly [number, number];
   /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
   setArmCopy(i: number, front: number, solid: number, veil: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
@@ -230,7 +233,7 @@ export class SkinSet {
   private readonly deps: SkinSetDeps;
   constructor(deps: SkinSetDeps) { this.deps = deps; }
 
-  private now(): number { return this.deps.now ? this.deps.now() : performance.now(); }
+  private now(): number { return this.deps.now ? this.deps.now() : clock.now(); }
   /** The skinned ends of vessel `id` (both false: its joins are today's). */
   endsOf(id: string): readonly [boolean, boolean] { return this.ends.get(id) ?? [false, false]; }
   /** The skins now drawn (a node that fell back at a rebuild is not counted). */

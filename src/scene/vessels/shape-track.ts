@@ -11,6 +11,7 @@ import { bandsStep } from './band-ease.copied.js';
 import { slicesFor } from '../circuit/geometry.ts';
 import { RESHAPE_ATTRIBUTES, type ReshapeFrame, type VesselObject } from './vessel-object.ts';
 
+import { clock } from '../../clock/frame.ts';
 const VARIX_CHANNELS: Record<string, 'VAR' | 'GV'> = { C1a: 'VAR', C1b: 'VAR', C2: 'GV' };
 const VARIX_MEAN_MS = 2000, VARIX_JUMP_MM = 1.5;
 
@@ -176,11 +177,11 @@ export class ShapeTracks {
     this.bandsShown = bandsStep(this.bandsShown, this.bandsGoal, dtMs / 1000) as number;
     if (this.bandsShown !== this.bandsGoal || was !== this.bandsShown) moving = true;
     for (const it of this.items) if (this.settle(it, dtMs, false)) moving = true;
-    const due = this.items.filter((it) => this.stale(it)), t0 = performance.now();
+    const due = this.items.filter((it) => this.stale(it)), t0 = clock.now();
     due.sort((a, b) => a.at - b.at);
     let done = 0;
     for (const it of due) {
-      if (done > 0 && performance.now() - t0 > SHAPE_BUDGET_MS) { moving = true; continue; }
+      if (done > 0 && clock.now() - t0 > SHAPE_BUDGET_MS) { moving = true; continue; }
       it.at = ++this.tick; this.rebuild(it); done++;
     }
     return moving;

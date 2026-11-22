@@ -3,6 +3,7 @@
 import { createKeeper, readLedger, ledgerLines } from './ledger.ts';
 import { appSnapshot } from '../screen/app.ts';
 
+import { clock } from '../../../clock/frame.ts';
 let keeper: ReturnType<typeof createKeeper> | null = null;
 const stores = () => { try { return { local: localStorage, session: sessionStorage }; } catch { return { local: null, session: null }; } };
 
@@ -12,7 +13,7 @@ export function mountKillLedger(): void {
   keeper = createKeeper({ local, session, device: () => appSnapshot().device });
   keeper.boot();
   const where = (): string => { const a = appSnapshot(); return a.deck ? `${a.deck.id} slide ${a.deck.number}` : `${a.view}${a.sheet ? ` + ${a.sheet}` : ''}${a.patient ? ` (${a.patient})` : ''}`; };
-  setInterval(() => { if (document.visibilityState !== 'visible') return; const a = appSnapshot(); keeper!.tick(where(), a.memory.gpuMB ?? 0); }, 1000);
+  clock.every(() => { if (document.visibilityState !== 'visible') return; const a = appSnapshot(); keeper!.tick(where(), a.memory.gpuMB ?? 0); }, 1000);
   addEventListener('pagehide', () => keeper?.end());
   addEventListener('pageshow', () => keeper?.back());
 }

@@ -3,6 +3,7 @@
 // copied 2D slide (copiedOf), works out its plan (figure-plan.ts) and the scene's calls (figure-calls.ts), and applies them; a slide change starts from nothing, so what the slide before
 // lit never stays. The shot, the lens and the catheter are scene-link.ts's; the station names' own placing is the labels'. Nothing here runs per frame but the glow sequence's clock system.
 import { sceneApi } from '../../scene/api.ts';
+import { setLayer, clearLayer } from '../../scene/intent.ts';
 import { clock } from '../../clock/frame.ts';
 import { nodePressure, edgeIndex } from '../../decks/hp/figure-engine.ts';
 import { useUi } from '../ui-store.ts';
@@ -15,10 +16,6 @@ import { figurePlan } from './figure-plan.ts';
 import { slideLanded, onLanded } from './landing.ts';
 import { figureCalls, EMPTY_CALLS, type FigureCalls, type Fp, type Reads } from './figure-calls.ts';
 
-
-/** The scene's own entry for a lens counted from another state; the lenses batch adds it (`setSinceRef`), so until then a slide with this lens is asked for nothing here. */
-type SinceApi = { setSinceRef?: (P: ArrayLike<number> | null) => void };
-const setSince = (P: ArrayLike<number> | null) => (sceneApi as unknown as SinceApi).setSinceRef?.(P);
 
 /** The node pressures a `since` slide counts from: the named slide's state, the lapse's own start, or the slide before's (hp/calc.ts keeps each slide's state; a slide with none is the one before's). */
 export function sinceP(deckId: string, index: number, plan: ReturnType<typeof figurePlan>): ArrayLike<number> | null {
@@ -46,7 +43,6 @@ export function linkFigure(): () => void {
   let key = '';
   let t0 = 0;
   let seq: { named: FigureCalls['named']; shown: number; hold: { release(): void } | null } = { named: [], shown: -1, hold: null };
-  let sinceOn = false;
   // 2D paints a slide's glows and marks after its move has landed (presenter.js paintOverlays: the camera still, the cards in), and clears the old slide's at the press: what the slide asks waits here
   let pending: FigureCalls | null = null, applied = true;
   const flush = () => { if (pending && !applied) { applied = true; const c = pending; pending = null; apply(c); } };
@@ -54,8 +50,8 @@ export function linkFigure(): () => void {
   const stopSeq = () => { seq.hold?.release(); seq = { named: [], shown: -1, hold: null }; };
   const offClock = clock.on('tween', () => {
     if (!seq.named.length) return;
-    const el = performance.now() - t0, n = seq.named.filter((g) => g.at <= el).length;
-    if (n !== seq.shown) { seq.shown = n; sceneApi.setNamedVessels(seq.named.filter((g) => g.at <= el).map((g) => g.id)); }
+    const el = clock.now() - t0, n = seq.named.filter((g) => g.at <= el).length;
+    if (n !== seq.shown) { seq.shown = n; setLayer('talk', { named: seq.named.filter((g) => g.at <= el).map((g) => g.id) }); }
     if (n === seq.named.length && seq.hold) { seq.hold.release(); seq.hold = null; }
   }, 0);
 
@@ -63,12 +59,12 @@ export function linkFigure(): () => void {
     stopSeq();
     // the vessels named: all at once, or in the glow's order (glowSeq: the pressure passing back from the heart), one step after another
     const late = c.named.some((g) => g.at > 0);
-    if (late) { seq = { named: c.named, shown: -1, hold: clock.hold('figure-glow-seq') }; clock.invalidate('figure-glow-seq'); } else sceneApi.setNamedVessels(c.named.map((g) => g.id));
-    sceneApi.markVessels(c.marked);
-    sceneApi.pinOrgans(c.pins, c.normalSpleen);
+    if (late) { seq = { named: c.named, shown: -1, hold: clock.hold('figure-glow-seq') }; clock.invalidate('figure-glow-seq'); } else setLayer('talk', { named: c.named.map((g) => g.id) });
+    setLayer('talk', { marked: c.marked });
+    setLayer('talk', { pins: c.pins, normalSpleen: c.normalSpleen });
     sceneApi.setResistors(c.res);
     sceneApi.setCaudatePin(c.caudate);
-    t0 = performance.now();
+    t0 = clock.now();
     useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, t0 });
   };
 
@@ -100,12 +96,12 @@ export function linkFigure(): () => void {
       apply(EMPTY_CALLS); pending = calls; applied = false;
       if (slideLanded()) flush();
     }
-    if (since) { setSince(since); sinceOn = true; } else if (sinceOn) { setSince(null); sinceOn = false; }
+    setLayer('talk', { sinceRef: since });
   };
 
   sync();
   const off = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops || s.deck !== p.deck) sync(); });
   const offStates = useStates.subscribe(() => sync());
   const offLanded = onLanded(flush);
-  return () => { off(); offStates(); offLanded(); offClock(); stopSeq(); pending = null; if (sinceOn) setSince(null); apply(EMPTY_CALLS); };
+  return () => { off(); offStates(); offLanded(); offClock(); stopSeq(); pending = null; apply(EMPTY_CALLS); clearLayer('talk'); };
 }

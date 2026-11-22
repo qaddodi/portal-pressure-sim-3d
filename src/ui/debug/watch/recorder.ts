@@ -8,6 +8,7 @@ interface HistoryOut { v: number; seconds: number; step: number; startedAt: numb
 const exportHistory = exportHistoryJs as unknown as (h: Record<string, unknown>, o?: { seconds?: number; maxBytes?: number }) => HistoryOut;
 import { judgeMotion, type Sample, type MFinding } from './motion-rules.ts';
 
+import { clock } from '../../../clock/frame.ts';
 export interface Sources {
   /** the camera mark: [hand zoom, projected anchor x, y], or null when the camera is not placed */
   camera(): [number, number, number] | null;
@@ -34,7 +35,7 @@ export const RING_SECONDS = 20, MAX_SAMPLES = 20 * 125;   // 20 s at up to 120 f
 export function createRecorder(sources: Sources, opts: { seconds?: number; now?: () => number; vb?: unknown; env?: unknown } = {}): Recorder {
   const seconds = opts.seconds ?? RING_SECONDS;
   const ring: Sample[] = [], evs: RecEvent[] = [];
-  const now = opts.now ?? (() => (typeof performance !== 'undefined' ? performance.now() : 0));
+  const now = opts.now ?? (() => (typeof performance !== 'undefined' ? clock.now() : 0));
   const startedAt = now();
   const safe = <T>(f: () => T): T | null => { try { return f(); } catch { return null; } };   // a source that will not say is null, never a thrown frame
 

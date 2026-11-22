@@ -11,6 +11,7 @@ import { changes } from '../../decks/hp/numbers.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { latest, patient, useEngine } from '../../engine/index.ts';
 import { healthyFp, beforeOf } from '../charts/profile/data.ts';
+import { useVariant } from './variant-words.ts';
 import { CriteriaCard } from '../charts/criteria/CriteriaCard.tsx';
 import { PathCard } from '../charts/path/PathCard.tsx';
 import { ProfileCard } from '../charts/profile/ProfileCard.tsx';
@@ -62,6 +63,7 @@ import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
+import { clock } from '../../clock/frame.ts';
 const DopplerPane = lazyRetry(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
 const FibroPane = lazyRetry(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const EndoPane = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
@@ -89,7 +91,10 @@ function useEnv(deck: Deck, i: number) {
   const [healthy, setHealthy] = useState<Fp | null>(null);
   useEffect(() => { let on = true; void healthyFp().then((h) => { if (on) setHealthy(h as Fp | null); }); return () => { on = false; }; }, []);
   const cs = copied.slides[i] as CopiedSlide;
-  const st = results?.[i];
+  const own = results?.[i];
+  // the patient a compare button has put the model in, if one is pressed: every chart of the slide reads it, as the figure does (variant-words.ts)
+  const variant = useVariant((v) => (v.key === `${deck.id}/${cs.id}` ? v.state : null));
+  const st = useMemo(() => (variant && own ? { ...own, fp: variant.fp, params: variant.params ?? own.params } : own), [own, variant]);
   const fpOf = (id: string): Fp | null => { const j = copied.slides.findIndex((x) => x.id === id); return (results?.[j]?.fp as Fp | undefined) ?? null; };
   return { copied, cs, st, fp: (st?.fp ?? null) as Fp | null, params: st?.params, healthy, results, fpOf };
 }
@@ -115,13 +120,13 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   const slideState = useMemo(() => (fp ? { fp: fp as never, params, base: st?.base, snap: st?.snap } : null), [fp, params, st?.base, st?.snap]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the next two slides' curves and courses are worked out while this one is read, so they open drawn
   useEffect(() => {
-    const t = setTimeout(() => {
+    const t = clock.after(() => {
       for (let j = i + 1; j <= i + 2 && j < copied.slides.length; j++) {
         const c = copied.slides[j] as CopiedSlide, tl = (c.tool ?? {}) as Rec, r = results?.[j];
         if (tl.kind === 'curve' || tl.kind === 'course') warmCurve(tl as never, r?.fp ? { fp: r.fp as never, params: r.params, base: r.base, snap: r.snap } : null, `${deck.id}/${c.id}`, fpOf as never);
       }
     }, 700);
-    return () => clearTimeout(t);
+    return () => clock.cancel(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i, deck.id, results]);
   const stateOf = useMemo(() => { let last = 0; return copied.slides.map((s, j) => (j === 0 || changes(s as CopiedSlide) ? (last = j) : last)); }, [copied]);

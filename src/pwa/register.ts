@@ -5,7 +5,9 @@
 import { useShell } from '../ui/shell/store.ts';
 import { reloadKeepingState } from '../boot/reload.ts';
 import { talkOn } from '../state/deck.ts';
+import { lowData } from '../boot/data-saver.ts';
 
+import { clock } from '../clock/frame.ts';
 export const UPDATE_TOAST = 'A new version of the simulator is ready.';
 /** How long a held offer waits before it asks again (a talk is on). */
 export const RETRY_MS = 30000;
@@ -29,14 +31,24 @@ export const holdsAll = (mine: readonly string[], held: unknown): boolean => Arr
 
 function askFiles(sw: ServiceWorker): Promise<unknown> {
   return new Promise((res) => {
-    const ch = new MessageChannel(), t = setTimeout(() => res(null), 2000);
-    ch.port1.onmessage = (e) => { clearTimeout(t); res(e.data); };
-    try { sw.postMessage('pps:files', [ch.port2]); } catch { clearTimeout(t); res(null); }
+    const ch = new MessageChannel(), t = clock.after(() => res(null), 2000);
+    ch.port1.onmessage = (e) => { clock.cancel(t); res(e.data); };
+    try { sw.postMessage('pps:files', [ch.port2]); } catch { clock.cancel(t); res(null); }
   });
 }
 
+/** Where the person is asked once whether this site may keep its files (a home-screen app on an iPhone is then less likely to lose its copy; a refusal is harmless). */
+export const PERSIST_KEY = 'pps:persist-asked';
+/** Asks the browser to keep this site's storage, once per device (the answer is not asked again whatever it was). Resolves true only when the browser said yes. */
+export async function persistOnce(storage: { persist?: () => Promise<boolean> } | undefined, flag: Pick<Storage, 'getItem' | 'setItem'> | null): Promise<boolean> {
+  if (!storage?.persist) return false;
+  try { if (flag?.getItem(PERSIST_KEY)) return false; flag?.setItem(PERSIST_KEY, '1'); } catch { /* a browser that keeps nothing asks each visit: harmless */ }
+  try { return await storage.persist(); } catch { return false; }
+}
+const door = (): Pick<Storage, 'getItem' | 'setItem'> | null => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } };
+
 /** The offer: one line at the foot with a Reload button; in a talk it waits and asks again. */
-export function offerReload(say = useShell.getState().say, retry = (fn: () => void) => { setTimeout(fn, RETRY_MS); }): void {
+export function offerReload(say = useShell.getState().say, retry = (fn: () => void) => { clock.after(fn, RETRY_MS); }): void {
   const offer = () => {
     if (talkOn()) { retry(offer); return; }
     say(UPDATE_TOAST, 'info', { label: 'Reload', run: () => location.reload() });
@@ -74,7 +86,7 @@ export function registerPwa(): void {
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) takeOver(); });
   }
-  const idle = (fn: () => void) => { const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback; if (ric) ric(fn, { timeout: 5000 }); else setTimeout(fn, 1500); };
+  const idle = (fn: () => void) => { const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback; if (ric) ric(fn, { timeout: 5000 }); else clock.after(fn, 1500); };
   // (once the worker is active the page asks it to hold the parts opened later: 'pps:fill', scripts/pwa.mjs)
   /** Asks the host for a newer worker when the tab comes to the front, comes back online or has stayed open CHECK_MS (the browser asks only on a navigation, and once a day otherwise). */
   const watchForNewBuild = (reg: ServiceWorkerRegistration) => {
@@ -82,10 +94,11 @@ export function registerPwa(): void {
     const ask = () => { if (Date.now() - last < CHECK_GAP_MS || document.hidden) return; last = Date.now(); reg.update().catch(() => undefined); };
     document.addEventListener('visibilitychange', ask);
     addEventListener('pageshow', ask); addEventListener('online', ask);
-    setInterval(ask, CHECK_MS);
+    clock.every(ask, CHECK_MS);
   };
   const go = () => idle(() => {
-    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => idle(() => r.active?.postMessage('pps:fill')))
+    // (once the worker is active, its install list is held: the site may keep it (persistOnce); the fill of the parts opened later waits on Save-Data and 2g, those parts are fetched on use and kept)
+    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { void persistOnce(navigator.storage, door()); if (!lowData()) idle(() => r.active?.postMessage('pps:fill')); })
       .catch((e) => console.warn('[pwa] no offline copy:', e));
   });
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });

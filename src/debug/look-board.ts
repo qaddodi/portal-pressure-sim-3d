@@ -9,6 +9,7 @@ import { diffPixels, verdict, moved, type Diff } from './look-diff.ts';
 import { readPixels, picture } from './look-pixels.ts';
 import type { LookApi, CaptureInfo } from './look-app.ts';
 
+import { clock } from '../clock/frame.ts';
 const CSS = `
 html, body { margin: 0; } body { font: 500 14px/1.4 system-ui, -apple-system, sans-serif; background: #f2f1ee; color: #1b1b1d; }
 @media (prefers-color-scheme: dark) { body { background: #141416; color: #efefef; } .lbd-bar { background: #1c1c20 !important; } }
@@ -74,8 +75,8 @@ export function bootLookBoard(doc: Document = document, win: Window = window): v
     const k = Math.min(0.35, 360 / d.w);
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${k})`; live.style.width = `${Math.round(d.w * k)}px`; live.style.height = `${Math.round(d.h * k)}px`;
     frame.src = stateAddress(s, win.location.pathname); frame.title = 'The app being photographed'; live.append(frame);
-    const t0 = performance.now();
-    while (!apiOf()) { if (performance.now() - t0 > 90000 || stopped) return null; await new Promise((ok) => setTimeout(ok, 150)); }
+    const t0 = clock.now();
+    while (!apiOf()) { if (clock.now() - t0 > 90000 || stopped) return null; await new Promise((ok) => clock.after(ok, 150)); }
     return apiOf();
   }
   async function visit(r: Row): Promise<void> {
@@ -107,14 +108,14 @@ export function bootLookBoard(doc: Document = document, win: Window = window): v
     await probeServer();
     const ids = new Set(LOOK_STATES.filter((s) => !only.value || s.device === only.value));
     const order = visitOrder(LOOK_STATES).filter((s) => ids.has(s)).map((s) => list.find((r) => r.s === s)!);
-    const t0 = performance.now(); let n = 0, bad = 0;
+    const t0 = clock.now(); let n = 0, bad = 0;
     frameDevice = '';
     for (const r of order) {
       if (stopped) break;
       status.textContent = `${++n} of ${order.length}: ${stateTitle(r.s)}`;
       try { await visit(r); } catch (e) { bad++; r.note.textContent = `failed: ${(e as Error).message}`; r.el.dataset.moved = 'true'; }
     }
-    const sec = Math.round((performance.now() - t0) / 1000), movedN = list.filter((r) => r.result && moved(r.result.d)).length;
+    const sec = Math.round((clock.now() - t0) / 1000), movedN = list.filter((r) => r.result && moved(r.result.d)).length;
     status.textContent = `${stopped ? 'Stopped' : 'Done'}: ${n} states in ${sec} s${bad ? `, ${bad} failed` : ''}${movedN ? `, ${movedN} moved from the baseline` : ''}${saver ? `; saved to look/${saver.commit}/` : '; not saved (npm run look:serve saves)'}.`;
     run.disabled = false; stop.disabled = true; promote.disabled = !saver;
   }

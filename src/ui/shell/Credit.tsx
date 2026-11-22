@@ -19,6 +19,7 @@ import { sinusoidWorld } from '../../scene/lobule/frames.ts';
 import { U } from '../../scene/sinusoid/view.ts';
 import { Vector3 } from 'three';
 
+import { clock, type TimerId } from '../../clock/frame.ts';
 /** The Sinusoid view's vessel on the canvas now (the lumen and its wall as a strip over the whole screen), or null when the view is not up or the camera is still flying to it (the strip is not where it will be yet). */
 const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0, 0, 0];
 function sinusoidVessel() {
@@ -100,9 +101,9 @@ export function Credit() {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    let timer = 0, shown = false, at0: { x: number; y: number } | null = null, hop = 0;
+    let timer: TimerId | null = null, shown = false, at0: { x: number; y: number } | null = null, hop: TimerId | null = null;
     // the bars settle after the layout change (the dock's height, a card's transition): look again once they have, and again when one resizes
-    function again() { clearTimeout(timer); timer = window.setTimeout(place, 260); }
+    function again() { clock.cancel(timer); timer = clock.after(place, 260); }
     const place = () => {
       if (cel.rig.isMoving) { el.classList.add('moving'); again(); return; }   // (the camera is flying: the figure's labels are not where they will stand; look again once it has landed)
       const vw = innerWidth, vh = innerHeight, h = M.creditFont * M.creditLine, w = el.offsetWidth || 220;
@@ -111,7 +112,7 @@ export function Credit() {
       const lay = layoutOf(vw, vh);
       if (talk && (lay === 'wide' || lay === 'short')) {
         const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
-        clearTimeout(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
+        clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true;
         return;
       }
@@ -130,21 +131,21 @@ export function Credit() {
       const put = () => { el.style.setProperty('--cx', `${Math.round(at.x)}px`); el.style.setProperty('--cy', `${Math.round(at.y)}px`); at0 = at; shown = true; el.classList.remove('moving'); };
       // a spot that moves while the credit shows fades out, moves while it is clear and fades back (never a jump across the figure)
       if (shown && at0 && (Math.abs(at0.x - at.x) > 4 || Math.abs(at0.y - at.y) > 4)) {
-        el.classList.add('moving'); clearTimeout(hop); hop = window.setTimeout(put, FADE_MS);
-      } else { clearTimeout(hop); put(); }
+        el.classList.add('moving'); clock.cancel(hop); hop = clock.after(put, FADE_MS);
+      } else { clock.cancel(hop); put(); }
     };
     place();
     again();
-    const late = window.setTimeout(place, 900);   // (a slide's cards come in after their measure and a short fade)
+    const late = clock.after(place, 900);   // (a slide's cards come in after their measure and a short fade)
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(again) : null;
     for (const e of document.querySelectorAll(OBSTACLES)) ro?.observe(e);
     // a talk's cards come and go (a slide, a page, a card's measure, its fade): look again once each change has settled, and once more after its entry
-    let settle = 0;
-    const changed = () => { again(); clearTimeout(settle); settle = window.setTimeout(place, 1100); };
+    let settle: TimerId | null = null;
+    const changed = () => { again(); clock.cancel(settle); settle = clock.after(place, 1100); };
     const deck = document.querySelector('.deck-ui');
     const mo = deck && typeof MutationObserver === 'function' ? new MutationObserver(changed) : null;
     mo?.observe(deck!, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-phase'] });
-    return () => { clearTimeout(timer); clearTimeout(hop); clearTimeout(late); clearTimeout(settle); ro?.disconnect(); mo?.disconnect(); };
+    return () => { clock.cancel(timer); clock.cancel(hop); clock.cancel(late); clock.cancel(settle); ro?.disconnect(); mo?.disconnect(); };
   }, [view, talk, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }

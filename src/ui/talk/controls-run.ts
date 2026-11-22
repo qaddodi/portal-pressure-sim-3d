@@ -5,7 +5,9 @@ import { engine } from '../../engine/index.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
-import { useVariant } from './variant-words.ts';
+import { useVariant, variantOf } from './variant-words.ts';
+import { variantStateOf, sliderOpt, type Picked, type Seq } from './variant-state.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
@@ -22,18 +24,8 @@ import { copiedOf } from '../../decks/hp/deck.ts';
 export const EASE_MS = 700, MORPH_MS = 1100, SLIDER_EASE_MS = 350;
 
 const stateOf = (deck: Deck, i: number) => useStates.getState().results[deck.id]?.[i];
-const presetSnaps = new Map<string, Promise<unknown>>();
-/** A patient's state (2D xKey: the preset with the params, days and relax a button gives it), worked out off screen once. */
-const xKey = (o: { preset: string; params?: unknown; days?: number }): string => o.preset + (o.params || o.days ? JSON.stringify([o.params, o.days]) : '');
-const snapOfPatient = (o: CompareOpt): Promise<unknown> => {
-  const key = xKey(o as { preset: string });
-  let p = presetSnaps.get(key);
-  if (!p) {
-    p = engine().sequence([{ preset: o.preset!, ...(o.params ? { params: o.params } : {}), ...(o.days ? { days: o.days } : {}) }]).then((r) => r[0]?.snap);
-    presetSnaps.set(key, p); p.catch(() => presetSnaps.delete(key));
-  }
-  return p;
-};
+const picked = new Map<string, Promise<Picked>>();
+let pickN = 0;
 const morph = (snap: unknown) => { if (snap) engine().send({ type: 'morph', snap, ms: MORPH_MS }); };
 
 /** A compare button, by what it does (decks/controls.ts howOf, 2D abChoice): switch the lens, ease the model to a state (a patient, another slide's, the slide's own), or patch the live
@@ -53,16 +45,23 @@ export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise
   }
   const at = o.slide ? deck.slides.find((s) => s.id === o.slide) ?? null : null;
   const words = variantWords(slide, o, at);
+  const n = ++pickN;   // (a later press wins: an earlier one that is still being worked out must not land after it)
+  const seq: Seq = (steps, base) => engine().sequence(steps, base);
+  const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
   if (o.how === 'params') {
     engine().send({ type: 'setParams', params: o.params ?? {}, settle: false, ease: EASE_MS });
     // (only a row where some button speaks brings words: a row of plain parameter buttons keeps the slide's)
-    if (speaks(slide.controls?.compare?.opts ?? [])) useVariant.getState().set(key, words);
+    const w = speaks(slide.controls?.compare?.opts ?? []) ? words : null;
+    useVariant.getState().set(key, w);
+    // the charts of the slide read the patient this press makes (the slide's own state with the change), as they do for a patient button
+    const got = await variantStateOf(seq, picked, { slideKey: key }, o, stateOf(deck, i), undefined);
+    if (n === pickN && got) useVariant.getState().set(key, w, got.state);
     return;
   }
-  const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
-  const snap = o.preset ? await snapOfPatient(o) : stateOf(deck, j)?.snap;
-  morph(snap);
-  useVariant.getState().set(key, words);
+  const got = await variantStateOf(seq, picked, { slideKey: key }, o, stateOf(deck, i), stateOf(deck, j));
+  if (n !== pickN) return;
+  morph(got?.snap);
+  useVariant.getState().set(key, words, got?.state ?? null);
 }
 
 /** The key a slide's instrument options are kept under. */
@@ -72,8 +71,23 @@ export function dragToolOption(deck: Deck, i: number, name: string, x: number): 
 /** Where an instrument slider starts: the slide's own option, else the low end. */
 export const toolOptionStart = (deck: Deck, i: number, name: string, min: number): number => { const v = (copiedOf(deck.id)?.slides[i]?.tool as Record<string, unknown> | undefined)?.[name]; return typeof v === 'number' ? v : min; };
 
-/** The what-if slider: one value at its parameter paths, eased in. */
-export function dragWhatIf(paths: readonly string[], x: number): void { engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS }); }
+/** The what-if slider: one value at its parameter paths, eased in. The slide's charts follow it too (the same state a parameter button gives them), once the slider has rested a moment: each value is a
+ *  settled model worked out off screen, so a drag asks for the last one only. At the slide's own value the slide's own state is back. */
+const SLIDER_REST_MS = 250;
+let dragTimer: TimerId | null = null, dragN = 0;
+export function dragWhatIf(deck: Deck, i: number, paths: readonly string[], x: number): void {
+  engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS });
+  const key = slideKey(deck, i), n = ++dragN;
+  if (dragTimer != null) clock.cancel(dragTimer);
+  dragTimer = clock.after(() => {
+    dragTimer = null;
+    const own = stateOf(deck, i), words = variantOf(key);
+    if (x === whatIfStart(deck, i, paths, NaN)) { if (n === dragN) useVariant.getState().set(key, words, null); return; }
+    void variantStateOf((st, base) => engine().sequence(st, base), picked, { slideKey: key }, sliderOpt(paths, x), own, undefined).then((got) => {
+      if (n === dragN && got?.state) useVariant.getState().set(key, words, got.state);
+    });
+  }, SLIDER_REST_MS);
+}
 /** Where the slider starts: the slide's own value at its first path (its computed state's parameters), else the low end. */
 export const whatIfStart = (deck: Deck, i: number, paths: readonly string[], min: number): number => valueAt(stateOf(deck, i)?.params, paths[0]!) ?? min;
 

@@ -4,12 +4,13 @@ import { rail, followOf, commitOf, speedOf, PARALLAX, type Pt } from './rail.ts'
 import type { Move } from '../deck/presenter-machine.ts';
 import { ownsTouch, axisStart, axisOf, axisEnd } from './swipe-own.ts';
 
+import { clock } from '../../clock/frame.ts';
 /** What the recogniser reads of a pointer event (a window's and a React card's both fit). */
 interface Pe { clientX: number; clientY: number; timeStamp: number; pointerId: number; pointerType: string; target: EventTarget | null; isPrimary?: boolean }
 
 /** When a drag last let go (ms): the tap that follows a drag's pointer-up is not a tap. */
 export let lastDragEnd = -1e9;
-export const justDragged = () => performance.now() - lastDragEnd < 400;
+export const justDragged = () => clock.now() - lastDragEnd < 400;
 
 interface Opts {
   /** a finished movement that was not a drag the cards followed (a tap, a mouse swipe, a vertical swipe) */
@@ -70,7 +71,7 @@ export function useCardDrag(o: Opts) {
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       if (!g.on) { if (!g.touch || g.card) opts.current.onEnd({ dx, dy, ms: e.timeStamp - g.t }, e, g.card); return; }
       drop(g);
-      lastDragEnd = performance.now();
+      lastDragEnd = clock.now();
       g.pts.push([e.clientX, e.timeStamp]);
       const m = commitOf(dx, dy, speedOf(g.pts));
       // the cards the talk keeps (the same data card on the next slide) are not sent out: they ease back from the finger's place. A card that is about to leave is NEVER eased back first: its leave
@@ -79,9 +80,9 @@ export function useCardDrag(o: Opts) {
       const out = m ? opts.current.leaves?.(m) ?? true : false;
       if (m) opts.current.onMove(m);
       const home = () => { for (const c of cards) if (!c.els[0]!.isConnected || c.els[0]!.closest('[data-phase="out"]') || c.els[0]!.getAttribute('data-phase') === 'out' || rail.moving(c.els)) continue; else rail.back(c.els, put.x, put.o, slot(c.data)); };
-      if (!m) setTimeout(home, 0);
-      else if (!out) setTimeout(home, 60);
-      else setTimeout(home, 900);   // (the net: a leave that never came leaves nothing displaced)
+      if (!m) clock.after(home, 0);
+      else if (!out) clock.after(home, 60);
+      else clock.after(home, 900);   // (the net: a leave that never came leaves nothing displaced)
     };
     const cancel = (e: Pe) => {
       const g = st.current; st.current = null;

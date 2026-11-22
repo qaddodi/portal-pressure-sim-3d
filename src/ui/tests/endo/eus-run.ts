@@ -14,6 +14,7 @@ import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
 import { cutRoom } from '../room.ts';
 import { tipShot } from '../../deck/procs-plan.ts';
+import { releaseCamera } from '../cam-release.ts';
 import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { EUS, type Reads } from './eus-words.ts';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
@@ -56,14 +57,14 @@ function camera(shot: string): void {
   if (!sh) return;
   camAt = shot; sceneApi.follow(null); sceneApi.goTo(sh, room(), 900);
 }
-const camHome = () => { camAt = ''; sceneApi.follow(null); sceneApi.goTo('play', room()); };
+const camHome = () => { camAt = ''; releaseCamera(); };
 const wake = () => { hold ||= clock.hold('eus-ppg'); };
 const sleep = () => { hold?.release(); hold = null; };
 
 /** Measure › EUS-PPG (2D eus-ppg.js play): the needle on the anatomy, the monitor taking the scope's place. */
 export function playEus(): void {
-  if (performance.now() - E.playT < 600 || E.run) return;
-  E.playT = performance.now();
+  if (clock.now() - E.playT < 600 || E.run) return;
+  E.playT = clock.now();
   if (sceneApi.procedure.playing || sceneApi.procedure.tip(V)) { useShell.getState().say(W.eusBusy); return; }
   for (const k of Object.keys(readsRef.eus)) (readsRef.eus as unknown as Record<string, number>)[k] = NaN;
   if (useShell.getState().view !== 'anatomic') goToView('anatomic');   // (2D leaveFor: the needle is drawn on the body, so the Circuit, the lobule and the sinusoid close first)
@@ -87,12 +88,15 @@ export function playEus(): void {
       if (t >= EUS.T.end - 1) E.done = true;
     },
     onEnd: () => { camHome(); cards?.end(); cards = null; E.run = false; M.run = false; E.step = -1; tk.finish(E.done); pinLive(); sleep(); bump(); },
+    // stopped before its end (the Tests card closed, a new patient, another control stopped the layer): give back the camera, the readings and the owner, whatever phase it was in
+    onStop: () => { camHome(); resetEus(); },
   });
 }
 
 /** The card going away, or a new patient: stop what plays and give the scope back (2D dispose / tk.reset). */
 export function resetEus(): void {
-  if (sceneApi.procedure.playing?.kind === 'eus') sceneApi.procedure.stop();
+  if (sceneApi.procedure.playing?.kind === 'eus') sceneApi.procedure.stop();   // (its onStop gives the camera back)
+  if (camAt) camHome();   // (a claim the layer no longer shows, e.g. the run ended in the same frame)
   cards?.end(); cards = null;
   E.run = false; M.run = false; E.step = -1; E.done = false;
   tk.reset(); sleep(); bump();

@@ -5,6 +5,7 @@
 //   chunkProblem(err)  the words and the choice of buttons for a failure: offline, a newer build is out, or just failed.
 import { createElement, lazy, type ComponentType } from 'react';
 
+import { clock } from '../clock/frame.ts';
 export class ChunkError extends Error {
   offline: boolean; stale: boolean; reason: unknown;
   constructor(message: string, offline: boolean, stale: boolean, reason?: unknown) { super(message); this.name = 'ChunkError'; this.offline = offline; this.stale = stale; this.reason = reason; }
@@ -22,7 +23,7 @@ const offlineNow = (): boolean => typeof navigator !== 'undefined' && navigator.
 
 export async function retryImport<T>(load: () => Promise<T>, o: { delays?: readonly number[]; wait?: (ms: number) => Promise<void> } = {}): Promise<T> {
   const delays = o.delays ?? RETRY_DELAYS_MS;
-  const wait = o.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const wait = o.wait ?? ((ms: number) => new Promise<void>((r) => clock.after(r, ms)));
   let last: unknown;
   for (let i = 0; i <= delays.length; i++) {
     try { return await load(); } catch (e) {

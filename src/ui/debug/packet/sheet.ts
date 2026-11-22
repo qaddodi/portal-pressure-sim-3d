@@ -3,6 +3,7 @@
 // nothing in it scrolls sideways.
 import { packetText, withNote } from '../core/packet.copied.js';
 
+import { clock } from '../../../clock/frame.ts';
 const CSS = `
 .pkt { position: fixed; inset: auto 8px 8px 8px; z-index: var(--z-perf, 100); max-height: min(78vh, 640px); display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid var(--border, #8884); background: var(--surface, #fff); color: var(--text, #111); box-shadow: 0 8px 28px rgba(0,0,0,.28); font: 500 13px/1.4 system-ui, sans-serif; opacity: 0; transition: opacity 240ms ease; }
 .pkt[data-in] { opacity: 1; }
@@ -44,7 +45,7 @@ export function openPacketSheet({ build, doc = document, say = () => undefined }
   fadeInSoon(() => root.setAttribute('data-in', ''));
   let packet: Record<string, any> | null = null, closed = false;
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dispose(); };
-  const dispose = () => { if (closed) return; closed = true; doc.removeEventListener('keydown', onKey); root.removeAttribute('data-in'); setTimeout(() => root.remove(), 300); };
+  const dispose = () => { if (closed) return; closed = true; doc.removeEventListener('keydown', onKey); root.removeAttribute('data-in'); clock.after(() => root.remove(), 300); };
   doc.addEventListener('keydown', onKey);
   close.onclick = dispose;
   copy.onclick = async () => {
@@ -70,4 +71,4 @@ export function openPacketSheet({ build, doc = document, say = () => undefined }
 }
 
 // (a frame later, so the sheet's first paint is its hidden state and the fade runs; a timer, not a frame request: nothing here asks the clock for anything)
-function fadeInSoon(fn: () => void): void { setTimeout(fn, 16); }
+function fadeInSoon(fn: () => void): void { clock.after(fn, 16); }

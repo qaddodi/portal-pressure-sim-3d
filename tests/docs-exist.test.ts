@@ -16,7 +16,7 @@ const code = () => (corpus ||= ['src', 'scripts', 'tests'].flatMap((d) => walk(d
 
 const spans = (text: string): string[] => [...text.replace(/```[\s\S]*?```/g, '').matchAll(/`([^`\n]+)`/g)].map((m) => m[1]!.trim());
 /** A branch (`claude/…`), a repository (`qaddodi/…`) or a URL path (`/guides/`) is not a file of this repo. */
-const elsewhere = (s: string) => /^(claude|codex|qaddodi)\//.test(s) || s.startsWith('/');
+const elsewhere = (s: string) => /^(claude|codex|qaddodi|dist)\//.test(s) || s.startsWith('/') || s.startsWith('.');   // (a build's output, a file extension)
 const isPath = (s: string) => !elsewhere(s) && /^[\w./@*-]+$/.test(s) && (s.includes('/') || /\.(ts|tsx|md|mjs|js|json|css|pdf|html|yml)$/.test(s)) && !/^(https?:|\/\/)/.test(s) && !/^[.\d]+$/.test(s);
 const pathExists = (s: string): boolean => {
   if (!s.includes('/') && !s.includes('*')) return names.has(s) || existsSync(s);

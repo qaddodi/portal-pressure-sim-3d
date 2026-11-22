@@ -34,6 +34,7 @@ import { loadPatient } from './patients.ts';
 import { openFromReadings } from '../readings/FromReadings.tsx';
 import { GROUP_WHERE, fold, filterRows, emptyNote, stepRow, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
 
+import { clock, type TimerId } from '../../clock/frame.ts';
 const PRESET_SUMMARY: Record<string, string> = Object.fromEntries((PRESETS as { id: string; summary?: string }[]).map((p) => [p.id, p.summary ?? '']));
 const TABS = UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[];
 const TAB_ICON: Record<MenuTab, string> = { present: 'projector', patients: 'scenario' };
@@ -140,7 +141,7 @@ export function UMenu() {
   const [query, setQuery] = useState('');
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [hover, setHover] = useState<{ k: string; el: HTMLElement } | null>(null);
-  const hoverT = useRef(0), hideT = useRef(0);
+  const hoverT = useRef<TimerId | null>(null), hideT = useRef<TimerId | null>(null);
   const root = typeof document === 'undefined' ? null : document.querySelector('.sh-root');
   const close = () => useShell.getState().close();
   useSheetSwipe(ref, close, () => sheet, true);   // (2D menu.js: a phone's menu is a sheet that follows a pull down)
@@ -243,11 +244,11 @@ export function UMenu() {
   // the preview beside the panel: a mouse that rests on a row for 300 ms (120 ms when one is already up); it goes 220 ms after the mouse leaves both
   const onHover = (k: string) => (el: HTMLElement | null) => {
     if (sheet || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-    clearTimeout(hoverT.current); clearTimeout(hideT.current);
-    if (!el) { hideT.current = window.setTimeout(() => setHover(null), 220); return; }
-    hoverT.current = window.setTimeout(() => setHover({ k, el }), hover ? 120 : 300);
+    clock.cancel(hoverT.current); clock.cancel(hideT.current);
+    if (!el) { hideT.current = clock.after(() => setHover(null), 220); return; }
+    hoverT.current = clock.after(() => setHover({ k, el }), hover ? 120 : 300);
   };
-  useEffect(() => () => { clearTimeout(hoverT.current); clearTimeout(hideT.current); }, []);
+  useEffect(() => () => { clock.cancel(hoverT.current); clock.cancel(hideT.current); }, []);
 
   // the preview beside the panel stays in the page while it fades out (menu.js hidePreview), holding the row it showed last
   const pvOn = !!(hover && !sheet && open && hover.el.isConnected);
@@ -351,7 +352,7 @@ export function UMenu() {
   return createPortal(<>
     {sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={close} />}
     {menu}
-    {pv.shown && pvLast.current && <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clearTimeout(hideT.current)} onLeave={() => { hideT.current = window.setTimeout(() => setHover(null), 220); }} />}
+    {pv.shown && pvLast.current && <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clock.cancel(hideT.current)} onLeave={() => { hideT.current = clock.after(() => setHover(null), 220); }} />}
   </>, root);
 }
 
@@ -375,8 +376,8 @@ function Beside({ hover, on, panel, make, onEnter, onLeave }: { hover: { k: stri
   useEffect(() => {
     if (!st.olds.length) return;
     const ids = st.olds.map((o) => o.id);
-    const t = window.setTimeout(() => setSt((s) => ({ ...s, olds: s.olds.filter((o) => !ids.includes(o.id)) })), D_FLIP);   // (.um-pv-old fades out over D_FLIP)
-    return () => window.clearTimeout(t);
+    const t = clock.after(() => setSt((s) => ({ ...s, olds: s.olds.filter((o) => !ids.includes(o.id)) })), D_FLIP);   // (.um-pv-old fades out over D_FLIP)
+    return () => clock.cancel(t);
   }, [st.olds]);
   // it shows a frame after it is in the page (the stylesheet's opacity and rise settle), and goes the same way
   useEffect(() => {
@@ -462,4 +463,4 @@ export function pvResize(card: HTMLElement, cut: HTMLElement, cutin: HTMLElement
 }
 
 /** After the commit has painted (a focus that must land on an element React has just shown): the one clock is not asked for a frame, a timer is enough for a focus. */
-const afterCommit = (f: () => void) => { window.setTimeout(f, 0); };
+const afterCommit = (f: () => void) => { clock.after(f, 0); };

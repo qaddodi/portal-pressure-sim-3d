@@ -48,7 +48,7 @@ export function OverTimePane({ plot }: { plot: number }) {
   const headX = (): number => {
     const f = latest.frame;
     if (feed.wheel.on) return feed.wheel.head();
-    return headOf(feed.last, wall.current, performance.now(), !!f?.running && f.clock !== 'disease', f?.speed ?? 1) || (f?.t ?? 0);
+    return headOf(feed.last, wall.current, clock.now(), !!f?.running && f.clock !== 'disease', f?.speed ?? 1) || (f?.t ?? 0);
   };
   /** While the model's own clock stands still under a running page (a state easing in: the frame says how long) it sends no samples: the last beat is replayed over the time that passes. */
   const advanceWheel = (t: number) => {
@@ -75,7 +75,7 @@ export function OverTimePane({ plot }: { plot: number }) {
   const draw = () => {
     const c = ctx.current, p = painter.current;
     if (!c || !p) return;
-    const t = performance.now();
+    const t = clock.now();
     advanceWheel(t);
     const v = view();
     if (now.current.range !== 'days') { feed.head[0] = v.head; feed.head[1] = t; }
@@ -96,10 +96,10 @@ export function OverTimePane({ plot }: { plot: number }) {
     if (run && !hold.current) hold.current = clock.hold('trace'); else if (!run && hold.current) { hold.current.release(); hold.current = null; }
   };
   useEffect(() => {
-    const off = onFrame(() => { wall.current = performance.now(); dirty.current = true; sync(); clock.invalidate('trace'); });
+    const off = onFrame(() => { wall.current = clock.now(); dirty.current = true; sync(); clock.invalidate('trace'); });
     const offTl = timeline.onChange(() => { dirty.current = true; clock.invalidate('trace'); });
     const tick = clock.on('tween', () => { if (dirty.current || hold.current) { dirty.current = false; draw(); } });
-    wall.current = performance.now();
+    wall.current = clock.now();
     sync();
     return () => { off(); offTl(); tick(); hold.current?.release(); hold.current = null; };
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -138,7 +138,7 @@ export function OverTimePane({ plot }: { plot: number }) {
         onPointerUp={(e) => { if (e.pointerType !== 'mouse') clearCross(); }}>
         <Cv at={cv.ref}>
           <Chart tag="trace" painter={painter} deps={[range, chosen, smooth, ekg, lane, h, hid]} label={label}
-            build={(c) => { ctx.current = c; return traceFrame(record, view(), { w: c.w, h, pal: c.pal, fs: c.type.sm }, (k, lo, hi) => ease.current.fn(k, lo, hi, performance.now())).frame; }} />
+            build={(c) => { ctx.current = c; return traceFrame(record, view(), { w: c.w, h, pal: c.pal, fs: c.type.sm }, (k, lo, hi) => ease.current.fn(k, lo, hi, clock.now())).frame; }} />
         </Cv>
       </div>
       <div className="pt-chips" role="group" aria-label="Traces">

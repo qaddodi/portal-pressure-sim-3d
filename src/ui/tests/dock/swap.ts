@@ -5,7 +5,7 @@
 // A swipe keeps its own way (swipe.ts: the neighbour was built beside the finger; its pane lands without staging or fade). The latest ask wins; a swipe, a close or STAGE_MAX ends the wait.
 // The pane that changes with the Pressure tab's own switch (Along the circuit / Over time) is the same tab: it swaps in place and plays the CSS crossfade.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { clock } from '../../../clock/frame.ts';
+import { clock, type TimerId } from '../../../clock/frame.ts';
 import type { PaneId } from '../panes.ts';
 import { tabOf } from '../panes.ts';
 import { afterLoad } from './lazy.ts';
@@ -54,14 +54,14 @@ export function usePaneSwap(open: boolean, pane: PaneId, second: PaneId | null, 
       // (a cold open: the pane is built in place under a hidden card, and the card shows once its code is in and two frames have drawn it: the one sequence a warm swap makes)
       cancel(); setShown(pane); setLeaving([]); setLanded(null); setCold(true);
       const mine = seq.current, h = clock.hold('tests-stage');
-      let n = 0, ended = false, timer = 0, off = () => undefined as void;
-      const end = () => { if (ended) return; ended = true; clearTimeout(timer); off(); h.release(); if (seq.current === mine) setCold(false); };
+      let n = 0, ended = false, timer: TimerId | null = null, off = () => undefined as void;
+      const end = () => { if (ended) return; ended = true; clock.cancel(timer); off(); h.release(); if (seq.current === mine) setCold(false); };
       stop.current = end;
       const go = () => {
         if (ended || seq.current !== mine) return;
         off = clock.on('tags', () => { if (++n >= 2) end(); });
       };
-      timer = window.setTimeout(end, afterMs(COLD_MAX));   // (the net, from the ask: a pane that never loads still shows)
+      timer = clock.after(end, afterMs(COLD_MAX));   // (the net, from the ask: a pane that never loads still shows)
       if (!afterLoad(pane, go)) go();
       return;
     }
@@ -83,14 +83,14 @@ export function usePaneSwap(open: boolean, pane: PaneId, second: PaneId | null, 
       if (!canStage()) { setLanded(null); commit(); return; }
       setStaged(pane);
       const h = clock.hold('tests-stage');
-      let n = 0, ended = false, timer = 0, off = () => undefined as void;
+      let n = 0, ended = false, timer: TimerId | null = null, off = () => undefined as void;
       const end = (swap: boolean) => {
         if (ended) return;
-        ended = true; clearTimeout(timer); off(); h.release();
-        if (swap) setTimeout(() => { if (seq.current === mine) { setLanded(pane); commit(); } }, 0);   // (the swap is written in a task of its own, never inside a frame)
+        ended = true; clock.cancel(timer); off(); h.release();
+        if (swap) clock.after(() => { if (seq.current === mine) { setLanded(pane); commit(); } }, 0);   // (the swap is written in a task of its own, never inside a frame)
       };
       off = clock.on('tags', () => { if (++n >= 2) end(true); });
-      timer = window.setTimeout(() => end(true), afterMs(STAGE_MAX));
+      timer = clock.after(() => end(true), afterMs(STAGE_MAX));
       stop.current = () => end(false);
     };
     if (!afterLoad(pane, go)) go();

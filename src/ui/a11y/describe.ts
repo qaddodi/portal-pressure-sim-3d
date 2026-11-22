@@ -11,6 +11,7 @@ import { caption } from './caption.ts';
 import { announce } from './announce.ts';
 import { createPatientAnnouncer } from './patient-announce.ts';
 
+import { clock, type TimerId } from '../../clock/frame.ts';
 export const FIGURE_NAME = 'Portal circulation: the liver, the portal vein and its tributaries, the hepatic veins and the heart';
 /** The description is rewritten at most this often (ms) and never while the figure moves. */
 export const DESCRIBE_GAP = 3000;
@@ -27,21 +28,21 @@ export function describeNow(opts: { scenario?: boolean } = {}, frame: unknown = 
 
 /** Put a name and the description on the figure (the stage's canvas, once it exists) and keep it current. Returns the remover. */
 export function mountDescription(doc: Document = document): () => void {
-  let canvas: HTMLElement | null = null, last = -Infinity, timer: ReturnType<typeof setTimeout> | undefined;
+  let canvas: HTMLElement | null = null, last = -Infinity, timer: TimerId | undefined;
   const find = () => { if (!canvas || !canvas.isConnected) { canvas = doc.querySelector('canvas'); if (canvas) { canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', FIGURE_NAME); } } return canvas; };
   const write = () => {
-    clearTimeout(timer);
+    clock.cancel(timer);
     const c = find();
-    if (!c) { timer = setTimeout(write, 500); return; }
-    if (sceneApi.cameraMoving) { timer = setTimeout(write, 700); return; }   // (a settled figure, not one in motion)
+    if (!c) { timer = clock.after(write, 500); return; }
+    if (sceneApi.cameraMoving) { timer = clock.after(write, 700); return; }   // (a settled figure, not one in motion)
     const t = describeNow();
     if (t && c.getAttribute('aria-description') !== t) c.setAttribute('aria-description', t);
-    last = performance.now();
+    last = clock.now();
   };
   const ask = () => {
-    const wait = last + DESCRIBE_GAP - performance.now();
-    clearTimeout(timer);
-    timer = setTimeout(write, Math.max(0, wait));
+    const wait = last + DESCRIBE_GAP - clock.now();
+    clock.cancel(timer);
+    timer = clock.after(write, Math.max(0, wait));
   };
   // a patient loads: the words wait for the first frame of THAT patient (the one on hand when the id changes is still the last patient's), so the name and the numbers agree
   const loaded = createPatientAnnouncer((id, f) => announce(`${labelOf(id) ?? 'Patient'} loaded. ${describeNow({ scenario: false }, f)}`));
@@ -51,7 +52,7 @@ export function mountDescription(doc: Document = document): () => void {
   });
   const off2 = onFrame((f) => loaded.frame(f));
   ask();
-  return () => { clearTimeout(timer); off1(); off2(); loaded.cancel(); };
+  return () => { clock.cancel(timer); off1(); off2(); loaded.cancel(); };
 }
 
 /** "Slide 3 of 9: <title>" when the talk moves on (the 2D presenter's announce), spoken once the cards are the slide's. */

@@ -23,6 +23,7 @@ import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
 import { tipCloseShot } from '../../deck/cath-shot.ts';
 import { cutRoom } from '../room.ts';
+import { releaseCamera } from '../cam-release.ts';
 import type { MonitorState } from './monitor.ts';
 import { useMeasured } from '../hidden.ts';
 import { claim } from '../owner.ts';
@@ -105,13 +106,14 @@ export function startHvpg(): void {
   if (busy() || !latest.frame) return;
   hidePpg();
   onBody();
-  R.result = null; R.t0 = performance.now(); R.t = 0; R.cam = ''; R.blocked = hvBlocked(params());
+  R.result = null; R.t0 = clock.now(); R.t = 0; R.cam = ''; R.blocked = hvBlocked(params());
   R.snap = { ...live() };
   syncPhase();
   // the catheter on the figure: the whole procedure, or, for a thrombosed vein, as far as the ostium (2D figureBlocked: it probes and is withdrawn)
   cards?.end(); cards = R.blocked ? null : runCards('hvpgcath', { capture: true });
-  if (R.blocked) sceneApi.procedure.play('hvpgcath', { to: T.zoom + 600, keep: true });
-  else sceneApi.procedure.play('hvpgcath', { onFrame: () => cards?.frame(sceneApi.procedure.playing?.t ?? 0, latest.frame), onEnd: () => { cards?.end(); cards = null; } });
+  const stopped = () => { if (hvpgRunning()) resetHvpg(); releaseCamera(); };   // (the run stopped by someone else: the measurement ends with it and the camera comes back)
+  if (R.blocked) sceneApi.procedure.play('hvpgcath', { to: T.zoom + 600, keep: true, onStop: stopped });
+  else sceneApi.procedure.play('hvpgcath', { onFrame: () => cards?.frame(sceneApi.procedure.playing?.t ?? 0, latest.frame), onEnd: () => { cards?.end(); cards = null; }, onStop: stopped });
   wake(); bump();
 }
 function finish(): void {
@@ -122,7 +124,7 @@ function finish(): void {
   bump();
 }
 function stepHvpg(): void {
-  R.t = Math.min(tEnd(), performance.now() - (R.t0 as number));
+  R.t = Math.min(tEnd(), clock.now() - (R.t0 as number));
   if (!R.result && !R.blocked && R.t >= T.result) finish();
   syncPhase();
   // the camera: the route while the catheter travels, the tip close up for the readings, then back
@@ -133,16 +135,17 @@ function stepHvpg(): void {
 }
 export function resetHvpg(): void {
   cards?.end(); cards = null;
-  if (hvpgRunning()) sceneApi.procedure.stop();
+  const was = hvpgRunning();
   R.t0 = null; R.t = 0; R.result = null; R.snap = null; R.blocked = false; R.cam = '';
+  if (was) sceneApi.procedure.stop();   // (its onStop gives the camera back)
   syncPhase(); bump();
 }
 
 // ── a treatment played on the anatomy (the Watch row) ──
 export const procState = () => ({ kind: R.procKind, step: R.procStep });
 export function playProc(kind: string): void {
-  if (performance.now() - R.playT < 600 || busy()) return;
-  R.playT = performance.now();
+  if (clock.now() - R.playT < 600 || busy()) return;
+  R.playT = clock.now();
   const why = procBlocked(kind, params(), metrics());
   if (why) { say(why); return; }
   onBody();
@@ -161,6 +164,7 @@ export function playProc(kind: string): void {
       if (!R.procApplied && t >= T0.T.apply) { R.procApplied = true; updateParams((p) => T0.apply(p) as never, { label: T0.label }); }
     },
     onEnd: () => { setProcMarks([]); R.procKind = ''; R.procStep = -1; camTo('home'); bump(); },
+    onStop: () => { setProcMarks([]); R.procKind = ''; R.procStep = -1; R.procCam = ''; releaseCamera(); bump(); },   // (stopped before its end: the camera and the owner come back too)
   });
   wake(); bump();
 }
@@ -206,12 +210,13 @@ function beginPpg(kind: 'irivc' | 'irpv'): void {
       tk.finish(true);
       bump();
     },
+    onStop: () => { cards?.end(); cards = null; p.run = false; p.kind = ''; p.step = -1; p.done = false; p.tk = {}; R.procCam = ''; tk.reset(); releaseCamera(); bump(); },
   });
 }
 export function startPpg(): void {
   const p = R.ppg;
-  if (performance.now() - R.playT < 600 || p.run || busy()) return;
-  R.playT = performance.now();
+  if (clock.now() - R.playT < 600 || p.run || busy()) return;
+  R.playT = clock.now();
   const why = procBlocked('irivc', params(), metrics()) || procBlocked('irpv', params(), metrics());
   if (why) { say(why); return; }
   onBody();
@@ -241,7 +246,7 @@ export function ppgMonitor(out: { st: MonitorState; v: Obj }): MonitorState {
   st.t = Number.isFinite(t) ? t : 0;
   st.running = true; st.probing = false; st.wave = R.wave;
   st.v = out.v;
-  if (st.ph === 'run') syncWave(R.wave, latest.frame, st.t, performance.now());
+  if (st.ph === 'run') syncWave(R.wave, latest.frame, st.t, clock.now());
   return st;
 }
 

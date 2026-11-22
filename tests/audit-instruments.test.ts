@@ -9,7 +9,7 @@ import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu
 import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
 import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
 import { describeEl } from '../src/ui/debug/audit/scan.ts';
-import { speedOf, scaleTime, scaleTimers, sampleRealMs, scaledDelay, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
+import { speedOf, sampleRealMs, scaledDelay, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
 import { perfReport } from '../src/ui/perf/report.ts';
 import type { Sample } from '../src/ui/debug/watch/motion-rules.ts';
 
@@ -102,23 +102,14 @@ test('report: GPU-bound section, renderer line and per-step gl column; a speed r
   assert.match(renderText(fast), /SPEED RUN x4/);
 });
 
-test('speed (#10): parsed and capped; scaled time runs N times faster and restores; CSS animations are sped up once', () => {
+test('speed (#10): parsed and capped; CSS animations are sped up once', () => {
   assert.equal(speedOf(null), 1); assert.equal(speedOf('abc'), 1); assert.equal(speedOf('0.5'), 1); assert.equal(speedOf('4'), 4); assert.equal(speedOf('50'), MAX_SPEED); assert.equal(speedOf('10'), 10);
-  let real = 1000; const perf = { now: () => real };
-  const s = scaleTime(4, perf);
-  const a = perf.now(); real += 100; assert.equal(perf.now() - a, 400);
-  s.restore(); assert.equal(perf.now(), real);
-  const same = scaleTime(1, perf); assert.equal(perf.now(), real); same.restore();
   const anims = [{ playbackRate: 1, calls: 0, updatePlaybackRate(r: number) { this.playbackRate = r; this.calls++; } }, { playbackRate: 4, calls: 0, updatePlaybackRate() { this.calls++; } }];
   speedAnimations({ getAnimations: () => anims }, 4); speedAnimations({ getAnimations: () => anims }, 4);
   assert.deepEqual(anims.map((x) => x.calls), [1, 0]);
 });
 
-test('speed 10: timers scale with the clock, the sampler never ticks faster than 8 ms, and above 4x the frame-limited findings are dropped and named', () => {
-  const seen: (number | undefined)[] = []; const g = { setTimeout: ((fn: unknown, ms?: number) => { seen.push(ms); return 0; }) as (...a: never[]) => unknown };
-  const orig = g.setTimeout, t = scaleTimers(10, g);
-  (g.setTimeout as unknown as (f: () => void, ms: number) => void)(() => undefined, 950); t.restore();
-  assert.deepEqual(seen, [95]); assert.equal(g.setTimeout, orig);
+test('speed 10: the sampler never ticks faster than 8 ms, and above 4x the frame-limited findings are dropped and named', () => {
   assert.equal(sampleRealMs(33, 1), 33); assert.equal(sampleRealMs(33, 2), 16.5); assert.equal(sampleRealMs(33, 10), 50); assert.equal(sampleRealMs(33, 20), 50);   // (never a layout read every few ms: that starved the page at 20x)
   assert.equal(scaledDelay(950, 10), 95); assert.equal(scaledDelay(50, 20), 16); assert.equal(scaledDelay(8, 20), 8); assert.equal(scaledDelay(0, 20), 0);   // (a short poll never becomes a hot loop)
   const row = judgeStep({ group: 'g', id: 'x', label: 'x', run: () => undefined }, 'x', { samples: card([0, 0, 1, 1]), gaps: [], work: { p95: 0, max: 0 }, layout: null, problems: [], console: [], hidden: false }, 100, true);
