@@ -25,8 +25,6 @@ import { SKIN_CIRC_IN, SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
 import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_GLSL, PROCEDURE_MARKS_GLSL, STUMP_K_GLSL, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from './glsl-shared.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
-/** plainHere(): within this many CSS px of a joined end, a seam or a hole the tube keeps its whole hull (the junction owns that edge). */
-export const PLAIN_EDGE_PX = 6;
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
 /** How much of a tube's own round depth its pixels keep. The figure is a stack of tiers 0.01 to 0.02 apart (frame2d.ts TIER_Z) whose order is the 2D figure's over and under (the hepatic artery between the cava and the portal vein),
  *  but a round tube's front stands its RADIUS in front of its axis: the cava (z -0.02, radius 0.027) bulged 0.007, past the hepatic artery's axis (z 0.0) and its own front (0.005), and hid it (Mohammad, 20 Nov: "fix the hepatic artery
@@ -384,25 +382,6 @@ float skinWeldAtC() { return (dotted < 0.5 && skinCutC.x >= 0.0 && vUv.x < skinC
 float skinWeldAt() { return (dotted < 0.5 && skinStartCut() >= 0.0 && vUv.x < skinStartCut() - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
 bool skinPast() { return (dotted < 0.5 && ((skinStartCut() >= 0.0 && vUv.x < skinStartCut() - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
 
-// PLAN 12, THE OUTER EDGE ON THE TRUE CIRCLE. The tube is built wider than the circle of its lumen plus line (the ring is a 14-sided polygon built TUBE_SAG fatter so its flats stand on the circle and its corners outside it), so the outer edge of its
-// hull wobbles up to a pixel or more past the circle. Where the tube is PLAIN the hull is wider than the circle for that one reason only, and the pixels past the circle go. The reasons the hull is legitimately wider are every one a "no" below, in this one
-// place (tests/plain-here.test.ts reads the list): the Circuit, a highlighted line, a divided stump, a fork or a cava mouth (the union's outline, the neighbour's pull), a buried or run-on end, and the stretch the skin overlaps at a seam or a hole
-// (the skin draws that edge, and its band is up to SKIN_SEAM_PAD_PX wider).
-uniform float inflate;
-bool plainHere(float wpc0) {
-  if (circT > 0.0 || vHi > 0.001 || stump.x > 0.0 || dotted > 0.5 || inflate != 0.0 || nbrOn > 0.5 || cavaCut > 0.5) return false;
-  if (vNbr.y > 0.0 || vNbr.x != 0.0 || vNbr.z != 0.0) return false;
-  if (buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) < 0.9999) return false;
-  float arcPx = vArcLen * vU / max(wpc0, 1e-6);   // CSS px along the course from u = 0 to 1
-  float edgePx = ${F(PLAIN_EDGE_PX)};   // a joined or cut end's reach, CSS px
-  if ((mate0.x >= 0.0 && vUv.x * arcPx < edgePx) || (mate1.x >= 0.0 && (1.0 - vUv.x) * arcPx < edgePx)) return false;
-  if (skinStartCut() >= 0.0 && abs(vUv.x - skinStartCut()) * arcPx < edgePx) return false;
-  if (skinCut.y <= 1.0 && abs(vUv.x - skinCut.y) * arcPx < edgePx) return false;
-  if (skinHole.y > skinHole.x && (abs(vUv.x - skinHole.x) * arcPx < edgePx || abs(vUv.x - skinHole.y) * arcPx < edgePx)) return false;
-  if (skinHole2.y > skinHole2.x && (abs(vUv.x - skinHole2.x) * arcPx < edgePx || abs(vUv.x - skinHole2.y) * arcPx < edgePx)) return false;
-  return true;
-}
-
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
 // Doppler-style mean velocity (cm/s, signed) from the engine's flow (mL/s) and diameter (mm): the lumen's area is pi r^2
@@ -566,12 +545,6 @@ void main() {
   if (fadeHere < 0.004) DROP(11);
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
-  // (plan 12: on a plain stretch the outer edge is the true circle of the lumen plus its line, half a pixel out as the skin's is, so the polygon's corners are gone and both sides of a seam stand on one curve)
-  if (plainHere(wpc0)) {
-    float rCssA = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6), rCssA0 = vR0 / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
-    float outerPx = rDevAx + ${inkPxGlsl('rCssA', 'rCssA0', '1.0 - lensUse')} * inkOn * dpr;
-    if (dLat > outerPx + 0.5) DROP(13);
-  }
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
