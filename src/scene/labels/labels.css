@@ -152,6 +152,11 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .lb-key .lb-bar { width: var(--lb-key-bar-w, 4.4em); height: var(--lb-key-bar-h, .55em); border-radius: 999px; flex: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent); }
 .lb-key .lb-ends { display: inline-flex; align-items: center; gap: .4em; white-space: nowrap; }
 .lb-key .lb-items { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .55em; min-width: 0; }
+.lb-key .lb-lk-s { display: none; }
+.lb-key-wrap[data-short] .lb-key:not(.lb-key-twin) .lb-lk-s, .lb-key-short .lb-lk-s { display: inline; }
+.lb-key-wrap[data-short] .lb-key:not(.lb-key-twin) .lb-lk-l, .lb-key-short .lb-lk-l { display: none; }
+/* a key on a row of its own (above the pill) is as wide as its widest row, never the room it may wrap in: a title over its swatches, no empty ends */
+.lb-key-wrap[data-stack] .lb-key:not([data-grad], .lb-key-twin) { flex-direction: column; flex-wrap: nowrap; }
 .lb-key .lb-k { display: inline-flex; align-items: center; gap: .35em; white-space: nowrap; }
 .lb-key .lb-sw { width: var(--lb-key-sw-w, 1.1em); height: var(--lb-key-sw-h, .4em); border-radius: var(--lb-key-sw-r, .2em); flex: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent); }
 

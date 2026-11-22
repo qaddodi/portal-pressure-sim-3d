@@ -361,7 +361,7 @@
 .cath-label.site.split .sp-w { margin-left: 4px; font-size: 1em; font-weight: 500; color: var(--text-2); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
 .cath-label.site.split .sp-cap { display: flex; align-items: baseline; gap: 6px; font-size: 1em; font-weight: 600; }
 .cath-label.site.split .sp-k { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); -webkit-text-stroke: 2px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
-.cath-label.site.split .sp-lt { color: var(--tr-pv-ink); } .cath-label.site.split .sp-st { display: none; }
+.cath-label.site.split .sp-lt { color: var(--tr-pv-ink); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }   /* (a halo like its neighbours': pink over an orange vessel read as nothing; Mohammad, 22 Nov) */ .cath-label.site.split .sp-st { display: none; }
 .cath-label.site.split .sp-bar { display: flex; gap: 2px; height: 2px; width: 6.4em; margin: 1px 0 0; }
 .cath-label.site.split .sp-bar i { border-radius: 1px; flex-basis: 0; flex-shrink: 1; }
 .cath-label.site.split .sp-l { flex-grow: var(--sp-lf, .5); min-width: var(--sp-lm, 4px); background: var(--tr-pv); }
