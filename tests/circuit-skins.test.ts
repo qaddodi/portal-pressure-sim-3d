@@ -355,7 +355,7 @@ test('the shaders: the tube has a second cut that takes effect over the END of t
   assert.match(VESSEL_FS, new RegExp(`float keepC = 1\\.0 - smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, vCircShare\\);`), 'the tube\'s map cut and the skin come in over the same stretch');
   assert.match(SKIN_FS, new RegExp(`smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, skinShare\\), skinCirc\\)`));
   assert.ok(!/#if(n?def)?\s+SKIN_CIRC\b/.test(SKIN_FS + SKIN_VS), 'the map\'s skins are the body\'s programs: skinCirc is a uniform, not a define (nothing new to compile)');
-  assert.match(SKIN_FS, /uniform vec2 skinMap;/);
+  assert.match(SKIN_FS, /uniform vec4 skinKW;/); assert.match(SKIN_FS, /#define skinCirc \(skinKW\.w < 0\.0 \? 1\.0 : 0\.0\)/, 'the map\'s skins are told apart by the sign of the units in skinKW.w');
   assert.match(SKIN_FS, /mix\(1\.0 - smoothstep\(0\.0, [0-9.]+, circT\), smoothstep\(/);
   assert.match(SKIN_VS, /float circSwellOf\(vec4 a\)/);
   assert.match(SKIN_FS, /skinCirc \* circT \* [0-9.]+ \* smoothstep\(-inDepth, 0\.0, sdPx\)/, 'the Circuit\'s inner line');
