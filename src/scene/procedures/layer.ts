@@ -13,12 +13,14 @@ import { VeinStent, canStent } from '../devices/stent/vein-stent.ts';
 import { OSTIUM_U } from './ostium.ts';
 import { Tamponade } from '../devices/balloons/tamponade.ts';
 import { tamponadeAt } from '../devices/balloons/tamponade-shape.ts';
+import { ParacentesisNeedle } from '../devices/paracentesis.ts';
+import { dipsFrame, paracentesisAt } from './instrument-frames.ts';
 import { Bands } from '../devices/bands.ts';
 import { GlueCast } from '../devices/glue-cast.ts';
 import type { ScopeDrive } from '../devices/probes/scope.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
 import { setDrawnDiameter } from '../../engine/tract-override.ts';
-import { TRACT_EDGE, TRACT_RELEASE_MS, TRACT_STENT_MM, tractDiameter, tractTimes } from './tract.ts';
+import { TRACT_EDGE, TRACT_RELEASE_MS, TRACT_STENT_MM, tractDiameter, tractEdgeOf, tractTimes } from './tract.ts';
 import './instrument-specs.ts';   // (registers EVL, tamponade, DIPS, DSRS and paracentesis in the procedure table)
 import { CATH_END } from './copied/cath-arrival.js';
 import { type StepClock, makeStepClock, aim as aimClock, stepClock, landed } from './step-clock.ts';
@@ -104,13 +106,15 @@ export class ProcedureLayer {
   keptRing: RingName | null = null;
   /** The tamponade tube and its two balloons, driven by params.balloonGas and params.balloonEso. */
   readonly tamponade: Tamponade;
+  /** The paracentesis needle through the abdominal wall (the tap's slide). */
+  readonly paracentesis: ParacentesisNeedle;
   /** The ligation bands on the esophageal varices, as many as the engine counts. */
   readonly bands: Bands;
   /** The coil and the cyanoacrylate cast the EUS-guided glue leaves in the fundal varix (the scope itself is the probes' layer's: it takes `glueDrive`). */
   readonly glue: GlueCast;
   /** What the glue slide's procedure asks of the scope this frame (null with no glue procedure on the figure). */
   glueDrive: ScopeDrive | null = null;
-  constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; this.tamponade = new Tamponade(shared); this.group.add(this.tamponade.group); this.bands = new Bands(shared); this.group.add(this.bands.group); this.glue = new GlueCast(shared); this.group.add(this.glue.group); }
+  constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; this.tamponade = new Tamponade(shared); this.group.add(this.tamponade.group); this.paracentesis = new ParacentesisNeedle(shared); this.group.add(this.paracentesis.group); this.bands = new Bands(shared); this.group.add(this.bands.group); this.glue = new GlueCast(shared); this.group.add(this.glue.group); }
 
   /** Every object the layer draws, for the scene's look and phone switches and for disposal. */
   get objects() { return [...this.caths.values()].flatMap((c) => c.objects); }
@@ -127,13 +131,15 @@ export class ProcedureLayer {
   }
   private stentMm = TRACT_STENT_MM;
   /** The tract the run is drawing (mm) and whether this frame's draw drove it (a frame that did not is a run that has ended: it lets go, eased). */
-  private tractMm = 0; private tractDriven = false;
+  private tractMm = 0; private tractDriven = false; private tractEdge = TRACT_EDGE;
   /** TIPS runs only: the tract is the run's clock's (needle hit, dilation); see tract.ts. */
   private driveTract(kind: string, t: number): void {
     const T = tractTimes((specOf(kind) as { T?: unknown } | null)?.T);
     if (!T) return;
+    const edge = tractEdgeOf(kind);
+    if (edge !== this.tractEdge) { setDrawnDiameter(this.tractEdge, 0); this.tractEdge = edge; }   // (another procedure's tract: the old one lets go)
     this.tractDriven = true; this.tractMm = tractDiameter(T, t, this.stentMm);
-    setDrawnDiameter(TRACT_EDGE, this.tractMm);
+    setDrawnDiameter(edge, this.tractMm);
   }
   /** A tract no run drives lets go over TRACT_RELEASE_MS (a slide left, a run replayed or taken off): the larger of it and the engine's own diameter is what is drawn, so a stent that is in never shrinks. True while it eases. */
   private releaseTract(dt: number): boolean {
@@ -141,7 +147,7 @@ export class ProcedureLayer {
     if (this.tractMm <= 0) return false;
     if (this.run || this.step) return false;
     this.tractMm = Math.max(0, this.tractMm - (this.stentMm * dt) / TRACT_RELEASE_MS);
-    setDrawnDiameter(TRACT_EDGE, this.tractMm);
+    setDrawnDiameter(this.tractEdge, this.tractMm);
     return true;
   }
   private fadeNow = 1;
@@ -149,7 +155,7 @@ export class ProcedureLayer {
   setFade(f: number): void {
     if (f === this.fadeNow) return;
     this.fadeNow = f;
-    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...[...this.veinStents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.bands.objects, ...this.glue.objects];
+    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...[...this.veinStents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.paracentesis.objects, ...this.bands.objects, ...this.glue.objects];
     for (const o of all) o.setFade(f);
     this.group.visible = f > 0.001;
     this.dirty = true;
@@ -198,8 +204,8 @@ export class ProcedureLayer {
   /** The veins whose stent is in or coming in. */
   get stentedIds(): string[] { return [...this.veinStents].filter(([, v]) => v.goal > 0).map(([id]) => id); }
 
-  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); for (const s of this.veinStents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.glue.applyPalette(p); this.dirty = true; }
-  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); for (const s of this.veinStents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.glue.setPhone(phone); this.dirty = true; }
+  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); for (const s of this.veinStents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.paracentesis.applyPalette(p); this.bands.applyPalette(p); this.glue.applyPalette(p); this.dirty = true; }
+  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); for (const s of this.veinStents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.paracentesis.setPhone(phone); this.bands.setPhone(phone); this.glue.setPhone(phone); this.dirty = true; }
 
   /** The engine's diameters (per edge, mm): every catheter's veins are drawn at their live width, so each follows (ProcCatheter.setLive). True when one moved. */
   setLive(D: ArrayLike<number> | null | undefined): boolean {
@@ -213,7 +219,7 @@ export class ProcedureLayer {
   /** The route a procedure's catheter travels (its spec's `route`, else the kind itself), or null for one with no catheter (a graft, a scope). */
   routeKindOf(kind: string): string | null {
     const spec = specOf(kind) as { route?: string; graft?: boolean } | null;
-    if (!spec || spec.graft) return null;
+    if (!spec || (spec.graft && !spec.route)) return null;   // (a graft has no catheter, unless its spec names a route: the DIPS's)
     const k = spec.route || kind;
     return route3d(k) ? k : null;
   }
@@ -242,8 +248,15 @@ export class ProcedureLayer {
     return r3 ? stopsOf(r3) : null;
   }
 
+  /** A procedure's frame at t: the 2D table's, and the DIPS's catheter written over its graft frame (instrument-frames.ts). */
+  private frameOf(kind: string, t: number, into: Rec): Rec {
+    const stops = this.stopsFor(kind), f = procFrame(kind, t, stops, into);
+    return kind === 'dips' ? dipsFrame(f, t, stops) : f;
+  }
+
   private draw(kind: string, rec: Rec, clock: number): void {
     const c = this.catheterFor(kind);
+    if (kind === 'paracentesis') this.paracentesis.set(paracentesisAt(clock), rec.opacity);
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
     this.shown = c; this.lastKind = kind; this.held = null; this.leaving = null;
     Object.assign(this.frame, rec);
@@ -263,7 +276,7 @@ export class ProcedureLayer {
   }
 
   /** Put a procedure at time t (ms of its own), at once. */
-  seek(kind: string, t: number, clock = t): void { this.draw(kind, procFrame(kind, t, this.stopsFor(kind), { ...this.frame }), clock); }
+  seek(kind: string, t: number, clock = t): void { this.draw(kind, this.frameOf(kind, t, { ...this.frame }), clock); }
 
   /** The HVPG catheter as the deck holds it: how far in (0..1), the balloon (0..1, and the wedged blood with it), and the ring it reads in, at once. */
   showHvpgState(advance: number, balloon: number, ring: RingName | null = null, clock = 0, column = balloon): void {
@@ -345,7 +358,7 @@ export class ProcedureLayer {
     }
     this.leaving = null; this.glueLast = null;
     for (const c of this.caths.values()) c.set({ ...c.current, u: 0, opacity: 0, balloon: 0, column: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null });
-    this.glue.clear(); this.glueDrive = null;
+    this.glue.clear(); this.glueDrive = null; this.paracentesis.clear();
     this.shown = null; this.held = null; this.dirty = true;
   }
 
@@ -378,6 +391,7 @@ export class ProcedureLayer {
     { const on = this.step ?? this.run, t = this.step ? this.step.clk.t : this.run?.t ?? 0; this.tamponade.follow(on?.kind === 'tamponade' ? tamponadeAt(t) : null); }
     stentMoving = this.tamponade.update(dt) || stentMoving;
     stentMoving = this.bands.update(dt) || stentMoving;
+    stentMoving = this.paracentesis.update() || stentMoving;
     const sr = this.step;
     if (sr) {
       if (now < sr.pauseUntil) return true;   // (the camera is landing: nothing moves yet)
@@ -385,7 +399,7 @@ export class ProcedureLayer {
       const t = stepClock(sr.clk, dt);
       if (t !== t0 || v0 !== 0 || sr.moved) {
         sr.moved = false;
-        this.draw(sr.kind, procFrame(sr.kind, t, this.stopsFor(sr.kind), sr.rec), t);
+        this.draw(sr.kind, this.frameOf(sr.kind, t, sr.rec), t);
         sr.onFrame?.(this.frame);
       }
       const end = (specOf(sr.kind) as { T: { end: number } }).T.end;
@@ -403,7 +417,7 @@ export class ProcedureLayer {
     if (r) {
       const t = Math.min(r.to, r.from + (now - r.t0) * r.speed);
       r.t = t;
-      this.draw(r.kind, procFrame(r.kind, t, this.stopsFor(r.kind), r.rec), t);
+      this.draw(r.kind, this.frameOf(r.kind, t, r.rec), t);
       r.onFrame?.(this.frame);
       if (t >= r.to) { const end = r.onEnd; const keep = r.keep; this.run = null; if (!keep) this.clear(); end?.(); }
       return true;
@@ -424,5 +438,5 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
-  dispose(): void { this.tractMm = 0; this.tractDriven = false; setDrawnDiameter(TRACT_EDGE, 0); for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); this.glue.dispose(); }
+  dispose(): void { this.tractMm = 0; this.tractDriven = false; setDrawnDiameter(this.tractEdge, 0); for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.paracentesis.dispose(); this.bands.dispose(); this.glue.dispose(); }
 }

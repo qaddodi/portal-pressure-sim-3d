@@ -124,6 +124,10 @@ uniform vec2 lensSpan;
 uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
+uniform float shadowPx;   // the crossing shadow (cel-ink.ts SHADOW): the band's width beyond the line, CSS px
+uniform float shadowA;   // its strength in this look
+uniform vec3 shadowCol;   // its tone
+uniform vec2 shadowEnd;   // the radii over which it fades out at each end that joins another vessel (0: a free end)
 uniform float glowK;   // the glow's strength (1; a shunt's target under the pointer more: highlight.ts HOVER_GLOW)
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
@@ -857,6 +861,8 @@ void main() {
   if (cavA < 0.004) discard;
 #ifdef VEIL
   fadeHere *= veilK;
+#elif defined(SHADOW)
+  fadeHere *= max(solidK, veilK);   // (the band follows whichever copy of the vessel is showing)
 #else
   fadeHere *= solidK;
 #endif
@@ -869,6 +875,23 @@ void main() {
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
     float wG = (smoothstep(0.0, 1.0, vHi) * (1.0 - smoothstep(0.0, 0.15, circT))) * glowK * fadeHere * cavA * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     gl_FragColor = vec4(mix(celTubeBase(base), vec3(1.0), 0.25 * tubeDark) * wG, wG);
+    return;
+  }
+#endif
+#ifdef SHADOW
+  // THE CROSSING SHADOW (cel-ink.ts SHADOW): this vessel's hull, drawn after every tube with the depth test on and no depth write: it falls only on what is behind this tube, in the look's shadow tone, over the band
+  // beyond the line (shadowFeather) and not at all over this tube itself. Where an end joins another vessel it fades out over that join (shadowEndK), so a junction never gaps.
+  {
+    if (dotted > 0.5) discard;
+    float rCssS = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
+    float lineS = clamp(0.3 * rCssS, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssS) * mix(1.0, 1.1, circT) * inkOn;
+    float sS = dLat / dpr - rCssS - lineS;   // CSS px past the line's outer edge
+    float bandS = smoothstep(-0.5, 0.0, sS) * (1.0 - smoothstep(0.55 * shadowPx, shadowPx, sS));
+    float d0S = vUv.x * len * vU, d1S = (1.0 - vUv.x) * len * vU, rS = max(vR, 1e-6);
+    float endS = (shadowEnd.x > 0.0 ? smoothstep(0.5 * shadowEnd.x * rS, shadowEnd.x * rS, d0S) : 1.0) * (shadowEnd.y > 0.0 ? smoothstep(0.5 * shadowEnd.y * rS, shadowEnd.y * rS, d1S) : 1.0);
+    float aS = shadowA * bandS * endS * fadeHere * cavA;
+    if (aS < 0.004) discard;
+    gl_FragColor = vec4(shadowCol, aS);
     return;
   }
 #endif

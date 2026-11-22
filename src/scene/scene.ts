@@ -96,6 +96,8 @@ import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { Ease, fadeRate } from '../clock/ease.ts';
 import { COURSES } from './circuit/course.ts';
+import { mapDepthOf } from './circuit/map-depth.ts';
+import { shadowEndsOf } from './vessels/shadow.ts';
 import { flatOf, growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { sewOnMap } from './circuit/map-sewn.ts';
@@ -580,7 +582,7 @@ export class CelScene {
     const o = new VesselObject(built.geometry, {
       tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1),
       bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
-      vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
+      vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD }, shadow: !def.feeder,
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
@@ -595,6 +597,7 @@ export class CelScene {
       }
     }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
+    if (!def.feeder) { const e = shadowEndsOf(def); o.setShadowEnds(e[0], e[1]); o.setMapDepth(mapDepthOf(def.id)); }   // (the crossing shadow's joins, and the Circuit's over and under)
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     o.glowMesh?.layers.set(GLOW_LAYER);   // (the glow's mask has its own pass: glow-fx.ts)
@@ -1381,6 +1384,7 @@ export class CelScene {
         return procMoving;   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
       } },
       { id: 'disease', step: ({ now }) => {
+        this.procs.paracentesis.setBelly(this.disease.fluidMl);
         this.disease.bleed.seat = this.procs.tamponade.seat;   // (a seated tamponade balloon covers the tear: the jet never runs through it)
         const diseaseMoving = this.disease.update(now, this.flowRate.value);
         if (diseaseMoving) this.tagOverOrgans();

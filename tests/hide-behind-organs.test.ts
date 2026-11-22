@@ -20,7 +20,7 @@ test('the setting is off by default, saved, and has a row', () => {
 });
 
 test('the shader trades the two copies by solidK and veilK and drops a fully faded one', () => {
-  assert.match(VESSEL_FS, /#ifdef VEIL\s+fadeHere \*= veilK;\s+#else\s+fadeHere \*= solidK;\s+#endif/);
+  assert.match(VESSEL_FS, /#ifdef VEIL\s+fadeHere \*= veilK;\s+#elif defined\(SHADOW\)\s+fadeHere \*= max\(solidK, veilK\);[^\n]*\s+#else\s+fadeHere \*= solidK;\s+#endif/);   // (the crossing shadow follows whichever copy shows: S3)
   // (the glow's mask pass (#ifdef GLOW) returns between the trade and the drop: it paints the faded weight itself, so the drop still follows the trade)
   assert.ok(VESSEL_FS.indexOf('fadeHere *= solidK;') < VESSEL_FS.indexOf('if (fadeHere < 0.004) discard;'));
 });

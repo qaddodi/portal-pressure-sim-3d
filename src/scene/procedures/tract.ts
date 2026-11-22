@@ -8,6 +8,8 @@ export const TRACT_NEEDLE_MM = 1.5;
 export const TRACT_STENT_MM = 8;
 /** The edge the TIPS procedures dilate. */
 export const TRACT_EDGE = 'TIPS';
+/** The edge a procedure's tract is made on: the DIPS's own shunt for the DIPS, the TIPS's for every TIPS run. */
+export const tractEdgeOf = (kind: string): string => (kind === 'dips' ? 'DIPS' : TRACT_EDGE);
 const k01 = (t: number, a: number, b: number): number => (b > a ? Math.min(1, Math.max(0, (t - a) / (b - a))) : t >= b ? 1 : 0);
 const smooth = (x: number): number => x * x * (3 - 2 * x);
 const smoother = (x: number): number => x * x * x * (x * (x * 6 - 15) + 10);

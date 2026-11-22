@@ -229,7 +229,7 @@ test('the tube is built ink wider than its lumen, by the figure\'s line, with it
   const { TUBE_RADIAL } = await import('../src/scene/vessels/tubes.ts');
   assert.ok(Math.abs(TUBE_SAG - (1 / Math.cos(Math.PI / TUBE_RADIAL) - 1)) < 1e-12 && TUBE_SAG > 0 && TUBE_SAG < 0.05);
   assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/);
-  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* narrowK - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
+  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* narrowK - 1\.0\) \+ inkW \+ shW \+ \(lumenW \+ inkW \+ shW\) \* /);   // (shW: 0, the crossing shadow's hull only adds its band, shaders.ts SHADOW)
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /polygonOffset|stencil|addGroup|makeHull|hullMat/, 'no hull material is left');
 });
