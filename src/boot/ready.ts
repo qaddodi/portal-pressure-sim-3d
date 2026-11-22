@@ -5,11 +5,15 @@
 // mild zoom (`html[data-reveal]`, global.css). Only the main app's path holds the cover (`data-boot="wait"` on <html>); every other page
 // (the crash and no-WebGL notes, the parity and debug pages) lifts it as soon as React has put something in #root, as before. A start that never gets there lifts it anyway.
 import { clock, type TimerId } from '../clock/frame.ts';
-import { stamp } from './timeline.ts';
+import { stamp, stamps } from './timeline.ts';
 import { armLateWatch } from './late-programs.ts';
 import { startLongTasks } from './longtasks.ts';
 
-export const BOOT_FAILSAFE_MS = 8000;
+/** The cover's failsafe is about progress, not the clock (22 Nov splash review, item 5): it lifts only when no stage of the start (engine, scene, compile, first draw, labels) has been stamped for this long... */
+export const BOOT_STALL_MS = 5000;
+/** ...or after this long in all, whatever happened (a start that never finishes: the page's own 20 s word in index.html is for a page that never mounts). A slow phone that keeps getting somewhere keeps the cover. */
+export const BOOT_HARD_MS = 30000;
+const STALL_POLL_MS = 500;
 /** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame it lifts. */
 export const LABELS_GRACE_MS = 2500;
 /** How long `html[data-reveal]` stays on: the zoom-in that goes with the cover's fade. */
@@ -18,15 +22,30 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false;
+let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false, stallOff: (() => void) | null = null;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
   waiting = true; done = false; frames = -1; labels = false; compiled = false;
   document.documentElement.dataset.boot = 'wait';
-  clock.cancel(timer);
-  timer = clock.afterReal(release, BOOT_FAILSAFE_MS);
+  clock.cancel(timer); stallOff?.();
+  stallOff = watchStall(release);
+}
+
+/** Calls `onStall` once when no boot stage has been stamped for `quietMs` of real time (the page clock's audit speed does not shorten it), or after BOOT_HARD_MS; never when `live()` turns false first. Returns its canceller. */
+export function watchStall(onStall: () => void, quietMs = BOOT_STALL_MS, live: () => boolean = () => waiting && !done): () => void {
+  let next: TimerId | undefined;
+  let seen = Object.keys(stamps()).length, quiet = 0, total = 0;
+  const poll = (): void => {
+    if (!live()) return;
+    total += STALL_POLL_MS;
+    const n = Object.keys(stamps()).length;
+    if (n !== seen) { seen = n; quiet = 0; } else quiet += STALL_POLL_MS;
+    if (quiet >= quietMs || total >= BOOT_HARD_MS) onStall(); else next = clock.afterReal(poll, STALL_POLL_MS);
+  };
+  next = clock.afterReal(poll, STALL_POLL_MS);
+  return () => clock.cancel(next);
 }
 
 /** True from holdSplash() until the cover is released or failed: the figure has not been drawn yet, so a lost context is a boot failure, not something to recover from. */
@@ -52,7 +71,7 @@ export function figureDrawn(): void {
 export function rendererFailed(reason: string): void {
   if (done || !waiting) return;
   done = true; waiting = false;
-  clock.cancel(timer); off?.(); off = null;
+  clock.cancel(timer); stallOff?.(); off?.(); off = null;
   (window as unknown as { ppsBootRendererFail?: (r: string) => void }).ppsBootRendererFail?.(reason);
 }
 
@@ -62,7 +81,7 @@ export function labelsShown(): void { if (waiting) { if (!labels) stamp('labels'
 export function release(): void {
   if (done || !waiting) return;
   done = true; waiting = false;
-  clock.cancel(timer); off?.(); off = null;
+  clock.cancel(timer); stallOff?.(); off?.(); off = null;
   delete document.documentElement.dataset.boot;
   stamp('lift'); armLateWatch(); startLongTasks();   // (from here a program built, or a main-thread task over 50 ms, is counted and named: boot/late-programs.ts, boot/longtasks.ts)
   const root = document.documentElement;

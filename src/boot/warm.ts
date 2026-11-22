@@ -6,7 +6,7 @@
 import { loadToolCard } from '../ui/talk/tool-card-load.ts';
 import { need, LOADERS } from '../ui/tests/dock/lazy.ts';
 import { sharedContext } from '../ui/charts/gl.ts';
-import { PROGRAM_SETS, warmSet } from './warm-programs.ts';
+import { PROGRAM_SETS, warmSet, type Prog } from './warm-programs.ts';
 import { lowData } from './data-saver.ts';
 import { spanAsync } from './spans.ts';
 import { splashHeld } from './ready.ts';
@@ -15,7 +15,8 @@ import { clock } from '../clock/frame.ts';
 import { whenQuietOnce } from '../clock/idle.ts';
 import { stamp } from './timeline.ts';
 
-export interface Rung { id: string; run: () => unknown }
+/** `load` (optional) fetches and reads in what `run` needs, and is awaited BEFORE the rung's slot (it touches no GL and builds nothing); `run` then does the rung's CPU or GL work inside the slot's own turn, with what `load` gave. */
+export interface Rung { id: string; load?: () => Promise<unknown>; run: (loaded?: unknown) => unknown }
 export type Slot = (go: () => void) => void;
 
 /** The instruments in the order they are likely opened. Every key of LOADERS is here (tests/warm-ladder.test.ts), so a new instrument fails until it is added. */
@@ -25,7 +26,8 @@ export const RUNGS: readonly Rung[] = [
   ...MODULE_ORDER.map((id): Rung => ({ id: `module:${id}`, run: () => need(id) })),   // (need(): shared with the tabs, so a tap during the rung waits on the same load)
   { id: 'module:talk', run: () => loadToolCard() },   // (a talk's charts)
   { id: 'programs:charts', run: () => { sharedContext(); } },   // (the one shared chart context, with the chart program)
-  ...PROGRAM_SETS.map((set): Rung => ({ id: `programs:${set.name}`, run: () => warmSet(set) })),
+  // (a program rung is two halves: the set's sources are read in before the slot, and every program is started inside it: the compile, and a driver's synchronous status read, are the slot's work, never a continuation of a fetch)
+  ...PROGRAM_SETS.map((set): Rung => ({ id: `programs:${set.name}`, load: () => set.load(), run: (progs) => warmSet(set, undefined, progs as Prog[]) })),
 ];
 
 /** Runs the rungs in order, one per slot, and returns the ids it ran. Stops at the first rung's turn that finds Save-Data on; a rung that throws or rejects does not stop the next. */
@@ -33,10 +35,13 @@ export async function runLadder(rungs: readonly Rung[] = RUNGS, slot: Slot = qui
   const saving = o.lowData ?? lowData, time = o.time ?? ((id, fn) => spanAsync(`ladder:${id}`, fn));
   const ran: string[] = [];
   for (const r of rungs) {
+    if (saving()) break;
+    let loaded: unknown;
+    if (r.load) { try { loaded = await r.load(); } catch { continue; } }   // (read in before the slot: nothing here builds or compiles)
     await new Promise<void>((go) => slot(go));
     if (saving()) break;
     ran.push(r.id);
-    try { await time(r.id, async () => { await r.run(); }); } catch { /* left for its first use */ }
+    try { await time(r.id, async () => { await r.run(loaded); }); } catch { /* left for its first use */ }
   }
   return ran;
 }

@@ -61,7 +61,9 @@ export function warmProgram(p: Prog, ctx: Ctx | null = sharedContext(), after: (
   });
 }
 
-/** One rung: every program of one set (the sources are read when the set's chunk is), one after the other. A failure leaves that program to its first use. */
-export async function warmSet(set: (typeof PROGRAM_SETS)[number], ctx: Ctx | null = sharedContext()): Promise<void> {
-  for (const p of await set.load()) await warmProgram(p, ctx);
+/** One rung: every program of one set (the sources are read when the set's chunk is). A failure leaves that program to its first use. */
+export async function warmSet(set: (typeof PROGRAM_SETS)[number], ctx: Ctx | null = sharedContext(), progs?: readonly Prog[]): Promise<void> {
+  // (every program of the set is started in this one synchronous turn, inside the rung's slot, so a driver that must read the link status at once does it here and one that can say when it is done compiles them side by side; `progs` are the sources the rung read in before its slot)
+  const list = progs ?? await set.load();
+  await Promise.all(list.map((p) => warmProgram(p, ctx)));
 }

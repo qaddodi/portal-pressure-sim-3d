@@ -119,3 +119,21 @@ test('the Doppler spectrum and the scope\'s field take the warm program when the
   }
   assert.doesNotMatch(readFileSync('src/ui/tests/TestsLayer.tsx', 'utf8'), /requestIdleCallback/, 'one ladder reads the instruments in, not a second idle burst');
 });
+
+// 22 Nov splash review, item 9: a program rung reads its sources in BEFORE its slot, and starts every program inside it, so the compile (and a driver's synchronous status read) is the slot's work, never the tail of a fetch.
+test('a rung with a load reads it before its slot and runs inside the slot with what it read; Save-Data stops before the load', async () => {
+  const log: string[] = [];
+  const rungs: Rung[] = [{ id: 'p', load: async () => { log.push('load'); return [1, 2]; }, run: (l) => { log.push(`run:${JSON.stringify(l)}`); } }];
+  await runLadder(rungs, (go) => { log.push('slot'); go(); }, { lowData: () => false, time: (_id, fn) => fn() });
+  assert.deepEqual(log, ['load', 'slot', 'run:[1,2]']);
+  log.length = 0;
+  await runLadder(rungs, (go) => go(), { lowData: () => true, time: (_id, fn) => fn() });
+  assert.deepEqual(log, [], 'under Save-Data nothing is fetched');
+  // a load that fails leaves the rung for its first use and the next one runs
+  const ran = await runLadder([{ id: 'bad', load: () => Promise.reject(new Error('no')), run: () => { log.push('never'); } }, { id: 'ok', run: () => { log.push('ok'); } }], (go) => go(), { lowData: () => false, time: (_id, fn) => fn() });
+  assert.deepEqual(ran, ['ok']); assert.deepEqual(log, ['ok']);
+});
+
+test('every program rung of the ladder has a load (its sources are read in before the slot)', () => {
+  for (const r of RUNGS) if (r.id.startsWith('programs:') && r.id !== 'programs:charts') assert.equal(typeof r.load, 'function', r.id);
+});

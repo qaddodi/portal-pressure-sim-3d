@@ -10,7 +10,7 @@ const SITES: Record<string, RegExp> = {
   'src/engine/boot.ts': /clock\.afterReal\(\(\) => mine\.crash\(/,
   'src/scene/vessels/skin/baked.ts': /clock\.afterReal\(\(\) => no\(new Error\(`\$\{what\} took over/,
   'src/boot/fonts.ts': /clock\.afterReal\(\(\) => res\(false\), timeoutMs\)/,
-  'src/boot/ready.ts': /clock\.afterReal\(release, BOOT_FAILSAFE_MS\)/,
+  'src/boot/ready.ts': /clock\.afterReal\(poll, STALL_POLL_MS\)/,
   'src/boot/lazy-retry.ts': /clock\.afterReal\(r, ms\)/,
 };
 test('waits on the network, a decode, the fonts and the failsafe are real time', () => {

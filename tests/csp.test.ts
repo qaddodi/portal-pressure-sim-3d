@@ -9,7 +9,7 @@ const html = readFileSync('index.html', 'utf8');
 
 test('the policy: this origin only, the inline boot script by hash, no unsafe-eval, no unsafe-inline for scripts', () => {
   const hashes = inlineScriptHashes(html);
-  assert.equal(hashes.length, 1, 'index.html has exactly one inline script (the boot messages); another one needs its own look');
+  assert.equal(hashes.length, 2, 'index.html has two inline scripts (the saved look\'s ground, then the boot messages), each allowed by its hash; another one needs its own look');
   const p = policy(hashes);
   assert.match(p, /default-src 'self'/);
   assert.match(p, /script-src 'self' 'sha256-[A-Za-z0-9+/=]+'/);

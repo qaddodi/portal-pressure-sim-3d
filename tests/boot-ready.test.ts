@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 
 const doc = { documentElement: { dataset: {} as Record<string, string> } };
 (globalThis as { document?: unknown }).document = doc;
-const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, REVEAL_MS } = await import('../src/boot/ready.ts');
+const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, watchStall, BOOT_STALL_MS, BOOT_HARD_MS, REVEAL_MS } = await import('../src/boot/ready.ts');
+const { stamp, resetTimeline } = await import('../src/boot/timeline.ts');
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test('held: nothing lifts the cover before a frame is drawn; the drawn frame and the next one (labels placed) lift it, once', async () => {
@@ -134,10 +135,37 @@ test('the baked-skin fetch and decode are bounded, and startup spans wrap decode
   assert.match(baked, /BAKED_FETCH_MS/); assert.match(baked, /BAKED_DECODE_MS/); assert.match(baked, /spanAsync\(`decode:/);
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
   assert.match(stage, /firstDraw\(cel\.view/); assert.match(stage, /spanAsync\('compile:warm'/);
-  assert.match(stage, /Promise\.race\(\[all, new Promise[\s\S]{0,160}compileDone\(\)/, 'the warm-up is capped and then reports the compile done: the cover waits for it');
+  assert.match(stage, /Promise\.race\(\[all, new Promise[\s\S]{0,320}compileDone\(\)/, 'the warm-up is capped and then reports the compile done: the cover waits for it');
   assert.match(stage, /if \(!compiled\.current\) return;/, 'and the first frame waits for it too');
   assert.match(stage, /clock\.after\(\(\) => cel\.buildMicroIdle\(\), 400\)/, 'the meshes are built after the first picture, once everything is compiled');
   assert.doesNotMatch(stage, /warm\(\); cel\.buildMicroIdle\(\)/);
   assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /span\('build:lobule3d'/);
   assert.match(readFileSync('src/ui/perf/mount.ts', 'utf8'), /spans: spans\(\)/);
+});
+
+// The failsafe is about progress, not the clock (22 Nov splash review, item 5): a start that keeps stamping stages keeps the cover; one that stops for the stall time lifts it.
+test('watchStall: a new stage stamped restarts the quiet time; no stage for the quiet time stalls; the hard limit and a dead watch are honoured', async () => {
+  resetTimeline();
+  assert.ok(BOOT_STALL_MS < BOOT_HARD_MS);
+  const t0 = Date.now(); let stalledAt = 0;
+  watchStall(() => { stalledAt = Date.now() - t0; }, 1000, () => true);
+  await wait(700); stamp('engine'); await wait(700); stamp('scene');   // (progress at 0.7 s and 1.4 s: the quiet time starts again each time)
+  await wait(1300);
+  assert.ok(stalledAt === 0 || stalledAt > 2300, `stamped stages kept it waiting (${stalledAt})`);
+  await wait(1200);
+  assert.ok(stalledAt >= 2300 && stalledAt <= 3600, `a second of quiet after the last stage stalls it (${stalledAt})`);
+  let dead = 0;
+  const off = watchStall(() => { dead++; }, 600, () => true); off(); await wait(900);
+  assert.equal(dead, 0, 'a cancelled watch never fires');
+  let gone = 0; watchStall(() => { gone++; }, 600, () => false); await wait(900);
+  assert.equal(gone, 0, 'a watch whose start has ended never fires');
+  resetTimeline();
+});
+
+test('the failsafe is the stall watch, not a fixed timer, and the warm-up\'s cap is the same watch', () => {
+  const ready = readFileSync('src/boot/ready.ts', 'utf8'), stage = readFileSync('src/scene/Stage.tsx', 'utf8');
+  assert.match(ready, /stallOff = watchStall\(release\)/);
+  assert.doesNotMatch(ready, /BOOT_FAILSAFE_MS/);
+  assert.match(stage, /watchStall\(r, undefined, \(\) => alive && !compiled\.current\)/);
+  assert.doesNotMatch(stage, /WARM_CAP_MS/);
 });

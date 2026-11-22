@@ -29,8 +29,8 @@ test('under node (tests, scripts) the file is on disk, so nothing is pending', a
 });
 
 test('the install list keeps the Circuit file out of the first install, and the Anatomy file in it', () => {
-  assert.equal(isLate('anatomy/circuit-skins.bin'), true);
-  assert.equal(isLate('anatomy/skins.bin'), false);
-  assert.equal(isLate('anatomy/organs.bin'), true, 'the raw organs file is the fallback only: the baked one is on the boot path');
-  assert.equal(isLate('anatomy/organs-baked.bin'), false);
+  assert.equal(isLate('assets/circuit-skins-AbCd1234.bin'), true);
+  assert.equal(isLate('assets/skins-AbCd1234.bin'), false);
+  assert.equal(isLate('assets/organs-AbCd1234.bin'), true, 'the raw organs file is the fallback only: the baked one is on the boot path');
+  assert.equal(isLate('assets/organs-baked-AbCd1234.bin'), false);
 });

@@ -82,6 +82,7 @@ test('?perf Copy carries the timeline, the late programs, the long tasks and the
   assert.match(text, /late programs .*: 1\n  frame \+2 after the lift · lobule · 1 new: MeshToonMaterial · the draw took 41\.3 ms/);
   assert.match(text, /long tasks \(over 50 ms\) after the lift: 1\n  80 ms at 3000 ms · during slot:micro/);
   assert.match(text, /slot:micro · 9 slices, 30 steps, 880\.0 ms in all, worst step 750\.0 ms/);
+  assert.match(text, /slow background steps \(a step over 16 ms[^\n]*: 1\n  slot:micro · worst step 750\.0 ms over 30 steps/, 'the slot\'s own slow steps are a row of their own: the signal Safari has no long-task observer for');
   assert.match(text, /NOT parallel on this device/);
   assert.match(bootLines({ ...digest(), longTasks: { measured: false, total: 0, rows: [] } }).join('\n'), /not measured \(this browser has no long-task observer\)/);
 });
@@ -100,4 +101,13 @@ test('the wiring: the lift stamps and arms the watch, Stage checks every drawn f
   assert.match(stage, /lateProgramCheck\(gl\.info\.programs, cel\.view,/);
   assert.match(readFileSync('scripts/pwa.mjs', 'utf8'), /postMessage\('filled'\)/);
   assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /stamp\('fill'\)/);
+});
+
+test('no slow background step reads zero rows, and a browser with no long-task observer still gets the row', () => {
+  const d = { ...digest(), longTasks: { measured: false, total: 0, rows: [] }, slots: [{ tag: 'upload', slices: 40, steps: 40, totalMs: 60, worstStepMs: 3, done: true }, { tag: 'liver-shape', slices: 3, steps: 3, totalMs: 80, worstStepMs: 41, done: false }] };
+  const text = bootLines(d).join('\n');
+  assert.match(text, /not measured \(this browser has no long-task observer\)/);
+  assert.match(text, /slow background steps[^\n]*: 1\n  slot:liver-shape · worst step 41\.0 ms over 3 steps/);
+  assert.doesNotMatch(text, /slot:upload · worst/);
+  assert.match(bootLines({ ...d, slots: [] }).join('\n'), /slow background steps[^\n]*: 0/);
 });

@@ -12,7 +12,7 @@ import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
-import { compileDone, figureDrawn, rendererFailed, splashHeld } from '../boot/ready.ts';
+import { compileDone, figureDrawn, rendererFailed, splashHeld, watchStall } from '../boot/ready.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
 import { firstDraw, spanAsync } from '../boot/spans.ts';
@@ -67,8 +67,6 @@ const wholeHome = () => (cel.view === 'body' ? cel.rig.wholeView(SHOTS.play) : c
 
 const isPhone = () => Math.min(innerWidth, innerHeight) < 500;
 
-/** The longest the first warm-up may hold the late build of the lobule and sinusoid back. */
-export const WARM_CAP_MS = 4000;
 
 function SceneBridge() {
   const gl = useThree((s) => s.gl);
@@ -88,7 +86,7 @@ function SceneBridge() {
 
   // Under the splash, before the first frame (L3, 21 Nov): the 3D lobule and sinusoid are constructed (their materials, no geometry) and every program of the scene graph, those two views, the hidden devices and the
   // stand-ins for what is made later (materials/prototypes.ts) is compiled, into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts. three builds
-  // them in parallel where the driver can. The first frame waits for this (capped at WARM_CAP_MS), and so does the cover's lift (boot/ready.ts compileDone), so nothing compiles in front of the viewer.
+  // them in parallel where the driver can. The first frame waits for this (let go when no stage of the start has been stamped for BOOT_STALL_MS: boot/ready.ts watchStall; the clock does not decide), and so does the cover's lift (boot/ready.ts compileDone), so nothing compiles in front of the viewer.
   const compiled = useRef(false);
   useEffect(() => {
     let alive = true;
@@ -104,7 +102,7 @@ function SceneBridge() {
     rewarm.current = () => { rebaseLateWatch(); void warmP().then(rebaseLateWatch); cel.onMicroPrimed?.(); };   // (what a restore rebuilds is not late)   // (after a lost context: the programs and the geometry again, off the frame)
     // (the organs arrive after their geometry and art files do, and are the largest set of programs: the compile waits for them, within the cap; one that comes in after the cap is compiled when it does)
     const all = cel.organsBuilt.then(() => warmP());
-    void Promise.race([all, new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => {
+    void Promise.race([all, new Promise<void>((r) => { watchStall(r, undefined, () => alive && !compiled.current); })]).then(() => {
       if (!alive || compiled.current) return;
       compiled.current = true; compileDone(); clock.invalidate('compiled');
     });

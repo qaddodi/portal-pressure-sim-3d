@@ -46,6 +46,9 @@ const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vi
 if (r.status !== 0) process.exit(r.status ?? 1);
 // The 2D stylesheets are copied whole; the rules that style something this app never makes are taken out of the BUILT file (scripts/css-unused.mjs; the copies in src/ui/css2d stay byte for byte). PPS_NO_CSS_PRUNE=1 skips it.
 if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) { console.warn('warning: the stylesheet was not pruned; it ships whole'); failed.push('css prune'); if (onMain) { console.error('main does not ship with an unpruned stylesheet'); process.exit(1); } } }
+// The figure's data files get content-hashed names under assets/ (scripts/hash-data.mjs): a deploy that does not touch the figure downloads none of them again, and the worker needs no special case for them. A failure stops the build: the page would fetch a name that does not exist.
+const hd = spawnSync(process.execPath, [fileURLToPath(new URL('./hash-data.mjs', import.meta.url)), `${root}dist`], { cwd: root, stdio: 'inherit' });
+if (hd.status !== 0) process.exit(hd.status ?? 1);
 writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n`);
 const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
 if (pw.status !== 0) process.exit(pw.status ?? 1);

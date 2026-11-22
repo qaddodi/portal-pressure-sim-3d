@@ -13,6 +13,8 @@ export interface BootDigest {
   parallelCompile?: boolean;
 }
 const f1 = (n: number) => n.toFixed(1);
+/** A background step longer than a frame (60 Hz): the stall risk the slot itself can see. */
+export const SLOW_STEP_MS = 16;
 
 export function bootLines(d: BootDigest): string[] {
   const L: string[] = [timelineLine(d.stamps, d.firstByte)];
@@ -21,6 +23,10 @@ export function bootLines(d: BootDigest): string[] {
   for (const r of d.late.rows.slice(-8)) L.push(`  frame +${r.frame} after the lift · ${r.view} · ${r.count} new: ${r.names.join(', ')} · the draw took ${f1(r.ms)} ms`);
   L.push(d.longTasks.measured ? `long tasks (over 50 ms) after the lift: ${d.longTasks.total}` : 'long tasks after the lift: not measured (this browser has no long-task observer)');
   for (const t of [...d.longTasks.rows].sort((a, b) => b.ms - a.ms).slice(0, 8)) L.push(`  ${t.ms} ms at ${t.at} ms · during ${t.what}`);
+  // the slot times its own steps (clock/idle.ts), so this signal exists on every browser: Safari (the Mac, iPad and iPhone) has no long-task observer
+  const slow = d.slots.filter((s) => s.worstStepMs > SLOW_STEP_MS).sort((a, b) => b.worstStepMs - a.worstStepMs);
+  L.push(`slow background steps (a step over ${SLOW_STEP_MS} ms, measured by the slot itself; zero is the goal): ${slow.length}`);
+  for (const s of slow.slice(0, 8)) L.push(`  slot:${s.tag} · worst step ${f1(s.worstStepMs)} ms over ${s.steps} steps`);
   if (d.slots.length) {
     L.push('background slots (clock/idle.ts; a step over 16 ms is a stall risk):');
     for (const s of d.slots) L.push(`  slot:${s.tag} · ${s.slices} slices, ${s.steps} steps, ${f1(s.totalMs)} ms in all, worst step ${f1(s.worstStepMs)} ms${s.done ? '' : ' · not finished'}`);
