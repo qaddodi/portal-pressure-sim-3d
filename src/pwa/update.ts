@@ -17,6 +17,19 @@ type Timer = ReturnType<typeof clock.after>;
 /** How often the page asks the host which build is out while it is in front, how long the screen must be left alone before a preview moves by itself, and the fade before the reload. */
 export const POLL_MS = 60_000, IDLE_APPLY_MS = 4000, FADE_MS = 300, TICK_MS = 1000;
 
+/** A page that reloads itself onto a newer build and comes back on the SAME one (a host edge still serving the old page) must not do it for ever: two tries per build, counted in the tab's session storage. */
+export const MAX_AUTO_RELOADS = 2;
+export function mayAutoReload(store: Pick<Storage, 'getItem' | 'setItem'> | null, mine: string): boolean {
+  try {
+    const [b, n] = (store?.getItem('pps:auto-reloads') ?? '').split(':');
+    const tries = b === mine ? Number(n) || 0 : 0;
+    if (tries >= MAX_AUTO_RELOADS) return false;
+    store?.setItem('pps:auto-reloads', `${mine}:${tries + 1}`);
+  } catch { /* storage blocked: reload anyway, once per found build */ }
+  return true;
+}
+const session = (): Storage | null => { try { return typeof sessionStorage === 'undefined' ? null : sessionStorage; } catch { return null; } };
+
 /** The commit a deploy wrote into build-info.txt ("commit abc12345"), or ''. */
 export const parseBuildCommit = (text: string): string => /^commit[ \t]+(\S+)/m.exec(text)?.[1] ?? '';
 /** The newer build's commit when build-info.txt names another build than `mine`; null when it is the same, or either is unknown (a local run has no commit: nothing to compare). */
@@ -100,7 +113,7 @@ export function startUpdateWatch(offer: () => void): ReturnType<typeof createUpd
     mine: buildLabel(import.meta.env.VITE_BUILD), auto: import.meta.env.VITE_CHANNEL === 'preview',
     now: () => clock.now(), hidden: () => document.hidden, talk: talkOn,
     fetchInfo: async () => { const r = await fetch(new URL('build-info.txt', document.baseURI), { cache: 'no-store' }); return r.ok ? r.text() : null; },
-    reload: () => { void reloadKeepingState(); },
+    reload: () => { if (mayAutoReload(session(), buildLabel(import.meta.env.VITE_BUILD))) void reloadKeepingState(); else { root.style.opacity = ''; } },
     fade: (on) => { root.style.transition = `opacity ${FADE_MS}ms ease`; root.style.opacity = on ? '0' : ''; },
     after: (fn, ms) => clock.after(fn, ms), cancel: (id) => clock.cancel(id),
     offer,

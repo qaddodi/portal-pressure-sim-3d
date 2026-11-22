@@ -2,16 +2,18 @@
 // the first picture; a rung that fails is left for its first use (the lazy retry, boot/lazy-retry.ts, tries it again then). The scene queues its own two rungs before these (the micro views, then the weld plan).
 //   rungs, in order:  the instrument modules (Doppler, Endoscopy, HVPG/IR, FibroScan, Profile, Trials: dock/lazy.ts LOADERS, evaluated, nothing mounted), a talk's charts (the tool card),
 //                     the shared chart context, then the instruments' GL programs on it (boot/warm-programs.ts).
-// A rung runs inside a slot the caller hands in (`slot(go)` calls go() when nobody is watching motion; today the idle callback, or a timer where Safari has none: the one background-work slot of the
-// loading plan replaces it) and never when the person asked the browser to save data (boot/data-saver.ts: Save-Data, a 2g link): those parts are then fetched on use and kept, as ever.
+// A rung runs inside a slot the caller hands in (`slot(go)` calls go() when nobody is watching motion; the one background-work slot, clock/idle.ts: quietSlot) and never when the person asked the browser to save data (boot/data-saver.ts: Save-Data, a 2g link): those parts are then fetched on use and kept, as ever.
 import { loadToolCard } from '../ui/talk/tool-card-load.ts';
 import { need, LOADERS } from '../ui/tests/dock/lazy.ts';
 import { sharedContext } from '../ui/charts/gl.ts';
 import { PROGRAM_SETS, warmSet } from './warm-programs.ts';
 import { lowData } from './data-saver.ts';
 import { spanAsync } from './spans.ts';
+import { splashHeld } from './ready.ts';
 
 import { clock } from '../clock/frame.ts';
+import { whenQuietOnce } from '../clock/idle.ts';
+import { stamp } from './timeline.ts';
 
 export interface Rung { id: string; run: () => unknown }
 export type Slot = (go: () => void) => void;
@@ -27,7 +29,7 @@ export const RUNGS: readonly Rung[] = [
 ];
 
 /** Runs the rungs in order, one per slot, and returns the ids it ran. Stops at the first rung's turn that finds Save-Data on; a rung that throws or rejects does not stop the next. */
-export async function runLadder(rungs: readonly Rung[] = RUNGS, slot: Slot = idleSlot, o: { lowData?: () => boolean; time?: <T>(id: string, fn: () => Promise<T>) => Promise<T> } = {}): Promise<string[]> {
+export async function runLadder(rungs: readonly Rung[] = RUNGS, slot: Slot = quietSlot, o: { lowData?: () => boolean; time?: <T>(id: string, fn: () => Promise<T>) => Promise<T> } = {}): Promise<string[]> {
   const saving = o.lowData ?? lowData, time = o.time ?? ((id, fn) => spanAsync(`ladder:${id}`, fn));
   const ran: string[] = [];
   for (const r of rungs) {
@@ -39,14 +41,14 @@ export async function runLadder(rungs: readonly Rung[] = RUNGS, slot: Slot = idl
   return ran;
 }
 
-/** The slot of today: the idle callback where there is one, else a short timer (Safari). */
-const idleSlot: Slot = (go) => {
-  const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
-  if (ric) ric(go, { timeout: 4000 }); else clock.after(go, 1500);
-};
+/** The loading plan's one background slot (clock/idle.ts): a rung starts only when no hold is live and no finger is down, in a task of its own (an idle callback, or a MessageChannel task on Safari, never a blind timer).
+ *  The wait limit is a starvation valve only: a rung is a module load, not about the picture, so after 20 s of unbroken motion it goes anyway. */
+export const COVER_RETRY_MS = 500;
+/** Never while the cover is up: the figure's first frame is what the person waits for, and a phone has one CPU to give it (a rung reading six instruments in and making a second WebGL context in the middle of the boot slowed the cover's lift: 22 Nov). */
+export const quietSlot: Slot = (go) => { const wait = (): void => { if (splashHeld()) clock.after(wait, COVER_RETRY_MS); else whenQuietOnce(go, { tag: 'ladder', maxWaitMs: 20000 }); }; wait(); };
 
 export function warmLater(delayMs = 3000): void {
   if (typeof window === 'undefined') return;
-  const go = () => clock.after(() => { void runLadder(); }, delayMs);
+  const go = () => clock.after(() => { void runLadder().then(() => stamp('instruments')); }, delayMs);
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
 }

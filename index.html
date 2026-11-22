@@ -76,9 +76,9 @@
      offered only after 8 s in which nothing new arrived, and a page opened offline with no saved copy says so (the 15 s timer of before could not tell a slow download from a stuck one). */
 (function(){var w=window,orig=null,esc=function(t){return String(t).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})};w.ppsBootErrors=[];
 var STALL_MS=8000,OFFLINE_MS=3000,TICK_MS=500,BAR_AFTER_MS=1200,NAME_MS=800;
-var seen=0,bytes=0,last=0,hold=0,frac=0,total=0;
+var seen=0,bytes=0,last=0,hold=0,frac=0,total=0,startedAt=0,WORK_MS=15000;
 function now(){return w.performance&&performance.now?performance.now():0}
-function show(title,body,detail,actions,cls){var el=document.getElementById('boot');if(!el||el.getAttribute('data-lifting')||(cls==='slow'&&el.className==='failed'))return;if(!cls)clearTimeout(w.ppsBootTimer);if(orig===null)orig=el.innerHTML;el.className=cls||'failed';el.innerHTML='<div class="boot-msg" role="alert"><h1>'+title+'</h1>'+body+(detail?'<code>'+esc(detail)+'</code>':'')+actions+'</div>';var r=el.querySelector('[data-reload]'),k=el.querySelector('[data-wait]');if(r)r.onclick=function(){location.reload()};if(k)k.onclick=function(){el.className='';el.innerHTML=orig;last=now();hold=last+STALL_MS;if(w.ppsBootReady)lift();else w.ppsBootTimer=setTimeout(tick,TICK_MS)}}
+function show(title,body,detail,actions,cls){var el=document.getElementById('boot');if(!el||el.getAttribute('data-lifting')||(cls==='slow'&&el.className==='failed'))return;if(!cls)clearTimeout(w.ppsBootTimer);if(orig===null)orig=el.innerHTML;el.className=cls||'failed';var msg='<div class="boot-msg" role="alert"><h1>'+title+'</h1>'+body+(detail?'<code>'+esc(detail)+'</code>':'')+actions+'</div>',head=cls==='slow'?orig.replace(/<div class="boot-bar">[\s\S]*?<\/div>/,'').replace(/<span[\s\S]*?<\/span>/,''):'';/* a recoverable note keeps the mark and the name above it */el.innerHTML=/<\/div>$/.test(head)?head.replace(/<\/div>$/,msg+'</div>'):msg;var r=el.querySelector('[data-reload]'),k=el.querySelector('[data-wait]');if(r)r.onclick=function(){location.reload()};if(k)k.onclick=function(){el.className='';el.innerHTML=orig;last=now();hold=last+STALL_MS;if(w.ppsBootReady)lift();else w.ppsBootTimer=setTimeout(tick,TICK_MS)}}
 w.ppsBootRendererFail=function(why){show('The 3D view couldn’t start','<p>The graphics could not draw the figure. Reloading often fixes it. If it keeps happening, the 2D simulator works on this device.</p>',why,'<button type="button" data-reload>Reload</button><a href="https://qaddodi.github.io/portal-pressure-simulator/">Open the 2D simulator</a>')};
 var ADVICE='<p>Please open it in a current version of <b>Chrome</b>, <b>Edge</b>, <b>Safari</b> or <b>Firefox</b>, or on your phone or tablet.</p>';
 w.ppsBootFail=function(){show('The simulator couldn’t start','<p>Something went wrong while it was loading. Reloading often fixes it. If it keeps happening on this computer, the browser may be too old or restricted.</p>'+ADVICE,w.ppsBootErrors.slice(0,3).join('\n')+'\nBrowser: '+navigator.userAgent,'<button type="button" data-reload>Reload</button>')};
@@ -89,16 +89,18 @@ function lift(){w.ppsBootReady=true;var el=document.getElementById('boot');if(!e
 w.ppsBootLift=lift;
 document.addEventListener('DOMContentLoaded',function(){var root=document.getElementById('root');if(root)root.setAttribute('inert','');if(!root||!w.MutationObserver){setTimeout(lift,3000);return}var go=function(){if(document.documentElement.getAttribute('data-boot')==='wait')return false;lift();return true};var mo=new MutationObserver(function(){if(root.firstChild&&go())mo.disconnect()});mo.observe(root,{childList:true});if(root.firstChild&&go())mo.disconnect();setTimeout(lift,20000)});
 /* What arrived: the same-origin files the page has finished loading (PerformanceResourceTiming), summed. The build writes the bytes of everything the first picture needs into <meta name="pps-boot-bytes">; the wait bar
-   becomes a fill of bytes/total once the cover has been up 1.2 s (a warm start lifts before that and never shows it), never moves back, and stops short of the end until the cover lifts. Nothing new for 8 s is "Still loading…". */
+   becomes a fill of bytes/total once the cover has been up 1.2 s (a warm start lifts before that and never shows it), never moves back, and stops short of the end until the cover lifts. Nothing new for 8 s is "Still loading…", but only until the app's own code has begun to run (window.ppsBootStarted, src/boot/started.ts): from then on what is awaited is CPU (engine, scene, first frame), not bytes, so the note waits for 15 s of nothing at all and does not blame the connection. */
 function sample(){var pe=w.performance;if(!pe||!pe.getEntriesByType)return;var es=pe.getEntriesByType('resource'),o=location.protocol+'//'+location.host,sum=0,i;for(i=0;i<es.length;i++)if(es[i].name.indexOf(o)===0)sum+=es[i].encodedBodySize||es[i].decodedBodySize||0;if(es.length!==seen||sum>bytes){seen=es.length;if(sum>bytes)bytes=sum;last=now()}}
 function bar(f){var el=document.getElementById('boot');if(!el||!el.style||!el.style.setProperty)return;if(f<frac)f=frac;frac=f;el.setAttribute('data-det','1');el.style.setProperty('--p',String(Math.round(f*1000)/1000))}
 function offlineNow(){var n=navigator;return n.onLine===false&&!(n.serviceWorker&&n.serviceWorker.controller)}
 function tick(){w.ppsBootTimer=0;if(w.ppsBootReady)return;sample();var t=now();if(total&&bytes&&t>=BAR_AFTER_MS)bar(Math.min(.95,bytes/total));
-if(t>=hold){var idle=t-last;if(idle>=OFFLINE_MS&&offlineNow()){offline();return}if(idle>=STALL_MS){slow();return}}
+if(!startedAt&&w.ppsBootStarted)startedAt=t||1;
+if(t>=hold){var idle=t-last;if(startedAt){if(t-startedAt>=WORK_MS&&t-last>=WORK_MS){slow();return}}else{if(idle>=OFFLINE_MS&&offlineNow()){offline();return}if(idle>=STALL_MS){slow();return}}}
 w.ppsBootTimer=setTimeout(tick,TICK_MS)}
 var KEEP='<button type="button" data-reload>Reload</button><button type="button" data-wait>Keep waiting</button>';
-function slow(){show('Still loading…','<p>Nothing new has arrived for a few seconds, which is often a slow connection. It may finish by itself, or you can reload the page.</p>','',KEEP,'slow')}
-function offline(){show('You’re offline','<p>You’re offline and the simulator isn’t saved on this device yet. Connect to the internet and it will load; after that it also works without a connection.</p>','',KEEP,'slow')}
+function phase(){return 'entry '+(startedAt?'running':'not started')+' · '+Math.round(bytes/1024)+' of '+Math.round(total/1024)+' kB · '+seen+' files · '+Math.round(now()/100)/10+' s'}
+function slow(){if(startedAt)show('Still loading…','<p>This is taking longer than usual. It may finish by itself, or you can reload the page.</p>',phase(),KEEP,'slow');else show('Still loading…','<p>Nothing new has arrived for a few seconds, which is often a slow connection. It may finish by itself, or you can reload the page.</p>',phase(),KEEP,'slow')}
+function offline(){show('You’re offline','<p>You’re offline and the simulator isn’t saved on this device yet. Connect to the internet and it will load; after that it also works without a connection.</p>',phase(),KEEP,'slow')}
 /* The name waits for its face (at most NAME_MS), then shows in the face it has by then, so it neither pops in unstyled nor swaps later (index.html's CSS: data-name). */
 function named(how){var el=document.getElementById('boot');if(el&&!el.getAttribute('data-name'))el.setAttribute('data-name',how)}
 var fonts=w.document&&document.fonts;if(fonts&&fonts.load){try{fonts.load('600 20px "Source Serif 4"','Portal Pressure Simulator 3D').then(function(){named('1')},function(){named('fallback')})}catch(e){}}
@@ -106,6 +108,6 @@ setTimeout(function(){named('fallback')},NAME_MS);
 try{var mt=document.querySelector&&document.querySelector('meta[name="pps-boot-bytes"]');total=mt?parseInt(mt.getAttribute('content'),10)||0:0}catch(e){}
 w.ppsBootTimer=setTimeout(tick,TICK_MS)})();</script>
   <div id="root"></div>
-  <script type="module" src="./src/main.tsx"></script>
+  <script type="module" src="./src/entry.ts"></script>
 </body>
 </html>

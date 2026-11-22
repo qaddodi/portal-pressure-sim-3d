@@ -49,3 +49,14 @@ test('Stage feeds it the clock\'s frames and applies a notch only at rest', () =
   assert.match(src, /govern\(gov, /);
   assert.match(src, /figureDetail - /);
 });
+
+test('Auto detail is a setting (on by default, saved), a switch under the Figure detail steps, and Stage holds the chosen step when it is off', async () => {
+  const { DEFAULTS, parseSettings } = await import('../src/state/settings.ts');
+  assert.equal(DEFAULTS.autoDetail, true);
+  assert.equal(parseSettings(JSON.stringify({ autoDetail: false })).autoDetail, false);
+  assert.equal(parseSettings(null).autoDetail, true);
+  const sheet = readFileSync(new URL('../src/ui/settings/SettingsSheet.tsx', import.meta.url), 'utf8');
+  assert.match(sheet, /<FigureDetail \/><AutoDetail \/>/);
+  const stage = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
+  assert.match(stage, /st\.autoDetail \? gov\.drop : 0/);
+});

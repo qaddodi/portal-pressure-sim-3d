@@ -128,7 +128,7 @@ test('every file that holds GLSL is compiled: on the closed hand list, or giving
 test('the ?gl page reads the same scan: the build makes `virtual:gl-modules` from scripts/gl-scan.mjs and the check imports it, so a new shader file is checked on the device with nothing registered', () => {
   const vite = readFileSync('vite.config.ts', 'utf8'), run = readFileSync(join('src', 'debug', 'gl-check-run.ts'), 'utf8');
   assert.match(vite, /import \{ glslFiles \} from '\.\/scripts\/gl-scan\.mjs'/);
-  assert.match(vite, /virtual:gl-modules/); assert.match(vite, /plugins: \[react\(\), glModules\(\)\]/);
+  assert.match(vite, /virtual:gl-modules/); assert.match(vite, /plugins: \[react\(\), glModules\(\)(, csp\(\))?\]/);
   assert.match(run, /import\('virtual:gl-modules'\)/);
   assert.match(readFileSync(join('src', 'debug', 'gl-registry.ts'), 'utf8'), /autoPrograms\(fresh\)/);
 });

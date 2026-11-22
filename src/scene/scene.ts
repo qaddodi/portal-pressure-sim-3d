@@ -1,5 +1,7 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { span } from '../boot/spans.ts';
+import { stamp } from '../boot/timeline.ts';
+import { whenQuiet, type QuietJob } from '../clock/idle.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { runSystems, type FrameCtx, type FrameSystem } from './frame-systems.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
@@ -8,6 +10,7 @@ import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
+import { CAUDATE_VEIN_ID, CAUDATE_WHEN } from './vessels/caudate-veins.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -96,6 +99,7 @@ import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { sewOnMap } from './circuit/map-sewn.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
+import { circSkinsOn } from './circuit/peel.ts';
 import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
@@ -167,7 +171,7 @@ function withNeighbour(id: string, g: BufferGeometry): void {
   g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
-/** How long one idle slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
+/** How long one slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */
 const SLICE_MS = 4;
 export class CelScene {
   readonly scene = new Scene();
@@ -206,7 +210,7 @@ export class CelScene {
   // `setView` to the lobule or the sinusoid, or by the first read of either getter. `onMicroBuilt` lets the page compile their programs off the frame (Stage), so the first show never stalls on a driver.
   private micro: { sinus: Sinusoid3D; lobule: Lobule3D } | null = null;
   private microDpr = 0;
-  private microIdle = false;
+  private microJob: QuietJob | null = null;
   private microPrimed = false;
   private microPrimed2 = false;
   onMicroBuilt: (() => void) | null = null;
@@ -235,19 +239,11 @@ export class CelScene {
    *  drawn frame: the construction of the lobule, then each pass of the shapes. The view change asks for it too (a dive straight after the load) and never builds anything itself: the dive frame stays off until
    *  `microReady`. Once. */
   buildMicroIdle(): void {
-    if (this.microPrimedNow || this.microIdle || this.disposed) return;
-    this.microIdle = true;
-    const later = (f: () => void) => {
-      const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-      if (ric) ric(f, { timeout: 300 }); else clock.after(f, 60);
-    };
-    // (a slice runs steps until it has used SLICE_MS, so the many small steps of the shapes are not one idle wait each; every step is itself small)
-    const slice = () => {
-      const t0 = clock.now();
-      do { if (this.microStep()) return; } while (!this.disposed && clock.now() - t0 < SLICE_MS);
-      later(slice);
-    };
-    later(slice);
+    if (this.microPrimedNow || this.disposed) return;
+    // (a dive straight after the load: the job the user is now waiting for runs through the motion of the dive, still in slices with a rest between)
+    if (this.microJob) { this.microJob.rush(); return; }
+    // (many small steps per slice up to SLICE_MS, one slot with the rest of the page's background work: clock/idle.ts)
+    this.microJob = whenQuiet(() => this.microStep(), { tag: 'micro', budgetMs: SLICE_MS });
   }
   /** One small step of the micro views' preparation; true when everything is built and primed. */
   private microStep(): boolean {
@@ -258,7 +254,7 @@ export class CelScene {
       else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
       else if (!this.microPrimed) { this.microPrimed = true; this.snapMicroToModel(); this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
       else if (!this.microPrimed2) { this.microPrimed2 = true; this.micro.sinus.update(true, 1, true); }   // (the same for the sinusoid's tail, Kupffer cell, pores and colours)
-      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microIdle = false; this.moving = true; this.onMicroPrimed?.(); return true; }
+      if (this.microReady && this.microPrimed && this.microPrimed2) { this.microJob = null; this.moving = true; this.onMicroPrimed?.(); return true; }
       return false;
     }
   }
@@ -369,7 +365,7 @@ export class CelScene {
     this.disease.ascites.still = !!opts.reduceMotion;   // (so does the pool's surface: no ripple, no slosh)
     this.disease.ascites.setLiving(useSettings.getState().fluidSurface, true);   // (Settings > Figure depth > Living fluid: read at boot, then glided)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
-    Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
+    Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); stamp('scene'); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -696,10 +692,23 @@ export class CelScene {
     }
   }
 
+  /** The caudate lobe and its short veins (2D stage.js caud): drawn only while a slide is about them, eased in and out; the lobe has grown as far as its veins carry the liver's outflow (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
+  setCaudate(lobe: boolean, veins: boolean): void {
+    this.caudLobe = lobe; this.caudVeins = veins;
+    if (latest.frame) this.syncCaudate(latest.frame, false);
+    this.moving = true; clock.invalidate('caudate');
+  }
+  private caudLobe = false; private caudVeins = false;
+  private syncCaudate(f: NonNullable<typeof latest.frame>, instant: boolean): void {
+    this.disease.organs.setCaudate(this.caudLobe, feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ), instant);
+    this.feeders.set(CAUDATE_VEIN_ID, this.caudLobe && this.caudVeins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
+  }
+
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
-    for (const v of NETWORK) if (v.feeder) this.feeders.set(v.id, feederLive(v.feeder, f, this.healthyQ), instant);
+    for (const v of NETWORK) if (v.feeder && v.feeder.when !== CAUDATE_WHEN) this.feeders.set(v.id, feederLive(v.feeder, f, this.healthyQ), instant);
+    this.syncCaudate(f, instant);
     this.pushFades();
     this.shapes.onFrame(f as never, clock.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
@@ -1343,8 +1352,8 @@ export class CelScene {
     this.mapLayer.set(mapRamp(t), this.circuit.rr, t);
     // the map's junction skins: drawn only over the end of the change, turned with the map (they are built on the unturned map; the tubes turn in their shader)
     if (this.circuitSkins) {
-      const rot = this.circuit.shared.circRot.value, key = `${t > SKIN_CIRC_IN - 0.02 ? 1 : 0}|${rot.x}|${rot.y}`;
-      if (key !== this.circuitSkinKey) { this.circuitSkinKey = key; this.circuitSkins.show(t > SKIN_CIRC_IN - 0.02); this.circuitSkins.setTurn(rot.x, rot.y); }
+      const rot = this.circuit.shared.circRot.value, on = circSkinsOn(t, SKIN_CIRC_IN), key = `${on ? 1 : 0}|${rot.x}|${rot.y}`;
+      if (key !== this.circuitSkinKey) { this.circuitSkinKey = key; this.circuitSkins.show(on); this.circuitSkins.setTurn(rot.x, rot.y); }
     }
     this.procs.setFade(fade);
     const ramp = mapRamp(t);

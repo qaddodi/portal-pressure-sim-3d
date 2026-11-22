@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
+import { whenQuiet } from '../clock/idle.ts';
 import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
@@ -15,6 +16,8 @@ import { figureDrawn, rendererFailed, splashHeld } from '../boot/ready.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
 import { firstDraw, spanAsync } from '../boot/spans.ts';
+import { stamp } from '../boot/timeline.ts';
+import { lateProgramCheck, rebaseLateWatch } from '../boot/late-programs.ts';
 import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
@@ -102,8 +105,10 @@ function SceneBridge() {
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
     frameBegin(gl.info);
+    const drawAt = clock.now();
     firstDraw(cel.view, () => cel.render(gl));   // (the first drawn frame of each view is timed: boot/spans.ts, ?perf)
     frameEnd(gl.info);
+    lateProgramCheck(gl.info.programs, cel.view, clock.now() - drawAt, drawAt);   // (a program built after the splash lifted is named here: boot/late-programs.ts)
     lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
@@ -113,21 +118,18 @@ function SceneBridge() {
     // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
     if (!warmed.current) {
       warmed.current = true;
-      const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined);
+      const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined).finally(() => stamp('compile'));
       const warm = () => { void warmP(); };   // (into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts)
-      rewarm.current = () => { warm(); cel.onMicroPrimed?.(); };   // (after a lost context: the programs and the geometry again, off the frame)
+      rewarm.current = () => { rebaseLateWatch(); void warmP().then(rebaseLateWatch); cel.onMicroPrimed?.(); };   // (what a restore rebuilds is not late)   // (after a lost context: the programs and the geometry again, off the frame)
       cel.onMicroBuilt = warm;
       // (then, once the views are built and primed: every geometry no frame has drawn is sent to the GPU one per idle slice, so a view's first frame uploads nothing: materials/warm.ts GeometryUploader)
       cel.onMicroPrimed = () => {
+        stamp('micro');
         const up = new GeometryUploader(gl as unknown as UploadRenderer, cel.rig.camera, new WebGLRenderTarget(1, 1));
         for (const r of cel.uploadRoots) up.add(r);
-        const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-        const next = () => {
-          let more = false;
-          try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ }
-          if (more) { if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60); } else up.dispose(); };
         spanAsync('upload:geometries', () => Promise.resolve()).catch(() => undefined);
-        if (ric) ric(next, { timeout: 300 }); else clock.after(next, 60);
+        // (one geometry per step in the background slot, as many as fit its budget: never while anything moves)
+        whenQuiet(() => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (!more) up.dispose(); return !more; }, { tag: 'upload' });
       };   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
       // One thing at a time: the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in one slot (docs/decisions.md "Warm-up before the micro views").
       clock.after(() => { void Promise.race([warmP(), new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
@@ -177,16 +179,16 @@ function SceneBridge() {
     const apply = () => {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
-      if (!moving) applied = gov.drop;
+      if (!moving) applied = st.autoDetail ? gov.drop : 0;
       const d = figureDpr(Math.max(0, st.figureDetail - applied), st.sharpMoving, moving, window.devicePixelRatio || 1);
       if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); document.documentElement.dataset.detailDrop = String(applied); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
       clock.cancel(settle);
-      if ((moving && !st.sharpMoving) || (moving && gov.drop !== applied)) settle = clock.after(apply, 200);
+      if (moving && (!st.sharpMoving || (st.autoDetail ? gov.drop : 0) !== applied)) settle = clock.after(apply, 200);
     };
     apply();
     const off = clock.on('camera', apply, 1);
-    const offGov = clock.on('tags', (f) => { const was = gov.drop; if (govern(gov, f.time, f.dt) !== was) { clock.cancel(settle); settle = clock.after(apply, 200); } }, 90);
+    const offGov = clock.on('tags', (f) => { if (!useSettings.getState().autoDetail) return; const was = gov.drop; if (govern(gov, f.time, f.dt) !== was) { clock.cancel(settle); settle = clock.after(apply, 200); } }, 90);
     const un = useSettings.subscribe(apply);
     return () => { off(); offGov(); un(); clock.cancel(settle); };
   }, [setDpr]);

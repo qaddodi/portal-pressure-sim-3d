@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Script, createContext } from 'node:vm';
 
 const HTML = readFileSync('index.html', 'utf8');
-interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean }
+interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean }
 
 function run(o: Opts = {}) {
   const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)[0]!;
@@ -20,6 +20,7 @@ function run(o: Opts = {}) {
     return el;
   };
   const boot = mkEl('boot'), root = mkEl('root'); root.firstChild = null;
+  if (o.realCover) boot.innerHTML = HTML.slice(HTML.indexOf('<div id="boot"'), HTML.indexOf('<noscript>')).replace(/^<div id="boot"[^>]*>/, '').replace(/<\/div>\s*$/, '');
   const listeners: Record<string, (() => void)[]> = {};
   const fonts = o.fonts === 'now' ? { load: () => ({ then: (ok: () => void) => { ok(); } }) } : o.fonts === 'never' ? { load: () => ({ then: () => undefined }) } : undefined;
   const meta = { getAttribute: () => String(o.total ?? 0) };
@@ -123,4 +124,49 @@ test('the 20 s last word, the 600 ms minimum and the terminal state are kept', (
   c.advance(21000); assert.equal(c.boot.className, 'done', 'a slow (not failed) cover is lifted by the 20 s timer');
   const f = run({ dcl: false }); f.ctx.ppsBootRendererFail('lost'); f.advance(30000);
   assert.equal(f.boot.className, 'failed');
+});
+
+
+// ---- 22 Nov: "Still loading… a slow connection" on an iPhone on good Wi-Fi. Root cause: the wait was told by FILES ARRIVING alone, so after the last file came, the seconds of CPU the app needs (engine,
+// fonts, scene, first frame) read as "nothing new for 8 s". From the moment the app's own code runs the cover no longer waits on bytes, and the note neither blames the connection nor comes before 15 s.
+test('once the app\'s code is running, 8+ s of no new file is CPU, not the connection: no note (the iPhone on good Wi-Fi)', () => {
+  const c = run({ entries: () => file(40), dcl: false });
+  c.advance(1000); c.ctx.ppsBootStarted = true;
+  for (let t = 1500; t <= 14500; t += 500) { c.advance(t); assert.notEqual(c.boot.className, 'slow', `at ${t} ms`); }
+});
+
+test('a start that never gets anywhere after the code ran is still told, at 15 s, without blaming the connection, with where it stood', () => {
+  const c = run({ total: 4_000_000, entries: () => file(40), dcl: false });
+  c.advance(1000); c.ctx.ppsBootStarted = true;
+  c.advance(17000);
+  assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /taking longer than usual/); assert.doesNotMatch(c.boot.innerHTML, /slow connection/);
+  assert.match(c.boot.innerHTML, /entry running · 3906 of 3906 kB · 40 files/);
+});
+
+test('before the code runs the byte rule is unchanged, and says where it stood (entry not started)', () => {
+  const c = run({ total: 4_000_000, entries: () => file(3), dcl: false });
+  c.advance(9000); assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /slow connection/); assert.match(c.boot.innerHTML, /entry not started · 293 of 3906 kB · 3 files/);
+});
+
+test('files a worker served (their sizes read 0) still count as arriving: the entries themselves are the sign of life', () => {
+  const c = run({ entries: (t) => file(1 + Math.floor(t / 2000), 0), dcl: false });
+  for (let t = 500; t <= 30000; t += 500) { c.advance(t); assert.notEqual(c.boot.className, 'slow', `at ${t} ms`); }
+});
+
+test('the note keeps the mark and the name above it (no bare screen with a card), and Keep waiting brings the whole splash back', () => {
+  const c = run({ entries: () => file(3), dcl: false, realCover: true, fonts: 'now' });
+  c.advance(9000);
+  assert.equal(c.boot.className, 'slow');
+  assert.match(c.boot.innerHTML, /<svg class="boot-mark"/); assert.match(c.boot.innerHTML, /boot-name/); assert.doesNotMatch(c.boot.innerHTML, /boot-bar/); assert.match(c.boot.innerHTML, /Still loading/);
+  assert.equal(c.boot.getAttribute('data-name'), '1', 'the name is shown');
+  c.boot.children['data-wait'].onclick();
+  assert.match(c.boot.innerHTML, /boot-bar/);
+});
+
+test('main.tsx runs boot/started.ts first (the cover reads ppsBootStarted), and nothing heavy starts behind a cover that is up', () => {
+  const main = readFileSync('src/main.tsx', 'utf8');
+  assert.ok(main.indexOf("import './boot/started.ts';") >= 0 && main.indexOf("import './boot/started.ts';") < main.indexOf("from 'react'"));
+  assert.match(readFileSync('src/boot/started.ts', 'utf8'), /ppsBootStarted: true/);
+  assert.match(readFileSync('src/boot/warm.ts', 'utf8'), /if \(splashHeld\(\)\) clock\.after\(wait, COVER_RETRY_MS\)/, 'the preload ladder waits for the cover to lift');
+  assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /if \(splashHeld\(\)\) \{ clock\.after\(go, 500\); return; \}/, 'so does the worker\'s install');
 });

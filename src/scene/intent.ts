@@ -29,9 +29,11 @@ export interface FigureIntent {
   resistors: readonly ResKey[];
   /** the Circuit draws the caudate lobe's own lane */
   caudate: boolean;
+  /** the lobe is drawn with its short hepatic veins in the anatomy (a slide that pins `caudate`, not only `caudate-lobe`) */
+  caudateVeins: boolean;
 }
 
-export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null, resistors: [], caudate: false };
+export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null, resistors: [], caudate: false, caudateVeins: false };
 
 /** Lowest first: a higher layer decides a field it says anything about. */
 export const LAYER_ORDER = ['base', 'talk', 'tool'] as const;

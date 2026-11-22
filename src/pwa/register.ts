@@ -5,10 +5,13 @@
 import { useShell } from '../ui/shell/store.ts';
 import { reloadKeepingState } from '../boot/reload.ts';
 import { startUpdateWatch } from './update.ts';
+import { splashHeld } from '../boot/ready.ts';
 import { talkOn } from '../state/deck.ts';
 import { lowData } from '../boot/data-saver.ts';
 
 import { clock } from '../clock/frame.ts';
+import { whenQuietOnce } from '../clock/idle.ts';
+import { stamp } from '../boot/timeline.ts';
 export const UPDATE_TOAST = 'A new version of the simulator is ready.';
 /** How long a held offer waits before it asks again (a talk is on). */
 export const RETRY_MS = 30000;
@@ -48,6 +51,13 @@ export async function persistOnce(storage: { persist?: () => Promise<boolean> } 
 const door = (): Pick<Storage, 'getItem' | 'setItem'> | null => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } };
 
 /** The offer: one line at the foot with a Reload button; in a talk it waits and asks again. */
+/** Asks the worker to hold the parts opened later; it answers on the port when it has (the boot timeline's "fill done"). */
+function askFill(sw: ServiceWorker | null): void {
+  if (!sw) return;
+  const ch = new MessageChannel();
+  ch.port1.onmessage = () => stamp('fill');
+  try { sw.postMessage('pps:fill', [ch.port2]); } catch { /* (no answer: the timeline reads "–") */ }
+}
 export function offerReload(say = useShell.getState().say, retry = (fn: () => void) => { clock.after(fn, RETRY_MS); }): void {
   const offer = () => {
     if (talkOn()) { retry(offer); return; }
@@ -84,7 +94,6 @@ export function registerPwa(): void {
       watching.found('');
     });
   }
-  const idle = (fn: () => void) => { const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback; if (ric) ric(fn, { timeout: 5000 }); else clock.after(fn, 1500); };
   // (once the worker is active the page asks it to hold the parts opened later: 'pps:fill', scripts/pwa.mjs)
   /** Asks the host for a newer worker when the tab comes to the front, comes back online or has stayed open CHECK_MS (the browser asks only on a navigation, and once a day otherwise). */
   const watchForNewBuild = (reg: ServiceWorkerRegistration) => {
@@ -94,10 +103,13 @@ export function registerPwa(): void {
     addEventListener('pageshow', ask); addEventListener('online', ask);
     clock.every(ask, CHECK_MS);
   };
-  const go = () => idle(() => {
+  // (the worker is registered, then asked to fill its cache, in the background slot: clock/idle.ts. Network jobs, not about the picture: they go after maxWaitMs even while something moves)
+  // (not while the cover is up: the worker's install copies megabytes into the cache, and the first frame is what the person waits for)
+  const go = (): void => { if (splashHeld()) { clock.after(go, 500); return; } install(); };
+  const install = () => whenQuietOnce(() => {
     // (once the worker is active, its install list is held: the site may keep it (persistOnce); the fill of the parts opened later waits on Save-Data and 2g, those parts are fetched on use and kept)
-    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { void persistOnce(navigator.storage, door()); if (!lowData()) idle(() => r.active?.postMessage('pps:fill')); })
+    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { void persistOnce(navigator.storage, door()); if (!lowData()) whenQuietOnce(() => askFill(r.active), { tag: 'sw-fill', maxWaitMs: 8000 }); })
       .catch((e) => console.warn('[pwa] no offline copy:', e));
-  });
+  }, { tag: 'sw-register', delayMs: 1500, maxWaitMs: 8000 });
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
 }

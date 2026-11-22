@@ -250,7 +250,7 @@ endobj
 endobj
 13 0 obj
 <<
-/Length 1300
+/Length 1226
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
@@ -285,7 +285,7 @@ Q
 q
 1 0 0 1 20 138.6667 cm
 q
-BT 1 0 0 1 0 70.8 Tm 16.56 TL /F2 12 Tf .113725 .113725 .121569 rg (Tests) Tj /F1 12 Tf (: opens the Tests card with tabs for Pressure, IR,) Tj T* (Doppler, Scope, Ascites, Fibro and Readouts, the measurements) Tj T* (you can take on this patient, and Trials, the landmark trials) Tj T* (and whether this patient fits them. On iPhone it is in the bar) Tj T* (along the bottom \(Treat, Tests, Search, Layers, Settings\), and) Tj T* (the tabs show as icons.) Tj T* ET
+BT 1 0 0 1 0 70.8 Tm 16.56 TL /F2 12 Tf .113725 .113725 .121569 rg (Tests) Tj /F1 12 Tf (: opens the Tests card with tabs for Pressure, HVPG,) Tj T* (Doppler, Scope, Ascites, Fibro and Readouts, the measurements) Tj T* (you can take on this patient. On iPhone it is in the bar along the) Tj T* (bottom \(Treat, Tests, Search, Layers, Settings\), and the tabs) Tj T* (show as icons.) Tj T* ET
 Q
 Q
 BT /F1 8.16 Tf 9.792 TL ET
@@ -490,14 +490,16 @@ endobj
 27 0 obj
 <<
 /Filter /FlateDecode
-/Length 1032
+/Length 1054
 >>
 stream
-xœ­Vß“›6~ç¯Ø·Şe<
-’×§fréd&É¤9OÓ‡{‘Aœ©9 Ÿ{ÿ}W>7i:™1è×·ß.»ßB!Æ‹†ÿ¼xµ†—o(PëhBX¿ƒÛuDRg)–2.8X¤)K {ˆÚˆ+œ†”
-Â%4ÓÅ„rª€s’PªğûYJäğ”GŒ“T¦Lñ|Â?`¸É?Ç­q˜Ä’(6ƒ<š3­ñôË<*_Dè&^èBpš¥Ş]t›™~ãCÄITì!Â¾®’kXÿ	ë!@”rÅÌwF…Ì–ğÉˆ\À'¸<Ğå, ß™¶€Ò˜b£óİÂÒ—èÄ(S’¡?N/À0jÊû‰8T!½¹¯3\¼ò«µŞƒÛíaşÁènœ;í…{$é\Õ>ô+¨Úpnc³lt¶…êãÖ¶æşzå×ÚPïâäÙÕ™«+Ş:èî\ºÓèªgá½İê¦Ñ+·…'{è`s¨êbuB,Ìc•›ôygL»uÕîüYÏÔü¥s•9"l‹ıÖv:³÷7[Âq«İ	ËŸĞûıO=ØcùÖä»J{h¬Ûb ê¡7­ƒCë"2òÃÂ;Áö¦°®{[İ_„æ—ı#®ÛÜüCÔßU[·‚;[âÿkİíVğA?>Í¿ª1`;¸{êiî¯É"~ÃëKÄE<$KÂ±@²PvB`ö©˜û|zùÆvÍvCR­U©™–…IeD’°Œå1+³L¬TğÚ" ÁÊ’©„ç÷O¿FDÀ1jÏğ½ñ“áÎÀİyVN‰y|‰?x~JkNyNX¨K«,d?#!ù¯†L¼9aCFÙ7‚”I’*á¹qš’4ç12Iœ©¹’ë*S¼ÌËRpAÅ&‘ÿ!F'ü£Ñîeˆx6ÒøA!z¯ó›P¾Ö¿'>ÿŞ˜D
-\›ÚKc’°EW`i2ø1¨ùi¸èó–øtŞ?NØ¡K0”y1w	&‰éŒ<â47±1‘ÿ?İ‚)J¤'ï%]üø†á9K:âö¯ÌëÎ(böİÔ¦ùZû`èEÆ§,:OüZ4Yƒ¾ÑJ°ìŒÓ ¹(©I;/®Ç>d—EU{¸l0?İşşööó…Ú9½íÎDÔÙ=Šú âAò½òæuÈZ/å½~
-âBq4X<…ÅšGÙ­íqÉÜ¶å¡÷ÂB¹éìÎ´7(Èµ×şÊÁÖÔûşyÊßG)¡¡v2¢26}"}W2/|áeİ‡\»Ê¶º†¾juüìŸ÷uUV¦€G]JU‹Q,‘dı«ÊqaòªÇİgüV¸Äô“|2%» úø¾o
+xœ­VM“›8½ó+ú¶3)—‚$$`ö”ÔL¶R•¤²×&‡¹È Ö€< wşı¶<Î×ÖÆTôõúuÓİ
+!^ÔÿgÀë5¼|C2X@#ÁúÜ¬’ˆ0M€°„qÁ„"IXİ}Ğ<ÆiH¨ \B3YH(§1pN"JãÜ~–9<eã$‘	“ÃB8ŸpÏnrÏ!Akæ¡$1›À†AÌ††™‰Öxú„e/t/tÁ;Í€Rç.ºÍ‰LF¿q‰!b‚Dqè ü¾.¢KXÿë>@”ò˜	˜ïŒ
+™.á£Ş9ƒpy Ë™G¿Õm…ÖùFeÛ…¥‡àÈ(„8¤$Eœ^€aÔbç'âPI„tæ¾ÍpñÊ/Öj¶ÔàzÚÃü½Vİ8wÜwHÒÚª½ïWPµşÜÆXkØ¨LÕÇÒ´úîråÖÚ3PçâäÙÅ‰«+ŞZè­êlªİ¨ªkà½)UÓ¨•-áÉì;Øì«:_sıXez}Öiİ®@A]µ[wÖ1Õÿ¨ÌÂc¥›ãb_šÎB§wîf
+8”Ê±Ü	µÛıÖƒ9´•:ÛöP˜}›ø`l‰A€ª‡^·ö­EŠÈÈsgìãÙ˜Âªî”ª?Í«İ#®ÚL%êïªûÒ®àÖø­ºí
+>¨Ç§Ùó×5L·O½ÕÍİ¥wñ¹ëªßÕêé+^í1H¹¶Höî’,’ïO¼.Â!Ñ"Å•ú’37¹ËÅ—oL×|1’(Š)™ë$µˆ"–²,dEšªœ1\$X•2‘ğüşé€8í	¾3~4Üi¸=­Á)‰GáşÏïCYÎåÂ	ó5íÂúÊÁBeÄÎÅÅW0'»Ïæ“ıNRI’X8nœ&$IÅiŒtFB*Ë”
+†5™Æ¼ÈŠBpAÅ&’ÿ!FG|£Ñîyˆx6ÒøE!z¯²+_U®OüL|~,(,D
+\›$…%!‰ØBQX~Jp.´eŞÏ»Ç	Û+‹C‚!f…a2&!‘§áBesÛãùÿ£4,¦D:òNÄ¯ÇYÒÿ³{e®gPÁ®3›Z7ß’†^¤|Ê¢ÓT‰½_ñ™ÛËwdÅg«]#öıÛ±ÅDRÖ5æCï³Ë`G¼?§Ÿnşz{óù¬‘YµeO°5;„A¼\¸®Õ>k]ìÕ“oü>Å“¬ylÙµ9Ì63m±ï]ÓÇ&»éÌV·WØÌk§•…R×»şyÊßV	¡¾vR§lú¼ú©d®ñù—u“ï3e+ÓªúªÙ×~ğ»{ŞÕUQéU½×ØªZŒb$3Ô¾*Ãı¹ÎªwŸğ[XáÓOòÉ”\ì‚à_RŸ…
 endstream
 endobj
 28 0 obj
@@ -674,23 +676,23 @@ xref
 0000053304 00000 n 
 0000076112 00000 n 
 0000076416 00000 n 
-0000077769 00000 n 
-0000229999 00000 n 
-0000292431 00000 n 
-0000292686 00000 n 
-0000293138 00000 n 
-0000557535 00000 n 
-0000557790 00000 n 
-0000558777 00000 n 
-0001212534 00000 n 
-0001212838 00000 n 
-0001213407 00000 n 
-0002125803 00000 n 
-0002630727 00000 n 
-0002631031 00000 n 
-0002632137 00000 n 
-0002668394 00000 n 
-0002708455 00000 n 
+0000077695 00000 n 
+0000229925 00000 n 
+0000292357 00000 n 
+0000292612 00000 n 
+0000293064 00000 n 
+0000557461 00000 n 
+0000557716 00000 n 
+0000558703 00000 n 
+0001212460 00000 n 
+0001212764 00000 n 
+0001213333 00000 n 
+0002125729 00000 n 
+0002630653 00000 n 
+0002630957 00000 n 
+0002632085 00000 n 
+0002668342 00000 n 
+0002708403 00000 n 
 trailer
 <<
 /Size 31
@@ -699,5 +701,5 @@ trailer
 /ID [ <be73c1cf7c4a85cf0ce72964f389eabf> <be73c1cf7c4a85cf0ce72964f389eabf> ]
 >>
 startxref
-2708856
+2708804
 %%EOF

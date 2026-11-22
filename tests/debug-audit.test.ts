@@ -108,8 +108,8 @@ test('the frames page: sizes from the address (unknown names dropped), the child
 
 test('every page that is not the app lifts the loading cover and sets its own colour scheme (the cover took every click on ?audit; the saved look made its controls dark)', async () => {
   const { readFileSync } = await import('node:fs');
-  const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
-  assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = dark\.matches/); assert.match(main, /root\.style\.display = 'none'/);   // (the empty fixed #root otherwise sits over the page and takes its clicks)
+  const main = readFileSync(new URL('../src/entry.ts', import.meta.url), 'utf8');   // (the page's entry opens every page that is not the app, before the app is fetched)
+  assert.match(main, /ppsBootLift\?\.\(\)/); assert.match(main, /colorScheme = window\.matchMedia\('\(prefers-color-scheme: dark\)'\)\.matches/); assert.match(main, /root\.style\.display = 'none'/);   // (the empty fixed #root otherwise sits over the page and takes its clicks)
   for (const call of ['bootFrame()', 'bootOuter()', 'bootLookBoard()']) assert.match(main, new RegExp(`plainPage\\(\\);\\s*${call.replace(/[()]/g, '\\$&')}`), `${call} is called after plainPage()`);
 });
 
