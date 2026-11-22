@@ -61,7 +61,7 @@ test('opening a link loads the patient, then puts its settings, view, selection 
   assert.equal(got.cirrhosis, 0.6); assert.equal(got.tips.on, true); assert.equal(got.tips.d, 8);
   assert.equal((got.drugs as Record<string, boolean>)[Object.keys(got.drugs)[0]!], true);
   assert.deepEqual(f.st.sel, { type: 'edge', id: 'PV_TRUNK' }); assert.deepEqual(f.st.cam, { orbit: -12.5, k: 2.25, x: -140, y: 60 });
-  assert.deepEqual(f.said, [[SHARE_WORDS.loaded, undefined]]);
+  assert.deepEqual(f.said, []);
 });
 
 test('a load that failed or was replaced by another patient applies nothing of the link', async () => {
