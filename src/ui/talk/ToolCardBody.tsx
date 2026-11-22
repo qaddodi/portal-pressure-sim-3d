@@ -10,6 +10,8 @@ import { useStates } from '../../decks/hp/calc.ts';
 import { changes } from '../../decks/hp/numbers.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { latest, patient, useEngine } from '../../engine/index.ts';
+import { mergeStates } from '../charts/baked/view.ts';
+import { bakedHealthy } from '../charts/baked/store.ts';
 import { healthyFp, beforeOf } from '../charts/profile/data.ts';
 import { useVariant } from './variant-words.ts';
 import { CriteriaCard } from '../charts/criteria/CriteriaCard.tsx';
@@ -23,7 +25,7 @@ import { LumenCard } from '../charts/lumen/LumenCard.tsx';
 import { FlowsCard } from '../charts/flows/FlowsCard.tsx';
 import { flowsInputOf } from '../charts/flows/parts.ts';
 import { PlaneCard } from '../charts/plane/PlaneCard.tsx';
-import { loadPoints, trailStops } from '../charts/plane/data.ts';
+import { loadPoints, planeRows, pointsSync, trailStops } from '../charts/plane/data.ts';
 import { TrialCard } from '../charts/trial/TrialCard.tsx';
 import { ForestCard } from '../charts/forest/ForestCard.tsx';
 import { TraceCard } from '../charts/trace/TraceCard.tsx';
@@ -88,8 +90,10 @@ function fitFor(tool: Rec, fp: Fp | null, params: unknown, fpOf: (id: string) =>
 /** One slide's inputs: its own state, the healthy patient, and the deck's other states by slide id. */
 function useEnv(deck: Deck, i: number) {
   const copied = copiedOf(deck.id)!;
-  const results = useStates((s) => s.results[deck.id]);
-  const [healthy, setHealthy] = useState<Fp | null>(null);
+  const live = useStates((s) => s.results[deck.id]);
+  // (every state the second engine has not yet worked out is the baked one, so no chart waits on the worker for its readings: charts/baked/view.ts)
+  const results = useMemo(() => mergeStates(deck.id, live) as typeof live, [deck.id, live]);
+  const [healthy, setHealthy] = useState<Fp | null>(() => bakedHealthy() as Fp | null);
   useEffect(() => { let on = true; void healthyFp().then((h) => { if (on) setHealthy(h as Fp | null); }); return () => { on = false; }; }, []);
   const cs = copied.slides[i] as CopiedSlide;
   const own = results?.[i];
@@ -118,13 +122,13 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   const frame = latest.frame;
   // The slide's state as a chart takes it: ONE object while the state is the same. The body re-renders on every engine frame (the live model's charts follow its frames), and a state object made
   // fresh each time made the curve work out its goal again and the chart redraw on every one of them: the card flickered and the main thread never rested (Mohammad, 20 Nov: slide 10/11).
-  const slideState = useMemo(() => (fp ? { fp: fp as never, params, base: st?.base, snap: st?.snap } : null), [fp, params, st?.base, st?.snap]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const slideState = useMemo(() => (fp ? { fp: fp as never, params, base: st?.base, snap: st?.snap, pending: !!(st as { baked?: boolean } | undefined)?.baked } : null), [fp, params, st?.base, st?.snap, st]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the next two slides' curves and courses are worked out while this one is read, so they open drawn
   useEffect(() => {
     const t = clock.after(() => {
       for (let j = i + 1; j <= i + 2 && j < copied.slides.length; j++) {
         const c = copied.slides[j] as CopiedSlide, tl = (c.tool ?? {}) as Rec, r = results?.[j];
-        if (tl.kind === 'curve' || tl.kind === 'course') warmCurve(tl as never, r?.fp ? { fp: r.fp as never, params: r.params, base: r.base, snap: r.snap } : null, `${deck.id}/${c.id}`, fpOf as never);
+        if (tl.kind === 'curve' || tl.kind === 'course') warmCurve(tl as never, r?.fp && !(r as { baked?: boolean }).baked ? { fp: r.fp as never, params: r.params, base: r.base, snap: r.snap } : null, `${deck.id}/${c.id}`, fpOf as never);
       }
     }, 700);
     return () => clock.cancel(t);
@@ -237,7 +241,8 @@ function EvGraph({ runKey, cs, fp, before, opened }: { runKey: string; cs: Copie
 /** The change-from-healthy chart: one chart over the deck's states, a state's slot once its slide is reached. */
 function Shift({ deck, i, lit, live }: { deck: Deck; i: number; lit?: string[]; live: Record<string, number | null | undefined> | null }) {
   const copied = copiedOf(deck.id)!;
-  const results = useStates((s) => s.results[deck.id]);
+  const lived = useStates((s) => s.results[deck.id]);
+  const results = useMemo(() => mergeStates(deck.id, lived) as typeof lived, [deck.id, lived]);
   const data = useMemo(() => shiftData(copied.slides as never, (j) => (results?.[j] ? stateOfStep(results[j] as never) : null), null), [copied, results]);
   void shiftTrail;
   return <ShiftCard stages={data.stages} vals={data.vals} trails={data.trails} at={i} lit={lit} live={live as never} />;
@@ -245,11 +250,15 @@ function Shift({ deck, i, lit, live }: { deck: Deck; i: number; lit?: string[]; 
 
 /** A summary on the plane (visual: 'plane'): one named point for each patient the slide's `of` lists. */
 function PlaneVisual({ deck, cs, fpOf }: { deck: Deck; cs: CopiedSlide; fpOf: (id: string) => Fp | null }) {
-  const [points, setPoints] = useState<Awaited<ReturnType<typeof loadPoints>>>([]);
+  const of = cs.of as never, slides = deck.slides as never, fps = fpOf as never;
+  // (the rows whose readings are known at once, from the deck's states and the patients baked at build time, are in the first drawing; only a row not worked out waits)
+  const [points, setPoints] = useState<Awaited<ReturnType<typeof loadPoints>>>(() => pointsSync(of, slides, fps));
   const states = useStates((s) => s.results[deck.id]);
   useEffect(() => {
     let on = true;
-    void loadPoints(cs.of as never, deck.slides as never, fpOf as never, engine() as never).then((p) => { if (on) setPoints(p); }, () => undefined);
+    const now = pointsSync(of, slides, fps);
+    if (now.length === planeRows(of, slides).length) { setPoints(now); return; }
+    void loadPoints(of, slides, fps, engine() as never).then((p) => { if (on) setPoints(p); }, () => undefined);
     return () => { on = false; };
   }, [deck, cs, states]);  // eslint-disable-line react-hooks/exhaustive-deps
   return <PlaneCard plane={cs.plane as never} points={points} room={useToolRoomValue() || undefined} />;

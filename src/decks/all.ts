@@ -6,6 +6,7 @@ import type { Deck } from './schema.ts';
 import { AG_IDS, loadAgDeck, type AgId } from './ag/index.ts';
 import { RW_IDS, RW_LOADERS } from './rw/copied/index.ts';
 import { toDeck } from './hp/deck.ts';
+import { loadBakedDeck, trustBaked } from '../ui/charts/baked/store.ts';
 import { UI } from '../ui/strings.generated.ts';
 
 /** How many slides a talk has (the 2D menu's count, without the title and the quick check). */
@@ -18,6 +19,6 @@ const slidesOf = (id: string): number => {
 type Register = (d: { id: string; slides: number; load(): Promise<Deck> }) => void;
 
 export function registerAllDecks(register: Register): void {
-  for (const id of AG_IDS) register({ id, slides: slidesOf(id), load: async () => toDeck((await loadAgDeck(id as AgId)) as never) });
-  for (const id of RW_IDS) register({ id, slides: slidesOf(id), load: async () => toDeck((await RW_LOADERS[id]!()) as never) });
+  for (const id of AG_IDS) register({ id, slides: slidesOf(id), load: async () => { const c = (await Promise.all([loadAgDeck(id as AgId), loadBakedDeck(id)]))[0]; trustBaked(c); return toDeck(c as never); } });
+  for (const id of RW_IDS) register({ id, slides: slidesOf(id), load: async () => { const c = (await Promise.all([RW_LOADERS[id]!(), loadBakedDeck(id)]))[0]; trustBaked(c); return toDeck(c as never); } });
 }

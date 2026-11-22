@@ -32,6 +32,11 @@ const bakeOrgans = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-or
 if (bakeOrgans.status !== 0) { console.warn('warning: the organs were not baked; the page will make them at load'); failed.push('organ bake'); }
 const organsId = bakeOrgans.status === 0 ? organsDigest() : '';
 
+// Every deck's chart data is worked out here too (scripts/bake-charts.mjs, Plan 33): the page fetches a talk's file when it opens and its charts draw their first frame from it, never empty and waiting on a sweep in the worker.
+// A failure only warns: the page then works the charts out live as before. Decks whose file is current are left alone.
+const bakeCharts = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-charts.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
+if (bakeCharts.status !== 0) { console.warn('warning: the charts were not baked; the page will work their data out live'); failed.push('chart bake'); }
+
 // The two fast checks (about 5 s, in this one deploy job: no new workflow): the typecheck and the project's lint. A preview still ships (fast previews), but the result is stamped on the
 // pill (VITE_CHECKS, src/ui/shell/build-pill.ts buildChecks) and in build-info.txt so a broken branch cannot go unseen; on main any failure fails the build.
 const tsc = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/typescript/lib/tsc.js', import.meta.url)), '--noEmit'], { cwd: root, encoding: 'utf8' });

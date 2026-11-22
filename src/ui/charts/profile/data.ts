@@ -3,6 +3,7 @@
 // the engine's 'sequence' answer carries one per slide (src/ui/talk/slide-states.ts), a live frame gives the same readings (fpFromFrame).
 import { tenthGap } from '../../../engine/hales/core/gap.js';
 import type { EngineFrame } from '../../../engine/hales/host/protocol.d.ts';
+import { bakedHealthy } from '../baked/store.ts';
 import { engine } from '../../../engine/index.ts';
 import { goalOf, profileOf, spansFor, type Fp, type Goal, type Prof, type Span } from './model.ts';
 
@@ -41,8 +42,12 @@ export function fpFromFrame(f: Pick<EngineFrame, 'P' | 'Pf' | 'metrics'>): Fp {
 }
 
 let healthy: Promise<Fp | null> | null = null;
+/** The healthy patient's fingerprint if it is known at once (baked at build time, or worked out already). */
+export const healthyNow = (): Fp | null => (bakedHealthy() as Fp | null) ?? null;
 /** The healthy patient's fingerprint (2D: the presenter's `live.base`): worked out once, by the engine's own chain. */
 export function healthyFp(): Promise<Fp | null> {
+  const baked = healthyNow();
+  if (baked) return Promise.resolve(baked);
   if (!healthy) {
     healthy = engine().sequence([{ preset: 'healthy' }]).then((r) => (r[0]?.fp as Fp | undefined) ?? null);
     healthy.catch(() => { healthy = null; });

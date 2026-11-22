@@ -11,7 +11,7 @@ export type Fp = Record<string, number | null | undefined> & { at?: { P?: ArrayL
 /** One state the worker worked out (a 'seqStep'): the fingerprint, and what a later run can start from. */
 export interface State { fp: Fp; snap?: unknown; base?: unknown; params?: unknown; extra?: unknown; trail?: unknown }
 /** The slide's own state: what the curve is drawn on. `base` (else `snap`) is where each point starts from; `fp` and `params` are what its tiles read. */
-export interface SlideState { fp: Fp; params?: unknown; base?: unknown; snap?: unknown }
+export interface SlideState { fp: Fp; params?: unknown; base?: unknown; snap?: unknown; /** the state is a baked one (no snapshot yet): the readings are right, but nothing can be swept from it until the live one is in */ pending?: boolean }
 /** The worker's chain of steps, from a state (undefined: the slide's own; null: a fresh model). */
 export type RunFn = (steps: unknown[], from?: unknown) => Promise<State[] | null>;
 

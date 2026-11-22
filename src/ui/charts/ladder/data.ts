@@ -2,10 +2,13 @@
 // deck's chain of states: src/decks/rw/numbers.ts) or a patient no slide shows (a fresh model with its preset and parameters), and the healthy patient is the dashed
 // reference the red blocks are judged against. `run` is the worker's 'sequence' (EngineClient.sequence): a test hands it a fake.
 import { deckFingerprints, type Fingerprint, type RunSteps, type Step } from '../../../decks/rw/numbers.ts';
+import { bakedById } from '../baked/store.ts';
 import type { CopiedDeck } from '../../../decks/rw/types.ts';
 import { extraStep, rowsOf, type Fp, type LadderRow, type OfRow } from './model.ts';
 
 export interface LadderData { rows: LadderRow[]; healthy: Fp | null }
+/** The rows baked at build time for a slide (null: not baked). */
+export const bakedLadders = (slide: { id?: string }, deck: { id: string }): LadderData | null => (bakedById(deck.id)?.ladders[slide.id ?? ''] as LadderData | undefined) ?? null;
 const states = new WeakMap<object, Promise<Fingerprint[]>>();
 /** The deck's states: the talk's own, which it has already worked out for its cards (decks/hp/calc.ts: slide i at results[i]; entry 0 the outline, which reads the first slide's); only a deck it has not, worked out once. */
 export async function deckStates(deck: CopiedDeck, run: RunSteps): Promise<Fingerprint[]> {
@@ -21,7 +24,9 @@ export async function deckStates(deck: CopiedDeck, run: RunSteps): Promise<Finge
 export const extraSteps = (of: readonly OfRow[]): Step[] => [{ preset: 'healthy' }, ...of.map(extraStep).filter((s): s is NonNullable<typeof s> => !!s).map((s) => ({ ...s, restart: true }) as Step)];
 
 /** The slide's rows and the healthy reference. */
-export async function ladderData(slide: { of?: readonly OfRow[] }, deck: CopiedDeck, run: RunSteps): Promise<LadderData> {
+export async function ladderData(slide: { id?: string; of?: readonly OfRow[] }, deck: CopiedDeck, run: RunSteps): Promise<LadderData> {
+  const baked = bakedLadders(slide, deck);
+  if (baked) return baked;
   const of = slide.of ?? [];
   const [fps, ex] = await Promise.all([deckStates(deck, run), run(extraSteps(of))]);
   return { rows: rowsOf(of, deck.slides as never, fps as Fp[], ex.slice(1) as Fp[]), healthy: (ex[0] as Fp) ?? null };

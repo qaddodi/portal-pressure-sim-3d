@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { engine } from '../../engine/index.ts';
 import type { Deck, Slide, TableRowSpec } from '../../decks/schema.ts';
 import type { ResolvedRow, Fp } from './table-model.ts';
+import { bakedById } from '../charts/baked/store.ts';
 import { slideFps, fpsNow } from './slide-states.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { waveVessel, WAVE_SECS, type Trace } from './table-wave.ts';
@@ -45,7 +46,9 @@ export function resolveTable(d: Deck, s: Slide): void {
   asked.add(k);
   const specs = s.table.of;
   const put = (fps: (Fp | null)[]) => useTables.setState((st) => ({ rows: { ...st.rows, [k]: specs.map((sp, j) => ({ ...rowOf(d, sp, fps[j] ?? null), ...(st.rows[k]?.[j]?.trace !== undefined ? { trace: st.rows[k]![j]!.trace } : {}) })) } }));
-  put([]);
+  // (the rows' readings baked at build time are in the first drawing: a slide's own from the deck's states, a patient of the row's own from the table's entry)
+  const baked = bakedById(d.id);
+  put(baked ? specs.map((sp, j) => { const id = typeof sp === 'string' ? sp : sp.id, at = id ? d.slides.findIndex((x) => x.id === id) : -1; return (id ? (at >= 0 ? baked.states[at]?.fp : null) : baked.tables[s.id]?.[j]) as Fp | null ?? null; }) : []);
   void (async () => {
     try {
       const all = await slideFps(d).catch((): Fp[] => []);

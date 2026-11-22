@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Chart } from '../Chart.tsx';
 import { engine } from '../../../engine/index.ts';
 import { allPatientsFrame } from './frame.ts';
-import { cohortSeries, type Run } from './data.ts';
+import { bakedSeries, cohortSeries, type Run } from './data.ts';
 import { allPatientsWords, type DeckLike, type Series } from './model.ts';
 import '../charts.css';
 
@@ -12,16 +12,17 @@ const engineRun: Run = (steps) => engine().sequence(steps) as unknown as ReturnT
 /** All four patients on one chart (2D visual: 'allpatients'): the HVPG over two years with the CSPH line and the key.
  *  slide: the slide with its `cohort` and `chartFoot`; deck: the deck it is in (the cohort names its slides); ser: the numbers when the caller already has them
  *  (a specimen, a test); run: how to ask the model (the engine's by default). Until the numbers are there the frame shows alone and the lines come in over it. */
-export function AllPatientsCard({ slide, deck, ser: given, run = engineRun }: { slide: { id: string; cohort?: unknown; chartFoot?: unknown }; deck: DeckLike; ser?: Series | null; run?: Run }) {
+export function AllPatientsCard({ slide, deck, ser: given, run = engineRun }: { slide: { id: string; cohort?: unknown; chartFoot?: unknown }; deck: DeckLike & { id?: string }; ser?: Series | null; run?: Run }) {
   const [got, setGot] = useState<Series | null>(null);
+  const baked = useMemo(() => bakedSeries(slide, deck), [slide, deck]);   // (worked out at build time: the first drawing has it)
   useEffect(() => {
-    if (given !== undefined) return;
+    if (given !== undefined || baked) return;
     let live = true;
     const p = cohortSeries(slide, deck, run);
     p?.then((s) => { if (live && s) setGot(s); }, () => undefined);
     return () => { live = false; };
-  }, [slide, deck, given, run]);
-  const ser = given !== undefined ? given : got;
+  }, [slide, deck, given, run, baked]);
+  const ser = given !== undefined ? given : baked ?? got;
   const foot = useMemo(() => [slide.chartFoot ?? []].flat().filter((t): t is string => typeof t === 'string'), [slide.chartFoot]);
   const key = ser ? ser.map((p) => p.pts.map((q) => q.hvpg.toFixed(1)).join()).join('|') : '';
   return (

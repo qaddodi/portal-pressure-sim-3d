@@ -11,11 +11,17 @@ export type Run = (steps: Step[]) => Promise<RunOut[]>;
 export const stepsOf = (slide: unknown, deck: DeckLike | null | undefined) => cohortSteps(slide, deck);
 export const hasCohort = (slide: unknown) => cohortOf(slide).length > 0;
 
+import { bakedById } from '../baked/store.ts';
 const kept = new WeakMap<object, Map<string, Promise<Series | null>>>();
 const keyOf = (slide: { id?: unknown; cohort?: unknown }) => JSON.stringify([slide.id, slide.cohort]);
 
+/** The series baked at build time for a slide (null: not baked). A card's first drawing has it. */
+export const bakedSeries = (slide: { id: string }, deck: { id?: string }): Series | null => ((deck.id ? bakedById(deck.id)?.cohort[slide.id] : null) as Series | null) ?? null;
+
 /** The four patients' series for a slide, worked out once per deck (a promise of the series), or null when the deck's states are not all there. */
-export function cohortSeries(slide: { id: string; cohort?: unknown }, deck: DeckLike, run: Run): Promise<Series | null> | null {
+export function cohortSeries(slide: { id: string; cohort?: unknown }, deck: DeckLike & { id?: string }, run: Run): Promise<Series | null> | null {
+  const baked = bakedSeries(slide, deck);
+  if (baked) return Promise.resolve(baked);
   const made = cohortSteps(slide, deck);
   if (!made) return null;
   let store = kept.get(deck);
