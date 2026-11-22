@@ -172,7 +172,7 @@ export function LabelLayer() {
         });
       },
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
-      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit,
+      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit && !cel.diving,   // (the readout callouts: only where the body stands settled, never over a dive, going in or coming back)
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
       present: (id) => {
         const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
