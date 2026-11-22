@@ -8,6 +8,10 @@ attribute vec2 lensR;   // a fan's course: the stretch of the host's colour ramp
 attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk; a run-on eases to its neighbour's width)
 attribute float rkc;   // the same on the Circuit's map: the course's own share only (a strand is thinner than its trunk), without the body's tapers, collars and beads, which belong to the 3D figure (the map draws a vessel one width along its length)
 uniform float inflate;
+uniform float mapDepth;   // the Circuit's over and under: how far toward the viewer this line stands on the map's plate, scene units (circuit/map-depth.ts); applied as a depth offset only, scaled by the change's share
+uniform float shadowPx;   // the crossing shadow's band beyond the line, CSS px (cel-ink.ts SHADOW_PX): the SHADOW program's hull is the tube this much wider
+uniform float shadowDepth;   // and how far behind its own tube it lies, scene units: on the body and on the map
+uniform float shadowDepthC;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float vindex;
@@ -296,7 +300,11 @@ void main() {
   float lumenW = radius * rkE * swell * narrowK;
   { vec2 tl = aTan.xy; float tn = length(tl); if (circShare > 0.0 && tn > 1e-5) { tl /= tn; vSkew = circShare * dot(aNor.xy, vec2(-tl.y, tl.x)) * lumenW * vU * (turn - stentT0); } }
   // (the ring is a polygon: its flats sit at the radius, its corners 0.025716863272553958 of the radius farther out, so the silhouette never falls inside the line)
-  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + (lumenW + inkW) * 0.025716863272553958);
+  float shW = 0.0;
+#ifdef SHADOW
+  shW = shadowPx * wpcV / vU;   // (the crossing shadow's hull: the tube and its line, wider by the band)
+#endif
+  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + shW + (lumenW + inkW + shW) * 0.025716863272553958);
   // where this tube carries on into another (a mate), its end ring runs on a hair (under a CSS px) into the next: two flat rings that meet exactly leave a light line between them where their edges are smoothed, along the whole of a straight join
   // (only where the tube is opaque: a faint tube (the cava at 0.45, a fading vein) drawn twice over those 1.5 px is a darker band, a faint dashed line across it at every join of its pieces; Mohammad, 20 Nov)
   float runOn = RUN_ON_PX * smoothstep(0.97, 1.0, fa);
@@ -310,7 +318,12 @@ void main() {
   vUv = uv;
   vLensR = lensR;
   vec4 c = projectionMatrix * mv;
-  c.z = mix(cc.z / cc.w, c.z / c.w, 0.15) * c.w;   // depth by the tier of the axis (TUBE_DEPTH_SHARE): a fat tube at a lower tier never bulges over a thin one above it
+  c.z = mix(cc.z / cc.w, c.z / c.w, 0.15 * (1.0 - circT)) * c.w;   // depth by the tier of the axis (TUBE_DEPTH_SHARE): a fat tube at a lower tier never bulges over a thin one above it; on the Circuit's plate none at all (a flat line has no bulge: the lines' own depths, mapDepth, decide a crossing)
+  // the Circuit's lines lie on one plate: each stands its own mapDepth in front of it (a depth offset, nothing moves), so a crossing has an over and an under (circuit/map-depth.ts)
+  c.z -= mapDepth * circT * (-projectionMatrix[3][2]) / c.w;
+#ifdef SHADOW
+  c.z += mix(shadowDepth, shadowDepthC, circT) * (-projectionMatrix[3][2]) / c.w;   // (the hull lies behind its own tube: a neighbour at the same tier is nearer, so it is never shadowed)
+#endif
   vW = c.w;
   gl_Position = c;
   // a tube of no radius (a strand a band has closed, a channel not yet grown) is not drawn: not even its ink, which has a width of its own on screen

@@ -27,6 +27,10 @@ test('the vessel vertex shader compiles', { skip: !have }, () => { const r = com
 test('the vessel fragment shader compiles, as the body and as the veil (VEIL defined)', { skip: !have }, () => {
   for (const d of [[], ['VEIL 1']]) { const r = compile('frag', VESSEL_FS, d); assert.ok(r.ok, `${d.join(',')}: ${r.log}`); }
 });
+test('the crossing shadow program (SHADOW defined) compiles, vertex and fragment', { skip: !have }, () => {
+  const v = compile('vert', VESSEL_VS, ['SHADOW 1']); assert.ok(v.ok, v.log);
+  const f = compile('frag', VESSEL_FS, ['SHADOW 1']); assert.ok(f.ok, f.log);
+});
 
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../src/scene/materials/shaders.ts';
 import { CEL_TUBE_GLSL } from '../src/scene/cel-glsl.ts';

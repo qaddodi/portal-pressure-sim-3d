@@ -15,6 +15,12 @@ Everything the figure writes on itself lives in `src/scene/labels/`. This note i
 ## Organ names
 - `scripts/copy-organ-names.mjs --from <2D checkout> [--check]` copies the organ outlines and `organ-names.js` into `organ2d/`. `organ-screen.ts` projects the outlines to the canvas each solve (the silhouettes), so a name that stands beside its organ is judged by them and every name keeps off the other organs where it can; the solver steps a name under a vessel to the next spot of its own organ (`nameSpots`) and never leaves a name off for standing on another organ.
 
+## The scope ring and its lens (22 Nov)
+- Which slides: 2D's own rule (`scope-lens-rule.js`, copied as it is by `scripts/copy-scope-lens.mjs --from <2D checkout> [--check]` into `scene/disease/copied/`), asked of the slide on show in every deck (`ui/scope/scope-want.ts`: a ported slide as the copied 2D slide, a slide written for 3D as the same fields it has). Nothing is listed per slide.
+- The ring is the scene's: one camera-facing GPU quad in world units at the lower esophagus's varix columns (`scene/disease/scope-ring.ts`: 16 round-ended dashes that close into a line while the lens is open, the scope badge, the labels' halo, never under 1.5 px), eased in and out, taken with the body's dissolve (dive, Circuit).
+- It stands while the slide wants it and the patient has varices (a lapse, ramp or days slide: from its first frame); it leaves only after 900 ms of none, never under an open lens, and a balloon tamponade takes it at once (`ui/scope/scope-gate.ts`).
+- A tap (a 44 px transparent button moved by a transform each frame in the clock's tags phase) opens the lens (`ui/scope/ScopeLens.tsx`): the Tests card's own scope view (`ScopeView`, the slide's own numbers) in a round lens in the nearest free space (`placeLens`: clear of the cards, the bar and the bleed), a cone to the ring laid once the camera is still, a caption of the grade. Ring and lens move as one by a transform; any tap on the figure shuts it.
+
 ## Not done
 - The monitor's WHVP - FHVP trace callout (B11 owns it; `trace-callouts.js`).
 - On the sideways phone the figure is framed in a strip of about 150 px beside the centred wallet card, so the least important station names drop there, as 2D's do.

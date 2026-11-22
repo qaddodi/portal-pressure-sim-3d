@@ -8,6 +8,7 @@ import { bindTests } from './devices/probes/bind-tests.ts';
 import { startReconciler } from './reconcile.ts';
 import { setLayer } from './intent.ts';
 import type { Room } from './camera/room.ts';
+import type { ScopeRingScreen } from './disease/scope-ring.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
 import type { PlayOptions, DriveOptions } from './procedures/layer.ts';
@@ -229,6 +230,10 @@ export const sceneApi = {
   anchor: (name: Parameters<CelScene['anchor']>[0], out?: Vector3): Vector3 => cel.anchor(name, out),
   /** Where a scene point lands on the canvas now (CSS px), for tags written in the clock's tags phase. */
   project: (p: Vector3, out?: { x: number; y: number }): { x: number; y: number } => cel.rig.project(p, out),
+  /** The scope ring on the varices: stands or not (it eases); its dashes close into a line while its lens is open. */
+  setScopeRing: (on: boolean, open: boolean): void => cel.setScopeRing(on, open),
+  /** The ring's place on the screen now (CSS px: centre and radius, the badge's, the bleed's patch), written into `out`; null while it is not drawn. For the tap and the lens, in the clock's tags phase. */
+  scopeRingScreen: (out: ScopeRingScreen): ScopeRingScreen | null => cel.scopeRingScreen(out),
   /** The EUS-PPG's targets in the world (the cards of its readings point at them): the hepatic vein's into `tip`, the portal vein's into `ahead`. */
   eusTargets: (tip: Vector3, ahead: Vector3): boolean => cel.eusTargets(tip, ahead),
   /** The two points a measurement's reading cards point to (the catheter's tip and the point ahead of it; the EUS-PPG's targets), in the world. */

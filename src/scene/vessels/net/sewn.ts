@@ -6,6 +6,15 @@ import { endProfile, type ShuntEnd } from '../shunt-ends.ts';
 import { isPermanent } from '../skin/inventory.ts';
 import type { Skeleton } from './types.ts';
 
+/** The drawn network's own name of the node at an end of an edge piece (the first piece has the vessel's start, the last its end), `null` for a piece in the middle of a split host. A sewn end is a free node of its own in the skeleton (22 Nov: it keeps the 2D course), so its host is found by this name. */
+export function topoEnd(skel: Skeleton, ei: number, end: 0 | 1): string | null {
+  const id = skel.edges[ei]!.id.split('#')[0]!, v = NETWORK_BY_ID.get(id);
+  if (!v) return null;
+  const mine = skel.edges.map((e, k) => (e.id.split('#')[0] === id ? k : -1)).filter((k) => k >= 0);
+  if (end === 0 ? mine[0] !== ei : mine[mine.length - 1] !== ei) return null;
+  return `${end ? v.to : v.from}${v.tone === 'artery' ? ':art' : ''}`;
+}
+
 /** bits of a sewn end's flags: it lies inside its host (narrows past the wall), it is a SINK (narrowed, not reduced further), it flares at the heel, its flare is capped at the host's radius (a generated end). Nothing set = not sewn. */
 export const SEWN_INSIDE = 1, SEWN_SINK = 2, SEWN_FLARE = 4, SEWN_CAPPED = 8;
 export interface SewnEnd { /** the host's bone (index in Skeleton.bones) at that node: its live lumen is the collar's host radius */ host: number; flags: number }
@@ -24,10 +33,15 @@ export function sewnEnds(skel: Skeleton, permanentOf: (edgeId: string) => boolea
       const node = skel.nodes.find((n) => n.id === (end === 0 ? ed.from : ed.to));
       if (!node) continue;
       let host = -1, hostR = 0;
-      for (const x of node.edges) {
-        if (x.edge === ei || !perm[x.edge]) continue;
+      const consider = (x: { edge: number; end: 0 | 1 }): void => {
+        if (x.edge === ei || !perm[x.edge]) return;
         const he = skel.edges[x.edge]!, bi = he.bones[0] + (x.end === 0 ? 0 : he.bones[1] - 1), r = skel.bones[bi]!.r[0];
         if (r > hostR) { hostR = r; host = bi; }
+      };
+      node.edges.forEach(consider);
+      if (host < 0) {   // (a free sewn end: the permanent vessels that end at the drawn network's node of that name; the widest is the host)
+        const name = topoEnd(skel, ei, end);
+        if (name) skel.edges.forEach((_, k) => { for (const e of [0, 1] as const) if (perm[k] && topoEnd(skel, k, e) === name) consider({ edge: k, end: e }); });
       }
       if (host < 0) continue;
       // the vessel's own end (a piece of it in the middle has none): its row of shunt-ends.ts

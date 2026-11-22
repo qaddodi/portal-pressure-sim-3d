@@ -14,6 +14,8 @@ import { linkScene } from './deck/scene-link.ts';
 import { linkLanding } from './deck/landing.ts';
 import { linkProcs } from './deck/procs-link.ts';
 import { linkFigure } from './deck/figure-link.ts';
+import { linkScopeWant } from './scope/scope-want.ts';
+import { ScopeLens } from './scope/ScopeLens.tsx';
 import { linkModel } from './talk/deck-model.ts';
 import { linkStates } from '../decks/hp/link.ts';
 import { JumpList, BlackScreen } from './deck/JumpList.tsx';
@@ -53,6 +55,8 @@ export function DeckUi() {
   useEffect(() => linkProcs(), []);
   // what the slide's own fields draw on the figure: names in colour, glow, outlined organs, marks, sites, steps, calipers, the since lens's reference
   useEffect(() => linkFigure(), []);
+  // the slides the 2D rule gives the scope ring on the varices (every deck): the ring and its lens are ScopeLens's
+  useEffect(() => linkScopeWant(), []);
   // the slide's patient, when it names one
   useEffect(() => linkModel(), []);
 
@@ -100,6 +104,7 @@ export function DeckUi() {
   return (
     <div ref={root} className={cls} tabIndex={-1} data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
+      {deck && hasStops && <ScopeLens />}   {/* (under the cards: the lens never covers one) */}
       {deck && hasStops && <PresenterBar />}
       {deck && hasStops && <CardBoundary resetKey={`${deck.id}:${stopKey}`}><CardLayer deck={deck} /></CardBoundary>}
       {deck && hasStops && <JumpList />}
