@@ -8,7 +8,7 @@ type P2 = readonly [number, number];
 const START_IN_ORGAN: Readonly<Record<string, { to: P2; organ: string }>> = {
   V_SPL: { to: [1060, 337], organ: 'spleen' },
   // (the azygos arch: it fades in at its left end, so the esophageal collateral, which meets it at its 2D start, must meet it where it is solid: the arch is carried on 30 units to the left, along the way it leaves the node, and fades in over that stretch alone; Mohammad, 20 Nov: "this collateral should join the azygous vein not where it is fading away")
-  AZY_SVC: { to: [547, 43], organ: 'thorax' },   // scene (1.20, 0.73): inside the spleen's outline (x 1.05 to 1.35 at that height)
+  AZY_SVC: { to: [547, 43], organ: 'thorax' },   // (the stub behind the landing of the collaterals, 30 units: it ends in a solid rounded cap, fades.ts SOLID_LEAD_IN; shorter and the arch's depth slope to the cava steepens past vessel-wobble's limit)
 };
 
 const STEP = 3;   // 2D units between added points (the copied courses are sampled about every 1.8)

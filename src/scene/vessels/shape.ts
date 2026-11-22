@@ -13,7 +13,7 @@ import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.j
 import { STRAND_FROM_2D } from './coil.copied.ts';
 import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
 import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
-import { fadeOf, leadInPoint } from './fades.ts';
+import { fadeOf } from './fades.ts';
 import { PHASE_2_NODES } from './skin/nodes.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED } from './divide.ts';
@@ -258,7 +258,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     //  met the coronary vein at 0.44 of its width and left its square cut end showing, Mohammad, 22 Nov: "coronary vein into varices look not welded". The station inside the segment narrows with both halves, as before.)
     if (banded && rad > 0 && rad < v.radius) for (const e of [0, 1] as const) if (outerEnd(v.id, e) && !(s.pin && s.pin[e] > 0)) {   // (a held end, under a skin, already keeps its rest width: `held`)
       const t: [number, number] = [taper?.[0] ?? 1, taper?.[1] ?? 1]; t[e] *= v.radius / rad; taper = t; }
-    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: leadInPoint(v.id, sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, !!sj), bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)
