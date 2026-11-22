@@ -53,7 +53,7 @@ export const ARM_RANGE: Readonly<Record<string, readonly [number, number]>> = {
 export type BakeRadii = 'rest' | 'geomean' | 'max12' | 'narrow';
 export const BAKE_RADII: BakeRadii = 'narrow';
 /** 'narrow' (WP3, 22 Nov, from the acceptance on the real figure): an arm whose range spans at most NARROW_SPAN is baked at the geometric mean of it (an arm that never swells, [1, 1], then sits at ratio 1: baked at max / 1.2 it sat at 1.2 in EVERY state, and 1.1 is where a rest-radii start begins to fold a fillet: 1 to 25 triangles at 1.2 to 1.3 on 9 of 17 regions); a wider range at max / WIDE_TOP (its keys carry the low side). */
-export const NARROW_SPAN = 1.2, WIDE_TOP = 1.1;
+export const NARROW_SPAN = 1.2, WIDE_TOP = 1.15;
 
 /** The factor the bake scales an edge's radii by (1 when it has no swell range or the mode is 'rest'). */
 export function bakeScaleOf(edgeId: string, mode: BakeRadii = BAKE_RADII): number {
