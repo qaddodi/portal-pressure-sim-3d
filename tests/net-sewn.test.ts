@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { skeleton } from '../src/scene/vessels/net/skeleton.ts';
-import { sewnEnds, SEWN_CAPPED, SEWN_FLARE, SEWN_INSIDE, SEWN_SINK } from '../src/scene/vessels/net/sewn.ts';
+import { sewnEnds, topoEnd, SEWN_CAPPED, SEWN_FLARE, SEWN_INSIDE, SEWN_SINK } from '../src/scene/vessels/net/sewn.ts';
 import { NET_SEWN_FS, NET_SEWN_VS, NET_VS, NET_GLOBALS, sewnPointIds } from '../src/scene/vessels/net/shaders.ts';
 import { FLARE_K, FLARE_SPAN, SIDE_END_MIN, flareScale, sideEndScale } from '../src/scene/vessels/fork-joins.copied.js';
 import { EDGE_LAYOUT } from '../src/scene/vessels/net/edge-state.ts';
@@ -21,9 +21,10 @@ test('the table: only non-permanent edges have sewn ends, each end\'s host is a 
     pair.forEach((e, end) => {
       if (!e) return;
       ends++;
-      const he = sk.bones[e.host]!.edge, node = end === 0 ? sk.edges[ei]!.from : sk.edges[ei]!.to;
+      const he = sk.bones[e.host]!.edge, node = end === 0 ? sk.edges[ei]!.from : sk.edges[ei]!.to, name = topoEnd(sk, ei, end as 0 | 1);
       assert.ok(permanent(he), `${sk.edges[ei]!.id} end ${end}: host ${sk.edges[he]!.id} is not permanent`);
-      assert.ok(sk.edges[he]!.from === node || sk.edges[he]!.to === node, `${sk.edges[ei]!.id} end ${end}: host ${sk.edges[he]!.id} does not meet it at ${node}`);
+      // (a sewn end is a free node of its own: its host meets it at the drawn network's node of that name; a wall start (DIPS, REX) lies on its host's node)
+      assert.ok(sk.edges[he]!.from === node || sk.edges[he]!.to === node || (name !== null && [0, 1].some((x) => topoEnd(sk, he, x as 0 | 1) === name)), `${sk.edges[ei]!.id} end ${end}: host ${sk.edges[he]!.id} does not meet it at ${node}`);
     });
   });
   const named = (id: string): [boolean, boolean] => { const ei = sk.edges.findIndex((e) => e.id === id); return [!!sw[ei]![0], !!sw[ei]![1]]; };

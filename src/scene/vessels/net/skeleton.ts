@@ -245,11 +245,6 @@ export const MAX_MOVE_SHARE = 0.25, MAX_MOVE_RADII = 3;
  *  'depth': the move is the depth the drawn tubes ease to their node's too (NODE_Z), not a bend across the plate; 'fillet': the node sits on a rounded map corner, not on the corner point the branch ends at; 'data': none of these, named as an open gap). Key: `edge|end|pose`. */
 export const KNOWN_BIG_MOVES: Readonly<Record<string, { why: 'fade' | 'depth' | 'fillet' | 'data'; reason: string }>> = {
   'EPI_ILI|1|0': { why: 'fade', reason: "the epigastric vein's end is 100 figure units from the iliac trunk's start, in the tail 2D fades out below the plate (fade 870 to 925, its end at 950): the bend runs only inside the fully faded stretch (hiddenTail, alpha at most 0.02), so the drawn part does not move (tests/net-skeleton.test.ts); a steep hairpin there (about 64 degrees between bones), invisible" },
-  'C4|1|0': { why: 'fade', reason: "the rectal collateral's end (y 1010) is 0.6 from the iliac node, in the tail the 3D fade takes out below the plate (fade 940 to 1005): the bend runs only inside the fully faded stretch (hiddenTail), so the drawn part does not move; a steep hairpin there (over 100 degrees between bones), invisible" },
-  'C3|1|0': { why: 'depth', reason: 'the paraumbilical vein runs at the forward tier (z 0.2) and reaches the umbilicus node at the plate: the move is all depth' },
-  'C3|0|0': { why: 'data', reason: "the paraumbilical vein's start is 8.8 radii across the plane from the left portal vein's node (the old path leaves it on the wall, starts.ts); no landing fits; open gap" },
-  'C7|0|0': { why: 'data', reason: "the retroperitoneal collateral's start is 3.1 radii (0.036) from the mesenteric node, 13 % of its course: over the radii limit only; open gap" },
-  'S_MC|1|0': { why: 'data', reason: 'a short surgical shunt (0.25) 2.8 radii from the cava node: under the radii limit, over the share; shunts are WP5' },
 };
 
 export interface SkelLanding { host: string; branch: string; branchEnd: 0 | 1; /** the host's bone the node sits on */ bone: number; node: string }
@@ -289,7 +284,10 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
 
   // ---- the ends that meet, per network
   const groups = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
-  for (const v of order) for (const end of [0, 1] as const) { const id = nodeIdOf(v, end), l = groups.get(id) ?? []; l.push({ v, end }); groups.set(id, l); }
+  // (a sewn end - a collateral's or a shunt's - is no member of the node it sits at: it keeps the 2D course and sinks into the host wall where 2D ends it, a free end of its own; only the wall starts, DIPS and REX, are placed on their host's wall)
+  const sewnFree = (v: NetVessel, end: 0 | 1): boolean => isSewn(v) && !WALL_STARTS.has(keyOf(v, end));
+  const freeNodeId = (v: NetVessel, end: 0 | 1): string => `${nodeIdOf(v, end)}~${v.id}`;
+  for (const v of order) for (const end of [0, 1] as const) { if (sewnFree(v, end)) continue; const id = nodeIdOf(v, end), l = groups.get(id) ?? []; l.push({ v, end }); groups.set(id, l); }
 
   // ---- the trunks of each node: the pair that runs on into one another, else the widest veins (a collateral, a shunt and a liver bed are branches). Only a branch moves onto the node.
   const pairsAt = new Map<string, typeof RUN_PAIRS>();
@@ -535,7 +533,7 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
     for (let j = 0; j + 1 < marks.length; j++) {
       const i0 = marks[j]!, i1 = marks[j + 1]!, idx = edges.length, id = c.length ? `${v.id}#${j}` : v.id;
       ids.push(id);
-      edges.push({ id, from: j ? nodeAt.get(`${v.id}|${i0}`)! : landedAt.get(keyOf(v, 0)) ?? nodeIdOf(v, 0), to: j + 2 < marks.length ? nodeAt.get(`${v.id}|${i1}`)! : landedAt.get(keyOf(v, 1)) ?? nodeIdOf(v, 1), bones: [bones.length, i1 - i0 + 1], tone: v.tone, tier: v.tier, hidden: [j === 0 ? Math.min(hc.both[0], i1 - i0) : 0, j + 2 === marks.length ? Math.min(hc.both[1], i1 - i0) : 0], hiddenBody: [j === 0 ? Math.min(hc.body[0], i1 - i0) : 0, j + 2 === marks.length ? Math.min(hc.body[1], i1 - i0) : 0], sewn: [j === 0 && isSewn(v), j + 2 === marks.length && isSewn(v)] });
+      edges.push({ id, from: j ? nodeAt.get(`${v.id}|${i0}`)! : landedAt.get(keyOf(v, 0)) ?? (sewnFree(v, 0) ? freeNodeId(v, 0) : nodeIdOf(v, 0)), to: j + 2 < marks.length ? nodeAt.get(`${v.id}|${i1}`)! : landedAt.get(keyOf(v, 1)) ?? (sewnFree(v, 1) ? freeNodeId(v, 1) : nodeIdOf(v, 1)), bones: [bones.length, i1 - i0 + 1], tone: v.tone, tier: v.tier, hidden: [j === 0 ? Math.min(hc.both[0], i1 - i0) : 0, j + 2 === marks.length ? Math.min(hc.both[1], i1 - i0) : 0], hiddenBody: [j === 0 ? Math.min(hc.body[0], i1 - i0) : 0, j + 2 === marks.length ? Math.min(hc.body[1], i1 - i0) : 0], sewn: [j === 0 && isSewn(v), j + 2 === marks.length && isSewn(v)] });
       for (let i = i0; i <= i1; i++) bones.push({ edge: idx, u: (i - i0) / (i1 - i0), pos: [w.P[0][i]!, w.P[1][i]!], r: [w.r[0][i]!, w.r[1][i]!], frame: fr[i]! });
       if (j === 0) first.set(v.id, idx);
       if (j + 2 === marks.length) last.set(v.id, idx);
@@ -557,6 +555,11 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
       if (ia >= 0 && ib >= 0) node.runOn = [ia, ib];
     }
     nodes.push(node);
+  }
+  for (const v of order) for (const end of [0, 1] as const) {   // the sewn free ends: one node each, at the course's own end
+    if (!sewnFree(v, end)) continue;
+    const w = work.get(v.id)!;
+    nodes.push({ id: freeNodeId(v, end), pos: [endOf(w, end, 0), endOf(w, end, 1)], edges: [{ edge: pieceAt(v.id, end), end }] });
   }
   for (const [nid, pos] of landNode) {
     const mine = landings.filter((L) => L.node === nid), host = mine[0]!.host, ids = pieceIds.get(host)!, j = cuts.get(host)!.indexOf(mine[0]!.bone);

@@ -12,6 +12,7 @@ import { AscitesLayer } from './ascites.ts';
 import { BleedLayer } from './bleed.ts';
 import { ClampLayer } from './clamps.ts';
 import { Landmarks } from './landmarks.ts';
+import { ScopeRing } from './scope-ring.ts';
 import { varixWale } from './copied/varix-bead.js';
 import { ClotLayer } from './clots.ts';
 import { DyeLayer } from './dye.ts';
@@ -43,6 +44,8 @@ export class DiseaseLayer {
   readonly clamps: ClampLayer;
   /** the flank line (ascites) and the navel's ring (caput medusae) */
   readonly landmarks = new Landmarks();
+  /** the scope ring on the varices (the scope view's way in; the talk and the lens ask for it) */
+  readonly scopeRing = new ScopeRing();
   readonly dye: DyeLayer;
   private fluid = new FluidFollow();
   private bandsShown = new Eased(0, 0.2, 0.01);
@@ -66,11 +69,11 @@ export class DiseaseLayer {
     this.clamps = new ClampLayer();
     for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
     this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));
-    this.group.add(this.organs.group, this.landmarks.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
+    this.group.add(this.organs.group, this.landmarks.group, this.scopeRing.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
   }
 
   applyLook(look: LookId, p: Palette): void {
-    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.ascites.applyLook(look); this.moving = true;
+    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.scopeRing.applyLook(look); this.ascites.applyLook(look); this.moving = true;
   }
   setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.moving = true; }
 
@@ -84,6 +87,9 @@ export class DiseaseLayer {
     this.moving = true;
   }
 
+  /** The ascites volume shown now (mL, eased): the abdominal wall the paracentesis needle crosses follows it. */
+  get fluidMl(): number { return this.fluid.shown; }
+
   /** Steps everything on the clock; true while anything moves (draw another frame). */
   update(now: number, flowRate = 1): boolean {
     const dt = this.lastNow < 0 ? 0.016 : Math.min(0.1, (now - this.lastNow) / 1000);
@@ -91,6 +97,7 @@ export class DiseaseLayer {
     const t = this.targets, f = this.frame, ctx = this.ctx;
     let moving = this.moving;
     this.moving = false;
+    moving = this.scopeRing.step(dt) || moving;
     if (!t || !f || !ctx) return this.organs.update(now) || moving;
     const inst = this.instant; this.instant = false;
     moving = this.organs.update(now) || moving;
@@ -121,7 +128,7 @@ export class DiseaseLayer {
   setFade(f: number): void {
     this.body = f;
     this.organs.setFade(f);
-    this.landmarks.setFade(f); this.clamps.setFade(f);
+    this.landmarks.setFade(f); this.scopeRing.setFade(f); this.clamps.setFade(f);
     // everything that lies on the anatomy goes with it, and what is made while it is away stays away (the Circuit has its own schematic of the disease)
     this.strands.setFade(f); this.clots.setFade(f); this.bleed.setFade(f); this.ascites.setFade(f); this.dye.setFade(f);
     this.moving = true;
@@ -129,5 +136,5 @@ export class DiseaseLayer {
   /** How much of the anatomy is shown now, 0..1 (the one value every overlay follows). */
   body = 1;
 
-  dispose(): void { this.landmarks.dispose(); this.clamps.dispose(); this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); this.dye.dispose(); }
+  dispose(): void { this.landmarks.dispose(); this.scopeRing.dispose(); this.clamps.dispose(); this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); this.dye.dispose(); }
 }

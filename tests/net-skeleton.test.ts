@@ -96,16 +96,16 @@ test('no silent large moves: an end moves at most 25 % of its course and 3 radii
 });
 
 // The named exceptions may only shrink (like scripts/lint-allow.json): this is the whole list as accepted on 22 Nov; a new name fails here, a name that is no longer past the limits fails above. The two 'fade' ones are held to the test below.
-const ACCEPTED_BIG_MOVES = ['EPI_ILI|1|0', 'C4|1|0', 'C3|1|0', 'C3|0|0', 'C7|0|0', 'S_MC|1|0'];
-test('the named big moves are a list that only shrinks: six at most, four of them data or depth, two in the faded tails', () => {
+const ACCEPTED_BIG_MOVES = ['EPI_ILI|1|0'];
+test('the named big moves are a list that only shrinks: one: the epigastric tail in the fade (the sewn ends keep the 2D course and no longer move)', () => {
   for (const k of Object.keys(KNOWN_BIG_MOVES)) assert.ok(ACCEPTED_BIG_MOVES.includes(k), `${k} is a new named exception: fix the end instead (a landing, or the trunk-first node) rather than naming it`);
-  assert.ok(Object.values(KNOWN_BIG_MOVES).filter((w) => w.why !== 'fade').length <= 4);
-  assert.ok(Object.values(KNOWN_BIG_MOVES).filter((w) => w.why === 'fade').length <= 2);
+  assert.ok(Object.values(KNOWN_BIG_MOVES).filter((w) => w.why !== 'fade').length === 0);
+  assert.ok(Object.values(KNOWN_BIG_MOVES).filter((w) => w.why === 'fade').length <= 1);
 });
 
-test('a bend in a faded tail stays in it: of EPI_ILI and C4, every bone drawn (resting alpha above 0.02) is within one radius of where the course puts it', () => {
+test('a bend in a faded tail stays in it: of EPI_ILI (C4, a sewn end, no longer moves), every bone drawn (resting alpha above 0.02) is within one radius of where the course puts it', () => {
   const fades = Object.entries(KNOWN_BIG_MOVES).filter(([, w]) => w.why === 'fade').map(([k]) => k.split('|') as [string, string, string]);
-  assert.deepEqual(fades.map((f) => f[0]).sort(), ['C4', 'EPI_ILI']);
+  assert.deepEqual(fades.map((f) => f[0]).sort(), ['EPI_ILI']);
   for (const [id, end] of fades) {
     const g = samplesOf(id)[0], hb = hostBones(id), N = hb.length, at = (i: number) => vesselAlphaAt(id, i / (N - 1), g[i]![0], g[i]![1]);
     assert.ok(at(Number(end) ? N - 1 : 0) <= FADE_SEEN, `${id}: its end is drawn (alpha ${at(Number(end) ? N - 1 : 0).toFixed(2)}), not in the faded tail`);
@@ -399,13 +399,38 @@ test('the region partition is the same in both poses: fillet arms only (collater
   console.log(`regions: ${regions.size}; edges that overlap in one pose only: ${mismatched.length ? mismatched.join(', ') : 'none'}`);
 });
 
-/** The pairs of different vessels of one network whose centrelines come within the sum of their radii without meeting at a node, with the bones at `pose` (the 2D line when `raw`). */
+/** The regions of the partition above (fillet arms only, an edge whose zones overlap in either pose joins its junctions): node id -> region root. */
+function regionRoots(): (id: string) => string {
+  const arms = (n: typeof S.nodes[number]) => n.edges.filter((x) => !sewnEdge(x.edge));
+  const J = S.nodes.filter((n) => arms(n).length >= 3), jset = new Set(J.map((n) => n.id)), byId = new Map(S.nodes.map((n) => [n.id, n]));
+  const rEnd = (ei: number, end: 0 | 1, pose: 0 | 1): number => { const b = bonesOf(S, ei); return (end ? b.at(-1)! : b[0]!).r[pose]; };
+  const k = (n: typeof S.nodes[number], pose: 0 | 1): number => SKIN_K * Math.min(...arms(n).map((x) => rEnd(x.edge, x.end, pose)));
+  const arc = (ei: number, pose: 0 | 1): number => { const b = bonesOf(S, ei); let t = 0; for (let m = 1; m < b.length; m++) t += dist(b[m]!.pos[pose], b[m - 1]!.pos[pose]); return t; };
+  const parent = new Map(J.map((n) => [n.id, n.id])), root = (x: string): string => (parent.get(x) === x ? x : (parent.set(x, root(parent.get(x)!)), parent.get(x)!));
+  S.edges.forEach((e, i) => {
+    if (sewnEdge(i) || e.from === e.to || !jset.has(e.from) || !jset.has(e.to)) return;
+    const A = byId.get(e.from)!, B = byId.get(e.to)!;
+    if (([0, 1] as const).some((p) => arc(i, p) < k(A, p) + k(B, p) + rEnd(i, 0, p) + rEnd(i, 1, p))) parent.set(root(e.from), root(e.to));
+  });
+  return (id) => (jset.has(id) ? root(id) : id);
+}
+const topoEnds = (ei: number): string[] => {   // (the drawn network's own node names at the ends of this piece of its vessel)
+  const id = baseOf(S.edges[ei]!.id), v = NETWORK_BY_ID.get(id)!, mine = S.edges.map((e, k) => [e, k] as const).filter(([e]) => baseOf(e.id) === id).map(([, k]) => k), out: string[] = [];
+  if (ei === mine[0]) out.push(nodeIdOf(v, 0));
+  if (ei === mine.at(-1)) out.push(nodeIdOf(v, 1));
+  return out;
+};
+/** The pairs of different vessels of one network whose centrelines come within the sum of their radii without meeting: two pieces meet when they share a skeleton node or a node name of the drawn network at their ends, or when their ends lie in one region (a junction, not a crossing). Bones at `pose`, or the 2D line when `raw`. */
 function crossPairs(pose: 0 | 1, raw: boolean): Set<string> {
-  const meets = (a: number, b: number): boolean => S.nodes.some((n) => n.edges.some((e) => e.edge === a) && n.edges.some((e) => e.edge === b));
+  const region = regionRoots(), meets = (a: number, b: number): boolean => {
+    if (topoEnds(a).some((x) => topoEnds(b).includes(x))) return true;
+    const ra = [S.edges[a]!.from, S.edges[a]!.to].map(region), rb = [S.edges[b]!.from, S.edges[b]!.to].map(region);
+    return ra.some((x) => rb.includes(x));
+  };
   const pos = (ei: number, p: number): Vec3 => {
     if (!raw) return S.bones[S.edges[ei]!.bones[0] + p]!.pos[pose];
     const id = baseOf(S.edges[ei]!.id); let off = 0;
-    for (let j = 0; j < S.edges.length && j !== ei; j++) if (baseOf(S.edges[j]!.id) === id) off += S.edges[j]!.bones[1] - 1;
+    for (let j = 0; j < ei; j++) if (baseOf(S.edges[j]!.id) === id) off += S.edges[j]!.bones[1] - 1;
     return samplesOf(id)[pose][off + p]!;
   };
   const out = new Set<string>();
@@ -421,21 +446,15 @@ function crossPairs(pose: 0 | 1, raw: boolean): Set<string> {
   }
   return out;
 }
-/** Crossings the skeleton adds to the 2D lines', each with the move behind it (22 Nov): the list only shrinks. */
-const ADDED_CROSSINGS: Readonly<Record<string, string>> = {
-  'body|C3~REX': "C3's depth ease: the paraumbilical vein runs at the forward tier (z 0.2) and is brought to the plate over a stretch of 0.73 to reach its two nodes (named in KNOWN_BIG_MOVES), through the shunt's line",
-  'body|MHV_IVC~TIPS': "the TIPS end is eased 2.6 radii onto the right hepatic vein's node (the sewn end of a shunt)",
-  'body|C9~EPI_SVC': "the epigastric vein's end is eased 1.7 radii onto the SVC node, and its map-side corner takes the vein past the azygos collateral",
-  'body|C9~POST_R_MHV': "the middle hepatic bed's far end is eased 1.2 radii onto the vein's node, past the azygos collateral",
-  'body|IVC_IS~LHV_IVC': "the three hepatic veins land within 0.14 of each other on the cava: the left one passes the cava piece between the landings of the other two; one region in both poses, not a crossing the mesher draws twice",
-  'map|IVC_IS~LHV_IVC': "the same landing cluster on the map",
+/** The pairs the 2D lines themselves cross (22 Nov, plan owner: pinned as a set of pairs, not a count; any pair outside it fails, fewer is fine). */
+const RAW_CROSSINGS: Readonly<Record<'body' | 'map', readonly string[]>> = {
+  body: ['DIPS~PVH_R_1', 'IVCS_RA~IVC_IS', 'LGV_CONF~REX', 'PVH_L_1~REX', 'PVH_R~PV_TRUNK', 'REX~SV_CONF', 'SMV_CONF~V_INT_1'],
+  map: ['DIPS~IVCS_RA', 'IVCS_RA~IVC_IS', 'PVH_L_1~REX'],
 };
-test('crossings: none beyond the 2D lines\' own is added except the named ones, each with the move behind it; the map has fewer than the 2D lines have', () => {
+test('crossings: the 2D lines cross in 7 pairs in the body and 3 on the map (pinned as pairs); the skeleton adds none, fewer is fine', () => {
   for (const [name, pose] of [['body', 0], ['map', 1]] as const) {
-    const now = crossPairs(pose, false), was = crossPairs(pose, true), added = [...now].filter((x) => !was.has(x));
-    for (const x of added) assert.ok(`${name}|${x}` in ADDED_CROSSINGS, `${name}: ${x} is a new crossing the skeleton adds`);
-    for (const k of Object.keys(ADDED_CROSSINGS)) if (k.startsWith(`${name}|`)) assert.ok(added.includes(k.slice(name.length + 1)), `${k} is named but no longer added: take it out`);
-    if (pose === 1) assert.ok(now.size <= was.size, `map crossings ${now.size} against the 2D lines' ${was.size}`);
-    console.log(`crossings (${name}): ${now.size} against the 2D lines' ${was.size}; added: ${added.join(', ') || 'none'}`);
+    assert.deepEqual([...crossPairs(pose, true)].sort(), [...RAW_CROSSINGS[name]].sort(), `${name}: the pinned list is the 2D lines' own`);
+    const now = crossPairs(pose, false);
+    for (const x of now) assert.ok(RAW_CROSSINGS[name].includes(x), `${name}: ${x} is a crossing the skeleton adds`);
   }
 });

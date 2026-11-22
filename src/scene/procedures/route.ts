@@ -87,13 +87,26 @@ const HVPG: Spec = {
   after(r) { const hv = r.spans.hv!; r.hv0 = hv[0]; r.hvEnd = hv[1]; },
 };
 
+/** The DIPS's catheter (the 3D app's own: the 2D app's DIPS is a drawn stent only): in from the neck, the SVC, the right atrium and the whole cava down to where the shunt leaves it, then the shunt through the liver (as wide as
+ *  the stent will be) to the portal vein, where the tip stops. */
+const DIPS: Spec = {
+  ids: expandPieces(['SVC_RA', 'IVCS_RA', 'IVC_IS', 'DIPS']), start: 0.55, tip: ['tract', 1], focus: ['ivc', 'tract'],
+  build(B) {
+    const top = headOf(GEO2D, 'SVC_RA') as P2, out = GEO2D.DIPS!.cur[GEO2D.DIPS!.cur.length - 1]!;
+    B.pts([[top[0] - 6, top[1] - 150], [top[0] - 2, top[1] - 60], top], 'SVC_RA', 0);
+    B.vessel('SVC_RA'); B.vessel('IVCS_RA', { rev: true });
+    B.vessel('IVC_IS', { rev: true, until: (q) => q[1] >= out[1] - 2, name: 'ivc' });   // (the cava is one vein in pieces: down to where the shunt leaves it, not on to the iliacs)
+    B.vessel('DIPS', { rev: true, name: 'tract', r: lumenRadius('PVH_R', 0.5) * 0.8 });
+  },
+};
+
 let specs: Record<string, Spec> | null = null;
 function specOf(kind: string): Spec | null {
-  specs ||= { ...(procSpecs(GEO2D, lumenRadius) as unknown as Record<string, Spec>), hvpg: HVPG };
+  specs ||= { ...(procSpecs(GEO2D, lumenRadius) as unknown as Record<string, Spec>), hvpg: HVPG, dips: DIPS };
   return specs[kind] ?? null;
 }
 /** The route kinds this module lays (the 2D app's catheter routes; the echoendoscope's are B11's). */
-export const ROUTE_KINDS = ['hvpg', 'tips', 'tipscoil', 'tipscoilin', 'brto', 'brtoC6', 'ivcread', 'ppgperc', 'bato'] as const;
+export const ROUTE_KINDS = ['hvpg', 'tips', 'tipscoil', 'tipscoilin', 'brto', 'brtoC6', 'ivcread', 'ppgperc', 'bato', 'dips'] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 
 const kept = new Map<string, Route>();

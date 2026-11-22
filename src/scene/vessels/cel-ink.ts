@@ -102,3 +102,42 @@ export function tubeInk(look: LookId, base: readonly [number, number, number], r
   const cas = CASING[look].rgb;
   return [0, 1, 2].map((i) => (cas[i]! / 255) * (1 - T.INK_OWN) + b[i]! * tone * T.INK_OWN) as [number, number, number];
 }
+
+// ---- S3: the crossing shadow (Mohammad, 22 Nov: "let's go with shadow") ----------------------------------------------------------------------------------------------------------------------------------------
+// Where one vessel passes in front of another, the one behind is darkened in a thin soft band round the front one, the oldest trick in anatomical drawing. Each vessel has one extra draw (vessel-object.ts shadowMesh,
+// the SHADOW program of shaders.ts): its own tube made SHADOW_PX CSS px wider than the line, laid at SHADOW_DEPTH behind its own depth with the depth test on and no depth write, blended over what is there at the look's
+// shadow tone and strength. Behind means behind: a vessel of the same tier (a junction's neighbour) is nearer than the hull, so it is never shadowed, and an end that joins another vessel fades the band out over the
+// join (shadowEndsOf), so nothing gaps at a junction.
+/** The band's width beyond the outline, CSS px: the same on every screen. Its last (1 - SHADOW_FEATHER) share fades out. */
+export const SHADOW_PX = 2;
+export const SHADOW_FEATHER = 0.55;
+/** How far behind its own tube the hull lies, scene units (the tiers are 0.01 apart at the least, frame2d.ts TIER_Z; a tube's own bulge is at most 0.15 x its radius, shaders.ts TUBE_DEPTH_SHARE; at 0.007 a thin vessel of the same tier as a fat trunk is still nearer than the trunk's hull, tests/crossing-shadow.test.ts). */
+export const SHADOW_DEPTH = 0.007;
+/** The Circuit's: its lines are one plate, ordered by MAP_DEPTH_STEP apart (circuit/map-depth.ts), so the hull lies half a step behind. */
+export const MAP_DEPTH_STEP = 0.0002;
+export const SHADOW_DEPTH_MAP = MAP_DEPTH_STEP / 2;
+/** The shadow's tone and strength in each look, defined ONCE: the colour a vessel behind is mixed `a` of the way toward. The light looks use their casing ink; the dark looks cannot darken a near-black page, so the band reads on the
+ *  VESSELS behind (which are bright there, celTubeBase LCAP_DARK) and on the organs, toward the darkest tone of the look at a lower share: tests/crossing-shadow.test.ts holds every look to a lightness change on the vessel
+ *  ramp that reads (SHADOW_MIN_DL) and never to a lightening. */
+export const SHADOW: Readonly<Record<LookId, { rgb: readonly [number, number, number]; a: number }>> = {
+  light: { rgb: [59, 44, 34], a: 0.24 },
+  soft: { rgb: [51, 37, 26], a: 0.26 },
+  dark: { rgb: [0, 0, 0], a: 0.16 },
+  navy: { rgb: [2, 4, 10], a: 0.17 },
+  black: { rgb: [0, 0, 0], a: 0.16 },
+};
+/** The least lightness change (OKLab L) the shadow makes on a vessel colour, in every look: the test's floor. */
+export const SHADOW_MIN_DL = 0.03;
+/** The twin of the band's falloff in the fragment stage: `sCss` is CSS px past the line's outer edge (negative inside it): 0 inside (the vessel's own tube is nearer there), a half px ramp at the edge, whole out to SHADOW_FEATHER of the band, nothing at its outer edge. */
+export function shadowFeather(sCss: number): number {
+  return smoothstep(-0.5, 0, sCss) * (1 - smoothstep(SHADOW_FEATHER * SHADOW_PX, SHADOW_PX, sCss));
+}
+/** How far from each end the band fades out where that end joins another vessel, as a multiple of this vessel's own radius (0: a free end, no fade): the neighbours' widest radius over its own, a little more than a radius. The band is whole from `len` radii in, gone at half that. */
+export function shadowEndLen(ownR: number, neighbourRs: readonly number[]): number {
+  if (!neighbourRs.length) return 0;
+  return Math.max(1.5, 1.25 * Math.max(...neighbourRs) / ownR + 0.75);
+}
+/** The twin of the end fade: `dEnd` the distance from an end in figure units, `len` its multiple (0: none), `r` the lumen's radius there in the same units. */
+export function shadowEndK(dEnd: number, len: number, r: number): number {
+  return len > 0 ? smoothstep(0.5 * len * r, len * r, dEnd) : 1;
+}
