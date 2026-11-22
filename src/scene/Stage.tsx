@@ -24,6 +24,8 @@ import { setRenderer } from '../debug/gl-ref.ts';
 import { frameBegin, frameEnd, renderStats } from '../clock/render-stats.ts';
 import { sinusoidTap } from './sinusoid/explain-store.ts';
 import { lookCapture } from '../debug/look-hook.ts';
+import { figureShot, copyOfCanvas } from './figure-shot.ts';
+import { pictureScale } from '../ui/shell/figure-image.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
 import { bindOrganSettings } from './organs/organ-settings.ts';
@@ -78,6 +80,23 @@ function SceneBridge() {
     rebuild: () => { vesselData.texture.needsUpdate = true; rewarm.current(); },
     restored: () => { setGlLoss('ok'); clock.invalidate('context-restored'); },
   }), [gl]);
+
+  // Copy / Save figure (ui/shell/figure-image-dom.ts): the stage drawn once at `want` times its CSS size, in this task (the canvas is read before anything else can clear it), then put back at the pixel
+  // ratio it rests at and drawn again in the same task, so the screen never shows the other size. The size is kept inside what the device can draw (figure-image.ts pictureScale).
+  useEffect(() => {
+    figureShot.bind((want) => {
+      const el = gl.domElement, r = el.getBoundingClientRect();
+      if (r.width <= 0 || !cel.rig.placed) return null;
+      const rest = gl.getPixelRatio(), s = pictureScale({ w: r.width, h: r.height }, want, gl.capabilities.maxTextureSize);
+      let out: HTMLCanvasElement;
+      try {
+        gl.setPixelRatio(s); cel.render(gl);
+        out = copyOfCanvas(el);
+      } finally { gl.setPixelRatio(rest); cel.render(gl); clock.invalidate('figure-shot'); }
+      return { canvas: out, css: { x: r.left, y: r.top, w: r.width, h: r.height } };
+    });
+    return () => figureShot.bind(null);
+  }, [gl]);
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
