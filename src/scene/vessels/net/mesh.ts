@@ -14,6 +14,7 @@ import { SHEET_CUT_R } from '../skin/sheet.ts';
 import { throughNeck } from './neck.ts';
 import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
+import { regionKeys } from './keys.ts';
 import { bakeScaleOf } from './ranges.ts';
 import { sewnEnds } from './sewn.ts';
 import { NETWORK_BY_ID } from '../network.ts';
@@ -108,18 +109,18 @@ export function networksOf(skel: Skeleton): number[][] {
 }
 
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
-export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean }): NetMeshResult {
+export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[] }): NetMeshResult {
   // The mesh is baked at each arm's MIDDLE radius (ranges.ts: the geometric mean of its swell range), so the fillets' fixed triangles are within the least ratio of every state: the bones' radii are scaled by their edge's factor for the build.
   // The offsets are divided by those radii, so a tube is unchanged (its unit offsets times the live radius); `bakeScale` tells the shader's junction start to take the factor too (lumenRest x bakeScale).
   const bakeScale = new Float32Array(skel.edges.length).fill(1);
   skel.edges.forEach((e, i) => { bakeScale[i] = bakeScaleOf(e.id); });
   const scaled: Skeleton = bakeScale.every((g) => g === 1) ? skel : { ...skel, bones: skel.bones.map((b) => { const g = bakeScale[b.edge]!; return g === 1 ? b : { ...b, r: [b.r[0] * g, b.r[1] * g] as [number, number] }; }) };
-  const res = buildOnce(scaled, edges, opts);
+  const res = buildOnce(scaled, edges, opts, bakeScale);
   res.mesh.bakeScale = bakeScale;
   return res;
 }
 
-function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean } | undefined): NetMeshResult {
+function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; states?: readonly (readonly number[])[] } | undefined, bakeScale: Float32Array): NetMeshResult {
   const inNet = new Set(edges ?? skel.edges.map((_, i) => i));
   const ctx = new Map<number, EdgeCtx>();
   for (const i of inNet) {
@@ -655,7 +656,8 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       normal[12 * v + 3 * i] = dot(nw, B.frame[0]); normal[12 * v + 3 * i + 1] = dot(nw, B.frame[1]); normal[12 * v + 3 * i + 2] = dot(nw, B.frame[2]);
     }
   }
-  const index = Uint32Array.from(tris), offsetMap = fitAll(skel, { position, bone, weight, offset, index }, reports);
+  const index = Uint32Array.from(tris), fit = fitAll(skel, { position, bone, weight, offset, index }, reports), offsetMap = fit.offsetMap;
   const mesh: NetMesh = { position, bone, weight, offset, offsetMap, normal, index };
+  if (opts?.states?.length) { const armsOf = new Map(reports.map((r) => [r.node, r.arms])); mesh.keys = regionKeys(skel, mesh, fit.done, opts.states, bakeScale, (n) => [...new Set(armsOf.get(n) ?? [])]); }
   return { mesh, edges: [...ctx.keys()], nodes: reports, failures, report: { vertices: V, triangles: tris.length / 3, sweepTriangles } };
 }

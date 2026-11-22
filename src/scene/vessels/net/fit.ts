@@ -26,29 +26,29 @@ export interface FitRegion {
 export interface FitMesh { position: Float32Array; bone: Uint16Array; weight: Float32Array; offset: Float32Array }
 
 /** The blend width at a pose: SKIN_K times the narrowest arm's radius at the node (the arms are `skip`ped when one is absent). */
-export function fitK(skel: Skeleton, rg: FitRegion, pose: number, skip = -1): number {
+export function fitK(skel: Skeleton, rg: FitRegion, pose: number, skip = -1, fs?: ArrayLike<number>): number {
   let r = Infinity;
-  for (let i = 0; i < rg.arms; i++) if (i !== skip) r = Math.min(r, boneRadius(skel, rg.caps[i]!.bones[0]!, pose));
+  for (let i = 0; i < rg.arms; i++) if (i !== skip) { const b = rg.caps[i]!.bones[0]!; r = Math.min(r, boneRadius(skel, b, pose) * (fs ? fs[skel.bones[b]!.edge]! : 1)); }
   return SKIN_K * r;
 }
 /** The region's capsules at a pose, one arm left out when `skip` >= 0 (the mates follow). */
-export function fitCaps(skel: Skeleton, rg: FitRegion, pose: number, skip = -1): Capsule[] {
+export function fitCaps(skel: Skeleton, rg: FitRegion, pose: number, skip = -1, fs?: ArrayLike<number>): Capsule[] {
   const keep = rg.caps.map((_, i) => i).filter((i) => i !== skip), at = new Map(keep.map((i, q) => [i, q]));
   return keep.map((i) => {
     const c = rg.caps[i]!, n = c.bones.length, pts = new Float64Array(3 * n), r = new Float64Array(n);
-    c.bones.forEach((b, q) => { const p = bonePos(skel, b, pose); pts[3 * q] = p[0]; pts[3 * q + 1] = p[1]; pts[3 * q + 2] = p[2]; r[q] = boneRadius(skel, b, pose); });
+    c.bones.forEach((b, q) => { const p = bonePos(skel, b, pose); pts[3 * q] = p[0]; pts[3 * q + 1] = p[1]; pts[3 * q + 2] = p[2]; r[q] = boneRadius(skel, b, pose) * (fs ? fs[skel.bones[b]!.edge]! : 1); });
     const mate = c.mate >= 0 ? at.get(c.mate) : undefined;
     return mate === undefined ? { n, pts, r } : { n, pts, r, mate };
   });
 }
 
 /** The mesh's own binding evaluated at a pose: each vertex's offsets turned by its bones' frames at that pose, scaled by their radii there. */
-function boundAt(skel: Skeleton, m: FitMesh, v: number, pose: number, off: ArrayLike<number>, frames: Map<number, ReturnType<typeof boneFrame>>): [number, number, number] {
+function boundAt(skel: Skeleton, m: FitMesh, v: number, pose: number, off: ArrayLike<number>, frames: Map<number, ReturnType<typeof boneFrame>>, fs?: ArrayLike<number>): [number, number, number] {
   const p: [number, number, number] = [0, 0, 0];
   for (let i = 0; i < 4; i++) {
     const w = m.weight[4 * v + i]!;
     if (!(w > 0)) continue;
-    const b = m.bone[4 * v + i]!, P = bonePos(skel, b, pose), r = boneRadius(skel, b, pose);
+    const b = m.bone[4 * v + i]!, P = bonePos(skel, b, pose), r = boneRadius(skel, b, pose) * (fs ? fs[skel.bones[b]!.edge]! : 1);
     let F = frames.get(b);
     if (!F) { F = boneFrame(skel, b, pose); frames.set(b, F); }
     const o = [off[12 * v + 3 * i]!, off[12 * v + 3 * i + 1]!, off[12 * v + 3 * i + 2]!];
@@ -57,13 +57,13 @@ function boundAt(skel: Skeleton, m: FitMesh, v: number, pose: number, off: Array
   return p;
 }
 
-/** The offsets (12 per region vertex, in `rg.verts` order) of positions `at` (3 per region vertex) at a pose. */
-export function offsetsAt(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: number, at: Float64Array): Float32Array {
+/** The offsets (12 per region vertex, in `rg.verts` order) of positions `at` (3 per region vertex) at a pose; with `fs` the bones' radii are the baked ones times the factor (a key's offsets are in units of the radius AT its state). */
+export function offsetsAt(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: number, at: Float64Array, fs?: ArrayLike<number>): Float32Array {
   const out = new Float32Array(12 * rg.verts.length), frames = new Map<number, ReturnType<typeof boneFrame>>();
   rg.verts.forEach((v, q) => {
     for (let i = 0; i < 4; i++) {
       if (!(m.weight[4 * v + i]! > 0)) continue;
-      const b = m.bone[4 * v + i]!, P = bonePos(skel, b, pose), r = boneRadius(skel, b, pose);
+      const b = m.bone[4 * v + i]!, P = bonePos(skel, b, pose), r = boneRadius(skel, b, pose) * (fs ? fs[skel.bones[b]!.edge]! : 1);
       let F = frames.get(b);
       if (!F) { F = boneFrame(skel, b, pose); frames.set(b, F); }
       const d = [at[3 * q]! - P[0], at[3 * q + 1]! - P[1], at[3 * q + 2]! - P[2]];
@@ -74,14 +74,14 @@ export function offsetsAt(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: numbe
 }
 
 /** The region's vertex positions (3 per `rg.verts`) at a pose by the mesh's own binding. */
-export function boundPositions(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: number, off: ArrayLike<number> = m.offset): Float64Array {
+export function boundPositions(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: number, off: ArrayLike<number> = m.offset, fs?: ArrayLike<number>): Float64Array {
   const frames = new Map<number, ReturnType<typeof boneFrame>>(), out = new Float64Array(3 * rg.verts.length);
-  rg.verts.forEach((v, q) => { const p = boundAt(skel, m, v, pose, off, frames); out[3 * q] = p[0]; out[3 * q + 1] = p[1]; out[3 * q + 2] = p[2]; });
+  rg.verts.forEach((v, q) => { const p = boundAt(skel, m, v, pose, off, frames, fs); out[3 * q] = p[0]; out[3 * q + 1] = p[1]; out[3 * q + 2] = p[2]; });
   return out;
 }
 
 /** Newton steps onto the union's surface, `p -= f grad / |grad|^2`. */
-function project(caps: readonly Capsule[], k: number, p: Float64Array, o: number, steps: number): void {
+export function project(caps: readonly Capsule[], k: number, p: Float64Array, o: number, steps: number): void {
   const g = new Float64Array(3);
   for (let s = 0; s < steps; s++) {
     const sd = sdUnionGrad(caps, k, p[o]!, p[o + 1]!, p[o + 2]!, g), gg = g[0]! ** 2 + g[1]! ** 2 + g[2]! ** 2;
@@ -120,9 +120,12 @@ export function fitRegion(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: numbe
 /** What `fitAll` reads of a junction's report (net/mesh.ts NodeReport). */
 export interface FitReport { node: string; kind: string; arms: number[]; triStart: number; triCount: number; vertStart: number; vertCount: number; caps?: { mate: number }[]; capBones?: number[][]; rings?: number[][] }
 
-/** The map fit of every junction region (`offsetMap`: the body `offset` for a tube vertex). */
-export function fitAll(skel: Skeleton, m: FitMesh & { index: Uint32Array }, reports: readonly FitReport[]): Float32Array {
-  const offsetMap = Float32Array.from(m.offset);
+/** A junction region ready to be fitted at other states: what `fitAll` made of it and where its map fit put the fillet's vertices (3 per `rg.verts`). */
+export interface FitDone { rg: FitRegion; node: string; map: Float64Array }
+
+/** The map fit of every junction region (`offsetMap`: the body `offset` for a tube vertex), and the regions for the keys. */
+export function fitAll(skel: Skeleton, m: FitMesh & { index: Uint32Array }, reports: readonly FitReport[]): { offsetMap: Float32Array; done: FitDone[] } {
+  const offsetMap = Float32Array.from(m.offset), done: FitDone[] = [];
   for (const r of reports) {
     if (r.kind !== 'junction' || !r.caps || !r.capBones || !r.rings) continue;
     const used = new Set<number>(), tris = Array.from(m.index.subarray(3 * r.triStart, 3 * (r.triStart + r.triCount)));
@@ -131,6 +134,7 @@ export function fitAll(skel: Skeleton, m: FitMesh & { index: Uint32Array }, repo
     // the map fit: from the body binding at the map pose
     const map = fitRegion(skel, m, rg, 1, boundPositions(skel, m, rg, 1), -1), mapOff = offsetsAt(skel, m, rg, 1, map);
     rg.verts.forEach((v, q) => { if (v >= r.vertStart && v < r.vertStart + r.vertCount) for (let j = 0; j < 12; j++) offsetMap[12 * v + j] = mapOff[12 * q + j]!; });
+    done.push({ rg, node: r.node, map });
   }
-  return offsetMap;
+  return { offsetMap, done };
 }
