@@ -52,6 +52,8 @@ export interface Bundle {
   build: string; /** the exact deployment commit the run was served from */ sha?: string; device: string; at: string; depth: 'quick' | 'full'; framed: boolean;
   /** the sizes ran at the same time: frame rates and timings are not valid */
   parallel?: boolean;
+  /** findings left out of the copied JSON because this run could not judge them, by kind (renderJson) */
+  dropped?: Record<string, number>;
   /** `?audit&speed=N` ran the page's clock N times faster: fades and settle times are page time, but frame rates are NOT valid; stalls ARE (a frame gap is measured in real time) */
   speed?: number;
   /** wall-clock ms of the whole run */
@@ -255,4 +257,10 @@ export function renderText(b: Bundle, o: { short?: boolean } = {}): string {
   return L.join('\n');
 }
 
-export const renderJson = (b: Bundle): string => JSON.stringify(b);
+/** The JSON to copy: the report's own text leaves out the findings a run cannot judge (a speed run's fades and frame rates, a parallel run's timings), and so does this. It had carried all of them, so the 21 Nov iPhone
+ *  run at x20 read as 1676 slow fades, 718 slow loads and 482 stalls that the report itself called invalid. What was left out is counted by kind in `dropped`. */
+export function renderJson(b: Bundle): string {
+  const dropped: Record<string, number> = {};
+  const parts = b.parts.map((p) => ({ ...p, rows: p.rows.map((r) => ({ ...r, flags: r.flags.filter((f) => { if (!dropsFinding(b, f.kind)) return true; dropped[f.kind] = (dropped[f.kind] ?? 0) + 1; return false; }) })) }));
+  return JSON.stringify({ ...b, parts, dropped });
+}

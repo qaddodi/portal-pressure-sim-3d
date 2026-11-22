@@ -33,6 +33,8 @@ export const M = {
   /** The phone's dock (app-07-floating.css:151): `left/right: safe + 6px; bottom: safe + 6px`; `.stage-bar.bottom { height: 52px }`; the thumb bar `.nb-tab { height: 48px }` in `padding: 3px 6px 4px` (app-10-thumb-dock.css:5). */
   /** The one gap between a sheet or card standing over the dock and the dock's top edge (23 Nov 2026, Mohammad: the vessel card sat tight on the time bar). 12 px is the app's own gutter (the dock's `--gap`, the card's side margin). Every sheet's foot reads it: sheetFoot() in room.ts. */
   sheetGap: 12,
+  /** The width of the vessel, device and procedure card on a laptop or an iPad on its side (the shelf under the case pill; was 276, which crowded the TIPS card's header and action row). */
+  sideCardW: 340,
   phoneInset: 6, phoneTimelineH: 52, phoneTabH: 48, phoneTabsPadTop: 3, phoneTabsPadBottom: 4,
 } as const;
 
