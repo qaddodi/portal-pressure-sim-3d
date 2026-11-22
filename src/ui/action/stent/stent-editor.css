@@ -1,0 +1,45 @@
+/* (src/ui/action/stent/stent-editor.css: the 3D app's own stylesheet for the stent editor's rows, so the 2D tile rules (css2d/app-06-plate.css .se-row, .se-panel, which stay byte for byte) do not apply to it.) */
+/* The stent editor, layout M1 (owner, 22 Nov 2026: /mnt/project-files/visual-mocks/tips-card/M1-dark-min.png, M1-light-min.png). Plain ruled rows, no tiles: the name at the left, the value and its one small
+   line at the right, a chevron; a hairline over each row. The open row's name takes the accent and its chevron turns up, and its controls stand indented right under it, no band, no margin line, no
+   underline; a two-way choice is told by weight (the chosen word is heavier and darker), Done is plain accent words. The card's actions stay under it. The type is the app's own (12 and 16 px).
+   The rows below an opening editor ride to their places by a transform (StentPanel.tsx: FLIP), the editor fades up, so nothing pops. The same editor serves the TIPS, the DIPS, a custom shunt's card and Tests > IR. */
+.stent-editor .sr-rows { display: flex; flex-direction: column; position: relative; z-index: 1; }
+.stent-editor .sr-item { position: relative; border-top: 1px solid var(--hairline); }
+.stent-editor .sr-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 14px; align-items: center; column-gap: 10px; width: 100%; min-width: 0; min-height: 52px; padding: 6px 2px; border: 0; background: none; color: var(--text); cursor: pointer; text-align: left; font: inherit; -webkit-tap-highlight-color: transparent; }
+.stent-editor .sr-row:active { opacity: .6; transition-duration: 0s; }
+.stent-editor .sr-row:focus-visible, .sr-panel .sr-done:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.stent-editor .sr-n { font: 500 var(--fs-12)/16px var(--font-ui); color: var(--text-2); white-space: nowrap; transition: color var(--d-small) var(--ease); }
+.stent-editor .sr-row[aria-expanded="true"] .sr-n { color: var(--accent-ink); }
+.stent-editor .sr-vv { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; text-align: right; }
+.stent-editor .sr-v { min-width: 0; font: 500 var(--fs-12)/22px var(--font-ui); color: var(--text-2); white-space: nowrap; }
+.stent-editor .sr-v b { font: 500 var(--fs-16)/22px var(--font-ui); font-variant-numeric: tabular-nums; color: var(--text); }
+.stent-editor .sr-v u { text-decoration: none; }
+.stent-editor .sr-ts { min-width: 0; font: 500 var(--fs-12)/16px var(--font-ui); color: var(--text-3); white-space: nowrap; }
+.stent-editor .sr-c { width: 14px; height: 14px; color: var(--text-3); transform: rotate(-90deg); transition: transform var(--d-surface) var(--ease), color var(--d-small) var(--ease); }
+.stent-editor .sr-row[aria-expanded="true"] .sr-c { transform: rotate(180deg); color: var(--accent-ink); }
+@media (hover: hover) { .stent-editor .sr-row:not([aria-expanded="true"]):hover .sr-c { color: var(--text-2); } }
+/* The editor of the open row: in the card's flow right under its row, indented 14 px (never over the stent or its chart). A row it replaces fades where it stood (it takes no room then). */
+.sr-panel { position: relative; padding: 0 0 4px 14px; container-type: inline-size; }
+.sr-panel[data-leaving] { position: absolute; left: 0; right: 0; pointer-events: none; }
+.sr-panel .sr-pb { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 22px; row-gap: 2px; padding: 2px 0 0; }
+@container (min-width: 460px) { .sr-panel .sr-pb { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+.sr-panel .sr-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
+.sr-panel .sr-fl { min-width: 0; }
+.sr-panel .sr-hint { font: 500 var(--fs-12)/16px var(--font-ui); color: var(--text-3); white-space: nowrap; }
+.sr-panel .sr-done { flex: none; min-height: 44px; min-width: 44px; padding: 0 0 0 14px; border: 0; background: none; color: var(--accent-ink); cursor: pointer; font: 600 var(--fs-14) var(--font-ui); text-align: right; transition: opacity var(--d-flip) var(--ease); }
+.sr-panel .sr-done:active { opacity: .6; }
+.sr-panel .sr-ctl { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; min-width: 0; min-height: 48px; }
+.sr-panel .sr-ctl.sr-dim { opacity: .45; }
+.sr-panel .sr-cap { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0 6px;   /* (6 px under the words: the thumb at the end of its track no longer covers 'No waist' or 'Open', play-test 17 Nov 2026) */ font: 500 var(--fs-12)/16px var(--font-ui); color: var(--text-3); }
+.sr-panel .sr-cap b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+.sr-panel .sr-ctl input[type="range"] { width: 100%; min-width: 0; height: 32px; margin: 0; }   /* (the app's 32 px thumb fits inside it, clear of the caption above) */
+.sr-panel .sr-ctl-seg { display: flex; align-items: center; gap: 14px; min-height: 44px; }
+.sr-panel .sr-ctl-seg .sr-cap { padding: 0; white-space: nowrap; }
+.sr-panel .sr-seg { display: flex; gap: 16px; }
+.sr-panel .sr-seg button { position: relative; display: inline-flex; flex-direction: column; align-items: center; min-height: 28px; padding: 0; border: 0; background: none; color: var(--text-3); font: 500 var(--fs-12)/28px var(--font-ui); cursor: pointer; white-space: nowrap; transition: color var(--d-small) var(--ease); }
+.sr-panel .sr-seg button::before { content: attr(data-t); height: 0; overflow: hidden; visibility: hidden; font-weight: 600; }   /* (the heavy word's width is kept by both, so choosing moves nothing) */
+.sr-panel .sr-seg button::after { content: ''; position: absolute; inset: -8px -4px; }   /* (28 px to see, 44 px to tap, F33) */
+.sr-panel .sr-seg button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+
+.stent-editor[data-fold="true"] > .sr-rows { display: none; }   /* (the folded line, F39: the Tests view's editor is on screen; its rules are 2D's .se-summary) */
+.ir-zone .sr-item:last-child { border-bottom: 1px solid var(--hairline); }   /* (the Tests view has no actions under its rows: the last one is closed by its own rule) */

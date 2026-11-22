@@ -51,7 +51,9 @@ Keep it, but never add new glass surfaces or glows beyond it.
 - Chips on deck slides are compact like 2D's; slide choice buttons sit on one row.
 - **Procedures use the one-row step rail** (`ProcRow.tsx`, `cards/proc-rail.ts`) for every procedure. Step names are measured and scaled to fit
   (10 px floor), wrap last, never an ellipsis. A per-step line sits under the rail and crossfades.
-- **Settings and editors are ruled sheets:** rows with a margin rule, values as words; a row opens in place. Not a grid of toggles.
+- **Settings and editors are ruled sheets** (layout M1, owner 22 Nov): plain rows on hairlines (name left, value and small line right, a chevron), no tiles; a row opens in place with its controls indented under it, no band, no margin line, no
+  underline. A choice between words is told by weight (the chosen word heavier and darker), never a pill, thumb or underline; Done and status are plain words. One shared editor (`src/ui/action/stent/`) serves every stent card;
+  `.ac-seg` and the stent chart's switch carry the same choice look. Not a grid of toggles.
 - Room first: the cards take their room and the camera frames the subject in what is left.
 
 ## 4. Words

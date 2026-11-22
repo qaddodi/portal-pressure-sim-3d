@@ -41,7 +41,7 @@ const PICK_NAMES: Record<Panel, string> = { pressure: 'Pressure', energy: 'Energ
 function Switch<T extends string>({ label, items, value, onPick }: { label: string; items: [T, string][]; value: T; onPick(v: T): void }) {
   return (
     <div className="pz-stent-sw" role="group" aria-label={label}>
-      {items.map(([k, name]) => <button key={k} type="button" className="pz-stent-btn" aria-pressed={k === value} onClick={() => onPick(k)}>{name}</button>)}
+      {items.map(([k, name]) => <button key={k} type="button" className="pz-stent-btn" data-t={name} aria-pressed={k === value} onClick={() => onPick(k)}>{name}</button>)}
     </div>
   );
 }

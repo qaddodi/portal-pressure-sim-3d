@@ -114,7 +114,7 @@ function VerbView({ card, v, vs, index, setRef }: { card: Card; v: Verb; vs: Ver
         <div className="ac-c ac-segrow">
           {v.label && <div className="ctl-top"><span className="ctl-name">{v.label}</span></div>}
           <div className="ac-seg" role="group" aria-label={v.label || 'Options'}>
-            {v.options.map(([val, name]) => <button key={String(val)} type="button" aria-pressed={vs.pick === val} onClick={() => v.set(appAct, val, currentParams())}>{name}</button>)}
+            {v.options.map(([val, name]) => <button key={String(val)} type="button" data-t={name} aria-pressed={vs.pick === val} onClick={() => v.set(appAct, val, currentParams())}>{name}</button>)}
           </div>
         </div>
       );
