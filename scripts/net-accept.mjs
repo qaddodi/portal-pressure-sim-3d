@@ -9,12 +9,19 @@ import { bonesAtT } from '../src/scene/vessels/net/window.ts';
 import { regionsOf, regionShare, BODY_ONLY } from '../src/scene/vessels/net/regions.ts';
 import { extensionsOutside, liveGrid } from '../tests/net-ink.ts';
 import { presetSwells } from './net-states.mjs';
+import { FIDELITY_PX, figureExtent, tolerancePx } from '../src/scene/vessels/net/fidelity.ts';
+import { REFINE } from '../src/scene/vessels/net/mesh.ts';
 
+if (process.env.REFPX) REFINE.px = Number(process.env.REFPX);   // (measure what judging the tolerance in pixels costs)
 const sk = skeleton(), grid = Array.from({ length: 21 }, (_, i) => i * 0.05);
 const states = await presetSwells(sk);   // (the bake's own options, so the gate judges the same states: only the keys are left out)
 const res = buildNetMesh(sk, networksOf(sk)[1], { lenient: true, maps: true, states, keys: false }), scaled = scaledSkeleton(sk, res.mesh.bakeScale);
+const px = [], ext = figureExtent(sk);
 const INK_MAX = 0.01,
    inkWorst = [], bad = { drawn: [], gap: [], ink: [] };
+// 4 (the fillet's midpoint tolerance in CSS pixels at the closest zoom, iPhone and Mac: at most FIDELITY_PX, plan owner 22 Nov)
+for (const [rid, w] of REFINE.world) { const v = tolerancePx(w, ext); px.push(v); if (!(v <= FIDELITY_PX + 1e-6)) (bad.fidelity ??= []).push(`${rid}: ${v.toFixed(2)} px at the closest zoom (most ${FIDELITY_PX}), reached ${(REFINE.achieved.get(rid) ?? 0).toFixed(3)} R`); }
+console.log(`fillet tolerance at the closest zoom (px): ${px.map((x) => x.toFixed(2)).join(' ')}`);
 const regions = res.nodes.filter((n) => n.kind === 'junction' && n.caps);
 // 1
 for (const [node, w] of res.windows) for (const row of w.rows) {
@@ -54,4 +61,4 @@ console.log(`regions ${regions.filter((n) => (n.variant ?? 0) === 0).length} (ma
 for (const [k, v] of Object.entries(bad)) console.log(`${k}: ${v.length ? v.length + ' problems' : 'none'}`, ...v.slice(0, 40).map((x) => '\n  ' + x));
 for (const n of res.mapNotes) console.log('NOTE', n.node.slice(0, 40), n.why.slice(0, 160));
 console.log('windows [b, a]:', [...res.windows].map(([k, w]) => `${k.slice(0, 14)} ${w.b.toFixed(2)}/${w.a.toFixed(2)}`).join('; '));
-process.exit(bad.drawn.length + bad.ink.length ? 1 : 0);
+process.exit(bad.drawn.length + bad.ink.length + (bad.fidelity?.length ?? 0) ? 1 : 0);

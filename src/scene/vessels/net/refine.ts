@@ -3,9 +3,10 @@
 // conforming (a split edge is split for both its triangles). The seam rings' own edges are the tubes' polygon (the shader's TUBE_SAG owns it) and never split. A few passes; each halves the sag by four.
 import { sdUnion, sdUnionGrad, type Capsule } from '../skin/sdf.ts';
 
-/** `fixedCount`: the vertices [0, fixedCount) are the seam rings: an edge between two of them is never split. Returns the refined positions and triangles (the vertices keep their order, new ones follow). */
-export function refineSag(pos: Float64Array, tris: readonly number[], fixedCount: number, caps: readonly Capsule[], k: number, R: number, tol: number, passes = 4): { pos: Float64Array; tris: number[]; added: number } {
+/** `forbid`: edge keys (`a_b`, a < b) that are never split. `fixedCount`: the vertices [0, fixedCount) are the seam rings: an edge between two of them is never split. Returns the refined positions and triangles (the vertices keep their order, new ones follow). */
+export function refineSag(pos: Float64Array, tris: readonly number[], fixedCount: number, caps: readonly Capsule[], k: number, R: number, tol: number, passes = 4, forbid: ReadonlySet<string> = new Set()): { pos: Float64Array; tris: number[]; added: number; /** each new vertex's split edge (its two endpoints at the time) */ parent: Map<number, [number, number]> } {
   let P = Array.from(pos), T = Array.from(tris), added = 0;
+  const parent = new Map<number, [number, number]>();
   const g = new Float64Array(3);
   for (let pass = 0; pass < passes; pass++) {
     const mid = new Map<string, number>(), failed = new Set<string>();
@@ -16,6 +17,7 @@ export function refineSag(pos: Float64Array, tris: readonly number[], fixedCount
       if (mid.has(kk) || failed.has(kk)) continue;
       mid.set(kk, -1);
       if (a < fixedCount && b < fixedCount) continue;
+      if (forbid.has(kk)) continue;   // (an edge whose split left a sliver stays whole)
       edges.push([a, b]);
     }
     let any = false;
@@ -23,7 +25,7 @@ export function refineSag(pos: Float64Array, tris: readonly number[], fixedCount
       const m = [0, 1, 2].map((d) => (P[3 * a + d]! + P[3 * b + d]!) / 2) as [number, number, number];
       if (Math.abs(sdUnion(caps, k, m[0], m[1], m[2])) <= tol * R) continue;
       for (let s = 0; s < 3; s++) { const f = sdUnionGrad(caps, k, m[0], m[1], m[2], g), l2 = g[0]! ** 2 + g[1]! ** 2 + g[2]! ** 2; if (l2 > 1e-12) for (let d = 0; d < 3; d++) m[d]! -= (f * g[d]!) / l2; }
-      mid.set(key(a, b), P.length / 3); P.push(m[0], m[1], m[2]); added++; any = true;
+      parent.set(P.length / 3, [a, b]); mid.set(key(a, b), P.length / 3); P.push(m[0], m[1], m[2]); added++; any = true;
     }
     if (!any) break;
     const out: number[] = [];
@@ -41,5 +43,5 @@ export function refineSag(pos: Float64Array, tris: readonly number[], fixedCount
     }
     T = out;
   }
-  return { pos: new Float64Array(P), tris: T, added };
+  return { pos: new Float64Array(P), tris: T, added, parent };
 }

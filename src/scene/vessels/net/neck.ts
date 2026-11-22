@@ -6,8 +6,8 @@ import type { Vec3 } from '../../anatomy/vessels.ts';
 
 /** The least the profile may reach, as a share of the narrower arm's radius (2 % under it). */
 export const NECK_FLOOR = 0.98;
-/** Past this the hump is not a union's blend but a defect: the bake fails (a union whose slope jumps is not preferred: the other is tried, and the pair is accepted on the better of the two when its waist holds). */
-export const NECK_HUMP_MAX = 1.25;
+/** A through pair may bulge at most this over its wider end (plan owner, 22 Nov: the plain union's hump of 17 % on the portal vein is not accepted; the pair takes the mate minimum): past it a union is not accepted, and a pair with no union inside it fails the bake (a union whose slope jumps is not preferred: the other is tried, and the pair is accepted on the better of the two when its waist holds). */
+export const BULGE_MAX = 1.15;
 export const NECK_STATIONS = 32;
 /** The largest change of the profile's slope between neighbouring stations (a taper's ease is far below it; a 5 % step is 0.16). Judged with the hump, on the baked union, as a preference between the unions: it adds to the hump (1 + the change). */
 export const NECK_SLOPE_STEP = 0.08;
@@ -53,8 +53,8 @@ export function throughNeck(axis: readonly Vec3[], rad: readonly number[], caps:
   const dx = total / (NECK_STATIONS - 1), slope = profile.slice(WINDOW).map((v, i) => (v - profile[i]!) / (WINDOW * dx));
   let jump = 0, jumpAt = 0;
   for (let i = 1; i < slope.length; i++) { const j = Math.abs(slope[i]! - slope[i - 1]!); if (j > jump) { jump = j; jumpAt = i; } }
-  const hump = Math.max(...profile.map((v, i) => v / ceils[i]!), judge === 'floor' || jump < NECK_SLOPE_STEP ? 0 : 1 + jump), up = judge === 'floor' ? -1 : (hump > NECK_HUMP_MAX ? profile.findIndex((v, i) => v / ceils[i]! > NECK_HUMP_MAX) : -1);
-  if (up >= 0) return { ok: false, why: `the radius rises to ${profile[up]!.toFixed(4)}, over ${NECK_HUMP_MAX} of the pair's ${ceils[up]!.toFixed(4)} (a bulge)`, margin, hump, profile };
+  const hump = Math.max(...profile.map((v, i) => v / ceils[i]!), 0), up = judge === 'floor' ? -1 : (hump > BULGE_MAX ? profile.findIndex((v, i) => v / ceils[i]! > BULGE_MAX) : -1);
+  if (up >= 0) return { ok: false, why: `the radius rises to ${profile[up]!.toFixed(4)}, over ${BULGE_MAX} of the pair's ${ceils[up]!.toFixed(4)} (a bulge)`, margin, hump, profile };
   if (judge !== 'floor' && jump >= NECK_SLOPE_STEP) return { ok: false, why: `the slope of the radius jumps by ${jump.toFixed(3)} at station ${jumpAt + 1} (a bulge or a step)`, margin, hump, profile };
   return { ok: true, why: '', margin, hump, profile };
 }

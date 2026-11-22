@@ -8,10 +8,10 @@
 // only has to move the bones. There is NO fallback: a junction that will not mesh throws `NetMeshError` naming the node, and the bake fails.
 import { TUBE_RADIAL } from '../tubes.ts';
 import { SkinBuildError, buildSkinSteady, minAngleDeg } from '../skin/mesh.ts';
-import { ARM_REACH, CAPSULE_SEGS, SKIN_K, armCapsule, closestOnArm, sdArm, sdUnionGrad, skinKOf, type Capsule } from '../skin/sdf.ts';
+import { ARM_REACH, CAPSULE_SEGS, SKIN_K, armCapsule, closestOnArm, sdArm, sdUnion, sdUnionGrad, skinKOf, type Capsule } from '../skin/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { SHEET_CUT_R } from '../skin/sheet.ts';
-import { NECK_HUMP_MAX, throughNeck, type NeckResult } from './neck.ts';
+import { BULGE_MAX, throughNeck, type NeckResult } from './neck.ts';
 import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
 import { boneFrame, bonePos, boneRadius, type Pose } from './pose.ts';
@@ -19,6 +19,7 @@ import { windowOf, type Window } from './window.ts';
 import { REGION_PTS } from './regions.ts';
 import { shaderBones, stateScales } from './shader-caps.ts';
 import { refineSag } from './refine.ts';
+import { figureExtent, pixelsPerUnitAtMaxZoom } from './fidelity.ts';
 import { regionKeys } from './keys.ts';
 import { bakeScaleOf } from './ranges.ts';
 import { sewnEnds } from './sewn.ts';
@@ -65,7 +66,8 @@ function dropCaps(tris: number[], fixed: Uint8Array): void {
 }
 
 /** The fillet's fidelity (refine.ts): the most an edge's midpoint may stand off the union, in units of the narrowest arm's radius at the junction (0: off). The plan owner asked for 0.01; measured on the real figure (22 Nov, keys for every region): 0.01 bakes 187k triangles / 18.5 MB / 4.0 M junction texel reads per frame and fails 15 stretch tests (tests/net-deform), 0.05 bakes 113k / 6.8 MB / 1.29 M reads and fails none, so 0.05 stands until the plan owner rules on the trade. A mutable setting so the acceptance can measure what each tolerance costs. */
-export const REFINE = { tol: 0.05, achieved: new Map<string, number>() };
+export { BULGE_MAX };
+export const REFINE = { tol: 0.05, /** > 0: judge in CSS pixels at the closest zoom instead (fidelity.ts): each region's tolerance is `px` / pixels-per-unit, as a multiple of its narrowest arm's radius */ px: 0, achieved: new Map<string, number>(), /** per region: the midpoint tolerance reached, in scene units (the multiple of the tolerance times the narrowest arm's radius; the worst of the region's meshes; Infinity: dropped) */ world: new Map<string, number>() };
 /** a node of two edges whose BAKED radii differ by more than this share is a step, not a run-on (the edges of a run are different vessels, baked at their own swell ranges: ranges.ts, so the baked radii part by a few percent at a node where the rest ones agree; 5 % is where the neck rule sees a ledge) */
 const STEP_RATIO = 0.05;
 /** the points tried along each segment of another capsule when a seam's cut cylinder is checked */
@@ -96,7 +98,7 @@ export interface NodeReport {
   switchT?: readonly [number, number];
   /** junction: the bones each of `caps` runs through, and each arm's seam ring (mesh vertex ids): what net/fit.ts needs to fit the region at the other states */
   capBones?: number[][]; /** the bones that carry each capsule in the shader's row (at most REGION_PTS of `capBones`'s, chosen so the tubes stay inside the live union: net/shader-caps.ts) */ regionBones?: number[][]; rings?: number[][];
-  through: { arms: [number, number]; mated: boolean; toggled: boolean; margin: number }[];
+  through: { arms: [number, number]; mated: boolean; toggled: boolean; margin: number; /** the tallest the pair stands over its wider end (1 = none; at most BULGE_MAX) */ hump: number }[];
 }
 export interface NetMeshResult { mesh: NetMesh; edges: number[]; nodes: NodeReport[]; /** only in a lenient diagnosis run: the regions that would not mesh (left unfilled) */ failures: { node: string; why: string }[]; /** regions whose map-built mesh could not be made (the body mesh is drawn alone), with why */ mapNotes: { node: string; why: string }[]; /** with `maps`: each region's two meshes' windows (net/window.ts), by node name */ windows: Map<string, Window>; report: { vertices: number; triangles: number; sweepTriangles: number } }
 
@@ -531,7 +533,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
           again = gate();
         }
         // The waist (the floor, at every real state) is the rule; the hump is a preference. When neither union is whole, the one that holds the waist and humps least stands (a hump past NECK_HUMP_MAX, or no waist at all, fails the bake)
-        const good = (r: NeckResult): boolean => r.margin >= 1 && r.hump <= NECK_HUMP_MAX;
+        const good = (r: NeckResult): boolean => r.margin >= 1 && r.hump <= BULGE_MAX;
         if (!again.ok) {
           if (good(res) && (!good(again) || res.hump <= again.hump)) {
             base.splice(0, base.length, ...snap.base); capBones.splice(0, capBones.length, ...snap.bones); capOf.splice(0, capOf.length, ...snap.of);
@@ -542,7 +544,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         if (!again.ok) throw new NetMeshError(rid, `the through pair ${arms[s0.arm]!.ctx.id} - ${arms[s1.arm]!.ctx.id} necks with the plain union and with the mate minimum: ${res.why}`);
         res = again; toggled = !back;
       }
-      throughReport.push({ arms: [arms[s0.arm]!.edge, arms[s1.arm]!.edge], mated: mateOf.get(s0.arm) === s1.arm, toggled, margin: res.margin });
+      throughReport.push({ arms: [arms[s0.arm]!.edge, arms[s1.arm]!.edge], mated: mateOf.get(s0.arm) === s1.arm, toggled, margin: res.margin, hump: res.hump });
     }
     // The seam of each arm stands at the first bone where (1) its ring clears every other capsule by k plus half the narrower radius (the fixture rule of tests/skin-mesh.test.ts), and (2) nothing of any other capsule lies in the cylinder the sheet cuts away beyond
     // the seam's plane (sheet.ts: SHEET_CUT_R radii of the ring's axis): an arm that grazes another leaves a stray strip of surface there, which the builder reads as an extra seam loop. One rule, no fallback: an arm that finds no such bone fails its region.
@@ -609,15 +611,37 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         // the fidelity of the projected mesh INCLUDING each edge's midpoint sag (refine.ts): an edge whose midpoint stands off the union by more than REFINE.tol of the narrowest arm's radius is split there
         // A refinement that leaves a sliver (a midpoint moved far onto a sharp crease) is retried at 2, 4, 8 and 16 times the tolerance, then dropped: the region keeps the best fidelity that still meshes, and REFINE.achieved records it.
         const base = { P, tr, V0 };
-        const worstOf = (Q: ArrayLike<number>, tt: number[]): number => { let w = 180; for (let t = 0; t < tt.length; t += 3) w = Math.min(w, minAngleDeg(Q as Float32Array, tt[t]!, tt[t + 1]!, tt[t + 2]!)); return w; };
-        if (REFINE.tol > 0) REFINE.achieved.set(rid, Infinity);
-        if (REFINE.tol > 0) for (const mul of [1, 2, 4, 8, 16]) {
-          const dense = refineSag(base.P, base.tr, arms.length * RADIAL, capsX, kX, kX / SKIN_K, REFINE.tol * mul);
-          if (!dense.added) { REFINE.achieved.set(rid, REFINE.tol * mul); break; }   // (nothing to split: the mesh is already within it)
+        const angleOf = (Q: ArrayLike<number>, a: number, b: number, c: number): number => minAngleDeg(Q as Float32Array, a, b, c);
+        const worstOf = (Q: ArrayLike<number>, tt: number[]): number => { let w = 180; for (let t = 0; t < tt.length; t += 3) w = Math.min(w, angleOf(Q, tt[t]!, tt[t + 1]!, tt[t + 2]!)); return w; };
+        const Rn = kX / SKIN_K, tol0 = REFINE.px > 0 ? REFINE.px / pixelsPerUnitAtMaxZoom(figureExtent(skel)) / Rn : REFINE.tol;
+        let got = REFINE.tol > 0 || REFINE.px > 0 ? Infinity : 0;   // (the tolerance this mesh reached, as a multiple of REFINE.tol)
+        // First at the tolerance itself: an edge whose split leaves a sliver stays whole (the sliver's new vertices name their edges), the rest of the region keeps the tolerance
+        if (tol0 > 0) {
+          const forbid = new Set<string>(), nFix = arms.length * RADIAL, key = (a: number, b: number): string => (a < b ? `${a}_${b}` : `${b}_${a}`);
+          for (let round = 0; round < 8; round++) {
+            const dense = refineSag(base.P, base.tr, nFix, capsX, kX, Rn, tol0, 4, forbid);
+            if (!dense.added) { got = tol0; break; }
+            const P2 = new Float64Array(dense.pos), tr2 = dense.tris, fx = new Uint8Array(P2.length / 3).fill(1, 0, nFix);
+            relax({ pos: P2, tris: tr2, fixed: fx, caps: capsX, k: kX }, { rounds: 12, flips: true });
+            let bad = 0;
+            for (let t = 0; t < tr2.length; t += 3) if (angleOf(P2, tr2[t]!, tr2[t + 1]!, tr2[t + 2]!) <= MIN_ANGLE) for (let c = 0; c < 3; c++) { const par = dense.parent.get(tr2[t + c]!); if (par) { forbid.add(key(par[0], par[1])); bad++; } }
+            if (!bad) { P = P2; tr = tr2; V0 = P2.length / 3; // (the edges left whole stand off the union by what they stand: the tolerance reached is the worst of them)
+              let sag = tol0; for (const kk of forbid) { const [a, b] = kk.split('_').map(Number) as [number, number]; sag = Math.max(sag, Math.abs(sdUnion(capsX, kX, (P2[3 * a]! + P2[3 * b]!) / 2, (P2[3 * a + 1]! + P2[3 * b + 1]!) / 2, (P2[3 * a + 2]! + P2[3 * b + 2]!) / 2)) / Rn); }
+              got = sag; break; }
+          }
+        }
+        // (a few edges that must stay whole can stand far off the union: then the whole region at 2, 4, 8, 16 times the tolerance is tried too, and the better of the two stands)
+        const kept = got > 4 * tol0 ? { P, tr, V0, got } : undefined;
+        if (kept) { P = base.P; tr = base.tr; V0 = base.V0; got = Infinity; }
+        if (got === Infinity && tol0 > 0) for (const mul of [1, 2, 4, 8, 16]) {
+          const dense = refineSag(base.P, base.tr, arms.length * RADIAL, capsX, kX, kX / SKIN_K, tol0 * mul);
+          if (!dense.added) { got = tol0 * mul; break; }   // (nothing to split: the mesh is already within it)
           const P2 = new Float64Array(dense.pos), tr2 = dense.tris, fx = new Uint8Array(P2.length / 3).fill(1, 0, arms.length * RADIAL);
           relax({ pos: P2, tris: tr2, fixed: fx, caps: capsX, k: kX }, { rounds: 12, flips: true });
-          if (worstOf(P2, tr2) > MIN_ANGLE) { P = P2; tr = tr2; V0 = P2.length / 3; REFINE.achieved.set(rid, REFINE.tol * mul); break; }
+          if (worstOf(P2, tr2) > MIN_ANGLE) { P = P2; tr = tr2; V0 = P2.length / 3; got = tol0 * mul; break; }
         }
+        if (kept && kept.got < got) { P = kept.P; tr = kept.tr; V0 = kept.V0; got = kept.got; }
+        if (tol0 > 0) { REFINE.achieved.set(rid, Math.max(got, REFINE.achieved.get(rid) ?? 0)); REFINE.world.set(rid, Math.max(got * Rn, REFINE.world.get(rid) ?? 0)); }
         // vertices no triangle uses any more (a cap dropped) leave the list; the seam rings come first and are all used
         const remap = new Int32Array(V0).fill(-1);
         for (const v of tr) remap[v] = 0;
