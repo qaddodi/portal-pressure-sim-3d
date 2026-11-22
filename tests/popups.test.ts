@@ -58,11 +58,16 @@ test('P2: a second note crossfades its words in place (the old fade out, the new
   assert.match(css, /\.sh-toast\[data-swap\] > span \{ opacity: 0; \}/);
 });
 
-test('P2: the note is B1 (owner, 22 Nov): a ruled row above the dock, no box, no dot, the rule under it is its clock, swipe, click or Esc lets it go', () => {
+test('P2: the note is a rounded glass box (owner, 22 Nov): the one glass, --r-sheet corners, words centred, the clock line kept, no dot, swipe, click or Esc lets it go', () => {
   const tsx = src('src/ui/shell/Toast.tsx'), css = src('src/ui/shell/shell.css');
   const rule = css.slice(css.indexOf('.sh-toast {'), css.indexOf('/* a Reset dialog */'));
-  assert.doesNotMatch(rule, /border-radius: 50%|::before|var\(--glass\)|box-shadow/, 'no dot, no pill, no glass box');
-  assert.match(rule, /\.sh-toast \{[^}]*border-top: 1px solid/);
+  assert.doesNotMatch(rule, /border-radius: 50%|::before|text-shadow|border-top/, 'no dot, no halo, no ruled row');
+  assert.match(rule, /\.sh-toast \{[^}]*border-radius: var\(--r-sheet\)/);
+  assert.match(rule, /\.sh-toast \{[^}]*border: 1px solid var\(--edge\)/);
+  assert.match(rule, /\.sh-toast \{[^}]*box-shadow: var\(--glass-shadow\)/);
+  assert.match(rule, /\.sh-toast \{[^}]*overflow: hidden/);
+  assert.match(rule, /\.sh-toast \{[^}]*text-align: center/);
+  assert.match(rule, /\.sh-toast \{[^}]*justify-content: center/);
   assert.match(rule, /\.sh-toast-time \{[^}]*transform-origin: left center/);
   assert.match(rule, /\.sh-toast-act \{[^}]*border: 0; background: transparent/);
   assert.match(tsx, /scaleX\(0\)/);

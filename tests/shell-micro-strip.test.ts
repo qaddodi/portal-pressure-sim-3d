@@ -38,9 +38,9 @@ test('the hint stands above the dock and the view pill: the toast reads --bot-oc
   }
 });
 
-test('the hint is 2D\'s note: a dot, glass card, the page ink (never the page\'s own ink on itself)', () => {
+test('the note is a glass box: the shared glass tint, the page ink, no dot', () => {
   const t = shell.slice(shell.indexOf('.sh-toast {'), shell.indexOf('.sh-toast-act'));
-  assert.match(t, /background: var\(--glass\); color: var\(--text\)/);
-  assert.match(t, /\.sh-toast::before \{[^}]*border-radius: 50%; background: var\(--accent\)/);
+  assert.match(t, /background: var\(--glass-tint\); color: var\(--text\)/);
+  assert.doesNotMatch(t, /\.sh-toast::before|border-radius: 50%/);
   assert.doesNotMatch(t, /background: var\(--text\); color: var\(--surface\)/);
 });
