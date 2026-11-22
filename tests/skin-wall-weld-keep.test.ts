@@ -93,7 +93,11 @@ test('Budd-Chiari (C9 open, S_PC closed): the wall skin is welded and its closed
   const bc = body(['C9']);
   try {
     const k = keepOf(bc), at = (id: string) => k.arms.indexOf(id);
-    assert.equal(k.weld[1], 1, 'welded: C9 is there');
+    // (Plan 16 part A: with C9 open and S_PC closed the skin drawn is the PART with C9 only, welded; the whole welded skin is not drawn and keeps its keep flags for a part that could not be built)
+    const part = [...bc.set.partsOf(WALL).values()].find((p) => { const ids = bc.set.armIdsOf(p.draw); return ids.includes('C9') && !ids.includes('S_PC'); });
+    assert.ok(part, 'the part with C9 only');
+    assert.deepEqual((part!.draw as SkinObject).weldOf(), [1, 1], 'welded: C9 is there');
+    assert.equal(k.weld[1], 0, 'the whole welded skin is not drawn');
     assert.equal(k.keep[at('S_PC')], 0, 'S_PC is not there: its weight goes to the arms that stay');
     assert.equal(k.keep[at('C9')], 1);
     assert.ok(k.arms.filter((id) => id === 'IVC_IS_1').length === 2 && k.keep.slice(0, 4).filter((v, i) => k.arms[i] === 'IVC_IS_1' && v === 1).length === 2, 'both sides of the cava stay');

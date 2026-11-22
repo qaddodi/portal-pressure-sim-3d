@@ -59,6 +59,10 @@ export const SKIN_FIGURE_UNITS = 300;
 export const SKIN_CIRCUIT_FADE = 0.35;
 /** An arm whose live width share (its width times its growth) is under this is held out of the skin's outline, smoothly: a width of nothing is a line, not a vessel (the thorns on the SMV, Mohammad 20 Nov). */
 export const SKIN_ARM_ABSENT = 0.3;
+/** The depth hold-out's ramp (skinArmHeld), in shares of the blend width k of 3D gap between a pixel's rest surface and an arm's wall: an arm is not held out of the outline within SKIN_HOLD_FROM_K of it, wholly from SKIN_HOLD_TO_K. It was 0.25 to 1; the FILLET spans the whole of k, so
+ *  a pixel a quarter k from an arm already lies in the smooth union of the mesh and was held out of the outline's: the stem's edge was inked inside the fillet, the two lines that ran on into the azygos (Plan 16C, 22 Nov, node numbers: 281 pixels of ink inside the union at the azygos landing, 0 from 1 to 2). */
+export const SKIN_HOLD_FROM_K = 1;
+export const SKIN_HOLD_TO_K = 2;
 /** How many CSS px wider the outline's band is on a seam ring, so the skin never trims a pixel of the silhouette the cut tube no longer covers (the specks along the walls, Mohammad 20 Nov). */
 export const SKIN_SEAM_PAD_PX = 1.5;
 /** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */
@@ -301,7 +305,7 @@ vec4 skinPx(vec3 p, float R, float swell) {
 // signed distance, in device px, from this pixel to the live capsule of one arm: the least over its two segments of (the distance to the segment, less the radius interpolated at the closest point).
 // DEPTH (the seam's ink): the outline is a screen-space field, and a WALL skin's arm leaves its host's wall, so from the front its silhouette lies over the host's though the two are a whole radius apart in depth: the blend then pulled the arm's own outline in
 // (3 px at the seam of S_PC on wall:IVC_IS_1:S_PC1,C90; the front-view kink at the four-arm nodes). So an arm whose capsule lies out of reach of the pixel's own place in the figure (fragP, the lumen's rest surface at the pixel; fragW its view depth, below 0: no judgement) is held out of the blend as an absent
-// arm is, by how far out it is, in px at the pixel's depth: nothing within a quarter k of the arm's wall, all of it from k. Continuous in the distance, never a step; the distance is the exact one in 3D, so it does not change with the camera
+// arm is, by how far out it is, in px at the pixel's depth: nothing within SKIN_HOLD_FROM_K (1) k of the arm's wall, all of it from SKIN_HOLD_TO_K (2) k: the fillet spans k. Continuous in the distance, never a step; the distance is the exact one in 3D, so it does not change with the camera
 float skinArmPx(vec2 frag, int arm, float swell) {
   // the axis: J (the bridge over the art's gap), the start of the straight line through the seam, the seam, the far point
   vec4 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
@@ -319,13 +323,13 @@ float skinArmPx(vec2 frag, int arm, float swell) {
 }
 // THE DEPTH HOLD-OUT, as a share 0 to 1 (see skinSdPx for how it is used). A pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of
 // the arm it is, whatever the camera does (an arm that runs along the view is foreshortened to a few pixels, so a depth taken at the nearest SCREEN point was the wrong one and held out the pixels of an arm that were its own: holes in the junctions when the figure is turned,
-// Mohammad 22 Nov). In px at the pixel's depth: nothing within a quarter k of the arm's wall, all of it from k.
+// Mohammad 22 Nov). In px at the pixel's depth: nothing within SKIN_HOLD_FROM_K (1) k of the arm's wall, all of it from SKIN_HOLD_TO_K (2) k: the fillet spans k.
 // (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes. fragP is the lumen's REST surface, a whole radius out, so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9) put its own rest
 // surface 1 - swell radii outside itself: held out as if absent. The rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
 float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
   float gap = skinArmSd3(fragP, arm, 1.0, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
-  return smoothstep(0.25 * kPx, kPx, gap);
+  return smoothstep(${F(SKIN_HOLD_FROM_K)} * kPx, ${F(SKIN_HOLD_TO_K)} * kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
