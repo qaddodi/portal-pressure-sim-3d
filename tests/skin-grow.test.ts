@@ -120,7 +120,8 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
     // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
-    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C91,C1b1'] = ['C9:1', 'C1b:1']; want['wall:IVC_IS_1:S_PC1,C90'] = ['S_PC:1', 'C9:0'];   // (S_PC and C9 land 5.9 and 8.9 radii up the cava from IVCI: their wall node and IVCI's skin abut on one seam ring, cuts.ts)
+    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C1b1'] = ['C1b:1'];   // (the lumbar vein runs on into the arch's start, Plan 16D: only the varices land on its wall)
+     want['wall:IVC_IS_1:S_PC1,C90'] = ['S_PC:1', 'C9:0'];   // (S_PC and C9 land 5.9 and 8.9 radii up the cava from IVCI: their wall node and IVCI's skin abut on one seam ring, cuts.ts)
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     assert.deepEqual(grown.get('IVC_D'), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');

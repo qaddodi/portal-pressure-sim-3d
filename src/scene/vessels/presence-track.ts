@@ -46,6 +46,8 @@ export class PresenceTracks {
   }
   /** How far a vessel is drawn on (0 not at all, 1 whole): what its retracting and drawing on have reached. */
   amountOf(id: string): number { const t = this.tracks.get(id); return !t || t.shown === 'hidden' ? 0 : t.amount; }
+  /** How far a vessel is drawn on while it is a SHOWN one (a dotted ghost and a retracted one count 0): what a start that carries on from it is solid by, eased with its drawing on and off. */
+  solidAmountOf(id: string): number { const t = this.tracks.get(id); return !t || t.shown !== 'shown' ? 0 : t.amount; }
   stateOf(id: string): Presence { return this.tracks.get(id)?.goal ?? 'hidden'; }
   isDrawn(id: string): boolean { const t = this.tracks.get(id); return !!t && t.shown !== 'hidden' && t.amount > 0.001; }
 

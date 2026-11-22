@@ -85,7 +85,7 @@ function anatomyHosts(): Host[] {
 const DELIBERATE: Readonly<Record<string, { reason: string; lands?: string }>> = {
   'C3:0': { reason: 'the paraumbilical vein leaves the left portal vein forward off its wall, 30 units in (starts.ts leaveVein), where 2D starts it on the vein end', lands: 'PVH_L' },
   'C4:1': { reason: 'the rectal varices run on down the rectum (starts.ts END_ON, owner 20 Nov: "rectal varices should reach more"); a free end in 2D and in 3D' },
-  'C9:1': { reason: 'the ascending lumbar vein runs on up to the azygos node (starts.ts END_ON, owner 20 Nov), where 2D ends it on the azygos trunk strand that 3D does not draw', lands: 'AZY_SVC' },
+  'C9:1': { reason: 'the ascending lumbar vein runs on into the azygos start (starts.ts RUNS_INTO, Plan 16D, owner 22 Nov: it is the azygos origin), where 2D ends it on the azygos trunk strand at y 108 that 3D does not draw', lands: 'AZY_SVC' },
 };
 
 const rows: string[] = [];

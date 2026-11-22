@@ -2,6 +2,7 @@
 // begin in the gap beside the spleen. In 3D the vein is drawn in front of the organ and Mohammad asked that it start in the spleen (20 Nov): its course is carried on from the hilum,
 // along the way it already leaves it, to a point inside the organ, and it fades in over that carried-on stretch alone (solid at the hilum, where 2D's fade is still faint).
 // The 2D app's numbers are untouched: this only adds drawn length at one end. Points are in 2D units (the course's own).
+import { EDGE_PATH_2D } from './paths.copied.ts';
 type P2 = readonly [number, number];
 
 /** The extra start of a vessel: the 2D points before its first point, in order (the vein runs from the first of these on). */
@@ -22,15 +23,45 @@ const trimmed = (id: string, path: readonly P2[]): readonly P2[] => { const t = 
 /** The extra end of a vessel that runs on further than the 2D figure draws it: the rectal varices run on down the rectum (Mohammad, 20 Nov: "rectal varices should reach more"), the 2D course carried straight on along its last heading to `to`. */
 const END_ON: Readonly<Record<string, P2>> = {
   C4: [742, 1010],
-  // (the ascending lumbar collateral joins the azygos trunk from the side at y 108 in 2D, a trunk that runs up to the arch; that trunk (the azygos' tributary strand) is not drawn in 3D, so the collateral ended in the void
-  //  78 units below the arch: it runs on up the trunk's own line to the azygos node, where the arch (carried on to its left, so solid there) and the esophageal collateral meet it. Mohammad, 20 Nov: "it should join somewhere systemically")
-  C9: [574, 30],
 };
+/** A vessel that RUNS ON INTO another's start (Mohammad, 22 Nov: "the junction itself sucks"; Plan 16D): the ascending lumbar vein is the azygos's origin, end to end (the azygos begins in the abdomen from the right ascending lumbar vein; 2D joins it to a trunk strand at y 108 that 3D does not draw).
+ *  Its last `share` of the course (by length) is redrawn as one cubic Hermite curve from where it stood (its own heading there) to the start of `into`'s carried-on stretch (START_IN_ORGAN), arriving along the heading `into` leaves it by, so the two meet tangent-continuous: a smooth curve, never a corner. */
+const RUNS_INTO: Readonly<Record<string, { into: string; share: number }>> = { C9: { into: 'AZY_SVC', share: 0.25 } };
+/** The vessel `id` runs on into the start of (its end is that vessel's start, drawn as one vein), or null. */
+export const runsInto = (id: string): string | null => RUNS_INTO[id]?.into ?? null;
+/** The vessels that run on into `id`'s start (its origin): while one is drawn, the start is solid and carries on from it. */
+export const originsOf = (id: string): readonly string[] => Object.entries(RUNS_INTO).filter(([, r]) => r.into === id).map(([k]) => k);
+/** The point and heading (unit, the way the vessel runs) of the start of `into`'s course as drawn, where a vessel that runs on into it arrives. */
+export function startOfRunOn(into: string): { at: P2; dir: P2 } | null {
+  const s = START_IN_ORGAN[into], raw = EDGE_PATH_2D[into];
+  if (!s || !raw) return null;
+  const [ax, ay] = raw[0]!, d = Math.hypot(ax - s.to[0], ay - s.to[1]) || 1;
+  return { at: s.to, dir: [(ax - s.to[0]) / d, (ay - s.to[1]) / d] };
+}
+const arcLen = (p: readonly P2[], from = 0, to = p.length - 1): number => { let t = 0; for (let i = from + 1; i <= to; i++) t += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return t; };
+function runOnInto(path: readonly P2[], r: { into: string; share: number }): readonly P2[] {
+  const t = startOfRunOn(r.into);
+  if (!t || path.length < 8) return path;
+  const total = arcLen(path);
+  let i = path.length - 2;
+  while (i > 2 && arcLen(path, i) < r.share * total) i--;
+  const p0 = path[i]!, a = path[i - 1]!, b = path[i + 1]!, dl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, t0: P2 = [(b[0] - a[0]) / dl, (b[1] - a[1]) / dl];
+  const L = Math.hypot(t.at[0] - p0[0], t.at[1] - p0[1]), n = Math.max(2, Math.ceil((L * 1.15) / HERMITE_STEP));
+  const post: P2[] = [];
+  for (let k = 1; k <= n; k++) {
+    const u = k / n, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+    post.push([h00 * p0[0] + h10 * HERMITE_K * L * t0[0] + h01 * t.at[0] + h11 * HERMITE_K * L * t.dir[0], h00 * p0[1] + h10 * HERMITE_K * L * t0[1] + h01 * t.at[1] + h11 * HERMITE_K * L * t.dir[1]]);
+  }
+  return [...path.slice(0, i + 1), ...post];
+}
+/** The tangents' length, as a share of the chord: shorter turns tighter (a bend of 62 degrees over the last quarter, 0.8: the tightest bend 6 of the vein's radii, 6 units' drift off its line), longer drifts wider. */
+const HERMITE_K = 0.8;
+const HERMITE_STEP = 1.5;   // 2D units between the points of the redrawn stretch: fine, so the last segment lies along the heading it arrives by
 export const endOn = (id: string): P2 | null => END_ON[id] ?? null;
 
 /** `path` with its start carried into the organ (or its ends cut), or `path` itself for a vessel that has neither. */
 export function withStartInOrgan(id: string, path0: readonly P2[]): readonly P2[] {
-  const path = trimmed(id, path0);
+  const into = RUNS_INTO[id], path = into ? runOnInto(trimmed(id, path0), into) : trimmed(id, path0);
   const e = END_ON[id];
   if (e && path.length >= 2) {
     const [x1, y1] = path[path.length - 1]!, [ax, ay] = path[path.length - 4]!, d = Math.hypot(x1 - ax, y1 - ay) || 1, L = Math.hypot(e[0] - x1, e[1] - y1), n = Math.max(1, Math.round(L / STEP));

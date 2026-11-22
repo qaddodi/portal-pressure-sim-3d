@@ -11,6 +11,7 @@
 import { IVC_EDGES } from './paths.copied.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { NETWORK, RUN_ONS, sameSegment, type NetVessel } from './network.ts';
+import { runsInto } from './starts.ts';
 
 /** A node the cava runs into, and its depth: the cava's own, so it runs level into the atrium and a tilted view shows no S (Mohammad, 20 Nov: "move the RA to the same plane as the IVC"; the atrium's mesh is moved to this plane by ORGAN_Z['heart-ra']). */
 export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z: TIER_Z.back }]]);
@@ -90,6 +91,8 @@ function build(): ReadonlyMap<string, SmoothEnds> {
   for (const v of mains) for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(n) ?? []; a.push({ v, end }); at.set(n, a); }
   // the 2D rule's own run-on pairs first (they pick the pair at a fork), then the nodes of exactly two
   for (const r of RUN_ONS) { const a = byId.get(r.a), b = byId.get(r.b); if (a && b) pair({ v: a, end: r.ia }, { v: b, end: r.ib }); }
+  // a vessel that runs on into another's START (starts.ts RUNS_INTO: the ascending lumbar vein into the azygos, Plan 16D) is one tube with it: the raw 2D courses do not meet there, so the pair is made here
+  for (const v of mains) { const into = runsInto(v.id), b = into ? byId.get(into) : undefined; if (b) pair({ v, end: 1 }, { v: b, end: 0 }); }
   for (const list of at.values()) if (list.length === 2) pair(list[0]!, list[1]!);
   // the ends of what is left: a branch on a trunk, or nothing at all
   const art = (v: NetVessel) => (v.tone === 'artery' ? 1 : 0);

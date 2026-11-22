@@ -10,6 +10,7 @@ import { Box3, type BufferAttribute, type BufferGeometry, Color, type DataTextur
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
+import { originsOf } from './vessels/starts.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
 import { CAPUT_FAN_ID, FAN_FRONT } from './vessels/feeder-fan.ts';
@@ -759,7 +760,18 @@ export class CelScene {
     return p ? this.rig.project(this.body.localToWorld(p.clone()), out) : null;
   }
 
+  /** A fading tip with a collateral attached is solid as far as that collateral is drawn on: its start alpha follows the collateral's amount, so it eases in and out with it (the azygos's start with the ascending lumbar vein, the coronary vein's with the varices). */
+  private syncTipJoins(): void {
+    for (const t of this.tipFades) if (t.connect.length && t.o.setTipJoined(Math.max(...t.connect.map((c) => this.presence.solidAmountOf(c))))) this.moving = true;
+  }
   /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
+  /** A start that carries on from a vessel that is drawn on and off (the azygos's from the ascending lumbar vein, starts.ts RUNS_INTO) takes that vessel's live width into its own only as far as it is drawn: with it closed the start keeps its width, and it eases with the drawing. */
+  private syncMateK(): void {
+    for (const v of ORIGIN_FED) {
+      const o = this.byEdge.get(v.id) as VesselObject | undefined;
+      if (o && o.setMateK(Math.max(...originsOf(v.id).map((c) => this.presence.solidAmountOf(c))), 1)) this.moving = true;
+    }
+  }
   private syncStumps(): void {
     const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;
     for (const [shunt, vein] of DIVIDED) {
@@ -797,7 +809,8 @@ export class CelScene {
     this.syncCaudate(f, instant);
     this.pushFades();
     this.shapes.onFrame(f as never, clock.now(), this.healthyQ, instant);
-    for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
+    this.syncTipJoins();
+    this.syncMateK();
     const rexOn = this.presence.stateOf('REX') === 'shown';
     if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
     this.flow.setDrawn((id) => this.presence.stateOf(id) === 'shown', (id) => this.presence.stateOf(id) === 'shown' && NETWORK.some((v) => v.id === id && v.kind === 'collateral'));
@@ -1409,6 +1422,8 @@ export class CelScene {
       { id: 'presence', step: ({ dt }) => {
         const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
         this.syncStumps();
+        this.syncTipJoins();
+        this.syncMateK();
         this.updateCaps();
         return presMoving;
       } },
@@ -1686,6 +1701,7 @@ export class CelScene {
 }
 
 const NETWORK_MATE: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
+const ORIGIN_FED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder && originsOf(v.id).length > 0);
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
 /** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */

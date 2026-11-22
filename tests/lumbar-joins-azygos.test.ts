@@ -4,21 +4,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { NETWORK_BY_ID, NETWORK } from '../src/scene/vessels/network.ts';
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { CAVA_LIKE, CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { FAINT_ONLY_LAYER } from '../src/scene/vessels/vessel-object.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { tipAlpha, vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
 
-test('the ascending lumbar collateral runs to the azygos node, where the azygos arch and the esophageal collateral meet it', () => {
-  const c9 = NETWORK_BY_ID.get('C9')!, end = c9.pts[c9.pts.length - 1]!, [ax, ay] = NODE_POS_2D.AZY!;
-  const d = Math.hypot(end[0] - x3(ax), end[1] - y3(ay));
-  assert.ok(d < 0.03, `ends ${d.toFixed(3)} scene units from the azygos node (it ended 78 2D units short, in the void)`);
+test('the ascending lumbar collateral runs on into the azygos start (Plan 16D): it ends where the arch starts, and the esophageal collateral lands on the arch at the node', () => {
+  const c9 = NETWORK_BY_ID.get('C9')!, end = c9.pts.length ? coursesOf(c9, REST)[0]!.pts.at(-1)! : [0, 0, 0], arch = NETWORK_BY_ID.get('AZY_SVC')!, start = coursesOf(arch, REST)[0]!.pts[0]!;
+  const d = Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+  assert.ok(d * 700 <= 0.5, `the lumbar vein ends ${(d * 700).toFixed(3)} px from where the arch starts (one ring)`);
   assert.equal(c9.to, 'AZY');
-  const arch = NETWORK_BY_ID.get('AZY_SVC')!;
   assert.equal(arch.from, 'AZY', 'the arch starts at the node the collateral ends at');
-  assert.ok(NETWORK.some((v) => v.id === 'C1b' && v.to === 'AZY'), 'and so does the esophageal collateral');
+  const c1b = NETWORK_BY_ID.get('C1b')!, [ax, ay] = NODE_POS_2D.AZY!, e1 = c1b.pts[c1b.pts.length - 1]!;
+  assert.ok(Math.hypot(e1[0] - x3(ax), e1[1] - y3(ay)) < 0.03, 'the esophageal collateral ends at the node, on the arch\'s side, 30 units along it');
 });
 
 test('it is drawn as the cava is: receded, only as the veil copy over the organs, whole when named; its end above the dome comes out solid at the azygos', () => {

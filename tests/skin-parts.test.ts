@@ -21,7 +21,7 @@ async function frameOf(preset: string): Promise<{ D: ArrayLike<number>; Q: Array
   core.dispose();
   return out.filter((m) => m.type === 'frame').at(-1) as never;
 }
-const AZY = 'wall:AZY_SVC:C91,C1b1', CAVA = 'wall:IVC_IS_1:S_PC1,C90';
+const AZY = 'wall:AZY_SVC:C1b1', CAVA = 'wall:IVC_IS_1:S_PC1,C90';   // (the azygos wall skin has one grower since Plan 16D: the lumbar vein runs on into the arch's start, tests/azygos-origin.test.ts)
 
 test('partOf: the plain trunk is the part with no grower, the welded skin the part with every one, and a skin with two growers has one part for each', () => {
   const arm = (id: string, grow: boolean) => ({ vesselId: id, end: 1, grow });
@@ -45,8 +45,9 @@ test('G1: the mesh drawn at a patient is the union of the arms that are there: e
     assert.deepEqual(g.set.partFailed, [], 'every part built');
     assert.deepEqual(g.set.bulgeOver, [], 'no part bulges past BULGE_MAX');
     const twoGrowers = g.skins.filter((s) => s.mesh.junction.arms.filter((a) => a.grow).length === 2).map((s) => s.node);
-    assert.deepEqual(twoGrowers.sort(), ['SMV', 'SVD', 'LRV_S', AZY, CAVA].sort().filter((n) => twoGrowers.includes(n)), 'the skins with two growers');
-    for (const n of [AZY, CAVA]) assert.equal(g.partsOf(n).length, 2, `${n}: a part for each grower`);
+    assert.deepEqual(twoGrowers.sort(), ['SMV', 'SVD', 'LRV_S', CAVA].sort().filter((n) => twoGrowers.includes(n)), 'the skins with two growers');
+    assert.equal(g.partsOf(CAVA).length, 2, `${CAVA}: a part for each grower`);
+    assert.equal(g.partsOf(AZY).length, 0, `${AZY}: one grower, no parts`);
     let parts = 0; const seen: string[] = [];
     for (const preset of ['schisto', 'csph', 'budd-chiari', 'cirr-decomp', 'cirr-comp', 'ncph']) {
       const fr = await frameOf(preset);
@@ -61,8 +62,8 @@ test('G1: the mesh drawn at a patient is the union of the arms that are there: e
         assert.ok(was.p95 > 10, `${preset} ${d.node}: the welded skin was ${was.p95.toFixed(1)} px off at p95 (the test bites)`);
       }
     }
-    assert.ok(seen.includes(`schisto:${AZY}`) && seen.includes(`budd-chiari:${CAVA}`), seen.join(' '));
-    assert.ok(parts >= 4, `${parts} part cases judged`);
+    assert.ok(seen.includes(`budd-chiari:${CAVA}`), seen.join(' '));
+    assert.ok(parts >= 1, `${parts} part cases judged`);
   } finally { g.done(); }
 });
 
@@ -92,22 +93,22 @@ function drawn(b: ReturnType<typeof body>, node: string): Record<string, number>
 
 test('G6: the pair that stands for the weld is the skin of the growers that are there and the skin without the one coming; every other skin of the node is not drawn', () => {
   const cases: { open: string[]; want: Record<string, number> }[] = [
-    { open: ['C9', 'C1b'], want: { welded: 1, '2': 0, '3': 0 } },
-    { open: ['C1b'], want: { welded: 0, '2': 0, '3': 1 } },   // Schistosomiasis: the part with the varices only
-    { open: ['C9'], want: { welded: 0, '2': 1, '3': 0 } },
+    { open: ['S_PC', 'C9'], want: { welded: 1, '2': 0, '3': 0 } },
+    { open: ['C9'], want: { welded: 0, '2': 0, '3': 1 } },   // the part with the lumbar vein only
+    { open: ['S_PC'], want: { welded: 0, '2': 1, '3': 0 } },
     { open: [], want: { welded: 0, '2': 0, '3': 0 } },
   ];
   for (const c of cases) {
     const b = body(c.open);
-    try { assert.deepEqual(drawn(b, AZY), c.want, `open ${c.open}`); } finally { b.done(); }
+    try { assert.deepEqual(drawn(b, CAVA), c.want, `open ${c.open}`); } finally { b.done(); }
   }
-  // C9 still coming (growth between WELD_FROM and 1) with C1b whole: the welded skin takes its share of one screen pattern and the part WITHOUT C9 (C1b only) the rest, so a pixel is exactly one of them
-  const half = body(['C9', 'C1b'], { C9: 0.95 });
+  // C9 still coming (growth between WELD_FROM and 1) with S_PC whole: the welded skin takes its share of one screen pattern and the part WITHOUT C9 (S_PC only) the rest, so a pixel is exactly one of them
+  const half = body(['S_PC', 'C9'], { C9: 0.95 });
   try {
-    const st = drawn(half, AZY), w = st.welded!;
+    const st = drawn(half, CAVA), w = st.welded!;
     assert.ok(w > 0 && w < 1, `the welded share ${w}`);
-    assert.ok(Math.abs(st['3']! - (1 - w)) < 1e-12, 'the part with the varices only draws the other pixels of the same screen pattern');
-    assert.equal(st['2'], 0, 'the part with C9 only is not drawn');
+    assert.ok(Math.abs(st['2']! - (1 - w)) < 1e-12, 'the part with S_PC only draws the other pixels of the same screen pattern');
+    assert.equal(st['3'], 0, 'the part with C9 only is not drawn');
   } finally { half.done(); }
 });
 
@@ -127,6 +128,6 @@ test('G3: the part drawn at a patient leaves no unpainted vessel at the landing 
         }
       }
     }
-    assert.ok(judged >= 6, `${judged} cases`);
+    assert.ok(judged >= 2, `${judged} cases`);
   } finally { g.done(); }
 });

@@ -114,7 +114,7 @@ export class VesselObject extends CelObject {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
         mapDepth: { value: 0 }, frontDepth: { value: 0 }, shadowPx: { value: SHADOW_PX }, shadowDepth: { value: SHADOW_DEPTH }, shadowDepthC: { value: SHADOW_DEPTH_MAP }, shadowA: { value: SHADOW.light.a }, shadowCol: { value: new Color() }, shadowEnd: { value: new Vector2(0, 0) },
-        liveW: { value: 1 }, skinWeld: { value: new Vector3(1, 1, 1) }, skinWeldC: { value: new Vector2(1, 1) }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, stentT0: { value: 0 }, stentWire: { value: new Vector4(0.9, 0.8, 0.5, 0) }, stentGoldC: { value: new Vector4(0.7, 0.5, 0.1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
+        liveW: { value: 1 }, skinWeld: { value: new Vector3(1, 1, 1) }, skinWeldC: { value: new Vector2(1, 1) }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mateK: { value: new Vector2(1, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, stentT0: { value: 0 }, stentWire: { value: new Vector4(0.9, 0.8, 0.5, 0) }, stentGoldC: { value: new Vector4(0.7, 0.5, 0.1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         glowK: { value: 1 }, veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, mapFade: { value: new Vector3(0, 1, 0) }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
@@ -338,6 +338,12 @@ export class VesselObject extends CelObject {
     (u.cmate1!.value as Vector3).set(end ? end.index : -1, end ? end.baseD : 1, end ? end.widthKind : 0);
     (u.cease!.value as Vector2).set(start ? ease[0] : 0, end ? ease[1] : 0);
   }
+  /** How far each end's mate counts in the live width (1 whole, 0 not at all): a mate that is drawn on and off eases the width with its drawing. Returns whether it changed. */
+  setMateK(k0: number, k1: number): boolean {
+    const v = this.toon.uniforms.mateK!.value as Vector2;
+    if (v.x === k0 && v.y === k1) return false;
+    v.set(k0, k1); return true;
+  }
   setMates(start: { index: number; baseD: number; widthKind: number } | null, end: { index: number; baseD: number; widthKind: number } | null): void {
     const u = this.toon.uniforms;
     (u.mate0!.value as Vector3).set(start ? start.index : -1, start ? start.baseD : 1, start ? start.widthKind : 0);
@@ -365,10 +371,12 @@ export class VesselObject extends CelObject {
     setBlendState(this.toon, true);
     if (this.veil) setBlendState(this.veil.mat, true);
   }
-  /** A fading tip with a collateral attached is solid to its end: its start alpha goes to 1. */
-  setTipJoined(joined: boolean): void {
-    if (!this.tip) return;
-    (this.toon.uniforms.fadeA!.value as Vector4).z = joined ? 1 : this.tip.a0;
+  /** A fading tip with a collateral attached is solid to its end: its start alpha goes to 1, by `joined` (0 to 1, the collateral's drawing on: it eases with it, never a step). Returns whether it changed. */
+  setTipJoined(joined: number): boolean {
+    if (!this.tip) return false;
+    const a = this.tip.a0 + (1 - this.tip.a0) * Math.min(1, Math.max(0, joined)), z = this.toon.uniforms.fadeA!.value as Vector4;
+    if (z.z === a) return false;
+    z.z = a; return true;
   }
   private cavaEndA = 1;
   /** A hepatic vein opens into the faint cava at full strength: its last `span` (a share of its length) eases to alpha `a`, the cava's, so no solid end lies in a faint vessel (fades.ts cavaEndSpan). Eased back up by `whole`. */
