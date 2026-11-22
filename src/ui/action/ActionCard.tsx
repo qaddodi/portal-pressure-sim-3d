@@ -1,5 +1,5 @@
 // The tap-anything card (2D: card.js, app-03-layouts.css .action-card): the name and its direction word, the reading or the pressure bar, the readings, the controls and the
-// actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (276 px); on a phone or an upright
+// actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (M.sideCardW, 340 px); on a phone or an upright
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';

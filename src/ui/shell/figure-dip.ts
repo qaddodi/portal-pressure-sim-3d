@@ -1,7 +1,8 @@
 // The figure dims and comes back (2D: `view.classList.add('pz-out')`, putHealthy's `view.style.opacity = '.22'`): a new patient is put in, or a talk ends, under a dimmed figure, so nobody is
 // ever seen turning into somebody else. A wash of the page's own colour over the figure and its labels (under the cards and the chrome), eased in and out; nothing here moves per frame.
 // `.22` is the 2D figure's own level: the wash carries the rest (1 - .22).
-import { D_SURFACE, fadeMs } from '../a11y/motion.ts';
+import { fadeMs } from '../a11y/motion.ts';
+import { D_SURFACE, EASE_ARRIVE } from '../motion.ts';
 
 export const DIP_LEVEL = 0.78;
 /** How the dip lifts again (2D putHealthy: the dim lifts over 260 ms). */
@@ -30,7 +31,7 @@ function ease(to: number, ms: number): Promise<void> {
   const from = level;
   anim?.cancel();
   e.style.opacity = String(from);
-  const a = (anim = e.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'forwards' }));
+  const a = (anim = e.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: EASE_ARRIVE, fill: 'forwards' }));
   // (a retarget in mid-flight starts from the level it had reached, read here once)
   level = to;
   return a.finished.then(() => { if (anim === a) { e.style.opacity = String(to); a.cancel(); anim = null; } }, () => undefined);

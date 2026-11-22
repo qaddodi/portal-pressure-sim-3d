@@ -72,14 +72,14 @@ export function judgeScan(s: RawScan): AuditFinding[] {
     const sp = past(i.box, screen);
     if (!i.scrolls && sp.length && inter(i.box, screen) > 0) add('off-screen', 'fail', `${label(i)} runs past the screen: ${sp.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')}${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
     if (i.kind === 'text' && i.px != null) {
-      if (i.px < WORDS_MIN_PX - 0.3) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})`, i.what, n);
+      if (i.px < WORDS_MIN_PX - 0.3) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
       if (i.fg && i.bg && !i.fading) {
         try {
           const large = i.px >= 24 || (i.bold && i.px >= 18.66), need = large ? 3 : CONTRAST_TEXT;
           const fgA = Number(/,\s*([\d.]+)\)$/.exec(i.fg)?.[1] ?? 1) * Math.min(1, i.opacity);
           const fg = i.fg.replace(/,\s*[\d.]+\)$/, `, ${fgA})`);
           const r = contrast(fg, i.bg);
-          if (r < need) add('low-contrast', 'warn', `${label(i)} is ${r}:1 on its background (needs ${need})`, i.what, n);
+          if (r < need) add('low-contrast', 'warn', `${label(i)} is ${r}:1 on its background (needs ${need})${i.opacity < 0.995 ? `, drawn at ${Math.round(i.opacity * 100)}% opacity` : ''}${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
         } catch { /* a colour this cannot read: not judged */ }
       }
     }

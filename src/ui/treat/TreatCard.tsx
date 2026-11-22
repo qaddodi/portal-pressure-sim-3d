@@ -26,11 +26,11 @@ import { glideCard } from './glide.ts';
 import { startSegGlideOn } from './seg-glide.copied.ts';
 import { pushPage, type Pushed } from './page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
-import { D_SMALL, reduced } from '../a11y/motion.ts';
+import { reduced } from '../a11y/motion.ts';
+import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 const L = TREAT_WORDS.lines.labels;
-const EASE_ARRIVE = 'cubic-bezier(.2, .8, .2, 1)';   // (2D ease.js)
 
 type Active = ReturnType<typeof activeInterventions>[number];
 
