@@ -9,6 +9,7 @@ import { COURSES } from './course.ts';
 import { CIRC_C, MAP_K } from './map.ts';
 import { CIRCUIT_D, NODE_CIRCUIT, RES_LIVER, RES_SIZES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
+import { laneCourseOf } from './segment-lane.ts';
 import { peelAt, peelRank } from './peel.ts';
 import { type ResKey, RES_OUTLINE, RES_TEETH, resAmp, resHeat, resInk, resWidthFit, zigzag } from './res-model.ts';
 
@@ -81,7 +82,7 @@ export function resShape(key: ResKey, ratio: number, scQ: number): ResShape {
   }
   const lane = key === 'rGut' ? 'A_SMA' : 'C1b';
   // (the arteries are not in the body's courses: the lane's own map drawing is the course)
-  const pts = COURSES.get(lane)?.mapPts ?? (CIRCUIT_D[lane] ? courseOf(CIRCUIT_D[lane]!) : null);
+  const pts = laneCourseOf(lane);   // (a segment's whole run, centred: the coronary vein to the azygos is one lane)
   if (!pts) return { key, polys: [], veil: [] };
   const [x, y, tx, ty] = pointAndTangent(pts, 0.5);
   return { key, polys: [zigzag(x - tx * 34, y - ty * 34, x + tx * 34, y + ty * 34, RES_TEETH, amp)], veil: [] };
@@ -91,7 +92,7 @@ export function resShape(key: ResKey, ratio: number, scQ: number): ResShape {
 export function resRank(key: ResKey): number {
   if (key === 'rLiver') return peelRank((RES_LIVER[0]! + RES_LIVER[2]!) / 2);
   const lane = key === 'rGut' ? 'A_SMA' : 'C1b';
-  const pts = COURSES.get(lane)?.mapPts ?? (CIRCUIT_D[lane] ? courseOf(CIRCUIT_D[lane]!) : null);
+  const pts = laneCourseOf(lane);
   return pts ? peelRank(pointAndTangent(pts, 0.5)[0]!) : 1;
 }
 

@@ -100,3 +100,24 @@ test('the strands open one after another as the varix grows (V2), the one the ba
   for (let i = 0; i < 3; i++) assert.ok(r[i]! >= full[i]! * BANDED_CORD - 1e-12, 'never thinner than a cord');
   assert.ok(full[0]! > 0 && Math.abs(full[0]! - full[1]!) < full[0]! * 0.3, 'at rest the strands are about one width');
 });
+
+test('on the Circuit the segment is one lane: its resistor and caption run along the whole of it, centred, and the lane is keyed by one id', async () => {
+  const { laneCourseOf, laneKeyOf } = await import('../src/scene/circuit/segment-lane.ts');
+  const { COURSES } = await import('../src/scene/circuit/course.ts');
+  assert.equal(laneKeyOf('C1a'), 'C1b');
+  assert.equal(laneKeyOf('C1b'), 'C1b');
+  assert.equal(laneKeyOf('C2'), 'C2', 'another collateral is its own lane');
+  const a = COURSES.get('C1a')!.mapPts, b = COURSES.get('C1b')!.mapPts, whole = laneCourseOf('C1b')!;
+  assert.deepEqual(laneCourseOf('C1a'), whole, 'either half names the same lane');
+  assert.deepEqual(whole[0], a[0]);
+  assert.deepEqual(whole[whole.length - 1], b[b.length - 1]);
+  assert.ok(whole.length >= a.length + b.length - 1 && whole.length <= a.length + b.length, 'the station once');
+  const mid = (p: readonly (readonly [number, number])[]) => {
+    const cum = [0]; for (let i = 1; i < p.length; i++) cum.push(cum[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]));
+    const want = cum[cum.length - 1]! / 2, k = Math.max(1, cum.findIndex((c) => c >= want)), f = (want - cum[k - 1]!) / (cum[k]! - cum[k - 1]! || 1);
+    return [p[k - 1]![0] + (p[k]![0] - p[k - 1]![0]) * f, p[k - 1]![1] + (p[k]![1] - p[k - 1]![1]) * f] as const;
+  };
+  const m = mid(whole), mb = mid(b);
+  assert.ok(Math.hypot(m[0] - mb[0], m[1] - mb[1]) > 20, 'the middle of the lane is not the middle of its azygos half');
+  assert.deepEqual(laneCourseOf('C2'), COURSES.get('C2')!.mapPts, 'a lane that is not a segment is its own course');
+});
