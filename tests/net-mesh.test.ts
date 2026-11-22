@@ -193,9 +193,10 @@ test('the baked file round-trips a mesh bit for bit, and its digest follows the 
   for (const k of ['position', 'bone', 'weight', 'offset', 'normal', 'offsetMap', 'bakeScale', 'index'] as const) assert.deepEqual(Array.from(back.mesh[k]!), Array.from(m[k]!), k);
   assert.equal(back.mesh.keys, undefined, 'no states, no keys');
   // keys round-trip too (net/keys.ts)
-  const E = fx.skel.edges.length, states = [0.4, 0.7, 1.15].map((x) => Array.from({ length: E }, (_, e) => (e % 2 ? 1 : x))), keyed = buildNetMesh(fx.skel, undefined, { states }).mesh, kb = decodeNet(encodeNet(keyed, digest))!;
+  const E = fx.skel.edges.length, states = [0.4, 0.7, 1.15].map((x) => Array.from({ length: E }, (_, e) => (e % 2 ? 1 : x))), kr = buildNetMesh(fx.skel, undefined, { states, maps: true }), keyed = kr.mesh, kb = decodeNet(encodeNet(keyed, digest, kr.nodes))!;
   assert.ok(keyed.keys && keyed.keys.length > 0);
   assert.deepEqual(kb.mesh.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), Array.from(k.offset), Array.from(k.offsetMap)])]), keyed.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), Array.from(k.offset), Array.from(k.offsetMap)])]));
+  assert.deepEqual(kb.nodes.map((n) => [n.node, n.variant, n.switchT, n.vertStart, n.triStart]), kr.nodes.filter((n) => n.kind === 'junction').map((n) => [n.node, n.variant, n.switchT, n.vertStart, n.triStart]), 'the junction reports with their variants and windows ride in the file');
   assert.equal(decodeNet(new ArrayBuffer(32)), null);
   const moved = fixtures().find((f) => f.name === 'FOUR')!.skel;
   moved.bones[3]!.pos[0] = [9, 9, 9];

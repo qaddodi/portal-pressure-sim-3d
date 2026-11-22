@@ -6,7 +6,7 @@ import type { RegionKeys } from '../src/scene/vessels/net/keys.ts';
 import type { Skeleton } from '../src/scene/vessels/net/types.ts';
 
 export function keyQuality(skel0: Skeleton, r: NetMeshResult, rk: RegionKeys, keyIx: number, pose: 0 | 1, states: readonly (readonly number[])[]): { res: number; flips: number; tris: number } {
-  const m = r.mesh, skel = scaledSkeleton(skel0, r.mesh.bakeScale!), key = rk.keys[keyIx]!, rep = r.nodes.find((n) => n.node === rk.node)!, used = new Set<number>();
+  const m = r.mesh, skel = scaledSkeleton(skel0, r.mesh.bakeScale!), key = rk.keys[keyIx]!, rep = r.nodes.find((n) => n.node === rk.node && n.vertStart === rk.vertStart)!, used = new Set<number>();
   for (let t = rep.triStart; t < rep.triStart + rep.triCount; t++) for (let q = 0; q < 3; q++) used.add(m.index[3 * t + q]!);
   const rg: FitRegion = { verts: [...used].sort((a, b) => a - b), tris: Array.from(m.index.subarray(3 * rep.triStart, 3 * (rep.triStart + rep.triCount))), free: [rep.vertStart, rep.vertCount], arms: rep.arms.length, caps: rep.capBones!.map((bones, i) => ({ bones, mate: rep.caps![i]!.mate })), rings: rep.rings! };
   const bs = m.bakeScale!, fs = Float64Array.from(states[key.state]!, (x, e) => x / bs[e]!), off = Float32Array.from(pose ? m.offsetMap : m.offset), src = pose ? key.offsetMap : key.offset;

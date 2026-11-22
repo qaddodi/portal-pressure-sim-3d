@@ -16,7 +16,7 @@ export const BODY_ONLY: readonly [number, number] = [2, 2], MAP_ONLY: readonly [
 /** The body mesh's share of the pixels at t (the vertex stage's `wb`): 1 before the window, 0 after it, smooth inside; a window with a <= b is a hard switch at a. */
 export const bodyShare = (win: readonly [number, number], t: number): number => { const [b, a] = win; if (a > b) { const x = Math.min(1, Math.max(0, (t - b) / (a - b))); return 1 - x * x * (3 - 2 * x); } return t < a ? 1 : 0; };
 
-export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[]; /** 0: the body-built mesh, 1: the map-built (the mesher reports it, `NodeReport.variant`; absent = body) */ variant: 0 | 1; /** the t window over which this region's two meshes hand over, `[b, a]` (`NodeReport.switchT`; absent = this mesh alone) */ window: readonly [number, number] }
+export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[]; /** 0: the body-built mesh, 1: the map-built (the mesher reports it, `NodeReport.variant`; absent = body) */ variant: 0 | 1 | 2; /** the t window over which this region's two meshes hand over, `[b, a]` (`NodeReport.switchT`; absent = this mesh alone) */ window: readonly [number, number]; /** variant 2 only (a mid mesh, `NodeReport.switchT2`): the window it hands over to the map mesh in (`window` is the one from the body mesh) */ window2?: readonly [number, number] }
 
 export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[] {
   const out: Region[] = [];
@@ -41,7 +41,7 @@ export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[
       return { bones, mate: c.mate };
     });
     const variant = n.variant ?? 0;
-    out.push({ node: n.node, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, caps, variant, window: n.switchT ?? (variant === 0 ? BODY_ONLY : MAP_ONLY) });
+    out.push({ node: n.node, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, caps, variant, window: n.switchT ?? (variant === 0 ? BODY_ONLY : MAP_ONLY), ...(n.switchT2 ? { window2: n.switchT2 } : {}) });
   }
   return out;
 }

@@ -14,6 +14,8 @@ import { SHEET_CUT_R } from '../skin/sheet.ts';
 import { throughNeck } from './neck.ts';
 import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
+import { boneFrame, bonePos, boneRadius, type Pose } from './pose.ts';
+import { bonesAtT, windowOf, type Window } from './window.ts';
 import { regionKeys } from './keys.ts';
 import { bakeScaleOf } from './ranges.ts';
 import { sewnEnds } from './sewn.ts';
@@ -83,13 +85,16 @@ export interface NodeReport {
   /** junction: the union's capsules as meshed (axis points, radii at them, the mate's index or -1), the arms' first, then the short edges' and any run-on capsule: what the shader's implicit-skinning projection rebuilds from the live bones (net/regions.ts) */
   caps?: { pts: number[]; r: number[]; mate: number }[];
   /** a region built twice (plan owner, 22 Nov): 0 the body-layout mesh, 1 the map-layout mesh (absent: body), and the t window `[b, a]` over which the two hand over by the screen dither (net/regions.ts bodyShare); absent: this mesh is drawn alone */
-  variant?: 0 | 1;
+  /** the layout the region's mesh was built at: 0 body, 1 map, 2 the middle of the Circuit (t = 0.5, only a region whose body and map meshes share no t, with `mid`) */
+  variant?: 0 | 1 | 2;
+  /** the t range [b, a] the body mesh hands over to the next one in (and the previous one to the map mesh when this is variant 1); a mid mesh's `switchT` is its hand-over from the body mesh and `switchT2` its hand-over to the map mesh */
   switchT?: readonly [number, number];
+  switchT2?: readonly [number, number];
   /** junction: the bones each of `caps` runs through, and each arm's seam ring (mesh vertex ids): what net/fit.ts needs to fit the region at the other states */
   capBones?: number[][]; rings?: number[][];
   through: { arms: [number, number]; mated: boolean; toggled: boolean; margin: number }[];
 }
-export interface NetMeshResult { mesh: NetMesh; edges: number[]; nodes: NodeReport[]; /** only in a lenient diagnosis run: the regions that would not mesh (left unfilled) */ failures: { node: string; why: string }[]; report: { vertices: number; triangles: number; sweepTriangles: number } }
+export interface NetMeshResult { mesh: NetMesh; edges: number[]; nodes: NodeReport[]; /** only in a lenient diagnosis run: the regions that would not mesh (left unfilled) */ failures: { node: string; why: string }[]; /** regions whose map-built mesh could not be made (the body mesh is drawn alone), with why */ mapNotes: { node: string; why: string }[]; /** with `maps`: each region's two meshes' windows (net/window.ts), by node name */ windows: Map<string, Window>; report: { vertices: number; triangles: number; sweepTriangles: number } }
 
 type V3 = [number, number, number];
 const sub = (a: Vec3, b: Vec3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -98,7 +103,7 @@ const cross = (a: Vec3, b: Vec3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] 
 const norm = (a: Vec3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /** One edge as the mesher walks it. */
-interface EdgeCtx { idx: number; id: string; first: number; count: number; bones: Bone[]; cum: number[]; alpha: number; seg: number[] /* rings per segment */ }
+interface EdgeCtx { idx: number; id: string; first: number; count: number; bones: Bone[]; cum: number[]; /** the arc length at each bone in the MAP pose */ cum1: number[]; alpha: number; seg: number[] /* rings per segment */ }
 interface Sample { P: V3; r: number; t: V3; n: V3; b: V3; k: number; f: number; /** d radius / d arc length along the edge here (a taper tilts the surface normal by this much) */ dr: number }
 
 /** The connected networks of a skeleton: each a list of edge indices (every edge sharing a node is in one). */
@@ -117,8 +122,28 @@ export function scaledSkeleton(skel: Skeleton, bakeScale: ArrayLike<number>): Sk
   return id ? skel : { ...skel, bones: skel.bones.map((b) => { const g = bakeScale[b.edge]!; return g === 1 ? b : { ...b, r: [b.r[0] * g, b.r[1] * g] as [number, number] }; }) };
 }
 
+/** Takes the given regions' meshes (their vertices and triangles) out of a built mesh and closes the gaps. Region vertices all follow the tube vertices, so the rings the reports name keep their ids. */
+function dropMeshes(res: NetMeshResult, drop: ReadonlySet<NodeReport>): void {
+  const m = res.mesh, V = m.position.length / 3, keepV = new Uint8Array(V).fill(1), T = m.index.length / 3, keepT = new Uint8Array(T).fill(1);
+  for (const r of drop) { keepV.fill(0, r.vertStart, r.vertStart + r.vertCount); keepT.fill(0, r.triStart, r.triStart + r.triCount); }
+  const vmap = new Int32Array(V), vShift = new Int32Array(V + 1), tShift = new Int32Array(T + 1);
+  let nv = 0; for (let v = 0; v < V; v++) { vShift[v] = v - nv; if (keepV[v]) vmap[v] = nv++; else vmap[v] = -1; }
+  vShift[V] = V - nv;
+  let nt = 0; for (let t = 0; t < T; t++) { tShift[t] = t - nt; if (keepT[t]) nt++; }
+  tShift[T] = T - nt;
+  const take = (a: Float32Array, per: number): Float32Array => { const out = new Float32Array(per * nv); for (let v = 0; v < V; v++) if (vmap[v]! >= 0) out.set(a.subarray(per * v, per * v + per), per * vmap[v]!); return out; };
+  const bone = new Uint16Array(4 * nv), index = new Uint32Array(3 * nt);
+  for (let v = 0; v < V; v++) if (vmap[v]! >= 0) bone.set(m.bone.subarray(4 * v, 4 * v + 4), 4 * vmap[v]!);
+  let q = 0; for (let t = 0; t < T; t++) if (keepT[t]) { for (let c = 0; c < 3; c++) index[q++] = vmap[m.index[3 * t + c]!]!; }
+  Object.assign(m, { position: take(m.position, 3), bone, weight: take(m.weight, 4), offset: take(m.offset, 12), offsetMap: take(m.offsetMap, 12), normal: take(m.normal, 12), index });
+  for (const r of res.nodes) { if (drop.has(r)) continue; r.vertStart -= vShift[r.vertStart]!; r.triStart -= tShift[r.triStart]!; }
+  res.nodes = res.nodes.filter((r) => !drop.has(r));
+  for (const k of m.keys ?? []) k.vertStart -= vShift[k.vertStart]!;
+  res.report.vertices = nv; res.report.triangles = nt;
+}
+
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
-export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[] }): NetMeshResult {
+export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** also build each junction region's MAP-built mesh (a second mesh per region in the same index buffer: NodeReport.variant 1) on seams that clear at both layouts */ maps?: boolean; /** with `maps`: also a mesh built at t = 0.5 for every map-capable region (the ones the windows need are kept) */ mid?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[] }): NetMeshResult {
   // The mesh is baked at each arm's MIDDLE radius (ranges.ts: the geometric mean of its swell range), so the fillets' fixed triangles are within the least ratio of every state: the bones' radii are scaled by their edge's factor for the build.
   // The offsets are divided by those radii, so a tube is unchanged (its unit offsets times the live radius); `bakeScale` tells the shader's junction start to take the factor too (lumenRest x bakeScale).
   const bakeScale = new Float32Array(skel.edges.length).fill(1);
@@ -126,20 +151,43 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: {
   const scaled = scaledSkeleton(skel, bakeScale);
   const res = buildOnce(scaled, edges, opts, bakeScale);
   res.mesh.bakeScale = bakeScale;
+  if (opts?.maps) {
+    // each region's meshes hand over inside the t windows where both are whole (net/window.ts); a region with only one mesh is drawn with that one alone, a pair with no overlap takes its mid mesh, and a mid mesh not needed is dropped
+    const byNode = new Map<string, NodeReport[]>();
+    for (const n of res.nodes) if (n.kind === 'junction' && n.caps && n.capBones) (byNode.get(n.node) ?? byNode.set(n.node, []).get(n.node)!).push(n);
+    const region = (n: NodeReport) => ({ node: n.node, variant: (n.variant ?? 0) as 0 | 1 | 2, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, triStart: n.triStart, triCount: n.triCount, capBones: n.capBones!, mates: n.caps!.map((c) => c.mate) });
+    const drop = new Set<NodeReport>();
+    for (const [node, list] of byNode) {
+      const body = list.find((n) => (n.variant ?? 0) === 0), map = list.find((n) => n.variant === 1), mid = list.find((n) => n.variant === 2);
+      if (!body || !map) { if (mid) drop.add(mid); continue; }
+      const w = windowOf(scaled, res.mesh, region(body), region(map), mid && region(mid));
+      res.windows.set(node, w);
+      if (w.switchT) { body.switchT = w.switchT; map.switchT = w.switchT; if (mid) drop.add(mid); }
+      else if (w.mid?.windows) { body.switchT = w.mid.windows[0]; mid!.switchT = w.mid.windows[0]; mid!.switchT2 = w.mid.windows[1]; map.switchT = w.mid.windows[1]; }
+      else {
+        const c = Math.min(1, Math.max(0, (w.a + w.b) / 2));
+        body.switchT = [c, c]; map.switchT = [c, c];
+        if (mid) drop.add(mid);
+        res.mapNotes.push({ node, why: `the body and map meshes share no t (body whole up to ${w.a.toFixed(2)}, map from ${w.b.toFixed(2)})${mid ? ' and the t = 0.5 mesh does not bridge them' : ': needs a t = 0.5 mesh (`mid`)'}: hard switch at ${c.toFixed(2)}` });
+      }
+    }
+    if (drop.size) dropMeshes(res, drop);
+  }
   return res;
 }
 
-function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; states?: readonly (readonly number[])[] } | undefined, bakeScale: Float32Array): NetMeshResult {
+function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; maps?: boolean; mid?: boolean; states?: readonly (readonly number[])[] } | undefined, bakeScale: Float32Array): NetMeshResult {
   const inNet = new Set(edges ?? skel.edges.map((_, i) => i));
   const ctx = new Map<number, EdgeCtx>();
   for (const i of inNet) {
     const e = skel.edges[i]!, [first, count] = e.bones;
     if (count < 2) throw new NetMeshError(e.id, 'an edge needs at least two bones');
-    const bones = skel.bones.slice(first, first + count), cum = [0];
+    const bones = skel.bones.slice(first, first + count), cum = [0], cum1 = [0];
+    for (let k = 1; k < count; k++) cum1.push(cum1[k - 1]! + Math.hypot(...sub(bones[k]!.pos[1], bones[k - 1]!.pos[1])));
     for (let k = 1; k < count; k++) cum.push(cum[k - 1]! + Math.hypot(...sub(bones[k]!.pos[0], bones[k - 1]!.pos[0])));
     const seg: number[] = [];
     for (let k = 0; k < count - 1; k++) seg.push(Math.max(1, Math.min(MAX_SUB, Math.ceil((cum[k + 1]! - cum[k]!) / (RING_STEP * 0.5 * (bones[k]!.r[0] + bones[k + 1]!.r[0]))))));
-    ctx.set(i, { idx: i, id: e.id, first, count, bones, cum, alpha: 0, seg });
+    ctx.set(i, { idx: i, id: e.id, first, count, bones, cum, cum1, alpha: 0, seg });
   }
   const inNodes = skel.nodes.filter((n) => n.edges.length && n.edges.every((x) => inNet.has(x.edge)));
   for (const n of skel.nodes) if (n.edges.some((x) => inNet.has(x.edge)) && !inNodes.includes(n)) throw new NetMeshError(n.id, 'the node joins an edge outside this network');
@@ -172,6 +220,13 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
     let n: V3 = [0, 1, 2].map((d) => (1 - f) * a.frame[1][d]! + f * b.frame[1][d]!) as V3;
     const nt = dot(n, t); n = norm([n[0] - nt * t[0], n[1] - nt * t[1], n[2] - nt * t[2]]);
     return { P, r: (1 - f) * a.r[0] + f * b.r[0], t, n, b: cross(t, n), k, f, dr: slope(k, k + 1) };
+  };
+  /** The ring sample at a WHOLE bone (a seam) in any pose: the bone's own position, radius and frame there (net/pose.ts), the taper from its neighbours. */
+  const sampleP = (c: EdgeCtx, s: number, pose: Pose): Sample => {
+    if (pose === 0) return sample(c, s);
+    const k = Math.min(c.count - 1, Math.max(0, Math.round(s))), g = c.first + k, F = boneFrame(skel, g, pose), i = Math.max(0, k - 1), j = Math.min(c.count - 1, k + 1);
+    let arc = 0; for (let m = i + 1; m <= j; m++) arc += Math.hypot(...sub(bonePos(skel, c.first + m, pose), bonePos(skel, c.first + m - 1, pose)));
+    return { P: [...bonePos(skel, g, pose)], r: boneRadius(skel, g, pose), t: [...F[0]], n: [...F[1]], b: [...F[2]], k, f: 0, dr: (boneRadius(skel, c.first + j, pose) - boneRadius(skel, c.first + i, pose)) / (arc || 1) };
   };
   const theta = (j: number, alpha: number): number => (2 * Math.PI * j) / RADIAL + alpha;
   const ringOf = (S: Sample, alpha: number): { p: Float32Array; nrm: Float32Array } => {
@@ -240,9 +295,10 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   }
 
   // ---- vertices ----
-  const pos: number[] = [], vn: number[] = [], vb: number[][] = [], vw: number[][] = [];
+  const variantPose: Pose[] = [0, 1, 0], midPose = opts?.mid ? { bones: bonesAtT(skel, 0.5) } : undefined;   // (the pose each variant's mesh is built at; the mid one's per-bone state)
+  const pos: number[] = [], vn: number[] = [], vb: number[][] = [], vw: number[][] = [], vp: number[] = [];   // (vp: the pose each vertex was built at, 1 for a map-built mesh's)
   /** A vertex at p[o..o+2] bound to `bones` with `weights`, its rest normal n[no..no+2] (unit). */
-  const addVertex = (p: ArrayLike<number>, o: number, bones: number[], weights: number[], n: ArrayLike<number>, no: number): number => { pos.push(p[o]!, p[o + 1]!, p[o + 2]!); vn.push(n[no]!, n[no + 1]!, n[no + 2]!); vb.push(bones); vw.push(weights); return vb.length - 1; };
+  const addVertex = (p: ArrayLike<number>, o: number, bones: number[], weights: number[], n: ArrayLike<number>, no: number, pose: 0 | 1 | 2 = 0): number => { vp.push(pose); pos.push(p[o]!, p[o + 1]!, p[o + 2]!); vn.push(n[no]!, n[no + 1]!, n[no + 2]!); vb.push(bones); vw.push(weights); return vb.length - 1; };
   const tris: number[] = [];
   const bridge = (lo: readonly number[], hi: readonly number[]): void => {
     for (let j = 0; j < RADIAL; j++) {
@@ -303,7 +359,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   const reports: NodeReport[] = [], memo = new Map<string, number>();
   const pendingSkins: (() => void)[] = [];
   const nodeOf = (e: EdgeCtx, end: 0 | 1) => nodes.find((n) => n.id === (end === 0 ? skel.edges[e.idx]!.from : skel.edges[e.idx]!.to))!;
-  const plannedSeams = new Map<string, number>();
+  const plannedSeams = new Map<string, number>(), bodySeams = new Map<string, number>(), mapOkRegions = new Set<string>();
   const otherEndLimit = (c: EdgeCtx, end: 0 | 1): number => {
     // how many bones in from this end a seam may stand: leave one segment between this seam and whatever the other end is cut to
     const other = nodeOf(c, end === 0 ? 1 : 0), cuts = jset.has(other.id);
@@ -325,9 +381,9 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   };
   const smoothstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-  const failures: { node: string; why: string }[] = [];
+  const failures: { node: string; why: string }[] = [], mapNotes: { node: string; why: string }[] = [];
   /** what a planning pass learns about a region's seams (see below): the bone each arm's seam stands at, and the arms whose ring clears nothing */
-  interface Plan { seam: Map<string, number>; failed: number[] }
+  interface Plan { seam: Map<string, number>; failed: number[]; /** the body-only seams of every arm (what a region falls back to) */ body: Map<string, number>; /** regions whose seams clear at the map layout too (a map-built mesh can stand on the same rings) */ mapOk: Set<string> }
   const meshRegion = (region: typeof jnodes, plan?: Plan): void => {
     const rid = region.map((n) => n.id).join('+'), ids = new Set(region.map((n) => n.id));
     const armsRaw: Arm[] = [], internal: Arm[] = [];
@@ -353,9 +409,9 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
     // the capsules (axes) first: each arm's bones out from its node, long enough to carry its seam; then the short edges whole. Every one is a capsule of the union, so the fillet fills the region between the arms.
     // Every capsule is a run of BONES (the polyline through their positions, their radii): the shader rebuilds the same capsules from the bone rows, so the union the fillet is meshed on is the one it projects onto live.
     const base: Capsule[] = [], capBones: number[][] = [], capOf: (Arm | null)[] = [];
-    const capFromBones = (ids: readonly number[], pose: 0 | 1): Capsule => {
+    const capFromBones = (ids: readonly number[], pose: Pose): Capsule => {
       const pts = new Float64Array(3 * ids.length), r = new Float64Array(ids.length);
-      ids.forEach((g, q) => { const b = skel.bones[g]!; pts[3 * q] = b.pos[pose][0]; pts[3 * q + 1] = b.pos[pose][1]; pts[3 * q + 2] = b.pos[pose][2]; r[q] = b.r[pose]; });
+      ids.forEach((g, q) => { const P = bonePos(skel, g, pose); pts[3 * q] = P[0]; pts[3 * q + 1] = P[1]; pts[3 * q + 2] = P[2]; r[q] = boneRadius(skel, g, pose); });
       return { n: ids.length, pts, r };
     };
     arms.forEach((a, i) => {
@@ -459,18 +515,23 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
     }
     // The seam of each arm stands at the first bone where (1) its ring clears every other capsule by k plus half the narrower radius (the fixture rule of tests/skin-mesh.test.ts), and (2) nothing of any other capsule lies in the cylinder the sheet cuts away beyond
     // the seam's plane (sheet.ts: SHEET_CUT_R radii of the ring's axis): an arm that grazes another leaves a stray strip of surface there, which the builder reads as an extra seam loop. One rule, no fallback: an arm that finds no such bone fails its region.
-    const clearAt = (i: number, m: number): boolean => {
-      const a = arms[i]!, S = sample(a.ctx, a.end === 0 ? m : a.ctx.count - 1 - m), ring = ringOf(S, a.ctx.alpha).p;
-      for (let q = 0; q < caps.length; q++) {
+    // (the body mesh's seam clears at the body layout; the map-built mesh has its own, found the same way at the map layout)
+    const k1 = SKIN_K * Math.min(...arms.map((a) => boneRadius(skel, gbone(a.ctx, endBone(a.ctx, a.end)), 1)));
+    const mapCaps = (): Capsule[] => capBones.map((ids, q) => ({ ...capFromBones(ids, 1), ...(caps[q]!.mate !== undefined ? { mate: caps[q]!.mate } : {}) }));
+    const clearAt = (i: number, m: number): boolean => clearAtPose(i, m, 0, caps, k);
+    const clearAtPose = (i: number, m: number, pose: Pose, capsP: readonly Capsule[], kP: number): boolean => {
+      const a = arms[i]!, S = sampleP(a.ctx, a.end === 0 ? m : a.ctx.count - 1 - m, pose), ring = ringOf(S, a.ctx.alpha).p;
+      const at = (mm: number): { P: Vec3; r: number } => { const g = gbone(a.ctx, a.bonesOut[mm]!); return { P: bonePos(skel, g, pose), r: boneRadius(skel, g, pose) }; };
+      for (let q = 0; q < capsP.length; q++) {
         if (q === i || mateOf.get(i) === q) continue;
-        const c = caps[q]!;
-        for (let j = 0; j < RADIAL; j++) if (sdArm(c, ring[3 * j]!, ring[3 * j + 1]!, ring[3 * j + 2]!) < k + 0.5 * Math.min(a.r, c.r[0]!)) return false;
+        const c = capsP[q]!;
+        for (let j = 0; j < RADIAL; j++) if (sdArm(c, ring[3 * j]!, ring[3 * j + 1]!, ring[3 * j + 2]!) < kP + 0.5 * Math.min(S.r, c.r[0]!)) return false;
         // the cut cylinder: the ring's centre, its direction out of the region, its radius
-        const C = a.pts[m]!, B = a.pts[m - 1]!, nl = Math.hypot(C[0] - B[0], C[1] - B[1], C[2] - B[2]) || 1, nx = (C[0] - B[0]) / nl, ny = (C[1] - B[1]) / nl, nz = (C[2] - B[2]) / nl;
+        const C = at(m).P, B = at(m - 1).P, nl = Math.hypot(C[0] - B[0], C[1] - B[1], C[2] - B[2]) || 1, nx = (C[0] - B[0]) / nl, ny = (C[1] - B[1]) / nl, nz = (C[2] - B[2]) / nl, rm = at(m).r;
         for (let u = 0; u < c.n - 1; u++) for (let sub = 0; sub <= CYL_STEPS; sub++) {
           const f = sub / CYL_STEPS, px = c.pts[3 * u]! + (c.pts[3 * u + 3]! - c.pts[3 * u]!) * f - C[0], py = c.pts[3 * u + 1]! + (c.pts[3 * u + 4]! - c.pts[3 * u + 1]!) * f - C[1], pz = c.pts[3 * u + 2]! + (c.pts[3 * u + 5]! - c.pts[3 * u + 2]!) * f - C[2];
           const rq = c.r[u]! + (c.r[u + 1]! - c.r[u]!) * f, h = px * nx + py * ny + pz * nz, lat = Math.hypot(px - h * nx, py - h * ny, pz - h * nz);
-          if (h + rq + k > 0 && lat - rq - k < SHEET_CUT_R * a.rad[m]!) return false;
+          if (h + rq + kP > 0 && lat - rq - kP < SHEET_CUT_R * rm) return false;
         }
       }
       return true;
@@ -484,7 +545,15 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         if (found < 0) { if (!plan) return null; plan.failed.push(arms[i]!.edge); missed = true; continue; }
         out.push(found);
       }
-      return missed ? null : out;
+      if (missed) return null;
+      // the map-built mesh stands on the same rings, so a ring must clear at the map layout as well: the first bone at or past the body's that clears in both poses. When every arm has one the region is built twice;
+      // when one has none (it would not fit its edge) the region keeps the body mesh alone (and says so), and the seams are the body's.
+      if (plan && opts?.maps) {
+        arms.forEach((a, i) => plan.body.set(`${a.edge}:${a.end}`, out[i]!));
+        const mc = mapCaps(), both = out.map((f, i) => { for (let m = f; m <= limit[i]!; m++) if (clearAtPose(i, m, 0, caps, k) && clearAtPose(i, m, 1, mc, k1)) return m; return -1; });
+        if (both.every((m) => m > 0)) { plan.mapOk.add(rid); return both; }
+      }
+      return out;
     };
     if (plan) {
       const seams = seamBones();
@@ -501,25 +570,26 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       arms.forEach((a, i) => { const S = sample(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!), r = ringOf(S, a.ctx.alpha); rings.push(r.p); normals.push(r.nrm); });
       const junction: SkinJunction = { node: rid, J, arms: skinArms, surface: true, ...(arms.length > 6 ? { maxArms: MAX_ARMS } : {}) };
       const cuts: SkinCut[] = arms.map((a, i) => ({ vesselId: a.ctx.id, end: a.end, ring: seams[i]!, u: seams[i]! / (a.ctx.count - 1) }));
-      let skin;
-      try { skin = buildSkinSteady(junction, cuts, rings, normals, caps, arms.length > 6 || internal.length ? 48000 : undefined, memo); }
-      catch (e) {
-        if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the junction will not mesh: ${e.message}`); throw e; }
-      // a sliver the remesh left is cleaned here, once, on the same union: edges flipped where that raises the smallest angle, the free vertices evened out along the surface (relax.ts); the seam rings stay
-      {
-        const V0 = skin.position.length / 3, P = Float64Array.from(skin.position), tr = Array.from(skin.index), fixed = new Uint8Array(V0).fill(1, 0, arms.length * RADIAL).fill(0, arms.length * RADIAL);
+      const cleaned = (skin0: ReturnType<typeof buildSkinSteady>, capsX: readonly Capsule[], kX: number): ReturnType<typeof buildSkinSteady> => {
+        // a sliver the remesh left is cleaned here, once, on the same union: edges flipped where that raises the smallest angle, the free vertices evened out along the surface (relax.ts); the seam rings stay
+        const V0 = skin0.position.length / 3, P = Float64Array.from(skin0.position), tr = Array.from(skin0.index), fixed = new Uint8Array(V0).fill(1, 0, arms.length * RADIAL).fill(0, arms.length * RADIAL);
         dropCaps(tr, fixed);
-        relax({ pos: P, tris: tr, fixed, caps, k }, { rounds: 12, flips: true });
+        relax({ pos: P, tris: tr, fixed, caps: capsX, k: kX }, { rounds: 12, flips: true });
         // vertices no triangle uses any more (a cap dropped) leave the list; the seam rings come first and are all used
         const remap = new Int32Array(V0).fill(-1);
         for (const v of tr) remap[v] = 0;
         let n = 0;
         for (let v = 0; v < V0; v++) if (remap[v] === 0) remap[v] = n++;
-        const position = new Float32Array(3 * n), index = new (skin.index.constructor as Uint32ArrayConstructor)(tr.length);
+        const position = new Float32Array(3 * n), index = new (skin0.index.constructor as Uint32ArrayConstructor)(tr.length);
         for (let v = 0; v < V0; v++) if (remap[v]! >= 0) for (let d = 0; d < 3; d++) position[3 * remap[v]! + d] = P[3 * v + d]!;
         for (let q = 0; q < tr.length; q++) index[q] = remap[tr[q]!]!;
-        skin = { ...skin, position, index };
-      }
+        return { ...skin0, position, index };
+      };
+      let skin;
+      try { skin = buildSkinSteady(junction, cuts, rings, normals, caps, arms.length > 6 || internal.length ? 48000 : undefined, memo); }
+      catch (e) {
+        if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the junction will not mesh: ${e.message}`); throw e; }
+      skin = cleaned(skin, caps, k);
       // the fillet's triangles are held to a smallest angle (MIN_ANGLE): one with a sliver names its region
       let worstAngle = 180;
       for (let t = 0; t < skin.index.length; t += 3) worstAngle = Math.min(worstAngle, minAngleDeg(skin.position, skin.index[t]!, skin.index[t + 1]!, skin.index[t + 2]!));
@@ -527,44 +597,73 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       // the arms' sweeps stop at the seams
       arms.forEach((a, i) => { if (a.end === 0) lo.set(a.edge, Math.max(lo.get(a.edge)!, seams[i]!)); else hi.set(a.edge, Math.min(hi.get(a.edge)!, a.ctx.count - 1 - seams[i]!)); });
       const armSeams = seams as number[], armList = arms, usedTries = 1;
-      pendingSkins.push(() => {
+      const emit = (skin: ReturnType<typeof buildSkinSteady>, capsG: readonly Capsule[], kG: number, pose: 0 | 1 | 2): void => {
         const ringIds = armList.map((a, i) => seamRings.get(seamKey(a.edge, a.end === 0 ? armSeams[i]! : a.ctx.count - 1 - armSeams[i]!))!);
         const S = armList.length * RADIAL, V = skin.position.length / 3, map = new Int32Array(V);
         for (let a = 0; a < armList.length; a++) for (let q = 0; q < RADIAL; q++) map[a * RADIAL + q] = ringIds[a]![q]!;
-        const vstart = vb.length, tstart = tris.length, cp = new Float64Array(7), sw = new Float64Array(caps.length), g = new Float64Array(3);
+        const vstart = vb.length, tstart = tris.length, cp = new Float64Array(7), sw = new Float64Array(capsG.length), g = new Float64Array(3);
         for (let v = S; v < V; v++) {
           const x = skin.position[3 * v]!, y = skin.position[3 * v + 1]!, z = skin.position[3 * v + 2]!;
-          // each capsule's share (the skin builder's softmax of -sd / k, sharpened w^4), over the arms AND the short edges; the four largest, renormalised; each capsule's nearest bone to the vertex's nearest point on its axis
+          // each capsule's share (the skin builder's softmax of -sd / kG, sharpened w^4), over the arms AND the short edges; the four largest, renormalised; each capsule's nearest bone to the vertex's nearest point on its axis
           let low = Infinity;
-          for (let i = 0; i < caps.length; i++) { sw[i] = sdArm(caps[i]!, x, y, z); if (sw[i]! < low) low = sw[i]!; }
+          for (let i = 0; i < capsG.length; i++) { sw[i] = sdArm(capsG[i]!, x, y, z); if (sw[i]! < low) low = sw[i]!; }
           let tot = 0;
-          for (let i = 0; i < caps.length; i++) { const e = Math.exp(-(sw[i]! - low) / k); sw[i] = e * e * e * e; tot += sw[i]!; }
+          for (let i = 0; i < capsG.length; i++) { const e = Math.exp(-(sw[i]! - low) / kG); sw[i] = e * e * e * e; tot += sw[i]!; }
           const w: [number, number][] = [];
-          for (let i = 0; i < caps.length; i++) if (sw[i]! / tot > 1e-6) w.push([i, sw[i]! / tot]);
+          for (let i = 0; i < capsG.length; i++) if (sw[i]! / tot > 1e-6) w.push([i, sw[i]! / tot]);
           w.sort((p, q) => q[1] - p[1]);
           const top = w.slice(0, 4), sum = top.reduce((t, e) => t + e[1], 0), bones: number[] = [], weights: number[] = [];
           for (const [i, wi] of top) {
-            closestOnArm(caps[i]!, x, y, z, cp);
+            closestOnArm(capsG[i]!, x, y, z, cp);
             const gb = capBones[i]![cp[6]! < 0.5 ? cp[5]! : Math.min(capBones[i]!.length - 1, cp[5]! + 1)]!, at = bones.indexOf(gb);
             if (at >= 0) weights[at] = weights[at]! + wi / sum; else { bones.push(gb); weights.push(wi / sum); }
           }
           // the rest normal: the union's gradient at the SHADE blend width (exact-normal.ts, the same softening the old fragment stage took per pixel), easing to the tube's own radial direction where one arm is all there is
-          sdUnionGrad(caps, SKIN_SHADE_K * k, x, y, z, g);
-          const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1, wmax = top[0]![1] / sum, topCap = caps[top[0]![0]]!;
+          sdUnionGrad(capsG, SKIN_SHADE_K * kG, x, y, z, g);
+          const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1, wmax = top[0]![1] / sum, topCap = capsG[top[0]![0]]!;
           closestOnArm(topCap, x, y, z, cp);
           const rx = x - cp[0]!, ry = y - cp[1]!, rz = z - cp[2]!, rl = Math.hypot(rx, ry, rz) || 1, t = smoothstep(0.6, SKIN_RING_W_FROM, wmax);
           const nx = g[0]! / gl + t * (rx / rl - g[0]! / gl), ny = g[1]! / gl + t * (ry / rl - g[1]! / gl), nz = g[2]! / gl + t * (rz / rl - g[2]! / gl), nl = Math.hypot(nx, ny, nz) || 1;
-          map[v] = addVertex(skin.position, 3 * v, bones, weights, [nx / nl, ny / nl, nz / nl], 0);
+          map[v] = addVertex(skin.position, 3 * v, bones, weights, [nx / nl, ny / nl, nz / nl], 0, pose);
         }
         for (let i = 0; i < skin.index.length; i++) tris.push(map[skin.index[i]!]!);
-        reports.push({ node: rid, kind: 'junction', seams: armSeams.slice(), arms: armList.map((a) => a.edge), triStart: tstart / 3, triCount: (tris.length - tstart) / 3, vertStart: vstart, vertCount: vb.length - vstart, tries: usedTries, capBones: capBones.map((b) => b.slice()), rings: ringIds.map((r) => Array.from(r)), caps: caps.map((c) => ({ pts: Array.from(c.pts), r: Array.from(c.r), mate: c.mate ?? -1 })), through: throughReport });
-      });
+        reports.push({ node: rid, kind: 'junction', seams: armSeams.slice(), arms: armList.map((a) => a.edge), triStart: tstart / 3, triCount: (tris.length - tstart) / 3, vertStart: vstart, vertCount: vb.length - vstart, tries: usedTries, variant: pose, capBones: capBones.map((b) => b.slice()), rings: ringIds.map((r) => Array.from(r)), caps: caps.map((c) => ({ pts: Array.from(c.pts), r: Array.from(c.r), mate: c.mate ?? -1 })), through: throughReport });
+      };
+      pendingSkins.push(() => emit(skin, caps, k, 0));
+      // THE MAP-BUILT MESH (plan owner, 22 Nov): the same region meshed again on the capsules, rings and node as they stand at the MAP layout, from the same seam bones (their rings are the tubes' own, bound to the same bones), so the region has two
+      // meshes in one draw, each projected onto the same live union. It is built only where every seam clears at both layouts (`mapOkRegions`); a failure to mesh it leaves the body mesh alone, named in `mapNotes`. With `mid` a third is built at the
+      // middle of the Circuit (t = 0.5, bones at their peel states), for the regions whose body and map meshes share no t (net/window.ts); the unneeded ones are dropped afterwards.
+      const nodePosAt = (n: (typeof nodes)[number], pose: Pose): Vec3 => { if (typeof pose === 'number') return n.pos[pose === 0 ? 0 : 1]; const x = n.edges[0]!, c = ctx.get(x.edge)!; return bonePos(skel, gbone(c, endBone(c, x.end)), pose); };
+      const meshVariant = (pose: Pose, variant: 1 | 2): void => {
+        const label = variant === 1 ? 'map-built' : 'mid-built';
+        try {
+          const capsV: Capsule[] = capBones.map((ids, q) => ({ ...capFromBones(ids, pose), ...(caps[q]!.mate !== undefined ? { mate: caps[q]!.mate } : {}) }));
+          const skinArmsV: SkinArm[] = skinArms.map((sa, i) => { const a = arms[i]!, rV = boneRadius(skel, gbone(a.ctx, endBone(a.ctx, a.end)), pose); return { ...sa, restR: rV, jointR: rV, ...(region.length > 1 ? { at: nodePosAt(nodes.find((n) => n.id === a.node)!, pose) } : {}) }; });
+          const meanV = (d: 0 | 1 | 2): number => region.reduce((t, n) => t + nodePosAt(n, pose)[d], 0) / region.length, JV: Vec3 = region.length === 1 ? nodePosAt(region[0]!, pose) : [meanV(0), meanV(1), meanV(2)];
+          const ringsV: Float32Array[] = [], normalsV: Float32Array[] = [];
+          arms.forEach((a, i) => { const SV = sampleP(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!, pose), rV = ringOf(SV, a.ctx.alpha); ringsV.push(rV.p); normalsV.push(rV.nrm); });
+          const kV = skinKOf(skinArmsV), junctionV: SkinJunction = { ...junction, J: JV, arms: skinArmsV };
+          let skinV;
+          try { skinV = buildSkinSteady(junctionV, cuts, ringsV, normalsV, capsV, arms.length > 6 || internal.length ? 48000 : undefined, new Map()); }
+          catch (e) { if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the ${label} mesh will not mesh: ${e.message}`); throw e; }
+          skinV = cleaned(skinV, capsV, kV);
+          let worstV = 180;
+          for (let t = 0; t < skinV.index.length; t += 3) worstV = Math.min(worstV, minAngleDeg(skinV.position, skinV.index[t]!, skinV.index[t + 1]!, skinV.index[t + 2]!));
+          if (worstV <= MIN_ANGLE) throw new NetMeshError(rid, `the ${label} mesh has a triangle with a ${worstV.toFixed(1)} degree angle (the least is ${MIN_ANGLE})`);
+          variantPose[variant] = pose;
+          pendingSkins.push(() => emit(skinV, capsV, kV, variant));
+        } catch (e) { if (!(e instanceof NetMeshError)) throw e; mapNotes.push({ node: rid, why: e.message }); }
+      };
+      if (mapOkRegions.has(rid)) {
+        meshVariant(1, 1);
+        if (opts?.mid) meshVariant(midPose!, 2);
+      } else if (opts?.maps) mapNotes.push({ node: rid, why: 'no seam ring clears the arms at both layouts inside its edge (or the farther seams would not mesh): the body mesh is drawn alone' });
     }
   };
   // A junction an edge cannot keep apart from the next is merged with it (the edge's two seams, each as far out as its ring needs to clear the other arms, must fit inside it; an arm whose ring clears nothing before its edge ends is the same case): plan the seams of every region, merge the edges that fail, and plan again until none does.
   // An arm that runs on into a plain node or a free end cannot be merged away, and fails in the meshing below, named.
   for (let round = 0; round < jnodes.length; round++) {
-    const plan: Plan = { seam: new Map(), failed: [] };
+    const plan: Plan = { seam: new Map(), failed: [], body: new Map(), mapOk: new Set() };
     for (const region of regions.values()) meshRegion(region, plan);
     let merged = false;
     for (const c of ctx.values()) {
@@ -572,12 +671,22 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       const s0 = plan.seam.get(`${c.idx}:0`), s1 = plan.seam.get(`${c.idx}:1`);
       if (plan.failed.includes(c.idx) || (s0 !== undefined && s1 !== undefined && s0 + s1 > c.count - 2)) { mergeEdge(c); merged = true; }
     }
-    if (!merged) { plan.seam.forEach((v, key) => plannedSeams.set(key, v)); break; }
+    if (!merged) { plan.seam.forEach((v, key) => plannedSeams.set(key, v)); plan.mapOk.forEach((r) => mapOkRegions.add(r)); plan.body.forEach((v, key) => bodySeams.set(key, v)); break; }
     groupRegions();
   }
   buildWelds();
   for (const region of regions.values()) {
-    try { meshRegion(region); }
+    const rid = [...region].map((n) => n.id).join('+');
+    try {
+      try { meshRegion(region); }
+      catch (e) {
+        // the farther seams the map-built mesh needs did not mesh: the region keeps its body seams and the body mesh alone
+        if (!(e instanceof NetMeshError) || !mapOkRegions.has(rid)) throw e;
+        mapOkRegions.delete(rid);
+        for (const nd of region) for (const x of nd.edges) { const key = `${x.edge}:${x.end}`; if (bodySeams.has(key)) plannedSeams.set(key, bodySeams.get(key)!); }
+        meshRegion(region);
+      }
+    }
     catch (e) { if (opts?.lenient && e instanceof NetMeshError) failures.push({ node: e.node, why: e.message }); else throw e; }   // (lenient: the diagnosis run lists every failing region; the bake never is)
   }
   function nearestBone(arc: readonly number[], d: number): number {
@@ -651,22 +760,23 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   for (const nd of nodes) if (nd.edges.length <= 2 && !jset.has(nd.id)) reports.push({ node: nd.id, kind: nd.edges.length === 2 ? 'runon' : 'cap', seams: [], arms: nd.edges.map((x) => x.edge), triStart: 0, triCount: 0, vertStart: 0, vertCount: 0, tries: 0, through: [] });
 
   // ---- the binding: each vertex's offset in each of its bones' frames, divided by the bone's radius ----
-  const V = vb.length, position = Float32Array.from(pos), bone = new Uint16Array(4 * V), weight = new Float32Array(4 * V), offset = new Float32Array(12 * V), normal = new Float32Array(12 * V);
+  const V = vb.length, position0 = Float32Array.from(pos), bone = new Uint16Array(4 * V), weight = new Float32Array(4 * V), offset0 = new Float32Array(12 * V), normal = new Float32Array(12 * V);
   for (let v = 0; v < V; v++) {
-    const bs = vb[v]!, ws = vw[v]!;
+    const bs = vb[v]!, ws = vw[v]!, pose = variantPose[vp[v]!]!;
     let sum = 0;
     for (let i = 0; i < bs.length; i++) sum += ws[i]!;
     for (let i = 0; i < bs.length; i++) {
-      const B = skel.bones[bs[i]!]!, d: V3 = [position[3 * v]! - B.pos[0][0], position[3 * v + 1]! - B.pos[0][1], position[3 * v + 2]! - B.pos[0][2]];
+      // (a map-built mesh's vertex is bound at the MAP layout: the bone's map position, radius and frame; fit.ts then gives it its body offsets)
+      const B = skel.bones[bs[i]!]!, F = pose === 0 ? B.frame : boneFrame(skel, bs[i]!, pose), P = pose === 0 ? B.pos[0] : bonePos(skel, bs[i]!, pose), R = pose === 0 ? B.r[0] : boneRadius(skel, bs[i]!, pose), d: V3 = [position0[3 * v]! - P[0], position0[3 * v + 1]! - P[1], position0[3 * v + 2]! - P[2]];
       bone[4 * v + i] = bs[i]!; weight[4 * v + i] = ws[i]! / sum;
-      offset[12 * v + 3 * i] = dot(d, B.frame[0]) / B.r[0]; offset[12 * v + 3 * i + 1] = dot(d, B.frame[1]) / B.r[0]; offset[12 * v + 3 * i + 2] = dot(d, B.frame[2]) / B.r[0];
+      offset0[12 * v + 3 * i] = dot(d, F[0]) / R; offset0[12 * v + 3 * i + 1] = dot(d, F[1]) / R; offset0[12 * v + 3 * i + 2] = dot(d, F[2]) / R;
       // the rest normal in the same frame: the blend rotates it with the bones and renormalises, so no normal is ever derived on screen
       const nw: V3 = [vn[3 * v]!, vn[3 * v + 1]!, vn[3 * v + 2]!];
-      normal[12 * v + 3 * i] = dot(nw, B.frame[0]); normal[12 * v + 3 * i + 1] = dot(nw, B.frame[1]); normal[12 * v + 3 * i + 2] = dot(nw, B.frame[2]);
+      normal[12 * v + 3 * i] = dot(nw, F[0]); normal[12 * v + 3 * i + 1] = dot(nw, F[1]); normal[12 * v + 3 * i + 2] = dot(nw, F[2]);
     }
   }
-  const index = Uint32Array.from(tris), fit = fitAll(skel, { position, bone, weight, offset, index }, reports), offsetMap = fit.offsetMap;
+  const index = Uint32Array.from(tris), fit = fitAll(skel, { position: position0, bone, weight, offset: offset0, index }, reports, midPose), offset = fit.offset, offsetMap = fit.offsetMap, position = fit.position;
   const mesh: NetMesh = { position, bone, weight, offset, offsetMap, normal, index };
   if (opts?.states?.length) { const armsOf = new Map(reports.map((r) => [r.node, r.arms])); mesh.keys = regionKeys(skel, mesh, fit.done, opts.states, bakeScale, (n) => [...new Set(armsOf.get(n) ?? [])]); }
-  return { mesh, edges: [...ctx.keys()], nodes: reports, failures, report: { vertices: V, triangles: tris.length / 3, sweepTriangles } };
+  return { mesh, edges: [...ctx.keys()], nodes: reports, failures, mapNotes, windows: new Map(), report: { vertices: V, triangles: tris.length / 3, sweepTriangles } };
 }

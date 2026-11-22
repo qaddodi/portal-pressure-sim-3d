@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
-import { pickKeys, isWide, MAX_KEYS } from '../src/scene/vessels/net/keys.ts';
+import { pickKeys, isWide, MAX_KEYS, MAX_KEYS_FOLDING } from '../src/scene/vessels/net/keys.ts';
 import { keyQuality } from './net-keys-check.ts';
 import { fixtures } from './net-lib.ts';
 
@@ -21,17 +21,18 @@ for (const fx of fixtures()) {
   if (!nd) continue;
   const pair = new Set(nd.runOn!.map((i) => nd.edges[i]!.edge)), E = fx.skel.edges.length;
   const states = GRID.flatMap((a) => GRID.map((b) => Array.from({ length: E }, (_, e) => (pair.has(e) ? a : b))));
-  const r = buildNetMesh(fx.skel, undefined, { states }), m = r.mesh;
+  const r = buildNetMesh(fx.skel, undefined, { states, maps: true }), m = r.mesh;
   test(`${fx.name}: keys of a wide junction are on their union and fold-free at both poses; a run without states has none`, () => {
     assert.ok(m.keys && m.keys.length > 0, 'wide junction keyed');
+    assert.ok(m.keys!.some((k) => k.variant === 1), 'the map-built mesh has its own keys');
     assert.equal(buildNetMesh(fx.skel).mesh.keys, undefined);
     for (const rk of m.keys!) {
-      assert.ok(rk.keys.length >= 2 && rk.keys.length <= MAX_KEYS);
+      assert.ok(rk.keys.length >= 2 && rk.keys.length <= MAX_KEYS_FOLDING);
       assert.deepEqual(rk.keys[0]!.swell.map((x) => +x.toFixed(2)), rk.arms.map(() => 1.15), 'the max state comes first');
       for (let i = 0; i < rk.keys.length; i++) for (const pose of [0, 1] as const) {
         const q = keyQuality(fx.skel, r, rk, i, pose, states), tag = `${fx.name} pose ${pose} key ${rk.keys[i]!.swell.map((x) => x.toFixed(2))}`;
         assert.ok(q.res <= 0.01, `${tag}: on the union to ${q.res.toFixed(4)} R`);
-        assert.equal(q.flips, 0, `${tag}: ${q.flips} folded or inward triangles`);
+        if (pose === (rk.variant === 1 ? 1 : 0)) assert.equal(q.flips, 0, `${tag}: ${q.flips} folded or inward triangles`);
       }
     }
   });

@@ -25,8 +25,13 @@ function turnsOf(skel: Skeleton): Turn[] {
   return t;
 }
 
-/** The frame of bone `i` at pose `t` (0 body, 1 map). */
-export function boneFrame(skel: Skeleton, i: number, t: number): Frame {
+/** A per-bone state (the bones at the Circuit's t by their peel, net/window.ts `bonesAtT`): a pose argument may be one, in place of the uniform 0..1. */
+export interface PoseAt { bones: readonly { cen: Vec3; F: Frame; r: number }[] }
+export type Pose = number | PoseAt;
+
+/** The frame of bone `i` at pose `t` (0 body, 1 map, or a per-bone state). */
+export function boneFrame(skel: Skeleton, i: number, t: Pose): Frame {
+  if (typeof t === 'object') return t.bones[i]!.F;
   const b = skel.bones[i]!, T = turnsOf(skel)[i]!;
   if (t === 0 || !T.axis) return [b.frame[0], b.frame[1], b.frame[2]];
   const u = T.axis, c = Math.cos(T.ang * t), s = Math.sin(T.ang * t);
@@ -35,5 +40,5 @@ export function boneFrame(skel: Skeleton, i: number, t: number): Frame {
 }
 /** Every bone's frame at pose `t`. */
 export const poseFrames = (skel: Skeleton, t: number): Frame[] => skel.bones.map((_, i) => boneFrame(skel, i, t));
-export const bonePos = (skel: Skeleton, i: number, t: number): Vec3 => { const a = skel.bones[i]!.pos[0], b = skel.bones[i]!.pos[1]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; };
-export const boneRadius = (skel: Skeleton, i: number, t: number): number => skel.bones[i]!.r[0] + (skel.bones[i]!.r[1] - skel.bones[i]!.r[0]) * t;
+export const bonePos = (skel: Skeleton, i: number, t: Pose): Vec3 => { if (typeof t === 'object') return t.bones[i]!.cen; const a = skel.bones[i]!.pos[0], b = skel.bones[i]!.pos[1]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; };
+export const boneRadius = (skel: Skeleton, i: number, t: Pose): number => typeof t === 'object' ? t.bones[i]!.r : skel.bones[i]!.r[0] + (skel.bones[i]!.r[1] - skel.bones[i]!.r[0]) * t;

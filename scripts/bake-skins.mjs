@@ -17,10 +17,10 @@ if (process.argv.includes('--net')) {
   const skel = skeleton(), digest = skeletonDigest(skel), states = await presetSwells(skel);   // (the real states: the wide junctions' keys, net/keys.ts)
   mkdirSync(fileURLToPath(new URL('../public/anatomy/', import.meta.url)), { recursive: true });
   networksOf(skel).forEach((edges, n) => {
-    const t0 = Date.now(), r = buildNetMesh(skel, edges, { states });
-    const gz = gzipSync(Buffer.from(encodeNet(r.mesh, digest)), { level: 9 });
+    const t0 = Date.now(), r = buildNetMesh(skel, edges, { states, maps: true });
+    const gz = gzipSync(Buffer.from(encodeNet(r.mesh, digest, r.nodes)), { level: 9 });
     writeFileSync(fileURLToPath(new URL(`../public/anatomy/net-${n}.bin`, import.meta.url)), gz);
-    console.log(`net-${n}.bin: ${edges.length} edges, ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${Date.now() - t0} ms`);
+    console.log(`net-${n}.bin: ${edges.length} edges, ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${Date.now() - t0} ms${r.mapNotes.length ? `; ${r.mapNotes.length} regions without a bridging map mesh: ${r.mapNotes.map((x) => x.node).join(', ')}` : ''}`);
   });
   process.exit(0);
 }

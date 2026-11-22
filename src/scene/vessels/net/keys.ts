@@ -10,7 +10,7 @@ import type { Skeleton } from './types.ts';
 
 export const MAX_KEYS = 4, MAX_KEYS_FOLDING = 6, KEY_STEPS = 24, NEWTON = 3, WIDE_RATIO = 2;
 /** The keys of one junction region: its free vertices [vertStart, vertStart + vertCount), the edges of its arms, and per key the arms' swell and the fitted offsets (12 floats a vertex) at the body pose and at the map pose. */
-export interface RegionKeys { node: string; vertStart: number; vertCount: number; arms: number[]; keys: { /** index into the states it was baked from */ state: number; /** triangles of the region that fold (face into the key's union) as baked, at the body pose and at the map pose: the fold a wide junction is reported with */ folds: [number, number]; swell: number[]; offset: Float32Array; offsetMap: Float32Array }[] }
+export interface RegionKeys { node: string; /** the pose its mesh was built at (0 body, 1 map): a region has one entry per mesh */ variant: 0 | 1; vertStart: number; vertCount: number; arms: number[]; keys: { /** index into the states it was baked from */ state: number; /** triangles of the region that fold (face into the key's union) as baked, at the body pose and at the map pose: the fold a wide junction is reported with */ folds: [number, number]; swell: number[]; offset: Float32Array; offsetMap: Float32Array }[] }
 
 /** Which of the states (each a vector of arm swells) are the keys: the one with the largest radii first, then each time the state farthest, in log space, from those chosen. Duplicates (within `eps` in log space) count once. */
 export function pickKeys(states: readonly (readonly number[])[], max = MAX_KEYS, eps = 0.02): number[] {
@@ -52,7 +52,7 @@ export function isWide(states: readonly (readonly number[])[], arms: number): bo
 /** One key at one pose by continuation: the radii factor per edge ramps from 1 (the baked shape) to `fKey`; the seam rings follow the bones, the free vertices are projected onto each step's union. Returns the region's vertex positions (3 per `rg.verts`). */
 export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, fKey: Float64Array, steps = KEY_STEPS): Float64Array {
   const { rg } = d, V = rg.verts.length, free = rg.verts.map((v) => v >= rg.free[0] && v < rg.free[0] + rg.free[1]);
-  const pos = pose === 1 ? Float64Array.from(d.map) : boundPositions(skel, m, rg, 0), fs = new Float64Array(fKey.length), ring = pose === 1 ? m.offset : m.offset;
+  const pos = Float64Array.from(d.at[pose]), fs = new Float64Array(fKey.length), ring = pose === 1 ? m.offset : m.offset;
   const local = new Map(rg.verts.map((v, q) => [v, q])), tris = rg.tris.map((v) => local.get(v)!), fixed = Uint8Array.from(free, (f) => (f ? 0 : 1));
   for (let k = 1; k <= steps; k++) {
     const t = k / steps;
@@ -74,6 +74,7 @@ export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, 
 export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[], states: readonly (readonly number[])[], bakeScale: ArrayLike<number>, armEdges: (node: string) => number[]): RegionKeys[] {
   const out: RegionKeys[] = [];
   for (const d of done) {
+    if (d.variant === 2) continue;   // (a mid mesh carries no keys yet: its start is its one arrangement, scaled by the live radii)
     const arms = armEdges(d.node), vec = states.map((s) => arms.map((e) => s[e]!));
     if (!isWide(vec, arms.length)) continue;
     // up to MAX_KEYS keys; a region whose keys still fold gets up to MAX_KEYS_FOLDING (plan owner, 22 Nov), and any fold left is recorded on its key
@@ -88,8 +89,9 @@ export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[],
       return { state: p, folds, swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
     });
     let keys = bake(pickKeys(vec, MAX_KEYS));
-    if (keys.some((k) => k.folds[0] > 0)) { const more = bake(pickKeys(vec, MAX_KEYS_FOLDING)); if (more.reduce((a, k) => a + k.folds[0], 0) < keys.reduce((a, k) => a + k.folds[0], 0) || more.length > keys.length) keys = more; }
-    out.push({ node: d.node, vertStart: d.rg.free[0], vertCount: d.rg.free[1], arms, keys });
+    const own = d.variant === 1 ? 1 : 0, foldsOf = (ks: RegionKeys['keys']): number => ks.reduce((a, k) => a + k.folds[own], 0);   // (a mesh is judged at the layout it was built at)
+    if (foldsOf(keys) > 0) { const more = bake(pickKeys(vec, MAX_KEYS_FOLDING)); if (foldsOf(more) < foldsOf(keys) || more.length > keys.length) keys = more; }
+    out.push({ node: d.node, variant: d.variant, vertStart: d.rg.free[0], vertCount: d.rg.free[1], arms, keys });
   }
   return out;
 }
