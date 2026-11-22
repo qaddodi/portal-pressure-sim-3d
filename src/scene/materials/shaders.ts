@@ -23,7 +23,7 @@ export const SCREEN_DITHER_GLSL = 'fract(52.9829189 * fract(dot(gl_FragCoord.xy,
 export const FADE_UNIFORM_GLSL = /* glsl */ `
 uniform float fade;
 `;
-/** The dissolve's two functions, reading `fade` and `vUv`'s reveal: the program declares `fade` (a uniform, or ?geom=net's per-edge value). */
+/** The dissolve's two functions, reading `fade` and `vUv`'s reveal: the program declares `fade`. */
 export const FADE_FUNCS_GLSL = /* glsl */ `bool fadedOut() { return fade < 0.999 && ${SCREEN_DITHER_GLSL} >= fade; }
 // A tube drawing on or retracting along its length (\`reveal\`, 0 to 1 over u): the front is a soft gradient, a tenth of the length, dissolved in the same screen pattern, never a hard cut.
 bool frontOut(float u, float rv) {

@@ -430,15 +430,6 @@ export class VesselObject extends CelObject {
     const k = this.occK;
     return [0, v.faint ? k : 1, k < 0.999 ? 1 - k : 0];
   }
-  /** ?geom=net: the shares of the TWO draws the network figure makes of this vessel's edges (net/network-object.ts): [the organs-pass copy (layer 0, the solid copy of a vessel behind the organs), the vessel-pass copy (the front copy, or the veil)]. A plain vessel
-   *  and a back vessel shown whole are the vessel pass alone; a back vessel otherwise is both, by the `solidK` and `veilK` `applyBehind` wrote for the tubes. */
-  netCopies(): readonly [number, number] {
-    const v = this.veil;
-    if (!v || v.whole) return [0, 1];
-    return [this.toon.uniforms.solidK!.value as number, this.toon.uniforms.veilK!.value as number];
-  }
-  /** ?geom=net: the tube's own draws (and its veil copy) are off while the network figure draws the vessel. `Material.visible`, which nothing else writes, so the scene's own visibility rules (the group, the layers, the veil mesh) are untouched. */
-  setNetHidden(hidden: boolean): void { this.toon.visible = !hidden; if (this.veil) this.veil.mat.visible = !hidden; }
   /** Whether this vessel is one the figure draws behind the organs (it has a veil copy), so its skin's copies blend. */
   get behindOrgans(): boolean { return !!this.veil; }
   /** A counter that goes up whenever `copyShares` may have changed (the skin's handover compares it, so a vessel that does not move costs nothing). */

@@ -108,7 +108,6 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/post-aa.ts': { n: 1, how: 'pass', why: 'the anti-aliasing quad: compiled with the first frame' },
   'scene/post-dof.ts': { n: 3, how: 'pass', why: 'the depth-of-field quads: desktop only, GAP (compile at the first dive)' },
   'scene/vessels/skin/skin-object.ts': { n: 2, how: 'graph', why: 'junction skins' },
-  'scene/vessels/net/network-object.ts': { n: 3, how: 'late', why: '?geom=net only (mounted after the splash, behind a local flag): the sewn pass, the capsule pass, the figure; nothing on the default boot' },
   'scene/vessels/vessel-object.ts': { n: 4, how: 'graph', why: 'vessel, glow, veil, crossing shadow' },
   'scene/circuit/resistors.ts': { n: 1, how: 'stand-in', why: 'RESISTOR_FLAGS' },
   'scene/circuit/map-layer.ts': { n: 2, how: 'graph', why: 'the Circuit plate and dots' },

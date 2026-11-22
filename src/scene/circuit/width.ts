@@ -3,7 +3,6 @@
 // The map's lines are drawn with these widths, NOT with the body's: the body is 1 scene unit to 300 figure units and the map 1 to 1 / MAP_K, so a body radius carried onto the map
 // is about half as wide against its lane as 2D draws it (the Circuit on an iPhone drew hairlines).
 import { vesselPx } from '../vessels/network.ts';
-import { MAP_K } from './map.ts';
 
 export const CIRC_VEIN_MIN = 6;
 export const CIRC_VEIN_MAX = 15;
@@ -22,6 +21,3 @@ export function circuitWidthMap(kind: WidthKind, d: number, boost: number, fine 
 }
 /** A liver branch's width: its host's Circuit width times the branch's share, never under 1.2 (2D: `cb.w = max(1.2, w * k)`). */
 export const circuitBranchWidth = (host: WidthKind, hostD: number, boost: number, fine: number, k: number, perPx = 0): number => Math.max(CIRC_BRANCH_MIN, MIN_PX.branch * perPx, circuitWidthMap(host, hostD, boost, fine) * k);
-
-/** A vessel's rest radius on the map (scene units): the 2D rule's width in map units (boost 1) halved and carried by the map's scale. The network's bones carry it (net/skeleton.ts) and its shader measures the live width against it (net/shaders.ts circSwellNet). */
-export const mapRadiusOf = (v: { widthKind: WidthKind; baseD: number; circFine?: number }): number => 0.5 * circuitWidthMap(v.widthKind, v.baseD, 1, v.circFine ?? 1) * MAP_K;

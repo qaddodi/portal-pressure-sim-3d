@@ -35,8 +35,6 @@ export interface SkinJunction {
   arms: SkinArm[];           // 3 or 4, sorted widest first
   /** meshed from the surface itself (sheet.ts, the last rung), its seams chosen with no hull of the rings: a junction whose seam rings the hull cannot cover (the Circuit's, circuit/skins.ts) */
   surface?: boolean;
-  /** the arm limit when more than `MAX_SKIN_ARMS` (6) are wanted: the network mesher's busiest cluster (net/mesh.ts, 8). Absent: 6, as ever. */
-  maxArms?: number;
 }
 
 /** Where an arm's tube hands over to the skin. */
