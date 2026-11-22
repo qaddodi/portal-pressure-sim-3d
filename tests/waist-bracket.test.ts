@@ -36,3 +36,12 @@ test('the bracket is one quiet hairline: a soft halo, never a hard ring, one wei
   for (const r of [bar, tick]) { assert.match(r, /height: var\(--wb-w\)/); assert.match(r, /drop-shadow\(/); assert.doesNotMatch(r, /box-shadow/); }
   assert.match(css, /--wb-w: 1px/);
 });
+
+import { readdirSync } from 'node:fs';
+test('no overlay in the figure wears a hard box-shadow ring as its halo (text and svg marks use the stroke halo, lines the soft drop-shadow)', () => {
+  const dirs = ['../src/scene/labels/', '../src/scene/circuit/', '../src/scene/'];
+  for (const d of dirs) for (const f of readdirSync(new URL(d, import.meta.url)).filter((n) => n.endsWith('.css'))) {
+    const css = readFileSync(new URL(d + f, import.meta.url), 'utf8');
+    assert.doesNotMatch(css, /box-shadow:\s*0 0 0 [^;]*halo/, `${f}: a hard ring halo`);
+  }
+});
