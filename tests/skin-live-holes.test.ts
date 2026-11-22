@@ -95,3 +95,18 @@ test('a pixel the arms\' screen union calls lumen is never dropped: the narrow v
     assert.doesNotMatch(SKIN_FS, /\bbool flat\b/, '(flat is a reserved word in GLSL ES 3.00)');
   } finally { g.done(); }
 });
+
+test('a pixel of an absent arm\'s stub is not taken for a seam ring: the normal mix reads the raw weights of the arms that are there (wTop), so the shade is the union\'s there, not the stub mesh\'s', async () => {
+  const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.match(SKIN_FS, /wTop = max\(wTop, rawW\(i\) \* keepOf\(i\)\)/);
+  assert.doesNotMatch(SKIN_FS, /wTop = max\(wTop, wAt\(i\)\)/);
+  const g = gateSkins();
+  try {
+    const s = g.skins.find((k) => k.node.startsWith('wall:AZY_SVC'))!, arms = s.mesh.junction.arms, fr = await frameOf('schisto');
+    const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
+    const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
+    const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0 });
+    const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, {}, { normals: true });
+    assert.ok(r.vertexNormalWrongly > 20, `${r.vertexNormalWrongly} pixels of the stub took the mesh's normal as a seam ring before`);
+  } finally { g.done(); }
+});

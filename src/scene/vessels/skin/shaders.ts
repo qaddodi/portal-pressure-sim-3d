@@ -387,7 +387,7 @@ void main() {
   // (a seam ring keeps the tube's own normal: where an arm's weight is 1 the pixel takes the lerped vertex normal, SKIN_RING_W_FROM)
   {
     float wTop = 0.0;
-    for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, wAt(i));
+    for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE, as the seam band's wMax: wAt renormalises them, so the pixels of an absent arm's stub read as a kept arm's weight 1 and took the mesh's own stub normal)
     vec3 gx = skinNormalExact(vPos, max(skinK * ${F(SKIN_SHADE_K)}, ${F(SKIN_SHADE_FLOOR_PX)} * ${wpcGlsl('vCenW', 'projY', '1.0')}), vec3(0.0));   // (skinShadeK: the shade's blend is never narrower than SKIN_SHADE_FLOOR_PX of the screen)
     if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - smoothstep(${F(SKIN_RING_W_FROM)}, 1.0, wTop))));
   }

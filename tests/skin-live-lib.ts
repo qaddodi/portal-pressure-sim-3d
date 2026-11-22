@@ -36,10 +36,12 @@ export interface LiveVariant {
   absoluteHold?: boolean;
   /** a pixel past the band that the arms' screen union (no depth rule) calls lumen stays: it takes the union's distance (the shipped rule; `noRescue` is the rule before it) */
   noRescue?: boolean;
+  /** a pixel the depth rule leaves as line that the union calls lumen by more than the line's own width is lumen: no ink inside the union (the purple's two lines running into the azygos) */
+  noInkRescue?: boolean;
 }
 export interface LiveCase { swell: readonly number[]; keep: readonly boolean[] }
 /** `covered` pixels the skin's front faces cover; `lumenRef` of them the live union (kept arms, no depth rule) says are lumen; `hole` of those no fragment is drawn at (every face over it is dropped: the tube is cut there, so it is background); `inkOnly` of those the nearest drawn fragment is line only (black where it should be vessel). */
-export interface LiveStat { node: string; covered: number; lumenRef: number; hole: number; inkOnly: number; /** pixels inside the hull of the seam rings (where the tubes are cut and only the skin can draw) the live union calls vessel */ hullVessel: number; /** of those, pixels no kept fragment is drawn at: the figure shows background there, a hole through the vessel */ hullHole: number; hullInkOnly: number; /** pixels the shipped rule draws that the rule before it dropped (the stub of an arm that is not there, now in the host's lumen) */ newlyDrawn: number; /** of those, pixels whose shade normal differs by over 15 degrees between the union with every arm and the union of the arms that are there */ newlyDrawnShadeOff: number; /** and whose lit measure n.L differs by over 0.2 (a cel band flips) */ newlyDrawnBandFlip: number }
+export interface LiveStat { node: string; covered: number; lumenRef: number; hole: number; inkOnly: number; /** pixels inside the hull of the seam rings (where the tubes are cut and only the skin can draw) the live union calls vessel */ hullVessel: number; /** of those, pixels no kept fragment is drawn at: the figure shows background there, a hole through the vessel */ hullHole: number; hullInkOnly: number; /** pixels the shipped rule draws that the rule before it dropped (the stub of an arm that is not there, now in the host's lumen) */ newlyDrawn: number; /** of those, pixels whose shade normal differs by over 15 degrees between the union with every arm and the union of the arms that are there */ newlyDrawnShadeOff: number; /** and whose lit measure n.L differs by over 0.2 (a cel band flips) */ newlyDrawnBandFlip: number; /** drawn pixels shaded from the mesh's own lerped normal (the seam ring's rule, weight over 0.97) with the renormalised weights, and not with the raw weights of the arms that are there: the stub's pixels, shaded as a stub */ vertexNormalWrongly: number }
 
 /** The camera the app has on a phone's screen, brought in on `centre` so one scene unit is `pxPerUnit` CSS px (the figure's depth scale; the rig's own orientation is kept). */
 export function closeCamera(scene: CelScene, w: number, h: number, centre: readonly number[], pxPerUnit: number, view?: { yaw: number; pitch?: number }): PerspectiveCamera {
@@ -59,7 +61,7 @@ export function closeCamera(scene: CelScene, w: number, h: number, centre: reado
 }
 
 /** One skin at one screen and one patient's live numbers, rastered by the fragment stage's outline rule. */
-export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h: number, dpr: number, cs: LiveCase, variant: LiveVariant = {}, opts?: { normals?: boolean; holes?: (x: number, y: number, kind: 'hole' | 'ink') => void; probe?: { x: number; y: number; log: (m: string) => void }; map?: (b: Map<number, { w: number; lumen: boolean; ref: boolean }>, W: number, H: number) => void }): LiveStat {
+export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h: number, dpr: number, cs: LiveCase, variant: LiveVariant = {}, opts?: { normals?: boolean; shade?: (rough: { pairs: number; jumpsAt: number; jumpsProjected: number }) => void; holes?: (x: number, y: number, kind: 'hole' | 'ink') => void; probe?: { x: number; y: number; log: (m: string) => void }; map?: (b: Map<number, { w: number; lumen: boolean; ref: boolean }>, W: number, H: number) => void }): LiveStat {
   const { mesh, axes, node } = skin, arms = mesh.junction.arms, n = axes.length;
   cam.updateMatrixWorld();
   const PV = new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
@@ -88,7 +90,8 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
 
   // per pixel: the nearest fragment the shader keeps (its depth, whether it is lumen), and whether the live union says the pixel is vessel
   const best = new Map<number, { w: number; lumen: boolean; ref: boolean }>();
-  const nd = { a: 0, b: 0, c: 0 };
+  const nd = { a: 0, b: 0, c: 0, d: 0 };
+  const shadeBest = new Map<number, { w: number; p: number[]; k: number }>();
   const idx = mesh.index;
   for (let t = 0; t < idx.length; t += 3) {
     const a = idx[t]!, b = idx[t + 1]!, c = idx[t + 2]!;
@@ -139,6 +142,8 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       const band = inkDev + 0.5 + SKIN_SEAM_PAD_PX * dpr * smooth(0.75, 0.97, wMax);
       if (opts?.probe && x === opts.probe.x && y === opts.probe.y) opts.probe.log(`tri ${t / 3} sd ${sd.toFixed(2)} ref ${ref.toFixed(2)} band ${band.toFixed(2)} w ${fragW.toFixed(4)} d/arm ${axes.map((_, i) => armPx(i, true, false).toFixed(1)).join(',')} nodepth ${axes.map((_, i) => armPx(i, false, false).toFixed(1)).join(',')} raw ${raw.map((r) => r.toFixed(2)).join(',')} kPx ${kPx.toFixed(1)}`);
       if (opts?.normals && sd <= band) {
+        const wTopOld = Math.max(...wAt), wTopNew = Math.max(...raw.map((r, i) => r * (cs.keep[i] ? 1 : 0))), unionShare = (w: number): number => 1 - smooth(0.97, 1, w);
+        if (unionShare(wTopOld) < 0.5 && unionShare(wTopNew) >= 0.5) nd.d++;
         const old = sdOf(true, !!variant.holdoutLive, !!variant.absentInUnion, 0);
         if (old > band) {
           nd.a++;
@@ -150,13 +155,15 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
         }
       }
       if (!variant.noRescue && sd > band && ref <= -0.5) sd = ref;
+      if (!variant.noInkRescue && sd > -0.5 && ref < -(inkDev + 0.5)) sd = ref;
+      if (opts?.shade && sd <= band) { const cur0 = shadeBest.get(y * W2 + x); if (!cur0 || fragW < cur0.w) shadeBest.set(y * W2 + x, { w: fragW, p: fragP, k: skinShadeK(kM, wpc(fragW)) }); }
       const drop = sd > band, key = y * W2 + x, cur = best.get(key) ?? { w: Infinity, lumen: false, ref: false };
       cur.ref = cur.ref || ref <= -0.5;
       if (!drop && fragW < cur.w) { cur.w = fragW; cur.lumen = sd <= -0.5; }
       best.set(key, cur);
     }
   }
-  const st: LiveStat = { node, covered: best.size, lumenRef: 0, hole: 0, inkOnly: 0, hullVessel: 0, hullHole: 0, hullInkOnly: 0, newlyDrawn: nd.a, newlyDrawnShadeOff: nd.b, newlyDrawnBandFlip: nd.c };
+  const st: LiveStat = { node, covered: best.size, lumenRef: 0, hole: 0, inkOnly: 0, hullVessel: 0, hullHole: 0, hullInkOnly: 0, newlyDrawn: nd.a, newlyDrawnShadeOff: nd.b, newlyDrawnBandFlip: nd.c, vertexNormalWrongly: nd.d };
   // the hull of the seam rings: the tubes are cut at their rings, so inside it the skin is the only thing that draws
   {
     const pts = mesh.seamVerts.flatMap((r) => [...r]).map((v) => [sx[v]!, sy[v]!] as const).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
@@ -182,6 +189,17 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
     }
   }
   for (const p of best.values()) if (p.ref) { st.lumenRef++; if (p.w === Infinity) st.hole++; else if (!p.lumen) st.inkOnly++; }
+  if (opts?.shade) {
+    const L = lightUnit(), tw: TwinArm[] = axes.map((ax, i) => ({ pts: ax.pts.flat(), r: ax.radii, mate: ax.mate, sw: cs.swell[i]!, off: !cs.keep[i] }));
+    const sAt = (f: { p: number[]; k: number }, project: boolean): number => {
+      const d: number[] = [0]; let g = skinNormalTwin(tw, f.k, f.p[0]!, f.p[1]!, f.p[2]!, SKIN_ARM_ABSENT, [0, 0, 1], d), q = f.p;
+      if (project) { q = [f.p[0]! - g[0] * d[0]!, f.p[1]! - g[1] * d[0]!, f.p[2]! - g[2] * d[0]!]; g = skinNormalTwin(tw, f.k, q[0]!, q[1]!, q[2]!, SKIN_ARM_ABSENT); }
+      return g[0] * L[0] + g[1] * L[1] + g[2] * L[2];
+    };
+    const r = { pairs: 0, jumpsAt: 0, jumpsProjected: 0 };
+    for (const [key, a] of shadeBest) { const b = shadeBest.get(key + 1); if (!b) continue; r.pairs++; if (Math.abs(sAt(a, false) - sAt(b, false)) > 0.15) r.jumpsAt++; if (Math.abs(sAt(a, true) - sAt(b, true)) > 0.15) r.jumpsProjected++; }
+    opts.shade(r);
+  }
   if (opts?.map) opts.map(best, W2, H2);
   return st;
 }
