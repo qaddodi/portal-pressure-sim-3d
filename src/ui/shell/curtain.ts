@@ -4,10 +4,10 @@
 import { D_SMALL, D_SURFACE, fadeMs } from '../a11y/motion.ts';
 import { W } from '../deck/words.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 export const COVER_MAX_MS = 12000;
 let cover: HTMLDivElement | null = null;
-let giveUp: number | undefined;
+let giveUp: TimerId | undefined;
 
 /** The cover comes up (what is opening is its cue). Resolves once it has faded in. */
 export function coverUp(what = ''): Promise<void> {

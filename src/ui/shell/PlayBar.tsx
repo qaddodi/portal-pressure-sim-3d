@@ -19,7 +19,7 @@ import { LOBULE_TILES, roomFor, type Scale } from './lobule-strip.ts';
 // @ts-ignore the pinned engine copy is plain JS
 import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 const pb = UI.playbar;
 const HOLD_MS = 450;
 
@@ -125,7 +125,7 @@ export function Readouts() {
 /** The timeline row of the dock, as 2D's timeline.js builds it: .tl-left > .tl-split (.tl-speed, .ib.play) and .tl-restart, .tl-time, .tl-jumps > .tl-ff, .tl-hist, .tl-pin. */
 export function Timeline({ phone }: { phone: boolean }) {
   const { running, speed, lapse, time } = useShell((s) => s.transport);
-  const hold = useRef<{ t: number | undefined; held: boolean }>({ t: undefined, held: false });
+  const hold = useRef<{ t: TimerId | undefined; held: boolean }>({ t: undefined, held: false });
   const comparing = useCompare((c) => !!c.snap), histCount = useTimeline((t) => t.count);
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;

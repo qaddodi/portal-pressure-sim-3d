@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react';
 import '../labels/labels.css';
 import './captions.css';
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { latest } from '../../engine/index.ts';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import { useSettings } from '../../state/settings.ts';
@@ -97,7 +97,7 @@ export function CircuitCaptions() {
 
     const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
     // the floating bars are read at rest (once the layout has settled after a change), not in a frame
-    let uiWalls: Box[] = [], wallTimer = 0;
+    let uiWalls: Box[] = [], wallTimer: TimerId | null = null;
     const readWalls = () => { uiWalls = readUiWalls(); clock.invalidate('circuit-captions'); };   // (the signature holds the walls' boxes: a changed wall is seen there, never forced)
     const wallsLater = () => { clock.cancel(wallTimer); wallTimer = clock.after(readWalls, 260); };
     wallsLater();

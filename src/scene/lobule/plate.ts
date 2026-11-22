@@ -31,6 +31,18 @@ export function plateKey(s: PlateState, look: LookId): string {
 }
 const unkey = (k: string): PlateState => { const v = k.split('|')[1]!.split(',').map((x) => Number(x) / 32); return { congU: v[0]!, septU: v[1]!, fibSin: v[2]!, act: v[3]!, fibPre: v[4]!, fibPost: v[5]! }; };
 
+/** The plate's one quantiser for a live goal: steps of 1/32 with hysteresis, so a value sitting on the line between two steps (a live model's does, every frame) keeps ONE step and so one painting.
+ *  A value leaves its step only when it is 0.75 of a step away (more than the half a plain rounding uses), and 0 and 1 are exact. The field's tile has the same rule (field.ts fieldQuantizer, 2D's fsQ). */
+export function plateQuantizer(): (s: PlateState) => PlateState {
+  const last: Partial<PlateState> = {};
+  const q = (k: keyof PlateState, x: number): number => {
+    const v = Math.min(1, Math.max(0, x || 0)), o = last[k];
+    if (v === 0 || v === 1) return (last[k] = v);
+    return o !== undefined && Math.abs(v - o) < 0.75 / 32 ? o : (last[k] = Math.round(v * 32) / 32);
+  };
+  return (s) => ({ congU: q('congU', s.congU), septU: q('septU', s.septU), fibSin: q('fibSin', s.fibSin), act: q('act', s.act), fibPre: q('fibPre', s.fibPre), fibPost: q('fibPost', s.fibPost) });
+}
+
 /** Scene radii of the sinusoids (the view's RAD, in lobule radii): the space of Disse's collagen follows them. */
 export interface SinCourse { c: Course; r: number }
 

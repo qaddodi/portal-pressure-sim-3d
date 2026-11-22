@@ -9,7 +9,7 @@
 // `{ type: 'crash', message }` once (every request waiting on it settles with that), and the next message starts a fresh one.
 import type { WorkerLike } from './client.ts';
 
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 /** How long a request to a second engine may wait before the worker is taken for stalled and dropped. A deck's chain is seconds on a laptop; this is for a worker that never answers. */
 export const SECOND_WAIT_MS = 120000;
 
@@ -25,7 +25,7 @@ export type SecondMessage = { type: string; reqId?: number; message?: string; [k
 export class Second {
   private w: WorkerLike | null = null;
   private cb: ((m: SecondMessage) => void) | null = null;
-  private timer: number | undefined;
+  private timer: TimerId | undefined;
   private readonly start: () => WorkerLike;
   private readonly waitMs: number;
   constructor(start: () => WorkerLike = startWorker, waitMs = SECOND_WAIT_MS) { this.start = start; this.waitMs = waitMs; }

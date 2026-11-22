@@ -1,6 +1,7 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { span } from '../boot/spans.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
+import { runSystems, type FrameCtx, type FrameSystem } from './frame-systems.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
@@ -738,7 +739,10 @@ export class CelScene {
     this.body.localToWorld(tip); this.body.localToWorld(ahead);
     return true;
   }
-  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number }): void {
+  /** The tracing has settled and the free reading is taken (the deck's catheter clock reached it): only then does the FHVP callout come. True when the caller says nothing (a catheter that is not the deck's). */
+  catheterRead = true;
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number; read?: boolean }): void {
+    this.catheterRead = s.read ?? true;
     // (the still column fills after the balloon is up and the WHVP pill comes after the column, 2D cathTo: the labels read the slice's balloon as "wedged" at 0.999, so it says so only once the column is full)
     const col = s.column ?? s.balloon;
     this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });
@@ -967,6 +971,8 @@ export class CelScene {
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
   /** Whether the camera is in, or on its way into or out of, the liver (the lobule, the sinusoid, or a view change still flying): the only time the dive's fade, window and field apply. */
+  /** The camera is in a small view or on its way between it and the body (in either direction): the body's readout callouts stand aside until it has settled back. */
+  get diving(): boolean { return this.inDive(); }
   private inDive(): boolean { return this.figureView === 'lobule' || this.figureView === 'sinusoid' || this.hideLeftBehind; }
   private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
@@ -1183,73 +1189,97 @@ export class CelScene {
   /** Running total of ms per update() system since the scene was made (read it for ?perf and the audit; lapTimer fills it). */
   readonly systemMs: Record<string, number> = {};
 
+  /** The frame's systems, in the order they run (R6): each is a named step that says whether it still moves. `update` runs them all (no `||` between them: every one runs), ORs the answers and times each by its id into `systemMs`. */
+  private systems: readonly FrameSystem<FrameCtx>[] | null = null;
+  /** The ids of the frame's systems in the order they run (a test pins this list; ?perf and the audit name a lagging system by one of these). */
+  get systemIds(): readonly string[] { return (this.systems ??= this.makeSystems()).map((s) => s.id); }
+
   update(now: number): boolean {
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
-    const lap = lapTimer(this.systemMs);
     for (const e of this.eases) e.step(now);   // (the clock steps them in its tween phase; this is the same step at the same time, which changes nothing, and lets a hand-turned update(now) drive them)
-    const camMoving = this.rig.update(now);
-    this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
-    this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
-    const quiet = quietOf(this.rig.orbitAngle);
-    for (const o of this.back) o.setQuiet(quiet);
-    this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
-    const circMoving = this.stepCircuit(now, dt);
-    this.fadeBody();
-    // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
-    if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
-    this.highlight.setGlowShown(glowGate(this.circuit.t));   // (it eases away over the change's first 15 %, never snaps at the switch)
-    lap('camera+circuit');
-    const hiMoving = this.highlight.step(dt);
-    const pinMoving = this.pins.step(dt, this.disease.organs.byId);
-    this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
-    this.flowRate.step(dt / 1000, flowTarget(live.frame?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
-    // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons and the streaks ease out, and back when it ends
-    const procQuiet = this.procs.busy || !!this.probes.scope.driven;
-    if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
-    const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
-    const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
-    const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
-    const flowActive = anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving);   // (the cava eases while blood flows)
-    lap('flow');
-    const lensMoving = this.lens.step(now);
-    const dustMoving = dustTuner.step(dt);
-    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
-    const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
-    this.syncStumps();
-    this.updateCaps();
-    lap('cells+presence');
-    const shapeMoving = this.shapes.step(dt);
-    // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
-    const skinPending = this.skins?.step() ?? false;
-    if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
-    const skinMoving = anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
-    lap('shapes+skins');
-    this.stepSinusDive();
-    this.stepCutaway();
-    this.stepPortrait();
-    if (this.microReady) this.micro!.sinus.pinTraffic(this.micro3d);
-    const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
-    // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
-    // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: the two dissolving at once let the page show through both, the pale washed frame of
-    //  the Lobule -> Sinusoid handoff, eyes 20 Nov. The sinusoid is drawn over it, lifted, from SIN_SHOW_FROM, so nothing of the lobule shows once it is whole.)
-    const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
-    const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
-    if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
-    const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
-    lap('micro views');
-    const procMoving = this.procs.update(now);
-    this.syncWedge();
-    lap('procedures+wedge');   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
-    const diseaseMoving = this.disease.update(now, this.flowRate.value);
-    if (diseaseMoving) this.tagOverOrgans();
-    lap('disease+organs');
-    const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    lap('probes');
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
+    const ctx: FrameCtx = { now, dt, streams: false, procQuiet: false };
+    let needs = runSystems(this.systems ??= this.makeSystems(), ctx, this.systemMs, () => clock.now());
+    if (this.moving) needs = true;
     this.moving = false;
     return needs;
+  }
+
+  private makeSystems(): FrameSystem<FrameCtx>[] {
+    return [
+      { id: 'camera', step: ({ now }) => {
+        const camMoving = this.rig.update(now);
+        this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
+        this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
+        return camMoving;
+      } },
+      { id: 'circuit', step: ({ now, dt }) => {
+        const quiet = quietOf(this.rig.orbitAngle);
+        for (const o of this.back) o.setQuiet(quiet);
+        this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
+        const circMoving = this.stepCircuit(now, dt);
+        this.fadeBody();
+        // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
+        if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
+        this.highlight.setGlowShown(glowGate(this.circuit.t));   // (it eases away over the change's first 15 %, never snaps at the switch)
+        return circMoving;
+      } },
+      { id: 'highlight', step: ({ dt }) => anyMoving(this.highlight.step(dt), this.pins.step(dt, this.disease.organs.byId)) },
+      { id: 'flow', step: (c) => {
+        const { now, dt } = c;
+        this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
+        this.flowRate.step(dt / 1000, flowTarget(live.frame?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
+        // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons and the streaks ease out, and back when it ends
+        c.procQuiet = this.procs.busy || !!this.probes.scope.driven;
+        if (c.procQuiet !== this.procQuietWas) { this.procQuietWas = c.procQuiet; this.flow.setOptions({ quiet: c.procQuiet }); }
+        const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
+        c.streams = streamsMoving;
+        const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
+        const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
+        return anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving);
+      } },
+      { id: 'lens+dust', step: ({ now, dt }) => anyMoving(this.lens.step(now), dustTuner.step(dt)) },
+      { id: 'cells', step: (c) => this.cells.step(c.dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: c.streams, quiet: c.procQuiet }) },
+      { id: 'presence', step: ({ dt }) => {
+        const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
+        this.syncStumps();
+        this.updateCaps();
+        return presMoving;
+      } },
+      { id: 'shapes', step: ({ dt }) => this.shapes.step(dt) },
+      { id: 'skins', step: () => {
+        // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
+        const skinPending = this.skins?.step() ?? false;
+        if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
+        return anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+      } },
+      { id: 'micro', step: ({ now }) => {
+        this.stepSinusDive();
+        this.stepCutaway();
+        this.stepPortrait();
+        if (this.microReady) this.micro!.sinus.pinTraffic(this.micro3d);
+        const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
+        // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
+        // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: the two dissolving at once let the page show through both, the pale washed frame of
+        //  the Lobule -> Sinusoid handoff, eyes 20 Nov. The sinusoid is drawn over it, lifted, from SIN_SHOW_FROM, so nothing of the lobule shows once it is whole.)
+        const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
+        const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
+        if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
+        return anyMoving(lob3, sin3, lobMoving, sinMoving);
+      } },
+      { id: 'procedures', step: ({ now }) => {
+        const procMoving = this.procs.update(now);
+        this.syncWedge();
+        return procMoving;   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
+      } },
+      { id: 'disease', step: ({ now }) => {
+        const diseaseMoving = this.disease.update(now, this.flowRate.value);
+        if (diseaseMoving) this.tagOverOrgans();
+        return diseaseMoving;
+      } },
+      { id: 'probes', step: ({ now }) => this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive) },
+    ];
   }
 
   /** The liver's own branches (portal venules, sinusoids, hepatic venules) draw on along their flow as the body turns into the map, and back, on the change's eased share (circuit/grow.ts). */

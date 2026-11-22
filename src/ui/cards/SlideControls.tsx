@@ -63,6 +63,8 @@ function WhatIf({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   const [v, setV] = useState(v0);
   // the slide's own value comes in when its state is worked out (the first slide opens before the engine has answered)
   useEffect(() => { const x = w.tool ? toolOptionStart(deck, i, w.tool, w.min) : whatIfStart(deck, i, w.paths, w.min); setV0(x); setV(x); }, [slide.id, deck, i, w]);
+  // a slide shown again starts with its own state: the charts read the slide's own until the slider is moved
+  useEffect(() => { useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, deck.id]);
   const frac = (x: number) => Math.min(1, Math.max(0, (x - w.min) / (w.max - w.min)));
   const bare = !!w.unit && w.label.toLowerCase().startsWith(w.unit.toLowerCase());
   const shown = w.unit ? `${v.toFixed(w.step >= 1 ? 0 : 1)}${bare ? '' : ` ${w.unit}`}` : '';
@@ -75,7 +77,7 @@ function WhatIf({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
         <div className="range-wrap" style={wrap}>
           <span className="sl-start" aria-hidden="true" />
           <input type="range" min={w.min} max={w.max} step={w.step} value={v} aria-label={`What if: ${w.label}`}
-            onChange={(e) => { const x = +e.target.value; setV(x); if (w.tool) dragToolOption(deck, i, w.tool, x); else dragWhatIf(w.paths, x); }} onPointerUp={(e) => e.currentTarget.blur()} />
+            onChange={(e) => { const x = +e.target.value; setV(x); if (w.tool) dragToolOption(deck, i, w.tool, x); else dragWhatIf(deck, i, w.paths, x); }} onPointerUp={(e) => e.currentTarget.blur()} />
         </div>
         {w.ends ? <span className="pzi-e">{w.ends[1]}</span> : null}
       </div>
