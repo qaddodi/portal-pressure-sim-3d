@@ -13,7 +13,7 @@ import { STREAK_FLAGS } from '../blood/cells/cells.ts';
 import { RES_FS, RES_VS, RESISTOR_FLAGS } from '../circuit/resistors.ts';
 import { JET_INK_FLAGS, JET_INK_FS, JET_INK_VS } from '../disease/bleed.ts';
 import { ClotObject, clotGeometry } from '../disease/clots.ts';
-import { GLOW_DEFINES, HALO_FLAGS } from '../highlight.ts';
+import { HALO_FLAGS } from '../highlight.ts';
 
 /** One triangle with the attributes any of these shaders declares (a program's compile reads none of them). */
 const triangle = (extra: readonly [string, number][] = []): BufferGeometry => {
@@ -56,11 +56,8 @@ export function addOrganHalos(root: Group, organs: readonly CelObject[]): void {
     const key = o.ink.vertexShader + '\u0000' + o.ink.fragmentShader;   // (the highlight's shell takes the ink's shaders and none of its defines: scene/highlight.ts)
     if (seen.has(key)) continue;
     seen.add(key);
-    // the spleen's ring (no defines) and the organs' glow (GLOW_DEFINES) are two programs: the stand-ins wear both
-    for (const [tag, defines] of [['', {}], [' glow', { ...GLOW_DEFINES }]] as const) {
-      const m = new Mesh(triangle(), new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS, defines, uniforms: {} }));
-      m.name = `prototype/organ halo${tag} ${o.tone}`; m.frustumCulled = false; m.userData.key = key;
-      root.add(m);
-    }
+    const m = new Mesh(triangle(), new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS, uniforms: {} }));
+    m.name = `prototype/organ halo ${o.tone}`; m.frustumCulled = false; m.userData.key = key;
+    root.add(m);
   }
 }
