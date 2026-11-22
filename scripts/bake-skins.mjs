@@ -10,10 +10,10 @@ import { fileURLToPath } from 'node:url';
 if (process.argv.includes('--net')) {
   const sk = new URL('../src/scene/vessels/net/skeleton.ts', import.meta.url);
   if (!existsSync(fileURLToPath(sk))) { console.error('net bake: src/scene/vessels/net/skeleton.ts does not exist yet (WP0)'); process.exit(1); }
-  const { buildSkeleton } = await import(sk.href);
+  const { skeleton } = await import(sk.href);
   const { buildNetMesh, networksOf } = await import('../src/scene/vessels/net/mesh.ts');
   const { encodeNet, skeletonDigest } = await import('../src/scene/vessels/net/baked.ts');
-  const skel = buildSkeleton(), digest = skeletonDigest(skel);
+  const skel = skeleton(), digest = skeletonDigest(skel);
   mkdirSync(fileURLToPath(new URL('../public/anatomy/', import.meta.url)), { recursive: true });
   networksOf(skel).forEach((edges, n) => {
     const t0 = Date.now(), r = buildNetMesh(skel, edges);

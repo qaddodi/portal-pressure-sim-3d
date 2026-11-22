@@ -10,4 +10,4 @@ export interface SkelEdge { id: string; from: string; to: string; bones: [number
 /** A junction (or a free end): one position per pose. `edges` lists the edge ends that start or end exactly here; `runOn` the two of them (indices into `edges`) that carry on into one another. */
 export interface SkelNode { id: string; pos: [Vec3, Vec3]; edges: { edge: number; end: 0 | 1 }[]; runOn?: [number, number] }
 export interface Skeleton { nodes: SkelNode[]; edges: SkelEdge[]; bones: Bone[] }
-export interface NetMesh { position: Float32Array; bone: Uint16Array /* 4 per vertex */; weight: Float32Array /* 4 */; offset: Float32Array /* 4 × vec3, unit-radius bone frame */; index: Uint32Array }
+export interface NetMesh { position: Float32Array; bone: Uint16Array /* 4 per vertex */; weight: Float32Array /* 4 */; offset: Float32Array /* 4 × vec3, unit-radius bone frame */; normal: Float32Array /* 4 × vec3: the rest normal in each bound bone's frame (t, n, b components), unit; rotated by the same blend and renormalised, never derived on screen */; index: Uint32Array }
