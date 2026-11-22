@@ -49,6 +49,9 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
 }
 
 
+/** When the crossing running on a label ends (clock ms): one crossing at a time per label (restyle). */
+const crossing = new WeakMap<Element, number>();
+
 /** A label showing at least this much is crossed over when its look changes; one fainter takes the change at once (nobody can see it). */
 export const RESTYLE_SHOWING = 0.05;
 
@@ -63,6 +66,17 @@ export function restyle(el: Element, apply: () => void, alpha: number): void {
   if (!(alpha > RESTYLE_SHOWING) || !parent || typeof el.animate !== 'function' || typeof el.cloneNode !== 'function') { apply(); return; }
   const kids = Array.from(el.children) as HTMLElement[];
   const before = kids.map((k) => k.textContent);
+  // A crossing already runs on this label (an earlier change, under D_SMALL ago): the new change is written into the live label and rides that crossing, which fades the one old copy out
+  // and the live words in. A second copy started now would begin again at full opacity beside the first, once per change, and a reading that changes every few frames (the EUS-PPG's PV and HV
+  // while the needle reads) pulsed instead of easing (Mohammad, 22 Nov: "the callout flickers as it's measuring"). A part whose words change now and is not already fading in does so for the time left.
+  const run = crossing.get(el), at = clock.now();
+  if (run && at < run) {
+    apply();
+    const left = run - at;
+    kids.forEach((k, i) => { if (k.textContent !== before[i] && !(k.getAnimations?.().length)) k.animate([{ opacity: 0 }], { duration: left, easing: 'linear', fill: 'backwards' }); });
+    return;
+  }
+  crossing.set(el, at + D_SMALL);
   const old = el.cloneNode(true) as HTMLElement;
   old.setAttribute('class', `${el.getAttribute('class') ?? ''} lb-was`);
   old.setAttribute('aria-hidden', 'true');

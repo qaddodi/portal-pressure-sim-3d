@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Vector2, type Material } from 'three';
-import { PostAA, aaMode, AA_FS } from '../src/scene/post-aa.ts';
+import { PostAA, aaMode, canvasBuffers, AA_FS } from '../src/scene/post-aa.ts';
 import { installShaderGuard } from '../src/debug/shader-guard.ts';
 import { msaaFor } from '../src/scene/quality.ts';
 
@@ -66,4 +66,13 @@ test('the pass is classic FXAA: four corner taps and the middle, a direction fro
   assert.match(AA_FS, /FXAA_SPAN_MAX 4\.0/);
   assert.equal((AA_FS.match(/texture2D\(/g) ?? []).length, 9);
   assert.match(AA_FS, /lumaB < lumaMin \|\| lumaB > lumaMax/, 'a result outside the neighbours\' luma range falls back to the shorter blend');
+});
+
+test('the canvas keeps its depth and stencil whenever a frame can be drawn straight to it (the inspector\'s live FXAA switch included), so the pass off never changes the opacity or the order of the vessels', () => {
+  assert.deepEqual(canvasBuffers('fxaa', false), { depth: false, stencil: false });   // the pass on, no switch: the pass's own target has both
+  assert.deepEqual(canvasBuffers('fxaa', true), { depth: true, stencil: true });      // ?inspect: the panel can turn the pass off on this canvas
+  assert.deepEqual(canvasBuffers('off', false), { depth: true, stencil: true });
+  assert.deepEqual(canvasBuffers('msaa', false), { depth: true, stencil: true });
+  const stage = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
+  assert.match(stage, /depth: buffers\.depth, stencil: buffers\.stencil/, 'Stage.tsx makes the canvas with canvasBuffers, never with a bare `!post`');
 });

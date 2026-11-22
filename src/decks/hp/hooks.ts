@@ -66,7 +66,7 @@ const TABLE: Feature[] = [
   // the figure
   done('procedure:eus', 'B11', 'EUS-PPG: the echoendoscope and needle on the figure', 'src/ui/deck/procs-link.ts'),
   done('procedure:rex', 'B5', 'The Meso-Rex graft growing along its path', 'src/ui/deck/procs-link.ts'),
-  done('procedure:evl', 'B5', 'EVL: the ligator scope down the esophagus and the bands settling', 'src/ui/deck/procs-link.ts'),
+  done('procedure:evl', 'B5', 'EVL: the scope down the esophagus and the bands settling', 'src/ui/deck/procs-link.ts'),
   done('procedure:tamponade', 'B5', 'Balloon tamponade: the tube in and the gastric balloon up', 'src/ui/deck/procs-link.ts'),
   done('procedure:dips', 'B5', 'DIPS: the stent joining the portal vein to the vena cava', 'src/ui/deck/procs-link.ts'),
   done('procedure:dsrs', 'B5', 'DSRS: the splenorenal shunt drawn', 'src/ui/deck/procs-link.ts'),

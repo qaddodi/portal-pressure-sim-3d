@@ -105,7 +105,7 @@ export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt
             <div className="endo-chip endo-red" data-on={r.redOn} title={W.redTip}><dt>{W.tiles.stigmata}</dt><dd className="endo-chip-v" data-long={r.redOn ? '' : undefined}><span>{r.redOn ? W.red.word : W.red.none}</span><span className="endo-more">{r.redOn ? W.red.more : ''}</span></dd></div>
           </dl>
         )}
-        <button type="button" className="btn primary" disabled={!present} title={present ? '' : W.noBand} onClick={() => { useScope.getState().band(); appEnv.action({ kind: 'band' }); }}>
+        <button type="button" className="btn primary" disabled={!present} title={present ? '' : W.noBand} onClick={() => { appEnv.action({ kind: 'band' }); }}>
           <OrderIcon n="band" className="ac-ic" />{procLabel('band')}
         </button>
         <EusPpg width={square} />

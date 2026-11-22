@@ -23,7 +23,8 @@ import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
 import { govern, newGovernor } from './detail-governor.ts';
-import { aaMode } from './post-aa.ts';
+import { aaMode, canvasBuffers } from './post-aa.ts';
+import { INSPECT } from './vessels/debug-view.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
 import { frameBegin, frameEnd, renderStats } from '../clock/render-stats.ts';
@@ -299,11 +300,12 @@ export function Stage() {
   const mode = aaMode();
   const msaa = mode === 'msaa';
   const post = mode === 'fxaa';
+  const buffers = canvasBuffers(mode, INSPECT);   // (the inspector's live FXAA switch may draw straight to this canvas: it keeps its depth and stencil then, post-aa.ts)
   // (with the anti-aliasing pass on, the figure is drawn into the pass's own target, which has its depth and stencil, and the canvas only receives the filtered picture:
-  // no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa` and `?aa=off` draw straight to the canvas and keep both)
+  // no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa`, `?aa=off` and the inspector page draw (or may draw) straight to the canvas and keep both)
   return (
     <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: !post, stencil: !post, powerPreference: 'high-performance' }}>
+      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: buffers.depth, stencil: buffers.stencil, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

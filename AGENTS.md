@@ -1,7 +1,7 @@
 # Working instructions for all coding agents (portal-pressure-sim-3d)
 
 The 3D cel-shaded rebuild of the portal pressure simulator. The owner (a hepatologist teaching US physicians) tests every change on
-iPhone, iPad and Mac. Read `docs/look-and-feel.md` and `docs/slice-plan.md` first; `docs/interfaces.md` says who owns which folder and
+iPhone, iPad and Mac. Read `docs/HUMANIZED-DESIGN.md` (the owner's design rules: no pill with a dot, everything eases, plain words), `docs/look-and-feel.md` and `docs/slice-plan.md` first; `docs/interfaces.md` says who owns which folder and
 how the pieces plug together.
 
 ## The bible (judge every change against all six before calling it done)
