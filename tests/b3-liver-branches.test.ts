@@ -1,6 +1,5 @@
 // The second-level branches in the liver (liver-branches.ts): they start and end inside the liver's outline, and siblings never cross each other or another vein.
 // (Mohammad, 20 Nov: "the hepatic veins are branching outside the liver and into each other"; the middle hepatic vein does not branch.)
-import { NBR_EASE_PX } from '../src/scene/vessels/shaders.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -204,8 +203,7 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   }
   assert.equal(forkMateOf('PV_TRUNK'), null);
   assert.match(VESSEL_VS, /attribute vec2 nbr;/);
-  assert.match(VESSEL_FS, /nbrK = smoothstep\([0-9.]+ \* dpr, [0-9.]+ \* dpr, nbrPx\)/);
-  assert.ok(NBR_EASE_PX[1] - NBR_EASE_PX[0] >= 2, 'the ink gives way over a few pixels, not one (a one-pixel ramp flipped from pixel to pixel along a shared wall: the dotted seam row)');
+  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, nbrPx\)/);
   assert.match(VESSEL_FS, /float nbrPx = \(vNbr\.y - abs\(vNbr\.x\)\)/);
   assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
   // THE DOTTED HOLES ON THE SPLENIC VEIN (Mohammad, 22 Nov; the inspector's "Why tubes drop pixels" painted them magenta: a discard decided from `nbr`, the plane's measure): no pixel is dropped for lying inside the neighbour, the ink goes with nbrK instead

@@ -26,10 +26,6 @@ import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_G
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
-/** Where (CSS px inside the NEIGHBOUR's lumen, by the plane's `nbr` measure) a tube's ink and shade band begin to give way to it, and where they are gone. `nbr` is the figure plane's measure, a vertex at a time; the neighbour's drawn lumen lies where the camera puts it,
- *  so along a stretch where two walls run side by side the measure sits within a pixel or two of the wall and flips from pixel to pixel: a one-pixel ramp made a dotted row of un-inked fill in the outline (Mohammad, 22 Nov, splenic vein). Eased over a few
- *  pixels, that jitter moves the ink by a fraction of itself and the outline stays whole; where a branch really enters a vein its line is gone within a line's width of the wall. */
-export const NBR_EASE_PX = [0.5, 3.5] as const;
 /** How much of a tube's own round depth its pixels keep. The figure is a stack of tiers 0.01 to 0.02 apart (frame2d.ts TIER_Z) whose order is the 2D figure's over and under (the hepatic artery between the cava and the portal vein),
  *  but a round tube's front stands its RADIUS in front of its axis: the cava (z -0.02, radius 0.027) bulged 0.007, past the hepatic artery's axis (z 0.0) and its own front (0.005), and hid it (Mohammad, 20 Nov: "fix the hepatic artery
  *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
@@ -490,7 +486,7 @@ void main() {
   float nbrK = 0.0;
   if (vNbr.y > 0.0) {
     float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
-    nbrK = smoothstep(${F(NBR_EASE_PX[0])} * dpr, ${F(NBR_EASE_PX[1])} * dpr, nbrPx) * (1.0 - circT);
+    nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
   }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's

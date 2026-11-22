@@ -853,7 +853,7 @@ void main() {
   float nbrK = 0.0;
   if (vNbr.y > 0.0) {
     float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
-    nbrK = smoothstep(0.5 * dpr, 3.5 * dpr, nbrPx) * (1.0 - circT);
+    nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
   }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
