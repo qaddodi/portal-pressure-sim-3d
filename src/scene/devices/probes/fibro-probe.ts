@@ -134,7 +134,6 @@ export class FibroProbe {
     this.beam = new Mesh(this.beamGeo, this.beamMat);
     this.beam.renderOrder = 1000; this.beam.frustumCulled = false; this.beam.visible = false;
     this.group.add(this.beam);
-    this.group.visible = false;
   }
 
   /** A direction on the screen (degrees clockwise from +x, y down) as the plate's vector per px there: the legacy figure scale has none (the probe's own turn is the plate's direction). */
@@ -232,8 +231,13 @@ export class FibroProbe {
     const vis = this.shown > 0.002;
     let moving = this.shown !== prev || this.opT.running;
     if (this.shown !== prev) {
-      this.group.visible = vis;
-      for (const o of this.parts) { o.group.visible = vis; if (vis && !this.waves.some((w) => w.part === o) && !this.headPartsList.includes(o)) o.setAlpha(this.shown); }
+      // (the probe's own fade, `shown`, is the alpha of every part that has no fade of its own; a part that does (the head's, a wave's) gets nothing here but its leave)
+      for (const o of this.parts) {
+        if (this.waves.some((w) => w.part === o)) { if (!vis) o.show(false); continue; }
+        const head = this.headPartsList.includes(o);
+        o.present();
+        if (!head || !vis) o.setAlpha(head ? 0 : this.shown);
+      }
       this.beam.visible = vis; this.beamMat.opacity = this.shown;
     }
     this.screenAt.placed = vis;
@@ -274,7 +278,7 @@ export class FibroProbe {
     } else { this.U = len3(1); this.turn = this.turnGoal = SCAN.TURN[this.organ] as number; this.screenAt.turn = this.turn; }
     const key = `${this.U.toFixed(6)}|${this.turn.toFixed(2)}|${this.B.a.toFixed(3)}|${this.B.b.toFixed(3)}|${this.B.c.toFixed(3)}|${this.B.d.toFixed(3)}`;
     if (key !== this.shapeKey) { this.shapeKey = key; this.shape(env); }
-    for (const o of this.headPartsList) { const a = this.shown * this.headOp; if (a > 0.002) o.setAlpha(a); o.group.visible = a > 0.002; }
+    for (const o of this.headPartsList) { o.present(); o.setAlpha(this.shown * this.headOp); }
     // the tip's tap, once a second from the first frame the probe shows: only the pad moves, a little, along the probe's own axis (2D scanTick / scanStep; none with Reduce Motion)
     if (env?.reduceMotion?.()) { this.tapT0 = -1; }
     else {
@@ -292,8 +296,8 @@ export class FibroProbe {
     const gap = clamp(v * SCAN.EVERY * 0.4, 2, SCAN.GAP);
     this.waves.forEach((w, i) => {
       const pk = Math.floor(i / WAVE_ARCS), j = i % WAVE_ARCS, r = this.fronts[pk];
-      if (r == null) { w.part.group.visible = false; return; }
-      w.part.group.visible = true;
+      w.part.show(r != null);
+      if (r == null) return;
       this.layArc(w, Math.max(1, r + (j - 1) * gap), this.shown * fadeOf(r / span) * WAVE_STROKE_A[j]!, env, WAVE_HALF_PX[j]!);
     });
     return true;

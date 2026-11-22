@@ -13,7 +13,7 @@ import { DeviceObject } from '../device-object.ts';
 import { stentGraftEdge, stentGoldEdge, stentWireEdge } from './stent-look.ts';
 import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
 import { rawColor } from '../../materials/cel.ts';
-import { STENT_CHAMPAGNE, STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
+import { bareHalfWidths, STENT_CHAMPAGNE, STENT_GLASS, STENT_FRONT_ALPHA, STENT_GOLD_ALPHA, stentCircuitLook } from './stent-look.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
@@ -48,6 +48,8 @@ export class StentDevice {
   /** what the last build was made of, for tests and the bracket */
   paths: StentPaths | null = null;
   private key = '';
+  /** the shunt's diameter the stent was last built at (mm, quarter steps): the bare stretch's real length in the Circuit is read against it */
+  private dq = 8;
   private geom: StentSpec['geom'] | null = null;
   private lastR = 0;
   private readonly curve: CatmullRomCurve3;
@@ -71,8 +73,7 @@ export class StentDevice {
     this.glint = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0, order: 4, spec: 0 }, 'ink');
     this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.6, order: 5 }, stentGoldEdge);
     this.objects = [this.graft, this.back, this.wires, this.glint, this.gold];
-    for (const o of this.objects) this.group.add(o.group);
-    this.group.visible = false;
+    for (const o of this.objects) { o.park(); this.group.add(o.group); }
   }
 
   /** The shunt's vessel: it carries the narrowing. */
@@ -115,6 +116,7 @@ export class StentDevice {
     if (instant) { this.amount = goal; moved = true; }
     // the shape: rebuilt only when it changes (diameter on the engine's own half-mm step, the waist and the end stenosis)
     const dq = Math.round(D * 4) / 4;
+    this.dq = dq;
     const spec = this.specFor(params, dq);
     this.geom = spec.geom; this.lastR = spec.R;   // (the waist's bracket follows the params at once, as the card's picture does)
     const key = [dq.toFixed(2), spec.geom.len, spec.geom.waist, spec.geom.trans, spec.geom.red.toFixed(4), spec.s.toFixed(4), spec.site.toFixed(3)].join('|');
@@ -152,12 +154,13 @@ export class StentDevice {
 
   private apply(): void {
     const a = this.amount;
-    this.group.visible = a > 0.002 && !!this.paths;
-    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a * GOLD_ALPHA);
+    for (const o of this.objects) o.present();   // (the stent's own eased share is the whole fade: a part leaves the list when it reaches nothing)
+    const w = this.paths ? 1 : 0;
+    this.graft.setAlpha(w * a * GRAFT_ALPHA); this.back.setAlpha(w * a * BACK_ALPHA); this.wires.setAlpha(w * a * FRONT_ALPHA); this.glint.setAlpha(w * a * GLINT_ALPHA); this.gold.setAlpha(w * a * GOLD_ALPHA);
     this.graft.setShadowAlpha(a);   // (the sleeve is nearly clear, its shadow is not: it follows the stent's own share)
     if (this.lastPalette) { for (const o of this.objects) o.applyPalette(this.lastPalette); this.paintWire(); }
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
-    this.vessel?.setStent(this.paths ? a : 0, INSET / this.L, 1 - INSET / this.L, this.paths ? (INSET + this.paths.bareEnd) / this.L : 0);
+    this.vessel?.setStent(this.paths ? a : 0, INSET / this.L, 1 - INSET / this.L, this.paths && this.paths.bareEnd < this.paths.graftEnd ? bareHalfWidths(this.dq) : 0);
     if (!this.paths) return;
     // the vessel's own narrowing eases with the stent: it is only there while the stent is
     if (a < 0.999 && this.vessel) { /* the vessel keeps the narrowing while it fades; the stent leaves with the vessel */ }

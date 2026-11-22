@@ -10,7 +10,7 @@ export const CHECKS: { id: string; what: string }[] = [
   { id: 'off-screen', what: 'anything partly past the edge of the screen' },
   { id: 'text-overlap', what: 'any two visible runs of words standing over each other' },
   { id: 'covered-by', what: 'anything covered by another painted element, found by asking the page what is on top at five points of it (elementFromPoint)' },
-  { id: 'small-text', what: `any lettering under ${WORDS_MIN_PX} px as drawn (every ancestor's transform and zoom included; 0.3 px of rounding allowed)` },
+  { id: 'small-text', what: `any lettering under ${WORDS_MIN_PX} px as drawn (every ancestor's transform and zoom included; 0.3 px of rounding allowed; not inside a card the app zoomed down to fit (--pz-fit): that shrink is kept on purpose)` },
   { id: 'low-contrast', what: `text against the solid background behind it, under ${CONTRAST_TEXT}:1 (3:1 for large text); skipped where the figure or an image is behind` },
   { id: 'zero-size', what: 'pictures or charts that are in the page but have no size inside a box that has, and anything with a NaN size (words with no box are collapsed on purpose and are not judged)' },
   { id: 'broken-image', what: 'images that did not load' },
@@ -72,7 +72,7 @@ export function judgeScan(s: RawScan): AuditFinding[] {
     const sp = past(i.box, screen);
     if (!i.scrolls && sp.length && inter(i.box, screen) > 0) add('off-screen', 'fail', `${label(i)} runs past the screen: ${sp.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')}${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
     if (i.kind === 'text' && i.px != null) {
-      if (i.px < WORDS_MIN_PX - 0.3) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
+      if (i.px < WORDS_MIN_PX - 0.3 && !i.fitted) add('small-text', 'warn', `${label(i)} is drawn at ${i.px} px (under ${WORDS_MIN_PX})${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
       if (i.fg && i.bg && !i.fading) {
         try {
           const large = i.px >= 24 || (i.bold && i.px >= 18.66), need = large ? 3 : CONTRAST_TEXT;

@@ -16,6 +16,7 @@ import { cel } from '../api.ts';
 import { type Box, leaderGeom, rectToBox } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { type Placement, solve } from '../labels/solver.ts';
+import { restyle } from '../labels/roll.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
@@ -103,6 +104,8 @@ export function LobuleCaptions() {
         const mt = metas.get(id)!;
         const e = els.get(id) ?? make(id, mt);
         const f = mt.forms[Math.min(p.form, mt.forms.length - 1)]!;
+        // (the words first: a caption that is showing crosses over to its new words from the caption as it stood; an empty one takes no room: labels.css `:empty`)
+        if (e.text !== f.name) restyle(e.root, () => { e.text = f.name; e.name.textContent = f.name; }, e.text ? alpha : 0);   // (a caption with no words yet has nothing to cross over from)
         const size = `${p.w}x${p.h}|${p.form}`;
         if (e.size !== size) {
           e.size = size;
@@ -111,7 +114,6 @@ export function LobuleCaptions() {
           e.root.style.setProperty('--b', `${Math.round(baselineAt(p.h, LS.PAD.y) * 100) / 100}px`);
           if (mt.kind === 'zone') e.name.style.fontSize = `${fontPx(10.5, vp)}px`;
         }
-        if (e.text !== f.name) { e.text = f.name; e.name.textContent = f.name; e.name.style.display = f.name ? '' : 'none'; }
         e.root.setAttribute('aria-label', mt.label);
         if (e.val) {
           const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide()) : '?';

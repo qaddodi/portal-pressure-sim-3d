@@ -63,12 +63,21 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     shapes.push({ k: 'rect', x: tx0, y: y0, w: tx1 - tx0, h: G.B - y0, fill: lk(ZONE_LOOK[k]).fill });
   });
   shapes.push({ k: 'unclip' });
+  // The unit's words ("mmHg", at the left edge over the top gridline's number) and the box they take: a zone's name that would be set over them stands clear of them instead (the first zone's "HEPATIC"
+  // reached left into the unit on a card under about 340 px, and on any card when the names took two lines: they were printed over each other).
+  const unitL = lk('plot.unit'), unitY = profileUnitY(gridOf(G, f, top).map((g) => g.y), f);
+  const unitBox = { x1: measure('mmHg', unitL.size!, unitL.weight ?? 500), y0: unitY - 0.76 * unitL.size!, y1: unitY + 0.24 * unitL.size! };
   if (G.zone.lines) {
-    const tk = lk('prof.zone.text');
-    zs.forEach(([a, b], k) => {
-      const m = (G.x(a) + G.x(b)) / 2, ls: string[] = zoneLines(k, G.zone.lines);
-      ls.forEach((t, j) => shapes.push(text(m, G.T - G.zb - (ls.length - 1 - j) * 1.05 * zf, t, tk, { size: zf < f - 0.01 ? zf : f, ls: G.zone.tight ? 0 : 0.06 })));
+    const tk = lk('prof.zone.text'), size0 = zf < f - 0.01 ? zf : f, lsp = G.zone.tight ? 0 : 0.06;
+    const names = zs.map(([a, b], k) => { const ls: string[] = zoneLines(k, G.zone.lines); return { ls, m: (G.x(a) + G.x(b)) / 2, tw: Math.max(...ls.map((t) => measure(t, size0, tk.weight ?? 500) + lsp * size0 * t.length)) }; });
+    // (the name stands over the zone's middle; the first zone's, past the unit's words, is moved right of them, as far as the next zone's name leaves room, and no further)
+    names.forEach((n, k) => {
+      const rows = n.ls.map((_, j) => G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf);
+      if (!rows.some((y) => y - 0.76 * size0 < unitBox.y1 && y + 0.24 * size0 > unitBox.y0) || n.m - n.tw / 2 >= unitBox.x1 + 4) return;
+      const next = names[k + 1];
+      n.m = Math.max(n.m, Math.min(unitBox.x1 + 4 + n.tw / 2, next ? next.m - next.tw / 2 - 6 - n.tw / 2 : Infinity));
     });
+    names.forEach((n) => n.ls.forEach((t, j) => shapes.push(text(n.m, G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf, t, tk, { size: size0, ls: lsp }))));
   }
 
   // The gridlines (no 0 on the axis, its line stays) and the unit in the bottom row.
@@ -78,7 +87,7 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     if (k) shapes.push(text(G.L - 6, g.y + 0.35 * f, words0(g.v), gt, { anchor: 'end' }));
   });
   // (The unit stands by the top gridline, over its number, not orphaned under the brace at the foot where 2D put it: Mohammad, 21 Nov, "the mmHg sits under the axis". profileUnitY, pinned by a test.)
-  shapes.push(text(0, profileUnitY(gridOf(G, f, top).map((g) => g.y), f), 'mmHg', lk('plot.unit'), { anchor: 'start' }));
+  shapes.push(text(0, unitY, 'mmHg', unitL, { anchor: 'start' }));
 
   // The line's fill, closed down to the zero line, and the line: one piece a span of the gradient.
   const line = smooth(xs, py), np = line.length / 2, fillK = lk('prof.fill').opacity ?? 0.16;

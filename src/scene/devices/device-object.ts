@@ -1,7 +1,7 @@
 // A device part (catheter shaft, balloon, needle, stent wire…): the scene's cel object in a device material from the 2D app's --dev-* tokens (the look's own, per look),
 // drawn in front of the anatomy it sits in (the 2D rule "devices over the vessels"): no depth test, drawn after everything else, so a catheter in a vein reads at the vein's own place
 // and keeps it as the figure turns. It can fade (alpha), for the catheter's leave and a balloon's latex.
-import { Color, Vector4, type BufferGeometry } from 'three';
+import { Color, Vector4, type BufferGeometry, type Object3D } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import { INK_FS, TOON_FS } from '../materials/shaders.ts';
 import { PALETTES, type LookId, type Palette } from '../palette.ts';
@@ -9,6 +9,9 @@ import { LOOKS } from '../../looks/looks.ts';
 import { DEVICE_TOKENS, type DeviceTokens } from '../procedures/copied/device-tokens.copied.ts';
 import { resolveEdge, type EdgeRule } from './edges.ts';
 import { ContactShadow, TAIL_GLSL } from './contact-shadow.ts';
+import { clock, type Clock } from '../../clock/frame.ts';
+import { Ease } from '../../clock/ease.ts';
+import { D_SMALL, easeMove } from '../../ui/tests/copied/motion.copied.js';
 
 export type DeviceTone = 'collar' | 'poly' | 'steel' | 'platinum' | 'latex' | 'nylon' | 'graft' | 'gold' | 'stentWire' | 'stentGlint' | 'glue' | 'ptfe' | 'thread' | 'marker'
   | 'trWedge' | 'trPv' | 'trIvc' | 'trScler' | 'monFree' | 'monWedge' | 'monAlarm'
@@ -43,8 +46,28 @@ export function withAlpha(src: string, from: string, to: string): string {
 /** `shadow`: the tube's radius (scene units) when the part casts a soft contact shadow (devices/contact-shadow.ts); left out, none. */
 export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number; tubeTones?: boolean; fat?: number; shadow?: number }
 
+/** How long a device part takes to come or go, and a part's colour to change (the scale's D_SMALL, 240 ms): an instrument never appears or vanishes in one frame. */
+export const DEVICE_FADE_MS = D_SMALL;
+/** The 0..1 alpha under which a part is not drawn at all. */
+const GONE = 0.002;
+
 export class DeviceObject extends CelObject {
+  /** The clock a part's fades run on (a node test turns a hand-made one). */
+  static clock: Clock = clock;
   deviceTone: DeviceTone;
+  // PRESENCE (22 Nov, polish C): `setAlpha` / `setAlphas` say how strong the part is (its level); `show(on)` says whether it is part of the picture. The two multiply, and the part's `group.visible` is
+  // written HERE and nowhere else: a part that is asked to go fades out over DEVICE_FADE_MS and only then leaves the draw list, and one that is asked to come fades in from nothing. (A raw `group.visible =`
+  // from a caller skipped all of that: a scope's transducer, a catheter's balloon and ripples, the glue cast and the balloon tube popped in and out in one frame.)
+  // COMPOSITION: presence (`show`) is STRUCTURAL (is this part part of the picture at all: a mode, a screen on top of it) and level (`setAlpha`) is the OWNER's own fade (a probe's, a balloon's fill). They multiply on one
+  // clock, so a caller must never gate `show` on its own fade (the part would wait for presence to ramp after the owner's fade had begun): show it while it is structurally there, and let the level do the rest.
+  // No container is ever switched either: a part that is faded leaves the draw list by itself and an empty container draws nothing.
+  private level = 1;
+  private levelInk = 1;
+  private want = true;
+  private readonly presence: Ease;
+  // the colour the part wears glides to a new tone (a ring that is the portal vein's, then the hepatic vein's) instead of repainting at once: `mix` runs 0 to 1 from `fromBase`/`fromShade` to `toBase`/`toShade`
+  private readonly fromBase = new Color(); private readonly fromShade = new Color(); private readonly toBase = new Color(); private readonly toShade = new Color();
+  private readonly mix: Ease;
   private palette: Palette | null = null;
   /** The edge the device wears: the rule 2D gives that part (--dev-poly-edge on the catheter, the scope's soft hairline, the Doppler head's ink line; 'none' draws no outline; 'ink' the look's own). */
   private edgeRule: EdgeRule;
@@ -55,6 +78,8 @@ export class DeviceObject extends CelObject {
     super(geometry, { tone: 'cath', bands: o.bands ?? 2, spec: o.spec ?? 1, px: o.px ?? 0.9, tubeTones: o.tubeTones ?? geometry.userData.ringTube === true }, shared);
     this.deviceTone = deviceTone;
     this.edgeRule = edge;
+    this.presence = new Ease(1, 'device-presence', () => this.paintAlpha(), DeviceObject.clock);
+    this.mix = new Ease(1, 'device-tone', () => this.blend(), DeviceObject.clock);
     // A device's free front is where its tip is, so it is cut there and nowhere else. The vessels' reveal is a soft front a tenth of the route long, dissolved in a stipple, that runs on PAST the point it is told
     // (u up to 1.1 x reveal): on a catheter that was a stippled grey band drawn beyond the tip (20 Nov 2026, "why is it extending towards the end of the vein when the tip is in mid vein").
     // The tip's cap (a sphere as wide as the shaft) covers the cut.
@@ -128,21 +153,40 @@ export class DeviceObject extends CelObject {
   /** A stretch of the device, `u0` to `u1` (uv.x), fades to `1 - amount` of itself over `soft` at both ends (0 amount: whole). Fill and outline alike. */
   setHole(u0: number, u1: number, amount: number, soft = 0.01): void { (this.toon.uniforms.holeU!.value as Vector4).set(u0, u1, Math.min(1, Math.max(0, amount)), soft); }
 
-  /** Changes the material (a ring's colour, a column's) and paints it in the look it is in. */
-  setTone(t: DeviceTone): void { if (t === this.deviceTone) return; this.deviceTone = t; if (this.palette) this.applyPalette(this.palette); }
+  /** Changes the material (a ring's colour, a column's) and paints it in the look it is in: the colour glides to the new one (a part that is not drawn takes it at once). */
+  setTone(t: DeviceTone): void { if (t === this.deviceTone) return; this.deviceTone = t; if (this.palette) this.applyPalette(this.palette, true); }
 
-  override applyPalette(p: Palette): void {
+  /** The colours the part wears in `p`: its tone's own. A part with a colour of its own (a ProbePart) answers with that. */
+  protected colours(p: Palette, out: { base: Color; shade: Color }): void {
+    const look = lookOf(p), t = DEVICE_TOKENS[look];
+    out.base.copy(rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : t[TOKEN_OF[this.deviceTone]]));
+    out.shade.copy(out.base).multiplyScalar(p.shade).lerp(rawColor(resolveEdge(this.edgeRule, { t, look, ink: p.ink }).hex), 0.08);
+  }
+  private readonly want_ = { base: new Color(), shade: new Color() };
+
+  /** `glide`: the colours the part wears change over DEVICE_FADE_MS (a new tone, a recolour); left out, they change at once (a look change, the part's first paint). A part that is not drawn never glides. */
+  override applyPalette(p: Palette, glide = false): void {
     this.palette = p;
     const look = lookOf(p), t = DEVICE_TOKENS[look];
     this.shadow?.paint(look, LOOKS[look].scheme === 'dark');
-    const base = rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : t[TOKEN_OF[this.deviceTone]]);
     const edge = resolveEdge(this.edgeRule, { t, look, ink: p.ink });
-    const ink = rawColor(edge.hex);
     this.ink.uniforms.edgeA!.value = edge.a;
     this.ink.visible = edge.a > 0;
-    (this.toon.uniforms.color!.value as Color).copy(base);
-    (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
-    (this.ink.uniforms.color!.value as Color).copy(ink);
+    (this.ink.uniforms.color!.value as Color).copy(rawColor(edge.hex));
+    this.colours(p, this.want_);
+    this.toBase.copy(this.want_.base); this.toShade.copy(this.want_.shade);
+    if (glide && this.group.visible && Math.max(this.level, this.levelInk) * this.presence.value > GONE) {
+      this.fromBase.copy(this.toon.uniforms.color!.value as Color); this.fromShade.copy(this.toon.uniforms.shade!.value as Color);
+      this.mix.snap(0, true); this.mix.to(1, { ms: DEVICE_FADE_MS, curve: easeMove });
+    } else {
+      this.fromBase.copy(this.toBase); this.fromShade.copy(this.toShade);
+      this.mix.snap(1, true); this.blend();
+    }
+  }
+  private blend(): void {
+    const k = this.mix.value;
+    (this.toon.uniforms.color!.value as Color).copy(this.fromBase).lerp(this.toBase, k);
+    (this.toon.uniforms.shade!.value as Color).copy(this.fromShade).lerp(this.toShade, k);
   }
 
   /** Rings across the tube: every `period` (uv) back from `tip` (uv), a heavier one every fifth, `half` (uv) half width, none within `skip` (uv) of the tip. `period` 0 takes them away. */
@@ -158,21 +202,43 @@ export class DeviceObject extends CelObject {
   /** Glass: `fill` makes the body firmer toward its rim, `rim` (n.v width, 0 off) keeps only the outline that is at the silhouette. */
   setGlass(fill: number, rim: number): void { this.toon.uniforms.rimFill!.value = fill; this.ink.uniforms.rimOnly!.value = rim; }
 
-  /** The fill and the outline fade apart (a translucent balloon: a faint body inside a firmer rim). */
+  /** The fill and the outline fade apart (a translucent balloon: a faint body inside a firmer rim). This is the part's level; `show` is its presence. */
   setAlphas(fill: number, ink: number): void {
-    const f = Math.min(1, Math.max(0, fill)), k = Math.min(1, Math.max(0, ink));
-    this.toon.uniforms.alpha!.value = f; this.ink.uniforms.alpha!.value = k;
-    this.shadow?.setAlpha(Math.max(f, k));
-    this.group.visible = Math.max(f, k) > 0.002;
+    this.level = Math.min(1, Math.max(0, fill)); this.levelInk = Math.min(1, Math.max(0, ink));
+    this.paintAlpha();
   }
 
   /** 0 (gone) to 1 (whole). The passes always blend (see the constructor) and write no depth. */
-  setAlpha(a: number): void {
-    const v = Math.min(1, Math.max(0, a));
-    this.toon.uniforms.alpha!.value = v; this.ink.uniforms.alpha!.value = v;
-    this.shadow?.setAlpha(v);
-    this.group.visible = v > 0.002;
+  setAlpha(a: number): void { this.setAlphas(a, a); }
+
+  /** Whether the part is part of the picture: it fades in from nothing or out to nothing over DEVICE_FADE_MS and leaves the draw list when it is gone. The ONLY way a caller turns a part on or off. */
+  show(on: boolean): void {
+    if (on === this.want) return;
+    this.want = on;
+    this.presence.to(on ? 1 : 0, { ms: DEVICE_FADE_MS, curve: easeMove });
+    this.paintAlpha();
+  }
+  /** Whether the part is asked to show (it may still be fading out). */
+  get wanted(): boolean { return this.want; }
+  /** A part whose OWNER eases its alpha (a probe's fade, a head's): it is part of the picture at once and `setAlpha` alone brings it and takes it away, so the fade is not eased twice. */
+  present(): void { if (this.want && this.presence.value === 1 && !this.presence.moving) return; this.want = true; this.presence.snap(1, true); this.paintAlpha(); }
+  /** A part that has not been shown yet (its starting state, not a leave): out of the picture at once, nothing to fade. */
+  park(): void { this.want = false; this.presence.snap(0, true); this.paintAlpha(); }
+
+  /** Level times presence into the passes, the shadow and the draw list. A part asked to show is in the list from that frame (its alpha starts at nothing and rises); one asked to go stays until it is invisible. */
+  private paintAlpha(): void {
+    const p = this.presence.value, f = this.level * p, k = this.levelInk * p;
+    this.toon.uniforms.alpha!.value = f; this.ink.uniforms.alpha!.value = k;
+    this.shadow?.setAlpha(Math.max(f, k));
+    this.group.visible = Math.max(f, k) > GONE || (this.want && Math.max(this.level, this.levelInk) > GONE);
   }
 
-  override dispose(): void { super.dispose(); this.shadow?.dispose(); }
+  override dispose(): void { super.dispose(); this.presence.dispose(); this.mix.dispose(); this.shadow?.dispose(); }
+}
+
+/** Whether anything under `root` is drawn: a mesh that is visible with every ancestor visible. (A container is never switched, so "is it on" is asked of its parts.) */
+export function isDrawn(root: Object3D): boolean {
+  let on = false;
+  root.traverse((o) => { if (on || !(o as { isMesh?: boolean }).isMesh) return; for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return; on = true; });
+  return on;
 }
