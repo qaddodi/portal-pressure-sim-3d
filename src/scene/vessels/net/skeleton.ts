@@ -133,6 +133,8 @@ function layTail(P: Vec3[], end: 0 | 1, n: number, to: Vec3): void {
 export const isSewn = (v: Pick<NetVessel, 'kind'>): boolean => v.kind === 'collateral' || v.kind === 'shunt';
 interface Arm { w: Work; idx: number[]; free: boolean; host: boolean; id: string; keep?: boolean }
 export const ARM_MIN_NEIGHBOUR = 25, ARM_MIN_HOST = 20, ARM_RUN_RADII = 2, ARM_BLEND_RADII = 6;   // degrees, degrees, radii (22 Nov ruling: the map's node structure equals the body's)
+/** The most a map arm may be turned away from the way its own course arrives (degrees). A bigger turn would make the course U-turn back into its node (a hook: SV_CONF at CONF 159, LGV_CONF at PVT_L and EPI_SVC at SVC_E 180), so such an arm keeps its own course's direction and the node's layout gives way (J1, 22 Nov). Plan-owner ruling (22 Nov): the side layout exists only so the mesher gets a clean seam, so an arm keeps its own course unless that course leaves the host at less than ARM_MIN_HOST degrees; V_IMV at SV and LRV_IVC at IVCI (mirrored, turned exactly 90) keep theirs too, which ends the LRV hump. */
+export const ARM_MAX_TURN = 90;
 
 /** Makes an arm leave its node straight along `dir` for `run` (the bones within it, and the first one past it, on the line), then Hermite-blends onto its own course over `blend` more arc: positions only, the course past that unchanged. */
 function layArm(P: Vec3[], idx: readonly number[], dir: Vec3, run: number, blend: number): number[] {
@@ -247,7 +249,7 @@ export const KNOWN_BIG_MOVES: Readonly<Record<string, { why: 'fade' | 'depth' | 
 };
 
 export interface SkelLanding { host: string; branch: string; branchEnd: 0 | 1; /** the host's bone the node sits on */ bone: number; node: string }
-export interface SkeletonReport { ends: SkelEnd[]; landings: SkelLanding[]; arms: { node: string; arms: string[] }[]; runOns: { node: string; a: string; b: string; opposed: [boolean, boolean] }[]; fillets: { node: string; a: string; b: string; reach: number }[] }
+export interface SkeletonReport { ends: SkelEnd[]; landings: SkelLanding[]; arms: { node: string; arms: string[] }[]; /** free map arms left on their own course (J1: turning them to the layout would hook the course) */ armsKept: { node: string; arm: string; turn: number }[]; runOns: { node: string; a: string; b: string; opposed: [boolean, boolean] }[]; fillets: { node: string; a: string; b: string; reach: number }[] }
 
 const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 /** The point at fractional bone `f` of the samples. */
@@ -276,7 +278,7 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
     const S = samplesOf(v.id), P: [Vec3[], Vec3[]] = [S[0].slice(), S[1].slice()];
     work.set(v.id, { v, P, arc: [arcOf(P[0]), arcOf(P[1])], r: [[], []] });
   }
-  const report: SkeletonReport = { ends: [], landings: [], arms: [], runOns: [], fillets: [] };
+  const report: SkeletonReport = { ends: [], landings: [], arms: [], armsKept: [], runOns: [], fillets: [] };
   const radius = (v: NetVessel, pose: 0 | 1): number => (pose ? mapRadiusOf(v) : v.radius);
   const endOf = (w: Work, end: 0 | 1, pose: 0 | 1): Vec3 => w.P[pose][end ? w.P[pose].length - 1 : 0]!;
   const keyOf = (v: NetVessel, end: 0 | 1): string => `${v.id}|${end}`;
@@ -479,6 +481,7 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
       if (a.keep) return;   // (a rounded corner's arm is the corner's own curve)
       const r = run(a), tot = arcOf(P(a)).at(-1)!;
       if (a.free && angle3(dir, d) < 0.5) return;   // (an arm that already leaves as the course does is not laid: the straight run would cut the course's corners)
+      if (a.free && angle3(dir, d) > ARM_MAX_TURN - 0.01) { report.armsKept.push({ node, arm: a.id, turn: angle3(dir, d) }); return; }   // (the course arrives the other way: laying the arm against it is a hook)
       keepRun(a, layArm(P(a), a.idx, a.free ? dir : d, r, Math.min(ARM_BLEND_RADII * r, 0.3 * tot)));
     });
     report.arms.push({ node, arms: arms.map((a) => a.id) });
