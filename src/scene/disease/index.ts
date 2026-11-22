@@ -84,6 +84,9 @@ export class DiseaseLayer {
     this.moving = true;
   }
 
+  /** The ascites volume shown now (mL, eased): the abdominal wall the paracentesis needle crosses follows it. */
+  get fluidMl(): number { return this.fluid.shown; }
+
   /** Steps everything on the clock; true while anything moves (draw another frame). */
   update(now: number, flowRate = 1): boolean {
     const dt = this.lastNow < 0 ? 0.016 : Math.min(0.1, (now - this.lastNow) / 1000);

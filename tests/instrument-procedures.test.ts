@@ -35,7 +35,7 @@ test('each kind is a timeline the card, the layer and the camera already know: s
     for (let i = 0; i < sp.steps.length; i++) { assert.equal(stopOf(k, i), sp.stops[i]); assert.equal(stepAt(k, sp.stops[i]!), i, `${k}: step ${i} ends at its stop`); }
     // a graft's frame: no catheter, the step the clock is in, no shot (the slide's own camera stays)
     const f = procFrame(k, sp.stops[0]!) as { u: number; step: number; shot: string };
-    assert.deepEqual([f.u, f.step, f.shot], [0, 0, '']);
+    assert.deepEqual([f.u, f.step, f.shot], [0, 0, k === 'dips' ? 'way' : '']);   // (the DIPS has a catheter on a route: its steps frame it, 'way' then 'tip'; the rest keep the slide's own camera)
     for (const s of sp.steps) assert.ok(s[1].length > 3 && s[2].length > 30 && !/AASLD|EASL|Baveno VII\b|\bWarren\b/.test(s[2]), `${k}: the step words`);
   }
 });
