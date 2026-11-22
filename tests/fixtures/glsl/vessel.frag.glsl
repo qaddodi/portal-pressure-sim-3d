@@ -764,7 +764,7 @@ void main() {
   }
   // the map's own cut (circuit/skins.ts): past a seam of the Circuit the map's skin draws the junction, and it comes in over the end of the change as this goes (the same screen pattern again: both drawn on one pixel never)
   if (skinPastC()) {
-    float keepC = 1.0 - smoothstep(0.65, 1.0, vCircShare);
+    float keepC = 1.0 - smoothstep(0.98, 1.0, vCircShare);
     float cutHC = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))), weldC = skinWeldAtC();
     // (a growing arm's cut end is drawn where the map's skin is not: the skin keeps the pixels whose pattern is under the weld, skin-object.ts setWeld, so each pixel is one or the other)
     if ((keepC <= 0.0 || cutHC >= keepC) && (weldC > 0.9999 || cutHC < weldC)) discard;

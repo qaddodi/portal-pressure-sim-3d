@@ -92,6 +92,7 @@ import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { sewOnMap } from './circuit/map-sewn.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
+import { circSkinsOn } from './circuit/peel.ts';
 import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
@@ -1278,8 +1279,8 @@ export class CelScene {
     this.mapLayer.set(mapRamp(t), this.circuit.rr, t);
     // the map's junction skins: drawn only over the end of the change, turned with the map (they are built on the unturned map; the tubes turn in their shader)
     if (this.circuitSkins) {
-      const rot = this.circuit.shared.circRot.value, key = `${t > SKIN_CIRC_IN - 0.02 ? 1 : 0}|${rot.x}|${rot.y}`;
-      if (key !== this.circuitSkinKey) { this.circuitSkinKey = key; this.circuitSkins.show(t > SKIN_CIRC_IN - 0.02); this.circuitSkins.setTurn(rot.x, rot.y); }
+      const rot = this.circuit.shared.circRot.value, on = circSkinsOn(t, SKIN_CIRC_IN), key = `${on ? 1 : 0}|${rot.x}|${rot.y}`;
+      if (key !== this.circuitSkinKey) { this.circuitSkinKey = key; this.circuitSkins.show(on); this.circuitSkins.setTurn(rot.x, rot.y); }
     }
     this.procs.setFade(fade);
     const ramp = mapRamp(t);
