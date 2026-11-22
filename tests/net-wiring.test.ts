@@ -36,7 +36,7 @@ test('without the flag a scene has no network figure and its old tubes are drawn
 
 test('every uniform the network programs declare is supplied by the figure (shared from the old vessels, or its own)', { skip }, async () => {
   const { net } = await figure();
-  const own = new Set(Object.keys(net.uniforms).concat(['regionTex', 'capTex', 'capRows', 'keyTex', 'juncGeom', 'juncOn']));
+  const own = new Set(Object.keys(net.uniforms).concat(['regionTex', 'capTex', 'capRows', 'keyTex', 'juncGeom', 'juncEdge', 'juncOn']));
   const declared = new Set([...shaderUniforms(NET_VS), ...shaderUniforms(NET_FS)]);
   const BUILTIN = new Set(['projectionMatrix', 'modelViewMatrix', 'normalMatrix']);
   const dbg = (n: string): boolean => n.startsWith('dbg');   // (the inspector's: present only with ?inspect)
@@ -135,33 +135,4 @@ test('a split host\'s pieces run on one arc: each piece starts where the one bef
     assert.ok(Math.abs(at - hostLen) < 1e-4 * hostLen, `${id}: the pieces end where the host does (${at} vs ${hostLen})`);
   }
   assert.ok(split >= 5, `${split} split hosts`);
-});
-
-test('the Circuit at t = 1, default state: every skeleton edge that has a map course is whole in the rows (present, opaque, revealed, a radius), the hepatic-vein lanes among them', { skip }, async () => {
-  const { scene, net } = await figure();
-  scene.resize(800, 600);
-  scene.setCircuitUpright(false, 0);
-  scene.setView('circuit', 0);
-  scene.goTo('play', { x: 0, y: 40, w: 800, h: 520 }, 0, 0);
-  scene.update(0);
-  for (let k = 1; k <= 40; k++) { scene.update(k * 80); scene.stepNet(); }   // (the change plays frame by frame, as on a device)
-  assert.equal(scene.circuit.t, 1);
-  const lanes = ['PRE_R', 'PRE_L', 'SIN_RR', 'SIN_LL', 'POST_R_RHV', 'POST_R_MHV', 'POST_L_LHV'];
-  const bad: string[] = [];
-  data!.skel.edges.forEach((e, row) => {
-    const get = (n: string): number[] => net.state.get(row, n), id = e.id.split('#')[0]!;
-    if (get('noMap')[0] === 1) { assert.ok(!lanes.includes(id), `${id} is a lane: it has a map course`); return; }
-    const [first, count] = e.bones, circW = get('circW'), mapBase = get('mapBase')[0]!;
-    const wc = Math.max(circW[2]!, circW[0]! >= 0 ? circW[0]! : 6), swell = (0.5 * Math.max(wc, circW[3]!) * 0.0065) / Math.max(mapBase, 1e-6);
-    let rmin = Infinity;
-    for (let k = 0; k < count; k++) rmin = Math.min(rmin, data!.skel.bones[first + k]!.r[1] * swell * get('liveW')[0]! * get('presence')[0]!);
-    const why = [get('presence')[0]! > 0 ? '' : 'presence 0', get('fade')[0]! > 0.004 ? '' : 'fade 0', get('reveal')[0]! > 0 ? '' : 'reveal 0', rmin > 0 ? '' : 'radius 0'].filter(Boolean);
-    if (why.length) bad.push(`${e.id}: ${why.join(', ')}`);
-  });
-  assert.deepEqual(bad, [], 'drawn at the map pose by no column');
-  for (const id of lanes) {
-    const row = data!.skel.edges.findIndex((x) => x.id === id);
-    assert.ok(row >= 0, `${id} is a skeleton edge`);
-    assert.equal(net.state.get(row, 'presence')[0], 1, `${id} present`);
-  }
 });

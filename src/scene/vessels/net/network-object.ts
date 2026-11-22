@@ -162,7 +162,8 @@ export class NetFigure {
     const keyTex = kp ? dataTexture(kp.data, kp.width, kp.height) : blankTex; if (kp) this.textures.push(keyTex);
     const capTarget = regions.length ? floatTarget(REGION_CAPS * REGION_PTS, regions.length) : null;
     if (capTarget) this.targets.push(capTarget);
-    const own: Record<string, IUniform> = { ...u, regionTex: { value: regionTex }, keyTex: { value: keyTex }, capTex: { value: capTarget ? capTarget.texture : blankTex }, capRows: { value: Math.max(1, regions.length) }, juncGeom: { value: blankTex }, juncOn: { value: 0 } };   // (the ray-marched junction's own uniforms, off: ?junc=sdf replaces them, junc-sdf.ts)
+    const own: Record<string, IUniform> = { ...u, regionTex: { value: regionTex }, keyTex: { value: keyTex }, capTex: { value: capTarget ? capTarget.texture : blankTex }, capRows: { value: Math.max(1, regions.length) },
+      juncGeom: { value: blankTex }, juncEdge: { value: blankTex }, juncOn: { value: 0 } };   // (the ray-marched junctions' cut, net/junc-cut-glsl.ts: off until ?junc=sdf sets them)
     // the two programs of the figure: the organs-pass copy (the program as it is: solidK) and the vessel-pass copy (VEIL: veilK)
     const mk = (defines: Record<string, number>): ShaderMaterial => { const m = markBlends(new ShaderMaterial({ name: 'net', vertexShader: NET_VS, fragmentShader: NET_FS, precision: 'highp', side: DoubleSide, uniforms: own, defines: { ...defines, ...(this.src.plain ? { NET_PLAIN: 1 } : {}), ...vdbgDefines() } })); setBlendState(m, true); this.materials.push(m); return m; };
     const meshes: Mesh[] = [];
