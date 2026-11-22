@@ -49,7 +49,7 @@ test('every instrument loader goes through retryImport, and every lazy pane sits
   for (const f of ['src/ui/tests/TestsLayer.tsx', 'src/ui/talk/ToolCardBody.tsx', 'src/ui/tests/trace/PressureTab.tsx']) {
     const t = readFileSync(f, 'utf8');
     assert.ok(!/<Suspense/.test(t), `${f} has a bare Suspense`);
-    assert.match(t, /<LazyBoundary>/, f);
+    assert.match(t, /<LazyBoundary[ >]/, f);
   }
 });
 test('main.tsx hears vite:preloadError without swallowing it, and offers the update toast once', () => {
