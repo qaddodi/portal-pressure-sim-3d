@@ -107,7 +107,7 @@ and no card is taller than the screen.
   Off is the solid surface (`html[data-noglass]`). The browser's backdrop blur does it, on the compositor behind each card, so the glass is the card's own place every frame.
 - Padding, widths and type are the 2D app's per screen: see `docs/card-parity-2d.md` (the earlier 24 to 26 px, 430 px and 330 px are gone).
 - A card appears only when its content is laid out and its fonts are loaded; text never appears before its card.
-- Tags (labels on the figure) are small pills in the look's glass colour, with a coloured dot and words.
+- Tags (labels on the figure): superseded 22 Nov. Never a pill with a dot; see `docs/HUMANIZED-DESIGN.md` sections 0 and 6.
 
 ## 7. Motion
 
