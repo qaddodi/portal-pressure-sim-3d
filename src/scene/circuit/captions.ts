@@ -204,8 +204,9 @@ export function buildCaptions(ctx: CapCtx): Built {
     // (No form is a number alone: "5.8" with no name says nothing, and Mohammad had it reported once already, 20 Nov. A station with no room for its shortest name is left to its dot, as 2D leaves it:
     // a reading is never shown without the name it belongs to.)
     const dirs = CIRCUIT_LABELS[id]!.dirs.map((d) => (ctx.upright ? TURN_DIR[d] : d) as Dir);
+    // (The hepatic artery's dot is inside the sinusoid bundle, where a clear route may not exist: its name is never left off, as 2D's never is; it takes the clear spot or leader when there is one and the last resort when not: `must`.)
     // (A reading that would stand on a vessel takes the nearest clear spot, on a short leader, as 2D's does; only with none does it keep the cheapest one with a line under it: `clearLines`.)
-    items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id), dirs, vw: ctx.halfW?.(id) ?? 5, clearLines: true, reach: CLEAR_REACH + (ctx.halfW?.(id) ?? 5) });
+    items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id) || id === 'HA', dirs, vw: ctx.halfW?.(id) ?? 5, clearLines: true, reach: CLEAR_REACH + (ctx.halfW?.(id) ?? 5) });
     meta.set(id, { id, kind: 'station', forms: formMeta, node: readsNode(id) });
   }
 
