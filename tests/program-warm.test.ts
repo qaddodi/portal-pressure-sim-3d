@@ -99,6 +99,7 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/disease/dye.ts': { n: 1, how: 'graph', why: 'the dye overlay is on the vessels from the start (hidden)' },
   'scene/disease/bleed.ts': { n: 1, how: 'stand-in', why: 'JET_INK_FLAGS' },
   'scene/disease/ascites.ts': { n: 1, how: 'graph', why: 'the pool hulls' },
+  'scene/disease/scope-ring.ts': { n: 1, how: 'graph', why: 'the scope ring on the varices is in the disease group from the start (hidden until a slide asks for it)' },
   'scene/highlight.ts': { n: 2, how: 'stand-in', why: 'HALO_FLAGS on each organ\'s ink' },
   'scene/glow-fx.ts': { n: 2, how: 'pass', why: 'the glow\'s full-screen blur and lay (a pass, not a scene object): compiled with its first pick, GAP (not in the warm-up)' },
   'scene/materials/cel.ts': { n: 2, how: 'graph', why: 'the toon and the ink of every object' },
