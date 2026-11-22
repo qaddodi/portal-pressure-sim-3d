@@ -1,11 +1,11 @@
-// The live site ships no debug tool (production review 21 Nov, P1-7): the build for main (VITE_CHANNEL=live) drops every branch of src/main.tsx that opens one, so those chunks are not built,
+// The live site ships no debug tool (production review 21 Nov, P1-7): the build for main (VITE_CHANNEL=live) drops every branch of src/entry.ts and src/main.tsx that opens one, so those chunks are not built,
 // downloaded or held offline; and the flag table lets only ?perf, ?gl and the open-a-slide/patient links work on the live site. The preview copy and a local run keep them all.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { FLAGS, flagOn, flagValue, inspectRequested } from '../src/ui/debug/flags.ts';
 
-const main = readFileSync('src/main.tsx', 'utf8');
+const main = readFileSync('src/main.tsx', 'utf8') + '\n' + readFileSync('src/entry.ts', 'utf8');   // (the entry opens the pages that are not the app; main opens the rest)
 
 test('main.tsx decides once, at build time, whether this build has debug tools', () => {
   assert.match(main, /const DEBUG = import\.meta\.env\.VITE_CHANNEL !== 'live';/);
