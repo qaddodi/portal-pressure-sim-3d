@@ -26,10 +26,6 @@ import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_G
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
-/** How far (CSS px) a pixel of a tube's outline band must lie inside the NEIGHBOUR's lumen before the tube drops it (the neighbour is trusted to draw it). `nbr` is measured in the figure's plane, a vertex at a time; the neighbour's drawn lumen lies where the camera
- *  puts it (depth, tilt, the tier's parallax: a pixel or two at a gentle angle, many at a turned one). A tube that dropped every band pixel the plane called "inside" left a hair-thin sliver (a dotted row of 1 to 2 px holes along its edge, Mohammad 22 Nov, splenic vein)
- *  wherever the two walls ran side by side within that error; dropped only this far in, a pixel is covered by the neighbour whatever the angle, and the margin keeps the tube's own fill (no ink: `inkT` still goes with `nbrK`). */
-export const NBR_CUT_PX = 2.5;
 /** How much of a tube's own round depth its pixels keep. The figure is a stack of tiers 0.01 to 0.02 apart (frame2d.ts TIER_Z) whose order is the 2D figure's over and under (the hepatic artery between the cava and the portal vein),
  *  but a round tube's front stands its RADIUS in front of its axis: the cava (z -0.02, radius 0.027) bulged 0.007, past the hepatic artery's axis (z 0.0) and its own front (0.005), and hid it (Mohammad, 20 Nov: "fix the hepatic artery
  *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
@@ -486,11 +482,9 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
-  float nbrCut = 0.0;   // (the same depth inside the other lumen, judged from NBR_CUT_PX in: only there is a band pixel dropped)
   if (vNbr.y > 0.0) {
     float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
     nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
-    nbrCut = smoothstep(${F(NBR_CUT_PX)} * dpr - 0.5, ${F(NBR_CUT_PX)} * dpr + 0.5, nbrPx) * (1.0 - circT);
   }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
@@ -614,7 +608,8 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  if (nbrCut > 0.5 && dLat > rDevAx + 0.5) DROP(12);
+  // (no pixel is dropped for lying inside the neighbour: nbr is the figure plane's measure, a vertex at a time, and the neighbour's drawn lumen lies where the camera puts it, so a drop left a dotted row of holes where two walls ran side by side within
+  //  a pixel or two (Mohammad, 22 Nov, splenic vein; the inspector's "Why tubes drop pixels" painted them magenta). The tube keeps its own fill there, with no ink (inkT goes with nbrK) and lit (nbrT): the neighbour's own fill lies under or over it, the same tone.)
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);
