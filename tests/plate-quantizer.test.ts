@@ -29,3 +29,10 @@ test('the quantiser still follows a value that really moves, to within a step, a
   for (let i = 320; i >= 0; i--) q(st(i / 320));
   assert.equal(q(st(0)).fibPre, 0);
 });
+
+test('the plate shader mixes the incoming plate in ONE sampling (a second see-through layer left a quarter of the page showing mid-fade: a flash on every swap)', async () => {
+  const { LOBULE_PLATE_FS } = await import('../src/scene/lobule/plate.ts');
+  assert.match(LOBULE_PLATE_FS, /uniform sampler2D mapB;/);
+  assert.match(LOBULE_PLATE_FS, /mix\(a, texture2D\(mapB, uv\), mixB\)/, 'both plates are sampled and mixed (premultiplied) before the cel step');
+  assert.match(LOBULE_PLATE_FS, /vec4 p = plateTex\(vUv\);/);
+});
