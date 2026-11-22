@@ -26,10 +26,6 @@ import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_G
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
-/** How far (CSS px) a pixel of a tube's outline band must lie inside the NEIGHBOUR's lumen before the tube drops it (the neighbour is trusted to draw it). `nbr` is measured in the figure's plane, a vertex at a time; the neighbour's drawn lumen lies where the camera
- *  puts it (depth, tilt, the tier's parallax: a pixel or two at a gentle angle, many at a turned one). A tube that dropped every band pixel the plane called "inside" left a hair-thin sliver (a dotted row of 1 to 2 px holes along its edge, Mohammad 22 Nov, splenic vein)
- *  wherever the two walls ran side by side within that error; dropped only this far in, a pixel is covered by the neighbour whatever the angle, and the margin keeps the tube's own fill (no ink: `inkT` still goes with `nbrK`). */
-export const NBR_CUT_PX = 2.5;
 /** How much of a tube's own round depth its pixels keep. The figure is a stack of tiers 0.01 to 0.02 apart (frame2d.ts TIER_Z) whose order is the 2D figure's over and under (the hepatic artery between the cava and the portal vein),
  *  but a round tube's front stands its RADIUS in front of its axis: the cava (z -0.02, radius 0.027) bulged 0.007, past the hepatic artery's axis (z 0.0) and its own front (0.005), and hid it (Mohammad, 20 Nov: "fix the hepatic artery
  *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
@@ -180,20 +176,9 @@ ${CIRCUIT_VS_CALL}
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vArcLen = mix(len, cl.y, circShare);
   vSkew = 0.0;
-  // THE STUMP'S ROUND END is drawn from the whole divided stretch's rings, never from the few that happen to lie in the cap: the stretch up to the cap's far end (the cut and one radius) is laid over the cap, ring by ring along each ring's own tangent
-  // (uv and the ring's place move together, so the tie, the fade and the marks all read the new arc), so a quarter circle one radius long is always made of every ring the stretch has: before, the cap took the three rings (a ring every 1/180 of a
-  // scene unit against a radius of 0.017) that lay in it and was a flat cut whose end moved with the cut (Mohammad, 22 Nov: "tied off the portal vein looks bad")
-  vec2 uvS = uv;   // (the attribute is read-only: from here the stretch laid over the cap is uv from here)
-#define uv uvS
-  if (stump.x > 0.0 && circShare < 0.001) {
-    float capR = radius * swell * vU, capZ = stump.x + capR, arcA = uv.x * len * vU;
-    if (arcA < capZ) {
-      float arcB = stump.x + capR * (arcA / capZ);
-      aPos += aTan * ((arcB - arcA) / vU);
-      uv.x = arcB / (len * vU);
-    }
-    swell *= stumpK(uv.x * len * vU, capR);
-  }
+  // THE STUMP'S ROUND END: the cut and one radius past it narrow as a quarter circle (stumpK), from the rings the tube has there. A divided vein is built with rings a twelfth of the usual distance apart (shape.ts tubularOf), so the quarter circle has
+  // a dozen of them. (Laying the stretch's rings over the cap along each ring's own tangent was tried: on the vein's bend every ring went off its path and the end was a skewed spike; Mohammad, 22 Nov: "tied off the portal vein looks bad")
+  if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * swell * vU);
   float fa = 1.0;
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
@@ -387,13 +372,15 @@ varying vec2 vUv;
 varying vec2 vLensR;
 
 // junction skins (skin/types.ts): the tube has a seam at either end
+// (a divided vein's start is its tied, round end: no skin joins it there, so the tube is not cut at its start seam: the skin arm there is absent, arm-twins.ts liveFadeAt)
+float skinStartCut() { return stump.x > 0.0 ? -1.0 : skinCut.x; }
 bool inSkinHole(vec2 h) { return h.y > h.x && vUv.x > h.x + ${F(SKIN_CUT_EPS)} && vUv.x < h.y - ${F(SKIN_CUT_EPS)}; }
 // (a dotted thread, a closed potential collateral, is never cut: it runs on into the trunk's wall, and the skin there is a plain trunk, its growth 0: skin-set.ts sync, spec 10.2. A hole is the host's own and is never a dotted thread's)
 bool skinPastC() { return circT > 0.0 && dotted < 0.5 && ((skinCutC.x >= 0.0 && vUv.x < skinCutC.x - ${F(SKIN_CUT_EPS)}) || (skinCutC.y <= 1.0 && vUv.x > skinCutC.y + ${F(SKIN_CUT_EPS)})); }
-bool skinCutOn() { return dotted < 0.5 && (skinCut.x >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
+bool skinCutOn() { return dotted < 0.5 && (skinStartCut() >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
 float skinWeldAtC() { return (dotted < 0.5 && skinCutC.x >= 0.0 && vUv.x < skinCutC.x - ${F(SKIN_CUT_EPS)}) ? skinWeldC.x : (dotted < 0.5 && skinCutC.y <= 1.0 && vUv.x > skinCutC.y + ${F(SKIN_CUT_EPS)}) ? skinWeldC.y : 1.0; }
-float skinWeldAt() { return (dotted < 0.5 && skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
-bool skinPast() { return (dotted < 0.5 && ((skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
+float skinWeldAt() { return (dotted < 0.5 && skinStartCut() >= 0.0 && vUv.x < skinStartCut() - ${F(SKIN_CUT_EPS)}) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
+bool skinPast() { return (dotted < 0.5 && ((skinStartCut() >= 0.0 && vUv.x < skinStartCut() - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -497,12 +484,7 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
-  float nbrCut = 0.0;   // (the same depth inside the other lumen, judged from NBR_CUT_PX in: only there is a band pixel dropped)
-  if (vNbr.y > 0.0) {
-    float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
-    nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
-    nbrCut = smoothstep(${F(NBR_CUT_PX)} * dpr - 0.5, ${F(NBR_CUT_PX)} * dpr + 0.5, nbrPx) * (1.0 - circT);
-  }
+  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -625,7 +607,7 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  if (nbrCut > 0.5 && dLat > rDevAx + 0.5) DROP(12);
+  if (nbrK > 0.5 && dLat > rDevAx + 0.5) DROP(12);
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);

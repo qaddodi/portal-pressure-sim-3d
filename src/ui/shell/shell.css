@@ -102,7 +102,7 @@
 html.thumb-ui .sh-toast { left: 50%; max-width: min(420px, calc(100vw - 24px)); }
 .sh-toast::before { content: ''; position: absolute; left: 14px; top: 17px; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--accent); opacity: .8; }
 .sh-toast[data-on="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; pointer-events: auto; }   /* (a finger or pointer on the note holds it: store.ts holdToast) */
-.sh-toast > span { display: block; transition: opacity 120ms linear; }   /* (a block, so the box's width easing can scale it back: Toast.tsx) */
+.sh-toast > span { display: block; transition: opacity var(--d-flip) linear; }   /* (a block, so the box's width easing can scale it back: Toast.tsx) */
 .sh-toast[data-swap] > span { opacity: 0; }   /* a second note's words: the old fade out, then the new fade in (Toast.tsx) */
 .sh-toast[data-tone="bad"] { background: var(--glass); color: var(--text); }
 .sh-toast[data-tone="bad"]::before { background: var(--danger); opacity: 1; }

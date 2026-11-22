@@ -18,7 +18,7 @@ const HELD_MAX = 0.04;
 const DROPPED_MAX = 0.08;   // (a skin whose arms really lie at other depths, a wall skin or the renal vein under the cava, drops the pixels of the arm out of reach by design: 5 % at most at a laptop)
 
 test('the depth hold-out is judged in 3D: the pixel\'s own place in the figure against the arm\'s capsule, not the axis depth at the nearest screen point', () => {
-  assert.match(SKIN_FS, /float gap = skinArmSd3\(fragP, arm, swell, g3, r3\) \/ max\(/);
+  assert.match(SKIN_FS, /float gap = skinArmSd3\(fragP, arm, 1\.0, g3, r3\) \/ max\(/);
   assert.match(SKIN_FS, /skinArmPx\(gl_FragCoord\.xy, i, swAt\(i\), 1\.0 \/ gl_FragCoord\.w, vPos, kPx\)/);
   assert.match(SKIN_FS, /float sdPx = skinSdPx\(kPx\);/);
   assert.doesNotMatch(SKIN_FS, /abs\(fragW - wNear\)/);

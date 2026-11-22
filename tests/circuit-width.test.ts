@@ -107,7 +107,7 @@ test('the Circuit holds nothing faint: the tip fades let go, the bands run full 
   const sh = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
   assert.doesNotMatch(sh, /circT \* \(1\.0 - fadeKeep\)/, 'the artery\'s fades no longer hold in the Circuit');
   assert.match(sh, /bool capCarved\(float across\)/);
-  assert.match(sh, /if \(capCarved\(across\)\) DROP\(7\);/);
+  assert.match(sh, /if \(capCarved\(across\)\) discard;/);
   const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(layer, /float iy = /, 'the bands are not cut off across the map');
   assert.match(layer, /\/ \(BAND_SOFT \* pxW\) \+ 0\.5/);

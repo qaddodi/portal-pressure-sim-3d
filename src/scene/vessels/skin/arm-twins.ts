@@ -43,7 +43,8 @@ export function liveFadeAt(f: FadeState, u: number, x: number, y: number): numbe
     const fs = f.mode < 1.5 ? u : y;
     fa = mix(f.a[2], f.a[3], clamp01((fs - f.a[0]) / (Math.abs(f.a[1] - f.a[0]) < 1e-5 ? 1e-5 : f.a[1] - f.a[0])));
   }
-  if (f.stumpCut > 0) fa *= u * f.len * f.units >= f.stumpCut ? 1 : 0;
+  // (a divided vein's START is its cut end, tied and round: no junction skin joins it there, whatever lies between its seam and its cut, or the skin would draw the divided stretch back as a bulge; its far end's arm stays)
+  if (f.stumpCut > 0) fa *= u < 0.5 ? 0 : (u * f.len * f.units >= f.stumpCut ? 1 : 0);
   if (f.cavaEnd[0] > 0) fa *= mix(1, f.cavaEnd[1], sstep(1 - f.cavaEnd[0], 1, u));
   return fa;
 }

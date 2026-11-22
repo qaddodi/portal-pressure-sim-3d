@@ -63,6 +63,8 @@ export function setPart(part: PartId, patch: Partial<PartView>): (keyof PartView
 /** Every part back to as drawn. */
 export function resetParts(): void { for (const p of ['tube', 'skin'] as const) setPart(p, partDefault()); }
 
+/** The chunk below is spliced into the vessel and skin programs when the inspector is on; those are compiled as 'vessel (inspector)' and the 'skin (inspector…)' variants (debug/gl-registry.ts). */
+export const GL_ON_SCENE_GRAPH = 'the inspector hooks spliced into the vessel and skin programs (gl-registry.ts: vessel (inspector), skin (inspector))';
 /** The declarations and helpers of the hooks (both fragment shaders; after CEL_TUBE_GLSL, which has celTubeBase). `dbgBody` replaces the cel tone, `dbgEnd` is the last word on the colour. */
 export const VDBG_GLSL = /* glsl */ `
 #ifdef VDBG
