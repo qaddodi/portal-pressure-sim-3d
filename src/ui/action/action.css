@@ -2,7 +2,7 @@
    Text never shrinks to fit, nothing scrolls inside it, and a number's room is kept so the card does not move as it changes. */
 .ac-card { position: absolute; z-index: 3; pointer-events: auto; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
   font: 400 var(--t-lab) / 1.35 var(--ui); color: var(--text); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sheet);
-  left: calc(var(--safe-l, 0px) + var(--sh-pad-x, 16px)); top: calc(var(--sh-pad-top, 8px) + 52px + 8px); width: 276px; max-height: min(500px, calc(100% - var(--sh-pad-top, 8px) - 52px - 84px));
+  left: calc(var(--safe-l, 0px) + var(--sh-pad-x, 16px)); top: calc(var(--sh-pad-top, 8px) + 52px + 8px); width: var(--m-side-card-w, 340px); max-height: min(500px, calc(100% - var(--sh-pad-top, 8px) - 52px - 84px));
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
   opacity: 0; visibility: hidden; transform: translateX(-12px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .ac-card[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
@@ -31,7 +31,12 @@
 @keyframes ac-in { from { opacity: 0; transform: translateX(-8px); } }
 .ac-card[data-bottom] .ac-body { padding: 10px 16px 12px; gap: 6px; animation-name: ac-in-up; }
 @keyframes ac-in-up { from { opacity: 0; transform: translateY(8px); } }
-.ac-nr { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; padding-right: 30px; }
+.ac-nr { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; min-width: 0; padding-right: 30px; }
+/* The header can never overprint (22 Nov 2026, Mohammad, the TIPS card on a Mac: the readings ran into each other and into "Patent"): its parts wrap onto a second line when they do not fit one, and the stent's three
+   readings each keep their own width (a reading never shrinks under its neighbour). The state rides at the right of whichever line it lands on. */
+.ac-card .ac-nr > .ac-state { margin-left: auto; }
+.ac-card .ac-nr > .tv-keys { flex: 1 1 auto; min-width: max-content; max-width: 100%; flex-wrap: wrap; column-gap: 8px; }
+.ac-card .ac-nr > .tv-keys > .ir-kv { flex: none; white-space: nowrap; }
 .ac-name { display: block; flex: 0 1 auto; min-width: 0; font: 600 var(--t-val) / 1.25 var(--ui); letter-spacing: -0.005em; text-wrap: balance; }
 .ac-card[data-bottom] .ac-name { font-size: var(--t-body); }
 .ac-state { flex: none; font-size: var(--t-lab); font-weight: 500; color: var(--text-2); white-space: nowrap; }
@@ -88,11 +93,12 @@
 .ac-dye { touch-action: none; }
 /* (The Dye word's room for "Injecting" is kept so the row does not jump, but the word starts at the icon: a button's own centring had put it 25 px away from its drop, 22 Nov 2026.) */
 .ac-dye .ac-bl { display: inline-block; min-width: 4.9em; text-align: start; }
-/* A phone's or an upright iPad's card: the actions are one row of equal columns, each icon attached to its word and centred in its column (Doppler, Dye, Shunt, Remove, IR…), whatever their number, so the row is evenly spaced.
-   The columns are fixed, so the Dye word's room is the column's and its longer word does not push the others. */
-.ac-card[data-bottom] .ac-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); justify-items: stretch; gap: 0 4px; }
-.ac-card[data-bottom] .ac-acts > .ac-btn { justify-content: center; margin: 0; padding: 10px 2px; min-height: 44px; gap: 5px; }
-.ac-card[data-bottom] .ac-acts > .ac-dye .ac-bl { min-width: 0; text-align: start; }
+/* The card's actions (Remove, Doppler, Dye, Shunt, IR…) are one row of equal columns on every card, side or sheet, each icon attached to its word and centred in its column. A column is never narrower than its icon and word
+   (min-width: max-content), so when they do not fit one row the last wrap to the next line instead of printing over each other (the Mac's TIPS card, 22 Nov 2026). The row outranks the 2D stent rule's fixed grid
+   (app-06-plate.css `.ac-panel:has(> .tv) + .ac-as`, columns that could shrink below their words). The Dye word's reserved room is the column's. */
+.ac-card > .ac-body > .ac-as.ac-acts { display: flex; flex-wrap: wrap; gap: 0 4px; justify-content: center; align-content: center; }
+.ac-card > .ac-body > .ac-as.ac-acts > .ac-btn { flex: 1 1 0; min-width: max-content; justify-content: center; margin: 0; padding: 10px 2px; min-height: 44px; gap: 5px; }
+.ac-card > .ac-body > .ac-as.ac-acts > .ac-dye .ac-bl { min-width: 0; text-align: start; }
 .ac-panel { min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-card, .ac-body, .ac-switch, .ac-switch i { transition: none; animation: none; } }
 

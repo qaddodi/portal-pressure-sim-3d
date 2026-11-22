@@ -5,7 +5,7 @@
 // half-pipe gutter, and a second bore, lower on the curve, shows the same hole whole.
 //
 // Everything here is pure geometry in the sinusoid's frame (µm; y down as 2D's, z toward the viewer): the scene (sinusoid3d.ts) puts it in the plane (y up) and gives it colours and shaders.
-import { MeshBuilder } from './cel3d.ts';
+import { MeshBuilder, Pacer, meshWork } from './cel3d.ts';
 import { SEED, nucAt } from '../sinusoid/layout.ts';
 
 /** The lumen's depth as a share of its half width (the same as sinusoid3d's Z.trough: tests/micro3d-wall.test.ts holds the two together). */
@@ -111,10 +111,18 @@ export function wallColumns(x0: number, x1: number): number[] {
  * carries `aux`, its place s down the wall (µm), for the round holes of the second bore. Colours are weights (see Weights), painted by the scene.
  */
 export function buildShell(b: MeshBuilder, w: Weights, g: WallGeo, xs: readonly number[], side: Side, kind: 'in' | 'out', zFloor: number): void {
+  for (const _ of buildShellSteps(b, w, g, xs, side, kind, zFloor));
+}
+/** What a shell vertex costs on the build meter besides its write: each takes seven evaluations of the wall's surface, about four times a plain vertex. */
+const SHELL_EXTRA = 3;
+/** `buildShell` in sections: a step ends between columns once the meter says a step's worth is done (cel3d.ts Pacer). */
+export function* buildShellSteps(b: MeshBuilder, w: Weights, g: WallGeo, xs: readonly number[], side: Side, kind: 'in' | 'out', zFloor: number, pace: Pacer = new Pacer()): Generator<void> {
   const nsd = side < 0 ? SEED.nucUp : SEED.nucDn, K = kind === 'in' ? WALL.rows : 10, rows: number[] = [];
   const pt = (x: number, phi: number): [number, number] => (kind === 'in' ? innerPoint(g, x, phi, nsd) : outerPoint(g, x, phi));
   for (const x of xs) {
+    if (pace.due()) yield;
     rows.push(b.count);
+    meshWork.n += SHELL_EXTRA * (K + 1);
     const top = kind === 'in' ? WALL.phi1 : outerPhiAt(g, x, zFloor), H = g.halfW(x);
     for (let k = 0; k <= K; k++) {
       const phi = phiRow(k, K, top), P = pt(x, phi), e = 0.02, dv = 0.003;

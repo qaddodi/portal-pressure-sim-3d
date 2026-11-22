@@ -61,7 +61,9 @@
 .pz-ghost b { font-weight: 600; color: var(--text-2); }
 .pz-vitals { width: 100%; }
 
-/* A chart's box is never shorter than the picture drawn in it. The 2D sheet gives these wrappers a height of their own (`.pz-flowtime` max(60cqi, 15em), `.pz-curve`, `.pz-talk`, `.pz-shift`, `.pz-flows`: 2D's SVG is drawn
-   to that box); here the picture is drawn on the GPU at the height its frame says, so a box the CSS made shorter clipped it at the card's foot (the lower values, the lines and the last point of "HVPG and ascites over the
-   month" cut off, Mohammad 21 Nov). The CSS height stays the floor; the picture's own height is what the card (and its measured height) then sees. A changed height is the chart's box changing, which the card measures. */
-:is(.pz-flowtime, .pz-curve, .pz-talk, .pz-shift, .pz-flows) { min-height: min-content !important; }
+/* A chart's box is exactly as tall as the picture drawn in it. The 2D sheet gives these wrappers a height of its own (`.pz-flowtime` max(60cqi, 15em), `.pz-curve`, `.pz-talk`, `.pz-shift`, `.pz-flows`, and a phone's
+   `.pz.stack.stack .pz-flowtime` 144 px: 2D's SVG is drawn to that box); here the picture is drawn on the GPU at the height its frame says. Two heights for one thing is the root of every "chart cut off at the card's foot"
+   (Mohammad, 21 and 22 Nov: the audit found the flow-time, course, trace and curve charts 43 to 130 px past their card on an iPad held upright and 13 to 54 px on an iPhone): the card is sized to the wrapper, so a picture
+   taller than the wrapper's CSS height stood past the card and was clipped. One source, the chart's (as `.pz-prof` already is, deck-ui.css): the wrapper takes the height of what it holds. The CSS height was only ever the
+   2D layout's guess at it; the frame is built from the same numbers. tests/chart-content-in-box.test.ts holds every wrapper to this. */
+:is(.pz-flowtime, .pz-curve, .pz-talk, .pz-shift, .pz-flows) { height: auto !important; min-height: 0 !important; max-height: none !important; }
