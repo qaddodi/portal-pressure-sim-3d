@@ -11,6 +11,8 @@ import { SKIN_K, closestOnArm, sdUnion, sdUnionGrad, type Capsule } from '../src
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../src/scene/vessels/skin/exact-normal.ts';
 import { peelAt, peelRank, peelSlope, PEEL_SPAN } from '../src/scene/circuit/peel.ts';
 import { MAP_K, sceneToMap } from '../src/scene/circuit/map.ts';
+import { flareScale, sideEndScale } from '../src/scene/vessels/fork-joins.copied.js';
+import { SEWN_CAPPED, SEWN_FLARE, SEWN_INSIDE, SEWN_SINK, type SewnEnd } from '../src/scene/vessels/net/sewn.ts';
 
 export type V3 = [number, number, number];
 const add = (a: Vec3, b: Vec3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -47,6 +49,23 @@ export interface LiveState {
   ink?: number;
   sag?: number;
   edges: LiveEdge[];
+  /** the sewn ends of every edge (net/sewn.ts): the collar is applied to those edges' bones, sized from the host's live lumen */
+  sewn?: readonly (readonly [SewnEnd | null, SewnEnd | null])[];
+}
+
+/** The collar of a sewn end (the shader's sewnCollar, from 2D's own sideEndScale and flareScale): the scale of an edge's radius at a bone `u` along it (edge length `arc`), given the live lumen the bone would have and its two hosts' live lumens. */
+export function sewnCollar(ends: readonly [SewnEnd | null, SewnEnd | null], u: number, arc: number, lumen: number, hostL: readonly [number, number]): number {
+  if (!(lumen > 1e-9)) return 1;
+  let a = 1, n = 1, cap = 0;
+  for (const e of [0, 1] as const) {
+    const f = ends[e]?.flags ?? 0;
+    if (!f) continue;
+    const d = (e === 0 ? u : 1 - u) * arc, hostR = hostL[e];
+    const nar = f & SEWN_INSIDE && !(f & SEWN_SINK) ? (sideEndScale(d, hostR) as number) : 1, fl = f & SEWN_FLARE ? (flareScale(d, hostR) as number) : 1;
+    a *= nar * fl; n *= nar;
+    if (f & SEWN_CAPPED && f & SEWN_FLARE && fl > 1) cap = Math.max(cap, hostR);
+  }
+  return cap > 0 ? Math.min(a, Math.max(n, cap / lumen)) : a;
 }
 
 export interface LiveBone {
@@ -93,6 +112,18 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
     const lumen = rest * swell * E.liveW * E.presence, ink = live.ink ?? 0;
     out.push({ cen, F, lumen, lumenRest: rest, pad: ink + (lumen + ink) * (live.sag ?? 0), share, fade: E.fade * E.presence, presence: E.presence, u: B.u, edge: B.edge });
   });
+  if (live.sewn) {
+    // the sewn ends' collar (net/sewn.ts): the host's live lumen is read from its bone, the edge's length is its polyline's, in the pose the bone is in (len, lenMap)
+    const lens = skel.edges.map((ed) => { const [f, c] = ed.bones; let a = 0, m = 0; for (let k = 1; k < c; k++) { a += Math.hypot(...sub(skel.bones[f + k]!.pos[0], skel.bones[f + k - 1]!.pos[0])); m += Math.hypot(...sub(skel.bones[f + k]!.pos[1], skel.bones[f + k - 1]!.pos[1])); } return [a, m] as const; });
+    const hostOf = (e: SewnEnd | null): number => (e ? out[e.host]!.lumen : 0), keep = out.map((b) => b.lumen);
+    skel.bones.forEach((B, bi) => {
+      const ends = live.sewn![B.edge];
+      if (!ends || (!ends[0] && !ends[1])) return;
+      const b = out[bi]!, arc = lens[B.edge]![0] + (lens[B.edge]![1] - lens[B.edge]![0]) * b.share;
+      const k = sewnCollar(ends, B.u, arc, keep[bi]!, [hostOf(ends[0]), hostOf(ends[1])]);
+      b.lumen *= k; b.pad = (live.ink ?? 0) + (b.lumen + (live.ink ?? 0)) * (live.sag ?? 0);
+    });
+  }
   return out;
 }
 

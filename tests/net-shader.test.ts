@@ -3,7 +3,7 @@
 // of the edge-state texture (no per-vessel uniform is left); the rules the old vessel program and the network program must share are the same SOURCE text (spliced, never copied); and the varying budget holds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GL_PROGRAMS, NET_CAP_FS, NET_CAP_VS, capPointIds, NET_FS, NET_FS_COLUMNS, NET_GLOBALS, NET_VS, NET_VS_COLUMNS } from '../src/scene/vessels/net/shaders.ts';
+import { GL_PROGRAMS, NET_CAP_FS, NET_CAP_VS, NET_SEWN_FS, NET_SEWN_VS, capPointIds, NET_FS, NET_FS_COLUMNS, NET_GLOBALS, NET_VS, NET_VS_COLUMNS } from '../src/scene/vessels/net/shaders.ts';
 import { EDGE_LAYOUT } from '../src/scene/vessels/net/edge-state.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_GLSL, PROCEDURE_MARKS_GLSL, STUMP_K_GLSL } from '../src/scene/vessels/glsl-shared.ts';
@@ -18,7 +18,7 @@ const stripped = (s: string): string => s.replace(/\/\/[^\n]*/g, '').replace(/\s
 
 test('every plain uniform the network shaders declare is in NET_GLOBALS with the same type, and nothing in it is unused', () => {
   const seen = new Map<string, string>();
-  for (const src of [NET_VS, NET_FS, NET_CAP_VS, NET_CAP_FS]) for (const [n, t] of uniforms(src)) seen.set(n, t);
+  for (const src of [NET_VS, NET_FS, NET_CAP_VS, NET_CAP_FS, NET_SEWN_VS, NET_SEWN_FS]) for (const [n, t] of uniforms(src)) seen.set(n, t);
   for (const [n, t] of seen) {
     assert.ok(n in NET_GLOBALS, `the shaders declare uniform ${t} ${n}, which NET_GLOBALS does not list`);
     const want = NET_GLOBALS[n]!;
@@ -54,8 +54,8 @@ test('the live radius is one function: the network vertex shader has no second c
   assert.equal((NET_VS.match(/vec2 circPeel\(|float circPeel\(/g) ?? []).length, 1);
 });
 
-test('five programs, and the network pair stays within the 15-varying floor', () => {
-  assert.equal(GL_PROGRAMS.length, 5);
+test('six programs, and the network pair stays within the 15-varying floor', () => {
+  assert.equal(GL_PROGRAMS.length, 6);
   const varyings = (src: string): number => {
     let n = 0;
     for (const m of src.matchAll(/^\s*(?:flat\s+)?out\s+(\w+)\s+\w+(\[(\d+)\])?\s*;/gm)) n += Number(m[3] ?? 1) * (m[1] === 'mat3' ? 3 : m[1] === 'mat4' ? 4 : 1);
