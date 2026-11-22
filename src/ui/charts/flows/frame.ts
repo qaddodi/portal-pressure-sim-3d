@@ -3,6 +3,7 @@
 import type { ChartCtx } from '../Chart.tsx';
 import { measure } from '../measure.ts';
 import { withAlpha } from '../colour.ts';
+import { inkFor } from '../legible.ts';
 import { look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { LIVER, OTHER, ROUTES, INFLOW, barOrder, flowsSummary, type Part } from './parts.ts';
@@ -53,11 +54,12 @@ function routesFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
     const full = !!e && e.tier === 0, alone = !!e && e.tier === 2;
     shapes.push({ k: 'text', x: cx, y: yT + geo.n1, s: full ? NAME.get(id)! : '', size: nameL.size!, weight: nameL.weight, color: text, alpha: full ? 1 : 0, anchor: 'middle', halo });
     shapes.push({ k: 'text', x: cx, y: full ? yT + geo.n2 : yT + geo.mid, s: onBar && e ? `${e.s.pct}%` : '', size: valL.size!, weight: valL.weight, color: text, alpha: full || alone ? 1 : 0, anchor: 'middle', halo });
-    // the pill: a tinted capsule in the part's colour with its words (name and percent, or the name alone)
+    // the part's name (and percent) under the bar where it does not fit on it: plain words in the part's colour, no capsule (docs/HUMANIZED-DESIGN.md section 0).
+    // (the slot's rectangle stays, empty, so two frames still pair up and the words glide)
     const pill = e?.pill;
     const pw = pill?.w ?? 0, px = pill ? Math.min(Math.max(pill.cx - pw / 2, 0), w - pw) : cx, py = pill ? geo.pillsT + pill.row * (geo.ph + geo.pg) : geo.pillsT;
-    shapes.push({ k: 'rect', x: px, y: py, w: pw, h: geo.ph, r: geo.ph / 2, fill: pillL.fill, pen: { color: pill ? pillL.stroke! : withAlpha(pillL.stroke!, 0), w: pillL.width! } });
-    shapes.push({ k: 'text', x: px + pw / 2, y: py + geo.ph / 2 + 0.36 * f, s: pill && e ? (e.tier === 3 ? `${NAME.get(id)} ${e.s.pct}%` : NAME.get(id)!) : '', size: pillText.size!, weight: pillText.weight, color: pillText.fill!, alpha: pill ? 1 : 0, anchor: 'middle' });
+    shapes.push({ k: 'rect', x: px, y: py, w: pw, h: geo.ph, r: 0, fill: [0, 0, 0, 0] });
+    shapes.push({ k: 'text', x: px + pw / 2, y: py + geo.ph / 2 + 0.36 * f, s: pill && e ? (e.tier === 3 ? `${NAME.get(id)} ${e.s.pct}%` : NAME.get(id)!) : '', size: pillText.size!, weight: pillText.weight, color: inkFor(lk('flows.seg', TONE.get(id)!).fill!, pillL.fill!, pillText.fill!), alpha: pill ? 1 : 0, anchor: 'middle', halo });
   }
   const frame: Frame = { w, h, shapes: shapes.map(dead), label: flowsSummary(lay.parts, a.healthy, 'portal') };
   return { frame, tiers: Object.fromEntries(spans.map((s, i) => [s.id, tiers[i]!])), parts: lay.parts };

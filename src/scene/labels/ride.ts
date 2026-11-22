@@ -194,16 +194,20 @@ function mul3(p: number[], q: number[]): number[] {
   return o;
 }
 
-/** Whether captions' boxes, carried by `ride`, still stand in the view and off every wall (the cheap judgement a pure pan needs: the words keep their places while they hold). */
+/** Whether captions' boxes, carried by `ride`, still stand in the view and off every wall (the cheap judgement a pure pan needs: the words keep their places while they hold).
+ *  Nothing carried does NOT fit: a solve that placed nothing (the picture was not yet where it settled: a cold `?slide=` start solved under the boot's closer view) had no places to keep, and "every one of none
+ *  stands clear" kept that empty answer for ever once the picture moved to its real place, so the slide came up with no names until a tuck made the layout change (Mohammad, 22 Nov). */
 export function boxesFit(items: Iterable<{ ax: number; ay: number; dx: number; dy: number; w: number; h: number }>, ride: (x: number, y: number, out: Pt) => Pt, view: Box, walls: readonly Box[]): boolean {
   const p = { x: 0, y: 0 };
+  let n = 0;
   for (const it of items) {
+    n++;
     ride(it.ax, it.ay, p);
     const x0 = p.x + it.dx, y0 = p.y + it.dy, x1 = x0 + it.w, y1 = y0 + it.h;
     if (x0 < view.x0 || y0 < view.y0 || x1 > view.x1 || y1 > view.y1) return false;
     for (const w of walls) if (x0 < w.x1 && x1 > w.x0 && y0 < w.y1 && y1 > w.y0) return false;
   }
-  return true;
+  return n > 0;
 }
 
 /** A label's room (2D roomFade): 1 while its box stands clear of every card and inside the view, 0 once it touches one; eased over FADE.roomMs, with the air a label needs to come back (FADE.roomAir).

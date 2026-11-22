@@ -92,11 +92,10 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
       }
     }
   }
-  // the foot: the figure's number and, in a pill (a quiet fill, the words in the second ink), the source it comes from
+  // the foot: the figure's number and, in plain words (no capsule: docs/HUMANIZED-DESIGN.md section 0), the source it comes from
   rule(L.y.rule2);
   const fy = L.y.foot, px = W - L.pillW, py = fy + (L.footH - PILL_H) / 2;
   place(L.foot.items, 0, fy + (L.footH - L.foot.h) / 2, false, 'text');
-  shapes.push({ k: 'rect', x: px, y: py, w: L.pillW, h: PILL_H, r: PILL_H / 2, fill: lk('path.pill', false).fill });
   word('kick', px + PILL_PAD, py + (PILL_H - ROLE.kick!.lh) / 2 + 12.5, L.spec.kick, false, 'text');
   return { w: W, h: L.H, shapes, label: pathWords(of, patient) };
 }

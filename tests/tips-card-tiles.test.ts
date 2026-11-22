@@ -6,12 +6,14 @@ import { readFileSync } from 'node:fs';
 
 const plate = readFileSync(new URL('../src/ui/css2d/app-06-plate.css', import.meta.url), 'utf8');
 const cards = readFileSync(new URL('../src/ui/css2d/app-08-cards.css', import.meta.url), 'utf8');
+const editorCss = readFileSync(new URL('../src/ui/action/stent/stent-editor.css', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../src/ui/action/stent/StentPanel.tsx', import.meta.url), 'utf8');
 const rule = (css: string, sel: string): string => css.split('\n').find((l) => l.startsWith(sel + ' {')) ?? '';
 
-test('a choice tile starts its words at the top, never centred in the stretched box', () => {
-  const r = rule(plate, '.stent-editor .se-row');
-  assert.ok(r && /justify-content: flex-start/.test(r) && !/justify-content: center/.test(r));
+test('the editor\'s rows are plain ruled rows on one baseline grid (layout M1): a name, its value and small line at the right, no tile box', () => {
+  const r = rule(editorCss, '.stent-editor .sr-row');
+  assert.ok(r && /display: grid/.test(r) && /align-items: center/.test(r) && /background: none/.test(r) && !/border-radius/.test(r), 'one grid row, no tile fill, no rounded box');
+  assert.match(rule(editorCss, '.stent-editor .sr-item'), /border-top: 1px solid var\(--hairline\)/);
   assert.match(rule(cards, '.ab-tile'), /align-content: start/);
 });
 test('the numbers line shares its slack between the readings and never clips', () => {

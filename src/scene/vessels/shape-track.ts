@@ -86,7 +86,7 @@ export class ShapeTracks {
       it.spread = lookSite ? varixSpreadK(varixSize(lookSite, this.mean[lookSite].m ?? undefined)) : 1;
       it.strandsOn = p.coils ? collateralOpen(id, f) : true;
     }
-    if (instant) for (const it of this.items) { this.settle(it, 0, true); this.rebuild(it); }
+    if (instant) for (const it of this.items) { this.settle(it, 0, true); this.rebuild(it, true); }
   }
 
   private settle(it: Item, dtMs: number, instant: boolean): boolean {
@@ -130,7 +130,7 @@ export class ShapeTracks {
   }
 
   /** A coiling vessel is drawn by blending two key frames of its shape, built at the coil strengths on either side of the present one: the coil easing for a second moves 1 or 2 brackets, so it costs 1 to 4 builds, not one a frame (a build is 3 to 6 ms). */
-  private blend(it: Item): void {
+  private blend(it: Item, whole: boolean): boolean {
     const w = it.state.wig, base = keyOf({ ...it.state, wig: 0 });
     const lo = Math.min(COIL_RUNGS - 1, Math.max(0, Math.floor(w / COIL_STEP + 1e-9))), t = Math.min(1, Math.max(0, (w - lo * COIL_STEP) / COIL_STEP));
     let kf = it.kf;
@@ -139,18 +139,22 @@ export class ShapeTracks {
       const up = lo === kf.lo + 1, down = lo === kf.lo - 1;
       kf = it.kf = { base, lo, a: up ? kf.b : null, b: down ? kf.a : null };
     }
-    if (t < 1 - 1e-9) kf.a ??= this.frameAt(it, lo * COIL_STEP);
-    if (t > 1e-9) kf.b ??= this.frameAt(it, (lo + 1) * COIL_STEP);
+    // (one key frame a frame while the shape eases: each is 4 to 50 ms of tube building and two in one frame doubled the stall; the vessel keeps the shape it has for the frame it waits. `whole` (a new patient, the first
+    //  frame) builds both now.)
+    const needA = t < 1 - 1e-9, needB = t > 1e-9;
+    if (needA && !kf.a) { kf.a = this.frameAt(it, lo * COIL_STEP); if (needB && !kf.b && !whole) return false; }
+    if (needB && !kf.b) kf.b = this.frameAt(it, (lo + 1) * COIL_STEP);
     // (at a key itself only that frame is needed: the other is the same one)
     const a = kf.a ?? kf.b!, b = kf.b ?? kf.a!;
     it.obj.reshapeLerp(a, b, kf.a && kf.b ? t : 0);
     this.stats.blends++;
+    return true;
   }
 
-  private rebuild(it: Item): boolean {
+  private rebuild(it: Item, whole = false): boolean {
     const key = keyOf(it.state);
     if (key === it.built) return false;
-    if (it.v.plan!.kind === 'coil') this.blend(it);
+    if (it.v.plan!.kind === 'coil') { if (!this.blend(it, whole)) return true; }   // (half built: still stale, the next frame builds the other key)
     else {
       const { geometry, length } = this.tubesAt(it, it.state);
       it.obj.reshape(geometry, length);
@@ -175,7 +179,7 @@ export class ShapeTracks {
       const atRest = it.state.wig === 0 && it.state.spr === 1 && it.state.bead === 0 && !this.stale(it);
       it.state.pin = pin && (pin[0] > 0 || pin[1] > 0) ? pin : undefined;
       if (atRest) { it.built = keyOf(it.state); it.seam = seamKeyOf(it.state); }   // (the same tubes: the pin holds a course at rest where it is already at rest)
-      else { this.rebuild(it); }
+      else { this.rebuild(it, true); }
     }
   }
 

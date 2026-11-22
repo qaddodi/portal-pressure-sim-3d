@@ -113,7 +113,7 @@ test('the skin\'s flow marks can read no NaN: normal and eye vector length-check
 test('the outline band is padded on a seam so it never trims the silhouette of the cut tube', () => {
   assert.match(SKIN_FS, /float seamPad = 1\.5\d* \* dpr \* smoothstep\(0\.75, 0\.97, wMax\);/);
   assert.match(SKIN_FS, /if \(sdPx > inkDev \+ 0\.5 \+ seamPad\) discard;/);
-  assert.match(SKIN_FS, /float wMax = 0\.0;\n\s+for \(int i = 0; i < 6; i\+\+\) wMax = max\(wMax, wAt\(i\)\);/);
+  assert.match(SKIN_FS, /float wMax = 0\.0;\n\s+for \(int i = 0; i < 6; i\+\+\) wMax = max\(wMax, rawW\(i\) \* keepOf\(i\)\);/);
 });
 
 test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a speck\'s layer (diagnostics: each leaves out one half of the skin\'s marks)', async () => {

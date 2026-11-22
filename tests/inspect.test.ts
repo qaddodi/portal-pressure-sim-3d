@@ -179,7 +179,7 @@ test('a program\'s budget and uniform check read its source as the driver\'s pre
   assert.ok(!declarations(plain.fragmentGlsl).some((d) => d.name === 'dbgShade'), 'no inspector uniforms in the plain program');
   assert.ok(declarations(hooked.fragmentGlsl).some((d) => d.name === 'dbgShade'), 'the inspector\'s are in its own');
   const bp = budget(plain), bh = budget(hooked);
-  assert.equal(bh.fragmentUniformVectors - bp.fragmentUniformVectors, 6);
+  assert.equal(bh.fragmentUniformVectors - bp.fragmentUniformVectors, 7);   // (shade, dust, heads, ink, tint, the dropped-pixel switch, the colour laid over it)
   for (const k of Object.keys(ES3_FLOOR) as Array<keyof typeof ES3_FLOOR>) assert.ok(bh[k] <= ES3_FLOOR[k], `${k}: ${bh[k]} of ${ES3_FLOOR[k]}`);
 });
 

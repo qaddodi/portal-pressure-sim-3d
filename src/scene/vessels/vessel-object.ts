@@ -245,7 +245,7 @@ export class VesselObject extends CelObject {
     for (const sp of plan.spans) {
       const A = a.arrays.get(sp.name)!, B = b.arrays.get(sp.name)!, dst = geo.getAttribute(sp.name)!, out = dst.array as Float32Array;
       for (let i = sp.lo; i < sp.hi; i++) out[i] = A[i]! + (B[i]! - A[i]!) * t;
-      if (sp.dir) for (let i = sp.lo; i < sp.hi; i += 3) { const l = Math.hypot(out[i]!, out[i + 1]!, out[i + 2]!) || 1; out[i] = out[i]! / l; out[i + 1] = out[i + 1]! / l; out[i + 2] = out[i + 2]! / l; }
+      if (sp.dir) for (let i = sp.lo; i < sp.hi; i += 3) { const l = Math.sqrt(out[i]! * out[i]! + out[i + 1]! * out[i + 1]! + out[i + 2]! * out[i + 2]!) || 1; out[i] = out[i]! / l; out[i + 1] = out[i + 1]! / l; out[i + 2] = out[i + 2]! / l; }
       // only the stretch that was written goes to the GPU (three would upload the whole buffer, 7 of them per blended vessel per frame); the first blend after a new pair uploads the whole array once
       if (!this.lerpFull) (dst as BufferAttribute).addUpdateRange(sp.lo, sp.hi - sp.lo);
       dst.needsUpdate = true;
