@@ -1,7 +1,7 @@
 // A device part (catheter shaft, balloon, needle, stent wire…): the scene's cel object in a device material from the 2D app's --dev-* tokens (the look's own, per look),
 // drawn in front of the anatomy it sits in (the 2D rule "devices over the vessels"): no depth test, drawn after everything else, so a catheter in a vein reads at the vein's own place
 // and keeps it as the figure turns. It can fade (alpha), for the catheter's leave and a balloon's latex.
-import { Color, Vector4, type BufferGeometry } from 'three';
+import { Color, Vector4, type BufferGeometry, type Object3D } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import { INK_FS, TOON_FS } from '../materials/shaders.ts';
 import { PALETTES, type LookId, type Palette } from '../palette.ts';
@@ -58,6 +58,9 @@ export class DeviceObject extends CelObject {
   // PRESENCE (22 Nov, polish C): `setAlpha` / `setAlphas` say how strong the part is (its level); `show(on)` says whether it is part of the picture. The two multiply, and the part's `group.visible` is
   // written HERE and nowhere else: a part that is asked to go fades out over DEVICE_FADE_MS and only then leaves the draw list, and one that is asked to come fades in from nothing. (A raw `group.visible =`
   // from a caller skipped all of that: a scope's transducer, a catheter's balloon and ripples, the glue cast and the balloon tube popped in and out in one frame.)
+  // COMPOSITION: presence (`show`) is STRUCTURAL (is this part part of the picture at all: a mode, a screen on top of it) and level (`setAlpha`) is the OWNER's own fade (a probe's, a balloon's fill). They multiply on one
+  // clock, so a caller must never gate `show` on its own fade (the part would wait for presence to ramp after the owner's fade had begun): show it while it is structurally there, and let the level do the rest.
+  // No container is ever switched either: a part that is faded leaves the draw list by itself and an empty container draws nothing.
   private level = 1;
   private levelInk = 1;
   private want = true;
@@ -231,4 +234,11 @@ export class DeviceObject extends CelObject {
   }
 
   override dispose(): void { super.dispose(); this.presence.dispose(); this.mix.dispose(); this.shadow?.dispose(); }
+}
+
+/** Whether anything under `root` is drawn: a mesh that is visible with every ancestor visible. (A container is never switched, so "is it on" is asked of its parts.) */
+export function isDrawn(root: Object3D): boolean {
+  let on = false;
+  root.traverse((o) => { if (on || !(o as { isMesh?: boolean }).isMesh) return; for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return; on = true; });
+  return on;
 }

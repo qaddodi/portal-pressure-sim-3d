@@ -43,6 +43,8 @@ uniform float lensMix;
 uniform float lensTail;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform sampler2D lensGradA;
 uniform sampler2D lensLaneA;
 uniform sampler2D lensGradB;
@@ -189,6 +191,7 @@ void main() {
   if (tone < 1.5) {
     vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, e, u, lane);
     vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, e, u, lane);
+    tubeRawK = mix(la.a * lensRawA, lb.a * lensRawB, lensMix);   // (cel-glsl.ts tubeRawK)
     base = mix(mix(base, la.rgb, la.a), mix(base, lb.rgb, lb.a), lensMix);
   }
   vec3 lit = celTubeBase(base);   // the vessel's lit tone; the streak's own tone lies between it and one shade lighter (seeded), never white, never darker than the lit tone

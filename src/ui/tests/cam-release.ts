@@ -8,10 +8,12 @@ import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
 import { freeRoom } from '../shell/room.ts';
 import { cutRoom } from './room.ts';
+import { reframeSlide } from '../deck/scene-link.ts';
 
-/** End a follow of the tip and ease the camera back to free play on the body (never a snap: goTo). */
+/** End a follow of the tip and ease the camera back to whoever owns it underneath (never a snap): in a talk the slide's own framing (scene-link caches the shot it sent, so it is told), else free play on the body. */
 export function releaseCamera(): void {
   sceneApi.follow(null);
+  if (reframeSlide()) return;   // (integration review I4: 'play' here threw away the slide's framing, and the talk never put it back until the next slide)
   if (useShell.getState().view !== 'anatomic') return;
   const { vp, device } = useUi.getState();
   sceneApi.goTo('play', cutRoom(freeRoom(vp, device)));

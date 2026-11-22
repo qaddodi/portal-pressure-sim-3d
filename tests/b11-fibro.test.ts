@@ -71,7 +71,7 @@ test('a narrow box names every other tick and the number steps smaller to keep c
 test('the pane draws only on the one clock, takes the map from the chart pool\'s context, and the copy is current', () => {
   const pane = readFileSync(new URL('../src/ui/tests/fibro/FibroPane.tsx', import.meta.url), 'utf8');
   assert.ok(!/requestAnimationFrame|getContext\(|new WebGL|createElement\('canvas'\)/.test(pane));
-  assert.ok(/clock\.hold\(TAG\)/.test(pane) && /setUnder\(under\)/.test(pane));
+  assert.ok(/clock\.hold\(TAG, \{ steady: true \}\)/.test(pane) && /setUnder\(under\)/.test(pane));
   const gl = readFileSync(new URL('../src/ui/charts/gl.ts', import.meta.url), 'utf8');
   assert.ok(/under\(gl, pw, ph, this\.gen\)/.test(gl), 'the drawer calls the picture under the shapes');
   const two = pinned2D('src/ui/fibroscan.js');

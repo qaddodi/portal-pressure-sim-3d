@@ -74,8 +74,10 @@ if (process.argv.includes('--skeleton')) {
   if (!existsSync(new URL(f, import.meta.url))) { console.error('net/skeleton.ts is not in this checkout yet (WP0)'); process.exit(1); }
   const { skeleton } = await import(f);
   const skel = skeleton(), want = arg('nodes', '') ? String(arg('nodes', '')).split(',') : null;
-  const t0 = Date.now(), r = buildNetMesh(skel);
+  // lenient: a region that will not mesh is listed and left out (its arms are not cut, so the tubes cross there); the bake itself is strict
+  const t0 = Date.now(), r = buildNetMesh(skel, undefined, { lenient: true });
   console.log(`figure: ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${Date.now() - t0} ms`);
+  for (const f of r.failures) console.log(`  WILL NOT MESH ${f.why}`);
   for (const nd of skel.nodes) if (!want || want.includes(nd.id)) {
     // the whole figure's mesh, the camera on the node: the joint at eight times its widest arm's radius
     const rad = Math.max(...nd.edges.map((x) => { const e = skel.edges[x.edge]; return skel.bones[x.end === 0 ? e.bones[0] : e.bones[0] + e.bones[1] - 1].r; }).flatMap((r) => r)) * 8;

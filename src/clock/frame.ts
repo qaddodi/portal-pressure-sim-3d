@@ -95,6 +95,7 @@ export function createClock(env: Env) {
   };   // waits made by after()/every() and not yet fired or cancelled
   const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System }[]])) as Record<Phase, { order: number; fn: System }[]>;
   const holds = new Map<symbol, string>();
+  const steady = new Set<symbol>();       // holds that last as long as something RUNS (a live Doppler, a running trace), not a motion the eye follows: they ask for frames, but `moving` does not count them
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
   let nextAsked = new Set<string>();     // invalidations made while a frame runs: they ask for the following frame
   let rafId = 0, running = false, last = 0, frame = 0, lastStart = 0;
@@ -160,11 +161,12 @@ export function createClock(env: Env) {
       return () => { const i = list.indexOf(s); if (i >= 0) list.splice(i, 1); };
     },
     /** Ask for frames for as long as the hold lives. `tag` names the asker in ?perf. */
-    hold(tag: string): Hold {
+    hold(tag: string, o: { steady?: boolean } = {}): Hold {
       const key = Symbol(tag);
       holds.set(key, tag);
+      if (o.steady) steady.add(key);
       schedule();
-      return { release: () => { if (holds.delete(key) && holds.size === 0) for (const l of [...calmListeners]) l(); } };
+      return { release: () => { const was = steady.delete(key); if (holds.delete(key) && !was && holds.size - steady.size === 0) for (const l of [...calmListeners]) l(); } };
     },
     /** Ask for frames for `ms` milliseconds (a motion whose length is known). */
     frameFor(tag: string, ms: number) {
@@ -217,7 +219,12 @@ export function createClock(env: Env) {
     },
     /** How many holds are live: a tween, a camera move, a gesture, a deck entry or an instrument asking for frames as long as it moves (not the one-frame invalidations of the ambient flow). 0 is "nothing is moving". */
     get held() { return holds.size; },
-    /** Called each time the last live hold lets go (nothing moves any more). Returns its remover. */
+    /** How many MOTION holds are live (a tween, a camera move, a gesture, a card glide): `held` less the steady ones (`hold(tag, { steady: true })`: an instrument that runs). 0 is "nothing the eye follows is moving";
+     *  the background slot (clock/idle.ts) waits on this, so a live Doppler or a running trace never parks the page's background work. */
+    get moving() { return holds.size - steady.size; },
+    /** The tags of the motion holds live now (what parks the background slot, for ?perf). */
+    movingTags(): string[] { const out: string[] = []; for (const [k, t] of holds) if (!steady.has(k)) out.push(t); return out; },
+    /** Called each time the last live MOTION hold lets go (steady holds do not count). Returns its remover. */
     onCalm(fn: () => void) { calmListeners.add(fn); return () => { calmListeners.delete(fn); }; },
     /** Whether the loop is awake (frames being drawn). */
     get awake() { return running; },

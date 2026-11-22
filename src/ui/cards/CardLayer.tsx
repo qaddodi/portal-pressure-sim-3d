@@ -236,8 +236,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // the corner button is offered where the card has room to grow (2D presenter-ladders.js `zoomOn`: wide, and `zoom.plan()` is not null), which is when it would grow by at least ZOOM_MIN
   const dataBox = dataShown?.rect;
   const zoomableData = zoomsHere && !!dataBox && !!zoomPlan({ left: dataBox.x, top: dataBox.y, width: dataBox.w, height: dataBox.h }, { left: 0, top: 0, width: vp.w, height: vp.h });
-  // a slide change, a new size or a leaving layout glides the zoom back (nothing in the app snaps: Mohammad, 20 Nov), as the slide's own cards go out and come in on the rail
-  useEffect(() => { void cardZoom.close({ reduce: reduceMotion() }); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // a slide change, a new size (the window's or a card's: the plan was made for the card's size at the tap) or a leaving layout glides the zoom back (nothing in the app snaps: Mohammad, 20 Nov), as the slide's own cards go out and come in on the rail
+  useEffect(() => { void cardZoom.close({ reduce: reduceMotion() }); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere, wordsShown?.rect.h, dataShown?.rect.h]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => cardZoom.reset(), []);
 
   // the cards' boxes go to the scene once per layout change, when every card up has been measured

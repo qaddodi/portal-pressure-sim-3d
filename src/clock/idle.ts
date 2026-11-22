@@ -6,7 +6,8 @@
 //
 // A job is a STEP function that returns true when it is finished (false: more to do). The slot calls it again and again until `budgetMs` is spent, then yields for a rest and comes back.
 // A step runs only when
-//   · no clock hold is live (no tween, camera move, gesture, deck entry or instrument asking for frames: clock.held === 0; the ambient flow asks for one-frame invalidations, not holds),
+//   · no MOTION hold is live (no tween, camera move, gesture or deck entry: clock.moving === 0). A steady hold (`clock.hold(tag, { steady: true })`: a live Doppler, a running trace, any instrument that asks for
+//     frames for as long as it runs) does not count: it would park every job for minutes (22 Nov integration review I1). The ambient flow asks for one-frame invalidations, not holds,
 //   · no finger or pointer is down and no input arrived in the last QUIET_INPUT_MS (250 ms),
 //   · and it is in a task of its own: requestIdleCallback where the browser has it, otherwise a MessageChannel task (the post-frame task Safari needs; never a fixed timer). Never inside a frame.
 // If input is pending mid-slice (isInputPending, where it exists) the slice stops and the next step waits. `rush()` lets a job the user is already waiting for (a dive straight after the load)
@@ -32,12 +33,14 @@ export interface QuietOpts {
   maxWaitMs?: number;
 }
 export interface QuietJob { cancel(): void; rush(): void; readonly done: boolean }
-export interface SlotStat { tag: string; slices: number; steps: number; totalMs: number; worstStepMs: number; done: boolean }
+export interface SlotStat { tag: string; slices: number; steps: number; totalMs: number; worstStepMs: number; done: boolean; /** the motion holds the job last waited behind (?perf, the boot digest): a tag here for long is a hold nobody lets go */ parkedBy?: string[] }
 
 export interface QuietEnv<H = number> {
   now(): number;
-  /** Live clock holds (0: nothing moves). */
+  /** Live MOTION holds (0: nothing the eye follows moves; steady holds are not counted). */
   held(): number;
+  /** The tags of the live motion holds (what a waiting job is parked behind), for the stats. */
+  heldTags?(): string[];
   /** Told each time the last hold lets go. Returns the remover. */
   onCalm(fn: () => void): () => void;
   after(fn: () => void, ms: number): H;
@@ -102,6 +105,7 @@ export function createQuiet<H = number>(env: QuietEnv<H>) {
         if (env.held() === 0 && !env.input.down()) next = Math.min(next, Math.max(1, QUIET_INPUT_MS - (t - env.input.last())));
       }
     }
+    if (env.held() > 0) { const by = env.heldTags?.(); if (by) for (const j of jobs) if (j.readyAt <= t && !j.rush) j.stat.parkedBy = by; }
     if (env.held() > 0 && !offCalm) offCalm = env.onCalm(() => { offCalm?.(); offCalm = null; pump(false); });
     if (env.input.down()) next = Math.min(next, QUIET_INPUT_MS);   // (a finger that stays down is looked at again, so a lost "up" cannot park the slot for ever)
     if (Number.isFinite(next)) wake(next);
@@ -176,8 +180,11 @@ function pageInput(): QuietEnv['input'] {
 function postTask(): (fn: () => void) => void {
   if (typeof MessageChannel === 'undefined') return (fn) => { clock.after(fn, 0, 'slot-post'); };
   const mc = new MessageChannel(), q: (() => void)[] = [];
-  mc.port1.onmessage = () => { const f = q.shift(); f?.(); };
-  return (fn) => { q.push(fn); mc.port2.postMessage(0); };
+  // (under node, an open port with a handler keeps the process alive for ever, so a test file that built a scene never exited: the port holds the process only while a task is waiting on it. A browser's port has no ref/unref.)
+  const hold = mc.port1 as MessagePort & { ref?: () => void; unref?: () => void };
+  mc.port1.onmessage = () => { const f = q.shift(); if (!q.length) hold.unref?.(); f?.(); };
+  hold.unref?.();   // (after the handler: setting onmessage refs the port again, so an unref before it is undone and a port never posted to held node open)
+  return (fn) => { q.push(fn); hold.ref?.(); mc.port2.postMessage(0); };
 }
 
 // (the last slices, on the browser's real clock, so a long task can be named: `slotAround`)
@@ -199,7 +206,8 @@ function browserQuiet(): Quiet {
   const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
   shared = createQuiet({
     now: () => clock.now(),
-    held: () => clock.held,
+    held: () => clock.moving,   // (motion only: a steady hold, an instrument that runs for minutes, never parks the slot)
+    heldTags: () => clock.movingTags(),
     onCalm: (fn) => clock.onCalm(fn),
     after: (fn, ms) => clock.after(fn, ms, 'slot'),
     cancel: (id) => clock.cancel(id),

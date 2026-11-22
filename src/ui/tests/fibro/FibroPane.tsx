@@ -112,7 +112,7 @@ export function FibroPane({ plot, slide = false, bar = true, platelets = false }
     let hold: { release(): void } | null = null;
     const sync = () => {
       const run = !!latest.frame?.running && !reducedMotion() && !document.hidden;
-      if (run && !hold) hold = clock.hold(TAG); else if (!run && hold) { hold.release(); hold = null; }
+      if (run && !hold) hold = clock.hold(TAG, { steady: true }); else if (!run && hold) { hold.release(); hold = null; }
     };
     sync();
     const tick = clock.on('tween', (f) => { sync(); if (dirty.current || hold) { dirty.current = false; draw(f.time); } });

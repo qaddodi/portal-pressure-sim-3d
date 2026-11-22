@@ -58,7 +58,7 @@ const fetchOf = (name: string, row: string): string => { const s = slotOf(name);
 export const NET_VS_COLUMNS: readonly string[] = [
   'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
   'hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiFade', 'hiPx', 'hiEnds',
-  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0',
+  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse',
 ];
 export const NET_FS_COLUMNS: readonly string[] = [
   'tone', 'vindex', 'baseD', 'len', 'radius', 'lensIndex', 'lensUse', 'lensSpan', 'reveal', 'fade', 'flowAmount', 'smokeOn', 'dotted', 'hiColor', 'glowK', 'inkOn',
@@ -74,7 +74,7 @@ export const NET_GLOBALS: Readonly<Record<string, string>> = {
   // fragment stage
   toneColor: 'vec3[3]', tubeDark: 'float', inkColor: 'vec3', inkColorCirc: 'vec3', shadeK: 'float', light: 'vec3', bands: 'float', spec: 'float', time: 'float', projY: 'float', dpr: 'float',
   markDark: 'vec3', markLight: 'vec3', markRev: 'vec3', lensMix: 'float', lensTail: 'float', lensGradA: 'sampler2D', lensLaneA: 'sampler2D', lensGradB: 'sampler2D', lensLaneB: 'sampler2D',
-  lensModeA: 'float', lensModeB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
+  lensModeA: 'float', lensModeB: 'float', lensRawA: 'float', lensRawB: 'float', laneColA: 'vec3[5]', laneColB: 'vec3[5]', lensSmooth: 'float', stentWire: 'vec4', stentGoldC: 'vec4', streamTex: 'sampler2D', chainTex: 'sampler2D', streakAmt: 'float',
   wedgeCol: 'vec3', pageCol: 'vec3', dustP: 'vec4[]', routeTex: 'sampler2D',
   // the inspector's (VDBG), as the old program's
   dbgShade: 'float', dbgDust: 'float', dbgHeads: 'float', dbgInk: 'float', dbgTint: 'float', dbgCol: 'vec4',
@@ -237,7 +237,7 @@ ${HIGHLIGHT_ALONG_GLSL}
   float wpcV = ${wpcGlsl('cc.w', 'projectionMatrix[1][1]', 'vU')};
   float vR = lumenW * vU;
   float rCssV = vR / max(wpcV, 1e-6);
-  float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK')};
+  float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK', '1.0 - lensUse')};
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);
   float inkW = (inkPx + hiPx * vHi) * inkOn * wpcV / vU;
   o.cen = cen; o.F = F; o.lumen = lumenW; o.share = circShare; o.fa = fa * presence; o.hi = vHi; o.pres = presence; o.u = u; o.row = row; o.stay = stay; o.unit = vU; o.arc = mix(len, lenMap, circShare); o.lumen0 = lumen0W; o.dturn = dturn;
@@ -323,6 +323,8 @@ uniform sampler2D lensLaneA;
 uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform float lensModeB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
@@ -420,6 +422,7 @@ void main() {
   vec4 la = lensOfAt(lensIndex, mix(lensSpan.x, lensSpan.y, vUv.x), lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOfAt(lensIndex, mix(lensSpan.x, lensSpan.y, vUv.x), lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
+  tubeRawK = mix(la.a * lensRawA, lb.a * lensRawB, lensMix);   // (the pressure ramp is authored as drawn: cel-glsl.ts tubeRawK)
   if (vBlend > 0.002 && vEdge.y != vEdge.x) {
     int r2 = int(vEdge.y + 0.5);
     float lensIndex2 = ${fetchOf('lensIndex', 'r2')}, lensUse2 = ${fetchOf('lensUse', 'r2')};
@@ -431,6 +434,7 @@ void main() {
     vec4 la2 = lensOfAt(lensIndex2, u2, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(lensIndex2, u2, lensGradB, lensLaneB, lensModeB, laneColB, across);
     lensUse = lensUse1;
     base = mix(base, mix(mix(color2, la2.rgb, la2.a), mix(color2, lb2.rgb, lb2.a), lensMix), vBlend);
+    tubeRawK = mix(tubeRawK, mix(la2.a * lensRawA, lb2.a * lensRawB, lensMix), vBlend);
   }
 
   // the fill: exactly TWO flat tones, lit by the one world light (cel-glsl.ts), no rim, no highlight. rDev: the tube's radius in device px
@@ -452,7 +456,7 @@ void main() {
   // THE GLOW'S MASK (glow.ts, glow-fx.ts): the picked vessel as it is drawn, in its colour as drawn, weighted by the pick's weight vHi and by its fades: premultiplied, painted into the mask texture
   {
     float rCssG = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
-    float lineG = ${inkPxGlsl('rCssG', 'rCssG')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float lineG = ${inkPxGlsl('rCssG', 'rCssG', '1.0 - lensUse')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
     float wG = ${glowWeightGlsl('vHi')} * glowK * fadeHere * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
@@ -462,7 +466,7 @@ void main() {
   if (fadeHere < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from
-  vec3 c = celTubeTone(base, sT, fwSt, rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  vec3 c = celTubeToneArt(base, sT, fwSt, rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
   c = dbgBody(c, base, n);
