@@ -128,6 +128,9 @@ export class Highlight {
   private wanted: string | null = null;
   /** Ids that may be picked before their tube exists (the custom shunts: their tubes come and go with the params, circuit/tubes.ts). */
   expect: (id: string) => boolean = () => false;
+  /** Told whenever `picked` changes, from any path (a pick, the lit set clearing it, a late tube lighting the wanted id): the ONE writer of the page's pick store (scene/api.ts). Integration review I6. */
+  onPicked: (id: string | null) => void = () => {};
+  private tellPicked(was: string | null): void { if (this.picked !== was) this.onPicked(this.picked); }
 
   constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
     this.hostOf = hostOf;
@@ -156,9 +159,11 @@ export class Highlight {
     if (!id || this.tracks.get(id)?.obj !== o) return;
     this.tracks.delete(id);
     this.edges = this.edges.filter((e) => e.id !== id);
+    if (this.picked === id && !this.expect(id)) { this.picked = null; this.onPicked(null); }   // (its tube is gone: nothing is picked; `wanted` keeps it for a tube that comes back)
   }
 
   set(id: string | null): void {
+    const was = this.picked;
     this.wanted = id;
     this.picked = id && (this.tracks.has(id) || this.expect(id)) ? id : null;
     const spec = this.picked && this.tracks.has(this.picked) ? computeHighlight(this.group(this.picked), this.edges, this.range) : new Map<string, HighlightSpec>();
@@ -175,11 +180,14 @@ export class Highlight {
         u.hiFade!.value = s.fade ?? 1;
       }
     }
+    this.tellPicked(was);
   }
 
   /** Light exactly these vessels (and every piece of a vein the engine cuts), each outlined whole and nothing run on downstream: the shunt's targets. Clears the pick. */
   setOnly(ids: readonly string[]): void {
+    const was = this.picked;
     this.picked = null;
+    this.tellPicked(was);
     this.wanted = null;
     const hosts = new Set(ids.map((id) => this.hostOf.get(id) ?? id));
     for (const [eid, t] of this.tracks) {

@@ -150,6 +150,11 @@ export function linkProcs(): () => void {
         if (v) sceneApi.goTo(v.shot, room());
         onOver(!rewound);
       },
+      // (replaced on the figure by another run, a Tests card's for one: this slide's run is over, so its state goes with it; the stopPlay path has already moved `gen` on)
+      onStop: () => {
+        if (g !== gen || ctl !== c) return;
+        playing = false; held = false; ctl = null; starting = false; phase = 'wait'; sceneApi.follow(null);
+      },
     });
     aimStep(0);
   }

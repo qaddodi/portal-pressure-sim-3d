@@ -32,9 +32,13 @@ import type { Gestures } from './gesture/controller.ts';
 import { DIVE_BODY_MS, diveMs } from './camera/dive.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
+/** The vessel picked in free play (topology edge ID), for the data card. */
+export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
 let built: CelScene | null = null;
 /** The scene (R6): built on the first call, never at import, so a module that only imports this file (a test, a tool) constructs nothing. */
-export const scene = (): CelScene => (built ??= new CelScene());
+export const scene = (): CelScene => (built ??= wire(new CelScene()));
+/** The page's pick store follows the scene's one pick, whatever changed it (integration review I6). */
+function wire(sc: CelScene): CelScene { sc.highlight.onPicked = (id) => { if (usePick.getState().picked !== id) usePick.setState({ picked: id }); }; return sc; }
 /** Whether the scene has been built yet. */
 export const sceneBuilt = (): boolean => built !== null;
 /** The scene as the many callers already write it (`cel.rig`, `cel.goTo(...)`): a handle that builds the scene on its first use. New code calls `scene()`. */
@@ -53,8 +57,6 @@ export const frames = createFrameQueue(() => clock.invalidate('gesture'));
 /** The live gesture controller, set by Stage while mounted. */
 export const gesturesRef: { current: Gestures | null } = { current: null };
 
-/** The vessel picked in free play (topology edge ID), for the data card. */
-export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
 
 export const sceneApi = {
   /** A slide's move to a shot (2D planSlide's 800 to 1400 ms, not a hand's 480 to 900), fitted into the room: for a deck framing that is not a view change. */
@@ -244,5 +246,5 @@ export const stopReconciler = startReconciler({
   markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
   setResistors: (keys) => sceneApi.setResistors(keys),
   setCaudatePin: (on, veins) => sceneApi.setCaudatePin(on, veins),
-  pick: (id) => { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+  pick: (id) => { cel.pick(id); clock.invalidate('pick'); },   // (usePick follows through highlight.onPicked)
 });

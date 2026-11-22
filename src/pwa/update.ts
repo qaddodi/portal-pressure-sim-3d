@@ -38,10 +38,10 @@ export const newerBuild = (mine: string, text: string): string | null => { const
 /** Whether the tab takes the newer build now, by itself, because it is out of sight (nothing on the screen jumps), a build is waiting, and no talk plays. */
 export const takesOverNow = (s: { pending: boolean; hidden: boolean; mode: string }): boolean => s.pending && s.hidden && s.mode !== 'deck';
 
-export interface Safe { pending: boolean; hidden: boolean; talk: boolean; down: boolean; idleMs: number; auto: boolean }
+export interface Safe { pending: boolean; hidden: boolean; talk: boolean; down: boolean; idleMs: number; auto: boolean; /** something plays with nobody touching the screen: a motion on the figure, a procedure, the self-test (integration review I5) */ busy?: boolean }
 /** 'now' when the newer build may be taken this second, else 'wait'. Never in a talk, never with a finger or the pointer down. */
 export function whenToApply(s: Safe): 'now' | 'wait' {
-  if (!s.pending || s.talk) return 'wait';
+  if (!s.pending || s.talk || s.busy) return 'wait';   // (a talk, a procedure playing, a camera move or the self-test walking the app: none of them is input, so the idle clock alone would reload over them)
   if (takesOverNow({ pending: s.pending, hidden: s.hidden, mode: 'figure' })) return 'now';
   return s.auto && !s.hidden && !s.down && s.idleMs >= IDLE_APPLY_MS ? 'now' : 'wait';
 }
@@ -52,6 +52,8 @@ export interface UpdaterEnv {
   /** in front on a preview build: may move by itself when it is quiet */
   auto: boolean;
   now(): number; hidden(): boolean; talk(): boolean;
+  /** something plays that no input shows (Safe.busy) */
+  busy?(): boolean;
   /** build-info.txt's text, or null when it could not be read */
   fetchInfo(): Promise<string | null>;
   /** leave for the newest build, keeping what is on the screen */
@@ -99,7 +101,7 @@ export function createUpdater(env: UpdaterEnv) {
     shown(): void { lastInput = env.now(); down = false; },
     /** Once a second while a newer build waits, and when the tab goes out of sight. */
     tick(): void {
-      if (whenToApply({ pending, hidden: env.hidden(), talk: env.talk(), down, idleMs: env.now() - lastInput, auto: env.auto }) === 'now') apply();
+      if (whenToApply({ pending, hidden: env.hidden(), talk: env.talk(), busy: env.busy?.() ?? false, down, idleMs: env.now() - lastInput, auto: env.auto }) === 'now') apply();
     },
   };
   return u;
@@ -112,6 +114,8 @@ export function startUpdateWatch(offer: () => void): ReturnType<typeof createUpd
   const u = createUpdater({
     mine: buildLabel(import.meta.env.VITE_BUILD), auto: import.meta.env.VITE_CHANNEL === 'preview',
     now: () => clock.now(), hidden: () => document.hidden, talk: talkOn,
+    // (motion holds: a camera move, a procedure's devices, a card glide; and the self-test, which runs with no input and with the clock scaled)
+    busy: () => clock.moving > 0 || clock.scale !== 1 || /[?&]audit\b/.test(location.search),
     fetchInfo: async () => { const r = await fetch(new URL('build-info.txt', document.baseURI), { cache: 'no-store' }); return r.ok ? r.text() : null; },
     reload: () => { if (mayAutoReload(session(), buildLabel(import.meta.env.VITE_BUILD))) void reloadKeepingState(); else { root.style.opacity = ''; } },
     fade: (on) => { root.style.transition = `opacity ${FADE_MS}ms ease`; root.style.opacity = on ? '0' : ''; },
