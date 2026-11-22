@@ -9,7 +9,7 @@ import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { sdUnionGrad, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
-import { skinNormalTwin, skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
+import { skinNormalTwin, skinNormalGlsl, skinShadeK, SKIN_SHADE_FLOOR_PX, SKIN_SHADE_K, SKIN_RING_W_FROM, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
 import { SKIN_ARM_ABSENT, SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 
 const deg = (a: readonly number[], b: readonly number[]): number => Math.acos(Math.max(-1, Math.min(1, a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!))) * 180 / Math.PI;
@@ -18,7 +18,7 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
   setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   const inner: number[] = [];
-  let skins = 0, worstInterp = 0, worstSeam = 1, worstInner = 0, mates = 0;
+  let worstAt = '', skins = 0, worstInterp = 0, worstSeam = 1, worstInner = 0, mates = 0;
   const set = new SkinSet({
     vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
     make: (mesh, axes, arms) => {
@@ -66,7 +66,7 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
         if (ring.has(vi)) { const top = Math.max(mesh.weight[4 * vi]!, mesh.weight[4 * vi + 1]!, mesh.weight[4 * vi + 2]!, mesh.weight[4 * vi + 3]!, mesh.weight2[2 * vi]!, mesh.weight2[2 * vi + 1]!); worstSeam = Math.min(worstSeam, top); continue; }
         const e = skinNormalTwin(twin(one, []), kS, mesh.position[3 * vi]!, mesh.position[3 * vi + 1]!, mesh.position[3 * vi + 2]!, SKIN_ARM_ABSENT);
         const dd = deg(e, [mesh.normal[3 * vi]!, mesh.normal[3 * vi + 1]!, mesh.normal[3 * vi + 2]!]);
-        inner.push(dd); worstInner = Math.max(worstInner, dd);
+        inner.push(dd); if (dd > worstInner) { worstInner = dd; worstAt = `${mesh.junction.node} vertex ${vi}`; } 
       }
       return new SkinObject(mesh, arms[0]!, axes, arms);
     },
@@ -80,16 +80,21 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
   // the mesh's own shade normals are the gradient eased in creases by how the triangles lie; the pixel's is the same softening as a property of the surface, so it stays near them (and no ring correction is carried past the rings)
   inner.sort((a, b) => a - b);
   const at = (p: number): number => inner[Math.floor(p * (inner.length - 1))]!;
-  assert.ok(at(0.9) < 11 && at(0.99) < 22 && worstInner < 50, `the pixel normal against the eased vertex normals: p90 ${at(0.9).toFixed(1)}, p99 ${at(0.99).toFixed(1)}, max ${worstInner.toFixed(0)} degrees`);
+    assert.ok(at(0.9) < 11 && at(0.99) < 22 && worstInner < 50, `the pixel normal against the eased vertex normals: p90 ${at(0.9).toFixed(1)}, p99 ${at(0.99).toFixed(1)}, max ${worstInner.toFixed(0)} degrees at ${worstAt}`);
 });
 
 test('the shader takes the normal from the union\'s gradient at the pixel, before any derivative or discard', () => {
   assert.match(SKIN_FS, /vec3 skinNormalExact\(vec3 p, float k, vec3 fallback\)/);
   const main = SKIN_FS.slice(SKIN_FS.indexOf('void main('));
-  const at = main.indexOf('skinNormalExact(vPos, skinK');
+  const at = main.indexOf('skinNormalExact(vPos, max(skinK');
   assert.ok(at > 0, 'main reads it');
   assert.ok(at < main.indexOf('fwidth(sT)') && at < main.indexOf('discard'), 'before the derivative of the shade and before the first discard');
-  assert.match(main, /skinNormalExact\(vPos, skinK \* 1\.5, vec3\(0\.0\)\)/);
+  // the shade's blend: 1.5 k, and never narrower than SKIN_SHADE_FLOOR_PX of the screen (a ridge thinner than a pixel is drawn as a one-pixel line of the crotch's own normal: the dark line this fix was made to end)
+  assert.match(main, /skinNormalExact\(vPos, max\(skinK \* 1\.5, 2\.0 \* vCenW \* 2\.0 \/ \(res\.y \* projY\) \* 1\.0\), vec3\(0\.0\)\)/);
+  assert.equal(SKIN_SHADE_FLOOR_PX, 2);
+  assert.equal(skinShadeK(0.004, 0.0015), 0.006, 'at a laptop\'s zoom k is already wider than two pixels: nothing changes');
+  assert.equal(skinShadeK(0.004, 0.004), 0.008, 'on a phone\'s fit two pixels are wider: the shade reads the union there');
+  assert.equal(skinShadeK(0, 0.004), 0.008, 'a skin with no blend at all is still given the floor');
   assert.match(main, /n = normalize\(mix\(n, normalize\(mat3\(modelViewMatrix\) \* gx\), \(1\.0 - smoothstep\(0\.97, 1\.0, wTop\)\)\)\)/);
   assert.equal(SKIN_RING_W_FROM, 0.97);
   // the same rules as the CPU: arm order, the run's halves as a minimum first, the absent arm held out of reach by the outline's own smoothstep

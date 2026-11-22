@@ -1,4 +1,5 @@
 // The 2D line masks (stage-geo.js FADE_IN, SIN_FADE): the liver beds fade along their course, the hepatic and renal veins into the cava, C9 behind the liver.
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -28,7 +29,7 @@ test('the hepatic veins fade into the cava (solid at the offset, to FADE_IN\'s a
 });
 
 test('the vessel shader carries both line modes with the 2D alpha (tube-geo.js tubeAlpha)', () => {
-  const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const src = VESSEL_VS + VESSEL_FS;   // (the assembled program: the fade rule lives in the shared chunk glsl-shared.ts FADE_ALPHA_GLSL, which the vessel and net shaders both splice in)
   assert.match(src, /fadeMode > 3\.5/);
   assert.match(src, /smoothstep\(0\.0, max\(fadeA\.x, 1e-4\), fv\)/);
   assert.match(src, /smoothstep\(fadeA\.x, 1\.0, fv\)/);

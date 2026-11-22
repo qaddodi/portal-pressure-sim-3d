@@ -297,5 +297,10 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz-lens-hit:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 0; }
 .pz-lens-cone { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
 .pz-lens-cone line { stroke-linecap: round; fill: none; }
-.pz-lens-cone .halo line { stroke: var(--label-halo, var(--surface)); stroke-width: 2.2; opacity: .6; }
-.pz-lens-cone .ink line { stroke: var(--text); stroke-width: .85; opacity: .5; }
+.pz-lens-cone .halo line { stroke: var(--label-halo, var(--surface)); stroke-width: 2.2; opacity: .45; }
+.pz-lens-cone .ink line { stroke: var(--text); stroke-width: .85; opacity: .38; }
+
+/* The lens grows out of the ring by a clip, not a scale (the 2D stylesheet scaled the disc from .12: a chart measures its box by its rect, and a rect under a transform scale is that share of the box: the scope drew itself at
+   12 % of the lens, in its corner, outside the round clip, and the disc stood as its bare red ground; 22 Nov). A clip leaves the box at its own size from the first frame, so the scope is drawn whole. */
+.pz-lens-disc { transform: none; clip-path: circle(8px at var(--lens-ox, 50%) var(--lens-oy, 50%)); transition: clip-path var(--d-surface) var(--ease-arrive); }
+.pz-lens.on .pz-lens-disc { transform: none; clip-path: circle(100% at 50% 50%); }
