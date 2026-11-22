@@ -13,7 +13,7 @@ test('the credit looks at the words and art of the cards, and again when the sli
   assert.match(src, /out\.push\(\.\.\.cardContent\(vw, vh\), \.\.\.figureLabels\(\)\)/);
   assert.match(src, /const CARDS = '\.pz-shade, \.pz-data, \.pz-case, \.pz-panel'/);
   assert.match(src, /createTreeWalker\(card, NodeFilter\.SHOW_TEXT\)/);
-  assert.match(src, /\[view, slideKey,/);
+  assert.match(src, /\[view,[^\]]*\bslideKey,/, 'a slide change places it again');
   // eb39090 (phone): the credit sat over the card's tab (CARDIAC, an aria-hidden word) and under the slide pill, and was placed before the cards had come in
   assert.ok(!/closest\('button, \[aria-hidden/.test(src), 'aria-hidden words are drawn words: the card tab is one');
   assert.match(src, /OBSTACLES = '[^']*\.dk-bar/, 'the talk\'s slide pill is an obstacle');
