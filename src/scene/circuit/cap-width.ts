@@ -5,9 +5,11 @@ import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { circBoostOf } from './map.ts';
 import { circuitWidthMap } from './width.ts';
 
-/** A station without a vessel of its own (an inner or minor station) takes a plain vein's width. `scale`: the map's CSS pixels per map unit. */
-export function halfWidthPx(station: string, scale: number): number {
-  const boost = circBoostOf(scale), perPx = scale > 0 ? Math.min(40, 1 / scale) : 0, v = NETWORK_BY_ID.get(LABEL_VESSEL[station] ?? '');
+/** Half the drawn width (px) of a vessel on the map as it is zoomed now; a vessel with no entry takes a plain vein's width. `scale`: the map's CSS pixels per map unit. */
+export function halfWidthOfVessel(vessel: string, scale: number): number {
+  const boost = circBoostOf(scale), perPx = scale > 0 ? Math.min(40, 1 / scale) : 0, v = NETWORK_BY_ID.get(vessel);
   const w = v ? circuitWidthMap(v.widthKind, v.baseD, boost, v.circFine ?? 1, perPx) : circuitWidthMap(0, 6, boost, 1, perPx);
   return 0.5 * w * scale;
 }
+/** A station without a vessel of its own (an inner or minor station) takes a plain vein's width. */
+export const halfWidthPx = (station: string, scale: number): number => halfWidthOfVessel(LABEL_VESSEL[station] ?? '', scale);

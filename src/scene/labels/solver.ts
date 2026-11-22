@@ -70,7 +70,7 @@ export interface SolveInput {
   /** Everything a label may never touch: cards, the presenter bar, the strip, the key. */
   blockers: readonly Box[];
   /** The vessels' centrelines on the canvas, [x0, y0, x1, y1]: a label avoids standing on them (a cost, not a ban). */
-  lines?: readonly (readonly [number, number, number, number])[];
+  lines?: readonly Line[];
   /** Discs of vessels seen end-on (a portal venule's, a central vein's): a label never stands on one nor does a leader run across one, except the item that names it (`id`); 2D's lobule keeps the same (lobule-tract-labels.js fanCost). */
   keep?: readonly { id: string; x: number; y: number; r: number }[];
   /** Set (above 0): a label's leader never crosses a vessel line (past the vessel the dot stands on): a name stands beside its vessel or on a leader with a clear route, never on one drawn across the sinusoids
@@ -134,6 +134,11 @@ const CLEAR_SPOTS: readonly (readonly [number, number, number])[] = (() => {
 const REGION_LINE_COST = 60;
 
 type Seg = [number, number, number, number];
+/** A vessel's centreline piece [x0, y0, x1, y1] and, optionally, half the width it is drawn at (px): a name stands that much further from it, so its words never lie on the tube's edge or its glow
+ *  (the Circuit's "MHV" stood in the gap between two tubes with its halo over both, a box on the pale tube, 22 Nov). Absent: a hairline. */
+export type Line = readonly [number, number, number, number, number?];
+/** Whether a line, drawn at its own width and `air` more, passes through the box. */
+const onLine = (l: Line, box: Box, air: number): boolean => crosses(l[0], l[1], l[2], l[3], grow(box, air + (l[4] ?? 0)));
 /** Air kept between a label and the disc of a vessel seen end-on (px). */
 const KEEP_AIR = 3;
 export const FACE_COS = 0.5, FACE_CLASH = 1e5;
@@ -142,6 +147,22 @@ function segDist(s: Seg, x: number, y: number): number {
   const vx = s[2] - s[0], vy = s[3] - s[1], l2 = vx * vx + vy * vy;
   const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - s[0]) * vx + (y - s[1]) * vy) / l2)) : 0;
   return Math.hypot(s[0] + vx * t - x, s[1] + vy * t - y);
+}
+
+/** The least distance between two segments (0 when they cross). */
+function segsDist(a: Seg, b: Seg): number {
+  if (segsCross(a, b)) return 0;
+  return Math.min(segDist(b, a[0], a[1]), segDist(b, a[2], a[3]), segDist(a, b[0], b[1]), segDist(a, b[2], b[3]));
+}
+/** Air a leader keeps from a tube's drawn edge, px: a hairline squeezed between two tubes (the hepatic artery's, down the gap of the sinusoid bundle) is as much "through the vessels" as one across them. */
+export const LEADER_AIR = 8;
+/** Whether a leader runs through a vessel's drawn band or closer than LEADER_AIR to its edge; the vessel the dot itself stands on (within its band and 2 px) is not counted. Only a line that carries its width. */
+function leaderTouches(from: Seg, l: Line, ax: number, ay: number): boolean {
+  const w = l[4] ?? 0, s: Seg = [l[0], l[1], l[2], l[3]];
+  if (segDist(s, ax, ay) < w + 2) return false;
+  const r = w + LEADER_AIR;
+  if (Math.max(from[0], from[2]) + r < Math.min(s[0], s[2]) || Math.min(from[0], from[2]) - r > Math.max(s[0], s[2]) || Math.max(from[1], from[3]) + r < Math.min(s[1], s[3]) || Math.min(from[1], from[3]) - r > Math.max(s[1], s[3])) return false;
+  return segsDist(from, s) < r;
 }
 
 function clearPoint(x: number, y: number, view: Box, blockers: readonly Box[]): boolean {
@@ -280,7 +301,7 @@ export function solve(input: SolveInput): Solved {
           // (measured from the vessel's edge as drawn, not from its middle: a label hugging a fat vein has no line)
           const gap = it.region ? 0 : boxGap(box, it.ax, it.ay) - (it.vw ?? 0);
           if (it.minLead && !it.region && relax < 2 && gap < it.minLead) { no(c, 'minLead'); continue; }
-          if (strictLines) { const air = grow(box, LINE_AIR); let under = false; for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], air)) { under = true; break; } if (under) continue; }
+          if (strictLines) { let under = false; for (const l of lines) if (onLine(l, box, LINE_AIR)) { under = true; break; } if (under) continue; }
           const leader = !it.region && !it.callout && gap > LEAD_ON;
           if (nearOnly && leader) continue;
           let seg: Seg | null = null;
@@ -294,7 +315,7 @@ export function solve(input: SolveInput): Solved {
             if (leaderLineCost > 0 && len > 1) {
               const k = Math.min(1, ((it.vw ?? 0) + 4) / len), from: Seg = [seg[0] + (seg[2] - seg[0]) * k, seg[1] + (seg[3] - seg[1]) * k, seg[2], seg[3]];
               let n = 0;
-              for (const l of lines) if (segsCross(from, [l[0], l[1], l[2], l[3]])) n++;
+              for (const l of lines) if (segsCross(from, [l[0], l[1], l[2], l[3]]) || (l[4] !== undefined && leaderTouches(from, l, it.ax, it.ay))) n++;
               if (n > 0 && relax < 2) { no(c, 'leaderLine'); continue; }
               pen += leaderLineCost * Math.min(n, 4);
             }
@@ -311,7 +332,7 @@ export function solve(input: SolveInput): Solved {
           for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; no(c, 'underLeader:' + l.id); break; }
           if (bad) continue;
           let lineHits = 0;
-          for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
+          for (const l of lines) if (onLine(l, box, 0)) lineHits++;
           // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
           // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
           // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)

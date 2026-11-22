@@ -37,6 +37,7 @@ test('the hepatic artery is named, with no number (2D: no reading for it)', () =
   assert.ok(ha!.forms.length >= 1);
   assert.ok(ha!.forms.every((f) => !f.value), 'no form of it carries a reading');
   assert.ok(ha!.forms.every((f) => f.name !== ''), 'and none is a bare number');
+  assert.equal(buildCaptions(ctx()).items.find((i) => i.id === 'HA')!.must, true, 'its name is never left off (22 Nov): the solver gives it the last resort when no clear route exists');
 });
 
 test('every station item asks to stand clear of the vessel lines (the solver then takes a clear spot when one exists)', () => {

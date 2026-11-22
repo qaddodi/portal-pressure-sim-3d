@@ -16,7 +16,7 @@ import { useShell } from '../../ui/shell/store.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { useBlood } from '../blood/options.ts';
 import { cel, usePick } from '../api.ts';
-import { rectToBox, leaderGeom, within, hits, crosses, type Box } from '../labels/geometry.ts';
+import { rectToBox, leaderGeom, within, hits, crosses, grow, type Box } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { useLabels } from '../labels/store.ts';
 import { calloutClaims } from '../labels/callout-claims.ts';
@@ -28,7 +28,7 @@ import { COURSES } from './course.ts';
 import { type CapMeta, ZONE_PX, buildCaptions } from './captions.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
-import { halfWidthPx } from './cap-width.ts';
+import { halfWidthOfVessel, halfWidthPx } from './cap-width.ts';
 import { readUiWalls } from './ui-walls.ts';
 import { resSig, resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
@@ -124,15 +124,16 @@ export function CircuitCaptions() {
       const free = rectToBox(boxes.free), room = view();   // (the words stand in the screen's room, kept off the cards by the blockers: `boxes.free` is empty in free play and is the cards' leftovers otherwise, it must not clip a tier's title or a lane's caption)
       const laneOf = (id: string): readonly (readonly [number, number])[] | null => COURSES.get(id)?.mapPts ?? (CIRCUIT_D[id] ? courseOf(CIRCUIT_D[id]!) : null);
       // the vessels' centrelines on the canvas, for the soft cost of standing on one (and, by vessel, for a lane's caption to stand clear of every other)
-      const lines: [number, number, number, number][] = [];
-      const owned: { id: string; s: [number, number, number, number] }[] = [];
+      const lines: [number, number, number, number, number][] = [];   // (the fifth: half the width it is drawn at, so a name keeps off the tube's edge and not only its middle)
+      const owned: { id: string; s: [number, number, number, number]; w: number }[] = [];
+      const sc = cel.mapScale();
       for (const [id, c] of COURSES) {
         if (!cel.vesselDrawn(id)) continue;
-        const p = c.mapPts;
+        const p = c.mapPts, hw = halfWidthOfVessel(id, sc);
         let px = NaN, py = NaN;
         for (let i = 0; i < p.length; i += Math.max(1, Math.floor(p.length / 24))) {
           cel.mapPoint(p[i]![0], p[i]![1], tmp);
-          if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y]); owned.push({ id, s: [px, py, tmp.x, tmp.y] }); }
+          if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y, hw]); owned.push({ id, s: [px, py, tmp.x, tmp.y], w: hw }); }
           px = tmp.x; py = tmp.y;
         }
       }
@@ -140,17 +141,17 @@ export function CircuitCaptions() {
       for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
         if (!cel.vesselDrawn(id)) continue;
         for (const b of list) {
-          const p = courseOf(b.d);
+          const p = courseOf(b.d), hw = halfWidthOfVessel(id, sc) * b.k;
           let px = NaN, py = NaN;
           for (let i = 0; i < p.length; i += Math.max(1, Math.floor(p.length / 12))) {
             cel.mapPoint(p[i]![0], p[i]![1], tmp);
-            if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y]); owned.push({ id: `${id}~tree`, s: [px, py, tmp.x, tmp.y] }); }
+            if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y, hw]); owned.push({ id: `${id}~tree`, s: [px, py, tmp.x, tmp.y], w: hw }); }
             px = tmp.x; py = tmp.y;
           }
         }
       }
       const walls = blockers();
-      const clear = (box: Box, own: string): boolean => within(box, room) && !walls.some((w) => hits(box, w)) && !owned.some((o) => o.id !== own && crosses(o.s[0], o.s[1], o.s[2], o.s[3], box));
+      const clear = (box: Box, own: string): boolean => within(box, room) && !walls.some((w) => hits(box, w)) && !owned.some((o) => o.id !== own && crosses(o.s[0], o.s[1], o.s[2], o.s[3], grow(box, o.w)));
       const built = buildCaptions({
         proj: (x, y) => { cel.mapPoint(x, y, tmp); return [tmp.x, tmp.y]; },
         upright, vp, measure,
