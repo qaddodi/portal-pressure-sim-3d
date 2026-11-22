@@ -17,6 +17,8 @@ import { Bands } from '../devices/bands.ts';
 import { GlueCast } from '../devices/glue-cast.ts';
 import type { ScopeDrive } from '../devices/probes/scope.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
+import { setDrawnDiameter } from '../../engine/tract-override.ts';
+import { TRACT_EDGE, TRACT_RELEASE_MS, TRACT_STENT_MM, tractDiameter, tractTimes } from './tract.ts';
 import './instrument-specs.ts';   // (registers EVL, tamponade, DIPS, DSRS and paracentesis in the procedure table)
 import { CATH_END } from './copied/cath-arrival.js';
 import { type StepClock, makeStepClock, aim as aimClock, stepClock, landed } from './step-clock.ts';
@@ -123,6 +125,25 @@ export class ProcedureLayer {
     this.stents.set(id, s);
     return s;
   }
+  private stentMm = TRACT_STENT_MM;
+  /** The tract the run is drawing (mm) and whether this frame's draw drove it (a frame that did not is a run that has ended: it lets go, eased). */
+  private tractMm = 0; private tractDriven = false;
+  /** TIPS runs only: the tract is the run's clock's (needle hit, dilation); see tract.ts. */
+  private driveTract(kind: string, t: number): void {
+    const T = tractTimes((specOf(kind) as { T?: unknown } | null)?.T);
+    if (!T) return;
+    this.tractDriven = true; this.tractMm = tractDiameter(T, t, this.stentMm);
+    setDrawnDiameter(TRACT_EDGE, this.tractMm);
+  }
+  /** A tract no run drives lets go over TRACT_RELEASE_MS (a slide left, a run replayed or taken off): the larger of it and the engine's own diameter is what is drawn, so a stent that is in never shrinks. True while it eases. */
+  private releaseTract(dt: number): boolean {
+    if (this.tractDriven) { this.tractDriven = false; return false; }
+    if (this.tractMm <= 0) return false;
+    if (this.run || this.step) return false;
+    this.tractMm = Math.max(0, this.tractMm - (this.stentMm * dt) / TRACT_RELEASE_MS);
+    setDrawnDiameter(TRACT_EDGE, this.tractMm);
+    return true;
+  }
   private fadeNow = 1;
   /** The devices dissolve as the figure turns into the Circuit (1 whole, 0 gone): nothing of a procedure stands on the map. */
   setFade(f: number): void {
@@ -145,6 +166,8 @@ export class ProcedureLayer {
   syncStents(frame: { D: ArrayLike<number> } | null, params: unknown, instant = false): boolean {
     let moved = false;
     this.lastFrame = frame;
+    const sd = Number((params as { tips?: { d?: number } } | null)?.tips?.d);
+    this.stentMm = sd > 0 ? sd : TRACT_STENT_MM;
     for (const s of this.stents.values()) moved = s.sync(frame, params as never, instant) || moved;
     for (const s of this.veinStents.values()) moved = s.sync(frame) || moved;
     this.glue.sync(frame);
@@ -224,11 +247,12 @@ export class ProcedureLayer {
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
     this.shown = c; this.lastKind = kind; this.held = null; this.leaving = null;
     Object.assign(this.frame, rec);
+    this.driveTract(kind, clock);
     if (kind === 'eusglue') {
       this.glueLast = { coil: rec.coil ?? 0, column: rec.column, flash: rec.flash, opacity: rec.opacity };
       // the glue's scope is the probes' (it follows glueDrive); what it leaves in the varix is drawn here
       this.glue.set({ coil: rec.coil ?? 0, column: rec.column, flash: rec.flash, opacity: rec.opacity });
-      this.glueDrive = { u: rec.u, aim: Number(rec.aim ?? 0), fan: Number(rec.fan ?? 0), needle: rec.needle };
+      this.glueDrive = { u: rec.u, aim: Number(rec.aim ?? 0), fan: Number(rec.fan ?? 0), needle: rec.needle, flash: rec.flash };
     }
     if (c) {
       const st: CatheterState = { u: rec.u, balloon: rec.balloon, column: rec.column, opacity: rec.opacity, needle: rec.needle, wire: rec.wire, flash: rec.flash, coil: rec.coil ?? 0,
@@ -347,7 +371,7 @@ export class ProcedureLayer {
   /** Steps the move on the clock. True while it plays, or draws once more. */
   update(now: number): boolean {
     const dt = this.lastTick < 0 ? 16 : Math.min(100, now - this.lastTick); this.lastTick = now;
-    let stentMoving = false;
+    let stentMoving = this.releaseTract(dt);
     for (const s of this.stents.values()) stentMoving = s.update(dt) || stentMoving;
     for (const s of this.veinStents.values()) stentMoving = s.update(dt) || stentMoving;
     // (the tube follows the PROCEDURE's clock while its run is on the figure, the model's balloon afterwards: the model changes only at the run's T.apply)
@@ -400,5 +424,5 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); this.glue.dispose(); }
+  dispose(): void { this.tractMm = 0; this.tractDriven = false; setDrawnDiameter(TRACT_EDGE, 0); for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); this.glue.dispose(); }
 }
