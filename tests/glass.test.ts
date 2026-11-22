@@ -73,7 +73,7 @@ test('a step disc is frosted glass with the blur on and solid otherwise', () => 
   const lc = readFileSync('src/scene/labels/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass path \{ fill: var\(--text\); stroke: none; \}/, 'the solid fill is kept for the fallbacks');
   assert.match(lc, /@supports \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{[\s\S]*?html:not\(\[data-noglass\]\) \.cl\[data-fig="step"\] \.cl-glass path \{ fill: none; \}/);
-  assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass\.cl-hair\.cl-hair\.cl-hair \{ background: color-mix\(in srgb, var\(--text\) 82%, transparent\) !important; \}/);
+  assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass\.cl-hair\.cl-hair\.cl-hair \{ background: color-mix\(in srgb, var\(--text\) 95%, transparent\) !important; \}/);
   assert.match(lc, /@media \(prefers-reduced-transparency: reduce\) \{[^}]*step[^}]*background: var\(--text\) !important/);
   assert.ok(bare.includes('.cl-glass') && /backdrop-filter: blur\(var\(--glass-blur\)\)/.test(bare), 'the disc keeps the shared blur');
 });

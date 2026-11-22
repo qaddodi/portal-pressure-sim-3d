@@ -88,7 +88,7 @@ test('step badges and their leaders share the same absolute origin', () => {
 // plan 21: on a vessel the line ends on the vessel's near edge and has no dot; on an area (an organ, the sinusoid field a group stands for) the dot stays.
 test('a leader to a single vessel has no dot and ends on the near edge (half width + 1 px), never on the axis', () => {
   assert.equal(leadHasDot({ edge: 'IVCS' }), false);
-  assert.equal(leadHasDot({ edges: ['SIN_L', 'SIN_R'] }), true, 'a group is the sinusoid field: its lines keep their dots');
+  assert.equal(leadHasDot({ edges: ['SIN_L', 'SIN_R'] }), false, 'plan 21b: a group of vessels has no dots either; each line ends at its vessel\'s edge');
   assert.equal(leadHasDot({ at2d: [10, 10] }), true, 'an organ keeps its dot');
   assert.equal(leadHasDot({ station: 'RA' }), true);
   // a line meeting a vertical vessel (half width 4 px) square on, from the left
@@ -106,6 +106,8 @@ test('paintLead eases the dot out by scale for a vessel anchor (target 0), and k
   assert.match(src, /this\.ease\(lead\.kd\[i\]!, on && dotted\)/);
   assert.match(src, /dotted = leadHasDot\(c\.anchor\) \|\| !reach/);
   assert.match(src, /leaderToEdge\(seg, reach\.half/);
+  assert.match(src, /this\.reach\.set\(`\$\{c\.id\}#\$\{i\}`/, 'every member of a group has its own reach');
+  assert.match(src, /this\.reach\.get\('edges' in c\.anchor \? `\$\{c\.id\}#\$\{i\}` : c\.id\)/);
 });
 test('a station\'s ring stands only while a leader runs from it, and eases out and in (never switched)', () => {
   const src = readFileSync('src/scene/labels/controller.ts', 'utf8');
