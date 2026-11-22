@@ -77,7 +77,7 @@ test('the junction projection in the vertex stage: the oracle\'s constants (k sc
   assert.ok(NET_VS.includes(`vec4 capP[${REGION_CAPS * REGION_PTS}];`));
   assert.equal(REGION_TEXELS, REGION_HEAD + Math.ceil((REGION_CAPS * REGION_PTS) / 4));
   assert.match(NET_VS, /pAcc \+= nPush \* padAcc;/, 'the ink, the sag and the lift push along the sharp gradient for a junction vertex');
-  assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen;/, 'a junction vertex starts at the rest radii');
+  assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen \* extF;/, 'a junction vertex starts at the rest radii (an extension vertex\'s radius is its inset)');
 });
 
 test('the capsule pass: one render-to-texture pass with the same netBone and radius rule, and the junction vertex only reads its result', async () => {

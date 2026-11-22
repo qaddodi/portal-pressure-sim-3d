@@ -62,7 +62,7 @@ export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[
 }
 
 /** The region texture (RGBA32F, REGION_TEXELS wide, one row per region) and the region index of each mesh vertex (-1: a tube vertex, bones only), as the vertex attribute the shader reads. */
-export function regionTexture(regions: readonly Region[], vertexCount: number, keys?: KeyPlan): { data: Float32Array; width: number; height: number; vertexRegion: Float32Array } {
+export function regionTexture(regions: readonly Region[], vertexCount: number, keys?: KeyPlan, ext?: Int32Array): { data: Float32Array; width: number; height: number; vertexRegion: Float32Array } {
   const height = Math.max(1, regions.length), data = new Float32Array(4 * REGION_TEXELS * height), vertexRegion = new Float32Array(vertexCount).fill(-1);
   regions.forEach((rg, ri) => {
     const o = 4 * REGION_TEXELS * ri;
@@ -71,12 +71,52 @@ export function regionTexture(regions: readonly Region[], vertexCount: number, k
       data[o + 4 * 1 + ci] = c.mate;   // texels 1 and 2: the mates
       for (let q = 0; q < REGION_PTS; q++) data[o + 4 * REGION_HEAD + ci * REGION_PTS + q] = c.bones[q]!;
     });
+    const partner = regions.findIndex((o, oi) => oi !== ri && o.node === rg.node);
+    data[o + 4 * 4 + 2] = partner + 1;   // texel 4.z: the node's other fillet mesh (body/map), +1; the extensions' share is the sum of the two
     const kr = keys?.region[ri];
     if (kr) { data[o + 4 * 4] = kr.nk; data[o + 4 * 4 + 1] = kr.header; }
     // a vertex with keys carries its key slot above the region's 6 bits (the shader reads `region` as row + 64 * slot)
     for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) vertexRegion[v] = ri + (kr ? KEY_RIDX * (kr.first + v - rg.vertStart) : 0);
   });
+  // an extension vertex (an arm's tube from its seam to the node) carries -2 - the row of its node's first region: its fillet's share hides or insets it
+  if (ext) for (let v = 0; v < ext.length && v < vertexCount; v++) if (ext[v]! >= 0 && vertexRegion[v]! < -0.5) vertexRegion[v] = -2 - ext[v]!;
   return { data, width: REGION_TEXELS, height, vertexRegion };
+}
+
+/** The region row of each EXTENSION vertex (-1: not one): a vertex whose every bone lies on one arm of a junction, strictly between the node and the arm's seam (the arms run on past their seam rings to the node, net/mesh.ts). Rows are those of `regionsOf(skel, nodes)`. */
+export function extensionRows(skel: Skeleton, mesh: { bone: ArrayLike<number>; weight: ArrayLike<number> }, nodes: readonly NodeReport[]): Int32Array {
+  const V = mesh.bone.length / 4, out = new Int32Array(V).fill(-1);
+  // per (edge, row): the end the node is at and the seam's distance from it
+  const arms: { edge: number; first: number; count: number; end: 0 | 1; seam: number; row: number }[] = [];
+  let row = 0;
+  for (const n of nodes) {
+    if (n.kind !== 'junction' || !n.caps) continue;
+    const myRow = row++;
+    if (n.variant === 1 && nodes.some((o) => o !== n && o.node === n.node && o.kind === 'junction' && o.caps && (o.variant ?? 0) !== 1)) continue;   // (one set of arms per node: the body's, else the first)
+    n.arms.forEach((edge, i) => {
+      const e = skel.edges[edge]!, [first, count] = e.bones, p0 = n.caps![i]!.pts, d0 = Math.hypot(skel.bones[first]!.pos[0][0] - p0[0]!, skel.bones[first]!.pos[0][1] - p0[1]!, skel.bones[first]!.pos[0][2] - p0[2]!), b1 = skel.bones[first + count - 1]!, d1 = Math.hypot(b1.pos[0][0] - p0[0]!, b1.pos[0][1] - p0[1]!, b1.pos[0][2] - p0[2]!);
+      arms.push({ edge, first, count, end: d0 <= d1 ? 0 : 1, seam: n.seams[i]!, row: myRow });
+    });
+  }
+  const byEdge = new Map<number, typeof arms>();
+  for (const a of arms) (byEdge.get(a.edge) ?? byEdge.set(a.edge, []).get(a.edge)!).push(a);
+  const fillet = new Uint8Array(V);   // (a fillet's own vertices, of any region, are never extensions)
+  for (const n of nodes) if (n.kind === 'junction' && n.caps) for (let v = n.vertStart; v < n.vertStart + n.vertCount && v < V; v++) fillet[v] = 1;
+  for (let v = 0; v < V; v++) {
+    if (fillet[v]) continue;
+    let cand: typeof arms | undefined, ok = true, any = false;
+    for (let j = 0; j < 4 && ok; j++) {
+      if (!(mesh.weight[4 * v + j]! > 0)) continue;
+      any = true;
+      const b = skel.bones[mesh.bone[4 * v + j]!]!;
+      const as = byEdge.get(b.edge);
+      if (!as) { ok = false; break; }
+      cand = (cand ?? as).filter((a) => { const d = a.end === 0 ? mesh.bone[4 * v + j]! - a.first : a.first + a.count - 1 - mesh.bone[4 * v + j]!; return d < a.seam; });
+      if (!cand.length) ok = false;
+    }
+    if (ok && any && cand && cand.length) out[v] = cand[0]!.row;
+  }
+  return out;
 }
 
 

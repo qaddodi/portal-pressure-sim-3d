@@ -92,6 +92,9 @@ const MAP_X0 = PEEL_X0;
 
 // ---- the vertex stage ----
 /** Everything of the vertex stage the capsule pass shares with it: the attributes, the edge-state loaders and netBone with its radius rule (one source). */
+/** An arm's EXTENSION (its tube from the seam to the node) lies on the fillet's surface (outside the blend zone the union IS the capsule): while the fillet is whole it is not drawn, and while the fillet dissolves its radius is mix(1, EXT_INSET, share), so it stays
+ *  inside the fillet by the fillet's flats' sag (the refine tolerance, 0.05 R), the ring corners' (TUBE_SAG) and a depth margin: 1 - (0.05 + TUBE_SAG + 0.02) = 0.91 at most (plan owner's review, N1). */
+export const EXT_INSET = 0.88;
 const NET_VS_PRELUDE = /* glsl */ `
 attribute vec4 bone;      // the four bones this vertex is bound to (indices into the bone texture, as floats)
 attribute vec4 weight;
@@ -349,13 +352,27 @@ void main() {
   // where it is 0 the mesh is a point (no work, no fragments)
   vDraw = 1.0;
   // (the vertex attribute is the region's row, plus ${KEY_RIDX} x the vertex's key slot when its region has keys)
+  // AN EXTENSION VERTEX (region <= -2: -2 - the row of its node's first fillet): hidden while its node's fillet (the body's plus the map's share) is whole, inset below the fillet's surface while it dissolves
+  float extF = 1.0;
+  bool fillOff = false;
+  if (region < -1.5) {
+    int er = int(-region - 2.0 + 0.5);
+    vec4 e0 = texelFetch(regionTex, ivec2(3, er), 0);
+    float esh = smoothstep(e0.x, e0.y, circT) * (1.0 - smoothstep(e0.z, e0.w, circT));
+    int pr = int(texelFetch(regionTex, ivec2(4, er), 0).z + 0.5) - 1;
+    if (pr >= 0) { vec4 e1 = texelFetch(regionTex, ivec2(3, pr), 0); esh += smoothstep(e1.x, e1.y, circT) * (1.0 - smoothstep(e1.z, e1.w, circT)); }
+    // (hidden by the discard, not moved: its triangles at the seam ring share vertices with the fillet's)
+    if (esh >= 0.999) vDraw = 0.0;
+    extF = mix(1.0, ${F(EXT_INSET)}, esh);
+  }
   int regionAttr = region > -0.5 ? int(region + 0.5) : 0;
   int rrow = regionAttr - (regionAttr / ${KEY_RIDX}) * ${KEY_RIDX}, kslot = regionAttr / ${KEY_RIDX};
   if (region > -0.5) {
     int r0 = rrow;
     vec4 fd = texelFetch(regionTex, ivec2(3, r0), 0);
     float share = smoothstep(fd.x, fd.y, circT) * (1.0 - smoothstep(fd.z, fd.w, circT));
-    if (share <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    // (a fillet triangle at a seam ring has its other vertices on the plain tube, so a vertex is never moved away alone: with no share it keeps its bone-blend start, the projection is skipped and every fragment is discarded)
+    if (share <= 0.0) fillOff = true;
     vDraw = share;
   }
   vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
@@ -364,7 +381,7 @@ void main() {
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
   // THE KEYED START of a wide junction: the offsets are the normalised blend of the keys' (weights 1 / (distance + 0.001)^2, the distance in ln lumen between the arms' live lumens, from the capsule pass, and each key's); the projection below is unchanged
   vec4 o0 = off0, o1 = off1, o2 = off2, m0 = offM0, m1 = offM1, m2 = offM2;
-  if (kslot > 0) {
+  if (kslot > 0 && !fillOff) {
     vec4 kh = texelFetch(regionTex, ivec2(4, rrow), 0);
     int nk = int(kh.x + 0.5), hs = int(kh.y + 0.5), nArm = int(texelFetch(regionTex, ivec2(0, rrow), 0).y + 0.5);
     float lnLive[${REGION_CAPS}];
@@ -401,7 +418,7 @@ void main() {
     if (wk <= 0.0) continue;
     NetBone b = netBone(int(bone[k] + 0.5), false);
     rowOf[k] = b.row;
-    float sc = region > -0.5 ? b.lumenRest : b.lumen;   // (a junction vertex STARTS from the rest arrangement, the projection below follows the live radii)
+    float sc = region > -0.5 ? b.lumenRest : b.lumen * extF;   // (a junction vertex STARTS from the rest arrangement, the projection below follows the live radii)
     vec3 o = k == 0 ? o0.xyz : (k == 1 ? vec3(o0.w, o1.xy) : (k == 2 ? vec3(o1.zw, o2.x) : o2.yzw));
     vec3 nr = k == 0 ? nrm0.xyz : (k == 1 ? vec3(nrm0.w, nrm1.xy) : (k == 2 ? vec3(nrm1.zw, nrm2.x) : nrm2.yzw));
     vec3 om = k == 0 ? m0.xyz : (k == 1 ? vec3(m0.w, m1.xy) : (k == 2 ? vec3(m1.zw, m2.x) : m2.yzw));
@@ -421,7 +438,7 @@ void main() {
   vec3 nPush = nUnit;   // (the direction the ink, the ring's sag and the lift push along: a tube's is its normal; a junction vertex's is the union's gradient at the sharp width, below)
   // the body set and the map set, blended by the vertex's peel share (a tube vertex has the same offsets in both, so it is unchanged; a junction vertex moves from its body shape to its shrink-wrap on the map)
   pAcc = cenAcc + mix(pAcc, pMapAcc, clamp(shareAcc, 0.0, 1.0));
-  if (region > -0.5) {
+  if (region > -0.5 && !fillOff) {
     // THE PROJECTION: the capsules from their bones (live centre and lumen), k from the narrowest ARM's live lumen at the junction, three Newton steps onto the live union, the normal the union's gradient at the shade width
     int rr = rrow;
     vec4 hd = texelFetch(regionTex, ivec2(0, rr), 0);
@@ -784,3 +801,4 @@ export const GL_PROGRAMS = [
 
 /** shaders.ts's sag for the mesher's ring (the uniform `ringSag`'s default): the mesher's RADIAL decides it, net/mesh.ts. */
 export const NET_RING_SAG = TUBE_SAG;
+
