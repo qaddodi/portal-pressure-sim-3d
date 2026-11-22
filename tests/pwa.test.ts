@@ -282,3 +282,20 @@ test('storage.persist() is asked once per device, after the install, and a refus
   assert.equal(await persistOnce(storage, { getItem: () => { throw new Error('blocked'); }, setItem: () => undefined }), true, 'blocked storage still asks, once per visit');
   assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /return sw\.ready; \}\)\.then\(\(r\) => \{ void persistOnce\(/, 'after the worker is ready (the install list is held)');
 });
+
+test('a file with no hash in its name is never served from the build before it (the baked network meshes were: a phone kept the old ones across a deploy); a hashed file still is, for a tab that runs it', async () => {
+  const pre = 'pps3d@/app/@', bin = 'https://x.test/app/anatomy/net-0.bin', js = 'https://x.test/app/assets/a-old.js';
+  const sw = buildSw({ build: 'new', files: [], boot: ['index.html'], later: ['anatomy/net-0.bin'] });
+  const ask = async (w: ReturnType<typeof runSw>, url: string) => { let out: unknown; await w.fire('fetch', { request: { method: 'GET', url, mode: 'cors' }, respondWith: (p: Promise<unknown>) => { out = p; } }); return out as Promise<{ tag: string }>; };
+  const net = (tag: string) => ({ status: 200, type: 'basic', clone() { return this; }, tag });
+  const w = runSw(sw, [`${pre}old`], { fetch: () => Promise.resolve(net('network')) });
+  w.store.get(`${pre}old`)!.set(bin, { tag: 'old build' }); w.store.get(`${pre}old`)!.set(js, { tag: 'old build' });
+  assert.equal((await (await ask(w, bin))).tag, 'network', 'the new build\'s page gets the file the host serves now, not the build before\'s copy');
+  assert.equal(w.inits.at(-1)?.cache, 'no-cache', 'past the HTTP cache');
+  assert.equal(w.store.get(`${pre}new`)?.get(bin) !== undefined, true, 'and the build keeps it');
+  assert.equal((await (await ask(w, bin))).tag, 'network', 'asked again: this build\'s own copy');
+  assert.equal((await (await ask(w, js))).tag, 'old build', 'a hashed file the build before holds is still given to the tab that runs it');
+  const off = runSw(sw, [`${pre}old`], { fetch: () => Promise.reject(new Error('offline')) });
+  off.store.get(`${pre}old`)!.set(bin, { tag: 'old build' });
+  assert.equal((await (await ask(off, bin))).tag, 'old build', 'offline, with nothing of this build\'s, the build before still answers');
+});

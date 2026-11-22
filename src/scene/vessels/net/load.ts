@@ -32,11 +32,12 @@ const FETCH_MS = 20000;
 /** The page's side: fetches and decodes every file in parallel (gzip through the browser's own stream), bounded; null (with the reason on the console) when any is missing, old or for another skeleton. */
 export async function loadNetResult(base: string = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'): Promise<{ data: NetData | null; why: string }> {
   const skel = skeleton(), count = networksOf(skel).length;
+  const digest = skeletonDigest(skel);   // (in the address: a file rebaked for a new skeleton is a new address, so no HTTP cache holds the old one under it)
   const lost: string[] = [];   // (why a file did not come: the badge and the console say it)
   const one = async (n: number): Promise<ArrayBuffer | null> => {
     try {
       const ctl = new AbortController(), timer = clock.afterReal(() => ctl.abort(), FETCH_MS);
-      const url = `${base}${netFile(n)}`, r = await fetch(url, { signal: ctl.signal });
+      const url = `${base}${netFile(n)}?d=${digest}`, r = await fetch(url, { signal: ctl.signal });
       clock.cancel(timer);
       if (!r.ok || !r.body) { lost.push(`${netFile(n)}: HTTP ${r.status} (${url})`); return null; }
       return await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();

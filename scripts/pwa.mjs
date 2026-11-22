@@ -121,10 +121,10 @@ self.addEventListener('message', (e) => {
   else if (e.data === 'pps:fill' && !lowData()) e.waitUntil(holdAll(LATER, false).catch(() => {}).then(() => e.ports[0]?.postMessage('filled')));
 });
 
-// This build's copy, else the copy of the build before it (an older tab asks for its own hashed files, which the server no longer has). Only this scope's caches.
-const held = async (url) => {
+// This build's copy, else (when older is true) the copy of the build before it (an older tab asks for its own hashed files, which the server no longer has). Only this scope's caches.
+const held = async (url, older = true) => {
   const own = await (await caches.open(NAME)).match(url);
-  if (own) return own;
+  if (own || !older) return own;
   for (const k of (await caches.keys()).filter((k) => k.startsWith(PREFIX) && k !== NAME).reverse()) { const hit = await (await caches.open(k)).match(url); if (hit) return hit; }
   return undefined;
 };
@@ -151,10 +151,16 @@ self.addEventListener('fetch', (e) => {
   const bare = url.origin + url.pathname;
   const mine = URLS.has(bare);
   if (!mine && !url.pathname.startsWith(SCOPE.pathname + 'assets/')) return;
+  // A hashed file (assets/) never changes under its name, so the build before may serve it to a tab that still runs it. A file whose name carries no hash (the baked meshes, the organ data) changes under
+  // its name: the build before holds the OLD one, so it is never served in this build's place (22 Nov: ?geom=net was refused on a phone for the network meshes of the build before, 10 minutes and a deploy
+  // after they were rebaked). Such a file comes from this build's own copy, else from the network past the HTTP cache (the host lets a browser keep it ten minutes), and the build before only answers offline.
+  const hashedAsset = url.pathname.startsWith(SCOPE.pathname + 'assets/');
   e.respondWith((async () => {
-    const hit = await held(bare);
+    const hit = await held(bare, hashedAsset);
     if (hit) return hit;
-    const res = await fetch(req);
+    let res;
+    try { res = await fetch(hashedAsset ? req : req.url, hashedAsset ? undefined : { cache: 'no-cache', credentials: 'same-origin' }); }
+    catch (err) { const old = hashedAsset ? undefined : await held(bare); if (old) return old; throw err; }
     // a file of this build asked for before the fill reached it is kept as it is served
     if (mine && res.status === 200 && res.type === 'basic') { const copy = res.clone(); e.waitUntil(caches.open(NAME).then((c) => c.put(bare, copy)).catch(() => {})); }
     return res;
