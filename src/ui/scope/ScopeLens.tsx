@@ -13,6 +13,7 @@ import { placeLens, coneLines, lensFits, lensCentre, LENS_GAP } from '../../scen
 import { useUi } from '../ui-store.ts';
 import { lazyRetry } from '../../boot/lazy-retry.ts';
 import { useScopeWant } from './scope-want.ts';
+import { scopeClaims, circleBox, unionBox } from '../../scene/labels/scope-claims.ts';
 import { newGate, stepGate, type Gate } from './scope-gate.ts';
 import { scopeOptions } from '../tests/endo/readings.ts';
 import { captionOf } from './scope-caption.ts';
@@ -38,9 +39,10 @@ export function ScopeLens() {
   const [cap, setCap] = useState('');
   const [nth, setNth] = useState(0);   // (a scope of its own for each opening: it is drawn first from the frame now, never from one kept from an earlier opening)
   const hit = useRef<HTMLButtonElement>(null), layer = useRef<HTMLDivElement>(null), cone = useRef<SVGSVGElement>(null);
-  const live = useRef({ want, grows, open: false, gate: newGate() as Gate, ring: newRing(), A: null as Anchor | null, lastMove: 0, wake: null as TimerId | null, still: null as TimerId | null, shut: null as TimerId | null, pushed: '', dx: NaN, dy: NaN, rx: NaN, ry: NaN, rr: NaN });
+  const live = useRef({ want, grows, open: false, gate: newGate() as Gate, ring: newRing(), A: null as Anchor | null, lastMove: 0, wake: null as TimerId | null, still: null as TimerId | null, shut: null as TimerId | null, pushed: '', claimDirty: true, dx: NaN, dy: NaN, rx: NaN, ry: NaN, rr: NaN });
   const L = live.current;
   L.want = want; L.grows = grows;
+  scopeClaims.setWants(want);   // (a caliper across the varices keeps clear of the ring for the whole slide, whether or not the ring stands yet)
 
   // ── the ring: stands while the slide wants it and the patient has varices (scope-gate.ts), eased by the scene ──
   const look = useRef<() => void>(() => undefined);
@@ -62,7 +64,7 @@ export function ScopeLens() {
     look.current();
   }, [key, want, grows]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => onFrame(() => look.current()), []);
-  useEffect(() => () => { clock.cancel(L.wake); clock.cancel(L.still); clock.cancel(L.shut); sceneApi.setScopeRing(false, false); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { clock.cancel(L.wake); clock.cancel(L.still); clock.cancel(L.shut); sceneApi.setScopeRing(false, false); scopeClaims.setWants(false); scopeClaims.set([]); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── open and shut ──
   const place = () => {
@@ -82,14 +84,14 @@ export function ScopeLens() {
     const P = place();
     if (!P) return;
     clock.cancel(L.shut); L.shut = null;
-    L.open = true; setNth((n) => n + 1); setPlaced(P); setOn(false); setCap(captionOf(latest.frame));
+    L.claimDirty = true; L.open = true; setNth((n) => n + 1); setPlaced(P); setOn(false); setCap(captionOf(latest.frame));
     clock.after(() => { if (L.open) setOn(true); }, 30, 'scope-lens');
     layCone(true);
     look.current();
   };
   const close = (now = false) => {
     if (!L.open) return;
-    L.open = false; L.A = null;
+    L.claimDirty = true; L.open = false; L.A = null;
     clock.cancel(L.still); L.still = null;
     setOn(false); layCone(false);
     clock.cancel(L.shut);
@@ -110,8 +112,10 @@ export function ScopeLens() {
     const lines = coneLines({ x: ring.x, y: ring.y, r: ring.r }, { x: c.x, y: c.y, r: A.R + 5 }) as number[][] | null;
     if (!lines) { el.style.opacity = '0'; return; }
     el.querySelectorAll('line').forEach((ln, i) => {
-      const q = lines[i % 2]!;
-      ln.setAttribute('x1', q[0]!.toFixed(1)); ln.setAttribute('y1', q[1]!.toFixed(1)); ln.setAttribute('x2', q[2]!.toFixed(1)); ln.setAttribute('y2', q[3]!.toFixed(1));
+      // (each line starts a little off the ring's edge and stops short of the lens's rim: it joins them, it never runs over either)
+      const q = lines[i % 2]!, dx = q[2]! - q[0]!, dy = q[3]! - q[1]!, n = Math.hypot(dx, dy) || 1, a = 4 / n, b = 9 / n;
+      if (n < 24) { ln.setAttribute('x1', '0'); ln.setAttribute('y1', '0'); ln.setAttribute('x2', '0'); ln.setAttribute('y2', '0'); return; }
+      ln.setAttribute('x1', (q[0]! + dx * a).toFixed(1)); ln.setAttribute('y1', (q[1]! + dy * a).toFixed(1)); ln.setAttribute('x2', (q[2]! - dx * b).toFixed(1)); ln.setAttribute('y2', (q[3]! - dy * b).toFixed(1));
     });
     el.style.opacity = '1';
   };
@@ -122,6 +126,7 @@ export function ScopeLens() {
     if (!sceneApi.scopeRingScreen(ring)) { close(); return; }
     const ui = useUi.getState(), { bounds, rects } = fieldOf(ring, ui), c = { x: 0, y: 0 };
     lensCentre(c, ring, A);
+    L.claimDirty = true;
     if (!lensFits(c.x, c.y, A.R, bounds, rects)) {
       const P = placeLens({ x: ring.x, y: ring.y, r: ring.r }, bounds, rects, A.R, true) as { x: number; y: number; r: number } | null;
       if (P) {
@@ -148,7 +153,7 @@ export function ScopeLens() {
   useEffect(() => clock.on('tags', () => {
     const ring = L.ring, b = hit.current;
     const shown = (L.want && L.gate.has) || L.open;
-    if (!shown || !sceneApi.scopeRingScreen(ring)) { if (b && !b.hidden) b.hidden = true; if (L.open) close(); return; }
+    if (!shown || !sceneApi.scopeRingScreen(ring)) { scopeClaims.set([]); L.claimDirty = true; if (b && !b.hidden) b.hidden = true; if (L.open) close(); return; }
     if (b) {
       if (b.hidden) b.hidden = false;
       if (ring.x !== L.rx || ring.y !== L.ry || ring.r !== L.rr) {
@@ -158,9 +163,18 @@ export function ScopeLens() {
     }
     const moved = ring.x !== L.rx || ring.y !== L.ry || ring.r !== L.rr;
     L.rx = ring.x; L.ry = ring.y; L.rr = ring.r;
+    // (the room the ring, its badge and an open lens take: the names and the callouts keep off it; written when something moved, never built per frame at rest)
+    if (moved || L.claimDirty) {
+      L.claimDirty = false;
+      const claim = unionBox(circleBox(ring.x, ring.y, ring.r, 5), circleBox(ring.bx, ring.by, ring.br, 5)), A = L.A;
+      if (L.open && A) {
+        const c = { x: 0, y: 0 };
+        lensCentre(c, ring, A);
+        scopeClaims.set([claim, circleBox(c.x, c.y, A.R, 9), { x0: c.x - 80, y0: c.y + A.R + 6, x1: c.x + 80, y1: c.y + A.R + 30 }]);
+      } else scopeClaims.set([claim]);
+    }
     if (L.open && moved) {
       follow();
-      if (layer.current) { /* (the cone comes down at the first step of a move) */ }
       if (cone.current && cone.current.style.opacity !== '0') cone.current.style.opacity = '0';
       L.lastMove = clock.now();
       if (!L.still) L.still = clock.after(() => { const w = L.lastMove + STILL_MS - clock.now(); if (w > 8) { L.still = clock.after(() => { L.still = null; settle(); }, w, 'scope-lens'); } else settle(); }, STILL_MS, 'scope-lens');

@@ -16,6 +16,7 @@ import { useUi, talkRects } from '../../ui/ui-store.ts';
 import { useTestsRoom } from '../../ui/tests/room.ts';
 import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
+import { scopeClaims } from './scope-claims.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { labelsShown } from '../../boot/ready.ts';
 import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.ts';
@@ -147,7 +148,7 @@ export function LabelLayer() {
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
       view: () => labelView(ui.getState().vp, BAR, useTestsRoom.getState().place),
-      blockers: () => { return [...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes]; },
+      blockers: () => { return [...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes, ...scopeClaims.boxes]; },
       measure: makeMeasure(),
       drawn: (v) => { const f = latest.frame; return f ? presenceOf(v as never, f as unknown as PresenceFrame, { collaterals: false }) === 'shown' : v.kind !== 'collateral' && v.kind !== 'shunt'; },
       figureH: () => { const a = sceneApi.project(plateTop, plateA), b = sceneApi.project(plateBottom, plateB); return Math.abs(b.y - a.y); },
@@ -193,7 +194,7 @@ export function LabelLayer() {
     // what the slide stands on the figure besides the names (marks, sites, steps, calipers); the station names keep clear of its cards
     const figCards: FigureCards = new FigureCards(root, {
       project: deps.project, cameraMoving: deps.cameraMoving,
-      view: () => deps.view(), blockers: () => talkRects(ui.getState().boxes).map(rectToBox).concat(placeBlockers(useTestsRoom.getState().place)),
+      view: () => deps.view(), blockers: () => talkRects(ui.getState().boxes).map(rectToBox).concat(placeBlockers(useTestsRoom.getState().place), scopeClaims.boxes),
       vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
       circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
