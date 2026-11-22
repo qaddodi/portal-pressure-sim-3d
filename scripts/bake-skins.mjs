@@ -6,6 +6,23 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
+// `--net` bakes the network meshes of ?geom=net (net/mesh.ts) instead, from net/skeleton.ts: one public/anatomy/net-<n>.bin (gzip) per network, and a junction that will not mesh FAILS the bake naming itself (no fallback). Not part of the default build.
+if (process.argv.includes('--net')) {
+  const sk = new URL('../src/scene/vessels/net/skeleton.ts', import.meta.url);
+  if (!existsSync(fileURLToPath(sk))) { console.error('net bake: src/scene/vessels/net/skeleton.ts does not exist yet (WP0)'); process.exit(1); }
+  const { buildSkeleton } = await import(sk.href);
+  const { buildNetMesh, networksOf } = await import('../src/scene/vessels/net/mesh.ts');
+  const { encodeNet, skeletonDigest } = await import('../src/scene/vessels/net/baked.ts');
+  const skel = buildSkeleton(), digest = skeletonDigest(skel);
+  mkdirSync(fileURLToPath(new URL('../public/anatomy/', import.meta.url)), { recursive: true });
+  networksOf(skel).forEach((edges, n) => {
+    const t0 = Date.now(), r = buildNetMesh(skel, edges);
+    const gz = gzipSync(Buffer.from(encodeNet(r.mesh, digest)), { level: 9 });
+    writeFileSync(fileURLToPath(new URL(`../public/anatomy/net-${n}.bin`, import.meta.url)), gz);
+    console.log(`net-${n}.bin: ${edges.length} edges, ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${Date.now() - t0} ms`);
+  });
+  process.exit(0);
+}
 process.env.PPS_NO_BAKED = '1';   // (the bake builds live: it must never lay in the file it is about to replace)
 const out = fileURLToPath(new URL('../public/anatomy/skins.bin', import.meta.url));
 const outCircuit = fileURLToPath(new URL('../public/anatomy/circuit-skins.bin', import.meta.url));

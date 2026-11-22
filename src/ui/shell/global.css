@@ -4,14 +4,21 @@
   --display: 'Source Serif 4', Georgia, serif;
   --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);
-  --ease-move: cubic-bezier(.65, 0, .35, 1);
+  /* The motion scale is 2D's (css2d/tokens.css: --d-flip, --d-small, --d-surface, --ease-arrive, --ease-move, --ease-in; src/ui/motion.ts is its TS copy), never retyped here. These are the 3D-only times that are
+     deliberately their own pace (tokens.css: a scene that teaches has its own pace and says so), each used by more than one rule and named once. tests/ui-vocabulary.test.ts holds this. */
+  --d-card-in: 280ms;   /* own pace: a card, the wallet and a pushed page arriving (tween.ts MOTION.cardInMs) */
+  --d-roll: 400ms;      /* own pace: a number rolling to its new value (tween.ts MOTION.rollMs) */
+  --d-look: 320ms;      /* own pace: a change of look cross-fading the whole page */
+  --d-reveal: 900ms;    /* own pace: the figure settling in as the splash lifts */
+  --sh-h: 44px; --sh-gap: 8px;   /* a pill's height and the gap beside a pill or a popover (the shell's, and the presenter's gear sheet beside it) */
+  --sheet-gap: 12px;   /* M.sheetGap (shell/metrics.ts), until the shell publishes it on the root: the one gap above the dock's top edge (tests/ui-vocabulary.test.ts keeps the two equal) */
   --z-stage: 1; --z-cards: 10; --z-tags: 5; --z-chrome: 20; --z-perf: 100;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--bg); color: var(--text);
-  font: 400 17px/1.5 var(--ui);
+  font: 400 var(--t-val)/1.5 var(--ui);
   font-variant-numeric: lining-nums tabular-nums;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   overflow: hidden; overscroll-behavior: none; touch-action: manipulation;
@@ -28,13 +35,13 @@ input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -
 button { font: inherit; color: inherit; }
 
 /* A change of look cross-fades the whole page and the figure (looks/glide.ts): the View Transition's one group, eased. Reduce Motion never starts it. */
-::view-transition-group(root) { animation-duration: 320ms; animation-timing-function: var(--ease-move); }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 320ms; animation-timing-function: var(--ease-move); mix-blend-mode: normal; }
+::view-transition-group(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); mix-blend-mode: normal; }
 /* (where there is no View Transition the page's own colours ease) */
-html.look-glide *, html.look-glide *::before, html.look-glide *::after { transition: background-color 320ms var(--ease-move), color 320ms var(--ease-move), border-color 320ms var(--ease-move), fill 320ms var(--ease-move), stroke 320ms var(--ease-move), box-shadow 320ms var(--ease-move) !important; }
+html.look-glide *, html.look-glide *::before, html.look-glide *::after { transition: background-color var(--d-look) var(--ease-move), color var(--d-look) var(--ease-move), border-color var(--d-look) var(--ease-move), fill var(--d-look) var(--ease-move), stroke var(--d-look) var(--ease-move), box-shadow var(--d-look) var(--ease-move) !important; }
 
 /* First load (owner, 20 Nov): the splash lifts only when the figure and its labels are all in, and they settle in from a mild zoom as it fades (boot/ready.ts sets html[data-reveal] for 1 s).
    The figure and its label layer are both fixed, full-screen and scaled about the same centre, so every label stays on its vessel. The individual `scale` property leaves their transforms alone. */
 @keyframes boot-reveal { from { scale: 1.07; } to { scale: 1; } }
-html[data-reveal] :is(.stage-root, .lb-layer) { transform-origin: 50% 50%; animation: boot-reveal 900ms cubic-bezier(.2, .8, .2, 1) both; }
+html[data-reveal] :is(.stage-root, .lb-layer) { transform-origin: 50% 50%; animation: boot-reveal var(--d-reveal) var(--ease-arrive) both; }
 @media (prefers-reduced-motion: reduce) { html[data-reveal] :is(.stage-root, .lb-layer) { animation: none; } }
