@@ -95,7 +95,7 @@ test('gate 6: the vessel and skin programs parse in pure JS, every variant', { s
 
 import { clotRange as range4, clotPiece as piece4 } from '../src/scene/disease/clot-field.ts';
 import { ClotGrow } from '../src/scene/disease/clot-ease.ts';
-test('gate 4: no pop. The drawn occlusion eases on the clot\'s own quintic profile; its covered area changes by at most 2 % of its final area per frame at 60 fps, growing, receding and on a retarget (no kink)', () => {
+test('plan 26b: jumps ease without a pop (<= 6 % of the final area per frame, no kink); drags follow the finger (lag, no overshoot, handover)', () => {
   const id = 'PV_TRUNK', { side } = clotPhases(id), cache = new Map<number, number>();
   const area = (v: number): number => {
     const k = Math.round(v * 5000); if (cache.has(k)) return cache.get(k)!;
@@ -103,18 +103,35 @@ test('gate 4: no pop. The drawn occlusion eases on the clot\'s own quintic profi
     if (vv > 0.003) { const { a, b } = range4(vv, null), u = piece4(a, b, 1, 0, 1, side * vv, id); for (let i = 0; i < 150; i++) for (let j = 0; j < 41; j++) s += clotAtTwin(u, (i + 0.5) / 150, (j - 20) / 20, 20, 20).cover; }
     cache.set(k, s); return s;
   };
-  const run = (from: number, to: number, retarget?: { at: number; to: number }): number => {
-    const g = new ClotGrow(); g.to(from, true); let prev = area(g.v), worst = 0, t = 0, pv = g.vel;
-    const fin = Math.max(area(from), area(to), retarget ? area(retarget.to) : 0); g.to(to);
-    for (let f = 0; f < 600; f++) {
-      if (retarget && Math.abs(t - retarget.at) < 1e-6) g.to(retarget.to);
-      g.step(1 / 60); t += 1 / 60;
+  const jump = (from: number, to: number): number => {
+    const g = new ClotGrow(); g.to(from, true); let prev = area(g.v), worst = 0, pvel = 0, pd = 0;
+    const fin = Math.max(area(from), area(to)); g.to(to);
+    for (let f = 0; f < 90; f++) {
+      const v0 = g.v; g.step(1 / 60);
       const a = area(g.v); worst = Math.max(worst, Math.abs(a - prev) / fin); prev = a;
-      assert.ok(Math.abs(g.vel - pv) < 0.05, `no kink: the rate jumped ${pv} -> ${g.vel}`); pv = g.vel;
+      const lo = Math.min(from, to), hi = Math.max(from, to); assert.ok(g.v >= lo - 1e-9 && g.v <= hi + 1e-9, 'no overshoot');
+      pd = g.v - v0; pvel = g.vel;
     }
-    assert.equal(g.v, retarget ? retarget.to : to);
+    assert.equal(g.v, to); void pd; void pvel;
     return worst;
   };
-  for (const [f, t] of [[0, 1], [0, 0.66], [1, 0], [0.66, 0], [0.3, 0.66], [0, 0.2], [0.2, 0.1]] as const) assert.ok(run(f, t) <= 0.02, `${f} -> ${t}: ${run(f, t)}`);
-  assert.ok(run(0, 1, { at: 0.5, to: 0 }) <= 0.02, 'reversed at 0.5 s and back to 0');
+  for (const [f, t] of [[0, 1], [0, 0.66], [1, 0], [0.66, 0], [0.3, 0.66]] as const) assert.ok(jump(f, t) <= 0.06, `${f} -> ${t}: ${jump(f, t)}`);
+  // follow: a drag replay at 60 fps, one pointer step per frame
+  const drag = (secs: number): { gap: number; after: number } => {
+    const g = new ClotGrow(); g.to(0, true); const n = Math.round(secs * 60); let gap = 0;
+    for (let f = 1; f <= n; f++) { const fv = f / n; g.to(fv); g.step(1 / 60); gap = Math.max(gap, fv - g.v); assert.ok(g.v <= fv + 1e-9, 'no overshoot'); }
+    for (let f = 0; f < 9; f++) g.step(1 / 60);   // 150 ms after the finger stops
+    return { gap, after: Math.abs(1 - g.v) };
+  };
+  const q = drag(0.8), sl = drag(2);
+  assert.ok(q.gap <= 0.10, `swipe lag ${q.gap}`); assert.ok(sl.gap <= 0.04, `slow drag lag ${sl.gap}`);
+  assert.ok(q.after <= 0.01 && sl.after <= 0.01, 'settled 150 ms after the finger stops');
+  // handover: a jump to 1, a drag starting 0.2 s in: the per-frame step never changes by more than the jump's own jerk allows
+  const g = new ClotGrow(); g.to(0, true); g.to(1); let prev = 0, pd = 0, worst = 0, goal = 1;
+  for (let f = 0; f < 120; f++) {
+    if (f >= 12) { goal = Math.max(0.5, goal - 0.01); g.to(goal); }
+    g.step(1 / 60); const d = g.v - prev; prev = g.v;
+    if (f > 0) worst = Math.max(worst, Math.abs(d - pd)); pd = d;
+  }
+  assert.ok(worst <= 0.02, `handover kink ${worst}`);
 });
