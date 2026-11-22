@@ -296,6 +296,7 @@ uniform float shadowA;   // its strength in this look
 uniform vec3 shadowCol;   // its tone
 uniform vec2 shadowEnd;   // the radii over which it fades out at each end that joins another vessel (0: a free end)
 uniform float glowK;   // the glow's strength (1; a shunt's target under the pointer more: highlight.ts HOVER_GLOW)
+uniform float hiPx;   // the picked vessel's extra line, CSS px (the hull's: the vertex stage)
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
 uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its end's (seams.ts): the seam's distance in from the end as a quartic in the place across (c0..c3 here, c0 = 0: none)
@@ -484,10 +485,7 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
-  if (vNbr.y > 0.0) {
-    float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
-    nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
-  }
+  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -547,6 +545,17 @@ void main() {
   if (fadeHere < 0.004) DROP(11);
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
+  // THE OUTLINE'S OUTER EDGE IS A CIRCLE, NOT THE HULL'S POLYGON (Mohammad, 22 Nov: "the outlines are jagged"). The hull is a ring of TUBE_RADIAL flats built TUBE_SAG fatter at its corners so the line never falls inside, so its raster edge was a
+  // 14-sided polygon: on a thick vessel each corner stood up to 1.5 device px out of the line's true edge, a wobble along every wide outline (the inner edge, inkT below, was analytic already; the skins' outer edge too: skin/shaders.ts).
+  // Every pixel farther from the axis than the lumen and the line the vertex stage built its hull from (the same rule, the same inputs: vR0 is the lumen before a pinch) is dropped, so the silhouette is the true curve: the inscribed circle of the
+  // flats, which nothing inside is lost to. (This is the opaque draw: a coverage ramp here would be thrown away by its blend, so the edge stays a hard circle for the anti-aliasing pass to take, and a fading end, which blends, keeps its edge as it was.)
+  {
+    float wpcO = ${wpcGlsl('vCen.z', 'projY', 'vU')};
+    float rCssO = vR / max(wpcO, 1e-6);
+    float endKo = vHi > 0.001 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
+    float inkO = (${inkPxGlsl('rCssO', 'vR0 / max(wpcO, 1e-6)', '1.0 - lensUse')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * endKo + hiPx * vHi) * inkOn;
+    if (dLat > rDevAx + inkO * dpr) discard;
+  }
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
@@ -610,8 +619,7 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  // (no pixel is dropped for lying inside the neighbour: nbr is the figure plane's measure, a vertex at a time, and the neighbour's drawn lumen lies where the camera puts it, so a drop left a dotted row of holes where two walls ran side by side within
-  //  a pixel or two (Mohammad, 22 Nov, splenic vein; the inspector's "Why tubes drop pixels" painted them magenta). The tube keeps its own fill there, with no ink (inkT goes with nbrK) and lit (nbrT): the neighbour's own fill lies under or over it, the same tone.)
+  if (nbrK > 0.5 && dLat > rDevAx + 0.5) DROP(12);
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);

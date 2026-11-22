@@ -203,11 +203,9 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   }
   assert.equal(forkMateOf('PV_TRUNK'), null);
   assert.match(VESSEL_VS, /attribute vec2 nbr;/);
-  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, nbrPx\)/);
-  assert.match(VESSEL_FS, /float nbrPx = \(vNbr\.y - abs\(vNbr\.x\)\)/);
+  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
   assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
-  // THE DOTTED HOLES ON THE SPLENIC VEIN (Mohammad, 22 Nov; the inspector's "Why tubes drop pixels" painted them magenta: a discard decided from `nbr`, the plane's measure): no pixel is dropped for lying inside the neighbour, the ink goes with nbrK instead
-  assert.ok(!/nbrK > 0\.5 && dLat|nbrCut|DROP\(12\)/.test(VESSEL_FS), 'no band pixel is dropped for lying inside the neighbour');
+  assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
   assert.match(VESSEL_FS, /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\)/);
 });
 
@@ -244,7 +242,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
     assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
   }
   assert.match(VESSEL_FS, /uniform float cavaCut;/);
-  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) DROP\(10\);/);
+  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) discard;/);
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
 });
 

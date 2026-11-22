@@ -77,6 +77,44 @@ export const buriedRadius = (r: number, d: number, b: { max: number; d0: number;
 /** Tube segments for a course of `len` scene units, with `room` to grow into when it coils. */
 export const tubularFor = (len: number, room = 1.6): number => Math.max(16, Math.round(len * 30 * room));
 
+/** TIGHT BENDS (Mohammad, 22 Nov: "the outlines are jagged"). BUILT BUT NOT WIRED INTO shape.ts tubularOf: more rings on the trunk of a junction moves the rings the skins are meshed on, and 15 skin tests (skin-grow, skin-mesh, circuit-skins, skin-side-wall,
+ *  skin-strands, sink-flare-ends) failed with it on (a skin no longer welds). Wiring it needs the skins' ring positions decoupled from the tube's count first. Rings stand evenly along a course and the axis between two is a straight chord, so where the path bends hard a thick tube's outline is a visible corner. A course is given more
+ *  rings only where that shows: its axis turns more than MAX_RING_TURN_DEG between two neighbouring rings AND it is wide enough for a corner to read (MIN_BEND_RADIUS, scene units: about 2.5 CSS px at the home view; a hairline's corner is
+ *  under a pixel), by at most MAX_RING_GROWTH times its count. Every other course keeps the count it had, so the junction skins (meshed on the rings) and the Circuit's morph are untouched for them. */
+export const MAX_RING_TURN_DEG = 6;
+export const MAX_RING_GROWTH = 2.5;
+export const MIN_BEND_RADIUS = 0.008;
+/** The most the axis of `pts` turns, in degrees, between two neighbouring of `rings` evenly spaced rings (the first and last three are left out: they lie inside the junctions they end on). */
+export function worstRingTurn(pts: readonly Vec3[], rings: number): number {
+  const curve = new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])));
+  const a = new Vector3(), b = new Vector3(), d0 = new Vector3(), d1 = new Vector3();
+  let worst = 0;
+  curve.getPointAt(0, a);
+  for (let k = 1; k <= rings; k++) {
+    curve.getPointAt(k / rings, b); d1.subVectors(b, a);
+    const l = d1.length();
+    if (l < 1e-9) continue;   // (a doubled point: no direction)
+    d1.divideScalar(l);
+    if (k >= 5 && k <= rings - 2) worst = Math.max(worst, Math.acos(Math.min(1, Math.max(-1, d0.dot(d1)))) * 180 / Math.PI);
+    d0.copy(d1); a.copy(b);
+  }
+  return worst;
+}
+/** The ring count for a course that has `base` (its own length's count): `base` unless its bends are tight and wide enough to show (see above), then the least count under MAX_RING_GROWTH x base that keeps every turn under MAX_RING_TURN_DEG (or that cap). */
+export function ringsForBends(pts: readonly Vec3[], radius: number, base: number): number {
+  if (!(radius >= MIN_BEND_RADIUS) || pts.length < 3) return base;
+  // (counted at every build of a vessel's tubes, its skins and its blood, always on the same rest course: measured once)
+  const key = `${radius}|${base}|${pts.length}|${pts[0]!.join()}|${pts[pts.length >> 1]!.join()}|${pts[pts.length - 1]!.join()}`;
+  const known = BEND_RINGS.get(key);
+  if (known !== undefined) return known;
+  const cap = Math.ceil(base * MAX_RING_GROWTH);
+  let n = base;
+  while (n < cap && worstRingTurn(pts, n) > MAX_RING_TURN_DEG) n = Math.min(cap, Math.ceil(n * 1.2));
+  BEND_RINGS.set(key, n);
+  return n;
+}
+const BEND_RINGS = new Map<string, number>();
+
 /** The collar's extra radius at distance `d` from an end: all of `add` up to the host's wall, then melting away over `span` (a quadratic, tangent to the tube where it ends). */
 export const flareAdd = (f: { add: number; wall: number; span: number } | null | undefined, d: number): number => {
   if (!f) return 0;

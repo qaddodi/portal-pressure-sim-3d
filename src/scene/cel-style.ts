@@ -28,8 +28,10 @@ export const CEL_STYLE = {
   LINE_MAX: 3.0,   // CSS px (2D: 3)
   /** The ink's least alpha on every look (2D's casing is .64 on Light and .3 on Dark: a line that fades into the page is not a toon line). */
   INK_ALPHA_MIN: 1.0,
-  /** A band's edge is this many device px across in each direction: crisp, antialiased by fwidth, never a gradient. */
-  EDGE_PX: 0.4,
+  /** A band's edge is exactly this many device px across (the whole ramp, in the derivative of the measure it steps on): ONE pixel, never less. Under a pixel (it was 0.4) the step cannot be anti-aliased at all, it is a bare stair of
+   *  whole pixels, jagged on every shade and shadow edge (Mohammad, 22 Nov: "the shadows and outlines are jagged"). One pixel is the narrowest a cel edge can be and still anti-alias: crisp, never a gradient. Every step reads this
+   *  (the tubes' tones, the organs' and plates' bands: cel-glsl.ts, materials/cel-quant.ts, vessels/cel-ink.ts), and tests/cel-edge-width.test.ts holds them to it. */
+  EDGE_PX: 1.0,
   /** A tube's two tones fade in with its radius (device px): none under TONES_FROM (a hairline is one tone and its line), whole from TONES_TO. The strength follows the radius, never the position across the tube, so across it stays three flat tones. */
   TONES_FROM: 1.0,
   TONES_TO: 2.0,

@@ -274,6 +274,15 @@ test('fade-slow is not judged above FRAME_LIMIT_SPEED (the sampler sees a fade a
   assert.equal(dropsFinding({ speed: FRAME_LIMIT_SPEED } as never, 'fade-slow'), false);
 });
 
+test('slow-load is not judged above FRAME_LIMIT_SPEED (a step needs a few drawn frames to settle: 224 of 224 iPhone steps read "5.9 to 27 s" at 20x, the Anatomy "11 s" was 0.55 s of wall time)', async () => {
+  const { FRAME_LIMITED_KINDS, FRAME_LIMIT_SPEED } = await import('../src/ui/debug/audit/speed.ts');
+  const { dropsFinding } = await import('../src/ui/debug/audit/report.ts');
+  assert.ok(FRAME_LIMITED_KINDS.has('slow-load'));
+  assert.equal(dropsFinding({ speed: 20 } as never, 'slow-load'), true);
+  assert.equal(dropsFinding({ speed: FRAME_LIMIT_SPEED } as never, 'slow-load'), false);
+  assert.equal(dropsFinding({} as never, 'slow-load'), false);
+});
+
 test('words for a screen reader alone are found by their clip, not by their size: the chart\'s hidden table (a table never shrinks to 1 px) was read as ~950 cut-off words on the 21 Nov iPhone audit, in all three readers', async () => {
   const { readFileSync } = await import('node:fs');
   const { srOnlyStyle } = await import('../src/ui/debug/sr-only.ts');

@@ -169,9 +169,13 @@ export function refineRim(g: BufferGeometry): number {
   return count - pos.count;
 }
 
-/** Each vertex's number of steps in from the rim ring, 0 on the ring and `cap` (3) at that or farther: the outline hull's outer edge is the pushed ring, and its coverage ramps from it (INK_FS, vRd), so the edge is
+/** How many steps in from the rim `ringDistance` counts (it is stored as bytes). The outline's own feather needs three; the organ glow and the AO seat ramp across their whole hull (26 and 9 figure units, INK_FS), which on a
+ *  mesh of 1 to 2.5 units a step is up to about 26 steps, so the count must reach past that or the ramp ends in a hard step where it stops. */
+export const RING_CAP = 40;
+
+/** Each vertex's number of steps in from the rim ring, 0 on the ring and `cap` (RING_CAP) at that or farther: the outline hull's outer edge is the pushed ring, and its coverage ramps from it (INK_FS, vRd), so the edge is
  *  anti-aliased by arithmetic where the canvas has no multisampling (a 2x screen: quality.ts). A mesh with no ring reads `cap` everywhere (no feather). */
-export function ringDistance(g: BufferGeometry, cap = 3): Float32Array {
+export function ringDistance(g: BufferGeometry, cap = RING_CAP): Float32Array {
   const w = weld(g), ring = silhouetteRing(g, w), n = g.getAttribute('position').count, out = new Float32Array(n).fill(cap);
   if (ring.size < 8) return out;
   const d = new Int16Array(w.n).fill(-1);
