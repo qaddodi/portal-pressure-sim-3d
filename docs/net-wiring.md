@@ -23,6 +23,5 @@ Over the first 0.1 of t the Circuit's change shows the old tubes and skins by th
 - Glow mask and picking stay on the old tubes. Stent waist narrowing and WP5's dynamic shapes are not driven (the clamp waist is, `waistOf`).
 - Chevron and dust phase restart at the 7 piece joins (needs an arc-offset column).
 - Wide-junction keys are not in the shader (WP3).
-- `peelA` is still written (`peelTable`) though the shader no longer reads it; delete with `net/peel.ts` once WP2 stops using it.
 
 `scripts/net-compare.mjs --out <dir>` renders today's tubes and skins beside the net meshes at rest (the oracle, not the GPU) from one camera.

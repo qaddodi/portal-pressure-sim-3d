@@ -118,7 +118,7 @@ export class NetFigure {
     this.bones = new BoneTable(skel.bones, skel.edges);
     this.state = new EdgeStateTable(skel.edges);
     this.rows = new NetRows(skel, this.state, src);
-    this.rows.writeStatic(data.nets[0]?.mesh.bakeScale, data.nets.flatMap((n) => n.nodes));
+    this.rows.writeStatic(data.nets[0]?.mesh.bakeScale);
     this.rows.sync();
     this.sewnTarget = floatTarget(2, E);
     const tpl = src.template(), u: Record<string, IUniform> = {};
