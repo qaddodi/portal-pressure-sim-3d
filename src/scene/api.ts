@@ -5,6 +5,8 @@ import { Vector3 } from 'three';
 import { clock } from '../clock/frame.ts';
 import { CelScene } from './scene.ts';
 import { bindTests } from './devices/probes/bind-tests.ts';
+import { startReconciler } from './reconcile.ts';
+import { setLayer } from './intent.ts';
 import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
@@ -30,7 +32,17 @@ import type { Gestures } from './gesture/controller.ts';
 import { DIVE_BODY_MS, diveMs } from './camera/dive.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
-export const cel = new CelScene();
+let built: CelScene | null = null;
+/** The scene (R6): built on the first call, never at import, so a module that only imports this file (a test, a tool) constructs nothing. */
+export const scene = (): CelScene => (built ??= new CelScene());
+/** Whether the scene has been built yet. */
+export const sceneBuilt = (): boolean => built !== null;
+/** The scene as the many callers already write it (`cel.rig`, `cel.goTo(...)`): a handle that builds the scene on its first use. New code calls `scene()`. */
+export const cel: CelScene = new Proxy({} as CelScene, {
+  get(_t, prop) { const sc = scene(); const v = Reflect.get(sc, prop, sc); return typeof v === 'function' ? v.bind(sc) : v; },
+  set(_t, prop, value) { const sc = scene(); return Reflect.set(sc, prop, value, sc); },
+  has(_t, prop) { return Reflect.has(scene(), prop); },
+});
 /** The Tests card drives the Doppler, FibroScan and endoscope devices on the figure (src/scene/devices/probes/). */
 export const stopProbeBinding = bindTests();
 /** A dive between the body, the lobule and the sinusoid: a little longer than a move between two body shots (950 ms), because it covers a few hundred times the distance. */
@@ -136,7 +148,7 @@ export const sceneApi = {
   /** The zoom buttons (+ and − keys): the 2D app's 1.4 about the middle of the room. */
   zoomStep(factor: number): void { gesturesRef.current?.zoomStep(factor); clock.invalidate('zoom'); },
   /** Catheter route advance 0..1, balloon 0..1 and the still column's fill 0..1 (default: with the balloon); the caller drives them on the clock (ui/deck/cath-clock.ts). */
-  setCatheter(s: CatheterState & { column?: number }): void { cel.setCatheter(s); clock.invalidate('catheter'); },
+  setCatheter(s: CatheterState & { column?: number; read?: boolean }): void { cel.setCatheter(s); clock.invalidate('catheter'); },
   /** The procedures' devices (B5): the 2D app's own choreography (proc-anim.js `procFrame`) drawn on its routes. Every kind of `PROCS`, the measurements and the plugs. */
   procedure: {
     /** Play a procedure ('tips', 'brto', 'bato', 'tipscoil', 'hvpgcath', …) from `from` to `to` ms of its own time (default the whole), at the 2D pace times `speed`. */
@@ -176,8 +188,6 @@ export const sceneApi = {
     hover(id: string | null): void { cel.hoverVessel(id); clock.invalidate('shunt-guide'); },
     guide(src: string | null, x: number, y: number, color: string): void { cel.setShuntGuide(src, x, y, color); clock.invalidate('shunt-guide'); },
   },
-  /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
-  markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
   /** The lobule's tapped part: a halo on it; null clears it. */
   markLobule(hit: LobuleHit | null): void { cel.markLobule(hit); clock.invalidate('lobule-mark'); },
@@ -185,7 +195,8 @@ export const sceneApi = {
   selectOrgans(ids: readonly string[]): void { cel.selectOrgans(ids); clock.invalidate('select-organ'); },
   pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },
   /** Pick a vessel by edge ID, or clear with null. */
-  pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+  /** Pick a vessel by edge ID, or clear with null: the base layer's pick (intent.ts); the reconciler lights it and updates `usePick`. */
+  pick(id: string | null): void { setLayer('base', { picked: id }); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
   flowPulse(): void { /* the 2D app has no pulse option: nothing to trigger */ clock.invalidate('flow-pulse'); },
   /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
@@ -219,3 +230,12 @@ export const sceneApi = {
   /** True once the camera has its first real shot (nothing is drawn before). */
   get placed(): boolean { return cel.rig.placed; },
 };
+
+/** The figure's intent (intent.ts) is turned into calls on the scene here, and nowhere else (R5). Starting it builds nothing: the scene is built by the first call it makes. */
+export const stopReconciler = startReconciler({
+  setNamedVessels: (ids) => sceneApi.setNamedVessels(ids),
+  pinOrgans: (ids, normalSpleen) => sceneApi.pinOrgans(ids, normalSpleen),
+  setSinceRef: (P) => sceneApi.setSinceRef(P),
+  markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
+  pick: (id) => { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+});

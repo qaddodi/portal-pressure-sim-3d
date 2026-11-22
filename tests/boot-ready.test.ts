@@ -61,7 +61,7 @@ test('the zoom is on the figure and its label layer together (the same centre), 
 });
 
 // ---- release review 21 Nov #1: the slow note must never strand a ready app behind the cover ------------------------------------------------------
-// Run the shipped inline script against a tiny fake DOM, in both event orders (ready before the 15 s note, ready after it), and a real failure.
+// Run the shipped inline script against a tiny fake DOM, in both event orders (ready before the slow note, ready after it), and a real failure.
 async function runCover(order: 'ready-then-slow' | 'slow-then-ready' | 'keep-waiting-then-ready' | 'renderer-failure') {
   const { Script, createContext } = await import('node:vm');
   const html = readFileSync('index.html', 'utf8');
@@ -85,7 +85,7 @@ async function runCover(order: 'ready-then-slow' | 'slow-then-ready' | 'keep-wai
   return { ctx, boot, root, advance, ready: () => ctx.ppsBootLift() };
 }
 
-test('inline cover: ready BEFORE the 15 s note lifts it and takes the covered app out of inert', async () => {
+test('inline cover: ready BEFORE the slow note lifts it and takes the covered app out of inert', async () => {
   const c = await runCover('ready-then-slow');
   assert.equal(c.root.hasAttribute('inert'), true, 'the covered app is inert while the cover is up');
   c.advance(5000); c.ready(); c.advance(6000);
@@ -93,9 +93,9 @@ test('inline cover: ready BEFORE the 15 s note lifts it and takes the covered ap
   c.advance(16000); assert.equal(c.boot.className, 'done', 'the slow note never comes after a lift');
 });
 
-test('inline cover: ready AFTER the 15 s note (the stranded case) still lifts it; the note is the recoverable class "slow", not "failed"', async () => {
+test('inline cover: ready AFTER the slow note (the stranded case) still lifts it; the note is the recoverable class "slow", not "failed"', async () => {
   const c = await runCover('slow-then-ready');
-  c.advance(15500);
+  c.advance(8500);
   assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /Still loading/);
   c.ready(); c.advance(16200);
   assert.equal(c.boot.className, 'done', 'a ready signal in the slow state reveals the app'); assert.equal(c.root.hasAttribute('inert'), false);
@@ -103,11 +103,11 @@ test('inline cover: ready AFTER the 15 s note (the stranded case) still lifts it
 
 test('inline cover: Keep waiting restores the splash and a ready signal after it still lifts; with ready already in, Keep waiting lifts at once', async () => {
   const c = await runCover('keep-waiting-then-ready');
-  c.advance(15500); c.boot.children['data-wait'].onclick();
-  assert.equal(c.boot.className, ''); c.advance(18000); c.ready(); c.advance(19000);
+  c.advance(8500); c.boot.children['data-wait'].onclick();
+  assert.equal(c.boot.className, '', 'Keep waiting buys a fresh 8 s'); c.advance(12000); assert.equal(c.boot.className, ''); c.ready(); c.advance(13000);
   assert.equal(c.boot.className, 'done');
   // the unguarded 20 s timer also lifts a slow note whatever happened (the 2D page's last word)
-  const d = await runCover('slow-then-ready'); d.advance(15500); d.advance(21000);
+  const d = await runCover('slow-then-ready'); d.advance(8500); d.advance(21000);
   assert.equal(d.boot.className, 'done', 'the 20 s timer lifts a slow (not failed) cover');
 });
 

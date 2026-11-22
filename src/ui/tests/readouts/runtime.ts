@@ -1,6 +1,6 @@
 // The one live state of the Readouts tiles, kept for the page's life (2D builds the pane once and keeps it): the shown state (display-state.js, copied) stepped on the one clock, and the ReadoutsLive that
 // works the tiles' numbers, bands and bars out from it. The pane binds to it while it is on screen: a model frame feeds it (engine `onFrame`, every frame), a glide steps it on the clock's tween phase.
-import { clock } from '../../../clock/frame.ts';
+import { clock, type TimerId } from '../../../clock/frame.ts';
 import { latest, onFrame, patient, useEngine } from '../../../engine/index.ts';
 import { createShownState, noteJump } from './copied/display-state.copied.js';
 import { ReadoutsLive } from './live.ts';
@@ -28,7 +28,7 @@ export const shownState = createShownState({ ask, cancel } as never) as unknown 
 let live: ReadoutsLive | null = null;
 export function liveReadouts(): ReadoutsLive {
   if (live) return live;
-  const l = new ReadoutsLive({ shown: shownState, reduce: () => reduceMotionMQ.matches, later: (fn, ms) => clock.after(fn, ms), unlater: (h) => clock.cancel(h as number) });
+  const l = new ReadoutsLive({ shown: shownState, reduce: () => reduceMotionMQ.matches, later: (fn, ms) => clock.after(fn, ms), unlater: (h) => clock.cancel(h as TimerId) });
   shownState.on(() => l.follow());
   return (live = l);
 }

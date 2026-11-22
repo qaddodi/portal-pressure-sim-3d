@@ -28,7 +28,7 @@ import { pushPage, type Pushed } from './page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
 import { D_SMALL, reduced } from '../a11y/motion.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 const L = TREAT_WORDS.lines.labels;
 const EASE_ARRIVE = 'cubic-bezier(.2, .8, .2, 1)';   // (2D ease.js)
 
@@ -94,7 +94,7 @@ function Chip({ id, label, note, on }: { id: string; label: string; note: string
 
 function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
   const [given, setGiven] = useState(false);
-  const t = useRef<number | undefined>(undefined);
+  const t = useRef<TimerId | undefined>(undefined);
   useEffect(() => () => clock.cancel(t.current), []);
   return (
     <button type="button" className="order-btn fluid-btn" data-given={given ? '' : undefined} title={`${label}: ${sub}`}
