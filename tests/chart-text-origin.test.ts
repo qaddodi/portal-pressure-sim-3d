@@ -25,6 +25,6 @@ test('a chart glide rewrites only the colour of a word, never its whole style (r
 
 test('the canvas has no depth or stencil when the anti-aliasing pass draws the figure (review 18)', () => {
   const src = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
-  assert.match(src, /depth: !post, stencil: !post/);
+  assert.match(src, /depth: buffers\.depth, stencil: buffers\.stencil/);   // (canvasBuffers, post-aa.ts: none with the pass on, both on any page that can draw straight to the canvas)
   assert.match(src, /const post = mode === 'fxaa'/);
 });
