@@ -164,7 +164,7 @@ export class MapLayer {
 
   constructor() {
     const half = (PLATE_UNITS * 2 + Math.max(VB_CIRC[2], VB_CIRC[3])) * MAP_K / 2;
-    this.plateMat = new ShaderMaterial({
+    this.plateMat = new ShaderMaterial({ name: 'circuit plate',
       vertexShader: PLATE_VS, fragmentShader: PLATE_FS, transparent: true, depthWrite: false,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
       uniforms: {
@@ -193,7 +193,7 @@ export class MapLayer {
     this.on = new InstancedBufferAttribute(ro, 2);
     g.setAttribute('iRO', this.on);
     g.instanceCount = n;
-    this.dotMat = new ShaderMaterial({
+    this.dotMat = new ShaderMaterial({ name: 'circuit dots',
       vertexShader: DOT_VS, fragmentShader: DOT_FS, transparent: true, depthTest: false, depthWrite: false,
       uniforms: { mapK: { value: MAP_K }, unitPx: { value: 1 }, fillCol: { value: rawColor('#000000') }, ringCol: { value: rawColor('#ffffff') }, mapA: { value: 0 } },
     });

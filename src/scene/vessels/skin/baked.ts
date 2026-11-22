@@ -1,5 +1,5 @@
 // The Anatomy's junction skins baked at BUILD time (scripts/bake-skins.mjs writes `anatomy/skins.bin` into the site), so a phone remeshes nothing at load: planning and meshing the 14 skins is about 6 s of CPU on a laptop
-// (the cava's IVCS alone 2 s), a stall before the first picture. The page fetches this one file as soon as the scene module loads (`bakedReady`), the boot waits for it with the fonts and the engine, the scene builds its skins from it
+// (the cava's IVCS alone 2 s), a stall before the first picture. The page fetches this one file as soon as the scene module loads (`bakedReady`; the Circuit's twin is fetched later, see `requestCircuitSkins`), the boot waits for it with the fonts and the engine, the scene builds its skins from it
 // and not from the planner, and the figure's first frame has them. The file carries the digest of what it was made from (the junctions and every arm tube's vertices, to 1e-4): a file for other numbers, or a page whose figure is not at rest
 // when it loads, never lays it in, and the set plans and meshes live as before (a dev server, a build whose bake failed, a disease state loaded first).
 // Layout, as the Lobule's (lobule/weld-codec.ts): "SKB1", u32 header length, the header as JSON (every typed array replaced by {$t, o, n}), padding to 4 bytes, then the arrays' bytes one after another.
@@ -126,8 +126,20 @@ async function fetchSkins(name: string): Promise<BakedSkins | null> {
     return await spanAsync(`decode:${name}`, () => within(new Response(body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then(decodeSkins), BAKED_DECODE_MS, `decode ${name}`));
   } catch (e) { ctl?.abort(); console.warn(`[boot] baked skins ${name} unavailable, planning live:`, e instanceof Error ? e.message : e); return null; }
 }
-async function load(): Promise<void> { [held, heldCircuit] = await Promise.all([fetchSkins(BAKED_SKINS), fetchSkins(BAKED_CIRCUIT_SKINS)]); }
+async function load(): Promise<void> { held = await fetchSkins(BAKED_SKINS); }
 const loading: Promise<void> | null = browser ? load() : null;
+
+// The Circuit's file (583 kB on the wire, a gzip decode) is NOT on the boot path: the first picture is the Anatomy, and the boot waits only for its file (`bakedReady`). The scene asks for the Circuit's in the background slot after
+// the lift, and sooner when the Circuit is opened (`requestCircuitSkins`); the Circuit's skins are built when it is in (scene.ts buildCircuitSkins). 22 Nov splash review, item 6.
+let loadingCircuit: Promise<void> | null = null;
+let circuitSettled = !browser;
+/** Starts the Circuit's file (once) and resolves, never rejects, when it is in or known to be missing. Under node it is already read from disk. */
+export function requestCircuitSkins(): Promise<void> {
+  loadingCircuit ??= browser ? fetchSkins(BAKED_CIRCUIT_SKINS).then((b) => { heldCircuit = b; circuitSettled = true; }) : Promise.resolve();
+  return loadingCircuit;
+}
+/** Whether the Circuit's file has still to come (false off the page, and once it has settled either way). */
+export const bakedCircuitPending = (): boolean => !circuitSettled;
 
 /** Under node (a test, a script) the baked files are read from disk, synchronously, when they are there: `new CelScene()` then lays the skins in (the digest still rejects a file for another figure, which plans live as before) instead of remeshing all of them, about 35 s a scene.
  * `PPS_NO_BAKED=1` skips it (the bake script itself, a test of the live path). `process.getBuiltinModule` keeps `node:fs` out of the page's bundle. */
@@ -141,7 +153,7 @@ function readDisk(name: string): BakedSkins | null {
     return decodeSkins(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
   } catch { return null; }
 }
-if (!loading) { held = readDisk(BAKED_SKINS); heldCircuit = readDisk(BAKED_CIRCUIT_SKINS); }
+if (!loading) { held = readDisk(BAKED_SKINS); heldCircuit = readDisk(BAKED_CIRCUIT_SKINS); }   // (under node both are on disk at once)
 
 /** The skins baked for this build, once `bakedReady` has settled (null: none, or not the file for this figure: the set then plans live). */
 export const bakedSkins = (): BakedSkins | null => held;

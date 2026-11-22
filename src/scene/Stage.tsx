@@ -47,7 +47,7 @@ import { type Sel, selectStructure, useSelection } from '../ui/action/selection.
 import { tapSelect } from '../ui/action/tap-select.ts';
 import { labelHit } from '../ui/action/label-tap.ts';
 import { labelAt } from './labels/hit.ts';
-import { GeometryUploader, warmPrograms, type UploadRenderer, type WarmRenderer } from './materials/warm.ts';
+import { GeometryUploader, passMaterials, passWarmScene, warmPrograms, type UploadRenderer, type WarmRenderer } from './materials/warm.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -93,7 +93,14 @@ function SceneBridge() {
   useEffect(() => {
     let alive = true;
     cel.constructMicro();
-    const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera, cel.post.target(gl))).catch(() => undefined).finally(() => stamp('compile'));
+    // (the passes drawn outside the scene graph compile in the same breath: the DoF and glow quads and the uploader's plain material into the post target, the anti-aliasing quad into the canvas's colour space)
+    const pm = passMaterials(cel.post, cel.glowFx), warmPass = passWarmScene(pm.target), warmAa = passWarmScene(pm.canvas);
+    const wgl = gl as unknown as WarmRenderer;
+    const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => Promise.all([
+      warmPrograms(wgl, cel.scene, cel.rig.camera, cel.post.target(gl)),
+      warmPrograms(wgl, warmPass, cel.rig.camera, cel.post.target(gl)),
+      warmPrograms(wgl, warmAa, cel.rig.camera, null),
+    ])).catch(() => undefined).finally(() => stamp('compile'));
     rewarm.current = () => { rebaseLateWatch(); void warmP().then(rebaseLateWatch); cel.onMicroPrimed?.(); };   // (what a restore rebuilds is not late)   // (after a lost context: the programs and the geometry again, off the frame)
     // (the organs arrive after their geometry and art files do, and are the largest set of programs: the compile waits for them, within the cap; one that comes in after the cap is compiled when it does)
     const all = cel.organsBuilt.then(() => warmP());
@@ -146,6 +153,7 @@ function SceneBridge() {
         // (one geometry per step in the background slot, as many as fit its budget: never while anything moves)
         whenQuiet(() => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (!more) up.dispose(); return !more; }, { tag: 'upload' });
       };
+      cel.startCircuitSkins();   // (the Circuit's baked skins are fetched in the background slot, after the first picture: they are not on the boot path)
       clock.after(() => cel.buildMicroIdle(), 400);   // (the programs are all compiled already: nothing to wait for but the reveal's first moments)
     }
   }, 1);
@@ -160,7 +168,7 @@ function SceneBridge() {
     if (gl.domElement.style.opacity !== '1') gl.domElement.style.opacity = '0';   // (comes in with the first drawn frame, below)
     setRenderer(gl);
     clock.setProbe(renderStats);
-    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material, ...cel.post.dof.materials]);
+    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material, ...cel.post.dof.materials, ...cel.glowFx.materials]);
     return () => { off(); clock.setProbe(null); setRenderer(null); };
   }, [gl]);
 

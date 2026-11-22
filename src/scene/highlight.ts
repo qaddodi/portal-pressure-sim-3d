@@ -284,7 +284,7 @@ export class OrganPins {
       const ink = o.group.children.find((c) => (c as Mesh).material === o.ink) as Mesh | undefined, base = ink ? ink.renderOrder - 0.45 : 0;
       shells = ORGAN_GLOW.map((g, j) => {
         const u = o.ink.uniforms;
-        const mat = new ShaderMaterial({ vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS,
+        const mat = new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS,
           uniforms: { ...u, px: { value: 0 }, color: { value: new Color() }, hiColor: { value: new Color() }, inkA: { value: 0 }, hiOn: { value: 0 }, hiPx: { value: 0 } } });
         const m = new Mesh(ink?.geometry ?? o.toonMesh.geometry, mat);
         m.frustumCulled = false; m.renderOrder = base + 0.05 * j; m.visible = false; m.name = `highlight/glow/${id}/${j}`;
@@ -323,7 +323,7 @@ export class OrganPins {
     if (sp && (this.normal || this.normalAmt > 0)) {
       if (!this.normalMesh && sp.group.parent) {
         const u = sp.ink.uniforms;
-        const mat = new ShaderMaterial({ vertexShader: sp.ink.vertexShader, fragmentShader: sp.ink.fragmentShader, ...HALO_FLAGS, depthTest: false,
+        const mat = new ShaderMaterial({ name: 'spleen ring', vertexShader: sp.ink.vertexShader, fragmentShader: sp.ink.fragmentShader, ...HALO_FLAGS, depthTest: false,
           uniforms: { ...u, px: { value: NORMAL_LINE.px }, inflate: { value: 0 }, hiOn: { value: 0 }, inkA: { value: 0 } } });
         this.normalMesh = new Mesh(sp.toonMesh.geometry, mat); this.normalMesh.frustumCulled = false;
         this.normalMesh.renderOrder = 20;

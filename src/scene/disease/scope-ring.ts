@@ -96,7 +96,7 @@ export class ScopeRing {
   private readonly e = new Vector3();
   constructor() {
     const b = badgeAt();
-    this.mat = new ShaderMaterial({
+    this.mat = new ShaderMaterial({ name: 'scope ring',
       vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
       uniforms: {
         uC: { value: new Vector3(x3(RING.x), y3(RING.y), RING_Z) }, uHalf: { value: HALF },

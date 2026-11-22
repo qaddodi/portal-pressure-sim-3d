@@ -24,7 +24,7 @@ import { WHY_COLOUR, joinsReport, type JoinsReport } from './vessels/skin/join-r
 import { findOverlaps, type Overlap } from './vessels/overlaps.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
-import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
+import { bakedCircuitPending, bakedCircuitSkins, bakedPending, bakedReady, bakedSkins, requestCircuitSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -515,8 +515,26 @@ export class CelScene {
       baked: bakedCircuitSkins,
       endsChanged: () => { this.applyMates(); },   // (a skinned end of the map has no taper of its own: applyMates writes the map's mates again)
     });
+    this.buildCircuitSkins();
+  }
+  /** The Circuit's skins: built at once where its baked file is in (a test, or once it has arrived); on the page the file is fetched after the first picture, in the background slot (`startCircuitSkins`, Stage), or at
+   *  once when the Circuit is opened (setView), and the skins are built when it is in. Nothing is meshed live while the file is on its way. */
+  private circuitJob: QuietJob | null = null;
+  private buildCircuitSkins(): void {
+    if (!this.circuitSkins) return;
     this.circuitSkinKey = '';
-    this.circuitSkins.build();
+    if (!bakedCircuitPending()) this.circuitSkins.build();
+  }
+  /** After the first picture: asks for the Circuit's file in the background slot; its skins are built the moment it is in. */
+  startCircuitSkins(): void {
+    if (!bakedCircuitPending() || this.disposed || (this.circuitJob && !this.circuitJob.done)) return;
+    this.circuitJob = whenQuiet(() => { this.fetchCircuitSkins(); return true; }, { tag: 'circuit-skins' });
+  }
+  private fetchCircuitSkins(): void {
+    void requestCircuitSkins().then(() => {
+      if (this.disposed || !this.circuitSkins) return;
+      this.buildCircuitSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins');
+    });
   }
 
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins are always on). */
@@ -931,6 +949,7 @@ export class CelScene {
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
     if (v === 'circuit') { if (this.circuit.t === 0) this.circuit.snapTurn(this.circuit.upright); }
     this.circuit.go(v === 'circuit', now);
+    if (v === 'circuit' && bakedCircuitPending()) { this.circuitJob?.cancel(); this.fetchCircuitSkins(); }   // (the Circuit's file is wanted now: it is fetched and its skins built at once, not in the background)
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
     // (the lobule is what lies between the body and the sinusoid: a move that has the sinusoid at either end passes through it, so it is on for the flight whichever view is the other end.
     //  Before, only a move TO the lobule turned it on: sinusoid <-> body (a talk's slide change) drew the sinusoid dissolving over nothing, a black gap, and then the body fading in from the dark)

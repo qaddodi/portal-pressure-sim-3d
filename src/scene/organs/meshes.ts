@@ -4,6 +4,8 @@
 // stays out of the entry chunk. ORGAN_MESHES[id]() is synchronous and works once `organsReady` has resolved.
 import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 'three';
 import manifest from './organs-manifest.json' with { type: 'json' };
+import { decodeOrgans, type BakedOrgans } from './baked.ts';
+import { spanAsync } from '../../boot/spans.ts';
 
 type Entry = [posByte: number, verts: number, idxByte: number, indices: number];
 const M = manifest as unknown as { q: number; organs: Record<string, Entry> };
@@ -17,15 +19,39 @@ export const organsReady: Promise<void> = new Promise((res) => { loaded = res; }
 /** Takes the organ file's bytes (the browser fetch below; tests read it from disk). */
 export function setOrganData(b: ArrayBuffer): void { buf = b; loaded(); }
 
-const env = (import.meta as { env?: { BASE_URL?: string } }).env;
-if (inBrowser) {
-  fetch(`${env?.BASE_URL ?? '/'}anatomy/organs.bin`)
+const env = (import.meta as { env?: { BASE_URL?: string; VITE_ORGANS_DIGEST?: string } }).env;
+const base = env?.BASE_URL ?? '/';
+
+// The organs finished at build time (organs/baked.ts, scripts/bake-organs.mjs): with that file in, the page does none of prepare.ts's work (about 2 s of CPU a start) and never fetches organs.bin (the raw stomach the
+// scope fits to is in the file). A page whose build made no such file, a browser with no gunzip, a digest that is not this build's, or a file that does not decode: organs.bin as before, and the organs are made live.
+let baked: BakedOrgans | null = null;
+/** The finished organs, once the baked file is in (null: none; the layer makes them from the organs file). */
+export const bakedOrgans = (): BakedOrgans | null => baked;
+/** Takes the baked organs (the browser fetch below; a test hands it a decoded file). */
+export function setBakedOrgans(b: BakedOrgans): void { baked = b; loaded(); }
+
+async function fetchBaked(want: string): Promise<BakedOrgans | null> {
+  try {
+    const r = await spanAsync('fetch:organs-baked', () => fetch(`${base}anatomy/organs-baked.bin`));
+    if (!r.ok || !r.body) return null;
+    const body = r.body;
+    const out = await spanAsync('decode:organs-baked', () => new Response(body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then(decodeOrgans));
+    if (out && out.digest !== want) { console.warn('[boot] baked organs are for another build, making them live'); return null; }
+    return out;
+  } catch (e) { console.warn('[boot] baked organs unavailable, making them live:', e instanceof Error ? e.message : e); return null; }
+}
+const liveFile = (): void => {
+  fetch(`${base}anatomy/organs.bin`)
     .then((r) => { if (!r.ok) throw new Error(`organs.bin ${r.status}`); return r.arrayBuffer(); })
     .then(setOrganData, (e) => console.error(e));
+};
+if (inBrowser) {
+  const want = env?.VITE_ORGANS_DIGEST;
+  (want && typeof DecompressionStream !== 'undefined' ? fetchBaked(want) : Promise.resolve(null)).then((b) => { if (b) setBakedOrgans(b); else liveFile(); });
 }
 
 const make = (id: string) => (): BufferGeometry => {
-  if (!buf) throw new Error('organs: data not loaded (await organsReady)');
+  if (!buf) { const r = baked?.raw[id]; if (r) return r(); throw new Error('organs: data not loaded (await organsReady)'); }
   const [pb, nv, ib, ni] = M.organs[id];
   const q = new Int16Array(buf, pb, nv * 3), pos = new Float32Array(nv * 3);
   for (let i = 0; i < pos.length; i++) pos[i] = q[i] / M.q;

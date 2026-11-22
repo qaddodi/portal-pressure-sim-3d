@@ -56,7 +56,7 @@ test('the scene draws both passes into the texture, then the canvas takes the fi
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
   assert.match(stage, /const mode = aaMode\(\);\s*const msaa = mode === 'msaa';/, '?aa=msaa multisamples at any pixel ratio (the post pass is off in that mode)');
   assert.doesNotMatch(stage, /msaaFor/);
-  assert.match(stage, /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/, 'every program of the scene is built into the pass\'s target');
+  assert.match(stage, /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/, 'every program of the scene is built into the pass\'s target');
   assert.ok(stage.indexOf('warmPrograms(gl') < stage.indexOf('figureDrawn();'), 'before the first frame, under the splash (L3)');
   assert.match(stage, /cel\.post\.material/, 'the guard knows the pass\'s material');
   assert.deepEqual([1, 1.5, 2].map(msaaFor), [true, true, false]);

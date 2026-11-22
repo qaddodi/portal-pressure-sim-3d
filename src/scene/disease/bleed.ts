@@ -129,7 +129,7 @@ export class BleedLayer {
     for (const a of ['position', 'normal', 'tang', 'ik']) (g.getAttribute(a) as BufferAttribute).setUsage(DynamicDrawUsage);
     const obj = this.obj = new CelObject(g, { tone: 'heart', bands: 3, spec: 0, px: 1.1 }, this.shared);
     // the ink: a hull whose line thins toward the tip, sharing the toon's colour, width and fade
-    const mat = this.inkMat = new ShaderMaterial({
+    const mat = this.inkMat = new ShaderMaterial({ name: 'bleed jet ink',
       vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, ...JET_INK_FLAGS,
       uniforms: { color: obj.ink.uniforms.color!, px: obj.ink.uniforms.px!, res: this.shared.res, fade: obj.toon.uniforms.fade!, inkK: { value: 1 } },
     });

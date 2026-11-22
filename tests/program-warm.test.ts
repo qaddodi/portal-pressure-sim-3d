@@ -95,18 +95,18 @@ test('every material the real code makes from the stand-ins\' recipes spreads th
 });
 
 /** Every `new ShaderMaterial(` and `new RawShaderMaterial(` in src/scene, by file, and how its programs are compiled under the splash. A new one fails here until it is listed with its answer. */
-const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | 'pass' | 'late'; why: string }> = {
+const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | 'pass'; why: string }> = {
   'scene/disease/dye.ts': { n: 1, how: 'graph', why: 'the dye overlay is on the vessels from the start (hidden)' },
   'scene/disease/bleed.ts': { n: 1, how: 'stand-in', why: 'JET_INK_FLAGS' },
   'scene/disease/ascites.ts': { n: 1, how: 'graph', why: 'the pool hulls' },
   'scene/disease/scope-ring.ts': { n: 1, how: 'graph', why: 'the scope ring on the varices is in the disease group from the start (hidden until a slide asks for it)' },
   'scene/highlight.ts': { n: 2, how: 'stand-in', why: 'HALO_FLAGS on each organ\'s ink' },
-  'scene/glow-fx.ts': { n: 2, how: 'pass', why: 'the glow\'s full-screen blur and lay (a pass, not a scene object): compiled with its first pick, GAP (not in the warm-up)' },
+  'scene/glow-fx.ts': { n: 2, how: 'pass', why: 'the glow\'s full-screen blur and lay (a pass, not a scene object): compiled under the splash with passMaterials (materials/warm.ts)' },
   'scene/materials/cel.ts': { n: 2, how: 'graph', why: 'the toon and the ink of every object' },
   'scene/materials/prototypes.ts': { n: 4, how: 'stand-in', why: 'the stand-ins themselves' },
   'scene/organs/layer.ts': { n: 1, how: 'graph', why: 'the organ seat' },
-  'scene/post-aa.ts': { n: 1, how: 'pass', why: 'the anti-aliasing quad: compiled with the first frame' },
-  'scene/post-dof.ts': { n: 3, how: 'pass', why: 'the depth-of-field quads: desktop only, GAP (compile at the first dive)' },
+  'scene/post-aa.ts': { n: 1, how: 'pass', why: 'the anti-aliasing quad: compiled under the splash with passMaterials, into the canvas\'s colour space' },
+  'scene/post-dof.ts': { n: 3, how: 'pass', why: 'the depth-of-field quads (the focus band uses them on every device): compiled under the splash with passMaterials' },
   'scene/vessels/skin/skin-object.ts': { n: 2, how: 'graph', why: 'junction skins' },
   'scene/vessels/vessel-object.ts': { n: 4, how: 'graph', why: 'vessel, glow, veil, crossing shadow' },
   'scene/circuit/resistors.ts': { n: 1, how: 'stand-in', why: 'RESISTOR_FLAGS' },
@@ -133,4 +133,23 @@ test('every site that makes a shader material is accounted for: on the boot grap
   walk('src/scene');
   for (const [f, n] of Object.entries(found)) assert.ok(SITES[f], `${f} makes ${n} shader material(s) nobody has said how to compile under the splash (add it to SITES in tests/program-warm.test.ts, and a stand-in in materials/prototypes.ts if the scene does not hold it at boot)`);
   for (const [f, s] of Object.entries(SITES)) assert.equal(found[f], s.n, `${f}: ${found[f] ?? 0} sites now, ${s.n} listed`);
+});
+
+// The passes are drawn outside the scene graph, so `compile(scene)` never saw their programs (a first dive built three DoF programs, 140 to 200 ms on a Mac; a first highlight two glow programs). 22 Nov: they are
+// compiled under the splash from passMaterials, and no site is a named gap any more.
+test('every pass material is on the warm-up list (nothing is a gap), named, and has its own program', async () => {
+  const { PostAA } = await import('../src/scene/post-aa.ts');
+  const { GlowFx } = await import('../src/scene/glow-fx.ts');
+  const { passMaterials, passWarmScene, uploaderMaterial } = await import('../src/scene/materials/warm.ts');
+  const post = new PostAA('fxaa'), glow = new GlowFx();
+  const pm = passMaterials(post, glow);
+  const passSites = Object.entries(SITES).filter(([, s]) => s.how === 'pass').reduce((n, [, s]) => n + s.n, 0);
+  assert.equal(pm.target.length - 1 + pm.canvas.length, passSites, 'every ShaderMaterial a pass makes is on the list (the one more in target is the uploader\'s plain material)');
+  assert.ok(pm.target.includes(uploaderMaterial));
+  for (const m of [...pm.target, ...pm.canvas]) assert.ok(m.name || m.type === 'MeshBasicMaterial', 'a pass material without a name');
+  const warm = passWarmScene(pm.target);
+  assert.equal(warm.children.length, pm.target.length);
+  assert.equal(new Set(warm.children.map((c) => (c as Mesh).material)).size, pm.target.length);
+  const keys = programsOf(warm);
+  assert.equal(keys.size, 5, 'DoF gather, mix, copy and the glow blur and lay are five different programs');
 });

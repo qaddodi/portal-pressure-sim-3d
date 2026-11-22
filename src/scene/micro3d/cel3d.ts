@@ -559,7 +559,7 @@ export const INK_DEPTH_UNITS = 4, INK_DEPTH_FACTOR = 1;
 
 export function microMaterials(res: { value: Vector2 }, fade: { value: number }, o: MicroOptions = {}): MicroMats {
   const haze = o.haze ?? hazeUniforms();
-  const toon = new ShaderMaterial({
+  const toon = new ShaderMaterial({ name: 'micro toon',
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
     defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
     uniforms: {
@@ -577,7 +577,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
-  const ink = o.ink === null ? null : new ShaderMaterial({
+  const ink = o.ink === null ? null : new ShaderMaterial({ name: 'micro ink',
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
     uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, uShape: toon.uniforms.uShape!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,

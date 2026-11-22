@@ -45,6 +45,12 @@ export const RULES = {
     applies: (p) => !vendored(p) && p !== 'src/clock/idle.ts',
     visit: (n) => n.type === 'Identifier' && (n.name === 'requestIdleCallback' || n.name === 'cancelIdleCallback'),
   },
+  /** Every shader material is named: the late-program row of ?perf and the audit name a program by `material.name` (three.js WebGLPrograms), so an unnamed one shows only as "program" and cannot be traced to its owner. */
+  'unnamed-shader': {
+    applies: (p) => !vendored(p),
+    visit: (n) => n.type === 'NewExpression' && n.callee.type === 'Identifier' && (n.callee.name === 'ShaderMaterial' || n.callee.name === 'RawShaderMaterial')
+      && !(n.arguments[0]?.type === 'ObjectExpression' && n.arguments[0].properties.some((q) => q.type === 'Property' && !q.computed && (q.key.name === 'name' || q.key.value === 'name'))),
+  },
   /** An R3F <Canvas> never runs its own loop: frameloop="never" and the clock's bridge inside it. */
   'canvas-own-loop': {
     applies: (p) => !vendored(p) && p.endsWith('.tsx'),

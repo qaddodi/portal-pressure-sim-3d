@@ -144,7 +144,7 @@ export class ResistorLayer {
   constructor(res?: { value: Vector2 }) { if (res) this.res = res; this.group.name = 'resistors'; this.group.renderOrder = 30; }
 
   private material(): ShaderMaterial {
-    return new ShaderMaterial({
+    return new ShaderMaterial({ name: 'circuit resistors',
       vertexShader: VS, fragmentShader: FS, ...RESISTOR_FLAGS,
       uniforms: { wpx: { value: 4 }, res: this.res, col: { value: new Vector3() }, alpha: { value: 0 } },
     });

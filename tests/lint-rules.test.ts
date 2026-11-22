@@ -15,6 +15,7 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['layout-read', 'src/ui/x.ts', 'const r = el.getBoundingClientRect(); const w = el.offsetWidth;', 'const r = readBox(el); const w = readMetric(el, "offsetWidth");'],
   ['unsafe-cast', 'src/scene/x.ts', 'const a = b as unknown as Rec; const c = d as never;', 'const a = b as Rec; const c = d as unknown;'],
   ['raw-idle', 'src/scene/x.ts', 'const ric = globalThis.requestIdleCallback; requestIdleCallback(f);', '// requestIdleCallback is the slot\'s\nwhenQuiet(step, { tag: "x" });'],
+  ['unnamed-shader', 'src/scene/x.ts', 'const m = new ShaderMaterial({ vertexShader: v, fragmentShader: f });', 'const m = new ShaderMaterial({ name: "x", vertexShader: v }); const n = new ShaderMaterial({ name, vertexShader: v });'],
   ['canvas-own-loop', 'src/ui/x.tsx', 'export const A = () => <Canvas camera={c}><Scene /></Canvas>;', 'export const A = () => <Canvas frameloop="never"><Scene /></Canvas>;'],
 ];
 

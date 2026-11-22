@@ -65,7 +65,7 @@ export class DyeLayer {
     for (const v of vessels) {
       const k = this.index.get(v.id);
       if (k == null) continue;
-      const m = new ShaderMaterial({
+      const m = new ShaderMaterial({ name: 'dye overlay',
         vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false,
         uniforms: { dye: { value: this.tex }, row: { value: k }, colour: { value: new Color(DYE_COLOUR) }, amount: this.amount, inflate: { value: DYE_INFLATE } },
       });

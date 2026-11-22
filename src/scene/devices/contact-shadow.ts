@@ -72,7 +72,7 @@ export class ContactShadow {
   radius: number;
   constructor(geometry: BufferGeometry, shared: CelShared, radius: number, order: number, own: { tailFade: { value: unknown }; holeU: { value: unknown }; reveal: { value: unknown }; fade: { value: unknown } }) {
     this.radius = radius;
-    this.material = new ShaderMaterial({
+    this.material = new ShaderMaterial({ name: 'contact shadow',
       vertexShader: VS, fragmentShader: FS, transparent: true, depthTest: false, depthWrite: false,
       uniforms: {
         res: shared.res, shadowAmt: shared.shadow,

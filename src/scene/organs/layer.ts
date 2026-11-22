@@ -6,7 +6,8 @@ import { BackSide, KeepStencilOp, NotEqualStencilFunc, ReplaceStencilOp, type Bu
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
-import { ORGAN_MESHES } from './meshes.ts';
+import { ORGAN_MESHES, bakedOrgans } from './meshes.ts';
+import { prepareOrgans } from './prepare.ts';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import { INK_FS } from '../materials/shaders.ts';
 import { type Palette, type ToneKey } from '../palette.ts';
@@ -20,14 +21,9 @@ import { RIPPLE_HZ, poolUniforms } from './pool-level.ts';
 import { LiverShape } from './liver-shape.ts';
 import { LiverBake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
-import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
-import { smoothRestNormals } from './normal-smooth.ts';
 import { caudateAnchor3, caudateGeometry, caudateScale } from './caudate.ts';
 /** Smoothing passes of the shade normal (the outline's own is 8: this one keeps the pillow's turn, a lighter hand). */
-const SHADE_PASSES = 6;
-import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
-import { ORGAN_Z } from './z.ts';
 
 import { whenQuiet } from '../../clock/idle.ts';
 type Og = keyof OrganTones2D['tones'];
@@ -115,7 +111,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   if (!ORGAN_STYLE[id]?.ao) return null;
   // 2D's .org-ao: a flat soft seat round the outline (the stroke's outer half), under the fill and the line, in the organ's group. Drawn after the fill with the hull's
   // depth test, so it shows only where the fill is not, and before the outline, so the line lies over it.
-  const seat = new ShaderMaterial({
+  const seat = new ShaderMaterial({ name: 'organ seat',
     vertexShader: ORGAN_INK_VS, fragmentShader: INK_FS, side: BackSide, transparent: true, depthWrite: false,
     uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res!,
       hiOn: { value: 0 }, hiPx: { value: 0 } },   // (every uniform the shader declares: a missing one keeps what the last material drawn with this program left in it, so a tapped spleen lit the stomach's seat and the esophagus)
@@ -186,24 +182,10 @@ export class OrganLayer {
   build(meshes: Record<string, () => BufferGeometry> = ORGAN_MESHES): void {
     if (this.built) return;
     this.built = true;
-    if (meshes === ORGAN_MESHES) meshes = { ...meshes, caudate: caudateGeometry };   // (the lobe is built from 2D's outline, not shipped in the organs file)
-    // every organ's geometry first: the baked depth term (organ-depth.ts) needs them all together (where one organ meets another)
-    const made: [string, BufferGeometry][] = [];
-    for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; each organ at its own depth: z.ts, x and y untouched by it)
-    // the duodenum's free end fades out (it joins nothing there): its tail alpha, which organ-art patches into its fill and outline
-    const duo = made.find(([id]) => id === 'duodenum'), stom = made.find(([id]) => id === 'stomach');
-    if (duo && stom) duo[1].setAttribute('esoA', new Float32BufferAttribute(tailFade(duo[1], stom[1]), 1));
-    const baked = bakeOrganDepth(Object.fromEntries(made.map(([id, g]) => {
-      if (!g.getAttribute('normal')) g.computeVertexNormals();
-      return [id, { pos: g.getAttribute('position').array, normal: g.getAttribute('normal').array, index: g.index ? g.index.array : [] }];
-    })));
+    // the finished organs: from the build's baked file when the page has it (organs/baked.ts), else made here from the organs file (prepare.ts: the rim, the depth term, the smoothed normals, about 2 s of CPU)
+    const made = (meshes === ORGAN_MESHES ? bakedOrgans()?.organs : null) ?? prepareOrgans(meshes === ORGAN_MESHES ? { ...meshes, caudate: caudateGeometry } : meshes);   // (the lobe is built from 2D's outline, not shipped in the organs file)
     for (const [id, g] of made) {
       const st = ORGAN_STYLE[id]!;
-      g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
-      // the outline is pushed out along the mesh's SMOOTHED normal: the mesh's own normals jag along a coarse rim, and the hull's edge with them (a sawtooth halo)
-      g.setAttribute('shadeN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : [], SHADE_PASSES), 3));
-      g.setAttribute('ringD', new Float32BufferAttribute(ringDistance(g), 1));
-      g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
       if (id === 'liver') {   // the surface's texture (liver-texture.ts): each vertex's place in it is its rest place in the 2D figure
         const pos = g.getAttribute('position'), uv = new Float32Array(pos.count * 2);
         for (let i = 0; i < pos.count; i++) { uv[i * 2] = (x2d(pos.getX(i)) - TEX_X0) / TEX_W; uv[i * 2 + 1] = (y2d(pos.getY(i)) - TEX_Y0) / TEX_H; }

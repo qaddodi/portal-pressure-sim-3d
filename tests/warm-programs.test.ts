@@ -46,7 +46,7 @@ test('every material whose transparent flag is flipped while the page runs is ma
   assert.match(vo, /const mat = markBlends\(new ShaderMaterial\(\{ vertexShader: this\.toon\.vertexShader/, 'the veil copy');
   assert.match(so, /const material = markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/, 'the three skin copies (the Circuit\'s too: one class)');
   assert.match(so, /setTransparent\(on: boolean\)/);
-  assert.match(src('scene/Stage.tsx'), /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
+  assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
   assert.doesNotMatch(vo, /\.transparent = /, 'vessel-object flips only through setBlendState');
   assert.doesNotMatch(so, /\.transparent = /, 'skin-object flips only through setBlendState');
   // ... and no other file assigns it after construction: a new runtime flip must be marked (or listed here with why it is fixed)
@@ -73,5 +73,5 @@ test('warmPrograms compiles with the figure\'s render target bound (programs are
 });
 
 test('Stage warms into the post pass\'s target', () => {
-  assert.match(src('scene/Stage.tsx'), /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
+  assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
 });

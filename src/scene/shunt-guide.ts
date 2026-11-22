@@ -32,7 +32,7 @@ export class ShuntGuide {
   constructor(c: Clock = clock) {
     this.fade = new Ease(0, 'shunt-guide-fade', (a) => { this.mat.uniforms.alpha!.value = a * ALPHA; this.mesh.visible = this.want || a > 0.002; }, c);
     this.mix = new Ease(1, 'shunt-guide-colour', (k) => (this.mat.uniforms.color!.value as Color).copy(this.from).lerp(this.to, k), c);
-    this.mat = new ShaderMaterial({
+    this.mat = new ShaderMaterial({ name: 'shunt guide',
       vertexShader: VS, fragmentShader: FS, transparent: true, depthTest: false, depthWrite: false, side: DoubleSide,
       uniforms: { color: { value: new Color('#2f7cf6') }, lenPx: { value: 1 }, widthPx: { value: WIDTH_PX }, dash: { value: DASH_PX }, gap: { value: GAP_PX }, alpha: { value: 0 } },
     });

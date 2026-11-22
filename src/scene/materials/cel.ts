@@ -88,7 +88,7 @@ export class CelObject {
     this.basePx = opts.px;
     this.isVessel = !!opts.vessel;
     const v = opts.vessel;
-    this.toon = new ShaderMaterial({
+    this.toon = new ShaderMaterial({ name: 'cel toon',
       vertexShader: TOON_VS,
       fragmentShader: TOON_FS,
       // a geometry with an `ink` attribute carries its own colour at each vertex (setInk): the shader reads it in place of the tone
@@ -102,7 +102,7 @@ export class CelObject {
         markColor: { value: new Color() }, markReversed: { value: new Color() }, tubeDark: { value: 0 },
       },
     });
-    this.ink = new ShaderMaterial({
+    this.ink = new ShaderMaterial({ name: 'cel ink',
       vertexShader: INK_VS,
       fragmentShader: INK_FS,
       side: BackSide,

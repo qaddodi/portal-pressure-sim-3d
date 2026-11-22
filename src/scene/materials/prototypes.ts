@@ -36,11 +36,11 @@ export function programPrototypes(shared: CelShared): Group {
     root.add(o);
   };
   // the Circuit's resistor ribbons (made when the Circuit first opens)
-  add('circuit resistors', triangle(), new ShaderMaterial({ vertexShader: RES_VS, fragmentShader: RES_FS, ...RESISTOR_FLAGS, uniforms: {} }));
+  add('circuit resistors', triangle(), new ShaderMaterial({ name: 'circuit resistors', vertexShader: RES_VS, fragmentShader: RES_FS, ...RESISTOR_FLAGS, uniforms: {} }));
   // the blood streaks (Settings > Figure depth, made when first switched on)
   add('blood streaks', triangle([['aB', 4]]), new ShaderMaterial({ name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, ...STREAK_FLAGS, uniforms: {} }), true);
   // the bleed jet's ink (made when a bleed first shows; its fill is the device toon the scene holds)
-  add('bleed jet ink', triangle([['tang', 3], ['ik', 1]]), new ShaderMaterial({ vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, ...JET_INK_FLAGS, uniforms: {} }));
+  add('bleed jet ink', triangle([['tang', 3], ['ik', 1]]), new ShaderMaterial({ name: 'bleed jet ink', vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, ...JET_INK_FLAGS, uniforms: {} }));
   // a clot (made when a thrombus first shows): the real class on the real geometry function (a tube of rings: its program has the vessels' tube tones)
   const clot = new ClotObject(clotGeometry({ centres: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], radii: [0.1, 0.1], alpha: [1, 1], lumen: [0.2, 0.2] }), shared);
   clot.group.name = 'prototype/clot'; clot.group.traverse((o) => { o.frustumCulled = false; });
@@ -56,7 +56,7 @@ export function addOrganHalos(root: Group, organs: readonly CelObject[]): void {
     const key = o.ink.vertexShader + '\u0000' + o.ink.fragmentShader;   // (the highlight's shell takes the ink's shaders and none of its defines: scene/highlight.ts)
     if (seen.has(key)) continue;
     seen.add(key);
-    const m = new Mesh(triangle(), new ShaderMaterial({ vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS, uniforms: {} }));
+    const m = new Mesh(triangle(), new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS, uniforms: {} }));
     m.name = `prototype/organ halo ${o.tone}`; m.frustumCulled = false; m.userData.key = key;
     root.add(m);
   }

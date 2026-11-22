@@ -52,12 +52,14 @@ export class GlowFx {
   private readonly cam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly scene = new Scene();
   private readonly quad: Mesh;
-  private readonly blur = new ShaderMaterial({ vertexShader: GLOW_FX_VS, fragmentShader: BLUR_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tSrc: { value: null }, stepUv: { value: new Vector2() }, sigma: { value: 1 } } });
-  private readonly lay = new ShaderMaterial({
+  private readonly blur = new ShaderMaterial({ name: 'glow blur', vertexShader: GLOW_FX_VS, fragmentShader: BLUR_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tSrc: { value: null }, stepUv: { value: new Vector2() }, sigma: { value: 1 } } });
+  private readonly lay = new ShaderMaterial({ name: 'glow lay',
     vertexShader: GLOW_FX_VS, fragmentShader: LAY_FS, transparent: true, depthTest: false, depthWrite: false,
     blending: CustomBlending, blendEquation: AddEquation, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: ZeroFactor, blendDstAlpha: OneFactor,   // (the figure's own alpha is left as it is)
     uniforms: { tBlur: { value: null }, tMask: { value: null } },
   });
+  /** The two passes' materials: the warm-up compiles them under the splash (materials/warm.ts passWarmScene) and the shader guard watches them. */
+  get materials(): readonly ShaderMaterial[] { return [this.blur, this.lay]; }
   private readonly size = new Vector2();
   private type: TextureDataType = UnsignedByteType;
   private typeChecked = false;

@@ -143,7 +143,7 @@ export class NeighbourField {
   private readonly mk: (w: number, h: number) => HTMLCanvasElement | null;
   constructor(mk: (w: number, h: number) => HTMLCanvasElement | null) {
     this.mk = mk;
-    this.mat = new ShaderMaterial({
+    this.mat = new ShaderMaterial({ name: 'lobule field',
       vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
       uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 }, fade: { value: 1 } },
       transparent: true, depthWrite: false,

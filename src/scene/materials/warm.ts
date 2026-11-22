@@ -4,7 +4,7 @@
 // The root fix: a marked material always uses CustomBlending, so `opaque` is constantly false and there is one program whatever the flag says. The flag still sorts the draw (opaque list or transparent list), and the blend
 // factors carry the two states: One/Zero while opaque (what NoBlending drew), the premultiply-free "normal" factors while blended. Nothing is compiled twice and nothing needs warming. `setBlendState` is the only way
 // to flip a marked material at run time.
-import { AddEquation, CustomBlending, Mesh, MeshBasicMaterial, OneFactor, OneMinusSrcAlphaFactor, Scene, SrcAlphaFactor, ZeroFactor } from 'three';
+import { AddEquation, CustomBlending, Mesh, MeshBasicMaterial, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, Scene, SrcAlphaFactor, ZeroFactor } from 'three';
 import type { BufferGeometry, Camera, Material, Object3D } from 'three';
 
 /** Puts a material in one blend state: `transparent` (draw order) and the factors that go with it. The program does not change. */
@@ -47,6 +47,27 @@ export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Ca
   return 1;
 }
 
+// ---- the passes' programs ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// The depth-of-field quads, the glow's blur and lay, the anti-aliasing quad and the uploader's plain material are drawn outside the scene graph (their own one-quad scenes), so `compile(scene)` never saw them and each
+// linked its program at its first use: three DoF programs in the first dive (140 to 200 ms on a Mac, the audit's first Lobule frame), two glow programs at the first highlight pick. Their owners hand their
+// materials over (`materials`); one hidden quad scene per colour space is compiled with the rest, under the splash (Stage.tsx). A pass added later fails tests/program-warm.test.ts until it is listed.
+
+/** The plain material the geometry uploader draws every hidden geometry with: one, made once, so the warm-up can compile its program (it lived in the uploader's private scene, which no warm-up saw). */
+export const uploaderMaterial = new MeshBasicMaterial();
+
+/** A hidden scene with one full-screen quad per material: what `compile` needs to build a pass's program. */
+export function passWarmScene(materials: readonly Material[]): Scene {
+  const scene = new Scene(), geometry = new PlaneGeometry(2, 2);
+  scene.name = 'pass-warm';
+  for (const m of materials) { const q = new Mesh(geometry, m); q.name = `pass/${m.name || m.type}`; q.frustumCulled = false; scene.add(q); }
+  return scene;
+}
+
+/** Every material a pass draws, by the colour space it is drawn into: `target` (a render target: the DoF's three, the glow's two and the uploader's) and `canvas` (the anti-aliasing quad, drawn to the canvas). The one list Stage.tsx compiles. */
+export function passMaterials(post: { material: Material; dof: { materials: readonly Material[] } }, glow: { materials: readonly Material[] }): { target: Material[]; canvas: Material[] } {
+  return { target: [...post.dof.materials, ...glow.materials, uploaderMaterial], canvas: [post.material] };
+}
+
 // ---- the geometries' first upload ---------------------------------------------------------------------------------------------------------------------------------------------------
 // `compile` builds PROGRAMS for every material, visible or not, but a geometry's buffers (positions, normals, the shape's dH/dD columns, indices: about 800 000 triangles for the sinusoid, the Circuit's tubes and skins)
 // are sent to the GPU by the first draw that includes them. The micro views and the Circuit are hidden until chosen, so that first draw was the first frame of the view: 180 to 390 ms on an iPhone (audit 21 Nov:
@@ -77,7 +98,7 @@ export class GeometryUploader {
   private queue: BufferGeometry[] = [];
   private readonly done = new WeakSet<BufferGeometry>();
   private readonly scene = new Scene();
-  private readonly mesh = new Mesh(undefined, new MeshBasicMaterial());
+  private readonly mesh = new Mesh(undefined, uploaderMaterial);
   private readonly gl: UploadRenderer;
   private readonly camera: Camera;
   private readonly target: unknown;
@@ -99,5 +120,5 @@ export class GeometryUploader {
     try { this.gl.render(this.scene, this.camera); } finally { this.gl.setRenderTarget(prev); }
     return this.queue.length > 0;
   }
-  dispose(): void { this.queue = []; (this.mesh.material as MeshBasicMaterial).dispose(); }
+  dispose(): void { this.queue = []; }   // (the material is shared with the warm-up and stays)
 }

@@ -4,6 +4,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { organsDigest } from './organs-digest.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sh = (...a) => { try { return execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim(); } catch { return ''; } };
@@ -25,6 +26,12 @@ if (bake.status !== 0) { console.warn('warning: the Lobule weld plan was not bak
 const bakeSkins = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-skins.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
 if (bakeSkins.status !== 0) { console.warn('warning: the Anatomy skins were not baked; the page will build them at load'); failed.push('skin bake'); }
 
+// The organs are finished here too (src/scene/organs/prepare.ts: about 2 s of CPU on a laptop, the same on every start): the page reads the finished file (anatomy/organs-baked.bin) and hands nothing to the CPU. The digest of its inputs goes
+// into the page (VITE_ORGANS_DIGEST), which lays the file in only when it is equal. A failure only warns: no digest, and the page makes the organs live from organs.bin as before.
+const bakeOrgans = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-organs.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
+if (bakeOrgans.status !== 0) { console.warn('warning: the organs were not baked; the page will make them at load'); failed.push('organ bake'); }
+const organsId = bakeOrgans.status === 0 ? organsDigest() : '';
+
 // The two fast checks (about 5 s, in this one deploy job: no new workflow): the typecheck and the project's lint. A preview still ships (fast previews), but the result is stamped on the
 // pill (VITE_CHECKS, src/ui/shell/build-pill.ts buildChecks) and in build-info.txt so a broken branch cannot go unseen; on main any failure fails the build.
 const tsc = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/typescript/lib/tsc.js', import.meta.url)), '--noEmit'], { cwd: root, encoding: 'utf8' });
@@ -35,7 +42,7 @@ if (lint.status !== 0) console.warn(`warning: lint failed\n${lint.stderr ?? ''}`
 const checks = [typeErrors ? `types: ${typeErrors} error${typeErrors === 1 ? '' : 's'}` : '', lint.status !== 0 ? 'lint failed' : '', ...failed.map((f) => `${f} failed`)].filter(Boolean).join(', ');
 if (onMain && checks) { console.error(`main does not ship with a failed check: ${checks}`); process.exit(1); }
 
-const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: checks } });
+const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: checks, VITE_ORGANS_DIGEST: organsId } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 // The 2D stylesheets are copied whole; the rules that style something this app never makes are taken out of the BUILT file (scripts/css-unused.mjs; the copies in src/ui/css2d stay byte for byte). PPS_NO_CSS_PRUNE=1 skips it.
 if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) { console.warn('warning: the stylesheet was not pruned; it ships whole'); failed.push('css prune'); if (onMain) { console.error('main does not ship with an unpruned stylesheet'); process.exit(1); } } }

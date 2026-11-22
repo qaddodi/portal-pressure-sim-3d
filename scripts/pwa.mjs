@@ -45,7 +45,7 @@ function needsOf(file, text, files) {
 /** Files the first picture does not need, kept out of the install list whatever names them (a boot script's string or `new URL` names them, but the page asks for them only later, or never on most devices):
  *  the Lobule's baked weld plan and the worker that plans it when there is none (asked ~3 s after the first picture, src/scene/micro3d/lobule3d.ts WELDS_ASK_MS), and the fonts' other alphabets
  *  (the browser fetches one only when a character in its range is drawn). They are filled when the page is quiet, and a page that asks first is served from the network and keeps the copy. */
-export const LATE = [/^lobule\//, /^assets\/weld-worker-[^/]*\.js$/, /^fonts\/.*-(?:latin-ext|greek|greek-ext|cyrillic|cyrillic-ext|vietnamese)\.woff2$/];
+export const LATE = [/^lobule\//, /^anatomy\/circuit-skins\.bin$/, /^anatomy\/organs\.bin$/, /^assets\/weld-worker-[^/]*\.js$/, /^fonts\/.*-(?:latin-ext|greek|greek-ext|cyrillic|cyrillic-ext|vietnamese)\.woff2$/];
 export const isLate = (f) => LATE.some((re) => re.test(f));
 
 /** What `list` costs on the wire, in bytes: text is sent gzipped by the host (Pages), the .bin data is already compressed or int16 and goes as it is. `read(file)` gives a file's bytes. */
