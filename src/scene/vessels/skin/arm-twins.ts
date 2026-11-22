@@ -110,3 +110,12 @@ export function presentAlpha(w: readonly number[], fades: readonly number[], pre
   for (let i = 0; i < w.length; i++) { num += (w[i] ?? 0) * (fades[i] ?? 0) * (shares?.[i] ?? 1) * (pres[i] ?? 0); den += (w[i] ?? 0) * (pres[i] ?? 0); }
   return num / Math.max(den, 1e-4);
 }
+
+/** The weights the fragment stage blends by (skin/shaders.ts `wAt`): the mesh's weights shared among the arms that are THERE (`keep` 1), an arm that is not (a closed shunt, a dotted thread: `keep` 0) handing its weight to the others. Every arm kept: the weights as they are.
+ *  A pixel whose weight is all in absent arms has nothing to draw (all 0). */
+export function keptWeights(w: readonly number[], keep: readonly number[]): number[] {
+  if (keep.every((k, i) => k === 1 || i >= w.length)) return [...w];
+  let sum = 0;
+  for (let i = 0; i < w.length; i++) sum += (w[i] ?? 0) * (keep[i] ?? 1);
+  return w.map((x, i) => (sum > 1e-4 ? (x * (keep[i] ?? 1)) / sum : 0));
+}

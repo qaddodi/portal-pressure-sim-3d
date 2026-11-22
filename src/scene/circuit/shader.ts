@@ -15,6 +15,8 @@ attribute vec3 fr;
 attribute vec2 pk;
 // the lengths of the vessel's two courses (body, map), scene units: the speed of each along the vessel's own 0 to 1
 attribute vec2 cl;
+// the map course's heading turned so far (rad, counter-clockwise, from the vessel's start): the stent's cells keep their size round a corner (vessels/shaders.ts vSkew)
+attribute float turn;
 uniform float circT;
 // 1 on a vertex that stays where it is through the change, fading with 2D's clamp(1 - 2 * T0) (see circuitMorph), read by the fragment stage as a dither (vessels/shaders.ts)
 varying float circStay;

@@ -59,10 +59,10 @@ export class Ease implements EaseBase {
     }
     return this;
   }
-  /** The only way to jump: the value and the goal are `v` at once (and the pop detector counts it, as it should). */
-  snap(v: number): this { this.spec = null; this.finish(); if (v !== this.value) { this.span = Math.abs(v - this.value); this.jump(v); } this.goal = v; return this; }
+  /** The only way to jump: the value and the goal are `v` at once (and the pop detector counts it, as it should). `quiet`: the value's STARTING state (a part that has never been shown, a mix that begins at its goal), not a pop: the detector does not count it. */
+  snap(v: number, quiet = false): this { this.spec = null; this.finish(); if (v !== this.value) { if (!quiet) this.span = Math.abs(v - this.value); this.jump(v, quiet); } this.goal = v; return this; }
 
-  private jump(v: number): void { const was = this.value; this.value = v; this.goal = v; this.lastStep = Math.max(this.lastStep, Math.abs(v - was)); this.onChange?.(v); this.c.invalidate(this.tag); }
+  private jump(v: number, quiet = false): void { const was = this.value; this.value = v; this.goal = v; if (!quiet) this.lastStep = Math.max(this.lastStep, Math.abs(v - was)); this.onChange?.(v); this.c.invalidate(this.tag); }
   private finish(): void { this.off?.(); this.off = null; this.hold?.release(); this.hold = null; }
 
   /** One step to page time `now`. The clock calls it every frame while the ease moves; an owner that is driven by hand (a node test turning the scene's `update(now)`) may call it too: stepping twice to the same `now` changes nothing. */

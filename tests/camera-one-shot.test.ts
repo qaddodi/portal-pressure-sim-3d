@@ -105,6 +105,7 @@ test('Lobule <-> Sinusoid in the app rooms: the camera distance changes smoothly
   const { viewRoom } = await import('../src/ui/shell/room.ts');
   const vp = { w: 1440, h: 900, safe: { top: 0, bottom: 0, left: 0, right: 0 } } as never;
   const s = new CelScene(); s.resize(1440, 900);
+  while (!(s as unknown as { microStep(): boolean }).microStep()) { /* the micro views built and primed first, as the slot does: a dive into them waits for that (scene.goTo, tests/dive-never-black.test.ts) */ }
   const lr = viewRoom('lobule', vp, 'desktop'), sr = viewRoom('sinusoid', vp, 'desktop');
   s.rig.goTo('play', lr, 0); s.update(0);
   s.setView('lobule', 10); s.goTo(lobuleShot('lobule'), lr, 10, 1500);

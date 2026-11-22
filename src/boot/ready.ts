@@ -18,12 +18,12 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false;
+let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
-  waiting = true; done = false; frames = -1; labels = false;
+  waiting = true; done = false; frames = -1; labels = false; compiled = false;
   document.documentElement.dataset.boot = 'wait';
   clock.cancel(timer);
   timer = clock.afterReal(release, BOOT_FAILSAFE_MS);
@@ -32,9 +32,15 @@ export function holdSplash(lifter?: Lift): void {
 /** True from holdSplash() until the cover is released or failed: the figure has not been drawn yet, so a lost context is a boot failure, not something to recover from. */
 export const splashHeld = (): boolean => waiting && !done;
 
-/** The scene drew a frame. The first one starts the count; the frame after it has placed the labels, and the splash goes. */
+/** Every program the figure can ask for is compiled (Stage's warm-up under the splash: materials/prototypes.ts), or the warm-up's cap ran out. The cover never lifts before this, except by the failsafe: the
+ *  splash is the one place allowed to be slow, and a program that compiles after the lift is a stall in front of the viewer (L3, 21 Nov). */
+export function compileDone(): void { compiled = true; }
+/** Whether the programs are compiled (tests, and Stage's first frame). */
+export const programsCompiled = (): boolean => compiled;
+
+/** The scene drew a frame. The first one starts the count; the frame after it has placed the labels, and the splash goes. A frame before `compileDone()` does not count. */
 export function figureDrawn(): void {
-  if (!waiting || done) return;
+  if (!waiting || done || !compiled) return;
   if (frames < 0) {
     frames = 0; firstAt = clock.now(); stamp('first-draw');
     off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - firstAt > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);

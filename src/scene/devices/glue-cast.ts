@@ -94,7 +94,7 @@ export class GlueCast {
     this.course = { P, cum, L: cum[cum.length - 1]! };
     const mk = (g: BufferGeometry, tone: ConstructorParameters<typeof DeviceObject>[1], order: number, px: number): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order }, 'ink');
-      o.group.visible = false; this.group.add(inVesselPass(o.group)); this.objects.push(o); return o;
+      o.park(); this.group.add(inVesselPass(o.group)); this.objects.push(o); return o;
     };
     this.castGeo = allocTube(CAST_RINGS, CAST_RADIAL); writeRings(this.castGeo, this.castRings, CAST_RADIAL);
     this.cast = mk(this.castGeo, 'glue', 1, 0.6);
@@ -105,7 +105,6 @@ export class GlueCast {
       if (!g.getAttribute('tang')) g.setAttribute('tang', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3));
       this.flashes.push(mk(g, 'trPv', 3, 0));
     }
-    this.group.visible = false;
   }
 
   /** The varix's centreline at share f of its course and the unit direction there (scene units). */
@@ -147,7 +146,7 @@ export class GlueCast {
       this.key = ck;
     }
     const coilOn = op > 0.002 && this.coilN > 1;
-    this.coil.group.visible = coilOn; if (coilOn) this.coil.setAlpha(op);
+    this.coil.show(coilOn); if (coilOn) this.coil.setAlpha(op);
     // the cast: an opaque plug as wide as the lumen, its ends soft, from lo to hi along the varix
     const range = op > 0.002 ? castRange(col, g) : null;
     if (range) {
@@ -159,16 +158,15 @@ export class GlueCast {
       }
       writeRings(this.castGeo, rs, CAST_RADIAL);
     }
-    this.cast.group.visible = !!range; if (range) this.cast.setAlpha(op);
+    this.cast.show(!!range); if (range) this.cast.setAlpha(op);
     // the hit's rings at the needle's point
     const f = s.flash, tg = glueTarget3();
     this.flashes.forEach((o, i) => {
       const on = f > 0 && op > 0.002, k = i ? (f + 0.5) % 1 : f;
-      o.group.visible = on;
+      o.show(on);
       if (!on) return;
       o.setAlpha((1 - k) * (1 - k) * 0.85 * op); o.group.position.copy(tg); o.group.scale.setScalar((1.4 + 6 * k) / U);
     });
-    this.group.visible = this.coil.group.visible || this.cast.group.visible || this.flashes.some((o) => o.group.visible);
   }
 
   /** Take it all away (the slide is left, or the procedure is played again). */

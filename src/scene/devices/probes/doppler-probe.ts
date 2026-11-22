@@ -177,7 +177,6 @@ export class DopplerProbe {
     this.wedge = new Mesh(this.wedgeGeo, this.wedgeMat);
     this.wedge.renderOrder = 1000; this.wedge.frustumCulled = false; this.wedge.visible = false;
     this.group.add(this.wedge);
-    this.group.visible = false;
   }
 
   /** Writes the probe's geometry for a frame and what is drawn (the 2D probe's marks in its own frame: x from the gate toward the probe, y across). */
@@ -270,9 +269,9 @@ export class DopplerProbe {
   private paint(a: number, headA: number): void {
     this.headA = headA;
     const vis = a > 0.002;
-    this.group.visible = vis;
-    for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !this.overlay && !(this.shut && this.closing.includes(o)); }
-    for (const o of this.headParts) { const h = a * headA; if (h > 0.002) o.setAlpha(h); o.group.visible = h > 0.002; }
+    // (a mark's presence is STRUCTURAL only (the screen is not on top of it, the display is not shut on it) and never gated on the probe's own fade: the two multiply, and presence is already whole when the probe's `a` starts to rise, so the marks arrive with the probe, not after it; the head's alpha is its own, so its alpha alone brings it and takes it away)
+    for (const o of this.markParts) { o.setAlpha(vis ? a : 0); o.show(!this.overlay && !(this.shut && this.closing.includes(o))); }
+    for (const o of this.headParts) { o.present(); o.setAlpha(a * headA); }
     this.wedge.visible = vis; this.wedgeMat.opacity = a;
   }
 

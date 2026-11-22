@@ -14,7 +14,8 @@ import { coverUp, coverDown } from './curtain.ts';
 import { dipIn, dipOut } from './figure-dip.ts';
 import { onLanded } from '../deck/landing.ts';
 import { rail, OUT_DONE } from '../cards/rail.ts';
-import { D_SMALL, reduced } from '../a11y/motion.ts';
+import { reduced } from '../a11y/motion.ts';
+import { D_SMALL, EASE_IN } from '../motion.ts';
 
 import { clock } from '../../clock/frame.ts';
 let saved: Saved | null = null;
@@ -91,7 +92,7 @@ export function stopTalk(): void {
         rail.leave(plate ? [c, plate] : [c], { dir: 1, par: 1, reduce });
       }
       // the presenter's bar and what else floats over the talk fade with them (2D fades the cards and their glass, then chrome comes back in)
-      for (const b of document.querySelectorAll<HTMLElement>('.dk-bar, .pz-veil')) b.animate?.([{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], { duration: D_SMALL, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+      for (const b of document.querySelectorAll<HTMLElement>('.dk-bar, .pz-veil')) b.animate?.([{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], { duration: D_SMALL, easing: EASE_IN, fill: 'forwards' });
       await wait(cards.length ? (reduce ? D_SMALL : OUT_DONE) + 40 : 0);
       const who = {}, s = saved;
       const dim = s ? dipIn(who) : null;   // (the dim begins with the talk's end, under the chrome coming back)

@@ -109,17 +109,18 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
   const vX = (v: { i0: number; i1: number }) => (X(v.i0) + X(v.i1)) / 2;
   const vText = (v: { i0: number; i1: number; when: string }) => (v.i1 > v.i0 && !narrow && textW(`${v.when} · one visit`, fs, 500) + 12 <= X(v.i1) - X(v.i0) + 12 ? `${v.when} · one visit` : v.when);
   const vKept = keepClear(visits.map(vX), visits.map((v) => textW(vText(v), fs, 600)), W);
-  const am = lk('talk.axis.mark');
+  const am = lk('talk.axis.mark'), said: [number, number][] = [];   // (where the visits' names stand: the time between two visits is only said where it stands clear of them)
   visits.forEach((v, kk) => {
     const now = v.i1 === last, xs = [X(v.i0) - 6, X(v.i1) + 6];
     if (v.i1 > v.i0) shapes.push({ k: 'path', pts: [xs[0]!, B + 5, xs[0]!, B + 9, xs[1]!, B + 9, xs[1]!, B + 5], pen: pen(am) });
-    if (vKept.has(kk)) say(vX(v), ty, vText(v), lk('talk.when', { now }), { anchor: 'middle' });
+    if (vKept.has(kk)) { say(vX(v), ty, vText(v), lk('talk.when', { now }), { anchor: 'middle' }); const hw = textW(vText(v), fs, 600) / 2; said.push([vX(v) - hw, vX(v) + hw]); }
   });
   visits.slice(1).forEach((v, kk) => {
     const a = X(visits[kk]!.i1), b = X(v.i0), mx = (a + b) / 2, d0 = daysOf(visits[kk]!.day), d1 = daysOf(v.day), span = d0 != null && d1 != null && d1 > d0 ? spanWords(d1 - d0) : '';
     if (b - a < 16) return;
     shapes.push({ k: 'path', pts: [mx - 5, B + 4, mx - 1, B - 4], pen: pen(am) }, { k: 'path', pts: [mx + 1, B + 4, mx + 5, B - 4], pen: pen(am) });
-    if (span && b - a >= textW(span, fs, 500) + 16) say(mx, ty, span, lk('talk.span'), { anchor: 'middle' });
+    const sw2 = span ? textW(span, fs, 500) / 2 : 0;
+    if (span && b - a >= 2 * sw2 + 16 && said.every(([x0, x1]) => mx + sw2 + 4 <= x0 || mx - sw2 - 4 >= x1)) say(mx, ty, span, lk('talk.span'), { anchor: 'middle' });
   });
   // The readings rows under the plot (those the box has room for), each value under its state (where it stands clear), named in the right column.
   const gapV = pts.map((p) => f1((p.fp.pv || 0) - (p.fp.whvp || 0))), hvV = pts.map((p) => f1(p.fp.hvpg || 0));

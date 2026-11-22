@@ -2,7 +2,7 @@
 // with opacity < 1 (it is a backdrop root), so every frosted face inside them lost its blur on the first frame of the fade. Now the wholes stay opaque and each part fades by itself: the glass
 // faces (which keep their own blur while their own opacity falls) and every glass-free part that is a child of something holding glass. CSS (chrome-3d.css) sets the resting state, 0 in a talk;
 // this plays the way there and back on the compositor, in the commit that changes the mode (a layout effect, so no frame is drawn at the new state first).
-import { D_SURFACE } from '../a11y/motion.ts';
+import { D_SURFACE, EASE_ARRIVE } from '../motion.ts';
 
 /** The frosted faces the glass list gives the top bar and the dock (glass.css): the patient and figure pills' faces, the actions pill, the view switch, the dock's and the view pill's faces. */
 export const FROSTED = '.tb-face, .vd-face, .vp-face, .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg';
@@ -14,7 +14,7 @@ export function fadeChrome(root: ParentNode, away: boolean): void {
   for (const el of root.querySelectorAll<HTMLElement>(FADERS)) {
     el.getAnimations?.().forEach((a) => { if (a.id === ID) a.cancel(); });
     if (!el.animate) continue;
-    const a = el.animate({ opacity: away ? [1, 0] : [0, 1] }, { duration: D_SURFACE, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: away ? 'forwards' : 'none' });
+    const a = el.animate({ opacity: away ? [1, 0] : [0, 1] }, { duration: D_SURFACE, easing: EASE_ARRIVE, fill: away ? 'forwards' : 'none' });
     a.id = ID;
   }
 }

@@ -14,9 +14,18 @@ export interface Want {
   dim: boolean;
   /** What the label says besides its place (the form's words, its unit, change badge, alert, reversal mark): a new key is new words, crossed over as a move is. */
   key?: string;
+  /** What the label wears besides its words (the colour the slide gives it, the velocity lens's tint, the Doppler gate's weight): a new look is crossed over as new words are. Refreshed every frame from the live label; the old picture keeps its own in `snap`. */
+  look?: string;
   /** What the label said (words, unit, badge, alert, mark) when this place was solved: kept so the picture it leaves can be drawn as it was. */
   snap?: unknown;
 }
+
+/** The key a label's picture is known by: its words and its look. */
+const keyOf = (w: { key?: string; look?: string }): string => (w.look ? `${w.key ?? ''}|${w.look}` : w.key ?? '');
+
+/** The look a label wears, as the fader keys it: DISCRETE by construction. The slide's tone (a token) and the Doppler gate (on or off) are states; the velocity tint is a colour that follows a reading
+ *  smoothly, so only whether there is one is a state (a point that gains or loses its tint crosses over); its colour glides in place with the number and never starts a crossing. */
+export const lookKey = (tone: string | null, tinted: boolean, gate: boolean): string => `${tone ?? ''}|${tinted ? 't' : ''}|${gate ? 1 : 0}`;
 
 /** The picture a label is leaving. */
 export interface Ghost { p: Placement; key: string; snap: unknown }
@@ -61,14 +70,14 @@ export class LabelFader {
     let busy = false;
     const out = dt / FADE.outMs, inn = dt / FADE.inMs, dimStep = dt / FADE.dimMs, cross = dt / FADE.moveMs;
     for (const [id, w] of wants) {
-      if (!this.st.has(id) && !hold) this.st.set(id, { p: w.p, ref: w.p, key: w.key ?? '', snap: w.snap, alpha: 0, dim: w.dim ? 1 : 0, from: null, mix: 1, u: 1 });
+      if (!this.st.has(id) && !hold) this.st.set(id, { p: w.p, ref: w.p, key: keyOf(w), snap: w.snap, alpha: 0, dim: w.dim ? 1 : 0, from: null, mix: 1, u: 1 });
     }
     for (const [id, s] of this.st) {
       const w = wants.get(id);
       const target = hold || !w ? 0 : 1;
       // a new place or new words: cross over from the old picture to the new (an invisible label simply takes it)
       if (w && !hold) {
-        const key = w.key ?? '';
+        const key = keyOf(w);
         const moved = !samePlace(s.p, w.p), reworded = key !== s.key;
         if (moved || reworded) {
           const invisible = s.alpha <= 0.001;

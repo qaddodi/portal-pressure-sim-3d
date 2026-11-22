@@ -4,6 +4,7 @@
 // geometry on a GPU only). Three.js builds a ShaderMaterial's final source itself, in WebGLProgram: its own prefix (version, precision, built-in attributes and uniforms, the
 // `attribute`/`varying` defines, the colour-space helpers) and then ours. `assemble` rebuilds that text exactly, so tests/glsl-compile.test.ts can hand it to glslang (the Khronos
 // reference compiler, no browser) and the ?gl page can compare it with what the device's own compiler says.
+import { isStandIn } from '../scene/materials/program-key.ts';
 import { type Material, type Object3D, type ShaderMaterial, ShaderChunk, BackSide, DoubleSide, NormalBlending } from 'three';
 
 export interface Program {
@@ -92,6 +93,7 @@ const isShader = (m: Material | undefined): m is ShaderMaterial => !!m && (m as 
 export function collectMaterials(root: Object3D, named: ReadonlyMap<string, string> = new Map()): Program[] {
   const byKey = new Map<string, Program>();
   root.traverse((o) => {
+    if (isStandIn(o)) return;   // (compile-only: materials/prototypes.ts)
     const mat = (o as unknown as { material?: Material | Material[] }).material;
     for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) {
       if (!isShader(m)) continue;
@@ -192,7 +194,7 @@ export function declarations(src: string): Decl[] {
 const slotsOf = (d: Decl) => (SLOTS[d.type] ?? 1) * (Number.isFinite(d.array) ? d.array : 1);
 
 export interface Budget { attributes: number; varyings: number; samplers: number; vertexUniformVectors: number; fragmentUniformVectors: number }
-/** The slots a program asks of the GPU, counted from its own source plus three's built-ins. The ES 3.0 floor every phone meets: 16 attributes, 15 varying vectors, 16 samplers a stage, 256 and 224 uniform vectors. */
+/** The slots a program asks of the GPU, counted from its own source plus three's built-ins. The ES 3.0 floor every phone meets: 16 attributes, 15 varying vectors (each declaration counts a whole row: real drivers do not all pack per ES 2.0 Appendix A), 16 samplers a stage, 256 and 224 uniform vectors. */
 export function budget(p: Program): Budget {
   const v = declarations(p.vertexGlsl), f = declarations(p.fragmentGlsl);
   const attrs = v.filter((d) => d.storage === 'attribute' || d.storage === 'in');

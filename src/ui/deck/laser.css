@@ -1,7 +1,7 @@
 /* The laser's spotlight (src/ui/deck/laser.ts; 2D ink-gl.js): clear inside the window, the stage's own colour at 62% outside it, a faint ring in the pen's colour at the window's edge.
    Five plates: the window's square (its soft edge painted once: 2D's smoothstep from 0.8 R to 1.55 R) and four plain 1 px plates stretched round it. Moved by transform, shown by opacity. */
 .laser { position: fixed; inset: 0; z-index: 7;   /* above the figure and its tags (5), under the cards (10) */
-  overflow: hidden; pointer-events: none; opacity: 0; transition: opacity var(--d-flip, 120ms) linear; contain: strict;
+  overflow: hidden; pointer-events: none; opacity: 0; transition: opacity var(--d-flip) linear; contain: strict;
   --lv: var(--stage-bg, var(--bg, #F1EBE0)); --veil: color-mix(in srgb, var(--lv) 62%, transparent); }
 .laser > i { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .laser-plate { width: 1px; height: 1px; background: var(--veil); }

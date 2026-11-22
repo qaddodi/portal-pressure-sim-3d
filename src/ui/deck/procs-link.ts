@@ -13,9 +13,8 @@ import { useShell } from '../shell/store.ts';
 import { viewAt } from './presenter-machine.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { currentParams, updateParams } from '../action/params.ts';
-import { latestMetrics } from '../../decks/hp/figure-engine.ts';
+import { latestMetrics, engineSend } from '../../decks/hp/figure-engine.ts';
 import { useStates } from '../../decks/hp/calc.ts';
-import { engine } from '../../engine/index.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { route3d } from '../../scene/procedures/route3d.ts';
 import { CATH_END } from '../../scene/procedures/copied/cath-arrival.js';
@@ -113,7 +112,7 @@ export function linkProcs(): () => void {
     const morph = !!(sp as { morph?: boolean }).morph, scope = (sp as { scope?: 'band' }).scope ?? null, snaps = morph ? snapsOfSlide() : null;
     const c: Ctl = { kind, base, n, at: -1, hold, applied: false, original: params0, last: { name: '', at: 0 }, snaps };
     // (a morph procedure's change is the engine's: from the state before the slide to the slide's own, or back)
-    const change = (on: boolean): void => { if (c.snaps) engine().send({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };
+    const change = (on: boolean): void => { if (c.snaps) engineSend({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };
     ctl = c; playing = true; phase = 'run';
     sceneApi.procedure.drive(kind, {
       keep: hold,
@@ -138,7 +137,7 @@ export function linkProcs(): () => void {
         playing = false; held = false; ctl = null; sceneApi.follow(null);
         if (rewound) {
           // Back from the first step: the slide as it was (the patient who had the result has it again)
-          if (c.snaps) engine().send({ type: 'morph', snap: c.snaps.own, ms: MORPH_BACK_MS });   // (the slide's own state, as it landed)
+          if (c.snaps) engineSend({ type: 'morph', snap: c.snaps.own, ms: MORPH_BACK_MS });   // (the slide's own state, as it landed)
           else if (c.original) updateParams(() => c.original as never, { history: false, label: sp.name });   // (the patient as he was, who may have had the result: unapply took it off as the sequence went back past it)
           if (eus || scope) useProbes.getState().setEndoscope({ on: false });   // (the scope goes out with the run it was part of)
           phase = base > 0 ? 'between' : 'wait'; setProc({ phase: 'wait', at: base - 1, ring: base - 1 });
@@ -199,7 +198,7 @@ export function linkProcs(): () => void {
       if (g !== gen) return;
       starting = false;
       const had = !!params && sp.had(params), sn = (sp as { morph?: boolean }).morph ? snapsOfSlide() : null;
-      if (sn) engine().send({ type: 'morph', snap: sn.before, ms: MORPH_BACK_MS });   // (an engine action cannot be taken back: the run starts from the state before the slide)
+      if (sn) engineSend({ type: 'morph', snap: sn.before, ms: MORPH_BACK_MS });   // (an engine action cannot be taken back: the run starts from the state before the slide)
       else if (had) updateParams((q) => sp.undo(q) as never, { history: false, label: `${sp.name} undone` });
       setProc({ why: '', phase: 'play', at: -1, ring: 0 });
       const then = r.p.then && specFor(r.p.then) ? r.p.then : null;

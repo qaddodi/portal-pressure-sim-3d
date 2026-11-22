@@ -59,6 +59,9 @@ const tex = (data: Float32Array, w: number, h: number): DataTexture => {
   return t;
 };
 
+/** What the blood streaks' material is built with besides its shaders (the program stand-in, materials/prototypes.ts, wears the same). */
+export const STREAK_FLAGS = { transparent: true, depthWrite: false, depthTest: true } as const;
+
 export class BloodCells {
   private points: Points | null = null;
   private material: ShaderMaterial | null = null;
@@ -155,7 +158,7 @@ export class BloodCells {
     const tone = (t: string): { value: Color } => (deps.object(deps.vessels.find((v) => v.tone === t && !v.feeder)?.id ?? '')?.toon.uniforms.color as { value: Color } | undefined) ?? { value: new Color(0.5, 0.5, 0.5) };
     const lens = deps.lens, b = deps.blood, sh = deps.shared;
     this.material = new ShaderMaterial({
-      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, transparent: true, depthWrite: false, depthTest: true,
+      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, ...STREAK_FLAGS,
       uniforms: {
         streamTex: b.streamTex as { value: Texture }, projY: b.projY, dpr: b.dpr, res: sh.res, vdata: sh.vdata, vdataSize: sh.vdataSize,
         courseTex: { value: this.courseTex }, edgeTex: { value: this.edgeTex }, amount: { value: 0 },

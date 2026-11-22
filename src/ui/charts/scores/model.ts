@@ -117,7 +117,8 @@ export function scoresLayout(W: number, f: number, meas: Measure, s: Scores, not
   y += wrapWords(s.inputs, W, pl, wt('stiff.plt'), meas, 2).length * pl * 1.3;
   if (s.verdict) {
     y += f * 0.5;
-    const vl = wrapWords(s.verdict.text, W, pl, wt('stiff.plt'), meas, 3);
+    // (the verdict is drawn in its tone's look, 600, and measured at that weight: measured at the plain words' 500 its lines were set up to 4 px wider than the box and the last letters were cut)
+    const vl = wrapWords(s.verdict.text, W, pl, wt('stiff.v'), meas, 3);
     vl.forEach((l, i) => say(0, y + pl * (0.8 + i * 1.3), l, `stiff.v.${s.verdict!.tone}`));
     y += vl.length * pl * 1.3;
   }
