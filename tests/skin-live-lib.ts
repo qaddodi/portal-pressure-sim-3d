@@ -10,6 +10,8 @@ import { facetSag } from '../src/scene/vessels/skin/facet-sag.ts';
 import { SKIN_ARM_ABSENT, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { sd3, type GateSkin } from './skin-gate-lib.ts';
+import { skinNormalTwin, skinShadeK, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
+import { lightUnit } from '../src/scene/vessels/cel-ink.ts';
 
 const U = 300;
 const smooth = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -35,7 +37,7 @@ export interface LiveVariant {
 }
 export interface LiveCase { swell: readonly number[]; keep: readonly boolean[] }
 /** `covered` pixels the skin's front faces cover; `lumenRef` of them the live union (kept arms, no depth rule) says are lumen; `hole` of those no fragment is drawn at (every face over it is dropped: the tube is cut there, so it is background); `inkOnly` of those the nearest drawn fragment is line only (black where it should be vessel). */
-export interface LiveStat { node: string; covered: number; lumenRef: number; hole: number; inkOnly: number }
+export interface LiveStat { node: string; covered: number; lumenRef: number; hole: number; inkOnly: number; /** pixels inside the hull of the seam rings (where the tubes are cut and only the skin can draw) the live union calls vessel */ hullVessel: number; /** of those, pixels no kept fragment is drawn at: the figure shows background there, a hole through the vessel */ hullHole: number; hullInkOnly: number; /** pixels the shipped rule draws that the rule before it dropped (the stub of an arm that is not there, now in the host's lumen) */ newlyDrawn: number; /** of those, pixels whose shade normal differs by over 15 degrees between the union with every arm and the union of the arms that are there */ newlyDrawnShadeOff: number; /** and whose lit measure n.L differs by over 0.2 (a cel band flips) */ newlyDrawnBandFlip: number }
 
 /** The camera the app has on a phone's screen, brought in on `centre` so one scene unit is `pxPerUnit` CSS px (the figure's depth scale; the rig's own orientation is kept). */
 export function closeCamera(scene: CelScene, w: number, h: number, centre: readonly number[], pxPerUnit: number, view?: { yaw: number; pitch?: number }): PerspectiveCamera {
@@ -55,7 +57,7 @@ export function closeCamera(scene: CelScene, w: number, h: number, centre: reado
 }
 
 /** One skin at one screen and one patient's live numbers, rastered by the fragment stage's outline rule. */
-export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h: number, dpr: number, cs: LiveCase, variant: LiveVariant = {}, opts?: { probe?: { x: number; y: number; log: (m: string) => void }; map?: (b: Map<number, { w: number; lumen: boolean; ref: boolean }>, W: number, H: number) => void }): LiveStat {
+export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h: number, dpr: number, cs: LiveCase, variant: LiveVariant = {}, opts?: { normals?: boolean; holes?: (x: number, y: number, kind: 'hole' | 'ink') => void; probe?: { x: number; y: number; log: (m: string) => void }; map?: (b: Map<number, { w: number; lumen: boolean; ref: boolean }>, W: number, H: number) => void }): LiveStat {
   const { mesh, axes, node } = skin, arms = mesh.junction.arms, n = axes.length;
   cam.updateMatrixWorld();
   const PV = new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
@@ -84,6 +86,7 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
 
   // per pixel: the nearest fragment the shader keeps (its depth, whether it is lumen), and whether the live union says the pixel is vessel
   const best = new Map<number, { w: number; lumen: boolean; ref: boolean }>();
+  const nd = { a: 0, b: 0, c: 0 };
   const idx = mesh.index;
   for (let t = 0; t < idx.length; t += 3) {
     const a = idx[t]!, b = idx[t + 1]!, c = idx[t + 2]!;
@@ -115,9 +118,9 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
         const gap = sd3(axes[arm]!, fragP, holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr;
         return d + 2 * kPx * (smooth(0.25 * kPx, kPx, gap) - sub);
       };
-      const sdOf = (depth: boolean, holdLive: boolean, absentIn: boolean): number => {
+      const sdOf = (depth: boolean, holdLive: boolean, absentIn: boolean, subOverride?: number): number => {
         const live = axes.map((_, i) => arms[i] != null && (absentIn || cs.keep[i]));
-        const sub = depth && !variant.absoluteHold ? Math.min(...axes.map((_, i) => (live[i] ? armHeld(i, holdLive) : 1))) : 0;
+        const sub = subOverride != null ? subOverride : depth && !variant.absoluteHold ? Math.min(...axes.map((_, i) => (live[i] ? armHeld(i, holdLive) : 1))) : 0;
         const d = axes.map((_, i) => !live[i] ? 1e9 : armPx(i, depth, holdLive, sub) + 2 * kPx * (1 - smooth(0, SKIN_ARM_ABSENT, cs.swell[i]!)));
         let o = 0, first = true;
         for (let i = 0; i < n; i++) {
@@ -133,13 +136,48 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       let wMax = 0; for (let i = 0; i < n; i++) wMax = Math.max(wMax, variant.absentInUnion ? wAt[i]! : raw[i]! * (cs.keep[i] ? 1 : 0));
       const band = inkDev + 0.5 + SKIN_SEAM_PAD_PX * dpr * smooth(0.75, 0.97, wMax);
       if (opts?.probe && x === opts.probe.x && y === opts.probe.y) opts.probe.log(`tri ${t / 3} sd ${sd.toFixed(2)} ref ${ref.toFixed(2)} band ${band.toFixed(2)} w ${fragW.toFixed(4)} d/arm ${axes.map((_, i) => armPx(i, true, false).toFixed(1)).join(',')} nodepth ${axes.map((_, i) => armPx(i, false, false).toFixed(1)).join(',')} raw ${raw.map((r) => r.toFixed(2)).join(',')} kPx ${kPx.toFixed(1)}`);
+      if (opts?.normals && sd <= band) {
+        const old = sdOf(true, !!variant.holdoutLive, !!variant.absentInUnion, 0);
+        if (old > band) {
+          nd.a++;
+          const k = skinShadeK(kM, wpc(fragW)), tw = (off: readonly boolean[]): TwinArm[] => axes.map((ax, i) => ({ pts: ax.pts.flat(), r: ax.radii, mate: ax.mate, sw: cs.swell[i]!, off: off[i]! }));
+          const nAll = skinNormalTwin(tw(axes.map(() => false)), k, fragP[0]!, fragP[1]!, fragP[2]!, SKIN_ARM_ABSENT), nKept = skinNormalTwin(tw(cs.keep.map((q) => !q)), k, fragP[0]!, fragP[1]!, fragP[2]!, SKIN_ARM_ABSENT), L = lightUnit();
+          const cosA = nAll[0] * nKept[0] + nAll[1] * nKept[1] + nAll[2] * nKept[2], dS = Math.abs((nAll[0] - nKept[0]) * L[0] + (nAll[1] - nKept[1]) * L[1] + (nAll[2] - nKept[2]) * L[2]);
+          if (Math.acos(Math.min(1, Math.max(-1, cosA))) > 15 * Math.PI / 180) nd.b++;
+          if (dS > 0.2) nd.c++;
+        }
+      }
       const drop = sd > band, key = y * W2 + x, cur = best.get(key) ?? { w: Infinity, lumen: false, ref: false };
       cur.ref = cur.ref || ref <= -0.5;
       if (!drop && fragW < cur.w) { cur.w = fragW; cur.lumen = sd <= -0.5; }
       best.set(key, cur);
     }
   }
-  const st: LiveStat = { node, covered: best.size, lumenRef: 0, hole: 0, inkOnly: 0 };
+  const st: LiveStat = { node, covered: best.size, lumenRef: 0, hole: 0, inkOnly: 0, hullVessel: 0, hullHole: 0, hullInkOnly: 0, newlyDrawn: nd.a, newlyDrawnShadeOff: nd.b, newlyDrawnBandFlip: nd.c };
+  // the hull of the seam rings: the tubes are cut at their rings, so inside it the skin is the only thing that draws
+  {
+    const pts = mesh.seamVerts.flatMap((r) => [...r]).map((v) => [sx[v]!, sy[v]!] as const).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    const cross = (o: readonly number[], a: readonly number[], b: readonly number[]): number => (a[0]! - o[0]!) * (b[1]! - o[1]!) - (a[1]! - o[1]!) * (b[0]! - o[0]!);
+    const half = (list: readonly (readonly [number, number])[]): (readonly [number, number])[] => { const h: (readonly [number, number])[] = []; for (const q of list) { while (h.length >= 2 && cross(h[h.length - 2]!, h[h.length - 1]!, q) <= 0) h.pop(); h.push(q); } return h; };
+    const lo = half(pts), up = half([...pts].reverse()), hull = [...lo.slice(0, -1), ...up.slice(0, -1)];
+    const kRef = kM / wpc(clip(mesh.junction.J).w) * dpr;
+    const flat = (fx: number, fy: number): number => {
+      const d = axes.map((_, i) => (arms[i] == null || !cs.keep[i]) ? 1e9 : (() => { const P = apLive[i]!; return Math.min(...([[P[0], P[1]], [P[1], P[2]], [P[2], P[3]]] as number[][][]).map(([p, q]) => { const abx = q![0]! - p![0]!, aby = q![1]! - p![1]!, tt = Math.min(1, Math.max(0, ((fx - p![0]!) * abx + (fy - p![1]!) * aby) / Math.max(abx * abx + aby * aby, 1e-6))); return Math.hypot(fx - p![0]! - abx * tt, fy - p![1]! - aby * tt) - (p![2]! + tt * (q![2]! - p![2]!)); })); })() + 2 * kRef * (1 - smooth(0, SKIN_ARM_ABSENT, cs.swell[i]!)));
+      let o = 0, first = true;
+      for (let i = 0; i < n; i++) { const m = mates[i]!; if (m > -0.5 && m < i - 0.5) continue; let di = d[i]!; if (m > i + 0.5) di = Math.min(di, d[m]!); o = first ? di : smin(o, di, kRef); first = false; }
+      return o;
+    };
+    const inHull = (x: number, y: number): boolean => { let sign = 0; for (let i = 0; i < hull.length; i++) { const c = cross(hull[i]!, hull[(i + 1) % hull.length]!, [x, y]); if (c !== 0) { if (sign === 0) sign = Math.sign(c); else if (Math.sign(c) !== sign) return false; } } return true; };
+    if (hull.length >= 3) {
+      const xs = hull.map((q) => q[0]), ys = hull.map((q) => q[1]);
+      for (let y = Math.max(0, Math.floor(Math.min(...ys))); y <= Math.min(H2 - 1, Math.ceil(Math.max(...ys))); y++) for (let x = Math.max(0, Math.floor(Math.min(...xs))); x <= Math.min(W2 - 1, Math.ceil(Math.max(...xs))); x++) {
+        if (!inHull(x + 0.5, y + 0.5) || flat(x + 0.5, y + 0.5) > -0.5) continue;
+        st.hullVessel++;
+        const c = best.get(y * W2 + x);
+        if (!c || c.w === Infinity) { st.hullHole++; opts?.holes?.(x, y, 'hole'); } else if (!c.lumen) { st.hullInkOnly++; opts?.holes?.(x, y, 'ink'); }
+      }
+    }
+  }
   for (const p of best.values()) if (p.ref) { st.lumenRef++; if (p.w === Infinity) st.hole++; else if (!p.lumen) st.inkOnly++; }
   if (opts?.map) opts.map(best, W2, H2);
   return st;

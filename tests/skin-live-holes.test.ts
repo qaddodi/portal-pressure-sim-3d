@@ -63,3 +63,18 @@ test('the outline\'s hold-out is relative to the least-held arm that is there', 
   assert.match(SKIN_FS, /heldMin = min\(heldMin, heldOf\[i\]\)/);
   assert.match(SKIN_FS, /\(heldOf\[i\] - heldMin\)/);
 });
+
+test('the shade follows the outline: at the Schistosomiasis azygos, the stub pixels the host now draws are shaded from the union of the arms that are there (the all-arm union would flip a cel band at two thirds of them: the ragged pale patch)', async () => {
+  const g = gateSkins();
+  try {
+    const s = g.skins.find((k) => k.node.startsWith('wall:AZY_SVC'))!, arms = s.mesh.junction.arms, fr = await frameOf('schisto');
+    const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
+    const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
+    const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0 });
+    const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, {}, { normals: true });
+    assert.ok(r.newlyDrawn > 200, `${r.newlyDrawn} stub pixels are drawn in the host's lumen`);
+    assert.ok(r.newlyDrawnBandFlip / r.newlyDrawn > 0.4, `${r.newlyDrawnBandFlip} of ${r.newlyDrawn} would change cel band if shaded as a stub`);
+    const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
+    assert.match(SKIN_FS, /\* keepOf\(i\)\);/, 'and the shader leaves the arms that are not there out of the shade union');
+  } finally { g.done(); }
+});

@@ -287,7 +287,7 @@ ${CHEV_CREAM_GLSL}
 ${FLOW_MARKS_GLSL}
 ${SKIN_WALL_GLSL}
 // (the arms' exact 3D distances come first: the outline's depth hold-out below reads them)
-${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`)}
+${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`, (arm) => `keepOf(${arm})`)}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
