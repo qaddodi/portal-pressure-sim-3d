@@ -392,7 +392,7 @@ export function bracketLabel(x0, x1, wd, parts = [wd, 0]) {
  *  tw(t, weight): a text's width at f. → { mode (bracketLabel's), fs (the label's type size, px) } */
 export const BR_MIN = 12;
 export function bracketFit(span, name, tw, f) {
-  const wd = tw(`${name} 00`, 700), parts = [tw(name, 600), tw('00', 700)];
+  const wd = tw(`${name} 00.0`, 700), parts = [tw(name, 600), tw('00.0', 700)];
   const at = (fs) => bracketLabel(0, span, wd * fs / f, parts.map((q) => q * fs / f)).mode;
   // (The bar showing each side of it first, as the PPG's does, in smaller type where that keeps it (Mohammad, 19 Oct: "the bracket
   // horizontal lines should show for HVPG, if not make it a bit smaller"); else between the ends with the bar left out. Each the
@@ -455,7 +455,7 @@ export function numberSides(G, tw, goal) {
  *  case's pills tint as the chart's do. [] where the fingerprint has no profile. */
 export function pillReadings(fp) {
   const p = profileOf(fp);
-  return p ? (hasStent(fp) ? spansStented(SPANS) : SPANS).filter(([k]) => Number.isFinite(p[k])).map(([k, name]) => ({ k, name, v: whole(p[k]), rate: RATE[k](p[k])[0] })) : [];
+  return p ? (hasStent(fp) ? spansStented(SPANS) : SPANS).filter(([k]) => Number.isFinite(p[k])).map(([k, name]) => ({ k, name, v: one(p[k]), rate: RATE[k](p[k])[0] })) : [];
 }
 /** The two readings as pills in the plot's top right (Mohammad, 22 Oct: "add two pills HVPG and PPG ... on top right for each card"):
  *  "HVPG 4" and "PPG 16", each as wide as its name and the widest value (00), so a number changing never moves an edge. → { w: [HVPG's,
@@ -463,7 +463,7 @@ export function pillReadings(fp) {
 export const PILL_GAP = 4;
 export function pillSize(G, tw) {
   const { f } = G, pad = 0.6 * f;
-  return { w: (G.spans || SPANS).map(([, name]) => tw(`${name} 00`, 700) + 2 * pad), h: 1.5 * f, pad };
+  return { w: (G.spans || SPANS).map(([, name]) => tw(`${name} 00.0`, 700) + 2 * pad), h: 1.5 * f, pad };
 }
 /** Where the two pills stand on the chart G for the goal profile (hl, bf: the healthy and the earlier line; sides: numberSides; brk: the
  *  brackets' rows, where they are settled first): the nearest place to the plot's top right corner (the slide left plus the slide down, a

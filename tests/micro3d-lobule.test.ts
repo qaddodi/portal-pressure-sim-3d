@@ -185,11 +185,11 @@ test('the wedge\'s wash (HVPG slide 5) is drawn on the 3D lobule\'s sinusoids an
 
 test('SOS: a faded scar narrows the central vein from its wall as ONE clean ring that never crosses the middle, growing with fibPost as 2D grows its plug (Mohammad 20 and 21 Nov)', async () => {
   const { buildCvScar, cvScarGrowth, CV_FILL, CV_SCAR_ALPHA, CV_OPEN_MIN } = await import('../src/scene/micro3d/lobule3d.ts');
-  const { BufferGeometry } = await import('three');
+  const { BufferGeometry, BufferAttribute } = await import('three');
   assert.equal(CV_FILL, 0.55, '2D CV_FILL');
   assert.ok(CV_SCAR_ALPHA > 0.3 && CV_SCAR_ALPHA < 0.85, 'faded: see-through, never a solid lid');
   assert.equal(cvScarGrowth(0), 0); assert.ok(Math.abs(cvScarGrowth(1) - 1) < 1e-9);
-  const rw = 0.21, polar = (g: InstanceType<typeof BufferGeometry>, i: number) => Math.hypot(g.getAttribute('position')!.getX(i), g.getAttribute('position')!.getY(i));
+  const rw = 0.21, polar = (g: InstanceType<typeof BufferGeometry>, i: number) => { const p = g.getAttribute('position') as InstanceType<typeof BufferAttribute>; return Math.hypot(p.getX(i), p.getY(i)); };
   let prevArea = 0;
   for (const grow of [0.05, 0.25, 0.5, 0.75, 1]) {
     const g = new BufferGeometry(); buildCvScar(g, rw, grow, 0.03);

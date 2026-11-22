@@ -31,6 +31,8 @@ export const M = {
   /** app-01-chrome.css:406 `.stage-credit { font-size: 12px; line-height: 1.4 }`, credit.js `inset = 12` from the figure's bottom-left corner; app-11-deck-visuals.css:524 `.fps-counter { left/bottom: max(8px, safe); 12px/1.2 }`. */
   creditFont: 12, creditLine: 1.4, creditInset: 12, fpsInset: 8, fpsFont: 12, fpsLine: 1.2,
   /** The phone's dock (app-07-floating.css:151): `left/right: safe + 6px; bottom: safe + 6px`; `.stage-bar.bottom { height: 52px }`; the thumb bar `.nb-tab { height: 48px }` in `padding: 3px 6px 4px` (app-10-thumb-dock.css:5). */
+  /** The one gap between a sheet or card standing over the dock and the dock's top edge (23 Nov 2026, Mohammad: the vessel card sat tight on the time bar). 12 px is the app's own gutter (the dock's `--gap`, the card's side margin). Every sheet's foot reads it: sheetFoot() in room.ts. */
+  sheetGap: 12,
   phoneInset: 6, phoneTimelineH: 52, phoneTabH: 48, phoneTabsPadTop: 3, phoneTabsPadBottom: 4,
 } as const;
 

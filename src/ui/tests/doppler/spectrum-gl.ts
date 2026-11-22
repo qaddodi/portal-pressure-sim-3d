@@ -13,6 +13,7 @@ import type { Under } from '../../charts/gl.ts';
 import { SYNTH_FS } from '../copied/doppler-synth.copied.js';
 import { DISPLAY_FS } from './copied/doppler-gl.copied.js';
 import { MAP } from './copied/doppler-colours.copied.js';
+import { SPECTRUM_PROGRAM, takeWarm } from '../../../boot/warm-programs.ts';
 
 import { clock } from '../../../clock/frame.ts';
 /** The vertex stage: one quad over the trace's rectangle. */
@@ -50,11 +51,15 @@ interface Built { gl: WebGL2RenderingContext; gen: number; prog: WebGLProgram; U
 
 function build(gl: WebGL2RenderingContext, gen: number): Built {
   const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(`doppler spectrum shader: ${gl.getShaderInfoLog(s)}`); return s; };
-  const prog = gl.createProgram()!;
-  gl.attachShader(prog, sh(gl.VERTEX_SHADER, SPECTRUM_VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, SPECTRUM_FS));
-  gl.bindAttribLocation(prog, 0, 'q');
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(`doppler spectrum program: ${gl.getProgramInfoLog(prog)}`);
+  // (the preload ladder compiled this program beside the page, on this same context: src/boot/warm-programs.ts)
+  let prog = takeWarm(SPECTRUM_PROGRAM, gl, gen);
+  if (!prog) {
+    prog = gl.createProgram()!;
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, SPECTRUM_VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, SPECTRUM_FS));
+    gl.bindAttribLocation(prog, 0, 'q');
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(`doppler spectrum program: ${gl.getProgramInfoLog(prog)}`);
+  }
   const U: Record<string, WebGLUniformLocation | null> = {};
   for (const n of UNIS) U[n] = gl.getUniformLocation(prog, n);
   const quad = gl.createBuffer()!;

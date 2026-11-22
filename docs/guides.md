@@ -21,6 +21,7 @@ Needs `pip install pypdf pymupdf`. Re-run it after any change to the 2D guides. 
 | The link | `.../portal-pressure-simulator/preview/` | `.../portal-pressure-sim-3d/preview/` |
 | The line under the title | Beta tester start-up guide | Beta tester start-up guide, 3D build |
 | Step 1 | says a loading screen draws the blood up into the liver | says this is the 3D build, not the 2D app (the 3D app has no loading screen of its own) |
+| Settings sentence | Settings also has Appearance (…) | …and Display (Auto detail), the 3D-only row that lets the figure soften itself on a slow device |
 | Step 4, Send feedback | a link to the exact view; "after about 10 minutes a card asks once" | a link to the exact view (camera and sliders restored) and a short report of what the app's own checks found; the timed card is not in the 3D app |
 
 A paragraph is rewritten in its own text block (the guides are ReportLab output: one `BT ... ET` per paragraph), with the same size, leading, colour and place, and may not grow past the lines it had, because a picture sits under it. The script stops, naming the paragraph, when the 2D guide no longer has the words it looks for or the new words do not fit.

@@ -5,7 +5,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
-import { DEPTH_ROWS } from './depth-rows.ts';
+import { DEPTH_ROWS, AUTO_DETAIL_ROW } from './depth-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
@@ -48,6 +48,12 @@ function FigureDetail() {
       </div>
     </>
   );
+}
+
+/** Auto detail (3D only, N1): the figure's own governor (scene/detail-governor.ts) may take detail off when frames run slow. */
+function AutoDetail() {
+  const on = useSettings((s) => s.autoDetail);
+  return <MenuToggle checked={on} icon={AUTO_DETAIL_ROW.icon} label={AUTO_DETAIL_ROW.label} sub={AUTO_DETAIL_ROW.hint} onChange={(v) => useSettings.getState().set('autoDetail', v)} />;
 }
 
 function useFullscreen() {
@@ -136,7 +142,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
           <MenuGroup title={sec.title}>
             {sec.title === 'Appearance' ? <Looks names={rows.map((r) => r.row)} /> : rows.map(({ row }) => {
               if (row.label.startsWith('Figure detail: ')) return null;
-              if (row.label === 'Figure detail') return <FigureDetail key={row.label} />;
+              if (row.label === 'Figure detail') return <Fragment key={row.label}><FigureDetail /><AutoDetail /></Fragment>;
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
               return <Item key={row.label} row={row} push={setPageId} />;
             })}

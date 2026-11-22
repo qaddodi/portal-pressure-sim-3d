@@ -77,6 +77,6 @@ test('the controller carries a small move of the tip and only cuts for a jump', 
   const c = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
   assert.match(c, /const cutPt = /);
   assert.match(c, /else if \(slidPt\(nowTip, this\.cTipPx\)/);
-  assert.match(c, /this\.show\.ride\(this\.cTipPx, this\.cAheadPx\)/);
+  assert.match(c, /this\.show\.ride\(this\.cutCard \? this\.cutCard\.tip : this\.cTipPx, this\.cutCard \? this\.cutCard\.ahead : this\.cAheadPx\)/);   // (9c859999: a card cut by a change rides the points it was cut at)
   assert.doesNotMatch(c, /movedPt/, 'no 0.35 px move of the catheter\'s tip is a cut any more');
 });

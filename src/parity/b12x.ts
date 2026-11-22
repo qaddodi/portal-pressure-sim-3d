@@ -12,7 +12,7 @@
 //                          Toast.tsx (tests/b12x-cards.test.ts reads it). 2D's note has a warning mark, role="alert", up to two buttons under the words and stays until it is dealt with; the 3D line has
 //                          none of that, so the two with a difference are present only.
 // Not claimed, listed in the batch report: `teaching/scope-tile` (the endoscopic view as a readout tile: the tile key is dropped by the tiles card), `visual/scale` and `visual/quadrant` (no chart draws them).
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 import { CARD_CATALOG, type CardSpecimen } from '../ui/cards/gallery/catalog.generated.ts';
 import { slideOf } from '../decks/hp/deck.ts';
 import { hooksOf, hasHook, missingHooks, type Hook } from '../decks/rw/hooks.ts';
@@ -116,7 +116,7 @@ const SHEETS: Record<string, () => Sheet> = {
 // ── the toasts: `say` is run (its timer is cancelled, and a page with the app mounted is not the page this runs on) ──
 interface Said { tone: string; action: boolean; ms: number }
 function say(tone: 'info' | 'bad', withAction: boolean): Said | null {
-  const ids: number[] = [];
+  const ids: TimerId[] = [];
   const real = clock.after;
   let ms = 0;
   // (the toast's length is the wait it asks the clock for)

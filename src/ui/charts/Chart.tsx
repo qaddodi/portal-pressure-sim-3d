@@ -11,7 +11,7 @@ import type { Frame } from './scene.ts';
 import { frameTable, tableKey, type DataTable } from './table.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 /** What a chart's model gets: the box's width, the colours of the look, the type of the device. */
 export interface ChartCtx { w: number; pal: Palette; type: ChartType; look: LookId; /** the zoom the box lives under (the card's fit, 1 when none): a chart whose words may never be under 12 px on the screen lays itself out at w × fit and scales by 1 / fit (scaleFrame) */ fit?: number }
 
@@ -82,8 +82,8 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     // The card's fit (`--pz-fit`, written on the card's style) changes the zoom the box lives under WITHOUT changing the box's own size (the card's width is fixed): the observer above never fires, and a chart
     // measured under a zoom of 0.88 stayed laid out 1.13 times too wide after the fit went (cut at the right edge, its height overblown, the card sized to it). Look again when the card's style changes.
     const card = el.closest('.dk-card');
-    let again = 0;
-    const mo = card && typeof MutationObserver === 'function' ? new MutationObserver(() => { if (!again) again = clock.after(() => { again = 0; measure(); }, 0); }) : null;
+    let again: TimerId | null = null;
+    const mo = card && typeof MutationObserver === 'function' ? new MutationObserver(() => { if (!again) again = clock.after(() => { again = null; measure(); }, 0); }) : null;
     mo?.observe(card!, { attributes: true, attributeFilter: ['style'], subtree: true });
     return () => { mo?.disconnect(); clock.cancel(again); off(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
   }, [tag]);

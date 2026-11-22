@@ -145,7 +145,7 @@ FPS work is parked in the 3D app (owner's call). `?perf` on any address (the liv
 ## 10. What an agent does with your report
 
 1. Reads it (`npm run debug -- packet show <file>`): did it arrive whole, what failed, in what state. `npm run debug -- packet link <address>` shows what a state link puts back.
-2. Decides from the code, in Node, what the rule says and which file owns it. The 2D app can replay a packet in a layout-only headless run; the 3D app **does not**: no headless browser here (owner's rule), so a replay is you opening the state link on your Mac. `npm run debug -- links` prints the addresses to open.
+2. Decides from the code, in Node, what the rule says and which file owns it. The 2D app can replay a packet in a layout-only headless run; the 3D app **does not**: no headless browser here (owner's rule), so a replay of the screen is you opening the state link on your Mac. `npm run debug -- links` prints the addresses to open. What the figure was asked to do in the last 60 seconds (every layer set or cleared, with the view, sheet, slide and pick inputs) rides in the packet as `state.log`, and `npm run debug -- packet replay <file>` plays it back in node: each entry with the calls the reconciler made on the scene, and the layers still on at the end.
 3. If no rule named it, writes the rule first (with a test that fires and one that must not), so the next bug of its kind finds itself.
 4. Fixes the cause at its owner file and checks the whole app for the same bug.
 5. Asks you to press Report or run the same check again, and compares the two reports (`npm run debug -- report compare <before> <after>`: `FIXED`, `PARTLY`, `NOT-FIXED` or `REGRESSED`, with everything else that changed).

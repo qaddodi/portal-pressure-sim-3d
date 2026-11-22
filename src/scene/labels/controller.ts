@@ -12,7 +12,7 @@ import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
 import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keepExtras, type LabelLevel } from './free-set.ts';
 import { NO_EXTRAS, WIDEST, WIDEST_DELTA, readingLensOf, type Extras } from './readings.ts';
-import { LabelFader, type Want } from './fade.ts';
+import { LabelFader, easeMove, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
@@ -27,6 +27,7 @@ import { STENT_SITES } from '../../engine/hales/portal/topology.js';
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 import type { ProcCards } from './store.ts';
+import { HandWatch, isCut, type HandView } from './hand-watch.ts';
 import { CathShow, calloutsFor, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
 
 export interface LabelDeps {
@@ -70,6 +71,8 @@ export interface LabelDeps {
   extras?(node: string, P: number | null, flags: { selected: boolean; lit: boolean; presenting: boolean }): Extras;
   /** The camera's zoom over the shot's own framing (1 as framed; > 1.3 counts as zoomed in). Absent: 1. */
   zoom?(): number;
+  /** The hand's view of the figure (zoom and pan): a frame in which it changed and no shot moves is the hand's, whose jumps are carried and never cut (hand-watch.ts). Absent: every jump is a cut. */
+  hand?(): HandView;
   /** The Figure menu's label level (none, key, all). Absent: key. */
   level?(): LabelLevel;
   /** The Blood menu's Pressure values (2D `layers.chips`): off, a station's label is its name only (2D `.chips-off .lb-val { display: none }`). Absent: on. */
@@ -226,6 +229,7 @@ export class LabelController {
    *  (the dots' places before the cut) until they are gone and the picture has been still; only then do they ride the new picture again, placed afresh. Fade and move are tied. */
   private cutAnchors: Map<string, { x: number; y: number }> | null = null;
   private cutCard: { tip: [number, number] | null; ahead: [number, number] | null } | null = null;
+  private readonly hand = new HandWatch();
   private cTipPx: [number, number] | null = null;
   private cAheadPx: [number, number] | null = null;
   private cGot: 0 | 1 | 2 = 0;
@@ -436,6 +440,7 @@ export class LabelController {
     // 1. where the dots are. A dot that jumped (a cut, a dive's far end) hides everything until the picture is still; a dot that moved by a little (a hand on the picture, the camera in flight) is carried:
     // every label keeps its place beside it, re-projected each frame.
     let moved = this.firstTick, cutDot = false;
+    const byHand = this.hand.step(d.hand?.(), d.cameraMoving());   // (a pinch, a pan, the wheel: continuous, however far a dot goes in one frame)
     let following = d.cameraMoving();   // (a slide's glide carries the labels exactly as a hand does: they ride it and are placed again where it lands)
     this.firstTick = false;
     const anchors = new Map<string, { x: number; y: number }>();
@@ -447,7 +452,7 @@ export class LabelController {
       anchors.set(m.id, a);
       const was = this.anchors.get(m.id);
       if (!was) this.dirty = true;   // (a station that comes in is placed when the picture is still; the others are not cut by it)
-      else if (Math.hypot(was.x - a.x, was.y - a.y) > FOLLOW_JUMP) { moved = true; cutDot = true; }   // (a dot that jumped is a cut, not a hand: the names leave and return)
+      else if (isCut(Math.hypot(was.x - a.x, was.y - a.y), FOLLOW_JUMP, byHand)) { moved = true; cutDot = true; }   // (a dot that jumped is a cut, not a hand: the names leave and return)
       else if (Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) following = true;
     }
     if (cutDot && !this.cutAnchors) this.cutAnchors = this.anchors;   // (the places the dots stood at before the cut: the fading names keep them)
@@ -474,7 +479,7 @@ export class LabelController {
     // The same two rules as for every dot above: a point that jumped (a cut: it appeared, vanished or leapt) hides the cards until the picture is still; a point that moved by a little (a tilt, the
     // camera following the tip, the scope bending) is CARRIED: the cards ride it (`show.ride`, below) and are placed again at rest. This was `moved` for any 0.35 px, so a tilt or a follow made every
     // card fade out and come back, over and over (Mohammad, 20 Nov: the FHVP, WHVP, HVPG and EUS-PPG callouts "keep flashing in and out of existence").
-    const cutPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && Math.hypot(a[0] - b[0], a[1] - b[1]) > FOLLOW_JUMP);
+    const cutPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && isCut(Math.hypot(a[0] - b[0], a[1] - b[1]), FOLLOW_JUMP, byHand));
     const slidPt = (a: [number, number] | null, b: [number, number] | null) => !!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35);
     if (cutPt(nowTip, this.cTipPx) || cutPt(nowAhead, this.cAheadPx) || got !== this.cGot) { moved = true; if (!this.cutCard) this.cutCard = { tip: this.cTipPx, ahead: this.cAheadPx }; }
     else if (slidPt(nowTip, this.cTipPx) || slidPt(nowAhead, this.cAheadPx)) following = true;
@@ -524,7 +529,7 @@ export class LabelController {
     const busy = anyMoving(this.fader.step(dt, this.wants, hold), this.show.step(dt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 
     // 4. what to draw: each shown label at its spot, following its dot (a cut's dots: where they stood, see cutAnchors)
-    if (!hold && resting) this.cutAnchors = null;
+    if (!hold) this.cutAnchors = null;   // (the names are gone by the time hold ends, FADE.settleMs >= outMs: they come back riding their dots, whether or not the picture is still. Held until `resting` they stood at the old places while the camera still moved)
     const frozen = this.cutAnchors;
     this.out.length = 0;
     const roomBlk = [...d.blockers()];
@@ -559,7 +564,7 @@ export class LabelController {
       const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
       const organ = m.station.kind === 'organ', ringed = !organ;
       const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
-      const alpha = labelOpacity(s.alpha * ra, dim);
+      const alpha = labelOpacity(easeMove(s.alpha * ra), dim);   // (the fade runs linear in time on the clock; it is drawn on the one in-out curve, so a label leaves and arrives softly at both ends: a dive's exit included)
       const snap = s.snap as Snap | undefined;
       const form = m.forms[s.p.form];
       const say = this.live(m, snap);

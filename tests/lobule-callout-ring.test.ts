@@ -52,6 +52,16 @@ test('a lobule callout is a ring, a leader and coloured words, not a glass card 
   assert.match(css, /\.lz-co \{[^}]*--co: var\(--cl-danger/, 'block is the danger red');
 });
 
+test('the content under the ring is softly blurred by the app\'s one glass, eased with the ring and never by a wrapper\'s opacity', () => {
+  const fc = readFileSync('src/scene/labels/figure-cards.ts', 'utf8'), css = readFileSync('src/scene/labels/labels.css', 'utf8');
+  assert.match(fc, /className = 'cl-glass lz-co-focus'/, 'the glass class gives the blur and Blur effect off turns it off');
+  assert.match(fc, /fadeRing\(co, r\.a\)/, 'it fades with the ring');
+  assert.doesNotMatch(fc.split('private paintRing')[1]!.split('\n  }\n')[0]!, /co\.root\.style\.opacity/, 'a fading wrapper would show it unblurred until the fade ends');
+  assert.match(css, /\.lz-co-focus \{[^}]*--glass-blur: [1-8]px/, 'a light blur');
+  assert.doesNotMatch(css.split('.lz-co-focus')[1]!.split('\n')[0]!, /backdrop-filter/, 'glass.css is the only place that blurs');
+  assert.match(css, /reduced-transparency: reduce\) \{ \.lz-co-focus \{ display: none/, 'no solid disc under reduced transparency');
+});
+
 test('a mark on a vessel or an organ is 2D\'s solid pill in its colour', () => {
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
   assert.match(css, /data-fig="mark"\]\[data-tone="danger"\] \.cl-glass[^{]*\{ background: var\(--cl-danger\) !important/);
@@ -60,5 +70,5 @@ test('a mark on a vessel or an organ is 2D\'s solid pill in its colour', () => {
 test('the ring and the leader only move by transform and fade by opacity', () => {
   const fc = readFileSync('src/scene/labels/figure-cards.ts', 'utf8').split('private paintRing')[1]!.split('\n  }\n')[0]!;
   assert.doesNotMatch(fc, /style\.(left|top)\b/);
-  assert.match(fc, /co\.root\.style\.opacity = String/);
+  assert.match(fc, /fadeRing\(co, r\.a\)/);
 });

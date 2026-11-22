@@ -7,6 +7,7 @@
 //   npm run debug -- flags [--json]                       every address flag, where it works and what it does
 //   npm run debug -- report show|compare <file | ->       any tool's report block, a bug packet or a replay: show it, or compare two (before, after)
 //   npm run debug -- packet show <file | ->               a bug packet pasted into a file (or stdin): its text, its findings, whether it arrived whole
+//   npm run debug -- packet replay <file | ->             the last 60 s of what asked the figure to change, in order, with the calls it made on the scene (no browser)
 //   npm run debug -- packet link <address>                what a state link puts back: the patient, talk and slide, look, camera, vessel and sliders
 //   npm run debug -- links [--base <url>] [--sweep <specs>] [--look a,b] [--only ids]   the preview addresses to open on the Mac (debug page, Phone check, Full check, Sweep, device frames)
 //   npm run debug -- test                                 the debug, a11y and feedback unit tests (node only, about a second)
@@ -120,7 +121,17 @@ async function packet() {
     console.log(JSON.stringify(readStateLink(a), null, 2));
     return 0;
   }
-  console.error('usage: debug -- packet show <file | -> | packet link <address>');
+  if (sub === 'replay' && a) {
+    const { parsePacket } = await import('../src/ui/debug/core/packet.copied.js');
+    const { cleanLog, replayIntents, replayText } = await import('../src/scene/intent-replay.ts');
+    const r = parsePacket(readInput(a));
+    if (!r.ok) { console.error(`packet: ${r.why}`); return 1; }
+    const log = cleanLog(r.packet.state?.log);
+    if (!log.length) { console.error('packet: this packet carries no intent log (the figure was not asked to change in the last minute, or the build is older)'); return 1; }
+    console.log(replayText(replayIntents(log)));
+    return 0;
+  }
+  console.error('usage: debug -- packet show <file | -> | packet replay <file | -> | packet link <address>');
   return 2;
 }
 function showLinks() {
