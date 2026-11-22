@@ -16,7 +16,7 @@ import { frameN } from '../../circuit/frame.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { circuitWidthMap } from '../../circuit/width.ts';
 import { fadeOf } from '../fades.ts';
-import { tipAlpha } from '../fade-alpha.ts';
+import { tipAlpha, vesselAlphaAt } from '../fade-alpha.ts';
 import { MAPPED, NETWORK_BY_ID, RUN_PAIRS, jointFade, type NetVessel } from '../network.ts';
 import { radiusAtU } from '../tubes.ts';
 import type { Bone, SkelEdge, SkelNode, Skeleton } from './types.ts';
@@ -49,19 +49,29 @@ function arcOf(P: readonly Vec3[]): number[] {
   for (let i = 1; i < P.length; i++) a.push(a[i - 1]! + len(sub(P[i]!, P[i - 1]!)));
   return a;
 }
-/** How far from `end` the course is still fully faded (resting alpha at most FADE_SEEN, fades.ts / fade-alpha.ts): the end's bend may run this far and no further, so the part anyone sees never moves. 0 when the end itself is drawn. */
+/** The stretch at `end` of a course that the DOWN-THE-FIGURE fade (the tails below the plate) leaves fully faded (resting alpha at most FADE_SEEN, fades.ts / fade-alpha.ts): `n` bones and `d` arc length from the end. The end's bend may run this far and no further, so the part anyone sees never moves. Zeros when the end itself is drawn or the fade is another kind. */
 export const FADE_SEEN = 0.02;
-export function hiddenTail(id: string, P: readonly Vec3[], arc: readonly number[], end: 0 | 1): number {
+export function hiddenTail(id: string, P: readonly Vec3[], arc: readonly number[], end: 0 | 1): { n: number; d: number } {
   const n = P.length, total = arc[n - 1]!, art = NETWORK_BY_ID.get(id)?.tone === 'artery';
   const f = fadeOf(id, art);
-  if (!f || f.mode !== 2) return 0;   // (the down-the-figure fade: the tails below the plate; the others fade along the vessel and stay as they were)
-  let d = 0;
+  if (!f || f.mode !== 2) return { n: 0, d: 0 };   // (the others fade along the vessel and stay as they were)
+  let c = 0, d = 0;
   for (let q = 0; q < n; q++) {
     const i = end ? n - 1 - q : q;
     if (tipAlpha(f, i / (n - 1), P[i]![0], P[i]![1]) > FADE_SEEN) break;
-    d = end ? total - arc[i]! : arc[i]!;
+    c++; d = end ? total - arc[i]! : arc[i]!;
   }
-  return d;
+  return { n: c, d };
+}
+const sstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1e-9))); return t * t * (3 - 2 * t); };
+/** The bones at each end of a vessel that nothing draws at rest: `body` where the body's fade (vesselAlphaAt) is at most FADE_SEEN, `both` where the Circuit's too (the map holds every fade off but an artery's own mapFade, vessel-object.ts setTipFade), counted along the course's own samples. A lens, a selection or an opened collateral that lets a fade go is not read: WP2 culls on `both` only, and only that. */
+export function hiddenCounts(id: string): { body: [number, number]; both: [number, number] } {
+  const c = COURSES.get(id), v = NETWORK_BY_ID.get(id), n = BONES_PER_EDGE;
+  if (!c || !v) return { body: [0, 0], both: [0, 0] };
+  const f = fadeOf(id, v.tone === 'artery'), at = (i: number) => vesselAlphaAt(id, i / (n - 1), c.A[i]!.x, c.A[i]!.y), onMap = (i: number) => (f?.mapFade ? 1 - sstep(f.mapFade[0], f.mapFade[1], i / (n - 1)) : 1);
+  const run = (ok: (i: number) => boolean, end: 0 | 1): number => { let k = 0; while (k < n && ok(end ? n - 1 - k : k)) k++; return k; };
+  const body = (i: number) => at(i) <= FADE_SEEN, both = (i: number) => at(i) <= FADE_SEEN && onMap(i) <= FADE_SEEN;
+  return { body: [run(body, 0), run(body, 1)], both: [run(both, 0), run(both, 1)] };
 }
 
 /** The reach an end eases over, from how far it moves and the course's length. */
@@ -75,6 +85,14 @@ function easeEnd(P: Vec3[], arc: readonly number[], end: 0 | 1, delta: Vec3, rea
     const w = jointFade(d, reach);
     if (w <= 0) break;
     P[i] = add(P[i]!, scale(delta, w));
+  }
+}
+/** Lays the `n` bones at `end` (a stretch nothing draws) on one cubic Hermite turn from the last drawn bone to `to`, evenly in the curve's parameter: it leaves the drawn course the way the course was going and arrives at `to` heading along the line from the drawn bone to it, so a node that lies back the way the vessel came (the iliac node above EPI_ILI's and C4's tails) is reached by a wide U-turn, not the hairpin an ease through the same few bones makes. */
+function layTail(P: Vec3[], end: 0 | 1, n: number, to: Vec3): void {
+  const m = P.length, at = (q: number) => (end ? m - 1 - q : q), iB = at(n), B = P[iB]!, go = unit(sub(B, P[at(n + 1)]!)), chord = sub(to, B), L = 1.5 * len(chord) + 1e-9, T0 = scale(go, L), T1 = scale(unit(chord), L);
+  for (let q = 1; q <= n; q++) {
+    const t = q / n, t2 = t * t, t3 = t2 * t, h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+    P[at(n - q)] = add(add(scale(B, h00), scale(T0, h10)), add(scale(to, h01), scale(T1, h11)));
   }
 }
 /** The direction a course leaves its end in, into the course (the first secant: what the bones themselves say). */
@@ -130,6 +148,8 @@ function transport(P: readonly Vec3[], from: 0 | 1, n0: Vec3 | null): [Vec3, Vec
 export const LAND_RADII = 3;
 /** The fewest bones a landing keeps from its host's ends and from another landing. */
 const MIN_PIECE = 5, MIN_GAP = 3;
+/** Procedure shunts that run along a trunk from its end (DIPS from the portal vein, REX from the superior mesenteric vein) start on the trunk's wall MIN_PIECE bones in, a junction of their own outside the cluster at the trunk's end (WP2 ruling, 22 Nov: the sheet rung cannot take them in the cluster). `edge|end`. */
+export const WALL_STARTS: ReadonlySet<string> = new Set(['DIPS|0', 'REX|0']);
 /** The most an end may move onto its node: a share of its course, and a count of radii. A move past either fails the skeleton test unless `KNOWN_BIG_MOVES` names it with a reason. */
 /** The fewest bones a rounded map corner spreads over on each side of its node. */
 export const FILLET_BONES = 5;
@@ -253,10 +273,17 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
         const r = nearest(work.get(t.v.id)!.P[0], q);
         if (!best || r.d < best.d) best = { h: t.v, d: r.d, f: r.f };
       }
-      if (!best || best.f < MIN_PIECE || best.f > BONES_PER_EDGE - 1 - MIN_PIECE) continue;
-      // (the node is the host's own bone, the host as drawn: the branch's end goes to it, a short way (under LAND_RADII radii and a quarter of the branch), where the host passes it)
-      const bone = Math.round(best.f), hw = work.get(best.h.id)!, bw = work.get(v.id)!, dBone = dist(q, hw.P[0][bone]!);
-      if (dBone > LAND_RADII * Math.max(best.h.radius, v.radius) || dBone > MAX_MOVE_SHARE * bw.arc[0][BONES_PER_EDGE - 1]! || dBone + 0.5 * best.h.radius >= toNode) continue;
+      const wall = WALL_STARTS.has(keyOf(v, end));
+      if (!best || (!wall && (best.f < MIN_PIECE || best.f > BONES_PER_EDGE - 1 - MIN_PIECE))) continue;
+      // (the node is the host's own bone, the host as drawn: the branch's end goes to it, a short way (under LAND_RADII radii and a quarter of the branch), where the host passes it; a wall start takes the bone MIN_PIECE in from the host's end, however near the node is)
+      let bone = wall ? Math.min(BONES_PER_EDGE - 1 - MIN_PIECE, Math.max(MIN_PIECE, Math.round(best.f))) : Math.round(best.f);
+      const hw = work.get(best.h.id)!, bw = work.get(v.id)!;
+      if (wall) {   // (its own junction: MIN_GAP bones from any other landing on the host, on the side nearer its start)
+        const taken = landings.filter((x) => x.host === best!.h.id).map((x) => x.bone), free = (b: number) => b >= MIN_PIECE && b <= BONES_PER_EDGE - 1 - MIN_PIECE && taken.every((t) => Math.abs(t - b) >= MIN_GAP);
+        if (!free(bone)) { const c = [...taken.flatMap((t) => [t - MIN_GAP, t + MIN_GAP]), bone].filter(free).sort((a, b) => dist(q, hw.P[0][a]!) - dist(q, hw.P[0][b]!))[0]; if (c == null) continue; bone = c; }
+      }
+      const dBone = dist(q, hw.P[0][bone]!);
+      if (dBone > LAND_RADII * Math.max(best.h.radius, v.radius) || dBone > MAX_MOVE_SHARE * bw.arc[0][BONES_PER_EDGE - 1]! || (!wall && dBone + 0.5 * best.h.radius >= toNode)) continue;
       // (the map takes the landing too, at the host's same bone. Where the map draws the branch at the host's end instead (its station), the host's map bones from the landing to that end are laid at the station, so the map keeps its one meeting point: `collapse`)
       const mapMove = dist(endOf(bw, end, 1), hw.P[1][bone]!), mapShare = mapMove / bw.arc[1][BONES_PER_EDGE - 1]!, mapRadii = mapMove / Math.max(mapRadiusOf(best.h), mapRadiusOf(v));
       let collapse: 0 | 1 | undefined;
@@ -267,7 +294,7 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
         collapse = e;
       }
       // (two branches within MIN_GAP bones of one another share one node)
-      const near = landings.find((x) => x.host === best!.h.id && Math.abs(x.bone - bone) < MIN_GAP);
+      const near = wall ? undefined : landings.find((x) => x.host === best!.h.id && Math.abs(x.bone - bone) < MIN_GAP);
       const rec = { host: best.h.id, branch: v.id, branchEnd: end, bone: near ? near.bone : bone, node: near ? near.node : `${best.h.id}@${v.id}`, ...(collapse != null ? { collapse } : {}) };
       landings.push(rec); landed.add(keyOf(v, end));
     }
@@ -288,8 +315,9 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
         const P = w.P[pose], delta = sub(nodePos.get(id)![pose], endOf(w, end, pose)), move = len(delta);
         if (move <= 0) continue;
         let reach = reachOf(move, w.arc[pose][P.length - 1]!);
-        if (pose === 0) { const hid = hiddenTail(v.id, P, w.arc[0], end); if (hid > 0) reach = Math.min(reach, hid); }   // (an end in a faded tail bends only inside it)
-        easeEnd(P, w.arc[pose], end, delta, reach);
+        const hid = pose === 0 ? hiddenTail(v.id, P, w.arc[0], end) : { n: 0, d: 0 };
+        if (hid.n >= 1) { reach = Math.min(reach, hid.d); layTail(P, end, hid.n, nodePos.get(id)![0]); }   // (an end in a faded tail goes to its node inside it, on one smooth turn: nothing drawn moves, nothing folds)
+        else easeEnd(P, w.arc[pose], end, delta, reach);
         reachOfEnd.set(`${key}|${pose}`, reach);
         note(v, end, id, pose, delta, w.arc[pose][P.length - 1]!, reach, nodeRadius(l, pose));
       }
@@ -391,11 +419,11 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
   for (const L of landings) nodeAt.set(`${L.host}|${L.bone}`, L.node);
   const edges: SkelEdge[] = [], bones: Bone[] = [], first = new Map<string, number>(), last = new Map<string, number>();
   for (const v of order) {
-    const w = work.get(v.id)!, fr = frames.get(v.id)!, c = cuts.get(v.id) ?? [], marks = [0, ...c, BONES_PER_EDGE - 1], ids: string[] = [];
+    const w = work.get(v.id)!, fr = frames.get(v.id)!, hc = hiddenCounts(v.id), c = cuts.get(v.id) ?? [], marks = [0, ...c, BONES_PER_EDGE - 1], ids: string[] = [];
     for (let j = 0; j + 1 < marks.length; j++) {
       const i0 = marks[j]!, i1 = marks[j + 1]!, idx = edges.length, id = c.length ? `${v.id}#${j}` : v.id;
       ids.push(id);
-      edges.push({ id, from: j ? nodeAt.get(`${v.id}|${i0}`)! : landedAt.get(keyOf(v, 0)) ?? nodeIdOf(v, 0), to: j + 2 < marks.length ? nodeAt.get(`${v.id}|${i1}`)! : landedAt.get(keyOf(v, 1)) ?? nodeIdOf(v, 1), bones: [bones.length, i1 - i0 + 1], tone: v.tone, tier: v.tier });
+      edges.push({ id, from: j ? nodeAt.get(`${v.id}|${i0}`)! : landedAt.get(keyOf(v, 0)) ?? nodeIdOf(v, 0), to: j + 2 < marks.length ? nodeAt.get(`${v.id}|${i1}`)! : landedAt.get(keyOf(v, 1)) ?? nodeIdOf(v, 1), bones: [bones.length, i1 - i0 + 1], tone: v.tone, tier: v.tier, hidden: [j === 0 ? Math.min(hc.both[0], i1 - i0) : 0, j + 2 === marks.length ? Math.min(hc.both[1], i1 - i0) : 0], hiddenBody: [j === 0 ? Math.min(hc.body[0], i1 - i0) : 0, j + 2 === marks.length ? Math.min(hc.body[1], i1 - i0) : 0] });
       for (let i = i0; i <= i1; i++) bones.push({ edge: idx, u: (i - i0) / (i1 - i0), pos: [w.P[0][i]!, w.P[1][i]!], r: [w.r[0][i]!, w.r[1][i]!], frame: fr[i]! });
       if (j === 0) first.set(v.id, idx);
       if (j + 2 === marks.length) last.set(v.id, idx);
