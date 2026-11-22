@@ -24,9 +24,20 @@ test('a word with a halo draws it as a span under the letters, never as paint-or
   assert.ok(!el.style['-webkit-text-stroke'], 'the letters carry no stroke');
   assert.equal(el.kids.length, 2, 'a halo span and the letters');
   const [halo, txt] = el.kids as [Fake, Fake];
+  // Regression (22 Nov, acf109b2): the halo is absolutely positioned, which paints OVER an unpositioned sibling, so every word was covered by its own halo. The letters must be positioned and after it.
+  assert.match(txt.style.cssText, /position:relative/, 'the letters are positioned, so they paint over the halo');
+  assert.match(halo.style.cssText, /position:absolute/);
   assert.equal(halo.textContent, 'Liver'); assert.equal(txt.textContent, 'Liver');
   assert.match(halo.style['-webkit-text-stroke']!, /^3px /, 'the halo is stroked at the halo width'); assert.match(halo.style.cssText, /stroke-linejoin:round/);
   assert.equal(halo.style.color, halo.style['-webkit-text-stroke']!.replace(/^3px /, ''), 'in the halo colour');
+});
+
+test('the letters are never the halo\'s colour: a word\'s colour is on the box the letters inherit, the halo\'s on its own span', () => {
+  const l = new TextLayer(doc as unknown as Document);
+  l.sync([word({ color: [0.1, 0.1, 0.1, 1], w: 3 })]);
+  const el = (l.root as unknown as Fake).kids[0]!, [halo, txt] = el.kids as [Fake, Fake];
+  assert.notEqual(el.style.color, halo.style.color, 'the word and its halo differ');
+  assert.equal(txt.style.color, undefined, 'the letters take the box\'s colour');
 });
 
 test('a word without a halo has none, and a halo that goes away is hidden, a word that changes changes both', () => {
