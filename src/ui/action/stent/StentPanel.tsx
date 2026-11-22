@@ -98,6 +98,8 @@ export function StentEditor({ id, lead = false }: StentEditorProps) {
   useEffect(() => { if (folded) setOpen(''); }, [folded]);
   useEffect(() => { setOpen(''); setLeaving(''); }, [id]);
 
+  /** A box's top from the editor's own top (the card above may be moving as its height glides, ActionCard.tsx, and that is not this row's ride). */
+  const topOf = (el: Element): number => { const box = (e: Element) => e.getBoundingClientRect(); return box(el).top - box(root.current!).top; };
   /** What stands below the open row and moves when it opens: the rows and the card's actions (read once, on the tap, never in a frame). */
   const below = (): Element[] => {
     const strip = root.current?.closest('.ac-panel')?.nextElementSibling;
@@ -106,7 +108,7 @@ export function StentEditor({ id, lead = false }: StentEditorProps) {
   const choose = (rowId: string) => {
     if (folded) return;
     tops.current.clear();
-    for (const el of below()) tops.current.set(el, el.getBoundingClientRect().top);
+    for (const el of below()) tops.current.set(el, topOf(el));
     setLeaving(open);
     setOpen(rowId === open ? '' : rowId);
   };
@@ -122,7 +124,7 @@ export function StentEditor({ id, lead = false }: StentEditorProps) {
     const old = tops.current, panelOf = (rid: string) => (rid ? root.current?.querySelector(`.sr-item[data-row="${rid}"] > .sr-panel`) ?? null : null), out = panelOf(leaving);
     if (reduced() || typeof Element.prototype.animate !== 'function') { old.clear(); setLeaving(''); return; }
     const move = { duration: D_SURFACE, easing: EASE_ARRIVE };
-    for (const [el, y0] of old) { const dy = y0 - el.getBoundingClientRect().top; if (Math.abs(dy) > 0.5) anims.current.push(el.animate([{ transform: `translateY(${dy.toFixed(1)}px)` }, { transform: 'none' }], move)); }
+    for (const [el, y0] of old) { const dy = y0 - topOf(el); if (Math.abs(dy) > 0.5) anims.current.push(el.animate([{ transform: `translateY(${dy.toFixed(1)}px)` }, { transform: 'none' }], move)); }
     old.clear();
     const inn = panelOf(open);
     if (inn) anims.current.push(inn.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: D_SMALL, easing: EASE_ARRIVE, delay: D_SMALL * 0.4, fill: 'backwards' }));

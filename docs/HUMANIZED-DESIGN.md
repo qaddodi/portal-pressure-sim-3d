@@ -99,7 +99,7 @@ Note timing follows length (about 250 ms a word, 3.2-10 s) and a note stays whil
 3. Read every on-screen line aloud: would a person say it, would an attending correct a word?
 4. Does colour carry a meaning, and is it backed by words or a shape?
 5. Would this pass for a page of a hand-drawn medical atlas next to the 2D app?
-6. Report it as "pushed, not yet seen" until it has been seen on screen.
+6. Look at it yourself on `/preview/` in the built-in browser (never headless). Until it has been seen on screen, report it as "pushed, not yet seen".
 
 ## Known places that still break these rules (fix at the root when touched)
 
