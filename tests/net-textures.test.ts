@@ -91,6 +91,7 @@ test('rewriting the same numbers marks nothing and uploads nothing (a state writ
 
 test('a coil step (one edge\'s columns) uploads that edge\'s row and nothing else', () => {
   const t = new EdgeStateTable(EDGES), tex = t.texture();
+  tex.onUpdate!(tex);   // (three has made its first, whole upload)
   t.set(2, 'len', 7.5); t.set(2, 'fade', 0.25);
   assert.deepEqual(t.dirtyRows(), [2, 2]); assert.equal(t.writes, 2);
   t.flush();
@@ -187,6 +188,7 @@ test('a coil step rewrites only that edge\'s bones and uploads only the rows the
   const r = rand(11);
   const { bones, spans } = bonesOf([40, 30, 64, 20, 50], r);
   const t = new BoneTable(bones), tex = t.texture();
+  tex.onUpdate!(tex);   // (three has made its first, whole upload)
   assert.equal(t.dirtyBones(), null);
   const [first, count] = spans[2]!;
   const coiled = bones.slice(first, first + count).map((b) => ({ ...b, pos: [[b.pos[0][0] + 0.5, b.pos[0][1], b.pos[0][2]], b.pos[1]] as Bone['pos'] }));
@@ -206,4 +208,19 @@ test('a coil step rewrites only that edge\'s bones and uploads only the rows the
   assert.equal(t.dirtyBones(), null);
   t.flush(); assert.equal(tex.updateRanges.length, 1, 'a second flush with nothing written adds nothing');
   assert.throws(() => t.writeEdge(first, bones.slice(0, 1000)), RangeError);
+});
+
+test('ROOT CAUSE of the blank figure: a write before the texture\'s first upload adds no range (three would upload only the range into zeroed storage: every other row zero, nothing drawn)', () => {
+  const e = new EdgeStateTable(EDGES), et = e.texture();
+  e.set(2, 'fade', 0.25); e.flush();
+  assert.equal(et.updateRanges.length, 0, 'edge table: the whole table is still pending');
+  assert.ok(et.version > 0, 'and it is marked for upload');
+  et.onUpdate!(et); e.set(1, 'fade', 0.5); e.flush();
+  assert.equal(et.updateRanges.length, 1, 'after the first upload a change is a range again');
+  const r = rand(5), { bones } = bonesOf([10, 10], r);
+  const b = new BoneTable(bones), bt = b.texture();
+  b.writeEdge(0, bones.slice(0, 10).map((x) => ({ ...x, pos: [[9, 9, 9], x.pos[1]] as Bone['pos'] }))); b.flush();
+  assert.equal(bt.updateRanges.length, 0, 'bone table: the same');
+  bt.onUpdate!(bt); b.writeEdge(10, bones.slice(10, 20).map((x) => ({ ...x, pos: [[8, 8, 8], x.pos[1]] as Bone['pos'] }))); b.flush();
+  assert.equal(bt.updateRanges.length, 1);
 });

@@ -3,4 +3,6 @@
 import { flagValue } from '../../../ui/debug/flags.ts';
 
 /** Whether the address asks for the network vessels. A test passes its own search string. */
-export const geomNet = (search?: string): boolean => flagValue('geom', search ?? undefined) === 'net';
+export const geomNet = (search?: string): boolean => { const v = flagValue('geom', search ?? undefined); return v === 'net' || v === 'netplain'; };
+/** `?geom=netplain`: the figure with the junction machinery off (the shader's NET_PLAIN define: pure bone skinning, no keys, no projection, no dissolve), to tell on a device whether the base path or the junctions draw nothing. */
+export const netPlain = (search?: string): boolean => flagValue('geom', search ?? undefined) === 'netplain';

@@ -25,7 +25,7 @@ import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
-import { geomNet } from './vessels/net/flag.ts';
+import { geomNet, netPlain } from './vessels/net/flag.ts';
 import type { NetFigure } from './vessels/net/network-object.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -618,6 +618,8 @@ export class CelScene {
 
   // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
   private net: NetFigure | null = null;
+  /** ?geom=net&junc=sdf: the ray-marched junction trial (net/junc-sdf.ts), null otherwise */
+  private junc: import('./vessels/net/junc-sdf.ts').JuncSdf | null = null;
   private netFailOff: (() => void) | null = null;
   /** The vessels the network draws: the ids of the skeleton's edges. The rest (fans of tributaries, liver branches, caudate veins, the splenic tree: no skeleton edge until WP5) keep drawing as today. */
   private netIds: Set<string> | null = null;
@@ -658,6 +660,7 @@ export class CelScene {
   private dropNet(): void {
     const n = this.net;
     this.net = null;
+    this.junc?.dispose(); this.junc = null;
     if (!n) return;
     this.body.remove(n.group); n.dispose();
     for (const o of this.vessels) (o as VesselObject).setNetHidden(false);
@@ -673,12 +676,15 @@ export class CelScene {
     const behind = new Set<number>(); edgeIds.forEach((id, i) => { if (vo(id)?.behindOrgans) behind.add(i); });
     const clamps = this.disease.clamps;
     this.net = new Figure(data, {
+      plain: netPlain(),
       uniforms: (id) => vo(id)?.toon.uniforms, fade: (id) => { const o = vo(id); return o ? this.composeFade(o, false) : undefined; }, copies: (id) => vo(id)?.netCopies(),
       present: (id) => vo(id)?.group.visible, waist: (id) => (vo(id) ? clamps.waistOf(id) : undefined),
       fixed: (id) => { const o = vo(id); return o ? { lenMap: (o.toonMesh.geometry.getAttribute('cl') as BufferAttribute | undefined)?.getY(0) ?? 1, noMap: [...this.fans.values()].includes(id) } : undefined; },
       template: () => vo(NETWORK[0]!.id)!.toon.uniforms, tones: () => [first('portal'), first('sys'), first('artery')],
     }, behind);
     this.body.add(this.net.group);
+    const js = await import('./vessels/net/junc-sdf.ts');
+    if (js.juncSdf()) { const j = js.JuncSdf.build(this.net.draws); if (j instanceof js.JuncSdf) { this.junc = j; this.net.group.add(j.mesh); } else console.warn(`junc-sdf: ${j.why}`); }
     // The tubes hold the state and the picking, and stay DRAWN until the figure has been seen to put a pixel of an object on the screen (probe.ts): a figure that draws nothing must never leave vessels missing.
     this.netIds = new Set(); this.netUndecided = [...this.net.draws]; this.netFailed = []; this.netSteps = 0;
     if (assumeDrawn) { this.netUndecided = []; for (const d of this.net.draws) this.netOwn(d, true); }
@@ -1712,6 +1718,7 @@ export class CelScene {
     lap('render: setup (dof, band, blur frame)');
     this.netGl = gl;
     this.net?.prepass(gl);   // (?geom=net: the sewn hosts' radii and each junction region's live capsules, once per drawn frame)
+    this.junc?.prepass(gl);   // (?junc=sdf: what the ray-marched junction reads of its capsule points)
     lap('render: network passes');
     gl.render(this.scene, cam);
     lap('render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)');
