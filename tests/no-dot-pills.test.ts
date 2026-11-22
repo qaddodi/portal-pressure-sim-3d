@@ -20,7 +20,7 @@ const ALLOWED: Record<string, string> = {
   'pzb-pill': 'the presenter bar of buttons', 'chip-btn': 'a top-bar button', 'preview-badge': 'the build marker the owner reads (BuildPill)',
   'order-chip': 'a ruled row with a tick box (Treat)', 'oc-dot': 'the tick box of that row', 'look-chip': 'the Appearance swatch (a theme preview)',
   'pz-prail-dot': 'the owner-picked one-row step rail (mock A)', 'ms-dot': 'a numbered step circle', 'lead-dot': 'the callout leader\'s anchor on the figure',
-  'cl-lead-dot': 'the callout leader\'s anchor on the figure', 'leader-dot': 'the leader\'s anchor on the figure', 'endo-chip': 'a data cell of the scope card',
+  'cl-lead-dot': 'a leader\'s dot, only where it names an area (an organ, the sinusoids); on a vessel the line ends on its edge', 'leader-dot': 'the leader\'s anchor on the figure', 'endo-chip': 'a data cell of the scope card',
   'sh-toast': 'excluded: the notes redesign waits on the owner\'s pick', 'toast': 'excluded: the notes redesign waits on the owner\'s pick',
 };
 

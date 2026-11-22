@@ -29,7 +29,7 @@ test('reduced transparency is an override of the glass, never a gate on it (Safa
 test('glass is not nested: a glass holding a popover or another glass carries its frost on a face', () => {
   // the presenter pill holds the Settings sheet; the dock holds the view pill's face
   assert.match(bare, /\.dk-bar::before/); assert.match(bare, /\.dk-bar \{ isolation: isolate; background: transparent !important/);
-  const list = /html:not\(\[data-noglass\]\) :is\(([\s\S]*?)\n  \) \{/.exec(bare)![1];
+  const list = /html:not\(\[data-noglass\]\) :where\(([\s\S]*?)\n  \) \{/.exec(bare)![1];
   assert.ok(!list.includes('.dk-bar') && !list.includes('.vdock,') && !/\.vdock\s*$/.test(list), 'the dock and the presenter pill are not in the self-glass list');
   const dock = readFileSync('src/ui/shell/Dock.tsx', 'utf8');
   assert.ok(dock.includes('className="vd-face"'), 'the dock has its face');
@@ -66,4 +66,36 @@ test('no glass sits inside a fading wrapper: the palette and dialog wrappers do 
   // the same cause anywhere: every wrapper of a glass panel that 2D crossfades must be on that list (a new one fails here)
   const wrappers = [...(l + c).matchAll(/^(\.[\w-]+-back)(?:\.\w+)? *\{[^}]*animation: crossfade/gm)].map((m) => m[1]!);
   for (const w of new Set(wrappers)) assert.ok(bare.includes(w), `${w} fades a glass panel and is not neutralised in glass.css`);
+});
+
+// Plan 20: the numbered step discs wear the shared glass; the solid fill stays for blur off, reduced transparency and no backdrop blur.
+test('a step disc is frosted glass with the blur on and solid otherwise', () => {
+  const lc = readFileSync('src/scene/labels/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass path \{ fill: var\(--text\); stroke: none; \}/, 'the solid fill is kept for the fallbacks');
+  assert.match(lc, /@supports \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{[\s\S]*?html:not\(\[data-noglass\]\) \.cl\[data-fig="step"\] \.cl-glass path \{ fill: none; \}/);
+  assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass\.cl-hair\.cl-hair\.cl-hair \{ background: color-mix\(in srgb, var\(--text\) 82%, transparent\) !important; \}/);
+  assert.match(lc, /@media \(prefers-reduced-transparency: reduce\) \{[^}]*step[^}]*background: var\(--text\) !important/);
+  assert.ok(bare.includes('.cl-glass') && /backdrop-filter: blur\(var\(--glass-blur\)\)/.test(bare), 'the disc keeps the shared blur');
+});
+
+// plan 21, the root of the dark step discs: `:is()` weighs its most specific argument (`.topbar #viewSeg` holds an id), so every glass in the list weighed (1,2,1) and no class-only override could win,
+// not even with !important. `:where()` weighs nothing: the glass rule is (0,1,1) and a deliberate !important override beats it.
+test('the glass lists weigh nothing (:where), so an !important override of a glass wins', () => {
+  assert.ok(!/html:not\(\[data-noglass\]\) :is\(\s*\n/.test(bare), 'a glass list written with :is() takes the weight of its id argument');
+  assert.equal((bare.match(/html:not\(\[data-noglass\]\) :where\(\s*\n/g) ?? []).length, 2, 'both lists (the glass and its reduced-transparency twin) are :where');
+});
+/** (ids, classes+attrs+pseudo-classes, types) of a selector without :is/:where/:not bodies counted past their own weight */
+function weigh(sel: string): [number, number, number] {
+  const s = sel.replace(/:where\([^)]*\)/g, '').replace(/::?[a-z-]+\(([^()]*)\)/g, (m, inner) => (/^:not|^:is|^:has/.test(m) ? ' ' + inner + ' ' : m));
+  return [(s.match(/#[\w-]+/g) ?? []).length, (s.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[a-z-]+/g) ?? []).length, (s.match(/(^|[\s>+~])[a-z][\w-]*/g) ?? []).length];
+}
+const higher = (a: [number, number, number], b: [number, number, number]) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+test('the step disc\'s face and the callout cards\' fill out-rank the glass rule', () => {
+  const labels = readFileSync('src/scene/labels/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const glass: [number, number, number] = [0, 1, 1];   // html:not([data-noglass]) :where(...)
+  for (const sel of ['html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair', 'html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair']) {
+    assert.ok(labels.includes(sel + ' {'), sel + ' is gone');
+    assert.ok(higher(weigh(sel), glass) > 0, `${sel} must out-rank the glass rule`);
+  }
+  assert.ok(higher(weigh('.topbar #viewSeg'), glass) > 0, 'the weigher sees an id');
 });

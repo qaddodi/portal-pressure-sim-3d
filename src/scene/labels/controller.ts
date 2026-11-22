@@ -244,6 +244,9 @@ export class LabelController {
   private keyShort: { w: number; h: number } | null = null;
   /** The room each drawn label has now (0 under a card or past the edge, 1 clear), eased over FADE.roomMs (2D roomFade). */
   private readonly room = new RoomFade();
+  /** Each station ring's presence (0..1): a ring stands on its vessel only while a leader runs from it to the words; a name beside its vessel names it by standing there and needs no dot (plan 21), so
+   *  the ring eases out over FADE.outMs when its leader goes and back when it returns (never switched off). */
+  private readonly ringK = new Map<string, number>();
   /** The boxes of the names drawn so far this frame (see step 4 of tick). */
   private readonly taken: Box[] = [];
   /** The last change badge each station showed: the one a badge that has just gone is crossed out with, and what the layer writes while the box still has its room. */
@@ -573,16 +576,22 @@ export class LabelController {
       if (ra > 0 && ra < 1) roomBusy = true;
       if (ra <= 0) continue;   // (invisible: nothing to draw, the layer hides it)
       const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
-      const organ = m.station.kind === 'organ', ringed = !organ;
+      const organ = m.station.kind === 'organ';
       const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
+      const leader = s.p.leader && !organ ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null;
+      const wantRing = !!leader, was = this.ringK.get(id) ?? (wantRing ? 1 : 0);
+      const rk = Math.min(1, Math.max(0, was + (wantRing ? dt : -dt) / FADE.outMs));
+      this.ringK.set(id, rk);
+      if (rk !== (wantRing ? 1 : 0)) roomBusy = true;
+      const ringed = !organ && rk > 0;
       const alpha = labelOpacity(easeMove(s.alpha * ra), dim);   // (the fade runs linear in time on the clock; it is drawn on the one in-out curve, so a label leaves and arrives softly at both ends: a dive's exit included)
       const snap = s.snap as Snap | undefined;
       const form = m.forms[s.p.form];
       const say = this.live(m, snap);
       this.out.push({
-        id, kind: m.kind, alpha, mix: s.mix, ringAlpha: alpha, x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: snap?.word ?? form?.text ?? '',
+        id, kind: m.kind, alpha, mix: s.mix, ringAlpha: alpha * rk, x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: snap?.word ?? form?.text ?? '',
         value: this.valueOf(m), tone: snap ? snap.tone : this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ring.x, y: ring.y } : null, rev: snap ? snap.rev : !!m.rev, pad, ...say,
-        leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
+        leader,
       });
       if (s.from) {
         // the picture the label is leaving: its own box about its own dot, fading out as the new one fades in
@@ -593,12 +602,13 @@ export class LabelController {
           this.out.push({
             id: id + GHOST, kind: m.kind, alpha, mix: 1 - s.mix, ringAlpha: 0, ghost: true, x: fbox.x0, y: fbox.y0, w: f.p.w, h: f.p.h, form: f.p.form, word: fs?.word ?? fform?.text ?? '',
             value: this.valueOf(m), tone: fs ? fs.tone : this.state.tones[m.station.id] ?? null, dot: null, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
-            leader: f.p.leader && ringed ? leaderGeom(fa.x, fa.y, { x0: fbox.x0 + pad.x, y0: fbox.y0 + pad.y, x1: fbox.x1 - pad.x, y1: fbox.y1 - pad.y }) : null,
+            leader: f.p.leader && !organ ? leaderGeom(fa.x, fa.y, { x0: fbox.x0 + pad.x, y0: fbox.y0 + pad.y, x1: fbox.x1 - pad.x, y1: fbox.y1 - pad.y }) : null,
           });
         }
       }
     }
     this.room.prune(this.fader.frame);
+    for (const id of this.ringK.keys()) if (!this.fader.frame.has(id)) this.ringK.delete(id);
     return busy || hold || this.dirty || roomBusy;
   }
 

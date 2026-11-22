@@ -5,7 +5,7 @@ import { Vector3 } from 'three';
 import type { CopiedSlide } from '../src/decks/hp/types.ts';
 import { figurePlan } from '../src/ui/deck/figure-plan.ts';
 import { figureCalls } from '../src/ui/deck/figure-calls.ts';
-import { anchorPoint, placeStep, stepLeader, stepMidOf, STEP_DIRS, STEP_LEAD_GAP, placeCards, type CardIn } from '../src/scene/labels/figure-cards.ts';
+import { anchorPoint, placeStep, stepLeader, leaderToEdge, leadHasDot, LEAD_AIR, stepMidOf, STEP_DIRS, STEP_LEAD_GAP, placeCards, type CardIn } from '../src/scene/labels/figure-cards.ts';
 import { loadAgDeck } from '../src/decks/ag/index.ts';
 
 // Circulation 3 (Mohammad, 20 Nov): "1" sat on the superior mesenteric vein and "2" floated in the liver away from the sinusoids it numbers. 2D stands a number beside its point (NE first,
@@ -83,4 +83,32 @@ test('step badges and their leaders share the same absolute origin', () => {
   assert.match(badgeRule[2]!, /top:\s*0/);
   assert.match(badgeRule[2]!, /visibility:\s*hidden/);
   assert.ok(rules.some(([, selectors, body]) => selectors!.split(',').some((s) => s.trim() === '.cl-step[data-on]') && /visibility:\s*visible/.test(body!)));
+});
+
+// plan 21: on a vessel the line ends on the vessel's near edge and has no dot; on an area (an organ, the sinusoid field a group stands for) the dot stays.
+test('a leader to a single vessel has no dot and ends on the near edge (half width + 1 px), never on the axis', () => {
+  assert.equal(leadHasDot({ edge: 'IVCS' }), false);
+  assert.equal(leadHasDot({ edges: ['SIN_L', 'SIN_R'] }), true, 'a group is the sinusoid field: its lines keep their dots');
+  assert.equal(leadHasDot({ at2d: [10, 10] }), true, 'an organ keeps its dot');
+  assert.equal(leadHasDot({ station: 'RA' }), true);
+  // a line meeting a vertical vessel (half width 4 px) square on, from the left
+  const seg = leaderToEdge([0, 100, 50, 100], 4, { x: 0, y: 1 })!;
+  assert.ok(Math.abs(seg[2] - (50 - (4 + LEAD_AIR))) < 1e-9 && seg[3] === 100, `ends 5 px short of the axis, got ${seg[2]}`);
+  // a slanting line meets the tube farther from the axis (half / sin), capped at 3.3 half
+  const slant = leaderToEdge([0, 0, 50, 50], 4, { x: 0, y: 1 })!, back = Math.hypot(50 - slant[2], 50 - slant[3]);
+  assert.ok(Math.abs(back - (4 / Math.SQRT1_2 + LEAD_AIR)) < 1e-9);
+  const along = leaderToEdge([0, 0, 0, 80], 4, { x: 0, y: 1 })!;
+  assert.ok(Math.abs(80 - along[3] - (4 * 3.3 + LEAD_AIR)) < 1e-9, 'a line running along the tube is capped');
+  assert.equal(leaderToEdge([0, 0, 3, 0], 4, { x: 0, y: 1 }), null, 'nothing left of a line shorter than the edge');
+});
+test('paintLead eases the dot out by scale for a vessel anchor (target 0), and keeps it for an area', () => {
+  const src = readFileSync('src/scene/labels/figure-cards.ts', 'utf8');
+  assert.match(src, /this\.ease\(lead\.kd\[i\]!, on && dotted\)/);
+  assert.match(src, /dotted = leadHasDot\(c\.anchor\) \|\| !reach/);
+  assert.match(src, /leaderToEdge\(seg, reach\.half/);
+});
+test('a station\'s ring stands only while a leader runs from it, and eases out and in (never switched)', () => {
+  const src = readFileSync('src/scene/labels/controller.ts', 'utf8');
+  assert.match(src, /const wantRing = !!leader/);
+  assert.match(src, /ringAlpha: alpha \* rk/);
 });
