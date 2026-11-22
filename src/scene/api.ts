@@ -147,7 +147,7 @@ export const sceneApi = {
   /** The zoom buttons (+ and − keys): the 2D app's 1.4 about the middle of the room. */
   zoomStep(factor: number): void { gesturesRef.current?.zoomStep(factor); clock.invalidate('zoom'); },
   /** Catheter route advance 0..1, balloon 0..1 and the still column's fill 0..1 (default: with the balloon); the caller drives them on the clock (ui/deck/cath-clock.ts). */
-  setCatheter(s: CatheterState & { column?: number }): void { cel.setCatheter(s); clock.invalidate('catheter'); },
+  setCatheter(s: CatheterState & { column?: number; read?: boolean }): void { cel.setCatheter(s); clock.invalidate('catheter'); },
   /** The procedures' devices (B5): the 2D app's own choreography (proc-anim.js `procFrame`) drawn on its routes. Every kind of `PROCS`, the measurements and the plugs. */
   procedure: {
     /** Play a procedure ('tips', 'brto', 'bato', 'tipscoil', 'hvpgcath', …) from `from` to `to` ms of its own time (default the whole), at the 2D pace times `speed`. */

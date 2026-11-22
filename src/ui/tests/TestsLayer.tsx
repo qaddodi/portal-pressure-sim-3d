@@ -46,7 +46,6 @@ import { lazyRetry } from '../../boot/lazy-retry.ts';
 import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 
-import { clock } from '../../clock/frame.ts';
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 // (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
 const IrPane = lazyRetry(() => LOADERS.hvpg().then((m) => ({ default: m.IrPane })));
@@ -124,12 +123,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // every segmented control and tab row has one gliding piece (2D seg-glide.js)
   useEffect(() => runSegGlide(), []);
   // the instruments that load after the first paint come in when the card opens, and when the app is idle (2D load(), main.js lazy())
-  useEffect(() => { if (open) needAll(); }, [open]);
-  useEffect(() => {
-    const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
-    const t = idle ? (idle(needAll), null) : clock.after(needAll, 4000);
-    return () => { clock.cancel(t); };
-  }, []);
+  useEffect(() => { if (open) needAll(); }, [open]);   // (when the app is idle the preload ladder reads them in, one a slot: boot/warm.ts)
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)

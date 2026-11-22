@@ -171,8 +171,8 @@ export function LabelLayer() {
           veinShown: (edge) => { const v = NETWORK_BY_ID.get(edge); return !!v && v.tone !== 'artery' && deps.drawn!(v as never); }, params: patient.params,
         });
       },
-      hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
-      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit,
+      hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit || cel.diving,   // (the station names and their values stand only where the body is settled: not over a dive, going in or coming back; the small views have their own captions)
+      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit && !cel.diving,   // (the readout callouts: only where the body stands settled, never over a dive, going in or coming back)
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
       present: (id) => {
         const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
@@ -184,6 +184,7 @@ export function LabelLayer() {
         // read from it the point "ahead" was a fixed 0.4 scene units on, far off the vein, and the WHVP card pointed at nothing (20 Nov 2026).
         const c = cel.catheter;
         if (c.current.advance < 0.999) return 0;
+        if (!cel.catheterRead) return 0;   // (a reading's callout comes with its tracing settled on the monitor, not when the tip arrives)
         if (!cel.procPoints('hvpg', tip, ahead)) return 0;
         return c.current.balloon >= 0.999 ? 2 : 1;
       },
@@ -280,7 +281,7 @@ export function LabelLayer() {
     const hide = (r: Rec) => { if (r.shown) { r.shown = false; r.root.style.opacity = '0'; r.root.removeAttribute('data-on'); r.op = '0'; r.lead?.removeAttribute('data-on'); r.anchor?.removeAttribute('data-on'); if (r.lead) r.lead.style.opacity = '0'; if (r.anchor) r.anchor.style.opacity = '0'; } };
     const seen = new Set<string>();
     let lastClip = '';
-    const offTags = clock.on('tags', () => {
+    const offTags = clock.on('tags', (fr) => {
       const cardFrames = figCards.tick();
       const wantFrames = ctl.tick() || cardFrames;
       seen.clear();
@@ -293,7 +294,7 @@ export function LabelLayer() {
       // the boxes the Doppler probe keeps off, and the probes' own readings
       beginLabelBoxes();
       for (const d of ctl.out) if (d.kind === 'station' && !d.ghost && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);
-      probeLabels.paint();
+      probeLabels.paint(!cel.diving, fr.dt);
       const clip = coverClip();   // (the devices' bodies cut out of the labels' layer: a probe is over the text; the probes' own readings are in their own layer above)
       if (clip !== lastClip) { lastClip = clip; root.style.clipPath = clip; }
       if (wantFrames && !hold) hold = clock.hold('labels');

@@ -48,6 +48,7 @@ class Drawer {
     this.init();
   }
   get ok() { return !!this.gl && !this.lost && !!this.prog; }
+  get context() { return this.gl; }
 
   private init() {
     const gl = this.surface.getContext('webgl2', ATTRS) as WebGL2RenderingContext | null;
@@ -123,6 +124,12 @@ function sharedDrawer(): Drawer | null {
     shared = d;
     return d;
   } catch { sharedFailed = true; return null; }
+}
+/** The shared chart context (made now if it is not yet) with the number of times it was made, or null where the browser cannot (the preload ladder, src/boot/warm-programs.ts, compiles the instruments' programs on it). */
+export function sharedContext(): { gl: WebGL2RenderingContext; gen: number } | null {
+  const d = sharedDrawer();
+  const gl = d?.ok ? d.context : null;
+  return d && gl ? { gl, gen: d.gen } : null;
 }
 /** For tests: forget the shared drawer (a new test world). */
 export function resetSharedGL() { shared = null; sharedFailed = false; clients.clear(); }

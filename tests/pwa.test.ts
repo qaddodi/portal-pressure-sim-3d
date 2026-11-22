@@ -5,8 +5,9 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { buildSw, listFiles, orderFiles, isLate } from '../scripts/pwa.mjs';
-import { isUpdate, mayRegister, takesOverNow, CHECK_MS, CHECK_GAP_MS } from '../src/pwa/register.ts';
+import { buildSw, listFiles, orderFiles, isLate, stampBootBytes, wireBytes } from '../scripts/pwa.mjs';
+import { isUpdate, mayRegister, takesOverNow, persistOnce, PERSIST_KEY, CHECK_MS, CHECK_GAP_MS } from '../src/pwa/register.ts';
+import { lowData } from '../src/boot/data-saver.ts';
 import { cachePrefix } from '../src/ui/shell/build-pill.ts';
 import { hasWebGL2 } from '../src/boot/webgl.ts';
 import { NO_WEBGL } from '../src/ui/shell/words.ts';
@@ -75,14 +76,14 @@ test('the files are held in the order the app needs them: the page, what it load
   const sw = buildSw({ build: 'b1', files, boot, later });
   assert.ok(sw.indexOf('"index.html"') < sw.indexOf('"assets/Gallery-Bb.js"'));
   assert.match(sw, /addEventListener\('install'[^\n]*holdAll\(BOOT, true\)/, 'install is the boot list, and a failure there fails it');
-  assert.match(sw, /'pps:fill'\) e\.waitUntil\(holdAll\(LATER, false\)/, 'the rest is filled when the page asks, a failure left for the next time');
+  assert.match(sw, /'pps:fill' && !lowData\(\)\) e\.waitUntil\(holdAll\(LATER, false\)/, 'the rest is filled when the page asks, a failure left for the next time');
   assert.match(sw, /if \(await c\.match\(url\)\) return;/, 'a file already held is not fetched again: an install cut short goes on');
   assert.doesNotMatch(sw, /addAll/, 'never all or nothing');
   assert.doesNotThrow(() => new Function(sw));
 });
 
 /** Runs the written worker against a fake cache store and returns its listeners. */
-function runSw(sw: string, names: string[]) {
+function runSw(sw: string, names: string[], o: { navigator?: unknown; fetch?: (u: string, init?: RequestInit) => Promise<unknown>; setTimeout?: (fn: () => void, ms: number) => unknown } = {}) {
   const store = new Map<string, Map<string, unknown>>(names.map((n) => [n, new Map()]));
   const caches = {
     keys: async () => [...store.keys()],
@@ -90,10 +91,10 @@ function runSw(sw: string, names: string[]) {
     delete: async (n: string) => store.delete(n),
   };
   const on: Record<string, (e: { waitUntil(p: Promise<unknown>): void; [k: string]: unknown }) => void> = {};
-  const self = { registration: { scope: 'https://x.test/app/' }, addEventListener: (t: string, f: (typeof on)[string]) => { on[t] = f; }, skipWaiting: async () => undefined, clients: { claim: async () => undefined } };
+  const self = { navigator: o.navigator, registration: { scope: 'https://x.test/app/' }, addEventListener: (t: string, f: (typeof on)[string]) => { on[t] = f; }, skipWaiting: async () => undefined, clients: { claim: async () => undefined } };
   const fetched: string[] = [], inits: (RequestInit | undefined)[] = [];
-  const fetch = async (u: string, init?: RequestInit) => { fetched.push(String(u)); inits.push(init); return { status: 200, type: 'basic', clone() { return this; } }; };
-  new Function('self', 'caches', 'fetch', sw)(self, caches, fetch);
+  const fetch = async (u: string, init?: RequestInit) => { fetched.push(String(u)); inits.push(init); return o.fetch ? o.fetch(u, init) : { status: 200, type: 'basic', clone() { return this; } }; };
+  new Function('self', 'caches', 'fetch', 'setTimeout', sw)(self, caches, fetch, o.setTimeout ?? setTimeout);
   const fire = async (type: string, extra: Record<string, unknown> = {}) => { const waits: Promise<unknown>[] = []; on[type]!({ waitUntil: (p) => { waits.push(p); }, ...extra }); await Promise.all(waits); };
   return { store, fire, fetched, inits, on };
 }
@@ -196,4 +197,88 @@ test('the page asks for the weld plan after the first picture, not in the Lobule
   const l = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
   assert.match(l, /clock.after\(\(\) => this\.askWelds\(\), WELDS_ASK_MS\)/);
   assert.match(l, /if \(!this\.weldsAsked && on && this\.flat\.isVisible\) this\.askWelds\(\)/, 'a Lobule that is wanted before the timer asks at once');
+});
+
+
+// ---- loading plan L5/L6: the boot byte total, the quicker offline launch, the polite fill ------------------------------------------------------------------------------
+const navigate = (w: ReturnType<typeof runSw>) => { let answered: Promise<unknown> | undefined; w.on.fetch!({ request: { method: 'GET', url: 'https://x.test/app/', mode: 'navigate' }, respondWith: (p: Promise<unknown>) => { answered = p; }, waitUntil() {} } as never); return answered!; };
+
+test('the build writes the install list\'s wire bytes into the page\'s meta, and a page without the meta fails the build', () => {
+  const html = '<head><meta name="pps-boot-bytes" content="0"></head>';
+  assert.equal(stampBootBytes(html, 4_912_345.4), '<head><meta name="pps-boot-bytes" content="4912345"></head>');
+  assert.equal(stampBootBytes(stampBootBytes(html, 5), 7), '<head><meta name="pps-boot-bytes" content="7"></head>', 'stamping again replaces, never doubles');
+  assert.throws(() => stampBootBytes('<head></head>', 5), /pps-boot-bytes/);
+  assert.match(readFileSync('index.html', 'utf8'), /<meta name="pps-boot-bytes" content="0">/, 'the source page carries the placeholder');
+  const big = Buffer.alloc(10_000, 'a');
+  assert.equal(wireBytes(['a.bin'], () => big), 10_000, 'data goes as it is');
+  assert.ok(wireBytes(['a.js'], () => big) < 200, 'text goes gzipped');
+});
+
+test('the build run on a built folder stamps index.html before the worker lists it', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const d = mkdtempSync(join(tmpdir(), 'pwa-cli-'));
+  mkdirSync(join(d, 'assets'));
+  writeFileSync(join(d, 'index.html'), '<meta name="pps-boot-bytes" content="0"><script type="module" src="./assets/a-1.js"></script>');
+  writeFileSync(join(d, 'assets/a-1.js'), 'export const a = 1;');
+  const r = spawnSync(process.execPath, ['scripts/pwa.mjs', d, 'abc'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const page = readFileSync(join(d, 'index.html'), 'utf8');
+  const n = Number(/content="(\d+)"/.exec(page)![1]);
+  assert.ok(n > 40, `a byte total was written (${n})`);
+});
+
+test('a page with a held copy waits 1.5 s for the network, not 4; with none held it waits for the network alone; offline it is the copy at once', async () => {
+  const sw = buildSw({ build: 'n2', files: [], boot: ['index.html'], later: [] });
+  assert.match(sw, /NAV_WAIT_MS = 1500/);
+  assert.doesNotMatch(sw, /4000/);
+  const waits: number[] = [];
+  const never = new Promise(() => undefined);
+  // a network that never answers; the timeout is the fake one, fired by hand
+  let fire!: () => void;
+  const hung = runSw(sw, [], { fetch: (u) => (u.endsWith('index.html') ? Promise.resolve({ status: 200, type: 'basic', clone() { return this; }, tag: 'held' }) : never), setTimeout: (fn, ms) => { waits.push(ms); fire = fn; } });
+  await hung.fire('install');   // (the install holds the page: a copy exists)
+  const p = navigate(hung);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(waits, [1500]);
+  fire();
+  assert.equal(((await p) as { tag: string }).tag, 'held', 'the held copy is shown when the network says nothing for 1.5 s');
+  const off = runSw(sw, [], { fetch: (u) => (u.endsWith('index.html') ? Promise.resolve({ status: 200, type: 'basic', clone() { return this; }, tag: 'held' }) : Promise.reject(new Error('offline'))) });
+  await off.fire('install');
+  assert.equal(((await navigate(off)) as { tag: string }).tag, 'held', 'offline: no wait at all');
+  const first = runSw(sw, [], { fetch: () => Promise.resolve({ status: 200, type: 'basic', clone() { return this; }, tag: 'net' }) });
+  assert.equal(((await navigate(first)) as { tag: string }).tag, 'net', 'no copy held: the network\'s answer');
+});
+
+test('the worker does not use navigation preload (its request obeys the HTTP cache: the stale-build bug), and says why', () => {
+  const sw = buildSw({ build: 'n3', files: [], boot: ['index.html'], later: [] });
+  assert.doesNotMatch(sw, /navigationPreload|preloadResponse/);
+  assert.match(readFileSync('scripts/pwa.mjs', 'utf8'), /Navigation preload is NOT used/);
+});
+
+test('Save-Data or a 2g link: the fill of the parts opened later is skipped, in the page and in the worker; everything else fills', async () => {
+  assert.equal(lowData({ saveData: true }), true);
+  assert.equal(lowData({ effectiveType: '2g' }), true);
+  assert.equal(lowData({ effectiveType: 'slow-2g' }), true);
+  assert.equal(lowData({ effectiveType: '3g' }), false);
+  assert.equal(lowData({ effectiveType: '4g', saveData: false }), false);
+  assert.equal(lowData(undefined), false, 'Safari has no such API: nothing is skipped');
+  const sw = buildSw({ build: 'n4', files: [], boot: ['index.html'], later: ['assets/late.js'] });
+  for (const [conn, filled] of [[{ saveData: true }, false], [{ effectiveType: '2g' }, false], [{ effectiveType: '4g' }, true], [undefined, true]] as const) {
+    const w = runSw(sw, [], { navigator: { connection: conn } });
+    await w.fire('message', { data: 'pps:fill', ports: [] });
+    assert.equal(w.fetched.includes('https://x.test/app/assets/late.js'), filled, JSON.stringify(conn));
+  }
+  assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /if \(!lowData\(\)\) idle\(\(\) => r\.active\?\.postMessage\('pps:fill'\)\)/, 'the page does not even ask');
+});
+
+test('storage.persist() is asked once per device, after the install, and a refusal or a missing API is harmless', async () => {
+  const mem = new Map<string, string>(); const flag = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
+  let asked = 0; const storage = { persist: async () => { asked++; return true; } };
+  assert.equal(await persistOnce(storage, flag), true); assert.equal(asked, 1); assert.equal(mem.get(PERSIST_KEY), '1');
+  assert.equal(await persistOnce(storage, flag), false); assert.equal(asked, 1, 'not asked again');
+  assert.equal(await persistOnce({ persist: async () => false }, { getItem: () => null, setItem: () => undefined }), false, 'a refusal');
+  assert.equal(await persistOnce({ persist: async () => { throw new Error('no'); } }, null), false, 'a throw, and no place to remember');
+  assert.equal(await persistOnce(undefined, flag), false, 'no API');
+  assert.equal(await persistOnce(storage, { getItem: () => { throw new Error('blocked'); }, setItem: () => undefined }), true, 'blocked storage still asks, once per visit');
+  assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /return sw\.ready; \}\)\.then\(\(r\) => \{ void persistOnce\(/, 'after the worker is ready (the install list is held)');
 });

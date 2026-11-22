@@ -33,6 +33,9 @@ export function targetT(c: CathState | null): number {
   }
 }
 
+/** The free reading is taken (the tracing card's own time for it, STEP_T.free): the FHVP callout comes only now, with the tracing settled on the monitor, and the WHVP's with the wedge plateau held (the column, T.callout). */
+export const readTaken = (t: number): boolean => t >= FREE_T;
+
 export interface CathPose { advance: number; balloon: number; column: number }
 /** What the figure draws at script time t. The blocked state's tip stops at the ostium; its goal time is where the route's progress is OSTIUM_U, so the pose is the same function. */
 export function poseAt(t: number, out: CathPose = { advance: 0, balloon: 0, column: 0 }): CathPose {

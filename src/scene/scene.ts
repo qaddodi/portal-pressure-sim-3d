@@ -739,7 +739,10 @@ export class CelScene {
     this.body.localToWorld(tip); this.body.localToWorld(ahead);
     return true;
   }
-  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number }): void {
+  /** The tracing has settled and the free reading is taken (the deck's catheter clock reached it): only then does the FHVP callout come. True when the caller says nothing (a catheter that is not the deck's). */
+  catheterRead = true;
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number; read?: boolean }): void {
+    this.catheterRead = s.read ?? true;
     // (the still column fills after the balloon is up and the WHVP pill comes after the column, 2D cathTo: the labels read the slice's balloon as "wedged" at 0.999, so it says so only once the column is full)
     const col = s.column ?? s.balloon;
     this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });
@@ -968,6 +971,8 @@ export class CelScene {
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
   /** Whether the camera is in, or on its way into or out of, the liver (the lobule, the sinusoid, or a view change still flying): the only time the dive's fade, window and field apply. */
+  /** The camera is in a small view or on its way between it and the body (in either direction): the body's readout callouts stand aside until it has settled back. */
+  get diving(): boolean { return this.inDive(); }
   private inDive(): boolean { return this.figureView === 'lobule' || this.figureView === 'sinusoid' || this.hideLeftBehind; }
   private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the

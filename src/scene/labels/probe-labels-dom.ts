@@ -2,7 +2,9 @@
 // each frame writes transform and opacity only (a number's words are written when they change, as the station labels' are, never in a frame of motion).
 import { DOP_LINE_PX, DOP_RIM_STROKE_PX, probeLabel, scanText, scanTransform, strokeTransform } from './probe-labels.ts';
 
-export interface ProbeLabelsDom { paint(): void; destroy(): void }
+/** How long a reading takes to leave or come back with the picture's settling (ms). */
+export const READ_FADE_MS = 240;
+export interface ProbeLabelsDom { /** `settled`: the body stands still (no dive); `dt`: the frame's ms. The readings ease out when it does not and back when it does. */ paint(settled?: boolean, dt?: number): void; destroy(): void }
 
 export function buildProbeLabels(root: HTMLElement): ProbeLabelsDom {
   const mk = (tag: string, cls: string, parent: HTMLElement): HTMLElement => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
@@ -17,12 +19,14 @@ export function buildProbeLabels(root: HTMLElement): ProbeLabelsDom {
     return { rim, line, tx: '', op: '' };
   });
 
+  let gate = 1;
   const show = (el: HTMLElement, on: boolean): void => { if (on) el.setAttribute('data-on', ''); else el.removeAttribute('data-on'); };
 
   return {
-    paint(): void {
+    paint(settled = true, dt = 16): void {
+      gate = Math.min(1, Math.max(0, gate + (settled ? dt : -dt) / READ_FADE_MS));
       // ── the probe's screen ──
-      const s = probeLabel.scan, sa = s.on ? s.alpha : 0;
+      const s = probeLabel.scan, sa = s.on ? s.alpha * gate : 0;
       if (sa > 0.002) {
         const t = scanText(s.k);
         if (t !== sTxt) { sTxt = t; sv.textContent = t; }
@@ -31,7 +35,7 @@ export function buildProbeLabels(root: HTMLElement): ProbeLabelsDom {
         show(scan, true);
       } else show(scan, false);
       // ── the Doppler's marks ──
-      const d = probeLabel.dop, da = d.on ? d.alpha : 0;
+      const d = probeLabel.dop, da = d.on ? d.alpha * gate : 0;
       strokes.forEach((st, i) => {
         const a = da > 0.002 && !(d.shut && i !== 0) ? da : 0, L = d.lines;
         if (a > 0) { const tx = strokeTransform(L[i * 4]!, L[i * 4 + 1]!, L[i * 4 + 2]!, L[i * 4 + 3]!); if (tx !== st.tx) { st.tx = tx; st.rim.style.transform = tx; st.line.style.transform = tx; } }

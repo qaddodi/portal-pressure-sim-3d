@@ -31,7 +31,7 @@ import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { PlateClient } from '../lobule/plate-client.ts';
-import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
+import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateQuantizer, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
 import { hexToRgb01 } from '../lenses/oklab.ts';
 import { WASH_AMOUNT, washAmount, washFront } from '../lobule/wash.ts';
@@ -170,6 +170,7 @@ export class Lobule3D {
   private texFront: Texture | null = null;
   private texSpare: Texture | null = null;
   private askedKey = '';
+  private readonly plateQ = plateQuantizer();
   private plateReady: { key: string; bmp: ImageBitmap } | null = null;
   private crossT = 0;
   private marksAt = -1;
@@ -610,8 +611,10 @@ export class Lobule3D {
 
   /** 2D's painter with no cells: the nutmeg, the Zones, Disse's collagen, the stellate cells, the septa, the tracts' and the vein's collagen, the limiting plate. Painted once per state step. */
   private stepMarks(unseen: boolean): boolean {
-    const f = this.flat, c = f.goalState;
-    const s: PlateState = { congU: c.congU, septU: c.septU, fibSin: c.fibSin, act: c.act, fibPre: c.fibPre, fibPost: c.fibPost };
+    const f = this.flat;
+    // (the key comes from the goal through ONE quantiser with hysteresis, plate.ts plateQuantizer: a goal sitting on a step of 1/32, as a live model's does, held one key; with none it flipped
+    //  between two and the plate was repainted and crossfaded back and forth, Mohammad 22 Nov: "the fibrosis bands around the portal tract are flashing")
+    const s: PlateState = this.plateQ(f.goalState);
     const zones = f.layers.zones;
     const key = `${plateKey(s, f.look)}|${zones ? 'z' : ''}`;
     const nowMs = clock.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
@@ -619,9 +622,10 @@ export class Lobule3D {
     // A new state is painted ONCE, for where the model is going, in a worker (the 2048 px repaint is 100 to 300 ms on a phone: never on this thread), and the new plate crossfades over the old when it arrives.
     // The first plate, and a page with no worker, are painted here (the old plate dips while the new is painted).
     if (key !== this.marksKey && this.marksKey !== '' && this.plates.available) {
-      if (key !== this.askedKey) {
+      // (a plate already crossfading in is finished first, never dropped half way: its fade froze at the middle, the next plate then began from 0 on the old plate's texture, and the stale plate
+      //  was kept as the front one under the new key)
+      if (key !== this.askedKey && !this.plateReady) {
         this.askedKey = key;
-        if (this.plateReady) { this.plateReady.bmp.close(); this.plateReady = null; this.crossT = 0; }
         this.plates.ask({ look: f.look, s: quant(s), zones, skip: 2, cvR: DISC_R.cv }, (bmp) => {
           if (!bmp) { this.askedKey = ''; return; }   // (no worker after all: the next step paints here)
           if (this.askedKey !== key) { bmp.close(); return; }
@@ -648,7 +652,7 @@ export class Lobule3D {
         this.marksMat.uniforms.map!.value = t; this.texFront = t; this.texSpare = was === this.tex ? this.tex : was;
         this.marksMatB.uniforms.map!.value = this.texSpare; this.marksMat.uniforms.opacity!.value = 1; this.marksMatB.uniforms.opacity!.value = 0; this.marksB.visible = false;
         this.marksKey = rd.key; this.plateReady = null; this.crossT = 0;
-        return false;
+        return key !== rd.key;   // (the goal moved on while it faded in: the next plate is asked next frame)
       }
       return true;
     }
