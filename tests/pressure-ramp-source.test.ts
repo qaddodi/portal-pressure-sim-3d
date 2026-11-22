@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { VELOCITY_RAMP } from '../src/scene/lenses/velocity-ramp.ts';
 import { PRESSURE_RAMP, RAW_LENSES, isRawLens, pressureViolet, pressureWine } from '../src/scene/lenses/pressure-ramp.ts';
 import { samplerFor } from '../src/scene/lenses/model.ts';
 import { rampStops } from '../src/scene/lenses/legend.ts';
@@ -24,18 +25,21 @@ import { LensField } from '../src/scene/lenses/field.ts';
 const LOOK_IDS = ['light', 'soft', 'dark', 'navy', 'black'] as const;
 const near = (a: readonly number[], b: readonly number[], e = 1e-6) => a.every((v, i) => Math.abs(v - b[i]!) < e);
 
-test('samplerFor(pressure) is the ramp of pressure-ramp.ts; every other lens keeps its 2D ramp', () => {
+test('samplerFor(pressure) is the ramp of pressure-ramp.ts, samplerFor(velocity) the one of velocity-ramp.ts; every other lens keeps its 2D ramp', () => {
   for (const look of LOOK_IDS) {
     const s = sampler(PRESSURE_RAMP[look]);
     for (const p of [0, 3.3, 10, 12, 17.5, 30]) assert.ok(near(samplerFor(look, 'pressure').at(p, [0, 0, 0]), s.at(p, [0, 0, 0])), `${look} ${p}`);
-    for (const n of ['flow', 'velocity', 'heat', 'drop', 'oxygen'] as const) assert.ok(near(samplerFor(look, n).at(0.4, [0, 0, 0]), sampler(LENS_TOKENS[look][n]).at(0.4, [0, 0, 0])), `${look} ${n}`);
+    for (const x of [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1]) assert.ok(near(samplerFor(look, 'velocity').at(x, [0, 0, 0]), sampler(VELOCITY_RAMP[look]).at(x, [0, 0, 0])), `${look} velocity ${x}`);
+    for (const n of ['flow', 'heat', 'drop', 'oxygen'] as const) assert.ok(near(samplerFor(look, n).at(0.4, [0, 0, 0]), sampler(LENS_TOKENS[look][n]).at(0.4, [0, 0, 0])), `${look} ${n}`);
   }
 });
 
-test('the legend bar shows the ramp as it is: no transform on the pressure bar, the transform on every other bar', () => {
+test('the legend bar shows the ramp as it is: no transform on the pressure and velocity bars, the transform on every other bar', () => {
   for (const look of LOOK_IDS) {
     const s = sampler(PRESSURE_RAMP[look]);
     rampStops(look, 'pressure', 30).forEach(([hex], i) => assert.equal(hex, rgb01ToHex(s.at(i * 3, [0, 0, 0])), `${look} stop ${i}`));
+    const v = sampler(VELOCITY_RAMP[look]);
+    rampStops(look, 'velocity', 1).forEach(([hex], i) => assert.equal(hex, rgb01ToHex(v.at(i / 10, [0, 0, 0])), `${look} velocity ${i}`));
     const f = sampler(LENS_TOKENS[look].flow);
     rampStops(look, 'flow', 1).forEach(([hex], i) => assert.equal(hex, figureHex(rgb01ToHex(f.at(i / 10, [0, 0, 0])), look), `${look} flow ${i}`));
   }
@@ -77,8 +81,8 @@ test('as-drawn path: celTubeBase and figureHex are the identity for the pressure
     assert.notDeepEqual(celTubeBase(c, look === 'dark'), c, 'the default path still bends a colour');
     assert.deepEqual(tubeInk(look, c, true), tubeInk(look, celTubeBase(c, look === 'dark', true), true));
   }
-  assert.ok(isRawLens('pressure') && RAW_LENSES.size === 1, 'only the pressure lens is authored as drawn');
-  for (const l of ['flow', 'velocity', 'heat', 'drop', 'oxygen', 'delta', 'direction', 'origin', 'firstpass', 'system', 'since', 'neutral'] as const) assert.ok(!isRawLens(l), l);
+  assert.ok(isRawLens('pressure') && isRawLens('velocity') && RAW_LENSES.size === 2, 'only the pressure and velocity lenses are authored as drawn');
+  for (const l of ['flow', 'heat', 'drop', 'oxygen', 'delta', 'direction', 'origin', 'firstpass', 'system', 'since', 'neutral'] as const) assert.ok(!isRawLens(l), l);
 });
 
 test('every program that mixes a lens colour into the vessel\'s base also sets tubeRawK from the sets\' lensRaw, crossfaded by lensMix (a lens switch eases from the transform to the raw colour: nothing pops)', () => {
@@ -93,7 +97,7 @@ test('every program that mixes a lens colour into the vessel\'s base also sets t
   assert.match(VESSEL_FS, /chevCreamOf\(la, lensGradA, lensModeA, lensI, col, lensRawA\)/);
 });
 
-test('the lens field hands the shaders the as-drawn flag with the lens: 1 for the pressure set, 0 for the others; the leaving set keeps its own', () => {
+test('the lens field hands the shaders the as-drawn flag with the lens: 1 for the pressure and velocity sets, 0 for the others; the leaving set keeps its own', () => {
   const f = new LensField();
   f.setLens('pressure', 0, true);
   assert.equal(f.shared.lensRawB.value, 1);
@@ -102,4 +106,6 @@ test('the lens field hands the shaders the as-drawn flag with the lens: 1 for th
   assert.equal(f.shared.lensRawB.value, 0, 'flow is the arriving set');
   f.setLens('pressure', 20, true);
   assert.equal(f.shared.lensRawB.value, 1);
+  f.setLens('velocity', 30);
+  assert.equal(f.shared.lensRawB.value, 1, 'velocity is authored as drawn too (velocity-ramp.ts)');
 });
