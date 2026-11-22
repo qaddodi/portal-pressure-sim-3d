@@ -2,8 +2,8 @@
 // function named beside them; tests/shell-words.test.ts keeps them against the 2D source when PPS_2D_REPO points at a checkout), and the 3D app's own few
 // lines (the view or feature that is not in the 3D app yet). No clinical wording here.
 
-/** 2D: src/ui/main.js openDeepLink */
-export const noPatientCalled = (id: string) => `No patient called “${id.slice(0, 60)}”. Pick one from Patients.`;
+/** 2D: src/ui/main.js openDeepLink (rewritten in the app's voice, 22 Nov: see tests/voice.test.ts) */
+export const noPatientCalled = (id: string) => `There’s no patient called “${id.slice(0, 60)}”. Choose one from Patients.`;
 /** 2D: src/ui/main.js settle() */
 export const SETTLED = 'Settled to equilibrium.';
 /** 2D: src/ui/keyboard.js ([ and ]) */
@@ -16,27 +16,27 @@ export const NO_MATCH_HELP = 'Try a vessel (“portal vein”), a patient, a pre
 /** 2D: src/ui/main.js fullscreenControl() */
 export const FULLSCREEN = { enter: 'Enter full screen', exit: 'Exit full screen', hint: 'Hide the browser bars (Esc leaves)', iphone: 'For full screen on iPhone: Share › Add to Home Screen.' } as const;
 /** 2D: src/ui/main.js resetEverything() */
-export const RESET = { title: 'Reset everything?', body: 'This clears the timeline, comparisons and every change, and reloads the simulator with a healthy patient. Your preferences are kept.', cancel: 'Cancel', go: 'Reset and reload' } as const;
+export const RESET = { title: 'Reset everything?', body: 'This clears the timeline, your comparisons and every change, then starts again with a healthy patient. Your settings stay as they are.', cancel: 'Cancel', go: 'Reset and reload' } as const;
 
 // ---- the 3D app's own lines -------------------------------------------------------------------------------------------------
 /** A view or feature the 3D app does not have yet (the control is there, as in the 2D app; it says so when tapped). */
-export const notYet = (what: string) => `${what} is not in the 3D app yet.`;
-export const NO_WEBGL = { title: 'The 3D app needs WebGL 2', body: 'This browser cannot draw it. The 2D simulator works here.', link: 'Open the 2D simulator', href: 'https://qaddodi.github.io/portal-pressure-simulator/' } as const;
+export const notYet = (what: string) => `${what} isn’t in the 3D version yet. The 2D simulator has it.`;
+export const NO_WEBGL = { title: 'The 3D app needs WebGL 2', body: 'This browser can’t draw it. The 2D simulator works here.', link: 'Open the 2D simulator', href: 'https://qaddodi.github.io/portal-pressure-simulator/' } as const;
 /** The engine could not start (src/main.tsx, BootCrash.tsx). 2D says "The model stopped. Reload, or restart this patient." once it runs; at start there is no patient to restart. */
 /** Figure menu > Image: the figure as a picture (figure-image-dom.ts). */
-export const FIGURE_IMAGE = { section: 'Image', copy: 'Copy figure', copyHint: 'As a picture, with its labels', save: 'Save figure', saveHint: 'A PNG file', copied: 'Figure copied', saved: 'Figure saved', failed: 'The figure could not be made into a picture' } as const;
-export const BOOT_CRASH = { title: 'The simulation could not start', body: 'Its engine did not load. Reload to try again.', reload: 'Reload' } as const;
+export const FIGURE_IMAGE = { section: 'Image', copy: 'Copy figure', copyHint: 'As a picture, with its labels', save: 'Save figure', saveHint: 'A PNG file', copied: 'Figure copied, labels included.', saved: 'Figure saved', failed: 'Couldn’t make a picture of the figure. Try again in a moment.' } as const;
+export const BOOT_CRASH = { title: 'The simulator didn’t start', body: 'The model didn’t load, and reloading usually fixes it.', reload: 'Reload' } as const;
 /** The app-level safety net (AppBoundary.tsx): a render error outside a card never blanks the app. */
 export const APP_CRASH = {
-  title: 'Something went wrong', body: 'The simulator hit an unexpected error. Reload to pick up where you were.',
-  figureTitle: 'The 3D figure stopped', figureBody: 'The controls still work. Reload to bring the figure back where you were.',
-  engineTitle: 'The simulation stopped', engineBody: 'The figure no longer follows the patient. Reload to pick up where you were.',
+  title: 'Something went wrong', body: 'Reload and you’ll be back where you were.',
+  figureTitle: 'The figure stopped drawing', figureBody: 'Everything else still works. Reload to bring it back, right where you left off.',
+  engineTitle: 'The model stopped', engineBody: 'The figure isn’t following the patient now. Reload to pick up where you were.',
   reload: 'Reload', copy: 'Copy details', copied: 'Copied', twoD: 'Open the 2D simulator',
 } as const;
 /** The figure's graphics context was lost after the first picture (scene/context-loss.ts, ContextNote.tsx). */
-export const GL_LOSS = { redrawing: 'Redrawing the figure…', stuck: 'The figure could not be redrawn.', reload: 'Reload' } as const;
+export const GL_LOSS = { redrawing: 'Redrawing the figure…', stuck: 'The figure couldn’t be redrawn. Reload to bring it back.', reload: 'Reload' } as const;
 /** The quiet note when the app is left broken by errors no boundary sees (ErrorNote.tsx, boot/crash-net.ts). */
-export const ERROR_NOTE = { text: 'Something went wrong behind the scenes.', reload: 'Reload', copy: 'Copy details', copied: 'Copied', keep: 'Keep going' } as const;
+export const ERROR_NOTE = { text: 'Something small went wrong in the background. You can keep going, or reload to be safe.', reload: 'Reload', copy: 'Copy details', copied: 'Copied', keep: 'Keep going' } as const;
 /** Settings › Blur effect in the 3D app today */
 export const FIGURE_DETAIL_TITLE = 'Figure detail';
 
@@ -49,7 +49,7 @@ export const PLAY_TITLES = {
 export const ZOOM_TITLES = { in: 'Zoom in (or scroll / pinch)', out: 'Zoom out', fit: 'Fit the figure to the view (0)' } as const;
 
 /** Flow marks A to D (the owner picks one after trying them; the scene reads the setting). 3D only. */
-export const PATIENT_FAILED = 'That patient did not load.';
+export const PATIENT_FAILED = 'That patient didn’t load. Try again, or choose another from Patients.';
 /** 2D: src/ui/main.js sendFeedback() */
 export const FEEDBACK = { subject: 'Portal Pressure Simulator feedback', ask: 'What happened, and what did you expect to happen?', keep: 'Please keep these details:' } as const;
 

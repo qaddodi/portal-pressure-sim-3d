@@ -7,6 +7,7 @@ import { setParams } from '../src/engine/store.ts';
 import { currentParams, historyNow, presetStarted, undo, redo, updateParams } from '../src/ui/action/params.ts';
 import { SURGICAL, drugChips, fluids, giveFluid, placeShunt, pressChip, procedures, ranOn, removeShunt, TABS, type Env } from '../src/ui/treat/orders.ts';
 import { TREAT_WORDS } from '../src/ui/treat/treat.generated.ts';
+import { TOAST_WORDS } from '../src/ui/treat/toast-words.ts';
 
 const preset = (id: string) => (PRESETS as { id: string; apply(p: unknown): unknown }[]).find((x) => x.id === id)!.apply(defaultParams());
 interface Spy extends Env { said: string[]; picked: unknown[]; actions: { kind: string }[] }
@@ -70,13 +71,13 @@ test('balloon tamponade: the gastric balloon goes up first; the esophageal one i
   assert.equal(currentParams().balloonGas, true); assert.equal(currentParams().balloonEso, false);
   assert.equal(e.said.at(-1), TREAT_WORDS.lines.toasts.balloonDone); assert.deepEqual(e.picked.at(-1), { type: 'organ', id: 'varices' });
   b.run(e);
-  assert.equal(e.said.at(-1), TREAT_WORDS.lines.toasts.balloonUp);
+  assert.equal(e.said.at(-1), TOAST_WORDS.balloonUp);
 });
 
 test('BRTO needs a gastrorenal shunt; with one it occludes it and shows the gastric card', () => {
   const e = spy(), brto = procedures().find((p) => p.id === 'brto')!;
   brto.run(e);   // healthy: no gastrorenal shunt
-  assert.equal(e.said.at(-1), TREAT_WORDS.lines.toasts.brtoNone); assert.equal(currentParams().occluded.C5, undefined);
+  assert.equal(e.said.at(-1), TOAST_WORDS.brtoNone); assert.equal(currentParams().occluded.C5, undefined);
   updateParams((p) => { p.spontaneous.C5 = true; }, { history: false });
   brto.run(e);
   assert.equal(currentParams().occluded.C5, true); assert.equal(e.said.at(-1), TREAT_WORDS.lines.toasts.brtoDone);

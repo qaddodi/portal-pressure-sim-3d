@@ -19,7 +19,7 @@ function ClearRow() {
   const [asking, setAsking] = useState(false);
   const wipe = () => {
     try { for (const k of Object.keys(localStorage)) if (k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k); } catch { /* storage unavailable: nothing was stored */ }
-    useShell.setState({ dialog: null }); useShell.getState().say('Your data on this device has been cleared.');
+    useShell.setState({ dialog: null }); useShell.getState().say('Done. Everything saved on this device is cleared.');
     location.replace(resetUrl(location.href));
   };
   return asking ? (

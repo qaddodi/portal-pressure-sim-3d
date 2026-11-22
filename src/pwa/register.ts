@@ -12,7 +12,7 @@ import { lowData } from '../boot/data-saver.ts';
 import { clock } from '../clock/frame.ts';
 import { whenQuietOnce } from '../clock/idle.ts';
 import { stamp } from '../boot/timeline.ts';
-export const UPDATE_TOAST = 'A new version of the simulator is ready.';
+export const UPDATE_TOAST = 'A new version is ready. Reload whenever it suits you.';
 /** How long a held offer waits before it asks again (a talk is on). */
 export const RETRY_MS = 30000;
 
