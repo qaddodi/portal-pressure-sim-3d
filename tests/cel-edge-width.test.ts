@@ -9,7 +9,7 @@ import { CEL_TUBE_GLSL } from '../src/scene/cel-glsl.ts';
 import { CEL_QUANT_GLSL } from '../src/scene/materials/cel-quant.ts';
 import { TOON_FS } from '../src/scene/materials/shaders.ts';
 import { celTones } from '../src/scene/vessels/cel-ink.ts';
-import { VESSEL_FS, VESSEL_VS, TUBE_SAG } from '../src/scene/vessels/shaders.ts';
+import { VESSEL_FS, TUBE_SAG } from '../src/scene/vessels/shaders.ts';
 import { TUBE_RADIAL, MAX_RING_GROWTH, MAX_RING_TURN_DEG, MIN_BEND_RADIUS, ringsForBends, worstRingTurn } from '../src/scene/vessels/tubes.ts';
 
 const read = (p: string): string => readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -39,17 +39,9 @@ test('every program that cuts a cel step reads its width from EDGE_PX, as half t
   }
 });
 
-test('the outline\'s outer edge is cut to the true circle of the lumen and the line the hull was built from', () => {
-  // the hull's flats stand exactly on that circle (the corners TUBE_SAG outside it): cutting there removes the corners and nothing inside the flats
-  assert.ok(Math.abs(TUBE_SAG - (1 / Math.cos(Math.PI / TUBE_RADIAL) - 1)) < 1e-12);
-  assert.ok(Math.abs((1 + TUBE_SAG) * Math.cos(Math.PI / TUBE_RADIAL) - 1) < 1e-12, 'the inscribed circle of the flats is the true radius');
-  assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/, 'the hull\'s line');
-  assert.match(VESSEL_FS, /\* mix\(1\.0, [\d.]+, circT\) \* endKo \+ hiPx \* vHi\) \* inkOn;/, 'the cut is built from the same rule as the hull (a Circuit line, the buried ends, a pick\'s ring)');
-  const at = VESSEL_FS.indexOf('if (dLat > rDevAx + inkO * dpr) discard;');
-  assert.ok(at > 0, 'the cut is there');
-  const shadow = VESSEL_FS.indexOf('#ifdef SHADOW'), glow = VESSEL_FS.indexOf('#ifdef GLOW');
-  assert.ok(at > VESSEL_FS.indexOf('#endif', shadow) && at > VESSEL_FS.indexOf('#endif', glow), 'after the glow\'s mask and the crossing shadow\'s hull, which return before it and have their own widths');
-  assert.ok(VESSEL_FS.indexOf('float rDevAx') < at, 'after rDevAx is known');
+test('the outline\'s outer edge is NOT cut to a circle (22 Nov: it dropped pixels that belong to a join, so junctions broke): the fragment stage has no outer-edge discard', () => {
+  assert.doesNotMatch(VESSEL_FS, /dLat > rDevAx \+ /, 'a tube\'s hull at a join is not a lone circle');
+  assert.ok(Math.abs((1 + TUBE_SAG) * Math.cos(Math.PI / TUBE_RADIAL) - 1) < 1e-12);
 });
 
 test('ringsForBends (built, NOT wired into tubularOf: see tubes.ts): tight bends of thick tubes get rings, and only they', () => {
