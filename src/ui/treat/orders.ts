@@ -3,6 +3,7 @@
 // without a screen. The model is the engine's: an order only edits the params (or sends the engine one of its actions: a fluid, a band).
 import { DRUGS } from '../../engine/hales/portal/scenario.js';
 import { TREAT_WORDS } from './treat.generated.ts';
+import { TOAST_WORDS } from './toast-words.ts';
 import { updateParams, currentParams, type Params } from '../action/params.ts';
 import type { Sel } from '../action/selection.ts';
 import { activeInterventions } from '../action/changes.ts';
@@ -76,7 +77,7 @@ export function removeShunt(env: Env, id: string): boolean {
 
 // ── procedures ──
 export interface Proc { id: string; icon: string; label: string; long: string; sub: string; placed?: (p: Params) => boolean; run(env: Env): void }
-const P = W.procedures, SUB = W.lines.procSubs, T = W.lines.toasts;
+const P = W.procedures, SUB = W.lines.procSubs, T = TOAST_WORDS;
 const proc = (id: keyof typeof P): { label: string; long: string } => P[id];
 /** The Procedures tab's orders, in the 2D app's order. `placed` says a procedure is in place (its tile takes the accent tint and a tick). */
 export function procedures(): Proc[] {

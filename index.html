@@ -63,12 +63,16 @@
     #boot .boot-msg h1 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
     #boot .boot-msg p { margin: 0 0 10px; }
     #boot .boot-msg code { display: block; margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.05); font: 12px/1.4 ui-monospace, Consolas, monospace; word-break: break-all; color: var(--text-2, #555); }
+    #boot .boot-msg code[hidden] { display: none; }
+    #boot .boot-msg code { animation: boot-det-in .24s ease both; }
+    #boot .boot-msg .boot-det { display: block; margin: 0 0 10px; padding: 0; border: 0; background: none; color: var(--text-2, #555); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
     #boot .boot-msg a { display: inline-block; margin: 4px 8px 0 0; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,.15); color: inherit; text-decoration: none; }
     #boot .boot-msg button { margin: 4px 8px 0 0; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,.15); background: rgba(0,0,0,.05); color: inherit; font: inherit; cursor: pointer; }
     @keyframes boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    @keyframes boot-det-in { from { opacity: 0; } }
     @keyframes boot-bar-in { to { opacity: 1; } }
     @keyframes boot-name-in { to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { #boot .boot-bar i { animation: none; } #boot .boot-bar b, #boot .boot-bar i, #boot .boot-name { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { #boot .boot-bar i, #boot .boot-msg code { animation: none; } #boot .boot-bar b, #boot .boot-bar i, #boot .boot-name { transition: none; } }
   </style>
 </head>
 <body>
@@ -81,10 +85,10 @@
 var STALL_MS=8000,OFFLINE_MS=3000,TICK_MS=500,BAR_AFTER_MS=1200,NAME_MS=800;
 var seen=0,bytes=0,last=0,hold=0,frac=0,total=0,startedAt=0,WORK_MS=15000;
 function now(){return w.performance&&performance.now?performance.now():0}
-function show(title,body,detail,actions,cls){var el=document.getElementById('boot');if(!el||el.getAttribute('data-lifting')||(cls==='slow'&&el.className==='failed'))return;if(!cls)clearTimeout(w.ppsBootTimer);if(orig===null)orig=el.innerHTML;el.className=cls||'failed';var msg='<div class="boot-msg" role="alert"><h1>'+title+'</h1>'+body+(detail?'<code>'+esc(detail)+'</code>':'')+actions+'</div>',head=cls==='slow'?orig.replace(/<div class="boot-bar">[\s\S]*?<\/div>/,'').replace(/<span[\s\S]*?<\/span>/,''):'';/* a recoverable note keeps the mark and the name above it */el.innerHTML=/<\/div>$/.test(head)?head.replace(/<\/div>$/,msg+'</div>'):msg;var r=el.querySelector('[data-reload]'),k=el.querySelector('[data-wait]');if(r)r.onclick=function(){location.reload()};if(k)k.onclick=function(){el.className='';el.innerHTML=orig;last=now();hold=last+STALL_MS;if(w.ppsBootReady)lift();else w.ppsBootTimer=setTimeout(tick,TICK_MS)}}
-w.ppsBootRendererFail=function(why){show('The 3D view couldn’t start','<p>The graphics could not draw the figure. Reloading often fixes it. If it keeps happening, the 2D simulator works on this device.</p>',why,'<button type="button" data-reload>Reload</button><a href="https://qaddodi.github.io/portal-pressure-simulator/">Open the 2D simulator</a>')};
+function show(title,body,detail,actions,cls){var el=document.getElementById('boot');if(!el||el.getAttribute('data-lifting')||(cls==='slow'&&el.className==='failed'))return;if(!cls)clearTimeout(w.ppsBootTimer);if(orig===null)orig=el.innerHTML;el.className=cls||'failed';var msg='<div class="boot-msg" role="alert"><h1>'+title+'</h1>'+body+(detail?'<button type="button" class="boot-det" data-details>Details</button><code hidden>'+esc(detail)+'</code>':'')+actions+'</div>',head=cls==='slow'?orig.replace(/<div class="boot-bar">[\s\S]*?<\/div>/,'').replace(/<span[\s\S]*?<\/span>/,''):'';/* a recoverable note keeps the mark and the name above it */el.innerHTML=/<\/div>$/.test(head)?head.replace(/<\/div>$/,msg+'</div>'):msg;var dt=el.querySelector('[data-details]');if(dt)dt.onclick=function(){var c=el.querySelector('code');if(c)c.hidden=false;dt.hidden=true};var r=el.querySelector('[data-reload]'),k=el.querySelector('[data-wait]');if(r)r.onclick=function(){location.reload()};if(k)k.onclick=function(){el.className='';el.innerHTML=orig;last=now();hold=last+STALL_MS;if(w.ppsBootReady)lift();else w.ppsBootTimer=setTimeout(tick,TICK_MS)}}
+w.ppsBootRendererFail=function(why){show('The 3D view couldn’t start','<p>The graphics couldn’t draw the figure. Reloading usually fixes it. If it keeps happening, the 2D simulator works on this device.</p>',why,'<button type="button" data-reload>Reload</button><a href="https://qaddodi.github.io/portal-pressure-simulator/">Open the 2D simulator</a>')};
 var ADVICE='<p>Please open it in a current version of <b>Chrome</b>, <b>Edge</b>, <b>Safari</b> or <b>Firefox</b>, or on your phone or tablet.</p>';
-w.ppsBootFail=function(){show('The simulator couldn’t start','<p>Something went wrong while it was loading. Reloading often fixes it. If it keeps happening on this computer, the browser may be too old or restricted.</p>'+ADVICE,w.ppsBootErrors.slice(0,3).join('\n')+'\nBrowser: '+navigator.userAgent,'<button type="button" data-reload>Reload</button>')};
+w.ppsBootFail=function(){show('The simulator couldn’t start','<p>It didn’t load this time. Reloading usually fixes it. If it keeps happening, this browser may be too old or locked down.</p>'+ADVICE,w.ppsBootErrors.slice(0,3).join('\n')+'\nBrowser: '+navigator.userAgent,'<button type="button" data-reload>Reload</button>')};
 w.addEventListener('error',function(e){w.ppsBootErrors.push(String(e&&e.message||e));if(e&&e.message&&/SyntaxError/.test(e.message))w.ppsBootFail()});
 /* The cover lifts once the first screen is in (React has put something in #root), or, for the main app (html[data-boot=wait], src/boot/ready.ts), once its figure has drawn and its labels are placed; never sooner than 600 ms after the page began (a cover that flashes is worse than none), and by itself
    after 20 s whatever happened (the 2D page's last word); it fades over 420 ms, then is removed. Only a TERMINAL failure (class failed: the page or the renderer cannot start) keeps it; the "Still loading…" and offline notes are class slow, a recoverable state, so a ready signal (or the 20 s one) still lifts it, with the covered app inert (#root[inert]) until the lift begins. */
@@ -102,7 +106,7 @@ if(t>=hold){var idle=t-last;if(startedAt){if(t-startedAt>=WORK_MS&&t-last>=WORK_
 w.ppsBootTimer=setTimeout(tick,TICK_MS)}
 var KEEP='<button type="button" data-reload>Reload</button><button type="button" data-wait>Keep waiting</button>';
 function phase(){return 'entry '+(startedAt?'running':'not started')+' · '+Math.round(bytes/1024)+' of '+Math.round(total/1024)+' kB · '+seen+' files · '+Math.round(now()/100)/10+' s'}
-function slow(){if(startedAt)show('Still loading…','<p>This is taking longer than usual. It may finish by itself, or you can reload the page.</p>',phase(),KEEP,'slow');else show('Still loading…','<p>Nothing new has arrived for a few seconds, which is often a slow connection. It may finish by itself, or you can reload the page.</p>',phase(),KEEP,'slow')}
+function slow(){if(startedAt)show('Still loading…','<p>Taking longer than usual. Give it a moment, or reload.</p>',phase(),KEEP,'slow');else show('Still loading…','<p>The connection looks slow. It usually catches up; reload if it doesn’t.</p>',phase(),KEEP,'slow')}
 function offline(){show('You’re offline','<p>You’re offline and the simulator isn’t saved on this device yet. Connect to the internet and it will load; after that it also works without a connection.</p>',phase(),KEEP,'slow')}
 /* The name waits for its face (at most NAME_MS), then shows in the face it has by then, so it neither pops in unstyled nor swaps later (index.html's CSS: data-name). */
 function named(how){var el=document.getElementById('boot');if(el&&!el.getAttribute('data-name'))el.setAttribute('data-name',how)}
