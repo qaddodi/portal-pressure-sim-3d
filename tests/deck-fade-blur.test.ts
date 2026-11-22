@@ -31,7 +31,7 @@ test('the phone view pill and the focus row keep their wholes opaque; their part
   assert.match(twoD, /\.nb-views \{ opacity: 0; pointer-events: none; translate: 0 var\(--bar-sink, 0px\); transition: none; \}/, '2D still fades the whole pill; this holds the override to it');
   assert.match(cards, /\.app\.figure-focus \.topbar\.two-rows \.stage-bar\.top \{ opacity: 0; visibility: hidden;/);
   assert.match(css, /\.sheet-layer > \.menu, [^{]*\.vdock:not\(\.mini\) > \.nb-views \{ opacity: 1; \}/);
-  assert.match(css, /\.app\.thumb \.vdock:not\(\.mini\) > \.nb-views > \* \{ transition: opacity var\(--d-small\) var\(--ease\) \.3s/);
+  assert.match(css, /\.app\.thumb \.vdock:not\(\.mini\) > \.nb-views > \* \{ transition: opacity var\(--d-small\) var\(--ease-arrive\) \.3s/);
   assert.match(css, /\.nb-views > \*, [^{]*\.nb-views > \* \{ opacity: 0; transition: none; \}/);
   assert.match(css, /:root \.app\.figure-focus \.topbar\.two-rows \.stage-bar\.top \{ opacity: 1; \}/);
   assert.match(css, /\.stage-bar\.top :has\([^{]*\{ opacity: 0; transition: opacity var\(--d-flip\) var\(--ease-in\)/);
@@ -66,7 +66,7 @@ test('no stylesheet of ours promotes or fades, as a whole, a class that holds a 
 // The dock's own paint: a whole that no longer fades keeps whatever it draws itself. .vdock draws the pill's shadow and hairline (box-shadow), which stayed as an empty rounded outline in a talk.
 test('every holder that stays opaque in a talk has no paint of its own left: the dock\'s shadow goes with the parts', () => {
   assert.match(css, /\.sh-root\[data-mode="deck"\] > \.app \.vdock \{ box-shadow: none; \}/);
-  assert.match(css, /\.sh-root > \.app \.vdock \{ transition: box-shadow var\(--d-surface, \.42s\) var\(--ease\); \}/);
+  assert.match(css, /\.sh-root > \.app \.vdock \{ transition: box-shadow var\(--d-surface\) var\(--ease-arrive\); \}/);
   // the holders the talk fade keeps opaque, and what each paints itself in 2D (app-07-floating.css): the bar paints nothing; the dock paints a shadow, handled above; the pills that hold a face have none
   const f = readFileSync('src/ui/css2d/app-07-floating.css', 'utf8');
   assert.match(f, /\.vdock \{[^}]*box-shadow: var\(--shadow-pill\)/);

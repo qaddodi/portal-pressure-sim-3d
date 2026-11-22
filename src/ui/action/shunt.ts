@@ -3,6 +3,7 @@
 // ("Shunt canceled."). The card is put away while it waits (2D: a card is not shown while shunting) and comes back when it is called off. Registered as the 'shunt' feature by startShunting().
 import { create } from 'zustand';
 import { clock } from '../../clock/frame.ts';
+import { D_FLIP, EASE_ARRIVE } from '../motion.ts';
 import { registerFeature } from '../shell/features.ts';
 import { useShell } from '../shell/store.ts';
 import { sceneApi } from '../../scene/api.ts';
@@ -47,7 +48,7 @@ function aim(src: string, targets: ReadonlyMap<string, ShuntRule>): () => void {
   const tip = document.createElement('div');
   tip.className = 'shunt-aim';
   tip.setAttribute('aria-hidden', 'true');
-  tip.style.cssText = 'position:fixed;left:0;top:0;z-index:60;pointer-events:none;opacity:0;white-space:nowrap;padding:3px 9px;border-radius:9px;font:600 13px/1.3 var(--font-ui, system-ui, sans-serif);color:var(--accent);background:var(--surface, #fff);box-shadow:0 1px 6px rgba(0,0,0,.25);will-change:transform,opacity;transition:opacity 120ms ease-out;';
+  tip.style.cssText = `position:fixed;left:0;top:0;z-index:60;pointer-events:none;opacity:0;white-space:nowrap;padding:3px 9px;border-radius:9px;font:600 13px/1.3 var(--font-ui, system-ui, sans-serif);color:var(--accent);background:var(--surface, #fff);box-shadow:0 1px 6px rgba(0,0,0,.25);will-change:transform,opacity;transition:opacity ${D_FLIP}ms ${EASE_ARRIVE};`;
   document.body.append(tip);
   const cs = getComputedStyle(document.documentElement), accent = cs.getPropertyValue('--accent').trim() || '#2f7cf6', danger = cs.getPropertyValue('--danger').trim() || '#d64545';
   let at: { x: number; y: number } | null = null, hover: string | null = null, word = '', done = '';

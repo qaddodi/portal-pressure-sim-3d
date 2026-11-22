@@ -114,3 +114,40 @@ test('the dead Look swatches and the second easing definitions are gone', () => 
   assert.doesNotMatch(read('src/ui/shell/global.css'), /--ease-move\s*:/);
   assert.doesNotMatch(read('src/ui/deck-ui.css'), /--ease\s*:/);
 });
+
+// ── the whole app: nothing outside motion.ts and global.css writes a curve or an animation time ──
+// Allowances (a ratchet, like the layout-read one): files the label thread (polish B) still owns. It lowers them as it moves them onto the scale; a count here never goes up, and a file not listed has 0.
+const LEGACY: Record<string, number> = {};
+
+import { readdirSync } from 'node:fs';
+const walk = (d: string): string[] => readdirSync(new URL(`../${d}`, import.meta.url), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]));
+
+/** Where a curve or an animation time is written as a literal: a `cubic-bezier(`, a CSS transition/animation time, a Web Animations `duration:` or a transition string with a time. An "own pace" comment on the line or the one above clears it. */
+function literalMotion(path: string): string[] {
+  const rawText = read(path), css = path.endsWith('.css');
+  const raw = rawText.split('\n');
+  const code = rawText.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' ')).split('\n');
+  const out: string[] = [];
+  code.forEach((l, i) => {
+    const line = css ? l : l.replace(/\/\/.*$/, '');
+    let hit = /cubic-bezier\(/.test(line);
+    if (!hit && css) for (const m of line.matchAll(/(?<![\w-])(?:transition|animation)(?:-duration)?:[^;}]*/g)) if (/(?<![\w.-])\d*\.?\d+m?s\b/.test(m[0].replace(/(?<![\w.-])0s\b/g, ''))) hit = true;
+    if (!hit && !css) hit = /\bduration\s*:\s*[0-9]/.test(line) || (/(?:transition|animation)[^;]*\b\d+(?:\.\d+)?m?s\b/.test(line) && /['"`]/.test(line));
+    if (hit && !OWN_PACE.test(raw[i]!) && !(i > 0 && OWN_PACE.test(raw[i - 1]!))) out.push(`${path}:${i + 1}`);
+  });
+  return out;
+}
+
+test('no file outside motion.ts and global.css writes a cubic-bezier or a literal animation time (a ratchet for the label files still moving)', () => {
+  const files = walk('src').filter((f) => /\.(ts|tsx|css)$/.test(f) && !/css2d\/|\.copied\.|looks2d\/|\/copied\/|ui\/motion\.ts$|shell\/global\.css$/.test(f));
+  const found = new Map<string, string[]>();
+  for (const f of files) { const hits = literalMotion(f); if (hits.length) found.set(f, hits); }
+  for (const [f, hits] of found) assert.ok(hits.length <= (LEGACY[f] ?? 0), `${f} writes ${hits.length} literal curve(s) or time(s), allowance ${LEGACY[f] ?? 0}: use motion.ts (TS) or var(--d-*) / var(--ease-*) (CSS), or name it and say "own pace"\n  ${hits.join('\n  ')}`);
+});
+
+test('Menu and Pages time their leaves on the scale, and Reduce Motion\'s card entry is the renamed token', () => {
+  for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/shell/Pages.tsx']) assert.match(read(f), /from '\.\.\/motion\.ts'/, f);
+  const reduced = read('src/ui/a11y/reduced.css');
+  assert.match(reduced, /--d-card-in:\s*var\(--d-small\)/);   // (it was --move, which the stylesheet no longer reads)
+  assert.doesNotMatch(reduced, /--move\b/);
+});

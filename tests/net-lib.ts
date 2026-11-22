@@ -100,6 +100,28 @@ export function fixtures(): Fixture[] {
     { id: 'S0', from: 'N', to: 'c', curve: arm(O, dirXY(80), 0.5, [0, 0, 1], 0), rad: lin(0.08, 0.07), bones: 8 },
     { id: 'S1', from: 'N', to: 'd', curve: arm(O, dirXY(-80), 3, [0, 0, 1]), rad: lin(0.035, 0.03) },
   ]) });
+  // HS: the H with a SHORT middle edge (0.25 long, under kA + kB + RA + RB): the two junctions are one region of four arms and the short edge is inside it
+  out.push({ name: 'HS', junctions: ['L+R'], skel: makeSkeleton([{ id: 'L' }, { id: 'R' }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], [
+    { id: 'M', from: 'L', to: 'R', curve: (u) => [-0.125 + 0.25 * u, 0, 0], rad: lin(0.1, 0.1), bones: 6 },
+    { id: 'La', from: 'L', to: 'a', curve: arm([-0.125, 0, 0], dirXY(140), 2, [0, 0, 1]), rad: lin(0.07, 0.06) },
+    { id: 'Lb', from: 'L', to: 'b', curve: arm([-0.125, 0, 0], dirXY(-140), 2, [0, 0, 1]), rad: lin(0.07, 0.06) },
+    { id: 'Rc', from: 'R', to: 'c', curve: arm([0.125, 0, 0], dirXY(40), 2, [0, 0, 1]), rad: lin(0.07, 0.06) },
+    { id: 'Rd', from: 'R', to: 'd', curve: arm([0.125, 0, 0], dirXY(-40), 2, [0, 0, 1]), rad: lin(0.07, 0.06) },
+  ]) });
+  // HT: a trunk running through TWO junctions joined by a short edge (a branch up at one, down at the other): the through pair crosses the merged region
+  out.push({ name: 'HT', junctions: ['L+R'], skel: makeSkeleton([{ id: 'L', runOn: ['T0', 'M'] }, { id: 'R', runOn: ['M', 'T1'] }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], [
+    { id: 'T0', from: 'a', to: 'L', curve: (u) => [-3.125 + 3 * u, 0, 0], rad: lin(0.1, 0.1) },
+    { id: 'M', from: 'L', to: 'R', curve: (u) => [-0.125 + 0.25 * u, 0, 0], rad: lin(0.1, 0.1), bones: 6 },
+    { id: 'T1', from: 'R', to: 'b', curve: (u) => [0.125 + 3 * u, 0, 0], rad: lin(0.1, 0.1) },
+    { id: 'Bc', from: 'L', to: 'c', curve: arm([-0.125, 0, 0], dirXY(100), 3, [0, 0, 1]), rad: lin(0.05, 0.04) },
+    { id: 'Bd', from: 'R', to: 'd', curve: arm([0.125, 0, 0], dirXY(-100), 3, [0, 0, 1]), rad: lin(0.05, 0.04) },
+  ]) });
+  // TT: a trunk that narrows through its node (0.12 above, 0.08 below, one radius at the node as the run-on rule has it) with a side branch: the through pair has two radii
+  out.push({ name: 'TT', junctions: ['N'], skel: makeSkeleton([{ id: 'N', runOn: ['T0', 'T1'] }, { id: 'a' }, { id: 'b' }, { id: 'c' }], [
+    { id: 'T0', from: 'a', to: 'N', curve: (u) => [-3 + 3 * u, 0, 0], rad: lin(0.12, 0.1) },
+    { id: 'T1', from: 'N', to: 'b', curve: (u) => [3 * u, 0, 0], rad: lin(0.1, 0.08) },
+    { id: 'BR', from: 'N', to: 'c', curve: arm(O, dirXY(70), 3, [0, 0, 1]), rad: lin(0.04, 0.03) },
+  ]) });
   return out;
 }
 
@@ -129,6 +151,35 @@ export function deform(mesh: NetMesh, skel: Skeleton, pose: 0 | 1, radiusScale: 
     }
     out[3 * v] = x; out[3 * v + 1] = y; out[3 * v + 2] = z;
   }
+  return out;
+}
+
+/** The vertices' unit normals at `pose`: each bound bone's rest normal turned by that bone's frame, blended, renormalised (what the vertex shader does). */
+export function deformNormals(mesh: NetMesh, skel: Skeleton, pose: 0 | 1): Float32Array {
+  const frames = poseFrames(skel, pose), V = mesh.position.length / 3, out = new Float32Array(3 * V);
+  for (let v = 0; v < V; v++) {
+    let x = 0, y = 0, z = 0;
+    for (let i = 0; i < 4; i++) {
+      const w = mesh.weight[4 * v + i]!;
+      if (!w) continue;
+      const F = frames[mesh.bone[4 * v + i]!]!, a = mesh.normal[12 * v + 3 * i]!, b = mesh.normal[12 * v + 3 * i + 1]!, c = mesh.normal[12 * v + 3 * i + 2]!;
+      x += w * (a * F[0][0] + b * F[1][0] + c * F[2][0]); y += w * (a * F[0][1] + b * F[1][1] + c * F[2][1]); z += w * (a * F[0][2] + b * F[1][2] + c * F[2][2]);
+    }
+    const l = Math.hypot(x, y, z) || 1;
+    out[3 * v] = x / l; out[3 * v + 1] = y / l; out[3 * v + 2] = z / l;
+  }
+  return out;
+}
+/** The area-weighted normal of every vertex of a mesh, by finite differences of its own surface: what the shade's normal would be if it were derived from the geometry. */
+export function geometricNormals(position: ArrayLike<number>, index: ArrayLike<number>): Float32Array {
+  const V = position.length / 3, out = new Float32Array(3 * V);
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i]! * 3, b = index[i + 1]! * 3, c = index[i + 2]! * 3;
+    const ux = position[b]! - position[a]!, uy = position[b + 1]! - position[a + 1]!, uz = position[b + 2]! - position[a + 2]!, vx = position[c]! - position[a]!, vy = position[c + 1]! - position[a + 1]!, vz = position[c + 2]! - position[a + 2]!;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    for (const o of [a, b, c]) { out[o] += nx; out[o + 1] += ny; out[o + 2] += nz; }
+  }
+  for (let v = 0; v < V; v++) { const l = Math.hypot(out[3 * v]!, out[3 * v + 1]!, out[3 * v + 2]!) || 1; out[3 * v] /= l; out[3 * v + 1] /= l; out[3 * v + 2] /= l; }
   return out;
 }
 
