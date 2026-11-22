@@ -88,3 +88,23 @@ test('a slide that arrives into a room the cards then shrink ends framed exactly
   assert.equal((link.match(/sceneApi\.setRoom\(/g) ?? []).length, 1, 'only frameRoom calls sceneApi.setRoom in the talk');
   assert.match(link, /sceneApi\.setRoom\(room, ms, homeTurn, true, ease\)/);
 });
+
+// ...and the room the slide is fitted to must be the FINAL one (coordinator, 22 Nov: a second ease right after arrival is a visible double move). The data card is measured whole, then stepped down or fitted
+// (pair-ladder, fitMap), so a room published at an earlier step was not the room the slide keeps. The plan is published only once final, stamped with its stop, and the camera's slide move waits for it.
+test('the plan reaches the camera only when final, stamped with its slide; the slide\'s move waits for its own room', async () => {
+  const layer = readFileSync('src/ui/cards/CardLayer.tsx', 'utf8');
+  assert.match(layer, /const final = settled && fonts && !growing && \(measuredNow \|\| late === pagesKey\);/);
+  assert.match(layer, /if \(final\) publishPlan\(plan, pos\.stop\)/);
+  const link = readFileSync('src/ui/deck/scene-link.ts', 'utf8');
+  assert.match(link, /if \(boxes\.stop != null && boxes\.stop !== pos\.stop\) \{ owed = owed \|\| stepped; return; \}/);
+  assert.match(link, /s\.boxes\.stop !== prev\.boxes\.stop/);
+  const { useUi } = await import('../src/ui/ui-store.ts');
+  const plan = { cards: [], strip: null, free: { x: 0, y: 100, w: 390, h: 400 }, docked: false } as never;
+  useUi.getState().publishPlan(plan, 4);
+  assert.equal(useUi.getState().boxes.stop, 4);
+  const was = useUi.getState().boxes;
+  useUi.getState().publishPlan(plan, 4);
+  assert.equal(useUi.getState().boxes, was, 'the same room for the same slide is not a change');
+  useUi.getState().publishPlan(plan, 5);
+  assert.equal(useUi.getState().boxes.stop, 5, 'the same room for a new slide still tells the camera it has come');
+});

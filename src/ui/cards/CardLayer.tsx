@@ -244,7 +244,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
 
   // the cards' boxes go to the scene once per layout change, when every card up has been measured
   const settled = needs.length > 0 && needs.every((n) => n.h > 0 || (plan.docked && n.slot === 'data'));   // (a card put away is not measured: it is not up)
-  useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
+  // ...and only when they are FINAL: both cards measured at the ladder's last step, nothing still to widen, split or fit, fonts in (or the 320 ms give-up the cards use). A room published at an earlier step was
+  // a different room (the data card measured whole, then stepped down or fitted): the camera fitted to it, then moved again to the final one. The stop travels with it so the camera knows whose room it is.
+  const measuredNow = needs.every((n) => (plan.docked && n.slot === 'data') || hit(n.slot === 'words' ? wordsKey : dataKey)?.sig === sig);
+  const final = settled && fonts && !growing && (measuredNow || late === pagesKey);
+  useLayoutEffect(() => { if (final) publishPlan(plan, pos.stop); }, [plan, final, pos.stop, publishPlan]);
 
   // a swipe on the last slide's card ends the talk (the figure comes back); anywhere else it moves the talk
   const goTo = (m: Move) => { if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m); };
