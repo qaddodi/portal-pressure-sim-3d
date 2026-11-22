@@ -16,6 +16,8 @@ import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
 import { boneFrame, bonePos, boneRadius, type Pose } from './pose.ts';
 import { windowOf, type Window } from './window.ts';
+import { REGION_PTS } from './regions.ts';
+import { shaderBones, stateScales } from './shader-caps.ts';
 import { regionKeys } from './keys.ts';
 import { bakeScaleOf } from './ranges.ts';
 import { sewnEnds } from './sewn.ts';
@@ -90,7 +92,7 @@ export interface NodeReport {
   /** [b, a] (net/window.ts): the last t the body mesh is whole (it dissolves over [a - 0.1, a]) and the first the map mesh is (it comes in over [b, b + 0.05]). Absent: a body mesh is always drawn */
   switchT?: readonly [number, number];
   /** junction: the bones each of `caps` runs through, and each arm's seam ring (mesh vertex ids): what net/fit.ts needs to fit the region at the other states */
-  capBones?: number[][]; rings?: number[][];
+  capBones?: number[][]; /** the bones that carry each capsule in the shader's row (at most REGION_PTS of `capBones`'s, chosen so the tubes stay inside the live union: net/shader-caps.ts) */ regionBones?: number[][]; rings?: number[][];
   through: { arms: [number, number]; mated: boolean; toggled: boolean; margin: number }[];
 }
 export interface NetMeshResult { mesh: NetMesh; edges: number[]; nodes: NodeReport[]; /** only in a lenient diagnosis run: the regions that would not mesh (left unfilled) */ failures: { node: string; why: string }[]; /** regions whose map-built mesh could not be made (the body mesh is drawn alone), with why */ mapNotes: { node: string; why: string }[]; /** with `maps`: each region's two meshes' windows (net/window.ts), by node name */ windows: Map<string, Window>; report: { vertices: number; triangles: number; sweepTriangles: number } }
@@ -351,6 +353,10 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   for (const c of ctx.values()) { lo.set(c.idx, 0); hi.set(c.idx, c.count - 1); }
   const seamKey = (e: number, s: number): string => `${e}:${s}`;
   const seamRings = new Map<string, number[]>();
+  // THE ARMS' EXTENSIONS (plan owner, 22 Nov): the bones an arm's extension from its seam to the node passes through (local indices, seam first), and a short edge's (ascending, whole). They are the bones that carry the capsules in the shader's row (net/shader-caps.ts),
+  // so the extension is a polyline on the very capsule the shader's union holds and cannot stand outside it at any t.
+  const extPath = new Map<string, number[]>(), wholePath = new Map<number, number[]>();
+  const rowScales = stateScales(skel.edges.length, bakeScale, opts?.states);
   /** An arm (an edge end at the region, with a seam) or an INTERNAL edge (a short edge inside it, whole): its bones out from the start node, arc length and radius along them. */
   interface Arm { edge: number; end: 0 | 1; ctx: EdgeCtx; r: number; arc: number[]; rad: number[]; pts: Vec3[]; bonesOut: number[] /* local bone index at each step out of the node */; node: string }
   const reports: NodeReport[] = [], memo = new Map<string, number>();
@@ -594,6 +600,21 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       // the arms' sweeps stop at the seams
       arms.forEach((a, i) => { if (a.end === 0) lo.set(a.edge, Math.max(lo.get(a.edge)!, seams[i]!)); else hi.set(a.edge, Math.min(hi.get(a.edge)!, a.ctx.count - 1 - seams[i]!)); });
       const armSeams = seams as number[], armList = arms, usedTries = 1;
+      const must = new Set<number>(arms.flatMap((a, i) => [gbone(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!), gbone(a.ctx, endBone(a.ctx, a.end))]));
+      capOf.forEach((a) => { if (a) { must.add(gbone(a.ctx, 0)); must.add(gbone(a.ctx, a.ctx.count - 1)); } });
+      const row = shaderBones(skel, capBones, REGION_PTS, rowScales, capBones.map(() => must));
+      row.forEach((f, ci) => { if (!Number.isFinite(f.worst)) mapNotes.push({ node: rid, why: `more bones must stay on capsule ${ci} than the shader's row holds (${REGION_PTS})` }); });
+      arms.forEach((a, i) => {
+        const chosen = new Set(row[i]!.bones), c = a.ctx, seamL = a.end === 0 ? seams[i]! : c.count - 1 - seams[i]!, list: number[] = [];
+        if (a.end === 0) { for (let l = seamL; l >= 0; l--) if (l === seamL || l === 0 || chosen.has(gbone(c, l))) list.push(l); } else { for (let l = seamL; l <= c.count - 1; l++) if (l === seamL || l === c.count - 1 || chosen.has(gbone(c, l))) list.push(l); }
+        extPath.set(`${a.edge}:${a.end}`, list);
+      });
+      // (a short edge's own capsule, or the through chain that took it in: the bones of either that the row keeps)
+      for (const a of internal) {
+        const chosen = new Set<number>(); capBones.forEach((ids, ci) => { if (ids.some((g) => g >= a.ctx.first && g < a.ctx.first + a.ctx.count)) row[ci]!.bones.forEach((g) => chosen.add(g)); });
+        const list: number[] = []; for (let l = 0; l < a.ctx.count; l++) if (l === 0 || l === a.ctx.count - 1 || chosen.has(gbone(a.ctx, l))) list.push(l);
+        wholePath.set(a.edge, list);
+      }
       const emit = (skin: ReturnType<typeof buildSkinSteady>, capsG: readonly Capsule[], kG: number, pose: 0 | 1): void => {
         const ringIds = armList.map((a, i) => seamRings.get(seamKey(a.edge, a.end === 0 ? armSeams[i]! : a.ctx.count - 1 - armSeams[i]!))!);
         const S = armList.length * RADIAL, V = skin.position.length / 3, map = new Int32Array(V);
@@ -624,7 +645,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
           map[v] = addVertex(skin.position, 3 * v, bones, weights, [nx / nl, ny / nl, nz / nl], 0, pose);
         }
         for (let i = 0; i < skin.index.length; i++) tris.push(map[skin.index[i]!]!);
-        reports.push({ node: rid, kind: 'junction', seams: armSeams.slice(), arms: armList.map((a) => a.edge), triStart: tstart / 3, triCount: (tris.length - tstart) / 3, vertStart: vstart, vertCount: vb.length - vstart, tries: usedTries, variant: pose, capBones: capBones.map((b) => b.slice()), rings: ringIds.map((r) => Array.from(r)), caps: caps.map((c) => ({ pts: Array.from(c.pts), r: Array.from(c.r), mate: c.mate ?? -1 })), through: throughReport });
+        reports.push({ node: rid, kind: 'junction', seams: armSeams.slice(), arms: armList.map((a) => a.edge), triStart: tstart / 3, triCount: (tris.length - tstart) / 3, vertStart: vstart, vertCount: vb.length - vstart, tries: usedTries, variant: pose, capBones: capBones.map((b) => b.slice()), regionBones: row.map((f) => f.bones.slice()), rings: ringIds.map((r) => Array.from(r)), caps: caps.map((c) => ({ pts: Array.from(c.pts), r: Array.from(c.r), mate: c.mate ?? -1 })), through: throughReport });
       };
       pendingSkins.push(() => emit(skin, caps, k, 0));
       // THE MAP-BUILT MESH (plan owner, 22 Nov): the same region meshed again on the capsules, rings and node as they stand at the MAP layout, from the same seam bones (their rings are the tubes' own, bound to the same bones), so the region has two
@@ -694,7 +715,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
   for (const c of ctx.values()) {
     // (a short edge inside a merged region is swept whole, with a dome at each end: the fillet hides it at rest, the plain tubes show it while the fillet steps aside)
     const sa = lo.get(c.idx)!, sb = hi.get(c.idx)!, inner = shortEdges.has(c.idx);
-    if (sb <= sa) throw new NetMeshError(c.id, `the edge is cut away by its junctions (seams at bones ${sa} and ${sb} of ${c.count})`);
+    if (!inner && sb <= sa) throw new NetMeshError(c.id, `the edge is cut away by its junctions (seams at bones ${sa} and ${sb} of ${c.count})`);
     const ends: (0 | 1)[] = [0, 1];
     const ringAt = (s: number): number[] => {
       const S = sample(c, s), r = ringOf(S, c.alpha), { bones, weights } = boneOfSample(c, S);
@@ -718,24 +739,35 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
       for (let j = 0; j < RADIAL; j++) ids.push(addVertex(r.p, 3 * j, bones, weights, r.nrm, 3 * j));
       return ids;
     };
-    let prev = ringAt(sa);
-    const first = prev;
-    if (sa > 0) seamRings.set(seamKey(c.idx, sa), prev);
-    for (let k = sa; k < sb; k++) {
-      for (let i = 1; i <= c.seg[k]!; i++) {
-        const s = i === c.seg[k]! ? k + 1 : k + i / c.seg[k]!, cur = ringAt(s);
-        bridge(prev, cur); prev = cur;
-        if (i === c.seg[k]! && k + 1 === sb) { if (sb < c.count - 1) seamRings.set(seamKey(c.idx, sb), cur); }
+    /** Sweeps from the ring `from` (standing at path[0]) through the bones of `path` (local indices; towards smaller indices when it descends): one ring at each, bound to that bone alone, and straight between them, which is the capsule's own frustum (the polyline through the
+     *  bones, the radius linear). A ring between two bones would carry its along-axis offset scaled by the live radii and leave the capsule when the bones' radii change differently (the Circuit's peel): there are none. */
+    const walk = (path: readonly number[], from: number[]): number[] => {
+      let q = from;
+      for (let i = 0; i + 1 < path.length; i++) { const cur = ringAt(path[i + 1]!); if (path[i + 1]! > path[i]!) bridge(q, cur); else bridge(cur, q); q = cur; }
+      return q;
+    };
+    let prev: number[], first: number[], head: number[];
+    if (inner) {
+      const path = wholePath.get(c.idx);
+      if (!path) continue;   // (the region that holds it did not mesh, a lenient diagnosis run: the edge is left unfilled with it)
+      first = ringAt(0); prev = walk(path, first); head = first;
+    } else {
+      prev = ringAt(sa);
+      first = prev;
+      if (sa > 0) seamRings.set(seamKey(c.idx, sa), prev);
+      for (let k = sa; k < sb; k++) {
+        for (let i = 1; i <= c.seg[k]!; i++) {
+          const s = i === c.seg[k]! ? k + 1 : k + i / c.seg[k]!, cur = ringAt(s);
+          bridge(prev, cur); prev = cur;
+          if (i === c.seg[k]! && k + 1 === sb) { if (sb < c.count - 1) seamRings.set(seamKey(c.idx, sb), cur); }
+        }
       }
-    }
-    // THE ARMS RUN ON TO THE NODE (plan owner, 22 Nov): an arm's sweep continues past its seam ring to the node's end bone and ends in a dome there, in this same mesh. At rest the smooth union holds every capsule, so the fillet hides these
-    // extensions; while the fillet dissolves during the Circuit move they are the plain tubes that show, and cover the crotch. They are bound to the arm's own bones, like the rest of the tube.
-    let head = first;
-    if (sa > 0) {
-      for (let k = sa - 1; k >= 0; k--) for (let i = 1; i <= c.seg[k]!; i++) { const cur = ringAt(i === c.seg[k]! ? k : k + 1 - i / c.seg[k]!); bridge(cur, head); head = cur; }
-    }
-    if (sb < c.count - 1) {
-      for (let k = sb; k < c.count - 1; k++) for (let i = 1; i <= c.seg[k]!; i++) { const cur = ringAt(i === c.seg[k]! ? k + 1 : k + i / c.seg[k]!); bridge(prev, cur); prev = cur; }
+      // THE ARMS RUN ON TO THE NODE (plan owner, 22 Nov): an arm's sweep continues past its seam ring to the node's end bone and ends in a dome there, in this same mesh. At rest the smooth union holds every capsule, so the fillet hides these
+      // extensions; while the fillet dissolves during the Circuit move they are the plain tubes that show, and cover the crotch. They follow the polyline through the bones that carry the capsule in the shader's row (net/shader-caps.ts), so they
+      // stay inside the live union at every t, and are bound to those bones.
+      head = first;
+      if (sa > 0) { const path = extPath.get(`${c.idx}:0`); if (!path) throw new NetMeshError(c.id, 'a cut arm end has no extension path'); head = walk(path, first); }
+      if (sb < c.count - 1) { const path = extPath.get(`${c.idx}:1`); if (!path) throw new NetMeshError(c.id, 'a cut arm end has no extension path'); prev = walk(path, prev); }
     }
     // free ends, sewn ends (the collar is the shader's), the ends of an arm's extension and of a short edge: a dome
     for (const end of ends) {

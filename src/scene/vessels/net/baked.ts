@@ -3,7 +3,7 @@
 import type { NetMesh, Skeleton } from './types.ts';
 import type { NodeReport } from './mesh.ts';
 
-const MAGIC = 0x4d54454e, VERSION = 6;
+const MAGIC = 0x4d54454e, VERSION = 7;
 
 /** A digest of the skeleton a mesh was baked from (FNV-1a over every bone's numbers and every edge's and node's ids): the file is current when it matches. */
 export function skeletonDigest(skel: Skeleton): string {
@@ -50,7 +50,7 @@ function readKeys(buf: ArrayBuffer, at: number): { keys: NonNullable<NetMesh['ke
   return { keys: out, end: o };
 }
 /** What of a junction's report is kept: everything the region rows and the draw need (not the rings' ids or the through-pair diagnostics). */
-export const keptReport = (r: NodeReport): Partial<NodeReport> => ({ node: r.node, kind: r.kind, variant: r.variant, switchT: r.switchT, seams: r.seams, arms: r.arms, triStart: r.triStart, triCount: r.triCount, vertStart: r.vertStart, vertCount: r.vertCount, caps: r.caps, capBones: r.capBones });
+export const keptReport = (r: NodeReport): Partial<NodeReport> => ({ node: r.node, kind: r.kind, variant: r.variant, switchT: r.switchT, seams: r.seams, arms: r.arms, triStart: r.triStart, triCount: r.triCount, vertStart: r.vertStart, vertCount: r.vertCount, caps: r.caps, capBones: r.capBones, regionBones: r.regionBones });
 export function encodeNet(m: NetMesh, digest: string, nodes: readonly NodeReport[] = []): ArrayBuffer {
   const V = m.position.length / 3, I = m.index.length, d = new TextEncoder().encode(digest);
   const head = 20, dEnd = head + pad4(d.length), pEnd = dEnd + 12 * V, bEnd = pEnd + pad4(8 * V), wEnd = bEnd + 16 * V, oEnd = wEnd + 48 * V, nEnd = oEnd + 48 * V, iEnd = nEnd + 4 * I, E = m.bakeScale?.length ?? 0, kBytes = keysBytes(m.keys), json = new TextEncoder().encode(JSON.stringify(nodes.filter((n) => n.kind === 'junction').map(keptReport))), total = iEnd + 48 * V + 4 + 4 * E + kBytes + 4 + pad4(json.length);

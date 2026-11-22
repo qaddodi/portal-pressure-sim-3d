@@ -36,6 +36,9 @@ export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[
     if (n.kind !== 'junction' || !n.caps) continue;
     if (n.caps.length > REGION_CAPS) throw new Error(`net regions: ${n.node} has ${n.caps.length} capsules, the row holds ${REGION_CAPS}`);
     const caps = n.caps.map((c, ci) => {
+      // the mesher chose the bones that carry the capsule (net/shader-caps.ts: the arms' tubes stay inside the live union); the evenly spaced nearest-bone resample is the fallback for a report without them
+      const chosen = n.regionBones?.[ci];
+      if (chosen) { const bones = chosen.slice(0, REGION_PTS); while (bones.length < REGION_PTS) bones.push(bones[bones.length - 1]!); return { bones, mate: c.mate }; }
       const np = c.pts.length / 3, cum = [0];
       for (let i = 1; i < np; i++) cum.push(cum[i - 1]! + Math.hypot(c.pts[3 * i]! - c.pts[3 * i - 3]!, c.pts[3 * i + 1]! - c.pts[3 * i - 2]!, c.pts[3 * i + 2]! - c.pts[3 * i - 1]!));
       const bones: number[] = [];

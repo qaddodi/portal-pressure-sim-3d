@@ -1,17 +1,18 @@
 // Node acceptance of the net mesher's fillet windows and extended tubes on the REAL figure (plan owner, 22 Nov, "the fillet steps aside during the Circuit move"), at every 0.05 of the Circuit's t:
 //  1. no folded drawn triangle: every fillet mesh with a share of pixels at t (net/regions.ts regionShare) is whole there (no fold, on the live union);
 //  2. no gap where a fillet dissolves: the plain tubes, which run on to the node, stay in one piece in the FRONT view (x, y: the map's plane) at every t (arms' discs from the seam to the node overlap into one connected shape); regions that tear are listed with the t;
-//  3. no doubled ink at the crotch: at rest every extension vertex lies within the live union, so its ink hull is behind the fillet's.
+//  3. no doubled ink at the crotch: every extension vertex lies within the shader's live union (its capsules are the bones of the region rows) at every t and the least, median and most swell state, so its ink hull is behind the fillet's.
 // Run: node scripts/net-accept.mjs        (about a minute: builds the real network with maps, no keys)
 import { skeleton } from '../src/scene/vessels/net/skeleton.ts';
 import { buildNetMesh, networksOf, scaledSkeleton } from '../src/scene/vessels/net/mesh.ts';
 import { bonesAtT } from '../src/scene/vessels/net/window.ts';
-import { regionShare, BODY_ONLY } from '../src/scene/vessels/net/regions.ts';
-import { sdUnion, SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
+import { regionsOf, regionShare, BODY_ONLY } from '../src/scene/vessels/net/regions.ts';
+import { extensionsOutside } from '../src/scene/vessels/net/shader-caps.ts';
+import { presetSwells } from './net-states.mjs';
 
 const sk = skeleton(), grid = Array.from({ length: 21 }, (_, i) => i * 0.05);
 const res = buildNetMesh(sk, networksOf(sk)[1], { lenient: true, maps: true }), scaled = scaledSkeleton(sk, res.mesh.bakeScale);
-const bad = { drawn: [], gap: [], ink: [] };
+const INK_MAX = 0.01, inkWorst = [], bad = { drawn: [], gap: [], ink: [] }, states = await presetSwells(sk);
 const regions = res.nodes.filter((n) => n.kind === 'junction' && n.caps);
 // 1
 for (const [node, w] of res.windows) for (const row of w.rows) {
@@ -42,24 +43,13 @@ for (const t of grid) {
     }
   }
 }
-// 3
-const m = res.mesh, inRegion = new Uint8Array(m.index.length / 3), tubeVert = new Uint8Array(m.position.length / 3);
-for (const n of regions) inRegion.fill(1, n.triStart, n.triStart + n.triCount);
-for (let t = 0; t < inRegion.length; t++) if (!inRegion[t]) for (let s = 0; s < 3; s++) tubeVert[m.index[3 * t + s]] = 1;
-for (const n of regions.filter((x) => (x.variant ?? 0) === 0)) {
-  const caps = n.caps.map((c) => ({ n: c.pts.length / 3, pts: Float64Array.from(c.pts), r: Float64Array.from(c.r), ...(c.mate >= 0 ? { mate: c.mate } : {}) })), k = SKIN_K * Math.min(...n.caps.flatMap((c) => c.r)), cluster = n.node.split('+');
-  n.arms.forEach((edge, i) => {
-    const e = sk.edges[edge], [first, count] = e.bones, end = cluster.includes(e.from) ? 0 : 1, seam = end === 0 ? first + n.seams[i] : first + count - 1 - n.seams[i];
-    let worst = 0;
-    for (let v = 0; v < tubeVert.length; v++) {
-      if (!tubeVert[v] || m.weight[4 * v] < 1 - 1e-6) continue;
-      const b = m.bone[4 * v];
-      if (b < first || b >= first + count || b === seam || (end === 0 ? b > seam : b < seam)) continue;
-      worst = Math.max(worst, sdUnion(caps, k, m.position[3 * v], m.position[3 * v + 1], m.position[3 * v + 2]) / scaled.bones[b].r[0]);
-    }
-    if (worst > 0.03) bad.ink.push(`${n.node} arm ${e.id}: extension ${worst.toFixed(3)} R outside the union at rest`);
-  });
-}
+// 3 (the extensions against the SHADER's union, at every t and the least, the median and the most real swell state: a tube vertex between a seam and the node stands inside the union of the capsules the vertex stage holds (net/regions.ts rows: at most REGION_PTS
+//    bones each, live centres and radii); a vertex outside it by more than a hair is a doubled outline)
+const total = (s) => s.reduce((a, b) => a + b, 0), sorted = [...states].sort((a, b) => total(a) - total(b)), picks = [sorted[0], sorted[sorted.length >> 1], sorted[sorted.length - 1]];
+const scales = [new Float64Array(sk.edges.length).fill(1), ...picks.map((p) => Float64Array.from(p, (x) => x))];
+const ink = extensionsOutside(sk, res.mesh, regions, regionsOf(sk, regions), scales, grid), m = res.mesh;
+for (const r of ink) { inkWorst.push(r.worst); if (r.worst > INK_MAX) bad.ink.push(`${r.node}: an extension of ${r.at.edge} stands ${r.worst.toFixed(3)} (narrowest arm's radius) outside the shader's union at t ${r.at.t.toFixed(2)}`); }
+console.log(`worst extension outside the shader's union, per region (fraction of the narrowest arm's radius): ${inkWorst.map((x) => x.toFixed(3)).join(' ')}`);
 console.log(`regions ${regions.filter((n) => (n.variant ?? 0) === 0).length} (map meshes ${regions.filter((n) => n.variant === 1).length}); vertices ${m.position.length / 3}, triangles ${m.index.length / 3}, sweep ${res.report.sweepTriangles}`);
 for (const [k, v] of Object.entries(bad)) console.log(`${k}: ${v.length ? v.length + ' problems' : 'none'}`, ...v.slice(0, 40).map((x) => '\n  ' + x));
 for (const n of res.mapNotes) console.log('NOTE', n.node.slice(0, 40), n.why.slice(0, 160));

@@ -54,3 +54,18 @@ for (const fx of fixtures()) {
     }
   });
 }
+
+// THE ARMS' EXTENSIONS STAY INSIDE THE UNION THE SHADER HOLDS at every t and any swell (plan owner, 22 Nov, after WP3 measured e8f2b2cb): the extension follows the very bones that carry the capsule in the shader's row (net/shader-caps.ts, at most REGION_PTS of them), so a
+// tube vertex between a seam and the node is never outside the live union, whatever the Circuit's t and the arms' radii (the ink hull is 0.15 R of the narrowest arm; the tolerance here is 0.01).
+import { extensionsOutside } from '../src/scene/vessels/net/shader-caps.ts';
+import { regionsOf, REGION_PTS } from '../src/scene/vessels/net/regions.ts';
+for (const fx of fixtures()) {
+  const r = buildNetMesh(fx.skel, undefined, { maps: true }), junctions = r.nodes.filter((n) => n.kind === 'junction' && n.caps);
+  if (!junctions.length) continue;
+  test(`${fx.name}: the extensions stand inside the shader's union at every t and at thin, rest and fat radii`, () => {
+    // (a run-on pair's edges are one vessel and swell together; the real figure's per-edge swell states are in scripts/net-accept.mjs)
+    const E = fx.skel.edges.length, ones = new Float64Array(E).fill(1), scales = [ones, ones.map(() => 1.6), ones.map(() => 0.7)], rows = regionsOf(fx.skel, junctions);
+    for (const row of rows) for (const c of row.caps) assert.ok(c.bones.length === REGION_PTS, 'a row holds REGION_PTS bones a capsule');
+    for (const w of extensionsOutside(fx.skel, r.mesh, r.nodes, rows, scales, [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])) assert.ok(w.worst <= 0.01, `${w.node}: an extension of ${w.at.edge} stands ${w.worst.toFixed(3)} outside the union at t ${w.at.t}`);
+  });
+}
