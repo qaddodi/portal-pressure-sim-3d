@@ -29,13 +29,37 @@ export function gateSkins(): { scene: CelScene; skins: GateSkin[]; done(): void 
   return { scene, skins: draws.filter((d) => live.has(d)), done: () => (scene as unknown as { dispose?(): void }).dispose?.() };
 }
 
+/** An arm's exact 3D distance (skin/exact-normal.ts skinArmSd3): from the point to the arm's capsule over its four axis points, less the radius at the nearest. */
+export function sd3(ax: ArmAxis, p: readonly number[], swell = 1): number {
+  let best = Infinity, r = 0;
+  for (let s = 0; s < ax.pts.length - 1; s++) {
+    const a = ax.pts[s]!, b = ax.pts[s + 1]!, ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], q = [p[0]! - a[0], p[1]! - a[1], p[2]! - a[2]];
+    const bb = ab[0]! * ab[0]! + ab[1]! * ab[1]! + ab[2]! * ab[2]!, t = bb > 0 ? Math.min(1, Math.max(0, (q[0]! * ab[0]! + q[1]! * ab[1]! + q[2]! * ab[2]!) / bb)) : 0;
+    const d = Math.hypot(q[0]! - t * ab[0]!, q[1]! - t * ab[1]!, q[2]! - t * ab[2]!);
+    if (d < best) { best = d; r = ax.radii[s]! + (ax.radii[s + 1]! - ax.radii[s]!) * t; }
+  }
+  return best - r * swell;
+}
+
 const U = 300;   // the figure's units in a scene unit (shaders.ts SKIN_FIGURE_UNITS)
 const smooth = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
 
-/** The skins on a screen `w` x `h` CSS px drawn at pixel ratio `dpr`: the camera the rig frames at that size, the line the vertex stage builds, the outline the fragment stage judges. `ignoreDepth`: the outline without the depth rule (the reference); `depthCountsInk` false: the rule as it was before 21 Nov (the gate's own proof that it bites). */
-export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: number, h: number, dpr: number, ignoreDepth = false, depthCountsInk = true): GateStat[] {
+export interface RasterOpts {
+  /** the outline without the depth hold-out (the reference) */
+  ignoreDepth?: boolean;
+  /** the hold-out as it was until 22 Nov: the pixel's depth against the axis' depth at the arm's nearest SCREEN point (the gate's proof that a turned figure had holes) */
+  screenDepth?: boolean;
+  /** the figure turned as a hand's orbit turns it (radians) */
+  view?: { yaw: number; pitch?: number };
+}
+/** The skins on a screen `w` x `h` CSS px drawn at pixel ratio `dpr`: the camera the rig frames at that size (turned by `opts.view`), the line the vertex stage builds, the outline the fragment stage judges. */
+export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: number, h: number, dpr: number, opts: RasterOpts = {}): GateStat[] {
+  const { ignoreDepth = false, screenDepth = false, view } = opts;
   const rig = scene.rig; rig.resize(w, h); rig.update(1000 + w);
+  // (the figure turned, as a hand's orbit turns it: the same camera, swung round the target by `view` radians; the inspector's turn is the rig's public way to it, and a few big steps let its ease settle)
+  rig.setInspect(true); rig.inspectTo(view?.yaw ?? 0, view?.pitch ?? 0);
+  for (let i = 1; i <= 40; i++) rig.update(1000 + w + i * 1000);
   const cam = rig.camera; cam.updateMatrixWorld(); cam.updateProjectionMatrix();
   const PV = new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
   const projY = cam.projectionMatrix.elements[5]!;
@@ -47,7 +71,7 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
     const n = axes.length, mates = throughMates(axes, mesh.junction.arms.map((a) => !!(a as { growing?: boolean }).growing)), kM = skinKOf(mesh.junction.arms);
     const ap = axes.map((ax) => ax.pts.map((p, i) => px(p, ax.radii[i]!)));
     // skinArmPx
-    const armPx = (fx: number, fy: number, a: number, fragW: number, kPx: number, inkPx: number): number => {
+    const armPx = (fx: number, fy: number, a: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[]): number => {
       const P = ap[a]!;
       const segs = ([[P[0], P[1]], [P[1], P[2]], [P[2], P[3]]] as number[][][]).map(([p, q]) => {
         const abx = q![0]! - p![0]!, aby = q![1]! - p![1]!, t = Math.min(1, Math.max(0, ((fx - p![0]!) * abx + (fy - p![1]!) * aby) / Math.max(abx * abx + aby * aby, 1e-6)));
@@ -55,11 +79,12 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
       });
       const best = segs.reduce((m, x) => (x.d < m.d ? x : m));
       if (fragW < 0) return best.d;
-      const gap = Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * dpr - best.r - (depthCountsInk ? inkPx : 0);
+      // (the shader's hold-out, skin/shaders.ts skinArmPx: how far the pixel's own place in the figure lies from the arm's capsule, in 3D, in px at the pixel's depth; `screenDepth` is the rule before 22 Nov)
+      const gap = screenDepth ? Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * dpr - best.r - inkPx : sd3(axes[a]!, fragP!) / Math.max(wpc(fragW), 1e-9) * dpr;
       return best.d + 2 * kPx * smooth(0.25 * kPx, kPx, gap);
     };
-    const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number): number => {
-      const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx));
+    const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[]): number => {
+      const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx, fragP));
       let o = 0, first = true;
       for (let i = 0; i < n; i++) {
         const m = mates[i]!;
@@ -91,7 +116,9 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
         const l0 = ((sy[b]! - sy[c]!) * (fx - sx[c]!) + (sx[c]! - sx[b]!) * (fy - sy[c]!)) / den, l1 = ((sy[c]! - sy[a]!) * (fx - sx[c]!) + (sx[a]! - sx[c]!) * (fy - sy[c]!)) / den, l2 = 1 - l0 - l1;
         if (l0 < 0 || l1 < 0 || l2 < 0) continue;
         const fragW = 1 / (l0 / sw[a]! + l1 / sw[b]! + l2 / sw[c]!), inkDev = (l0 * ink[a]! / sw[a]! + l1 * ink[b]! / sw[b]! + l2 * ink[c]! / sw[c]!) * fragW;
-        const sd = sdPx(fx, fy, ignoreDepth ? -1 : fragW, kPx, inkDev);
+        // (the pixel's place in the figure: the vertices' lumen positions, interpolated perspective-correct, as the varying vPos is)
+        const fragP = [0, 1, 2].map((k) => (l0 * mesh.position[a * 3 + k]! / sw[a]! + l1 * mesh.position[b * 3 + k]! / sw[b]! + l2 * mesh.position[c * 3 + k]! / sw[c]!) * fragW);
+        const sd = sdPx(fx, fy, ignoreDepth ? -1 : fragW, kPx, inkDev, fragP);
         st.pixels++;
         if (!ignoreDepth && Math.abs(sd - sdPx(fx, fy, -1, kPx, inkDev)) > 1) st.held++;
         if (sd > inkDev + 0.5) st.dropped++; else if (sd > -0.5) st.line++; else st.lumen++;
