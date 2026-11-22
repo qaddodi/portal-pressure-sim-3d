@@ -616,6 +616,8 @@ export class CelScene {
 
   // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
   private net: NetFigure | null = null;
+  /** ?geom=net&junc=sdf: the ray-marched junction trial (net/junc-sdf.ts), null otherwise */
+  private junc: import('./vessels/net/junc-sdf.ts').JuncSdf | null = null;
   private netFailOff: (() => void) | null = null;
   /** The vessels the network draws: the ids of the skeleton's edges. The rest (fans of tributaries, liver branches, caudate veins, the splenic tree: no skeleton edge until WP5) keep drawing as today. */
   private netIds: ReadonlySet<string> | null = null;
@@ -650,6 +652,7 @@ export class CelScene {
   private dropNet(): void {
     const n = this.net;
     this.net = null;
+    this.junc?.dispose(); this.junc = null;
     if (!n) return;
     this.body.remove(n.group); n.dispose();
     for (const o of this.vessels) (o as VesselObject).setNetHidden(false);
@@ -671,6 +674,8 @@ export class CelScene {
       template: () => vo(NETWORK[0]!.id)!.toon.uniforms, tones: () => [first('portal'), first('sys'), first('artery')],
     }, behind);
     this.body.add(this.net.group);
+    const js = await import('./vessels/net/junc-sdf.ts');
+    if (js.juncSdf()) { const j = js.JuncSdf.build(this.net.draws); if (j instanceof js.JuncSdf) { this.junc = j; this.net.group.add(j.mesh); } else console.warn(`junc-sdf: ${j.why}`); }
     this.netIds = new Set(edgeIds);
     for (const o of this.vessels) if (this.netDraws(o)) (o as VesselObject).setNetHidden(true);   // (the tubes hold the state and the picking; the network draws them)
     this.stepNet();
@@ -1666,6 +1671,7 @@ export class CelScene {
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
     this.net?.prepass(gl);   // (?geom=net: the sewn hosts' radii and each junction region's live capsules, once per drawn frame)
+    this.junc?.prepass(gl);   // (?junc=sdf: what the ray-marched junction reads of its capsule points)
     lap('render: network passes');
     gl.render(this.scene, cam);
     lap('render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)');
