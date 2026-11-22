@@ -184,7 +184,12 @@ export function liveStates(skel: Skeleton): [string, LiveState][] {
   const mk = (circT: number, perPx = 1, f?: (e: ReturnType<typeof restEdge>, i: number) => void): LiveState => ({ circT, perPx, edges: skel.edges.map((ed, i) => { const r = skel.bones[ed.bones[0]]!.r[0]; const x = restEdge(r); x.wc = (2 * r * 0.85) / MAP_K; f?.(x, i); return x; }) });
   return [['rest', mk(0)], ['map t=1', mk(1)], ['t=.25', mk(0.25)], ['t=.5', mk(0.5)], ['t=.75', mk(0.75)],
     ['swell 1.2/.85', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.85 : 1.2; })],
-    ['swell .5/2', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.5 : 2; })],
+    // the app's real range (the engine's D through widthSwell over the 20 presets, +/-10%): arms between 0.4 and 1.27 (the worst arm ratio at one junction in one preset, 3.17) and a milder 0.6 / 1.2 (2.0), every arm at the low end, at the high end, and one thin arm among thick ones
+    ['swell real 2.0', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.6 : 1.2; })],
+    ['swell real 3.2', mk(0, 1, (e, i) => { e.swell = i % 2 ? 0.4 : 1.27; })],
+    ['swell real all low', mk(0, 1, (e) => { e.swell = 0.4; })],
+    ['swell real all high', mk(0, 1, (e) => { e.swell = 1.27; })],
+    ['swell real one thin', mk(0, 1, (e, i) => { e.swell = i === 0 ? 0.4 : 1.27; })],
     ['presence .3', mk(0.5, 1, (e, i) => { if (i === 1) e.presence = 0.3; })],
     ['zoom-out', mk(1, 2.5, (e) => { e.leastCss = 4; })]];
 }
@@ -219,9 +224,10 @@ export function projectRegions(mesh: NetMesh, skel: Skeleton, regions: readonly 
 }
 
 /** The whole junction pose as the vertex stage computes it: the bone blend of the two offset sets with the junction vertices STARTED at the rest arrangement (`lumenRest`), then the projection and the shade normal. */
+export const NEWTON = { steps: 3 };
 export function junctionPose(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState): ReturnType<typeof projectRegions> & { start: ReturnType<typeof deformLive> } {
   const V = mesh.position.length / 3, regionOf = new Int32Array(V).fill(-1);
   for (const [ri, rg] of regions.entries()) for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) regionOf[v] = ri;
   const start = deformLive(mesh, skel, live, mesh.normal, regionOf);
-  return { ...projectRegions(mesh, skel, regions, live, start), start };
+  return { ...projectRegions(mesh, skel, regions, live, start, NEWTON.steps), start };
 }
