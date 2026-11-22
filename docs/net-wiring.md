@@ -8,6 +8,9 @@ Behind `?geom=net` only (`net/flag.ts`). With no flag nothing here runs: the sce
 - Networks: 16 (net 0 the arteries, net 1 the venous tree, 2 to 15 single-edge collaterals and shunts). Single-edge networks are merged into one "loose" object: 3 objects, 2 passes each (organs pass: triangles touching back vessels, layer 0; vessel pass: all triangles, `VESSEL_LAYER`) = 6 draws, plus the sewn pass and the capsule pass (one draw each, before the figure). Vessel draws <= 12 (`tests/net-wiring.test.ts`).
 - A skeleton host split into pieces (`X#j`) shares bones, so every u- or length-based column is remapped per piece (`remapPiece`).
 
+## The badge
+Under `?geom=net` a corner badge (net/badge.ts, fades by CSS in 12 s) says `Mesh: loading network`, then `Mesh: network`, or `Mesh: fallback (reason)`: a file the deploy lacked (`net-3.bin: HTTP 404 (./anatomy/net-3.bin)`), a file baked from another skeleton, an error while building the figure (the tubes come back), or a shader the device refused. The network is meant to look like today's tubes at rest, so the badge is the only way to tell.
+
 ## Bakes
 `node scripts/bake-skins.mjs --net` (about 64 s, cached by the skeleton digest and source mtime, `--force`). Non-main builds run it (`scripts/build.mjs`); the files are git-ignored. Missing or stale files: the console says so and `?geom=net` leaves the old figure.
 

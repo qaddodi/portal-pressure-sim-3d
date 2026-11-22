@@ -616,13 +616,37 @@ export class CelScene {
 
   // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
   private net: NetFigure | null = null;
+  private netFailOff: (() => void) | null = null;
   /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw).
    *  Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
   private async mountNet(): Promise<void> {
-    const { loadNet } = await import('./vessels/net/load.ts');
-    const data = await loadNet();
-    if (!data || this.disposed) return;
-    await this.attachNet(data);
+    const { showNetBadge } = await import('./vessels/net/badge.ts');
+    showNetBadge('loading');
+    try {
+      const { loadNetResult } = await import('./vessels/net/load.ts');
+      const { data, why } = await loadNetResult();
+      if (this.disposed) return;
+      if (!data) { showNetBadge('fallback', why); return; }
+      await this.attachNet(data);
+      showNetBadge('network');
+      // (a program the device refuses is drawn plain by the shader guard: the badge then says the network is not drawn as designed)
+      const { onShaderFailure, shaderFailures } = await import('../debug/shader-fail.ts');
+      this.netFailOff = onShaderFailure(() => { const f = shaderFailures().at(-1); if (f) showNetBadge('fallback', `a shader was refused by this device, drawn plain: ${f.log.split('\n').find((l) => l.trim()) ?? f.kind}`); });
+    } catch (e) {
+      // (a failure while the figure is built: the old tubes stay, and the badge says so rather than the page silently looking the same)
+      console.warn('[?geom=net] the network figure failed to build; the old tubes stay', e);
+      this.dropNet();
+      showNetBadge('fallback', `error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  /** Takes the network figure out again and gives the tubes back (a failed build under ?geom=net). */
+  private dropNet(): void {
+    const n = this.net;
+    this.net = null;
+    if (!n) return;
+    this.body.remove(n.group); n.dispose();
+    for (const o of this.vessels) (o as VesselObject).setNetHidden(false);
+    this.pushFades(); this.moving = true;
   }
   /** Builds the figure from loaded network meshes (the page's `mountNet`, and a test, which hands the baked files it read from disk). */
   async attachNet(data: import('./vessels/net/load.ts').NetData): Promise<void> {
@@ -1653,7 +1677,7 @@ export class CelScene {
     this.disposed = true; for (const e of this.eases) e.dispose();
     this.unJoins();
     for (const k of [...this.inspectMarks.keys()]) this.putInspectMarks(k, null);
-    this.net?.dispose();
+    this.netFailOff?.(); this.net?.dispose();
     this.skins?.dispose();
     this.circuitSkins?.dispose();
     this.micro?.sinus.dispose(); this.micro?.lobule.dispose();
