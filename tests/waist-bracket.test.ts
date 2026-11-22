@@ -29,3 +29,10 @@ test('the figure paints it from the stents, and the stent device gives it the wa
   assert.match(dev, /waistSpan\(g\)/);
   assert.match(dev, /this\.amount \* Math\.min\(1, Math\.max\(0, \(\(g\.red \|\| 0\) - 0\.004\) \/ 0\.03\)\)/);
 });
+
+test('the bracket is one quiet hairline: a soft halo, never a hard ring, one weight for bar and ticks', () => {
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  const bar = /\.wb-bar \{[^}]*\}/.exec(css)![0], tick = /\.wb-tick \{[^}]*\}/.exec(css)![0];
+  for (const r of [bar, tick]) { assert.match(r, /height: var\(--wb-w\)/); assert.match(r, /drop-shadow\(/); assert.doesNotMatch(r, /box-shadow/); }
+  assert.match(css, /--wb-w: 1px/);
+});

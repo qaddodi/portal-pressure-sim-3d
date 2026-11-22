@@ -59,7 +59,10 @@ export const usePick = create<{ picked: string | null }>(() => ({ picked: null }
 export const sceneApi = {
   /** A slide's move to a shot (2D planSlide's 800 to 1400 ms, not a hand's 480 to 900), fitted into the room: for a deck framing that is not a view change. */
   goToSlide(shot: ShotName | Shot, room: Room): void { this.goTo(shot, room, cel.rig.slideMs(shot)); },
-  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long, even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on. */
+  /**
+   * Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long,
+   * even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on.
+   */
   goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
     cel.goTo(shot, room, clock.now(), ms ?? cel.rig.reachMs(shot), ease);
@@ -80,7 +83,8 @@ export const sceneApi = {
     const from = cel.view;
     if (v === 'circuit') cel.setCircuitUpright(entryUpright());
     cel.setView(v);
-    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
+    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid
+    // are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
     const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
