@@ -90,17 +90,17 @@ test('two junctions joined by a short edge are ONE region: the short edge is ins
   assert.ok(bound > RADIAL, `${bound} vertices bound to the short edge's bones`);
 });
 
-test('a merged region of more than 6 arms fails the bake and names its cluster (no fallback)', () => {
+test('a merged region of more than 8 arms fails the bake and names its cluster (no fallback); 7 and 8 mesh', () => {
   const edges: FixEdge[] = [
     { id: 'M', from: 'L', to: 'R', curve: (u) => [-0.12 + 0.24 * u, 0, 0], rad: () => 0.1, bones: 6 },
-    ...[1.9, 2.5, -1.9, -2.5].map((ang, i): FixEdge => ({ id: `L${i}`, from: 'L', to: `l${i}`, curve: out(-0.12, ang, 2), rad: () => 0.06 })),
-    ...[0.5, 0.9, -0.6].map((ang, i): FixEdge => ({ id: `R${i}`, from: 'R', to: `r${i}`, curve: out(0.12, ang, 2), rad: () => 0.06 })),
+    ...[1.9, 2.5, -1.9, -2.5, 3.14].map((ang, i): FixEdge => ({ id: `L${i}`, from: 'L', to: `l${i}`, curve: out(-0.12, ang, 2), rad: () => 0.06 })),
+    ...[0.5, 0.9, -0.6, 0].map((ang, i): FixEdge => ({ id: `R${i}`, from: 'R', to: `r${i}`, curve: out(0.12, ang, 2), rad: () => 0.06 })),
   ];
-  const skel = makeSkeleton(ids(['L', 'R', 'l0', 'l1', 'l2', 'l3', 'r0', 'r1', 'r2']), edges);
-  assert.throws(() => buildNetMesh(skel), (e: unknown) => e instanceof NetMeshError && e.node === 'L+R' && /7 arms/.test(e.message));
-  // the same cluster with 6 arms meshes
-  const six = makeSkeleton(ids(['L', 'R', 'l0', 'l1', 'l2', 'r0', 'r1', 'r2']), edges.filter((e) => e.id !== 'L3'));
-  assert.doesNotThrow(() => buildNetMesh(six));
+  const skel = makeSkeleton(ids(['L', 'R', 'l0', 'l1', 'l2', 'l3', 'l4', 'r0', 'r1', 'r2', 'r3']), edges);
+  assert.throws(() => buildNetMesh(skel), (e: unknown) => e instanceof NetMeshError && e.node === 'L+R' && /9 arms/.test(e.message));
+  // the same cluster with 8 arms meshes (the skin builder's arm limit is raised for it, see SkinJunction.maxArms)
+  const eight = makeSkeleton(ids(['L', 'R', 'l0', 'l1', 'l2', 'l3', 'r0', 'r1', 'r2', 'r3']), edges.filter((e) => e.id !== 'L4'));
+  assert.doesNotThrow(() => buildNetMesh(eight));
 });
 
 for (const fx of fixtures()) {
@@ -256,11 +256,19 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
     assert.ok(nd.through[0]!.margin >= 1, `the arc's pair is at ${nd.through[0]!.margin.toFixed(3)} of the floor`);
   });
 
-  test('two junctions an edge cannot keep apart merge, though the edge is longer than the blend zones plus the radii (the seams need room: real figure, the portal trunk\'s landings)', () => {
-    // arms 15 degrees off the middle edge need their seams far out; at 0.32 the edge is longer than kA + kB + RA + RB (0.31) yet holds neither seam
-    assert.deepEqual(junctions(H(0.32, 140)), ['L', 'R'], 'wide arms: the two junctions stay apart');
-    assert.deepEqual(junctions(H(0.32, 165)), ['L+R'], 'shallow arms: one region');
-    for (const A of [165, 160]) { const t = topology(buildNetMesh(H(0.32, A)).mesh.index); assert.ok([...t.use.values()].every((n) => n === 2) && t.badDirected === 0, `A=${A}: the surface is closed and consistently wound`); }
+  test('two junctions an edge cannot keep apart merge, though the edge is longer than the blend zones plus the radii; a grazing branch needs the room (real figure: the portal trunk\'s landings)', () => {
+    // a thin branch leaving the trunk 10 degrees off its line needs the trunk's seam far out, and a second junction 0.8 down the trunk (more than kA + kB + RA + RB) has no room left for its own
+    const trunk = (gap: number, ang: number) => makeSkeleton([{ id: 'N', runOn: ['T0', 'T1'] }, { id: 'M', runOn: ['T1', 'T2'] }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], [
+      { id: 'T0', from: 'a', to: 'N', curve: (u) => [-3 + 3 * u, 0, 0], rad: lin2(0.1, 0.1) },
+      { id: 'T1', from: 'N', to: 'M', curve: (u) => [gap * u, 0, 0], rad: lin2(0.1, 0.1), bones: 16 },
+      { id: 'T2', from: 'M', to: 'b', curve: (u) => [gap + 3 * u, 0, 0], rad: lin2(0.1, 0.1) },
+      { id: 'G', from: 'N', to: 'c', curve: along([0, 0, 0], dirAt(ang), 3), rad: lin2(0.04, 0.03) },
+      { id: 'P', from: 'M', to: 'd', curve: along([gap, 0, 0], dirAt(-90), 3), rad: lin2(0.05, 0.04) },
+    ]);
+    assert.deepEqual(junctions(trunk(0.8, 10) as ReturnType<typeof H>), ['N+M'], 'no room between them: one region');
+    assert.deepEqual(junctions(trunk(1.2, 14) as ReturnType<typeof H>), ['N', 'M'], 'room enough: two');
+    // (and a fillet is never left with a sliver: flips and a relax on the same union clean what the remesh leaves)
+    for (const A of [155, 160, 165, 170]) { const r = buildNetMesh(H(0.32, A)), t = topology(r.mesh.index); assert.ok([...t.use.values()].every((n) => n === 2) && t.badDirected === 0, `A=${A}: closed and consistently wound`); }
   });
 
   test('an edge the MAP pose collapses merges its two junctions, though the body pose keeps them apart (real figure: the five zero-length map pieces)', () => {
@@ -288,16 +296,35 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
     assert.equal(jn[0]!.arms.length, 5);
   });
 
+  test('a node whose two edges differ in radius is a step, not a run-on: a thin vessel ending in the start of a fat one has no flat shoulder (real figure: MHV, LGV, LPV, GV)', () => {
+    for (const [r0, r1] of [[0.04, 0.1], [0.06, 0.1]] as const) {
+      const skel = makeSkeleton([{ id: 'N', runOn: ['A', 'B'] }, { id: 'a' }, { id: 'b' }], [
+        { id: 'A', from: 'a', to: 'N', curve: (u) => [-2 + 2 * u, 0, 0], rad: lin2(r0, r0) },
+        { id: 'B', from: 'N', to: 'b', curve: (u) => [2 * u, 0, 0], rad: lin2(r1, r1) },
+      ]);
+      const r = buildNetMesh(skel), t = topology(r.mesh.index);
+      assert.ok([...t.use.values()].every((n) => n === 2) && t.badDirected === 0, 'closed and wound');
+      assert.deepEqual(r.nodes.filter((n) => n.kind === 'junction').map((n) => n.arms.length), [2], 'one junction of two arms');
+      assert.equal(r.nodes.find((n) => n.kind === 'junction')!.through.length, 0, 'and no through pair');
+      // the profile along the axis rises from the thin radius to the fat one over a stretch, not in one ring spacing: the largest radius change per ring step (about 1.5 radii) stays under half a radius
+      const xs: number[] = [], prof: number[] = [];
+      for (let x = -0.6; x <= 0.6; x += 0.02) { const rs = [0, 1, 2, 3, 4, 5, 6, 7].map((q) => radiusAt(r.mesh, x, (q * Math.PI) / 4 + 0.2)).filter(Number.isFinite).sort((p, q) => p - q); if (rs.length) { xs.push(x); prof.push(rs[0]!); } }
+      let worst = 0;
+      for (let i = 1; i < prof.length; i++) worst = Math.max(worst, Math.abs(prof[i]! - prof[i - 1]!) / 0.02);
+      assert.ok(worst < 1.2, `the radius changes by ${worst.toFixed(2)} per unit length at its steepest (a flat shoulder is a jump)`);
+    }
+  });
+
   test('a lenient run lists the regions that will not mesh and builds the rest; the strict one throws (the bake is strict)', () => {
     const edges: FixEdge[] = [
       { id: 'M', from: 'L', to: 'R', curve: (u) => [-0.12 + 0.24 * u, 0, 0], rad: () => 0.1, bones: 6 },
-      ...[1.9, 2.5, -1.9, -2.5].map((ang, i): FixEdge => ({ id: `L${i}`, from: 'L', to: `l${i}`, curve: along([-0.12, 0, 0], [Math.cos(ang), Math.sin(ang), 0], 2), rad: () => 0.06 })),
-      ...[0.5, 0.9, -0.6].map((ang, i): FixEdge => ({ id: `R${i}`, from: 'R', to: `r${i}`, curve: along([0.12, 0, 0], [Math.cos(ang), Math.sin(ang), 0], 2), rad: () => 0.06 })),
+      ...[1.9, 2.5, -1.9, -2.5, 3.14].map((ang, i): FixEdge => ({ id: `L${i}`, from: 'L', to: `l${i}`, curve: along([-0.12, 0, 0], [Math.cos(ang), Math.sin(ang), 0], 2), rad: () => 0.06 })),
+      ...[0.5, 0.9, -0.6, 0].map((ang, i): FixEdge => ({ id: `R${i}`, from: 'R', to: `r${i}`, curve: along([0.12, 0, 0], [Math.cos(ang), Math.sin(ang), 0], 2), rad: () => 0.06 })),
     ];
-    const skel = makeSkeleton([...['L', 'R', 'l0', 'l1', 'l2', 'l3', 'r0', 'r1', 'r2'].map((id) => ({ id }))], edges);
+    const skel = makeSkeleton([...['L', 'R', 'l0', 'l1', 'l2', 'l3', 'l4', 'r0', 'r1', 'r2', 'r3'].map((id) => ({ id }))], edges);
     assert.throws(() => buildNetMesh(skel), NetMeshError);
     const r = buildNetMesh(skel, undefined, { lenient: true });
     assert.equal(r.failures.length, 1);
-    assert.match(r.failures[0]!.why, /7 arms/);
+    assert.match(r.failures[0]!.why, /9 arms/);
   });
 }

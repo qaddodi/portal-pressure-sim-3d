@@ -208,7 +208,7 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  */
 export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, pace?: BuildPace): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
-  if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
+  if (A < 2 || A > (j.maxArms ?? MAX_SKIN_ARMS) || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, `needs 2 to ${j.maxArms ?? MAX_SKIN_ARMS} arms with a ring, a normal set and a cut each`);
   const hull = pace?.sdf ? null : ringHull(seamRings);
   if (hull && !hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
   const caps = axes ?? seamRings.map((r) => axisFromRing(r, j.J));
@@ -511,7 +511,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
 
   // normals, weights, rest radius, nearest axis point
   const position = new Float32Array(3 * V), normal = new Float32Array(3 * V), cen = new Float32Array(3 * V), weight = new Float32Array(4 * V), weight2 = new Float32Array(2 * V), restR = new Float32Array(V);
-  const w = new Float64Array(MAX_SKIN_ARMS), cp = new Float64Array(7), nrm = new Float64Array(3);
+  const w = new Float64Array(Math.max(MAX_SKIN_ARMS, A)), cp = new Float64Array(7), nrm = new Float64Array(3);
   /** The normal at vertex `v` standing at (x, y, z) on the union of `cs`: the SDF's gradient, eased from the nearest seam vertex's tube normal over the first rows (spec 4.5.7), the tube's own on a seam ring. */
   const normalAt = (cs: readonly Capsule[], v: number, x: number, y: number, z: number, out: Float64Array): void => {
     sdUnionGrad(cs, k, x, y, z, g);
@@ -530,7 +530,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   /** The weights of vertex `v` at (x, y, z) on the union of `cs` (the six numbers into `out`) and its blended rest radius, the tubes' own radii (`caps`, never the zeroed ones of a second shape). A seam vertex belongs wholly to its own arm: the blend is off there (spec 4.4.1). */
   const weightsAt = (cs: readonly Capsule[], v: number, x: number, y: number, z: number, out: Float64Array): number => {
     weights(cs, k, x, y, z, out);
-    if (v < S) for (let i = 0; i < MAX_SKIN_ARMS; i++) out[i] = i === Math.floor(v / n) ? 1 : 0;
+    if (v < S) for (let i = 0; i < Math.max(MAX_SKIN_ARMS, A); i++) out[i] = i === Math.floor(v / n) ? 1 : 0;
     let rr = 0;
     for (let i = 0; i < A; i++) if (out[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += out[i]! * cp[3]!; }
     return rr;
