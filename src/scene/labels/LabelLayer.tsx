@@ -172,7 +172,7 @@ export function LabelLayer() {
         });
       },
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
-      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit,
+      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit && !cel.diving,   // (the readout callouts: only where the body stands settled, never over a dive, going in or coming back)
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
       present: (id) => {
         const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
@@ -184,6 +184,7 @@ export function LabelLayer() {
         // read from it the point "ahead" was a fixed 0.4 scene units on, far off the vein, and the WHVP card pointed at nothing (20 Nov 2026).
         const c = cel.catheter;
         if (c.current.advance < 0.999) return 0;
+        if (!cel.catheterRead) return 0;   // (a reading's callout comes with its tracing settled on the monitor, not when the tip arrives)
         if (!cel.procPoints('hvpg', tip, ahead)) return 0;
         return c.current.balloon >= 0.999 ? 2 : 1;
       },
