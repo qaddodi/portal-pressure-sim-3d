@@ -8,6 +8,12 @@ Behind `?geom=net` only (`net/flag.ts`). With no flag nothing here runs: the sce
 - Networks: 16 (net 0 the arteries, net 1 the venous tree, 2 to 15 single-edge collaterals and shunts). Single-edge networks are merged into one "loose" object: 3 objects, 2 passes each (organs pass: triangles touching back vessels, layer 0; vessel pass: all triangles, `VESSEL_LAYER`) = 6 draws, plus the sewn pass and the capsule pass (one draw each, before the figure). Vessel draws <= 12 (`tests/net-wiring.test.ts`).
 - A skeleton host split into pieces (`X#j`) shares bones, so every u- or length-based column is remapped per piece (`remapPiece`).
 
+## Proven before it replaces
+The old tubes stay drawn until the network figure has been seen to put a pixel on the screen: each draw of the figure is wrapped in a WebGL2 occlusion query (`net/probe.ts`), read a frame later. An object (net0 arteries, net1 veins, loose) whose queries report samples takes over its edges: their tubes are hidden and their old fade goes to 0. An object that gets 45 answered frames (or 240 steps) with none is `blank`: its tubes stay, and the badge says so with the per-mesh counts and the device's float-target, vertex-texture and attribute limits. So `?geom=net` can no longer show missing vessels (22 Nov: an iPhone showed "Mesh: network" with nearly every vessel gone). The tests drive the probe with a stand-in context (`tests/net-probe.test.ts`).
+
+## The badge
+Under `?geom=net` a corner badge (net/badge.ts, fades by CSS in 12 s) says `Mesh: loading network`, then `Mesh: network` (every object seen drawn), or `Mesh: fallback (reason)`: a file the deploy lacked (`net-3.bin: HTTP 404 (./anatomy/net-3.bin)`), a file baked from another skeleton, an error while building the figure (the tubes come back), or a shader the device refused. The network is meant to look like today's tubes at rest, so the badge is the only way to tell.
+
 ## Bakes
 `node scripts/bake-skins.mjs --net` (about 64 s, cached by the skeleton digest and source mtime, `--force`). Non-main builds run it (`scripts/build.mjs`); the files are git-ignored. Missing or stale files: the console says so and `?geom=net` leaves the old figure.
 
@@ -21,7 +27,8 @@ The network draws the whole picture at every t, the Circuit's change included; i
 - GLSL never executed (no GPU here). Pushed, not yet seen.
 - No crossing-shadow program and no second draw for both-sides-blendable crossings.
 - Glow mask and picking stay on the old tubes. Stent waist narrowing and WP5's dynamic shapes are not driven (the clamp waist is, `waistOf`).
-- Chevron and dust phase restart at the 7 piece joins (needs an arc-offset column).
+- Chevron, dust and dash phase run on the host's arc across the 7 piece joins (`arcHost` column, `arcS` in the fragment stage).
+- A vessel with no skeleton edge (fans of tributaries, liver branches, caudate veins, the splenic tree) is not hidden: it keeps drawing as the old tube until WP5 (`CelScene.netDraws`).
 - Wide-junction keys are not in the shader (WP3).
 
 `scripts/net-compare.mjs --out <dir>` renders today's tubes and skins beside the net meshes at rest (the oracle, not the GPU) from one camera.

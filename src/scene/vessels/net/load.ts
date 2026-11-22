@@ -30,22 +30,26 @@ export function netDataFrom(files: readonly (ArrayBuffer | null)[], skel: Skelet
 
 const FETCH_MS = 20000;
 /** The page's side: fetches and decodes every file in parallel (gzip through the browser's own stream), bounded; null (with the reason on the console) when any is missing, old or for another skeleton. */
-export async function loadNet(base: string = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'): Promise<NetData | null> {
+export async function loadNetResult(base: string = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'): Promise<{ data: NetData | null; why: string }> {
   const skel = skeleton(), count = networksOf(skel).length;
+  const digest = skeletonDigest(skel);   // (in the address: a file rebaked for a new skeleton is a new address, so no HTTP cache holds the old one under it)
+  const lost: string[] = [];   // (why a file did not come: the badge and the console say it)
   const one = async (n: number): Promise<ArrayBuffer | null> => {
     try {
       const ctl = new AbortController(), timer = clock.afterReal(() => ctl.abort(), FETCH_MS);
-      const r = await fetch(`${base}${netFile(n)}`, { signal: ctl.signal });
+      const url = `${base}${netFile(n)}?d=${digest}`, r = await fetch(url, { signal: ctl.signal });
       clock.cancel(timer);
-      if (!r.ok || !r.body) return null;
+      if (!r.ok || !r.body) { lost.push(`${netFile(n)}: HTTP ${r.status} (${url})`); return null; }
       return await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-    } catch { return null; }
+    } catch (e) { lost.push(`${netFile(n)}: ${e instanceof Error ? e.message : String(e)}`); return null; }
   };
   const files = await Promise.all(Array.from({ length: count }, (_, n) => one(n)));
-  const { data, why } = netDataFrom(files, skel);
+  const r0 = netDataFrom(files, skel), data = r0.data, why = lost.length ? lost[0]! + (lost.length > 1 ? ` (+${lost.length - 1} more)` : '') : r0.why;
   if (!data) console.warn(`[?geom=net] the network meshes are not in: ${why}; the old tubes stay`);
-  return data;
+  return { data, why };
 }
+/** `loadNetResult` without the reason. */
+export async function loadNet(base?: string): Promise<NetData | null> { return (await loadNetResult(base)).data; }
 
 /** Under node (a test, a script): the baked files read from disk, or null when they are not there (`npm run bake` is the bake; a test that needs them skips). `process.getBuiltinModule` keeps node:fs out of the page's bundle. */
 export function loadNetFromDisk(): NetData | null {

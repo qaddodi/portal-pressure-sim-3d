@@ -1,6 +1,5 @@
 // The real range of each permanent arm's swell (live width over built width) over the 20 presets, unrounded: WP3's table (/mnt/project-files/recs-22nov/net-arm-ranges.md, 22 Nov), keyed by the vessel's id
-// (an edge cut into pieces, `PVH_R#1`, has its vessel's range). A fillet is baked with each arm at the GEOMETRIC MEAN of its range (review doc, "Rulings on WP3's sewn-end proposal" 3), so the radius the fixed triangles
-// are built at is within the least ratio of every state the arm can be in. A vessel not listed (the arteries, the fixed-width ones) has no swell: 1.
+// (an edge cut into pieces, `PVH_R#1`, has its vessel's range). The keys of a region (net/keys.ts) are its arms' states of this table's range. A vessel not listed (the arteries, the fixed-width ones) has no swell: 1.
 export const ARM_RANGE: Readonly<Record<string, readonly [number, number]>> = {
   A_HEP: [1.0, 1.0],
   A_HR: [1.0, 1.0],
@@ -47,16 +46,7 @@ export const ARM_RANGE: Readonly<Record<string, readonly [number, number]>> = {
 };
 
 /**
- * How the bake picks each arm's radius: 'rest' (the skeleton's own radii, factor 1), 'geomean' (the geometric mean of the swell range, the 22 Nov ruling WP3's sweep found makes folds worse) or 'max12' (the range's maximum over 1.2, WP3's recommendation).
- * The plan owner's 22 Nov ruling: 'max12' (geometric mean withdrawn). Wide junctions add fitted keys on top (net/keys.ts).
+ * There is NO bake-radius rule (plan owner, 22 Nov, "Ruling on the bake radius"): every region carries keys from its own real states (net/keys.ts), so the radius the fillet's fixed triangles are built at is the skeleton's own, factor 1, and the shader's start is the blend of the keys.
+ * (`max / 1.2`, the geometric mean and the 'narrow' hybrid are gone: each baked an arm at a radius it never has, and a start at the rest radii folds a fillet from about 1.1 of it up. The mesh keeps the `bakeScale` array, all ones, for the bake file's layout.)
  */
-export type BakeRadii = 'rest' | 'geomean' | 'max12' | 'narrow';
-export const BAKE_RADII: BakeRadii = 'narrow';
-/** 'narrow' (WP3, 22 Nov, from the acceptance on the real figure): an arm whose range spans at most NARROW_SPAN is baked at the geometric mean of it (an arm that never swells, [1, 1], then sits at ratio 1: baked at max / 1.2 it sat at 1.2 in EVERY state, and 1.1 is where a rest-radii start begins to fold a fillet: 1 to 25 triangles at 1.2 to 1.3 on 9 of 17 regions); a wider range at max / WIDE_TOP (its keys carry the low side). */
-export const NARROW_SPAN = 1.2, WIDE_TOP = 1.15;
-
-/** The factor the bake scales an edge's radii by (1 when it has no swell range or the mode is 'rest'). */
-export function bakeScaleOf(edgeId: string, mode: BakeRadii = BAKE_RADII): number {
-  const r = mode === 'rest' ? undefined : ARM_RANGE[edgeId.split('#')[0]!];
-  return r ? (mode === 'geomean' || (mode === 'narrow' && r[1] <= NARROW_SPAN * r[0]) ? Math.sqrt(r[0] * r[1]) : r[1] / (mode === 'narrow' ? WIDE_TOP : 1.2)) : 1;
-}
+export function bakeScaleOf(_edgeId: string): number { return 1; }

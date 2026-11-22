@@ -62,6 +62,9 @@ const onPiece = (u: number, h0: number, h1: number): number => (u - h0) / (h1 - 
 /** The columns that are NOT copied verbatim from their uniform, and what each does with a piece. Every other column with a uniform is copied as is. */
 export const REMAPPED = ['len', 'fadeA', 'mapFade', 'cavaEnd', 'stump', 'stentU', 'lensSpan', 'hiOffset', 'hiEnds', 'circCap', 'fade', 'solidK', 'veilK'] as const;
 
+/** `arcHost` for a piece starting h0 of the way along a vessel `len` long: [the arc length before it, the vessel's length]. */
+export const arcHost = (len: number, h0: number): [number, number] => [len * h0, len];
+
 /** One column's floats for a piece [h0, h1] of the vessel, given what the whole vessel has (`all`, the vessel's own length for the length-based ones). Returns null to leave the row as it is. */
 export function remapPiece(name: string, all: readonly number[], h0: number, h1: number, len: number, fadeMode = 0, hiDir = 0): number[] {
   const d = h1 - h0;
@@ -123,6 +126,7 @@ export class NetRows {
         const f = u[name] ? flat(u[name]!.value) : null;
         if (f) set(name, remapPiece(name, f, h0, h1, len, fadeMode, hiDir));
       }
+      if (h0 > 0 || h1 < 1) set('arcHost', arcHost(len, h0));   // (a piece of a split host: its start on the host's arc, and the host's length)
       const fade = this.src.fade(id); if (fade !== undefined) set('fade', fade);
       const cp = this.src.copies(id); if (cp) { set('solidK', cp[0]); set('veilK', cp[1]); }
       const pr = this.src.present(id); if (pr !== undefined) set('presence', pr ? 1 : 0);
