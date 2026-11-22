@@ -189,8 +189,9 @@ interface Meta {
 }
 
 /** What a placed label says (kept with its placement: the picture it leaves is drawn as it was). */
-interface Snap { word: string; unit: string; delta: boolean; alert: string; note: string; rev: boolean; bare: boolean }
+interface Snap { word: string; unit: string; delta: boolean; alert: string; note: string; rev: boolean; bare: boolean; /** the colour the slide gave the label, the velocity tint and the Doppler gate it wore: part of the fader's key, so a new look crosses over like new words (polish B) */ tone: string | null; tint: string; gate: boolean }
 export const GHOST = '~old';
+const lookKey = (s: Snap): string => `${s.tone ?? ''}|${s.tint}|${s.gate ? 1 : 0}`;
 /** The words after a station's name as the layout reserves them: the widest number the lens ever sets, the unit, the badge (at its widest), the alert, or a note in place of the number. */
 function sayOf(ex: Extras): Say {
   if (ex.note) return { note: ex.note };
@@ -526,6 +527,7 @@ export class LabelController {
     this.show.setText(this.cathText(), hold || !(cathNow || procNow));   // (frozen on the outgoing slide's numbers while the cards fade: the next patient's do not belong on them)
     if (!hold) this.cutCard = null;   // (still again: the cards ride the picture as it is now)
     this.show.ride(this.cutCard ? this.cutCard.tip : this.cTipPx, this.cutCard ? this.cutCard.ahead : this.cAheadPx);
+    this.refreshLooks(next);
     const busy = anyMoving(this.fader.step(dt, this.wants, hold), this.show.step(dt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 
     // 4. what to draw: each shown label at its spot, following its dot (a cut's dots: where they stood, see cutAnchors)
@@ -570,7 +572,7 @@ export class LabelController {
       const say = this.live(m, snap);
       this.out.push({
         id, kind: m.kind, alpha, mix: s.mix, ringAlpha: alpha, x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: snap?.word ?? form?.text ?? '',
-        value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ring.x, y: ring.y } : null, rev: snap ? snap.rev : !!m.rev, pad, ...say,
+        value: this.valueOf(m), tone: snap ? snap.tone : this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ring.x, y: ring.y } : null, rev: snap ? snap.rev : !!m.rev, pad, ...say,
         leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
       });
       if (s.from) {
@@ -581,7 +583,7 @@ export class LabelController {
           const fa = d.project(fp, this.pt2), fbox = boxOf(f.p, fa.x, fa.y), fform = m.forms[f.p.form];
           this.out.push({
             id: id + GHOST, kind: m.kind, alpha, mix: 1 - s.mix, ringAlpha: 0, ghost: true, x: fbox.x0, y: fbox.y0, w: f.p.w, h: f.p.h, form: f.p.form, word: fs?.word ?? fform?.text ?? '',
-            value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: null, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
+            value: this.valueOf(m), tone: fs ? fs.tone : this.state.tones[m.station.id] ?? null, dot: null, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
             leader: f.p.leader && ringed ? leaderGeom(fa.x, fa.y, { x0: fbox.x0 + pad.x, y0: fbox.y0 + pad.y, x1: fbox.x1 - pad.x, y1: fbox.y1 - pad.y }) : null,
           });
         }
@@ -593,7 +595,7 @@ export class LabelController {
 
   /** What a label says beside its name, drawn: the words it had when it was placed (its box is that wide), the number and the badge's text from now. A form that has let the unit, badge and alert go says none of them. */
   private live(m: Meta, snap: Snap | undefined): Pick<Draw, 'unit' | 'delta' | 'up' | 'alert' | 'note' | 'tint' | 'gate' | 'geo'> {
-    const sx = { tint: m.ex.tint ?? '', gate: !!m.ex.gate, geo: m.station.stent?.pt === 'geo' };
+    const sx = { tint: snap ? snap.tint : m.ex.tint ?? '', gate: snap ? snap.gate : !!m.ex.gate, geo: m.station.stent?.pt === 'geo' };
     if (snap?.bare) return { unit: '', delta: '', up: false, alert: '', note: '', ...sx };
     // (a stent point with no flow says "No flow" and no unit)
     const unit = m.stent && !m.ex.unit ? '' : snap ? snap.unit : m.say.unit ?? '', alert = snap ? snap.alert : m.say.alert ?? '', note = snap ? snap.note : m.say.note ?? '';
@@ -604,6 +606,20 @@ export class LabelController {
       else { const l = this.lastDelta.get(m.id); if (l) { delta = l.text; up = l.up; } }
     }
     return { unit, delta, up, alert, note, ...sx };
+  }
+
+  /** What a label wears now besides its words (the fader crosses over a change of it). */
+  private lookOf(m: Meta): Pick<Snap, 'tone' | 'tint' | 'gate'> { return { tone: this.state.tones[m.station.id] ?? null, tint: m.ex.tint ?? '', gate: !!m.ex.gate }; }
+
+  /** The look each wanted label wears now, every frame (the tone, tint and gate change without a new placement): a changed one gets a new picture, and the fader crosses from the old. */
+  private refreshLooks(next: ReadonlyMap<string, Meta>): void {
+    for (const [id, w] of this.wants) {
+      const m = next.get(id) ?? this.metas.get(id), was = w.snap as Snap | undefined;
+      if (!m || !was) continue;
+      const now = this.lookOf(m);
+      if (now.tone !== was.tone || now.tint !== was.tint || now.gate !== was.gate) w.snap = { ...was, ...now };
+      w.look = lookKey(w.snap as Snap);
+    }
   }
 
   private isNamed(m: Meta): boolean {
@@ -673,8 +689,8 @@ export class LabelController {
       const m = this.metas.get(p.id);
       const dim = !!m && named.size > 0 && !this.isNamed(m);
       const f = m?.forms[p.form];
-      const snap: Snap | undefined = m ? { word: f?.text ?? '', unit: m.say.unit ?? '', delta: !!m.say.delta, alert: m.say.alert ?? '', note: m.say.note ?? '', rev: !!m.rev, bare: !!f?.bare } : undefined;
-      wants.set(p.id, { p, dim, key: m ? `${p.form}|${m.vkey}|${m.rev ? 1 : 0}` : '', snap });
+      const snap: Snap | undefined = m ? { word: f?.text ?? '', unit: m.say.unit ?? '', delta: !!m.say.delta, alert: m.say.alert ?? '', note: m.say.note ?? '', rev: !!m.rev, bare: !!f?.bare, ...this.lookOf(m) } : undefined;
+      wants.set(p.id, { p, dim, key: m ? `${p.form}|${m.vkey}|${m.rev ? 1 : 0}` : '', look: m ? lookKey(snap!) : '', snap });
     }
     this.wants = wants;
   }

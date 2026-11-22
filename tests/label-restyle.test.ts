@@ -1,12 +1,15 @@
 // A standing label changes colour, weight, words or number by crossfade, never in one frame (visual polish review B, 22 Nov 2026: "everything eases, nothing pops").
 // Root cause: LabelLayer, the catheter cards, the figure's cards and the captions wrote a state straight onto the element (tone, tint, gate, a card's number and unit, a caption's name and key),
-// and a leader was switched off by `visibility`; only a number rolled. LabelFader (fade.ts) already crosses over a label whose KEY changes (form, words, unit, badge, alert, reversal mark: controller.ts
-// `key: ${p.form}|${m.vkey}|${rev}`), so those are not repeated; tone, tint and gate are not in that key, so they go through `restyle` (roll.ts).
+// and a leader was switched off by `visibility`; only a number rolled. LabelFader (fade.ts) already crossed over a label whose KEY changes (form, words, unit, badge, alert, reversal mark: controller.ts
+// `key: ${p.form}|${m.vkey}|${rev}`); tone, tint and gate were not in that key, so they now are (Want.look, refreshed every frame): a gliding label and a recoloured one share the one crossing, with no copy left
+// behind. Everything the fader does not cross (a card, a caption, a station's ring, a callout) goes through `restyle` (roll.ts).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { restyle, RESTYLE_SHOWING } from '../src/scene/labels/roll.ts';
-import { D_SMALL } from '../src/ui/a11y/motion.ts';
+import { D_SMALL } from '../src/ui/motion.ts';
+import { LabelFader, type Want } from '../src/scene/labels/fade.ts';
+import type { Placement } from '../src/scene/labels/solver.ts';
 
 type Keys = { opacity?: number }[];
 type Opts = { duration: number; easing: string };
@@ -167,4 +170,41 @@ test('the callout leader and the step leaders are eased to zero length by their 
     const src = readFileSync(`src/scene/labels/${f}`, 'utf8');
     if (/\brestyle\(/.test(src) && f !== 'roll.ts') assert.match(src, /import \{[^}]*\brestyle\b[^}]*\} from '\.\/roll\.ts'/, `${f} uses the one restyle`);
   }
+});
+
+// ── the fader's key holds the look ──
+const P: Placement = { id: 'a', form: 0, dx: 10, dy: 0, w: 100, h: 26, leader: false, au: 0.5 };
+const wantLook = (look: string, snap: unknown): ReadonlyMap<string, Want> => new Map([['a', { p: P, dim: false, key: '0|12.0', look, snap }]]);
+
+test('a label that changes colour, tint or gate in place crosses over like new words: the old picture is held, the new one comes in', () => {
+  const f = new LabelFader();
+  for (let t = 0; t < 400; t += 16) f.step(16, wantLook('|', { tone: null }), false);
+  assert.equal(f.frame.get('a')!.from, null, 'settled');
+  f.step(16, wantLook('red|', { tone: 'red' }), false);
+  const s = f.frame.get('a')!;
+  assert.ok(s.from, 'the old picture is held for the crossing');
+  assert.deepEqual(s.from!.snap, { tone: null }, 'and it keeps the old look');
+  assert.deepEqual(s.snap, { tone: 'red' }, 'the new one wears the new');
+  assert.equal(s.alpha, 1, 'the label itself never leaves');
+  assert.ok(s.mix < 0.1, 'the new picture starts at nothing and takes over');
+  for (let t = 0; t < 400; t += 16) f.step(16, wantLook('red|', { tone: 'red' }), false);
+  assert.equal(f.frame.get('a')!.from, null);
+  assert.equal(f.frame.get('a')!.mix, 1);
+  // tint and gate are in the look the same way
+  f.step(16, wantLook('red|#0f0|1', { tone: 'red', tint: '#0f0' }), false);
+  assert.ok(f.frame.get('a')!.from, 'a tint or a gate crosses over too');
+  // an unchanged look is no crossing (a flicker of nothing)
+  const g = new LabelFader();
+  for (let t = 0; t < 400; t += 16) g.step(16, wantLook('red|', {}), false);
+  g.step(16, wantLook('red|', {}), false);
+  assert.equal(g.frame.get('a')!.from, null);
+});
+
+test('the controller puts tone, tint and gate in the snapshot every frame, and the picture it leaves keeps its own (source)', () => {
+  const c = readFileSync('src/scene/labels/controller.ts', 'utf8');
+  assert.match(c, /this\.refreshLooks\(next\);\n\s*const busy = anyMoving\(this\.fader\.step/, 'refreshed before every fader step');
+  assert.match(c, /w\.snap = \{ \.\.\.was, \.\.\.now \}/, 'a changed look is a new snapshot, never a mutation of the one the old picture holds');
+  assert.match(c, /tone: snap \? snap\.tone/, 'a picture is drawn in the look it was snapped with');
+  assert.match(c, /tone: fs \? fs\.tone/, 'and the ghost in the old one');
+  assert.match(c, /tint: snap \? snap\.tint : /); assert.match(c, /gate: snap \? snap\.gate : /);
 });

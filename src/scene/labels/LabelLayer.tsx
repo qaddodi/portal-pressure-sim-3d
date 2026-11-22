@@ -41,7 +41,7 @@ import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
 import { presenceOf, type PresenceFrame } from '../vessels/network.ts';
 import { PLATE_BOUNDS, FIGURE_Z } from '../anatomy/placeholder.ts';
-import { showNumber, restyle } from './roll.ts';
+import { showNumber, restyle, writeTone, writeTint } from './roll.ts';
 import { StationExtras, NO_EXTRAS, type Extras } from './readings.ts';
 import { useLens } from '../lenses/store.ts';
 import { useCompare } from '../../ui/compare/store.ts';
@@ -364,19 +364,17 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
         if (d.note) el.setAttribute('data-note', ''); else el.removeAttribute('data-note');
       }
     }
-    // a stent point's number colour (the velocity lens's against the stent's own normal), the point the Doppler samples (its name in bold) and the colour the slide's words give this station (2D .lb.term):
-    // each is written when it changes, and a label that is showing crosses over to it (restyle, roll.ts) instead of stepping; LabelFader's key already crosses over the words, unit, badge, alert and mark
+    // a stent point's number colour (the velocity lens's against the stent's own normal), the point the Doppler samples (its name in bold) and the colour the slide's words give this station (2D .lb.term).
+    // Each is part of the label's look, which is in LabelFader's key: a change of it crosses over like new words (this picture is written while it stands at zero, the old one keeps the old look in its ghost),
+    // so it is written here plainly. The station's ring is not crossed by the fader (it has no ghost): it restyles.
     const tint = d.tint ?? '', tone = d.tone ? toneCss(d.tone) : '', gate = !!d.gate;
-    const tintNew = (r.vtint ?? '') !== tint, gateNew = !!r.gate !== gate, toneNew = (r.tone ?? '') !== tone;
-    if (tintNew || gateNew || toneNew) {
-      r.vtint = tint; r.gate = gate; r.tone = tone;
-      restyle(el, () => {
-        if (tintNew) { if (tint) { el.style.setProperty('--lb-vtint', tint); el.setAttribute('data-tint', ''); } else { el.style.removeProperty('--lb-vtint'); el.removeAttribute('data-tint'); } }
-        if (gateNew) { if (gate) el.setAttribute('data-gate', ''); else el.removeAttribute('data-gate'); }
-        if (toneNew) { if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); } }
-      }, d.alpha * d.mix);
-      // (the ring and the leader are the label's own pieces, drawn at their own opacity)
-      if (toneNew) for (const x of [r.anchor, r.lead]) if (x) restyle(x, () => { if (tone) { x.style.setProperty('--lb-tone', tone); x.setAttribute('data-tone', ''); } else { x.style.removeProperty('--lb-tone'); x.removeAttribute('data-tone'); } }, Number(x.style.opacity) || 0);
+    if ((r.vtint ?? '') !== tint || !!r.gate !== gate) { r.vtint = tint; r.gate = gate; writeTint(el, tint, gate); }
+    if ((r.tone ?? '') !== tone) {
+      r.tone = tone;
+      writeTone(el, tone);
+      if (r.lead) writeTone(r.lead, tone);   // (the leader fades with its picture, and the ghost's leader keeps the old colour)
+      const ring = r.anchor;
+      if (ring) restyle(ring, () => writeTone(ring, tone), Number(ring.style.opacity) || 0);
     }
     if (d.value !== r.value && r.cur) {
       const was = r.value;
