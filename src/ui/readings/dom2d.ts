@@ -6,8 +6,8 @@ import { announce as say } from '../a11y/announce.ts';
 import { STORAGE_PREFIX } from '../../state/settings.ts';
 
 // ── ease.js, motion.js ──
-export const D_FLIP = 120, D_SMALL = 240;
-export const EASE_ARRIVE = 'cubic-bezier(.2, .8, .2, 1)', EASE_IN = 'cubic-bezier(.4, 0, 1, 1)';
+import { D_FLIP, D_SMALL, EASE_ARRIVE, EASE_IN } from '../motion.ts';
+export { D_FLIP, D_SMALL, EASE_ARRIVE, EASE_IN };   // (the one TS copy of tokens.css)
 export const reduceMotionMQ: { matches: boolean } = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
 // ── util.js h, svgIcon ──

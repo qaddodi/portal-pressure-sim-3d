@@ -1,10 +1,10 @@
 /* The tap-anything card (2D: app-03-layouts.css .action-card .ac-*). The look's tokens only; always in the page and faded in and out; per-frame moves are transform and opacity.
    Text never shrinks to fit, nothing scrolls inside it, and a number's room is kept so the card does not move as it changes. */
 .ac-card { position: absolute; z-index: 3; pointer-events: auto; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
-  font: 400 13px / 1.35 var(--ui); color: var(--text); background: var(--surface); border: 1px solid var(--edge); border-radius: 18px;
+  font: 400 var(--t-lab) / 1.35 var(--ui); color: var(--text); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sheet);
   left: calc(var(--safe-l, 0px) + var(--sh-pad-x, 16px)); top: calc(var(--sh-pad-top, 8px) + 52px + 8px); width: 276px; max-height: min(500px, calc(100% - var(--sh-pad-top, 8px) - 52px - 84px));
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
-  opacity: 0; visibility: hidden; transform: translateX(-12px); transition: opacity 200ms var(--sh-ease, ease), transform 200ms var(--sh-ease, ease), visibility 0s linear 200ms; }
+  opacity: 0; visibility: hidden; transform: translateX(-12px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .ac-card[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 :where(.ac-card button) { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .ac-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -16,12 +16,12 @@
 .ac-grab { display: none; justify-content: center; padding: 6px 0 0; touch-action: none; }
 .ac-grab i { width: 36px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 22%, transparent); }
 .ac-card[data-bottom] .ac-grab { display: flex; }
-.ac-x { position: absolute; top: 8px; right: 6px; display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); }
+.ac-x { position: absolute; top: 8px; right: 6px; display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-card); background: transparent; color: var(--text-3); }
 .ac-x:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 .ac-x .sh-ic { width: 18px; height: 18px; }
 
 /* the face: the name, the bar or the reading, the readings, the controls, the actions (what the card reads at the top, what it does at the foot) */
-.ac-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px 14px; animation: ac-in 200ms var(--sh-ease, ease) backwards; }
+.ac-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px 14px; animation: ac-in var(--d-small) var(--ease-arrive) backwards; }
 /* The card's body is in the card's flow, which gives the card its height. The 2D stylesheets (css2d/app-03-layouts.css) lay a body over its box (`.ac-body { position: absolute; inset: 0 }`) and
    put it back in the flow only under 2D's own `.action-card`, which this card is not: with them loaded the body took no room and the card stood 12 px high with its words cut off (a vessel's tap
    "opened no card", 20 Nov). Past the card's max-height the body scrolls, as 2D's shelf card does. tests/ac-card-flow.test.ts */
@@ -32,38 +32,38 @@
 .ac-card[data-bottom] .ac-body { padding: 10px 16px 12px; gap: 6px; animation-name: ac-in-up; }
 @keyframes ac-in-up { from { opacity: 0; transform: translateY(8px); } }
 .ac-nr { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; padding-right: 30px; }
-.ac-name { display: block; flex: 0 1 auto; min-width: 0; font: 600 17px / 1.25 var(--ui); letter-spacing: -0.005em; text-wrap: balance; }
-.ac-card[data-bottom] .ac-name { font-size: 16px; }
-.ac-state { flex: none; font-size: 13px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.ac-name { display: block; flex: 0 1 auto; min-width: 0; font: 600 var(--t-val) / 1.25 var(--ui); letter-spacing: -0.005em; text-wrap: balance; }
+.ac-card[data-bottom] .ac-name { font-size: var(--t-body); }
+.ac-state { flex: none; font-size: var(--t-lab); font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .ac-state:empty { display: none; }
 .st-word.rev, .st-word.bad { color: var(--danger); } .st-word.warn { color: var(--caution); }
 /* the bar: the pressure where the blood comes in and where it leaves, a track in the pressure colours between, and the drop above */
 .ac-sp { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 4px; }
-.ac-el { font-size: 12px; color: var(--text-3); height: 15px; line-height: 15px; letter-spacing: 0.02em; } .ac-el.r { text-align: right; }
-.ac-dv { font-size: 12.5px; line-height: 15px; color: var(--text-2); font-weight: 500; text-align: center; white-space: nowrap; }
+.ac-el { font-size: var(--t-cap); color: var(--text-3); height: 15px; line-height: 15px; letter-spacing: 0.02em; } .ac-el.r { text-align: right; }
+.ac-dv { font-size: var(--t-lab); line-height: 15px; color: var(--text-2); font-weight: 500; text-align: center; white-space: nowrap; }
 .ac-dv b { font-weight: 600; color: var(--text); }
 .ac-dv .ac-cut.ok { color: var(--ok); } .ac-dv .ac-cut.caution { color: var(--caution); } .ac-dv .ac-cut.danger { color: var(--danger); }
-.ac-pa, .ac-pb { display: block; font-size: 22px; font-weight: 500; line-height: 1; letter-spacing: -0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; } .ac-pb { text-align: right; }
-.ac-pb u { text-decoration: none; font-size: 12px; color: var(--text-3); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
+.ac-pa, .ac-pb { display: block; font-size: var(--t-val); font-weight: 500; line-height: 1; letter-spacing: -0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; } .ac-pb { text-align: right; }
+.ac-pb u { text-decoration: none; font-size: var(--t-cap); color: var(--text-3); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
 .ac-track { position: relative; height: 8px; min-width: 18px; overflow: hidden; border-radius: 3px 0 0 3px; clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%); }
 .ac-ramp { position: absolute; inset: 0; transform-origin: 0 50%; }
 /* a structure with no inflow and outflow (the heart, the spleen, the varices, a lobule part): its one reading */
 .ac-value { display: flex; align-items: baseline; min-height: 24px; }
 .ac-num { display: inline-flex; align-items: baseline; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ac-value b { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1; }
-.ac-value .unit { font-size: 12px; margin-left: 3px; color: var(--text-3); }
-.ac-delta { margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--text); }
+.ac-value b { font-size: var(--t-val); font-weight: 500; letter-spacing: -0.01em; line-height: 1; }
+.ac-value .unit { font-size: var(--t-cap); margin-left: 3px; color: var(--text-3); }
+.ac-delta { margin-left: 10px; font-size: var(--t-cap); font-weight: 600; color: var(--text); }
 /* the readings: named by their units (a name only where the unit would not say it) */
-.ac-rs { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; font-size: 16px; font-weight: 500; white-space: nowrap; min-width: 0; font-variant-numeric: tabular-nums; }
+.ac-rs { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; font-size: var(--t-body); font-weight: 500; white-space: nowrap; min-width: 0; font-variant-numeric: tabular-nums; }
 .ac-r { display: inline-flex; align-items: baseline; min-width: 0; }
-.ac-em { font-style: normal; font-size: 12px; color: var(--text-3); font-weight: 500; margin-right: 5px; }
-.ac-u { text-decoration: none; font-size: 12px; color: var(--text-3); font-weight: 500; margin-left: 3px; }
-.ac-about { font-size: 12px; line-height: 1.45; color: var(--text-2); } .ac-about p { margin: 0 0 4px; } .ac-about p:last-child { margin-bottom: 0; } .ac-about p + p { color: var(--text); }
+.ac-em { font-style: normal; font-size: var(--t-cap); color: var(--text-3); font-weight: 500; margin-right: 5px; }
+.ac-u { text-decoration: none; font-size: var(--t-cap); color: var(--text-3); font-weight: 500; margin-left: 3px; }
+.ac-about { font-size: var(--t-cap); line-height: 1.45; color: var(--text-2); } .ac-about p { margin: 0 0 4px; } .ac-about p:last-child { margin-bottom: 0; } .ac-about p + p { color: var(--text); }
 /* the controls: one to a row, each its icon, its word and its value over a slider, a meter or a switch */
 .ac-cs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: auto; }
 .ac-card[data-bottom][data-device="phone-landscape"] .ac-cs, .ac-card[data-bottom]:not([data-device="phone-portrait"]) .ac-cs { grid-template-columns: minmax(0, 1fr); }
 .ac-c { display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
-.ac-c .ctl-top { display: flex; align-items: center; gap: 6px; height: 16px; min-width: 0; font-size: 12.5px; color: var(--text-2); white-space: nowrap; }
+.ac-c .ctl-top { display: flex; align-items: center; gap: 6px; height: 16px; min-width: 0; font-size: var(--t-lab); color: var(--text-2); white-space: nowrap; }
 .ac-c .ctl-val { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
 .ac-ic { width: 16px; height: 16px; flex: none; color: var(--text-2); }
 /* the sliders are 2D's own `.range-wrap` (app-02-controls.css: the wrapper draws the track and fill from --p, the input keeps a clear track and the dot; app-03-layouts.css: the ticks) */
@@ -71,17 +71,17 @@
 .ac-meter { position: relative; height: 6px; margin: 5px 0; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text) 10%, transparent); }
 .ac-meter-fill { position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--accent) 60%, transparent); transform-origin: 0 50%; }
 .ac-toggle { padding: 0; border: 0; background: none; text-align: left; } .ac-toggle .ctl-top { height: 18px; }
-.ac-switch { margin-left: auto; position: relative; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in srgb, var(--text) 18%, transparent); transition: background-color 160ms var(--sh-ease, ease); }
-.ac-switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.3); transition: transform 160ms var(--sh-ease, ease); }
+.ac-switch { margin-left: auto; position: relative; width: 34px; height: 20px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 18%, transparent); transition: background-color var(--d-flip) var(--ease-arrive); }
+.ac-switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.3); transition: transform var(--d-flip) var(--ease-arrive); }
 .ac-switch[data-on] { background: var(--accent); } .ac-switch[data-on] i { transform: translateX(14px); }
-.ac-seg { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
-.ac-seg button { flex: 1 1 0; min-width: 0; padding: 5px 8px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ac-seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
+.ac-seg button { flex: 1 1 0; min-width: 0; padding: 5px 8px; border: 0; border-radius: var(--r-control); background: none; color: var(--text-2); font-size: var(--t-cap); font-weight: 600; white-space: nowrap; }
 .ac-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.14), 0 0 0 0.5px var(--edge); }
 /* the actions: the app's icon and one word, in the accent; taking a device out (Remove) in red at the right */
 .ac-as { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; min-width: 0; margin-top: 6px; }
 .ac-cs + .ac-as { margin-top: 6px; }
 .ac-body > .ac-as:not(.ac-cs + .ac-as) { margin-top: auto; }
-.ac-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 0; border: 0; background: none; color: var(--accent); font: 500 13px / 1.2 var(--ui); white-space: nowrap; transition: scale 160ms var(--sh-ease, ease); }
+.ac-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 0; border: 0; background: none; color: var(--accent); font: 500 var(--t-lab) / 1.2 var(--ui); white-space: nowrap; transition: scale var(--d-flip) var(--ease-arrive); }
 .ac-btn:active { scale: 0.96; }
 .ac-btn .ac-ic { width: 18px; height: 18px; color: currentColor; }
 .ac-btn.danger { color: var(--danger); margin-left: auto; } .ac-btn.quiet { color: var(--text-2); }
@@ -101,21 +101,21 @@
 .ac-name-btn .ac-chev { width: 16px; height: 16px; color: var(--text-3); flex: none; }
 .ac-name-btn:hover .ac-chev { color: var(--text); }
 .ac-dhead { display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding-right: 30px; }
-.ac-back { display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; margin: -4px 0 0 -8px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); }
+.ac-back { display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; margin: -4px 0 0 -8px; padding: 0; border: 0; border-radius: var(--r-card); background: transparent; color: var(--text-2); }
 .ac-back:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 .ac-back .sh-ic { width: 18px; height: 18px; }
 .ac-dtitle { display: flex; flex-direction: column; min-width: 0; }
 .ac-dtitle h2 { margin: 0; }
-.ac-kicker { font-size: 12px; color: var(--text-3); font-weight: 500; }
+.ac-kicker { font-size: var(--t-cap); color: var(--text-3); font-weight: 500; }
 .ac-state-row { display: flex; }
 .ac-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; font-variant-numeric: tabular-nums; }
 .ac-stat { display: flex; flex-direction: column; min-width: 0; }
 .ac-stat.wide { grid-column: 1 / -1; }
-.ac-stat .k { font-size: 12px; color: var(--text-3); font-weight: 500; }
-.ac-stat .v { font-size: 15px; font-weight: 500; white-space: nowrap; }
-.ac-dnote { margin: 4px 0 0; font-size: 12px; color: var(--text-3); }
-.ac-dabout h3 { margin: 4px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
-.ac-dabout p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-2); }
+.ac-stat .k { font-size: var(--t-cap); color: var(--text-3); font-weight: 500; }
+.ac-stat .v { font-size: var(--t-body); font-weight: 500; white-space: nowrap; }
+.ac-dnote { margin: 4px 0 0; font-size: var(--t-cap); color: var(--text-3); }
+.ac-dabout h3 { margin: 4px 0 4px; font-size: var(--t-cap); font-weight: 600; color: var(--text-3); }
+.ac-dabout p { margin: 0; font-size: var(--t-cap); line-height: 1.45; color: var(--text-2); }
 .ac-state-row .st-word.ok { color: var(--text-2); }
 .ac-state-row :is(.st-word.rev, .st-word.bad) { color: var(--danger-ink); }
 .ac-state-row .st-word.warn { color: var(--caution-ink); }
