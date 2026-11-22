@@ -421,5 +421,5 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); this.glue.dispose(); }
+  dispose(): void { this.tractMm = 0; this.tractDriven = false; setDrawnDiameter(TRACT_EDGE, 0); for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); this.glue.dispose(); }
 }
