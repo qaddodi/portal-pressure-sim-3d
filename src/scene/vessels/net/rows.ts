@@ -38,6 +38,8 @@ export interface RowSource {
   present(id: string): boolean | undefined;
   /** the clamp's waist on the vessel: [how narrowed 0..1, the bell's sigma in u, its centre in u], or null */
   waist(id: string): readonly [number, number, number] | null | undefined;
+  /** what is fixed for the vessel: its map course's length (the old geometry's `cl.y`) and whether it has no map course (a fan: it never morphs) */
+  fixed(id: string): { lenMap: number; noMap: boolean } | undefined;
 }
 
 /** A uniform's value as the floats of its column (a number, a three vector or colour, a vec4 array for the seams). */
@@ -105,6 +107,8 @@ export class NetRows {
       this.table.set(row, 'sewn', [a ? a.host : -1, b ? b.host : -1, a ? a.flags : 0, b ? b.flags : 0]);
       if (bakeScale) this.table.set(row, 'bakeScale', bakeScale[row] ?? 1);
       this.table.set(row, 'peelA', peel[row]!);
+      const f = this.src.fixed(this.vessels[row]!.id), v = this.vessels[row]!;
+      if (f) { this.table.set(row, 'noMap', f.noMap ? 1 : 0); this.table.set(row, 'lenMap', f.lenMap * (v.h1 - v.h0)); }
     });
   }
 

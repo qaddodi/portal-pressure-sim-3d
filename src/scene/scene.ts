@@ -4,7 +4,7 @@ import { stamp } from '../boot/timeline.ts';
 import { whenQuiet, type QuietJob } from '../clock/idle.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { runSystems, type FrameCtx, type FrameSystem } from './frame-systems.ts';
-import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, type BufferAttribute, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -24,6 +24,8 @@ import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
+import { geomNet, oldShare } from './vessels/net/flag.ts';
+import type { NetFigure } from './vessels/net/network-object.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /**
@@ -462,6 +464,7 @@ export class CelScene {
     this.protos = programPrototypes(this.shared);
     this.scene.add(this.protos);   // (hidden stand-ins for the programs nothing holds yet: compiled with the rest under the splash, materials/prototypes.ts)
     this.applyLook(this.look);
+    if (geomNet()) void this.mountNet();   // (?geom=net: the vessels from the network meshes, fetched and built after the figure, off the load path)
   }
 
   private unJoins: () => void = () => {};
@@ -609,6 +612,52 @@ export class CelScene {
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
   }
+
+  // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  private net: NetFigure | null = null;
+  /** the share of the OLD figure drawn now (net/flag.ts oldShare; TEMPORARY): 0 at the body's rest, 1 once the Circuit's change is a tenth in */
+  private netOld = 0;
+  private netHidden = false;
+  /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw). Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
+  private async mountNet(): Promise<void> {
+    const { loadNet } = await import('./vessels/net/load.ts');
+    const data = await loadNet();
+    if (!data || this.disposed) return;
+    await this.attachNet(data);
+  }
+  /** Builds the figure from loaded network meshes (the page's `mountNet`, and a test, which hands the baked files it read from disk). */
+  async attachNet(data: import('./vessels/net/load.ts').NetData): Promise<void> {
+    const { NetFigure: Figure } = await import('./vessels/net/network-object.ts');
+    const vo = (id: string) => this.vesselObject(id);
+    const first = (tone: NetVessel['tone']): Color => (vo(NETWORK.find((v) => v.tone === tone)!.id)!.toon.uniforms.color!.value as Color);
+    const edgeIds = data.skel.edges.map((e) => e.id.split('#')[0]!);
+    const behind = new Set<number>(); edgeIds.forEach((id, i) => { if (vo(id)?.behindOrgans) behind.add(i); });
+    const clamps = this.disease.clamps;
+    this.net = new Figure(data, {
+      uniforms: (id) => vo(id)?.toon.uniforms, fade: (id) => { const o = vo(id); return o ? this.composeFade(o, false) : undefined; }, copies: (id) => vo(id)?.netCopies(),
+      present: (id) => vo(id)?.group.visible, waist: (id) => (vo(id) ? clamps.waistOf(id) : undefined),
+      fixed: (id) => { const o = vo(id); return o ? { lenMap: (o.toonMesh.geometry.getAttribute('cl') as BufferAttribute | undefined)?.getY(0) ?? 1, noMap: [...this.fans.values()].includes(id) } : undefined; },
+      template: () => vo(NETWORK[0]!.id)!.toon.uniforms, tones: () => [first('portal'), first('sys'), first('artery')],
+    }, behind);
+    this.body.add(this.net.group);
+    this.stepNet();
+    this.pushFades();
+    this.moving = true; clock.invalidate('net');
+  }
+  /** One frame of the network figure: the Circuit's hand-over share (TEMPORARY), then the rows from the vessels' state. */
+  private stepNet(): boolean {
+    const n = this.net;
+    if (!n) return false;
+    const share = oldShare(this.circuit.t);
+    let moving = false;
+    if (share !== this.netOld) { this.netOld = share; this.pushFades(); moving = true; }
+    if (n.setOldShare(share)) moving = true;
+    const hide = share <= 0;   // (the tubes are not drawn at all while the network holds the whole picture)
+    if (hide !== this.netHidden || moving) { this.netHidden = hide; for (const o of this.vessels) (o as VesselObject).setNetHidden(hide); }
+    return n.sync() || moving;
+  }
+  /** The network figure now drawn (null without ?geom=net, or while it loads): for the tests and the debug page. */
+  get netFigure(): NetFigure | null { return this.net; }
 
   /** The vessel object of an edge, or undefined. */
   vesselObject(id: string): VesselObject | undefined { return this.byEdge.get(id) as VesselObject | undefined; }
@@ -1055,11 +1104,12 @@ export class CelScene {
   }
   /** What an object's `fade` is: ONE value composed of everything that dissolves it (before, the dive's dissolve and the Circuit's change both wrote the uniform and the last writer won): the dive's
    *  dissolve of the body, the Circuit's change for what leaves with the organs (1 - t), and a conditional tributary group's own `live`. (A fan's Circuit fade, 2D's 1 - 2 * T0, is the vertex shader's.) */
-  private composeFade(o: CelObject): number {
+  private composeFade(o: CelObject, withHandOver = true): number {
     let f = this.fadeNow;
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
+    if (withHandOver && this.net && this.byEdge.get(o.edge?.id ?? '') === o) f = Math.min(f, this.netOld);   // (?geom=net, TEMPORARY: the old tubes and the skins that follow their fade come in by the screen pattern over the Circuit's first tenth, vessels/net/flag.ts)
     return f;
   }
   /**
@@ -1365,6 +1415,7 @@ export class CelScene {
         if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
         return anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
       } },
+      { id: 'net', step: () => this.stepNet() },
       { id: 'micro', step: ({ now }) => {
         this.stepSinusDive();
         this.stepCutaway();
@@ -1591,6 +1642,8 @@ export class CelScene {
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
+    this.net?.prepass(gl);   // (?geom=net: the sewn hosts' radii and each junction region's live capsules, once per drawn frame)
+    lap('render: network passes');
     gl.render(this.scene, cam);
     lap('render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)');
     gl.autoClear = false;
@@ -1610,6 +1663,7 @@ export class CelScene {
     this.disposed = true; for (const e of this.eases) e.dispose();
     this.unJoins();
     for (const k of [...this.inspectMarks.keys()]) this.putInspectMarks(k, null);
+    this.net?.dispose();
     this.skins?.dispose();
     this.circuitSkins?.dispose();
     this.micro?.sinus.dispose(); this.micro?.lobule.dispose();

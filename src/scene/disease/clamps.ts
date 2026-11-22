@@ -100,6 +100,12 @@ export class ClampLayer {
     return out;
   }
 
+  /** The waist the vessel's tube has now, for the network figure's edge row (?geom=net): [how narrowed 0..1, the bell's sigma in u, its centre in u], or null for a vessel with no clamp narrowed. */
+  waistOf(id: string): readonly [number, number, number] | null {
+    const c = this.clamps.get(id);
+    return c && c.cur > 0.003 ? [c.cur, waistSigma(c.width2d, c.len2d), 0.5] : null;
+  }
+
   /** The vessels with a clamp shown now, and their narrowing (for the tests and the parity table). */
   shown(): Record<string, number> { const o: Record<string, number> = {}; for (const c of this.clamps.values()) if (c.cur > 0.003) o[c.id] = c.cur; return o; }
   setFade(f: number): void { this.fade = f; }

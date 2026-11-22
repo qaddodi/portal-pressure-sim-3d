@@ -26,7 +26,7 @@ export interface NetSource extends RowSource {
 }
 
 /** One network (or the merged single-vessel ones) as the scene draws it. */
-export interface NetDraw { name: string; edges: number[]; vertices: number; triangles: number; regions: Region[]; /** triangles of the organs-pass copy (those touching a back vessel) */ organsTriangles: number; meshes: Mesh[] }
+export interface NetDraw { name: string; edges: number[]; vertices: number; triangles: number; regions: Region[]; /** triangles of the organs-pass copy (those touching a back vessel) */ organsTriangles: number; /** the organs-pass copy's index (null: none) */ organsIndex: Uint32Array | null; /** the mesh itself (vertex bones and weights: the reads model walks them) */ mesh: NetMesh; meshes: Mesh[] }
 
 /** Concatenates meshes into one (vertex data end to end, indices rebased). The meshes of the single-vessel networks have no junction regions, so nothing else needs rebasing. */
 export function mergeMeshes(parts: readonly NetMesh[]): NetMesh {
@@ -169,7 +169,7 @@ export class NetFigure {
       this.geometries.push(g); this.materials.push(m);
       const p = new Points(g, m); p.frustumCulled = false; this.capPasses.push({ target: capTarget, points: p });
     }
-    this.draws.push({ name, edges, vertices: V, triangles: mesh.index.length / 3, regions, organsTriangles: organsIndex ? organsIndex.length / 3 : 0, meshes });
+    this.draws.push({ name, edges, vertices: V, triangles: mesh.index.length / 3, regions, organsTriangles: organsIndex ? organsIndex.length / 3 : 0, organsIndex, mesh, meshes });
   }
 
   /** The look's three tone colours into the palette the shader indexes by the edge's `tone`. */
