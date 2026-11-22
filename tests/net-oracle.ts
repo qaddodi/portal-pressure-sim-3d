@@ -11,6 +11,8 @@ import { SKIN_K, closestOnArm, sdUnion, sdUnionGrad, type Capsule } from '../src
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../src/scene/vessels/skin/exact-normal.ts';
 import { peelAt, peelRank, peelSlope, PEEL_SPAN } from '../src/scene/circuit/peel.ts';
 import { MAP_K, sceneToMap } from '../src/scene/circuit/map.ts';
+import { flareScale, sideEndScale } from '../src/scene/vessels/fork-joins.copied.js';
+import { SEWN_CAPPED, SEWN_FLARE, SEWN_INSIDE, SEWN_SINK, type SewnEnd } from '../src/scene/vessels/net/sewn.ts';
 
 export type V3 = [number, number, number];
 const add = (a: Vec3, b: Vec3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -47,6 +49,23 @@ export interface LiveState {
   ink?: number;
   sag?: number;
   edges: LiveEdge[];
+  /** the sewn ends of every edge (net/sewn.ts): the collar is applied to those edges' bones, sized from the host's live lumen */
+  sewn?: readonly (readonly [SewnEnd | null, SewnEnd | null])[];
+}
+
+/** The collar of a sewn end (the shader's sewnCollar, from 2D's own sideEndScale and flareScale): the scale of an edge's radius at a bone `u` along it (edge length `arc`), given the live lumen the bone would have and its two hosts' live lumens. */
+export function sewnCollar(ends: readonly [SewnEnd | null, SewnEnd | null], u: number, arc: number, lumen: number, hostL: readonly [number, number]): number {
+  if (!(lumen > 1e-9)) return 1;
+  let a = 1, n = 1, cap = 0;
+  for (const e of [0, 1] as const) {
+    const f = ends[e]?.flags ?? 0;
+    if (!f) continue;
+    const d = (e === 0 ? u : 1 - u) * arc, hostR = hostL[e];
+    const nar = f & SEWN_INSIDE && !(f & SEWN_SINK) ? (sideEndScale(d, hostR) as number) : 1, fl = f & SEWN_FLARE ? (flareScale(d, hostR) as number) : 1;
+    a *= nar * fl; n *= nar;
+    if (f & SEWN_CAPPED && f & SEWN_FLARE && fl > 1) cap = Math.max(cap, hostR);
+  }
+  return cap > 0 ? Math.min(a, Math.max(n, cap / lumen)) : a;
 }
 
 export interface LiveBone {
@@ -93,6 +112,18 @@ export function liveBones(skel: Skeleton, live: LiveState): LiveBone[] {
     const lumen = rest * swell * E.liveW * E.presence, ink = live.ink ?? 0;
     out.push({ cen, F, lumen, lumenRest: rest, pad: ink + (lumen + ink) * (live.sag ?? 0), share, fade: E.fade * E.presence, presence: E.presence, u: B.u, edge: B.edge });
   });
+  if (live.sewn) {
+    // the sewn ends' collar (net/sewn.ts): the host's live lumen is read from its bone, the edge's length is its polyline's, in the pose the bone is in (len, lenMap)
+    const lens = skel.edges.map((ed) => { const [f, c] = ed.bones; let a = 0, m = 0; for (let k = 1; k < c; k++) { a += Math.hypot(...sub(skel.bones[f + k]!.pos[0], skel.bones[f + k - 1]!.pos[0])); m += Math.hypot(...sub(skel.bones[f + k]!.pos[1], skel.bones[f + k - 1]!.pos[1])); } return [a, m] as const; });
+    const hostOf = (e: SewnEnd | null): number => (e ? out[e.host]!.lumen : 0), keep = out.map((b) => b.lumen);
+    skel.bones.forEach((B, bi) => {
+      const ends = live.sewn![B.edge];
+      if (!ends || (!ends[0] && !ends[1])) return;
+      const b = out[bi]!, arc = lens[B.edge]![0] + (lens[B.edge]![1] - lens[B.edge]![0]) * b.share;
+      const k = sewnCollar(ends, B.u, arc, keep[bi]!, [hostOf(ends[0]), hostOf(ends[1])]);
+      b.lumen *= k; b.pad = (live.ink ?? 0) + (b.lumen + (live.ink ?? 0)) * (live.sag ?? 0);
+    });
+  }
   return out;
 }
 
@@ -258,4 +289,39 @@ export function absentFits(mesh: NetMesh, skel: Skeleton, regions: readonly Regi
     }
     return out;
   }));
+}
+
+/** THE KEYED START (plan owner, 22 Nov, wide junctions): a region's fillet is baked at up to 4 KEYS, each a state of its arms' radii, by CONTINUATION (the radii ramp from rest to the key in `steps` small steps, each step projecting the previous
+ *  step's vertices by 3 Newton steps: a direct projection of the rest arrangement folds at a wide ratio, the ramp does not). At run time the start is the convex blend of the keys' vertices, weights from the inverse log-radius distance between the live
+ *  arm radii and each key's (to the power `power`), so a blend of fold-free keys cannot overshoot; the projection then runs as always. REST POSE only (the positions are world positions: the real bake keeps them in the bone frames). */
+export interface RegionKey { radii: number[]; pos: Float32Array }
+const armRadii = (rg: Region, bones: LiveBone[]): number[] => rg.caps.slice(0, rg.arms).map((c) => bones[c.bones[0]!]!.lumen);
+export function bakeKeys(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], keyStates: readonly LiveState[], steps = 24): RegionKey[][] {
+  const rest = liveStates(skel)[0]![1], lerp = (a: LiveState, b: LiveState, f: number): LiveState => ({ ...a, ink: 0, sag: 0, edges: a.edges.map((e, i) => ({ ...e, swell: e.swell + (b.edges[i]!.swell - e.swell) * f })) });
+  const out: RegionKey[][] = regions.map(() => []);
+  for (const ks of keyStates) {
+    let pos: Float32Array | null = null;
+    for (let k = 1; k <= steps; k++) {
+      const st = lerp(rest, ks, k / steps);
+      const start: { position: Float32Array; normal: Float32Array } = pos ? { position: pos, normal: new Float32Array(pos.length) } : junctionPose(mesh, skel, regions, st).start;
+      pos = projectRegions(mesh, skel, regions, st, start, 3).position;
+    }
+    const bones = liveBones(skel, ks);
+    regions.forEach((rg, ri) => out[ri]!.push({ radii: armRadii(rg, bones), pos: pos!.slice(3 * rg.vertStart, 3 * (rg.vertStart + rg.vertCount)) }));
+  }
+  return out;
+}
+/** The normalised weights of the keys at the live arm radii: 1 / (log-radius distance + eps)^power, summing to 1. */
+export function keyWeights(live: readonly number[], keys: readonly RegionKey[], power = 2): number[] {
+  const w = keys.map((k) => 1 / Math.pow(Math.hypot(...live.map((r, i) => Math.log(Math.max(r, 1e-9) / Math.max(k.radii[i]!, 1e-9)))) + 1e-3, power)), W = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => x / W);
+}
+/** The junction pose with the keyed start (rest pose, swell only). */
+export function keyedPose(mesh: NetMesh, skel: Skeleton, regions: readonly Region[], live: LiveState, keys: readonly (readonly RegionKey[])[], power = 2): ReturnType<typeof projectRegions> {
+  const start: ReturnType<typeof deformLive> = junctionPose(mesh, skel, regions, live).start, bones = liveBones(skel, live), pos = Float32Array.from(start.position);
+  regions.forEach((rg, ri) => {
+    const w = keyWeights(armRadii(rg, bones), keys[ri]!, power);
+    for (let v = 0; v < rg.vertCount; v++) for (let q = 0; q < 3; q++) pos[3 * (rg.vertStart + v) + q] = keys[ri]!.reduce((a, k, ki) => a + w[ki]! * k.pos[3 * v + q]!, 0);
+  });
+  return projectRegions(mesh, skel, regions, live, { position: pos, normal: start.normal }, 3);
 }
