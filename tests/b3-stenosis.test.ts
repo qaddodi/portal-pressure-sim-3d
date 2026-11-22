@@ -79,7 +79,7 @@ test('the vessel shader draws everything from the PINCHED lumen: the line, the f
   assert.match(VESSEL_VS, /float lumenW = radius \* rkE \* swell \* narrowK;/);
   assert.doesNotMatch(VESSEL_VS, /\(1\.0 - narrow\)/, 'no stray copy of the pinch that the lumen radius does not see');
   // the outline's thinning for a hairline is judged on the vessel's own radius: a pinch keeps its line
-  assert.match(VESSEL_VS, /rCssV \/ narrowK\);/);
+  assert.match(VESSEL_VS, /rCssV \/ narrowK\)/);
   // and the fragment stage's marks are made from vR (the pinched one) and nothing else
   assert.match(VESSEL_FS, /float R = max\(vR, 0\.3\)/);
   assert.match(VESSEL_FS, /float rDevAx = vR \//);

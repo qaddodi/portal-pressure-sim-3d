@@ -33,6 +33,10 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   // identity (written once)
   col('tone', 1, (e) => [TONES.indexOf(e.tone)], null),
   col('tier', 1, (e) => [TIERS.indexOf(e.tier)], null),
+  col('radius', 1, [0.02]),   // the vessel's nominal radius, scene units: what the Circuit's live width is measured against (shaders.ts circSwell: map half-width over this), and the dust's section
+  col('waist', 3, [0, 0.2, 0.5], null),   // a stenosis's waist (disease/clamps.ts waistNarrow): how narrowed (0 none), the bell's sigma, its centre along THIS edge (the old `narrow` attribute, one value per vertex, is a function of u)
+  col('lenMap', 1, [1], null),   // the vessel's length along its MAP course, scene units (the old `cl.y`): the Circuit's stent cells tile by it (shaders.ts vArcLen)
+  col('noMap', 1, [0], null),   // 1: a part with no map course (a fan, a strand): it never morphs and dissolves in the Circuit's first half (circStay)
   col('presence', 1, [1], null),   // 1: there, 0: not (WP5: eases the radius to nothing and the alpha with it; nothing is created or destroyed at runtime)
   col('vindex', 1, [0]), col('baseD', 1, [1]), col('widthKind', 1, (e) => [e.widthKind]), col('lensIndex', 1, [0]), col('len', 1, [1]), col('px', 1, [1.2]),
   col('lensUse', 1, (e) => [e.tone === 'artery' ? 0 : 1]),
@@ -49,7 +53,7 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   // the fades (fades.ts) and the cava's end
   col('fadeMode', 1, [0]), col('fadeKeep', 1, [0]), col('fadeA', 4, [0, 1, 1, 1]), col('fadeLine', 4, [0, 0, 0, 1]), col('mapFade', 3, [0, 1, 0]), col('cavaEnd', 2, [0, 1]),
   // surgery and procedures
-  col('stump', 3, [0, 0, 0]), col('stentU', 4, [0, 0, 1, 0]), col('seamA', 8, [0, 0, 0, 0, 0, 0, 0, 0]), col('seamB', 8, [0, 0, 0, 0, 0, 0, 0, 0]),
+  col('stump', 3, [0, 0, 0]), col('stentU', 4, [0, 0, 1, 0]), col('stentT0', 1, [0]), col('seamA', 8, [0, 0, 0, 0, 0, 0, 0, 0]), col('seamB', 8, [0, 0, 0, 0, 0, 0, 0, 0]),
   col('wedge', 4, [0, 0.02, 0.6, 0]), col('wedgeD', 4, [0, 0, -1, 0.02]),
 ];
 

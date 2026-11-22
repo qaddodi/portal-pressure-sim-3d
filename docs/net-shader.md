@@ -1,0 +1,21 @@
+# The network shader (WP3, `?geom=net`)
+
+`src/scene/vessels/net/shaders.ts`: one vertex and one fragment program for a whole network's mesh. Status: compiles and links (4 programs: base, VEIL, GLOW, VDBG), 9 varyings, 11 attributes, 9 samplers. The GLSL has never run: no device, no browser in the cloud. A CPU oracle (`tests/net-oracle.ts`) holds the formula by hand.
+
+## What is shared with the old program (moved, not copied)
+`glsl-shared.ts` holds the chunks both programs splice: `CIRC_WIDTH_OF_GLSL`, `STUMP_K_GLSL`, `CAP_CARVED_GLSL`, `PROCEDURE_MARKS_GLSL`, `FADE_ALPHA_GLSL`, `HIGHLIGHT_ALONG_GLSL`; `circuit/shader.ts` holds `CIRC_PEEL_GLSL`; `materials/shaders.ts` the fade functions. The old program's output is byte-identical to before (`tests/glsl-shared.test.ts`). Per-vessel names are global variables the generated `loadEdgeVS/FS` fill from the edge-state texture.
+
+## Open (measured, `tests/net-deform.test.ts`, todo tests print the numbers)
+Against the owner's criteria (bound normal within 3 deg p99 of the SHADE normal; fillet within 0.05 R of the live union), linear blend skinning does NOT meet them once the arms deform differently:
+- Rest / Circuit t=.25 on Y and H: p99 3.3 deg, union 0.058 R (just over); T, TT, STUB, FOUR: 7 to 10 deg at rest; HS (the hard fixture): 50 deg at rest.
+- Map pose / t=.75: 8 to 61 deg. Differential swell 1.2/.85: 7 to 50 deg. Presence .3: 20 to 54 deg, union 0.5 to 4.7 R.
+- No triangle flips in any state. Edges stay under 3x except an arm at presence .3 (T, FOUR, H, TT) and the neck fixture HT in the map pose (3.1 to 5.9x). HT is bad even at rest (48 deg, 0.9 R).
+Likely remedies: a per-vertex live-union gradient for the junction vertices (they are few); or limits on the swell ratio / presence of an arm at a junction.
+Also open: the cava ramp length (design only, not tested; judge on a device), the ink-width-across-fillets check (not yet written), `?geom=net` wiring (WP4), crossings of one network (`tests/net-crossings.test.ts`: 7 in the body pose, 18 in the map pose; a faded and a solid vessel in one draw blend in vertex order), and the real skeleton does not mesh yet (HA:art vertex limit).
+
+## Zero-length map pieces (WP0 ruling 3), `tests/net-zero-map.test.ts`
+The real skeleton has no bone with a zero map tangent today (every landing is at least 3 radii long in the map) and does not mesh yet, so the test collapses the short middle piece of a trunk with two landings (HT-like, 1 R and 0.5 R long) onto one map point. At the map pose and at t = .25 / .5 / .75 / 1: no NaN, no flipped triangle; stretch is under 3x except the 1 R piece at t = 1 (3.02x, a todo). The shader's frame for a zero map difference is the bone's own body tangent (no NaN), NOT the host's tangent as ruled: the host's map tangent at the node is in no texture. Carrying it is a one-column change in WP1 (net/bones.ts: write the host's map tangent into a zero-length bone's frame), which I have not done.
+
+## The map-pose offset set (plan change 22 Nov), `tests/net-mapset.test.ts`
+`NetMesh.offsetMap` (optional until WP2 bakes it; same layout as `offset`, a tube vertex's equals its `offset`) and three attributes `offM0..2` in the vertex stage. The stage keeps the two sums, `sum w F o lumen` (body set) and `sum w F oM lumen` (map set), and blends them by the vertex's bone-weighted peel share, so share 0 is the body shape and share 1 is the map shrink-wrap; with no set the result is unchanged. WP2 bakes the set with the offsets rebuilt by `oM_i = F_i^T (target - centre_i) / lumen_i` at the map pose (tests/net-mapset.test.ts does the same for a stand-in target). Normals still blend from the one bound set: a second normal set is not in the plan and is the next gap to measure once the real wrap exists.
+Measured with a stand-in (each junction vertex projected onto the live map union, no smoothing): at the map pose the vertices land on the target; at t = .25 / .5 / .75 no flips and stretch <= 3x on Y, T, FOUR, CHAIN, H, STUB, TT. HS and HT (short merged middle edge) reach 3.1x at t = .5 and 5.1x at t = .75 (HT: one flip): todo, WP2's real wrap with its tangential smoothing is what must fix it. The varying budget is unchanged; attributes go 11 -> 14 (the 16 floor).

@@ -34,6 +34,7 @@ uniform vec2 hiEnds;   // the picked vein's distance to its outer start and oute
 uniform float hiFade;
 uniform float hiPx;
 uniform float inkOn;   // 0 on a dotted thread (no outline), else 1
+uniform float lensUse;   // 0 on an ARTERY (it keeps its own colour), 1 on a vein: here it also says whose wall the line is built for (cel-style ARTERY)
 uniform float liveW;   // a conditional tributary group's width share, 2D's 0.5 + 0.5 * live (feeders.ts): 1 for every other vessel
 uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
@@ -289,7 +290,7 @@ void main() {
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
-  float inkPx = clamp(0.3 * rCssV, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssV / narrowK);   // CSS px
+  float inkPx = min(3.0, clamp(0.3 * rCssV, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssV / narrowK) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCssV / narrowK)));   // CSS px
   inkPx *= mix(1.0, 1.1, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rkE * swell * narrowK;

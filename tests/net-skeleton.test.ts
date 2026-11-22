@@ -11,7 +11,7 @@ import { y2d } from '../src/scene/frame2d.ts';
 import { MAPPED, NETWORK, RUN_PAIRS } from '../src/scene/vessels/network.ts';
 import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
 import { baseline } from '../src/scene/vessels/net/baseline.ts';
-import { BONES_PER_EDGE, FADE_SEEN, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
+import { BONES_PER_EDGE, FADE_SEEN, WALL_STARTS, hiddenCounts, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
 
 const S = skeleton(), R = skeletonReport();
 const dist = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -114,6 +114,34 @@ test('a bend in a faded tail stays in it: of EPI_ILI and C4, every bone drawn (r
       assert.ok(d <= 1, `${id} bone ${i} (alpha ${at(i).toFixed(2)}) is ${d.toFixed(2)} radii from its course`);
     }
     assert.ok(drawn >= 5, `${id}: only ${drawn} bones drawn: the check is not looking at the visible part`);
+  }
+});
+
+test('hidden tails: SkelEdge.hidden is what nothing draws in either pose, hiddenBody what the body alone hides; hidden never exceeds hiddenBody, and the Circuit-whole tails (EPI_ILI, C4) are body-hidden only', () => {
+  for (const e of S.edges) for (const k of [0, 1] as const) {
+    assert.ok(e.hidden[k] <= e.hiddenBody[k], `${e.id}: hidden ${e.hidden[k]} > hiddenBody ${e.hiddenBody[k]}`);
+    assert.ok(e.hiddenBody[k] < e.bones[1], `${e.id}: every bone hidden`);
+  }
+  for (const v of MAPPED) { const hc = hiddenCounts(v.id), a = S.edges.find((e) => e.id === v.id || e.id === `${v.id}#0`)!, z = [...S.edges].reverse().find((e) => e.id === v.id || e.id.startsWith(`${v.id}#`))!; assert.equal(a.hiddenBody[0], Math.min(hc.body[0], a.bones[1] - 1), v.id); assert.equal(z.hiddenBody[1], Math.min(hc.body[1], z.bones[1] - 1), v.id); }
+  for (const id of ['EPI_ILI', 'C4']) { const e = S.edges.find((x) => x.id === id)!; assert.deepEqual(e.hidden, [0, 0], `${id}: the Circuit draws it whole`); assert.ok(e.hiddenBody[1] > 0, `${id}: its tail is hidden in the body`); }
+  assert.ok(S.edges.some((e) => e.hidden[0] + e.hidden[1] > 0), 'some tail is hidden in both poses (the arteries\' ends)');
+});
+
+test('the faded tails turn to their node on one smooth turn: no step over 45 degrees between the bones of EPI_ILI, and the hairpin of the ease (64 degrees) is gone', () => {
+  const steps = (id: string) => { const b = hostBones(id).map((q) => q.pos[0]); let w = 0; for (let k = 1; k + 1 < b.length; k++) w = Math.max(w, angle(unit([b[k]![0] - b[k - 1]![0], b[k]![1] - b[k - 1]![1], b[k]![2] - b[k - 1]![2]]), unit([b[k + 1]![0] - b[k]![0], b[k + 1]![1] - b[k]![1], b[k + 1]![2] - b[k]![2]]))); return w; };
+  assert.ok(steps('EPI_ILI') < 45, `EPI_ILI turns ${steps('EPI_ILI').toFixed(0)} degrees in one step`);
+  assert.ok(steps('C4') < 75, `C4 turns ${steps('C4').toFixed(0)} degrees in one step (only two bones of it are hidden)`);
+});
+
+test('DIPS and REX start on the host wall, each at a junction of its own, MIN_PIECE bones in from the host end and MIN_GAP from any other landing', () => {
+  assert.deepEqual([...WALL_STARTS].sort(), ['DIPS|0', 'REX|0']);
+  for (const id of ['DIPS', 'REX']) {
+    const l = R.landings.find((x) => x.branch === id && x.branchEnd === 0);
+    assert.ok(l, `${id} starts on a host wall`);
+    assert.ok(l!.bone >= 5 && l!.bone <= BONES_PER_EDGE - 1 - 5, `${id}: its landing bone ${l!.bone} is in the host's end pieces`);
+    for (const o of R.landings) if (o !== l && o.host === l!.host) assert.ok(Math.abs(o.bone - l!.bone) >= 3, `${id}: shares its junction with ${o.branch}`);
+    const n = S.nodes.find((x) => x.id === l!.node)!;
+    assert.equal(n.edges.length, 3, `${id}: the junction is the host's two pieces and the shunt only`);
   }
 });
 

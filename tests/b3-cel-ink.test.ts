@@ -11,7 +11,7 @@ import { CHEVRON_GLSL } from '../src/scene/blood/chevron-glsl.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK);`));
+const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK)`));   // (a vein's line; an artery's wall multiplies it, tests/artery-wall.test.ts)
 test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX CSS px: a hairline keeps a line, the trunk does not grow a rope', () => {
   const { LINE_R, LINE_MIN, LINE_MAX } = CEL_STYLE;
   assert.equal(inkWidthCss(LINE_MIN / LINE_R / 2 + 1), LINE_MIN, 'the floor');
@@ -55,7 +55,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.ok(VESSEL_FS.includes(CEL_TUBE_GLSL), 'the tones are the one shared GLSL, written from CEL_STYLE');
   for (const n of [`${F(CEL_STYLE.VESSEL_STEP_AT)} - et`, `b * (1.0 - ${F(CEL_STYLE.SHADE)})`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
   assert.doesNotMatch(CEL_TUBE_GLSL, /celTubeSpec|LIT_AT|window/, 'no highlight, no third band, no lumen window');
-  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, nbrT\), fwSt \* \(1\.0 - nbrT\), rDev\)/);
+  assert.match(VESSEL_FS, /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\), fwSt \* \(1\.0 - nbrT\), rDev, 1\.0 - lensUse\)/);   // (a vein is the base's two tones; an artery's lumen is one step lighter, tests/artery-wall.test.ts)
   assert.match(VESSEL_FS, /float sT = dot\(n, celLightView\(\)\)/, 'lit by the world light');
   assert.doesNotMatch(VESSEL_FS, /celTubeSpec|rimLight|wallT|fresnel|FAR_WALL|NEAR_WALL/, 'matte: no highlight, no rim light, no wall pass');
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
@@ -115,7 +115,7 @@ test('a sub-pixel lumen keeps its colour: the line thins under LINE_MIN CSS px o
 test('the vessel shader holds the same taper and leaves the picked ring alone', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
-  assert.ok(src.includes("inkPxGlsl('rCssV', 'rCssV / narrowK')"), 'the source writes the line from the style (the one shared expression, judged on the unpinched radius)');
+  assert.ok(src.includes("inkPxGlsl('rCssV', 'rCssV / narrowK', '1.0 - lensUse')"), 'the source writes the line from the style (the one shared expression, judged on the unpinched radius; an artery\'s wall by its lens flag)');
   const { inkPxGlsl } = await import('../src/scene/vessels/glsl-shared.ts');
   assert.match(inkPxGlsl('r', 't'), /smoothstep\([\d.]+, [\d.]+, t\)/, 'the taper is in the shared expression');
   assert.match(VESSEL_VS, INK_RE);

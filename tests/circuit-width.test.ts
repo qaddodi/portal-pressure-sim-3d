@@ -54,7 +54,7 @@ test('the camera\'s scale: the shader\'s own rule gives map pixels per unit', ()
 });
 
 test('the shader carries the rule: the same constants, the units the map is in, the vessel\'s own start', () => {
-  const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const sh = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
   assert.match(sh, /clamp\(1\.3 \* max\(2\.6, 2\.0 \* pow\(max\(d, 0\.1\), 0\.72\)\) \* 0\.95, 6\.0, 15\.0\) \* circBoost/);
   assert.match(sh, /return 0\.5 \* wc \* CIRC_MAPK/);
   assert.match(sh, /vU = mix\(300\.0, 1\.0 \/ CIRC_MAPK, circShare\)/);
@@ -104,7 +104,7 @@ test('no line is a hairline: a floor in CSS px for every kind, whatever the zoom
 });
 
 test('the Circuit holds nothing faint: the tip fades let go, the bands run full width and soft, free ends are round', async () => {
-  const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const sh = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
   assert.doesNotMatch(sh, /circT \* \(1\.0 - fadeKeep\)/, 'the artery\'s fades no longer hold in the Circuit');
   assert.match(sh, /bool capCarved\(float across\)/);
   assert.match(sh, /if \(capCarved\(across\)\) discard;/);

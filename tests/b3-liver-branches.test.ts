@@ -206,7 +206,7 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
   assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
   assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
-  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, nbrT\)/);
+  assert.match(VESSEL_FS, /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\)/);
 });
 
 test('the bed that continues a vein which branches wears no fork collar (root cause of the fat bulb on the left portal vein in the Circuit: the cut stopped counting the pair as a run-on, so the bed was dressed as a branch on a wall, and the Circuit draws the beds)', async () => {
