@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { MIN_AB_ZOOM } from '../src/ui/cards/ab-short.ts';
 import { parseLine, cutoffText, fmtPressure, tenthGap, plainLine } from '../src/ui/text/line.ts';
 import { ladderRows, gapOf, AXIS_MAX } from '../src/ui/cards/ladder-model.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
@@ -81,7 +82,11 @@ test('no font size under 12 px in the cards\' CSS, and none that shrinks text to
     for (const px of v.matchAll(/(\d+(?:\.\d+)?)px/g)) if (m[0].includes('line-height') === false) assert.ok(Number(px[1]) >= 11 || /\/\s*\d/.test(v), `font ${v}`);
     assert.ok(!/vw|vh|vmin|clamp|calc|%/.test(v.replace(/var\([^)]*\)/g, '')), `text sized by the screen: ${v}`);
   }
-  assert.ok(!/zoom\s*:/.test(css), 'zoom shrinks text');
+  // (the one scale to fit that is allowed: the six choices of a row on one phone row, owner 21 Nov, Sites and causes 10/14: `--ab-z`, set by ab-short.ts fitChoiceRow, never under MIN_AB_ZOOM = 0.8, i.e. 11 px of 14, the floor above)
+  const AB_ZOOM = /\.pz\.pz \.pz-ab\[data-tight\] > \.pz-abb \{[^}]*?zoom:\s*var\(--ab-z, 1\);/;
+  assert.match(css, AB_ZOOM, 'the choice row\'s one named zoom is still there');
+  assert.ok(MIN_AB_ZOOM * 14 >= 11, 'and it never takes a choice under the 11 px floor');
+  assert.ok(!/zoom\s*:/.test(css.replace(AB_ZOOM, '')), 'zoom shrinks text');
   for (const m of css.matchAll(/text-size-adjust\s*:\s*([^;]+)/g)) assert.equal(m[1].trim(), '100%');
 });
 
@@ -103,8 +108,9 @@ test('no card or strip code reads the engine store, runs its own frame loop, or 
   const walk = (d: string): string[] => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? walk(p) : p.endsWith('.tsx') || p.endsWith('.ts') ? [p] : []; });
   for (const f of ['src/ui/cards', 'src/ui/wallet', 'src/ui/deck'].flatMap(walk)) {
     const t = readFileSync(f, 'utf8');
-    assert.ok(!/fontSize/.test(t), `${f} sets a font size inline`);
-    assert.ok(!/from '\.\.\/\.\.\/engine/.test(t), `${f} imports the engine (the readings come through the UI store)`);
+    assert.ok(!/style\.fontSize|style\.setProperty\(\s*['"]font-size|\bfontSize\s*:/.test(t), `${f} sets a font size inline`);   // (reading one, getComputedStyle(el).fontSize, is how the ladder measures the card: not a write)
+    // (the one engine import a card may make is the pressure cut-offs' table, the one place those live: pressure-vocabulary.test.ts; sends and live readings go through decks/hp/figure-engine.ts)
+    assert.ok(!/from '\.\.\/\.\.\/engine\/(?!hales\/portal\/pressure-cuts\.js')/.test(t), `${f} imports the engine (the readings come through the UI store)`);
   }
 });
 

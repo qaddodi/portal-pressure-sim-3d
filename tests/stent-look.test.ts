@@ -30,3 +30,18 @@ describe('stent look in the Circuit', () => {
     assert.ok(src.includes('stentWire.rgb') && !src.includes('mix(c, inkColor, 0.85 * cov * kS)') && !src.includes('vec3(0.86, 0.66, 0.2), gold * kS'));
   });
 });
+
+describe('the Circuit stent tiles by true arc length', () => {
+  const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  it('measures the stent along the course the tube is drawn on (body at rest, map in the Circuit), not the body length', () => {
+    assert.match(src, /vArcLen = mix\(len, cl\.y, circShare\)/);
+    assert.match(src, /Lw = vArcLen \* vU, s = vUv\.x \* Lw/);
+    assert.match(src, /fwPx = fwidth\(vUv\.x \* vArcLen \* vU\)/);
+  });
+  it('sizes every cell from the lumen alone (un), so a longer stent adds cells and never stretches them', () => {
+    const blk = src.slice(src.indexOf('if (stentU.x > 0.001'), src.indexOf('the running stitch'));
+    assert.match(blk, /Pc = 11\.0 \* un/);
+    assert.match(blk, /Nb = max\(1\.0, floor\(\(bEnd - t0\) \/ \(17\.0 \* un\)/);
+    assert.doesNotMatch(blk, /\/ len\b|\* len\b/);
+  });
+});

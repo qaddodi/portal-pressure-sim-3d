@@ -1,5 +1,6 @@
 // ?audit, the generic sweep: every visible text, picture, chart and button on the page, read as plain numbers (scan-judge.ts judges them: clipped, overlapping, covered, small, low contrast,
 // zero size, broken). Not per case: it asks the whole document, so a thing nobody thought of is read the same as one somebody did. Debug only; one read per step, never a frame.
+import { srOnlyStyle } from '../sr-only.ts';
 import type { Box } from './judge.ts';
 import { lineBoxes } from './scan-judge.ts';
 
@@ -16,6 +17,8 @@ export interface ScanItem {
   fading?: boolean;
   /** inside an open sheet, menu or the cover: it stands over the page on purpose */
   modal?: boolean;
+  /** text only: inside a card the app itself zoomed down to fit (`--pz-fit`, the data card's last step: owner, 22 Nov, "keep shrink"): its size on the screen is the fit's, not a fault */
+  fitted?: boolean;
   /** text only: the element it is in (tag, id, two classes), so a bare number in a finding can be found */
   by?: string;
   /** text only */ px?: number; bold?: boolean; fg?: string; bg?: string | null;
@@ -81,7 +84,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     let v: Vis = HIDDEN;
     if (up.ok) {
       const cs = win.getComputedStyle(el);
-      const srOnly = cs.position === 'absolute' && /rect\(0(px)?,? 0(px)?,? 0(px)?,? 0(px)?\)|inset\(50%\)/.test(cs.clip + cs.clipPath) || (cs.overflow === 'hidden' && parseFloat(cs.width) <= 1 && parseFloat(cs.height) <= 1);
+      const srOnly = srOnlyStyle(cs);
       const off = cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' || el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden') || el.hasAttribute('inert') || el.hasAttribute('data-debug') || el.id === 'boot' || srOnly;
       if (!off) {
         const clips = (x: string) => x === 'hidden' || x === 'clip';
@@ -156,7 +159,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     for (const r of rects) {
       if (items.length >= MAX_ITEMS) { capped = true; break; }
       const b = lineBoxes([r])[0]; if (!b) continue;
-      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, fading: (v.opacity < 0.999 && fadingUp(p)) || undefined, modal: !!p.closest(MODAL) || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
+      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, fading: (v.opacity < 0.999 && fadingUp(p)) || undefined, modal: !!p.closest(MODAL) || undefined, fitted: !!p.closest('[style*="--pz-fit"]') || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
       items.push(item); holders.push({ el: p, item });
     }
     texts++;

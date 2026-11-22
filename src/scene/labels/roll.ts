@@ -2,6 +2,7 @@
 import { MOTION } from '../../clock/tween.ts';
 
 import { clock } from '../../clock/frame.ts';
+import { D_SMALL } from '../../ui/a11y/motion.ts';
 /** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity).
  *  Until the two animations have started (a busy frame: a settings sheet or the Tests card opening can hold the first frame for seconds) only the old number is seen, never both
  *  stacked ("IVC 4.6" with a grey 4.5 behind it, Mac play-test, 19 Nov): the new one is held at opacity 0 by its own style until its animation takes over, and the old one is
@@ -47,3 +48,38 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
   clock.after(() => { doneOut(); doneIn(); }, MOTION.rollMs * 4);
 }
 
+
+/** A label showing at least this much is crossed over when its look changes; one fainter takes the change at once (nobody can see it). */
+export const RESTYLE_SHOWING = 0.05;
+
+/** A standing label whose tone, tint, weight, words, number or unit changes while it is on screen: the change is crossed over, never stepped (Mohammad: "everything eases, nothing pops").
+ *  A colour transition would repaint; this keeps everything on the compositor, opacity only, the way `roll` does for a number: before `apply` writes the change, the label is cloned as `.lb-was`
+ *  (its old look, its old words) and put beside it; `apply` then writes the live one; the clone fades 1 to 0 and each part of the live label whose words changed fades 0 to 1, linear, over D_SMALL,
+ *  so the two weights sum to 1 the whole way. A part whose words are the same (a colour change only) is not faded, so it never dips: the old colour fades off the new one.
+ *  `alpha` is the label's opacity now: at or under RESTYLE_SHOWING (hidden, or a label still coming in) `apply` is simply run, and no clone is made.
+ *  An element with parts (a label, a card) fades its parts and leaves its own opacity to its owner (a card's glass must never sit under a fading ancestor); one with none (a leader, a ring) fades itself. */
+export function restyle(el: Element, apply: () => void, alpha: number): void {
+  const parent = el.parentElement;
+  if (!(alpha > RESTYLE_SHOWING) || !parent || typeof el.animate !== 'function' || typeof el.cloneNode !== 'function') { apply(); return; }
+  const kids = Array.from(el.children) as HTMLElement[];
+  const before = kids.map((k) => k.textContent);
+  const old = el.cloneNode(true) as HTMLElement;
+  old.setAttribute('class', `${el.getAttribute('class') ?? ''} lb-was`);
+  old.setAttribute('aria-hidden', 'true');
+  parent.insertBefore(old, el);
+  apply();
+  const opts = { duration: D_SMALL, easing: 'linear', fill: 'both' } as const;
+  const oldParts = Array.from(old.children) as HTMLElement[];
+  const parts = oldParts.length ? oldParts : [old];
+  const anims: Animation[] = [];
+  for (const part of parts) {
+    const o = parseFloat(part.style.opacity), from = Number.isFinite(o) ? o : 1;   // (inline opacity, '' when it has none)
+    anims.push(part.animate([{ opacity: from }, { opacity: 0 }], opts));
+  }
+  // (a part of the live label whose words changed comes in as the old ones leave; it ends where its own opacity stands, however that moves meanwhile)
+  kids.forEach((k, i) => { if (k.textContent !== before[i]) anims.push(k.animate([{ opacity: 0 }], { duration: D_SMALL, easing: 'linear', fill: 'backwards' })); });
+  let done = false;
+  const finish = () => { if (done) return; done = true; old.remove(); };
+  anims[0]!.onfinish = finish; anims[0]!.oncancel = finish;
+  clock.after(finish, D_SMALL * 4);
+}

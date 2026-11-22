@@ -36,7 +36,7 @@ test('the shim gives the copied flow every helper it imports', () => {
   const shim = readFileSync('src/ui/readings/dom2d.ts', 'utf8');
   for (const f of Object.keys(src.hashes)) {
     for (const m of readFileSync(`${dir}/${f}`, 'utf8').matchAll(/import \{([^}]+)\} from '\.\.\/dom2d\.ts'/g)) {
-      for (const name of m[1].split(',').map((x) => x.trim()).filter(Boolean)) assert.match(shim, new RegExp(`export (function|const)[^\\n]*\\b${name}\\b`), `${f} needs ${name}`);
+      for (const name of m[1].split(',').map((x) => x.trim()).filter(Boolean)) assert.match(shim, new RegExp(`export (function|const)[^\\n]*\\b${name}\\b|export \\{[^}]*\\b${name}\\b`), `${f} needs ${name}`);
     }
   }
 });

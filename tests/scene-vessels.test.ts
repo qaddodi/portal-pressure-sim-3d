@@ -103,6 +103,7 @@ test('every vessel object knows its edge and its data texel', () => {
 
 test('the figure\'s views: the lobule is never drawn on or through the liver; it comes in once the camera is inside, and the view left behind goes when the camera has landed', () => {
   const s = new CelScene();
+  while (!(s as unknown as { microStep(): boolean }).microStep()) { /* micro views built and primed, as the slot does before a dive may start (scene.goTo) */ }
   const room = { x: 0, y: 0, w: 1000, h: 700 };
   s.resize(1000, 700);
   s.goTo('play', room, 0);   // (the first shot with a room puts the camera there at once)

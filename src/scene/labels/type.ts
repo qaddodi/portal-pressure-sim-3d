@@ -80,6 +80,9 @@ export const haloPx = (): number => Math.max(LS.HALO.min, LS.HALO.perK * LS.LABE
 /** The weight of the name of the stent point the Doppler samples (2D velItem: `weight: 750`, class lb-gate). */
 export const GATE_WEIGHT = 750;
 
+/** A slide's ring on the figure (2D lobule-zoom-labels.js RING_STROKE): the stroke of its ring and of its leader, px. The one source: the stylesheet reads it as `--co-w` (typeVars), figure-cards.ts as this. */
+export const RING_STROKE = 4;
+
 /** The custom properties a layer carries so its stylesheet holds no number of its own: sizes at this screen, weights, gaps, halo, ring. */
 export function typeVars(vp: Vp): Record<string, string> {
   const px = (n: number) => `${Math.round(n * 100) / 100}px`;
@@ -94,6 +97,7 @@ export function typeVars(vp: Vp): Record<string, string> {
     '--lb-halo-w': px(haloPx()),
     '--lb-ring': px(LS.RING.r * 2 + LS.RING.stroke), '--lb-ring-w': px(LS.RING.stroke), '--lb-lead-w': px(LS.LEADER_WIDTH),
     '--lb-pad-x': px(LS.PAD.x), '--lb-pad-y': px(LS.PAD.y),
+    '--co-w': px(RING_STROKE),
   };
 }
 

@@ -59,11 +59,8 @@ test('the Treat and panel sheets read --nb-occ (published) and the clip under th
   assert.match(read('src/ui/treat/TreatCard.tsx'), /sheetPlace\(vp, sheetFoot\(layoutClass\(true\)\), h\)/);
 });
 
-test('the action row: each icon sits with its word (Dye\'s word starts at its drop), and a phone\'s row is equal columns', () => {
+test('the action row: each icon sits with its word (Dye\'s word starts at its drop), on every card', () => {
   const css = read('src/ui/action/action.css');
   assert.match(css, /\.ac-dye \.ac-bl \{ display: inline-block; min-width: 4\.9em; text-align: start; \}/, 'the reserved room is after the word, not around it');
-  assert.match(css, /\.ac-card\[data-bottom\] \.ac-acts \{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\);/);
-  assert.match(css, /\.ac-card\[data-bottom\] \.ac-acts > \.ac-btn \{ justify-content: center; margin: 0;/);
-  assert.match(css, /\.ac-card\[data-bottom\] \.ac-acts > \.ac-dye \.ac-bl \{ min-width: 0;/, 'the column is the room: four buttons (Remove, Doppler, Dye, IR) fit');
   assert.match(read('src/ui/action/ActionCard.tsx'), /className="ac-as ac-acts"/);
 });

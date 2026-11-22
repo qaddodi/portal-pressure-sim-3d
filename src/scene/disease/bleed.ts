@@ -48,6 +48,9 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }`;
 
+/** What the jet's ink material is built with besides its shaders (the program stand-in, materials/prototypes.ts, wears the same). */
+export const JET_INK_FLAGS = { side: BackSide } as const;
+
 export class BleedLayer {
   readonly group = new Group();
   private obj: CelObject | null = null;
@@ -121,7 +124,7 @@ export class BleedLayer {
     const obj = this.obj = new CelObject(g, { tone: 'heart', bands: 3, spec: 0, px: 1.1 }, this.shared);
     // the ink: a hull whose line thins toward the tip, sharing the toon's colour, width and fade
     const mat = this.inkMat = new ShaderMaterial({
-      vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, side: BackSide,
+      vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, ...JET_INK_FLAGS,
       uniforms: { color: obj.ink.uniforms.color!, px: obj.ink.uniforms.px!, res: this.shared.res, fade: obj.toon.uniforms.fade!, inkK: { value: 1 } },
     });
     const inkMesh = obj.group.children[0] as Mesh;
