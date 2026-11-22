@@ -30,7 +30,7 @@ test('the skin reads each arm\'s lane at that arm\'s own across, for both lens s
   const calls = [...SKIN_FS.matchAll(/lensOfAt\(armData\[i\]\.w, armAF\[i\]\.x, lensGrad([AB]), lensLane\1, lensMode\1, laneCol\1, acA\[i\]\)/g)];
   assert.equal(calls.length, 2, 'both lens sets are read at acA[i]');
   assert.match(SKIN_FS, /lensAcrossFw = fwLn\[i\];\s*\n\s*vec4 la = lensOfAt/, 'the lane edge is softened by this arm\'s own derivative');
-  const main = SKIN_FS.indexOf('void main()'), first = SKIN_FS.indexOf('discard;', main), block = SKIN_FS.indexOf('fwLn[i] = fwidth(acA[i] * 0.5 + 0.5)');   // (the first discard IN main: the inspector chunk before it defines DROP with one)
+  const main = SKIN_FS.indexOf('void main()'), first = SKIN_FS.indexOf('discard;', main), block = SKIN_FS.indexOf('fwLn[i] = fwidth(acA[i] * 0.5 + 0.5)');   // (the first discard in main: the inspector's DROP macro above it holds one)
   assert.ok(main > 0 && block > main && block < first, 'the across derivative is taken in the top block, before the first discard (a derivative after a discard is garbage on a device that drops the lane)');
   // the block is outside the marks' ifdef: with ?joins=nomarks the lanes must still run through the skin
   const open = SKIN_FS.lastIndexOf('#ifndef SKIN_NOMARKS', block), close = SKIN_FS.indexOf('#endif', open);

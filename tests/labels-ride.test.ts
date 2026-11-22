@@ -121,6 +121,17 @@ test('boxesFit judges the carried boxes against the view and the cards', () => {
   assert.equal(boxesFit([it], ride, view, []), true);
   assert.equal(boxesFit([{ ...it, ax: 380 }], ride, view, []), false, 'past the edge');
   assert.equal(boxesFit([it], ride, view, [{ x0: 110, y0: 70, x1: 300, y1: 300 }]), false, 'under a card');
+  assert.equal(boxesFit([], ride, view, []), false, 'nothing placed is nothing to keep: a cold start that solved to no names is placed again once the picture has moved');
+});
+
+test('a solve that placed nothing is placed again when the picture comes to rest somewhere else (cold ?slide= start: the closer boot view, then the real framing)', () => {
+  const r = new Ride(); let t = 1000;
+  const pts = (x: number) => ({ a: { x, y: 100 }, b: { x: x + 100, y: 100 }, c: { x: x + 100, y: 200 }, d: { x, y: 200 } });
+  const run = (x: number, ms: number, moving: boolean) => { let out = r.step({ now: t, dt: 16, on: true, moving, ...pts(x), layout: () => 'L', fits: (ride) => boxesFit([], ride, { x0: 0, y0: 0, x1: 500, y1: 500 }, []) }); for (let k = 0; k < ms / 16; k++) { t += 16; out = r.step({ now: t, dt: 16, on: true, moving, ...pts(x), layout: () => 'L', fits: (ride) => boxesFit([], ride, { x0: 0, y0: 0, x1: 500, y1: 500 }, []) }); if (out.solve) return true; } return false; };
+  assert.equal(run(50, 2000, false), true, 'solved once at rest');
+  assert.equal(run(50, 1000, false), false, 'and not again while nothing changes');
+  run(80, 300, true);
+  assert.equal(run(80, 2000, false), true, 'the picture moved and came to rest: nothing was placed to keep, so it is placed again');
 });
 
 test('a caption carried under a card or past the edge fades out whole over FADE.roomMs and back once it stands clear (RoomFade, one rule for every view)', () => {
@@ -202,4 +213,16 @@ test('after a pan comes to rest and the words still fit, the dots stay where the
   for (let i = 0; i < 80; i++) g.step();
   g.r.ride(350, 200, p);   // 50 px right of the reference when solved
   assert.ok(Math.abs(p.x - (100 + 75)) < 1e-9, `scaled about the picture at rest: ${p.x}`);
+});
+
+// Cold ?slide= start (Mohammad, 22 Nov): the lobule's names were placed while the dive was still held for its parts (the view says lobule, the camera is still on the body), against a plate that projects somewhere tiny,
+// so nothing stood; the empty answer was kept. Root cause: the names' `on` did not know the camera had not flown yet. One rule for the lobule's and the sinusoid's names.
+test('names wait for the held dive: neither the lobule\'s nor the sinusoid\'s are placed while the camera has not flown to the view', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync('src/scene/lobule/LobuleCaptions.tsx', 'utf8'), /const on = cel\.view === 'lobule' && cel\.lobule\.group\.visible && !cel\.diveHeld;/);
+  assert.match(readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8'), /namesOn\(cel\.view, cel\.sinus\.group\.visible, cel\.diveHeld\)/);
+  const { namesOn } = await import('../src/scene/sinusoid/captions.ts');
+  assert.equal(namesOn('sinusoid', true), true);
+  assert.equal(namesOn('sinusoid', true, true), false, 'a held dive');
+  assert.equal(namesOn('lobule', true), false);
 });

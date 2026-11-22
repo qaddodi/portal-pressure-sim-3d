@@ -176,20 +176,9 @@ ${CIRCUIT_VS_CALL}
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vArcLen = mix(len, cl.y, circShare);
   vSkew = 0.0;
-  // THE STUMP'S ROUND END is drawn from the whole divided stretch's rings, never from the few that happen to lie in the cap: the stretch up to the cap's far end (the cut and one radius) is laid over the cap, ring by ring along each ring's own tangent
-  // (uv and the ring's place move together, so the tie, the fade and the marks all read the new arc), so a quarter circle one radius long is always made of every ring the stretch has: before, the cap took the three rings (a ring every 1/180 of a
-  // scene unit against a radius of 0.017) that lay in it and was a flat cut whose end moved with the cut (Mohammad, 22 Nov: "tied off the portal vein looks bad")
-  vec2 uvS = uv;   // (the attribute is read-only: from here the stretch laid over the cap is uv from here)
-#define uv uvS
-  if (stump.x > 0.0 && circShare < 0.001) {
-    float capR = radius * swell * vU, capZ = stump.x + capR, arcA = uv.x * len * vU;
-    if (arcA < capZ) {
-      float arcB = stump.x + capR * (arcA / capZ);
-      aPos += aTan * ((arcB - arcA) / vU);
-      uv.x = arcB / (len * vU);
-    }
-    swell *= stumpK(uv.x * len * vU, capR);
-  }
+  // THE STUMP'S ROUND END: the cut and one radius past it narrow as a quarter circle (stumpK), from the rings the tube has there. A divided vein is built with rings a twelfth of the usual distance apart (shape.ts tubularOf), so the quarter circle has
+  // a dozen of them. (Laying the stretch's rings over the cap along each ring's own tangent was tried: on the vein's bend every ring went off its path and the end was a skewed spike; Mohammad, 22 Nov: "tied off the portal vein looks bad")
+  if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * swell * vU);
   float fa = 1.0;
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;
@@ -493,7 +482,10 @@ void main() {
   // the outline of the two tubes of a fork together is the outline of their UNION (neighbour.ts): where this pixel lies inside the other tube's lumen this tube draws no line, no fill past its own lumen, and no shade band (the other's
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
-  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
+  if (vNbr.y > 0.0) {
+    float nbrPx = (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
+    nbrK = smoothstep(-0.5, 0.5, nbrPx) * (1.0 - circT);
+  }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -616,7 +608,8 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  if (nbrK > 0.5 && dLat > rDevAx + 0.5) DROP(12);
+  // (no pixel is dropped for lying inside the neighbour: nbr is the figure plane's measure, a vertex at a time, and the neighbour's drawn lumen lies where the camera puts it, so a drop left a dotted row of holes where two walls ran side by side within
+  //  a pixel or two (Mohammad, 22 Nov, splenic vein; the inspector's "Why tubes drop pixels" painted them magenta). The tube keeps its own fill there, with no ink (inkT goes with nbrK) and lit (nbrT): the neighbour's own fill lies under or over it, the same tone.)
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);

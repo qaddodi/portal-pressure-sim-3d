@@ -321,7 +321,10 @@ float skinArmPx(vec2 frag, int arm, float swell, float fragW, vec3 fragP, float 
   // pixels, so the pixels over it lie at every depth along it, the nearest screen point is the wrong one, the arm was held out of the union at pixels that are its own, and past the band the pixel was dropped; the tube is already cut there, so the figure had a hole (5 to 50 % of a skin's pixels
   // at a quarter turn). The pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of the arm it is, whatever the camera does. In px at the pixel's depth.
   vec3 g3; float r3;
-  float gap = skinArmSd3(fragP, arm, swell, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
+  // (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes, the tubes cut short with a ribbon between. ROOT CAUSE: fragP is the lumen's REST surface, a whole radius out, but the capsule was measured at the live width,
+  // so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9 in Budd-Chiari, 0.72 on the cava) put its own rest surface 1 - swell radii outside itself: held out of the union as if absent, and past the band the pixels were dropped. Any arm below its built width was thinned
+  // by up to 2 k at every skin; the rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
+  float gap = skinArmSd3(fragP, arm, 1.0, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
   return d + 2.0 * kPx * smoothstep(0.25 * kPx, kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below

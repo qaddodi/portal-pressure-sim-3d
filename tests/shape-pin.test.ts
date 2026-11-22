@@ -175,7 +175,7 @@ test('between two key frames the blend is the shape built afresh to within 0.03 
       for (const w of [0.4, 1.9, 3.1, 4.4]) {
         const st: ShapeState = { ...REST, ...it.state, wig: w, spr: 1, strandsOn: true };
         it.state.wig = w; it.state.spr = 1; it.state.strandsOn = true;
-        (shapes as unknown as { rebuild(i: unknown): boolean }).rebuild(it);
+        for (let k = 0; k < 3; k++) (shapes as unknown as { rebuild(i: unknown): boolean }).rebuild(it);   // (a coil's pair of key frames is built one a frame: a third try finds it whole)
         const want = buildTubes(coursesOf(v, st), tubularOf(v, slicesFor(it.v.id)), v.radius).geometry.getAttribute('position').array as Float32Array;
         const got = (r.scene.vesselObject(it.v.id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array } } } }).toonMesh.geometry.getAttribute('position').array;
         let worst = 0;
@@ -220,5 +220,32 @@ test('bands never reach the seam: the held rings of a banded vessel keep their r
     assert.deepEqual(seamState({ ...REST, bands: 3, pin: [0.1, 0.1] }), seamState({ ...REST, bands: 0, pin: [0.1, 0.1] }));
     // (the check can fail: unpinned, bands do thin the same rings)
     assert.ok(heldDrift('C1b', [0.1, 0.1], { ...REST }, { ...REST, bands: 3 }) > 0.1);
+  } finally { r.done(); }
+});
+
+// Audit 22 Nov (4cd8c60c): a patient change or a collateral opening had one frame of 80 to 110 ms in the 'shapes' system. A coil is drawn by blending two key frames of its shape and both were built in the same frame
+// when the pair was first needed (each 4 to 50 ms of tube building). One key frame a frame now; the vessel keeps its shape for the frame it waits, and a new patient (instant) still builds both at once.
+test('a coil easing open builds one key frame in a frame, never two, and ends as the fresh build', () => {
+  const r = rig();
+  try {
+    const shapes = r.inside.shapes, c4 = r.items.find((it) => it.v.id === 'C4')!;
+    for (const it of r.items) { it.shown = 0; it.spread = 1; it.strandsOn = false; }
+    for (let f = 0; f < 5; f++) shapes.step(16);   // (what the other vessels were still settling from, built before the count starts)
+    c4.shown = 1; c4.strandsOn = true;
+    let most = 0, moved = false;
+    for (let f = 0; f < 150; f++) {
+      const b0 = shapes.stats.builds;
+      const moving = shapes.step(16);
+      most = Math.max(most, shapes.stats.builds - b0);
+      moved ||= moving;
+      if (!moving && f > 5) break;
+    }
+    assert.ok(moved, 'the coil moved');
+    assert.ok(most <= 1, `${most} builds in one frame for one vessel`);
+    assert.equal(shapes.step(16), false, 'settled');
+    const live = (r.scene.vesselObject('C4') as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array } } } }).toonMesh.geometry.getAttribute('position').array;
+    const want = buildTubes(armTubeCourses('C4', c4.state), tubularOfId('C4'), NETWORK_BY_ID.get('C4')!.radius).geometry.getAttribute('position').array as Float32Array;
+    assert.equal(live.length, want.length);
+    for (let i = 0; i < live.length; i += 97) assert.ok(Math.abs(live[i]! - want[i]!) < 1e-5, `vertex value ${i}`);
   } finally { r.done(); }
 });
