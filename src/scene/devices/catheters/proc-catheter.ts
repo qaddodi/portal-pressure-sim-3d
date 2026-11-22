@@ -41,6 +41,10 @@ export interface CatheterState {
 }
 export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opacity: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null, clock: 0 };
 
+/** The needle's bevelled point: a cone with its axis on +X (the way every part of the route is laid: `orient` turns +X to the route's direction), base radius `r` at the origin, a point `1.4 rc` ahead of it. */
+/** The point's apex radius as a share of its base (the needle's). It was an absolute 0.01 scene units, six times the needle's own radius (0.0015): the "cone" was a wide 8-sided disc. */
+export const NEEDLE_APEX_K = 0.08;
+export function needlePoint(rc: number, r: number): BufferGeometry { return new CylinderGeometry(r * NEEDLE_APEX_K, r, rc * 1.4, 8, 1, false).rotateZ(-Math.PI / 2).translate(rc * 0.7, 0, 0); }
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
 const SHAFT_RADIAL = DEVICE_SIDES, BALLOON_N = 40, BALLOON_RADIAL = DEVICE_SIDES, GLINT_N = 24, GLINT_SIDES = 8;
 
@@ -104,7 +108,7 @@ export class ProcCatheter {
   readonly objects: DeviceObject[] = [];
   private readonly rc: number;
   private readonly n: number;
-  private readonly shaft: DeviceObject; private readonly band: DeviceObject;
+  private readonly shaft: DeviceObject;
   private readonly needle: DeviceObject; private readonly needleCone: DeviceObject; private readonly wire: DeviceObject;
   private readonly column: DeviceObject; private readonly columnGeo: BufferGeometry;
   private readonly shaftGeo: BufferGeometry; private readonly shaftRings: ReturnType<typeof makeRings>; private readonly shaftU: Float32Array; private shaftAt = -1;
@@ -151,7 +155,8 @@ export class ProcCatheter {
     const fr = makeRings(nS); fill(fr, () => nw0 * FLASHBACK_K);
     this.flashbackGeo = allocTube(nS, WIRE_SIDES + 4); writeRings(this.flashbackGeo, fr, WIRE_SIDES + 4);
     this.flashback = mk(this.flashbackGeo, 'trPv', 3, 'none', 0);
-    this.needleCone = mk(withTang(new CylinderGeometry(0.01, nw0, rc * 1.4, 8, 1, false).rotateX(Math.PI / 2)), 'steel', 2, 'ink', 0.5);
+    // (the needle's bevelled point: a cone along +X, base on the needle's end, apex ahead. It had an apex radius of 0.01 against a base of 0.0015 (an inverted cone: a wide 8-sided disc) and its axis on Z where `orient` lays an X-axis part, so it stood end-on: a grey octagonal knob on the wire where the needle ends; owner, 22 Nov: "wtf is this circle in tips")
+    this.needleCone = mk(withTang(needlePoint(rc, nw0)), 'steel', 2, 'ink', 0.5);
     const wireRings = makeRings(nS); fill(wireRings, () => Math.max(rc * 0.16, 0.0009));
     const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
@@ -159,8 +164,6 @@ export class ProcCatheter {
     this.shaft = mk(sg, 'poly', 4, CATH_EDGE, 0.7, { bands: 3, tubeTones: false, fat: 0.7, shadow: rc });
     // the lead-in above the figure fades out as a gradient (the catheter's free end), shaft, needle and wire alike
     for (const o of [this.shaft, this.needle, this.wire]) o.setTailFade(Math.min(0.5, TAIL_UNITS / r.total));
-    // (no marker ring behind the tip: the only rings are the two collars at the balloon's ends)
-    this.band = mk(withTang(new CylinderGeometry(rc, rc, rc * 0.1, 6, 1, true).rotateZ(Math.PI / 2)), 'platinum', 6, 'ink', 0);
     // the balloon: refitted to the vein as it swells (hvpg-balloon.js), latex (or clear nylon along a TIPS tract)
     // A balloon is clear and glassy (a Fogarty's: a colourless barrel, the shaft seen straight through it): a faint pale body, a thin crisp outline, two curved white highlights on its near side.
     this.balloonGeo = allocTube(BALLOON_N + 1, BALLOON_RADIAL);
