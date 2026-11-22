@@ -8,6 +8,7 @@ import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
 import { lookColours } from './lz-colours.ts';
 import { paintIntima } from './cv-intima.ts';
+import { GROW_H } from './growth.ts';
 import type { LookId } from '../../looks/looks.ts';
 
 /** The painting's world units per lobule radius: the 2D app's lobule is about this many CSS px across on an iPad, so every pixel rule in its painter
@@ -107,13 +108,29 @@ uniform sampler2D map;
 uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
 uniform float mixB;
 uniform float opacity;
+uniform sampler2D mapC;    // the collagen layer (collagen-paint.ts: the septa, the tracts and the vein's wall at their fullest), and mapCB its twin for a crossfade (the same texture when only the tissue changed)
+uniform sampler2D mapT;    // its arrival times (collagen-tau.ts): R septa, G tracts, B the vein's cuff and ring; 255 never
+uniform vec3 uP;           // the growth of the three channels now (growth.ts: eased on the clock, so a change of fibrosis shows more or less of the one layer and repaints nothing)
 uniform vec3 uBase;     // the tissue the plate lies on (the cells' tone): the scar of the central vein, which lies over a pool and not over cells, takes the collagen over it
 uniform float uBaseK;   // 1: the plate's pixel is laid over uBase and is whole (the scar), 0: as it is painted (the marks plate)
 uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
 varying vec2 vUv;
-vec4 onBase(vec4 a) { a.rgb += uBase * uBaseK * (1.0 - a.a); a.a = mix(a.a, 1.0, uBaseK); return a; }
-vec4 plateTex(vec2 uv) { vec4 a = texture2D(map, uv); return onBase(mixB > 0.0 ? mix(a, texture2D(mapB, uv), mixB) : a); }
-vec4 plateTexLod(vec2 uv, float bias) { vec4 a = texture2D(map, uv, bias); return onBase(mixB > 0.0 ? mix(a, texture2D(mapB, uv, bias), mixB) : a); }
+const float GROW_H = ${GROW_H.toFixed(3)};   // the front's half width (growth.ts)
+float front(float t, float p) { return t > 0.995 ? 0.0 : smoothstep(t - GROW_H, t + GROW_H, p); }
+// the plate at a point: the tissue (the two plates of a crossfade mixed, premultiplied) with the collagen layer over it, as much of it as has grown; the vein's scar (uBaseK 1) is that collagen, whole, over the tissue's tone
+vec4 plateAt(vec2 uv, float bias) {
+  vec4 a = texture2D(map, uv, bias);
+  vec4 cu = texture2D(mapC, uv, bias);
+  if (mixB > 0.0) { a = mix(a, texture2D(mapB, uv, bias), mixB); cu = mix(cu, texture2D(mapCB, uv, bias), mixB); }
+  if (uP.x + uP.y + uP.z <= 0.0) return uBaseK > 0.5 ? vec4(0.0) : a;
+  vec3 t = texture2D(mapT, uv).rgb * (255.0 / 254.0);
+  float fb = front(t.b, uP.z);
+  if (uBaseK > 0.5) { float cov = fb * smoothstep(0.0, 0.08, cu.a); return vec4((uBase * (1.0 - cu.a) + cu.rgb) * cov, cov); }
+  float f = max(front(t.r, uP.x) * (0.55 + 0.45 * uP.x), max(front(t.g, uP.y), fb));
+  return cu * f + a * (1.0 - cu.a * f);
+}
+vec4 plateTex(vec2 uv) { return plateAt(uv, 0.0); }
+vec4 plateTexLod(vec2 uv, float bias) { return plateAt(uv, bias); }
 // the lightness jump across one device pixel's neighbourhood of the painted plate: 0 flat, large at a line
 float plateEdge(vec2 uv, vec2 uvPerPx, float dpr) {
   vec2 o = uvPerPx * CEL_LINE_MIN * dpr * 0.5;
