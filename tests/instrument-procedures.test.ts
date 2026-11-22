@@ -77,7 +77,7 @@ test('the link plays a morph kind between the slide before and the slide itself,
   const link = readFileSync(new URL('../src/ui/deck/procs-link.ts', import.meta.url), 'utf8');
   assert.match(link, /type: 'morph', snap: on \? c\.snaps\.own : c\.snaps\.before/, 'the change is a morph between the two states');
   assert.match(link, /res\?\.\[i - 1\]\?\.snap/, 'the state before is the slide before it in the chain');
-  assert.match(link, /snap: c\.snaps\.own, ms: MORPH_BACK_MS/, 'Back from step 1 puts the slide back as it landed');
+  assert.doesNotMatch(link, /snap: c\.snaps\.own, ms: MORPH_BACK_MS/, 'Back from step 1 leaves the slide as it landed (before its procedure), it never puts the result back');
   assert.match(link, /setEndoscope\(\{ on: want, mode: scope \}\)/, 'the ligator scope follows the run');
   assert.match(link, /snap: sn\.before/, 'the first Next goes to the state before');
 });

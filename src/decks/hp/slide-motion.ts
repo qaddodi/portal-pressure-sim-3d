@@ -18,3 +18,11 @@ export function changeKind(s: Pick<CopiedSlide, 'preset' | 'lapse' | 'params' | 
 
 /** How long the figure takes to ease to a slide's state when the patient stays (2D: MORPH_ONE_MS under a glide; a slide with a catheter or an instrument keeps the longer one). */
 export const morphMsFor = (s: Pick<CopiedSlide, 'cath' | 'tool'> | null | undefined): number => (s?.cath || s?.tool ? MORPH_CATH_MS : MORPH_ONE_MS);
+
+/** Back from the slide after lands on a slide done (2D presenter.js `done = back && lastAt === to + 1`); any other way in is a forward arrival. */
+export const landsDone = (from: number, stop: number): boolean => from === stop + 1;
+
+/** Whether a slide lands on its state BEFORE its procedure (2D presenter.js `pre`): it plays a procedure, has changes of its own that hold the procedure's result, and is not a time-lapse nor
+ *  reached by Back from the next slide. The patient then has no TIPS yet, the shunt still open, the balloon down; only the run's `apply` gives the result, and the words keep the numbers it ends on.
+ *  (`hasBefore`: the deck's states hold a before-state for the slide.) */
+export const opensBefore = (s: Pick<CopiedSlide, 'procedure' | 'lapse'> | null | undefined, hasBefore: boolean, done: boolean, lap = false): boolean => !!s?.procedure && !s.lapse && !lap && !done && hasBefore;
