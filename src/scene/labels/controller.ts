@@ -12,7 +12,7 @@ import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
 import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keepExtras, type LabelLevel } from './free-set.ts';
 import { NO_EXTRAS, WIDEST, WIDEST_DELTA, readingLensOf, type Extras } from './readings.ts';
-import { LabelFader, type Want } from './fade.ts';
+import { LabelFader, easeMove, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
@@ -559,7 +559,7 @@ export class LabelController {
       const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
       const organ = m.station.kind === 'organ', ringed = !organ;
       const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
-      const alpha = labelOpacity(s.alpha * ra, dim);
+      const alpha = labelOpacity(easeMove(s.alpha * ra), dim);   // (the fade runs linear in time on the clock; it is drawn on the one in-out curve, so a label leaves and arrives softly at both ends: a dive's exit included)
       const snap = s.snap as Snap | undefined;
       const form = m.forms[s.p.form];
       const say = this.live(m, snap);
