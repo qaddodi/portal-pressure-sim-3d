@@ -9,7 +9,7 @@ const HTML = readFileSync('index.html', 'utf8');
 interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean }
 
 function run(o: Opts = {}) {
-  const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)[0]!;
+  const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;
   const timers: { at: number; fn: () => void; id: number }[] = []; let now = 0, nid = 0;
   const mkEl = (id: string) => {
     const attrs: Record<string, string> = {}, css: Record<string, string> = {}, history: number[] = [];

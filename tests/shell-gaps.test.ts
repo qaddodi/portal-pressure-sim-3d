@@ -62,7 +62,7 @@ test('the page has the 2D page\'s head (description, share card, a theme colour 
   const html = src('index.html');
   assert.match(html, /<meta name="description"/);
   assert.match(html, /property="og:title"/);
-  assert.equal(html.split('name="theme-color"').length - 1, 2);
+  assert.equal(html.split('<meta name="theme-color"').length - 1, 2);
   assert.match(html, /prefers-color-scheme: dark\)">/);
   assert.match(html, /<div id="boot" role="status"/);
   assert.match(html, /<noscript>/);
