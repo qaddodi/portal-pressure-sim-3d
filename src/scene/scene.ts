@@ -42,7 +42,7 @@ import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
-import { nbrMatesOf, cavaMateOf, neighbourAttr } from './vessels/neighbour.ts';
+import { nbrMatesOf, cavaMateOf, neighbourAttr, NBR_STRIDE } from './vessels/neighbour.ts';
 import { fadeOf, opensIntoCava, cavaEndSpan, cavaJoinShare, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
 import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
@@ -174,8 +174,8 @@ export interface SceneOptions {
 /** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
 function withNeighbour(id: string, g: BufferGeometry): void {
   // (every tube carries it, zeros where it has no mate: a junction is a fork only with Smooth vessel joins on, and a toggle rewrites the tubes in place, which needs the attribute to be there either way)
-  const a = neighbourAttr(id, g.getAttribute('position').array) ?? new Float32Array(g.getAttribute('position').count * 2);
-  g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
+  const a = neighbourAttr(id, g.getAttribute('position').array) ?? new Float32Array(g.getAttribute('position').count * NBR_STRIDE);
+  g.setAttribute('nbr', new Float32BufferAttribute(a, NBR_STRIDE));
 }
 
 /** How long one slice of the micro views' preparation keeps taking small steps (ms): under a quarter of a frame. */

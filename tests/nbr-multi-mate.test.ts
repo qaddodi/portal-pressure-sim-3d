@@ -16,10 +16,10 @@ test('a tube with several mates carries its distance from them unsigned; with on
   assert.ok(nbrMatesOf('SV_CONF').length > 1 && nbrMatesOf('PV_TRUNK_1').length > 1);
   for (const id of ['SV_CONF', 'PV_TRUNK_1']) {
     const a = neighbourAttr(id, build(id).geometry.getAttribute('position').array)!;
-    for (let i = 0; i < a.length; i += 2) assert.ok(a[i]! >= 0, `${id}: vertex ${i / 2} has a negative distance`);
+    for (let i = 0; i < a.length; i += 3) assert.ok(a[i]! >= 0, `${id}: vertex ${i / 2} has a negative distance`);
   }
   const one = NETWORK_BY_ID.has('A_HL') ? 'A_HL' : null;
-  if (one && nbrMatesOf(one).length === 1) { const a = neighbourAttr(one, build(one).geometry.getAttribute('position').array)!; assert.ok([...a].some((x, i) => i % 2 === 0 && x < 0), 'one mate: the sign is kept'); }
+  if (one && nbrMatesOf(one).length === 1) { const a = neighbourAttr(one, build(one).geometry.getAttribute('position').array)!; assert.ok([...a].some((x, i) => i % 3 === 0 && x < 0), 'one mate: the sign is kept'); }
 });
 
 test('no pixel just outside the splenic vein or the portal trunk is read as inside a mate when none covers it (the blend of two mates no longer crosses zero)', () => {
@@ -32,14 +32,14 @@ test('no pixel just outside the splenic vein or the portal trunk is read as insi
       const a = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)] as const; if (a[0] < run.tubeStart || a[0] >= run.tubeStart + run.tubeCount) continue;
       for (let i = 0; i <= G; i++) for (let j = 0; j <= G - i; j++) {
         const w = [i / G, j / G, (G - i - j) / G] as const, f = (arr: ArrayLike<number>, o: number, s: number): number => w[0] * arr[a[0] * s + o]! + w[1] * arr[a[1] * s + o]! + w[2] * arr[a[2] * s + o]!;
-        const y = f(nb, 1, 2), x = f(nb, 0, 2); if (!(y > 0)) continue;
+        const y = f(nb, 1, 3), x = f(nb, 0, 3), z = f(nb, 2, 3); if (!(y > 0) || z > 0) continue;
         const px = f(pos, 0, 3), py = f(pos, 1, 3), d = dAx(px, py) / v.radius; if (d < 0.97 || d > 1.15) continue;   // the outline band, just outside the lumen
         pts.push(px, py, 0); inside.push((y - Math.abs(x)) / v.radius);
       }
     }
     const truth = neighbourAttr(id, new Float32Array(pts))!;
     let wrong = 0;
-    for (let q = 0; q < inside.length; q++) { const td = truth[q * 2 + 1]! > 0 ? (truth[q * 2 + 1]! - Math.abs(truth[q * 2]!)) / v.radius : -9; if (inside[q]! > 0.1 && td < -0.02) wrong++; }
+    for (let q = 0; q < inside.length; q++) { const td = truth[q * 3 + 1]! > 0 && truth[q * 3 + 2]! < 0 ? (truth[q * 3 + 1]! - Math.abs(truth[q * 3]!)) / v.radius : -9; if (inside[q]! > 0.1 && td < -0.02) wrong++; }
     assert.equal(wrong, 0, `${id}: ${wrong} outline-band samples read as inside a mate that does not cover them`);
   }
 });
