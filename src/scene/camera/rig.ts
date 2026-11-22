@@ -90,6 +90,9 @@ const rollOf = (a: Shot, b: Shot, k: number): { roll?: number } => {
 
 /** Beyond this ratio between two shots' distances the move is a dive (body to lobule is 200 to 1, lobule to sinusoid 20 to 1): see `blendPose`. */
 export const DIVE_RATIO = 6;
+/** A shot at least this far (scene units) is a body shot: a dive in from it keeps the view (plan 30). */
+const BODY_R_MIN = 0.5;
+const sameShot = (a: Shot, b: Shot): boolean => Math.abs(a.r - b.r) < 1e-9 && a.target.every((v, i) => Math.abs(v - b.target[i]!) < 1e-9) && Math.abs(a.half[0] - b.half[0]) < 1e-9 && Math.abs(a.half[1] - b.half[1]) < 1e-9;
 const isDive = (a: Pose, b: Pose) => Math.max(a.shot.r, b.shot.r) / Math.max(1e-9, Math.min(a.shot.r, b.shot.r)) > DIVE_RATIO;
 
 /** The pose halfway (k) between two: every field interpolated directly, so the camera goes straight from any view to any view with no
@@ -256,7 +259,13 @@ export class CameraRig {
   private handTween = false;
   /** A dive that starts with the hand's zoom or pan off the fit (the viewer is zoomed in on another part of the figure): the place dived to (a world point), where it stands on screen now against where the
    *  camera alone would put it (px), and the hand's zoom. The hand's way home is then not on the clock but follows the dive (`stepDiveHand`), so the place dived to only ever goes one way. */
-  private diveHand: { p: Vector3; dx: number; dy: number; k0: number } | null = null;
+  private diveHand: { p: Vector3; sx: number; sy: number; lx: number; ly: number; k0: number; k1: number } | null = null;
+  /** Where the hand ends this move: home, or (a dive back out to the view he left) the hand view he had when he went in. */
+  private handEnd: View = { k: 1, x: 0, y: 0 };
+  /** The body view he dived from (plan 30): the shot, the hand's zoom and pan and his turn and tilt. A dive back out to the same shot lands on it, not on the fit. */
+  private kept: { shot: Shot; hand: View; orbit: number; pitch: number } | null = null;
+  /** Forget the kept body view (a reset, a slide to another camera or a preset change). */
+  dropKept(): void { this.kept = null; }
   private placedFirst = false;
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
@@ -428,8 +437,13 @@ export class CameraRig {
     this.long = LONG_ARC && !ease && !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
     this.handFrom = { ...this.hand };
-    this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
-    this.diveHand = this.handTween && isDive(this.from, this.to) && !(this.reduceMotion || reduced()) ? this.startDiveHand() : null;
+    const diving = isDive(this.from, this.to), still = !(this.reduceMotion || reduced());
+    // plan 30: a dive in from the body keeps the body view (hand, turn, tilt); the dive back out to that same shot lands on it
+    if (diving && !keepHand && this.from.shot.r > this.to.shot.r && this.from.shot.r > BODY_R_MIN) this.kept = { shot: copyShot(this.from.shot), hand: { ...this.hand }, orbit: this.orbit, pitch: this.pitchOrbit };
+    const back = diving && !keepHand && this.from.shot.r < this.to.shot.r && this.kept && sameShot(this.kept.shot, this.to.shot) ? this.kept : null;
+    this.handEnd = back ? { ...back.hand } : { k: 1, x: 0, y: 0 };
+    const endHome = this.handEnd.k === 1 && this.handEnd.x === 0 && this.handEnd.y === 0;
+    this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0 || !endHome;
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
@@ -440,6 +454,8 @@ export class CameraRig {
     this.orbitFrom = this.orbit;
     this.pitchTo = keepHand ? (this.active ? this.pitchTo : this.pitchOrbit) : 0;
     this.pitchFrom = this.pitchOrbit;
+    if (back) { this.orbitTo = back.orbit; this.pitchTo = back.pitch; }
+    this.diveHand = this.handTween && diving && still ? this.startDiveHand() : null;
     this.active = true;
     this.dirty = true;
   }
@@ -569,29 +585,35 @@ export class CameraRig {
   /** A dive begins with the viewer zoomed or panned elsewhere (22 Nov: "many lobules sweep across the screen"). The hand's way home ran on the clock (lerpView) while the dive's own aim and distance ran on the
    *  distance's share: the two never agreed, so the place dived to (which may start off screen) swung across the picture and the neighbours with it. Here the hand's offset is taken from the place dived to
    *  (the closer end's aim, or the one the dive is already going to) and let go with the dive's own share: the place goes where the camera alone would put it, plus the offset it had, run out linearly. */
-  private startDiveHand(): { p: Vector3; dx: number; dy: number; k0: number } | null {
+  private startDiveHand(): { p: Vector3; sx: number; sy: number; lx: number; ly: number; k0: number; k1: number } | null {
     if (!(this.width > 1) || !(this.height > 1)) return null;
     const near = this.to.shot.r <= this.from.shot.r;
     const t = near ? this.to.shot.target : (this.diveHand?.p ? ([this.diveHand.p.x, this.diveHand.p.y, this.diveHand.p.z] as const) : this.from.shot.target);
     const p = new Vector3(t[0], t[1], t[2]);
-    const s0 = this.placeWith(p, this.hand), n0 = this.placeWith(p, { k: 1, x: 0, y: 0 });
-    if (![s0.x, s0.y, n0.x, n0.y].every(Number.isFinite)) return null;
-    return { p, dx: s0.x - n0.x, dy: s0.y - n0.y, k0: this.hand.k };
+    const s0 = this.placeWith(p, this.hand), l = this.placeAtEnd(p, this.handEnd);
+    if (![s0.x, s0.y, l.x, l.y].every(Number.isFinite)) return null;
+    return { p, sx: s0.x, sy: s0.y, lx: l.x, ly: l.y, k0: this.hand.k, k1: this.handEnd.k };
   }
-  /** One frame of that hand: the zoom runs home on the dive's share m (geometric, as the lens does), the pan is what puts the place at where the camera alone has it plus the offset left to run out. */
+  /** Where a world point lands with the hand `h` when this move has ended (the end pose, room, turn and lens), then the rig is put back as it was. */
+  private placeAtEnd(p: Vector3, h: View): { x: number; y: number } {
+    const keep = { cur: this.cur, sn: this.scaleNow, bump: this.bump, dn: this.distNow, o: this.orbit, po: this.pitchOrbit };
+    this.cur = { shot: copyShot(this.to.shot), room: copyRoom(this.to.room) }; this.scaleNow = { ...this.scaleTo }; this.bump = 0; this.distNow = 0; this.orbit = this.orbitTo; this.pitchOrbit = this.pitchTo;
+    const at = this.placeWith(p, h);
+    this.cur = keep.cur; this.scaleNow = keep.sn; this.bump = keep.bump; this.distNow = keep.dn; this.orbit = keep.o; this.pitchOrbit = keep.po;
+    this.apply();
+    return at;
+  }
+  /** One frame of that hand: the zoom runs on the dive's share m (geometric, as the lens does) from where it was to where it ends, and the pan is solved so the place dived to stands at S(t) = lerp(where it stood, where the
+   *  landing frames it, the move's own eased share): one path, monotone, so nothing he looks at lurches sideways (plan 30: the old offset ran out linearly in the camera's distance, 93 % of it in the first part of a 200:1 dive). */
   private stepDiveHand(m: number): void {
     const d = this.diveHand!, h = this.hand;
     h.k = 1; h.x = 0; h.y = 0;
     this.apply();
-    // the offset runs out the way the dive's own aim does (blendDive's q, by the distance: nearly all of it while the camera is still far, so the place is centred before the close part and the lobules around it
-    // never sweep past); on the way out it shrinks with the picture, the offset staying where it was on the lobule, to nothing at the body's distance (the way in run backward)
-    const ra = this.from.shot.r, rb = this.to.shot.r, r = this.cur.shot.r, near = Math.min(ra, rb), far = Math.max(ra, rb);
-    const f = Math.min(1, Math.max(0, rb < ra ? (r - near) / Math.max(1e-12, far - near) : (near / Math.max(1e-12, r) - near / far) / Math.max(1e-12, 1 - near / far)));
-    const n = this.project(d.p), k = Math.pow(d.k0, 1 - m), cx = this.width / 2, cy = this.height / 2;
+    const n = this.project(d.p), k = d.k0 * Math.pow(d.k1 / d.k0, m), cx = this.width / 2, cy = this.height / 2, e = Math.min(1, Math.max(0, this.eNow));
     h.k = k;
     // (the screen's place of a point is the centre + k · (its place with the hand home less the centre) + the pan, which is not zoomed: the projection's window is offset by the pan before the zoom is taken)
-    h.x = n.x + d.dx * f - cx - k * (n.x - cx);
-    h.y = n.y + d.dy * f - cy - k * (n.y - cy);
+    h.x = d.sx + (d.lx - d.sx) * e - cx - k * (n.x - cx);
+    h.y = d.sy + (d.ly - d.sy) * e - cy - k * (n.y - cy);
   }
 
   /** The aim and the width of a retargeted move on a cubic Hermite from where it was, starting at the speed it had and ending at rest. */
@@ -642,8 +664,8 @@ export class CameraRig {
       this.orbit = lerp(this.orbitFrom, this.orbitTo, e);
       this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, e);
       if (this.handTween) {
-        if (this.diveHand) this.stepDiveHand(this.roomP); else lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, e, this.hand);
-        if (k >= 1) { this.handTween = false; this.diveHand = null; this.hand.k = 1; this.hand.x = 0; this.hand.y = 0; }
+        if (this.diveHand) this.stepDiveHand(this.roomP); else lerpView(this.handFrom, this.handEnd, e, this.hand);
+        if (k >= 1) { this.handTween = false; this.diveHand = null; this.hand.k = this.handEnd.k; this.hand.x = this.handEnd.x; this.hand.y = this.handEnd.y; }
       }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
