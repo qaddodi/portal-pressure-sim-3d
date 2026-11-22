@@ -1,6 +1,6 @@
 // Two ends Mohammad reported on 22 Nov, pinned at their root.
-//  1. "azygos has a segment that's open" / "goes to a pinpoint, it shouldn't": the arch is carried on past the landing of the esophageal and lumbar collaterals (starts.ts START_IN_ORGAN). A faded flat end read as open and a taper as a
-//     spike, so the stub is short, solid and rounded like any vein's end (fades.ts SOLID_LEAD_IN).
+//  1. the azygos arch's left end (20 Nov "should fade out on the left"; 22 Nov "goes to a pinpoint, it shouldn't", then "should fade to the left, not end with a knob"): a free end that fades. The arch is carried on past the landing of the collaterals (starts.ts START_IN_ORGAN) and
+//     fades in over that stretch (fades.ts, the standard lead-in), full width all along it: no point taper, no cap ball, and the ink on the body's alpha, so no line runs on past the fill (the open look).
 //  2. "the superior epigastric going into the SVC": a thin branch at a skinned node ended 0.014 (two of its radii) behind the host's axis, so the skin's depth rule held it out of the outline at the host's front wall and the
 //     host's ink ran across its mouth. At a skinned node a thin branch now ends on the host's axis (shape.ts fitEnds).
 import { test } from 'node:test';
@@ -8,24 +8,25 @@ import assert from 'node:assert/strict';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { SOLID_LEAD_IN, fadeOf } from '../src/scene/vessels/fades.ts';
+import { fadeOf } from '../src/scene/vessels/fades.ts';
 import { PHASE_2_NODES } from '../src/scene/vessels/skin/nodes.ts';
 
-test('the azygos arch ends in a plain rounded stub behind the landing: solid, no fade, no taper, long enough for the collaterals\' hole', () => {
+test('the azygos arch fades out to the left: alpha 0 at its free end rising to 1 at the landing, full width all the way, no pinpoint, over at least three diameters', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   try {
-    assert.ok(SOLID_LEAD_IN.has('AZY_SVC'));
-    assert.equal(fadeOf('AZY_SVC', false), null, 'no fade-in over the stub: it would read as an open end');
+    const f = fadeOf('AZY_SVC', false)!;
+    assert.ok(f && f.mode === 1 && f.a0 === 0 && f.a1 === 1 && f.from === 0 && f.to > 0, 'the standard lead-in: from nothing at the start to whole at the landing');
     const c = coursesOf(NETWORK_BY_ID.get('AZY_SVC')!, REST)[0]!;
-    assert.ok(!c.point?.[0] && !c.point?.[1], 'a round cap, not a pinpoint');
-    let len = 0, lead = 0; const node = [-0.42, 1.753];
-    c.pts.forEach((p, i) => { if (i) len += Math.hypot(p[0] - c.pts[i - 1]![0], p[1] - c.pts[i - 1]![1], p[2] - c.pts[i - 1]![2]); });
-    let bd = Infinity, at = 0, run = 0;
-    c.pts.forEach((p, i) => { if (i) run += Math.hypot(p[0] - c.pts[i - 1]![0], p[1] - c.pts[i - 1]![1], p[2] - c.pts[i - 1]![2]); const d = Math.hypot(p[0] - node[0]!, p[1] - node[1]!); if (d < bd) { bd = d; at = run; } });
-    lead = at;
-    assert.ok(lead >= 3 * c.radius, `the stub behind the landing holds the hole and the cap (${(lead / c.radius).toFixed(1)} radii)`);
-    assert.ok(lead <= 7 * c.radius, `and is a stub, not a spike or a limb (${(lead / c.radius).toFixed(1)} radii)`);
-    assert.ok(len > lead);
+    assert.ok(!c.point?.[0] && !c.point?.[1], 'no pinpoint: the width holds over the faded stretch');
+    assert.ok(!c.taper?.[0] || c.taper[0] >= 1, 'no taper at the free end');
+    let len = 0; const seg: number[] = [0];
+    c.pts.forEach((p, i) => { if (i) { len += Math.hypot(p[0] - c.pts[i - 1]![0], p[1] - c.pts[i - 1]![1], p[2] - c.pts[i - 1]![2]); } seg.push(len); });
+    const faded = f.to * len;
+    assert.ok(faded >= 3 * 2 * c.radius, `the fade spans ${(faded / (2 * c.radius)).toFixed(1)} vessel diameters`);
+    // (the stretch behind the landing is the carried-on one: the landing of the collaterals, the course's nearest point to the node, is at its end, where the alpha is 1)
+    const node = [-0.42, 1.753]; let bd = Infinity, at = 0;
+    c.pts.forEach((p, i) => { const d = Math.hypot(p[0] - node[0]!, p[1] - node[1]!); if (d < bd) { bd = d; at = seg[i]!; } });
+    assert.ok(Math.abs(at - faded) <= 0.35 * faded, `the collaterals land where the arch is whole (the carry-on ends at ${(faded / (2 * c.radius)).toFixed(1)} diameters, the landing is at ${(at / (2 * c.radius)).toFixed(1)})`);
   } finally { setSmoothJoins(was); }
 });
 
@@ -44,6 +45,6 @@ test('the skin leaves a growing arm that is not there out of its outline, so a c
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
   // the outline's two arm loops (skinSdPx, skinOwner) and the seam band's widest weight all read the keep flag (shaders.ts keepOf), as the mesh's own weights do
-  assert.equal((src.match(/armData\[(i|k)\]\.x < 0\.0 \|\| keepOf\((i|k)\) < 0\.5/g) ?? []).length, 2, 'both outline loops skip an arm that is not kept');
+  assert.equal((src.match(/armData\[(i|k)\]\.x < 0\.0 \|\| keepOf\((i|k)\) < 0\.5/g) ?? []).length, 3, 'the hold-out share, the outline loop and the owner loop skip an arm that is not kept');
   assert.ok(src.includes('wMax = max(wMax, rawW(i) * keepOf(i))'), 'the seam band follows the kept arms only');
 });

@@ -24,6 +24,9 @@ export const GLOW_LIFT = 0.25;
 export const GLOW_GATE_T = 0.15;
 /** The camera layer the mask pass draws (the vessels' glow meshes live on it and nowhere else; the figure's own two passes never draw it). */
 export const GLOW_LAYER = 3;
+/** The camera layer of a tapped or pinned ORGAN's mask (organs/glow-mask.ts): its own pass and its own textures (glow-fx.ts, a second GlowFx), so the vessels' lay over the figure and the organs' lay behind the vessels never
+ *  paint each other's glow twice. The organ's glow is the same pipeline as the vessels': GLOW_SIGMA, GLOW_GAIN and GLOW_A_MAX are shared. */
+export const ORGAN_GLOW_LAYER = 4;
 
 const sm = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 

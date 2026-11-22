@@ -18,8 +18,8 @@ export const skinShadeK = (k: number, scenePerCssPx: number): number => Math.max
  *  pixel keeps the lerped vertex normal where its arm's weight is within this of 1 and takes the gradient below it: a ring pixel is the tube's pixel exactly, and the hand-over is a smoothstep over the first triangle. */
 export const SKIN_RING_W_FROM = 0.97;
 
-/** The polynomial smooth-min's gradient and the arm distances, as GLSL. Needs: armAxisP, armData, armCopy and swAt() declared above it; `absent(sw)` is the GLSL of SKIN_ARM_ABSENT's smoothstep (the outline's own rule). Returns the unit gradient of the union at the point `p`. */
-export const skinNormalGlsl = (arms: number, SKIN_AXIS_PTS: number, absent: (sw: string) => string): string => /* glsl */ `
+/** The polynomial smooth-min's gradient and the arm distances, as GLSL. `kept(arm)` is the GLSL of 1.0 for an arm that is there and 0.0 for one that is not (a collapsed growing arm): it leaves the union as an arm of no width does (the shade must follow the outline's union, shaders.ts skinSdPx, or the pixels of its stub are shaded as a stub). Needs: armAxisP, armData, armCopy and swAt() declared above it; `absent(sw)` is the GLSL of SKIN_ARM_ABSENT's smoothstep (the outline's own rule). Returns the unit gradient of the union at the point `p`. */
+export const skinNormalGlsl = (arms: number, SKIN_AXIS_PTS: number, absent: (sw: string) => string, kept: (arm: string) => string = () => '1.0'): string => /* glsl */ `
 // one arm's signed distance to its live capsule (the radius at the closest point of its four-point axis, times the arm's live width) and the distance's gradient: sdf.ts sdArmGrad
 float skinArmSd3(vec3 p, int arm, float sw, out vec3 g, out float rad) {
   float best = 1.0e20, bt = 0.0;
@@ -51,12 +51,12 @@ vec3 skinNormalExact(vec3 p, float k, vec3 fallback) {
     if (m > -0.5 && m < float(i) - 0.5) continue;
     vec3 ug;
     float swi = swAt(i), rdi;
-    float b = skinArmSd3(p, i, swi, ug, rdi) + 2.0 * k * (1.0 - ${absent('swi')});
+    float b = skinArmSd3(p, i, swi, ug, rdi) + 2.0 * k * (1.0 - ${absent('swi')} * ${kept('i')});
     if (m > float(i) + 0.5) {
       int mi = int(m + 0.5);
       vec3 mg;
       float swm = swAt(mi), rdm;
-      float o = skinArmSd3(p, mi, swm, mg, rdm) + 2.0 * k * (1.0 - ${absent('swm')});
+      float o = skinArmSd3(p, mi, swm, mg, rdm) + 2.0 * k * (1.0 - ${absent('swm')} * ${kept('mi')});
       if (o < b) { b = o; ug = mg; }
     }
     if (first) { acc = b; g = ug; first = false; continue; }
@@ -92,7 +92,7 @@ function armSd3(a: TwinArm, x: number, y: number, z: number, sw: number, g: numb
   return d - (R[bi]! + (R[bi + 1]! - R[bi]!) * bt) * sw;
 }
 /** The twin of skinNormalExact: the UNIT gradient of the live union at (x, y, z), or `fallback` when there is none. `absentFrom` is SKIN_ARM_ABSENT. */
-export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y: number, z: number, absentFrom: number, fallback: [number, number, number] = [0, 0, 1]): [number, number, number] {
+export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y: number, z: number, absentFrom: number, fallback: [number, number, number] = [0, 0, 1], distOut?: number[]): [number, number, number] {
   let acc = 0, first = true;
   const g = [0, 0, 0], ug = [0, 0, 0], mg = [0, 0, 0];
   for (let i = 0; i < arms.length; i++) {
@@ -113,6 +113,7 @@ export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y
     g[0] = fa * g[0]! + fb * ug[0]!; g[1] = fa * g[1]! + fb * ug[1]!; g[2] = fa * g[2]! + fb * ug[2]!;
     acc = b + (a - b) * h - k * h * (1 - h);
   }
+  if (distOut) distOut[0] = acc;
   const gl = Math.hypot(g[0]!, g[1]!, g[2]!);
   return gl > 1e-4 ? [g[0]! / gl, g[1]! / gl, g[2]! / gl] : fallback;
 }

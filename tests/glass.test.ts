@@ -9,7 +9,7 @@ const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
 /** every surface that sits over the figure and must wear the glass (Mohammad, 19 Nov 2026: unified, menus, UI and cards) */
 const SURFACES = [
   '.topbar .tb-face', '.topbar .float-pill', '.zoom-pill', '.vdock > .vd-face', '.nb-views > .vp-face',
-  '.sh-sheet', '.sh-pop', '.sh-dialog', '.dk-jump', '.toast', '.modal', '.pal', '.why-pop',
+  '.sh-sheet', '.sh-pop', '.sh-dialog', '.dk-jump', '.toast', '.sh-toast', '.modal', '.pal', '.why-pop',
   '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.cl-glass', '.lb-key',
 ];
 test('the one glass lists every panel, menu, pill and card', () => {

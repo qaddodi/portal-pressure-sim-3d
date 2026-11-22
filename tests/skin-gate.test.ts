@@ -19,8 +19,8 @@ const DROPPED_MAX = 0.08;   // (a skin whose arms really lie at other depths, a 
 
 test('the depth hold-out is judged in 3D: the pixel\'s own place in the figure against the arm\'s capsule, not the axis depth at the nearest screen point', () => {
   assert.match(SKIN_FS, /float gap = skinArmSd3\(fragP, arm, 1\.0, g3, r3\) \/ max\(/);
-  assert.match(SKIN_FS, /skinArmPx\(gl_FragCoord\.xy, i, swAt\(i\), 1\.0 \/ gl_FragCoord\.w, vPos, kPx\)/);
-  assert.match(SKIN_FS, /float sdPx = skinSdPx\(kPx\);/);
+  assert.match(SKIN_FS, /skinArmHeld\(i, 1\.0 \/ gl_FragCoord\.w, vPos, kPx\)/);
+  assert.match(SKIN_FS, /float sdPx = skinSdPx\(kPx, false\);/);
   assert.doesNotMatch(SKIN_FS, /abs\(fragW - wNear\)/);
 });
 

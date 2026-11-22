@@ -115,7 +115,7 @@ function unguarded(n: readonly number[], s: number, c: number, prof: readonly nu
 }
 /** The biggest change of the strip's normal between two samples one pixel apart (in x or in y), over the pairs where both samples are inside the speck window (|n.xy| below RIM_SPECK[1]) and the interpolated INPUT normal itself
  *  moves by less than `calm` (so a change in the output is the strip's own doing, not the mesh's). */
-function speckJump(g: BufferGeometry, id: string, twin: (n: number[], s: number, c: number, prof: number[], w: number) => number[], calm = 0.03): { worst: number; pairs: number } {
+function speckJump(g: BufferGeometry, id: string, twin: (n: number[], s: number, c: number, prof: number[], w: number) => readonly number[], calm = 0.03): { worst: number; pairs: number } {
   const pos = g.getAttribute('position'), idx = g.index!.array, N = g.getAttribute(SMOOTH_SHADE.has(id) ? 'shadeN' : 'normal'), rd = g.getAttribute('rimD'), rc = g.getAttribute('rimC'), prof = g.userData.rimProfile as number[];
   let worst = 0, pairs = 0;
   for (let t = 0; t + 2 < idx.length; t += 3) {
@@ -153,7 +153,7 @@ test('the speck guard: both twins share its constants, the shader reads them, an
 test('every baked organ: where the shade normal nearly faces the eye, the strip moves its normal by less than 0.15 between samples one pixel apart (and without the guard it does not)', () => {
   let unguardedWorst = 0;
   for (const [id, g] of made) {
-    const guarded = speckJump(g, id, rimShadeNormal), bare = speckJump(g, id, unguarded);
+    const guarded = speckJump(g, id, (n, s, c, p, w) => rimShadeNormal(n as [number, number, number], s, c, p, w)), bare = speckJump(g, id, unguarded);
     assert.ok(guarded.worst < 0.15, `${id}: the strip's normal moves ${guarded.worst.toFixed(3)} in a pixel over ${guarded.pairs} samples`);
     unguardedWorst = Math.max(unguardedWorst, bare.worst);
   }

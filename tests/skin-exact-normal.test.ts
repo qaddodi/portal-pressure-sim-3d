@@ -132,5 +132,10 @@ test('the shader takes the normal from the union\'s gradient at the pixel, befor
   const g = skinNormalGlsl(6, 4, (sw) => `ABS(${sw})`);
   assert.match(g, /if \(m > -0\.5 && m < float\(i\) - 0\.5\) continue;/);
   assert.match(g, /if \(o < b\) \{ b = o; ug = mg; \}/);
-  assert.match(g, /2\.0 \* k \* \(1\.0 - ABS\(swi\)\)/);
+  assert.match(g, /2\.0 \* k \* \(1\.0 - ABS\(swi\) \* 1\.0\)/);
+  // the arms that are not there (keepOf, the outline's own rule) leave the union the shade reads: their stub is not shaded as a stub
+  assert.match(skinNormalGlsl(6, 4, (sw) => `ABS(${sw})`, (arm) => `KEPT(${arm})`), /2\.0 \* k \* \(1\.0 - ABS\(swi\) \* KEPT\(i\)\)/);
+  assert.match(skinNormalGlsl(6, 4, (sw) => `ABS(${sw})`, (arm) => `KEPT(${arm})`), /\(1\.0 - ABS\(swm\) \* KEPT\(mi\)\)/);
+  assert.match(SKIN_FS, /skinNormalExact/);
+  assert.match(SKIN_FS, /\(1\.0 - smoothstep\(0\.0, [0-9.]+, swi\) \* keepOf\(i\)\)/);
 });

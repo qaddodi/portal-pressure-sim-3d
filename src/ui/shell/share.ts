@@ -41,7 +41,6 @@ export interface ShareDeps {
 /** 2D: src/ui/share-flow.js (its toasts; rewritten in the app's voice 22 Nov, tests/voice.test.ts) */
 export const SHARE_WORDS = {
   copied: 'Link copied. It opens this exact scenario.',
-  loaded: 'Here’s the shared scenario.',
   unread: 'This link didn’t open, so you’re on the healthy patient.',
   unreadOpen: 'This link didn’t open.',
   missing: (id: string) => `This link asks for a patient this version doesn’t have (“${id}”). Its settings are shown on the healthy patient.`,
@@ -103,7 +102,7 @@ export function readShare(hash: string, presetIds: readonly string[]): Shared | 
 
 /** Open a shared scenario (2D loadShared): the patient, then its settings (merged onto the patient's own and checked by the model's own sanitizer), the view, the selection and
  *  the camera. False when the patient did not load or was replaced meanwhile: then nothing of the link is applied. */
-export async function loadShared(s: Shared, d: ShareDeps, { quiet = false } = {}): Promise<boolean> {
+export async function loadShared(s: Shared, d: ShareDeps): Promise<boolean> {
   if (!(await d.loadPatient(s.preset))) return false;
   let clamped = false, repaired = '';
   const missing = s.missing ? SHARE_WORDS.missing(s.missing) : '';
@@ -122,6 +121,5 @@ export async function loadShared(s: Shared, d: ShareDeps, { quiet = false } = {}
   if (s.fig?.sheet) d.openSheet?.(s.fig.sheet);
   if (clamped) d.say(missing || SHARE_WORDS.clamped(repaired));   // (a note that explains what the app chose to do is not a failure: the normal dot, never red)
   else if (missing) d.say(missing);
-  else if (!quiet && !s.fromYours) d.say(SHARE_WORDS.loaded);
   return true;
 }

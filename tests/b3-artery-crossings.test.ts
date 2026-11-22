@@ -103,7 +103,7 @@ test('each portal branch and the right hepatic vein branches once more into the 
 
 test('the hepatic artery is one connected tree: the proper artery ends where the left and right ones start (a joined end, not a blunt cap), and every free end of every vessel fades or joins (no blunt stub)', async () => {
   const { RUN_ONS } = await import('../src/scene/vessels/network.ts');
-  const { fadeOf, SOLID_LEAD_IN } = await import('../src/scene/vessels/fades.ts');
+  const { fadeOf } = await import('../src/scene/vessels/fades.ts');
   const end = (id: string, last: boolean) => { const p = NETWORK_BY_ID.get(id)!.pts; const q = p[last ? p.length - 1 : 0]!; return [q[0], q[1], q[2]]; };
   for (const b of ['A_HR', 'A_HL']) {
     const a = end('A_HEP', true), c = end(b, false);
@@ -120,7 +120,6 @@ test('the hepatic artery is one connected tree: the proper artery ends where the
     const f = fadeOf(v.id, v.tone === 'artery');
     for (const [node, atStart] of [[v.from, true], [v.to, false]] as const) {
       if ((ends.get(node) ?? 0) > 1) continue;   // joined to another vessel there
-      if (atStart && SOLID_LEAD_IN.has(v.id)) continue;   // (the azygos arch's stub behind the collaterals' landing ends in a solid rounded cap, on purpose: Mohammad 22 Nov, "it shouldn't go to a pinpoint")
       // (a fade down or up the figure, mode 2, is by place, not by end: it holds where the free end lies past the place the fade has let go: V_UP's top, ILI_IVC's foot)
       const endY = (atStart ? v.pts[0]! : v.pts[v.pts.length - 1]!)[1];
       const fades = !!f && (f.mode === 2 ? (f.a0 < 1 || f.a1 < 1) && (f.to >= f.from ? endY >= f.to : endY <= f.to) : atStart ? f.a0 < 1 : f.a1 < 1);
@@ -130,14 +129,15 @@ test('the hepatic artery is one connected tree: the proper artery ends where the
   assert.deepEqual(blunt, [], `free ends that neither join nor fade: ${blunt.join(', ')}`);
 });
 
-test('the azygos arch ends in a solid rounded stub on its left (no fade, no pinpoint), behind the collaterals\' landing', async () => {
+test('the azygos arch fades out on its left, behind the collaterals\' landing (the standard lead-in, no solid stub)', async () => {
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');
-  assert.equal(fadeOf('AZY_SVC', false), null, 'no fade-in: it read as an open end');
-  // (the esophageal collateral meets the arch at its 2D start: the arch is carried on to the left over a stub, so the collateral joins where the arch is whole and its end is a plain cap)
+  const f = fadeOf('AZY_SVC', false)!;
+  assert.ok(f && f.mode === 1 && f.a0 === 0 && f.a1 === 1, 'it fades in from its free end: a flat faded end read as open only with the ink running on, and body and ink now share one alpha');
+  // (the esophageal collateral meets the arch at its 2D start: the arch is carried on to the left, so the collateral joins where the arch is whole)
   const { startInOrganShare } = await import('../src/scene/vessels/starts.ts');
   const { EDGE_PATH_2D } = await import('../src/scene/vessels/paths.copied.ts');
   const share = startInOrganShare('AZY_SVC', EDGE_PATH_2D.AZY_SVC!);
-  assert.ok(share > 0.15, `the stub behind the landing exists (${share})`);
+  assert.ok(share > 0.15 && Math.abs(f.to - share) < 1e-9, `the fade spans the carried-on stretch (${share})`);
 });
 
 test('the hepatic artery\'s blood runs on through its junction into both branches (the stream chain carries it), and the lobar arteries fade out with their portal branches', async () => {

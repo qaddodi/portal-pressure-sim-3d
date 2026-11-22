@@ -287,7 +287,7 @@ ${CHEV_CREAM_GLSL}
 ${FLOW_MARKS_GLSL}
 ${SKIN_WALL_GLSL}
 // (the arms' exact 3D distances come first: the outline's depth hold-out below reads them)
-${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`)}
+${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`, (arm) => `keepOf(${arm})`)}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
@@ -302,7 +302,7 @@ vec4 skinPx(vec3 p, float R, float swell) {
 // DEPTH (the seam's ink): the outline is a screen-space field, and a WALL skin's arm leaves its host's wall, so from the front its silhouette lies over the host's though the two are a whole radius apart in depth: the blend then pulled the arm's own outline in
 // (3 px at the seam of S_PC on wall:IVC_IS_1:S_PC1,C90; the front-view kink at the four-arm nodes). So an arm whose capsule lies out of reach of the pixel's own place in the figure (fragP, the lumen's rest surface at the pixel; fragW its view depth, below 0: no judgement) is held out of the blend as an absent
 // arm is, by how far out it is, in px at the pixel's depth: nothing within a quarter k of the arm's wall, all of it from k. Continuous in the distance, never a step; the distance is the exact one in 3D, so it does not change with the camera
-float skinArmPx(vec2 frag, int arm, float swell, float fragW, vec3 fragP, float kPx) {
+float skinArmPx(vec2 frag, int arm, float swell) {
   // the axis: J (the bridge over the art's gap), the start of the straight line through the seam, the seam, the far point
   vec4 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
   vec4 p1 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 1].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 1].w, swell);
@@ -315,27 +315,34 @@ float skinArmPx(vec2 frag, int arm, float swell, float fragW, vec3 fragP, float 
   float d0 = length(frag - p0.xy - a * t0) - mix(p0.z, p1.z, t0);
   float d1 = length(frag - p1.xy - b * t1) - mix(p1.z, p2.z, t1);
   float d2 = length(frag - p2.xy - c * t2) - mix(p2.z, p3.z, t2);
-  float d = min(d0, min(d1, d2));
-  if (fragW < 0.0) return d;
-  // THE HOLD-OUT IS JUDGED IN 3D (Mohammad, 22 Nov: holes in the junctions when the figure is turned). ROOT CAUSE: the depth rule compared the pixel's depth with the axis' depth at the arm's nearest point ON THE SCREEN. An arm that runs along the view is foreshortened to a few
-  // pixels, so the pixels over it lie at every depth along it, the nearest screen point is the wrong one, the arm was held out of the union at pixels that are its own, and past the band the pixel was dropped; the tube is already cut there, so the figure had a hole (5 to 50 % of a skin's pixels
-  // at a quarter turn). The pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of the arm it is, whatever the camera does. In px at the pixel's depth.
+  return min(d0, min(d1, d2));
+}
+// THE DEPTH HOLD-OUT, as a share 0 to 1 (see skinSdPx for how it is used). A pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of
+// the arm it is, whatever the camera does (an arm that runs along the view is foreshortened to a few pixels, so a depth taken at the nearest SCREEN point was the wrong one and held out the pixels of an arm that were its own: holes in the junctions when the figure is turned,
+// Mohammad 22 Nov). In px at the pixel's depth: nothing within a quarter k of the arm's wall, all of it from k.
+// (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes. fragP is the lumen's REST surface, a whole radius out, so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9) put its own rest
+// surface 1 - swell radii outside itself: held out as if absent. The rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
+float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
-  // (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes, the tubes cut short with a ribbon between. ROOT CAUSE: fragP is the lumen's REST surface, a whole radius out, but the capsule was measured at the live width,
-  // so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9 in Budd-Chiari, 0.72 on the cava) put its own rest surface 1 - swell radii outside itself: held out of the union as if absent, and past the band the pixels were dropped. Any arm below its built width was thinned
-  // by up to 2 k at every skin; the rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
   float gap = skinArmSd3(fragP, arm, 1.0, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
-  return d + 2.0 * kPx * smoothstep(0.25 * kPx, kPx, gap);
+  return smoothstep(0.25 * kPx, kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
-float skinSdPx(float kPx) {
+float skinSdPx(float kPx, bool noDepth) {
   float dArm[${SKIN_ARMS}];
   // A GROWING ARM THAT IS NOT THERE (keepOf 0: a collateral that is collapsed, a dotted thread) is not in the outline either: the mesh is one static shape with every arm whole, so its stub (the ascending lumbar's connection into the azygos, Mohammad 22 Nov: "just don't draw it
   // if the ascending lumbar is collapsed") stood out of the wall with its ink, a dotted tip where the kept weights ran out; held out of the union, the band test below drops it. It comes in with its presence (keep turns on at the first of it; its dither does the easing).
   // an arm that is not there (a collateral not yet grown, a vessel closed to nothing) is not in the outline: a capsule of no width is a LINE, its smooth union with the trunk a horn along it, and the cone of the arm's collapsed
   // ring out to the wall stayed inside its band as a thorn (Mohammad, 20 Nov). It is held out of reach (the blend sees nothing of it past k) and comes in as its width does: continuous, never a pop
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = (armData[i].x < 0.0 || keepOf(i) < 0.5) ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i), 1.0 / gl_FragCoord.w, vPos, kPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
+  // THE HOLD-OUT IS RELATIVE TO THE LEAST-HELD ARM THAT IS THERE (Mohammad, 22 Nov: a black hole at the azygos where the varices land, the ascending lumbar collapsed). ROOT CAUSE: the mesh is one static shape with every arm whole, and the host's tube is cut away under it, so at a collapsed arm's
+  // stub the pixel's surface belongs to the arm that is not there and the host's wall behind it is not drawn by anything. Every arm that is there held that pixel out by depth (it lies on the stub, a radius or more from each), so the band dropped it: a hole in the host (a tenth or more of the
+  // skin's pixels at every skin that has a growing arm out, measured in node on the live swells). A pixel that every arm that is there holds out equally is held out by none: it is judged by the screen union of the arms that are there, the host's lumen, as it would be with no hold-out at all. Where any arm
+  // that is there lies at the pixel (every pixel of a skin whose arms are all there) its share is 0 and nothing changes. Continuous in the distances, never a step.
+  float heldOf[${SKIN_ARMS}];
+  float heldMin = 1.0;
+  for (int i = 0; i < ${SKIN_ARMS}; i++) { heldOf[i] = (noDepth || armData[i].x < 0.0 || keepOf(i) < 0.5) ? (noDepth ? 0.0 : 1.0) : skinArmHeld(i, 1.0 / gl_FragCoord.w, vPos, kPx); heldMin = min(heldMin, heldOf[i]); }
+  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = (armData[i].x < 0.0 || keepOf(i) < 0.5) ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i)) + 2.0 * kPx * (heldOf[i] - heldMin) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -357,7 +364,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   float d[${SKIN_ARMS}];
   float lo = 1.0e9;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
-    d[k] = (armData[k].x < 0.0 || keepOf(k) < 0.5) ? 1.0e9 : skinArmPx(fc, k, swAt(k), -1.0, vec3(0.0), kPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
+    d[k] = (armData[k].x < 0.0 || keepOf(k) < 0.5) ? 1.0e9 : skinArmPx(fc, k, swAt(k)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
     lo = min(lo, d[k]);
   }
   float mine = 0.0, sum = 0.0;
@@ -380,7 +387,7 @@ void main() {
   // (a seam ring keeps the tube's own normal: where an arm's weight is 1 the pixel takes the lerped vertex normal, SKIN_RING_W_FROM)
   {
     float wTop = 0.0;
-    for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, wAt(i));
+    for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE, as the seam band's wMax: wAt renormalises them, so the pixels of an absent arm's stub read as a kept arm's weight 1 and took the mesh's own stub normal)
     vec3 gx = skinNormalExact(vPos, max(skinK * ${F(SKIN_SHADE_K)}, ${F(SKIN_SHADE_FLOOR_PX)} * ${wpcGlsl('vCenW', 'projY', '1.0')}), vec3(0.0));   // (skinShadeK: the shade's blend is never narrower than SKIN_SHADE_FLOOR_PX of the screen)
     if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - smoothstep(${F(SKIN_RING_W_FROM)}, 1.0, wTop))));
   }
@@ -463,13 +470,17 @@ void main() {
   float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);
   float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
-  float sdPx = skinSdPx(kPx);
+  float sdPx = skinSdPx(kPx, false);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
   // trimmed, where the tube past the seam is cut and no longer there to cover it). The ring is the tube's exact polygon stood out by its sag, the outline a smooth capsule: they differ by about a pixel. Where one arm's weight
   // is nearly 1 the band is wider by that pixel and a half, fading out over the weights 0.75 .. 0.97, so the outline rules the free skin and the mesh rules the seam
   float wMax = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
   float seamPad = ${F(SKIN_SEAM_PAD_PX)} * dpr * smoothstep(0.75, 0.97, wMax);
+  // THE UNION'S OWN SCREEN FOOTPRINT IS NEVER DROPPED (Mohammad, 22 Nov: a black crescent under the purple's landing at the azygos). ROOT CAUSE: the mesh is one static shape at the arms' REST widths and the host's tube is cut away under it, so where a narrow arm (C1b at swell 0.45) leaves the host the mesh has the arm's fat stub and no host wall behind it.
+  // The stub's pixels lie 13 px outside the live arm and the depth hold-out (right, for the outline's ink) holds every other arm out of them: the band dropped them, and nothing else draws there. A pixel past the band that the arms' union with no depth rule calls lumen is lumen:
+  // it takes that distance. Pixels the band keeps are untouched, so the hold-out's work on the seam's ink stays.
+  if (sdPx > inkDev + 0.5 + seamPad) { float sdFlat = skinSdPx(kPx, true); if (sdFlat <= -0.5) sdPx = sdFlat; }
 #ifdef SKIN_DEBUG
   if (sdPx > inkDev + 0.5 + seamPad) { gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif

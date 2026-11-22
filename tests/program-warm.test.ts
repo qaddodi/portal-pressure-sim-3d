@@ -58,7 +58,8 @@ test('the stand-ins are on the scene graph (hidden), each one wears its material
   assert.equal(protos.visible, false);
   const names = protos.children.map((c) => c.name);
   for (const n of ['prototype/circuit resistors', 'prototype/blood streaks', 'prototype/bleed jet ink', 'prototype/clot']) assert.ok(names.includes(n), n);
-  assert.ok(names.some((n) => n.startsWith('prototype/organ halo')), 'an organ\'s glow shells and the spleen\'s ring');
+  assert.ok(names.some((n) => n.startsWith('prototype/organ halo')), 'the spleen\'s ring');
+  assert.ok(names.includes('prototype/organ glow mask'), 'an organ\'s glow mask');
   // the resistor layer's own material has the stand-in's program
   const real = (new ResistorLayer() as unknown as { material(): ShaderMaterial }).material();
   const stand = protos.getObjectByName('prototype/circuit resistors') as Mesh;
@@ -70,7 +71,7 @@ test('the stand-ins are on the scene graph (hidden), each one wears its material
   assert.equal(programsOf(protos).size >= names.length, true);
 });
 
-test('highlighting every organ (its glow shells, the spleen\'s normal-range ring) adds no program: the organs\' stand-ins have them', async () => {
+test('highlighting every organ (its glow mask, the spleen\'s normal-range ring) adds no program: the organs\' stand-ins have them', async () => {
   const { OrganPins } = await import('../src/scene/highlight.ts');
   const sc = new CelScene();
   await sc.organsBuilt;
@@ -91,7 +92,8 @@ test('every material the real code makes from the stand-ins\' recipes spreads th
   assert.match(read('src/scene/blood/cells/cells.ts'), /fragmentShader: CELLS_FS, \.\.\.STREAK_FLAGS/);
   assert.match(read('src/scene/disease/bleed.ts'), /fragmentShader: JET_INK_FS, \.\.\.JET_INK_FLAGS/);
   const hl = read('src/scene/highlight.ts');
-  assert.equal((hl.match(/\.\.\.HALO_FLAGS/g) ?? []).length, 2, 'the organ glow shells and the spleen\'s ring');
+  assert.equal((hl.match(/\.\.\.HALO_FLAGS/g) ?? []).length, 1, 'the spleen\'s ring');
+  assert.match(read('src/scene/organs/glow-mask.ts'), /fragmentShader: ORGAN_MASK_FS, \.\.\.ORGAN_MASK_FLAGS/);
 });
 
 /** Every `new ShaderMaterial(` and `new RawShaderMaterial(` in src/scene, by file, and how its programs are compiled under the splash. A new one fails here until it is listed with its answer. */
@@ -100,14 +102,16 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/disease/bleed.ts': { n: 1, how: 'stand-in', why: 'JET_INK_FLAGS' },
   'scene/disease/ascites.ts': { n: 1, how: 'graph', why: 'the pool hulls' },
   'scene/disease/scope-ring.ts': { n: 1, how: 'graph', why: 'the scope ring on the varices is in the disease group from the start (hidden until a slide asks for it)' },
-  'scene/highlight.ts': { n: 2, how: 'stand-in', why: 'HALO_FLAGS on each organ\'s ink' },
+  'scene/highlight.ts': { n: 1, how: 'stand-in', why: 'HALO_FLAGS on the spleen\'s ring (the organs\' glow is a mask, organs/glow-mask.ts)' },
+  'scene/organs/glow-mask.ts': { n: 1, how: 'stand-in', why: 'ORGAN_MASK_FLAGS: an organ\'s glow mask' },
   'scene/glow-fx.ts': { n: 2, how: 'pass', why: 'the glow\'s full-screen blur and lay (a pass, not a scene object): compiled under the splash with passMaterials (materials/warm.ts)' },
   'scene/materials/cel.ts': { n: 2, how: 'graph', why: 'the toon and the ink of every object' },
-  'scene/materials/prototypes.ts': { n: 4, how: 'stand-in', why: 'the stand-ins themselves' },
+  'scene/materials/prototypes.ts': { n: 5, how: 'stand-in', why: 'the stand-ins themselves' },
   'scene/organs/layer.ts': { n: 1, how: 'graph', why: 'the organ seat' },
   'scene/post-aa.ts': { n: 1, how: 'pass', why: 'the anti-aliasing quad: compiled under the splash with passMaterials, into the canvas\'s colour space' },
   'scene/post-dof.ts': { n: 3, how: 'pass', why: 'the depth-of-field quads (the focus band uses them on every device): compiled under the splash with passMaterials' },
   'scene/vessels/skin/skin-object.ts': { n: 2, how: 'graph', why: 'junction skins' },
+  'scene/vessels/suture.ts': { n: 1, how: 'graph', why: 'the stitches at the welded shunt ends (made with the skins, in the scene at boot)' },
   'scene/vessels/vessel-object.ts': { n: 4, how: 'graph', why: 'vessel, glow, veil, crossing shadow' },
   'scene/circuit/resistors.ts': { n: 1, how: 'stand-in', why: 'RESISTOR_FLAGS' },
   'scene/circuit/map-layer.ts': { n: 2, how: 'graph', why: 'the Circuit plate and dots' },

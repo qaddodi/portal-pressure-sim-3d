@@ -176,7 +176,7 @@ function SceneBridge() {
     if (gl.domElement.style.opacity !== '1') gl.domElement.style.opacity = '0';   // (comes in with the first drawn frame, below)
     setRenderer(gl);
     clock.setProbe(renderStats);
-    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material, ...cel.post.dof.materials, ...cel.glowFx.materials]);
+    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material, ...cel.post.dof.materials, ...cel.glowFx.materials, ...cel.organGlowFx.materials]);
     return () => { off(); clock.setProbe(null); setRenderer(null); };
   }, [gl]);
 

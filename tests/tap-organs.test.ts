@@ -155,8 +155,9 @@ test('x2d reaches the 2D x the lobe is judged on', () => { assert.ok(Math.abs(x2
 
 // ── the heavy outline of a tapped organ ──
 import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
-import { ORGAN_GLOW, OrganPins, PIN_FADE_MS, PIN_PX, SELECT_PX } from '../src/scene/highlight.ts';
+import { OrganPins, PIN_FADE_MS, PIN_PX, SELECT_PX } from '../src/scene/highlight.ts';
 import { MESHES_OF } from '../src/scene/organs/pick.ts';
+import { ORGAN_GLOW_LAYER } from '../src/scene/glow.ts';
 
 test('the organ outline widens by hiPx with hiOn and takes the highlight colour (it did neither before: the shader ignored both)', () => {
   assert.match(ORGAN_INK_VS, /uniform float hiOn;/);
@@ -165,31 +166,33 @@ test('the organ outline widens by hiPx with hiOn and takes the highlight colour 
   assert.match(ORGAN_INK_VS, /px \+ hiOn \* hiPx/);
 });
 
-test('a tapped organ glows (hulls of growing width round its line, in its selection colour), a slide\'s pin does too, and putting the selection away fades it out; no outline is widened', async () => {
+test('a tapped organ glows (one mask mesh, eased, on the organ glow layer: the blur makes the fall-off), a slide\'s pin does too, and putting the selection away fades it out; no outline is widened, no hulls', async () => {
   const s = await scene();
   const byId = s.disease.organs.byId, pins = new OrganPins();
   const hi = (id: string) => byId.get(id)!.ink.uniforms.hiOn!.value as number;
-  const shells = (id: string) => byId.get(id)!.group.children.filter((c) => c.name.startsWith(`highlight/glow/${id}/`)) as unknown as { visible: boolean; material: { uniforms: Record<string, { value: number }> } }[];
-  const lit = (id: string) => shells(id).filter((m) => m.visible).map((m) => m.material.uniforms.inkA!.value);
+  const masks = (id: string) => byId.get(id)!.group.children.filter((c) => c.name === `highlight/glow/${id}`) as unknown as { visible: boolean; layers: { mask: number }; material: { uniforms: Record<string, { value: number }> } }[];
+  const lit = (id: string) => masks(id).filter((m) => m.visible).map((m) => m.material.uniforms.amt!.value);
   assert.equal(SELECT_PX, 0); assert.equal(PIN_PX, 0, 'no widened outline: the glow is the highlight');
+  assert.equal(pins.glowing, false, 'nothing lit, no glow pass');
   pins.select(MESHES_OF.heart!);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
   assert.equal(hi('heart'), 1); assert.equal(hi('heart-ra'), 1, 'the atrium is part of the heart');
-  assert.equal(lit('heart').length, ORGAN_GLOW.length, 'every hull of the glow shows');
-  assert.ok(lit('heart').every((a, j) => Math.abs(a - ORGAN_GLOW[j]!.alpha) < 1e-9), 'at full strength');
+  assert.deepEqual(lit('heart'), [1], 'one mask mesh at full strength');
+  assert.deepEqual(lit('heart-ra'), [1], 'and the atrium\'s');
+  assert.equal(pins.glowing, true);
+  assert.equal(masks('heart')[0]!.layers.mask, 1 << ORGAN_GLOW_LAYER, 'on the organ glow\'s own layer only: the figure\'s passes never draw it');
   assert.equal(lit('liver').length, 0); assert.equal(hi('liver'), 0);
-  // the hulls widen outward and are drawn widest first
-  const widths = shells('heart').map((m) => m.material.uniforms.px!.value), orders = shells('heart').map((m) => (m as unknown as { renderOrder: number }).renderOrder);
-  for (let j = 1; j < widths.length; j++) { assert.ok(widths[j]! < widths[j - 1]!, 'narrower toward the organ'); assert.ok(orders[j]! > orders[j - 1]!, 'drawn after the wider one'); }
+  for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith(`highlight/glow/${id}/`)).length, 0, `${id}: no stacked hulls`);
   pins.set(['liver']);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
-  assert.equal(hi('liver'), 1); assert.equal(lit('liver').length, ORGAN_GLOW.length);
+  assert.equal(hi('liver'), 1); assert.deepEqual(lit('liver'), [1]);
   pins.select([]); pins.set([]);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
   assert.equal(hi('heart'), 0); assert.equal(hi('liver'), 0); assert.equal(lit('heart').length, 0); assert.equal(lit('liver').length, 0);
+  assert.equal(pins.glowing, false, 'put away: the glow pass stops');
   // halfway through the fade the glow is part way
   pins.select(MESHES_OF.liver!); pins.step(PIN_FADE_MS / 2, byId);
-  const part = lit('liver'); assert.ok(part.length === ORGAN_GLOW.length && part[0]! > 0 && part[0]! < ORGAN_GLOW[0]!.alpha, 'eases in');
+  const part = lit('liver'); assert.ok(part.length === 1 && part[0]! > 0 && part[0]! < 1, 'eases in');
   assert.deepEqual(MESHES_OF.spleen, ['spleen']); assert.deepEqual(MESHES_OF.liver, ['liver']);
   s.dispose?.();
 });
@@ -234,7 +237,7 @@ test('selecting any one organ lights that organ only: no other organ and no vess
     for (let i = 0; i < 40; i++) pins.step(16, byId);
     for (const [id, o] of byId) assert.equal(o.ink.uniforms.hiOn!.value, MESHES_OF[pick]!.includes(id) ? 1 : 0, `${pick} selected: ${id}`);
     for (const o of s.vessels) assert.equal(o.ink.uniforms.hiOn!.value, 0, `${pick} selected: vessel ${o.edge?.id} is not lit`);
-    for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith('highlight/glow/') && c.visible).length, MESHES_OF[pick]!.includes(id) ? ORGAN_GLOW.length : 0, `${pick} selected: ${id}'s glow`);
+    for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith('highlight/glow/') && c.visible).length, MESHES_OF[pick]!.includes(id) ? 1 : 0, `${pick} selected: ${id}'s glow`);
     // the organs' lines are not shared uniform objects: one organ's cannot write another's
     const seen = new Set<object>();
     for (const o of byId.values()) { for (const k of ['hiOn', 'hiPx', 'hiColor']) { const u = o.ink.uniforms[k]!; assert.ok(!seen.has(u), `${k} is its own`); seen.add(u); } }
