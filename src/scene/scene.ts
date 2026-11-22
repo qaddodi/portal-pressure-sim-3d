@@ -25,7 +25,7 @@ import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
-import { geomNet } from './vessels/net/flag.ts';
+import { geomNet, netPlain } from './vessels/net/flag.ts';
 import type { NetFigure } from './vessels/net/network-object.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -676,6 +676,7 @@ export class CelScene {
     const behind = new Set<number>(); edgeIds.forEach((id, i) => { if (vo(id)?.behindOrgans) behind.add(i); });
     const clamps = this.disease.clamps;
     this.net = new Figure(data, {
+      plain: netPlain(),
       uniforms: (id) => vo(id)?.toon.uniforms, fade: (id) => { const o = vo(id); return o ? this.composeFade(o, false) : undefined; }, copies: (id) => vo(id)?.netCopies(),
       present: (id) => vo(id)?.group.visible, waist: (id) => (vo(id) ? clamps.waistOf(id) : undefined),
       fixed: (id) => { const o = vo(id); return o ? { lenMap: (o.toonMesh.geometry.getAttribute('cl') as BufferAttribute | undefined)?.getY(0) ?? 1, noMap: [...this.fans.values()].includes(id) } : undefined; },
