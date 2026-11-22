@@ -11,7 +11,8 @@
 //   point's edge row, place, fade, morph share, stay, highlight, units and arc length: the same netBone the vertex stage runs), so the tones, the lens colours, the fade, the dust and the marks are
 //   the tubes' rules, not copies. The outline: a ray that misses the union but passes within the line's width of it (CSS px, the tubes' inkPx rule) is ink.
 // One proxy draw per network (an icosphere instanced per marched region); a region with a body-built and a map-built mesh is marched once (its first row: the capsules are the same).
-// LIMITS, said plainly: sewn ends (collaterals, shunts, stents) are not regions yet (J3); no crossing shadow; the organs-pass copy is not drawn (the portal confluence is in the vessel pass); the Circuit's inner rim and the flow marks run on
+// SEWN ENDS (J3, net/sewn.ts sewnRegions): a collateral, shunt, TIPS or DIPS end that is sewn onto its host is a region of its own (the arm's bare capsule, the host's capsule), so it grows out of the host with no collar; written only with this flag.
+// LIMITS, said plainly: no crossing shadow; the organs-pass copy is not drawn (the portal confluence is in the vessel pass); the Circuit's inner rim and the flow marks run on
 // the nearest arm's place, like the fillet's. NOT YET SEEN ON A DEVICE: cost per frame is what the trial is for (?perf on the iPhone, whole figure and a dive into the confluence).
 import { BackSide, BufferAttribute, BufferGeometry, DataTexture, DoubleSide, FloatType, Group, IcosahedronGeometry, InstancedBufferAttribute, InstancedBufferGeometry, Matrix3, Matrix4, Mesh, NearestFilter, NoBlending, OrthographicCamera, Points, RGBAFormat, Scene, ShaderMaterial, Vector3, WebGLRenderTarget, type IUniform, type WebGLRenderer } from 'three';
 import { markBlends, setBlendState } from '../../materials/warm.ts';
@@ -77,7 +78,11 @@ void main() {
   vec3 cen = 0.5 * (lo + hi);
   vec4 o = vec4(0.0);
   // the bound: the capsules' box and three widest lumens (the blend's bulge and the ink band of the arms near the node; the proxy adds the line's width on screen)
-  if (id == 0) o = vec4(cen, 0.5 * length(hi - lo) + 3.0 * rmax);
+  // OFF while its narrowest arm has no radius to speak of (under 2% of the widest capsule: a sewn collateral that is not there has presence 0, and the blend width, which is a share of the arm's radius, would be 0): the tubes draw the region, uncut
+  float rArm = 1.0e20;
+  int na = int(texelFetch(regionTex, ivec2(0, rr), 0).y + 0.5);
+  for (int c = 0; c < ${CAPS}; c++) { if (c >= nc || c >= na) break; rArm = min(rArm, capAt(c, 0, rr).w); }
+  if (id == 0) o = rArm < 0.02 * rmax ? vec4(0.0) : vec4(cen, 0.5 * length(hi - lo) + 3.0 * rmax);
   else {
     int k = id - 1, c = k - (k / ${CAPS}) * ${CAPS};
     if (c < nc) {
@@ -356,11 +361,11 @@ export function marchRows(regions: readonly Pick<Region, 'node' | 'variant'>[]):
 }
 
 /** Which marched regions each edge is an arm of (juncEdge: up to JUNC_EDGE_REGIONS rows per edge, -1 for none): the edges of the bones that carry a region's capsules. */
-export function edgeRegions(skel: Pick<Skeleton, 'bones' | 'edges'>, regions: readonly Pick<Region, 'caps'>[], rows: readonly number[]): Float32Array {
+export function edgeRegions(skel: Pick<Skeleton, 'bones' | 'edges'>, regions: readonly Pick<Region, 'caps' | 'hostFrom'>[], rows: readonly number[]): Float32Array {
   const out = new Float32Array(4 * skel.edges.length).fill(-1), n = new Uint8Array(skel.edges.length);
   for (const r of rows) {
     const edges = new Set<number>();
-    for (const c of regions[r]!.caps) for (const b of c.bones) edges.add(skel.bones[b]!.edge);
+    regions[r]!.caps.forEach((c, ci) => { if (ci < (regions[r]!.hostFrom ?? Infinity)) for (const b of c.bones) edges.add(skel.bones[b]!.edge); });   // (a sewn region's HOST capsules are no arm: the host's tube is in another draw, and a host with many sewn ends is no limit)
     for (const e of edges) { if (n[e]! >= JUNC_EDGE_REGIONS) throw new Error(`junc-sdf: edge ${e} is an arm of more than ${JUNC_EDGE_REGIONS} marched regions`); out[4 * e + n[e]!] = r; n[e]!++; }
   }
   return out;

@@ -228,6 +228,7 @@ float sewnCollar(float u, float arc, float lumen, int row) {
   return k;
 }
 struct NetBone { float mapDepth; vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; float lumenRest; };
+float netBare = 0.0;   // 1 while the capsule pass reads a BARE capsule (a sewn arm of a ray-marched region, net/sewn.ts sewnRegions): no collar, the union does what it did
 int netRowLoaded = -1;   // (the edge row the globals hold now: a junction's capsules read their bones edge by edge, so most reads reuse it)
 // lite: only the bone's live centre and live lumen (the junction projection's capsules); the rest of the struct is not set
 NetBone netBone(int bi, bool lite) {
@@ -285,7 +286,7 @@ NetBone netBone(int bi, bool lite) {
   vec3 position = A.xyz;
   float rest = mix(A.w, M.w, circShare);   // (the course's own radius share: on the map not the body's tapers: rk and rkc)
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, A.w * swell * vU);
-  swell *= sewnCollar(u, mix(len, lenMap, circShare), rest * swell * presence, row);   // (a sewn end: the collar, sized from the host's live lumen)
+  if (netBare < 0.5) swell *= sewnCollar(u, mix(len, lenMap, circShare), rest * swell * presence, row);   // (a sewn end: the collar, sized from the host's live lumen)
   float narrowK = 1.0 - clamp(waistNarrow(waist, u), 0.0, 0.97);
   float lumen0W = rest * swell * presence;   // (before a stenosis or the stent's waist pinches it: the stent's cells are sized from it)
   float lumenW = lumen0W * narrowK;
@@ -819,6 +820,7 @@ void main() {
   float within = capId - rid * W;
   int rr = int(rid + 0.5), slot = int(within + 0.5);   // the bones of a region are packed four to a texel from texel 3, capsule after capsule
   vec4 bi4 = texelFetch(regionTex, ivec2(${REGION_HEAD} + slot / 4, rr), 0);
+  netBare = float((int(texelFetch(regionTex, ivec2(4, rr), 0).w + 0.5) >> (slot / ${REGION_PTS})) & 1);   // (the capsules a sewn region draws bare, regions.ts Region.bare)
   NetBone nb = netBone(int(bi4[slot - (slot / 4) * 4] + 0.5), true);
   vCapOut = vec4(nb.cen, nb.lumen);
   gl_PointSize = 1.0;

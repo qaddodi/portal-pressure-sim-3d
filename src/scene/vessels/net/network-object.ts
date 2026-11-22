@@ -11,6 +11,8 @@ import { VESSEL_LAYER } from '../../layers.ts';
 import { NET_CAP_FS, NET_CAP_VS, NET_FS, NET_GLOBALS, NET_RING_SAG, NET_SEWN_FS, NET_SEWN_VS, NET_VS, capPointIds, sewnPointIds } from './shaders.ts';
 import { BoneTable } from './bones.ts';
 import { EdgeStateTable } from './edge-state.ts';
+import { sewnRegions } from './sewn.ts';
+import { flagValue } from '../../../ui/debug/flags.ts';
 import { REGION_CAPS, REGION_PTS, extensionRows, keyPlan, regionTexture, regionsOf, type Region } from './regions.ts';
 import { NetRows, type RowSource } from './rows.ts';
 import type { NetData, NetMeshData } from './load.ts';
@@ -150,9 +152,11 @@ export class NetFigure {
   private addObject(name: string, nets: NetMeshData[], behind: ReadonlySet<number>, blankTex: DataTexture): void {
     const skel = this.skel, u = this.uniforms;
     const mesh = nets.length === 1 ? nets[0]!.mesh : mergeMeshes(nets.map((n) => n.mesh));
-    const regions: Region[] = nets.length === 1 && nets[0]!.nodes.length ? regionsOf(skel, nets[0]!.nodes as NodeReport[]) : [];
-    const V = mesh.position.length / 3, kp = regions.length ? keyPlan(skel, regions, mesh.keys, mesh, mesh.bakeScale ?? []) : undefined, rt = regionTexture(regions, V, kp, regions.length ? extensionRows(skel, mesh, nets[0]!.nodes as NodeReport[]) : undefined);
+    const meshRegions: Region[] = nets.length === 1 && nets[0]!.nodes.length ? regionsOf(skel, nets[0]!.nodes as NodeReport[]) : [];
     const edges = nets.flatMap((n) => n.edges);
+    // J3 (?geom=net&junc=sdf only): each sewn end of this draw's edges is one more region row after the fillets' (net/sewn.ts sewnRegions); no mesh vertex belongs to it
+    const regions: Region[] = flagValue('junc') === 'sdf' ? [...meshRegions, ...sewnRegions(skel, edges)] : meshRegions;
+    const V = mesh.position.length / 3, kp = meshRegions.length ? keyPlan(skel, meshRegions, mesh.keys, mesh, mesh.bakeScale ?? []) : undefined, rt = regionTexture(regions, V, kp, meshRegions.length ? extensionRows(skel, mesh, nets[0]!.nodes as NodeReport[]) : undefined);
     const vEdge = vertexEdges(skel, mesh);
     const organsSet = new Set(edges.filter((e) => behind.has(e)));
     const organsIndex = organsSet.size ? subsetIndex(mesh, vEdge, organsSet) : null;

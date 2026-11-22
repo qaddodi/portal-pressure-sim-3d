@@ -28,7 +28,7 @@ const smooth = (a: number, b: number, t: number): number => { const x = Math.min
 /** The share of the pixels a region's fillet mesh keeps at t (the vertex stage's `vDraw`). */
 export function regionShare(rg: Pick<Region, 'variant' | 'window' | 'window2'>, t: number): number { const [i0, i1, o0, o1] = regionFades(rg); return smooth(i0, i1, t) * (1 - smooth(o0, o1, t)); }
 
-export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[]; /** 0: the body-built mesh, 1: the map-built (the mesher reports it, `NodeReport.variant`; absent = body) */ variant: 0 | 1 | 2; /** the t window over which this region's two meshes hand over, `[b, a]` (`NodeReport.switchT`; absent = this mesh alone) */ window: readonly [number, number]; /** variant 2 only (a mid mesh, `NodeReport.switchT2`): the window it hands over to the map mesh in (`window` is the one from the body mesh) */ window2?: readonly [number, number] }
+export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[]; /** 0: the body-built mesh, 1: the map-built (the mesher reports it, `NodeReport.variant`; absent = body) */ variant: 0 | 1 | 2; /** J3 (sewn ends, net/sewn.ts sewnRegions): the index of the first HOST capsule (the caps before it are the arms; a host's edge is not registered as an arm, so a host with many sewn ends is no limit) */ hostFrom?: number; /** J3: a bit mask of the capsules drawn BARE: the capsule pass leaves out the sewn collar (texel 4.w) */ bare?: number; /** the t window over which this region's two meshes hand over, `[b, a]` (`NodeReport.switchT`; absent = this mesh alone) */ window: readonly [number, number]; /** variant 2 only (a mid mesh, `NodeReport.switchT2`): the window it hands over to the map mesh in (`window` is the one from the body mesh) */ window2?: readonly [number, number] }
 
 export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[] {
   const out: Region[] = [];
@@ -67,6 +67,7 @@ export function regionTexture(regions: readonly Region[], vertexCount: number, k
   regions.forEach((rg, ri) => {
     const o = 4 * REGION_TEXELS * ri;
     data[o] = rg.caps.length; data[o + 1] = rg.arms; data[o + 2] = rg.variant; data.set(regionFades(rg), o + 4 * 3);
+    data[o + 4 * 4 + 3] = rg.bare ?? 0;   // texel 4.w: the capsules drawn bare (sewn arms, net/sewn.ts)
     rg.caps.forEach((c, ci) => {
       data[o + 4 * 1 + ci] = c.mate;   // texels 1 and 2: the mates
       for (let q = 0; q < REGION_PTS; q++) data[o + 4 * REGION_HEAD + ci * REGION_PTS + q] = c.bones[q]!;
