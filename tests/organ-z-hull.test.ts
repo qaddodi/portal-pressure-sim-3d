@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
+import { caudateGeometry } from '../src/scene/organs/caudate.ts';
 import { TIER_Z, x3 } from '../src/scene/frame2d.ts';
 import { ORGAN_STYLE } from '../src/scene/organs/layer.ts';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
@@ -85,7 +86,7 @@ test('organ depth: each mesh is moved along z only, x and y exact, and the front
   const s = new CelScene();
   s.disease.organs.build();
   for (const [id, o] of s.disease.organs.byId) {
-    const g = o.toonMesh.geometry, rest = ORGAN_MESHES[id]!(), a = g.getAttribute('position'), b = rest.getAttribute('position');
+    const g = o.toonMesh.geometry, rest = (id === 'caudate' ? caudateGeometry : ORGAN_MESHES[id]!)(), a = g.getAttribute('position'), b = rest.getAttribute('position');
     let zmin = Infinity, zmax = -Infinity;
     assert.ok(a.count >= b.count, `${id}: the rim refinement only adds points (appended after the file's own)`);
     for (let i = 0; i < a.count; i++) {

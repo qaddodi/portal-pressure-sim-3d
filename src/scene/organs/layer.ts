@@ -24,6 +24,7 @@ import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
+import { caudateAnchor3, caudateGeometry, caudateScale } from './caudate.ts';
 /** Smoothing passes of the shade normal (the outline's own is 8: this one keeps the pillow's turn, a lighter hand). */
 const SHADE_PASSES = 6;
 import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
@@ -36,6 +37,8 @@ type Og = keyof OrganTones2D['tones'];
 export const ORGAN_STYLE: Record<string, { tone: ToneKey; og: Og; px: number; inkA: number; layer: 'organ' | 'gut' | 'kidney'; /** the soft AO seat 2D draws under a plain organ (.org-ao); not the atrium (part of the heart) and not the gut, which has its own */ ao?: true; /** the right atrium's own fainter shade and rim */ atrium?: true; /** no rim light in the see-through fill (the liver and the stomach, and the duodenum painted with the stomach's tones: too shiny) */ noRim?: true }> = {
   heart: { tone: 'heart', og: 'heart', px: 1.1, inkA: 0.62, layer: 'organ', ao: true }, 'heart-ra': { tone: 'heart', og: 'ra', px: 1.1, inkA: 0.35, layer: 'organ', atrium: true },
   liver: { tone: 'liver', og: 'liver', px: 1.1, inkA: 0.62, layer: 'organ', ao: true, noRim: true }, spleen: { tone: 'spleen', og: 'spleen', px: 1.1, inkA: 0.62, layer: 'organ', ao: true },
+  /** the caudate lobe (caudate.ts): 2D draws it as the liver's own dome (tone-liver) with the organs' one thin line; shown only on a slide about it */
+  caudate: { tone: 'liver', og: 'liver', px: 1.1, inkA: 0.62, layer: 'organ', noRim: true },
   stomach: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ', ao: true, noRim: true }, duodenum: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ', noRim: true },
   'kidney-l': { tone: 'kidney', og: 'kidney', px: 1.4, inkA: 0.95, layer: 'kidney', ao: true }, bowel: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' }, colon: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' },
 };
@@ -55,7 +58,7 @@ const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2
 
 /** 2D's drawing order (back to front), the gut last: the gut is depth-tested behind the organs already drawn, which is 2D's #gutHide (the gut cut away under the
  *  liver, stomach, spleen and kidney), and lies on bare page elsewhere. */
-export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'bowel', 'colon'];
+export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'caudate', 'bowel', 'colon'];
 
 /** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient.
  *  The fill is blended at the layer's opacity, so organs show through each other; it writes depth, and each organ's outline is drawn right after it, so the
@@ -159,6 +162,10 @@ export class OrganLayer {
   private readonly seats = new Map<string, ShaderMaterial>();
   /** 2D's art on the organs (the bowel's loops, the colon's haustra, the stomach's rugae) and the esophagus's fade: organ-art.ts */
   private readonly art = new OrganArt();
+  /** The caudate lobe (caudate.ts): how far it is shown (a slide about it asks; it eases in and out, 0 to 1) and how far it has grown (its veins carry the liver's outflow, 0 to 1). */
+  private readonly lobeShown = new Eased(0, 0.3);
+  private readonly lobeGrown = new Eased(0, 0.5);
+  private lobeGoal = 0; private lobeGrowGoal = 0; private bodyFade = 1;
   private liverShape: LiverShape | null = null;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
@@ -177,6 +184,7 @@ export class OrganLayer {
   build(meshes: Record<string, () => BufferGeometry> = ORGAN_MESHES): void {
     if (this.built) return;
     this.built = true;
+    if (meshes === ORGAN_MESHES) meshes = { ...meshes, caudate: caudateGeometry };   // (the lobe is built from 2D's outline, not shipped in the organs file)
     // every organ's geometry first: the baked depth term (organ-depth.ts) needs them all together (where one organ meets another)
     const made: [string, BufferGeometry][] = [];
     for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; each organ at its own depth: z.ts, x and y untouched by it)
@@ -218,6 +226,7 @@ export class OrganLayer {
       }
     }
     this.dirtyColours = true; this.instant = true; this.shrinkWas = NaN;
+    this.applyLobe();
   }
 
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
@@ -272,6 +281,7 @@ export class OrganLayer {
       moving = this.ghost.to(t.splenicRx === 2 ? SPLENIC_GHOST : 1, dt, inst) || moving;
       moving = this.infarct.to(t.splenicRx === 1 ? 1 : 0, dt, inst) || moving;
     }
+    moving = this.stepLobe(dt, inst) || moving;
     moving = this.dimmed.to(this.grey ? LENS_GREY.dim : 1, dt, inst) || moving;
     moving = this.figureDimE.to(this.figureDimGoal, dt, inst) || moving;
     moving = this.sat.to(this.grey ? LENS_GREY.sat : 1, dt, inst) || moving;
@@ -279,6 +289,33 @@ export class OrganLayer {
     if (t.bleed.active) moving = this.pool.to(poolFill(t.bleed.total), dt, inst) || moving;
     if (moving || this.dirtyColours) { this.paint(); this.dirtyColours = false; }
     return moving || eased;
+  }
+
+  /** The caudate lobe on a slide about it (2D stage.js caud.show): `on` shows it, eased. `grown` (0..1, from its veins' flow: network.ts feederLive 'caudate') sets how far it has enlarged about its anchor (CAUDATE.grow). */
+  setCaudate(on: boolean, grown: number, instant = false): void {
+    this.lobeGoal = on ? 1 : 0; this.lobeGrowGoal = Math.min(1, Math.max(0, grown));
+    if (instant) { this.lobeShown.value = this.lobeGoal; this.lobeGrown.value = this.lobeGrowGoal; this.applyLobe(); }
+  }
+  /** The body's dissolve (the dive, the Circuit's change) for every organ: the lobe wears it with its own share. */
+  setFade(f: number): void { this.bodyFade = f; for (const o of this.objects) if (o !== this.byId.get('caudate')) o.setFade(f); this.applyLobe(); }
+  get caudateShown(): number { return this.lobeShown.value; }
+  private stepLobe(dt: number, inst: boolean): boolean {
+    const a = this.lobeShown.to(this.lobeGoal, dt, inst), b = this.lobeGrown.to(this.lobeGrowGoal, dt, inst);
+    this.applyLobe();
+    return a || b;
+  }
+  private lobeKey = '';
+  private applyLobe(): void {
+    const o = this.byId.get('caudate');
+    if (!o) return;
+    const f = this.lobeShown.value * this.bodyFade, k = `${f}|${this.lobeGrown.value}`;
+    o.group.visible = f > 0.001;   // (every call: the scene's change of view shows every organ's group, the lobe's share is its own)
+    if (k === this.lobeKey) return;
+    this.lobeKey = k;
+    o.setFade(f);
+    // 2D's scale(1 + grow * k) about CAUDATE.anchor: x and y only, the dome keeps its height
+    const [sx, sy] = caudateScale(this.lobeGrown.value), [ax, ay] = caudateAnchor3();
+    o.group.scale.set(sx, sy, 1); o.group.position.set(ax * (1 - sx), ay * (1 - sy), 0);
   }
 
   private liverBake: LiverBake | null = null;
