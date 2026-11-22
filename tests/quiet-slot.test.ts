@@ -192,5 +192,5 @@ test('the preload ladder runs its rungs on the shared slot (quietSlot), one per 
   const { readFileSync } = await import('node:fs');
   const w = readFileSync('src/boot/warm.ts', 'utf8');
   assert.match(w, /slot: Slot = quietSlot/);
-  assert.match(w, /quietSlot: Slot = \(go\) => \{[^\n]*whenQuietOnce\(go, \{ tag: 'ladder'/);   // (it waits for the cover first, then takes the slot)
+  assert.match(w, /quietSlot: Slot = [^\n]*whenQuietOnce\(go, \{ tag: 'ladder'/, 'the slot is the shared one (after the cover has lifted: boot-splash.test.ts)');
 });
