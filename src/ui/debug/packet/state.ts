@@ -9,11 +9,15 @@ const LOOK_IDS = ['light', 'soft', 'dark', 'navy', 'black'];
 const LABELS = ['key', 'all', 'none'];
 const VIEWS = ['anatomic', 'lobule', 'sinusoid'];
 const ID = /^[\w-]{1,40}$/;
+/** The sheets a link may open: the tools that read the figure and nothing that takes typing or a decision (N4) */
+export const SHARE_SHEETS = ['compare', 'layers', 'blood', 'lens'];
 const FIGURE_FLAGS = ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile'];
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 
 export interface Cam { orbit: number; k: number; x: number; y: number }
 export interface Extras {
+  /** the tool open on the screen (one of SHARE_SHEETS) */
+  sheet?: string;
   look?: string; lens?: string; view?: string; labels?: string; figure?: Record<string, boolean>; running?: boolean; speed?: number; vw?: number; vh?: number; dpr?: number;
   /** the figure's turn (degrees), zoom and pan (the 2D share link's `cam`, with the turn the 3D figure adds) */
   cam?: Cam;
@@ -78,6 +82,7 @@ export function cleanExtras(x: unknown): Extras {
   if (typeof x.view === 'string' && VIEWS.includes(x.view)) o.view = x.view;
   if (typeof x.labels === 'string' && LABELS.includes(x.labels)) o.labels = x.labels;
   if (isObj(x.figure)) { const f: Record<string, boolean> = {}; for (const k of FIGURE_FLAGS) if (typeof x.figure[k] === 'boolean') f[k] = x.figure[k] as boolean; if (Object.keys(f).length) o.figure = f; }
+  if (typeof x.sheet === 'string' && SHARE_SHEETS.includes(x.sheet)) o.sheet = x.sheet;
   if (typeof x.running === 'boolean') o.running = x.running;
   if (typeof x.speed === 'number' && Number.isFinite(x.speed) && x.speed >= 0 && x.speed <= 1000) o.speed = x.speed;
   for (const k of ['vw', 'vh'] as const) { const v = x[k]; if (typeof v === 'number' && Number.isFinite(v) && v >= 200 && v <= 5000) o[k] = Math.round(v); }
