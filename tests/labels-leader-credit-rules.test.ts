@@ -3,10 +3,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { solve, type Item } from '../src/scene/labels/solver.ts';
+import { solve, LEADER_AIR, type Item } from '../src/scene/labels/solver.ts';
 import { creditClaim, CREDIT_PAD } from '../src/scene/labels/credit-claim.ts';
-import { crosses, segsCross, type Box } from '../src/scene/labels/geometry.ts';
-import { hits } from '../src/scene/labels/geometry.ts';
+import { crosses, grow, hits, segsCross, type Box } from '../src/scene/labels/geometry.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const view: Box = { x0: 0, y0: 0, x1: 600, y1: 500 };
@@ -66,4 +65,41 @@ test('the credit writes its claim and every caption layer reads it as a blocker'
   assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /creditClaim\.subscribe/, 'and places again when the credit moves');
   assert.match(src('src/scene/labels/LabelLayer.tsx'), /scopeClaims\.boxes, \.\.\.creditClaim\.boxes/, 'the Anatomy');
   assert.match(src('src/scene/lobule/LobuleCaptions.tsx'), /creditClaim\.boxes/, 'the Lobule');
+});
+
+// ── a name keeps off a tube's drawn edge, and a leader keeps out of the gap between tubes (Circuit, iPhone, 22 Nov: "MHV" stood in the gap between two tubes with its halo over both, a box on the pale tube;
+// the hepatic artery's leader ran down the narrow gap through the sinusoid bundle) ──
+
+test('a name that must stand clear of the lines keeps off the tubes as drawn, not only off their middles', () => {
+  // two vertical tubes 8 px wide each side, 60 px apart; the dot above them, its first spot between them
+  const tube = (x: number): [number, number, number, number, number] => [x, 100, x, 290, 8];
+  const lines = [tube(270), tube(330)];
+  const bare = lines.map((l) => [l[0], l[1], l[2], l[3]] as [number, number, number, number]);
+  const item: Item = { id: 'MHV', ax: 300, ay: 300, au: 0.5, forms: [{ text: 'MHV', w: 44, h: 20 }], pri: 1, dirs: ['N'] as never, vw: 3, clearLines: true };
+  const box = (r: ReturnType<typeof solve>): Box => ({ x0: 300 + r.placed[0]!.dx, y0: 300 + r.placed[0]!.dy, x1: 300 + r.placed[0]!.dx + r.placed[0]!.w, y1: 300 + r.placed[0]!.dy + r.placed[0]!.h });
+  const old = solve({ items: [item], view, blockers: [], lines: bare });
+  assert.ok(crosses(270, 100, 270, 290, grow(box(old), 8)) || crosses(330, 100, 330, 290, grow(box(old), 8)), 'a hairline line leaves it in the gap, on the tubes\' edges');
+  const now = solve({ items: [item], view, blockers: [], lines });
+  assert.equal(now.placed.length, 1);
+  for (const l of lines) assert.ok(!crosses(l[0], l[1], l[2], l[3], grow(box(now), l[4]!)), 'the name lies on a tube as drawn');
+});
+
+test('a leader keeps LEADER_AIR from a tube\'s edge: it never runs down a gap too narrow for it, a must name\'s last resort aside', () => {
+  const tube = (x: number): [number, number, number, number, number] => [x, 100, x, 290, 4];
+  const lines = [tube(290), tube(310)];   // 20 px apart, 4 px half width: 6 px of clear air each side of the middle
+  assert.ok(10 - 4 < LEADER_AIR);
+  const bare = lines.map((l) => [l[0], l[1], l[2], l[3]] as [number, number, number, number]);
+  const it = (extra: Partial<Item> = {}): Item => ({ id: 'HA', ax: 300, ay: 300, au: 0.5, forms: [{ text: 'HA', w: 40, h: 20 }], pri: 1, dirs: ['N'] as never, minLead: 60, vw: 3, ...extra });
+  assert.equal(solve({ items: [it()], view, blockers: pocket, lines: bare, leaderLineCost: 10 }).placed.length, 1, 'a hairline gap is no crossing: the old rule let it down the middle');
+  const careful = solve({ items: [it()], view, blockers: pocket, lines, leaderLineCost: 10 });
+  assert.equal(careful.placed.length, 0, 'with the tubes\' width the gap is no route');
+  assert.equal(solve({ items: [it({ must: true })], view, blockers: pocket, lines, leaderLineCost: 10 }).placed.length, 1, 'a must name is never left off for it');
+  // a leader leaving the tube its dot stands on is not counted against it
+  const own = solve({ items: [it({ dirs: ['E'] as never, minLead: 30 })], view, blockers: [], lines: [[300, 200, 300, 400, 4]], leaderLineCost: 10 });
+  assert.equal(own.placed.length, 1);
+});
+
+test('the Circuit hands the solver every line with its drawn half width', () => {
+  assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /lines\.push\(\[px, py, tmp\.x, tmp\.y, hw\]\)/);
+  assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /grow\(box, o\.w\)/, 'and a lane caption clears the same width');
 });
