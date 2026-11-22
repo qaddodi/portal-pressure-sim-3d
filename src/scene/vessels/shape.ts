@@ -16,6 +16,7 @@ import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from '
 import { fadeOf } from './fades.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED } from './divide.ts';
+import { fanEnd, leaveAsBundle } from './strand-fan.ts';
 import { clearAt, clearances, type ClearProfile } from './clearance.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
@@ -42,7 +43,7 @@ export const VARIX_THICK = 1.22;
 export const BANDED_CORD = 0.28;
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
-import { type Buried, type Course, tubularFor } from './tubes.ts';
+import { type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
 export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
@@ -261,11 +262,30 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];
+    // a strand end that lands on a host's wall and does not leave the node as one bundle (which a junction skin welds) fans out along the host (strand-fan.ts): the strands no longer pile into one point inside it
+    if (bundle && v.id !== 'C8' && v.id !== 'C5' && strands.length > 1) fanStrandEnds(v, out);
     return s.pin && (s.pin[0] > 0 || s.pin[1] > 0) ? held(v, s, out) : out;
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
   const fan = plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
   return withFanJoints(fan);
+}
+
+/** The strands (courses 1.. of `out`) of a braid fanned at each end that lands on a host and is no bundle: the width a strand has at the host's wall sets how far apart they land. Rewrites the courses' points. */
+function fanStrandEnds(v: NetVessel, out: Course[]): void {
+  const cs = out.slice(1);
+  for (const end of [0, 1] as const) {
+    const e = out[0]!.sewn?.[end];
+    if (!e?.dir || leaveAsBundle(cs.map((c) => c.pts as Vec3[]), end, v.radius)) continue;
+    let r = 0;
+    for (const c of cs) {
+      let len = 0; for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
+      const d = Math.min(len * 0.5, e.hostR), u = end ? 1 - d / len : d / len;
+      r = Math.max(r, radiusAtU(c, u, len) * sewnAt(e, end, d));
+    }
+    const fanned = fanEnd(cs.map((c) => c.pts as Vec3[]), end, e.dir, r);
+    cs.forEach((c, i) => { c.pts = fanned[i]!; });
+  }
 }
 
 /** The share of the trunk's width each of `n` strands takes at an end that is sewn onto a host: they all land on one point, so together (not each) they make the trunk's width there (n strands of 1/sqrt(n) of it have its area); at an end that is not sewn each still meets the vessel at the trunk's full width, as before. */

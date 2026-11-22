@@ -45,7 +45,7 @@ import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-o
 import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { nbrMatesOf, cavaMateOf, neighbourAttr } from './vessels/neighbour.ts';
-import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
+import { fadeOf, opensIntoCava, cavaEndSpan, cavaJoinShare, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
 import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -598,7 +598,7 @@ export class CelScene {
     {
       const cm = cavaMateOf(def.id);
       if (cm) {
-        const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1];
+        const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cavaJoinShare(def.id), fadeOf(cm, false)?.a0 ?? 1];
         o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args);
       }
     }

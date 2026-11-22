@@ -25,7 +25,12 @@ export function opensIntoCava(id: string): boolean {
   return HEPATIC_VEINS.has(id) && !!e && IVC_NODES.has(e.to);
 }
 /** The cava's piece a vein that opens into it meets: the inferior cava below the hepatic veins' node (the renal veins' side) or above it. */
-export const cavaPieceOf = (id: string): string => (id === CAUDATE_VEIN_ID ? CAUDATE_HOST : edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
+export const cavaPieceOf = (id: string): string => (id === CAUDATE_VEIN_ID ? CAUDATE_HOST : edgeById.get(id)?.to === 'ILI_R' ? 'ILI_IVC_1' : edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
+/** The share along `cavaPieceOf(id)` where the vessel joins it: 0 for a piece that starts at the vessel's node (the lower cava's two pieces), else 1. */
+export const cavaJoinShare = (id: string): number => (cavaPieceOf(id) === 'IVC_IS_1' || cavaPieceOf(id) === 'ILI_IVC_1' ? 0 : 1);
+/** A collateral that fades into the cava (the retroperitoneal veins, C7: `ivcJoinSpan`) is one tube with it like a hepatic vein is (Mohammad, 22 Nov: "retroperitoneal veins aren't welded into the IVC"): it takes the cava's colour and opacity as it nears the wall and is cut at the wall,
+ *  so nothing of it lies inside the faint lumen (its strands piled into a translucent wedge there, outlines crossing). Keyed by where the vessel ENDS and what it is, never by its name. A shunt that lands on the cava has a junction skin (the skin carries the same rule). */
+export function landsOnCava(id: string): boolean { const e = edgeById.get(id); return !!e && e.kind === 'collateral' && ivcJoinSpan(id) > 0; }
 /** The superior cava's two stretches are the cava itself, not a vein that joins it: they run on into the right atrium solid, as the inferior cava does (Mohammad, 20 Nov: "a hard colour step in the IVC at the right atrium": the SVC faded to 0.3 at the atrium where the IVC meets it whole). */
 const SVC_STRETCH: ReadonlySet<string> = new Set(['SVC_RA', 'SVC_RA_1']);
 /** Its alpha at the cava's wall: the cava's own (2D's IVC_JOIN was 0.3 against its veil of 0.4; the cava here is drawn at CAVA_RECEDE, and a vessel that merges into a faded one comes to the same fade at the junction: Mohammad, 20 Nov). */

@@ -42,7 +42,7 @@ export const factorSpan = (t: readonly [number, number], sp: readonly [number, n
   return fs < 1 && fe < 1 ? Math.min(fs, fe) : fs * fe;   // (two narrowings that overlap, a funnel and a tapered end, take the narrower: the radius then rises from each end to the middle and never dips on the way)
 };
 /** A shunt's sewn end (shunt-ends.ts) as a share of the tube's radius at distance `d` from that end: narrowed inside its host (2D sideEndScale), flared in front of the wall (flareScale). */
-const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (e.flare ? (flareScale(d, e.hostR) as number) : 1));
+export const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (e.flare ? (flareScale(d, e.hostR) as number) : 1));
 /** The narrowing alone of a sewn end at distance `d`: inside its host's wall it closes toward SIDE_END_MIN (2D sideEndScale). */
 const narrowAt = (e: ShuntEnd | null | undefined, d: number): number => (e && e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1);
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
