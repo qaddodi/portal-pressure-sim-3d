@@ -95,6 +95,8 @@ const MAP_X0 = PEEL_X0;
 /** An arm's EXTENSION (its tube from the seam to the node) lies on the fillet's surface (outside the blend zone the union IS the capsule): while the fillet is whole it is not drawn, and while the fillet dissolves its radius is mix(1, EXT_INSET, share), so it stays
  *  inside the fillet by the fillet's flats' sag (the refine tolerance, 0.05 R), the ring corners' (TUBE_SAG) and a depth margin: 1 - (0.05 + TUBE_SAG + 0.02) = 0.91 at most (plan owner's review, N1). */
 export const EXT_INSET = 0.88;
+/** A branch's chevrons, dust and streaks fade out across a fillet by the dominant edge's share of the vertex's bone weight: smoothstep(MARK_FROM, MARK_TO), so only an arm's own flank carries marks and no phase of one edge is blended with another's (plan owner's review, N3). MARK_ROW_TOL: edge rows are integers, so a fragment more than this from its triangle's row is in a mixed triangle. */
+export const MARK_FROM = 0.7, MARK_TO = 0.92, MARK_ROW_TOL = 0.02;
 const NET_VS_PRELUDE = /* glsl */ `
 attribute vec4 bone;      // the four bones this vertex is bound to (indices into the bone texture, as floats)
 attribute vec4 weight;
@@ -136,6 +138,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;   // vW, vR, vU, vArcLen: the clip depth, the lumen's half width and the figure's units in a scene unit here, and the length along the course drawn now (shaders.ts vArcLen)
 varying vec4 vPackB;   // vFade, vCircShare, circStay, vHi
+varying vec2 vMarkE;   // the marks' weight in a fillet (the dominant edge's bone weight, eased: 1 in a tube) and the vertex's dominant edge row: a fragment whose edge row is not its triangle's (flat vEdge.x) is in a mixed triangle, where the phase of two edges would blend
 varying float vDraw;   // a junction region's fillet: the share of its pixels the screen dither keeps; 1 for everything else
 varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
@@ -433,6 +436,7 @@ void main() {
     if (wk > wA) { wB = wA; rowB = rowA; uB = uA; wA = wk; rowA = float(b.row); uA = b.u; }
     else if (wk > wB) { wB = wk; rowB = float(b.row); uB = b.u; }
   }
+  float markK = 1.0;   // (a fillet fades a branch's marks out across it by the dominant edge's bone weight; the projection below sets it)
   float nl = length(nAcc), tl = length(tAcc);
   vec3 nUnit = nl > 1e-6 ? nAcc / nl : vec3(0.0, 0.0, 1.0);
   vec3 nPush = nUnit;   // (the direction the ink, the ring's sag and the lift push along: a tube's is its normal; a junction vertex's is the union's gradient at the sharp width, below)
@@ -465,8 +469,9 @@ void main() {
     }
     nPush = gU / max(length(gU), 1.0e-9);
     // the normal: the union's gradient at the SHADE width, eased to the nearest arm's own radial direction where one arm is nearly all there is (exact-normal.ts: a seam ring is the tube's)
-    float wmax = 0.0;
+    float wmax = 0.0;   // (the dominant edge's share of the vertex's weight)
     for (int a = 0; a < 4; a++) { float sw = 0.0; for (int b2 = 0; b2 < 4; b2++) if (rowOf[b2] == rowOf[a] && rowOf[a] >= 0) sw += weight[b2]; wmax = max(wmax, sw); }
+    markK = smoothstep(${F(MARK_FROM)}, ${F(MARK_TO)}, wmax);
     vec3 gS;
     netUnion(pAcc, ${F(SKIN_SHADE_K)} * kU, nc, gS);
     float bestSd = 1.0e20;
@@ -494,6 +499,7 @@ void main() {
   vPackD = vec2(lumen0Acc, vSkewV);
   vPackC = vec4(uA, 0.0, uB, wB > 0.0 ? wB / (wA + wB) : 0.0);
   vEdge = vec2(rowA, wB > 0.0 ? rowB : rowA);
+  vMarkE = vec2(markK, rowA);
   vec4 c = projectionMatrix * mv;
   c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)}) * c.w;   // depth by the tier of the axis (shaders.ts TUBE_DEPTH_SHARE)
   vPackA = vec4(c.w, lumenAcc, unitAcc, arcAcc);
@@ -560,6 +566,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;
 varying vec4 vPackB;
+varying vec2 vMarkE;
 varying float vDraw;
 varying vec4 vPackC;
 varying vec2 vPackD;
@@ -691,7 +698,9 @@ void main() {
   // THE DUST (blood/dust-glsl.ts) is part of the tube: inside the lumen, following its alpha, under the chevrons
   float sD = arcS * vU;
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, lenH * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU);
-  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere);
+  // (marks in a fillet: faded by the dominant edge's weight, and none where a triangle mixes two edges: their phases must not blend)
+  float markK = vMarkE.x * (1.0 - smoothstep(0.0, ${F(MARK_ROW_TOL)}, abs(vMarkE.y - vEdge.x)));
+  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere) * markK;
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif
@@ -719,7 +728,7 @@ void main() {
   float pxArc = fwPx;
   float acrossW = fwAw;
   vec4 hd = flowHeads(across, acrossW, arcS * vU, lenH * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, 1.0, la, lb, color, base);
-  hd = clamp(hd, 0.0, 1.0);
+  hd = clamp(hd, 0.0, 1.0) * markK;
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);
 #endif
