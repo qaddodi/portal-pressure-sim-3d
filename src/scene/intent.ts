@@ -19,9 +19,13 @@ export interface FigureIntent {
   normalSpleen: boolean;
   /** the node pressures a "change since" slide counts from; null: the state the figure showed as the lens came in */
   sinceRef: ArrayLike<number> | null;
+  /** vessels lit whole and alone, nothing run on downstream: a slide's spotlight, or the shunt's valid targets. While any are lit the pick is hidden (the scene's `setOnly` has always replaced it) */
+  marked: readonly string[];
+  /** the vessel picked (a topology edge id): free play's tap, the keyboard walk, a link; null: none */
+  picked: string | null;
 }
 
-export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null };
+export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null };
 
 /** Lowest first: a higher layer decides a field it says anything about. */
 export const LAYER_ORDER = ['base', 'talk', 'tool'] as const;

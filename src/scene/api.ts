@@ -6,6 +6,7 @@ import { clock } from '../clock/frame.ts';
 import { CelScene } from './scene.ts';
 import { bindTests } from './devices/probes/bind-tests.ts';
 import { startReconciler } from './reconcile.ts';
+import { setLayer } from './intent.ts';
 import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
@@ -187,8 +188,6 @@ export const sceneApi = {
     hover(id: string | null): void { cel.hoverVessel(id); clock.invalidate('shunt-guide'); },
     guide(src: string | null, x: number, y: number, color: string): void { cel.setShuntGuide(src, x, y, color); clock.invalidate('shunt-guide'); },
   },
-  /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
-  markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
   /** The lobule's tapped part: a halo on it; null clears it. */
   markLobule(hit: LobuleHit | null): void { cel.markLobule(hit); clock.invalidate('lobule-mark'); },
@@ -196,7 +195,8 @@ export const sceneApi = {
   selectOrgans(ids: readonly string[]): void { cel.selectOrgans(ids); clock.invalidate('select-organ'); },
   pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },
   /** Pick a vessel by edge ID, or clear with null. */
-  pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+  /** Pick a vessel by edge ID, or clear with null: the base layer's pick (intent.ts); the reconciler lights it and updates `usePick`. */
+  pick(id: string | null): void { setLayer('base', { picked: id }); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
   flowPulse(): void { /* the 2D app has no pulse option: nothing to trigger */ clock.invalidate('flow-pulse'); },
   /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
@@ -232,4 +232,10 @@ export const sceneApi = {
 };
 
 /** The figure's intent (intent.ts) is turned into calls on the scene here, and nowhere else (R5). Starting it builds nothing: the scene is built by the first call it makes. */
-export const stopReconciler = startReconciler(sceneApi);
+export const stopReconciler = startReconciler({
+  setNamedVessels: (ids) => sceneApi.setNamedVessels(ids),
+  pinOrgans: (ids, normalSpleen) => sceneApi.pinOrgans(ids, normalSpleen),
+  setSinceRef: (P) => sceneApi.setSinceRef(P),
+  markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
+  pick: (id) => { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
+});
