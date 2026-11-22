@@ -1,7 +1,7 @@
 // The one live state of the Readouts tiles, kept for the page's life (2D builds the pane once and keeps it): the shown state (display-state.js, copied) stepped on the one clock, and the ReadoutsLive that
 // works the tiles' numbers, bands and bars out from it. The pane binds to it while it is on screen: a model frame feeds it (engine `onFrame`, every frame), a glide steps it on the clock's tween phase.
 import { clock, type TimerId } from '../../../clock/frame.ts';
-import { latest, onFrame, patient, useEngine } from '../../../engine/index.ts';
+import { latest, onFrame, shownParams, useEngine } from '../../../engine/index.ts';
 import { createShownState, noteJump } from './copied/display-state.copied.js';
 import { ReadoutsLive } from './live.ts';
 import { reduceMotionMQ } from '../copied/motion.copied.js';
@@ -33,7 +33,7 @@ export function liveReadouts(): ReadoutsLive {
   return (live = l);
 }
 
-const ctxNow = () => ({ running: useShell.getState().transport.running, hidden: hiddenNow(), then: (useCompare.getState().snap?.metrics ?? null) as never, params: patient.params, now: clock.now() });
+const ctxNow = () => ({ running: useShell.getState().transport.running, hidden: hiddenNow(), then: (useCompare.getState().snap?.metrics ?? null) as never, params: shownParams(), now: clock.now() });
 
 /** The pane is on screen: feed the tiles every model frame, and again when what they depend on changes with no frame to say so. Returns the unbind. */
 export function bindReadouts(): () => void {

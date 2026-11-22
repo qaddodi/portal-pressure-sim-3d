@@ -71,7 +71,7 @@ import { addOrganHalos, programPrototypes } from './materials/prototypes.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
-import { latest, live, patient } from '../engine/store.ts';
+import { latest, live, patient, shownParams } from '../engine/store.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
@@ -522,7 +522,7 @@ export class CelScene {
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
-    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide });
+    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide });
     this.sutures.sync(this.skins);   // (made with the skins, so the warm-up builds the program with the rest)
     this.shapes?.setPins(this.skins.pins());   // (the seams stand still while the collaterals coil: no skin is rebuilt for a growth)
     this.circuitSkins ??= new CircuitSkinSet({
@@ -721,9 +721,9 @@ export class CelScene {
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
     if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
-    this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
+    this.procs.syncStents(f, shownParams(), f ? !this.sawFrame : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
-    this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
+    this.procs.syncTamponade(shownParams() as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
     // A new patient's numbers that arrive while the camera is in flight (the slide's zoom into the lobule or the sinusoid) are laid at once: the views are dissolved or far then, and an ease
@@ -735,7 +735,7 @@ export class CelScene {
 
   /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
   private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
-    this.disease.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
+    this.disease.feed(f as never, (shownParams() ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
       instant: first,   // (a new patient eases: the organs, the disease and the collaterals glide from the old patient to the new, never swap; only the very first frame is at once)
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
@@ -761,7 +761,7 @@ export class CelScene {
 
   /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
   private syncStumps(): void {
-    const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;
+    const side = !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide;
     for (const [shunt, vein] of DIVIDED) {
       const o = this.byEdge.get(vein) as VesselObject | undefined;
       if (!o) continue;
@@ -1043,9 +1043,9 @@ export class CelScene {
   private syncCircuitData(f: typeof latest.frame): void {
     const healthy = patient.reference ? { P: patient.reference.P, Q: patient.reference.Q } : null;
     const next: Partial<Record<ResKey, number>> = {};
-    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, patient.params); if (r != null) next[key] = r; }
+    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, shownParams()); if (r != null) next[key] = r; }
     this.resNow = next;
-    const cs = ((patient.params as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
+    const cs = ((shownParams() as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
     const open: Record<string, number> = {};
     for (const id of Object.keys(cs)) if (cs[id]! > 0 && (!f || !hasVessel(id) || (f.D[indexOf(id)] ?? 0) > 0)) open[id] = cs[id]!;
     this.openShunts = open;
@@ -1226,13 +1226,13 @@ export class CelScene {
   private snapMicroToModel(): void {
     const f = latest.frame;
     if (!f) return;
-    const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
+    const m = lobuleModel({ P: f.P, Q: f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
     this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
   }
   private feedViews(snap: boolean): void {
     const f = latest.frame;
     if (!f) return;
-    const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
+    const m = lobuleModel({ P: f.P, Q: f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
     if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
     else if (this.figureView === 'sinusoid') {
       snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));

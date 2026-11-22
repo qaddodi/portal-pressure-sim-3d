@@ -5,7 +5,7 @@ import { useProbes, type DopplerSeg } from './state.ts';
 import { useScope } from '../../../ui/tests/endo/scope-state.ts';
 import { MEASURES } from '../../procedures/copied/proc-anim.js';
 import { EDGES, isStent, stentGate } from '../../../engine/hales/portal/topology.js';
-import { patient } from '../../../engine/index.ts';
+import { shownParams } from '../../../engine/index.ts';
 import { useDopplerProbe } from '../../../ui/tests/doppler/probe-state.ts';
 import { useUi } from '../../../ui/ui-store.ts';
 import { useTestsRoom } from '../../../ui/tests/room.ts';
@@ -25,7 +25,7 @@ export function bindTests(): () => void {
   const syncDop = (): void => {
     // (the third of a stent the gate stands at: 'site' is the stent's tightest narrowing, no gate the mid stent; 2D stentGate. A vessel that is no stent has none.)
     const d = useDopplerProbe.getState(), edge = (EDGES as { id: string }[]).find((e) => e.id === d.probe);
-    const seg: DopplerSeg = isStent(edge) ? (stentGate(d.gate, patient.params, d.probe) as DopplerSeg) : null, p = useProbes.getState().doppler;
+    const seg: DopplerSeg = isStent(edge) ? (stentGate(d.gate, shownParams(), d.probe) as DopplerSeg) : null, p = useProbes.getState().doppler;
     if (p.edge !== d.probe || p.seg !== seg) useProbes.getState().setDoppler({ edge: d.probe, seg });
   };
   // the Endoscopy pane's work: the EUS measurement sends the needle to the station its step names (a band press does nothing to the scope: no cap, no ring, no move)

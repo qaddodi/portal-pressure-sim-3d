@@ -78,3 +78,89 @@ test('G4: the shell Figure has no write-only key, and none of its keys is a twin
   const others = sources().filter((f) => f !== 'src/ui/shell/store.ts').map((f) => readFileSync(f, 'utf8'));
   for (const k of figure) assert.ok(others.some((s) => new RegExp(`figure\\.${k}\\b|figure\\)\\.${k}\\b|\\b${k}: f\\.${k}|f\\.${k}\\b`).test(s) || (['zones', 'lymph', 'bile'].includes(k) && s.includes('LAYER_SWITCHES'))), `Figure.${k} has no reader outside its own store`);
 });
+
+// ---- Push 2 (W1 the shown moment, W6 the transport mirror, W5 a stale frame) ----
+import { holdFrame, latest, live, shownParams, viewingHeld, onLeaveHeld, resetParamsRev } from '../src/engine/store.ts';
+import { askSpeed, mirrorTransport, togglePlay } from '../src/ui/shell/transport.ts';
+import { useShell } from '../src/ui/shell/store.ts';
+
+test('G8: with a held frame, the figure and the Tests panes read the held parameters; the edit paths keep the patient\'s (W1)', () => {
+  const now = { ...(defaultParams() as P), cirrhosis: 0.2, tips: { on: true, d: 8 } }, then = { ...(defaultParams() as P), cirrhosis: 0.9 };
+  setParams(now);
+  assert.equal(shownParams(), patient.params);
+  const t = tick();
+  holdFrame(frame() as never, then);
+  assert.equal(shownParams(), then, 'the shown moment is Then');
+  assert.equal(patient.params, now, 'the patient is still Now');
+  assert.ok(viewingHeld());
+  assert.ok(tick() > t, 'a card that reads the shown parameters reads them again');
+  holdFrame(frame() as never);   // (Force-all: a frame forged from the live model has no parameters of its own)
+  assert.equal(shownParams(), patient.params);
+  assert.ok(!viewingHeld());
+  holdFrame(null);
+});
+
+test('W1: an edit while Then is shown returns to Now first, then applies to the live patient', () => {
+  const now = { ...(defaultParams() as P), cirrhosis: 0.2 };
+  setParams(now);
+  let left = 0;
+  onLeaveHeld(() => { left++; holdFrame(null); });
+  holdFrame(frame() as never, { ...(defaultParams() as P), cirrhosis: 0.9 });
+  sendParams({ splenicRx: 1 });
+  assert.equal(left, 1, 'Compare was told to go back to Now');
+  assert.ok(!viewingHeld());
+  assert.equal((patient.params as P).cirrhosis, 0.2, 'the edit is on the live patient, not on Then');
+  assert.equal((patient.params as P).splenicRx, 1);
+  sendParams({ splenicRx: 2 });
+  assert.equal(left, 1, 'nothing held: nothing to leave');
+  onLeaveHeld(null);
+});
+
+test('G7: the speed pill follows the frame after a rupture, a lapse end and a morph; a speed just asked for is not undone by a frame in flight (W6)', () => {
+  const tr = () => useShell.getState().transport;
+  const f = (o: object) => ({ t: 1, day: 0, running: true, speed: 1, clock: 'hemo' as const, ...o });
+  mirrorTransport(f({ speed: 30, clock: 'disease' }));
+  assert.equal(tr().lapse, 30, 'a lapse at 30 d/s');
+  mirrorTransport(f({ speed: 1, clock: 'hemo' }));
+  assert.deepEqual([tr().speed, tr().lapse], [1, 0], 'the lapse ended (or a rupture, or a morph): the worker put the clock back to 1x');
+  mirrorTransport(f({ speed: 2, clock: 'hemo' }));
+  assert.equal(tr().speed, 2);
+  // the learner asks for 4x: the pill says 4x at once, and a frame posted before the worker saw it (still 2x) does not take it back
+  setParams(defaultParams());
+  askSpeed(4, false);
+  assert.equal(tr().speed, 4);
+  mirrorTransport(f({ speed: 2, clock: 'hemo' }));
+  assert.equal(tr().speed, 4, 'a frame in flight');
+  mirrorTransport(f({ speed: 4, clock: 'hemo' }));
+  assert.equal(tr().speed, 4, 'the worker agrees');
+  mirrorTransport(f({ speed: 1, clock: 'hemo' }));
+  assert.equal(tr().speed, 1, 'and from then the frame is the truth again');
+});
+
+test('W6: togglePlay reads the live model, not the shown (pinned or forged) frame', () => {
+  const sent: unknown[] = [];
+  live.frame = { ...(frame() as object), running: false } as never;
+  holdFrame({ ...(frame() as object), running: true } as never, defaultParams());
+  assert.equal(latest.frame?.running, true);
+  const src = readFileSync('src/ui/shell/transport.ts', 'utf8');
+  assert.match(src, /live\.frame\?\.running/);
+  assert.doesNotMatch(src, /latest\.frame/);
+  void togglePlay; void sent;
+  holdFrame(null);
+});
+
+test('W5: a frame stamped with fewer setParams than the page has sent never overwrites the page\'s copy, even during a bedside lapse; the next frame is taken', () => {
+  resetParamsRev();
+  setParams({ ...(defaultParams() as P), cirrhosis: 0.5 });
+  const stamped = (rev: number, cirrhosis: number) => ({ ...(frame({ ...(defaultParams() as P), cirrhosis }) as object), paramsRev: rev }) as never;
+  adoptFrame(stamped(0, 0.5));
+  sendParams({ cirrhosis: 0.1 });   // the slider: the page has sent 1
+  adoptFrame(stamped(0, 0.5));      // a frame posted just before the host saw it
+  assert.equal((patient.params as P).cirrhosis, 0.1, 'the old value did not come back');
+  for (let i = 0; i < 5; i++) adoptFrame(stamped(0, 0.5 + i / 100));   // (a lapse posts params every tick)
+  assert.equal((patient.params as P).cirrhosis, 0.1, 'every stale tick of a lapse is dropped');
+  adoptFrame(stamped(1, 0.12));     // the host has taken it: its frames are the truth again (a ramp may move the value)
+  assert.equal((patient.params as P).cirrhosis, 0.12);
+  adoptFrame(({ ...(frame({ ...(defaultParams() as P), cirrhosis: 0.3 }) as object) }) as never);   // (a host that stamps nothing is never stale)
+  assert.equal((patient.params as P).cirrhosis, 0.3);
+});

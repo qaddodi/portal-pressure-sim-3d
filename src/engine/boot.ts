@@ -1,7 +1,7 @@
 // Starts the engine for the app: the worker, the first patient, the clock hand-over.
 import { EngineClient, type WorkerLike } from './client.ts';
 import { sanitizeParams } from './hales/portal/scenario.js';
-import { adoptFrame, patient, setParams, useEngine } from './store.ts';
+import { adoptFrame, patient, resetParamsRev, setParams, useEngine } from './store.ts';
 import { clock } from '../clock/frame.ts';
 import { enginePool } from './pool.ts';
 import type { FromWorker } from './hales/host/protocol.d.ts';
@@ -29,6 +29,7 @@ export async function bootEngine(worker?: WorkerLike, preset = START_PRESET, wai
   });
   const mine = client;
   const late = clock.afterReal(() => mine.crash('The simulation did not answer. Check the connection, then reload.'), waitMs);
+  resetParamsRev();   // (a new host counts its setParams from 0)
   client.send({ type: 'init' });
   const [loadedPreset, healthy] = await Promise.all([
     client.request<Extract<FromWorker, { type: 'presetLoaded' }>>({ type: 'preset', id: preset }),

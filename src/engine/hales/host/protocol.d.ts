@@ -65,6 +65,8 @@ export interface EngineFrame {
   metrics: Metrics;
   events: unknown[];
   params?: unknown;
+  /** how many `setParams` messages the host had taken when this frame was made: a page that has sent more drops this frame's `params` as older than its own copy */
+  paramsRev: number;
 }
 
 /** What the host posts back. */

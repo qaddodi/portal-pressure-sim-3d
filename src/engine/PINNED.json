@@ -2,16 +2,16 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "24941b10e15ee8f05a4c1442f2ec347777e29d44"
+    "commit": "4671d259fcb50365f4205ae1d6543839823674bd"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
     "hales/core/gap.js": "3aabfbb29bc150a8a87d8fe1dfce6c9cc1458a9f5ddf8b1073daa90c0f14bc2a",
     "hales/core/linalg.js": "4f20e14f7cd672004733371223debe801bfc81243c76226dae7b5d81556c86ba",
     "hales/core/physiology.js": "6b0ff3aa7550ade04f13177babfebee7ca81acc2da1406c84e556ba9b7a5286f",
-    "hales/host/protocol.d.ts": "c63374cd5bf9562547ef55a44221a665c1263dcee9626b00c90c048b1e622cf8",
+    "hales/host/protocol.d.ts": "0dfa9568b6519f4cd4a1028d37018d200034fa926c61e43ee1eac352a1e0f30f",
     "hales/host/worker-core.d.ts": "e4be08c47a7708663807a3a3dae456856275c2fff3a314452089e5a762e35c8f",
-    "hales/host/worker-core.js": "ac4a5d442be03de8bab1976d09ce9de2e17e33fabf5707f49f6b8b19f577d046",
+    "hales/host/worker-core.js": "7f160e8cd06a11a3ae9a0b273c243d8c47befd2022f47b0ee151b4dfedb00b19",
     "hales/portal/ascites-cuts.js": "2c6d4c43ba48e1ccfdb98891bab2bbeff647b9e4cf8ff01996b82f458e0f9d4e",
     "hales/portal/bedside-mean.js": "cb58c2dca1688dc952e885df98d3b6347e44e401c4dbf31a3e804e90b6a3163e",
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",

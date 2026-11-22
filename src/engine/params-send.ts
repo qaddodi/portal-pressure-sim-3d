@@ -5,7 +5,7 @@
 // tests/lint-rules.test.ts (rule raw-setparams) fails any other place that builds a `type: 'setParams'` message.
 import { deepMerge, sanitizeParams } from './hales/portal/scenario.js';
 import { engine } from './boot.ts';
-import { patient, setParams } from './store.ts';
+import { endHeldView, nextParamsRev, patient, setParams } from './store.ts';
 
 export interface SendOpts { settle?: boolean; ease?: number; replace?: boolean }
 
@@ -17,10 +17,12 @@ export function mergedParams(change: unknown): unknown {
 
 /** Change the patient's parameters: the page's copy first (so the next frame's figure sees it), then the worker. Returns the parameters now in force. */
 export function sendParams(change: unknown, opts: SendOpts = {}): unknown {
+  endHeldView();   // (Then is for viewing only: an edit goes back to Now first, then applies to the live patient)
   const raw = opts.replace ? change : mergedParams(change);
   if (raw == null) return null;
   const next = sanitizeParams(raw);   // the worker sanitizes what it is sent; the figure reads this copy, so it must hold the same clamped set (audit W4)
   setParams(next);
+  nextParamsRev();   // (counted whether or not the host is up: a frame stamped with fewer is older than this copy)
   const msg: { type: 'setParams'; params: unknown; settle: boolean; ease?: number } = { type: 'setParams', params: next, settle: opts.settle ?? false };
   if (opts.ease != null) msg.ease = opts.ease;
   try { engine().send(msg as Parameters<ReturnType<typeof engine>['send']>[0]); } catch { /* the engine is not up (a test): the local copy is the change */ }

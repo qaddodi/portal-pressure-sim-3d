@@ -3,7 +3,7 @@
 // The sweep is one piece of work with a life: WAITING (the change has to stop for SETTLE_MS), LOADING (the live snapshot and fingerprint are asked for), then the card works out its points; a finished sweep
 // is kept by the card, and only a changed patient, setting, stent or day makes another. After a TIPS nothing here says HVPG.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { engine, latest, patient, useEngine } from '../../../engine/index.ts';
+import { engine, latest, patient, shownParams, useEngine } from '../../../engine/index.ts';
 import { BENCH_DP } from '../../../engine/hales/portal/stent-geom.js';
 import { CurveCard } from '../../charts/curve/CurveCard.tsx';
 import type { RunFn, SlideState, State } from '../../charts/curve/data.ts';
@@ -25,7 +25,7 @@ export function CurvesView({ which, h: h0 }: { which: StentId; h: number }) {
   const k = which === 'DIPS' ? 'dips' : 'tips';
   // the stent's own numbers move every beat: only the ring's reading (tenths of a mL a minute) and the key of the sweep are watched
   useEngine((s) => { void s.frames; const m = latest.frame?.metrics as Any; const st = m?.[k]; return `${sweepKey(which, sweep, latest.frame)}|${Math.round((st?.flow ?? 0) * 1000)}|${Math.round((st?.bench ?? 0) * 1000)}`; });
-  const f = latest.frame, st = (f?.metrics as Any)?.[k] as Any, params = patient.params as Any;
+  const f = latest.frame, st = (f?.metrics as Any)?.[k] as Any, params = shownParams() as Any;
   const key = sweepKey(which, sweep, f), pid = paramsId(params);
   const matters = sweepMatters(sweep, st) as boolean;
 

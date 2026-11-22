@@ -8,7 +8,7 @@ import './labels.css';
 import { clock } from '../../clock/frame.ts';
 import { whenQuiet } from '../../clock/idle.ts';
 import { solverWarmer } from './solver-warm.ts';
-import { latest, patient, indexOf } from '../../engine/index.ts';
+import { latest, patient, shownParams, indexOf } from '../../engine/index.ts';
 import { flowReversed } from '../lenses/vel-normal.copied.js';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import { useLookId } from '../../looks/use-look.ts';
@@ -62,7 +62,7 @@ const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[] | 
 
 /** The stations either side of a narrowed vessel (2D `flagged`: the findings name them). */
 function stenosedNodes(): string[] {
-  const sten = (patient.params as { stenosis?: Record<string, number> } | null)?.stenosis;
+  const sten = (shownParams() as { stenosis?: Record<string, number> } | null)?.stenosis;
   const out: string[] = [];
   if (!sten) return out;
   for (const id of Object.keys(sten)) {
@@ -170,7 +170,7 @@ export function LabelLayer() {
         const ref = patient.reference;
         return readings.read(node, P, {
           f: f as never, healthy: ref ? { Q: ref.Q } : null, refP: cel.lens.sinceReference, lens, cmp: !!cmp.snap, presenting: flags.presenting, selected: flags.selected, lit: flags.lit,
-          veinShown: (edge) => { const v = NETWORK_BY_ID.get(edge); return !!v && v.tone !== 'artery' && deps.drawn!(v as never); }, params: patient.params,
+          veinShown: (edge) => { const v = NETWORK_BY_ID.get(edge); return !!v && v.tone !== 'artery' && deps.drawn!(v as never); }, params: shownParams(),
         });
       },
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit || cel.diving,   // (the station names and their values stand only where the body is settled: not over a dive, going in or coming back; the small views have their own captions)

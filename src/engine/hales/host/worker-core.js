@@ -148,6 +148,9 @@ export function createCore(post) {
   let visible = true;
   let frameDirty = true;
   let paramsDirty = true;
+  // How many `setParams` messages the host has taken. Every frame carries it (`paramsRev`) beside its `params`, so a page that has sent more than a frame says it was built from knows that
+  // frame's `params` are older than its own copy and drops them (a frame posted just before the host saw a slider's message must never put the old value back).
+  let paramsRev = 0;
   let samples = null;
   // The presenter's time-lapse on the live model: days left, and the params ramped day by day (see 'lapse').
   let lapse = null;
@@ -305,6 +308,7 @@ export function createCore(post) {
       events: eng.newEvents.splice(0),
       samples: packSamples(samples),
       params: paramsDirty ? eng.paramsTarget() : undefined,
+      paramsRev,
     };
     paramsDirty = false;
     frameDirty = false; held = false;
@@ -522,6 +526,7 @@ export function createCore(post) {
       start();
     },
     setParams({ params, settle, ease }) {
+      paramsRev++;
       endHistory(false);
       morph = null;
       // UI-originated: not echoed back (avoids overwriting in-flight edits).

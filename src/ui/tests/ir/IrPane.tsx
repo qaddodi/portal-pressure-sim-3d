@@ -3,7 +3,7 @@
 // the HVPG tracing's place while it plays and for six seconds after. TIPS: the stent's own test ("Test TIPS in IR" on a stent card opens it): TipsView.tsx (the stent to scale with its chart, the numbers, the editor, Tube vs patient, Compare). The measurements run on `run.ts`; the moment's words are `side.ts`.
 import { useEffect } from 'react';
 import './ir.css';
-import { latest, patient, useEngine } from '../../../engine/index.ts';
+import { latest, shownParams, useEngine } from '../../../engine/index.ts';
 import { registerFeature } from '../../shell/features.ts';
 import { useShell } from '../../shell/store.ts';
 import { Icon } from '../../shell/icons.tsx';
@@ -35,7 +35,7 @@ function Measure({ h }: { h: number }) {
   useParamsTick((s) => s.tick);
   const mode = useTalkOn() ? 'deck' : 'free', measured = useMeasured((s) => s.hvpgMeasured);
   const ph = phase(), running = hvpgRunning(), other = useBlocker('ir'), isBusy = busy() || !!other;
-  const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(patient.params), v: values(), hasFrame: !!latest.frame });
+  const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(shownParams()), v: values(), hasFrame: !!latest.frame });
   const ppg = ppgShown(), watch = watchButtons();
   const caption = procSay() || ppgCaption() || side.caption;
   return (

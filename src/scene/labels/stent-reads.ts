@@ -5,7 +5,7 @@ import { stentOpen } from '../../engine/hales/portal/stent-ease.js';
 import { stentFacts } from '../procedures/copied/stent-waist.js';
 import { dopplerVel, judgeFlow, velNormal, velPos } from '../lenses/vel-normal.copied.js';
 import { samplerFor } from '../lenses/model.ts';
-import { latest, patient } from '../../engine/index.ts';
+import { latest, patient, shownParams } from '../../engine/index.ts';
 import { useProbes } from '../devices/probes/state.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { GeoFacts, PointRead, StentId, StentPoint, StentView } from './stent-labels.ts';
@@ -63,7 +63,7 @@ export function stentReads(look: () => LookId, now: () => number = () => clock.n
     sampled: (sid) => (dopOn(sid) ? probes().doppler.seg : null),
     facts(sid): GeoFacts | null {
       const e = (EDGES as Edge[]).find((x) => x.id === sid);
-      const g = e ? stentFacts(e, patient.params) : null;
+      const g = e ? stentFacts(e, shownParams()) : null;
       return g ? { d: g.d, waist: g.waist, wLen: g.wLen, sten: g.sten, end: g.end } : null;
     },
     read(sid, pt): PointRead | null {
@@ -71,7 +71,7 @@ export function stentReads(look: () => LookId, now: () => number = () => clock.n
       if (!f || k === undefined) return null;
       const t = now();
       const open = beats.mean('v:' + sid, Math.abs(dopplerVel(f, k) as number), t);
-      const vel = pointVelocity(patient.params, sid, pt, open);
+      const vel = pointVelocity(shownParams(), sid, pt, open);
       // (an occluded stent reads "No flow", as the Doppler's strip does: under 2 cm/s a stent is occluded)
       const none = (judgeFlow(vel, null, null, { stent: true }) as { none: boolean }).none;
       const nv = velNormal(k, f, patient.reference) as readonly number[] | null;
