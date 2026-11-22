@@ -14,7 +14,7 @@ const axisZ = (v: (typeof net)[number]): number => Math.max(...v.pts.map((p) => 
 const named = (re: RegExp) => net.filter((v) => re.test(String(v.label)));
 
 test('the vertex shader moves a tube\'s depth to its axis\'s plus a share of the bulge, along the pixel\'s own ray', () => {
-  assert.match(VESSEL_VS, /c\.z = mix\(cc\.z \/ cc\.w, c\.z \/ c\.w, [0-9.]+\) \* c\.w;/);
+  assert.match(VESSEL_VS, /c\.z = mix\(cc\.z \/ cc\.w, c\.z \/ c\.w, [0-9.]+ \* \(1\.0 - circT\)\) \* c\.w;/);
   assert.ok(TUBE_DEPTH_SHARE > 0 && TUBE_DEPTH_SHARE <= 0.2, `${TUBE_DEPTH_SHARE}: under a fifth of the radius, over zero so two tubes of one tier still sort`);
   assert.ok(VESSEL_VS.indexOf('c.z = mix(') < VESSEL_VS.indexOf('gl_Position = c;'));
 });

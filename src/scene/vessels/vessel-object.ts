@@ -10,7 +10,7 @@ import type { BloodShared } from '../blood/field.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES, withCircuitAttributes } from '../circuit/geometry.ts';
-import { CASING, RIM_A, RIM_INK } from './cel-ink.ts';
+import { CASING, RIM_A, RIM_INK, SHADOW, SHADOW_DEPTH, SHADOW_DEPTH_MAP, SHADOW_PX } from './cel-ink.ts';
 import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
@@ -48,6 +48,8 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
   circW?: readonly [number, number, number, number];
   /** the Circuit rounds the vessel's start and/or end (1): the ends nothing joins */
   circCap?: readonly [number, number];
+  /** the vessel casts the crossing shadow (cel-ink.ts SHADOW): one extra draw of its own tube, the SHADOW program. The anatomy's and the map's vessels do; a liver bed's lanes and the strands do not. */
+  shadow?: boolean;
 }
 
 /** 2D stage-tubes.js widthAt at the Circuit (t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) and the boost, an artery 3 (finer shunts less), a liver bed 8 and the boost. */
@@ -105,6 +107,7 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
+        mapDepth: { value: 0 }, shadowPx: { value: SHADOW_PX }, shadowDepth: { value: SHADOW_DEPTH }, shadowDepthC: { value: SHADOW_DEPTH_MAP }, shadowA: { value: SHADOW.light.a }, shadowCol: { value: new Color() }, shadowEnd: { value: new Vector2(0, 0) },
         liveW: { value: 1 }, skinWeld: { value: new Vector3(1, 1, 1) }, skinWeldC: { value: new Vector2(1, 1) }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, stentT0: { value: 0 }, stentWire: { value: new Vector4(0.9, 0.8, 0.5, 0) }, stentGoldC: { value: new Vector4(0.7, 0.5, 0.1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
@@ -135,7 +138,23 @@ export class VesselObject extends CelObject {
     gm.frustumCulled = false; gm.visible = false; gm.name = 'highlight/glow'; gm.renderOrder = 30;
     gm.layers.set(GLOW_LAYER);   // (not the figure's passes: the glow's own mask pass draws it)
     this.group.add(gm);
+    // THE CROSSING SHADOW (cel-ink.ts SHADOW): the same geometry and uniforms once more, through the program built with SHADOW: the tube made SHADOW_PX wider than its line, laid behind its own depth, blended over what is behind it.
+    // After every opaque tube of the vessels' pass (transparent, so the sort puts it last), depth test on, no depth write; it takes the tube's fades, reveal and cuts, so it eases with the vessel it belongs to.
+    if (opts.shadow) {
+      const mat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: true, defines: { SHADOW: 1 }, uniforms: tu });
+      const sm = (this.shadowMesh = new Mesh(this.toonMesh.geometry, mat));
+      sm.frustumCulled = false; sm.name = 'crossing/shadow'; sm.renderOrder = 3;
+      sm.raycast = () => {};   // (the pick is the tube's)
+      this.group.add(sm);
+    }
   }
+
+  /** The crossing shadow's draw (null where this vessel casts none). */
+  shadowMesh: Mesh | null = null;
+  /** The fade of the shadow's band over each end that joins another vessel, in this vessel's radii (0: a free end): vessels/shadow.ts. */
+  setShadowEnds(start: number, end: number): void { (this.toon.uniforms.shadowEnd!.value as Vector2).set(start, end); }
+  /** How far toward the viewer this vessel's line stands on the Circuit's plate (circuit/map-depth.ts). */
+  setMapDepth(z: number): void { this.toon.uniforms.mapDepth!.value = z; }
 
   /** Colours for a look. An artery wears the look's artery red; a vein its portal or systemic tone; a lens covers veins on top of it. The scene
    *  calls this through CelObject.applyPalette, with the look's palette. */
@@ -153,6 +172,7 @@ export class VesselObject extends CelObject {
     const rim = rawColor(RIM_INK);
     (u.rimInk!.value as Vector4).set(rim.r, rim.g, rim.b, RIM_A[look] * CEL_STYLE.TUBE.RIM_SHARE);   // (no pale inner rim: the ink is a vessel's only edge)
     rawColor(LENS_TOKENS[look].flowReversed, u.markRev!.value as Color);
+    { const [r, g, b] = SHADOW[look].rgb; (u.shadowCol!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); u.shadowA!.value = SHADOW[look].a; }   // (the crossing shadow's tone and strength, once per look)
   }
 
   /** A liver branch drawing on with the change (circuit/grow.ts): the points its two courses start from, and how squeezed toward them it is now (0 whole). */
@@ -432,7 +452,7 @@ export class VesselObject extends CelObject {
     this.lift = lift;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
-  override dispose(): void { this.veil?.mat.dispose(); (this.glowMesh?.material as ShaderMaterial | undefined)?.dispose(); super.dispose(); }
+  override dispose(): void { this.veil?.mat.dispose(); (this.glowMesh?.material as ShaderMaterial | undefined)?.dispose(); (this.shadowMesh?.material as ShaderMaterial | undefined)?.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.inkOn!.value = on ? 0 : 1; }
