@@ -20,6 +20,8 @@ import type { NetMesh, Skeleton } from './types.ts';
 
 /** What the figure needs of the scene besides the rows' state: a vessel's uniforms to share the scene-wide ones from, and the palette's three tone colours. */
 export interface NetSource extends RowSource {
+  /** ?geom=netplain: the figure's programs get the NET_PLAIN define (the junction machinery off) */
+  plain?: boolean;
   /** any one vessel's uniforms: every scene-wide uniform (the engine data, the lenses, the blood, the circuit, the look's inks) is shared from it BY REFERENCE, so a look change or a new frame of the engine reaches the network with no copying */
   template(): Readonly<Record<string, IUniform>>;
   /** the look's colour of each tone [portal, sys, artery] (the old per-vessel `color` uniform) */
@@ -162,7 +164,7 @@ export class NetFigure {
     if (capTarget) this.targets.push(capTarget);
     const own: Record<string, IUniform> = { ...u, regionTex: { value: regionTex }, keyTex: { value: keyTex }, capTex: { value: capTarget ? capTarget.texture : blankTex }, capRows: { value: Math.max(1, regions.length) } };
     // the two programs of the figure: the organs-pass copy (the program as it is: solidK) and the vessel-pass copy (VEIL: veilK)
-    const mk = (defines: Record<string, number>): ShaderMaterial => { const m = markBlends(new ShaderMaterial({ name: 'net', vertexShader: NET_VS, fragmentShader: NET_FS, precision: 'highp', side: DoubleSide, uniforms: own, defines: { ...defines, ...vdbgDefines() } })); setBlendState(m, true); this.materials.push(m); return m; };
+    const mk = (defines: Record<string, number>): ShaderMaterial => { const m = markBlends(new ShaderMaterial({ name: 'net', vertexShader: NET_VS, fragmentShader: NET_FS, precision: 'highp', side: DoubleSide, uniforms: own, defines: { ...defines, ...(this.src.plain ? { NET_PLAIN: 1 } : {}), ...vdbgDefines() } })); setBlendState(m, true); this.materials.push(m); return m; };
     const meshes: Mesh[] = [];
     if (organs) { const a = new Mesh(organs, mk({})); a.name = `net:${name}:organs`; a.renderOrder = 0; a.frustumCulled = false; a.matrixAutoUpdate = true; a.layers.set(0); meshes.push(a); }
     const b = new Mesh(full, mk({ VEIL: 1 })); b.name = `net:${name}:vessels`; b.renderOrder = 1; b.frustumCulled = false; b.layers.set(VESSEL_LAYER); meshes.push(b);
