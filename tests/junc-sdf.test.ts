@@ -2,9 +2,15 @@
 // (so a change there reaches it or fails loudly), that silencing a region's fillet keeps its share at 0 over the whole Circuit move, and that the flag is the trial's alone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JUNC_FS, JUNC_INFO_A_VS, JUNC_INFO_B_VS, NO_FILLET, juncSdf, netShadeOf, marchRows, edgeRegions, silenceFillets, JUNC_GEOM_VS, JUNC_VS } from '../src/scene/vessels/net/junc-sdf.ts';
+import { JUNC_FS, JUNC_INFO_A_VS, JUNC_INFO_B_VS, NO_FILLET, juncSdf, netShadeOf, marchRows, edgeRegions, capPlanes, silenceFillets, JUNC_GEOM_VS, JUNC_VS } from '../src/scene/vessels/net/junc-sdf.ts';
 import { NET_FS } from '../src/scene/vessels/net/shaders.ts';
-import { REGION_TEXELS, type Region } from '../src/scene/vessels/net/regions.ts';
+import { REGION_TEXELS, regionsOf, type Region } from '../src/scene/vessels/net/regions.ts';
+import { JUNC_CUT_GLSL } from '../src/scene/vessels/net/junc-cut-glsl.ts';
+import { loadNetFromDisk } from '../src/scene/vessels/net/load.ts';
+import { liveBones, liveStates } from './net-oracle.ts';
+
+const data = loadNetFromDisk();
+const skip = data ? false : 'the baked network meshes are not in public/anatomy (node scripts/bake-skins.mjs --net)';
 
 test('netShade is NET_FS as a function: no varyings, no main of its own, the lateral distance and the facing replaced', () => {
   const s = netShadeOf(NET_FS);
@@ -96,4 +102,42 @@ test('the marks run on through the junction: each arm\'s dust and heads, in its 
   assert.match(main, /if \(c == cA \|\| c == mateA \|\| int\(floor\(jMate\[c\] \+ 0\.5\)\) == cA\) continue;/);
   const b = shade.slice(shade.indexOf('if (jHasB) {'), shade.lastIndexOf('loadEdgeFS(int(vEdge.x + 0.5));'));
   assert.doesNotMatch(b, /fwidth|dFdx|dFdy/);
+});
+
+// Mohammad's iPhone, 686739ee, Circuit: holes where a tube was cut and the march drew nothing (IVC below the RA corner, RHV at the IVC, the trunk below the portal bifurcation, the HV confluence). Root:
+// each arm's one plane went at the capsule end farther from the bound's CENTRE, which in the map pose (a Y with long arms) is far up the arms, so 13 of 81 capsules had it at the NODE end; and the march
+// yielded past ANY arm's plane, so in a region of merged nodes the arms at one node were past the plane of an arm at the other. Now a plane stands only at an outer end (one outside the other capsules), the
+// march yields only past a plane of its nearest capsule, and the tube is cut only within its own capsule's reach.
+test('no hole, in every pose: wherever an arm\'s tube is cut, the march draws (its nearest capsule there is inside its own planes)', { skip }, () => {
+  const skel = data!.skel;
+  const past = (pl: readonly (readonly number[] | null)[], p: readonly number[]) => pl.some((P) => P !== null && P[0]! * p[0]! + P[1]! * p[1]! + P[2]! * p[2]! - P[3]! > 1e-6);
+  const armD = (cap: readonly (readonly number[])[], p: readonly number[]) => Math.min(...cap.slice(1).map((B, s) => {
+    const A = cap[s]!, ab = [0, 1, 2].map((i) => B[i]! - A[i]!), pa = [0, 1, 2].map((i) => p[i]! - A[i]!), bb = ab[0]! ** 2 + ab[1]! ** 2 + ab[2]! ** 2;
+    const t = bb > 1e-12 ? Math.min(1, Math.max(0, (pa[0]! * ab[0]! + pa[1]! * ab[1]! + pa[2]! * ab[2]!) / bb)) : 0;
+    return Math.hypot(pa[0]! - t * ab[0]!, pa[1]! - t * ab[1]!, pa[2]! - t * ab[2]!) - (A[3]! + (B[3]! - A[3]!) * t);
+  }));
+  let checked = 0, planes = 0;
+  for (const [name, live] of liveStates(skel)) {
+    const bones = liveBones(skel, live);
+    for (const n of data!.nets) for (const r of regionsOf(skel, n.nodes as never)) {
+      const caps = r.caps.map((c) => c.bones.map((b) => [...bones[b]!.cen, bones[b]!.lumen])), mates = r.caps.map((c) => c.mate);
+      const pl = caps.map((_, c) => capPlanes(caps, mates, c));
+      planes += pl.flat().filter(Boolean).length;
+      caps.forEach((cap, c) => cap.forEach((p, q) => {
+        if (past(pl[c]!, p)) return;   // (the tube is not cut here)
+        let cn = c, best = Infinity;
+        caps.forEach((o, j) => { const d = armD(o, p); if (d < best - 1e-9) { best = d; cn = j; } });
+        assert.ok(!past(pl[cn]!, p), `${name} ${r.node}: capsule ${c} point ${q} is cut, and its nearest capsule ${cn} is past its own plane there: a hole`);
+        checked++;
+      }));
+    }
+  }
+  assert.ok(checked > 1000 && planes > 100, `${checked} points, ${planes} planes`);
+});
+
+test('the shaders use that rule: planes only at outer ends, the march yields past its nearest capsule\'s plane alone, and the tube is cut only within the arm\'s own capsule', () => {
+  assert.match(JUNC_GEOM_VS, /o = inner \? vec4\(0\.0, 0\.0, 0\.0, 1\.0\) : vec4\(n, dot\(n, E\.xyz\)\);/);
+  assert.doesNotMatch(JUNC_GEOM_VS, /bool aOut = distance\(capAt\(c, 0, rr\)\.xyz, cen\)/);
+  assert.match(JUNC_FS, /return juncPast\(cn, p\);/);
+  assert.match(JUNC_CUT_GLSL, /dot\(P0\.xyz, p\) - P0\.w < 0\.0 && dot\(P1\.xyz, p\) - P1\.w < 0\.0 && juncAxisK\(p, c, rr\) < JUNC_CUT_REACH/);
 });

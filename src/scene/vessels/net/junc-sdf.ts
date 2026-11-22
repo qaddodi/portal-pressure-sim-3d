@@ -86,16 +86,37 @@ void main() {
   for (int c = 0; c < ${CAPS}; c++) { if (c >= nc || c >= na) break; rArm = min(rArm, capAt(c, 0, rr).w); }
   if (id == 0) o = rArm < 0.02 * rmax ? vec4(0.0) : vec4(cen, 0.5 * length(hi - lo) + 3.0 * rmax);
   else {
-    int k = id - 1, c = k - (k / ${CAPS}) * ${CAPS};
+    int k = id - 1, side = k / ${CAPS}, c = k - side * ${CAPS};
     if (c < nc) {
-      // the outer end: the capsule end farther from the bound's centre; its plane's normal runs from the first distinct point inward to it
-      bool aOut = distance(capAt(c, 0, rr).xyz, cen) > distance(capAt(c, ${PTS - 1}, rr).xyz, cen);
-      int qo = aOut ? 0 : ${PTS - 1}, qn = aOut ? ${PTS - 1} : 0, st = aOut ? 1 : -1;
-      vec3 Po = capAt(c, qo, rr).xyz, n = vec3(0.0);
-      for (int j = 1; j < ${PTS}; j++) { vec3 d = Po - capAt(c, qo + st * j, rr).xyz; if (dot(d, d) > 1.0e-12) { n = d; break; } }
-      if (dot(n, n) <= 1.0e-12) n = Po - cen;
-      n = normalize(n);
-      o = k >= ${CAPS} ? vec4(floor(texelFetch(juncInfoA, ivec2(c * ${PTS} + qo, rr), 0).x), floor(texelFetch(juncInfoA, ivec2(c * ${PTS} + qn, rr), 0).x), 1.0, 0.0) : vec4(n, dot(n, Po));
+      vec4 mt = texelFetch(regionTex, ivec2(1 + c / 4, rr), 0);
+      int mc = c - (c / 4) * 4, mate = int(floor((mc == 0 ? mt.x : (mc == 1 ? mt.y : (mc == 2 ? mt.z : mt.w))) + 0.5));
+      if (side == 2) o = vec4(floor(texelFetch(juncInfoA, ivec2(c * ${PTS}, rr), 0).x), floor(texelFetch(juncInfoA, ivec2(c * ${PTS} + ${PTS - 1}, rr), 0).x), 1.0, 0.0);
+      else {
+        // AN END'S PLANE, only at an OUTER end: one that lies outside every other capsule of the region but its mate (its own course). The arms' inner ends sit inside the capsule they join (at the node, or on
+        // the side of a through vessel), so an arm has one plane, a link between two merged nodes none, and a through vessel with arms on its side (the IVC at the hepatic confluence) two. Never judged by the
+        // bound's centre: in the Circuit a Y with long arms has its centre far up them, and 13 of 81 capsules then had their plane at the NODE end, the tube cut where the march drew nothing (junc-sdf.test.ts).
+        int q0 = side == 0 ? 0 : ${PTS - 1}, st = side == 0 ? 1 : -1;
+        vec4 E = capAt(c, q0, rr);
+        bool inner = false;
+        for (int oc = 0; oc < ${CAPS}; oc++) {
+          if (oc >= nc) break;
+          if (oc == c || oc == mate) continue;
+          vec4 om = texelFetch(regionTex, ivec2(1 + oc / 4, rr), 0);
+          int omc = oc - (oc / 4) * 4;
+          if (int(floor((omc == 0 ? om.x : (omc == 1 ? om.y : (omc == 2 ? om.z : om.w))) + 0.5)) == c) continue;
+          for (int s = 0; s < ${PTS - 1}; s++) {
+            vec4 A = capAt(oc, s, rr), B = capAt(oc, s + 1, rr);
+            vec3 ab = B.xyz - A.xyz, pa = E.xyz - A.xyz;
+            float bb = dot(ab, ab), t = bb > 1.0e-12 ? clamp(dot(pa, ab) / bb, 0.0, 1.0) : 0.0;
+            if (length(pa - t * ab) < mix(A.w, B.w, t)) inner = true;
+          }
+        }
+        vec3 n = vec3(0.0);
+        for (int j = 1; j < ${PTS}; j++) { vec3 d = E.xyz - capAt(c, q0 + st * j, rr).xyz; if (dot(d, d) > 1.0e-12) { n = d; break; } }
+        if (dot(n, n) <= 1.0e-12) n = E.xyz - cen;
+        n = normalize(n);
+        o = inner ? vec4(0.0, 0.0, 0.0, 1.0) : vec4(n, dot(n, E.xyz));   // (an inner end: a plane nothing is beyond)
+      }
     }
   }
   vCapOut = o;
@@ -165,7 +186,6 @@ vec3 jTB = vec3(1.0, 0.0, 0.0), jNB = vec3(0.0, 0.0, 1.0);
 float rmLat;   // the march's lateral distance from the arm's axis, device px (netShade's dLat): the outline's place
 ${netShadeOf(NET_FS)}
 uniform sampler2D regionTex;
-uniform sampler2D capTex;
 uniform sampler2D juncInfoA;
 uniform sampler2D juncInfoB;
 uniform mat4 juncMV;
@@ -234,14 +254,26 @@ vec3 juncGrad(vec3 p, float k, float e) {
   const vec2 g = vec2(1.0, -1.0);
   return g.xyy * juncUnion(p + g.xyy * e, k) + g.yyx * juncUnion(p + g.yyx * e, k) + g.yxy * juncUnion(p + g.yxy * e, k) + g.xxx * juncUnion(p + g.xxx * e, k);
 }
-vec4 jPl[${CAPS}];
+vec4 jPl[${2 * CAPS}];   // each capsule's planes at its first and last end (an inner end's: nothing beyond it)
 int jArms = 0;
 void juncPlanes(int rr) {
   jArms = 0;
-  for (int c = 0; c < ${CAPS}; c++) { if (texelFetch(juncGeom, ivec2(1 + ${CAPS} + c, rr), 0).z < 0.5) break; jPl[c] = texelFetch(juncGeom, ivec2(1 + c, rr), 0); jArms = c + 1; }
+  for (int c = 0; c < ${CAPS}; c++) {
+    if (texelFetch(juncGeom, ivec2(1 + ${2 * CAPS} + c, rr), 0).z < 0.5) break;
+    jPl[2 * c] = texelFetch(juncGeom, ivec2(1 + c, rr), 0); jPl[2 * c + 1] = texelFetch(juncGeom, ivec2(1 + ${CAPS} + c, rr), 0); jArms = c + 1;
+  }
 }
-// beyond an arm's cut plane: the tube draws there, not the march
-bool juncBeyond(vec3 p) { for (int c = 0; c < ${CAPS}; c++) { if (c >= jArms) break; if (dot(jPl[c].xyz, p) - jPl[c].w > 0.0) return true; } return false; }
+bool juncPast(int c, vec3 p) { return dot(jPl[2 * c].xyz, p) - jPl[2 * c].w > 0.0 || dot(jPl[2 * c + 1].xyz, p) - jPl[2 * c + 1].w > 0.0; }
+// beyond the cut, the tube draws, not the march: past a plane of the capsule NEAREST the point (the very tube the cut kept there). Past another arm's plane is not enough: in a region of merged nodes
+// the arms at one node lie past the plane of an arm at the other, and the march would leave them as holes.
+bool juncBeyond(vec3 p) {
+  bool any = false;
+  for (int c = 0; c < ${CAPS}; c++) { if (c >= jArms) break; if (juncPast(c, p)) { any = true; break; } }
+  if (!any) return false;
+  float best = 1.0e20; int cn = 0, sg; float st;
+  for (int c = 0; c < ${CAPS}; c++) { if (c >= jArms) break; float d = juncArm(c, p, sg, st); if (d < best) { best = d; cn = c; } }
+  return juncPast(cn, p);
+}
 float juncNdc(vec3 p) { vec4 c = juncP * (juncMV * vec4(p, 1.0)); return c.z / c.w; }
 void main() {
   int rr = int(vJuncRow + 0.5);
@@ -370,6 +402,25 @@ export function marchRows(regions: readonly Pick<Region, 'node' | 'variant'>[]):
   const best = new Map<string, number>();
   regions.forEach((r, i) => { const b = best.get(r.node); if (b === undefined || (regions[b]!.variant !== 0 && r.variant === 0)) best.set(r.node, i); });
   return [...best.values()].sort((x, y) => x - y);
+}
+
+/** JUNC_GEOM_VS's rule, for the tests: the planes of capsule `c` at its first and last end, null at an INNER end (one inside another capsule of the region but its mate). A capsule is points (x, y, z, lumen). */
+export type Plane = readonly [number, number, number, number] | null;
+export function capPlanes(caps: readonly (readonly (readonly number[])[])[], mates: readonly number[], c: number): [Plane, Plane] {
+  const me = caps[c]!;
+  const inside = (e: readonly number[]): boolean => caps.some((o, j) => j !== c && j !== mates[c] && mates[j] !== c && o.some((A, s) => {
+    const B = o[s + 1]; if (!B) return false;
+    const ab = [0, 1, 2].map((i) => B[i]! - A[i]!), pa = [0, 1, 2].map((i) => e[i]! - A[i]!), bb = ab[0]! ** 2 + ab[1]! ** 2 + ab[2]! ** 2;
+    const t = bb > 1e-12 ? Math.min(1, Math.max(0, (pa[0]! * ab[0]! + pa[1]! * ab[1]! + pa[2]! * ab[2]!) / bb)) : 0;
+    return Math.hypot(pa[0]! - t * ab[0]!, pa[1]! - t * ab[1]!, pa[2]! - t * ab[2]!) < A[3]! + (B[3]! - A[3]!) * t;
+  }));
+  const plane = (q0: number, st: number): Plane => {
+    const E = me[q0]!;
+    if (inside(E)) return null;
+    for (let j = 1; j < me.length; j++) { const P = me[q0 + st * j]!, n = [0, 1, 2].map((i) => E[i]! - P[i]!), l = Math.hypot(n[0]!, n[1]!, n[2]!); if (l > 1e-6) { const u = n.map((x) => x / l); return [u[0]!, u[1]!, u[2]!, u[0]! * E[0]! + u[1]! * E[1]! + u[2]! * E[2]!]; } }
+    return null;
+  };
+  return [plane(0, 1), plane(me.length - 1, -1)];
 }
 
 /** Which marched regions each edge is an arm of (juncEdge: up to JUNC_EDGE_REGIONS rows per edge, -1 for none): the edges of the bones that carry a region's capsules. */
