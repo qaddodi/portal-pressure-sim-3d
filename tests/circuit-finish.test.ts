@@ -7,6 +7,7 @@ import { Vector3 } from 'three';
 import { COURSES } from '../src/scene/circuit/course.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, CIRCUIT_ZONES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, LANE_CAPTIONS, NODE_CIRCUIT, RES_LABEL, RES_LIVER, RES_SIZES, ROUTER_STATIONS, ZONE_SHORT } from '../src/scene/circuit/data.copied.ts';
 import { mapToScene } from '../src/scene/circuit/map.ts';
+import { CIRCUIT_ATTRIBUTES } from '../src/scene/circuit/geometry.ts';
 import { PEEL_SPAN, peelAt, peelRank, peelSlope } from '../src/scene/circuit/peel.ts';
 import { TURN_DIR, ZONE_ORGAN, ZONE_PX, ZONE_WEIGHT, ZONE_TRACK, LANE_SPOTS, along, buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
 import { RES_KEYS, RES_TEETH, quantScale, resAmp, resHeat, resInk, resText, resWidth, resWidthFit, zigzag } from '../src/scene/circuit/res-model.ts';
@@ -69,8 +70,9 @@ test('the vessel vertex shader carries the lengths and the slope, and the tubes 
   assert.match(CIRCUIT_VS_HEAD, /attribute vec2 cl;/);
   assert.match(CIRCUIT_VS_HEAD, /circPeelSlope/);
   assert.ok(VESSEL_VS.includes('circPeelSlope'));
-  const g = readFileSync('src/scene/circuit/geometry.ts', 'utf8');
-  assert.match(g, /'cl'\] as const/);
+  // (the tubes' attribute list is one constant: the length pair `cl` is on it, and every name on it is declared by the vertex shader head, so a tube cannot carry an attribute the shader does not read)
+  assert.ok(CIRCUIT_ATTRIBUTES.includes('cl'), 'the tubes carry the lengths');
+  for (const a of CIRCUIT_ATTRIBUTES) assert.match(CIRCUIT_VS_HEAD, new RegExp(`attribute (float|vec[234]) ${a};`), `the shader declares ${a}`);
 });
 
 // ── the resistors' numbers ──

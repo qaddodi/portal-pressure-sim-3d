@@ -142,3 +142,11 @@ test('a page that reloads onto a "newer" build and comes back on the same one do
   assert.equal(mayAutoReload(null, 'x'), true, 'no storage: once per found build');
   assert.match(readFileSync('src/pwa/update.ts', 'utf8'), /mayAutoReload\(session\(\), buildLabel/);
 });
+
+test('integration review I5: a preview never moves onto a new build while something plays with no input (motion, a procedure, the self-test)', () => {
+  const base = { pending: true, hidden: false, talk: false, down: false, idleMs: 60_000, auto: true };
+  assert.equal(whenToApply(base), 'now');
+  assert.equal(whenToApply({ ...base, busy: true }), 'wait');
+  assert.equal(whenToApply({ ...base, hidden: true, busy: true }), 'wait', 'not even out of sight: the self-test runs in frames nobody looks at');
+  assert.match(readFileSync('src/pwa/update.ts', 'utf8'), /busy: \(\) => clock\.moving > 0 \|\| clock\.scale !== 1/);
+});

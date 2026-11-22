@@ -33,7 +33,7 @@ type Rec = { u: number; balloon: number; column: number; opacity: number; step: 
 interface Run { kind: string; t: number; t0: number; from: number; to: number; speed: number; rec: Rec; onEnd?: () => void; onStop?: () => void; onFrame?: (r: Readonly<Rec>) => void; keep: boolean }
 
 /** A procedure driven one step at a time (a presentation: Next plays the next step and holds at its stop, Back runs it backwards). */
-interface StepRun { kind: string; clk: StepClock; rec: Rec; arrived: boolean; rewind: boolean; pauseUntil: number; moved: boolean; keep: boolean; onFrame?: (r: Readonly<Rec>) => void; onArrive?: (t: number) => void; onEnd?: (e: { done: boolean; rewound: boolean }) => void }
+interface StepRun { kind: string; clk: StepClock; rec: Rec; arrived: boolean; rewind: boolean; pauseUntil: number; moved: boolean; keep: boolean; onFrame?: (r: Readonly<Rec>) => void; onArrive?: (t: number) => void; onEnd?: (e: { done: boolean; rewound: boolean }) => void; onStop?: () => void }
 
 export interface DriveOptions {
   /** where the sequence starts standing, ms of its own time (default 0) */
@@ -45,6 +45,8 @@ export interface DriveOptions {
   onEnd?: (e: { done: boolean; rewound: boolean }) => void;
   /** leave the last frame up when it ends */
   keep?: boolean;
+  /** stopped before its end (`stop()`, or another run replacing it): the caller gives back what it claimed. Not called after `onEnd`. */
+  onStop?: () => void;
 }
 
 export interface PlayOptions {
@@ -262,6 +264,7 @@ export class ProcedureLayer {
     const spec = specOf(kind) as { T: { end: number } } | null;
     if (!spec) throw new Error(`no procedure ${kind}`);
     const from = o.from ?? 0, to = o.to ?? spec.T.end;
+    this.endReplaced();   // (one run on the figure: whatever stood there is stopped first, so its runner gives back the camera, the owner and the marks)
     this.run = { kind, t: from, t0: now, from, to, speed: o.speed ?? 1, rec: { ...this.frame } as Rec, onEnd: o.onEnd, onStop: o.onStop, onFrame: o.onFrame, keep: !!o.keep };
     this.dirty = true;
   }
@@ -273,9 +276,9 @@ export class ProcedureLayer {
   /** Start a procedure that goes where it is told, a stop at a time (aimAt): it stands at `from` until then. Replaces a run on the figure. */
   drive(kind: string, now: number, o: DriveOptions = {}): void {
     if (!specOf(kind)) throw new Error(`no procedure ${kind}`);
-    this.run = null;
+    this.endReplaced();
     const from = o.from ?? 0;
-    this.step = { kind, clk: makeStepClock(from), rec: { ...this.frame } as Rec, arrived: true, rewind: false, pauseUntil: 0, moved: true, keep: !!o.keep, onFrame: o.onFrame, onArrive: o.onArrive, onEnd: o.onEnd };
+    this.step = { kind, clk: makeStepClock(from), rec: { ...this.frame } as Rec, arrived: true, rewind: false, pauseUntil: 0, moved: true, keep: !!o.keep, onFrame: o.onFrame, onArrive: o.onArrive, onEnd: o.onEnd, onStop: o.onStop };
     this.dirty = true;
   }
   /** Run the driven procedure to a stop (forward at the sequence's pace, back a little faster; `rush` plays the rest out fast). A goal behind turns it round over FLIP_MS. */
@@ -293,10 +296,18 @@ export class ProcedureLayer {
 
   /** End the move: clear the devices (or leave the last frame up with `keep`). */
   stop(keep = false): void {
-    const r = this.run;
+    const r = this.run, d = this.step;
     this.run = null; this.step = null;
     if (!keep) this.clear(LEAVE_MS);
-    r?.onStop?.();   // (after the run is gone, so a runner that stops again from here finds nothing to stop)
+    r?.onStop?.(); d?.onStop?.();   // (after the run is gone, so a runner that stops again from here finds nothing to stop)
+  }
+  /** A new run replaces the one on the figure (integration review I3, 22 Nov): the old one is STOPPED, its onStop called, never silently dropped (an IR run replaced by a slide's procedure left its owner claim
+   *  "IR is running" and its marks behind). The devices are not cleared: the new run takes them over from where they stand. */
+  private endReplaced(): void {
+    const r = this.run, d = this.step;
+    if (!r && !d) return;
+    this.run = null; this.step = null;
+    r?.onStop?.(); d?.onStop?.();
   }
 
   /** Take the devices off the figure: at once, or (`fadeMs`) easing out in place as 2D's cathOut does when a slide is left, so nothing pops (the device a leaving slide's step left standing, the glue's coil and cast). */

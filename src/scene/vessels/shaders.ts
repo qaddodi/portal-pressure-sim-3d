@@ -31,7 +31,7 @@ export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
  *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
  *  (at most 0.15 x 0.035 = 0.005, under the narrowest gap that has to hold, cava to artery 0.02) only sorts two tubes of one tier. */
 export const TUBE_DEPTH_SHARE = 0.15;
-import { CIRC_INK_K, CIRC_INNER } from './cel-ink.ts';
+import { CIRC_INK_K, CIRC_INNER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 import { VDBG_GLSL } from './debug-view.ts';
 
 export const VESSEL_VS = /* glsl */ `
@@ -70,6 +70,7 @@ uniform vec2 hiEnds;   // the picked vein's distance to its outer start and oute
 uniform float hiFade;
 uniform float hiPx;
 uniform float inkOn;   // 0 on a dotted thread (no outline), else 1
+uniform float lensUse;   // 0 on an ARTERY (it keeps its own colour), 1 on a vein: here it also says whose wall the line is built for (cel-style ARTERY)
 uniform float liveW;   // a conditional tributary group's width share, 2D's 0.5 + 0.5 * live (feeders.ts): 1 for every other vessel
 uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
@@ -226,7 +227,7 @@ ${CIRCUIT_VS_CALL}
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
-  float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK')};   // CSS px
+  float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK', '1.0 - lensUse')};   // CSS px
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rkE * swell * narrowK;
@@ -292,6 +293,8 @@ uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
@@ -422,7 +425,7 @@ bool capCarved(float across) {
   if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
   float wpc = ${wpcGlsl('vCen.z', 'projY', 'vU')};   // (the axis's depth, the one the vertex stage built the line from)
   float rCss = vR / max(wpc, 1e-6);   // CSS px, as the vertex stage's line is (the same clamp)
-  float ink = clamp(${F(CEL_STYLE.LINE_R)} * rCss, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * mix(1.0, ${F(CIRC_INK_K)}, circT) * wpc * inkOn;
+  float ink = min(${F(CEL_STYLE.LINE_MAX)}, clamp(${F(CEL_STYLE.LINE_R)} * rCss, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * (1.0 + ${F(CEL_STYLE.ARTERY.INK_K - 1)} * (1.0 - lensUse) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCss))) * mix(1.0, ${F(CIRC_INK_K)}, circT) * wpc * inkOn;
   float R = (vR + ink) * k, a = dd + ink * k;
   if (a >= R) return false;
   float q = 1.0 - a / R;
@@ -485,6 +488,7 @@ void main() {
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
+  tubeRawK = mix(la.a * lensRawA, lb.a * lensRawB, lensMix);   // (the pressure ramp is authored as drawn: cel-glsl.ts tubeRawK)
 
   // the fill: exactly TWO flat tones, lit by the one world light (cel-glsl.ts: the base, a hard edge EDGE_PX device px across, the shade, no gradient), so two pieces of one vein shade alike at their join and a turned camera
   // changes nothing; no rim, no highlight. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
@@ -513,6 +517,7 @@ void main() {
     if (cavaCut < 1.5) {
       vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
       base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+      tubeRawK = mix(tubeRawK, mix(la2.a * lensRawA, lb2.a * lensRawB, lensMix), wB);
       float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
@@ -528,7 +533,7 @@ void main() {
   // by max (so the pieces of a vein and the skins at its joins overlap without adding up). Only the lumen and its line: the blur makes the halo outside it.
   {
     float rCssG = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
-    float lineG = ${inkPxGlsl('rCssG', 'rCssG')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float lineG = ${inkPxGlsl('rCssG', 'rCssG', '1.0 - lensUse')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
     float wG = ${glowWeightGlsl('vHi')} * glowK * fadeHere * cavA * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
@@ -541,7 +546,7 @@ void main() {
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
-  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
@@ -606,7 +611,10 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
+    float rawKeep = tubeRawK;
+    tubeRawK = mix(laH.a * lensRawA, lbH.a * lensRawB, lensMix);
     vec3 inkH = ${inkColourGlsl('baseH')};
+    tubeRawK = rawKeep;
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the

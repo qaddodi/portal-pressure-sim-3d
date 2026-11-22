@@ -39,7 +39,7 @@ const OTHER: Record<string, UniformFate> = {
   tubeDark: g(), shadeK: g(), inkColor: g('the look\'s casing ink'), inkColorCirc: g(), casingA: g(), casingCircA: g(), pageCol: g(), rimInk: g(), wedgeCol: g(),
   color: g('the look\'s palette, one colour per tone: the shader picks by the edge\'s `tone` column'),
   markDark: g(), markLight: g(), markRev: g(),
-  lensMix: g(), lensTail: g(), lensGradA: g(), lensLaneA: g(), lensModeA: g(), lensGradB: g(), lensLaneB: g(), lensModeB: g(), laneColA: g(), laneColB: g(), lensSmooth: g('the Smooth joins setting'),
+  lensMix: g(), lensTail: g(), lensGradA: g(), lensLaneA: g(), lensModeA: g(), lensRawA: g(), lensGradB: g(), lensLaneB: g(), lensModeB: g(), lensRawB: g(), laneColA: g(), laneColB: g(), lensSmooth: g('the Smooth joins setting'),
   stentWire: g(STENT), stentGoldC: g(STENT),
   streamTex: g(), chainTex: g(), routeTex: g(), streakAmt: g(), dustP: g(),
   dbgShade: g(DBG), dbgDust: g(DBG), dbgHeads: g(DBG), dbgInk: g(DBG), dbgTint: g(DBG), dbgCol: g(DBG),

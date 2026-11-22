@@ -8,6 +8,7 @@ import { type LensShared, createLensShared } from '../vessels/vessel-object.ts';
 import type { LookId } from '../palette.ts';
 import { easeInOutCubic } from '../../clock/tween.ts';
 import { ChevronInk } from './chevron-ink.ts';
+import { isRawLens } from './pressure-ramp.ts';
 
 export const LENS_MS = 420;
 export const LENS_RECOMPUTE_MS = 90;
@@ -77,7 +78,7 @@ export class LensField {
     if (lens === this._lens && !this.dirty) return;
     // what is showing becomes the leaving state
     this.from.lens = this.to.lens; this.from.mode = this.to.mode; this.from.grad.set(this.to.grad); this.from.lanes.set(this.to.lanes);
-    this.shared.lensModeA.value = this.shared.lensModeB.value;
+    this.shared.lensModeA.value = this.shared.lensModeB.value; this.shared.lensRawA.value = this.shared.lensRawB.value;
     for (let i = 0; i < 5; i++) this.shared.laneColA.value[i]!.copy(this.shared.laneColB.value[i]!);
     this.texFrom.grad.needsUpdate = this.texFrom.lanes.needsUpdate = true;
     if (lens !== 'since' && this.sinceAuto) { this.since = null; this.sinceAuto = false; }   // (the arrival state is only for the lens that took it)
@@ -92,7 +93,7 @@ export class LensField {
     this.frame = frame; this.dirty = true;
     if (!jump || !frame || now < 0 || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
     this.from.lens = this.to.lens; this.from.mode = this.to.mode; this.from.grad.set(this.to.grad); this.from.lanes.set(this.to.lanes);
-    this.shared.lensModeA.value = this.shared.lensModeB.value;
+    this.shared.lensModeA.value = this.shared.lensModeB.value; this.shared.lensRawA.value = this.shared.lensRawB.value;
     for (let i = 0; i < 5; i++) this.shared.laneColA.value[i]!.copy(this.shared.laneColB.value[i]!);
     this.texFrom.grad.needsUpdate = this.texFrom.lanes.needsUpdate = true;
     this.compute(now);
@@ -109,7 +110,7 @@ export class LensField {
     else { this.to.lens = this._lens; this.to.mode = 0; this.to.grad.fill(0); this.to.lanes.fill(0); }
     const palette = this._lens === 'firstpass' ? firstPassColours() : originColours();
     for (let i = 0; i < 5; i++) this.shared.laneColB.value[i]!.set(palette[i]![0], palette[i]![1], palette[i]![2]);
-    this.shared.lensModeB.value = this.to.mode;
+    this.shared.lensModeB.value = this.to.mode; this.shared.lensRawB.value = isRawLens(this._lens) ? 1 : 0;   // (the pressure ramp is authored as drawn: pressure-ramp.ts; crossfaded with the colours by lensMix)
     this.shared.lensTail.value = TAIL_LENSES.has(this._lens) ? 1 : 0;
     this.ink.decide(this.to, this.look);   // (the heads' ink follows the colours just computed, through a latch)
     this.ink.write(this.to.grad);
