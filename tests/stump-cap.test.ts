@@ -40,3 +40,11 @@ test('no dust and no chevron stands in the blind end of a stump, up to a head pa
   assert.match(VESSEL_FS, /\* stumpMk;\n  fd = clamp/, 'the dust');
   assert.match(VESSEL_FS, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* stumpMk/, 'the heads');
 });
+
+test('a divided vein is not cut at its start seam: no skin joins its tied end (the skin arm is absent, arm-twins.ts), so the tube draws its own round end', () => {
+  assert.match(VESSEL_FS, /float skinStartCut\(\) \{ return stump\.x > 0\.0 \? -1\.0 : skinCut\.x; \}/);
+  for (const fn of ['skinCutOn', 'skinWeldAt', 'skinPast']) {
+    const body = new RegExp(`${fn}\\(\\) \\{[^\\n]*`).exec(VESSEL_FS)![0];
+    assert.doesNotMatch(body, /skinCut\.x/, `${fn} reads the start seam through skinStartCut`);
+  }
+});
