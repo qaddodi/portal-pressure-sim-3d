@@ -2,7 +2,7 @@
 import { MOTION } from '../../clock/tween.ts';
 
 import { clock } from '../../clock/frame.ts';
-import { D_SMALL } from '../../ui/a11y/motion.ts';
+import { D_SMALL, EASE_ARRIVE } from '../../ui/motion.ts';
 /** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity).
  *  Until the two animations have started (a busy frame: a settings sheet or the Tests card opening can hold the first frame for seconds) only the old number is seen, never both
  *  stacked ("IVC 4.6" with a grey 4.5 behind it, Mac play-test, 19 Nov): the new one is held at opacity 0 by its own style until its animation takes over, and the old one is
@@ -38,7 +38,7 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
   box.appendChild(old);
   cur.textContent = next;
   cur.style.opacity = '0';
-  const ease = 'cubic-bezier(.2, .8, .2, 1)';
+  const ease = EASE_ARRIVE;
   const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   const inn = cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   const doneOut = () => old.remove();
@@ -82,4 +82,15 @@ export function restyle(el: Element, apply: () => void, alpha: number): void {
   const finish = () => { if (done) return; done = true; old.remove(); };
   anims[0]!.onfinish = finish; anims[0]!.oncancel = finish;
   clock.after(finish, D_SMALL * 4);
+}
+
+/** Write a label's colour (the slide's tone, 2D .lb.term) onto one of its pieces. Only for a picture whose look LabelFader crosses over (its tone is in the fader's key, so the old picture keeps the old
+ *  colour and this one is written while it is still at zero); a piece the fader does not cross (a station's ring) goes through `restyle`. */
+export function writeTone(x: HTMLElement, tone: string): void {
+  if (tone) { x.style.setProperty('--lb-tone', tone); x.setAttribute('data-tone', ''); } else { x.style.removeProperty('--lb-tone'); x.removeAttribute('data-tone'); }
+}
+/** The same for the velocity lens's tint and the Doppler gate's weight. */
+export function writeTint(x: HTMLElement, tint: string, gate: boolean): void {
+  if (tint) { x.style.setProperty('--lb-vtint', tint); x.setAttribute('data-tint', ''); } else { x.style.removeProperty('--lb-vtint'); x.removeAttribute('data-tint'); }
+  if (gate) x.setAttribute('data-gate', ''); else x.removeAttribute('data-gate');
 }

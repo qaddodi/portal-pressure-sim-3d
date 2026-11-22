@@ -308,11 +308,8 @@ export class ProcCatheter {
     if (this.coil && s.coil > 0.001) this.layCoil(s.coil, op);
     this.settle();
   }
-  /** Every part is asked to show or go as the last `set` lit it (each fades over DEVICE_FADE_MS); the container stays drawn while any part still is. */
-  private settle(): void {
-    for (const o of this.objects) o.show(this.lit.has(o));
-    this.group.visible = this.active || this.objects.some((o) => o.group.visible);
-  }
+  /** Every part is asked to show or go as the last `set` lit it (each fades over DEVICE_FADE_MS and leaves the draw list when it is gone; the container is never switched). */
+  private settle(): void { for (const o of this.objects) o.show(this.lit.has(o)); }
 
   /** The shaft from the route's start to the tip, tip included: the body's rings are spread evenly over the way, the last TIP_RINGS (closer together toward the end) are the taper and its rounded point (tipRadius).
    *  uv.x stays the share of the whole route, so the lead-in's fade and the depth marks (counted back from the tip) are as before. Rewritten only when the tip has moved. */

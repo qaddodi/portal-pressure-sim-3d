@@ -167,8 +167,6 @@ export class GlueCast {
       if (!on) return;
       o.setAlpha((1 - k) * (1 - k) * 0.85 * op); o.group.position.copy(tg); o.group.scale.setScalar((1.4 + 6 * k) / U);
     });
-    // (the container is drawn while any part still is: a part that is going fades in place)
-    this.group.visible = this.objects.some((o) => o.group.visible);
   }
 
   /** Take it all away (the slide is left, or the procedure is played again). */

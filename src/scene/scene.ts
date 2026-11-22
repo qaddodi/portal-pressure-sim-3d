@@ -720,7 +720,8 @@ export class CelScene {
     }
   }
 
-  /** The caudate lobe and its short veins (2D stage.js caud): drawn only while a slide is about them, eased in and out; the lobe has grown as far as its veins carry the liver's outflow (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
+  /** The caudate lobe and its short veins (2D stage.js caud): drawn only while a slide is about them, eased in and out; the lobe has grown as far as its veins carry the liver's outflow
+   *  (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
   setCaudate(lobe: boolean, veins: boolean): void {
     this.caudLobe = lobe; this.caudVeins = veins;
     if (latest.frame) this.syncCaudate(latest.frame, false);

@@ -35,7 +35,16 @@ export interface PlaneOut { frame: Frame; layout: PlaneLayout; /** the plot's ow
 const fade = (c: Rgba | undefined, k: number | undefined): Rgba | undefined => (c && k !== undefined ? withAlpha(c, k) : c);
 const plotR = (w: number, h: number) => Math.max(0, Math.min(10, w / 4, h / 4));
 
+/** The plane as a frame. A summary (not the data card) given the room its panel leaves it is never taller than it: the plot gives up the height the key, the sources and the reading under it need (2D sizes the plot
+ *  by the window and lets the panel's fit zoom the rest; the zoom stops at 12 px words, past which the panel's foot cut the chart off: audit 95bbb8ec, 163 to 285 px on the summary planes). The plot keeps 150 px at the least. */
 export function planeFrame(spec: PlaneIn, c: ChartCtx): PlaneOut {
+  const out = planeFrameAt(spec, c);
+  if ((spec.card ?? !!spec.ring) || !(spec.room && spec.room > 0) || out.frame.h <= spec.room) return out;
+  const plot = Math.max(150, Math.floor(out.plotH - (out.frame.h - spec.room)));
+  return plot < out.plotH ? planeFrameAt({ ...spec, height: plot }, c) : out;
+}
+
+function planeFrameAt(spec: PlaneIn, c: ChartCtx): PlaneOut {
   const card = spec.card ?? !!spec.ring, fs = Math.max(12, c.type.sm), W = Math.max(200, c.w);
   const pl0 = spec.plane;
   // the plane as it is drawn (a summary with fit: true cuts its axes to its points, so the plot's own height is read from that one)

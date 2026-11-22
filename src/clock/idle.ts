@@ -176,8 +176,11 @@ function pageInput(): QuietEnv['input'] {
 function postTask(): (fn: () => void) => void {
   if (typeof MessageChannel === 'undefined') return (fn) => { clock.after(fn, 0, 'slot-post'); };
   const mc = new MessageChannel(), q: (() => void)[] = [];
-  mc.port1.onmessage = () => { const f = q.shift(); f?.(); };
-  return (fn) => { q.push(fn); mc.port2.postMessage(0); };
+  // (under node, an open port with a handler keeps the process alive for ever, so a test file that built a scene never exited: the port holds the process only while a task is waiting on it. A browser's port has no ref/unref.)
+  const hold = mc.port1 as MessagePort & { ref?: () => void; unref?: () => void };
+  hold.unref?.();
+  mc.port1.onmessage = () => { const f = q.shift(); if (!q.length) hold.unref?.(); f?.(); };
+  return (fn) => { q.push(fn); hold.ref?.(); mc.port2.postMessage(0); };
 }
 
 // (the last slices, on the browser's real clock, so a long task can be named: `slotAround`)

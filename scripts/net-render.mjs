@@ -69,11 +69,11 @@ function sheet(name, mesh, skel, report, focus) {
 }
 
 if (process.argv.includes('--skeleton')) {
-  // WP0's skeleton, when it has landed: net/skeleton.ts exports `buildSkeleton()`. One image per junction node of the figure (the whole figure is too small to judge a joint).
+  // WP0's skeleton, when it has landed: net/skeleton.ts exports `skeleton()`. One image per junction node of the figure (the whole figure is too small to judge a joint).
   const f = '../src/scene/vessels/net/skeleton.ts';
   if (!existsSync(new URL(f, import.meta.url))) { console.error('net/skeleton.ts is not in this checkout yet (WP0)'); process.exit(1); }
-  const { buildSkeleton } = await import(f);
-  const skel = buildSkeleton(), want = arg('nodes', '') ? String(arg('nodes', '')).split(',') : null;
+  const { skeleton } = await import(f);
+  const skel = skeleton(), want = arg('nodes', '') ? String(arg('nodes', '')).split(',') : null;
   const t0 = Date.now(), r = buildNetMesh(skel);
   console.log(`figure: ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${Date.now() - t0} ms`);
   for (const nd of skel.nodes) if (!want || want.includes(nd.id)) {

@@ -58,7 +58,7 @@ test('the spotlight is 2D\'s: 500 ms hold within 10 px, 62% veil, the window R =
   assert.equal(radius(390, 844), 50); assert.equal(radius(1440, 900), 81); assert.equal(radius(3000, 2000), 100);
   assert.equal(halfOf(100), 155); assert.equal(halfOf(81), 126);
   const css = src('src/ui/deck/laser.css');
-  assert.match(css, /--stage-bg/); assert.match(css, /62%/); assert.match(css, /var\(--d-flip, 120ms\) linear/, '2D fades it over D_FLIP, linearly');
+  assert.match(css, /--stage-bg/); assert.match(css, /62%/); assert.match(css, /var\(--d-flip\) linear/, '2D fades it over D_FLIP, linearly');
   assert.match(css, /calc\(var\(--r\) \* \.8\)/); assert.match(css, /calc\(var\(--r\) \* \.75\)/, '0.8 R + 0.75 R = 1.55 R');
 });
 

@@ -38,6 +38,7 @@ import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { installTilt } from './camera/tilt-input.ts';
 import { reduced } from '../ui/a11y/motion.ts';
+import { D_SMALL, EASE_ARRIVE } from '../ui/motion.ts';
 import { K_MAX, zoomLimits } from './gesture/view.ts';
 import { SHOTS } from './camera/shots.ts';
 import { circuitShot } from './circuit/shots.ts';
@@ -131,7 +132,7 @@ function SceneBridge() {
     lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
-    if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
+    if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : `opacity ${D_SMALL}ms ${EASE_ARRIVE}`; el.style.opacity = '1'; }
     if (cel.rig.placed) figureDrawn();   // (the splash waits for this: the first frame WITH the figure, then the labels it places; boot/ready.ts. A frame that only cleared (the camera has no room yet) is not the figure)
     if (!warmed.current) {
       warmed.current = true;
