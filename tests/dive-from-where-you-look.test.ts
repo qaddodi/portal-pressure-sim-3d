@@ -1,91 +1,115 @@
-// Plan 30: the dive goes into the liver where the viewer is looking; the place dived to moves one way only (no lurch) and the way back out lands on the view he left.
+// Plan 30b: tapping Lobule dives into the LIVER, not the middle of the belly. His path runs through the real functions (scene.setView, scene.goTo -> placeDive -> diveLook), on the real rig and the real rooms.
+// Root cause of the old behaviour (plan 30): the liver's bounding box was taken for the liver, the ray went through the DESTINATION room's centre, and the old replay copied the function and used one room.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
-import { CameraRig } from '../src/scene/camera/rig.ts';
+import { CelScene, lobuleCorners } from '../src/scene/scene.ts';
 import { ORGAN_MESHES, setOrganData } from '../src/scene/organs/meshes.ts';
-import { DEFAULT_DIVE_PLACE, LIVER_POINT, LIVER_Z, SIN_POINT, chooseDivePlace, lobuleWorld, resetDivePlace, setDivePlace, sinusoidWorld } from '../src/scene/lobule/frames.ts';
+import { DEFAULT_DIVE_PLACE, LIVER_POINT, LIVER_Z, SIN_POINT, lobuleWorld, resetDivePlace, sinusoidWorld } from '../src/scene/lobule/frames.ts';
 import { lobuleShot } from '../src/scene/lobule/shots.ts';
+import { diveLook, insideInset, liverOutlineWorld, lookPoint, onScreen } from '../src/scene/lobule/dive-look.ts';
+import { deviceClass } from '../src/ui/layout/device.ts';
+import { freeRoom, viewRoom } from '../src/ui/shell/room.ts';
 
 const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
-const lg = ORGAN_MESHES.liver!(); lg.computeBoundingBox();
-const box = { minX: lg.boundingBox!.min.x, maxX: lg.boundingBox!.max.x, minY: lg.boundingBox!.min.y, maxY: lg.boundingBox!.max.y };
+void ORGAN_MESHES;
 
-const SIZES = { mac: [1200, 800], phone: [390, 780] } as const;
-const HANDS = [{ k: 3, x: 260, y: 120 }, { k: 3, x: -300, y: -60 }, { k: 3, x: 0, y: 200 }, { k: 3, x: -500, y: 300 }];
+const SIZES = [{ name: 'phone', w: 390, h: 780, safe: 34 }, { name: 'ipad', w: 820, h: 1180, safe: 20 }, { name: 'mac', w: 1440, h: 900, safe: 0 }];
+type Priv = { rig: any; figureView: string; dive: { visible: boolean }; microStep(): boolean; microPrimedNow: boolean; resize(w: number, h: number): void; setView(v: string, n?: number): void; goTo(s: unknown, r: unknown, n: number, ms?: number): void; disease: { organs: { liverShown: { cirrhosis: number; congestion: number } } } };
+const liverNow = (sc: Priv) => ({ cirrhosis: sc.disease.organs.liverShown.cirrhosis, congestion: sc.disease.organs.liverShown.congestion });
 
-/** What scene.placeDive does: the ray through the room's centre meets the liver's plane; the place goes there (or to the nearest inside the liver). Returns the shot built on it, and where the viewer looked. */
-function place(rig: CameraRig, room: { x: number; y: number; w: number; h: number }, w: number, h: number) {
-  const cam = rig.camera, a = new Vector3(((room.x + room.w / 2) / w) * 2 - 1, -((room.y + room.h / 2) / h) * 2 + 1, 0.5).unproject(cam), o = cam.position;
-  const t = (LIVER_Z - o.z) / (a.z - o.z), look = { x: o.x + (a.x - o.x) * t, y: o.y + (a.y - o.y) * t }, to = chooseDivePlace(look.x, look.y, box);
-  setDivePlace(to.x, to.y);
-  return { shot: lobuleShot('lobule'), look, to };
+let scene: Priv | null = null, T = 0;   // (one scene for the file: building it takes half a minute in node)
+function setup(s: (typeof SIZES)[number], hand = { k: 1, x: 0, y: 0 }) {
+  resetDivePlace();
+  const sc = (scene ??= (() => { const c = new CelScene() as unknown as Priv; while (!c.microStep()) { /* primed, as after the idle build */ } return c; })()), full = { w: s.w, h: s.h, safe: { top: s.safe && s.w < 500 ? 47 : 0, right: 0, bottom: s.safe, left: 0 } }, d = deviceClass(s.w, s.h);
+  const free = freeRoom(full, d), lob = viewRoom('lobule', full, d);
+  T += 100000; const t0 = T;
+  sc.resize(s.w, s.h); sc.setView('body', t0); sc.rig.setHand({ k: 1, x: 0, y: 0 }); sc.rig.goTo('play', free, t0, 1); sc.rig.update(t0); sc.rig.update(t0 + 4000);
+  sc.rig.setHand(hand); sc.rig.update(t0 + 4016);
+  return { sc, free, lob, t0: t0 + 5000 };
 }
-const bodyRig = (w: number, h: number, hand: { k: number; x: number; y: number }) => {
-  const room = { x: 0, y: 0, w, h }, rig = new CameraRig('play', room); rig.resize(w, h); rig.goTo('play', room, 0); rig.update(0); rig.setHand(hand); rig.update(1);
-  return { rig, room };
-};
+const look = (sc: Priv, s: (typeof SIZES)[number]) => diveLook(sc.rig, s.w, s.h, liverNow(sc));
 
-for (const [name, [w, h]] of Object.entries(SIZES)) test(`${name}: the place dived to moves one way in small steps, and the spot he looks at stays under the room's centre`, () => {
-  HANDS.forEach((hand, hi) => {
-    resetDivePlace();
-    const { rig, room } = bodyRig(w, h, hand), { shot, look, to } = place(rig, room, w, h);
-    const lookIn = Math.abs(look.x - to.x) < 1e-9 && Math.abs(look.y - to.y) < 1e-9;
-    const p = new Vector3(...shot.target), look3 = new Vector3(look.x, look.y, LIVER_Z);
-    const s0 = rig.project(p);
-    if (lookIn) assert.ok(Math.hypot(s0.x - w / 2, s0.y - h / 2) < 1, `hand ${hi}: the place starts under the room's centre`);
-    rig.goTo(shot, room, 100, 1500);
-    const pts: { x: number; y: number }[] = [], looks: { x: number; y: number }[] = [];
-    for (let t = 100; t <= 100 + 1500 + 32; t += 1000 / 60) { rig.update(t); pts.push(rig.project(p)); looks.push(rig.project(look3)); }
-    const end = pts[pts.length - 1]!;
-    let peak = 0;
-    for (let i = 1; i < pts.length; i++) {
-      peak = Math.max(peak, Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y));
-      assert.ok(Math.hypot(pts[i]!.x - end.x, pts[i]!.y - end.y) <= Math.hypot(pts[i - 1]!.x - end.x, pts[i - 1]!.y - end.y) + 1e-6, `hand ${hi}: never turns back from the landing`);
-    }
-    assert.ok(peak <= 0.03 * w, `hand ${hi}: per-frame step ${peak.toFixed(2)} px is at most 3% of ${w}`);
-    if (lookIn) {   // looking at the liver: the place does not travel at all, only the picture grows
-      assert.ok(Math.hypot(end.x - s0.x, end.y - s0.y) < 1, `hand ${hi}: lands where it stood (${end.x.toFixed(1)}, ${end.y.toFixed(1)})`);
-      for (let i = 0; i < pts.length * 0.4; i++) assert.ok(Math.hypot(looks[i]!.x - w / 2, looks[i]!.y - h / 2) <= 0.02 * w, `hand ${hi}: what he looks at stays within 2% of the width over the first 40%`);
-    }
-  });
+for (const s of SIZES) test(`${s.name}: an ordinary tap on Lobule (hand at home) goes to the liver's default place, and nothing snaps`, () => {
+  const { sc, lob, t0 } = setup(s);
+  // 9 points of the figure, spread over the screen
+  const pts: Vector3[] = []; for (const fx of [0.2, 0.5, 0.8]) for (const fy of [0.25, 0.5, 0.75]) { const a = new Vector3(fx * 2 - 1, -(fy * 2 - 1), 0.5).unproject(sc.rig.camera), o = sc.rig.camera.position, t = (LIVER_Z - o.z) / (a.z - o.z); pts.push(new Vector3(o.x + (a.x - o.x) * t, o.y + (a.y - o.y) * t, LIVER_Z)); }
+  const before = pts.map((p) => sc.rig.project(p));
+  sc.setView('lobule', t0);
+  sc.goTo(lobuleShot('lobule'), lob, t0, 1500);
+  assert.deepEqual([...LIVER_POINT], [...DEFAULT_DIVE_PLACE], 'the default place, exactly');
+  sc.rig.update(t0 + 16);
+  pts.forEach((p, i) => { const q = sc.rig.project(p); assert.ok(Math.hypot(q.x - before[i]!.x, q.y - before[i]!.y) <= 0.5 + 0.02 * s.w, `body point ${i} first frame moved ${Math.hypot(q.x - before[i]!.x, q.y - before[i]!.y).toFixed(2)} px`); });
+  assert.ok(insideInset({ x: LIVER_POINT[0], y: LIVER_POINT[1] }, liverOutlineWorld(liverNow(sc))), 'and it is inside the liver');
 });
 
-test('the dive back out lands on the view he left: hand zoom, pan, and the place where it stood', () => {
-  for (const hand of HANDS) {
-    resetDivePlace();
-    const [w, h] = SIZES.mac, { rig, room } = bodyRig(w, h, hand), { shot } = place(rig, room, w, h), p = new Vector3(...shot.target);
-    const before = rig.project(p), k0 = rig.camera.zoom;
-    rig.goTo(shot, room, 100, 1500);
-    for (let t = 100; t <= 1700; t += 1000 / 60) rig.update(t);
-    assert.equal(rig.camera.zoom, 1, 'the lobule lands on its own fit');
-    rig.goTo('play', room, 3000, 1500);
-    let last = Infinity;
-    for (let t = 3000; t <= 4700; t += 1000 / 60) { rig.update(t); const q = rig.project(p), d = Math.hypot(q.x - before.x, q.y - before.y); assert.ok(d <= last + 1, 'the place only comes home'); last = Math.min(last, d); }
-    const after = rig.project(p);
-    assert.ok(Math.hypot(after.x - before.x, after.y - before.y) < 0.5, `the place is back within half a pixel (${after.x.toFixed(2)}, ${after.y.toFixed(2)} vs ${before.x.toFixed(2)}, ${before.y.toFixed(2)})`);
-    assert.ok(Math.abs(rig.camera.zoom - k0) / k0 < 0.005, 'the zoom is as he had it');
-    // another body shot is not his view: a dive back to a different camera lands on that camera's fit
-    rig.goTo(shot, room, 6000, 1500); for (let t = 6000; t <= 7700; t += 1000 / 60) rig.update(t);
-    rig.goTo('pick', room, 9000, 1500); for (let t = 9000; t <= 10700; t += 1000 / 60) rig.update(t);
-    assert.equal(rig.camera.zoom, 1, 'a different body shot lands on the fit');
+/** Hand states (zoom 2.5 to 4) that really have the room's centre on the liver and on screen, found by scanning the pan: the viewer is zoomed on the liver. */
+function liverHands(s: (typeof SIZES)[number]) {
+  const out: { k: number; x: number; y: number }[] = [];
+  for (const k of [3, 2.2, 4]) for (let x = -480; x <= 480; x += 80) for (let y = -480; y <= 480; y += 80) {
+    if (out.length >= 4) return out;
+    const { sc } = setup(s, { k, x, y }), lk = lookPoint(sc.rig, s.w, s.h);
+    if (lk && insideInset(lk, liverOutlineWorld(liverNow(sc))) && onScreen(sc.rig, lk, s.w, s.h) && (out.length === 0 || Math.hypot(x - out[out.length - 1]!.x, y - out[out.length - 1]!.y) > 150)) out.push({ k, x, y });
+  }
+  return out;
+}
+for (const s of SIZES) test(`${s.name}: zoomed on the liver the place is where he looks (the room he is looking at), inside the liver`, () => {
+  const hands = liverHands(s);
+  assert.ok(hands.length >= 2, `found hand states on the liver (${hands.length})`);
+  for (const hand of hands) {
+    const { sc } = setup(s, hand), lk = lookPoint(sc.rig, s.w, s.h)!, to = look(sc, s), poly = liverOutlineWorld(liverNow(sc));
+    assert.ok(insideInset(to, poly), 'inside the inset outline');
+    assert.ok(Math.hypot(to.x - lk.x, to.y - lk.y) < 1e-9, 'the look point itself');
+    const q = sc.rig.project(new Vector3(to.x, to.y, LIVER_Z)), r = sc.rig.pose.room, cx = r.w > 1 ? r.x + r.w / 2 : s.w / 2, cy = r.h > 1 ? r.y + r.h / 2 : s.h / 2;
+    assert.ok(Math.hypot(q.x - cx, q.y - cy) < 1, "under the current room's centre within a pixel");
   }
 });
 
-test('the place is always inside the liver, and the sinusoid follows it', () => {
-  resetDivePlace();
-  const far = [{ x: -9, y: 9 }, { x: 0, y: 0 }, { x: 9, y: -9 }, { x: DEFAULT_DIVE_PLACE[0], y: DEFAULT_DIVE_PLACE[1] }];
-  for (const f of far) {
-    const c = chooseDivePlace(f.x, f.y, box);
-    assert.ok(c.x > box.minX + 0.0499 && c.x < box.maxX - 0.0499 && c.y > box.minY + 0.0499 && c.y < box.maxY - 0.0499, 'inside');
-    setDivePlace(c.x, c.y);
-    const w = lobuleWorld([0, 0, 0]);
-    assert.ok(Math.abs(w[0] - c.x) < 1e-12 && Math.abs(w[1] - c.y) < 1e-12);
-    const s = sinusoidWorld([0, 0, 0]);
-    assert.ok(Math.abs(s[0] - SIN_POINT[0]) < 1e-12 && s[0] < c.x, 'the sinusoid stands toward the portal corner of the moved lobule');
+test('zoomed OFF the liver (stomach, colon): the place is in the liver and on screen, at the nearest such point', () => {
+  const s = SIZES[2]!; let judged = 0;
+  for (const hand of [{ k: 4, x: -700, y: -50 }, { k: 4, x: 600, y: -300 }, { k: 4, x: 0, y: 700 }, { k: 5, x: -900, y: 500 }]) {
+    const { sc } = setup(s, hand), lk = lookPoint(sc.rig, s.w, s.h)!, poly = liverOutlineWorld(liverNow(sc)), to = look(sc, s);
+    const valid = (p: { x: number; y: number }) => insideInset(p, poly) && onScreen(sc.rig, p, s.w, s.h);
+    if (valid(lk)) continue;
+    judged++;
+    const isDefault = Math.abs(to.x - DEFAULT_DIVE_PLACE[0]) < 1e-12 && Math.abs(to.y - DEFAULT_DIVE_PLACE[1]) < 1e-12;
+    if (isDefault) { // no liver on screen: nothing valid anywhere
+      for (let i = 0; i <= 40; i++) for (let j = 0; j <= 30; j++) assert.ok(!valid({ x: -1.2 + (i / 40) * 1.8, y: 0.05 + (j / 30) * 1.25 }), 'no valid liver point was on screen');
+      continue;
+    }
+    assert.ok(valid(to), 'inside the liver and on screen');
+    const d = Math.hypot(to.x - lk.x, to.y - lk.y);
+    for (let i = 0; i <= 60; i++) for (let j = 0; j <= 45; j++) { const p = { x: -1.2 + (i / 60) * 1.8, y: 0.05 + (j / 45) * 1.25 }; if (valid(p)) assert.ok(Math.hypot(p.x - lk.x, p.y - lk.y) >= d - 0.03, 'no valid point is clearly nearer'); }
   }
-  resetDivePlace();
+  assert.ok(judged > 0, 'at least one hand state looked off the liver');
+});
+
+test('two dives in a row: zoomed then unzoomed; the second goes to the default, and the subject follows the place', () => {
+  const s = SIZES[2]!, { sc, free, lob, t0 } = setup(s, { k: 3, x: 40, y: 20 });
+  sc.setView('lobule', t0); sc.goTo(lobuleShot('lobule'), lob, t0, 1500);
+  for (let t = t0 + 16; t <= t0 + 2000; t += 16) sc.rig.update(t);
+  const moved = LIVER_POINT[0] !== DEFAULT_DIVE_PLACE[0] || LIVER_POINT[1] !== DEFAULT_DIVE_PLACE[1];
+  void moved;
+  assert.deepEqual(sc.rig.subjectCorners ?? lobuleCorners(), lobuleCorners());
+  sc.setView('body', t0 + 3000); sc.goTo('play', free, t0 + 3000, 1500);
+  for (let t = t0 + 3016; t <= t0 + 5000; t += 16) sc.rig.update(t);
+  sc.rig.setHand({ k: 1, x: 0, y: 0 }); sc.rig.update(t0 + 5016);
+  sc.setView('lobule', t0 + 6000); sc.goTo(lobuleShot('lobule'), lob, t0 + 6000, 1500);
   assert.deepEqual([...LIVER_POINT], [...DEFAULT_DIVE_PLACE]);
+  const c = lobuleCorners(), w = lobuleWorld([0, 0, 0]);
+  assert.ok(Math.abs(w[0] - LIVER_POINT[0]) < 1e-12 && c.every((p) => Number.isFinite(p[0])), 'corners are at the new place');
+  assert.ok(sinusoidWorld([0, 0, 0])[0] === SIN_POINT[0]);
+});
+
+test('the apparent scale around the place never falls during the dive (zoomed and unzoomed)', () => {
+  const s = SIZES[0]!;
+  for (const hand of [{ k: 1, x: 0, y: 0 }, { k: 3, x: 0, y: 0 }]) {
+    const { sc, lob, t0 } = setup(s, hand);
+    sc.setView('lobule', t0); sc.goTo(lobuleShot('lobule'), lob, t0, 1500);
+    const p = new Vector3(LIVER_POINT[0], LIVER_POINT[1], LIVER_POINT[2]), q = new Vector3(LIVER_POINT[0] + 0.0005, LIVER_POINT[1], LIVER_POINT[2]);
+    let last = 0;
+    for (let t = t0; t <= t0 + 1600; t += 1000 / 60) { sc.rig.update(t); const a = sc.rig.project(p), b = sc.rig.project(q), sc2 = Math.hypot(b.x - a.x, b.y - a.y); assert.ok(sc2 >= last * 0.999, `scale fell at ${t}: ${sc2} < ${last}`); last = sc2; }
+  }
 });
