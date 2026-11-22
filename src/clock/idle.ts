@@ -177,6 +177,8 @@ function postTask(): (fn: () => void) => void {
   if (typeof MessageChannel === 'undefined') return (fn) => { clock.after(fn, 0, 'slot-post'); };
   const mc = new MessageChannel(), q: (() => void)[] = [];
   mc.port1.onmessage = () => { const f = q.shift(); f?.(); };
+  // (a port with a listener keeps a Node process alive for ever: node tests that touched the slot never exited. Unref'd, it still delivers while anything else keeps the process up; browsers have no unref)
+  (mc.port1 as { unref?: () => void }).unref?.();
   return (fn) => { q.push(fn); mc.port2.postMessage(0); };
 }
 
