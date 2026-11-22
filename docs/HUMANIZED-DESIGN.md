@@ -102,7 +102,11 @@ Note timing follows length (about 250 ms a word, 3.2-10 s) and a note stays whil
 ## Known places that still break these rules (fix at the root when touched)
 
 - The toast (`.sh-toast` in `src/ui/shell/shell.css`) has an accent dot: being redesigned from the notes mocks in
-  `/mnt/project-files/visual-mocks/notes/`.
-- Pill-shaped status tags copied from 2D CSS (for example `.pz-gpill` in `src/ui/css2d/app-05-presenter-cards.css`) need the plain-words
-  treatment before they are restyled.
+  `/mnt/project-files/visual-mocks/notes/`. The error and wait notes (`ErrorNote`, `wait-cue`) go with it.
+- Taken off (22 Nov): value, term, disease, case and lens pills in slide words (`.pz-val`, `.pz-dz`, `.pz-site`, `.pz-lens-t`), the ladders rate tags,
+  the patient preview's facts, the Compare badge, the Trials and stent choices, the Over time trace toggles, the findings tool's lesion tags, the
+  sinusoid key ("Protein" in its colour, no frosted pill, no dot) and the History row's dot. They live in `src/ui/humanized.css`, because `src/ui/css2d` is
+  copied unchanged; `tests/no-dot-pills.test.ts` fails on any new pill, chip, badge or dot, or a 2D re-copy that brings one. A new exception needs a reason there.
+- Kept on purpose: rounded bars of controls (`.zoom-pill`, `.float-pill`, `.pzb-pill`), the Treat card's ruled rows with a tick box, the step rail's dots (mock A),
+  the Appearance swatches, the callout leaders' anchor dots on the figure, the build marker, the scope card's data cells (`.endo-chip`).
 - `docs/look-and-feel.md` section 6 still describes figure tags as "small pills ... with a coloured dot": superseded by section 6 here.

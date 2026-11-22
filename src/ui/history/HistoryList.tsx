@@ -6,7 +6,8 @@ import { useTimeline } from '../timeline/store.ts';
 import { pinEntry } from '../compare/bind.ts';
 import { HIST } from './words.ts';
 
-const SEV: Record<string, string> = { critical: 'var(--critical, var(--danger))', danger: 'var(--danger)', caution: 'var(--caution)', info: 'var(--accent)', ok: 'var(--ok)' };
+// (an event's words take its severity's ink; a plain note stays the text colour: no dot, no chip)
+const SEV: Record<string, string> = { critical: 'var(--critical-ink)', danger: 'var(--danger-ink)', caution: 'var(--caution-ink)', ok: 'var(--ok-ink)' };
 
 function Row({ e, i }: { e: Entry; i: number }) {
   const live = timeline.isLive(i), future = timeline.isFuture(i);
@@ -14,8 +15,7 @@ function Row({ e, i }: { e: Entry; i: number }) {
   return (
     <div className="hist-row" data-future={future || undefined} data-row={`e${e.id}`}>
       <div className="hist-head">
-        <i className={`hist-dot ${e.kind}`} style={e.kind === 'event' ? { background: SEV[e.sev ?? 'info'] ?? SEV.info } : undefined} />
-        <b>{e.kind === 'start' ? HIST.patient(e.label) : e.label}</b>
+        <b className={`hist-t ${e.kind}`} style={e.kind === 'event' ? { color: SEV[e.sev ?? 'info'] } : undefined}>{e.kind === 'start' ? HIST.patient(e.label) : e.label}</b>
         <span className="when">{e.kind === 'start' ? HIST.start : fmtClock(e.t, e.day)}</span>
         <span className="hist-acts">
           {back && <button type="button" className="hist-ic" style={{ gridColumn: 1 }} title={back} aria-label={back} onClick={() => { useShell.getState().close(); timeline.goTo(i); }}><Icon n="rewind" /></button>}
