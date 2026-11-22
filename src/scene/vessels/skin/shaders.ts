@@ -324,9 +324,11 @@ float skinArmPx(vec2 frag, int arm, float swell, float fragW, float kPx, float i
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
 float skinSdPx(float kPx, float inkPx) {
   float dArm[${SKIN_ARMS}];
+  // A GROWING ARM THAT IS NOT THERE (keepOf 0: a collateral that is collapsed, a dotted thread) is not in the outline either: the mesh is one static shape with every arm whole, so its stub (the ascending lumbar's connection into the azygos, Mohammad 22 Nov: "just don't draw it
+  // if the ascending lumbar is collapsed") stood out of the wall with its ink, a dotted tip where the kept weights ran out; held out of the union, the band test below drops it. It comes in with its presence (keep turns on at the first of it; its dither does the easing).
   // an arm that is not there (a collateral not yet grown, a vessel closed to nothing) is not in the outline: a capsule of no width is a LINE, its smooth union with the trunk a horn along it, and the cone of the arm's collapsed
   // ring out to the wall stayed inside its band as a thorn (Mohammad, 20 Nov). It is held out of reach (the blend sees nothing of it past k) and comes in as its width does: continuous, never a pop
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i), 1.0 / gl_FragCoord.w, kPx, inkPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
+  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = (armData[i].x < 0.0 || keepOf(i) < 0.5) ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i), 1.0 / gl_FragCoord.w, kPx, inkPx) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -349,7 +351,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   float d[${SKIN_ARMS}];
   float lo = 1.0e9;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
-    d[k] = armData[k].x < 0.0 ? 1.0e9 : skinArmPx(fc, k, swAt(k), -1.0, kPx, 0.0) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
+    d[k] = (armData[k].x < 0.0 || keepOf(k) < 0.5) ? 1.0e9 : skinArmPx(fc, k, swAt(k), -1.0, kPx, 0.0) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
     lo = min(lo, d[k]);
   }
   float mine = 0.0, sum = 0.0;
@@ -460,7 +462,7 @@ void main() {
   // trimmed, where the tube past the seam is cut and no longer there to cover it). The ring is the tube's exact polygon stood out by its sag, the outline a smooth capsule: they differ by about a pixel. Where one arm's weight
   // is nearly 1 the band is wider by that pixel and a half, fading out over the weights 0.75 .. 0.97, so the outline rules the free skin and the mesh rules the seam
   float wMax = 0.0;
-  for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, wAt(i));
+  for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
   float seamPad = ${F(SKIN_SEAM_PAD_PX)} * dpr * smoothstep(0.75, 0.97, wMax);
 #ifdef SKIN_DEBUG
   if (sdPx > inkDev + 0.5 + seamPad) { gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
