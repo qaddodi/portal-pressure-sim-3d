@@ -68,12 +68,16 @@ export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, 
 /** The geometry of the shape on the wall: the wall side of a clot of occlusion `v` at share `f` is on the lumen's edge, never past it (the gate: |c| + h <= CLOT_INSIDE). */
 export function clotWallReach(v: number, f: number, id: string): number { const { h, c } = clotShapeAt(v, f, id); return Math.abs(c) + h; }
 
-/** The share of the vein's length a clot of occlusion `v` covers. A vein that opens into the cava (Budd-Chiari: hepatic vein thrombosis) is clotted at its OSTIUM and upstream: `limit` is the proximal end b: the IVCS junction skin's seam share on the vein less the cap's length, so the cap's tip sits at the seam and never enters the skin (clots.ts seamShare: plan 34c). That end stays put as v rises and the distal end `a` falls (the clot grows upstream), by the
- *  width clotSpan gives as a share of the trunk from the periphery to b: (0.2 + 0.44 v) b. Any other vein (limit null) keeps clotSpan, growing from the middle. */
-export function clotRange(v: number, limit: number | null): { a: number; b: number } {
+/** How long an OSTIAL clot is, in vein widths (plan 34d): (1 + 2 v) widths, so about one width as it starts and three at full occlusion, never more than this share of the drawn vein (a short vein's clot stays in its proximal half). */
+export const OSTIAL_MAX_SHARE = 0.45;
+export const ostialLength = (v: number, D: number, length: number): number => Math.min((1 + 2 * v) * D, OSTIAL_MAX_SHARE * length);
+
+/** The share of the vein's length a clot of occlusion `v` covers. A vein that opens into the cava (Budd-Chiari: hepatic vein thrombosis) is clotted at its OSTIUM and upstream (plan 34d): `limit` is the proximal end b, the IVC's drawn wall less the cap's length, so the cap's tip touches the wall and never enters the IVC; `len` is the clot's length as a share of the vein
+ *  (ostialLength: vein widths, not a share of the vein). b stays put as v rises and the distal end `a` falls, the clot growing upstream. Any other vein (limit null) keeps clotSpan, growing from the middle. */
+export function clotRange(v: number, limit: number | null, len = 0): { a: number; b: number } {
   if (limit == null) { const span = clotSpan(v); return { a: span.u0, b: span.u1 }; }
-  const b = Math.max(limit, 0), span = clotSpan(v), w = span.u1 - span.u0;
-  return { a: Math.max(0, b - w * b), b };
+  const b = Math.max(limit, 0);
+  return { a: Math.max(0, b - len), b };
 }
 
 /** What each piece of a vein is given: for a vein of pieces whose arcs (scene units) run `starts[k]` to `ends[k]` along a whole vein of `length`, the clot [a, b] (shares) as the piece's uniform. */

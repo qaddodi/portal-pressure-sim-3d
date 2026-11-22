@@ -741,7 +741,6 @@ export class CelScene {
       instant: first,   // (a new patient eases: the organs, the disease and the collaterals glide from the old patient to the new, never swap; only the very first frame is at once)
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
-      seam: (id) => this.skins?.seamU(id, 1) ?? null,   // (where the junction skin's seam stands on a vein's end: the hepatic veins' clots are anchored there)
     }, false);
   }
 

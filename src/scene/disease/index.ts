@@ -29,8 +29,6 @@ export interface FeedContext {
   instant?: boolean;
   /** a vessel's presence 0 or 1 (the vessels' own tracks) */
   presence: (id: string) => number;
-  /** where the IVCS junction skin's seam stands on a vein's cava end (uv.x of its last piece), null until the skins stand */
-  seam?: (id: string) => number | null;
   /** a collateral's recruitment 0..1 */
   recruit: (id: string, f: { D: ArrayLike<number> }) => number;
 }
@@ -113,7 +111,7 @@ export class DiseaseLayer {
     this.organs.setBowelLift(this.ascites.bulge / 34 * 26);
     this.landmarks.setAscites(this.fluid.shown);
     moving = this.landmarks.setCaput(ctx.recruit('C3', f), dt, inst) || moving;
-    moving = this.clots.set(t.thrombus, dt, inst, f.D, ctx.seam ?? null) || moving;
+    moving = this.clots.set(t.thrombus, dt, inst, f.D) || moving;
     moving = this.clamps.set(this.stenosis, ctx.presence, dt, inst) || moving;
     moving = this.bandsShown.to(t.bands, dt, inst) || moving;
     const m = f.metrics ?? {};

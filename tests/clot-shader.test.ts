@@ -85,11 +85,11 @@ test('no vessel changes where no clot is: the code is one uniform branch, its un
 const parserName = '@shaderfrog/glsl-parser';
 let parse: ((s: string) => unknown) | null = null;
 try { const mod = await import(parserName); parse = (s) => mod.parser.parse(s.replace(/^#include.*$/gm, ''), { quiet: true }); } catch { /* not installed */ }
-test('gate 6: the vessel and skin programs parse in pure JS, every variant', { skip: !parse }, () => {
-  const w = (d: string[], s: string) => d.map((x) => `#define ${x} 1\n`).join('') + s;
-  for (const d of [[], ['VEIL'], ['SHADOW'], ['GLOW'], ['VDBG']]) parse!(w(d, VESSEL_FS.replace(/^\n/, '')));
+test('gate 6: the vessel and skin programs parse in pure JS', { skip: !parse }, () => {
+  // (the parser keeps #define/#ifdef as plain directive lines and parses every branch, so a variant differs from the plain program by its leading #define line only: each program's text is parsed ONCE, not once per variant: 4 parses, not 15, which took 127 s of the file's 128 s)
+  parse!(VESSEL_FS.replace(/^\n/, ''));
   parse!(VESSEL_VS.replace(/^\n/, ''));
-  for (const d of [[], ['SKIN_COPY 1'], ['SKIN_COPY 2'], ['GLOW'], ['SKIN_NOMARKS'], ['SKIN_NOINK'], ['SKIN_NODUST'], ['SKIN_NOHEADS'], ['SKIN_DEBUG']]) parse!(w(d.map((x) => x), SKIN_FS.replace(/^\n/, '')).replace(/#define (SKIN_COPY) 1 1/, '#define $1 1'));
+  parse!(SKIN_FS.replace(/^\n/, ''));
   parse!(SKIN_VS.replace(/^\n/, ''));
 });
 
