@@ -262,7 +262,6 @@ export class EndoScope {
       this.glowMesh.renderOrder = 1001; this.glowMesh.frustumCulled = false; this.glowMesh.visible = false;
       this.group.add(this.glowMesh);
     }
-    this.group.visible = false;
     this.setTargets();
   }
 
@@ -494,9 +493,9 @@ export class EndoScope {
     }
     const eus = this.mode === 'eus' || this.mode === 'glue';
     const vis = this.d > 0.5;
-    if (!vis) for (const o of this.parts) o.show(false);
-    // (the scope is drawn while it is in the figure or any part of it is still fading out)
-    this.group.visible = vis || this.parts.some((o) => o.group.visible);
+    // (no container is switched: the scope's parts leave the draw list one by one as they fade, and an empty container draws nothing. A scope that is leaving has exits of its own: `leave`.)
+    if (!vis) this.sector(false);
+    if (!vis && this.gone === 0) for (const o of this.parts) o.show(false);
     if (vis && (moving || this.dirty)) {
       this.dirty = false;
       this.lay();
@@ -510,18 +509,19 @@ export class EndoScope {
       if (!needleOn) off.add(p.needle);
       if (!(needleOn && this.sheathLen > 0.001)) off.add(this.sheathPart);
       if (!eus) { off.add(p.face); off.add(p.array); } else { for (const l of p.lights) off.add(l); off.add(p.chan); }
-      for (const o of this.parts) if (!own.includes(o)) o.show(!off.has(o));
+      if (this.gone === 0) for (const o of this.parts) if (!own.includes(o)) o.show(!off.has(o));
       p.cap.present(); p.band.present(); p.cap.setAlpha(this.cap * 0.55); p.band.setAlpha(this.cap);
       p.port.present(); p.port.setAlpha(eus ? 0.9 * this.aim : 0);
       this.sheathPart.setGloss(1); p.needle.setGloss(1);
-      this.fanMesh.visible = eus && this.fan > 0.002; this.fanMat.opacity = this.fan;
+      this.sector(eus && this.fan > 0.002); this.fanMat.opacity = this.fan;
     }
     // the light at the tip fades in once the scope is on the figure and goes with it
     const glow0 = this.glow;
     this.glow = vis ? Math.min(1, this.glow + Math.max(0, dtMs) / GLOW_MS) : 0;
     if (this.glow !== glow0) moving = true;
-    this.glowMesh.visible = vis && this.glow > 0.002;
-    if (this.glowMesh.visible) {
+    const glowOn = vis && this.glow > 0.002;
+    this.sector(this.fanMesh.visible, glowOn);
+    if (glowOn) {
       const pos = this.glowGeo.getAttribute('position') as BufferAttribute, t = this.pose.tip, r = len3(GLOW_R), z = t.z + 0.01;
       pos.setXYZ(0, t.x, t.y, z);
       for (let i = 0; i < GLOW_SEGS; i++) { const a = (i / GLOW_SEGS) * Math.PI * 2; pos.setXYZ(i + 1, t.x + Math.cos(a) * r, t.y + Math.sin(a) * r, z); }
@@ -541,13 +541,17 @@ export class EndoScope {
     this.fanMat.opacity = this.fan * k;
     if (this.gone < 1) return true;
     this.restore(); this.d = 0; this.aim = 0; this.fan = 0; this.needle = 0; this.mode = 'scope'; this.way = this.eusWay;
-    for (const o of this.parts) o.park();   // (it has faded out whole: out of the picture, nothing left to fade)
-    this.group.visible = false; this.dirty = true;
+    this.sector(false, false); this.fanMat.opacity = 0;   // (the sector and the light went with the scope; they sat in the container that used to be switched)
+    // (its parts are at fade 0 now, so out of the list costs no pop: `park` is for exactly this, a part that is already invisible; restoring the fade first would bring them back whole)
+    for (const o of this.parts) o.park();
+    this.dirty = true;
     return false;
   }
   /** The light follows the scope's own fade when the glue scope is parked and leaving. */
   private gloneK(): number { return this.gone > 0 ? 1 - ease01(this.gone) : 1; }
-  private restore(): void { this.gone = 0; for (const o of this.parts) o.setFade(1); this.fanMat.opacity = this.fan; }
+  private restore(): void { this.gone = 0; this.dirty = true; for (const o of this.parts) o.setFade(1); this.fanMat.opacity = this.fan; }
+  /** The two meshes that are not parts (the sector and the tip's light) are drawn only while their own opacity is above nothing: derived, never a switch of their own. `glow` left out: unchanged. */
+  private sector(fan: boolean, glow = this.glowMesh.visible): void { this.fanMesh.visible = fan; this.glowMesh.visible = glow; }
   private bendShown(): boolean { return this.bendOn; }
 
   applyPalette(p: Palette): void {

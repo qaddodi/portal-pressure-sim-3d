@@ -194,3 +194,10 @@ test('the preload ladder runs its rungs on the shared slot (quietSlot), one per 
   assert.match(w, /slot: Slot = quietSlot/);
   assert.match(w, /quietSlot: Slot = [^\n]*whenQuietOnce\(go, \{ tag: 'ladder'/, 'the slot is the shared one (after the cover has lifted: boot-splash.test.ts)');
 });
+
+test('the slot never keeps a Node process alive on its own (its MessageChannel is unref\'d): node tests that touch it exit', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', "const m = await import('./src/clock/idle.ts'); m.whenQuietOnce(() => {}, { tag: 'exit-check' });"], { timeout: 60000, encoding: 'utf8' });
+  assert.notEqual(r.signal, 'SIGTERM', 'the process hung on the slot');
+  assert.equal(r.status, 0, r.stderr);
+});
