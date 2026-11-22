@@ -3,7 +3,7 @@
 // A patch is merged into the copy first (deep merge, as updateParams does), then the whole set goes to the worker: the worker fills a partial set from the model's
 // defaults, so a bare patch would also reset everything else it did not name. `replace` puts a whole set in place of the copy (undo, a restored patient).
 // tests/lint-rules.test.ts (rule raw-setparams) fails any other place that builds a `type: 'setParams'` message.
-import { deepMerge } from './hales/portal/scenario.js';
+import { deepMerge, sanitizeParams } from './hales/portal/scenario.js';
 import { engine } from './boot.ts';
 import { patient, setParams } from './store.ts';
 
@@ -17,8 +17,9 @@ export function mergedParams(change: unknown): unknown {
 
 /** Change the patient's parameters: the page's copy first (so the next frame's figure sees it), then the worker. Returns the parameters now in force. */
 export function sendParams(change: unknown, opts: SendOpts = {}): unknown {
-  const next = opts.replace ? change : mergedParams(change);
-  if (next == null) return null;
+  const raw = opts.replace ? change : mergedParams(change);
+  if (raw == null) return null;
+  const next = sanitizeParams(raw);   // the worker sanitizes what it is sent; the figure reads this copy, so it must hold the same clamped set (audit W4)
   setParams(next);
   const msg: { type: 'setParams'; params: unknown; settle: boolean; ease?: number } = { type: 'setParams', params: next, settle: opts.settle ?? false };
   if (opts.ease != null) msg.ease = opts.ease;

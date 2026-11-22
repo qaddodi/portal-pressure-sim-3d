@@ -11,7 +11,7 @@ const VIEWS = ['anatomic', 'lobule', 'sinusoid'];
 const ID = /^[\w-]{1,40}$/;
 /** The sheets a link may open: the tools that read the figure and nothing that takes typing or a decision (N4) */
 export const SHARE_SHEETS = ['compare', 'layers', 'blood', 'lens'];
-const FIGURE_FLAGS = ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile'];
+const FIGURE_FLAGS = ['chevrons', 'keyChevrons', 'keyStreaks', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile'];
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 
 export interface Cam { orbit: number; k: number; x: number; y: number }

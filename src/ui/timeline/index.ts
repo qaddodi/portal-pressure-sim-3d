@@ -3,6 +3,7 @@
 import { yoursName } from '../readings/yours.ts';
 import { engine, latest, live, patient, useEngine } from '../../engine/index.ts';
 import { setParams } from '../../engine/store.ts';
+import { sanitizeParams } from '../../engine/hales/portal/scenario.js';
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { UI } from '../strings.generated.ts';
 import { useShell } from '../shell/store.ts';
@@ -24,7 +25,7 @@ export const getInterventionLabels = () => labels;
 
 const host: TimelineHost = {
   snapshot: async () => ((await engine().request({ type: 'snapshot' })) as unknown as { snap?: Snap }).snap ?? null,
-  restore: (snap) => { engine().send({ type: 'restore', snap }); setParams(snap.params); },
+  restore: (snap) => { engine().send({ type: 'restore', snap }); setParams(sanitizeParams(snap.params)); },
   frame: () => latest.frame,
   params: () => patient.params,
   advance: (days) => engine().send(days === 'event' ? { type: 'advance', untilEvent: true } : { type: 'advance', days }),

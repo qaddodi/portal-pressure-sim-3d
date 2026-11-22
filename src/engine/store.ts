@@ -30,7 +30,10 @@ export interface HealthyRef { P: Float64Array | number[]; Q: Float64Array | numb
  *    `paramsVersion` counts changes.
  */
 export const patient: { reference: HealthyRef | null; params: unknown; paramsVersion: number } = { reference: null, params: null, paramsVersion: 0 };
-export function setParams(params: unknown) { if (params == null) return; patient.params = params; patient.paramsVersion++; }
+/** Bumps on every change to the page's parameter copy (and, from the card layer, to the history list), so a card that lists the parameters re-reads. The tick is a
+ *  function of the copy: `setParams` is the one place the copy changes, and it tells React, so no path (a slide, a link, a restore, a morph landing, a worker echo) can leave a card stale. */
+export const useParamsTick = create<{ tick: number }>(() => ({ tick: 0 }));
+export function setParams(params: unknown) { if (params == null) return; patient.params = params; patient.paramsVersion++; useParamsTick.setState((s) => ({ tick: s.tick + 1 })); }
 
 /** Listeners handed every adopted frame (not just the newest): a trace that records the model's samples must see each frame once. Returns the remover. */
 const taps = new Set<(f: EngineFrame) => void>();

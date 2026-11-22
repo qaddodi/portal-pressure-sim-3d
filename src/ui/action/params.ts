@@ -4,8 +4,7 @@
 import { deepMerge } from '../../engine/hales/portal/scenario.js';
 import { migratePieceKeys } from './piece-keys.ts';
 import { sendParams } from '../../engine/params-send.ts';
-import { patient } from '../../engine/store.ts';
-import { create } from 'zustand';
+import { patient, useParamsTick } from '../../engine/store.ts';
 
 /** The model's parameter record (engine/hales/portal/scenario.js defaultParams), as a loose tree: the engine is JavaScript. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,8 +12,8 @@ export type Params = any;
 export interface Entry { params: Params; label: string }
 export interface UpdateOpts { label?: string; history?: boolean; settle?: boolean }
 
-/** Bumps on every change to the params or the history, so a card that lists them re-reads (the numbers on a card come from frames, not from here). */
-export const useParamsTick = create<{ tick: number }>(() => ({ tick: 0 }));
+/** The tick lives with the copy it follows (engine/store.ts setParams bumps it on every change); `bump` here is for the history list only (the numbers on a card come from frames, not from here). */
+export { useParamsTick };
 const bump = () => useParamsTick.setState((s) => ({ tick: s.tick + 1 }));
 
 const MAX_HISTORY = 200;

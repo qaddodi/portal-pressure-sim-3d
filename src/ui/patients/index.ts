@@ -2,6 +2,7 @@
 // the new patient replace the old at once (a `jump` frame, nothing blends across it); the timeline starts over with the patient's name; Compare ends on a restart (restartPatient).
 import { engine, useEngine } from '../../engine/index.ts';
 import { setParams } from '../../engine/store.ts';
+import { sanitizeParams } from '../../engine/hales/portal/scenario.js';
 import { presetStarted } from '../action/params.ts';
 import { useShell } from '../shell/store.ts';
 import { UI } from '../strings.generated.ts';
@@ -29,6 +30,7 @@ export async function loadPatient(id: string): Promise<boolean> {
     return false;
   }
   if (gen !== loadGen) return false;
+  params = sanitizeParams(params);   // (the figure reads this copy: it holds the clamped set the worker holds, audit W4)
   setParams(params); presetStarted(id, params as Parameters<typeof presetStarted>[1]);   // (the patient's own settings: the engine store keeps them, and Treat's change history starts from them)
   useEngine.setState({ presetId: id });
   useShell.setState({ patientId: id });

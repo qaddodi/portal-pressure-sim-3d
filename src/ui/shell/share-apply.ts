@@ -5,6 +5,7 @@ import { useSettings } from '../../state/settings.ts';
 import { useShell } from './store.ts';
 import { goToView } from './view-actions.ts';
 import { sceneApi } from '../../scene/api.ts';
+import { setFigureSwitch } from './figure-switch.ts';
 import { cleanExtras, type Extras } from '../debug/packet/state.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
@@ -15,7 +16,7 @@ export function applyExtras(raw: unknown): string[] {
   if (x.look) tryDo('look', () => useSettings.getState().setLook(x.look as LookChoice));
   if (x.lens) tryDo('lens', () => sceneApi.setLens(x.lens as LensId, true));
   if (x.labels) tryDo('labels', () => useShell.getState().setFigure({ labelLevel: x.labels as 'key' | 'all' | 'none' }));
-  if (x.figure) tryDo('figure', () => useShell.getState().setFigure(x.figure!));
+  if (x.figure) for (const [k, on] of Object.entries(x.figure)) tryDo(`figure.${k}`, () => { if (!setFigureSwitch(k, on)) skipped.push(`figure.${k}: not a switch`); });
   if (x.view && x.view !== useShell.getState().view) tryDo('view', () => { if (!goToView(x.view as 'anatomic' | 'lobule' | 'sinusoid')) skipped.push(`view: ${x.view} is not drawn yet`); });
   return skipped;
 }

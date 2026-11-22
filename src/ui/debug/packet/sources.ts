@@ -11,6 +11,7 @@ import { presetBase, currentParams } from '../../action/params.ts';
 import { caughtCount } from '../caught.ts';
 import { recentFaults } from '../../../boot/crash-net.ts';
 import { useShell } from '../../shell/store.ts';
+import { figureSwitches } from '../../shell/figure-switch.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { readerList } from '../core/registry.copied.js';
 import { buildLabel } from '../../shell/build-pill.ts';
@@ -26,7 +27,7 @@ export function paramsDelta(): Record<string, unknown> | null {
 /** The state of the app as it is now: the patient, the talk and slide, the look, the figure's switches, the camera, the picked vessel and the sliders. */
 export function stateNow(app = appSnapshot()): PacketState {
   const sh = useShell.getState();
-  return captureState(app, { figure: { ...sh.figure } as Record<string, unknown>, labels: sh.figure.labelLevel, running: sh.transport.running, speed: sh.transport.speed, params: paramsDelta() });
+  return captureState(app, { figure: { ...sh.figure, ...figureSwitches() } as Record<string, unknown>, labels: sh.figure.labelLevel, running: sh.transport.running, speed: sh.transport.speed, params: paramsDelta() });
 }
 
 /** The screen report as it is now, with the self-check findings (the state rules; the motion rules when the recorder holds a history). */

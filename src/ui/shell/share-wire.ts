@@ -12,16 +12,16 @@ import { goToView } from './view-actions.ts';
 import { hasShare, loadShared, readShare, shareUrl, SHARE_WORDS, type ShareDeps, type ShareNow, type FigureExtras } from './share.ts';
 import { SHARE_SHEETS, type Cam } from '../debug/packet/state.ts';
 import { applyExtras } from './share-apply.ts';
+import { figureSwitches } from './figure-switch.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { DEFAULT_LENS } from '../../scene/lenses/model.ts';
 
 import { clock } from '../../clock/frame.ts';
 /** What the figure wears beyond its view (N4): the lens when it is not the default, the label level and the figure's switches. */
 function figureNow(): FigureExtras {
-  const f = useShell.getState().figure as unknown as Record<string, unknown>, lens = useLens.getState().lens;
-  const flags: Record<string, boolean> = {};
-  for (const k of ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile']) if (typeof f[k] === 'boolean') flags[k] = f[k] as boolean;
-  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...(typeof f.labelLevel === 'string' ? { labels: f.labelLevel } : {}), figure: flags, ...(SHARE_SHEETS.includes(String(useShell.getState().sheet)) ? { sheet: String(useShell.getState().sheet) } : {}) };
+  const f = useShell.getState().figure, lens = useLens.getState().lens;
+  const flags: Record<string, boolean> = { ...figureSwitches() };   // (each from its owner: useBlood for the Blood menu's, the shell for the lobule's layers)
+  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...{ labels: f.labelLevel }, figure: flags, ...(SHARE_SHEETS.includes(String(useShell.getState().sheet)) ? { sheet: String(useShell.getState().sheet) } : {}) };
 }
 /** The scenario on the screen now. The camera rides only when the hand has moved it (a view frames itself). */
 export function shareNow(): ShareNow {
