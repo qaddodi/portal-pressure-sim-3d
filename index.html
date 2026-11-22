@@ -25,6 +25,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Portal Sim">
   <title>Portal Pressure 3D</title>
+  <!-- the bytes a first visit downloads before the first picture (gzipped text, the data as is): scripts/pwa.mjs writes the total at build; 0 (a dev page) keeps the wait bar sliding -->
+  <meta name="pps-boot-bytes" content="0">
   <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/source-serif-4-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/fonts/fonts.css">
@@ -42,10 +44,18 @@
     #boot.done { opacity: 0; visibility: hidden; pointer-events: none; }
     #boot .boot-in { display: flex; flex-direction: column; align-items: center; gap: 16px; margin: auto; transition: opacity 240ms ease, transform 240ms ease; }
     #boot.done .boot-in { transform: translateY(-6px); opacity: 0; }
+    /* the mark is inline SVG (no request: it is there at first paint, never an image that arrives after it) */
     #boot .boot-mark { display: block; width: 64px; height: 64px; border-radius: 23.4%; background: #16181D; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
-    #boot .boot-name { font: 600 20px/1.2 var(--display, "Source Serif 4", Georgia, serif); letter-spacing: -.01em; color: var(--text, #16181D); }
-    #boot .boot-bar { width: 140px; margin-top: 4px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,.08); opacity: 0; animation: boot-bar-in 240ms ease 1.2s forwards; }
-    #boot .boot-bar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--text-3, #8a8a8a); animation: boot-slide 1.2s ease-in-out infinite; }
+    /* the name appears (200 ms) once its face is in, by 800 ms at the latest, and then stays in the face it appeared in: a late face is never swapped in under it (the script sets data-name) */
+    #boot .boot-name { font: 600 20px/1.2 var(--display, "Source Serif 4", Georgia, serif); letter-spacing: -.01em; color: var(--text, #16181D); opacity: 0; transition: opacity 200ms ease; animation: boot-name-in 200ms ease 800ms forwards; }
+    #boot[data-name] .boot-name { opacity: 1; animation: none; }
+    #boot[data-name="fallback"] .boot-name { font-family: Georgia, "Times New Roman", serif; }
+    /* the wait bar: sliding while nothing is known; once the build's byte total and the bytes that arrived are (data-det), it fills, easing its width (a scale, never a jump), and the sliding one fades out */
+    #boot .boot-bar { position: relative; width: 140px; margin-top: 4px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,.08); opacity: 0; animation: boot-bar-in 240ms ease 1.2s forwards; }
+    #boot .boot-bar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--text-3, #8a8a8a); animation: boot-slide 1.2s ease-in-out infinite; transition: opacity 300ms ease; }
+    #boot .boot-bar b { position: absolute; inset: 0; border-radius: 3px; background: var(--text-3, #8a8a8a); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); opacity: 0; transition: transform 600ms cubic-bezier(.2,.8,.2,1), opacity 300ms ease; }
+    #boot[data-det] .boot-bar i { opacity: 0; }
+    #boot[data-det] .boot-bar b { opacity: 1; }
     #boot .boot-msg { max-width: min(520px, calc(100vw - 32px)); margin: auto 16px; padding: 22px 24px; border-radius: 14px; background: var(--surface, #fff); color: var(--text, #1a1a1a); box-shadow: 0 6px 30px rgba(0,0,0,.12); font: 400 15px/1.5 var(--ui, system-ui, -apple-system, "Segoe UI", Arial, sans-serif); text-align: left; }
     #boot .boot-msg h1 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
     #boot .boot-msg p { margin: 0 0 10px; }
@@ -54,27 +64,49 @@
     #boot .boot-msg button { margin: 4px 8px 0 0; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,.15); background: rgba(0,0,0,.05); color: inherit; font: inherit; cursor: pointer; }
     @keyframes boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
     @keyframes boot-bar-in { to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { #boot .boot-bar i { animation: none; } }
+    @keyframes boot-name-in { to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { #boot .boot-bar i { animation: none; } #boot .boot-bar b, #boot .boot-bar i, #boot .boot-name { transition: none; } }
   </style>
 </head>
 <body>
-  <div id="boot" role="status" aria-live="polite"><div class="boot-in"><img class="boot-mark" src="/brand/mark.svg" width="64" height="64" alt=""><div class="boot-name">Portal Pressure Simulator 3D</div><div class="boot-bar"><i></i></div><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Loading…</span></div></div>
+  <div id="boot" role="status" aria-live="polite"><div class="boot-in"><svg class="boot-mark" width="64" height="64" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><defs><linearGradient id="bootpv" gradientUnits="userSpaceOnUse" x1="24" y1="28" x2="9" y2="11"><stop offset="0" stop-color="#D2448A"/><stop offset=".5" stop-color="#7A86E0"/><stop offset="1" stop-color="#4FA9D6"/></linearGradient></defs><rect width="32" height="32" rx="7.5" fill="#16181D"/><path d="M3.2 11C3.2 6.9 7.4 4.6 13.8 4.6C20.2 4.6 25.9 5.2 29 6.6C29.6 6.9 29.4 7.7 28.8 8.1C26.2 9.9 22.8 11.9 20.2 13.9C18.4 15.3 16.8 16.9 15 17.8C14.2 18.2 13.5 17.6 12.8 17.9C11.6 18.5 11.2 19.4 9.6 19.6C7.4 19.9 5.2 18.8 4.2 16.8C3.5 15.3 3.2 13.3 3.2 11Z" fill="#F4E4E1"/><path d="M13.3 16.2C11.6 14.2 9.2 12.9 6.3 12.5M13.3 16.2C15.4 13.8 18.4 11.6 22 10" stroke="url(#bootpv)" stroke-width="1.9" stroke-linecap="round" fill="none"/><path d="M17.4 29.3V23.4M28.6 22.3C24.8 23.4 20.8 23.6 17.4 23.4M17.4 23.4C15.8 21 14.6 19 13.3 16.2" stroke="url(#bootpv)" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><div class="boot-name">Portal Pressure Simulator 3D</div><div class="boot-bar"><i></i><b></b></div><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Loading…</span></div></div>
   <noscript><div style="position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;background:#F1EBE0;font:15px/1.5 system-ui,Arial,sans-serif;padding:16px"><p style="max-width:480px">The Portal Pressure Simulator needs JavaScript, which is turned off in this browser. Please turn it on, or open the simulator in a current Chrome, Edge, Safari or Firefox.</p></div></noscript>
   <script>/* A page that cannot start says why, in plain words (the 2D page's #boot messages). ES5 on purpose, so an old browser still gets the note.
-     window.ppsBootFail() puts the message up (a SyntaxError calls it); a start still going after 15 s is offered a reload. */
+     window.ppsBootFail() puts the message up (a SyntaxError calls it). Loading is told by what arrives, never by the clock alone: the wait bar fills with the bytes that came (below), "Still loading…" is
+     offered only after 8 s in which nothing new arrived, and a page opened offline with no saved copy says so (the 15 s timer of before could not tell a slow download from a stuck one). */
 (function(){var w=window,orig=null,esc=function(t){return String(t).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})};w.ppsBootErrors=[];
-function show(title,body,detail,actions,cls){var el=document.getElementById('boot');if(!el||el.getAttribute('data-lifting')||(cls==='slow'&&el.className==='failed'))return;if(!cls)clearTimeout(w.ppsBootTimer);if(orig===null)orig=el.innerHTML;el.className=cls||'failed';el.innerHTML='<div class="boot-msg" role="alert"><h1>'+title+'</h1>'+body+(detail?'<code>'+esc(detail)+'</code>':'')+actions+'</div>';var r=el.querySelector('[data-reload]'),k=el.querySelector('[data-wait]');if(r)r.onclick=function(){location.reload()};if(k)k.onclick=function(){el.className='';el.innerHTML=orig;w.ppsBootTimer=setTimeout(slow,15000);if(w.ppsBootReady)lift()}}
+var STALL_MS=8000,OFFLINE_MS=3000,TICK_MS=500,BAR_AFTER_MS=1200,NAME_MS=800;
+var seen=0,bytes=0,last=0,hold=0,frac=0,total=0,startedAt=0,WORK_MS=15000;
+function now(){return w.performance&&performance.now?performance.now():0}
+function show(title,body,detail,actions,cls){var el=document.getElementById('boot');if(!el||el.getAttribute('data-lifting')||(cls==='slow'&&el.className==='failed'))return;if(!cls)clearTimeout(w.ppsBootTimer);if(orig===null)orig=el.innerHTML;el.className=cls||'failed';var msg='<div class="boot-msg" role="alert"><h1>'+title+'</h1>'+body+(detail?'<code>'+esc(detail)+'</code>':'')+actions+'</div>',head=cls==='slow'?orig.replace(/<div class="boot-bar">[\s\S]*?<\/div>/,'').replace(/<span[\s\S]*?<\/span>/,''):'';/* a recoverable note keeps the mark and the name above it */el.innerHTML=/<\/div>$/.test(head)?head.replace(/<\/div>$/,msg+'</div>'):msg;var r=el.querySelector('[data-reload]'),k=el.querySelector('[data-wait]');if(r)r.onclick=function(){location.reload()};if(k)k.onclick=function(){el.className='';el.innerHTML=orig;last=now();hold=last+STALL_MS;if(w.ppsBootReady)lift();else w.ppsBootTimer=setTimeout(tick,TICK_MS)}}
 w.ppsBootRendererFail=function(why){show('The 3D view couldn’t start','<p>The graphics could not draw the figure. Reloading often fixes it. If it keeps happening, the 2D simulator works on this device.</p>',why,'<button type="button" data-reload>Reload</button><a href="https://qaddodi.github.io/portal-pressure-simulator/">Open the 2D simulator</a>')};
 var ADVICE='<p>Please open it in a current version of <b>Chrome</b>, <b>Edge</b>, <b>Safari</b> or <b>Firefox</b>, or on your phone or tablet.</p>';
 w.ppsBootFail=function(){show('The simulator couldn’t start','<p>Something went wrong while it was loading. Reloading often fixes it. If it keeps happening on this computer, the browser may be too old or restricted.</p>'+ADVICE,w.ppsBootErrors.slice(0,3).join('\n')+'\nBrowser: '+navigator.userAgent,'<button type="button" data-reload>Reload</button>')};
 w.addEventListener('error',function(e){w.ppsBootErrors.push(String(e&&e.message||e));if(e&&e.message&&/SyntaxError/.test(e.message))w.ppsBootFail()});
 /* The cover lifts once the first screen is in (React has put something in #root), or, for the main app (html[data-boot=wait], src/boot/ready.ts), once its figure has drawn and its labels are placed; never sooner than 600 ms after the page began (a cover that flashes is worse than none), and by itself
-   after 20 s whatever happened (the 2D page's last word); it fades over 420 ms, then is removed. Only a TERMINAL failure (class failed: the page or the renderer cannot start) keeps it; the 15 s "Still loading…" note is class slow, a recoverable state, so a ready signal (or the 20 s one) still lifts it, with the covered app inert (#root[inert]) until the lift begins. */
-function lift(){w.ppsBootReady=true;var el=document.getElementById('boot');if(!el||el.className==='failed'||el.getAttribute('data-lifting'))return;el.setAttribute('data-lifting','1');clearTimeout(w.ppsBootTimer);setTimeout(function(){var r=document.getElementById('root');if(r)r.removeAttribute('inert');el.className='done';setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},600)},Math.max(0,600-(w.performance&&performance.now?performance.now():600)))}
+   after 20 s whatever happened (the 2D page's last word); it fades over 420 ms, then is removed. Only a TERMINAL failure (class failed: the page or the renderer cannot start) keeps it; the "Still loading…" and offline notes are class slow, a recoverable state, so a ready signal (or the 20 s one) still lifts it, with the covered app inert (#root[inert]) until the lift begins. */
+function lift(){w.ppsBootReady=true;var el=document.getElementById('boot');if(!el||el.className==='failed'||el.getAttribute('data-lifting'))return;el.setAttribute('data-lifting','1');clearTimeout(w.ppsBootTimer);if(frac)bar(1);setTimeout(function(){var r=document.getElementById('root');if(r)r.removeAttribute('inert');el.className='done';setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},600)},Math.max(0,600-(w.performance&&performance.now?performance.now():600)))}
 w.ppsBootLift=lift;
 document.addEventListener('DOMContentLoaded',function(){var root=document.getElementById('root');if(root)root.setAttribute('inert','');if(!root||!w.MutationObserver){setTimeout(lift,3000);return}var go=function(){if(document.documentElement.getAttribute('data-boot')==='wait')return false;lift();return true};var mo=new MutationObserver(function(){if(root.firstChild&&go())mo.disconnect()});mo.observe(root,{childList:true});if(root.firstChild&&go())mo.disconnect();setTimeout(lift,20000)});
-function slow(){show('Still loading…','<p>This is taking longer than usual, which is often a slow connection. It may finish by itself, or you can reload the page.</p>','','<button type="button" data-reload>Reload</button><button type="button" data-wait>Keep waiting</button>','slow')}
-w.ppsBootTimer=setTimeout(slow,15000)})();</script>
+/* What arrived: the same-origin files the page has finished loading (PerformanceResourceTiming), summed. The build writes the bytes of everything the first picture needs into <meta name="pps-boot-bytes">; the wait bar
+   becomes a fill of bytes/total once the cover has been up 1.2 s (a warm start lifts before that and never shows it), never moves back, and stops short of the end until the cover lifts. Nothing new for 8 s is "Still loading…", but only until the app's own code has begun to run (window.ppsBootStarted, src/boot/started.ts): from then on what is awaited is CPU (engine, scene, first frame), not bytes, so the note waits for 15 s of nothing at all and does not blame the connection. */
+function sample(){var pe=w.performance;if(!pe||!pe.getEntriesByType)return;var es=pe.getEntriesByType('resource'),o=location.protocol+'//'+location.host,sum=0,i;for(i=0;i<es.length;i++)if(es[i].name.indexOf(o)===0)sum+=es[i].encodedBodySize||es[i].decodedBodySize||0;if(es.length!==seen||sum>bytes){seen=es.length;if(sum>bytes)bytes=sum;last=now()}}
+function bar(f){var el=document.getElementById('boot');if(!el||!el.style||!el.style.setProperty)return;if(f<frac)f=frac;frac=f;el.setAttribute('data-det','1');el.style.setProperty('--p',String(Math.round(f*1000)/1000))}
+function offlineNow(){var n=navigator;return n.onLine===false&&!(n.serviceWorker&&n.serviceWorker.controller)}
+function tick(){w.ppsBootTimer=0;if(w.ppsBootReady)return;sample();var t=now();if(total&&bytes&&t>=BAR_AFTER_MS)bar(Math.min(.95,bytes/total));
+if(!startedAt&&w.ppsBootStarted)startedAt=t||1;
+if(t>=hold){var idle=t-last;if(startedAt){if(t-startedAt>=WORK_MS&&t-last>=WORK_MS){slow();return}}else{if(idle>=OFFLINE_MS&&offlineNow()){offline();return}if(idle>=STALL_MS){slow();return}}}
+w.ppsBootTimer=setTimeout(tick,TICK_MS)}
+var KEEP='<button type="button" data-reload>Reload</button><button type="button" data-wait>Keep waiting</button>';
+function phase(){return 'entry '+(startedAt?'running':'not started')+' · '+Math.round(bytes/1024)+' of '+Math.round(total/1024)+' kB · '+seen+' files · '+Math.round(now()/100)/10+' s'}
+function slow(){if(startedAt)show('Still loading…','<p>This is taking longer than usual. It may finish by itself, or you can reload the page.</p>',phase(),KEEP,'slow');else show('Still loading…','<p>Nothing new has arrived for a few seconds, which is often a slow connection. It may finish by itself, or you can reload the page.</p>',phase(),KEEP,'slow')}
+function offline(){show('You’re offline','<p>You’re offline and the simulator isn’t saved on this device yet. Connect to the internet and it will load; after that it also works without a connection.</p>',phase(),KEEP,'slow')}
+/* The name waits for its face (at most NAME_MS), then shows in the face it has by then, so it neither pops in unstyled nor swaps later (index.html's CSS: data-name). */
+function named(how){var el=document.getElementById('boot');if(el&&!el.getAttribute('data-name'))el.setAttribute('data-name',how)}
+var fonts=w.document&&document.fonts;if(fonts&&fonts.load){try{fonts.load('600 20px "Source Serif 4"','Portal Pressure Simulator 3D').then(function(){named('1')},function(){named('fallback')})}catch(e){}}
+setTimeout(function(){named('fallback')},NAME_MS);
+try{var mt=document.querySelector&&document.querySelector('meta[name="pps-boot-bytes"]');total=mt?parseInt(mt.getAttribute('content'),10)||0:0}catch(e){}
+w.ppsBootTimer=setTimeout(tick,TICK_MS)})();</script>
   <div id="root"></div>
   <script type="module" src="./src/main.tsx"></script>
 </body>

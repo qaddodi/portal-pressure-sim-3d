@@ -5,6 +5,8 @@
 import { useState } from 'react';
 import { buildLabel, buildChecks, cachePrefix, reloadUrl, BADGE_H } from './build-pill.ts';
 import { shareLinkNow } from './share-wire.ts';
+import { useUpdate } from '../../pwa/update-state.ts';
+import { updateText } from './build-pill.ts';
 
 import { clock } from '../../clock/frame.ts';
 async function dropThisCopy(): Promise<void> {
@@ -16,6 +18,7 @@ async function dropThisCopy(): Promise<void> {
 
 export function BuildPill() {
   const [busy, setBusy] = useState(false);
+  const newer = useUpdate((u) => u.commit);   // (a newer build is out: the pill says so, in green, and keeps showing the commit this page runs)
   const label = buildLabel(import.meta.env.VITE_BUILD as string | undefined), checks = buildChecks(import.meta.env.VITE_CHECKS as string | undefined);
   // (the address that reopens what is on the screen: the talk and its slide, or the patient with its settings, view and camera; read when the page is left, not when the pill was drawn)
   const go = () => { let state: string | null = null; try { state = shareLinkNow(); } catch { /* (the app is not up: the page's own address) */ } location.replace(reloadUrl(location.href, Date.now(), state)); };
@@ -27,8 +30,8 @@ export function BuildPill() {
   };
   return (
     <div id="preview-badge" role="button" tabIndex={0} onClick={reload} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') reload(); }}
-      style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 'env(safe-area-inset-top)', zIndex: 2147483647, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '0 8px', borderRadius: '0 0 8px 8px', background: checks ? '#b00020' : '#c9430d', color: '#fff', font: `700 12px/${BADGE_H}px system-ui,sans-serif`, letterSpacing: '.04em', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,.35)' }}>
-      {busy ? 'RELOADING…' : `PREVIEW${label ? ` · ${label}` : ''}${checks ? ` · ${checks}` : ''}`}
+      style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 'env(safe-area-inset-top)', zIndex: 2147483647, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '0 8px', borderRadius: '0 0 8px 8px', background: newer !== null ? '#0b7a3b' : checks ? '#b00020' : '#c9430d', color: '#fff', font: `700 12px/${BADGE_H}px system-ui,sans-serif`, letterSpacing: '.04em', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,.35)' }}>
+      {busy ? 'RELOADING…' : updateText(label, checks, newer)}
     </div>
   );
 }

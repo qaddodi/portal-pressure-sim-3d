@@ -51,7 +51,7 @@ test('a chart, a card or a deck never makes a chart canvas by hand: it goes thro
     // (the look board's pixel reader: a 2D canvas to read a picture's bytes, on the debug page only)
     if (f === join('src', 'debug', 'look-pixels.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the look board\'s canvases are 2D only'); continue; }
     // (Copy / Save figure: one 2D canvas made on a click to lay the labels over the canvas's picture, never per frame, no GL context; shell/figure-image-dom.ts)
-    if (f === join('src', 'ui', 'shell', 'figure-image-dom.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the figure picture\'s canvas is 2D only'); continue; }
+    if (f === join('src', 'ui', 'shell', 'figure-image-dom.ts') || f === join('src', 'scene', 'figure-shot.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the figure picture\'s canvas is 2D only'); continue; }
     const t = strip(readFileSync(f, 'utf8'));
     if (/createElement\(\s*['"`]canvas['"`]\s*\)/.test(t)) bad.push(f);
   }

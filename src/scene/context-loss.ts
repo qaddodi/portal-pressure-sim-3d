@@ -1,4 +1,4 @@
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 // The figure's graphics context lost AFTER its first picture (iOS Safari drops it when a backgrounded tab is under memory pressure; a driver reset does too). Before the first picture it is a boot failure
 // (boot/ready.ts rendererFailed). After it, the figure is kept and brought back:
 //   lost      preventDefault (without it the browser never restores), pause the render phase, fade in "Redrawing the figure…", start the wait
@@ -21,7 +21,7 @@ export interface LossHooks {
   onEarly?: () => void;
 }
 export interface Timers { set(fn: () => void, ms: number): unknown; clear(id: unknown): void }
-const real: Timers = { set: (fn, ms) => clock.after(fn, ms), clear: (id) => clock.cancel(id as number) };
+const real: Timers = { set: (fn, ms) => clock.after(fn, ms), clear: (id) => clock.cancel(id as TimerId) };
 
 /** Watches one canvas; returns the function that stops watching. */
 export function watchContext(el: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>, h: LossHooks, timers: Timers = real): () => void {

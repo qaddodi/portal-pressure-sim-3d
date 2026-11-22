@@ -183,21 +183,33 @@ test('the wedge\'s wash (HVPG slide 5) is drawn on the 3D lobule\'s sinusoids an
   assert.ok((m3 as unknown as { mouthCv: { mats: { toon: { uniforms: Record<string, { value: { x: number } }> } } } }).mouthCv.mats.toon.uniforms.uWash!.value.x < 1e-3);
 });
 
-test('SOS: a faded scar fills in the central vein from its wall, with collagen strands across it, growing with fibPost as 2D grows its plug (Mohammad 20 Nov)', async () => {
-  const { buildCvScar, cvScarGrowth, CV_FILL, CV_SCAR_ALPHA } = await import('../src/scene/micro3d/lobule3d.ts');
-  const { BufferGeometry } = await import('three');
+test('SOS: a faded scar narrows the central vein from its wall as ONE clean ring that never crosses the middle, growing with fibPost as 2D grows its plug (Mohammad 20 and 21 Nov)', async () => {
+  const { buildCvScar, cvScarGrowth, CV_FILL, CV_SCAR_ALPHA, CV_OPEN_MIN } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { BufferGeometry, BufferAttribute } = await import('three');
   assert.equal(CV_FILL, 0.55, '2D CV_FILL');
   assert.ok(CV_SCAR_ALPHA > 0.3 && CV_SCAR_ALPHA < 0.85, 'faded: see-through, never a solid lid');
   assert.equal(cvScarGrowth(0), 0); assert.ok(Math.abs(cvScarGrowth(1) - 1) < 1e-9);
-  const g0 = new BufferGeometry(), g1 = new BufferGeometry();
-  buildCvScar(g0, 0.21, 0.1, 0.03); buildCvScar(g1, 0.21, 1, 0.03);
-  const n = (g: InstanceType<typeof BufferGeometry>) => g.getAttribute('position')!.count;
-  assert.ok(n(g1) > n(g0), 'more strands as it grows');
-  const pos = g1.getAttribute('position')!;
-  let rMin = 9, rMax = 0;
-  for (let i = 0; i < pos.count; i++) { const r = Math.hypot(pos.getX(i), pos.getY(i)); rMin = Math.min(rMin, r); rMax = Math.max(rMax, r); }
-  assert.ok(rMax <= 0.21, 'inside the vein');
-  assert.ok(rMin < 0.21 * (1 - CV_FILL), 'strands cross the open lumen');
+  const rw = 0.21, polar = (g: InstanceType<typeof BufferGeometry>, i: number) => { const p = g.getAttribute('position') as InstanceType<typeof BufferAttribute>; return Math.hypot(p.getX(i), p.getY(i)); };
+  let prevArea = 0;
+  for (const grow of [0.05, 0.25, 0.5, 0.75, 1]) {
+    const g = new BufferGeometry(); buildCvScar(g, rw, grow, 0.03);
+    const pos = g.getAttribute('position')!, idx = g.getIndex()!;
+    let rMin = 9, rMax = 0;
+    for (let i = 0; i < pos.count; i++) { const r = polar(g, i); rMin = Math.min(rMin, r); rMax = Math.max(rMax, r); assert.ok(Math.abs(pos.getZ(i) - 0.03) < 1e-6, 'one layer: no strand or second sheet over the ring (stacked see-through layers made blotches)'); }
+    assert.ok(rMax <= rw, 'inside the vein');
+    assert.ok(rMin >= rw * CV_OPEN_MIN - 1e-9, `the middle of the lumen stays clear at grow ${grow} (inner edge ${(rMin / rw).toFixed(3)} of the wall)`);
+    // no overlap: the triangles' areas add up to the ring's (polar integral of the vertex rings), and every one faces up
+    let area = 0;
+    for (let k = 0; k < idx.count; k += 3) {
+      const [a, b, c] = [idx.getX(k), idx.getX(k + 1), idx.getX(k + 2)];
+      const cr = (pos.getX(b) - pos.getX(a)) * (pos.getY(c) - pos.getY(a)) - (pos.getY(b) - pos.getY(a)) * (pos.getX(c) - pos.getX(a));
+      area += Math.abs(cr) / 2; assert.ok(Math.abs(cr) > 1e-12, 'no sliver');
+    }
+    const N = pos.count / 2; let ring = 0;
+    for (let i = 0; i < N; i++) { const j = (i + 1) % N, ri = polar(g, 2 * i), ro = polar(g, 2 * i + 1), rj = polar(g, 2 * j), rq = polar(g, 2 * j + 1); ring += ((ro * ro - ri * ri) + (rq * rq - rj * rj)) / 4 * (Math.PI * 2 / N); }
+    assert.ok(Math.abs(area - ring) / ring < 0.02, `one even ring, no overlap (area ${area.toFixed(5)} vs ${ring.toFixed(5)})`);
+    assert.ok(area >= prevArea - 1e-12, 'it thickens as it grows'); prevArea = area;
+  }
 });
 
 test('the sinusoids end in the central vein\'s pool as one surface: nothing of them is drawn inside its rim (Mohammad 20 Nov: "shadows inside the central vein")', async () => {

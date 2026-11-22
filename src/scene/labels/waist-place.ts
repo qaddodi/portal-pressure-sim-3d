@@ -2,7 +2,7 @@
 /** How much of the bracket shows for a waist of `red` (the share of the lumen it takes): nothing under 0.4%, the whole from 3.4% (the card's picture: clamp((red - 0.004) / 0.03)). */
 export const waistOn = (red: number): number => Math.min(1, Math.max(0, (red - 0.004) / 0.03));
 /** The bar's own length at scale 1 (CSS px; the element is scaled to the span), the ticks' length and the gap between the stent's wall and the bracket. */
-export const BAR = 100, TICK = 5, GAP = 7;
+export const BAR = 100, TICK = 4, GAP = 5;
 
 export interface BracketPlace { /** the bar's start (the end nearer `a`) and its angle and length */ x: number; y: number; angle: number; len: number; /** the two ticks' starts, each pointing back at the stent */ ta: { x: number; y: number }; tb: { x: number; y: number }; /** the tick's own angle (the direction toward the stent) */ tickAngle: number }
 type Pt = { x: number; y: number };

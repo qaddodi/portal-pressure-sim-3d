@@ -8,7 +8,10 @@
 // A new build installs its cache, takes over, and drops the older ones except the newest of them (a tab still open on it keeps finding its own files). "Newest" is the
 // order the caches were made in (caches.keys() lists them so), never the order of their names: a name ends in a commit hash, and hashes do not sort by date.
 // The build pill (src/ui/shell/BuildPill.tsx) drops this copy's worker and caches to load the newest build at once. Pages (navigations) are network first
-// (a new build shows when online) and fall back to this build's page when offline.
+// (a new build shows when online) and fall back to this build's page when offline, or when the network says nothing for 1.5 s and a copy is held (NAV_WAIT_MS: a bad signal does not keep a
+// phone on the splash; with no copy held the page waits for the network). The fill of the parts opened later is skipped on Save-Data or a 2g link (fetched on use and kept, as before).
+// Navigation preload is NOT used: the preload request obeys the HTTP cache, and the host lets a browser keep the page ten minutes, which is the stale-build bug the no-cache fetch below was written against.
+// The build also writes the byte total of the install list into the page (<meta name="pps-boot-bytes">, stampBootBytes): index.html's wait bar fills with the bytes that arrived against it.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -45,6 +48,17 @@ function needsOf(file, text, files) {
 export const LATE = [/^lobule\//, /^assets\/weld-worker-[^/]*\.js$/, /^fonts\/.*-(?:latin-ext|greek|greek-ext|cyrillic|cyrillic-ext|vietnamese)\.woff2$/];
 export const isLate = (f) => LATE.some((re) => re.test(f));
 
+/** What `list` costs on the wire, in bytes: text is sent gzipped by the host (Pages), the .bin data is already compressed or int16 and goes as it is. `read(file)` gives a file's bytes. */
+export function wireBytes(list, read) {
+  return list.reduce((a, f) => { const b = read(f); return a + (/\.(html|js|mjs|css|json|svg|webmanifest)$/.test(f) ? gzipSync(b).length : b.length); }, 0);
+}
+const BOOT_META = /(<meta name="pps-boot-bytes" content=")\d*(">)/;
+/** The page with the install list's byte total written into its `pps-boot-bytes` meta (index.html reads it for the wait bar). A page without the meta is an error: the bar would never fill. */
+export function stampBootBytes(html, bytes) {
+  if (!BOOT_META.test(html)) throw new Error('pwa: index.html has no <meta name="pps-boot-bytes">');
+  return html.replace(BOOT_META, `$1${Math.round(bytes)}$2`);
+}
+
 /** The built files in the order the app needs them. `boot`: the page first, then everything it loads before the first picture, in the order met; `later`: the rest.
  *  `read(file)` gives a file's text (the build's own files; a test hands a table). */
 export function orderFiles(files, read, page = 'index.html') {
@@ -71,6 +85,10 @@ const NAME = PREFIX + BUILD;
 const href = (f) => new URL(f, SCOPE).href;
 const URLS = new Set(BOOT.concat(LATER).map(href));
 const HOME = href('index.html');
+// How long a page waits for the network before the held copy is shown, when one is held (the install holds one, so only a first visit waits for the network alone).
+const NAV_WAIT_MS = 1500;
+// Save-Data on, or a 2g link: the parts opened later are not filled in the background (they are fetched on use and kept, as ever). iOS's Low Data Mode is not visible to a page; Chrome's Data Saver is.
+const lowData = () => { const c = self.navigator && self.navigator.connection; return !!c && (c.saveData === true || /^(slow-)?2g$/.test(c.effectiveType || '')); };
 
 // A file asked again on a failed answer (right after a deploy an edge of the host can still be on the old site), up to three more times, past the HTTP cache.
 // (A file whose name carries no hash (the page, the manifest, the data) is asked past the HTTP cache: the host lets a browser keep it ten minutes, and the page held at install was an old one.)
@@ -100,7 +118,7 @@ self.addEventListener('activate', (e) => {
 // 'pps:fill': the page is quiet, hold the parts opened later. 'pps:files': which files this build holds (the page tells an update that changed its files from one it already runs).
 self.addEventListener('message', (e) => {
   if (e.data === 'pps:files' && e.ports[0]) e.ports[0].postMessage(BOOT.concat(LATER));
-  else if (e.data === 'pps:fill') e.waitUntil(holdAll(LATER, false).catch(() => {}));
+  else if (e.data === 'pps:fill' && !lowData()) e.waitUntil(holdAll(LATER, false).catch(() => {}).then(() => e.ports[0]?.postMessage('filled')));
 });
 
 // This build's copy, else the copy of the build before it (an older tab asks for its own hashed files, which the server no longer has). Only this scope's caches.
@@ -122,8 +140,11 @@ self.addEventListener('fetch', (e) => {
     if (!home) return;
     e.respondWith((async () => {
       // (past the HTTP cache, as 2D's worker: the host lets a browser keep the page ten minutes, which showed the build before the one just deployed)
-      try { return await Promise.race([fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }), new Promise((_, no) => setTimeout(no, 4000))]); }
-      catch { return (await held(HOME)) || Response.error(); }
+      const net = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });
+      const copy = await held(HOME);   // (a cache read: a few ms, while the network is already on its way)
+      if (!copy) return net.catch(() => Response.error());
+      try { return await Promise.race([net, new Promise((_, no) => setTimeout(no, NAV_WAIT_MS))]); }
+      catch { return copy; }
     })());
     return;
   }
@@ -147,9 +168,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const build = process.argv[3] ?? 'local';
   const files = listFiles(dist);
   const { boot, later } = orderFiles(files, (f) => readFileSync(join(dist, f), 'utf8'));
+  // the page's wait bar knows what the first picture costs: the install list's bytes on the wire, written into the page before the worker lists it
+  writeFileSync(join(dist, 'index.html'), stampBootBytes(readFileSync(join(dist, 'index.html'), 'utf8'), wireBytes(boot, (f) => readFileSync(join(dist, f)))));
   writeFileSync(join(dist, 'sw.js'), buildSw({ build, files, boot, later }));
   const kb = (list) => Math.round(list.reduce((a, f) => a + statSync(join(dist, f)).size, 0) / 1024);
   // what a first visit downloads: text is sent gzipped by the host (Pages); the .bin data is already compressed or int16, sent as it is
-  const wire = (list) => Math.round(list.reduce((a, f) => { const b = readFileSync(join(dist, f)); return a + (/\.(html|js|mjs|css|json|svg|webmanifest)$/.test(f) ? gzipSync(b).length : b.length); }, 0) / 1024);
+  const wire = (list) => Math.round(wireBytes(list, (f) => readFileSync(join(dist, f))) / 1024);
   console.log(`sw.js: ${files.length} files, build ${build}; held at install (before the first picture): ${boot.length} files, ${kb(boot)} kB on disk, about ${wire(boot)} kB on the wire; filled when quiet: ${later.length} files, ${kb(later)} kB on disk, about ${wire(later)} kB on the wire`);
 }

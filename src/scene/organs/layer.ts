@@ -30,7 +30,7 @@ const SHADE_PASSES = 6;
 import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
 import { ORGAN_Z } from './z.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { whenQuiet } from '../../clock/idle.ts';
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
  *  and which layer opacity it sits at (the gut at --gut-a, the kidney at its own, the rest at the organ layer's). */
@@ -219,11 +219,10 @@ export class OrganLayer {
         (o.toon.uniforms.nodK!.value as Vector2).set(shadeNow(), TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
         this.liverGeometry = g;
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('hullN').array);   // the SMOOTHED rest normals: the raw per-vertex ones jag along the rim, and the nodules pushed along them (direction and weight) came out as teeth and notches
-        const shape = this.liverShape, ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+        const shape = this.liverShape;
         const bk = this.liverBake ??= new LiverBake();
-        // (the nodules' rest-place heights and the surface texture, a few ms at a time in idle time: never inside a frame, never the first scarred frame)
-        const slice = (): void => { if (this.liverShape === shape && !(shape.warm(6) && bk.step(6))) { if (ric) ric(slice, { timeout: 1000 }); else clock.after(slice, 30); } };
-        if (ric) ric(slice, { timeout: 3000 }); else clock.after(slice, 500);
+        // (the nodules' rest-place heights and the surface texture, a few ms at a time in the background slot: never inside a frame, never the first scarred frame; a rebuilt liver ends this one's job)
+        whenQuiet(() => this.liverShape !== shape || (shape.warm(6) && bk.step(6)), { tag: 'liver-shape', delayMs: 500 });
       }
     }
     this.dirtyColours = true; this.instant = true; this.shrinkWas = NaN;

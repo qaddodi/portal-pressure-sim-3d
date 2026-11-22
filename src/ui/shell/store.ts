@@ -6,7 +6,7 @@ import { STORAGE_PREFIX } from '../../state/settings.ts';
 import type { ViewId } from './views.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | null;
 export type MenuTab = 'present' | 'patients';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
@@ -67,7 +67,7 @@ function loadFigure(): Figure {
 }
 const saveFigure = (f: Figure) => { try { localStorage.setItem(KEY, JSON.stringify(f)); } catch { /* kept for this visit */ } };
 
-let toastId = 0, toastTimer: number | undefined;
+let toastId = 0, toastTimer: TimerId | undefined;
 export const TOAST_MS = 3200;
 /** A toast with a button stays long enough to reach it. */
 export const ACTION_MS = 9000;

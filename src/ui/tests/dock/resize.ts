@@ -6,7 +6,7 @@
 import { clamp } from '../copied/num.copied.js';
 import { sidewaysWidth } from '../place.ts';
 
-import { clock } from '../../../clock/frame.ts';
+import { clock, type TimerId } from '../../../clock/frame.ts';
 export interface DividerEnv {
   /** the card now: its box and whether it is on the right; the stage's size; the least a sheet leaves above it */
   side(): boolean;
@@ -23,7 +23,7 @@ export const sheetHeightOf = (H: number, max: number, ratio: number): number => 
 export const RATIO_MIN = 0.25, RATIO_MAX = 0.75, STEP = 40, RATIO_STEP = 0.05;
 
 let guide: HTMLElement | null = null;
-let layerT = 0;
+let layerT: TimerId | null = null;
 function guideEl(): HTMLElement {
   if (!guide) { guide = document.createElement('div'); guide.className = 'dock-guide'; guide.setAttribute('aria-hidden', 'true'); }
   if (!guide.isConnected) document.body.append(guide);

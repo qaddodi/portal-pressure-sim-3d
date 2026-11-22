@@ -7,7 +7,7 @@ import { engine } from '../../engine/boot.ts';
 import { daysAt, setLapseSkip, skipPace, skipSpeed, SKIP_MS, type Pace } from '../../ui/deck/lapse-next.ts';
 import type { CopiedSlide } from './types.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 /** The counter's state: which slide it belongs to, the days played, the days in all, and whether the days are done. */
 export const useLapse = create<{ key: string; d: number; n: number; done: boolean }>(() => ({ key: '', d: 0, n: 0, done: false }));
 
@@ -28,8 +28,8 @@ export interface Push { start(endAt: number): void; end(ms?: number): void; canc
 /** The lapse under way: its slide's days, where the counter's line in time is, and what it hands over to. */
 interface Run { days: number; secs: number; ramp: unknown; bedside: boolean; end: unknown; push: Push | null; landed: () => void; phase: 'settle' | 'days' | 'fast' | 'landing'; pace: Pace | null; endAt: number }
 let run: Run | null = null;
-let timers: number[] = [];
-let ticker: number | null = null;
+let timers: TimerId[] = [];
+let ticker: TimerId | null = null;
 let playing = false;
 const send = (m: unknown) => { try { engine().send(m as never); } catch { /* the engine is not up yet */ } };
 const after = (ms: number, fn: () => void) => { timers.push(clock.after(fn, ms)); };

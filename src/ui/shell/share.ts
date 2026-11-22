@@ -11,9 +11,15 @@ import type { Sel } from '../action/selection.ts';
 import type { ViewId } from './views.ts';
 
 /** What the app shows now, as far as a link carries it. `cam` is null while the camera is at the shot's own framing; `deck.slide` counts from 1. */
-export interface ShareNow { preset: string; params: unknown; view: ViewId; sel: Sel | null; cam: Cam | null; deck: { id: string; slide: number } | null }
+export interface ShareNow {
+  preset: string; params: unknown; view: ViewId; sel: Sel | null; cam: Cam | null; deck: { id: string; slide: number } | null;
+  /** what the figure wears beyond the view: the lens (left out when it is the default), the label level and the figure's switches (chevrons, key chevrons, chips, collaterals, labels, zones, lymph, bile) */
+  fig?: FigureExtras;
+}
+/** The part of a link that puts the figure's own choices back (N4). Cleaned by `cleanExtras`, applied by `ShareDeps.setFigure`. */
+export interface FigureExtras { lens?: string; labels?: string; figure?: Record<string, boolean>; /** the tool open on the screen (compare, layers, blood, lens) */ sheet?: string }
 /** A link's content after cleaning: only what the app can apply. */
-export interface Shared { preset: string; missing?: string; fromYours?: boolean; params?: Record<string, unknown>; view?: ViewId; sel?: Sel; cam?: Cam }
+export interface Shared { preset: string; missing?: string; fromYours?: boolean; params?: Record<string, unknown>; view?: ViewId; sel?: Sel; cam?: Cam; fig?: FigureExtras }
 export interface ShareDeps {
   /** Load a patient; false when the load failed or another patient was asked for meanwhile (then nothing of the link is applied). */
   loadPatient(id: string): Promise<boolean>;
@@ -26,6 +32,10 @@ export interface ShareDeps {
   /** Put the hand's view back once the figure has landed. */
   setCamera(cam: Cam): void;
   say(text: string, tone?: 'info' | 'bad'): void;
+  /** Put the lens, the label level and the figure's switches back (N4); absent in an app that has none. */
+  setFigure?(fig: FigureExtras): void;
+  /** Open the tool the link had open, after the view, the selection and the camera are in (a view's change closes sheets). */
+  openSheet?(sheet: string): void;
 }
 
 /** 2D: src/ui/share-flow.js (its toasts, word for word) */
@@ -55,7 +65,7 @@ function knownSel(s: unknown): Sel | undefined {
 export function sharePayload(now: ShareNow): Record<string, unknown> {
   const p: Record<string, unknown> = { v: 1, preset: now.preset, params: now.params, view: now.view === 'circuit' ? 'circuit' : 'anatomic' };
   if (now.sel) p.sel = now.sel;
-  const x = cleanExtras({ view: now.view === 'lobule' || now.view === 'sinusoid' ? now.view : undefined, cam: now.cam ?? undefined });
+  const x = cleanExtras({ view: now.view === 'lobule' || now.view === 'sinusoid' ? now.view : undefined, cam: now.cam ?? undefined, lens: now.fig?.lens, labels: now.fig?.labels, figure: now.fig?.figure, sheet: now.fig?.sheet });
   if (Object.keys(x).length) p.x = x;
   return p;
 }
@@ -87,6 +97,7 @@ export function readShare(hash: string, presetIds: readonly string[]): Shared | 
   const sel = knownSel(s.sel);
   if (sel) out.sel = sel;
   if (x.cam) out.cam = x.cam;
+  if (x.lens || x.labels || x.figure || x.sheet) out.fig = { ...(x.lens ? { lens: x.lens } : {}), ...(x.labels ? { labels: x.labels } : {}), ...(x.figure ? { figure: x.figure } : {}), ...(x.sheet ? { sheet: x.sheet } : {}) };
   return out;
 }
 
@@ -104,9 +115,11 @@ export async function loadShared(s: Shared, d: ShareDeps, { quiet = false } = {}
     if (repairs.length) repaired = repairs.slice(0, 3).map((r) => r.path || 'the settings').join(', ') + (repairs.length > 3 ? ` and ${repairs.length - 3} more` : '');
     if (JSON.stringify(clean) !== JSON.stringify(merged)) clamped = true;   // (the view, selection and camera of the link still apply)
   }
+  if (s.fig) d.setFigure?.(s.fig);
   if (s.view && s.view !== d.view()) d.goToView(s.view);
   if (s.sel) d.select(s.sel);
   if (s.cam) d.setCamera(s.cam);
+  if (s.fig?.sheet) d.openSheet?.(s.fig.sheet);
   if (clamped) d.say(missing || SHARE_WORDS.clamped(repaired), missing ? 'bad' : 'info');
   else if (missing) d.say(missing, 'bad');
   else if (!quiet && !s.fromYours) d.say(SHARE_WORDS.loaded);

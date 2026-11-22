@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { csphFingerprint } from '../scripts/gen-engine-fixture.mjs';
 import {
   STATIONS, SPANS, NO_SPANS, blocksOf, profileOf, spansFor, spansOf, spansStented, hasStent, goalOf, planProfile, profOf, smooth, cutRuns, bracePts, braceD, hatchLines, gridOf, holesOf,
-  heightFor, twAt, bracketFit, bracketGeom, whole0, profileWords, pillReadings, chartScale, zoneFit, nameFit, profileGeo, NS, type Fp, type Prof,
+  heightFor, twAt, bracketFit, bracketGeom, whole0, gap1, profileWords, pillReadings, chartScale, zoneFit, nameFit, profileGeo, NS, type Fp, type Prof,
 } from '../src/ui/charts/profile/model.ts';
 import { profileFrame, profileFrameAtRest, profileLooks, words0 } from '../src/ui/charts/profile/frame.ts';
 import { ProfileMotion, follow2, restView, fadeAt } from '../src/ui/charts/profile/glide.ts';
@@ -250,8 +250,8 @@ test('the brackets and pills are rated on the cut-offs: HVPG amber past 5, red f
   const calm = draw(3, 4), sick = draw(12, 14);
   assert.notDeepEqual(calm, sick, 'the brackets change colour with the rating');
   assert.ok(sick.includes(hi!.join()), 'red past the cut-offs');
-  assert.deepEqual(pillReadings({ ...profOfFp(11.1, 13) }).map((q) => [q.k, q.v, q.rate]), [['hvpg', '11', 'hi'], ['ppg', '13', 'hi']]);
-  assert.deepEqual(pillReadings({ ...profOfFp(5, 6) }).map((q) => [q.k, q.v, q.rate]), [['hvpg', '5', 'ok'], ['ppg', '6', 'mid']]);
+  assert.deepEqual(pillReadings({ ...profOfFp(11.1, 13) }).map((q) => [q.k, q.v, q.rate]), [['hvpg', '11.1', 'hi'], ['ppg', '13.0', 'hi']]);
+  assert.deepEqual(pillReadings({ ...profOfFp(5, 6) }).map((q) => [q.k, q.v, q.rate]), [['hvpg', '5.0', 'ok'], ['ppg', '6.0', 'mid']]);
   assert.deepEqual(pillReadings({ ...profOfFp(7, 6), tipsFlow: 1.2 }).map((q) => q.k), ['ppg'], 'a stent in: no HVPG pill');
   assert.deepEqual(pillReadings(null), []);
 });
@@ -373,4 +373,31 @@ test('the slides\' HVPG bracket stands on the measured WHVP and FHVP, and a scre
   const fp = await fpOf('csph'), inp = profileInputs(fp)!;
   assert.ok(!profileWords(inp.goal, spansOf(['ppg'])).includes('wedged'), 'no HVPG bracket, no HVPG sentence');
   assert.ok(!profileWords(inp.goal, spansStented(SPANS)).includes('wedged'), 'a stent in takes the HVPG and its sentence out');
+});
+
+// Mohammad, 21 Nov (Sites and causes 9/14): a normal heart's card said HVPG 0.5 and PPG 1.4 while the chart said 1 and 1. The brackets and pills print as the card does (one decimal); the stations stay whole.
+test('the brackets, pills and spoken chart print the gradients with one decimal, as the card does; the stations stay whole', () => {
+  assert.equal(gap1(0.5), '0.5'); assert.equal(gap1(1.4), '1.4'); assert.equal(gap1(12), '12.0'); assert.equal(gap1(-0.04), '0.0', 'never a minus zero');
+  assert.deepEqual(pillReadings({ ...profOfFp(0.5, 1.4) }).map((q) => [q.k, q.v]), [['hvpg', '0.5'], ['ppg', '1.4']]);
+  const hl = profOf([12, 8, 7, 7, 5, 4.5, 4, 3.5], 2.3, 4.1), c = ctxOf('light', 400);
+  const p = profOf([12, 8.1, 7.6, 6.9, 5.2, 4.6, 4, 3.5], 0.5, 1.4), plan = planProfile(400, 0, 13, goalOf(p, hl, null), hl, null, SPANS);
+  const f = profileFrameAtRest(plan, c), texts = f.shapes.filter((s) => s.k === 'text').map((s) => (s as { s: string }).s);
+  assert.ok(texts.includes('0.5') && texts.includes('1.4'), `bracket and pill values: ${texts.join('|')}`);
+  assert.match(f.label, /HVPG 0\.5, PPG 1\.4/);
+  assert.ok(texts.includes('12') && texts.includes('4'), 'the stations keep whole numbers');
+});
+
+// The brackets' and pills' numbers glide to a new patient like the stations (a compare button, a slider): midway they print a one-decimal value between the two, never a jump to the new one.
+test('the HVPG and PPG glide to a new patient: midway the printed values are between the two states\'', async () => {
+  const of = async (id: string) => profileOf(await fpOf(id))!;
+  const [a, b, hl] = [await of('healthy'), await of('csph'), await of('healthy')];
+  const planA = planProfile(400, 0, 13, goalOf(a, hl, null), hl, null, SPANS), planB = planProfile(400, 0, 13, goalOf(b, hl, null), hl, null, SPANS);
+  const m = new ProfileMotion();
+  m.aim(planA.goal, planA, 0); m.aim(planB.goal, planB, 1000);
+  let now = 1000;
+  for (let i = 0; i < 12; i++) { now += 16; m.tick(now); }
+  const v = m.view(now)!, mid = v.shown as unknown as Record<string, number>;
+  for (const k of ['hvpg', 'ppg'] as const) assert.ok(mid[k]! > (a as unknown as Record<string, number>)[k]! && mid[k]! < (b as unknown as Record<string, number>)[k]!, `${k} is on its way: ${mid[k]}`);
+  const texts = profileFrame(planB, v, ctxOf('light', 400)).shapes.filter((x) => x.k === 'text').map((x) => (x as { s: string }).s);
+  assert.ok(texts.includes(gap1(mid.hvpg!)) && !texts.includes(gap1(b.hvpg)), `the bracket prints the eased value ${gap1(mid.hvpg!)}: ${texts.join('|')}`);
 });

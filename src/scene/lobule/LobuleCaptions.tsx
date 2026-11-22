@@ -20,6 +20,7 @@ import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
+import { HandWatch } from '../labels/hand-watch.ts';
 
 interface El { root: HTMLElement; name: HTMLElement; val: HTMLElement | null; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; text: string; valText: string; size: string }
 const boxKey = (b: Box): string => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`;
@@ -144,6 +145,7 @@ export function LobuleCaptions() {
       for (const [id, p] of placed) { const it = itemsNow.get(id); if (it) out.push({ ax: it.ax, ay: it.ay, dx: p.dx, dy: p.dy, w: p.w, h: p.h }); }
       return out;
     };
+    const hand = new HandWatch();
     const tick = () => {
       const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
@@ -152,7 +154,7 @@ export function LobuleCaptions() {
       // (Off: the corners stay where they were last read. They were set to 0, so a name still fading out as the view went away was carried by a collapsed quad to the screen's corner, 700 to 1300 px in one
       //  frame at half opacity: Presinusoidal stop 7, 21 Nov audit.)
       if (on) { const a = proj(0, 0), b = proj(1, 0), c = proj(1, 1), d = proj(0, 1); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; pc.x = c[0]; pc.y = c[1]; pd.x = d[0]; pd.y = d[1]; }
-      const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, a: pa, b: pb, c: pc, d: pd, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
+      const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, byHand: hand.step(cel.rig.handView, cel.rig.isMoving), a: pa, b: pb, c: pc, d: pd, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
       if (g.solve) { solveNow(); if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] re-placed:', gate.why, gate.whySig); } else if (alpha > 0) refreshReadings();
       alpha = g.alpha;
       if (alpha > 0 || wasShown) {
