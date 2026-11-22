@@ -1,49 +1,51 @@
-// A junction region has two meshes (plan owner, 22 Nov): a body-built and a map-built one, both projected onto the same live union, handing over by the screen dither over a window [b, a] of t. Held here, node only: the region row's layout, the
-// share function the vertex stage evaluates, and that the two meshes' dither patterns are complementary (every pixel is drawn by exactly one of them, so the hand-over shows nothing); the vertex stage's early-out and the fragment stage's discard by the text.
+// A junction region's FILLET dissolves in and out (plan owner, 22 Nov): the arms' tubes run through their seams to the node (WP2), so with no fillet the junction is whole; each fillet mesh (body-built, map-built, or a mid mesh) is drawn by the screen dither
+// with a share of its pixels: the body fillet dissolves over [a - 0.1, a], the map fillet comes in over [b, b + 0.05], a and b from the bake's table (`NodeReport.switchT`). Held here, node only: the region row's layout, the share function (the vertex stage's), and
+// the vertex stage's early-out and the fragment stage's discard by the text. The acceptance on the real regions (no folded drawn triangle, no gap where a fillet dissolves, crotch ink drawn but not doubled, at every 0.05 of t) needs WP2's bake table.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BODY_ONLY, MAP_ONLY, REGION_CAPS, REGION_HEAD, REGION_PTS, REGION_TEXELS, bodyShare, regionTexture, type Region } from '../src/scene/vessels/net/regions.ts';
+import { BODY_ONLY, FADE_IN_T, FADE_OUT_T, MAP_ONLY, REGION_CAPS, REGION_HEAD, REGION_PTS, REGION_TEXELS, regionFades, regionShare, regionTexture, type Region } from '../src/scene/vessels/net/regions.ts';
 import { NET_FS, NET_VS } from '../src/scene/vessels/net/shaders.ts';
 import { SCREEN_DITHER_GLSL } from '../src/scene/materials/shaders.ts';
 
 const caps = [{ bones: Array.from({ length: REGION_PTS }, (_, i) => i), mate: -1 }];
 const body: Region = { node: 'N', vertStart: 10, vertCount: 5, arms: 1, caps, variant: 0, window: [0.3, 0.5] };
 const map: Region = { node: 'N', vertStart: 15, vertCount: 5, arms: 1, caps, variant: 1, window: [0.3, 0.5] };
+const mid: Region = { node: 'N', vertStart: 20, vertCount: 5, arms: 1, caps, variant: 2, window: [0.2, 0.3], window2: [0.6, 0.7] };
 
-test('the region row: variant in texel 0, the window in texel 3, the bones from REGION_HEAD', () => {
+test('the region row: variant in texel 0, the fade ramps in texel 3, the bones from REGION_HEAD', () => {
   const t = regionTexture([body, map], 20), W = 4 * REGION_TEXELS;
   assert.equal(t.width, REGION_TEXELS); assert.equal(REGION_HEAD, 4);
   assert.deepEqual([t.data[2], t.data[W + 2]], [0, 1]);
-  assert.ok(Math.abs(t.data[12]! - 0.3) < 1e-6 && Math.abs(t.data[13]! - 0.5) < 1e-6);
+  assert.deepEqual(Array.from(t.data.slice(12, 16)).map((x) => Math.round(x * 1e6) / 1e6), [-2, -1, 0.4, 0.5], 'body: always in, out over [a - 0.1, a]');
+  assert.deepEqual(Array.from(t.data.slice(W + 12, W + 16)).map((x) => Math.round(x * 1e6) / 1e6), [0.3, 0.35, 2, 3], 'map: in over [b, b + 0.05], never out');
   assert.equal(t.data[4 * REGION_HEAD + 1], 1, 'the bone indices start at REGION_HEAD');
   assert.deepEqual([t.vertexRegion[9], t.vertexRegion[10], t.vertexRegion[15], t.vertexRegion[19]], [-1, 0, 1, 1]);
   assert.ok(REGION_CAPS >= 8);
 });
 
-test('the body mesh\'s share: 1 up to b, 0 from a, smooth between; a mesh alone is always drawn', () => {
-  const win: [number, number] = [0.3, 0.5];
-  assert.equal(bodyShare(win, 0), 1); assert.equal(bodyShare(win, 0.3), 1); assert.equal(bodyShare(win, 0.5), 0); assert.equal(bodyShare(win, 1), 0);
-  let prev = 1; for (let t = 0.3; t <= 0.5; t += 0.01) { const s = bodyShare(win, t); assert.ok(s <= prev + 1e-12 && s >= 0, 'monotone'); prev = s; }
-  for (const t of [0, 0.25, 0.5, 0.75, 1]) { assert.equal(bodyShare(BODY_ONLY, t), 1); assert.equal(bodyShare(MAP_ONLY, t), 0); }
-  assert.equal(bodyShare([0.5, 0.5], 0.49), 1); assert.equal(bodyShare([0.5, 0.5], 0.5), 0, 'a window with a <= b is a hard switch');
+test('the shares: the body fillet is there until a - 0.1 and gone at a, the map fillet comes in over [b, b + 0.05], a mid one does both, and a mesh alone is always there', () => {
+  const [b, a] = body.window;
+  assert.equal(regionShare(body, 0), 1); assert.equal(regionShare(body, a - FADE_OUT_T), 1); assert.equal(regionShare(body, a), 0); assert.equal(regionShare(body, 1), 0);
+  assert.equal(regionShare(map, 0), 0); assert.equal(regionShare(map, b), 0); assert.equal(regionShare(map, b + FADE_IN_T), 1); assert.equal(regionShare(map, 1), 1);
+  assert.equal(regionShare(mid, 0), 0); assert.equal(regionShare(mid, 0.25 + 0.001) > 0, true); assert.equal(regionShare(mid, 0.45), 1); assert.equal(regionShare(mid, 0.7), 0);
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) { assert.equal(regionShare({ ...body, window: BODY_ONLY }, t), 1); assert.equal(regionShare({ ...map, window: MAP_ONLY }, t), 1); }
+  let prev = 1; for (let t = 0.4; t <= 0.5; t += 0.005) { const s = regionShare(body, t); assert.ok(s <= prev + 1e-12 && s >= 0, 'monotone out'); prev = s; }
+  assert.deepEqual(regionFades(map).slice(2), [2, 3]);
 });
 
-test('complementary patterns: at every t and every pattern value exactly one of the two meshes draws the pixel', () => {
-  // the shader: the body mesh discards when the pattern value >= its share, the map mesh when the value < the share
-  for (let t = 0; t <= 1.0001; t += 0.05) {
-    const wb = bodyShare(body.window, t);
-    for (let k = 0; k < 1000; k++) {
-      const nz = k / 1000, bodyDraws = !(nz >= wb), mapDraws = !(nz < wb);
-      assert.equal(Number(bodyDraws) + Number(mapDraws), 1, `t ${t.toFixed(2)} value ${nz}`);
-    }
-  }
+test('in between, the plain tubes show: where both fillets are dissolved the shares are 0 (the gap is the tubes, not a hole)', () => {
+  // body out by a = 0.5, map in from b = 0.3 means the map fillet is in while the body one still dissolves: an overlap (b < a), both partly there; with b >= a there is a stretch of none
+  const gap: Region = { ...map, window: [0.6, 0.4] };   // a = 0.4 (body out at 0.4), b = 0.6
+  const bodyG: Region = { ...body, window: [0.6, 0.4] };
+  let none = 0; for (let t = 0; t <= 1.0001; t += 0.05) if (regionShare(bodyG, t) === 0 && regionShare(gap, t) === 0) none++;
+  assert.ok(none > 0, 'a stretch of t with no fillet');
 });
 
-test('the vertex stage collapses the mesh that is not drawn before it reads a bone, and the fragment stage uses the shared screen pattern', () => {
+test('the vertex stage collapses a fillet with no share before it reads a bone, and the fragment stage dissolves it in the shared screen pattern', () => {
   const main = NET_VS.slice(NET_VS.indexOf('vDraw = 1.0;'), NET_VS.indexOf('vec3 pAcc = vec3(0.0)'));
-  assert.match(main, /float wb = win\.y > win\.x \? 1\.0 - smoothstep\(win\.x, win\.y, circT\) : \(circT < win\.y \? 1\.0 : 0\.0\);/);
-  assert.match(main, /if \(variantM < 0\.5 \? wb <= 0\.0 : wb >= 1\.0\) \{ gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\); return; \}/);
+  assert.match(main, /float share = smoothstep\(fd\.x, fd\.y, circT\) \* \(1\.0 - smoothstep\(fd\.z, fd\.w, circT\)\);/);
+  assert.match(main, /if \(share <= 0\.0\) \{ gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\); return; \}/);
   assert.ok(!/netBone\(/.test(main), 'the early out reads only the region row');
-  assert.ok(NET_FS.includes('if (mapMesh ? nzS < wbS : nzS >= wbS) discard;') && NET_FS.includes(`float nzS = ${SCREEN_DITHER_GLSL};`));
-  assert.ok(NET_FS.indexOf('nzS') < NET_FS.indexOf('vec3 n = normalize(vN);'), 'before any derivative');
+  assert.ok(NET_FS.includes(`if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;`));
+  assert.ok(NET_FS.indexOf('vDraw < 0.999') < NET_FS.indexOf('vec3 n = normalize(vN);'), 'before any derivative');
 });

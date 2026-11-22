@@ -6,6 +6,7 @@ import { sdUnion, sdUnionGrad, SKIN_K, type Capsule } from '../skin/sdf.ts';
 import { MAP_K, sceneToMap } from '../../circuit/map.ts';
 import { PEEL_SPAN, peelAt, peelRank, peelSlope } from '../../circuit/peel.ts';
 import { foldCount } from './keys.ts';
+import { PEEL_EASE_RADII, type PeelEnds } from './peel.ts';
 import type { Vec3 } from '../../anatomy/vessels.ts';
 import type { NetMesh, Skeleton } from './types.ts';
 
@@ -28,15 +29,37 @@ function frameTo(F: readonly [Vec3, Vec3, Vec3], T: Vec3): [V3, V3, V3] {
 }
 
 export interface BoneAt { cen: V3; F: [V3, V3, V3]; r: number; share: number }
-/** Every bone at the Circuit's t (the shader's netBone, at rest swell): position and radius linear in the bone's peel share, the frame turned to the blended tangent. */
-export function bonesAtT(skel: Skeleton, t: number): BoneAt[] {
+/** The peel share of a point of an edge: its own flow-peel share, pulled to the region's node's share inside the region and eased back to its own over PEEL_EASE_RADII arm radii outside it (the shader's peelShareAt; tests/net-oracle.ts `peelShare`). */
+function peelShareAt(skel: Skeleton, lens: Float64Array, peel: PeelEnds | undefined, edge: number, Mq: Vec3, uq: number, rr: number, t: number): number {
+  const own = peelAt(t, peelRank(sceneToMap(Mq[0], Mq[1])[0]));
+  if (!peel) return own;
+  const len = lens[edge]!, both = peel[0] >= 0 && peel[2] >= 0, span = both ? (peel[3] - peel[1]) * len : 1e9;
+  let w = own, inside = -1;
+  for (const e of [0, 1] as const) {
+    const anchor = peel[2 * e]!;
+    if (anchor < 0) continue;
+    const seam = peel[2 * e + 1]!, Ma = skel.bones[anchor]!.pos[1], wn = peelAt(t, peelRank(sceneToMap(Ma[0], Ma[1])[0])), dd = e === 0 ? uq - seam : seam - uq;
+    if (dd <= 0) { if (inside < 0) inside = wn; continue; }
+    const Le = Math.min(PEEL_EASE_RADII * Math.max(rr, 1e-6), 0.5 * Math.max(span, 0)), x = Le > 0 ? Math.min(1, (dd * len) / Le) : 1, sm = x * x * (3 - 2 * x);
+    w += (wn - own) * (1 - sm);
+  }
+  return inside >= 0 ? inside : Math.min(1, Math.max(0, w));
+}
+
+/** Every bone at the Circuit's t (the shader's netBone, at rest swell): position and radius linear in the bone's peel share, the frame turned to the blended tangent. With `peel` (net/peel.ts `peelTable`) a junction region's bones take the node's share (the junction peel); without it each bone peels by its own. */
+export function bonesAtT(skel: Skeleton, t: number, peel?: readonly PeelEnds[]): BoneAt[] {
+  const lens = new Float64Array(skel.edges.length);
+  if (peel) skel.edges.forEach((ed, ei) => { const [f, c] = ed.bones; let L = 0; for (let k = 1; k < c; k++) L += Math.hypot(...sub(skel.bones[f + k]!.pos[0], skel.bones[f + k - 1]!.pos[0])); lens[ei] = L; });
   return skel.bones.map((B, bi) => {
     const [first, count] = skel.edges[B.edge]!.bones, k = bi - first, A = B.pos[0], M = B.pos[1];
     if (!(t > 0)) return { cen: [...A], F: [[...B.frame[0]], [...B.frame[1]], [...B.frame[2]]], r: B.r[0], share: 0 };
-    const rank = peelRank(sceneToMap(M[0], M[1])[0]), w = peelAt(t, rank), cen = add(A, mul(sub(M, A), w));
+    const rank = peelRank(sceneToMap(M[0], M[1])[0]), pe = peel?.[B.edge], peeled = !!pe && (pe[0] >= 0 || pe[2] >= 0);
+    const share = (Mq: Vec3, u: number): number => peeled ? peelShareAt(skel, lens, pe, B.edge, Mq, u, B.r[0], t) : peelAt(t, peelRank(sceneToMap(Mq[0], Mq[1])[0]));
+    const w = share(M, B.u), cen = add(A, mul(sub(M, A), w));
     const p = skel.bones[first + Math.max(0, k - 1)]!, n = skel.bones[first + Math.min(count - 1, k + 1)]!, du = Math.max(n.u - p.u, 1e-6);
     const dA = mul(sub(n.pos[0], p.pos[0]), 1 / du), dM = mul(sub(n.pos[1], p.pos[1]), 1 / du), rs = rank > 0 && rank < 1 ? dM[0] / MAP_K / PEEL_SPAN : 0;
-    const Tm = add(add(mul(dA, 1 - w), mul(dM, w)), mul(sub(M, A), peelSlope(t, rank) * rs));
+    const dwdu = peeled ? (share(n.pos[1], n.u) - share(p.pos[1], p.u)) / du : peelSlope(t, rank) * rs;
+    const Tm = add(add(mul(dA, 1 - w), mul(dM, w)), mul(sub(M, A), dwdu));
     return { cen, F: frameTo(B.frame, dot(Tm, Tm) > 1e-9 ? norm(Tm) : B.frame[0]), r: B.r[0] + (B.r[1] - B.r[0]) * w, share: w };
   });
 }
@@ -93,10 +116,10 @@ export interface Window {
   rows: { t: number; body: Row; map: Row; mid?: Row }[];
 }
 
-export function windowOf(built: Skeleton, m: Pick<NetMesh, 'bone' | 'weight' | 'offset' | 'offsetMap' | 'index'>, body: WindowRegion, map: WindowRegion, mid?: WindowRegion): Window {
+export function windowOf(built: Skeleton, m: Pick<NetMesh, 'bone' | 'weight' | 'offset' | 'offsetMap' | 'index'>, body: WindowRegion, map: WindowRegion, mid?: WindowRegion, at: (t: number) => BoneAt[] = (t) => bonesAtT(built, t)): Window {
   const rows: Window['rows'] = [], n = Math.round(1 / T_STEP);
   for (let i = 0; i <= n; i++) {
-    const t = i * T_STEP, bones = bonesAtT(built, t);
+    const t = i * T_STEP, bones = at(t);
     rows.push({ t, body: meshAtT(m, body, bones), map: meshAtT(m, map, bones), ...(mid ? { mid: meshAtT(m, mid, bones) } : {}) });
   }
   const ok = (x: Row | undefined): boolean => !!x && x.folds === 0 && x.off <= OFF_MAX;

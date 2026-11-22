@@ -79,7 +79,7 @@ test('every edge row equals its vessel\'s uniforms, column by column (whole vess
 test('junction texel reads per drawn frame, over every copy and the two passes, stay within 1.5 M at every t (the real mesh, bone by bone)', { skip }, async () => {
   const { frameReadsAt, EDGE_ROW_TEXELS } = await import('../src/scene/vessels/net/reads.ts');
   const { net } = await figure();
-  const env = { skel: net.skel, anchored: (e: number) => { const p = net.state.get(e, 'peelA'); return p[0]! >= 0 || p[2]! >= 0; } };
+  const env = { skel: net.skel };
   assert.ok(EDGE_ROW_TEXELS > 0);
   let worst = { total: 0, t: 0, vertices: 0, drawn: 0, passes: 0, byDraw: [] as { name: string; reads: number }[] };
   for (let t = 0; t <= 1.0001; t += 0.05) { const r = frameReadsAt(env, net.draws, t); if (r.total > worst.total) worst = { ...r, t }; }
