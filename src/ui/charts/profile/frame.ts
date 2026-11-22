@@ -166,17 +166,18 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     }
   });
 
-  // The readings as pills in the plot's top right, tinted as the brackets rate them, over everything else.
-  if (view.pills && view.pillA >= 0.005) {
-    const ps = pillSize(G, tw), a = view.pillA;
+  // The readings (HVPG, PPG) in the plot's top right as plain words in the rating's colour, no capsule (docs/HUMANIZED-DESIGN.md section 0). The brackets below carry the same
+  // words, so while they show these fade out (the readings stand where the brackets are); where the brackets are held back the words stand here.
+  if (view.pills && view.pillA * (1 - view.brk) >= 0.005) {
+    const ps = pillSize(G, tw), a = view.pillA * (1 - view.brk);
     spans.forEach(([key, name], k) => {
       const at = view.pills![k];
       if (!at) return;
-      const v = shownOf[key]!, rate = RATE_OF[key]!(v), rk = lk('prof.pill.rect', { rate }), tk = lk('prof.pill.text', { rate }), kk = lk('prof.pill.k');
-      shapes.push({ k: 'rect', x: at.x, y: at.y, w: ps.w[k]!, h: ps.h, r: ps.h / 2, fill: fade(rk.fill, a), pen: rk.stroke ? { color: fade(rk.stroke, a)!, w: rk.width ?? 1 } : undefined });
+      const v = shownOf[key]!, rate = RATE_OF[key]!(v), tk = lk('prof.pill.text', { rate }), kk = lk('prof.pill.k'), bt = lk('prof.br.text', { rate });
+      const halo = bt.halo ? { color: fade(bt.halo.color, a)!, w: bt.halo.w } : undefined;
       const val = gap1(v), nw = measure(`${name} `, f, kk.weight ?? 600), vw = measure(val, f, tk.weight ?? 700), x = at.x + ps.w[k]! / 2 - (nw + vw) / 2, y = at.y + ps.h / 2 + 0.36 * f;
-      shapes.push({ k: 'text', x, y, s: `${name} `, size: tk.size!, weight: kk.weight, color: fade(tk.fill, a)!, anchor: 'start' });
-      shapes.push({ k: 'text', x: x + nw, y, s: val, size: tk.size!, weight: tk.weight, color: fade(tk.fill, a)!, anchor: 'start' });
+      shapes.push({ k: 'text', x, y, s: `${name} `, size: tk.size!, weight: kk.weight, color: fade(tk.fill, a)!, anchor: 'start', ...(halo ? { halo } : {}) });
+      shapes.push({ k: 'text', x: x + nw, y, s: val, size: tk.size!, weight: tk.weight, color: fade(tk.fill, a)!, anchor: 'start', ...(halo ? { halo } : {}) });
     });
   }
   void whole;

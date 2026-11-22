@@ -111,7 +111,7 @@ test('nothing in the camera or the labels reads the first slice\'s placeholder c
 
 test('the deck link tells the camera a step happened, so a slide on the same shot brings the turn home', () => {
   const link = readFileSync('src/ui/deck/scene-link.ts', 'utf8');
-  assert.ok(/sceneApi\.setRoom\(room, undefined, stepped\)/.test(link));
+  assert.ok(/frameRoom\(room, undefined, undefined, stepped\)/.test(link));
   assert.ok(/sync\(s\.pos !== prev\.pos \|\| s\.stops !== prev\.stops\)/.test(link));
   const api = readFileSync('src/scene/api.ts', 'utf8');
   assert.ok(/homeTurn\) gesturesRef\.current\?\.turnOff\(\)/.test(api));

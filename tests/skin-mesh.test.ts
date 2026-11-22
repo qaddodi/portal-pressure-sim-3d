@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
-import { ARM_REACH, SKIN_K, armCapsule, closestOnArm, gradient, sdArm, sdArmGrad, sdUnion, sdUnionGrad, skinKOf, smin, weights, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
+import { ARM_REACH, MAX_SKIN_ARMS, SKIN_K, armCapsule, closestOnArm, gradient, sdArm, sdArmGrad, sdUnion, sdUnionGrad, skinKOf, smin, weights, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
 import { SkinBuildError, buildSkin, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
 import type { SkinArm, SkinCut, SkinJunction, Vec3 } from '../src/scene/vessels/skin/types.ts';
 
@@ -108,9 +108,9 @@ test('the exact gradient agrees with central differences, away from the creases'
 });
 
 test('weights sum to 1, favour the nearest arm and are 1 deep in an arm\'s own stretch', () => {
-  const f = T(), k = skinKOf(f.j.arms), w = new Float64Array(4);
+  const f = T(), k = skinKOf(f.j.arms), w = new Float64Array(MAX_SKIN_ARMS);   // (weights writes MAX_SKIN_ARMS numbers, an unused arm gets 0)
   weights(f.caps, k, 0.9, 0.05, 0, w);
-  assert.ok(Math.abs(w[0]! + w[1]! + w[2]! + w[3]! - 1) < 1e-12 && w[0]! > 0.999 && w[3] === 0);
+  assert.ok(Math.abs(w.reduce((a, b) => a + b, 0) - 1) < 1e-12 && w[0]! > 0.999 && w[3] === 0);
   weights(f.caps, k, 0.2, 0.7, 0, w);   // out along the branch
   assert.ok(w[2]! > 0.999);
 });

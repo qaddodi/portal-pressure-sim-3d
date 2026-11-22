@@ -23,13 +23,15 @@ export interface PartView {
   shade: ShadeMode;
   dust: boolean; heads: boolean; ink: boolean;
   tint: boolean;
+  /** paint the pixel a tube drops, in the colour of the reason (tubes only: shaders.ts DROP) */
+  why: boolean;
   /** the colour laid over the part, '#rrggbb', and how much of it (0 none, 1 solid) */
   colour: string; amount: number;
 }
-export const partDefault = (): PartView => ({ shade: 0, dust: true, heads: true, ink: true, tint: false, colour: '#ff00ff', amount: 0 });
+export const partDefault = (): PartView => ({ shade: 0, dust: true, heads: true, ink: true, tint: false, why: false, colour: '#ff00ff', amount: 0 });
 
 const uniformsOf = (): Record<string, IUniform> => ({
-  dbgShade: { value: 0 }, dbgDust: { value: 1 }, dbgHeads: { value: 1 }, dbgInk: { value: 1 }, dbgTint: { value: 0 }, dbgCol: { value: new Vector4(1, 0, 1, 0) },
+  dbgShade: { value: 0 }, dbgDust: { value: 1 }, dbgHeads: { value: 1 }, dbgInk: { value: 1 }, dbgTint: { value: 0 }, dbgWhy: { value: 0 }, dbgCol: { value: new Vector4(1, 0, 1, 0) },
 });
 const U: Record<PartId, Record<string, IUniform>> = { tube: uniformsOf(), skin: uniformsOf() };
 const STATE: Record<PartId, PartView> = { tube: partDefault(), skin: partDefault() };
@@ -53,7 +55,7 @@ export function setPart(part: PartId, patch: Partial<PartView>): (keyof PartView
     if (v === undefined || s[k] === v) continue;
     (s as unknown as Record<string, unknown>)[k] = v; changed.push(k);
   }
-  u.dbgShade!.value = s.shade; u.dbgDust!.value = s.dust ? 1 : 0; u.dbgHeads!.value = s.heads ? 1 : 0; u.dbgInk!.value = s.ink ? 1 : 0; u.dbgTint!.value = s.tint ? 1 : 0;
+  u.dbgShade!.value = s.shade; u.dbgDust!.value = s.dust ? 1 : 0; u.dbgHeads!.value = s.heads ? 1 : 0; u.dbgInk!.value = s.ink ? 1 : 0; u.dbgTint!.value = s.tint ? 1 : 0; u.dbgWhy!.value = s.why ? 1 : 0;
   _c.set(s.colour);
   (u.dbgCol!.value as Vector4).set(_c.r, _c.g, _c.b, Math.min(1, Math.max(0, s.amount)));
   return changed;
@@ -61,6 +63,8 @@ export function setPart(part: PartId, patch: Partial<PartView>): (keyof PartView
 /** Every part back to as drawn. */
 export function resetParts(): void { for (const p of ['tube', 'skin'] as const) setPart(p, partDefault()); }
 
+/** The chunk below is spliced into the vessel and skin programs when the inspector is on; those are compiled as 'vessel (inspector)' and the 'skin (inspector…)' variants (debug/gl-registry.ts). */
+export const GL_ON_SCENE_GRAPH = 'the inspector hooks spliced into the vessel and skin programs (gl-registry.ts: vessel (inspector), skin (inspector))';
 /** The declarations and helpers of the hooks (both fragment shaders; after CEL_TUBE_GLSL, which has celTubeBase). `dbgBody` replaces the cel tone, `dbgEnd` is the last word on the colour. */
 export const VDBG_GLSL = /* glsl */ `
 #ifdef VDBG
@@ -69,6 +73,15 @@ uniform float dbgDust;
 uniform float dbgHeads;
 uniform float dbgInk;
 uniform float dbgTint;
+uniform float dbgWhy;
+// WHY A PIXEL IS DROPPED (a tube's discards, shaders.ts DROP(n)): with the switch on the pixel is painted in the reason's colour instead of dropped. 1 reveal front blue, 2 fade dither green, 3 map dither light green, 4 vFade yellow, 5 skin cut cyan,
+// 6 map skin cut teal, 7 round cap orange, 8 back face red, 9 dotted white, 10 cava cut purple, 11 final alpha pink, 12 inside the other lumen (ink band cut) magenta
+vec3 dbgWhyCol(float n) {
+  if (n < 1.5) return vec3(0.1, 0.2, 1.0); if (n < 2.5) return vec3(0.0, 0.8, 0.0); if (n < 3.5) return vec3(0.6, 1.0, 0.5); if (n < 4.5) return vec3(1.0, 0.9, 0.0);
+  if (n < 5.5) return vec3(0.0, 1.0, 1.0); if (n < 6.5) return vec3(0.0, 0.5, 0.5); if (n < 7.5) return vec3(1.0, 0.5, 0.0); if (n < 8.5) return vec3(1.0, 0.0, 0.0);
+  if (n < 9.5) return vec3(1.0); if (n < 10.5) return vec3(0.6, 0.2, 0.9); if (n < 11.5) return vec3(1.0, 0.4, 0.7); return vec3(1.0, 0.0, 1.0);
+}
+#define DROP(n) { if (dbgWhy > 0.5) { gl_FragColor = vec4(dbgWhyCol(float(n)), 1.0); return; } discard; }
 uniform vec4 dbgCol;
 vec3 dbgBody(vec3 c, vec3 base, vec3 n) {
   if (dbgShade < 0.5) return c;
@@ -80,5 +93,7 @@ vec3 dbgEnd(vec3 c, float id) {
   if (dbgTint > 0.5) c = mix(c, 0.5 + 0.5 * cos(6.2831853 * (fract(id * 0.61803399) + vec3(0.0, 0.33, 0.67))), 0.65);
   return mix(c, dbgCol.rgb, dbgCol.a);
 }
+#else
+#define DROP(n) discard;
 #endif
 `;

@@ -28,6 +28,9 @@ export interface Boxes {
   bars: Rect[];
   /** The figure's room: the largest rectangle the cards leave free (CSS px, the camera shifts its projection into it). */
   free: Rect;
+  /** The stop (slide) these boxes are the FINAL layout of: published only once every card of it is measured at its last ladder step, split and fitted (CardLayer `final`). The camera's slide move waits for it
+   *  (deck/scene-link.ts), so a slide arrives fitted to the room it will keep, in one move. Absent (tests, free play): the boxes are taken as they are. */
+  stop?: number;
 }
 
 export interface UiState {
@@ -68,7 +71,7 @@ export interface UiState {
   setDocked(on?: boolean): void;
   setReadings(r: Readings): void;
   /** Called by the card layer once per layout change with the plan it laid out. */
-  publishPlan(plan: Plan): void;
+  publishPlan(plan: Plan, stop?: number): void;
   /** The room the figure is about to have, told when a dock glide sets off (not when it lands), with the glide's length: the camera reframes on the card's own clock (2D dockTo: layout() then reframe(ms)). */
   roomHint: { free: Rect; ms: number } | null;
   hintRoom(free: Rect, ms: number): void;
@@ -156,14 +159,14 @@ export const useUi = create<UiState>((set, get) => ({
     set({ readings: { ...cur, ...r } });
   },
 
-  publishPlan: (plan) => {
+  publishPlan: (plan, stop) => {
     const words = plan.cards.find((c) => c.slot === 'words')?.rect ?? null;
     const data = plan.cards.find((c) => c.slot === 'data')?.rect ?? null;
     const strip = plan.strip?.rect ?? null;
     const bars = [plan.bar?.rect].filter((r): r is Rect => !!r);
     const b = get().boxes;
     if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && b.bars.length === bars.length
-      && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && get().dockShown === plan.docked) return;
-    set({ boxes: { words, data, strip, bars, free: plan.free }, dockShown: plan.docked });
+      && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && b.stop === stop && get().dockShown === plan.docked) return;
+    set({ boxes: { words, data, strip, bars, free: plan.free, stop }, dockShown: plan.docked });
   },
 }));

@@ -93,6 +93,7 @@ export function LobuleCaptions() {
       const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, hide: !m, inView, unit: onSlide() });
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
       const out = solve({ items, view: vw, blockers: bl, lines: built.lines, keep: built.keep });
+      if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] solved:', JSON.stringify({ items: items.length, placed: out.placed.length, view: vw, room: cel.rig.targetRoom, fit: cel.rig.fitRoom, hand: cel.rig.handView, moving: cel.rig.isMoving, corners: [pa, pb, pc, pd], walls: bl.length }));
       placed = new Map(out.placed.map((p) => [p.id, p]));
       metas = built.meta;
       itemsNow = new Map(items.map((it) => [it.id, it]));
@@ -149,7 +150,9 @@ export function LobuleCaptions() {
     const tick = () => {
       const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
-      const on = cel.view === 'lobule' && cel.lobule.group.visible;
+      // (a dive still waiting for the lobule's parts has set the view and shown the lobule while the camera has not left the body: the plate then projects somewhere tiny and the words were placed against that, none standing,
+      //  and the empty answer was kept. Names are placed only once the camera is on its way or there: `diveHeld` is the signal that the shot they belong to has not been flown to yet)
+      const on = cel.view === 'lobule' && cel.lobule.group.visible && !cel.diveHeld;
       // (four corners of a square on the plate: the dots ride the plate's own perspective, exact under a tilt, ride.ts)
       // (Off: the corners stay where they were last read. They were set to 0, so a name still fading out as the view went away was carried by a collapsed quad to the screen's corner, 700 to 1300 px in one
       //  frame at half opacity: Presinusoidal stop 7, 21 Nov audit.)

@@ -159,7 +159,7 @@ Not ported from the 2D app yet, each open work and not forgotten: replay and `co
 
 ## 12. For testers
 
-On the live site, Settings > **Send feedback** opens an email draft in the tester's own mail app with the build, the device, the screen size, **a link back to this exact view** (the camera and sliders too) and a few lines on what the app's own checks found on the screen (at most 1,800 characters; the whole link is capped at 6,000 characters so any mail app takes it; the details are never cut, the short report is cut first). A toast then offers **Copy the full report**, which puts the whole report on the clipboard to paste under the message. Nothing is sent by the app: the person sends the email. The address comes from the build (`VITE_FEEDBACK_EMAIL`), never from the source, so the row is there only when the build has one.
+On the live site, Settings > **Send feedback** opens an email draft in the tester's own mail app with the build, the device, the screen size, **a link back to this exact view** (the camera and sliders too) and a few lines on what the app's own checks found on the screen (at most 1,800 characters; the whole link is capped at 6,000 characters so any mail app takes it; the details are never cut, the short report is cut first). A toast then offers **Copy full report**, which puts the whole report on the clipboard to paste under the message. Nothing is sent by the app: the person sends the email. The address comes from the build (`VITE_FEEDBACK_EMAIL`), never from the source, so the row is there only when the build has one.
 
 ## 13. The switches (reference)
 

@@ -70,6 +70,15 @@ uniform float dbgDust;
 uniform float dbgHeads;
 uniform float dbgInk;
 uniform float dbgTint;
+uniform float dbgWhy;
+// WHY A PIXEL IS DROPPED (a tube's discards, shaders.ts DROP(n)): with the switch on the pixel is painted in the reason's colour instead of dropped. 1 reveal front blue, 2 fade dither green, 3 map dither light green, 4 vFade yellow, 5 skin cut cyan,
+// 6 map skin cut teal, 7 round cap orange, 8 back face red, 9 dotted white, 10 cava cut purple, 11 final alpha pink, 12 inside the other lumen (ink band cut) magenta
+vec3 dbgWhyCol(float n) {
+  if (n < 1.5) return vec3(0.1, 0.2, 1.0); if (n < 2.5) return vec3(0.0, 0.8, 0.0); if (n < 3.5) return vec3(0.6, 1.0, 0.5); if (n < 4.5) return vec3(1.0, 0.9, 0.0);
+  if (n < 5.5) return vec3(0.0, 1.0, 1.0); if (n < 6.5) return vec3(0.0, 0.5, 0.5); if (n < 7.5) return vec3(1.0, 0.5, 0.0); if (n < 8.5) return vec3(1.0, 0.0, 0.0);
+  if (n < 9.5) return vec3(1.0); if (n < 10.5) return vec3(0.6, 0.2, 0.9); if (n < 11.5) return vec3(1.0, 0.4, 0.7); return vec3(1.0, 0.0, 1.0);
+}
+#define DROP(n) { if (dbgWhy > 0.5) { gl_FragColor = vec4(dbgWhyCol(float(n)), 1.0); return; } discard; }
 uniform vec4 dbgCol;
 vec3 dbgBody(vec3 c, vec3 base, vec3 n) {
   if (dbgShade < 0.5) return c;
@@ -81,6 +90,8 @@ vec3 dbgEnd(vec3 c, float id) {
   if (dbgTint > 0.5) c = mix(c, 0.5 + 0.5 * cos(6.2831853 * (fract(id * 0.61803399) + vec3(0.0, 0.33, 0.67))), 0.65);
   return mix(c, dbgCol.rgb, dbgCol.a);
 }
+#else
+#define DROP(n) discard;
 #endif
 
 // a vessel behind the organs (the cava) is drawn a second time over them with VEIL defined: OPAQUE, as every vessel is (no alpha at rest: two flat tones and the ink; Mohammad, 20 Nov: "Why is the venacava glassy")
@@ -206,13 +217,15 @@ varying vec2 vUv;
 varying vec2 vLensR;
 
 // junction skins (skin/types.ts): the tube has a seam at either end
+// (a divided vein's start is its tied, round end: no skin joins it there, so the tube is not cut at its start seam: the skin arm there is absent, arm-twins.ts liveFadeAt)
+float skinStartCut() { return stump.x > 0.0 ? -1.0 : skinCut.x; }
 bool inSkinHole(vec2 h) { return h.y > h.x && vUv.x > h.x + 0.00002 && vUv.x < h.y - 0.00002; }
 // (a dotted thread, a closed potential collateral, is never cut: it runs on into the trunk's wall, and the skin there is a plain trunk, its growth 0: skin-set.ts sync, spec 10.2. A hole is the host's own and is never a dotted thread's)
 bool skinPastC() { return circT > 0.0 && dotted < 0.5 && ((skinCutC.x >= 0.0 && vUv.x < skinCutC.x - 0.00002) || (skinCutC.y <= 1.0 && vUv.x > skinCutC.y + 0.00002)); }
-bool skinCutOn() { return dotted < 0.5 && (skinCut.x >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
+bool skinCutOn() { return dotted < 0.5 && (skinStartCut() >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
 float skinWeldAtC() { return (dotted < 0.5 && skinCutC.x >= 0.0 && vUv.x < skinCutC.x - 0.00002) ? skinWeldC.x : (dotted < 0.5 && skinCutC.y <= 1.0 && vUv.x > skinCutC.y + 0.00002) ? skinWeldC.y : 1.0; }
-float skinWeldAt() { return (dotted < 0.5 && skinCut.x >= 0.0 && vUv.x < skinCut.x - 0.00002) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
-bool skinPast() { return (dotted < 0.5 && ((skinCut.x >= 0.0 && vUv.x < skinCut.x - 0.00002) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
+float skinWeldAt() { return (dotted < 0.5 && skinStartCut() >= 0.0 && vUv.x < skinStartCut() - 0.00002) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
+bool skinPast() { return (dotted < 0.5 && ((skinStartCut() >= 0.0 && vUv.x < skinStartCut() - 0.00002) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -788,25 +801,25 @@ void main() {
     fwNz = fwidth(nzD);
   }
   vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
-  if (frontOut(vUv.x, reveal)) discard;
-  if (fadedOut()) discard;
+  if (frontOut(vUv.x, reveal)) DROP(1);
+  if (fadedOut()) DROP(2);
   // a part with no map course (a fan, a strand) fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve (circuit/shader.ts)
-  if (circStay < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= circStay) discard;
-  if (vFade < 0.004) discard;
+  if (circStay < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= circStay) DROP(3);
+  if (vFade < 0.004) DROP(4);
   // past the seam the skin draws this junction. On the Circuit's map the tubes morph into flat lines and the map draws its own joins, so the cut part comes back as the skin goes (SKIN_CIRC_SPAN of the change), by the same screen pattern as circStay's; at rest it is a plain discard
   if (skinCutOn() && skinPast()) {
     float cutA = smoothstep(0.0, 0.35, circT);
     float cutH = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     float weldW = skinWeldAt();
     // (a growing arm's cut end is drawn where the skin is not: the skin keeps the pixels whose pattern is under the weld, skin-object.ts setWeld, so each pixel is one or the other)
-    if ((cutA <= 0.0 || cutH >= cutA) && (weldW > 0.9999 || cutH < weldW)) discard;
+    if ((cutA <= 0.0 || cutH >= cutA) && (weldW > 0.9999 || cutH < weldW)) DROP(5);
   }
   // the map's own cut (circuit/skins.ts): past a seam of the Circuit the map's skin draws the junction, and it comes in over the end of the change as this goes (the same screen pattern again: both drawn on one pixel never)
   if (skinPastC()) {
     float keepC = 1.0 - smoothstep(0.98, 1.0, vCircShare);
     float cutHC = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))), weldC = skinWeldAtC();
     // (a growing arm's cut end is drawn where the map's skin is not: the skin keeps the pixels whose pattern is under the weld, skin-object.ts setWeld, so each pixel is one or the other)
-    if ((keepC <= 0.0 || cutHC >= keepC) && (weldC > 0.9999 || cutHC < weldC)) discard;
+    if ((keepC <= 0.0 || cutHC >= keepC) && (weldC > 0.9999 || cutHC < weldC)) DROP(6);
   }
   vec3 n = normalize(vN);
   // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
@@ -814,12 +827,12 @@ void main() {
   float sideL = length(sideX);
   vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
   float across = dot(n, side);
-  if (capCarved(across)) discard;
-  if (!gl_FrontFacing) discard;
+  if (capCarved(across)) DROP(7);
+  if (!gl_FrontFacing) DROP(8);
   if (dotted > 0.5) {
     // a closed potential collateral: a dotted thread along the tube's axis, nothing round it
     float dash = fract(vUv.x * len / 0.09);
-    if (dash > 0.45) discard;
+    if (dash > 0.45) DROP(9);
   }
 
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
@@ -859,7 +872,7 @@ void main() {
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
   }
-  if (cavA < 0.004) discard;
+  if (cavA < 0.004) DROP(10);
 #ifdef VEIL
   fadeHere *= veilK;
 #elif defined(SHADOW)
@@ -896,7 +909,7 @@ void main() {
     return;
   }
 #endif
-  if (fadeHere < 0.004) discard;
+  if (fadeHere < 0.004) DROP(11);
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // THE OUTLINE'S OUTER EDGE IS A CIRCLE, NOT THE HULL'S POLYGON (Mohammad, 22 Nov: "the outlines are jagged"). The hull is a ring of TUBE_RADIAL flats built TUBE_SAG fatter at its corners so the line never falls inside, so its raster edge was a
@@ -973,7 +986,7 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  if (nbrK > 0.5 && dLat > rDevAx + 0.5) discard;
+  if (nbrK > 0.5 && dLat > rDevAx + 0.5) DROP(12);
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(0.35 * rDevAx, 1.0 * dpr, 3.5 * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * 0.55 * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);

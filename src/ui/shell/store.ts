@@ -51,7 +51,7 @@ interface ShellState {
   open(sheet: Exclude<Sheet, null>): void;
   close(): void;
   toggle(sheet: Exclude<Sheet, null>): void;
-  /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy the full report"). */
+  /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy full report"). */
   say(text: string, tone?: 'info' | 'bad', action?: ToastAction, sticky?: boolean): void;
   /** A finger or the pointer is on the note (true) or has left it (false): it stays while held, then fades TOAST_LINGER_MS after. A sticky note is never timed. */
   holdToast(on: boolean): void;

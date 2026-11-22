@@ -4,6 +4,7 @@
 // recomputed from the positions on load (a few ms). The digest it carries is of everything it was made from (the organs file, the caudate outline's code, the pipeline's source): a page built from other inputs
 // never lays it in and runs prepare.ts live, as before (a dev server, a build whose bake failed).
 // Layout: "ORB1", u32 header length, the header as JSON, padding to 4 bytes, then each organ's arrays one after another, each padded to 4.
+import { splitIndex } from './subdivide.ts';
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute } from 'three';
 
 const MAGIC = 0x31425f4f;   // "O_B1" little-endian: bytes 'O','_','B','1'
@@ -13,7 +14,7 @@ const SNORM = 32767;
 /** The organs kept as the organs file has them, besides the finished ones: the scope fits its esophagus to the raw stomach (devices/probes/scope.ts), and with the file laid in the page never fetches organs.bin. */
 export const RAW_IDS: readonly string[] = ['stomach'];
 
-interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean }[]; raw: { id: string; verts: number; indices: number }[] }
+interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number }[]; raw: { id: string; verts: number; indices: number }[] }
 const pad4 = (n: number) => (n + 3) & ~3;
 
 /** A unit vector as two snorm16 (octahedral: the sphere folded onto a square; error under 1e-4, 4 bytes where snorm16 x3 is 6). */
@@ -47,13 +48,14 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
     const q = new Int16Array(n * 3);
     for (let i = 0; i < q.length; i++) q[i] = Math.round(pos[i]! * BAKED_Q);
     put(q);
-    put(wide ? new Uint32Array(idx) : new Uint16Array(idx));
+    const parent = g.userData.subParent as Uint32Array | undefined;   // (subdivide.ts: the file keeps the parent triangles and the page splits them again: a third of the bytes)
+    if (parent && parent.length * 4 === idx.length) put(Uint16Array.from(parent)); else put(wide ? new Uint32Array(idx) : new Uint16Array(idx));
     put(g.getAttribute('depthAo').array as Uint8Array);
     put(Uint8Array.from(g.getAttribute('ringD').array, (v) => v));
     for (const k of ['shadeN', 'hullN']) { const s = new Int16Array(n * 2); octEncode(g.getAttribute(k).array, s); put(s); }
     const eso = g.getAttribute('esoA');
     if (eso) put(eso.array as Float32Array);
-    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso });
+    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}) });
   }
   for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; ORGAN_MESHES.stomach in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);
@@ -87,7 +89,8 @@ export function decodeOrgans(buf: ArrayBuffer): BakedOrgans | null {
       const q = take(Int16Array, n * 3), pos = new Float32Array(n * 3);
       for (let i = 0; i < pos.length; i++) pos[i] = q[i]! / BAKED_Q;
       g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-      g.setIndex(o.wide ? new Uint32BufferAttribute(take(Uint32Array, o.indices).slice(), 1) : new Uint16BufferAttribute(take(Uint16Array, o.indices).slice(), 1));
+      if (o.sub) { const kids = splitIndex(take(Uint16Array, o.sub)).index; g.setIndex(o.wide ? new Uint32BufferAttribute(kids, 1) : new Uint16BufferAttribute(Uint16Array.from(kids), 1)); }
+      else g.setIndex(o.wide ? new Uint32BufferAttribute(take(Uint32Array, o.indices).slice(), 1) : new Uint16BufferAttribute(take(Uint16Array, o.indices).slice(), 1));
       g.computeVertexNormals();
       g.setAttribute('depthAo', new BufferAttribute(take(Uint8Array, n).slice(), 1, true));
       g.setAttribute('ringD', new Float32BufferAttribute(Float32Array.from(take(Uint8Array, n)), 1));

@@ -322,7 +322,9 @@ test('a frame in the middle of a glide keeps the box; held, it has no bracket an
   assert.ok(words(f2).includes('HVPG') && words(f2).includes('PPG'));
   const pen15 = (f: { shapes: readonly { k: string; pen?: { w: number } }[] }) => f.shapes.filter((s) => s.k === 'path' && s.pen?.w === 1.5).length;
   assert.ok(pen15(f3) < pen15(f2), 'held: the brackets\' ticks and bars are out (the pills stay, as in 2D)');
-  assert.ok(words(f3).filter((w) => w === 'HVPG').length < words(f2).filter((w) => w === 'HVPG').length, 'held: the bracket\'s name is out, the pill\'s stays');
+  // (the readings are plain words, said once: under the plot in the bracket, and where the brackets are held back, in the plot's top right)
+  assert.equal(words(f2).filter((w) => w === 'HVPG').length, 1, 'at rest: the bracket says HVPG, the top-right words have yielded');
+  assert.equal(words(f3).filter((w) => w === 'HVPG').length, 1, 'held: the bracket\'s name is out, the readings stand in the top right');
   assert.ok(f3.shapes.filter((s) => s.k === 'clip').length < f2.shapes.filter((s) => s.k === 'clip').length, 'held: no block (a block is clipped hatching)');
 });
 

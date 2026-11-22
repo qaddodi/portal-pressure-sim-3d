@@ -19,6 +19,8 @@ import { CaseCard } from './CaseCard.tsx';
 import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
 import { TilesCard, TilesHead } from './TilesCard.tsx';
+import { CardKey } from './CardKey.tsx';
+import { cardKeyAt } from '../../scene/labels/deck-link.ts';
 import { CheckCard } from './CheckCard.tsx';
 import { nameTabOf } from './NameTab.tsx';
 import { TableCard } from './TableCard.tsx';
@@ -50,7 +52,7 @@ function useFontsReady(): boolean {
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
-interface Snap { slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean }
+interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean }
 
 /** Every card on screen: what the presenter says is up, where the planner puts it, kept through a leave and an enter. */
 export function CardLayer({ deck }: { deck: Deck }) {
@@ -242,7 +244,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
 
   // the cards' boxes go to the scene once per layout change, when every card up has been measured
   const settled = needs.length > 0 && needs.every((n) => n.h > 0 || (plan.docked && n.slot === 'data'));   // (a card put away is not measured: it is not up)
-  useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
+  // ...and only when they are FINAL: both cards measured at the ladder's last step, nothing still to widen, split or fit, fonts in (or the 320 ms give-up the cards use). A room published at an earlier step was
+  // a different room (the data card measured whole, then stepped down or fitted): the camera fitted to it, then moved again to the final one. The stop travels with it so the camera knows whose room it is.
+  const measuredNow = needs.every((n) => (plan.docked && n.slot === 'data') || hit(n.slot === 'words' ? wordsKey : dataKey)?.sig === sig);
+  const final = settled && fonts && !growing && (measuredNow || late === pagesKey);
+  useLayoutEffect(() => { if (final) publishPlan(plan, pos.stop); }, [plan, final, pos.stop, publishPlan]);
 
   // a swipe on the last slide's card ends the talk (the figure comes back); anywhere else it moves the talk
   const goTo = (m: Move) => { if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m); };
@@ -285,7 +291,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { slide: view.slide, dslide: carried ?? view.slide, pages, at, trim };
+  const now: Snap = { dkey: cardKeyAt(stops, here?.from ?? pos.stop), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim };
   const content = (e: Entry) => {
     // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
     if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
@@ -298,6 +304,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'ladder': return (
         <>
           {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} onZoom={sn.dslide.tool ? zoomButton : undefined} /> : null}
+          {sn.dkey ? <CardKey lens={sn.dkey} /> : null}
           {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={deck} slide={sn.dslide} /> : null}
           {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
         </>
