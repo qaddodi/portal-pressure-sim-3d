@@ -129,6 +129,9 @@ interface Drawn {
   goal: number; amount: number; sig: string; rank: number;
 }
 
+/** What a resistor's material is built with besides its shaders (the program stand-in, materials/prototypes.ts, wears the same). */
+export const RESISTOR_FLAGS = { transparent: true, depthTest: false, depthWrite: false } as const;
+
 export class ResistorLayer {
   readonly group = new Group();
   private readonly drawn = new Map<ResKey, Drawn>();
@@ -142,7 +145,7 @@ export class ResistorLayer {
 
   private material(): ShaderMaterial {
     return new ShaderMaterial({
-      vertexShader: VS, fragmentShader: FS, transparent: true, depthTest: false, depthWrite: false,
+      vertexShader: VS, fragmentShader: FS, ...RESISTOR_FLAGS,
       uniforms: { wpx: { value: 4 }, res: this.res, col: { value: new Vector3() }, alpha: { value: 0 } },
     });
   }

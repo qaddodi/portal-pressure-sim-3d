@@ -21,6 +21,7 @@ import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { useLabels } from '../labels/store.ts';
 import { calloutClaims } from '../labels/callout-claims.ts';
 import { type Placement, solve } from '../labels/solver.ts';
+import { restyle } from '../labels/roll.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { COURSES } from './course.ts';
 import { type CapMeta, ZONE_PX, buildCaptions } from './captions.ts';
@@ -179,6 +180,11 @@ export function CircuitCaptions() {
         const e = els.get(id) ?? make(id, m);
         const f = m.forms[Math.min(p.form, m.forms.length - 1)]!;
         const rot = !!m.rot;
+        // (the words first: a caption that is showing crosses over to new words or a new key, from the caption as it stood; an empty one takes no room: labels.css `:empty`)
+        const keyText = f.key ?? '';
+        if (e.text !== f.name || (e.key && e.key.textContent !== keyText)) {
+          restyle(e.root, () => { e.text = f.name; e.name!.textContent = f.name; if (e.key) e.key.textContent = keyText; }, e.text ? alpha : 0);   // (a caption with no words yet has nothing to cross over from)
+        }
         const size = `${p.w}x${p.h}|${p.form}|${rot ? 'r' : ''}`;
         if (e.size !== size) {
           e.size = size;
@@ -191,9 +197,7 @@ export function CircuitCaptions() {
           else if (m.kind === 'lane') { e.name!.style.fontSize = `${fontPx(10, vp)}px`; }
           else if (m.kind === 'res') { e.name!.style.fontSize = `${fontPx(11.5, vp)}px`; e.val!.style.fontSize = `${fontPx(11.5, vp)}px`; if (e.key) { e.key.style.fontSize = `${fontPx(9.5, vp)}px`; } }
         }
-        if (e.text !== f.name) { e.text = f.name; e.name!.textContent = f.name; e.name!.style.display = f.name ? '' : 'none'; }
         if (m.kind === 'res') {
-          if (e.key) { e.key.textContent = f.key ?? ''; e.key.style.display = f.key ? '' : 'none'; }
           const v = resText(cel.resistorsNow[m.res!] ?? 1);
           if (e.valText !== v) { e.valText = v; e.val!.textContent = v; }
           e.root.setAttribute('aria-label', m.label ?? '');

@@ -157,6 +157,7 @@ const visible = (s: CelScene) => `${s.lobule.isVisible ? 'L' : '-'}${s.sinus.isV
 
 test('the views through a dive: one at rest, two while flying, never two at rest, the window and the focus back to shut after the way out', () => {
   const s = new CelScene(); s.resize(1000, 700);
+  while (!(s as unknown as { microStep(): boolean }).microStep()) { /* micro views built and primed, as the slot does before a dive may start (scene.goTo) */ }
   s.rig.goTo('play', room, 0); s.update(0);
   assert.equal(visible(s), '--B'); assert.equal(ORGAN_CUT.value.z, -1); assert.equal(s.lobule.field.softNow, 1, 'the field is out of focus from the body (and not drawn)');
   // in to the lobule
@@ -181,6 +182,7 @@ test('the views through a dive: one at rest, two while flying, never two at rest
 
 test('the body straight to the sinusoid and back, and rapid reversals: whatever the order, the view that is chosen is the one drawn once the camera rests', () => {
   const s = new CelScene(); s.resize(1000, 700);
+  while (!(s as unknown as { microStep(): boolean }).microStep()) { /* micro views built and primed, as the slot does before a dive may start (scene.goTo) */ }
   s.rig.goTo('play', room, 0); s.update(0);
   let t = flyTo(s, 'sinusoid', sinusoidShot(), 100, diveMs('body', 'sinusoid')!);
   assert.equal(visible(s), '-S-'); assert.equal(s.sinus.diveShareNow, null, 'the tissue is whole at rest'); assert.equal(s.bodyShown, 0);
@@ -203,6 +205,7 @@ test('the body straight to the sinusoid and back, and rapid reversals: whatever 
 
 test('a card opened mid-dive in the scene keeps the views and the window consistent, and Reduce Motion lands the views at once without a stuck state', () => {
   const s = new CelScene({ reduceMotion: true }); s.resize(1000, 700);
+  while (!(s as unknown as { microStep(): boolean }).microStep()) { /* micro views built and primed, as the slot does before a dive may start (scene.goTo) */ }
   s.rig.goTo('play', room, 0); s.update(0);
   s.setView('lobule', 100); s.goTo(lobuleShot('lobule'), room, 100, DIVE_BODY_MS);
   let t = 100;
@@ -217,6 +220,7 @@ test('a card opened mid-dive in the scene keeps the views and the window consist
 
 test('sinusoid <-> body (a talk\'s slide change) passes through the lobule: it is drawn all the way, so there is never a black gap between the sinusoid dissolving and the body coming in (Mohammad 21 Nov)', () => {
   const s = new CelScene(); s.resize(1000, 700);
+  while (!(s as unknown as { microStep(): boolean }).microStep()) { /* micro views built and primed, as the slot does before a dive may start (scene.goTo) */ }
   s.rig.goTo('play', room, 0); s.update(0);
   let t = flyTo(s, 'sinusoid', sinusoidShot(), 100, diveMs('body', 'sinusoid')!);
   for (const [from, to, shot] of [['sinusoid', 'body', 'play'], ['body', 'sinusoid', sinusoidShot()]] as const) {

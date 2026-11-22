@@ -8,6 +8,7 @@
 import type { PillDraw, SumDraw, CathFrame } from './cath-show.ts';
 import { pillGlass, type Glass, type Reading } from './cath.ts';
 import { LS } from './type.ts';
+import { restyle } from './roll.ts';
 
 const NS = 'http://www.w3.org/2000/svg';
 const px = (n: number) => Math.round(n * 100) / 100;
@@ -38,11 +39,14 @@ export function makeCard(parent: Element, cls: string): Card {
   return { root, glass, svg, path, ring, rsvg, rpath, k, n, u, shape: '', tone: '', text: '', op: '', tx: '', size: '' };
 }
 
-/** The words of a card (written when they change). */
-export function words(c: Card, r: Reading): void {
+/** The words of a card (written when they change). A card that is showing (`alpha`) crosses over to its new words and tone, never steps (roll.ts `restyle`). */
+export function words(c: Card, r: Omit<Reading, 'tone'> & { tone: string }, alpha = 0): void {
   const t = `${r.kicker}|${r.value}|${r.unit}`;
-  if (c.text !== t) { c.text = t; c.k.textContent = r.kicker; c.n.textContent = r.value; c.u.textContent = r.unit; }
-  if (c.tone !== r.tone) { c.tone = r.tone; c.root.dataset.tone = r.tone; }
+  if (c.text === t && c.tone === r.tone) return;
+  restyle(c.root, () => {
+    if (c.text !== t) { c.text = t; c.k.textContent = r.kicker; c.n.textContent = r.value; c.u.textContent = r.unit; }   // (an empty number or unit takes no room: labels.css `:empty`)
+    if (c.tone !== r.tone) { c.tone = r.tone; c.root.dataset.tone = r.tone; }
+  }, alpha);
 }
 
 /** The glass: its place in the card's padding box, its clip and its hairline path. */
@@ -100,8 +104,8 @@ export function buildCath(parent: HTMLElement): CathDom {
   const paintPill = (c: Card, d: PillDraw | undefined) => {
     if (!d) { if (c.root.hasAttribute('data-on')) { show(c, false); fade(c, 0); } return; }
     show(c, true);
+    words(c, d.reading, d.alpha);   // (before the size and the glass: a crossing starts from the card as it stood)
     size(c, d.w, d.h);
-    words(c, d.reading);
     shape(c, d.glass, d.key);
     place(c, d.x, d.y + d.rise);
     fade(c, d.alpha);
@@ -124,18 +128,22 @@ export function buildCath(parent: HTMLElement): CathDom {
         brace.style.left = `${px(g.brace.x)}px`; brace.style.top = '0px';
         brace.setAttribute('width', String(g.brace.w)); brace.setAttribute('height', String(px(g.brace.h))); bpath.setAttribute('d', g.brace.d);
         for (let j = 0; j < 2; j++) {
-          lead[j].setAttribute('d', s.leaders.d[j]); lead[j].setAttribute('data-tone', s.rows[j].tone); dot[j].setAttribute('data-tone', s.rows[j].tone);
+          lead[j].setAttribute('d', s.leaders.d[j]);
           dot[j].setAttribute('cx', String(px(s.leaders.dots[j][0]))); dot[j].setAttribute('cy', String(px(s.leaders.dots[j][1])));
         }
       }
+      // (a leader takes its row's colour: when that changes while they show, they cross over to it)
+      if ([0, 1].some((j) => lead[j]!.getAttribute('data-tone') !== s.rows[j]!.tone)) {
+        restyle(leads, () => { for (let j = 0; j < 2; j++) { lead[j]!.setAttribute('data-tone', s.rows[j]!.tone); dot[j]!.setAttribute('data-tone', s.rows[j]!.tone); } }, s.lead * s.alpha);
+      }
       for (let j = 0; j < 2; j++) {
         const c = rows[j], R = g.rows[j], r = s.row[j];
-        size(c, R.w, R.h); words(c, s.rows[j]);
+        words(c, s.rows[j], r.alpha * s.alpha); size(c, R.w, R.h);
         shape(c, pillGlass(R.w, R.h, s.radius, 'none', 0), `${R.w}|${R.h}|${g.tight ? 1 : 0}`);
         place(c, R.x + r.dx, R.y + r.dy + r.rise); fade(c, r.alpha * s.alpha);
       }
       const K = g.calc;
-      size(calc, K.w, K.h); words(calc, s.calc);
+      words(calc, s.calc, s.calcAlpha * s.alpha); size(calc, K.w, K.h);
       shape(calc, pillGlass(K.w, K.h, s.radius, 'none', 0), `${K.w}|${K.h}|${g.tight ? 1 : 0}`);
       place(calc, K.x, K.y + s.calcRise); fade(calc, s.calcAlpha * s.alpha);
       const b = opacity(s.lead * s.alpha);

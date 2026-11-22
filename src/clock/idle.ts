@@ -18,6 +18,8 @@ export const QUIET_INPUT_MS = 250;
 /** The rest between slices: about a frame, so the page's own frames and input get the main thread between two slices. */
 export const REST_MS = 12;
 export const DEFAULT_BUDGET_MS = 4;
+/** A rushed job (the user is waiting for it, nothing else moves: a held dive) takes at least this long a slice. */
+export const RUSH_BUDGET_MS = 12;
 
 export interface QuietOpts {
   /** Names the job in ?perf and in the span log. */
@@ -110,7 +112,7 @@ export function createQuiet<H = number>(env: QuietEnv<H>) {
     let first = true;
     try {
       while (!j.cancelled) {
-        if (!first && (env.now() - t0 >= j.budget || env.input.pending?.())) break;   // (budget spent, or input is waiting: the next step waits)
+        if (!first && (env.now() - t0 >= (j.rush ? Math.max(j.budget, RUSH_BUDGET_MS) : j.budget) || env.input.pending?.())) break;   // (budget spent, or input is waiting: the next step waits)
         first = false;
         const s0 = env.now();
         const fin = j.step();

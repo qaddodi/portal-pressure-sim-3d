@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, type CardIn } from '../src/scene/labels/figure-cards.ts';
 import { hits, type Box } from '../src/scene/labels/geometry.ts';
+import { RING_STROKE, typeVars, type Vp } from '../src/scene/labels/type.ts';
 
 // iPhone, 21 Nov (Sites and causes 6 and 7, Budd-Chiari 8): a slide's callout was the catheter's grey glass pill with a pointer, on the central vein or at the edge of the figure.
 // 2D draws it as a thick red ring on the place, a leader of the same stroke from the ring to the words, and the words in that colour (lobule-zoom.js callEl, callLine, callRing).
 // Root cause: figure-calls.ts made every slide callout a `mark` card, and figure-cards.ts drew every `mark` as a glass pill; nothing in 3D had a ring.
+const VP: Vp = { w: 390, h: 844 };
 const VIEW: Box = { x0: 0, y0: 60, x1: 390, y1: 800 };
 const ringCard = (over: Partial<CardIn> = {}): CardIn => ({ id: 'callout', x: 195, y: 300, w: 120, h: 24, ring: 40 + RING_AIR, ...over });
 const box = (o: { x0: number; y0: number }, w = 120, h = 24): Box => ({ x0: o.x0, y0: o.y0, x1: o.x0 + w, y1: o.y0 + h });
@@ -46,8 +48,13 @@ test('a lobule callout is a ring, a leader and coloured words, not a glass card 
   assert.match(fc, /dataset\.fig = 'callout'/);
   assert.match(fc, /lobuleRing\(c\.anchor\.lobule/, 'the ring radius is read from the camera');
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
-  assert.match(css, /\.lz-co-ring \{[^}]*border: 4px solid var\(--co\)/, 'the ring is 2D\'s 4 px stroke');
-  assert.match(css, /\.lz-co-line \{[^}]*height: 4px/, 'the leader is the ring\'s stroke');
+  // one stroke source: RING_STROKE (type.ts) reaches the stylesheet as --co-w through typeVars; the ring, its leader and the leader's centring read it (labels.css holds no 4px in .lz-co-*)
+  assert.match(css, /\.lz-co-ring \{[^}]*border: var\(--co-w\) solid var\(--co\)/, 'the ring is 2D\'s stroke, read from --co-w');
+  assert.match(css, /\.lz-co-line \{[^}]*height: var\(--co-w\)/, 'the leader is the ring\'s stroke');
+  assert.match(css, /\.lz-co-line \{[^}]*margin-top: calc\(var\(--co-w\) \/ -2\)/, 'and is centred on it');
+  assert.doesNotMatch(css.split('\n').filter((l) => /^\.lz-co-(ring|line) /.test(l)).join('\n'), /\b4px|-2px/, 'no stroke number of its own in .lz-co-*');
+  assert.equal(typeVars(VP)['--co-w'], `${RING_STROKE}px`, 'typeVars carries the stroke');
+  assert.equal(RING_STROKE, 4, '2D\'s 4 px');
   assert.match(css, /\.cl\[data-fig="callout"\] \.cl-glass[^{]*\{ display: none; \}/, 'no glass card behind the words');
   assert.match(css, /\.lz-co \{[^}]*--co: var\(--cl-danger/, 'block is the danger red');
 });
