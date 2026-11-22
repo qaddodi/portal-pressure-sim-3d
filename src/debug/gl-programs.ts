@@ -193,34 +193,8 @@ export function declarations(src: string): Decl[] {
 
 const slotsOf = (d: Decl) => (SLOTS[d.type] ?? 1) * (Number.isFinite(d.array) ? d.array : 1);
 
-/** The rows the varyings take once the GPU packs them (the ES 2.0 spec's Appendix A, which ES 3.0 and WebGL 2 require of an implementation that reports MAX_VARYING_VECTORS 15): a matrix or an array takes whole rows, a vec4 one row, a vec3 one row
- *  with a column left for a float, a vec2 half a row, a float any free column. The floor (15) is a count of these rows, not of declarations: counting each float as a row made a shader of 15 vectors and a few floats look over it. */
-export function packedRows(ds: readonly Decl[]): number {
-  const cols = (t: string) => (/vec([234])$/.exec(t)?.[1] ? Number(/vec([234])$/.exec(t)![1]) : /^mat/.test(t) ? 0 : 1);
-  let whole = 0; const rows: boolean[][] = [];
-  const four: Decl[] = [], three: Decl[] = [], two: Decl[] = [], one: Decl[] = [];
-  for (const d of ds) {
-    const n = Number.isFinite(d.array) ? d.array : 1;
-    if (/^mat/.test(d.type) || n > 1) { whole += slotsOf(d); continue; }
-    (cols(d.type) === 4 ? four : cols(d.type) === 3 ? three : cols(d.type) === 2 ? two : one).push(d);
-  }
-  whole += four.length;
-  for (let i = 0; i < three.length; i++) rows.push([true, true, true, false]);
-  for (let i = 0; i < two.length; i++) {
-    const at = rows.findIndex((r) => !r[0] && !r[1] ? true : !r[2] && !r[3]);
-    if (at < 0) { rows.push([true, true, false, false]); continue; }
-    const r = rows[at]!; if (!r[0] && !r[1]) { r[0] = r[1] = true; } else { r[2] = r[3] = true; }
-  }
-  for (let i = 0; i < one.length; i++) {
-    const at = rows.findIndex((r) => r.some((c) => !c));
-    if (at < 0) { rows.push([true, false, false, false]); continue; }
-    const r = rows[at]!; r[r.indexOf(false)] = true;
-  }
-  return whole + rows.length;
-}
-
 export interface Budget { attributes: number; varyings: number; samplers: number; vertexUniformVectors: number; fragmentUniformVectors: number }
-/** The slots a program asks of the GPU, counted from its own source plus three's built-ins. The ES 3.0 floor every phone meets: 16 attributes, 15 varying vectors (after the GPU's packing, `packedRows`), 16 samplers a stage, 256 and 224 uniform vectors. */
+/** The slots a program asks of the GPU, counted from its own source plus three's built-ins. The ES 3.0 floor every phone meets: 16 attributes, 15 varying vectors (each declaration counts a whole row: real drivers do not all pack per ES 2.0 Appendix A), 16 samplers a stage, 256 and 224 uniform vectors. */
 export function budget(p: Program): Budget {
   const v = declarations(p.vertexGlsl), f = declarations(p.fragmentGlsl);
   const attrs = v.filter((d) => d.storage === 'attribute' || d.storage === 'in');
@@ -229,7 +203,7 @@ export function budget(p: Program): Budget {
   const uni = (ds: Decl[]) => ds.filter((d) => d.storage === 'uniform' && !isSampler(d)).reduce((n, d) => n + (d.type === 'mat3' ? 3 : slotsOf(d)), 0);
   return {
     attributes: attrs.reduce((n, d) => n + slotsOf(d), 0),
-    varyings: packedRows(varyings),
+    varyings: varyings.reduce((n, d) => n + slotsOf(d), 0),
     samplers: Math.max(v.filter((d) => d.storage === 'uniform' && isSampler(d)).length, f.filter((d) => d.storage === 'uniform' && isSampler(d)).length),
     vertexUniformVectors: uni(v),
     fragmentUniformVectors: uni(f),
