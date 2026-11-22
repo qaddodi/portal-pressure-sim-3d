@@ -240,22 +240,33 @@ varying float vU;
 // own screen gradient is the distance in device pixels), so the edge is anti-aliased by arithmetic: half covered a pixel in from the raster edge, which is the line's true edge
 varying float vRd;
 #endif
-#ifdef INK_SEAT
-// an organ's AO seat (layer.ts): one soft halo that is strongest at the outline and falls away to nothing at the hull's outer edge, a single monotonic ramp. 2D's .org-ao is a flat 9-unit stroke at 0.09, which at 2D's size is a faint
-// halo; here its flat band, a hard step at the hull's rim, read as one more concentric band beside the outline and the inner shade (review 21 Nov, #16). Twice the flat alpha at the outline, so the halo holds the same total.
-uniform float px;
-uniform float dpr;
+#if defined(INK_SEAT) || defined(INK_GLOW)
+// a soft halo round an organ's outline, one hull and ONE monotonic ramp (never stacked shells, which are concentric bands: Mohammad 22 Nov, a selected organ's glow was five flat hulls).
+//   INK_SEAT (layer.ts): an organ's AO seat. Strongest at the outline and falling to nothing at the hull's outer edge. 2D's .org-ao is a flat 9-unit stroke at 0.09, which at 2D's size is a faint
+//   halo; here its flat band, a hard step at the hull's rim, read as one more concentric band beside the outline and the inner shade (review 21 Nov, #16). Twice the flat alpha at the outline, so the halo holds the same total.
+//   INK_GLOW (highlight.ts): a tapped or pinned organ's glow. The same ramp as a squared fall (a bright rim and a long soft tail), at the line's alpha inkA at the outline.
+// vW is the hull's own width in device pixels (organ-shader.ts), so the ramp spans the whole hull at every zoom: it was a fixed pixel count, a short soft edge on a hull that is far wider zoomed in.
+varying float vW;
 #endif
 void main() {
   float cov = 1.0;
 #ifdef INK_EDGE
   cov = clamp(vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5) - 0.5, 0.0, 1.0);   // (the derivative before the discards: tests/no-derivative-after-discard.test.ts)
-#ifdef INK_SEAT
+#if defined(INK_SEAT) || defined(INK_GLOW)
   float dev = vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5);   // device pixels in from the hull's outer edge
-  float sk = clamp(dev / max((px + 1.0 / max(dpr, 1.0)) * max(dpr, 1.0), 1.0), 0.0, 1.0);
+  float sk = clamp(dev / max(vW, 1.0), 0.0, 1.0);
+#ifdef INK_SEAT
   cov *= 2.0 * sk * sk * (3.0 - 2.0 * sk);
+#else
+  cov *= sk * sk;
+#endif
 #endif
 #endif
   if (frontOut(vU, reveal)) discard; if (fadedOut()) discard;
-  gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * cov);
+  float al = mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * cov;
+#if defined(INK_SEAT) || defined(INK_GLOW)
+  // a hair of noise so a faint, wide ramp never steps in an 8-bit canvas (a step of 1/255 of alpha over a bright halo colour is a level or more)
+  al += (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5) * 3.0 / 255.0 * step(0.002, al);
+#endif
+  gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), al);
 }`;

@@ -189,6 +189,7 @@ uniform float dpr;
 #ifdef INK_EDGE
 attribute float ringD;   // steps in from the rim ring (contour.ts ringDistance)
 varying float vRd;
+varying float vW;   // the hull's width in device pixels (INK_FS: INK_SEAT and INK_GLOW ramp across it)
 #endif
 attribute vec3 hullN;   // the smoothed normal the outline is pushed out along (normal-smooth.ts): the mesh's own normals jag at a coarse rim
 uniform vec2 res;
@@ -205,6 +206,7 @@ void main() {
 #ifdef INK_EDGE
   vRd = ringD;
   w += 1.0 / max(dpr, 1.0);   // (one device pixel past the line: the coverage ramp takes it back, INK_FS)
+  vW = w * dpr;
 #endif
   vec2 nd = (projectionMatrix * vec4(normalMatrix * hullN, 0.0)).xy;
   float l = length(nd);
