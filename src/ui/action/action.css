@@ -86,7 +86,13 @@
 .ac-btn .ac-ic { width: 18px; height: 18px; color: currentColor; }
 .ac-btn.danger { color: var(--danger); margin-left: auto; } .ac-btn.quiet { color: var(--text-2); }
 .ac-dye { touch-action: none; }
-.ac-dye .ac-bl { display: inline-block; min-width: 4.9em; }
+/* (The Dye word's room for "Injecting" is kept so the row does not jump, but the word starts at the icon: a button's own centring had put it 25 px away from its drop, 22 Nov 2026.) */
+.ac-dye .ac-bl { display: inline-block; min-width: 4.9em; text-align: start; }
+/* A phone's or an upright iPad's card: the actions are one row of equal columns, each icon attached to its word and centred in its column (Doppler, Dye, Shunt, Remove, IR…), whatever their number, so the row is evenly spaced.
+   The columns are fixed, so the Dye word's room is the column's and its longer word does not push the others. */
+.ac-card[data-bottom] .ac-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); justify-items: stretch; gap: 0 4px; }
+.ac-card[data-bottom] .ac-acts > .ac-btn { justify-content: center; margin: 0; padding: 10px 2px; min-height: 44px; gap: 5px; }
+.ac-card[data-bottom] .ac-acts > .ac-dye .ac-bl { min-width: 0; text-align: start; }
 .ac-panel { min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-card, .ac-body, .ac-switch, .ac-switch i { transition: none; animation: none; } }
 

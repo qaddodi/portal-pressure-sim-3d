@@ -4,6 +4,7 @@
 // The first install, with no worker before it, is not an update; and a page opened after a deploy is already on the new files, so nothing is offered to it.
 import { useShell } from '../ui/shell/store.ts';
 import { reloadKeepingState } from '../boot/reload.ts';
+import { startUpdateWatch } from './update.ts';
 import { talkOn } from '../state/deck.ts';
 import { lowData } from '../boot/data-saver.ts';
 
@@ -17,8 +18,7 @@ export const RETRY_MS = 30000;
 /** How often a tab that stays open asks the host whether a newer build is out, and the least gap between two asks (a tab brought back to the front asks at once, not twice in a breath).
  *  A page that is never navigated gets no update check from the browser (a phone's home-screen app resumes from sleep without one), so the page asks for itself. */
 export const CHECK_MS = 5 * 60_000, CHECK_GAP_MS = 20_000;
-/** Whether the tab takes the newer build now, by itself: only when it is out of sight (nothing on the screen jumps), a build is waiting, and no talk plays. */
-export const takesOverNow = (s: { pending: boolean; hidden: boolean; mode: string }): boolean => s.pending && s.hidden && s.mode !== 'deck';
+export { takesOverNow } from './update.ts';   // (when the tab takes the newer build by itself: src/pwa/update.ts)
 
 /** The built files this page loaded (the module scripts and style sheets under assets/): the hashed names a new worker either still holds or has dropped. */
 export function loadedAssets(doc: Document = document): string[] {
@@ -60,7 +60,7 @@ function askFill(sw: ServiceWorker | null): void {
 export function offerReload(say = useShell.getState().say, retry = (fn: () => void) => { clock.after(fn, RETRY_MS); }): void {
   const offer = () => {
     if (talkOn()) { retry(offer); return; }
-    say(UPDATE_TOAST, 'info', { label: 'Reload', run: () => location.reload() });
+    say(UPDATE_TOAST, 'info', { label: 'Reload', run: () => { void reloadKeepingState(); } }, true);   // (sticky: a note that fades is a note he misses)
   };
   offer();
 }
@@ -79,10 +79,9 @@ export function registerPwa(): void {
   try { framed = window.self !== window.top; } catch { /* (another site's frame) */ }
   if (!mayRegister({ prod: import.meta.env.PROD, hasWorker: 'serviceWorker' in navigator, protocol: location.protocol, search: location.search, framed })) return;
   const sw = navigator.serviceWorker;
-  // A newer build took over this tab's files: it is taken up as soon as the tab is out of sight (a tab left in the background, or a phone's app put away, comes back on the newest
-  // build with nothing seen to change); while the tab is in front it is offered once, never forced. (Mohammad kept landing on old builds: 20 Nov.)
-  let pending = false;
-  const takeOver = () => { if (takesOverNow({ pending, hidden: document.hidden, mode: talkOn() ? 'deck' : 'figure' })) { pending = false; void reloadKeepingState(); } };
+  const watching = startUpdateWatch(() => offerReload());
+  // A newer build took over this tab's files: the page's updater is told (src/pwa/update.ts: it eases onto the newest build at a safe moment, and the pill and a sticky note say so meanwhile).
+  // The page also asks the host for the build itself, so a tab is told even when no worker update is ever seen. (Mohammad kept landing on old builds: 20 and 22 Nov.)
   if (sw.controller) {
     let offered = false;
     sw.addEventListener('controllerchange', async () => {
@@ -90,10 +89,9 @@ export function registerPwa(): void {
       const now = sw.controller;
       if (now && holdsAll(loadedAssets(), await askFiles(now))) return;
       if (offered) return;
-      offered = true; pending = true;
-      if (document.hidden) takeOver(); else offerReload();
+      offered = true;
+      watching.found('');
     });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) takeOver(); });
   }
   // (once the worker is active the page asks it to hold the parts opened later: 'pps:fill', scripts/pwa.mjs)
   /** Asks the host for a newer worker when the tab comes to the front, comes back online or has stayed open CHECK_MS (the browser asks only on a navigation, and once a day otherwise). */

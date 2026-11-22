@@ -40,7 +40,7 @@ test('with a worker the plate is painted off the page: one ask for the whole eas
   l3.buildForTest('light');
   flat.update(1000); l3.update(true, 0, 1000, 1, true);
   const asks: { cb: (b: unknown) => void }[] = [];
-  const a = l3 as unknown as { plates: unknown; marksKey: string; marksMat: { uniforms: { opacity: { value: number } } }; marksMatB: { uniforms: { opacity: { value: number } } } };
+  const a = l3 as unknown as { plates: unknown; marksKey: string; marksMat: { uniforms: { opacity: { value: number }; mixB: { value: number } } } };
   a.plates = { available: true, ask: (_x: unknown, cb: (b: unknown) => void) => { asks.push({ cb }); }, dispose() {} };
   const before = l3.paints;
   flat.setModel(model({ fibSin: 0.6, fibPre: 0.8, congU: 0.5 }));
@@ -52,10 +52,11 @@ test('with a worker the plate is painted off the page: one ask for the whole eas
   const realNow = performance.now.bind(performance); let fake = realNow();
   performance.now = () => (fake += 16);   // (the plate's ease runs on the clock: a test frame is 16 ms of it)
   const mid: number[] = [];
-  for (let i = 0; i < 120; i++) { t += 16; flat.update(t); l3.update(true, 0, t, 1, false); if (i === 20) mid.push(a.marksMat.uniforms.opacity.value); }
-  assert.ok(mid[0]! < 1 && mid[0]! > 0 || a.marksMat.uniforms.opacity.value === 1, 'it eased, not cut');
+  for (let i = 0; i < 120; i++) { t += 16; flat.update(t); l3.update(true, 0, t, 1, false); if (i === 20) mid.push(a.marksMat.uniforms.opacity.value, a.marksMat.uniforms.mixB.value); }
+  assert.ok(mid[1]! > 0 && mid[1]! < 1, `the new plate eases in (mix ${mid[1]})`);
+  assert.equal(mid[0], 1, 'the front plate keeps its whole opacity while the new one mixes in (two see-through layers at 1-e and e left a quarter of the page showing at the middle: a flash)');
   performance.now = realNow;
   assert.equal(a.marksMat.uniforms.opacity.value, 1);
   performance.now = realNow;
-  assert.equal(a.marksMatB.uniforms.opacity.value, 0);
+  assert.equal(a.marksMat.uniforms.mixB.value, 0);
 });

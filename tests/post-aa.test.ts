@@ -54,10 +54,10 @@ test('the scene draws both passes into the texture, then the canvas takes the fi
   assert.ok(at('gl.setRenderTarget(null)') > at('cam.layers.set(VESSEL_LAYER)'), 'the canvas is back only after the vessels');
   assert.ok(at('this.post.resolve(gl)') > at('gl.setRenderTarget(null)'));
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
-  assert.match(stage, /const msaa = aaMode\(\) === 'msaa';/, '?aa=msaa multisamples at any pixel ratio (the post pass is off in that mode)');
+  assert.match(stage, /const mode = aaMode\(\);\s*const msaa = mode === 'msaa';/, '?aa=msaa multisamples at any pixel ratio (the post pass is off in that mode)');
   assert.doesNotMatch(stage, /msaaFor/);
-  assert.match(stage, /compileAsync\(cel\.scene, cel\.rig\.camera\)/, 'every view\'s programs are built after the first picture');
-  assert.ok(stage.indexOf('figureDrawn();') < stage.indexOf('compileAsync(cel.scene'), 'after the first frame');
+  assert.match(stage, /warmPrograms\(gl as unknown as WarmRenderer, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/, 'every view\'s programs are built after the first picture, into the post pass\'s target (three keys programs on the output colour space)');
+  assert.ok(stage.indexOf('figureDrawn();') < stage.indexOf('warmPrograms(gl as unknown'), 'after the first frame');
   assert.match(stage, /cel\.post\.material/, 'the guard knows the pass\'s material');
   assert.deepEqual([1, 1.5, 2].map(msaaFor), [true, true, false]);
 });

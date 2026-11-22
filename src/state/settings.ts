@@ -17,6 +17,8 @@ export interface Settings {
   /** index into FIGURE_DETAIL */
   figureDetail: number;
   sharpMoving: boolean;
+  /** Auto detail (3D only): the figure lowers its own detail below the Figure detail step while frames run slow, and brings it back when they settle (scene/detail-governor.ts). Off: the step is held. */
+  autoDetail: boolean;
   /** Keyboard shortcuts: single keys on (WCAG 2.1.4). Off leaves Esc and Ctrl or Cmd with a key. */
   keys: boolean;
   showFps: boolean;
@@ -50,7 +52,7 @@ export const STORAGE_PREFIX = 'pps3d.';
 export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface', 'deviceShadow'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
 export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true, deviceShadow: true };
-export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
+export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 export function parseSettings(raw: string | null): Settings {
@@ -62,13 +64,13 @@ export function parseSettings(raw: string | null): Settings {
       lookChosen: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)),
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
-      sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
+      sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
       organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), hideBehind: bool(fig.hideBehind, DEPTH_DEFAULTS.hideBehind), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, hideBehind: s.hideBehind, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, hideBehind: s.hideBehind, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({

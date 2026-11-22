@@ -10,6 +10,7 @@ import { JOINT_REACH_R } from '../src/scene/vessels/network.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { GROW_REACH, GROWER_KINDS, dropFarGrowers, findSkinJunctions, isGrower, isPermanent, isLiverBranch, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
+import { bakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { armPresenceAt } from '../src/scene/vessels/skin/arm-twins.ts';
@@ -93,6 +94,7 @@ function built(): { scene: CelScene; set: SkinSet; draws: SkinObject[]; axes: Ma
     vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
     make: (mesh, ax, arms) => { const d = new SkinObject(mesh, arms[0]!, ax, arms); draws.push(d); axes.set(d, ax); return d; },
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: (m) => warnings.push(m),
+    baked: bakedSkins,   // (as the scene does: the baked skins are laid in when they are the file for these tubes, so a build is seconds, not 35 s; a digest mismatch plans live. Each test still asserts the set's own results)
   });
   set.build(2);
   { const live = new Set<unknown>(set.liveDraws()); for (let i = draws.length - 1; i >= 0; i--) if (!live.has(draws[i])) draws.splice(i, 1); }   // (a skin the planner took back to plan with its neighbours is not one of them)

@@ -21,12 +21,15 @@ import { lateProgramCheck, rebaseLateWatch } from '../boot/late-programs.ts';
 import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
+import { govern, newGovernor } from './detail-governor.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
 import { frameBegin, frameEnd, renderStats } from '../clock/render-stats.ts';
 import { sinusoidTap } from './sinusoid/explain-store.ts';
 import { lookCapture } from '../debug/look-hook.ts';
+import { figureShot, copyOfCanvas } from './figure-shot.ts';
+import { pictureScale } from '../ui/shell/figure-image.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
 import { bindOrganSettings } from './organs/organ-settings.ts';
@@ -55,7 +58,10 @@ const gestureTimers = new Map<number, TimerId>();
 export { vesselData };
 
 /** A phone is the small side under 500 CSS px (portrait or landscape): its ink is 0.2 px lighter on organs (spec section 3). */
-/** The hand view that frames the whole figure here (the body's play shot, the Circuit's whole map) seen from the shot now up: what the zoom limits and a zoomed-out view's resting place are measured on. Null when the shot is that, or the view has none. */
+/**
+ * The hand view that frames the whole figure here (the body's play shot, the Circuit's whole map) seen from the shot now up: what the zoom limits and a zoomed-out view's
+ * resting place are measured on. Null when the shot is that, or the view has none.
+ */
 const wholeHome = () => (cel.view === 'body' ? cel.rig.wholeView(SHOTS.play) : cel.view === 'circuit' ? cel.rig.wholeView(circuitShot(cel.circuit.upright)) : null);
 
 const isPhone = () => Math.min(innerWidth, innerHeight) < 500;
@@ -78,6 +84,23 @@ function SceneBridge() {
     rebuild: () => { vesselData.texture.needsUpdate = true; rewarm.current(); },
     restored: () => { setGlLoss('ok'); clock.invalidate('context-restored'); },
   }), [gl]);
+
+  // Copy / Save figure (ui/shell/figure-image-dom.ts): the stage drawn once at `want` times its CSS size, in this task (the canvas is read before anything else can clear it), then put back at the pixel
+  // ratio it rests at and drawn again in the same task, so the screen never shows the other size. The size is kept inside what the device can draw (figure-image.ts pictureScale).
+  useEffect(() => {
+    figureShot.bind((want) => {
+      const el = gl.domElement, r = el.getBoundingClientRect();
+      if (r.width <= 0 || !cel.rig.placed) return null;
+      const rest = gl.getPixelRatio(), s = pictureScale({ w: r.width, h: r.height }, want, gl.capabilities.maxTextureSize);
+      let out: HTMLCanvasElement;
+      try {
+        gl.setPixelRatio(s); cel.render(gl);
+        out = copyOfCanvas(el);
+      } finally { gl.setPixelRatio(rest); cel.render(gl); clock.invalidate('figure-shot'); }
+      return { canvas: out, css: { x: r.left, y: r.top, w: r.width, h: r.height } };
+    });
+    return () => figureShot.bind(null);
+  }, [gl]);
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
   useFrame(() => {
@@ -108,7 +131,7 @@ function SceneBridge() {
         // (one geometry per step in the background slot, as many as fit its budget: never while anything moves)
         whenQuiet(() => { let more = false; try { more = up.step(); } catch { /* a geometry the driver refuses is left to its own first frame */ } if (!more) up.dispose(); return !more; }, { tag: 'upload' });
       };   // (the 3D lobule and sinusoid are built after the first picture, or at the first dive: their programs are compiled here, off the frame, the moment they exist)
-      // One thing at a time (release review 21 Nov #8): the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in the same slot: on a low-budget device the two together were one long hitch.
+      // One thing at a time: the warm-up's compiles finish (or give up after WARM_CAP_MS) BEFORE the micro views are built, never both in one slot (docs/decisions.md "Warm-up before the micro views").
       clock.after(() => { void Promise.race([warmP(), new Promise((r) => clock.after(r, WARM_CAP_MS))]).then(() => cel.buildMicroIdle()); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }
   }, 1);
@@ -150,20 +173,24 @@ function SceneBridge() {
   // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
   const setDpr = useThree((s) => s.setDpr);
   useEffect(() => {
-    let was = -1, settle: TimerId | null = null;
+    let was = -1, settle: TimerId | null = null, applied = 0;
+    // N1: the governor judges the frames that are drawn (detail-governor.ts); a notch it asks for is taken at rest, so the figure never changes size under a move
+    const gov = newGovernor(clock.now());
     const apply = () => {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
-      const d = figureDpr(st.figureDetail, st.sharpMoving, moving, window.devicePixelRatio || 1);
-      if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); }
+      if (!moving) applied = st.autoDetail ? gov.drop : 0;
+      const d = figureDpr(Math.max(0, st.figureDetail - applied), st.sharpMoving, moving, window.devicePixelRatio || 1);
+      if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); document.documentElement.dataset.detailDrop = String(applied); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
       clock.cancel(settle);
-      if (moving && !st.sharpMoving) settle = clock.after(apply, 200);
+      if (moving && (!st.sharpMoving || (st.autoDetail ? gov.drop : 0) !== applied)) settle = clock.after(apply, 200);
     };
     apply();
     const off = clock.on('camera', apply, 1);
+    const offGov = clock.on('tags', (f) => { if (!useSettings.getState().autoDetail) return; const was = gov.drop; if (govern(gov, f.time, f.dt) !== was) { clock.cancel(settle); settle = clock.after(apply, 200); } }, 90);
     const un = useSettings.subscribe(apply);
-    return () => { off(); un(); clock.cancel(settle); };
+    return () => { off(); offGov(); un(); clock.cancel(settle); };
   }, [setDpr]);
 
   // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
@@ -245,7 +272,8 @@ export function Stage() {
   const mode = aaMode();
   const msaa = mode === 'msaa';
   const post = mode === 'fxaa';
-  // (with the anti-aliasing pass on, the figure is drawn into the pass's own target, which has its depth and stencil, and the canvas only receives the filtered picture: no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa` and `?aa=off` draw straight to the canvas and keep both)
+  // (with the anti-aliasing pass on, the figure is drawn into the pass's own target, which has its depth and stencil, and the canvas only receives the filtered picture:
+  // no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa` and `?aa=off` draw straight to the canvas and keep both)
   return (
     <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
       <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: !post, stencil: !post, powerPreference: 'high-performance' }}>

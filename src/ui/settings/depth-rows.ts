@@ -14,3 +14,6 @@ export const DEPTH_ROWS: readonly DepthRow[] = [
   { key: 'fluidSurface', label: 'Living fluid', hint: 'Ascites with soft edges, a rippling surface and a pale rim (off: as 2D draws it)', icon: 'layers' },
   { key: 'deviceShadow', label: 'Device shadows', hint: 'A soft shadow under catheters and scopes, on the tissue beneath (off: as 2D draws them)', icon: 'layers' },
 ];
+
+/** Auto detail (N1): 3D only, so it is not in the 2D parity table. It sits under the Figure detail steps it works with. */
+export const AUTO_DETAIL_ROW = { label: 'Auto detail', hint: 'Lets the figure soften itself when it runs slow, and sharpen again when it settles. Figure detail is the most it will use', icon: 'layers' };
