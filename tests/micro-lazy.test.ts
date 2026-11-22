@@ -112,7 +112,7 @@ test('a lazy Lobule3D builds its vessels in several slices, and a late weld plan
   assert.match(src, /this\.vesselsBuilt = false; this\.vgen = null; this\.inkKey = '';\n\s+this\.pumpVessels\(\);/);
 });
 
-test('the sinusoid shape passes are cut into sections: many small steps, then ready; the scene takes them in time-boxed slices', async () => {
+test('the sinusoid shape passes are cut into sections: many small steps, then ready; the scene takes them in time-boxed slices of the one background slot', async () => {
   const { CelScene } = await import('../src/scene/scene.ts');
   const sc = new CelScene() as unknown as { buildMicro(): void; micro: { sinus: { prepareShapeStep(): boolean; shapeReady: boolean } } };
   sc.buildMicro();
@@ -120,5 +120,5 @@ test('the sinusoid shape passes are cut into sections: many small steps, then re
   while (!sc.micro.sinus.prepareShapeStep()) steps++;
   assert.ok(steps > 40, `${steps} steps for the passes (was 8, one pass each)`);
   assert.equal(sc.micro.sinus.shapeReady, true);
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /do \{ if \(this\.microStep\(\)\) return; \} while \(!this\.disposed && clock\.now\(\) - t0 < SLICE_MS\)/);
+  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /whenQuiet\(\(\) => this\.microStep\(\), \{ tag: 'micro', budgetMs: SLICE_MS \}\)/);
 });

@@ -8,7 +8,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
 import { whenQuiet } from '../clock/idle.ts';
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
@@ -50,6 +50,8 @@ cel.bindData(vesselData.texture);
 clock.on('engine', (f) => { if (vesselData.update(latest.frame, latest.version, f.time)) { if (vesselData.fresh) cel.dataChanged(); clock.invalidate('vessel-data'); } if (vesselData.easing) clock.invalidate('patient-glide'); }, 0);
 clock.on('tween', (f) => frames.run(f.time), 0);
 clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0);
+let gestureTimerN = 0;
+const gestureTimers = new Map<number, TimerId>();
 export { vesselData };
 
 /** A phone is the small side under 500 CSS px (portrait or landscape): its ink is 0.2 px lighter on organs (spec section 3). */
@@ -148,7 +150,7 @@ function SceneBridge() {
   // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
   const setDpr = useThree((s) => s.setDpr);
   useEffect(() => {
-    let was = -1, settle = 0;
+    let was = -1, settle: TimerId | null = null;
     const apply = () => {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
@@ -203,7 +205,9 @@ function SceneBridge() {
     }, {
       now: () => clock.now(),
       ask: frames.ask, cancel: frames.cancel,
-      timer: (fn, ms) => clock.after(fn, ms), clearTimer: (id) => clock.cancel(id),
+      // (the controller keeps numeric handles, as its tests do; the clock's own handles are opaque, so they are kept here by number)
+      timer: (fn, ms) => { const n = ++gestureTimerN; gestureTimers.set(n, clock.after(() => { gestureTimers.delete(n); fn(); }, ms)); return n; },
+      clearTimer: (id) => { clock.cancel(gestureTimers.get(id)); gestureTimers.delete(id); },
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
       locked: () => talkOn(),   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,

@@ -5,6 +5,7 @@
 import { useShell } from '../ui/shell/store.ts';
 import { reloadKeepingState } from '../boot/reload.ts';
 import { talkOn } from '../state/deck.ts';
+import { lowData } from '../boot/data-saver.ts';
 
 import { clock } from '../clock/frame.ts';
 import { whenQuietOnce } from '../clock/idle.ts';
@@ -37,6 +38,16 @@ function askFiles(sw: ServiceWorker): Promise<unknown> {
     try { sw.postMessage('pps:files', [ch.port2]); } catch { clock.cancel(t); res(null); }
   });
 }
+
+/** Where the person is asked once whether this site may keep its files (a home-screen app on an iPhone is then less likely to lose its copy; a refusal is harmless). */
+export const PERSIST_KEY = 'pps:persist-asked';
+/** Asks the browser to keep this site's storage, once per device (the answer is not asked again whatever it was). Resolves true only when the browser said yes. */
+export async function persistOnce(storage: { persist?: () => Promise<boolean> } | undefined, flag: Pick<Storage, 'getItem' | 'setItem'> | null): Promise<boolean> {
+  if (!storage?.persist) return false;
+  try { if (flag?.getItem(PERSIST_KEY)) return false; flag?.setItem(PERSIST_KEY, '1'); } catch { /* a browser that keeps nothing asks each visit: harmless */ }
+  try { return await storage.persist(); } catch { return false; }
+}
+const door = (): Pick<Storage, 'getItem' | 'setItem'> | null => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } };
 
 /** The offer: one line at the foot with a Reload button; in a talk it waits and asks again. */
 /** Asks the worker to hold the parts opened later; it answers on the port when it has (the boot timeline's "fill done"). */
@@ -93,9 +104,10 @@ export function registerPwa(): void {
     addEventListener('pageshow', ask); addEventListener('online', ask);
     clock.every(ask, CHECK_MS);
   };
-  // (the worker is registered, and then asked to fill its cache, in the background slot: clock/idle.ts. A network job, not about the picture: it goes after MAX_WAIT even while something moves)
+  // (the worker is registered, then asked to fill its cache, in the background slot: clock/idle.ts. Network jobs, not about the picture: they go after maxWaitMs even while something moves)
   const go = () => whenQuietOnce(() => {
-    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { whenQuietOnce(() => askFill(r.active), { tag: 'sw-fill', maxWaitMs: 8000 }); })
+    // (once the worker is active, its install list is held: the site may keep it (persistOnce); the fill of the parts opened later waits on Save-Data and 2g, those parts are fetched on use and kept)
+    sw.register('./sw.js').then((reg) => { watchForNewBuild(reg); return sw.ready; }).then((r) => { void persistOnce(navigator.storage, door()); if (!lowData()) whenQuietOnce(() => askFill(r.active), { tag: 'sw-fill', maxWaitMs: 8000 }); })
       .catch((e) => console.warn('[pwa] no offline copy:', e));
   }, { tag: 'sw-register', delayMs: 1500, maxWaitMs: 8000 });
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });

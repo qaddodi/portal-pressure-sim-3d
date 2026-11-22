@@ -4,7 +4,7 @@
 // (LabelLayer.tsx calls `labelsShown()`; owner, 20 Nov: "labels should already be loaded, so we just fade into the figure with labels"). The cover then eases away while the figure settles in from a
 // mild zoom (`html[data-reveal]`, global.css). Only the main app's path holds the cover (`data-boot="wait"` on <html>); every other page
 // (the crash and no-WebGL notes, the parity and debug pages) lifts it as soon as React has put something in #root, as before. A start that never gets there lifts it anyway.
-import { clock } from '../clock/frame.ts';
+import { clock, type TimerId } from '../clock/frame.ts';
 import { stamp } from './timeline.ts';
 import { armLateWatch } from './late-programs.ts';
 import { startLongTasks } from './longtasks.ts';
@@ -18,7 +18,7 @@ const FRAMES_AFTER_FIRST = 1;
 
 type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
-let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: number | undefined, done = false;
+let labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false;
 
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {

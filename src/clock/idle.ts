@@ -32,14 +32,14 @@ export interface QuietOpts {
 export interface QuietJob { cancel(): void; rush(): void; readonly done: boolean }
 export interface SlotStat { tag: string; slices: number; steps: number; totalMs: number; worstStepMs: number; done: boolean }
 
-export interface QuietEnv {
+export interface QuietEnv<H = number> {
   now(): number;
   /** Live clock holds (0: nothing moves). */
   held(): number;
   /** Told each time the last hold lets go. Returns the remover. */
   onCalm(fn: () => void): () => void;
-  after(fn: () => void, ms: number): number;
-  cancel(id: number): void;
+  after(fn: () => void, ms: number): H;
+  cancel(id: H | null): void;
   /** requestIdleCallback, when the browser has it. */
   idle?: (fn: () => void) => void;
   /** A task of its own after the current one (MessageChannel). */
@@ -56,10 +56,10 @@ interface Job {
   rush: boolean; cancelled: boolean; done: boolean; stat: SlotStat;
 }
 
-export function createQuiet(env: QuietEnv) {
+export function createQuiet<H = number>(env: QuietEnv<H>) {
   const jobs: Job[] = [];
   const stats: SlotStat[] = [];
-  let timer = 0, armed = false, offCalm: (() => void) | null = null;
+  let timer: H | null = null, armed = false, offCalm: (() => void) | null = null;
 
   const open = (j: Job, t: number): boolean => {
     if (j.rush) return true;
@@ -69,7 +69,7 @@ export function createQuiet(env: QuietEnv) {
 
   function wake(ms: number): void {
     env.cancel(timer);
-    timer = env.after(() => { timer = 0; pump(false); }, Math.max(1, ms));
+    timer = env.after(() => { timer = null; pump(false); }, Math.max(1, ms));
   }
 
   /** Decide what happens next: run a job that may run, or arm the one thing that will let one run. `exec` is true when called from the slot's own task. */

@@ -18,7 +18,8 @@ test('performance.now, setTimeout and setInterval appear only in src/clock/ (all
   for (const f of walk('src')) {
     if (EXEMPT.some((e) => f.startsWith(e))) continue;
     const text = readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-    const hits = text.match(/\bperformance\.now\b|(?<![.\w])(?:window\.|globalThis\.)?(?:setTimeout|setInterval|clearTimeout|clearInterval)\b/g);
+    // (any receiver: `win.setTimeout` paired with `clock.cancel` is the laser bug of c2ed15a3, so a timer of another source is not written at all)
+    const hits = text.match(/\bperformance\.now\b|\b(?:setTimeout|setInterval|clearTimeout|clearInterval)\b/g);
     if (hits) bad.push(`${f} (${hits.length})`);
   }
   assert.deepEqual(bad, [], 'read time with clock.now(); wait with clock.after(fn, ms, tag) / clock.every(); cancel with clock.cancel(id)');

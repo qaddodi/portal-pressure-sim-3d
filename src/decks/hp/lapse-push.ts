@@ -6,10 +6,10 @@ import type { Shot } from '../../scene/camera/shots.ts';
 import { driftEase } from '../../ui/deck/lapse-next.ts';
 import { useUi } from '../../ui/ui-store.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 const room = () => { const r = useUi.getState().boxes.free; return r.w > 0 && r.h > 0 ? r : null; };
 
-let waiting: number | null = null;
+let waiting: TimerId | null = null;
 const STILL_POLL_MS = 40;
 
 /** Stops a push that has not begun (the camera was still on its way to the slide's framing). A push under way is not stopped: the next slide's move takes over from where it is. */

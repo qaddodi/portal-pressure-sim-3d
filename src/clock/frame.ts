@@ -29,6 +29,15 @@ export interface FrameInfo {
 export type System = (f: FrameInfo) => void;
 export interface Hold { release(): void }
 
+/** The handle of a wait made by `clock.after` / `afterReal` / `every`. Opaque on purpose: it is not a number, so it cannot be handed to the browser's `clearTimeout` (which would cancel nothing, or someone else's timer),
+ *  and a number from `window.setTimeout` cannot be handed to `clock.cancel`. A timer is cancelled by the source that made it, and the compiler checks the pairing. */
+export class TimerId {
+  readonly #n: number;
+  constructor(n: number) { this.#n = n; }
+  /** the clock's own key (only the clock reads it) */
+  get key(): number { return this.#n; }
+}
+
 export interface SlowFrame {
   frame: number;
   at: number;
@@ -73,11 +82,17 @@ export function createClock(env: Env) {
   let scale = 1, page0 = 0, real0 = 0;
   const now = () => (scale === 1 && page0 === real0 ? env.now() : page0 + (env.now() - real0) * scale);
   const sched = env.timer ?? ((cb, ms) => setTimeout(cb, ms));
-  const unsched = env.untimer ?? ((id) => clearTimeout(id as never));
+  const unsched = env.untimer ?? ((id) => clearTimeout(id as number));
   const repeat = env.every ?? ((cb, ms) => setInterval(cb, ms));
-  const unrepeat = env.unevery ?? ((id) => clearInterval(id as never));
+  const unrepeat = env.unevery ?? ((id) => clearInterval(id as number));
   let nextTimer = 1;
-  const timers = new Map<number, { tag: string; cancel: () => void }>();   // waits made by after()/every() and not yet fired or cancelled
+  const timers = new Map<number, { tag: string; cancel: () => void }>();
+  const wait = (fn: (...a: never[]) => void, ms: number, tag: string): TimerId => {
+    const id = nextTimer++;
+    const h = sched(() => { timers.delete(id); (fn as () => void)(); }, ms);
+    timers.set(id, { tag, cancel: () => unsched(h) });
+    return new TimerId(id);
+  };   // waits made by after()/every() and not yet fired or cancelled
   const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System }[]])) as Record<Phase, { order: number; fn: System }[]>;
   const holds = new Map<symbol, string>();
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
@@ -165,18 +180,19 @@ export function createClock(env: Env) {
       page0 = now(); real0 = env.now(); scale = k;
     },
     /** Run `fn` after `ms` of PAGE time (1/scale of the wall time, never under 16 ms for a short wait). Holds no frames. Returns an id for cancel(). `tag` names it in ?perf. */
-    after(fn: (...a: never[]) => void, ms: number, tag = 'after'): number {
-      const id = nextTimer++;
-      const h = sched(() => { timers.delete(id); (fn as () => void)(); }, scaledDelay(ms, scale));
-      timers.set(id, { tag, cancel: () => unsched(h) });
-      return id;
+    after(fn: (...a: never[]) => void, ms: number, tag = 'after'): TimerId {
+      return wait(fn, scaledDelay(ms, scale), tag);
+    },
+    /** Like `after`, but in REAL time, never scaled: a human's wait (a press-and-hold, a double-tap window) must not be shortened by the audit's speed mode. */
+    afterReal(fn: (...a: never[]) => void, ms: number, tag = 'after-real'): TimerId {
+      return wait(fn, ms, tag);
     },
     /** Run `fn` every `ms` of REAL time (a poll, a readout; not scaled, as setInterval never was). Returns an id for cancel(). */
-    every(fn: (...a: never[]) => void, ms: number, tag = 'every'): number {
+    every(fn: (...a: never[]) => void, ms: number, tag = 'every'): TimerId {
       const id = nextTimer++;
       const h = repeat(fn as () => void, ms);
       timers.set(id, { tag, cancel: () => unrepeat(h) });
-      return id;
+      return new TimerId(id);
     },
     /** The phase of the frame that ran during real time [t0, t1] (ms on the browser's own clock, as a long-task entry gives it), or null when no recent frame did. */
     frameAround(t0: number, t1: number): { frame: number; phase: Phase } | null {
@@ -189,10 +205,10 @@ export function createClock(env: Env) {
       return null;
     },
     /** Cancel an after() or every() (an id that already fired, was cancelled, or is undefined does nothing, like clearTimeout). */
-    cancel(id: number | null | undefined) {
+    cancel(id: TimerId | null | undefined) {
       if (id == null) return;
-      const t = timers.get(id);
-      if (t) { timers.delete(id); t.cancel(); }
+      const t = timers.get(id.key);
+      if (t) { timers.delete(id.key); t.cancel(); }
     },
     /** Ask for exactly one more frame. */
     invalidate(tag: string) {

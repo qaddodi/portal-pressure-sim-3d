@@ -17,7 +17,7 @@ function fake(opts: { idle?: boolean } = {}) {
     held: () => held,
     onCalm: (fn) => { calm.add(fn); return () => { calm.delete(fn); }; },
     after: (fn, ms) => { const id = nextId++; timers.set(id, { at: t + ms, fn }); return id; },
-    cancel: (id) => { timers.delete(id); },
+    cancel: (id) => { if (id !== null) timers.delete(id); },
     idle: opts.idle ? (fn) => { idleCalls++; posts.push(fn); } : undefined,
     post: (fn) => { postCalls++; posts.push(fn); },
     input: { last: () => lastInput, down: () => down, pending: () => pending },
@@ -180,10 +180,17 @@ test('the clock reports holds and tells the slot when the last one lets go; fram
   assert.equal(c.frameAround(500, 600), null);
 });
 
-test('no file outside src/clock/idle.ts asks the browser for idle time (the raw-idle lint rule, allowance 0), and the six old helpers are gone', async () => {
+test('no file outside src/clock/idle.ts asks the browser for idle time (the raw-idle lint rule, allowance 0), and the old helpers are gone (the Tests card modules are read in by the ladder, boot/warm.ts)', async () => {
   const { readFileSync, readdirSync } = await import('node:fs');
   const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(`${d}/${e.name}`) : /\.tsx?$/.test(e.name) ? [`${d}/${e.name}`] : []);
   const bad = walk('src').filter((f) => f !== 'src/clock/idle.ts' && /requestIdleCallback|cancelIdleCallback/.test(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '')));
   assert.deepEqual(bad, []);
-  for (const f of ['src/scene/scene.ts', 'src/scene/Stage.tsx', 'src/scene/organs/layer.ts', 'src/ui/tests/TestsLayer.tsx', 'src/pwa/register.ts', 'src/boot/warm.ts']) assert.match(readFileSync(f, 'utf8'), /whenQuiet(Once)?\(/, `${f} uses the slot`);
+  for (const f of ['src/scene/scene.ts', 'src/scene/Stage.tsx', 'src/scene/organs/layer.ts', 'src/pwa/register.ts', 'src/boot/warm.ts']) assert.match(readFileSync(f, 'utf8'), /whenQuiet(Once)?\(/, `${f} uses the slot`);
+});
+
+test('the preload ladder runs its rungs on the shared slot (quietSlot), one per slot', async () => {
+  const { readFileSync } = await import('node:fs');
+  const w = readFileSync('src/boot/warm.ts', 'utf8');
+  assert.match(w, /slot: Slot = quietSlot/);
+  assert.match(w, /quietSlot: Slot = \(go\) => \{ whenQuietOnce\(go, \{ tag: 'ladder'/);
 });
