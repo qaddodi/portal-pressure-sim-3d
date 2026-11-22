@@ -40,9 +40,9 @@ test('the frame is drawn smaller to fit and never blown up', () => {
   assert.ok(fitScale(1440, 900, 10, 10) >= 0.1);
 });
 
-test('main.tsx opens the frame before the engine, fonts or React start, and only on the preview copy', () => {
-  const src = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+test('the entry opens the frame before the app (its engine, fonts and React) is even fetched, and only on the preview copy', () => {
+  const src = readFileSync(new URL('../src/entry.ts', import.meta.url), 'utf8');
   const at = src.indexOf('isFrameRequest(location.search)');
-  assert.ok(at > 0 && at < src.indexOf('bootEngine()'), 'the frame request is answered before bootEngine');
+  assert.ok(at > 0 && at < src.lastIndexOf("import('./main.tsx')"), 'the frame request is answered before the app is fetched');
   assert.match(src.slice(at - 40, at), /isPreview\(\) &&/);
 });

@@ -93,8 +93,8 @@ test('the pages are wired and listed: Stage reads after the render, main opens t
   const read = stage.indexOf('lookCapture.run(gl.domElement)'), draw = stage.lastIndexOf('cel.render(gl)', read);   // (the nearest render call before the read: the frame's own, not the figure-shot's two earlier in the file)
   assert.ok(draw > 0 && read > draw, 'lookCapture.run comes after cel.render');
   assert.doesNotMatch(stage.slice(draw, read), /useFrame|requestAnimationFrame|setTimeout|await /, 'no other task between the render and the read');
-  const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
-  assert.match(main, /isPreview\(\) && flagValue\('look'\) === ''[^\n]*\n[^\n]*look-board/);
+  const entry = readFileSync(new URL('../src/entry.ts', import.meta.url), 'utf8'), main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  assert.match(entry, /isPreview\(\) && flagValue\('look'\) === ''[^\n]*\n[^\n]*look-board/);
   assert.match(main, /isPreview\(\) && flagOn\('capture'\)/);
   for (const id of ['look', 'twod', 'capture']) assert.ok(FLAGS.some((f) => f.id === id && f.gate === 'local'), id);
   assert.equal(flagOn('capture', '?capture&look=dark'), true);

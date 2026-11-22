@@ -554,6 +554,9 @@ export const rawRGB = (c: Color, rgb: RGB): Color => c.setRGB(rgb[0]!, rgb[1]!, 
 export interface HazeUniforms { uHaze: { value: Vector4 }; uHazeCol: { value: Color } }
 export const hazeUniforms = (): HazeUniforms => ({ uHaze: { value: new Vector4(1e9, 2e9, 0, 0) }, uHazeCol: { value: new Color() } });
 
+/** The ink hull's depth offset (polygonOffset, away from the eye): in the depth buffer's own smallest steps (units) and by the face's slope (factor), so a fill is nearer than its own line at any precision. */
+export const INK_DEPTH_UNITS = 4, INK_DEPTH_FACTOR = 1;
+
 export function microMaterials(res: { value: Vector2 }, fade: { value: number }, o: MicroOptions = {}): MicroMats {
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
@@ -578,6 +581,9 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
     uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, uShape: toon.uniforms.uShape!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
+    // (the hull's faces toward the viewer sit INK_BACK behind the shape's own in the vertex shader, but that is a share of the eye's distance: where the depth buffer cannot tell the two apart, a flat top such as the
+    //  central vein's pool, the line won and the fill drew black. The hardware's own offset is in the smallest step the buffer resolves, so it holds at any precision: the line is never nearer than its fill)
+    polygonOffset: true, polygonOffsetFactor: INK_DEPTH_FACTOR, polygonOffsetUnits: INK_DEPTH_UNITS,
   });
   return { toon, ink };
 }

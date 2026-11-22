@@ -145,3 +145,16 @@ test('the micro shader takes every derivative at the top of main, before the fir
   assert.match(code, /gStreakFw = max\(fwidth\(vAcross\), 1e-6\)/);
   assert.match(code, /gStreakFw = max\(fwidth\(vAux\), 1e-6\)/);
 });
+
+test('an ink hull is never nearer than its fill at any depth precision: the hardware offset on every ink material (the central vein pool drew black where the buffer could not tell the line from its flat top)', async () => {
+  const { INK_DEPTH_UNITS, INK_DEPTH_FACTOR } = await import('../src/scene/micro3d/cel3d.ts');
+  const { Vector2 } = await import('three');
+  for (const o of [{}, { flow: true }, { vertexColors: true }, { transparent: true }, { ink: [0.1, 0.1, 0.1] as const }]) {
+    const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 }, o);
+    assert.ok(m.ink, 'has ink');
+    assert.equal(m.ink!.polygonOffset, true);
+    assert.ok(m.ink!.polygonOffsetUnits >= 1 && m.ink!.polygonOffsetUnits === INK_DEPTH_UNITS, 'pushed away from the eye by whole steps of the buffer, not by a share of the distance');
+    assert.ok(m.ink!.polygonOffsetFactor === INK_DEPTH_FACTOR && INK_DEPTH_FACTOR >= 0);
+    assert.equal(m.toon.polygonOffset, false, 'the fill itself is not offset');
+  }
+});

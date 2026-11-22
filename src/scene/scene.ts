@@ -10,6 +10,7 @@ import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
+import { CAUDATE_VEIN_ID, CAUDATE_WHEN } from './vessels/caudate-veins.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -712,10 +713,23 @@ export class CelScene {
     }
   }
 
+  /** The caudate lobe and its short veins (2D stage.js caud): drawn only while a slide is about them, eased in and out; the lobe has grown as far as its veins carry the liver's outflow (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
+  setCaudate(lobe: boolean, veins: boolean): void {
+    this.caudLobe = lobe; this.caudVeins = veins;
+    if (latest.frame) this.syncCaudate(latest.frame, false);
+    this.moving = true; clock.invalidate('caudate');
+  }
+  private caudLobe = false; private caudVeins = false;
+  private syncCaudate(f: NonNullable<typeof latest.frame>, instant: boolean): void {
+    this.disease.organs.setCaudate(this.caudLobe, feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ), instant);
+    this.feeders.set(CAUDATE_VEIN_ID, this.caudLobe && this.caudVeins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
+  }
+
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
-    for (const v of NETWORK) if (v.feeder) this.feeders.set(v.id, feederLive(v.feeder, f, this.healthyQ), instant);
+    for (const v of NETWORK) if (v.feeder && v.feeder.when !== CAUDATE_WHEN) this.feeders.set(v.id, feederLive(v.feeder, f, this.healthyQ), instant);
+    this.syncCaudate(f, instant);
     this.pushFades();
     this.shapes.onFrame(f as never, clock.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));

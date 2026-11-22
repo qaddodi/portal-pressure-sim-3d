@@ -54,6 +54,8 @@ export interface FigurePlan {
   marks: MarkItem[];
   /** A mark on the caudate lobe: the Circuit draws the lobe's own lane (2D pinOrgans). */
   caudate: boolean;
+  /** The lobe is drawn with its short hepatic veins (the slide pins 'caudate', not only 'caudate-lobe': 2D pinOrgans `caud.show(on, veins)`). */
+  caudateVeins: boolean;
   /** The lobule's pointer: where it points and its words. */
   callout: { at: string; label: string; kind: string } | null;
   /** The readings on the figure (pv, ivc, ra, web, split) that no station label already carries, and the Circuit's (rLiver...). */
@@ -74,7 +76,7 @@ export interface FigurePlan {
   unresolved: string[];
 }
 
-export const EMPTY_PLAN: FigurePlan = { labels: [], tones: {}, glow: [], organs: [], res: [], lit: [], marks: [], caudate: false, callout: null, sites: [], calipers: [], spans: [], spot: null, normalOutline: [], lapseGlow: [], ripple: null, steps: null, glowSeq: 0, since: null, unresolved: [] };
+export const EMPTY_PLAN: FigurePlan = { labels: [], tones: {}, glow: [], organs: [], res: [], lit: [], marks: [], caudate: false, caudateVeins: false, callout: null, sites: [], calipers: [], spans: [], spot: null, normalOutline: [], lapseGlow: [], ripple: null, steps: null, glowSeq: 0, since: null, unresolved: [] };
 
 // ── the words of a slide that point at the figure (presenter-words.js termList / slideTargets) ──
 const AUTO_TERMS = ['cavernoma'];
@@ -225,7 +227,7 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
     : null;
 
   return {
-    labels: [...new Set(labelSet)], tones, glow: [...glow.values()], organs: pins, res: [...res.keys()], lit: [...lit], marks, caudate: pins.some((o) => o.id === 'caudate' || o.id === 'caudate-lobe'),
+    labels: [...new Set(labelSet)], tones, glow: [...glow.values()], organs: pins, res: [...res.keys()], lit: [...lit], marks, caudate: pins.some((o) => o.id === 'caudate' || o.id === 'caudate-lobe'), caudateVeins: pins.some((o) => o.id === 'caudate'),
     callout, sites, calipers, spans, spot: sp ? { edges: sp.edges, organs: sp.organs } : null, normalOutline, lapseGlow,
     ripple: s.ripple === true ? true : typeof s.ripple === 'string' ? s.ripple : null, steps, glowSeq: seq, since, unresolved,
   };
