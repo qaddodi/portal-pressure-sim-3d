@@ -10,6 +10,7 @@ import { ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
 import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
 import { observeThenFit } from '../../layout/fit-later.ts';
+import { scaleOf } from '../fit.ts';
 import '../charts.css';
 
 const engineRun: RunSteps = (steps) => engine().sequence(steps).then((r) => r.map((x) => (x?.fp ?? {}) as never));
@@ -35,7 +36,7 @@ function CellHead({ r }: { r: LadderRow }) {
     const run = () => {
       tt.style.removeProperty('font-size'); row.classList.remove('under');
       if (!tt.offsetWidth) return;
-      const z = Math.min(2, Math.max(0.5, row.getBoundingClientRect().width / row.offsetWidth || 1)), fs = parseFloat(getComputedStyle(tt).fontSize) || 12;
+      const z = Math.min(2, Math.max(0.5, row.getBoundingClientRect().width / row.offsetWidth / scaleOf(row) || 1)), fs = parseFloat(getComputedStyle(tt).fontSize) || 12;
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0, pw = pills.current?.offsetWidth ?? 0, room = row.clientWidth - tg.offsetWidth - gap - (pw ? pw + gap : 0) - 1;
       let f = causeFit(fs, tt.offsetWidth, room, 12 / z);
       if (f.under) f = { ...causeFit(fs, tt.offsetWidth, row.clientWidth - 1, 12 / z), under: true };
