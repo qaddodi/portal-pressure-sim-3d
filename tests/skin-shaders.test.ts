@@ -32,7 +32,7 @@ test('the varyings stay within 12 vec4s (an iPhone must have room: the floor is 
 test('the skin asks no more of the GPU than the floor, and the fragment stage leaves room for the tubes\' shared lens uniforms', () => {
   const b = budget(program);
   for (const k of Object.keys(ES3_FLOOR) as Array<keyof typeof ES3_FLOOR>) assert.ok(b[k] <= ES3_FLOOR[k], `${k}: ${b[k]} of ${ES3_FLOOR[k]}`);
-  assert.ok(b.fragmentUniformVectors <= 120, `${b.fragmentUniformVectors} fragment uniform vectors: a junction is a small area of the screen and must stay a light program`);
+  assert.ok(b.fragmentUniformVectors <= 140, `${b.fragmentUniformVectors} fragment uniform vectors: a junction is a small area of the screen and must stay a light program`);
 });
 
 test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () => {

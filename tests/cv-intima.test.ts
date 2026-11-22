@@ -66,8 +66,8 @@ test('no scar below the painter\'s own threshold, and none without a wall', () =
 });
 
 test('the scar\'s shader is the plate\'s: the plate textures and mix, laid whole over the tissue, from its own place on the plate', () => {
-  assert.match(LOBULE_PLATE_FS, /vec4 onBase\(vec4 a\)/);
-  assert.match(LOBULE_PLATE_FS, /a\.a = mix\(a\.a, 1\.0, uBaseK\)/, 'whole at uBaseK 1');
+  assert.match(LOBULE_PLATE_FS, /uBase \* \(1\.0 - cu\.a\) \+ cu\.rgb/, 'the collagen laid over the tissue\'s tone, whole (no see-through)');
+  assert.match(LOBULE_PLATE_FS, /fb \* smoothstep\(0\.0, 0\.08, cu\.a\)/, 'shown as far as the vein\'s growth has reached');
   assert.match(LOBULE_SCAR_VS, /vUv = position\.xy \/ uSide \+ 0\.5/);
 });
 

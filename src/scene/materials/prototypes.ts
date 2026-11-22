@@ -12,7 +12,6 @@ import { CELLS_FS, CELLS_VS } from '../blood/cells/shader.ts';
 import { STREAK_FLAGS } from '../blood/cells/cells.ts';
 import { RES_FS, RES_VS, RESISTOR_FLAGS } from '../circuit/resistors.ts';
 import { JET_INK_FLAGS, JET_INK_FS, JET_INK_VS } from '../disease/bleed.ts';
-import { ClotObject, clotGeometry } from '../disease/clots.ts';
 import { HALO_FLAGS } from '../highlight.ts';
 import { ORGAN_MASK_FLAGS, ORGAN_MASK_FS, ORGAN_MASK_VS } from '../organs/glow-mask.ts';
 
@@ -44,10 +43,6 @@ export function programPrototypes(shared: CelShared): Group {
   add('organ glow mask', triangle(), new ShaderMaterial({ name: 'organ glow mask', vertexShader: ORGAN_MASK_VS, fragmentShader: ORGAN_MASK_FS, ...ORGAN_MASK_FLAGS, uniforms: {} }));
   // the bleed jet's ink (made when a bleed first shows; its fill is the device toon the scene holds)
   add('bleed jet ink', triangle([['tang', 3], ['ik', 1]]), new ShaderMaterial({ name: 'bleed jet ink', vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, ...JET_INK_FLAGS, uniforms: {} }));
-  // a clot (made when a thrombus first shows): the real class on the real geometry function (a tube of rings: its program has the vessels' tube tones)
-  const clot = new ClotObject(clotGeometry({ centres: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], radii: [0.1, 0.1], alpha: [1, 1], lumen: [0.2, 0.2] }), shared);
-  clot.group.name = 'prototype/clot'; clot.group.traverse((o) => { o.frustumCulled = false; });
-  root.add(clot.group);
   return root;
 }
 

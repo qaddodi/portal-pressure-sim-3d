@@ -30,7 +30,10 @@ import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { useTokens } from '../lobule/from2d/lobule-paint.generated.js';
-import { PlateClient } from '../lobule/plate-client.ts';
+import { PlateClient, type PlateExtra } from '../lobule/plate-client.ts';
+import { collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
+import { collagenTau, flipRows } from '../lobule/collagen-tau.ts';
+import { easeGrow, growGoal } from '../lobule/growth.ts';
 import { CV_FILL, CV_OPEN_MIN, CV_RING_N, CV_WALL, cvInner, cvScarGrowth } from '../lobule/cv-intima.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, LOBULE_SCAR_VS, PLATE_BOX, paintPlateWorld, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateQuantizer, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
@@ -176,7 +179,15 @@ export class Lobule3D {
   private texSpare: Texture | null = null;
   private askedKey = '';
   private readonly plateQ = plateQuantizer();
-  private plateReady: { key: string; bmp: ImageBitmap } | null = null;
+  private plateReady: { key: string; bmp: ImageBitmap; look: string; coll: ImageBitmap | null } | null = null;
+  // the collagen layer (collagen-paint.ts) and its arrival times (collagen-tau.ts): painted once per look, never for a change of fibrosis; the growth of the three channels (septa, tracts, the vein) eased on the clock
+  private readonly collCanvas: HTMLCanvasElement | null;
+  private readonly collTex: CanvasTexture | null;
+  private collFront: Texture | null = null;
+  private collSpare: Texture | null = null;
+  private collLook = '';
+  private tauTex: DataTexture | null = null;
+  private readonly grow: [number, number, number] = [0, 0, 0];
   private crossT = 0;
   private marksAt = -1;
   private inkKey = '';
@@ -202,7 +213,6 @@ export class Lobule3D {
   private readonly mouthCv: MicroPart;
   /** SOS: the scar inside the central vein (2D's plug, lobule-zoom.js: from the wall in, the open lumen narrowing to 1 - CV_FILL of it), faded, one clean ring, nothing across the open lumen. */
   private readonly cvScar: MicroPart;
-  private cvScarKey = -1;
   private cvScarBase = '';
   private readonly coloured: Coloured[] = [];
   /** The welded junctions laid into the vessels now (lobule/welds.ts), and a plan that has come from the worker and waits for the Lobule to be out of sight. */
@@ -267,10 +277,15 @@ export class Lobule3D {
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
     this.canvas = defaultCanvas(PLATE_PX);   // (the plate's one canvas maker, plate.ts: a 2D canvas sent as a texture, no GL context of its own)
     this.tex = this.canvas ? new CanvasTexture(this.canvas) : null;
+    this.collCanvas = defaultCanvas(PLATE_PX);
+    this.collTex = this.collCanvas ? new CanvasTexture(this.collCanvas) : null;
+    if (this.collTex) { this.collTex.flipY = true; this.collTex.premultiplyAlpha = true; this.collTex.generateMipmaps = true; this.collTex.minFilter = LinearMipmapLinearFilter; this.collTex.magFilter = LinearFilter; this.collTex.anisotropy = 4; }
+    this.collFront = this.collTex;
+    const never = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); never.needsUpdate = true;
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
     this.marksMat = new ShaderMaterial({ name: 'lobule marks',
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: this.collTex ?? blank }, mapCB: { value: this.collTex ?? blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
       transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -281,7 +296,7 @@ export class Lobule3D {
       transparent: true, depthWrite: false, depthTest: true, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     }) }, 'lobule3d/central-vein-scar');
-    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, 0, CV_SCAR_Z()); this.cvScar.setOpacity(0);
+    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, 1, CV_SCAR_Z()); this.cvScar.setOpacity(0);   // (the ring at its fullest, once: the shader shows as much of it as has grown, collagen-tau.ts)
     const side = 2 * PLATE_BOX * R;
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
@@ -393,7 +408,7 @@ export class Lobule3D {
     //  like they have shadows inside the central vein"; congestion swells them over the pool's top, which is what showed. The vessels' own rule, a child's line masked inside its parent.)
     const hole = f.cvRadiusNow * R * CV_HOLE_K;
     for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setHole(hole);
-    this.stepCvScar(c.fibPost, kcv);
+    this.stepCvScar(kcv);
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
     const flowing = this.stepFlow(now, rate, lymphOn, bileOn);
@@ -628,14 +643,26 @@ export class Lobule3D {
 
   /** 2D's painter with no cells: the nutmeg, the Zones, Disse's collagen, the stellate cells, the septa, the tracts' and the vein's collagen, the limiting plate. Painted once per state step. */
   private stepMarks(unseen: boolean): boolean {
+    const nowMs = clock.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
+    this.marksAt = nowMs;
+    const growing = this.stepGrow(dt / 1000, unseen);
+    return this.stepPlates(unseen, dt) || growing;
+  }
+  /** The growth of the septa, the portal tracts and the vein's wall, eased at a fixed rate on the clock towards what the model asks (growth.ts): the collagen layer shows more or less, nothing is painted. True while any is moving. */
+  private stepGrow(dtS: number, unseen: boolean): boolean {
+    const goal = growGoal(this.flat.goalState), u = this.marksMat.uniforms.uP!.value as Vector3;
+    let moving = false;
+    for (let i = 0; i < 3; i++) { this.grow[i] = unseen ? goal[i]! : easeGrow(this.grow[i]!, goal[i]!, dtS); if (this.grow[i] !== goal[i]) moving = true; }
+    u.set(this.grow[0], this.grow[1], this.grow[2]);
+    return moving;
+  }
+  private stepPlates(unseen: boolean, dt: number): boolean {
     const f = this.flat;
     // (the key comes from the goal through ONE quantiser with hysteresis, plate.ts plateQuantizer: a goal sitting on a step of 1/32, as a live model's does, held one key; with none it flipped
     //  between two and the plate was repainted and crossfaded back and forth, Mohammad 22 Nov: "the fibrosis bands around the portal tract are flashing")
-    const s: PlateState = this.plateQ(f.goalState);
+    const s: PlateState = { ...this.plateQ(f.goalState), septU: 0, fibPre: 0, fibPost: 0 };   // (the tissue plate has none of the collagen that grows: it is repainted for the look, the congestion, the stellate cells and the Disse lining only)
     const zones = f.layers.zones;
     const key = `${plateKey(s, f.look)}|${zones ? 'z' : ''}`;
-    const nowMs = clock.now(), dt = this.marksAt < 0 ? 0 : Math.min(100, nowMs - this.marksAt);
-    this.marksAt = nowMs;
     // A new state is painted ONCE, for where the model is going, in a worker (the 2048 px repaint is 100 to 300 ms on a phone: never on this thread), and the new plate crossfades over the old when it arrives.
     // The first plate, and a page with no worker, are painted here (the old plate dips while the new is painted).
     if (key !== this.marksKey && this.marksKey !== '' && this.plates.available) {
@@ -643,10 +670,12 @@ export class Lobule3D {
       //  was kept as the front one under the new key)
       if (key !== this.askedKey && !this.plateReady) {
         this.askedKey = key;
-        this.plates.ask({ look: f.look, s: quant(s), zones, skip: 2, cvR: DISC_R.cv }, (bmp) => {
+        const look = f.look;
+        this.plates.ask({ look, s: quant(s), zones, skip: 2, cvR: DISC_R.cv, collagen: this.collLook !== look, tau: !this.tauTex }, (bmp, extra?: PlateExtra) => {
+          if (extra?.tau && !this.tauTex) this.installTau(extra.tau);
           if (!bmp) { this.askedKey = ''; return; }   // (no worker after all: the next step paints here)
-          if (this.askedKey !== key) { bmp.close(); return; }
-          this.plateReady = { key, bmp }; this.crossT = 0;
+          if (this.askedKey !== key) { bmp.close(); extra?.collagen?.close(); return; }
+          this.plateReady = { key, bmp, look, coll: extra?.collagen ?? null }; this.crossT = 0;
         });
       }
     } else if (key !== this.marksKey) {
@@ -659,6 +688,11 @@ export class Lobule3D {
         const t = this.texSpare ?? (this.texSpare = this.newPlateTexture());
         const old = t.image as ImageBitmap | null; t.image = rd.bmp; t.needsUpdate = true; if (old && typeof old.close === 'function') old.close();
         this.marksMat.uniforms.mapB!.value = t; this.crossing = true;
+        if (rd.coll) {
+          const ct = this.collSpare ?? (this.collSpare = this.newPlateTexture());
+          const was = ct.image as ImageBitmap | null; ct.image = rd.coll; ct.needsUpdate = true; if (was && typeof was.close === 'function') was.close();
+          this.marksMat.uniforms.mapCB!.value = ct;
+        } else this.marksMat.uniforms.mapCB!.value = this.collFront;
       }
       this.crossT = unseen ? 1 : Math.min(1, this.crossT + dt / PLATE_CROSS_MS);
       const e = this.crossT * this.crossT * (3 - 2 * this.crossT);
@@ -668,6 +702,11 @@ export class Lobule3D {
         const t = this.marksMat.uniforms.mapB!.value as Texture, was = this.texFront;
         this.marksMat.uniforms.map!.value = t; this.texFront = t; this.texSpare = was === this.tex ? this.tex : was;
         this.marksMat.uniforms.mapB!.value = this.texSpare; this.marksMat.uniforms.mixB!.value = 0; this.crossing = false;
+        if (rd.coll) {
+          const ct = this.marksMat.uniforms.mapCB!.value as Texture, was = this.collFront;
+          this.marksMat.uniforms.mapC!.value = ct; this.collFront = ct; this.collSpare = was === this.collTex ? this.collTex : was; this.collLook = rd.look;
+        }
+        this.marksMat.uniforms.mapCB!.value = this.collFront;
         this.marksKey = rd.key; this.plateReady = null; this.crossT = 0;
         return key !== rd.key;   // (the goal moved on while it faded in: the next plate is asked next frame)
       }
@@ -676,6 +715,11 @@ export class Lobule3D {
     if (key !== this.marksKey && this.askedKey === key) return true;   // (the worker is painting)
     if (this.marksFade < 1) { this.marksFade = unseen ? 1 : Math.min(1, this.marksFade + dt / (MARKS_DIP_MS * 2)); this.marksMat.uniforms.opacity!.value = this.marksFade; return this.marksFade < 1; }
     return false;
+  }
+  /** The arrival times (collagen-tau.ts, bottom row first), once: a texture of their own, read with a linear filter and no mips. */
+  private installTau(data: Uint8Array): void {
+    const t = new DataTexture(data, PLATE_PX, PLATE_PX); t.flipY = false; t.generateMipmaps = false; t.minFilter = LinearFilter; t.magFilter = LinearFilter; t.needsUpdate = true;
+    this.tauTex = t; this.marksMat.uniforms.mapT!.value = t;
   }
   private newPlateTexture(): Texture {
     const t = new Texture();
@@ -692,10 +736,18 @@ export class Lobule3D {
     const L = lookColours(f.look);
     useTokens((name: string, a?: number | string) => L.tk(name, a));
     const q = (x: number) => Math.round(clamp(x, 0, 1) * 32) / 32;
-    const input = { ...plateInput(this.shape, this.sins, DISC_R.cv, { congU: q(s.congU), septU: q(s.septU), fibSin: q(s.fibSin), act: q(s.act), fibPre: q(s.fibPre), fibPost: q(s.fibPost) }, f.look), zonesOn: zones };
+    const input = { ...plateInput(this.shape, this.sins, DISC_R.cv, { congU: q(s.congU), septU: 0, fibSin: q(s.fibSin), act: q(s.act), fibPre: 0, fibPost: 0 }, f.look), zonesOn: zones };
     const B = PLATE_BOX * PLATE_S, n = PLATE_PX, sc = n / (2 * B);
     paintPlateWorld(skipFirstFills(ctx, 2), n, sc, -B, -B, input);
     this.tex.needsUpdate = true;
+    // the collagen at its fullest, once per look (never for a change of fibrosis), and its arrival times, once
+    const cctx = this.collCanvas?.getContext('2d');
+    if (cctx && this.collTex && this.collLook !== f.look) {
+      useTokens((name: string, a?: number | string) => L.tk(name, a));
+      paintCollagenWorld(cctx, n, sc, -B, -B, collagenInput(this.shape, DISC_R.cv, f.look));
+      this.collTex.needsUpdate = true; this.collLook = f.look;
+    }
+    if (!this.tauTex) this.installTau(flipRows(collagenTau(this.shape, DISC_R.cv * PLATE_S, n, B), n));
   }
 
   // ---- the vessels (built once; their widths follow the state through `inflate`, their colours through stepInk) -----------------
@@ -907,23 +959,19 @@ export class Lobule3D {
     yield* mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
   }
 
-  /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well ... so it shows it's blocked"; 22 Nov: it must look like the bands outside): from the host's eased fibPost, as 2D grows its plug
-   *  (scarGrowth, CV_FILL), one ring of the plate's own collagen from the wall in, the middle of the lumen left clear. It comes in with the disease and goes with it (the onset eases; its strength is its inner radius). */
-  private stepCvScar(fibPost: number, kcv: number): void {
-    const grow = cvScarGrowth(fibPost), onset = clamp((fibPost - 0.05) / CV_ONSET, 0, 1);
-    this.cvScar.setOpacity(onset * (this.marksMat.uniforms.opacity!.value as number));
+  /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well ... so it shows it's blocked"; 22 Nov: it must look like the bands outside): the ring is one mesh at its fullest and the one shader shows as much of it as the
+   *  vein's growth has reached (collagen-tau.ts B: the lumen closes in as the cuff grows out). It comes in with the disease and goes with it, never repainted. */
+  private stepCvScar(kcv: number): void {
+    const on = this.grow[2] > 0.0005;
+    this.cvScar.setOpacity(on ? (this.marksMat.uniforms.opacity!.value as number) : 0);
     this.cvScar.group.scale.set(kcv, kcv, 1);
-    if (onset <= 0.002) return;
+    if (!on) return;
     const base = `${this.flat.look}`;
     if (base !== this.cvScarBase) {
       this.cvScarBase = base;
       const L = lookColours(this.flat.look), gap = L.rgb01('--og-liver-2'), cell = L.rgb01('--og-liver-1');
       (this.marksMat.uniforms.uBase!.value as Vector3).set(gap[0]! + (cell[0]! - gap[0]!) * 0.85, gap[1]! + (cell[1]! - gap[1]!) * 0.85, gap[2]! + (cell[2]! - gap[2]!) * 0.85);
     }
-    const key = Math.round(grow * 100);
-    if (key === this.cvScarKey) return;
-    this.cvScarKey = key;
-    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, grow, CV_SCAR_Z());
   }
 
   /** Vertex count of everything this scene draws (tests and the budget). */
@@ -940,7 +988,7 @@ export class Lobule3D {
   dispose(): void {
     this.disposed = true;
     for (const p of this.partsForTest) p.dispose();
-    this.marks.geometry.dispose(); this.marksMat.dispose(); this.tex?.dispose(); this.texSpare?.dispose(); this.plates.dispose(); this.plateReady?.bmp.close();
+    this.marks.geometry.dispose(); this.marksMat.dispose(); this.tex?.dispose(); this.texSpare?.dispose(); this.collTex?.dispose(); this.collSpare?.dispose(); this.tauTex?.dispose(); this.plates.dispose(); this.plateReady?.bmp.close();
   }
 }
 
@@ -1089,7 +1137,6 @@ export function skipFirstFills(ctx: CanvasRenderingContext2D, n: number): Canvas
 
 /** SOS's scar in the central vein (its shape: lobule/cv-intima.ts, shared with the plate's painter). The onset is the span of fibPost over which it eases in, never a see-through strength. */
 export { CV_FILL, CV_OPEN_MIN, cvScarGrowth };
-const CV_ONSET = 0.25;
 /** Just over the central vein's pool top (its mouth's top, buildVessels' POUR), under nothing else. */
 const CV_SCAR_Z = (): number => (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * 1.04 + 0.002;
 

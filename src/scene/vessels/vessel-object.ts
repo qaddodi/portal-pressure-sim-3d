@@ -7,6 +7,7 @@ import { CelObject, type CelOptions, type CelShared, rawColor } from '../materia
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
 import type { BloodShared } from '../blood/field.ts';
+import { CLOT_TONES } from '../disease/clot-uniforms.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES, withCircuitAttributes } from '../circuit/geometry.ts';
@@ -114,6 +115,7 @@ export class VesselObject extends CelObject {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
         mapDepth: { value: 0 }, frontDepth: { value: 0 }, shadowPx: { value: SHADOW_PX }, shadowDepth: { value: SHADOW_DEPTH }, shadowDepthC: { value: SHADOW_DEPTH_MAP }, shadowA: { value: SHADOW.light.a }, shadowCol: { value: new Color() }, shadowEnd: { value: new Vector2(0, 0) },
+        clotA: { value: new Vector4() }, clotP: { value: new Vector4() }, ...CLOT_TONES,
         liveW: { value: 1 }, skinWeld: { value: new Vector3(1, 1, 1) }, skinWeldC: { value: new Vector2(1, 1) }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mateK: { value: new Vector2(1, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, stentT0: { value: 0 }, stentWire: { value: new Vector4(0.9, 0.8, 0.5, 0) }, stentGoldC: { value: new Vector4(0.7, 0.5, 0.1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
@@ -474,6 +476,11 @@ export class VesselObject extends CelObject {
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.inkOn!.value = on ? 0 : 1; }
   /** Stagnant-blood smoke on or off: OFF by default (no blobs inside a tube); a slide that asks for stasis turns it on. */
   /** A conditional tributary group's width share (2D: `0.5 + 0.5 * live`; 1 for every other vessel). */
+  /** The vein's clot in this piece (disease/clot-field.ts), or none: written by the clot layer, read by the shader and by the junction skins that carry this piece as an arm. */
+  setClot(c: import('../disease/clot-field.ts').ClotUniform | null): void {
+    const a = this.toon.uniforms.clotA!.value as Vector4, p = this.toon.uniforms.clotP!.value as Vector4;
+    if (c) { a.set(c.f0, c.df, c.sv, c.length); p.set(c.p1, c.p2, 0, 0); } else { a.set(0, 0, 0, 0); p.set(0, 0, 0, 0); }
+  }
   setLiveWidth(k: number): void { this.toon.uniforms.liveW!.value = k; }
   setSmoke(on: boolean): void { this.toon.uniforms.smokeOn!.value = on ? 1 : 0; }
 }

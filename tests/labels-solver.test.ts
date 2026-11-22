@@ -174,3 +174,30 @@ test('the controller marks every station name offVessels but the picked vessel, 
   const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
   assert.match(src, /!picked && !isNamed && !this\.state\.shown\.has\(m\.station\.id\) && m\.station\.id !== 'HA' \? \{ offVessels: true \}/);
 });
+
+// ── Plan 27: a label keeps the spot it stands at ──
+import { STAY } from '../src/scene/labels/solver.ts';
+
+test('a legal standing spot survives every step of the picture while it moves (stay Infinity); an illegal one is left; at rest STAY holds a spot only against a small gain', () => {
+  const view = { x0: 0, y0: 0, x1: 800, y1: 600 };
+  const forms = [{ text: 'Hepatic artery', w: 90, h: 24 }];
+  const item = (ax: number, ay: number, was?: { form: number; dx: number; dy: number }) => ({ id: 'HA', ax, ay, au: 0.5, forms, pri: 5, ...(was ? { was } : {}) });
+  const first = solve({ items: [item(400, 300)], view, blockers: [] }).placed[0]!;
+  // the label stands on the far side of its dot, a legal spot that is not its first choice
+  const other = { form: 0, dx: -first.dx - first.w, dy: first.dy };
+  assert.ok(Math.abs(other.dx - first.dx) > 20, 'a different spot');
+  for (let step = 0; step < 60; step++) {
+    const r = solve({ items: [item(400 + step * 0.4, 300 - step * 0.3, other)], view, blockers: [], stay: Infinity }).placed[0]!;
+    assert.ok(Math.abs(r.dx - other.dx) <= 8 && Math.abs(r.dy - other.dy) <= 8, `step ${step}: it keeps its spot`);
+  }
+  // with no memory it goes back to its first choice (the input alone decides, as before)
+  assert.ok(Math.abs(solve({ items: [item(400, 300)], view, blockers: [] }).placed[0]!.dx - first.dx) < 1e-9);
+  // a spot that became illegal (a card over it) is left, whatever the stay
+  const over = { x0: 400 + other.dx - 5, y0: 300 + other.dy - 5, x1: 400 + other.dx + 95, y1: 300 + other.dy + 29 };
+  const moved = solve({ items: [item(400, 300, other)], view, blockers: [over], stay: Infinity }).placed[0]!;
+  assert.ok(Math.abs(moved.dx - other.dx) > 8 || Math.abs(moved.dy - other.dy) > 8, 'an illegal spot is left');
+  // at rest: the standing spot is worth STAY, no more (the near spots differ by a few cost units: kept; the far ring is worth more than STAY: left)
+  const kept = solve({ items: [item(400, 300, other)], view, blockers: [], stay: STAY }).placed[0]!;
+  assert.ok(Math.abs(kept.dx - other.dx) <= 8, 'a small gain does not move it');
+  assert.ok(STAY <= 60, 'STAY is at most one long leader');
+});

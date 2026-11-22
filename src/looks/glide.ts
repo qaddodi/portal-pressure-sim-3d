@@ -33,11 +33,11 @@ export function createLookGlide(env: GlideEnv) {
     /** Registers an applier; it is run at once with the look in force. Returns its remover. */
     onLook(fn: Applier): () => void { appliers.add(fn); if (current) fn(current); return () => { appliers.delete(fn); }; },
     /** The look is now `next`: at once the first time or with Reduce Motion, otherwise eased. A change to the look already in force does nothing. */
-    change(next: LookId): void {
+    change(next: LookId, opts?: { instant?: boolean }): void {
       if (next === current) return;
       const first = current === null;
       current = next;
-      if (first || env.still()) { all(next); return; }
+      if (first || opts?.instant || env.still()) { all(next); return; }
       if (env.transition) { env.transition(async () => { all(next); await env.drawn(); }); return; }
       env.ease?.(); all(next);
     },

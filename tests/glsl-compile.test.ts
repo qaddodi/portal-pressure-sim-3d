@@ -19,6 +19,7 @@ import { GL_FILES, allPrograms } from '../src/debug/gl-registry.ts';
 import { onSceneGraph, programsOfModule } from '../src/debug/gl-auto.ts';
 import { glslFiles } from '../scripts/gl-scan.mjs';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { undeclared, badSamplers, stageNames } from './gl-undeclared.ts';
 
 const FIBRO = join('src', 'ui', 'tests', 'fibro', 'copied', 'fibro-gl.copied.js');
 // every file that holds GLSL and is not on the closed hand list is found by scanning and its programs read from the module (src/debug/gl-auto.ts): a new shader needs nothing registered
@@ -72,6 +73,30 @@ test('glslang refuses a name three.js already declares for a ShaderMaterial, a t
   assert.ok(compile(assemble({ ...base, vertexShader: 'attribute vec3 position;\nvoid main() { gl_Position = vec4(position, 1.0); }' }).vertexGlsl, assemble({ ...base, vertexShader: '' }).fragmentGlsl).length > 0, 'position declared twice');
   assert.ok(compile(assemble({ ...base, vertexShader: 'void main() { float x = vec3(1.0); gl_Position = vec4(x); }' }).vertexGlsl, assemble({ ...base, vertexShader: '' }).fragmentGlsl).length > 0, 'a vec3 into a float');
   assert.ok(compile('#version 300 es\nvoid main() { gl_Position = vec4(0.0); }', '#version 300 es\nuniform sampler2D t; out vec4 o; void main() { o = texture(t, vec2(0.0)); }').length > 0, 'a fragment shader with no float precision');
+});
+
+// Plan 28: the lobule plate sampled `mapCB` and never declared it; the device refused the program and the whole tissue vanished. A syntax parse cannot see that and glslang is not
+// installed in the cloud, so this one always runs: every name a program uses resolves to a declaration (scope chain), a GLSL builtin or three.js' prefix, and every sampler call names a declared sampler.
+test('every name every program uses is declared, and every texture call names a declared sampler (no glslang needed)', () => {
+  const bad: string[] = [];
+  for (const p of programs) for (const stage of ['vertex', 'fragment'] as const) {
+    const glsl = stage === 'vertex' ? p.vertexGlsl : p.fragmentGlsl;
+    const at = (n: string) => glsl.split('\n').findIndex((l) => new RegExp(`\\b${n}\\b`).test(l)) + 1;
+    for (const u of undeclared(glsl, stageNames(p, stage))) bad.push(`${p.name} (${stage}): ${u.split('@')[0]} is used and never declared (first near line ${at(u.split('@')[0]!)})`);
+    for (const n of badSamplers(glsl)) bad.push(`${p.name} (${stage}): a texture call samples ${n}, which is no declared sampler`);
+  }
+  assert.deepEqual(bad, [], 'a real GPU refuses the program, and everything drawn with it is missing');
+  assert.ok(programs.length > 40, `${programs.length} programs checked`);
+  assert.ok(programs.some((p) => p.name === 'lobule plate'), 'the lobule plate is among them (it is mounted only with the lobule view, so the registry gives it by hand)');
+  console.log(`[glsl-declared] ${programs.length} programs checked, every name declared`);
+});
+
+test('the declaration check is live: it names the undeclared sampler of 9aad1bb4\'s plate', () => {
+  const plate = programs.find((p) => p.name === 'lobule plate')!;
+  const broken = plate.fragmentGlsl.replace('uniform sampler2D mapCB;', '');
+  assert.notEqual(broken, plate.fragmentGlsl, 'the plate declares mapCB');
+  assert.ok(undeclared(broken, THREE_FRAGMENT_NAMES).some((u) => u.startsWith('mapCB@')));
+  assert.deepEqual(badSamplers(broken), ['mapCB']);
 });
 
 test('every program declares nothing twice, and nothing three.js already declares', () => {

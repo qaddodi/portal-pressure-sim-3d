@@ -22,6 +22,7 @@ import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
 import { markVesselStencil } from '../cel-ink.ts';
 import { vdbgDefines, vdbgUniforms } from '../debug-view.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
+import { CLOT_TONES } from '../../disease/clot-uniforms.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
 export const SHARED_WITH_TUBES = [
@@ -94,6 +95,7 @@ export class SkinObject implements SkinDraw {
   /** Which arms the weights are shared among (shaders.ts armKeep): 1 each, 0 for a growing arm that is not there. */
   private keepMask = (1 << SKIN_ARMS) - 1;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
+  private readonly armClotA: Vector4[]; private readonly armClotP: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
   private readonly kw = new Vector4(0, 0, 1, SKIN_FIGURE_UNITS);   // (x the blend width skinK, y the mode, z the share, w the units in a scene unit, negative on the Circuit's own skins: skinKW in the shader stages)
@@ -117,6 +119,8 @@ export class SkinObject implements SkinDraw {
       const a = skin.junction.arms[i];
       return a ? new Vector4(a.dataIndex, a.baseD, a.widthKind, a.lensIndex) : new Vector4(-1, 1, 0, 0);
     });
+    this.armClotA = Array.from({ length: SKIN_ARMS }, () => new Vector4());
+    this.armClotP = Array.from({ length: SKIN_ARMS }, () => new Vector4());
     this.armColor = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 0, 0, 1));
     this.armArc = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 1, 1));
     const armAxisP = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector4());
@@ -131,6 +135,7 @@ export class SkinObject implements SkinDraw {
       color: du.color!,
       armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
+      armClotA: { value: this.armClotA }, armClotP: { value: this.armClotP }, ...CLOT_TONES,
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       
       // (the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units, with the sign flipped, are skinKW.w, so a map skin compiles nothing the body's skins have not)
@@ -192,6 +197,9 @@ export class SkinObject implements SkinDraw {
     this.armArc[i]!.set(seamArc, dir, length, restR);
     packSet(this.material.uniforms.armFlow!.value as Vector4[], i, flow);
   }
+
+  /** Arm `i`'s tube's clot (its uniforms, vessel-object.ts setClot): the skin paints it in the arm's own frame (shaders.ts). */
+  setClot(i: number, a: { x: number; y: number; z: number; w: number }, p: { x: number; y: number }): void { this.armClotA[i]!.set(a.x, a.y, a.z, a.w); this.armClotP[i]!.set(p.x, p.y, 0, 0); }
 
   /** The shares arm `i` has of the three copies (its tube's `copyShares`), and which copies show now: one is visible while the arms' shares of it add up to something and some arm of the skin is there at all. */
   setArmCopy(i: number, front: number, solid: number, veil: number): void {
