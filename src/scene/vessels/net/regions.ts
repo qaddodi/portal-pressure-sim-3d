@@ -7,10 +7,16 @@ import type { Skeleton } from './types.ts';
 
 /** The most capsules of a region (the ruling says 6 arms; the short edges of a merged region and a run capsule come on top) and the bones along each. */
 export const REGION_CAPS = 8, REGION_PTS = 8;
-/** A region's row in the region texture: one head texel (capsule count, arm count, k scale), two of mates, then the bone indices four to a texel. */
-export const REGION_TEXELS = 3 + Math.ceil((REGION_CAPS * REGION_PTS) / 4);
+/** A region's row in the region texture: texel 0 (capsule count, arm count, variant), two of mates, texel 3 the switch window (b, a), then from REGION_HEAD the bone indices four to a texel. */
+export const REGION_HEAD = 4;
+export const REGION_TEXELS = REGION_HEAD + Math.ceil((REGION_CAPS * REGION_PTS) / 4);
+/** A region has two meshes (plan owner, 22 Nov): one built at the body layout (variant 0) and one at the map layout (variant 1), both projected onto the same live union. The body mesh is drawn for t <= b, the map mesh for t >= a, and between them the screen
+ *  dither hands over (the body mesh keeps the pixels whose pattern value is below its share 1 - smoothstep(b, a, t), the map mesh the rest); the one not drawn collapses to a point in the vertex stage. A body mesh alone is window [2, 2] (always drawn), a map mesh alone [-1, -1]. */
+export const BODY_ONLY: readonly [number, number] = [2, 2], MAP_ONLY: readonly [number, number] = [-1, -1];
+/** The body mesh's share of the pixels at t (the vertex stage's `wb`): 1 before the window, 0 after it, smooth inside; a window with a <= b is a hard switch at a. */
+export const bodyShare = (win: readonly [number, number], t: number): number => { const [b, a] = win; if (a > b) { const x = Math.min(1, Math.max(0, (t - b) / (a - b))); return 1 - x * x * (3 - 2 * x); } return t < a ? 1 : 0; };
 
-export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[] }
+export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[]; /** 0: the body-built mesh, 1: the map-built (the mesher reports it, `NodeReport.variant`; absent = body) */ variant: 0 | 1; /** the t window over which this region's two meshes hand over, `[b, a]` (`NodeReport.switchT`; absent = this mesh alone) */ window: readonly [number, number] }
 
 export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[] {
   const out: Region[] = [];
@@ -34,7 +40,8 @@ export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[
       }
       return { bones, mate: c.mate };
     });
-    out.push({ node: n.node, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, caps });
+    const variant = n.variant ?? 0;
+    out.push({ node: n.node, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, caps, variant, window: n.switchT ?? (variant === 0 ? BODY_ONLY : MAP_ONLY) });
   }
   return out;
 }
@@ -44,10 +51,10 @@ export function regionTexture(regions: readonly Region[], vertexCount: number): 
   const height = Math.max(1, regions.length), data = new Float32Array(4 * REGION_TEXELS * height), vertexRegion = new Float32Array(vertexCount).fill(-1);
   regions.forEach((rg, ri) => {
     const o = 4 * REGION_TEXELS * ri;
-    data[o] = rg.caps.length; data[o + 1] = rg.arms;
+    data[o] = rg.caps.length; data[o + 1] = rg.arms; data[o + 2] = rg.variant; data[o + 4 * 3] = rg.window[0]; data[o + 4 * 3 + 1] = rg.window[1];
     rg.caps.forEach((c, ci) => {
       data[o + 4 * 1 + ci] = c.mate;   // texels 1 and 2: the mates
-      for (let q = 0; q < REGION_PTS; q++) data[o + 4 * 3 + ci * REGION_PTS + q] = c.bones[q]!;
+      for (let q = 0; q < REGION_PTS; q++) data[o + 4 * REGION_HEAD + ci * REGION_PTS + q] = c.bones[q]!;
     });
     for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) vertexRegion[v] = ri;
   });
