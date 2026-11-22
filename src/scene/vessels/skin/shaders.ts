@@ -266,7 +266,15 @@ varying vec2 vSwell2;
 varying vec3 vPos;
 varying vec4 vFadeA;
 varying vec2 vFadeB;
-float wAt(int i) { return i < 4 ? vWeight[i] : vWeight2[i - 4]; }
+// THE WEIGHTS OF THE ARMS THAT ARE THERE (Mohammad, 21 Nov, Budd-Chiari: a gap with a hatched edge in the cava below the liver). A growing arm that is not there (a closed shunt or collateral: its tube hidden or a dotted thread) is armKeep 0: its weight goes to
+// the arms that stay, so the skin at the pixels it owned is the host's own lumen. Before, its weight stayed in the blend with presence 0: the presence dither (pres, below) threw away every pixel it owned, and the host's tube is cut away under the skin
+// (a hole), so the cava was missing there with a screen-door edge. Kept arms: the weights as the mesh has them (the sum of the weights is 1, so nothing changes where every arm is kept).
+uniform vec4 armKeepA;
+uniform vec2 armKeepB;
+float gWKeep = 1.0;
+float rawW(int i) { return i < 4 ? vWeight[i] : vWeight2[i - 4]; }
+float keepOf(int i) { return i < 4 ? armKeepA[i] : armKeepB[i - 4]; }
+float wAt(int i) { return rawW(i) * keepOf(i) * gWKeep; }
 // an arm's alpha HERE: its tube's fade at this place along the arm (the vertex stage), or its value at the seam where the arm carries no u-fade (vFade < 0)
 float fadeOf(int i) { float v = i < 4 ? vFadeA[i] : vFadeB[i - 4]; return v >= 0.0 ? v : armAF[i].y; }
 float swAt(int i) { return i < 4 ? vSwell[i] : vSwell2[i - 4]; }
@@ -353,6 +361,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   return mine / max(sum, 1e-6);
 }
 void main() {
+  { float kept = 0.0; for (int i = 0; i < ${SKIN_ARMS}; i++) kept += rawW(i) * keepOf(i); gWKeep = (armKeepA.x + armKeepA.y + armKeepA.z + armKeepA.w + armKeepB.x + armKeepB.y) > ${SKIN_ARMS}.0 - 0.5 ? 1.0 : 1.0 / max(kept, 1.0e-4); }   // (every arm kept: the weights as they are)
   // (a welded skin's normal is interpolated between vertices whose normals can face apart at a crease: its length can come to nothing, and normalize() of nothing is NaN, which the flow marks turned into
   // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
   float nLen = length(vN);
