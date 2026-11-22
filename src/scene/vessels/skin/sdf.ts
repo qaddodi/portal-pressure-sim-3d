@@ -117,13 +117,33 @@ export function sdUnion(caps: readonly Capsule[], k: number, x: number, y: numbe
 export function weights(caps: readonly Capsule[], k: number, x: number, y: number, z: number, out: Float64Array | number[]): void {
   let lo = Infinity;
   for (let i = 0; i < MAX_SKIN_ARMS; i++) { out[i] = i < caps.length ? sdArm(caps[i]!, x, y, z) : Infinity; if (out[i]! < lo) lo = out[i]!; }
-  let sum = 0;
   for (let i = 0; i < MAX_SKIN_ARMS; i++) {
     const w = i < caps.length ? Math.exp(-(out[i]! - lo) / k) : 0;
-    const s = w * w, q = s * s;   // w^4
-    out[i] = q; sum += q;
+    const s = w * w;
+    out[i] = s * s;   // w^4
   }
+  // A THROUGH RUN'S TWO HALVES share the stretch between their seams by where the point lies along it, 1 to 0 and 0 to 1 (Mohammad, 22 Nov: the epigastric vein into the SVC, "a hard horizontal colour/fade band"): each half's capsule runs on to the other's
+  // seam (through.ts), so along a long stretch (a vessel a merged skin hides whole, SVC_RA_1 between the SVC and the epigastric vein) the two were equally near and each had weight 0.5 over the WHOLE stretch, then 1 on the seam ring: a step in
+  // colour, opacity, lens position and flow marks wherever the two halves differ, at both seams. Their sum stays what the softmax gave the pair, so the share the rest of the junction has is untouched.
+  for (let i = 0; i < caps.length; i++) {
+    const m = caps[i]!.mate ?? -1;
+    if (m <= i || m >= caps.length) continue;
+    const a = runShare(caps[i]!, x, y, z), b = runShare(caps[m]!, x, y, z), tot = out[i]! + out[m]!, sh = a + b;
+    if (sh > 1e-9) { out[i] = (tot * a) / sh; out[m] = (tot * b) / sh; }
+  }
+  let sum = 0;
+  for (let i = 0; i < MAX_SKIN_ARMS; i++) sum += out[i]!;
   for (let i = 0; i < MAX_SKIN_ARMS; i++) out[i] = out[i]! / sum;
+}
+
+/** How much of the stretch between a run half's own seam and the other half's seam a point belongs to this half: 1 at its own seam (and anywhere behind it), 0 at the other's, a smooth step between by the point's place along the line from one to the other. Such a capsule
+ *  is [the other half's seam, a point just behind its own seam, its own seam, its far point] (through.ts weldThrough). */
+export function runShare(c: Capsule, x: number, y: number, z: number): number {
+  if (c.n < 3) return 1;
+  const sx = c.pts[6]!, sy = c.pts[7]!, sz = c.pts[8]!, dx = c.pts[0]! - sx, dy = c.pts[1]! - sy, dz = c.pts[2]! - sz, l2 = dx * dx + dy * dy + dz * dz;
+  if (!(l2 > 1e-18)) return 1;
+  const t = Math.min(1, Math.max(0, ((x - sx) * dx + (y - sy) * dy + (z - sz) * dz) / l2));
+  return 1 - t * t * (3 - 2 * t);
 }
 
 /** The central-difference gradient of `sdUnion` with step `h` (spec 4.5 uses 0.05 k), written into `out` (3 numbers, not normalised). */

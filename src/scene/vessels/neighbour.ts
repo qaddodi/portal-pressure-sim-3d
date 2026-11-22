@@ -6,7 +6,7 @@ import { SMOOTH, isPlain } from './smooth-joins.ts';
 import { smoothJoinsOn } from './join-mode.ts';
 import { REST, coursesOf, type ShapeState } from './shape.ts';
 import { radiusAtU } from './tubes.ts';
-import { cavaPieceOf, opensIntoCava } from './fades.ts';
+import { cavaPieceOf, landsOnCava, opensIntoCava } from './fades.ts';
 
 /** The side branches (feeders that join into a vein and leave it as one more tube) of each vein: host id to its branch ids. */
 export const SIDE_BRANCHES: ReadonlyMap<string, readonly string[]> = (() => {
@@ -28,7 +28,7 @@ export function forkMateOf(id: string): string | null {
 }
 
 /** The cava is the "other tube" of a hepatic vein that opens into it: the vein is cut away where it lies inside the cava's lumen (shaders.ts cavaCut), exactly at the wall, so it opens into the cava with a clean edge. */
-export const cavaMateOf = (id: string): string | null => (opensIntoCava(id) ? cavaPieceOf(id) : null);
+export const cavaMateOf = (id: string): string | null => (opensIntoCava(id) || landsOnCava(id) ? cavaPieceOf(id) : null);
 
 /** THE JUNCTIONS: a plain vessel that ends on a trunk (smooth-joins.ts `attach`: the coronary vein and the splenic vein on the portal vein, the left portal vein on the hilum, the inferior mesenteric vein, the epigastric vein, the left hepatic artery) is a fork like every other:
  *  the branch and the trunk's pieces it ends on each see the others, so the outline of the whole is the outline of the union, exactly, and no collar or pad is needed to hide a seam. Vessel id to the ids it forks with. */

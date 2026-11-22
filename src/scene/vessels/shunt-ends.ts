@@ -8,7 +8,7 @@ import { isPermanent, nearestOnPolyline } from './skin/inventory.ts';
 import type { Vec3 } from './skin/types.ts';
 
 /** One end of a shunt: the host's radius (scene units), whether the end lies inside the host's lumen (so it narrows there), whether it is a sink (2D SINK: narrowed but not further reduced) and flares. */
-export interface ShuntEnd { hostR: number; inside: boolean; sink: boolean; flare: boolean; /** a generated end (not the Warren's or the portocaval's own row): its flare may not take the tube wider than its host (tubes.ts) */ capped?: true }
+export interface ShuntEnd { hostR: number; inside: boolean; sink: boolean; flare: boolean; /** the host's axis direction where the end lands (a unit vector), for a generated end: the strands of a braid fan along it (strand-fan.ts) */ dir?: Vec3; /** a generated end (not the Warren's or the portocaval's own row): its flare may not take the tube wider than its host (tubes.ts) */ capped?: true }
 interface Row { hosts: readonly [readonly string[], readonly string[]]; inside: readonly [boolean, boolean]; sink?: boolean; flare: boolean }
 /** The Warren shunt leaves the splenic vein's side (its start runs on from the divided splenic vein, so it is not inside) and ends inside the left renal vein; the portocaval shunt sinks into the cava. */
 const ROWS: Readonly<Record<string, Row>> = {
@@ -25,9 +25,25 @@ export interface HostAxis { pts: readonly Vec3[]; radius: number }
 
 /** How an end that lands on a wall is drawn (the Warren shunt's way, 2D SIDE_INSIDE: narrowed to the host's width, closing to a point inside the wall so no round cap shows past it, flared at the heel but never wider than the host): the host is the widest one within reach. Null where the end is on no host. */
 export function sewnEndAt(p: Vec3, hosts: readonly HostAxis[]): ShuntEnd | null {
-  let r = 0;
-  for (const h of hosts) { if (h.pts.length < 2) continue; const n = nearestOnPolyline(h.pts, p); if (n.d <= SEWN_TOL_R * h.radius) r = Math.max(r, h.radius); }
-  return r > 0 ? { hostR: r, inside: true, sink: false, flare: true, capped: true } : null;
+  let r = 0, dir: Vec3 | undefined;
+  for (const h of hosts) {
+    if (h.pts.length < 2) continue;
+    const n = nearestOnPolyline(h.pts, p);
+    if (n.d <= SEWN_TOL_R * h.radius && h.radius >= r) { r = h.radius; dir = tangentNear(h.pts, n.at); }
+  }
+  return r > 0 ? { hostR: r, inside: true, sink: false, flare: true, capped: true, ...(dir ? { dir } : {}) } : null;
+}
+/** The unit direction of a polyline at the point `at` on it (the segment it lies on). */
+function tangentNear(pts: readonly Vec3[], at: Vec3): Vec3 | undefined {
+  let best = Infinity, dir: Vec3 | undefined;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!, b = pts[i + 1]!, ab: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    if (!(l2 > 0)) continue;
+    const t = Math.max(0, Math.min(1, ((at[0] - a[0]) * ab[0] + (at[1] - a[1]) * ab[1] + (at[2] - a[2]) * ab[2]) / l2));
+    const d = Math.hypot(a[0] + ab[0] * t - at[0], a[1] + ab[1] * t - at[1], a[2] + ab[2] * t - at[2]);
+    if (d < best) { best = d; const l = Math.sqrt(l2); dir = [ab[0] / l, ab[1] / l, ab[2] / l]; }
+  }
+  return dir;
 }
 /** The two sewn ends of a path made at run time (a custom shunt of the Circuit, a strand): each end that lands on one of `hosts`, else null. Pure numbers, a few polyline distances. */
 export function endProfileFor(pts: readonly Vec3[], hosts: readonly HostAxis[]): readonly [ShuntEnd | null, ShuntEnd | null] | null {

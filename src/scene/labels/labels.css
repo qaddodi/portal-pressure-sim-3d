@@ -222,6 +222,13 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 650; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl[data-fig="callout"][data-co="accent"] .cl-k { color: var(--accent); }
 .cl[data-fig="callout"][data-co="note"] .cl-k { color: var(--cl-text, var(--text)); }
-.cl[data-fig="mark"][data-tone="danger"] .cl-k, .cl[data-fig="mark"][data-tone="custom"] .cl-k { color: var(--cl-on, #fff); }
-html:not([data-noglass]) .lb-layer .cl[data-fig="mark"][data-tone="danger"] .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-danger) !important; }
-html:not([data-noglass]) .lb-layer .cl[data-fig="mark"][data-tone="custom"] .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-tone) !important; }
+/* a mark on a vessel or an organ (not the lobule's ring): a coloured label, as the station names are (words in their colour with the labels' halo, a dot on the place and a thin leader of the same colour), never a card:
+   block = the danger red, treat = the accent, note = the quiet ink (22 Nov: the speech-bubble marks pointed at the wrong places and looked wrong beside "Portal vein 19.0 mmHg") */
+.cl[data-fig="mark"] { padding: 0; border-radius: 0; border-color: transparent; }
+.cl[data-fig="mark"] .cl-glass, .cl[data-fig="mark"] .cl-ring { display: none; }
+.cl[data-fig="mark"] .cl-k { color: var(--c-ink); font-weight: 650; -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
+.cl-lead[data-tone="danger"] { --lc: var(--cl-danger-ink, var(--danger)); }
+.cl-lead[data-tone="custom"] { --lc: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text, var(--text))); }
+.cl-lead[data-tone="note"] { --lc: var(--cl-text, var(--text)); }
+.cl-lead[data-tone] .cl-lead-line, .cl-lead[data-tone] .cl-lead-dot { background: var(--lc); }
+.cl-lead[data-tone] .cl-lead-dot { box-shadow: 0 0 0 1.5px var(--lb-halo, var(--cl-surface, #000)); }
