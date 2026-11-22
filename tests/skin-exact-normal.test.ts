@@ -9,7 +9,7 @@ import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { sdUnionGrad, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
-import { skinNormalTwin, skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
+import { skinNormalTwin, skinNormalGlsl, skinShadeK, SKIN_SHADE_FLOOR_PX, SKIN_SHADE_K, SKIN_RING_W_FROM, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
 import { SKIN_ARM_ABSENT, SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 
 const deg = (a: readonly number[], b: readonly number[]): number => Math.acos(Math.max(-1, Math.min(1, a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!))) * 180 / Math.PI;
@@ -86,10 +86,15 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
 test('the shader takes the normal from the union\'s gradient at the pixel, before any derivative or discard', () => {
   assert.match(SKIN_FS, /vec3 skinNormalExact\(vec3 p, float k, vec3 fallback\)/);
   const main = SKIN_FS.slice(SKIN_FS.indexOf('void main('));
-  const at = main.indexOf('skinNormalExact(vPos, skinK');
+  const at = main.indexOf('skinNormalExact(vPos, max(skinK');
   assert.ok(at > 0, 'main reads it');
   assert.ok(at < main.indexOf('fwidth(sT)') && at < main.indexOf('discard'), 'before the derivative of the shade and before the first discard');
-  assert.match(main, /skinNormalExact\(vPos, skinK \* 1\.5, vec3\(0\.0\)\)/);
+  // the shade's blend: 1.5 k, and never narrower than SKIN_SHADE_FLOOR_PX of the screen (a ridge thinner than a pixel is drawn as a one-pixel line of the crotch's own normal: the dark line this fix was made to end)
+  assert.match(main, /skinNormalExact\(vPos, max\(skinK \* 1\.5, 2\.0 \* vCenW \* 2\.0 \/ \(res\.y \* projY\) \* 1\.0\), vec3\(0\.0\)\)/);
+  assert.equal(SKIN_SHADE_FLOOR_PX, 2);
+  assert.equal(skinShadeK(0.004, 0.0015), 0.006, 'at a laptop\'s zoom k is already wider than two pixels: nothing changes');
+  assert.equal(skinShadeK(0.004, 0.004), 0.008, 'on a phone\'s fit two pixels are wider: the shade reads the union there');
+  assert.equal(skinShadeK(0, 0.004), 0.008, 'a skin with no blend at all is still given the floor');
   assert.match(main, /n = normalize\(mix\(n, normalize\(mat3\(modelViewMatrix\) \* gx\), \(1\.0 - smoothstep\(0\.97, 1\.0, wTop\)\)\)\)/);
   assert.equal(SKIN_RING_W_FROM, 0.97);
   // the same rules as the CPU: arm order, the run's halves as a minimum first, the absent arm held out of reach by the outline's own smoothstep

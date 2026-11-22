@@ -8,6 +8,12 @@
  *  the neighbour): the mesh used to do that by easing a sharp vertex's normal toward its neighbours', which depends on how the triangles happen to lie. The same softening as a property of the SURFACE: the gradient of the union blended 1.5 times wider. Measured
  *  against those eased vertex normals over every skin: 8 degrees at p90, 16 at p99 (tests/skin-exact-normal.test.ts), from 3 degrees p50 at 2x and 7 at 3x. The outline and the weights keep k. */
 export const SKIN_SHADE_K = 1.5;
+/** The SHADE's blend width never drops under this many CSS pixels. A ridge between two arms whose blend (k, a few thousandths of a scene unit) is narrower than a pixel is drawn as a one-pixel line of the crotch's own normal: the dark line the exact
+ *  normal was made to end, back at a small scale (a phone's fit of the whole figure, where a scene unit is few pixels). The shade reads the union at this width or its 1.5 times k, whichever is wider: at a laptop's default zoom k is already wider and nothing changes.
+ *  The outline and the weights keep k (the surface does not move). */
+export const SKIN_SHADE_FLOOR_PX = 2;
+/** The width the shade reads the union at: `k` softened SKIN_SHADE_K times, and no narrower than SKIN_SHADE_FLOOR_PX of the screen (`scenePerCssPx`: scene units in one CSS pixel at the pixel's depth, the shader's wpc). The shader does the same sum. */
+export const skinShadeK = (k: number, scenePerCssPx: number): number => Math.max(k * SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX * scenePerCssPx);
 /** A seam ring's normal is the TUBE's (the cut tube and the skin meet on one shade), which on the side of a crotch differs from the union's gradient by up to 13 degrees. A vertex of the ring belongs wholly to its own arm (weight 1, mesh.ts weightsAt), so the
  *  pixel keeps the lerped vertex normal where its arm's weight is within this of 1 and takes the gradient below it: a ring pixel is the tube's pixel exactly, and the hand-over is a smoothstep over the first triangle. */
 export const SKIN_RING_W_FROM = 0.97;

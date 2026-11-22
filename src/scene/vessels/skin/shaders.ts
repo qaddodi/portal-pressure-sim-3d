@@ -44,7 +44,7 @@ import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
 import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
 import { SKIN_CIRC_IN } from './types.ts';
-import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
+import { skinNormalGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX, SKIN_RING_W_FROM } from './exact-normal.ts';
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
 import { WEDGE_GLSL } from '../wedge-glsl.ts';
@@ -373,7 +373,7 @@ void main() {
   {
     float wTop = 0.0;
     for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, wAt(i));
-    vec3 gx = skinNormalExact(vPos, skinK * ${F(SKIN_SHADE_K)}, vec3(0.0));
+    vec3 gx = skinNormalExact(vPos, max(skinK * ${F(SKIN_SHADE_K)}, ${F(SKIN_SHADE_FLOOR_PX)} * ${wpcGlsl('vCenW', 'projY', '1.0')}), vec3(0.0));   // (skinShadeK: the shade's blend is never narrower than SKIN_SHADE_FLOOR_PX of the screen)
     if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - smoothstep(${F(SKIN_RING_W_FROM)}, 1.0, wTop))));
   }
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
