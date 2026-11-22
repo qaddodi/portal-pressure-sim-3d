@@ -133,8 +133,8 @@ function layTail(P: Vec3[], end: 0 | 1, n: number, to: Vec3): void {
 export const isSewn = (v: Pick<NetVessel, 'kind'>): boolean => v.kind === 'collateral' || v.kind === 'shunt';
 interface Arm { w: Work; idx: number[]; free: boolean; host: boolean; id: string; keep?: boolean }
 export const ARM_MIN_NEIGHBOUR = 25, ARM_MIN_HOST = 20, ARM_RUN_RADII = 2, ARM_BLEND_RADII = 6;   // degrees, degrees, radii (22 Nov ruling: the map's node structure equals the body's)
-/** The most a map arm may be turned away from the way its own course arrives (degrees). A bigger turn would make the course U-turn back into its node (a hook: SV_CONF at CONF 159, LGV_CONF at PVT_L and EPI_SVC at SVC_E 180), so such an arm keeps its own course's direction and the node's layout gives way (J1, 22 Nov). The mirrored arms the 22 Nov side ruling wants (V_IMV at SV, LRV_IVC at IVCI) turn exactly 90 and are no hook: they stay laid. */
-export const ARM_MAX_TURN = 120;
+/** The most a map arm may be turned away from the way its own course arrives (degrees). A bigger turn would make the course U-turn back into its node (a hook: SV_CONF at CONF 159, LGV_CONF at PVT_L and EPI_SVC at SVC_E 180), so such an arm keeps its own course's direction and the node's layout gives way (J1, 22 Nov). Plan-owner ruling (22 Nov): the side layout exists only so the mesher gets a clean seam, so an arm keeps its own course unless that course leaves the host at less than ARM_MIN_HOST degrees; V_IMV at SV and LRV_IVC at IVCI (mirrored, turned exactly 90) keep theirs too, which ends the LRV hump. */
+export const ARM_MAX_TURN = 90;
 
 /** Makes an arm leave its node straight along `dir` for `run` (the bones within it, and the first one past it, on the line), then Hermite-blends onto its own course over `blend` more arc: positions only, the course past that unchanged. */
 function layArm(P: Vec3[], idx: readonly number[], dir: Vec3, run: number, blend: number): number[] {
@@ -481,7 +481,7 @@ export function buildSkeletonWithReport(): { skeleton: Skeleton; report: Skeleto
       if (a.keep) return;   // (a rounded corner's arm is the corner's own curve)
       const r = run(a), tot = arcOf(P(a)).at(-1)!;
       if (a.free && angle3(dir, d) < 0.5) return;   // (an arm that already leaves as the course does is not laid: the straight run would cut the course's corners)
-      if (a.free && angle3(dir, d) > ARM_MAX_TURN) { report.armsKept.push({ node, arm: a.id, turn: angle3(dir, d) }); return; }   // (the course arrives the other way: laying the arm against it is a hook)
+      if (a.free && angle3(dir, d) > ARM_MAX_TURN - 0.01) { report.armsKept.push({ node, arm: a.id, turn: angle3(dir, d) }); return; }   // (the course arrives the other way: laying the arm against it is a hook)
       keepRun(a, layArm(P(a), a.idx, a.free ? dir : d, r, Math.min(ARM_BLEND_RADII * r, 0.3 * tot)));
     });
     report.arms.push({ node, arms: arms.map((a) => a.id) });

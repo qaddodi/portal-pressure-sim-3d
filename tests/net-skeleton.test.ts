@@ -153,8 +153,8 @@ test('the map keeps the body\'s side: an arm that leaves a host line on one side
     const side = (pose: 0 | 1, i: number): number => { const A = arms(pose), t = A[host[0]!]!.d, d = A[i]!.d; return Math.atan2(t[0] * d[1] - t[1] * d[0], t[0] * d[0] + t[1] * d[1]) * 180 / Math.PI; };
     for (let i = 0; i < n.edges.length; i++) {
       if (host.includes(i) || sewnEdge(n.edges[i]!.edge)) continue;   // (sewn ends are no fillet arms)
-      if (R.armsKept.some((k) => k.node === n.id && k.arm === S.edges[n.edges[i]!.edge]!.id)) continue;   // (J1: its own course arrives from the other side, so it keeps that side rather than hook back into the node)
       const b = side(0, i), m = side(1, i);
+      if (R.armsKept.some((k) => k.node === n.id && k.arm === S.edges[n.edges[i]!.edge]!.id)) { assert.ok(Math.abs(m) >= 20, `${n.id}: kept arm ${S.edges[n.edges[i]!.edge]!.id} leaves the host at ${Math.abs(m).toFixed(0)} degrees on the map (least 20)`); checked++; continue; }   // (J1, plan-owner ruling: an arm keeps its own course, even to the host's other side, provided it leaves the host at 20 degrees or more at the seam)
       if (Math.abs(b) > 20 && Math.abs(b) < 160 && Math.abs(m) > 20 && Math.abs(m) < 160) { assert.equal(Math.sign(m), Math.sign(b), `${n.id}: ${S.edges[n.edges[i]!.edge]!.id} is on the ${b > 0 ? 'left' : 'right'} of the host in the body and the other side on the map`); checked++; }
     }
   }
@@ -490,8 +490,8 @@ test('J1: the hook scan sees a hook (an edge that runs past its node and U-turns
   assert.ok(hookAt(hook, 0, 0) >= 0, 'the hook is seen');
   assert.equal(hookAt(pts.slice(0, 4).map(([x, y], k) => mk(k / 3, x, y)), 0, 0), -1, 'a plain bend is not');
 });
-test('J1: arms the layout would turn more than ARM_MAX_TURN keep their own course (and every one that was laid turns less)', () => {
+test('J1: arms the layout would turn ARM_MAX_TURN degrees or more keep their own course (and every one that was laid turns less)', () => {
   assert.ok(R.armsKept.length > 0);
-  for (const k of R.armsKept) assert.ok(k.turn > ARM_MAX_TURN, `${k.arm} at ${k.node}`);
-  for (const id of ['SV_CONF', 'LGV_CONF', 'EPI_SVC']) assert.ok(R.armsKept.some((k) => k.arm === id), id);
+  for (const k of R.armsKept) assert.ok(k.turn >= ARM_MAX_TURN - 0.01, `${k.arm} at ${k.node}`);
+  for (const id of ['SV_CONF', 'LGV_CONF', 'EPI_SVC', 'LRV_IVC', 'V_IMV']) assert.ok(R.armsKept.some((k) => k.arm === id), id);
 });
