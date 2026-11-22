@@ -142,6 +142,19 @@ export function placeStep(it: CardIn, view: Box, blockers: readonly Box[], place
 }
 
 /** A leader from a step's circle to a point it names: it starts on the circle's edge, on the line to the point, and ends at the point. null when the point stands inside the circle. */
+/** A leader that ends on a vessel stops at the vessel's near edge, not on its axis (plan 21): its screen half width (along the line, which meets the tube at an angle: half / sin, never more than
+ *  3.3 half) plus 1 px of air, so the line never crosses the tube and needs no dot. Null when nothing is left of it. `t` is the vessel's unit direction on the screen. */
+export const LEAD_AIR = 1;
+export function leaderToEdge(seg: [number, number, number, number], half: number, t: { x: number; y: number }): [number, number, number, number] | null {
+  const dx = seg[2] - seg[0], dy = seg[3] - seg[1], len = Math.hypot(dx, dy);
+  if (len <= 0) return null;
+  const sin = Math.abs((dx / len) * t.y - (dy / len) * t.x), back = Math.min(half / Math.max(sin, 0.3), half * 3.3) + LEAD_AIR;
+  if (len - back <= 0.5) return null;
+  return [seg[0], seg[1], seg[2] - (dx / len) * back, seg[3] - (dy / len) * back];
+}
+/** Whether a step's or a mark's leader ends in a dot: only where it names an area (an organ, the sinusoid field a group stands for, a station, a node), never on a single vessel, where its edge is the mark. */
+export const leadHasDot = (anchor: Anchor): boolean => !('edge' in anchor);
+
 export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { x: number; y: number }): [number, number, number, number] | null {
   const dx = to.x - circle.cx, dy = to.y - circle.cy, len = Math.hypot(dx, dy);
   if (len <= circle.r + 1) return null;
@@ -266,6 +279,8 @@ export class FigureCards {
   private readonly pt = { x: 0, y: 0 };
   private readonly pt2 = { x: 0, y: 0 };
   private anchors = new Map<string, { x: number; y: number }>();
+  /** A single vessel's screen half width and direction at the point its card names (leaders to a vessel end on its edge). */
+  private reach = new Map<string, { half: number; tx: number; ty: number }>();
   /** The boxes the cards take now (the station names keep clear of them). */
   boxes: Box[] = [];
   private readonly parent: HTMLElement;
@@ -368,6 +383,14 @@ export class FigureCards {
       if (!p) continue;
       const at = d.project(p, { x: 0, y: 0 });
       put(c.id, at);
+      if ('edge' in c.anchor && (c.kind === 'step' || isLabelMark(c))) {
+        const u = c.kind === 'step' ? stepMidOf(c.anchor.edge) : 0.5, cv = curveOf(c.anchor.edge), vs = NETWORK_BY_ID.get(c.anchor.edge);
+        if (cv && vs) {
+          cv.getPointAt(u, this.p); cv.getPointAt(Math.min(1, u + 0.02), this.q);
+          const a0 = d.project(this.p, this.pt), b0 = d.project(this.q, this.pt2), n0 = Math.hypot(b0.x - a0.x, b0.y - a0.y) || 1, per = n0 / (this.p.distanceTo(this.q) || 1);
+          this.reach.set(c.id, { half: Math.max(2, vs.radius * per), tx: (b0.x - a0.x) / n0, ty: (b0.y - a0.y) / n0 });
+        } else this.reach.delete(c.id);
+      } else this.reach.delete(c.id);
       // a lobule callout's ring: its radius on the screen, from a point one ring radius off along the plate (it changes only as the camera does, so it hides the card like any other move)
       if ('lobule' in c.anchor) { const e = d.lobuleRing(c.anchor.lobule, this.q); if (e) { const b = d.project(e, this.pt2); put(c.id + '#r', { x: ringPx(Math.hypot(b.x - at.x, b.y - at.y)), y: 0 }); } }
       if (c.kind === 'step' && 'edges' in c.anchor) c.anchor.edges.forEach((e, i) => { const q = anchorPoint({ edge: e }, this.q, d.lobule, stepMidOf(e)); if (q) put(`${c.id}#${i}`, d.project(q, { x: 0, y: 0 })); });
@@ -485,10 +508,12 @@ export class FigureCards {
       lead.root.append(l, dt); lead.lines.push(l); lead.dots.push(dt); lead.tx.push(''); lead.k.push(0); lead.kd.push(0); lead.at.push('translate3d(0,0,0)'); lead.len.push(0);
     }
     lead.lines.forEach((l, i) => {
-      const p = pts[i], seg = p ? (mark ? boxLeader({ x: box.x0, y: box.y0, w: dia, h }, p) : stepLeader(circle, p)) : null;
+      const p = pts[i], reach = this.reach.get(c.id), dotted = leadHasDot(c.anchor) || !reach;
+      let seg = p ? (mark ? boxLeader({ x: box.x0, y: box.y0, w: dia, h }, p) : stepLeader(circle, p)) : null;
+      if (seg && !dotted && reach) seg = leaderToEdge(seg, reach.half, { x: reach.tx, y: reach.ty });
       const on = !!p && r.box?.ok !== false, round = (n: number) => Math.round(n * 100) / 100;
       // (a leader or its dot that is not wanted shrinks to nothing by its scale and is never switched off: it eases out as it came in)
-      const kd = (lead.kd[i] = this.ease(lead.kd[i]!, on)), kl = (lead.k[i] = this.ease(lead.k[i]!, on && !!seg));
+      const kd = (lead.kd[i] = this.ease(lead.kd[i]!, on && dotted)), kl = (lead.k[i] = this.ease(lead.k[i]!, on && !!seg));
       lead.dots[i]!.style.transform = `${p ? `translate3d(${round(p.x)}px,${round(p.y)}px,0)` : 'translate3d(0,0,0)'} scale(${round(kd)})`;
       if (seg) {
         lead.len[i] = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]);
