@@ -6,11 +6,11 @@
 import { Group } from 'three';
 import type { LookId } from '../../looks/looks.ts';
 import type { Palette } from '../palette.ts';
-import { type Host, type Swells, cavaWallShare, drawnHost, swellsOf } from './host.ts';
+import { type Host, type Swells, fadeStartShare, radiusAtShare, drawnHost, swellsOf } from './host.ts';
 import { ClotGrow } from './clot-ease.ts';
 import { clotTokens } from './paint.ts';
 import { setClotTones } from './clot-uniforms.ts';
-import { type ClotUniform, clotPhases, clotPiece, clotRange, CLOT_V_FROM } from './clot-field.ts';
+import { type ClotUniform, clotPhases, clotPiece, clotRange, CLOT_CAP_LEN, CLOT_V_FROM } from './clot-field.ts';
 
 /** What the layer needs of a drawn vessel: its piece's clot uniform. */
 export interface ClotSink { setClot(c: ClotUniform | null): void }
@@ -27,9 +27,10 @@ export function pieceRanges(host: Host): Array<[number, number]> {
   return host.pieces.map((_, k) => [k === 0 ? 0 : end[k - 1]!, end[k]!] as [number, number]);
 }
 
-/** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall), the vein's cava swell setting how far a cava-opening vein's clot runs (to the cava's wall). */
+/** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall), the vein's cava swell setting how far a cava-opening vein's clot runs (it ends before the vein's fade into the cava). */
 export function clotUniforms(host: Host, v: number, cavaSwell: number, id: string): ClotUniform[] {
-  const { a, b } = clotRange(v, cavaWallShare(host, cavaSwell)), { side } = clotPhases(id);
+  const fs = fadeStartShare(host, cavaSwell), cap = CLOT_CAP_LEN * radiusAtShare(host, fs ?? 0) / host.length;
+  const { a, b } = clotRange(v, fs == null ? null : fs - cap, cap), { side } = clotPhases(id);
   return pieceRanges(host).map(([s0, s1]) => clotPiece(a, b, host.length, s0, s1, side * v, id));
 }
 
@@ -46,7 +47,7 @@ export class ClotLayer {
 
   applyLook(look: LookId, _p: Palette): void { setClotTones(clotTokens(look)); }
 
-  /** The params' thrombus map. `instant` (a new patient) takes it whole. `D`: the engine's diameter of every edge (mm): a cava-opening vein's clot runs to the cava's drawn wall. Returns true while a clot grows or shrinks. */
+  /** The params' thrombus map. `instant` (a new patient) takes it whole. `D`: the engine's diameter of every edge (mm): a cava-opening vein's clot ends before its fade into the cava. Returns true while a clot grows or shrinks. */
   set(thrombus: Record<string, number>, dt: number, instant = false, D: ArrayLike<number> | null = null): boolean {
     for (const id of Object.keys(thrombus)) if (!this.clots.has(id) && drawnHost(id)) this.clots.set(id, { id, grow: new ClotGrow(), goal: 0, cur: 0, written: -1, cava: NaN });
     let moving = false;

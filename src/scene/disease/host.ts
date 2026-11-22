@@ -12,7 +12,9 @@ import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr, NBR_STRIDE } from '../vessels/neighbour.ts';
 import { CAVA_RECEDE, cavaPieceOf, opensIntoCava } from '../vessels/fades.ts';
-import { cavaRamp } from '../vessels/fade-alpha.ts';
+import { cavaRamp, CAVA_RAMP_R } from '../vessels/fade-alpha.ts';
+import { len3 } from '../frame2d.ts';
+import { IVC_JOIN_LEN } from '../vessels/fades.ts';
 
 /** Samples along each piece (the clot reads its place between them). */
 export const HOST_SAMPLES = 48;
@@ -118,4 +120,29 @@ export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
   if (k >= h.pts.length - 1) return 1;
   const d0 = wall(k), d1 = wall(k + 1), w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0)));
   return (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length;
+}
+
+/** Where a vein that opens into the cava BEGINS to fade into it, as a share of the drawn vein's arc length: the earlier of (a) where the vein's centre comes within the shader's ramp (CAVA_RAMP_R cava radii before the wall: cavaRamp, which A[] above also follows) and
+ *  (b) IVC_JOIN_LEN 2D units before the wall (fades.ts, the join's length). Past this the vein is no plain tube (it fades and is cut, and the joint's skin lies there), so a clot ends before it. Null for a vein that does not open into the cava. */
+export function fadeStartShare(h: Host, cavaSwell = 1): number | null {
+  const wall = cavaWallShare(h, cavaSwell);
+  if (wall == null) return null;
+  const nb = nbCache.get(h.id);
+  let ramp = wall;
+  if (nb) {
+    // (the ramp's start, from the end back: the last place whose centre is still outside CAVA_RAMP_R radii of the wall)
+    const out = (i: number): number => Math.abs(nb[i * NBR_STRIDE]!) - nb[i * NBR_STRIDE + 1]! * cavaSwell - CAVA_RAMP_R * nb[i * NBR_STRIDE + 1]! * cavaSwell;
+    let k = h.pts.length - 1;
+    while (k > 0 && out(k) < 0) k--;
+    if (k < h.pts.length - 1) { const d0 = out(k), d1 = out(k + 1), w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0))); ramp = (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length; }
+  }
+  return Math.min(ramp, wall - len3(IVC_JOIN_LEN) / h.length);
+}
+
+/** The lumen's radius (built width, scene units) at a share of the drawn vein. */
+export function radiusAtShare(h: Host, sh: number): number {
+  const d = Math.min(1, Math.max(0, sh)) * h.length;
+  let k = 1; while (k < h.s.length - 1 && h.s[k]! < d) k++;
+  const a = h.s[k - 1]!, w = Math.min(1, Math.max(0, (d - a) / (h.s[k]! - a || 1)));
+  return h.R[k - 1]! + (h.R[k]! - h.R[k - 1]!) * w;
 }

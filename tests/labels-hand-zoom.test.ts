@@ -26,9 +26,20 @@ function world(withHand = true) {
   } as LabelDeps;
   const ctl = new LabelController(d); ctl.setState({ ...NO_STATE, ...shown });
   const frame = () => { t += 16; tick = []; ctl.tick(); };
-  /** every label's dot is where its anchor projects to NOW: the ring is never left at a place the picture has moved from */
-  const dotsOnAnchors = () => ctl.out.filter((x) => x.dot && x.alpha > 0).every((x) => tick.some((p) => Math.hypot(p.x - x.dot!.x, p.y - x.dot!.y) < 0.5));
-  return { rig, ctl, frame, run: (ms: number) => { for (let i = 0; i < ms / 16; i++) frame(); }, set: (o: { moving?: boolean; dx?: number }) => { if (o.moving !== undefined) moving = o.moving; if (o.dx !== undefined) dx = o.dx; ctl.markDirty(); }, dotsOnAnchors, names: () => ctl.out.filter((x) => x.kind === 'station' && !x.ghost).map((x) => x.id) };
+  /** every label stands at its anchor's projection NOW: the ring when it has one, else (plan 21, 184f7300: a name beside its vessel has no leader and no dot) the box's own place, measured against the anchor's projection this frame. At least 3 labels are measured. */
+  const BESIDE = 90;   // (px: how far a name's box stands from its anchor at most)
+  const worst = { v: 0 };
+  const dotsOnAnchors = () => {
+    const live = ctl.out.filter((x) => x.kind === 'station' && !x.ghost && x.alpha > 0);
+    assert.ok(live.length >= 3, `${live.length} labels measured`);
+    return live.every((x) => {
+      const cx = x.dot ? x.dot.x : x.x + x.w / 2, cy = x.dot ? x.dot.y : x.y + x.h / 2, lim = x.dot ? 0.5 : BESIDE;
+      const d = Math.min(...tick.map((p) => Math.hypot(p.x - cx, p.y - cy)));
+      if (!x.dot) worst.v = Math.max(worst.v, d);
+      return d < lim;
+    });
+  };
+  return { rig, ctl, frame, run: (ms: number) => { for (let i = 0; i < ms / 16; i++) frame(); }, set: (o: { moving?: boolean; dx?: number }) => { if (o.moving !== undefined) moving = o.moving; if (o.dx !== undefined) dx = o.dx; ctl.markDirty(); }, dotsOnAnchors, worst, names: () => ctl.out.filter((x) => x.kind === 'station' && !x.ghost).map((x) => x.id) };
 }
 
 /** `hand`: the controller is given the hand's view (the app does); without it the old rule stands (every jump a cut), which is the control that shows the case breaks. */
@@ -37,10 +48,11 @@ function pinch(withHand: boolean) {
   const ids = w.names(); assert.ok(ids.length >= 3, `${ids.length} names stand`);
   let worstStep = 0, frozen = 0, faded = 0; void faded;
   for (let i = 1; i <= 6; i++) {
-    const before = w.ctl.out.filter((x) => x.dot).map((x) => ({ id: x.id, x: x.dot!.x, y: x.dot!.y }));
+    const at = (x: { dot: { x: number; y: number } | null; x: number; y: number; w: number; h: number }) => (x.dot ? x.dot : { x: x.x + x.w / 2, y: x.y + x.h / 2 });
+    const before = w.ctl.out.filter((x) => x.kind === 'station' && !x.ghost).map((x) => ({ id: x.id, x: at(x).x, y: at(x).y }));
     w.rig.setHand({ k: Math.pow(1.3, i), x: 0, y: 0 });   // a fast pinch out: 30 % a frame
     w.rig.update(1000 + 16 * i); w.frame();
-    for (const b of before) { const n = w.ctl.out.find((x) => x.id === b.id && x.dot); if (n) worstStep = Math.max(worstStep, Math.hypot(n.dot!.x - b.x, n.dot!.y - b.y)); }
+    for (const b of before) { const n = w.ctl.out.find((x) => x.id === b.id && x.kind === 'station' && !x.ghost); if (n) worstStep = Math.max(worstStep, Math.hypot(at(n).x - b.x, at(n).y - b.y)); }
     if (!w.dotsOnAnchors()) frozen++;
   }
   return { worstStep, frozen, faded };
