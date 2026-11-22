@@ -8,9 +8,9 @@ import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 't
 const XY = 1e5;
 const keyOf = (x: number, y: number, z: number) => `${Math.round(x * XY)},${Math.round(y * XY)},${Math.round(z * XY)}`;
 
-interface Welded { n: number; id: Int32Array; verts: number[][]; nbr: Set<number>[]; tris: number[] }
+export interface Welded { n: number; id: Int32Array; verts: number[][]; nbr: Set<number>[]; tris: number[] }
 /** The mesh with coincident vertices as one (a vertex id a place), and its neighbours. */
-function weld(g: BufferGeometry): Welded {
+export function weld(g: BufferGeometry): Welded {
   const pos = g.getAttribute('position'), idx = g.index ? Array.from(g.index.array) : Array.from({ length: pos.count }, (_, i) => i);
   const map = new Map<string, number>(), id = new Int32Array(pos.count), verts: number[][] = [];
   for (let i = 0; i < pos.count; i++) {
@@ -30,7 +30,7 @@ function weld(g: BufferGeometry): Welded {
 }
 
 /** The silhouette ring as a map: vertex -> its two neighbours along the ring (only vertices with exactly two). */
-function silhouetteRing(g: BufferGeometry, w: Welded): Map<number, [number, number]> {
+export function silhouetteRing(g: BufferGeometry, w: Welded): Map<number, [number, number]> {
   const pos = g.getAttribute('position'), p = (v: number) => w.verts[v]![0]!;
   const sides = new Map<string, number[]>();
   for (let t = 0; t < w.tris.length; t += 3) {
@@ -112,6 +112,14 @@ export function smoothSilhouette(g: BufferGeometry, passes = RING_PASSES, maxMov
 /** The farthest a new rim point sits from the chord's middle, scene units (the curve through four rim points bows by a fraction of a chord: 2.5 units is 0.0083). */
 const REFINE_MAX = 0.0025;
 
+/** The new rim point between rim points `u` and `v`, with `a` before `u` and `b` after `v` along the ring: on the smooth curve through the four (the 4-point interpolatory rule, (-a + 9u + 9v - b) / 16 in x and y, z the mean of u and v), held to REFINE_MAX from the chord's middle. */
+export function rimPoint(a: readonly number[], u: readonly number[], v: readonly number[], b: readonly number[]): [number, number, number] {
+  let x = (-a[0]! + 9 * u[0]! + 9 * v[0]! - b[0]!) / 16, y = (-a[1]! + 9 * u[1]! + 9 * v[1]! - b[1]!) / 16;
+  const mx = (u[0]! + v[0]!) / 2, my = (u[1]! + v[1]!) / 2, d = Math.hypot(x - mx, y - my);
+  if (d > REFINE_MAX) { x = mx + ((x - mx) * REFINE_MAX) / d; y = my + ((y - my) * REFINE_MAX) / d; }
+  return [x, y, (u[2]! + v[2]!) / 2];
+}
+
 /** Splits every rim edge once, at a point on the smooth curve through the rim (the 4-point interpolatory rule: (-a + 9u + 9v - b) / 16 in x and y, z the mean), so the outline is a
  *  polyline of 1.25-unit chords instead of 2.5-unit ones: a rim that bends at each of its points shows as a faceted curve on a big screen, and the ink line that follows it with it. The two
  *  triangles on each rim edge (the front's and the back's) are split with it, so the surface stays whole. Run after `smoothSilhouette`, which has tuned the ring; recomputes the normals.
@@ -131,10 +139,7 @@ export function refineRim(g: BufferGeometry): number {
     const pu = at(u), pv = at(v), ru = ring.get(u)!, rv = ring.get(v)!;
     const before = ru[0] === v ? ru[1] : ru[0], after = rv[0] === u ? rv[1] : rv[0];
     const pa = at(before), pb = at(after);
-    let x = (-pa[0] + 9 * pu[0] + 9 * pv[0] - pb[0]) / 16, y = (-pa[1] + 9 * pu[1] + 9 * pv[1] - pb[1]) / 16;
-    const mx = (pu[0] + pv[0]) / 2, my = (pu[1] + pv[1]) / 2, d = Math.hypot(x - mx, y - my);
-    if (d > REFINE_MAX) { x = mx + ((x - mx) * REFINE_MAX) / d; y = my + ((y - my) * REFINE_MAX) / d; }
-    px.push(x, y, (pu[2] + pv[2]) / 2);
+    px.push(...rimPoint(pa, pu, pv, pb));
     if (nx.length) nx.push(0, 0, 1);
     mid.set(k, count++);
   }

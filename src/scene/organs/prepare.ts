@@ -4,6 +4,7 @@
 import { BufferAttribute, Float32BufferAttribute, type BufferGeometry } from 'three';
 import { ORGAN_STYLE } from './layer.ts';
 import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
+import { COARSE_VERTS, subdivideOrgan } from './subdivide.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
 import { ORGAN_Z } from './z.ts';
@@ -15,7 +16,7 @@ export const SHADE_PASSES = 6;
 export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [string, BufferGeometry][] {
   // every organ's geometry first: the baked depth term (organ-depth.ts) needs them all together (where one organ meets another)
   const made: [string, BufferGeometry][] = [];
-  for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; each organ at its own depth: z.ts, x and y untouched by it)
+  for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; a small organ then gets a round of butterfly subdivision, which also refines its rim (subdivide.ts), a big one only its rim; each organ at its own depth: z.ts, x and y untouched by it)
   // the duodenum's free end fades out (it joins nothing there): its tail alpha, which organ-art patches into its fill and outline
   const duo = made.find(([id]) => id === 'duodenum'), stom = made.find(([id]) => id === 'stomach');
   if (duo && stom) duo[1].setAttribute('esoA', new Float32BufferAttribute(tailFade(duo[1], stom[1]), 1));
