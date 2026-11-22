@@ -12,7 +12,7 @@ import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
 import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keepExtras, type LabelLevel } from './free-set.ts';
 import { NO_EXTRAS, WIDEST, WIDEST_DELTA, readingLensOf, type Extras } from './readings.ts';
-import { LabelFader, easeMove, type Want } from './fade.ts';
+import { LabelFader, easeMove, lookKey, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
@@ -189,9 +189,8 @@ interface Meta {
 }
 
 /** What a placed label says (kept with its placement: the picture it leaves is drawn as it was). */
-interface Snap { word: string; unit: string; delta: boolean; alert: string; note: string; rev: boolean; bare: boolean; /** the colour the slide gave the label, the velocity tint and the Doppler gate it wore: part of the fader's key, so a new look crosses over like new words (polish B) */ tone: string | null; tint: string; gate: boolean }
+interface Snap { word: string; unit: string; delta: boolean; alert: string; note: string; rev: boolean; bare: boolean; /** the colour the slide gave the label, whether it wore a velocity tint (its colour is live, never snapped) and the Doppler gate: part of the fader's key, so a new look crosses over like new words (polish B) */ tone: string | null; tinted: boolean; gate: boolean }
 export const GHOST = '~old';
-const lookKey = (s: Snap): string => `${s.tone ?? ''}|${s.tint}|${s.gate ? 1 : 0}`;
 /** The words after a station's name as the layout reserves them: the widest number the lens ever sets, the unit, the badge (at its widest), the alert, or a note in place of the number. */
 function sayOf(ex: Extras): Say {
   if (ex.note) return { note: ex.note };
@@ -595,7 +594,7 @@ export class LabelController {
 
   /** What a label says beside its name, drawn: the words it had when it was placed (its box is that wide), the number and the badge's text from now. A form that has let the unit, badge and alert go says none of them. */
   private live(m: Meta, snap: Snap | undefined): Pick<Draw, 'unit' | 'delta' | 'up' | 'alert' | 'note' | 'tint' | 'gate' | 'geo'> {
-    const sx = { tint: snap ? snap.tint : m.ex.tint ?? '', gate: snap ? snap.gate : !!m.ex.gate, geo: m.station.stent?.pt === 'geo' };
+    const sx = { tint: !snap || snap.tinted ? m.ex.tint ?? '' : '', gate: snap ? snap.gate : !!m.ex.gate, geo: m.station.stent?.pt === 'geo' };
     if (snap?.bare) return { unit: '', delta: '', up: false, alert: '', note: '', ...sx };
     // (a stent point with no flow says "No flow" and no unit)
     const unit = m.stent && !m.ex.unit ? '' : snap ? snap.unit : m.say.unit ?? '', alert = snap ? snap.alert : m.say.alert ?? '', note = snap ? snap.note : m.say.note ?? '';
@@ -609,7 +608,7 @@ export class LabelController {
   }
 
   /** What a label wears now besides its words (the fader crosses over a change of it). */
-  private lookOf(m: Meta): Pick<Snap, 'tone' | 'tint' | 'gate'> { return { tone: this.state.tones[m.station.id] ?? null, tint: m.ex.tint ?? '', gate: !!m.ex.gate }; }
+  private lookOf(m: Meta): Pick<Snap, 'tone' | 'tinted' | 'gate'> { return { tone: this.state.tones[m.station.id] ?? null, tinted: !!m.ex.tint, gate: !!m.ex.gate }; }
 
   /** The look each wanted label wears now, every frame (the tone, tint and gate change without a new placement): a changed one gets a new picture, and the fader crosses from the old. */
   private refreshLooks(next: ReadonlyMap<string, Meta>): void {
@@ -617,8 +616,8 @@ export class LabelController {
       const m = next.get(id) ?? this.metas.get(id), was = w.snap as Snap | undefined;
       if (!m || !was) continue;
       const now = this.lookOf(m);
-      if (now.tone !== was.tone || now.tint !== was.tint || now.gate !== was.gate) w.snap = { ...was, ...now };
-      w.look = lookKey(w.snap as Snap);
+      if (now.tone !== was.tone || now.tinted !== was.tinted || now.gate !== was.gate) w.snap = { ...was, ...now };
+      const ws = w.snap as Snap; w.look = lookKey(ws.tone, ws.tinted, ws.gate);
     }
   }
 
@@ -690,7 +689,7 @@ export class LabelController {
       const dim = !!m && named.size > 0 && !this.isNamed(m);
       const f = m?.forms[p.form];
       const snap: Snap | undefined = m ? { word: f?.text ?? '', unit: m.say.unit ?? '', delta: !!m.say.delta, alert: m.say.alert ?? '', note: m.say.note ?? '', rev: !!m.rev, bare: !!f?.bare, ...this.lookOf(m) } : undefined;
-      wants.set(p.id, { p, dim, key: m ? `${p.form}|${m.vkey}|${m.rev ? 1 : 0}` : '', look: m ? lookKey(snap!) : '', snap });
+      wants.set(p.id, { p, dim, key: m ? `${p.form}|${m.vkey}|${m.rev ? 1 : 0}` : '', look: m ? lookKey(snap!.tone, snap!.tinted, snap!.gate) : '', snap });
     }
     this.wants = wants;
   }
