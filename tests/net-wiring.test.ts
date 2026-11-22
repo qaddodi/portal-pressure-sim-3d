@@ -165,3 +165,27 @@ test('the Circuit at t = 1, default state: every skeleton edge that has a map co
     assert.equal(net.state.get(row, 'presence')[0], 1, `${id} present`);
   }
 });
+
+test('the inter-lobar sinusoids (SIN_RL) and the left central veins\' link to the MHV (POST_L_MHV) are drawn on the map, from node to node, and stay old tubes under ?geom=net', { skip }, async () => {
+  const { scene } = await figure();
+  scene.resize(800, 600);
+  scene.setCircuitUpright(false, 0);
+  scene.setView('circuit', 0);
+  scene.goTo('play', { x: 0, y: 40, w: 800, h: 520 }, 0, 0);
+  scene.update(0);
+  for (let k = 1; k <= 40; k++) { scene.update(k * 80); scene.stepNet(); }
+  const { CIRCUIT_D } = await import('../src/scene/circuit/data.copied.ts');
+  for (const [id, a, b] of [['SIN_RL', [800, 303], [800, 387]], ['POST_L_MHV', [900, 387], [1000, 345]]] as const) {
+    const o = scene.tubes.objects.find((x) => x.edge?.id === id);
+    assert.ok(o, `${id} has a tube on the map`);
+    assert.equal(o!.group.visible, true, `${id} is drawn at t = 1`);
+    assert.ok(o!.fade > 0.99, `${id} is opaque`);
+    assert.equal(scene.netDraws(o!), false, `${id} is no skeleton edge: it keeps drawing as the old tube`);
+    const d = CIRCUIT_D[id]!, nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    assert.deepEqual([nums[0], nums[1]], [...a], `${id} starts at its node`);
+    assert.deepEqual([nums[nums.length - 2], nums[nums.length - 1]], [...b], `${id} ends at its node`);
+  }
+  scene.setView('body', 100_000); scene.update(100_000); scene.update(104_000);
+  assert.equal(scene.circuit.t, 0);
+  for (const id of ['SIN_RL', 'POST_L_MHV']) assert.equal(scene.tubes.objects.find((x) => x.edge?.id === id)!.group.visible, false, `${id} is the map's alone: the body never shows it`);
+});
