@@ -55,6 +55,11 @@ Keep it, but never add new glass surfaces or glows beyond it.
   underline. A choice between words is told by weight (the chosen word heavier and darker), never a pill, thumb or underline; Done and status are plain words. One shared editor (`src/ui/action/stent/`) serves every stent card;
   `.ac-seg` and the stent chart's switch carry the same choice look. Not a grid of toggles.
 - Room first: the cards take their room and the camera frames the subject in what is left.
+- **The lens legend (key) stands where it reads best, and only when needed** (owner, 22 Nov: "just choose best location", "only use the lens legend when needed").
+  It never floats over the figure between cards. A stream lens (Origin, First pass) names what the instrument card beside it counts, so its key is
+  the first row of that data card (`CardKey.tsx`) and comes and goes with the card. A ramp lens (pressure, pressure drop, flow, heat) explains the
+  figure's colouring, so it stands in the foot of the story card (`key-dock.ts`). It is shown only on a slide that changes the lens from the one
+  before it, or has lens buttons of its own: a run of slides on one lens names it once. `keyPlace` in `scene/labels/key.ts` is the one rule.
 
 ## 4. Words
 

@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
 import { stopsOf } from '../src/ui/deck/presenter-machine.ts';
-import { keyOfSlide, labelsAt } from '../src/scene/labels/deck-link.ts';
-import { KEY_LENSES } from '../src/scene/labels/key.ts';
+import { keyOfSlide, keyAtStop, cardKeyAt, labelsAt } from '../src/scene/labels/deck-link.ts';
+import { KEY_LENSES, keyPlace } from '../src/scene/labels/key.ts';
 import type { Slide } from '../src/decks/schema.ts';
 
 const slide = (compare?: boolean) => ({ id: 's', controls: compare ? { compare: { name: 'x', opts: [{ label: 'a', how: 'lens', lens: 'velocity' }, { label: 'b', how: 'state' }] } } : undefined }) as unknown as Slide;
@@ -35,7 +35,7 @@ test('in the decks: slides on another lens show their key, every key is a lens t
       if (st.kind === 'slide' && st.slide.table) assert.ok(l.panel, `${id}/${st.slide.id}: a table is a centred panel, the figure's names stand aside`);
     });
   }
-  assert.ok(keyed > 20, `slides with a key (${keyed})`);
+  assert.ok(keyed > 10, `slides with a floating key (${keyed})`);
   assert.ok(panels > 20, `panels (${panels})`);
 });
 
@@ -62,4 +62,29 @@ test('the key stands over the cards (its own layer), under the chrome, and a key
   const d = dockKey({ vp, words, natural: { w: 340, h: 22 } });
   assert.equal(d.at, 'above-pill');
   assert.ok(d.box.y1 <= words.y - 6, 'above the card, clear of its name tab');
+});
+
+test('the key stands where it reads best and only where it is needed (Mohammad, 22 Nov): a stream lens in its data card, a ramp in the story card\'s foot, once per run of slides on one lens', async () => {
+  assert.equal(keyPlace('origin'), 'card'); assert.equal(keyPlace('firstpass'), 'card');
+  assert.equal(keyPlace('drop'), 'dock'); assert.equal(keyPlace('pressure'), 'dock'); assert.equal(keyPlace('velocity'), 'dock');
+  let cards = 0, runs = 0;
+  for (const { id } of UI.decks) {
+    const stops = stopsOf((await loadBuiltin(id))!);
+    stops.forEach((st, i) => {
+      const beat = st.kind === 'slide' && (st.slide.vignette || st.slide.question) ? 1 : 0;
+      const l = labelsAt(stops, { stop: i, beat }, id), k = keyAtStop(stops, i, beat), c = cardKeyAt(stops, i);
+      assert.ok(!(l.key && c), `${id}/${i}: one key, not two`);
+      if (c) { cards++; assert.equal(c, k); assert.equal(keyPlace(c), 'card'); }
+      if (l.key) assert.equal(keyPlace(l.key), 'dock');
+      if (k) { runs++; const before = i > 0 ? keyAtStop(stops, i - 1) : null; assert.notEqual(before, undefined); }
+      // a slide on the same lens as the one before it (no lens buttons) names it again nowhere
+      if (k && i > 0 && st.kind === 'slide' && stops[i - 1]!.kind === 'slide') {
+        const prev = stops[i - 1] as { slide: Slide }, same = (prev.slide.scene?.lens ?? 'pressure') === (st.slide.scene?.lens ?? 'pressure');
+        const buttons = !!st.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
+        if (same && !prev.slide.visual && !buttons) assert.fail(`${id}/${i}: the lens did not change, the key is not needed`);
+      }
+    });
+  }
+  assert.ok(cards >= 3, `stream-lens keys in data cards (${cards})`);
+  assert.ok(runs > 0);
 });

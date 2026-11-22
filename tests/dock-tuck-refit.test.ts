@@ -39,7 +39,7 @@ test('a refit room change grows the lobule into the room the tucked card left, a
 });
 
 test('the dock glide refits the camera, and the dive\'s framing distance reads the fitted room, never the room the picture is merely centred in', () => {
-  assert.match(readFileSync('src/ui/deck/scene-link.ts', 'utf8'), /sceneApi\.setRoom\(h\.free, h\.ms, false, true, easeArrive\)/);
+  assert.match(readFileSync('src/ui/deck/scene-link.ts', 'utf8'), /frameRoom\(h\.free, h\.ms, easeArrive\)/);
   const scene = readFileSync('src/scene/scene.ts', 'utf8');
   assert.match(scene, /lobuleRest\(\): number \{\s*const r = this\.rig\.fitRoom/);
 });
@@ -47,7 +47,7 @@ test('the dock glide refits the camera, and the dive\'s framing distance reads t
 test('a dock that lands with no glide (a drag let go fully shut or open) still refits: the link refits on any change of the dock the plan publishes, not only on a hint', () => {
   const link = readFileSync('src/ui/deck/scene-link.ts', 'utf8');
   assert.match(link, /const dockMoved = dockShown !== dockWas; dockWas = dockShown;/);
-  assert.match(link, /if \(dockMoved && !stepped\) sceneApi\.setRoom\(room, DOCK_MS, false, true, easeArrive\)/);
+  assert.match(link, /if \(dockMoved && !stepped\) frameRoom\(room, DOCK_MS, easeArrive\)/);
 });
 
 test('tuck, untuck, a reversal mid-glide and the landing sync all end at the framing a fresh fit in that room gives (zoom and pan, so the callouts keep their vessels)', () => {
@@ -68,4 +68,23 @@ test('tuck, untuck, a reversal mid-glide and the landing sync all end at the fra
   rig.setRoom(shut, t, 300, false, true, ease); for (let u = 0; u < 120; u += 16) rig.update(t += 16);
   rig.setRoom(open, t, 380, false, true, ease); t = settle(rig, t);
   rig.setRoom(open, t); t = settle(rig, t); same(rig, refOpen, 'reversed mid-glide');
+});
+
+// Mohammad 22 Nov (iPhone, Circulation slide 5): the slide arriving with the instrument card up framed the lobule larger (cropped by the cards, two names) than the same slide after a tuck and an untuck (whole, five names).
+// Root cause: two ways of giving the camera a room. The slide's move fits the zoom to the room it is sent; the cards of the slide settle after it (the data card's height lands a beat late), and that room change only
+// panned, so the zoom stayed fitted to the earlier, larger room. Tuck and untuck refit. The names are a pure function of the projection (lobule/captions.ts), so one framing is one set of names.
+test('a slide that arrives into a room the cards then shrink ends framed exactly as a fresh fit (and an untuck) in that final room; the talk has one way to give the camera a room', () => {
+  const early = { x: 8, y: 120, w: 374, h: 590 }, final = { x: 8, y: 330, w: 374, h: 380 };
+  const rig = (room: typeof early) => { const r = new CameraRig('play', room); r.resize(390, 844); return r; };
+  const shot = lobuleShot('lobule');
+  const arrived = rig(early); arrived.goTo(shot, early, 0); let t = settle(arrived, 0);
+  arrived.setRoom(final, t, undefined, false, true); settle(arrived, t);   // (frameRoom: the cards settled)
+  const fresh = rig(final); fresh.goTo(shot, final, 0); settle(fresh, 0);
+  assert.ok(arrived.camera.position.distanceTo(fresh.camera.position) < 1e-3, 'same camera');
+  assert.ok(Math.abs(arrived.camera.projectionMatrix.elements[5]! - fresh.camera.projectionMatrix.elements[5]!) < 1e-6, 'same lens');
+  const stale = rig(early); stale.goTo(shot, early, 0); t = settle(stale, 0); stale.setRoom(final, t); settle(stale, t);
+  assert.ok(stale.camera.position.distanceTo(fresh.camera.position) > 1e-3 || Math.abs(stale.camera.projectionMatrix.elements[5]! - fresh.camera.projectionMatrix.elements[5]!) > 1e-6 || stale.fitRoom.h !== fresh.fitRoom.h, 'a pan-only room change (the old behaviour) frames it differently: this is the bug');
+  const link = readFileSync('src/ui/deck/scene-link.ts', 'utf8');
+  assert.equal((link.match(/sceneApi\.setRoom\(/g) ?? []).length, 1, 'only frameRoom calls sceneApi.setRoom in the talk');
+  assert.match(link, /sceneApi\.setRoom\(room, ms, homeTurn, true, ease\)/);
 });

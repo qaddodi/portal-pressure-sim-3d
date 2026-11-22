@@ -8,8 +8,8 @@ import { copiedOf } from '../../decks/hp/deck.ts';
 import { figurePlan } from '../../ui/deck/figure-plan.ts';
 import { stationsOfTerms } from './stations.ts';
 import { useLabels } from './store.ts';
-import { KEY_LENSES } from './key.ts';
-import { DEFAULT_LENS } from '../lenses/model.ts';
+import { KEY_LENSES, keyPlace } from './key.ts';
+import { DEFAULT_LENS, type LensId } from '../lenses/model.ts';
 
 export interface LabelsAt { named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null; /** the lens whose colour key the slide shows on the figure (null: none) */ key: string | null; /** a centred panel stands over the figure: its names stand aside */ panel?: boolean }
 const NONE = (cath: CathState | null = null, key: string | null = null): LabelsAt => ({ named: new Set(), shown: new Set(), tones: {}, cath, key });
@@ -21,6 +21,29 @@ export function keyOfSlide(slide: Slide | null, lens: string | undefined, words:
   const own = lens ?? DEFAULT_LENS;
   const buttons = !!slide.controls?.compare?.opts.some((o) => o.how === 'lens');
   return KEY_LENSES.includes(own) && (own !== DEFAULT_LENS || buttons) ? own : null;
+}
+
+/** The lens the figure wears at a stop (scene-link.ts: a slide's own, the default when it names none, a visual over the figure keeps the one before it). */
+function lensOfStop(stops: Stop[], i: number): LensId {
+  if (i < 0) return DEFAULT_LENS;
+  const v = viewAt(stops, { stop: i, beat: 0 }, lastSlideShot(stops));
+  return v.slide?.visual ? lensOfStop(stops, i - 1) : v.scene?.lens ?? DEFAULT_LENS;
+}
+/** The key's lens at a stop, when it is NEEDED there (Mohammad, 22 Nov: "only use the lens legend when needed, not all the time"): a slide that changes the lens from the one before it, or has lens buttons of its own.
+ *  A run of slides on one lens names it once, on the first. Null otherwise. */
+export function keyAtStop(stops: Stop[], i: number, beat = 0): string | null {
+  const s = stops[i];
+  if (!s || s.kind !== 'slide') return null;
+  const v = viewAt(stops, { stop: i, beat }, lastSlideShot(stops));
+  const lens = keyOfSlide(v.slide, v.scene?.lens, v.words);
+  if (!lens) return null;
+  const buttons = !!v.slide?.controls?.compare?.opts.some((o) => o.how === 'lens');
+  return buttons || lensOfStop(stops, i - 1) !== lens ? lens : null;
+}
+/** The lens whose key is the first row of the slide's own data card (the stream lenses: key.ts keyPlace). The card keeps its key as long as it stands, so ask with the stop the card came from (keep.ts `from`). */
+export function cardKeyAt(stops: Stop[], i: number): string | null {
+  const s = stops[i], k = s && s.kind === 'slide' ? keyAtStop(stops, i, s.slide.vignette || s.slide.question ? 1 : 0) : null;
+  return k && keyPlace(k) === 'card' ? k : null;
 }
 
 /** The copied 2D slide a played slide came from (a talk ported from 2D keeps its words in `copiedOf`). */
@@ -35,7 +58,7 @@ export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }, dec
   if (s.kind === 'check') return { ...NONE(lastCath(stops) ?? null), panel: true };
   const v = viewAt(stops, pos, lastSlideShot(stops));
   if (!v.slide || v.words === 'case') return { ...NONE(), panel: v.words === 'title' };
-  const key = keyOfSlide(v.slide, v.scene?.lens, v.words), panel = v.words === 'visual';
+  const k = keyAtStop(stops, pos.stop, pos.beat), key = k && keyPlace(k) === 'dock' ? k : null, panel = v.words === 'visual';   // (a stream lens's key stands in its data card instead: cardKeyAt)
   const copied = copiedSlideOf(deckId, v.slide);
   if (copied) {
     const p = figurePlan(copied);
