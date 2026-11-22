@@ -386,3 +386,18 @@ test('the brackets, pills and spoken chart print the gradients with one decimal,
   assert.match(f.label, /HVPG 0\.5, PPG 1\.4/);
   assert.ok(texts.includes('12') && texts.includes('4'), 'the stations keep whole numbers');
 });
+
+// The brackets' and pills' numbers glide to a new patient like the stations (a compare button, a slider): midway they print a one-decimal value between the two, never a jump to the new one.
+test('the HVPG and PPG glide to a new patient: midway the printed values are between the two states\'', async () => {
+  const of = async (id: string) => profileOf(await fpOf(id))!;
+  const [a, b, hl] = [await of('healthy'), await of('csph'), await of('healthy')];
+  const planA = planProfile(400, 0, 13, goalOf(a, hl, null), hl, null, SPANS), planB = planProfile(400, 0, 13, goalOf(b, hl, null), hl, null, SPANS);
+  const m = new ProfileMotion();
+  m.aim(planA.goal, planA, 0); m.aim(planB.goal, planB, 1000);
+  let now = 1000;
+  for (let i = 0; i < 12; i++) { now += 16; m.tick(now); }
+  const v = m.view(now)!, mid = v.shown as unknown as Record<string, number>;
+  for (const k of ['hvpg', 'ppg'] as const) assert.ok(mid[k]! > (a as unknown as Record<string, number>)[k]! && mid[k]! < (b as unknown as Record<string, number>)[k]!, `${k} is on its way: ${mid[k]}`);
+  const texts = profileFrame(planB, v, ctxOf('light', 400)).shapes.filter((x) => x.k === 'text').map((x) => (x as { s: string }).s);
+  assert.ok(texts.includes(gap1(mid.hvpg!)) && !texts.includes(gap1(b.hvpg)), `the bracket prints the eased value ${gap1(mid.hvpg!)}: ${texts.join('|')}`);
+});
