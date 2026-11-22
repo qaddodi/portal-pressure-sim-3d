@@ -40,7 +40,7 @@ test('every program that cuts a cel step reads its width from EDGE_PX, as half t
 });
 
 test('the outline\'s outer edge is NOT cut to a circle (22 Nov: it dropped pixels that belong to a join, so junctions broke): the fragment stage has no outer-edge discard', () => {
-  assert.doesNotMatch(VESSEL_FS, /dLat > rDevAx \+ /, 'a tube\'s hull at a join is not a lone circle');
+  assert.doesNotMatch(VESSEL_FS, /dLat > rDevAx \+ inkO/, 'a tube\'s hull at a join is not a lone circle');
   assert.ok(Math.abs((1 + TUBE_SAG) * Math.cos(Math.PI / TUBE_RADIAL) - 1) < 1e-12);
 });
 
