@@ -26,15 +26,10 @@ export function meanderWanted(e, raw, TOPO) {
 }
 
 /** HOSTS KEEP THE COURSE THEIR COLLATERALS WERE DRAWN AGAINST. A collateral or a shunt ends at a fixed 2D point on a vein's wall, placed against the vein as the 2D art bends it; straighten the vein and the end stands up to 0.3 of a radius off the wall, which the junction skins take
- *  for no landing (the portocaval shunt and the lumbar collateral on the cava's lower piece lost their skin, the azygos arch lost the coronary collateral's). So a vein any collateral or shunt ends on, in its interior (not within NODE_END_SAMPLES of its ends, where the node's own junction is), keeps its 2D wave. `ends`: the end points of the growing vessels;
+ *  for no landing (the portocaval shunt and the lumbar collateral on the cava's lower piece lost their skin, the azygos arch lost the coronary collateral's). So a vein any collateral or shunt ends on, anywhere along it, its own node ends included, keeps its 2D wave. `ends`: the end points of the growing vessels;
  *  `own`: the vein's course as 2D bends it; `r`: its radius. */
 export const HOST_REACH_R = 2.5;
-export const NODE_END_SAMPLES = 6;
 export function hostsLanding(ends, own, r) {
-  for (const q of ends) {
-    let best = Infinity, at = -1;
-    for (let i = 0; i < own.length; i++) { const d = Math.hypot(own[i][0] - q[0], own[i][1] - q[1]); if (d < best) { best = d; at = i; } }
-    if (best <= HOST_REACH_R * r && at >= NODE_END_SAMPLES && at <= own.length - 1 - NODE_END_SAMPLES) return true;   // (nearest to its INTERIOR: an end at the vein's own node is the junction's)
-  }
+  for (const q of ends) for (let i = 0; i < own.length; i++) if (Math.hypot(own[i][0] - q[0], own[i][1] - q[1]) <= HOST_REACH_R * r) return true;   // (an end at the vein's own node counts: the approach to a collateral that leaves the node, a catheter's route into it, was drawn against the wave's slope there)
   return false;
 }

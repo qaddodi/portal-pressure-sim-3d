@@ -83,7 +83,7 @@ test('the meander rule: a wave shallower than its vessel is wide is dropped; a w
   const r = calibreOf(edge('IVC_IS_1'), T), vein = path(340);
   assert.equal(hostsLanding([[170, 1.5 * r]], vein, r), true, 'an end 1.5 radii off the middle of the vein lands on it');
   assert.equal(hostsLanding([[170, 6 * r]], vein, r), false, 'an end 6 radii away does not');
-  assert.equal(hostsLanding([[0, 0]], vein, r), false, 'an end at the vein\'s own node is the junction\'s, not a landing');
+  assert.equal(hostsLanding([[0, 0]], vein, r), true, 'an end at the vein\'s own node counts: the slope the wave gives there is what the collateral leaves against');
 });
 
 test('the azygos arch comes down to the superior cava on one gentle slope: no dive at the camera at the weld, and the azygos node keeps its depth', () => {
