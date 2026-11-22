@@ -79,6 +79,13 @@ export const STEP_LEAD_GAP = 10;
 const normal = (px: number) => px * (INTER.asc + INTER.desc);
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
 
+/** The portal-blood split's widest row, px: the headline's fixed 12.6 em, or the caption row ("PORTAL BLOOD" and "To the liver 100%", 6 px apart, which runs past 12.6 em at every type size: its words stood outside the box
+ *  the other labels keep off, so the LIVER name was carried under them). */
+export function splitWidth(c: FigCard, t: CathType, measure: Measure): number {
+  const cap = measure('PORTAL BLOOD', t.name, 700, 0.06 * t.name) + 6 + measure(`To the liver ${c.split?.liver ?? 100}%`, t.name, 600, 0);
+  return Math.max(t.name * 12.6, cap);
+}
+
 /** A card's size (border box) and its Reading: a mark is one line of words; a site is the catheter's three lines (name, number, unit). */
 export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number; h: number } {
   const C = LS.CATH;
@@ -87,7 +94,7 @@ export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number
     return { w: ceil2(w), h: ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name)) };
   }
   if (c.kind === 'step') { const d = Math.round(t.name * 1.9); return { w: d, h: d }; }
-  if (c.kind === 'split') return { w: ceil2(t.name * 12.6 + 8), h: ceil2(t.num * 1.1 + t.name * 3.6 + 6) };
+  if (c.kind === 'split') return { w: ceil2(splitWidth(c, t, measure) + 8), h: ceil2(t.num * 1.1 + t.name * 3.6 + 6) };
   return pillSize(t, { kicker: c.text, value: c.value ?? '', unit: c.unit ?? '', tone: 'free' }, measure, false);
 }
 

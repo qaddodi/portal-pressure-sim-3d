@@ -39,7 +39,7 @@ export function makeSkeleton(nodes: FixNode[], edges: FixEdge[], K = 24): Skelet
       const t = tang[i]!, nn = norm(sub(n, mul(t, dot(n, t))));
       bones.push({ edge: ei, u: i / (k - 1), pos: [pts[i]!, mapWarp(pts[i]!)], r: [fe.rad(i / (k - 1)), 0.85 * fe.rad(i / (k - 1))], frame: [t, nn, cross(t, nn)] });
     }
-    skelEdges.push({ id: fe.id, from: fe.from, to: fe.to, bones: [first, k], tone: 'portal', tier: 'mid', hidden: [0, 0], hiddenBody: [0, 0] });
+    skelEdges.push({ id: fe.id, from: fe.from, to: fe.to, bones: [first, k], tone: 'portal', tier: 'mid', hidden: [0, 0], hiddenBody: [0, 0], sewn: [false, false] });
     nodeEdges.get(fe.from)!.push({ edge: ei, end: 0 }); nodeEdges.get(fe.to)!.push({ edge: ei, end: 1 });
   });
   const skelNodes: SkelNode[] = nodes.map((nd) => {

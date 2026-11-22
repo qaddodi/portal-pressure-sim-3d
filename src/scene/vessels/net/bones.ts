@@ -13,8 +13,8 @@ import type { Bone } from './types.ts';
 export const BONE_TEXELS = 3;
 export const BONES_PER_ROW = 64;
 export const BONE_ROW_TEXELS = BONES_PER_ROW * BONE_TEXELS;
-/** The most bones one edge may have (the review's 64 samples per edge). */
-export const MAX_BONES_PER_EDGE = 64;
+/** The most bones one edge may have: 64, and more where a corner needs them (skeleton.ts boneCount: every corner arc spans 3 bones, 22 Nov ruling), up to this. */
+export const MAX_BONES_PER_EDGE = 300;
 /** The edge index lives in the fractional-part trick's integer part: it must stay exact in a float32 with u / 2 beside it. */
 export const MAX_EDGES = 255;
 
