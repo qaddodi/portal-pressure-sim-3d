@@ -104,6 +104,8 @@ const dir3 = (t: readonly number[], out: Vector3): Vector3 => out.set(t[0]!, -t[
 const ease01 = (x: number): number => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const withTang = (g: BufferGeometry): BufferGeometry => { if (!g.getAttribute('tang')) g.setAttribute('tang', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3)); return g; };
 /** The figure's hepatic-vein blue (--tr-hv) and the portal vein's (the device tokens' trPv), for the hit's rings and the manometer's ripples. */
+/** The portal vein's ring colour: ONE function, so `recolour` knows it is the same colour and a glide is not restarted every frame. */
+const PV_RING: PartColour = (t) => t.trPv;
 const HV_RING = (_t: unknown, look: string): string => (look === 'dark' || look === 'navy' || look === 'black' ? '#5CA4F2' : '#2A78D6');
 /** The needle's half width (figure units) and the bevel it comes to a point over (2D eus-scope.js nw0, bev; a little wider than 2D's 0.62 so a thin steel needle still reads on the figure). */
 const CAP_RINGS = 8;
@@ -173,6 +175,8 @@ export class EndoScope {
   /** the shaft's rings in all (the longer of the two ways): its uv.x runs 0 to 1 over them */
   private readonly N: number;
   /** the hit's two rings and the manometer's two ripples at the target (2D eusDraw: flash, ring) */
+  /** the parts the scope's own numbers ease (see `update`), and the parts the mode switches off this frame (kept: no allocation in a frame) */
+  private own: ProbePart[] | null = null; private readonly off = new Set<ProbePart>();
   private readonly flashRings: ProbePart[] = []; private readonly rippleRings: ProbePart[] = [];
   /** where the needle is aimed, for both stations; and how far the aim has gone from the portal vein's to the hepatic vein's (0 to 1) */
   private readonly targets: [P2, P2] = [[0, 0], [0, 0]];
@@ -430,12 +434,13 @@ export class EndoScope {
   /** The hit's rings and the manometer's ripples at the target (2D eusDraw: two discs running out and fading, in the vein's colour), at `now` ms. */
   private layRings(now: number, vis: boolean): void {
     const eus = this.mode === 'eus' && vis, T = atVessel(this.target(this.tgtPt), this.v);
-    const hv = this.tgt >= 0.5, pvC: PartColour = (t) => t.trPv, hvC: PartColour = HV_RING as PartColour;
+    const hv = this.tgt >= 0.5, pvC: PartColour = PV_RING, hvC: PartColour = HV_RING as PartColour;
     const rings = (parts: ProbePart[], on: boolean, ph: number, r0: number, r1: number, a0: number, colour: PartColour): void => {
       parts.forEach((o, i) => {
-        if (!on) { o.group.visible = false; return; }
+        if (on) o.recolour(colour);   // (before it shows: a ring that is not drawn takes its colour at once, one that is glides to it)
+        o.show(on);
+        if (!on) return;
         const k = i ? (ph + 0.5) % 1 : ph, s = len3(r0 + r1 * k);
-        o.recolour(colour);
         o.group.position.copy(T); o.group.scale.setScalar(s); o.setAlpha((1 - k) * (1 - k) * a0 * this.opacity);
       });
     };
@@ -489,19 +494,26 @@ export class EndoScope {
     }
     const eus = this.mode === 'eus' || this.mode === 'glue';
     const vis = this.d > 0.5;
-    this.group.visible = vis;
+    if (!vis) for (const o of this.parts) o.show(false);
+    // (the scope is drawn while it is in the figure or any part of it is still fading out)
+    this.group.visible = vis || this.parts.some((o) => o.group.visible);
     if (vis && (moving || this.dirty)) {
       this.dirty = false;
       this.lay();
       const p = this.parts_;
-      for (const o of this.parts) o.group.visible = true;
-      p.bend.group.visible = this.bendShown();
-      // a forward-viewing gastroscope's end is short, black and rounded (owner's Fujifilm photo); the echoendoscope's is the chrome housing
-      p.tip.recolour(eus ? SCOPE_SILVER_C : SCOPE_DISTAL_C);
-      p.cap.group.visible = this.cap > 0.002; if (this.cap > 0.002) { p.cap.setAlpha(this.cap * 0.55); p.band.setAlpha(this.cap); } else p.band.group.visible = false;
-      p.needle.group.visible = eus && this.needle * this.g.len > 0.4;
-      this.sheathPart.group.visible = p.needle.group.visible && this.sheathLen > 0.001; this.sheathPart.setGloss(1); p.needle.setGloss(1);
-      p.face.group.visible = eus; p.array.group.visible = eus; for (const l of p.lights) l.group.visible = !eus; p.chan.group.visible = !eus; p.port.group.visible = eus && this.aim > 0.002; if (eus && this.aim > 0.002) p.port.setAlpha(0.9 * this.aim);
+      // Every part is asked to show or go (fading over DEVICE_FADE_MS, never a frame's switch): the mode decides which (a gastroscope's lens and lights, an echoendoscope's transducer and needle). The rings are `layRings`'s,
+      // and the cap, the band and the port are eased by the scope's own numbers (cap, aim), so their alpha alone brings them and takes them away.
+      const needleOn = eus && this.needle * this.g.len > 0.4, own = (this.own ||= [p.cap, p.band, p.port, ...this.flashRings, ...this.rippleRings]);
+      p.tip.recolour(eus ? SCOPE_SILVER_C : SCOPE_DISTAL_C);   // (a forward-viewing gastroscope's end is short, black and rounded (owner's Fujifilm photo); the echoendoscope's is the chrome housing)
+      const off = this.off; off.clear();
+      if (!this.bendShown()) off.add(p.bend);
+      if (!needleOn) off.add(p.needle);
+      if (!(needleOn && this.sheathLen > 0.001)) off.add(this.sheathPart);
+      if (!eus) { off.add(p.face); off.add(p.array); } else { for (const l of p.lights) off.add(l); off.add(p.chan); }
+      for (const o of this.parts) if (!own.includes(o)) o.show(!off.has(o));
+      p.cap.present(); p.band.present(); p.cap.setAlpha(this.cap * 0.55); p.band.setAlpha(this.cap);
+      p.port.present(); p.port.setAlpha(eus ? 0.9 * this.aim : 0);
+      this.sheathPart.setGloss(1); p.needle.setGloss(1);
       this.fanMesh.visible = eus && this.fan > 0.002; this.fanMat.opacity = this.fan;
     }
     // the light at the tip fades in once the scope is on the figure and goes with it
@@ -529,6 +541,7 @@ export class EndoScope {
     this.fanMat.opacity = this.fan * k;
     if (this.gone < 1) return true;
     this.restore(); this.d = 0; this.aim = 0; this.fan = 0; this.needle = 0; this.mode = 'scope'; this.way = this.eusWay;
+    for (const o of this.parts) o.park();   // (it has faded out whole: out of the picture, nothing left to fade)
     this.group.visible = false; this.dirty = true;
     return false;
   }

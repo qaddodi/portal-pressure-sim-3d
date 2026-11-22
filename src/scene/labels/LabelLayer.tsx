@@ -41,7 +41,7 @@ import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
 import { presenceOf, type PresenceFrame } from '../vessels/network.ts';
 import { PLATE_BOUNDS, FIGURE_Z } from '../anatomy/placeholder.ts';
-import { showNumber } from './roll.ts';
+import { showNumber, restyle } from './roll.ts';
 import { StationExtras, NO_EXTRAS, type Extras } from './readings.ts';
 import { useLens } from '../lenses/store.ts';
 import { useCompare } from '../../ui/compare/store.ts';
@@ -348,8 +348,7 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     if (r.geo) writeGeo(r, d.word);
     if (r.name) {
       const word = r.geo ? '' : d.word;   // (the controller's own words for this form; an organ's already stand in capitals; a stent's lines are written in its own box)
-      r.name.textContent = word;
-      r.name.style.display = word ? '' : 'none';
+      r.name.textContent = word;   // (an empty name takes no room: labels.css `.lb-name:empty`)
       el.dataset.form = word ? String(d.form) : '2';
       if (d.rev) el.setAttribute('data-rev', ''); else el.removeAttribute('data-rev');
       el.style.setProperty('--b', `${px(baselineAt(d.h, d.pad.y))}px`);
@@ -365,14 +364,20 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
         if (d.note) el.setAttribute('data-note', ''); else el.removeAttribute('data-note');
       }
     }
-    // a stent point's number colour (the velocity lens's against the stent's own normal) and the point the Doppler samples (its name in bold)
-    const tint = d.tint ?? '';
-    if ((r.vtint ?? '') !== tint) { r.vtint = tint; if (tint) { el.style.setProperty('--lb-vtint', tint); el.setAttribute('data-tint', ''); } else { el.style.removeProperty('--lb-vtint'); el.removeAttribute('data-tint'); } }
-    if (!!r.gate !== !!d.gate) { r.gate = !!d.gate; if (d.gate) el.setAttribute('data-gate', ''); else el.removeAttribute('data-gate'); }
-    // the colour the slide's words give this station (2D .lb.term): written when the slide changes it, never in a moving frame
-    const tone = d.tone ? toneCss(d.tone) : '';
-    if ((r.tone ?? '') !== tone) { r.tone = tone; if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); }
-      for (const x of [r.anchor, r.lead]) if (x) { if (tone) { x.style.setProperty('--lb-tone', tone); x.setAttribute('data-tone', ''); } else { x.style.removeProperty('--lb-tone'); x.removeAttribute('data-tone'); } } }
+    // a stent point's number colour (the velocity lens's against the stent's own normal), the point the Doppler samples (its name in bold) and the colour the slide's words give this station (2D .lb.term):
+    // each is written when it changes, and a label that is showing crosses over to it (restyle, roll.ts) instead of stepping; LabelFader's key already crosses over the words, unit, badge, alert and mark
+    const tint = d.tint ?? '', tone = d.tone ? toneCss(d.tone) : '', gate = !!d.gate;
+    const tintNew = (r.vtint ?? '') !== tint, gateNew = !!r.gate !== gate, toneNew = (r.tone ?? '') !== tone;
+    if (tintNew || gateNew || toneNew) {
+      r.vtint = tint; r.gate = gate; r.tone = tone;
+      restyle(el, () => {
+        if (tintNew) { if (tint) { el.style.setProperty('--lb-vtint', tint); el.setAttribute('data-tint', ''); } else { el.style.removeProperty('--lb-vtint'); el.removeAttribute('data-tint'); } }
+        if (gateNew) { if (gate) el.setAttribute('data-gate', ''); else el.removeAttribute('data-gate'); }
+        if (toneNew) { if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); } }
+      }, d.alpha * d.mix);
+      // (the ring and the leader are the label's own pieces, drawn at their own opacity)
+      if (toneNew) for (const x of [r.anchor, r.lead]) if (x) restyle(x, () => { if (tone) { x.style.setProperty('--lb-tone', tone); x.setAttribute('data-tone', ''); } else { x.style.removeProperty('--lb-tone'); x.removeAttribute('data-tone'); } }, Number(x.style.opacity) || 0);
+    }
     if (d.value !== r.value && r.cur) {
       const was = r.value;
       r.value = d.value;
