@@ -26,7 +26,7 @@ import { TUBE_DEPTH_SHARE } from '../shaders.ts';
 import { SKIN_K } from './junction/sdf.ts';
 import { SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { NET_CAP_VS, NET_FS } from './shaders.ts';
-import { REGION_CAPS, REGION_PTS } from './regions.ts';
+import { REGION_CAPS, REGION_HEAD, REGION_PTS } from './regions.ts';
 import { JUNC_CUT_TEXELS, JUNC_EDGE_REGIONS } from './junc-cut-glsl.ts';
 import type { Skeleton } from './types.ts';
 import type { Region } from './regions.ts';
@@ -38,6 +38,8 @@ export const juncSdf = (search?: string): boolean => flagValue('junc', search ??
 /** The most steps a ray takes through the proxy, the share of a step it moves (the smooth minimum is not an exact distance: a full step can overshoot), and the hit tolerance in blend widths. */
 /** The marks' gate: an arm's chevrons and streaks fade out over this many blend widths outside its capsule (inside the crotch both arms' run on and overlap). */
 export const JUNC_MARK_GATE = 0.5;
+/** A sewn region's march yields to the host's own tube where the union is within this share of the blend width of the host-only surface. */
+export const JUNC_HOST_YIELD = 0.01;
 export const JUNC_STEPS = 48, JUNC_STEP_K = 0.9, JUNC_EPS_K = 0.003;
 /** A fade ramp that keeps a fillet at share 0 for every t (regions.ts regionFades: in over [2, 3] never starts inside [0, 1]). */
 export const NO_FILLET: readonly [number, number, number, number] = [2, 3, 2, 3];
@@ -175,12 +177,15 @@ flat varying vec4 vJuncBound;
 flat varying float vJuncRow;
 vec4 jP[${W}];
 float jMate[${CAPS}];
-int jNc = 0;
+int jNc = 0, jNa = 0;
+bool jSewn = false;   // a sewn end's region (J3, net/sewn.ts): the caps from jNa on are the HOST's, whose tube is drawn by its own draw
 float jKMin = 1.0;
 void juncLoad(int rr) {
   vec4 hd = texelFetch(regionTex, ivec2(0, rr), 0);
   jNc = int(hd.x + 0.5);
   int na = int(hd.y + 0.5);
+  jNa = na;
+  jSewn = texelFetch(regionTex, ivec2(${REGION_HEAD - 1}, rr), 0).w > 0.5;
   jKMin = 1.0e9;
   for (int c = 0; c < ${CAPS}; c++) {
     if (c >= jNc) break;
@@ -263,6 +268,13 @@ void main() {
     if (t > t1) break;
   }
   vec3 q = ro + rd * tMin;
+  // A SEWN END'S HOST: its tube is drawn by its own draw (another draw's cut cannot hold this region, and a capsule in the middle of the host has no single plane), so the march yields where the union is the host's own surface (hit, or the
+  // closest approach of an outline): there the host tube draws the very same surface and ink, and the two never z-fight. Only the arm and the blend's skirt are the march's.
+  if (jSewn) {
+    int sgH; float stH, dHost = 1.0e20;
+    for (int c = 0; c < ${CAPS}; c++) { if (c >= jNc) break; if (c >= jNa) dHost = min(dHost, juncArm(c, q, sgH, stH)); }
+    if (dHost - juncUnion(q, kU) < ${F(JUNC_HOST_YIELD)} * kU) discard;
+  }
   // THE NEAREST ARMS at the point: the first gives the edge state, the second the blend (the fillet's vBlend: up to a half where the two are equally near)
   // (the second is the nearest arm that is not the first nor its mate: the two halves of a run-on are one course)
   int cA = 0, cB = -1, sA = 0, sB = 0;

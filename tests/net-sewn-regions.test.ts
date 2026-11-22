@@ -68,3 +68,14 @@ test('a host is no arm: a host with many sewn ends registers none of them, and e
 test('a region whose narrowest arm has no radius is not marched (a sewn collateral that is not there)', () => {
   assert.match(JUNC_GEOM_VS, /rArm < 0\.02 \* rmax \? vec4\(0\.0\)/);
 });
+
+test('a sewn region\'s march yields to the host\'s own tube: where the union is the host-only surface it draws nothing (hit or outline), so the two never z-fight', async () => {
+  const { JUNC_FS, JUNC_HOST_YIELD } = await import('../src/scene/vessels/net/junc-sdf.ts');
+  const main = JUNC_FS.slice(JUNC_FS.lastIndexOf('void main() {'));
+  assert.match(JUNC_FS, /jSewn = texelFetch\(regionTex, ivec2\(4, rr\), 0\)\.w > 0\.5;/);
+  const yieldAt = main.indexOf('if (dHost - juncUnion(q, kU) <');
+  assert.ok(yieldAt > main.indexOf('vec3 q = ro + rd * tMin;'), 'after the march has its point');
+  assert.ok(yieldAt < main.indexOf('if (!hit && minPx > inkCss) discard;'), 'before the outline and the shading');
+  assert.match(main, /if \(c >= jNa\) dHost = min\(dHost, juncArm\(c, q, sgH, stH\)\);/);
+  assert.ok(JUNC_HOST_YIELD > 0 && JUNC_HOST_YIELD <= 0.05, 'a hair of the blend width: the skirt still draws');
+});
