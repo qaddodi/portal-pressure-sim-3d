@@ -36,3 +36,14 @@ test('the label layer\'s anatomy is the settled body: no dive in either directio
   assert.match(readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), /anatomy: \(\) => cel\.view === 'body' && cel\.circuit\.t === 0 && !cel\.circuit\.toCircuit && !cel\.diving/);
   assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /get diving\(\): boolean \{ return this\.inDive\(\); \}/);
 });
+
+test('one gate, every readout: the station names, the catheter\'s and procedures\' cards and the probes\' readings all stand aside while the camera dives, and ease back after', () => {
+  const layer = readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8');
+  assert.match(layer, /hidden: \(\) => cel\.circuit\.t > 0 \|\| cel\.circuit\.toCircuit \|\| cel\.diving/, 'the station names');
+  assert.match(layer, /probeLabels\.paint\(!cel\.diving, fr\.dt\)/, 'the probes\' readings');
+  const dom = readFileSync('src/scene/labels/probe-labels-dom.ts', 'utf8');
+  assert.match(dom, /s\.alpha \* gate/); assert.match(dom, /d\.alpha \* gate/);
+  const ctl = readFileSync('src/scene/labels/controller.ts', 'utf8');
+  assert.match(ctl, /const all = d\.hidden\?\.\(\) \? \[\] : this\.active\(\);/);
+  assert.match(ctl, /const here = d\.anatomy \? d\.anatomy\(\) : true;/, 'the catheter\'s and the procedures\' cards');
+});
