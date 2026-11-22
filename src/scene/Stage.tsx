@@ -18,6 +18,7 @@ import { firstDraw, spanAsync } from '../boot/spans.ts';
 import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
+import { govern, newGovernor } from './detail-governor.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
@@ -145,20 +146,24 @@ function SceneBridge() {
   // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
   const setDpr = useThree((s) => s.setDpr);
   useEffect(() => {
-    let was = -1, settle: TimerId | null = null;
+    let was = -1, settle: TimerId | null = null, applied = 0;
+    // N1: the governor judges the frames that are drawn (detail-governor.ts); a notch it asks for is taken at rest, so the figure never changes size under a move
+    const gov = newGovernor(clock.now());
     const apply = () => {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
-      const d = figureDpr(st.figureDetail, st.sharpMoving, moving, window.devicePixelRatio || 1);
-      if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); }
+      if (!moving) applied = gov.drop;
+      const d = figureDpr(Math.max(0, st.figureDetail - applied), st.sharpMoving, moving, window.devicePixelRatio || 1);
+      if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); document.documentElement.dataset.detailDrop = String(applied); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
       clock.cancel(settle);
-      if (moving && !st.sharpMoving) settle = clock.after(apply, 200);
+      if ((moving && !st.sharpMoving) || (moving && gov.drop !== applied)) settle = clock.after(apply, 200);
     };
     apply();
     const off = clock.on('camera', apply, 1);
+    const offGov = clock.on('tags', (f) => { const was = gov.drop; if (govern(gov, f.time, f.dt) !== was) { clock.cancel(settle); settle = clock.after(apply, 200); } }, 90);
     const un = useSettings.subscribe(apply);
-    return () => { off(); un(); clock.cancel(settle); };
+    return () => { off(); offGov(); un(); clock.cancel(settle); };
   }, [setDpr]);
 
   // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
