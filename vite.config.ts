@@ -8,6 +8,30 @@ function csp(): Plugin {
   return { name: 'csp', apply: 'build', transformIndexHtml: { order: 'post', handler: (html) => withCsp(html) } };
 }
 
+/** The page's entry (src/entry.ts) fetches the app (src/main.tsx) by a dynamic import, so the page's own tags do not name it. This adds them: a modulepreload for the app's chunk and every chunk it statically imports, and
+ *  a stylesheet link for the CSS they carry, so the browser (and the offline worker's install list, scripts/pwa.mjs, which reads the page's tags) fetches them at once, beside the entry, instead of after it. */
+function appPreload(): Plugin {
+  return {
+    name: 'app-preload', apply: 'build',
+    transformIndexHtml: { order: 'post', handler: (html, ctx) => {
+      const bundle = ctx.bundle; if (!bundle) return html;
+      const app = Object.values(bundle).find((o) => o.type === 'chunk' && o.facadeModuleId?.replace(/\\/g, '/').endsWith('/src/main.tsx'));
+      if (!app || app.type !== 'chunk') throw new Error('app-preload: the app chunk (src/main.tsx) is not in the build');
+      const js = new Set<string>(), css = new Set<string>();
+      const walk = (name: string) => {
+        if (js.has(name)) return;
+        const c = bundle[name]; if (!c || c.type !== 'chunk') return;
+        js.add(name);
+        for (const f of c.viteMetadata?.importedCss ?? []) css.add(f);
+        for (const i of c.imports) walk(i);
+      };
+      walk(app.fileName);
+      const tags = [...js].map((f) => `<link rel="modulepreload" crossorigin href="./${f}">`).concat([...css].map((f) => `<link rel="stylesheet" crossorigin href="./${f}">`)).join('\n    ');
+      return html.replace('</head>', `    ${tags}\n  </head>`);
+    } },
+  };
+}
+
 /** `virtual:gl-modules`: a lazy import of every source file that holds GLSL, found by the same scan the GLSL compile test uses, for the ?gl page (src/debug/gl-check-run.ts), so a new shader is checked on the device with nothing to register. */
 function glModules(): Plugin {
   const id = 'virtual:gl-modules';
@@ -30,7 +54,7 @@ export function vendorChunk(id: string): string | undefined {
 // `base: './'` so the built site works at any address: the repo's Pages URL, a preview folder, or a local server.
 export default defineConfig({
   base: './',
-  plugins: [react(), glModules(), csp()],
+  plugins: [react(), glModules(), appPreload(), csp()],
   worker: { format: 'es' },
   build: {
     target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 700,

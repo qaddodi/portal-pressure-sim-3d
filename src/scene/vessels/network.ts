@@ -11,6 +11,7 @@ import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts'
 import { ORGAN_Z } from '../organs/z.ts';
 import { ALONG_VEIN_IDS, LEAVE_VEIN_IDS, alongVein, leaveVein } from './starts.ts';
 import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, trimHost } from './liver-branches.ts';
+import { CAUDATE_VEIN_ID, caudateVeinSet } from './caudate-veins.ts';
 import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
@@ -256,6 +257,15 @@ function build(): NetVessel[] {
       id: `${b.host}~F:b`, host: b.host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv)), label: e.label ?? b.host,
       pts: b.list[0]!.pts.map(([x, y]): Vec3 => [x3(x), y3(y), TIER_Z[tierOf(e)]]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: b.host,
       plan: { kind: 'feeder', list: b.list, cfgK: 1, hostW: hv, when: b.when }, feeder: { host: b.host, when: b.when }, lensSpan: b.span,
+    });
+  }
+  // The caudate lobe's three short hepatic veins, opening into the IVC (caudate-veins.ts): one tributary group on the cava's piece, shown while a slide is about the lobe (scene.ts setCaudate).
+  {
+    const set = caudateVeinSet(NETWORK_HOST_W(edgeById.get('IVC_IS_1')!)), e = edgeById.get(set.host)!, hv = NETWORK_HOST_W(e), baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
+    out.push({
+      id: CAUDATE_VEIN_ID, host: set.host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * set.list[0]!.k)), label: 'Caudate lobe veins',
+      pts: set.list[0]!.pts.map(([x, y]): Vec3 => [x3(x), y3(y), TIER_Z[tierOf(e)]]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: set.host,
+      plan: { kind: 'feeder', list: set.list, cfgK: 1, hostW: hv, when: set.when }, feeder: { host: set.host, when: set.when }, lensSpan: set.span,
     });
   }
   return out;

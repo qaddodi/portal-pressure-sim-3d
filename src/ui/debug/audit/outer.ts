@@ -26,6 +26,8 @@ export function addressFor(search: string, c: { auto?: boolean; sizes: string[];
   return `?audit${c.auto ? '=frames' : ''}&sizes=${c.sizes.join(',')}&depth=${c.depth}${c.speed > 1 ? `&speed=${c.speed}` : ''}${c.noglass ? '&noglass=1' : ''}${c.parallel ? '&parallel=1' : ''}${c.sequence === undefined ? '' : `&sequence=${c.sequence ? 1 : 0}`}${rest ? `&${rest}` : ''}`;
 }
 export const SILENT_MS = 150000;
+/** How long a frame's app has to say hello (it boots the whole app first) before the status says it has not. */
+export const HELLO_MS = 20000;
 
 /** The address of the app inside a frame: the same path, `?audit=run`, the depth, and whatever else the outer address carried (the frame list and the old audit flags are dropped). */
 export function childSrc(pathname: string, search: string, depth: string, o: { speed?: number; noglass?: boolean; sequence?: boolean } = {}): string {
@@ -98,14 +100,17 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
     const r = room.getBoundingClientRect(), k = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * k)}px`; wrap.style.height = `${Math.round(d.h * k)}px`; wrap.style.margin = '0 6px';
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${k})`;
-    let silent: TimerId, finished = false;
-    const end = (res0: { data?: AuditData; why?: string }) => { if (finished) return; finished = true; const kept = partial.get(id); const res = !res0.data && kept ? { data: { ...kept, stopped: true, notes: [...kept.notes, `PARTIAL: this size did not finish (${res0.why ?? 'no result'}); these are the steps it got through`] } } : res0; clock.cancel(silent); win.removeEventListener('message', on); clock.cancel(poll); wrap.remove(); done(res); };
+    let silent: TimerId, finished = false, heard = false;
+    // (a frame whose app has not said hello says so, with its address: the self-test never sits on "Loading the app…" without a word)
+    const late = clock.after(() => { if (!heard && !finished) status.textContent = `${d.label}: the app in the frame has not started after ${HELLO_MS / 1000} s. Open ${frame.src} on its own and add &perf to see where its start is waiting.`; }, HELLO_MS);
+    const end = (res0: { data?: AuditData; why?: string }) => { if (finished) return; finished = true; const kept = partial.get(id); const res = !res0.data && kept ? { data: { ...kept, stopped: true, notes: [...kept.notes, `PARTIAL: this size did not finish (${res0.why ?? 'no result'}); these are the steps it got through`] } } : res0; clock.cancel(silent); clock.cancel(late); win.removeEventListener('message', on); clock.cancel(poll); wrap.remove(); done(res); };
     const wake = () => { clock.cancel(silent); silent = clock.after(() => end({ why: `silent for ${SILENT_MS / 1000} s (the frame crashed or never booted)` }), SILENT_MS); };
     const on = (e: MessageEvent) => {
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
       const m = e.data as Msg | null; if (!m || typeof m !== 'object' || !('audit' in m)) return;
       wake();
-      if (m.audit === 'progress') { progress.set(id, `${d.label}: step ${m.n}: ${m.label}`); status.textContent = [...progress.values()].join(' | '); counts.set(id, { n: m.n, total: m.total ?? m.n }); showPace(); }
+      if (m.audit === 'hello') { heard = true; status.textContent = `${d.label}: the app has started; it settles, then the walk begins.`; }
+      else if (m.audit === 'progress') { progress.set(id, `${d.label}: step ${m.n}: ${m.label}`); status.textContent = [...progress.values()].join(' | '); counts.set(id, { n: m.n, total: m.total ?? m.n }); showPace(); }
       else if (m.audit === 'partial') partial.set(id, m.data);
       else if (m.audit === 'done') end({ data: m.data });
       else if (m.audit === 'failed') end({ why: m.why });
@@ -119,7 +124,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const showPace = (done = false) => { const c = combine(sizesTotal - finished, counts), p = pace(prior.n + c.n, Math.max(prior.total + c.total, prior.n + c.n), runStart, clock.now(), done); meter.hidden = false; meterText.hidden = false; meter.value = p.pct; meterText.textContent = p.text; };
   async function run() {
     if (running) return; syncUrl(); running = true; stop = false; start.disabled = true; out.textContent = ''; progress.clear(); partial.clear(); counts.clear(); prior.n = 0; prior.total = 0; finished = 0; runStart = clock.now();
-    const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = clock.now(), together = par.checked;
+    const ids = ALL_SIZES.filter((id) => wanted.has(id)), parts: AuditData[] = [], failed: Bundle['failed'] = [], t0 = clock.now(), together = par.checked && ids.length > 1;   // (one size alone shares the computer with nobody: its timings stand)
     const mkBundle = (): Bundle => ({ build: parts[0]?.build ?? 'unknown', device: `${win.navigator.userAgent} · dpr ${win.devicePixelRatio}`, at: new Date().toISOString(), depth, framed: true, sha: buildInfo().commit || undefined, parallel: together, speed: parts[0]?.speed, wallMs: Math.round(clock.now() - t0), parts, failed });
     const take = (id: string, r: { data?: AuditData; why?: string }) => { const c = counts.get(id); if (!together && c) { prior.n += r.data ? r.data.rows.length : c.n; prior.total += r.data ? r.data.rows.length : c.total; counts.delete(id); finished++; } if (r.data) parts.push(r.data); else failed.push({ size: id, why: r.why ?? 'no result' }); last = mkBundle(); out.textContent = renderText(last, { short: true }); };
     sizesTotal = ids.length; status.textContent = 'Loading the app…';

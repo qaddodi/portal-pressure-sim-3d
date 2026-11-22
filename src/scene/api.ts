@@ -94,7 +94,7 @@ export const sceneApi = {
     const upright = entryUpright();
     cel.setCircuitUpright(upright);
     cel.setView('circuit');
-    setLayer('talk', { resistors: o.resistors ?? [], caudate: !!o.caudate });
+    setLayer('talk', { resistors: o.resistors ?? [], caudate: !!o.caudate, caudateVeins: false });
     const whole = !o.box || (o.box[0] <= 30 && o.box[1] <= 30 && o.box[2] >= 1360 && o.box[3] >= 730);
     const shot = whole ? circuitShot(upright) : circuitBoxShot(o.box!, upright, o.kMax ?? null);
     this.goTo(shot, room, cel.circuit.changeMs() || cel.rig.slideMs(shot));   // (a slide's move takes 2D's 800 to 1400 ms: rig.slideMs)
@@ -105,7 +105,7 @@ export const sceneApi = {
     const from = cel.view;
     if (v === 'circuit' && from !== v) cel.setCircuitUpright(entryUpright());
     if (from !== v) cel.setView(v);
-    if (from === 'circuit' && v !== 'circuit') setLayer('talk', { resistors: [], caudate: false });
+    if (from === 'circuit' && v !== 'circuit') setLayer('talk', { resistors: [], caudate: false, caudateVeins: false });
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
     const to = v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : shot;
     // a slide's move takes 2D's 800 to 1400 ms (planSlide: rig.slideMs); a catheter step's close-up (slide false) keeps the hand's glide
@@ -123,7 +123,8 @@ export const sceneApi = {
   /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): zigzags and "R liver x2.3" readings on the Circuit's map. An empty list clears them. */
   setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },   // (the reconciler's call: a writer says it with setLayer)
   /** A slide is about the caudate lobe: the Circuit draws the caudate's own lane. */
-  setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
+  /** (`veins`: the anatomy's lobe is drawn with its short hepatic veins, 2D's pinOrgans 'caudate' against 'caudate-lobe'; eased in and out) */
+  setCaudatePin(on: boolean, veins = false): void { cel.setCaudatePin(on); cel.setCaudate(on, veins); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** Which view the figure is in now (body, lobule, sinusoid, circuit). */
@@ -243,6 +244,6 @@ export const stopReconciler = startReconciler({
   setSinceRef: (P) => sceneApi.setSinceRef(P),
   markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
   setResistors: (keys) => sceneApi.setResistors(keys),
-  setCaudatePin: (on) => sceneApi.setCaudatePin(on),
+  setCaudatePin: (on, veins) => sceneApi.setCaudatePin(on, veins),
   pick: (id) => { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
 });

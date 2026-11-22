@@ -108,6 +108,6 @@ setTimeout(function(){named('fallback')},NAME_MS);
 try{var mt=document.querySelector&&document.querySelector('meta[name="pps-boot-bytes"]');total=mt?parseInt(mt.getAttribute('content'),10)||0:0}catch(e){}
 w.ppsBootTimer=setTimeout(tick,TICK_MS)})();</script>
   <div id="root"></div>
-  <script type="module" src="./src/main.tsx"></script>
+  <script type="module" src="./src/entry.ts"></script>
 </body>
 </html>

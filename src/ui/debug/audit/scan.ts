@@ -1,5 +1,6 @@
 // ?audit, the generic sweep: every visible text, picture, chart and button on the page, read as plain numbers (scan-judge.ts judges them: clipped, overlapping, covered, small, low contrast,
 // zero size, broken). Not per case: it asks the whole document, so a thing nobody thought of is read the same as one somebody did. Debug only; one read per step, never a frame.
+import { srOnlyStyle } from '../sr-only.ts';
 import type { Box } from './judge.ts';
 import { lineBoxes } from './scan-judge.ts';
 
@@ -81,7 +82,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     let v: Vis = HIDDEN;
     if (up.ok) {
       const cs = win.getComputedStyle(el);
-      const srOnly = cs.position === 'absolute' && /rect\(0(px)?,? 0(px)?,? 0(px)?,? 0(px)?\)|inset\(50%\)/.test(cs.clip + cs.clipPath) || (cs.overflow === 'hidden' && parseFloat(cs.width) <= 1 && parseFloat(cs.height) <= 1);
+      const srOnly = srOnlyStyle(cs);
       const off = cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' || el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden') || el.hasAttribute('inert') || el.hasAttribute('data-debug') || el.id === 'boot' || srOnly;
       if (!off) {
         const clips = (x: string) => x === 'hidden' || x === 'clip';

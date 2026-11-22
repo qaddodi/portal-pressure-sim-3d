@@ -13,6 +13,7 @@ import { liveCatalog, openEntry, settle as pageSettle, problems } from '../page/
 import type { Entry } from '../page/catalog.ts';
 import { flagValue } from '../flags.ts';
 import { scanPage } from './scan.ts';
+import { srOnlyMemo } from '../sr-only.ts';
 import { startLedger } from './ledger.ts';
 import type { Step, Reads } from './run.ts';
 import type { Box, LayoutRead } from './judge.ts';
@@ -192,14 +193,16 @@ function chartsOf(win: Window, card: HTMLElement, vis: (el: Element) => number):
 
 /** Words, pills, axis labels and data points of one card, each with its box and the box that clips it. */
 function kidsOf(win: Window, card: HTMLElement, vis: (el: Element) => number): { what: string; box: Box; clip: Box | null }[] {
-  const out: { what: string; box: Box; clip: Box | null }[] = [];
+  const styles = new Map<Element, CSSStyleDeclaration>(), styleOf = (el: Element) => { let c = styles.get(el); if (!c) { c = win.getComputedStyle(el); styles.set(el, c); } return c; };
+  const out: { what: string; box: Box; clip: Box | null }[] = [], forReader = srOnlyMemo(styleOf, card);
   for (const el of Array.from(card.querySelectorAll<HTMLElement>('*')).slice(0, 600)) {
     if (el.closest('[aria-hidden="true"], .dk-roll-sizer, .dk-roll-out') || el.closest(BAR_SEL)) continue;
+    if (forReader(el)) continue;   // (the chart's hidden table, a cell's spoken words: nobody sees them, so they are not cut off)
     const own = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.nodeValue ?? '').trim());
     if (!own && !el.matches(KID_SEL)) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1 || b.height < 1) continue;
-    const cs = win.getComputedStyle(el);
+    const cs = styleOf(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || vis(el) < 0.05) continue;
     const what = ((el.textContent ?? '').replace(/\s+/g, ' ').trim() || el.className.toString()).slice(0, 40);
     out.push({ what, box: [r1(b.left), r1(b.top), r1(b.right), r1(b.bottom)], clip: clipBox(win, el, card) });
