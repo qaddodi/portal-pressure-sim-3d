@@ -67,22 +67,42 @@ test('the infarct lies below its edge line and nowhere else; a partial embolizat
   o.dispose(); s.dispose?.();
 });
 
-test('the bleed\'s pool tints the stomach below its surface only, and not the whole organ', async () => {
+test('the bleed\'s pool is a level the stomach\'s shader draws per pixel, not vertex colour', async () => {
   const s = new CelScene(); const palette = paletteFor('light');
   const mk = () => new BoxGeometry(0.5, 1.2, 0.1, 3, 30, 1).translate(x3(850), y3(400), 0);
   const o = new OrganLayer(shared(s), { stomach: mk });
   o.applyLook(palette);
   const t = bodyTargets((await presetState('cirr-decomp')).frame, {}, null);
+  const st = o.byId.get('stomach')!, u = st.toon.uniforms;
+  assert.equal(st.toonMesh.geometry.getAttribute('ink'), undefined, 'the stomach has no vertex paint: the pool is per pixel');
+  assert.equal((u.poolA!.value as { z: number }).z, 0, 'no bleed, no pool');
   o.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 900 } }, true); for (let i = 0; i < 120; i++) o.update(1000 + i * 33);
-  const st = o.byId.get('stomach')!, ink = st.toonMesh.geometry.getAttribute('ink') as BufferAttribute, pos = st.toonMesh.geometry.getAttribute('position');
-  const red = (i: number) => ink.getX(i) - ink.getZ(i);
-  let high = Infinity, low = -Infinity;
-  for (let i = 0; i < ink.count; i++) { if (pos.getY(i) > y3(280)) high = Math.min(high, red(i)); if (pos.getY(i) < y3(520)) low = Math.max(low, red(i)); }
-  assert.ok(low > high + 0.05, 'the lower stomach is redder than the upper');
+  const a = u.poolA!.value as { x: number; y: number; z: number }, d = u.poolDelta!.value as { x: number; y: number; z: number };
+  assert.ok(a.z > 0.9, 'the blood is in');
+  const box = u.box!.value as { y: number; w: number };
+  const surfY = box.y - a.x * box.w;   // the level, back in scene y
+  assert.ok(surfY < y3(280) && surfY > y3(600), 'the surface is across the stomach');
+  assert.ok(d.x - d.z > 0.05, 'the pool is redder than the wash');
+  const before = a.x;
+  o.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 1400 } }, false); o.update(9000);
+  assert.ok(a.x < before + 1e-9 && a.x > 0, 'the level eases (a fuller pool is higher up the box, never a jump)');
   o.dispose(); s.dispose?.();
 });
 
-test('the painted organs are the three that vary over their surface', () => { assert.deepEqual([...PAINTED].sort(), ['liver', 'spleen', 'stomach']); assert.equal(typeof VertexPaint, 'function'); });
+test('the pool level: a fuller pool stands higher, the jet lands inside the box, and the shader runs it per pixel with a meniscus', async () => {
+  const { poolUniforms } = await import('../src/scene/organs/pool-level.ts');
+  const { ORGAN_FS } = await import('../src/scene/organs/organ-shader.ts');
+  const box = [x3(700), y3(250), 0.6, 0.9] as const;
+  const bleed = { site: 'VAR' as const, rate: 90 };
+  const lo = poolUniforms(box, 0.12, { ...bleed, total: 20 }), hi = poolUniforms(box, 1, { ...bleed, total: 1500 });
+  assert.ok(hi.level < lo.level, 'a fuller pool has its surface nearer the top of the box');
+  assert.ok(lo.landX > 0 && lo.landX < 1, 'the jet lands inside the stomach\'s box');
+  assert.ok(lo.unitsPerBox === 0.9 * 300);
+  for (const bit of ['poolA', 'fwidth(vBox.y)', 'smoothstep(-aa, aa, dU)', 'wet', 'poolDelta']) assert.ok(ORGAN_FS.includes(bit), bit);
+  assert.ok(ORGAN_FS.indexOf('fwidth(vBox.y)') < ORGAN_FS.indexOf('discard;'), 'the pool\'s derivative is taken before the window\'s discard');
+});
+
+test('the painted organs are the two that vary over their vertices (the stomach pool is per pixel)', () => { assert.deepEqual([...PAINTED].sort(), ['liver', 'spleen']); assert.equal(typeof VertexPaint, 'function'); });
 
 test('a stenosis pinches the vessel at its middle in the 2D waist, and a vessel with none is untouched', () => {
   const sig = waistSigma(8, 200);

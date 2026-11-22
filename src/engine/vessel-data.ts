@@ -14,6 +14,7 @@ import type { EngineFrame } from './hales/host/protocol.d.ts';
 import { easeInOutCubic } from '../clock/tween.ts';
 
 import { clock } from '../clock/frame.ts';
+import { drawnDiameterIds, drawnDiameterVersion, hasDrawnDiameters } from './tract-override.ts';
 interface Edge { id: string; from: string; to: string }
 const edges = EDGES as Edge[];
 const nodeIndex = new Map<string, number>((NODES as { id: string }[]).map((n, i) => [n.id, i]));
@@ -43,6 +44,8 @@ export function fillVesselData(f: Pick<EngineFrame, 'Pf' | 'Qf' | 'D'>, out: Flo
     out[i * 4 + 2] = f.D[i]!;
     out[i * 4 + 3] = b >= 0 ? f.Pf[b]! : 0;
   }
+  // a vessel a procedure is making is drawn from its own table until the model has it, then at the larger of the two (tract-override.ts)
+  if (hasDrawnDiameters()) for (const [id, d] of drawnDiameterIds()) { const k = indexById.get(id); if (k !== undefined && d > out[k * 4 + 2]!) out[k * 4 + 2] = d; }
   return out;
 }
 
@@ -59,6 +62,9 @@ export class VesselData {
   private readonly target = new Float32Array(EDGE_COUNT * 4);
   private readonly from = new Float32Array(EDGE_COUNT * 4);
   private seen = -1;
+  private ovSeen = 0;
+  private ovOn = false;
+  private last: EngineFrame | null = null;
   private had = false;
   private t0 = 0;
   private gliding = false;
@@ -74,10 +80,16 @@ export class VesselData {
   update(frame: EngineFrame | null, version: number, now: number = clock.now()): boolean {
     this.fresh = false;
     let changed = false;
-    if (frame && version !== this.seen) {
-      this.seen = version; this.fresh = true; changed = true;
+    // (a drawn diameter moved: the width is refilled from the same frame; the scene is told only when a vessel comes or goes, since its presence is the one thing that needs more than the texture)
+    const ov = drawnDiameterVersion(), ovMoved = ov !== this.ovSeen && !!frame;
+    if (frame) this.last = frame;
+    if (frame && (version !== this.seen || ovMoved)) {
+      const newer = version !== this.seen, on = hasDrawnDiameters();
+      this.seen = version; this.ovSeen = ov; changed = true;
+      if (newer || on !== this.ovOn) this.fresh = true;
+      this.ovOn = on;
       fillVesselData(frame, this.target);
-      if (frame.jump && this.had && !reduced()) { this.from.set(this.data); this.t0 = now; this.gliding = true; }
+      if (newer && frame.jump && this.had && !reduced()) { this.from.set(this.data); this.t0 = now; this.gliding = true; }
       else if (!this.gliding) this.data.set(this.target);
       this.had = true;
     }

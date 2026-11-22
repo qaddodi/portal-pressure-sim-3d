@@ -12,6 +12,7 @@ import { type Centreline, centrelineOf } from '../../vessels/centreline.ts';
 import { smoothJoinsOn } from '../../vessels/join-mode.ts';
 import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
+import { FLASHBACK_K, flashbackEnv, flashbackFront } from '../flashback.ts';
 import { BALLOON_EDGE, CATH_EDGE, type EdgeRule } from '../edges.ts';
 import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
@@ -108,7 +109,9 @@ export class ProcCatheter {
   private readonly column: DeviceObject; private readonly columnGeo: BufferGeometry;
   private readonly shaftGeo: BufferGeometry; private readonly shaftRings: ReturnType<typeof makeRings>; private readonly shaftU: Float32Array; private shaftAt = -1;
   private readonly balloon: DeviceObject; private readonly balloonGeo: BufferGeometry; private readonly balloonBands: DeviceObject[]; private readonly glints: { g: BufferGeometry; o: DeviceObject }[];
-  private readonly rings: DeviceObject[] = []; private readonly flashes: DeviceObject[] = [];
+  private readonly rings: DeviceObject[] = [];
+  /** the portal hit's flashback: the needle's own length filled with portal blood (a sleeve of the needle's course in the portal vein's colour), never a flat ring */
+  private readonly flashback: DeviceObject; private readonly flashbackGeo: BufferGeometry;
   private readonly coil: DeviceObject | null; private readonly coilGeo: BufferGeometry | null; private readonly coilN = 120;
   private last: CatheterState = { ...CATHETER_IDLE };
   /** The last `set` showed the catheter (its parts fade in and out on their own: `group` stays drawn until the last of them is gone). */
@@ -145,6 +148,9 @@ export class ProcCatheter {
     const needleRings = makeRings(nS); fill(needleRings, () => nw0);
     const ng = allocTube(nS, WIRE_SIDES + 4); writeRings(ng, needleRings, WIRE_SIDES + 4);
     this.needle = mk(ng, 'steel', 2, 'ink', 0.7);
+    const fr = makeRings(nS); fill(fr, () => nw0 * FLASHBACK_K);
+    this.flashbackGeo = allocTube(nS, WIRE_SIDES + 4); writeRings(this.flashbackGeo, fr, WIRE_SIDES + 4);
+    this.flashback = mk(this.flashbackGeo, 'trPv', 3, 'none', 0);
     this.needleCone = mk(withTang(new CylinderGeometry(0.01, nw0, rc * 1.4, 8, 1, false).rotateX(Math.PI / 2)), 'steel', 2, 'ink', 0.5);
     const wireRings = makeRings(nS); fill(wireRings, () => Math.max(rc * 0.16, 0.0009));
     const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES);
@@ -165,7 +171,6 @@ export class ProcCatheter {
     // (no collars or marker bands inside the glass: the solid dark bars Mohammad saw through the balloon, 21 Nov; the balloon is glass, the shaft seen through it, and its streaks of light)
     this.balloonBands = [];
     for (let i = 0; i < 2; i++) {
-      this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'trPv', 9, 'ink', 0));
       this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'monFree', 9, 'ink', 0));
     }
     // the coil of a TIPS that coils the coronary vein, curling on up the vein past the tip
@@ -285,7 +290,7 @@ export class ProcCatheter {
       const bev = rc * U * 1.4;
       this.needle.setReveal(Math.min(1, Math.max(0, (nD - bev * 0.5) / r.total)));
       r3.point(nD - bev * 0.5, this.v); this.needleCone.group.position.copy(this.v); this.orient(this.needleCone, nD - bev * 0.5);
-      if (s.flash > 0) this.flash(s.flash, nD, op);
+      if (s.flash > 0) this.flashBack(s.flash, tipD, nD, op);
     }
 
     // the column of wedged blood or sclerosant from the tip on (a hepatic vein beyond the wedged balloon, or the shunt the sclerosant fills)
@@ -377,13 +382,14 @@ export class ProcCatheter {
   private latexA = 0.4;
   private ballRings: ReturnType<typeof makeRings> | null = null;
 
-  /** The portal hit: two rings in the portal vein's colour, running out from the needle's point and fading as they go. */
-  private flash(f: number, nD: number, op: number): void {
-    this.r3.point(nD, this.v);
-    this.flashes.forEach((o, i) => {
-      const k = i ? (f + 0.5) % 1 : f, s = (this.rc * (1.2 + 5 * k)), a = (1 - k) * (1 - k) * 0.85;
-      this.lit.add(o); o.setAlpha(a * op); o.group.position.copy(this.v); o.group.scale.setScalar(s);
-    });
+  /** The portal hit as flashback: portal blood runs back along the needle from its point (as it does through a real needle's hub), holds, and drains; the sleeve is the needle's own course, so it can never read as a disc floating in the liver.
+   *  `f` is the hit's 0..1 window (proc-anim.js flash0..flash1). */
+  private flashBack(f: number, tipD: number, nD: number, op: number): void {
+    const { n } = this, total = this.r3.route.total, e = flashbackEnv(f);
+    const reach = Math.max(0, nD - tipD) * flashbackFront(f), from = Math.max(tipD, nD - reach);
+    this.lit.add(this.flashback);
+    this.flashback.setAlpha(e * op);
+    showRings(this.flashbackGeo, Math.floor((from / total) * (n - 1)), Math.ceil((nD / total) * (n - 1)), WIRE_SIDES + 4);
   }
   /** The tip's reading, two ripples running out of it in the reading's colour. */
   private ripple(ring: RingName, tipD: number, clock: number, op: number): void {

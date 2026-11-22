@@ -1370,6 +1370,7 @@ export class CelScene {
         return procMoving;   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
       } },
       { id: 'disease', step: ({ now }) => {
+        this.disease.bleed.seat = this.procs.tamponade.seat;   // (a seated tamponade balloon covers the tear: the jet never runs through it)
         const diseaseMoving = this.disease.update(now, this.flowRate.value);
         if (diseaseMoving) this.tagOverOrgans();
         return diseaseMoving;

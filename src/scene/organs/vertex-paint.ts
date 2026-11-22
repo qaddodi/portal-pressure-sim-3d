@@ -1,5 +1,5 @@
 // Colour that varies over an organ's surface, as 2D paints it over the organ: the pale septa between the liver's nodules, the spleen's infarcted lower part after a partial
-// embolization (a dead area and the line along its edge), and the pool of blood in the stomach's lumen. Each organ has an `ink` vertex attribute (the cel shader's own, VERTEX_INK);
+// embolization (a dead area and the line along its edge). (The pool of blood in the stomach is per pixel in the organ shader: pool-level.ts.) Each organ has an `ink` vertex attribute (the cel shader's own, VERTEX_INK);
 // this file works out, once per mesh, how much of each effect every vertex has (from its place in the 2D figure), and later fills the attribute from the organ's colours.
 // Pure arithmetic on typed arrays: the layer calls `fill*` only when the organ's colours or the disease change.
 import { BufferAttribute, type BufferGeometry, Float32BufferAttribute } from 'three';
@@ -9,7 +9,7 @@ import { x2d, y2d } from '../frame2d.ts';
 import { PSE_EDGE_A, type RGB } from './organ-look.ts';
 
 /** The organs that carry per-vertex colour. */
-export const PAINTED = new Set(['liver', 'spleen', 'stomach']);
+export const PAINTED = new Set(['liver', 'spleen']);
 
 const smooth = (e0: number, e1: number, x: number): number => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
 
@@ -37,7 +37,7 @@ export class VertexPaint {
   private readonly dead: Float32Array | null; private readonly line: Float32Array | null;
   readonly count: number;
   /** Adds the `ink` attribute to `g` (it must be there before the CelObject is made: the shader reads it only then) and works out each vertex's share of the organ's effect. */
-  constructor(g: BufferGeometry, id: 'liver' | 'spleen' | 'stomach') {
+  constructor(g: BufferGeometry, id: 'liver' | 'spleen') {
     const pos = g.getAttribute('position');
     const n = this.count = pos.count;
     this.xs = new Float32Array(n); this.ys = new Float32Array(n);
@@ -63,14 +63,6 @@ export class VertexPaint {
       const t = d[i]! * amount, u = l[i]! * amount * PSE_EDGE_A;
       const r = c[0] + (dead[0] - c[0]) * t, g = c[1] + (dead[1] - c[1]) * t, b = c[2] + (dead[2] - c[2]) * t;
       this.put(i, [r + (edge[0] - r) * u, g + (edge[1] - g) * u, b + (edge[2] - b) * u]);
-    }
-    this.attr.needsUpdate = true;
-  }
-  /** Stomach: below the pool's surface (2D y, down the page; a 3-unit soft rim) the wall is `pool`, above it `c`. */
-  fillStomach(c: RGB, pool: RGB, surface: number): void {
-    for (let i = 0; i < this.count; i++) {
-      const t = smooth(surface - 1.5, surface + 1.5, this.ys[i]!);
-      this.put(i, [c[0] + (pool[0] - c[0]) * t, c[1] + (pool[1] - c[1]) * t, c[2] + (pool[2] - c[2]) * t]);
     }
     this.attr.needsUpdate = true;
   }

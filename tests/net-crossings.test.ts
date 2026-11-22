@@ -63,6 +63,6 @@ test('the real skeleton meshes as one surface per network', { todo: 'WP2: the po
   buildNetMesh(skeleton());
 });
 
-test('the second draw exists: the pairs where both sides can blend are drawn after the rest of their network', { todo: 'not built: the network object is WP4 (the list is secondDrawPairs: 8 body and 16 map pairs today)' }, () => {
+test('the second draw exists: the pairs where both sides can blend are drawn after the rest of their network', { todo: 'not built: the network object is WP4 (the list is secondDrawPairs: 8 body and 30 map pairs today)' }, () => {
   assert.fail('no second draw yet');
 });

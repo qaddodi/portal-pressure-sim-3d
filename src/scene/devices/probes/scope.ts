@@ -21,6 +21,7 @@ import { ProbePart, TubeBuf, linePart, lookOf, type PartColour, type PartStyle }
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { NEEDLE_EDGE, mixHex, scopeEdge, scopeSoftHex } from '../edges.ts';
 import { showRings } from '../tube-rings.ts';
+import { FLASHBACK_K, flashbackEnv, flashbackFront } from '../flashback.ts';
 import type { ScopeMode } from './state.ts';
 
 type P2 = [number, number];
@@ -153,7 +154,7 @@ export const tipRadius = (u: number): number => (u <= 1 - DOME ? 1 : DOME_END + 
 export interface EusDrive { u: number; tgt: number; aim: number; fan: number; needle: number; flash: number; read: number }
 
 /** What the glue slide's procedure sets on the scope each frame (the 2D `procFrame('eusglue')` record): how far in (u, of its way), the port and elevator (aim), the sector (fan) and the needle (0..1). */
-export interface ScopeDrive { u: number; aim: number; fan: number; needle: number }
+export interface ScopeDrive { u: number; aim: number; fan: number; needle: number; /** the hit's window, 0..1 (0 or left out: none) */ flash?: number }
 
 export class EndoScope {
   readonly group = new Group();
@@ -177,7 +178,9 @@ export class EndoScope {
   /** the hit's two rings and the manometer's two ripples at the target (2D eusDraw: flash, ring) */
   /** the parts the scope's own numbers ease (see `update`), and the parts the mode switches off this frame (kept: no allocation in a frame) */
   private own: ProbePart[] | null = null; private readonly off = new Set<ProbePart>();
-  private readonly flashRings: ProbePart[] = []; private readonly rippleRings: ProbePart[] = [];
+  private readonly rippleRings: ProbePart[] = [];
+  /** the hit's flashback: the needle's own stretch filled with the station's blood (no flat ring), written with the needle in `lay` */
+  private flashBuf!: TubeBuf; private flashPart!: ProbePart;
   /** where the needle is aimed, for both stations; and how far the aim has gone from the portal vein's to the hepatic vein's (0 to 1) */
   private readonly targets: [P2, P2] = [[0, 0], [0, 0]];
   tgt = 0;
@@ -236,7 +239,8 @@ export class EndoScope {
     const lights = [0, 1].map(() => mk('graft', SCOPE_LIGHT, 2, 0.4, 3, { edge: 'none' })), ch = mk('graft', (t) => t.port, 2, 0.4, 3, { edge: 'none' });
     this.faceBuf = fc.buf; this.portBuf = pt.buf; this.arrayBuf = ar.buf; this.chanBuf = ch.buf; this.lightBufs = lights.map((l) => l.buf); this.N = N;
     const ringPart = (colour: PartColour, order: number): ProbePart => { const part = new ProbePart(withTang(new RingGeometry(0.8, 1, 48)), 'steel', shared, colour, { px: 0, order }, { edge: 'none' }); this.parts.push(part); this.group.add(part.group); return part; };
-    for (let i = 0; i < 2; i++) { this.flashRings.push(ringPart((t) => t.trPv, 6)); this.rippleRings.push(ringPart((t) => t.trPv, 6)); }
+    for (let i = 0; i < 2; i++) this.rippleRings.push(ringPart((t) => t.trPv, 6));
+    { const fb = mk('graft', PV_RING, 2, 0, 6, { edge: 'none', radial: 12 }); this.flashBuf = fb.buf; this.flashPart = fb.part; }
     this.shaft = sh.buf; this.bend = bd.buf; this.tip = tp.buf; this.lens = ln.buf; this.capBuf = cp.buf; this.bandBuf = bn.buf; this.needleBuf = nd.buf;
     { const sb = mk('poly', SCOPE_SHEATH, 2, 0.6, 5, { edge: scopeEdge(), radial: 16 }); this.sheathBuf = sb.buf; this.sheathPart = sb.part; }
     this.parts_ = { shaft: sh.part, bend: bd.part, tip: tp.part, lens: ln.part, cap: cp.part, band: bn.part, needle: nd.part, face: fc.part, port: pt.part, array: ar.part, lights: lights.map((l) => l.part), chan: ch.part };
@@ -410,6 +414,8 @@ export class EndoScope {
       // the sheath: from just inside the port along the needle, as far out as the needle has gone (never past its bevel)
       // (the sheath's start is its own vector: `ex` is this.v, and writing it there moved the port and the needle's point 0.6 units back along the needle)
       { const sl = Math.min(len3(SHEATH_LEN), Math.max(0, nU - bev)); const a = new Vector3().copy(ex).addScaledVector(nd, -len3(0.6)), b = new Vector3().copy(ex).addScaledVector(nd, sl); this.sheathBuf.line(a, b, len3(SHEATH_HALF)); this.sheathLen = sl; }
+      // the flashback: blood runs back along the needle from its point (the stem, not the bevel) as the hit goes, holds and drains
+      { const reach = stem * flashbackFront(this.flash), a = new Vector3().copy(ex).addScaledVector(nd, Math.max(0, stem - reach)), b = new Vector3().copy(ex).addScaledVector(nd, stem); this.flashBuf.line(a, b, len3(NEEDLE_HALF) * FLASHBACK_K); }
       const tipPt = this.w.copy(ex).addScaledVector(nd, nU);
       this.pose.needleEnd.copy(tipPt);
       // the sector: from the array toward the target, a little past it, 30 degrees either side (2D: apex 0.45 rigid lengths back and 0.85 radii across, reach 1.12 times the distance to the target)
@@ -443,8 +449,11 @@ export class EndoScope {
         o.group.position.copy(T); o.group.scale.setScalar(s); o.setAlpha((1 - k) * (1 - k) * a0 * this.opacity);
       });
     };
-    // the hit: two rings in the station's colour, from the needle's point out to 7.4 units (flash 0 none to 1)
-    rings(this.flashRings, eus && this.flash > 0, this.flash, 1.4, 6, 0.85, hv ? hvC : pvC);
+    // the hit: the needle fills with the station's blood (flashback), no ring
+    const fb = (eus || (this.mode === 'glue' && vis)) && this.flash > 0 && this.needle * this.g.len > 0.4;
+    if (fb) this.flashPart.recolour(hv ? hvC : pvC);
+    this.flashPart.show(fb);
+    if (fb) this.flashPart.setAlpha(flashbackEnv(this.flash) * this.opacity);
     // the reading: two ripples in the vein it reads, one cycle every 1.3 s
     rings(this.rippleRings, eus && this.read > 0, (now / 1300) % 1, 2, 5, 0.9, this.read === 2 ? hvC : pvC);
   }
@@ -459,6 +468,7 @@ export class EndoScope {
     let moving = false;
     const driven = !!drive && on && mode === 'eus', glued = !!drive && mode === 'glue';
     if (!driven && this.drove) { this.drove = false; this.flash = 0; this.read = 0; this.dirty = true; this.aim = 0; this.fan = 0; this.needle = 0; }
+    if (!driven && !glued && this.flash) { this.flash = 0; this.dirty = true; }
     if (driven) {
       const D = drive as EusDrive;
       if (this.way !== this.eusWay) { this.way = this.eusWay; this.d = 0; }
@@ -488,7 +498,7 @@ export class EndoScope {
       const a0 = this.aim, f0 = this.fan, n0 = this.needle, c0 = this.cap;
       this.aim = step(this.aim, aimGoal, 1.3); this.fan = step(this.fan, fanGoal, 0.5); this.needle = step(this.needle, needleGoal, 0.9); this.cap = step(this.cap, capGoal, 0.3);
       // (a pane that plays the glue slide's steps (the procedure layer's frame) sets all of it: how far in, the elevator and port, the sector and the needle)
-      if (glued) { const G = drive as ScopeDrive; this.d = goal; this.aim = G.aim; this.fan = G.fan; this.needle = G.needle; }
+      if (glued) { const G = drive as ScopeDrive; this.d = goal; this.aim = G.aim; this.fan = G.fan; this.needle = G.needle; const gf = G.flash ?? 0; if (gf !== this.flash) this.dirty = true; this.flash = gf; }
       moving = this.d !== was || this.aim !== a0 || this.fan !== f0 || this.needle !== n0 || this.cap !== c0;
     }
     const eus = this.mode === 'eus' || this.mode === 'glue';
@@ -502,7 +512,7 @@ export class EndoScope {
       const p = this.parts_;
       // Every part is asked to show or go (fading over DEVICE_FADE_MS, never a frame's switch): the mode decides which (a gastroscope's lens and lights, an echoendoscope's transducer and needle). The rings are `layRings`'s,
       // and the cap, the band and the port are eased by the scope's own numbers (cap, aim), so their alpha alone brings them and takes them away.
-      const needleOn = eus && this.needle * this.g.len > 0.4, own = (this.own ||= [p.cap, p.band, p.port, ...this.flashRings, ...this.rippleRings]);
+      const needleOn = eus && this.needle * this.g.len > 0.4, own = (this.own ||= [p.cap, p.band, p.port, this.flashPart, ...this.rippleRings]);
       p.tip.recolour(eus ? SCOPE_SILVER_C : SCOPE_DISTAL_C);   // (a forward-viewing gastroscope's end is short, black and rounded (owner's Fujifilm photo); the echoendoscope's is the chrome housing)
       const off = this.off; off.clear();
       if (!this.bendShown()) off.add(p.bend);
@@ -529,7 +539,7 @@ export class EndoScope {
       this.glowMat.opacity = ease01(this.glow) * this.gloneK();
     }
     this.layRings(now, vis);
-    if (vis && this.mode === 'eus' && (this.read > 0 || this.flash > 0)) moving = true;   // (the ripples run on their own clock while a reading is taken)
+    if (vis && (this.mode === 'eus' || this.mode === 'glue') && (this.read > 0 || this.flash > 0)) moving = true;   // (the ripples run on their own clock while a reading is taken)
     return moving;
   }
   /** The glue slide's scope once its procedure is taken off: parked where it stood, it fades out in place (2D parkMs, 600 ms), never travelling back up the esophagus. True while it fades. */

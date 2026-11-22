@@ -16,8 +16,7 @@ import { Eased, LiverFollow } from '../disease/follow.ts';
 import { type BodyTargets, SPLENIC_GHOST, poolFill } from '../disease/targets.ts';
 import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, setLiverTint, type RGB } from './organ-look.ts';
 import { PAINTED, VertexPaint } from './vertex-paint.ts';
-import { lumenSurface } from '../disease/copied/stomach-lumen.js';
-import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
+import { poolUniforms } from './pool-level.ts';
 import { LiverShape } from './liver-shape.ts';
 import { LiverBake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
@@ -91,6 +90,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
+    poolA: { value: new Vector4() }, poolLand: { value: new Vector3() }, poolDelta: { value: new Vector3() },   // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
     shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
   });
   m.transparent = true; m.depthWrite = true;
@@ -207,7 +207,7 @@ export class OrganLayer {
         for (let i = 0; i < pos.count; i++) { uv[i * 2] = (x2d(pos.getX(i)) - TEX_X0) / TEX_W; uv[i * 2 + 1] = (y2d(pos.getY(i)) - TEX_Y0) / TEX_H; }
         g.setAttribute('restUV', new Float32BufferAttribute(uv, 2));
       }
-      if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
+      if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       const seat = useOrganShader(o, g, id, this.uDepth);
       if (seat) this.seats.set(id, seat);
@@ -337,6 +337,7 @@ export class OrganLayer {
       this.setColours(id, o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs, s.dim * s.ghost);
       this.art.setState(id, s, k, p);
       o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px;
+      if (id === 'stomach') this.paintPool(o, c, organColour(base, { ...s, blood: this.blood.value }, k));
       const vp = this.paints.get(id);
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
@@ -360,12 +361,21 @@ export class OrganLayer {
       else if (id === 'spleen' && this.infarct.value > 0.004) {
         const dead = organColour(base, { ...s, dead: 1 }, k);
         vp.fillSpleen(c, dead, mix(organInk(rgbOf(og[2]), s, k), c, 0.1), this.infarct.value); on = true;
-      } else if (id === 'stomach' && this.blood.value > 0.004) {
-        vp.fillStomach(c, organColour(base, { ...s, blood: this.blood.value }, k), lumenSurface(POOL_SHARE * this.pool.value)); on = true;
       }
       o.setInkAmount(on ? 1 : 0);
     }
     return false;
+  }
+
+  /** The stomach's pool of blood: the level, the landing and the colour it moves the wash by, written as uniforms for the organ shader (organ-shader.ts) to draw per pixel; nothing per vertex.
+   *  `c` is the organ's one colour, `bloody` the same wash with the blood in it (it eases in and out with the bleed, so the pool's colour does). */
+  private paintPool(o: CelObject, c: RGB, bloody: RGB): void {
+    const u = o.toon.uniforms, a = u.poolA!.value as Vector4;
+    if (this.blood.value <= 0.004 || !this.body) { a.z = 0; return; }
+    const b = u.box!.value as Vector4, q = poolUniforms([b.x, b.y, b.z, b.w], this.pool.value, this.body.bleed);
+    a.set(q.level, q.unitsPerBox, this.blood.value, q.flow);
+    (u.poolLand!.value as Vector3).set(q.landX, q.landHalf, 0);
+    (u.poolDelta!.value as Vector3).set(bloody[0] - c[0], bloody[1] - c[1], bloody[2] - c[2]);
   }
 
   /** The painter's uniforms: the two gradient stops, the organ's one colour (what the vertex paint is measured from), the page, the layer, and the outline:
