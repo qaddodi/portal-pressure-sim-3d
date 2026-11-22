@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const doc = { documentElement: { dataset: {} as Record<string, string> } };
 (globalThis as { document?: unknown }).document = doc;
-const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, REVEAL_MS } = await import('../src/boot/ready.ts');
+const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, setRevealHooks, REVEAL_MS, REVEAL_DELAY_MS, REVEAL_ZOOM } = await import('../src/boot/ready.ts');
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test('held: nothing lifts the cover before a frame is drawn; the drawn frame and the next one (labels placed) lift it, once', async () => {
@@ -23,8 +23,7 @@ test('held: nothing lifts the cover before a frame is drawn; the drawn frame and
   assert.equal(lifted, 0, 'and placed is not enough either: they must be fully faded in (labelsShown), or the figure would fade in with labels still coming');
   labelsShown(); await wait(200);
   assert.equal(lifted, 1); assert.equal(doc.documentElement.dataset.boot, undefined);
-  assert.equal(doc.documentElement.dataset.reveal, '1', 'the figure settles in from a mild zoom as the cover goes');
-  await wait(REVEAL_MS + 80); assert.equal(doc.documentElement.dataset.reveal, undefined, 'and the zoom flag is taken off again');
+  assert.equal(doc.documentElement.dataset.reveal, undefined, 'no CSS zoom flag any more: the settle is the camera\'s own glide (the reveal hooks below)');
   release(); figureDrawn(); await wait(60);
   assert.equal(lifted, 1, 'never twice');
 });
@@ -52,10 +51,26 @@ test('index.html\'s inline boot script is valid JavaScript (a syntax error there
   assert.match(html, /w\.ppsBootLift=lift/);
 });
 
-test('the zoom is on the figure and its label layer together (the same centre), one scale each, and off for Reduce Motion; LabelLayer reports full labels', () => {
+// ---- splash plan A2 + A6 (22 Nov): the settle is the rig's own glide, so each frame is drawn crisp at full resolution and the labels follow by projection (the CSS scale of the finished canvas resampled both soft) ----
+test('the reveal: the closer view is put in under the cover on the first drawn frame, the glide home starts 120 ms after the lift, and a start released without a first frame never plays it', async () => {
+  const calls: string[] = [];
+  setRevealHooks({ prime: (z) => calls.push(`prime ${z}`), play: (ms) => calls.push(`play ${ms}`) });
+  holdSplash(() => calls.push('lift'));
+  compileDone(); figureDrawn(); labelsShown();
+  for (let i = 0; i < 100 && !calls.includes('lift'); i++) await wait(4);
+  assert.equal(calls[0], `prime ${REVEAL_ZOOM}`, 'primed with the first frame, behind the cover');
+  assert.ok(calls.includes('lift'));
+  assert.equal(calls.filter((c) => c.startsWith('play')).length, 0, 'the glide waits for the cover to begin its fade (A6)');
+  await wait(REVEAL_DELAY_MS + 60);
+  assert.deepEqual(calls.filter((c) => c.startsWith('play')), [`play ${REVEAL_MS}`], 'played once, 900 ms');
+  assert.ok(REVEAL_ZOOM > 1 && REVEAL_ZOOM <= 1.05 && REVEAL_DELAY_MS === 120);
+  setRevealHooks(null);
+});
+
+test('the zoom is no longer a CSS scale of the canvas; the rig glides it (primed under the cover, settled at the lift); LabelLayer reports full labels', () => {
   const css = readFileSync('src/ui/shell/global.css', 'utf8');
-  assert.match(css, /html\[data-reveal\] :is\(\.stage-root, \.lb-layer\)[^}]*animation: boot-reveal/);
-  assert.match(css, /prefers-reduced-motion: reduce\) \{ html\[data-reveal\] :is\(\.stage-root, \.lb-layer\) \{ animation: none/);
+  assert.doesNotMatch(css, /boot-reveal|data-reveal/, 'no keyframes on the figure or its label layer: nothing resamples a finished bitmap');
+  assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /setRevealHooks\(\{ prime: \(zoom\) => cel\.primeReveal\(zoom\), play: \(ms\) => \{ cel\.playReveal\(clock\.now\(\), ms, easeArrive\)/);
   assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /className="stage-root"/);
   assert.match(readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), /labelsShown\(\)/);
 });
@@ -65,7 +80,7 @@ test('the zoom is on the figure and its label layer together (the same centre), 
 async function runCover(order: 'ready-then-slow' | 'slow-then-ready' | 'keep-waiting-then-ready' | 'renderer-failure') {
   const { Script, createContext } = await import('node:vm');
   const html = readFileSync('index.html', 'utf8');
-  const code = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)[0]!;
+  const code = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;   // (the cover's script: found by what it defines, not by its place: the look script before it came first from 22 Nov)
   const timers: { at: number; fn: () => void; id: number }[] = []; let now = 0, nid = 0;
   const mkEl = (id: string) => {
     const attrs: Record<string, string> = {};

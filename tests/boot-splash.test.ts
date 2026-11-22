@@ -6,17 +6,17 @@ import { readFileSync } from 'node:fs';
 import { Script, createContext } from 'node:vm';
 
 const HTML = readFileSync('index.html', 'utf8');
-interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean }
+interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean }
 
 function run(o: Opts = {}) {
-  const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)[0]!;
+  const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;   // (the cover's script: found by what it defines, not by its place: the look script before it came first from 22 Nov)
   const timers: { at: number; fn: () => void; id: number }[] = []; let now = 0, nid = 0;
   const mkEl = (id: string) => {
     const attrs: Record<string, string> = {}, css: Record<string, string> = {}, history: number[] = [];
     const el: any = { id, className: '', innerHTML: '<i>orig</i>', parentNode: { removeChild() { el.removed = true; } }, removed: false, children: {} as Record<string, any>, history,
       style: { setProperty: (k: string, v: string) => { css[k] = v; if (k === '--p') history.push(Number(v)); } },
       getAttribute: (k: string) => attrs[k] ?? null, setAttribute: (k: string, v: string) => { attrs[k] = v; }, removeAttribute: (k: string) => { delete attrs[k]; }, hasAttribute: (k: string) => k in attrs,
-      querySelector: (sel: string) => { const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
+      querySelector: (sel: string) => { if (o.richBar && sel === '.boot-bar' && !el.innerHTML.includes('boot-msg')) return (el.children['.boot-bar'] ??= { style: {}, offsetHeight: 1 }); const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
     return el;
   };
   const boot = mkEl('boot'), root = mkEl('root'); root.firstChild = null;
@@ -169,4 +169,54 @@ test('main.tsx runs boot/started.ts first (the cover reads ppsBootStarted), and 
   assert.match(readFileSync('src/boot/started.ts', 'utf8'), /ppsBootStarted: true/);
   assert.match(readFileSync('src/boot/warm.ts', 'utf8'), /if \(splashHeld\(\)\) clock\.after\(wait, COVER_RETRY_MS\)/, 'the preload ladder waits for the cover to lift');
   assert.match(readFileSync('src/pwa/register.ts', 'utf8'), /if \(splashHeld\(\)\) \{ clock\.after\(go, 500\); return; \}/, 'so does the worker\'s install');
+});
+
+
+// ---- splash plan A1 (22 Nov): the bar had stalled at 95% for the whole CPU phase; it is one bar with two phases and always moves ----
+test('A1: bytes fill the first 55%; once the app runs, each boot stage moves the bar a fixed share further and between stages it creeps, so a long CPU stage never reads as stuck; never back, short of the end until the lift', () => {
+  const c = run({ total: 1_000_000, entries: () => file(12), dcl: false });   // every file in at once (a warm start, or a fast line)
+  c.advance(1600);
+  const h: number[] = c.boot.history;
+  assert.ok(h.at(-1)! > 0 && h.at(-1)! <= 0.55 + 1e-9, `bytes alone never pass 55% (${h.at(-1)})`);
+  c.ctx.ppsBootStarted = true;
+  const at = (t: number) => { c.advance(t); return c.boot.history.at(-1) as number; };
+  const a = at(3000), b = at(6000), d = at(9000);
+  assert.ok(a > 0.55 && b > a && d > b, `creeps through a long stage: ${a} < ${b} < ${d}`);
+  assert.ok(d < 0.66, 'and does not reach the next share by itself');
+  c.ctx.ppsBootStage('engine'); const e = at(9500);
+  assert.ok(e >= 0.66, `the engine stage moved it to its share (${e})`);
+  for (const st of ['scene', 'compile', 'first-draw', 'labels']) c.ctx.ppsBootStage(st);
+  const f = at(14000); assert.ok(f >= 0.96 && f < 1, `after the last stage it waits just short of the end (${f})`);
+  c.ctx.ppsBootStage('engine');   // (a stage told twice, or out of order, never moves the bar back)
+  const hh: number[] = c.boot.history; for (let i = 1; i < hh.length; i++) assert.ok(hh[i]! >= hh[i - 1]!, `monotonic at ${i}`);
+  c.ctx.ppsBootLift(); assert.equal(c.boot.history.at(-1), 1);
+});
+
+test('A1: the stage names the bar listens for are the boot timeline\'s own, told by stamp()', async () => {
+  const tl = readFileSync('src/boot/timeline.ts', 'utf8');
+  assert.match(tl, /ppsBootStage\?\.\(stage\)/);
+  for (const st of ['engine', 'scene', 'compile', 'first-draw', 'labels']) { assert.match(HTML, new RegExp(`['"]?${st}['"]?:\\.\\d+`), st); assert.match(tl, new RegExp(`'${st}'`), st); }
+});
+
+// ---- splash plan A3: the note and the bar change by easing, never by a swap in one frame ----
+test('A3: the bar fades out first, then the note comes in (CSS: 240 ms, 4 px rise; fade only for Reduce Motion); Keep waiting fades the note out and restores', () => {
+  const c = run({ onLine: false, dcl: false, richBar: true });
+  c.advance(3000);   // the offline note is due: the bar is asked to fade, the content is still the old one
+  assert.equal(c.boot.className, 'slow', 'the state changes at once');
+  assert.equal(c.boot.innerHTML, '<i>orig</i>', 'but what is on screen waits for the bar to fade');
+  const bar = c.boot.children['.boot-bar']; assert.equal(bar.style.opacity, '0'); assert.match(bar.style.transition, /opacity 160ms/);
+  c.advance(3200); assert.match(c.boot.innerHTML, /boot-msg/, 'the note is in once the bar is gone');
+  assert.match(HTML, /@keyframes boot-msg-in \{ from \{ opacity: 0; transform: translateY\(4px\); \} to \{ opacity: 1; transform: none; \} \}/);
+  assert.match(HTML, /#boot \.boot-msg \{[^}]*animation: boot-msg-in 240ms cubic-bezier\(\.2,\.8,\.2,1\) both/);
+  assert.match(HTML, /prefers-reduced-motion: reduce\) \{[^\n]*#boot \.boot-msg \{ animation-name: boot-msg-fade; \}/);
+  assert.match(HTML, /function swap\(el,apply\)/, 'the mark and the name glide to where the taller content puts them (FLIP), they do not jump');
+});
+
+// ---- splash plan A5: the cover's tints come from the look, never a fixed black ----
+test('A5: the bar track, the note and its buttons are mixed from the look\'s own text colour; a dark device with no saved look has a light name and track', () => {
+  assert.match(HTML, /\.boot-bar \{[^}]*background: color-mix\(in srgb, var\(--bt\) 14%, transparent\)/, 'the track is visible on Dark, Navy and Black');
+  assert.match(HTML, /\.boot-msg \{[^}]*background: color-mix\(in srgb, var\(--bt\) 8%, var\(--bg, #fff\)\); color: var\(--bt\)/, 'the note reads on every look (it was white with the look\'s light text on Dark)');
+  assert.match(HTML, /@media \(prefers-color-scheme: dark\) \{ #boot \{ --bt: var\(--text, #EEEBE5\); --bt3: var\(--text-3, #A69E95\)/, 'no saved look on a dark device: the Dark text, not dark on dark');
+  assert.doesNotMatch(HTML.slice(HTML.indexOf('#boot .boot-name'), HTML.indexOf('@keyframes boot-slide')), /var\(--surface|var\(--text-2/, 'only the tokens the first script sets (--bg, --text, --text-3)');
+  assert.match(HTML, /transition: opacity 360ms cubic-bezier\(\.5,0,\.5,1\), visibility 0s linear 360ms/, 'the cover fades over 360 ms, even (A6)');
 });

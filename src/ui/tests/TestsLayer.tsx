@@ -61,10 +61,10 @@ const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
   abdomen: (p) => <AbdomenPane square={p.square} />,
   scope: (p) => <PressureTab own="scope" {...p} />,
   profile: (p) => <PressureTab own="profile" {...p} />,
-  hvpg: (p) => <LazyBoundary><IrPane {...p} /></LazyBoundary>,
-  doppler: (p) => <LazyBoundary><DopplerPane {...p} /></LazyBoundary>,
-  endoscopy: (p) => <LazyBoundary><EndoPane {...p} /></LazyBoundary>,
-  fibroscan: (p) => <LazyBoundary><FibroPane {...p} /></LazyBoundary>,
+  hvpg: (p) => <LazyBoundary height={p.plot}><IrPane {...p} /></LazyBoundary>,
+  doppler: (p) => <LazyBoundary height={p.plot}><DopplerPane {...p} /></LazyBoundary>,
+  endoscopy: (p) => <LazyBoundary height={p.plot}><EndoPane {...p} /></LazyBoundary>,
+  fibroscan: (p) => <LazyBoundary height={p.plot}><FibroPane {...p} /></LazyBoundary>,
 };
 export function registerPane(id: PaneId, render: (p: PaneProps) => ReactNode): void { BUILT[id] = render; }
 

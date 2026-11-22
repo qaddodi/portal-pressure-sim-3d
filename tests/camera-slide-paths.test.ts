@@ -111,3 +111,26 @@ test('a slide changed in the middle of a move starts from the distance the camer
     }
   }
 });
+
+// ---- the boot reveal (splash plan A2, 22 Nov): the camera starts a little closer than rest under the cover and glides home on the rig's own move ----
+test('primeSettle puts the camera closer; settle glides it home, one way, to exactly the rest framing; nothing primed or a camera moved since means no jump', () => {
+  const dv = DEVICES[0], mk = () => { const r = new CameraRig('play', dv.room); r.resize(dv.w, dv.h); r.goTo('play', dv.room, 0); r.update(0); return r; };
+  const ease = (k: number) => k;
+  const rest = mk(); const restZoom = rest.camera.zoom;
+  const rig = mk();
+  assert.equal(rig.primeSettle(1.04), true); rig.update(16);
+  assert.ok(Math.abs(rig.camera.zoom - restZoom * 1.04) < 1e-9, 'primed: 4% closer than rest');
+  assert.equal(rig.settle(100, 900, ease), true);
+  let prev = rig.camera.zoom;
+  for (let t = 116; t <= 100 + 900 + 32; t += 16) { rig.update(t); assert.ok(rig.camera.zoom <= prev + 1e-12, `one way at ${t}`); prev = rig.camera.zoom; }
+  assert.ok(Math.abs(rig.camera.zoom - restZoom) < 1e-9, 'lands on the rest framing');
+  assert.equal(rig.handZoom, 1);
+  // a start that never primed (the failsafe): settle does nothing, so nothing jumps to the closer view
+  const lone = mk(); assert.equal(lone.settle(0, 900, ease), false);
+  // a camera moved under the cover since the prime (a resize refit, a goTo): the settle is skipped
+  const moved = mk(); moved.primeSettle(1.04); moved.goTo('play', dv.room, 0, 500); moved.update(16);
+  assert.equal(moved.settle(20, 900, ease), false);
+  // Reduce Motion never primes
+  const rm = new CameraRig('play', dv.room); rm.resize(dv.w, dv.h); rm.goTo('play', dv.room, 0); rm.update(0);
+  (rm as unknown as { reduceMotion: boolean }).reduceMotion = true; assert.equal(rm.primeSettle(1.04), false);
+});

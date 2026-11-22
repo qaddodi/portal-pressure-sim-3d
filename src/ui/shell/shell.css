@@ -211,6 +211,15 @@ html.thumb-ui:has(.sh-toast[data-on="true"]) .stage-credit { visibility: hidden;
 .sh-nogl .sh-crash-alt { background: transparent; color: var(--accent); border: 1px solid var(--edge); }
 .sh-lazyfail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px; color: var(--text-2); font: var(--t-body) / 1.4 var(--ui); }
 .sh-lazyfail button { min-height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); color: var(--text); font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; }
+/* The one wait cue (wait-cue.ts, splash plan A7): 2D's spinner and words in a quiet pill over the figure, which stays faintly visible under it. */
+.sh-waitcue { position: fixed; left: 50%; top: 50%; translate: -50% -50%; z-index: var(--z-chrome, 20); display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); border: 1px solid var(--edge); color: var(--text-2); font: 500 var(--t-body) / 1.2 var(--ui); opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease-arrive); }
+.sh-waitcue.in-host { position: absolute; }
+.sh-waitcue.on { opacity: 1; }
+.sh-waitcue i { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--text) 12%, transparent); border-top-color: color-mix(in srgb, var(--text) 52%, transparent); animation: pz-spin 1.1s linear infinite; }
+/* A lazy part's place while its code comes (LazyBoundary): a quiet frame at the pane's height, so the pane does not open empty and then pop; the part itself fades in when it lands (the fade is run by LazyBoundary's Arrive). */
+.sh-lazyhold { position: relative; border-radius: 12px; background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid color-mix(in srgb, var(--text) 8%, transparent); animation: sh-fade-in var(--d-small) var(--ease-arrive) both; }
+.sh-lazymark { display: none !important; }
+@media (prefers-reduced-motion: reduce) { .sh-waitcue i { animation: none; } .sh-lazyhold { animation: none; } }
 .sh-glnote { position: fixed; left: 50%; bottom: calc(var(--sheet-gap) + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: var(--z-chrome, 20); display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 999px; background: var(--surface); border: 1px solid var(--edge); color: var(--text); font: 600 var(--t-body) / 1.2 var(--ui); transition: opacity var(--d-small) var(--ease-arrive); }
 .sh-glnote button { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; }
 /* (above the figure's note, so the two never overlap) */

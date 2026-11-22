@@ -1,3 +1,4 @@
+import { waitCue } from '../ui/shell/wait-cue.ts';
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { span } from '../boot/spans.ts';
 import { stamp } from '../boot/timeline.ts';
@@ -806,20 +807,30 @@ export class CelScene {
   /** Every camera move of the app comes here. A move INTO the lobule or the sinusoid waits until their 3D parts are built and primed (`heldDive`): a dive is never begun toward something that
    *  cannot be drawn. The body stays as it stands meanwhile (the build is rushed, a second or so at most on a phone, often nothing), then the dive starts from where the camera is. A newer move replaces a waiting one. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void {
-    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.heldDive = { shot, room, ms, ease }; this.buildMicroIdle(true); return; }
-    this.heldDive = null;
+    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
+    this.hold(null);
     this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true;
   }
+  /** The boot reveal (boot/ready.ts, splash plan A2): the camera a little closer than rest while the splash is up, and the glide home as it lifts. Only the body view settles; any other start just fades. */
+  primeReveal(k: number): void { if (this.figureView === 'body' && this.rig.primeSettle(k)) this.moving = true; }
+  playReveal(now: number, ms: number, ease: (k: number) => number): void { if (this.figureView === 'body' && this.rig.settle(now, ms, ease)) this.moving = true; }
   /** A dive waiting for the micro views (goTo), with the room it will land in. */
   private heldDive: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null = null;
   get diveHeld(): boolean { return this.heldDive !== null; }
+  /** A dive waits (or stops waiting). A wait that passes 300 ms shows the one calm cue (ui/shell/wait-cue.ts, splash plan A7), so the held dive is never a silent blank; a short one shows nothing. */
+  private holdCue: (() => void) | null = null;
+  private hold(h: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null): void {
+    this.heldDive = h;
+    if (h) this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule');
+    else { this.holdCue?.(); this.holdCue = null; }
+  }
   /** The cards changed room while a dive waits: it will land in the new one. */
   holdRoom(room: Room): void { if (this.heldDive) this.heldDive.room = room; }
   /** The micro views are ready: a waiting dive starts now (only while its view is still the one asked for: a tap back to the body in the meantime replaced it). */
   private releaseDive(): void {
     const h = this.heldDive;
     if (!h || !this.microPrimedNow) return;
-    this.heldDive = null;
+    this.hold(null);
     if (this.figureView === 'lobule' || this.figureView === 'sinusoid') this.goTo(h.shot, h.room, clock.now(), h.ms, h.ease);
   }
 
@@ -937,7 +948,7 @@ export class CelScene {
     // (the idle slices normally finished long before; a dive straight after the load asks for them here, and waits: the dive frame is off until `microReady`, nothing is
     // built in this frame)
     if (v === 'lobule' || v === 'sinusoid') this.buildMicroIdle(true);
-    else this.heldDive = null;   // (a dive still waiting for its parts is dropped by any move out of them)
+    else this.hold(null);   // (a dive still waiting for its parts is dropped by any move out of them)
     if (v === 'lobule' || v === 'sinusoid' || wasSinusoid) this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)
