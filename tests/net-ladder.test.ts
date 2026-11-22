@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
 import { fixtures } from './net-lib.ts';
-// @ts-expect-error (a plain .mjs script)
 import { sourceHash, readLadderFile } from '../scripts/net-ladder.mjs';
 
 test('a build that starts on the remembered rung gives the same mesh as the full ladder', () => {
