@@ -77,7 +77,7 @@ test('an edited link is cleaned: unknown patient named, bad values repaired and 
   const f = fake();
   await loadShared(s, f.d);
   assert.equal(typeof (f.st.params as { cirrhosis: unknown }).cirrhosis, 'number');
-  assert.deepEqual(f.said, [[SHARE_WORDS.missing('no-such'), 'bad']]);
+  assert.deepEqual(f.said, [[SHARE_WORDS.missing('no-such'), undefined]]);   // (the app opened fine on the healthy patient: not a failure, no red dot)
   assert.equal(readShare('#s=%%%', IDS), null); assert.equal(readShare('#s=bm90IGpzb24', IDS), null); assert.equal(readShare('', IDS), null);
   const proto = readShare(`#s=${Buffer.from('{"v":1,"preset":"csph","params":{"__proto__":{"polluted":1},"cirrhosis":0.5}}').toString('base64url')}`, IDS)!;
   assert.deepEqual(Object.keys(proto.params!), ['cirrhosis']); assert.equal(({} as Record<string, unknown>).polluted, undefined);

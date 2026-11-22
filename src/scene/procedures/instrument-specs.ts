@@ -44,7 +44,7 @@ export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
       step('gastric', 'Gastric balloon', 'The gastric balloon is inflated in the stomach and the tube is put under traction, so the balloon compresses the cardia and the varices there.', 'Balloon', 'C2'),
       step('done', 'Bridge', 'Tamponade holds the bleeding for 24 hours at most. It is a bridge to a TIPS or a transplant, not a treatment.', 'Bridge', 'C2'),
     ],
-    can: (p: any) => (p?.balloonGas ? 'The gastric balloon is already up.' : ''), offered: () => true,
+    can: (p: any) => (p?.balloonGas ? 'The gastric balloon is already inflated.' : ''), offered: () => true,
     apply: (p) => { p.balloonGas = true; return p; }, had: (p) => !!p?.balloonGas, undo: (p) => { p.balloonGas = false; return p; }, before: { balloonGas: false },
   },
   dips: {

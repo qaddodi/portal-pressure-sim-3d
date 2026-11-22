@@ -65,7 +65,7 @@ test('the zoom is on the figure and its label layer together (the same centre), 
 async function runCover(order: 'ready-then-slow' | 'slow-then-ready' | 'keep-waiting-then-ready' | 'renderer-failure') {
   const { Script, createContext } = await import('node:vm');
   const html = readFileSync('index.html', 'utf8');
-  const code = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)[0]!;
+  const code = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;   // (the page's first inline script is the saved look's ground, boot-look.test.ts)
   const timers: { at: number; fn: () => void; id: number }[] = []; let now = 0, nid = 0;
   const mkEl = (id: string) => {
     const attrs: Record<string, string> = {};

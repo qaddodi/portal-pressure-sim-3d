@@ -301,6 +301,13 @@ function withFanJoints(courses: Course[]): Course[] {
   });
 }
 
+/** A collateral is drawn by its STRANDS (the trunk's own tube is not drawn while they are), and on the Circuit's map every strand is carried by the ONE map course: three tubes laid over one another. Built with the few rings the body needs (a strand of C4: 77 on 1250 map units) each cut the
+ *  corner of that course (a 16 unit arc) its own way, three different zig-zags over one bend with stray ink where their chords crossed (Mohammad, 22 Nov: the rectal and retroperitoneal bends). A strand is built with this many times the rings the map asks of the trunk (24 to a scene unit, circuit/geometry.ts
+ *  slicesFor, 6.4 map units a ring): a ring every 3 map units or less, so a corner is 8 rings or more of arc. The trunk's own count is left as it was: the junction skins are meshed on it (the meshes depend on where its rings lie), and a skin's strand arms (braid-arm.ts) take the strands' count from here. */
+export const STRAND_RING_K = 2.2;
+/** The most rings a strand is built with. */
+export const STRAND_RINGS_MAX = 600;
+
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */
 export function tubularOf(v: NetVessel, minFirst = 0): number[] {
   // (always counted on the 2D rule's courses, so the vertex count never depends on the smooth-joins switch: a toggle rewrites the tubes in place, VesselObject.reshape)
@@ -310,6 +317,6 @@ export function tubularOf(v: NetVessel, minFirst = 0): number[] {
   return rest.map((c, i) => {
     let len = 0;
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
-    return Math.max(i === 0 ? minFirst : 0, tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? 3 : 1)));   // (a divided vein's round stump is built from rings a third as far apart: vessels/divide.ts)
+    return Math.max(i === 0 ? minFirst : Math.min(STRAND_RINGS_MAX, Math.ceil(minFirst * STRAND_RING_K)), tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? 3 : 1)));   // (a divided vein's round stump is built from rings a third as far apart: vessels/divide.ts)
   });
 }

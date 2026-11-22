@@ -16,6 +16,6 @@ export async function sendFeedback(email: string): Promise<void> {
   location.href = feedbackHref(email, fb ? { ...plain, build: fb.build, view: fb.link } : plain, fb?.short ?? '');
   const full = fb?.full;
   if (full) {
-    useShell.getState().say('Your email app has the short report.', 'info', { label: 'Copy the full report', run: () => { navigator.clipboard?.writeText(full).then(() => useShell.getState().say('Full report copied: paste it under your message.'), () => useShell.getState().say('Could not copy it from here.', 'bad')); } });
+    useShell.getState().say('Your email app has the short report. Want the full one too?', 'info', { label: 'Copy full report', run: () => { navigator.clipboard?.writeText(full).then(() => useShell.getState().say('Full report copied. Paste it below your message.'), () => useShell.getState().say('Couldn’t copy it from here.', 'bad')); } });
   }
 }

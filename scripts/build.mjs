@@ -38,8 +38,8 @@ if (onMain && checks) { console.error(`main does not ship with a failed check: $
 const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: checks } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 // The 2D stylesheets are copied whole; the rules that style something this app never makes are taken out of the BUILT file (scripts/css-unused.mjs; the copies in src/ui/css2d stay byte for byte). PPS_NO_CSS_PRUNE=1 skips it.
-if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) console.warn('warning: the stylesheet was not pruned; it ships whole'); }
-writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${checks || 'ok'}\n`);
+if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) { console.warn('warning: the stylesheet was not pruned; it ships whole'); failed.push('css prune'); if (onMain) { console.error('main does not ship with an unpruned stylesheet'); process.exit(1); } } }
+writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n`);
 const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
 if (pw.status !== 0) process.exit(pw.status ?? 1);
 console.log(`built v${release} ${branch}@${commit} → dist/`);
