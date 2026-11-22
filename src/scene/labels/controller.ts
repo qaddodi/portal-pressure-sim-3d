@@ -479,6 +479,9 @@ export class LabelController {
     for (const m of metas) setSig += m.id + (m.rev ? '~' : '') + ':' + m.vkey + (m.optional ? '?' : '') + ',';
     // a label that is no longer asked for goes at once (it fades out where it stands); the ones that come in wait for the picture to be still
     for (const id of this.wants.keys()) if (id !== 'key' && !next.has(id)) { this.wants.delete(id); this.dirty = true; }
+    // The key belongs to the slide that shows it: when the slide has none (state.key null) it is no longer asked for and eases out where it stands, with the slide's own fade. It was the one
+    // want that loop skipped and nothing else removed, so the lens key of one slide stayed on the figure, over everything, across every slide after it (Mohammad, 22 Nov: "the lens legend sticks around").
+    if (!this.state.key && this.wants.delete('key')) this.dirty = true;
     // the catheter's two points move with the picture too: where the tip and the point ahead stand now
     const pr = this.state.proc, got = pr ? (pr.points(this.cTip, this.cAhead) ? 2 : 0) : d.cathere(this.cTip, this.cAhead);
     const tipPx = got ? d.project(this.cTip, { x: 0, y: 0 }) : null, aheadPx = got ? d.project(this.cAhead, { x: 0, y: 0 }) : null;
