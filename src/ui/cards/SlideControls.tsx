@@ -6,6 +6,7 @@ import type { Deck, Slide } from '../../decks/schema.ts';
 import { useLapse, lapseText } from '../../decks/hp/lapse.ts';
 import { pickCompare, dragWhatIf, whatIfStart, pickScale, dragToolOption, toolOptionStart, strainHold } from '../talk/controls-run.ts';
 import { useVariant } from '../talk/variant-words.ts';
+import { useStates } from '../../decks/hp/calc.ts';
 
 /** 2D shows no scale pill (Anatomy, Lobule, Sinusoid) in a talk; kept off here the same. */
 export const SCALE_PILL = false;
@@ -62,7 +63,9 @@ function WhatIf({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   const [v0, setV0] = useState(() => (w.tool ? toolOptionStart(deck, i, w.tool, w.min) : whatIfStart(deck, i, w.paths, w.min)));
   const [v, setV] = useState(v0);
   // the slide's own value comes in when its state is worked out (the first slide opens before the engine has answered)
-  useEffect(() => { const x = w.tool ? toolOptionStart(deck, i, w.tool, w.min) : whatIfStart(deck, i, w.paths, w.min); setV0(x); setV(x); }, [slide.id, deck, i, w]);
+  // (the slide's computed state is a dependency: a slide opened by a jump, a link or behind a slow second engine takes its own value when the state arrives, never `min` for good; audit W7)
+  const state = useStates((s) => s.results[deck.id]?.[i]);
+  useEffect(() => { const x = w.tool ? toolOptionStart(deck, i, w.tool, w.min) : whatIfStart(deck, i, w.paths, w.min); setV0(x); setV(x); }, [slide.id, deck, i, w, state]);
   // a slide shown again starts with its own state: the charts read the slide's own until the slider is moved
   useEffect(() => { useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, deck.id]);
   const frac = (x: number) => Math.min(1, Math.max(0, (x - w.min) / (w.max - w.min)));

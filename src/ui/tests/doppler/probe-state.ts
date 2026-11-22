@@ -25,7 +25,7 @@ let bound = false;
 export function bindDopplerProbe(): void {
   if (bound) return;
   bound = true;
-  onFrame((f) => { const id = (f as unknown as { probe?: string }).probe; if (id && id !== useDopplerProbe.getState().probe) useDopplerProbe.setState({ probe: id }); });
+  onFrame((f) => { const id = (f as unknown as { probe?: string }).probe; if (id && id !== useDopplerProbe.getState().probe) useDopplerProbe.setState({ probe: id }); }); // (lives for the page)
 }
 bindDopplerProbe();
 

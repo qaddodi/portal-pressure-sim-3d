@@ -1,0 +1,160 @@
+{
+ "_note": "Plan 38 gate G5 (Settings reach). A row is edited, never the test. reach: react (a React reader re-renders), subscribe (a store subscriber applies it), ease (an Ease/glide holds the clock itself), input (read when the next input arrives), dive (only matters while a dive keeps the clock awake), per-frame+invalidate (read per frame, so the writer path wakes the clock). A per-frame key needs an invalidate in the file named.",
+ "settings-reach": {
+  "look": {
+   "reach": "react",
+   "file": "src/looks/use-look.ts"
+  },
+  "lookChosen": {
+   "reach": "input",
+   "file": "src/state/settings.ts"
+  },
+  "blur": {
+   "reach": "subscribe",
+   "file": "src/main.tsx"
+  },
+  "figureDetail": {
+   "reach": "react",
+   "file": "src/scene/Stage.tsx"
+  },
+  "sharpMoving": {
+   "reach": "react",
+   "file": "src/scene/Stage.tsx"
+  },
+  "autoDetail": {
+   "reach": "react",
+   "file": "src/scene/Stage.tsx"
+  },
+  "keys": {
+   "reach": "react",
+   "file": "src/ui/keys/useKeys.ts"
+  },
+  "showFps": {
+   "reach": "react",
+   "file": "src/ui/shell/Diagnostics.tsx"
+  },
+  "showBreakdown": {
+   "reach": "react",
+   "file": "src/ui/shell/Diagnostics.tsx"
+  },
+  "organDepth": {
+   "reach": "subscribe",
+   "file": "src/scene/organs/organ-settings.ts"
+  },
+  "tilt": {
+   "reach": "input",
+   "file": "src/scene/Stage.tsx"
+  },
+  "dof": {
+   "reach": "dive",
+   "file": "src/scene/post-aa.ts"
+  },
+  "particles": {
+   "reach": "per-frame+invalidate",
+   "file": "src/scene/scene.ts"
+  },
+  "hideBehind": {
+   "reach": "ease",
+   "file": "src/scene/scene.ts"
+  },
+  "fluidSurface": {
+   "reach": "per-frame+invalidate",
+   "file": "src/scene/scene.ts"
+  },
+  "deviceShadow": {
+   "reach": "ease",
+   "file": "src/scene/scene.ts"
+  }
+ },
+ "messages": {
+  "_note": "Plan 38 gate G1. Every param-changing message type the page sends, from which module, how the page copy follows, and the tick it fires. A new sender or type fails until it is named here (a row is edited, never the test).",
+  "setParams": [
+   {
+    "file": "src/engine/params-send.ts",
+    "follows": "sendParams writes the sanitized page copy first",
+    "tick": "setParams"
+   }
+  ],
+  "action": [
+   {
+    "file": "src/ui/action/send.ts",
+    "follows": "echoed by the next frame's params",
+    "tick": "adoptFrame"
+   },
+   {
+    "file": "src/ui/talk/controls-run.ts",
+    "follows": "echoed by the next frame's params",
+    "tick": "adoptFrame"
+   }
+  ],
+  "morph": [
+   {
+    "file": "src/decks/hp/lapse.ts",
+    "follows": "echoed by frame params (about 4 a second while morphing)",
+    "tick": "adoptFrame"
+   },
+   {
+    "file": "src/decks/hp/link.ts",
+    "follows": "echoed by frame params",
+    "tick": "adoptFrame"
+   },
+   {
+    "file": "src/ui/deck/procs-link.ts",
+    "follows": "echoed by frame params",
+    "tick": "adoptFrame"
+   },
+   {
+    "file": "src/ui/talk/controls-run.ts",
+    "follows": "echoed by frame params",
+    "tick": "adoptFrame"
+   }
+  ],
+  "lapse": [
+   {
+    "file": "src/decks/hp/lapse.ts",
+    "follows": "echoed by frame params every tick",
+    "tick": "adoptFrame"
+   }
+  ],
+  "restore": [
+   {
+    "file": "src/ui/timeline/index.ts",
+    "follows": "local setParams(sanitizeParams(snap.params)) beside the send",
+    "tick": "setParams"
+   }
+  ],
+  "advance": [
+   {
+    "file": "src/ui/timeline/index.ts",
+    "follows": "echoed by frame params",
+    "tick": "adoptFrame"
+   }
+  ],
+  "preset": [
+   {
+    "file": "src/engine/boot.ts",
+    "follows": "the presetLoaded reply: local sanitized setParams",
+    "tick": "setParams"
+   },
+   {
+    "file": "src/ui/patients/index.ts",
+    "follows": "the presetLoaded reply: local sanitized setParams and presetStarted",
+    "tick": "setParams"
+   }
+  ],
+  "init": [
+   {
+    "file": "src/engine/boot.ts",
+    "follows": "the preset load that follows",
+    "tick": "setParams"
+   },
+   {
+    "file": "src/engine/pool.ts",
+    "follows": "warm worker, no patient yet",
+    "tick": "none"
+   }
+  ],
+  "reset": [],
+  "breath": []
+ }
+}

@@ -197,7 +197,7 @@ let started = false;
 export function startFeed(): void {
   if (started) return;
   started = true;
-  onFrame((f) => feed.adopt(f as unknown as FeedFrame));
+  onFrame((f) => feed.adopt(f as unknown as FeedFrame)); // (lives for the page)
 }
 
 /** The record as a trace reads it (arrays read when asked: a backfill replaces them). */

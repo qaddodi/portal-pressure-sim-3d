@@ -10,7 +10,9 @@ import { patient, useParamsTick } from '../../engine/store.ts';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Params = any;
 export interface Entry { params: Params; label: string }
-export interface UpdateOpts { label?: string; history?: boolean; settle?: boolean }
+export interface UpdateOpts { label?: string; history?: boolean; settle?: boolean;
+  /** the change is the new base (a slide's patient, a link, a restored patient): what the learner changes is counted from it, and the Undo history before it is gone (audit W9) */
+  base?: boolean }
 
 /** The tick lives with the copy it follows (engine/store.ts setParams bumps it on every change); `bump` here is for the history list only (the numbers on a card come from frames, not from here). */
 export { useParamsTick };
@@ -32,6 +34,9 @@ let base: { id: string; params: Params } | null = null;
  *  as the 2D app's loadPreset does. `params` are the patient's own settings (the worker's `presetLoaded`). */
 export function presetStarted(id: string, params: Params): void { base = { id, params: structuredClone(params) }; past = []; future = []; bump(); }
 /** The loaded patient's own settings (the 2D `presetBase`), or null when there is none yet. */
+/** The patient as it stands now becomes the base: a slide's state, a link's or a restored patient's is a fact about the patient, not a change of the learner's. Treat's "Your changes" counts from
+ *  here, Clear all returns here, and Undo does not walk back through what came before it. */
+export function rebase(): void { const p = currentParams(); if (!p) return; base = { id: base?.id ?? '', params: structuredClone(p) }; past = []; future = []; bump(); }
 export const presetBase = (): Params | null => base?.params ?? null;
 
 /** Make a change: `patchOrFn` is a patch (deep merged) or a function that edits the copy it is given (and may return it). Returns false when nothing was made. */
@@ -45,9 +50,9 @@ export function updateParams(patchOrFn: Record<string, unknown> | ((p: Params) =
   if (typeof patchOrFn === 'function') { const copy = structuredClone(prev); next = (patchOrFn as (p: Params) => Params | void)(copy) ?? copy; } else next = deepMerge(prev, patchOrFn);
   if (!next) return false;
   next = migratePieceKeys(next);
-  if (history) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
+  if (history && !opts.base) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
   sendParams(next, { settle: opts.settle ?? false, replace: true });
-  bump();
+  if (opts.base) rebase(); else bump();
   for (const h of hooks) h({ label, history });
   return true;
 }

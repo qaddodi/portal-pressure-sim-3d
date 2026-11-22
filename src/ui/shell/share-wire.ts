@@ -53,7 +53,7 @@ function cameraWhenLanded(cam: Cam): void {
 const deps: ShareDeps = {
   loadPatient,
   currentParams,
-  setParams: (params) => { updateParams(() => params, { settle: true, history: false, label: 'From the link' }); },
+  setParams: (params) => { updateParams(() => params, { settle: true, history: false, base: true, label: 'From the link' }); },
   view: () => useShell.getState().view,
   goToView: (v) => { goToView(v); },
   select: (sel) => selectStructure(sel),

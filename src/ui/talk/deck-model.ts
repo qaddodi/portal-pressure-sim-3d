@@ -8,6 +8,8 @@ import { useShell } from '../shell/store.ts';
 import { loadPatient } from '../menu/patients.ts';
 import { patient } from '../../engine/store.ts';
 import { sendParams } from '../../engine/params-send.ts';
+import { deepMerge } from '../../engine/hales/portal/scenario.js';
+import { presetBase, rebase } from '../action/params.ts';
 import type { SlideModel } from '../../decks/schema.ts';
 import type { Stop, Pos } from '../deck/presenter-machine.ts';
 
@@ -17,6 +19,10 @@ export const modelAt = (stops: Stop[], pos: Pos): SlideModel | null => { const s
 /** The first slide's patient (the title and the outline stand on it). */
 export const firstModel = (stops: Stop[]): SlideModel | null => { for (const s of stops) if (s.kind === 'slide') return s.slide.model ?? null; return null; };
 
+/** The parameters a slide asks for on the patient that is already loaded: the preset's own settings with the slide's changes merged on, not the current ones (Plan 32 gate 3). */
+export function slideParams(slide: object, base: unknown = presetBase()): unknown {
+  return base && typeof base === 'object' ? deepMerge(structuredClone(base) as Record<string, unknown>, slide as Record<string, unknown>) : slide;
+}
 let token = 0;
 /** Loads a slide's patient; the newest ask wins (a second tap meanwhile drops the first). */
 export async function applyModel(m: SlideModel, dip = false): Promise<boolean> {
@@ -26,12 +32,13 @@ export async function applyModel(m: SlideModel, dip = false): Promise<boolean> {
     const who = {};
     if (dip) await dipIn(who);
     const ok = (await loadPatient(m.preset)) && mine === token;
-    if (ok && m.params) sendParams(m.params, { settle: true });
+    if (ok && m.params) { sendParams(m.params, { settle: true }); rebase(); }   // (the new patient's own settings are the base; the slide's changes are the talk's, not his)
     if (dip) { if (ok) await new Promise((r) => clock.after(r, 180)); await dipOut(who); }   // (the new patient's first frames are drawn before the dim lifts)
     return ok;
   }
   if (!m.params) return true;
-  sendParams(m.params, { settle: true });
+  sendParams(slideParams(m.params), { settle: true, replace: true });   // (the slide's patient is the preset's own settings plus the slide's: never the leftover of a slider on the last one)
+  rebase();
   return true;
 }
 
@@ -59,6 +66,6 @@ export const captureSaved = (): Saved => ({ preset: useEngine.getState().presetI
 export async function restoreSaved(s: Saved): Promise<void> {
   if (!s.preset) return;
   if (!(await loadPatient(s.preset))) return;
-  if (s.params) sendParams(s.params, { settle: true, replace: true });
+  if (s.params) sendParams(s.params, { settle: true, replace: true });   // (the base stays the loaded preset's own settings: what he had changed before the talk is still his, listed in Treat)
   useShell.setState({ patientId: s.preset });
 }

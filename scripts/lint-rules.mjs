@@ -56,6 +56,33 @@ export const RULES = {
     applies: (p) => !under(p, 'src/engine/hales') && p !== 'src/engine/params-send.ts',
     visit: (n) => n.type === 'Property' && !n.computed && (n.key.name === 'type' || n.key.value === 'type') && n.value.type === 'Literal' && n.value.value === 'setParams',
   },
+  /** Plan 38 G6: a subscription made inside a function must be kept to be removed. A `.subscribe(`, `onFrame(`, `clock.on(`, `lookGlide.watch(` or `onParamsChange(` call used as a statement inside a function body
+   *  throws its remover away; mark the ones that live for the page with `// (lives for the page)` on the line. A useEffect that adds an event listener and returns nothing never removes it. */
+  'discarded-unsubscribe': {
+    applies: (p) => !vendored(p),
+    visit: (n, text) => {
+      const out = [];
+      const lineEnd = (pos) => { const e = text.indexOf('\n', pos); return e < 0 ? text.length : e; };
+      const marked = (st) => text.slice(st.start, lineEnd(st.end)).includes('(lives for the page)');
+      const fn = n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression';
+      if (fn && n.body?.type === 'BlockStatement') {
+        for (const st of n.body.body) {
+          if (st.type !== 'ExpressionStatement') continue;
+          const e = unwrap(st.expression);
+          if (e?.type === 'CallExpression' && ['subscribe', 'onFrame', 'onParamsChange', 'watch'].includes(callName(e)) && (callName(e) !== 'onFrame' || unwrap(e.callee).type === 'Identifier') && (callName(e) !== 'watch' || dotted(unwrap(e.callee)) === 'lookGlide.watch') && !marked(st)) out.push(st);
+          else if (e?.type === 'CallExpression' && dotted(unwrap(e.callee)) === 'clock.on' && !marked(st)) out.push(st);
+        }
+      }
+      if (n.type === 'CallExpression' && ['useEffect', 'useLayoutEffect'].includes(callName(n))) {
+        const cb = unwrap(n.arguments[0]);
+        if (cb && (cb.type === 'ArrowFunctionExpression' || cb.type === 'FunctionExpression') && cb.body?.type === 'BlockStatement') {
+          const adds = cb.body.body.find((st) => st.type === 'ExpressionStatement' && callName(st.expression) === 'addEventListener');
+          if (adds && !cb.body.body.some((st) => st.type === 'ReturnStatement') && !marked(adds)) out.push(adds);
+        }
+      }
+      return out;
+    },
+  },
   /** An R3F <Canvas> never runs its own loop: frameloop="never" and the clock's bridge inside it. */
   'canvas-own-loop': {
     applies: (p) => !vendored(p) && p.endsWith('.tsx'),
@@ -74,7 +101,11 @@ export function lintFiles(files) {
     try { ast = parseAst(text, { lang: path.endsWith('x') ? 'tsx' : 'ts' }); } catch (e) { hits.push({ rule: 'parse-error', path, line: 1, text: String(e.message ?? e).split('\n')[0] }); continue; }
     const lineOf = (pos) => { let l = 1; for (let i = text.indexOf('\n'); i !== -1 && i < pos; i = text.indexOf('\n', i + 1)) l++; return l; };
     const walk = (n) => {
-      for (const [rule, r] of active) if (r.visit(n)) hits.push({ rule, path, line: lineOf(n.start), text: text.slice(n.start, n.end).split('\n')[0].slice(0, 100) });
+      for (const [rule, r] of active) {
+        const h = r.visit(n, text);
+        if (!h || (Array.isArray(h) && !h.length)) continue;
+        for (const t of Array.isArray(h) ? h : [n]) hits.push({ rule, path, line: lineOf(t.start), text: text.slice(t.start, t.end).split('\n')[0].slice(0, 100) });
+      }
       for (const k in n) { const v = n[k]; if (Array.isArray(v)) { for (const c of v) if (c && typeof c.type === 'string') walk(c); } else if (v && typeof v.type === 'string') walk(v); }
     };
     walk(ast);

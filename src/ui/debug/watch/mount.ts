@@ -15,9 +15,9 @@ export function mountWatch(opts: { dot?: boolean } = {}): Recorder {
   if (rec) return rec;
   const r = createRecorder(domSources(), { env: { vw: innerWidth } });
   rec = r;
-  clock.on('tags', (f) => r.sample(f.time), 1000);
+  clock.on('tags', (f) => r.sample(f.time), 1000); // (lives for the page)
   let last = useShell.getState().view;
-  useShell.subscribe((s) => { if (s.view !== last) { last = s.view; r.event('view', { to: s.view }); } });
+  useShell.subscribe((s) => { if (s.view !== last) { last = s.view; r.event('view', { to: s.view }); } }); // (lives for the page)
   for (const ev of ['pointerdown', 'wheel', 'touchstart'] as const) window.addEventListener(ev, () => r.event('hand'), { passive: true, capture: true });
   clock.every(() => { if (!clock.awake) r.sample(clock.now()); }, 500);
   const text = () => { const f = r.findings(); return f.length ? f.map((x) => findingText(x)).join('\n') : 'No motion findings in the last 20 seconds.'; };

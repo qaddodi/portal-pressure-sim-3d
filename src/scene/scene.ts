@@ -397,6 +397,7 @@ export class CelScene {
     this.unJoins = useSettings.subscribe((st, prev) => {
       if (st.deviceShadow !== prev.deviceShadow) this.shadow.to(st.deviceShadow ? 1 : 0, fadeRate(FLOW_FADE_MS));
       if (st.hideBehind !== prev.hideBehind) this.occ.to(st.hideBehind ? 1 : 0, fadeRate(FLOW_FADE_MS));
+      if (st.particles !== prev.particles) clock.invalidate('streaks');   // (the cells read it per frame: a still figure wakes to ease the streaks, W8)
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
