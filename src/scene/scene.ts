@@ -21,6 +21,7 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
+import { SutureSet } from './vessels/suture.ts';
 import { WHY_COLOUR, joinsReport, type JoinsReport } from './vessels/skin/join-report.ts';
 import { findOverlaps, type Overlap } from './vessels/overlaps.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
@@ -488,6 +489,8 @@ export class CelScene {
   get skinStats(): Readonly<{ rebuilds: number; lastMs: number; worstMs: number; lastNode: string }> | null { return this.skins?.stats ?? null; }
   /** The Circuit's own junction skins (circuit/skins.ts): the same welds on the map, built with the Anatomy's, drawn over the end of the change. */
   private circuitSkins: CircuitSkinSet | null = null;
+  /** The stitches at the shunt ends the skins weld (vessels/suture.ts): the tube's own are cut away with the end. */
+  private sutures: SutureSet | null = null;
   private circuitSkinKey = '';
   private joins: JoinsMode;
   /**
@@ -505,7 +508,7 @@ export class CelScene {
   get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
   private refreshSkins(): void {
     const phase = smoothJoinsOn() ? joinsPhase(this.joins) : 0;   // (always on in the app; only a test's useSmoothJoins(false) turns it off)
-    if (!phase) { this.skins?.dispose(); this.skins = null; this.circuitSkins?.dispose(); this.circuitSkins = null; return; }
+    if (!phase) { this.sutures?.dispose(); this.sutures = null; this.skins?.dispose(); this.skins = null; this.circuitSkins?.dispose(); this.circuitSkins = null; return; }
     this.skins ??= new SkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
       stateOf: (id) => this.shapes?.stateOf(id),
@@ -516,6 +519,8 @@ export class CelScene {
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
+    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide });
+    this.sutures.sync(this.skins);   // (made with the skins, so the warm-up builds the program with the rest)
     this.shapes?.setPins(this.skins.pins());   // (the seams stand still while the collaterals coil: no skin is rebuilt for a growth)
     this.circuitSkins ??= new CircuitSkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
@@ -1409,7 +1414,7 @@ export class CelScene {
         // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
         const skinPending = this.skins?.step() ?? false;
         if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
-        return anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+        return anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false, this.sutures?.sync(this.skins) ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
       } },
       { id: 'micro', step: ({ now }) => {
         this.stepSinusDive();
@@ -1656,6 +1661,7 @@ export class CelScene {
     this.disposed = true; for (const e of this.eases) e.dispose();
     this.unJoins();
     for (const k of [...this.inspectMarks.keys()]) this.putInspectMarks(k, null);
+    this.sutures?.dispose();
     this.skins?.dispose();
     this.circuitSkins?.dispose();
     this.micro?.sinus.dispose(); this.micro?.lobule.dispose();
