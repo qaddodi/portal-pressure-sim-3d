@@ -29,3 +29,19 @@ test('the figure paints it from the stents, and the stent device gives it the wa
   assert.match(dev, /waistSpan\(g\)/);
   assert.match(dev, /this\.amount \* Math\.min\(1, Math\.max\(0, \(\(g\.red \|\| 0\) - 0\.004\) \/ 0\.03\)\)/);
 });
+
+test('the bracket is one quiet hairline: a soft halo, never a hard ring, one weight for bar and ticks', () => {
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  const bar = /\.wb-bar \{[^}]*\}/.exec(css)![0], tick = /\.wb-tick \{[^}]*\}/.exec(css)![0];
+  for (const r of [bar, tick]) { assert.match(r, /height: var\(--wb-w\)/); assert.match(r, /drop-shadow\(/); assert.doesNotMatch(r, /box-shadow/); }
+  assert.match(css, /--wb-w: 1px/);
+});
+
+import { readdirSync } from 'node:fs';
+test('no overlay in the figure wears a hard box-shadow ring as its halo (text and svg marks use the stroke halo, lines the soft drop-shadow)', () => {
+  const dirs = ['../src/scene/labels/', '../src/scene/circuit/', '../src/scene/'];
+  for (const d of dirs) for (const f of readdirSync(new URL(d, import.meta.url)).filter((n) => n.endsWith('.css'))) {
+    const css = readFileSync(new URL(d + f, import.meta.url), 'utf8');
+    assert.doesNotMatch(css, /box-shadow:\s*0 0 0 [^;]*halo/, `${f}: a hard ring halo`);
+  }
+});

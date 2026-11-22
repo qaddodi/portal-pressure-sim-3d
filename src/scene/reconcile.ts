@@ -7,6 +7,12 @@ export interface ReconcileTarget {
   setNamedVessels(ids: readonly string[]): void;
   pinOrgans(ids: readonly string[], normalSpleen?: boolean): void;
   setSinceRef(P: ArrayLike<number> | null): void;
+  /** light exactly these vessels (the scene clears the pick as it does); [] puts them out */
+  markVessels(ids: readonly string[]): void;
+  /** pick a vessel, or null to clear (the scene's own highlight and the pick store) */
+  pick(id: string | null): void;
+  setResistors(keys: FigureIntent['resistors']): void;
+  setCaudatePin(on: boolean): void;
 }
 
 const same = (a: readonly string[], b: readonly string[]): boolean => a === b || (a.length === b.length && a.every((x, i) => x === b[i]));
@@ -16,6 +22,13 @@ export function reconcile(prev: FigureIntent, next: FigureIntent, to: ReconcileT
   if (!same(prev.named, next.named)) to.setNamedVessels(next.named);
   if (!same(prev.pins, next.pins) || prev.normalSpleen !== next.normalSpleen) to.pinOrgans(next.pins, next.normalSpleen);
   if (prev.sinceRef !== next.sinceRef) to.setSinceRef(next.sinceRef);
+  if (!same(prev.resistors, next.resistors)) to.setResistors(next.resistors);
+  if (prev.caudate !== next.caudate) to.setCaudatePin(next.caudate);
+  // The lit vessels and the pick share one highlight: lighting vessels replaces the pick in the scene (and putting them out leaves none), so the pick the intent holds is put back
+  // whenever nothing is lit and either the lit set just ended or the pick changed. While vessels are lit the pick is hidden, not lost.
+  const litChanged = !same(prev.marked, next.marked);
+  if (litChanged) to.markVessels(next.marked);
+  if (next.marked.length === 0 && (litChanged || prev.picked !== next.picked)) to.pick(next.picked);
   return next;
 }
 

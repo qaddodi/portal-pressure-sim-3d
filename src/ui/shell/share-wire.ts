@@ -10,8 +10,8 @@ import { selectStructure, useSelection } from '../action/selection.ts';
 import { loadPatient } from '../patients/index.ts';
 import { goToView } from './view-actions.ts';
 import { hasShare, loadShared, readShare, shareUrl, SHARE_WORDS, type ShareDeps, type ShareNow, type FigureExtras } from './share.ts';
-import type { Cam } from '../debug/packet/state.ts';
-import { applyExtras } from '../debug/packet/apply.ts';
+import { SHARE_SHEETS, type Cam } from '../debug/packet/state.ts';
+import { applyExtras } from './share-apply.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { DEFAULT_LENS } from '../../scene/lenses/model.ts';
 
@@ -21,7 +21,7 @@ function figureNow(): FigureExtras {
   const f = useShell.getState().figure as unknown as Record<string, unknown>, lens = useLens.getState().lens;
   const flags: Record<string, boolean> = {};
   for (const k of ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile']) if (typeof f[k] === 'boolean') flags[k] = f[k] as boolean;
-  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...(typeof f.labelLevel === 'string' ? { labels: f.labelLevel } : {}), figure: flags };
+  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...(typeof f.labelLevel === 'string' ? { labels: f.labelLevel } : {}), figure: flags, ...(SHARE_SHEETS.includes(String(useShell.getState().sheet)) ? { sheet: String(useShell.getState().sheet) } : {}) };
 }
 /** The scenario on the screen now. The camera rides only when the hand has moved it (a view frames itself). */
 export function shareNow(): ShareNow {
@@ -59,7 +59,8 @@ const deps: ShareDeps = {
   select: (sel) => selectStructure(sel),
   setCamera: cameraWhenLanded,
   say: (text, tone) => useShell.getState().say(text, tone),
-  setFigure: (fig) => { applyExtras(fig); },
+  setFigure: (fig) => { applyExtras({ ...fig, sheet: undefined }); },
+  openSheet: (sheet) => { if (SHARE_SHEETS.includes(sheet)) useShell.getState().open(sheet as 'compare' | 'layers' | 'blood' | 'lens'); },
 };
 const presetIds = () => UI.presets.map((p) => p.id);
 

@@ -31,6 +31,7 @@ import { readUiWalls } from './ui-walls.ts';
 import { resSig, resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
+import { HandWatch } from '../labels/hand-watch.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[]).map((n, i) => [n.id, i]));
 /** What a leader crossing a vessel costs the solver, per line (the hepatic artery's name hung from a leader across the whole sinusoid bundle). */
@@ -233,6 +234,7 @@ export function CircuitCaptions() {
         useShell.getState().figure.labelLevel, [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
         [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
     };
+    const hand = new HandWatch();
     const tick = () => {
       const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
@@ -243,7 +245,7 @@ export function CircuitCaptions() {
       cel.mapPoint(800, 500, tmp); pc.x = tmp.x; pc.y = tmp.y;   // (four corners of a square on the plate: the words ride its perspective exactly under a tilt, ride.ts)
       cel.mapPoint(700, 500, tmp); pd.x = tmp.x; pd.y = tmp.y;
       const g = gate.step({
-        now, dt, on: onMap, moving: cel.rig.isMoving, a: pa, b: pb, c: pc, d: pd, layout: layoutSig,
+        now, dt, on: onMap, moving: cel.rig.isMoving, byHand: hand.step(cel.rig.handView, cel.rig.isMoving), a: pa, b: pb, c: pc, d: pd, layout: layoutSig,
         fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()),
       });
       if (g.solve) solveNow();
