@@ -194,8 +194,10 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 /* The stent's waist bracket (waist-bracket.ts): a flat bar and two ticks in the label ink with the labels' halo, laid by transform and opacity; it fades with the waist and leaves the same way (visibility waits for the fade). */
 .wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s linear var(--d-small, 200ms); }
 .wb[data-on] { transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s; }
-.wb-bar { width: 100px; height: 1.5px; margin-top: -0.75px; background: var(--lb-val); box-shadow: 0 0 0 var(--lb-halo-w, 1px) var(--lb-halo); border-radius: 1px; }
-.wb-tick { width: 5px; height: 1.5px; margin-top: -0.75px; background: var(--lb-val); box-shadow: 0 0 0 var(--lb-halo-w, 1px) var(--lb-halo); border-radius: 1px; }
+.wb { --wb-w: 1px; --wb-a: 0.8; }
+/* a quiet dimension line: one hairline in the label ink, a soft halo (a blur, not a hard ring: the hard 1px ring read as a thick black bar with a white core on the dark look), fine end ticks the same weight */
+.wb-bar { width: 100px; height: var(--wb-w); margin-top: calc(var(--wb-w) / -2); background: var(--lb-val); filter: drop-shadow(0 0 1.5px var(--lb-halo)); border-radius: 0.5px; }
+.wb-tick { width: 4px; height: var(--wb-w); margin-top: calc(var(--wb-w) / -2); background: var(--lb-val); filter: drop-shadow(0 0 1.5px var(--lb-halo)); border-radius: 0.5px; }
 
 /* ── a slide's callout, as the 2D app draws it (every callout of a slide: a thick ring on the place, a leader of the same stroke, the words in the same colour, no card; lobule-zoom.js callEl,
    callLine, callRing; `small.call`: stroke 4, danger / accent / quiet ink). The marks on a vessel or an organ (block, treat) are 2D's solid pill in the same colour. ── */
