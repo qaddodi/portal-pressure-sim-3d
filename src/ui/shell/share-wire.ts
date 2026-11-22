@@ -11,7 +11,7 @@ import { loadPatient } from '../patients/index.ts';
 import { goToView } from './view-actions.ts';
 import { hasShare, loadShared, readShare, shareUrl, SHARE_WORDS, type ShareDeps, type ShareNow, type FigureExtras } from './share.ts';
 import type { Cam } from '../debug/packet/state.ts';
-import { applyExtras } from '../debug/packet/apply.ts';
+import { applyExtras } from './share-apply.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { DEFAULT_LENS } from '../../scene/lenses/model.ts';
 
