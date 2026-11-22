@@ -2,7 +2,7 @@
 // region's capsules (axes through bones at their live centre, radius the live lumen with swell, width and presence; k = SKIN_K x the narrowest arm's live radius) by three Newton steps, and takes that union's gradient at the shade width for its normal. Tubes stay on bones.
 // The CPU oracle (tests/net-oracle.ts junctionPose) is the vertex stage's twin line for line; the GLSL itself cannot run in node, so tests/net-shader.test.ts and the glslang compile hold the text to the same constants.
 // Pinned, over the fixtures with a junction, in rest, map, t = .25 / .5 / .75, zoom-out, swell 1.2/.85, presence .3: every junction vertex within 0.01 R of the live union; the normal within 3 degrees (p99) of the finite-difference normal of that union at the shade width;
-// no triangle that faces into the union; stretch p99 at most 3x; the ink hull pushed along that normal is within 15% of a tube's width. The differential swell .5/2 (a 4:1 ratio between arms) is a todo: it folds 5% of a fillet's triangles.
+// no triangle that faces into the union; stretch p99 at most 3x; the ink hull pushed along that normal is within 15% of a tube's width. The differential swell over the app's real range (arm ratio 2.0 and 3.2: 'swell real 2.0 / 3.2') is a todo that holds the numbers: a fold inside the real range is a root bug, fitted starts (WP2) are the fix.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildNetMesh } from '../src/scene/vessels/net/mesh.ts';
@@ -54,13 +54,13 @@ for (const fx of fixtures()) {
         if (l0 > 1e-9) stretch.push(L(pose.position) / l0);
       }
     }
-    const extreme = name === 'swell .5/2', baseline = fx.name === 'HT' ? 1 : 0;   // (HT's mesh has one sliver facing in at rest: WP2's)
-    test(`${fx.name} @ ${name}: every junction vertex within 0.01 R of the live union, normal within 3 deg (p99) of its finite-difference normal, ink hull within 15% of its width across the fillet`, { todo: extreme ? 'a 4:1 swell between arms: Newton 3 steps do not converge everywhere (HT 0.15 R)' : Math.max(...inkW) > 1.15 ? `ink hull reaches ${Math.max(...inkW).toFixed(2)} of its width at the sharpest crotch vertex (the offset runs on past a concave corner)` : false }, () => {
+    const extreme = name.startsWith('swell real'), baseline = fx.name === 'HT' ? 1 : 0;   // (HT's mesh has one sliver facing in at rest: WP2's)
+    test(`${fx.name} @ ${name}: every junction vertex within 0.01 R of the live union, normal within 3 deg (p99) of its finite-difference normal, ink hull within 15% of its width across the fillet`, { todo: extreme ? 'an arm ratio of up to 3.2 (the real range): Newton 3 steps do not converge everywhere (HT 0.15 R)' : Math.max(...inkW) > 1.15 ? `ink hull reaches ${Math.max(...inkW).toFixed(2)} of its width at the sharpest crotch vertex (the offset runs on past a concave corner)` : false }, () => {
       assert.ok(Math.max(...resid) <= 0.01, `residual ${Math.max(...resid)} R`);
       assert.ok(quantile(ang, 0.99) <= 3, `normal p99 ${quantile(ang, 0.99)}`);
       assert.ok(Math.min(...inkW) >= 0.85 && Math.max(...inkW) <= 1.15, `ink hull ${Math.min(...inkW)} .. ${Math.max(...inkW)} of its width`);
     });
-    test(`${fx.name} @ ${name}: no triangle faces into the union (${flips}), stretch p99 <= 3x (${quantile(stretch, 0.99).toFixed(2)}x)`, { todo: extreme ? `a 4:1 swell between arms folds ${flips} triangles` : flips > baseline ? `${flips} triangles of an arm shrunk to presence .3 face into the union (not yet degenerate enough to drop)` : false }, () => {
+    test(`${fx.name} @ ${name}: no triangle faces into the union (${flips}), stretch p99 <= 3x (${quantile(stretch, 0.99).toFixed(2)}x)`, { todo: extreme ? `a swell ratio between arms inside the real range (${name}) folds ${flips} triangles` : flips > baseline ? `${flips} triangles of an arm shrunk to presence .3 face into the union (not yet degenerate enough to drop)` : false }, () => {
       assert.ok(flips <= baseline, `${flips} triangles face into the union`);
       assert.ok(quantile(stretch, 0.99) <= 3, `stretch p99 ${quantile(stretch, 0.99)}`);
     });
