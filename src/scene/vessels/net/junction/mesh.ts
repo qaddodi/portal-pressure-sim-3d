@@ -165,13 +165,33 @@ function refined(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Ar
   }
   return best;
 }
-export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>): SkinMesh {
+/** The rung each junction's ladder ended on, by `ladderKey` (a bake keeps it between runs: scripts/net-ladder.mjs). */
+export type LadderMemory = Map<string, number>;
+/** A digest of everything `buildSkinSteady` reads about a junction, and the rung it starts on: the same key is the same build, so the rungs below the one that took last time are known to fold and are not built again. */
+export function ladderKey(j: SkinJunction, seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes: readonly Capsule[] | undefined, maxVerts: number, start: number): string {
+  let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
+  const f64 = new Float64Array(1), u32 = new Uint32Array(f64.buffer);
+  const word = (w: number) => { h1 = Math.imul(h1 ^ w, 0x01000193); h2 = Math.imul(h2 ^ (w >>> 15) ^ (w << 17), 0x85ebca6b); h2 ^= h2 >>> 13; };
+  const num = (x: number) => { f64[0] = x; word(u32[0]!); word(u32[1]!); };
+  const str = (t: string) => { for (let i = 0; i < t.length; i++) word(t.charCodeAt(i)); word(0x2f); };
+  str(j.node); j.J.forEach(num); num(j.maxArms ?? 0); num(j.surface ? 1 : 0); num(maxVerts); num(start);
+  for (const a of j.arms) { str(a.vesselId); num(a.end); num(a.restR); num(a.jointR ?? -1); num(a.side?.u ?? 0); num(a.side?.dir ?? 0); (a.at ?? j.J).forEach(num); }
+  for (const r of seamRings) { num(r.length); for (let i = 0; i < r.length; i++) num(r[i]!); }
+  for (const r of seamNormals) for (let i = 0; i < r.length; i++) num(r[i]!);
+  for (const c of axes ?? []) { num(c.n); num(c.mate ?? -1); for (let i = 0; i < c.pts.length; i++) num(c.pts[i]!); for (let i = 0; i < c.r.length; i++) num(c.r[i]!); }
+  return `${j.node}#${(h1 >>> 0).toString(16)}${(h2 >>> 0).toString(16)}`;
+}
+export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>, ladder?: LadderMemory): SkinMesh {
   let last: unknown;
   // the last rung, the sheet started on the surface, is for the forks of the liver (a fork child's id carries `~F:`): another junction that needs it keeps the arms it could not take at the three rungs before it dropped, as before (a pair of growing arms
   // that run along one another has no closed shape on the trunk: tests/skin-closed-footprint.test.ts)
   const top = fromSurface(j) ? PACES.length : PACES.length - 1;
-  for (let i = Math.min(memo?.get(j.node) ?? 0, top - 1); i < top; i++) {
-    try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return refined(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i], m); }
+  const from = Math.min(memo?.get(j.node) ?? 0, top - 1);
+  // a rung that folded takes its whole remesh to find out (half the bake's time went on them): the same build as an earlier bake starts on the rung that took
+  const key = ladder ? ladderKey(j, seamRings, seamNormals, axes, maxVerts, from) : '';
+  const known = ladder?.get(key);
+  for (let i = known === undefined ? from : Math.min(Math.max(known, from), top - 1); i < top; i++) {
+    try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); ladder?.set(key, i); return refined(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i], m); }
     catch (e) { last = e; if (!(e instanceof SkinBuildError) || !(e.message.includes('folds') || (top === PACES.length && e.message.includes('the hull misses')))) throw e; }   // (a junction meshed from the surface falls to that rung when its hull misses the rings too: a plain trunk whose seams were placed with no hull)
   }
   throw last;

@@ -77,7 +77,10 @@ export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[],
     const arms = armEdges(d.node), vec = states.map((s) => arms.map((e) => s[e]!));
     const wide = isWide(vec, arms.length);   // (every region is keyed from its own real states; a wide one may carry up to MAX_KEYS_FOLDING, plan owner 22 Nov)
     // up to MAX_KEYS keys; a region whose keys still fold gets up to MAX_KEYS_FOLDING (plan owner, 22 Nov), and any fold left is recorded on its key
+    const baked = new Map<number, RegionKeys['keys'][number]>();   // (a second, longer pick starts with the first one's states: each state is continued once)
     const bake = (picked: number[]): RegionKeys['keys'] => picked.map((p) => {
+      const have = baked.get(p);
+      if (have) return have;
       const s = states[p]!, fKey = new Float64Array(skel.edges.length).map((_, e) => (s[e] ?? 1) / bakeScale[e]!), folds: [number, number] = [0, 0];
       const key = (pose: 0 | 1): Float32Array => {
         const pos = continueTo(skel, m, d, pose, fKey), off = offsetsAt(skel, m, d.rg, pose, pos, fKey), n = d.rg.free[1], res = new Float32Array(12 * n);
@@ -85,7 +88,9 @@ export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[],
         d.rg.verts.forEach((v, q) => { if (v >= d.rg.free[0] && v < d.rg.free[0] + n) res.set(off.subarray(12 * q, 12 * q + 12), 12 * (v - d.rg.free[0])); });
         return res;
       };
-      return { state: p, folds, swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
+      const made = { state: p, folds, swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
+      baked.set(p, made);
+      return made;
     });
     let keys = bake(pickKeys(vec, wide ? MAX_KEYS_FOLDING : MAX_KEYS));
     const own = d.variant === 1 ? 1 : 0, foldsOf = (ks: RegionKeys['keys']): number => ks.reduce((a, k) => a + k.folds[own], 0);   // (a mesh is judged at the layout it was built at)

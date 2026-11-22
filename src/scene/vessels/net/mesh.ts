@@ -7,7 +7,7 @@
 // Every vertex stores (bone, weight) pairs and its offset in each bone's frame divided by the bone's radius, `p = sum w_i (P_i + r_i (o_i.x t_i + o_i.y n_i + o_i.z b_i))`, so the rest shape is rebuilt exactly (net/oracle in tests) and the vertex shader (WP3)
 // only has to move the bones. There is NO fallback: a junction that will not mesh throws `NetMeshError` naming the node, and the bake fails.
 import { TUBE_RADIAL } from '../tubes.ts';
-import { SkinBuildError, buildSkinSteady, minAngleDeg } from './junction/mesh.ts';
+import { SkinBuildError, buildSkinSteady, minAngleDeg, type LadderMemory } from './junction/mesh.ts';
 import { ARM_REACH, CAPSULE_SEGS, SKIN_K, armCapsule, closestOnArm, sdArm, sdUnion, sdUnionGrad, skinKOf, type Capsule } from './junction/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { SHEET_CUT_R } from './junction/sheet.ts';
@@ -146,7 +146,7 @@ function dropMeshes(res: NetMeshResult, drop: ReadonlySet<NodeReport>): void {
 }
 
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
-export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** also build each junction region's MAP-built mesh (a second mesh per region in the same index buffer: NodeReport.variant 1) on seams that clear at both layouts */ maps?: boolean; /** with `maps`: also a mesh built at t = 0.5 for every map-capable region (the ones the windows need are kept) */ mid?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[]; /** false: the states judge the gate but no keys are baked (the acceptance scripts, minutes faster) */ keys?: boolean }): NetMeshResult {
+export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean; /** also build each junction region's MAP-built mesh (a second mesh per region in the same index buffer: NodeReport.variant 1) on seams that clear at both layouts */ maps?: boolean; /** with `maps`: also a mesh built at t = 0.5 for every map-capable region (the ones the windows need are kept) */ mid?: boolean; /** the real states (per state, every skeleton edge's swell): wide junctions get keys (net/keys.ts) */ states?: readonly (readonly number[])[]; /** false: the states judge the gate but no keys are baked (the acceptance scripts, minutes faster) */ keys?: boolean; /** what a bake remembers of each junction's remesh ladder (junction/mesh.ts `LadderMemory`): the rungs that folded last time are not built again; the meshes are the same */ ladder?: LadderMemory }): NetMeshResult {
   // The mesh is baked at each arm's MIDDLE radius (ranges.ts: the geometric mean of its swell range), so the fillets' fixed triangles are within the least ratio of every state: the bones' radii are scaled by their edge's factor for the build.
   // The offsets are divided by those radii, so a tube is unchanged (its unit offsets times the live radius); `bakeScale` tells the shader's junction start to take the factor too (lumenRest x bakeScale).
   const bakeScale = new Float32Array(skel.edges.length).fill(1);
@@ -179,7 +179,7 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: {
   return res;
 }
 
-function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; maps?: boolean; states?: readonly (readonly number[])[]; keys?: boolean } | undefined, bakeScale: Float32Array): NetMeshResult {
+function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean; maps?: boolean; states?: readonly (readonly number[])[]; keys?: boolean; ladder?: LadderMemory } | undefined, bakeScale: Float32Array): NetMeshResult {
   const inNet = new Set(edges ?? skel.edges.map((_, i) => i));
   const ctx = new Map<number, EdgeCtx>();
   for (const i of inNet) {
@@ -661,7 +661,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
         return { ...skin0, position, index };
       };
       let skin;
-      try { skin = buildSkinSteady(junction, cuts, rings, normals, caps, arms.length > 6 || internal.length ? 48000 : undefined, memo); }
+      try { skin = buildSkinSteady(junction, cuts, rings, normals, caps, arms.length > 6 || internal.length ? 48000 : undefined, memo, opts?.ladder); }
       catch (e) {
         if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the junction will not mesh: ${e.message}`); throw e; }
       skin = cleaned(skin, caps, k);
@@ -742,7 +742,7 @@ function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: {
           arms.forEach((a, i) => { const SV = sampleP(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!, pose), rV = ringOf(SV, a.ctx.alpha); ringsV.push(rV.p); normalsV.push(rV.nrm); });
           const kV = skinKOf(skinArmsV), junctionV: SkinJunction = { ...junction, J: JV, arms: skinArmsV };
           let skinV;
-          try { skinV = buildSkinSteady(junctionV, cuts, ringsV, normalsV, capsV, arms.length > 6 || internal.length ? 48000 : undefined, new Map()); }
+          try { skinV = buildSkinSteady(junctionV, cuts, ringsV, normalsV, capsV, arms.length > 6 || internal.length ? 48000 : undefined, new Map(), opts?.ladder); }
           catch (e) { if (e instanceof SkinBuildError) throw new NetMeshError(rid, `the ${label} mesh will not mesh: ${e.message}`); throw e; }
           skinV = cleaned(skinV, capsV, kV, 1);
           let worstV = 180;
