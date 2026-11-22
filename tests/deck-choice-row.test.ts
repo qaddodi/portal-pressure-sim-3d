@@ -64,5 +64,5 @@ test('a compare button that switches the patient hands its state to the charts o
   assert.match(run, /useVariant\.getState\(\)\.set\(key, words, got\?\.state \?\? null\)/);
   const body = readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8');
   assert.match(body, /useVariant\(\(v\) => \(v\.key === `\$\{deck\.id\}\/\$\{cs\.id\}` \? v\.state : null\)\)/);
-  assert.match(body, /fp: variant\.fp as never/);
+  assert.match(body, /fp: variant\.fp, params: variant\.params/);
 });
