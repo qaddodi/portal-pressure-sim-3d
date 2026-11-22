@@ -184,10 +184,10 @@ test('the wedge\'s wash (HVPG slide 5) is drawn on the 3D lobule\'s sinusoids an
 });
 
 test('SOS: a faded scar narrows the central vein from its wall as ONE clean ring that never crosses the middle, growing with fibPost as 2D grows its plug (Mohammad 20 and 21 Nov)', async () => {
-  const { buildCvScar, cvScarGrowth, CV_FILL, CV_SCAR_ALPHA, CV_OPEN_MIN } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { buildCvScar, cvScarGrowth, CV_FILL, CV_OPEN_MIN } = await import('../src/scene/micro3d/lobule3d.ts');
   const { BufferGeometry, BufferAttribute } = await import('three');
   assert.equal(CV_FILL, 0.55, '2D CV_FILL');
-  assert.ok(CV_SCAR_ALPHA > 0.3 && CV_SCAR_ALPHA < 0.85, 'faded: see-through, never a solid lid');
+  assert.equal((await import('../src/scene/micro3d/lobule3d.ts') as Record<string, unknown>).CV_SCAR_ALPHA, undefined, 'no see-through strength: one opaque collagen, its strength is its inner radius (Plan 24)');
   assert.equal(cvScarGrowth(0), 0); assert.ok(Math.abs(cvScarGrowth(1) - 1) < 1e-9);
   const rw = 0.21, polar = (g: InstanceType<typeof BufferGeometry>, i: number) => { const p = g.getAttribute('position') as InstanceType<typeof BufferAttribute>; return Math.hypot(p.getX(i), p.getY(i)); };
   let prevArea = 0;

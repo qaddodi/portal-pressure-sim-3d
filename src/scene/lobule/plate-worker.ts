@@ -1,8 +1,8 @@
 // The marks plate's painter in a worker (plate-client.ts): 2D's own painter (lobule-paint.js) draws one state of the tissue into an OffscreenCanvas and hands the page the finished bitmap, so the 2048 px repaint
 // (100 to 300 ms on a phone) never runs on the page's own thread. Pure: the painter reads no page, and the look's colours are a table (lz-colours.ts).
-import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
+import { useTokens } from './from2d/lobule-paint.generated.js';
 import { buildLobule } from './geometry.ts';
-import { PLATE_BOX, PLATE_PX, PLATE_S, plateInput, plateShape, type PlateState } from './plate.ts';
+import { PLATE_BOX, PLATE_PX, PLATE_S, paintPlateWorld, plateInput, plateShape, type PlateState } from './plate.ts';
 import { lookColours } from './lz-colours.ts';
 import { sinRadius } from './widths.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -32,7 +32,7 @@ self.onmessage = async (e: MessageEvent<PlateAsk>) => {
       set(t, p, v) { return Reflect.set(t, p, v, t); },
     });
     const B = PLATE_BOX * PLATE_S, sc = PLATE_PX / (2 * B);
-    paintWorldInto(wrapped, PLATE_PX, sc, -B, -B, { ...plateInput(shape, sins, cvR, s, look), zonesOn: zones });
+    paintPlateWorld(wrapped, PLATE_PX, sc, -B, -B, { ...plateInput(shape, sins, cvR, s, look), zonesOn: zones });
     const bmp = await createImageBitmap(canvas, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' });
     post({ id, bmp }, [bmp]);
   } catch (err) { post({ id, error: String(err) }); }

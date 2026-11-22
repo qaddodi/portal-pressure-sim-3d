@@ -7,6 +7,7 @@ import { DataTexture } from 'three';
 import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
 import { lookColours } from './lz-colours.ts';
+import { paintIntima } from './cv-intima.ts';
 import type { LookId } from '../../looks/looks.ts';
 
 /** The painting's world units per lobule radius: the 2D app's lobule is about this many CSS px across on an iPad, so every pixel rule in its painter
@@ -71,14 +72,25 @@ export function plateInput(G: ReturnType<typeof plateShape>, sins: readonly SinC
   };
 }
 
+/** The one painting of a state (2D's painter, then the intimal collagen inside the central vein's wall, cv-intima.ts): the page, the worker and the tests all paint through here. */
+export function paintPlateWorld(w: CanvasRenderingContext2D, n: number, sc: number, bx: number, by: number, input: ReturnType<typeof plateInput> & { zonesOn?: boolean }): void {
+  paintWorldInto(w, n, sc, bx, by, input);
+  paintIntima(w, input);
+}
+
 /** Paints one state of the tissue into a 2D context the size of the plate's canvas (n × n). */
 export function paintPlate(ctx: CanvasRenderingContext2D, n: number, G: ReturnType<typeof plateShape>, sins: readonly SinCourse[], cvR: number, s: PlateState, look: LookId): void {
   const L = lookColours(look);
   useTokens((name: string, a?: number | string) => L.tk(name, a));
   const B = PLATE_BOX * PLATE_S, sc = n / (2 * B);
-  paintWorldInto(ctx, n, sc, -B, -B, plateInput(G, sins, cvR, s, look));
+  paintPlateWorld(ctx, n, sc, -B, -B, plateInput(G, sins, cvR, s, look));
 }
 
+/** The central vein's scar takes its place on the plate by where it lies (its own vertices, before the vein's scale): the plate's plane is `uSide` across, centred. */
+export const LOBULE_SCAR_VS = /* glsl */ `
+uniform float uSide;
+varying vec2 vUv;
+void main() { vUv = position.xy / uSide + 0.5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 export const LOBULE_PLATE_VS = /* glsl */ `
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -95,10 +107,13 @@ uniform sampler2D map;
 uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
 uniform float mixB;
 uniform float opacity;
+uniform vec3 uBase;     // the tissue the plate lies on (the cells' tone): the scar of the central vein, which lies over a pool and not over cells, takes the collagen over it
+uniform float uBaseK;   // 1: the plate's pixel is laid over uBase and is whole (the scar), 0: as it is painted (the marks plate)
 uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
 varying vec2 vUv;
-vec4 plateTex(vec2 uv) { vec4 a = texture2D(map, uv); return mixB > 0.0 ? mix(a, texture2D(mapB, uv), mixB) : a; }
-vec4 plateTexLod(vec2 uv, float bias) { vec4 a = texture2D(map, uv, bias); return mixB > 0.0 ? mix(a, texture2D(mapB, uv, bias), mixB) : a; }
+vec4 onBase(vec4 a) { a.rgb += uBase * uBaseK * (1.0 - a.a); a.a = mix(a.a, 1.0, uBaseK); return a; }
+vec4 plateTex(vec2 uv) { vec4 a = texture2D(map, uv); return onBase(mixB > 0.0 ? mix(a, texture2D(mapB, uv), mixB) : a); }
+vec4 plateTexLod(vec2 uv, float bias) { vec4 a = texture2D(map, uv, bias); return onBase(mixB > 0.0 ? mix(a, texture2D(mapB, uv, bias), mixB) : a); }
 // the lightness jump across one device pixel's neighbourhood of the painted plate: 0 flat, large at a line
 float plateEdge(vec2 uv, vec2 uvPerPx, float dpr) {
   vec2 o = uvPerPx * CEL_LINE_MIN * dpr * 0.5;
