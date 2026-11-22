@@ -1,0 +1,101 @@
+/* The 3D app's changes to the 2D app's rules, as overrides. The 2D stylesheets (src/ui/css2d) are copied byte for byte and never edited
+   (scripts/copy-2d-css.mjs, tests/css2d-copy.test.ts); what 3D needs different is written here, loaded right after them, with the same selectors so the
+   same specificity wins by order. A rule that is new in 3D lives here too. When 2D takes one of these, delete it here. */
+
+/* Light's amber, deepened for text: #B07A0A was 3.55:1 on the card, #8F6208 is 5.1:1 (Opus 5.5 call, Plan 39). Soft keeps its own #845200 (tokens.css, a higher-weight rule),
+   the dark looks their own #F0B43C. looks.ts holds the same value for the figure, the charts and tests/colour-tokens.test.ts. */
+:root { --caution: #8F6208; }
+
+/* the sheet over the dock rests one --sheet-gap above it (2D: a fixed 8 px) */
+html.thumb-ui .pal-back { bottom: max(0px, calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px))); }
+
+/* ── app-04-presenter.css ── */
+.pz-kick { display: flex; align-items: center; gap: .55em; font: var(--caps-w) var(--s-cap)/1.2 var(--font-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: color-mix(in srgb, var(--site, var(--text-3)) 76%, var(--text));   /* (the level name is words: its ink is the level colour drawn toward the text colour so it reads 4.5:1 on every look; the audit measured Sinusoidal at 4.26) */ }
+.pz-site { align-self: flex-start; display: inline-flex; align-items: center; gap: .45em; margin-bottom: -.15em; padding: .2em .6em; border-radius: var(--r-pill); font: 600 max(12px, calc(var(--s-cap) * .75))/1.1 var(--font-ui); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; color: color-mix(in srgb, var(--site) 66%, var(--text)); background: color-mix(in srgb, var(--site) 13%, transparent); }
+.pz-sitetab { position: absolute; top: 0; left: 0; z-index: 1; height: var(--pz-tabh); display: flex; align-items: center; padding: 0 calc(var(--pz-tabh) * .55) 0 calc(var(--pz-tabh) * .55 - .05em); border-radius: var(--pz-tab-ro, 0px) 0 calc(var(--pz-tabh) * .5) 0; background: color-mix(in srgb, var(--site) 16%, transparent); font: var(--caps-w) var(--pz-tabf)/1 var(--font-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; white-space: nowrap; color: color-mix(in srgb, var(--site) 66%, var(--text)); pointer-events: none; user-select: none; }
+.pz-stop :is(.pz-val, .pz-term) { margin-inline-end: .08em; }   /* (descendant, not child: a value's pill sits inside its no-break span, so "2.2 g/dL." kept the full .14em gap and read "2.2 g/dL .") */
+.pz-stop .pz-step { margin-inline-end: .1em; }
+.pz-term:not(.pz-lens-t) { display: inline; padding: 0; margin: 0; border-radius: 0; background: none; box-shadow: none; font-weight: 600; color: color-mix(in srgb, var(--tone) 66%, var(--text)); }
+/* A procedure's steps: ONE row (Mohammad, 22 Nov, mock A, every procedure; ui/cards/ProcRow.tsx, ui/cards/proc-rail.ts). A round accent play button, a track with one dot
+   per step, the step on show by name. The fill (the step the animation is on) and the ring (the step Next or Back has navigated to, his two marks, 13 Nov) move by transform
+   and glide; the dots change colour with an ease; the name fades in. Nothing reflows: the track's width is set by the step count, the words take what is left on one line. */
+.pz-prail { --pr-b: 36px; --pr-gap: 1.6em; display: flex; align-items: center; gap: .75em; min-height: var(--pr-b); margin: 0; font: 400 var(--s-lab)/1.2 var(--font-ui); color: var(--text-3); transition: opacity var(--d-small) var(--ease); }
+.pz.stack .pz-prail { --pr-b: 34px; --pr-gap: 1.45em; gap: .6em; }
+.pz-prail-box { transition: opacity var(--d-small) var(--ease); }
+.pz-prail-box[data-why] { opacity: .5; }
+.pz-prail-go { appearance: none; flex: 0 0 auto; display: grid; place-items: center; width: var(--pr-b); height: var(--pr-b); padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); cursor: pointer; transition: opacity var(--d-flip) var(--ease), scale var(--d-flip) var(--ease); }
+.pz-prail-go svg { width: 56%; height: 56%; fill: currentColor; }
+.pz-prail-go:active:not(:disabled) { scale: .94; }
+.pz-prail-go:disabled { opacity: .4; cursor: default; }
+.pz-prail-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* the track: its width is the gaps between the dots; the dots sit at k / n of it, the fill scales from the left, the ring's box spans the track and translates by the ring's share of it */
+.pz-prail-track { position: relative; flex: 0 0 auto; width: calc(var(--n) * var(--pr-gap)); height: 18px; margin-inline: 9px; }
+.pz-prail-line, .pz-prail-fill { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px; background: var(--border-strong); }
+.pz-prail-fill { background: var(--accent); transform-origin: 0 50%; transition: transform var(--d-surface) var(--ease); }
+.pz-prail-dot { position: absolute; top: 50%; left: calc(var(--k) * var(--pr-gap)); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface);
+  transition: background-color var(--d-small) var(--ease), border-color var(--d-small) var(--ease), scale var(--d-small) var(--ease); }
+.pz-prail-dot.done { background: var(--accent); border-color: var(--accent); }
+.pz-prail-dot.on { background: var(--accent); border-color: var(--accent); scale: 1.4; }
+.pz-prail-at { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: transform var(--d-surface) var(--ease), opacity var(--d-small) var(--ease); }
+.pz-prail-at.on { opacity: 1; }
+.pz-prail-at > i { position: absolute; top: 50%; left: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--accent); }
+/* the words never cut: measured on one line and scaled to fit the room the row leaves them (ui/cards/proc-rail.ts fitRailName, --pr-z), down to 10 px (his "keep shrink");
+   only past that do they wrap (data-wrap) */
+.pz-prail-t { flex: 1 1 auto; min-width: 0; opacity: 0; transition: opacity var(--d-small) var(--ease); }
+.pz-prail-t[data-fit] { opacity: 1; }
+.pz-prail-tx { display: block; width: max-content; white-space: nowrap; font-size: max(10px, calc(1em * var(--pr-z, 1))); animation: pz-prail-in var(--d-small) var(--ease) both; }
+.pz-prail-t[data-wrap] > .pz-prail-tx { width: auto; white-space: normal; overflow-wrap: anywhere; }
+/* EUS glue's short line per step: every line in one grid cell, so the cell is as tall as the longest and nothing reflows; the current one fades in as the last fades out */
+.pz-prail-cap { display: grid; margin: .4em 0 0; font: 400 var(--s-lab)/1.3 var(--font-ui); color: var(--text-2); }
+.pz-prail-cap > span { grid-area: 1 / 1; opacity: 0; transition: opacity var(--d-surface) var(--ease); }
+.pz-prail-cap > span.on { opacity: 1; }
+.pz-prail-t b { font-weight: 600; color: var(--text); }
+.pz-prail-n { margin-inline-end: .5em; font-weight: 500; font-size: .86em; font-variant-numeric: tabular-nums; }
+@keyframes pz-prail-in { from { opacity: 0; } }
+
+/* ── app-05-presenter-cards.css ── */
+
+
+/* ── app-06-plate.css ── */
+.cath-label.site.split .sp-lt { color: var(--tr-pv-ink); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }   /* (a halo like its neighbours': pink over an orange vessel read as nothing; Mohammad, 22 Nov) */ .cath-label.site.split .sp-st { display: none; }
+.tv { display: flex; flex-direction: column; gap: 6px; min-width: 0; container-type: inline-size; }
+.tv-keys { padding: 0 2px; column-gap: 0; justify-content: space-between; overflow: visible; }   /* (the slack goes between the three readings, so the last unit is never cut at the card's edge) */
+.tv-keys .ir-kv b { margin: 0 2px; }   /* (the vessel card's three readings: 12 px, the standing floor, on one line in a 240 px card: 243 px of content with the line's own 7 px gap, 237 with this) */
+.ac-panel:has(> .tv) + .ac-as { transition: opacity var(--d-small) var(--ease); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); justify-items: stretch; gap: 0 4px; align-content: center; min-height: 48px; border-top: 1px solid var(--hairline); }
+.tv .tf-card { margin: 0; overflow: hidden; height: calc(27px + 12.264cqi); transition: height var(--d-surface) var(--ease); }
+.tv .tf-card[data-row="true"] { height: calc(41px + 12.264cqi); }
+.tv .tf-card > .tf-in { transform: translateY(-14px); transition: transform var(--d-surface) var(--ease); }
+.tv .tf-card[data-row="true"] > .tf-in { transform: none; }
+@media (prefers-reduced-motion: reduce) { .tv .tf-card, .tv .tf-card > .tf-in { transition: none; } }   /* (the bracket row: 14 px of the figure's top, eased in and out with the narrowing it labels) */   /* (the figure's own height from its width, 41 px + 13 mm of vein at 8 + 2 × 1.3 cm across, so the card has its full height from its first paint and the camera's room is measured once: figLayout) */
+.stent-editor .se-row { position: relative; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; min-height: 64px; padding: 9px 10px 9px 12px; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--text); cursor: pointer; text-align: left; font: inherit; isolation: isolate; -webkit-tap-highlight-color: transparent; }
+
+/* The vessel card's actions: one row of equal columns, each icon attached to its word and centred in its column (Remove, Doppler, Dye, IR), whatever their number. */
+.ac-panel:has(> .tv) + .ac-as .ac-btn { justify-content: center; margin: 0; padding: 10px 2px; min-height: 44px; gap: 5px; }
+.ac-panel:has(> .tv) + .ac-as .ac-dye .ac-bl { min-width: 0; }
+
+/* The vessel card's head sits close over its figure: the card's own 6 px gap is the only space between them. */
+.ac-body:has(> .ac-panel > .tv) { gap: 4px; }
+.ac-body:has(> .ac-panel > .tv) > .ac-nr { margin-bottom: 0; }
+
+/* The readings in the card's header line (name · PPG · flow · peak velocity · state): the line takes what the name and the state leave, its three readings spread across it. */
+.ac-nr > .tv-keys { flex: 1 1 0; min-width: 0; margin: 0; padding: 0; justify-content: space-between; }
+.ac-nr > .tv-keys .ir-kv b { margin: 0 2px; }
+
+/* A phone held sideways (390 px or less tall) has no room for the figure under the readings in the header: the sheet keeps the tiles and the actions, and the stent's picture is Tests > IR's. */
+@media (max-height: 430px) { .tv .tf-card { display: none; } }
+
+/* ── app-07-floating.css ── */
+html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot-screen, 8px) - var(--sheet-gap, 8px))) 0); }
+
+/* ── app-08-cards.css ── */
+.ab-tile { display: grid; align-content: start; gap: 1px; min-width: 0; margin: 0; padding: 6px 10px 7px; border-radius: var(--r-control); background: var(--surface-2); transition: opacity var(--d-small) var(--ease); }
+
+/* ── app-10-thumb-dock.css ── */
+.app.thumb .vdock .readouts:not(.all) { width: auto; min-width: max-content; container-type: normal; }   /* (sized by its two numbers, and never narrower than them: flex let the timeline squeeze it and the reading ran 14 to 21 px off the right edge after a talk; iPhone audit) */
+@media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
+  .vdock:not(.mini) .readouts:not(.all) { width: auto; min-width: max-content; }
+}
+
+/* An open action card (a vessel, the TIPS, a device) stands over the view pill's slot, so it takes the room the pill had and the pill fades out under it, eased (Mohammad, 21 Nov: "we don't need access to the anatomy pill when we open those cards"). */
+.app.thumb.ac-over-pill .vdock:not(.mini) > .nb-views { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
+

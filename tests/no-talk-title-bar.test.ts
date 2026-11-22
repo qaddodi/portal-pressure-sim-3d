@@ -1,4 +1,5 @@
 // 21 Nov (owner: "wtf is this rounded rectangle at the bottom"): the presenter's bar carries the pill only. The talk's title never stands beside it, on any screen.
+import { merged2d } from './merged-2d.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,5 +13,5 @@ test('no talk title bar: not in the markup, the styles, the fade-out or the bar 
 });
 
 test('no beat strokes under the slide count', () => {
-  for (const p of ['src/ui/deck/PresenterBar.tsx', 'src/ui/deck-ui.css', 'src/ui/css2d/app-05-presenter-cards.css']) assert.ok(!/pzb-pips/.test(readFileSync(p, 'utf8')), p);
+  for (const p of ['src/ui/deck/PresenterBar.tsx', 'src/ui/deck-ui.css', 'src/ui/css2d-3d.css']) assert.ok(!/pzb-pips/.test(readFileSync(p, 'utf8')), p);
 });

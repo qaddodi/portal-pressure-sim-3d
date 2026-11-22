@@ -117,7 +117,7 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 .sh-dialog[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .sh-dialog h2 { margin: 0 0 8px; font: 600 var(--t-val) / 1.2 var(--display); } .sh-dialog p { margin: 0 0 18px; color: var(--text-2); font: 400 var(--t-body) / 1.45 var(--ui); }
 .sh-btns { display: flex; justify-content: flex-end; gap: 10px; } .sh-btn { min-height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; font: 600 var(--t-body) / 1 var(--ui); }
-.sh-btn[data-danger="true"] { background: var(--danger); border-color: var(--danger); color: #fff; }
+.sh-btn[data-danger="true"] { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
 
 /* the library's dialogs (a name, a link, the import box) */
 .sh-dialog--deck { margin-top: 0; translate: 0 -50%; max-height: calc(100svh - 32px); overflow: hidden; }
@@ -126,7 +126,7 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 .sh-field-in { margin: 0 0 18px; }
 .sh-imp { display: block; margin: 12px 0 14px; resize: none; font: 400 var(--t-lab) / 1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .sh-err { margin: 0 0 12px; color: var(--danger); font: 600 var(--t-body) / 1.35 var(--ui); }
-.sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .sh-btn svg { width: 18px; height: 18px; vertical-align: -4px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* the Present menu: a talk's row, its ⓘ preview and its acts; your scripts */
@@ -166,7 +166,7 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 /* no WebGL 2 */
 .sh-nogl { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font-family: var(--ui); z-index: var(--z-chrome, 20); }
 .sh-nogl div { max-width: 420px; } .sh-nogl h1 { font: 600 var(--t-big) / 1.2 var(--display); margin: 0 0 10px; } .sh-nogl p { margin: 0 0 18px; color: var(--text-2); font-size: var(--t-body); line-height: 1.45; }
-.sh-nogl a, .sh-nogl button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
+.sh-nogl a, .sh-nogl button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: 600; }
 .sh-nogl button { border: 0; font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; } .sh-nogl p.sh-nogl-why { font-size: var(--t-lab); color: var(--text-3); overflow-wrap: anywhere; }
 
 /* Reduce Motion: src/ui/a11y/reduced.css */
@@ -225,7 +225,7 @@ html.thumb-ui:has(.sh-toast[data-on="true"]) .stage-credit { visibility: hidden;
 .sh-lazymark { display: none !important; }
 @media (prefers-reduced-motion: reduce) { .sh-waitcue i { animation: none; } .sh-lazyhold { animation: none; } }
 .sh-glnote { position: fixed; left: 50%; bottom: calc(var(--sheet-gap) + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: var(--z-chrome, 20); display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 999px; background: var(--surface); border: 1px solid var(--edge); color: var(--text); font: 600 var(--t-body) / 1.2 var(--ui); transition: opacity var(--d-small) var(--ease-arrive); }
-.sh-glnote button { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; }
+.sh-glnote button { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--accent); color: var(--on-accent); font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; }
 /* (above the figure's note, so the two never overlap) */
 .sh-errnote { bottom: calc(var(--sheet-gap) + var(--sh-h) + var(--sheet-gap) + env(safe-area-inset-bottom, 0px)); }
 .sh-glnote .sh-glnote-alt { background: transparent; color: var(--accent); border: 1px solid var(--edge); }

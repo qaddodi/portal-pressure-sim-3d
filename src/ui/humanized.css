@@ -1,73 +1,75 @@
 /* Humanized design (docs/HUMANIZED-DESIGN.md, section 0): NEVER a pill with a dot, a status chip or a badge. A state is plain words in its colour; a choice is
    words with an underline; a value in a sentence is bold words. This is where the 2D stylesheets' pills (src/ui/css2d, copied unchanged: never edited) are taken
    off. Only the paint goes (fill, outline, shadow, rounding); each rule keeps the 2D rule's own spacing, so no line, row or card changes size or re-wraps.
+   The paint a rule here takes off (fill, shadow, rounding, backdrop blur, border) is `!important`, as glass.css does: a retired class wins by construction, not by
+   the luck of specificity (a copied 2D `:is(… #viewSeg …)` list weighs an id for every class in it, which is how the Protein legend got its black bar back).
    Everything that changes colour or an underline eases on the app's one small duration (nothing steps). `html:root` out-ranks the 2D rules (it adds no more
    than they do) and this file loads after them (main.tsx). tests/no-dot-pills.test.ts fails when a pill, chip, badge or dot comes back. */
 
 /* ── values and names inside a slide's words (2D .pz-val, .pz-dz, .pz-lens-t, .pz-site): bold words in their colour ── */
-html:root .pz-val { background: none; box-shadow: none; border-radius: 0; padding-inline: 0; margin-inline: 0; text-decoration: underline 2px transparent; text-underline-offset: .16em; transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
+html:root .pz-val { background: none !important; box-shadow: none !important; border-radius: 0 !important; padding-inline: 0; margin-inline: 0; text-decoration: underline 2px transparent; text-underline-offset: .16em; transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
 html:root .pz-val.tone { transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
 /* a cut-off ({>=10 mmHg}) was an outline, this patient a fill: now the patient is bold and the rule is lighter with a fine line under it */
-html:root .pz-val.cut { background: none; box-shadow: none; font-weight: 500; text-decoration: underline 1px color-mix(in srgb, var(--text) 45%, transparent); text-underline-offset: .2em; }
+html:root .pz-val.cut { background: none !important; box-shadow: none !important; font-weight: 500; text-decoration: underline 1px color-mix(in srgb, var(--text) 45%, transparent); text-underline-offset: .2em; }
 /* the figure's highlight of a word on the slide: a rule under it that fades in (it was a ring) */
-html:root .app.pz-hi .pz-val { background: none; box-shadow: none; text-decoration-color: color-mix(in srgb, var(--text) 55%, transparent); }
-html:root .app.pz-hi .pz-val.tone { box-shadow: none; text-decoration-color: var(--tone); }
+html:root .app.pz-hi .pz-val { background: none !important; box-shadow: none !important; text-decoration-color: color-mix(in srgb, var(--text) 55%, transparent); }
+html:root .app.pz-hi .pz-val.tone { box-shadow: none !important; text-decoration-color: var(--tone); }
 html:root .app.pz-hi .pz-val.cut { text-decoration-color: color-mix(in srgb, var(--text) 45%, transparent); }
-html:root .pz-term.pz-lens-t { display: inline; padding: 0; margin: 0; border-radius: 0; background: none; box-shadow: none; }
-html:root .app.pz-hi .pz-term.pz-lens-t { box-shadow: none; }
-html:root .pz-dz { padding-inline: 0; margin-inline: 0; border-radius: 0; background: none; box-shadow: none; }
-html:root .pz-site { padding-inline: 0; border-radius: 0; background: none; }
+html:root .pz-term.pz-lens-t { display: inline; padding: 0; margin: 0; border-radius: 0 !important; background: none !important; box-shadow: none !important; }
+html:root .app.pz-hi .pz-term.pz-lens-t { box-shadow: none !important; }
+html:root .pz-dz { padding-inline: 0; margin-inline: 0; border-radius: 0 !important; background: none !important; box-shadow: none !important; }
+html:root .pz-site { padding-inline: 0; border-radius: 0 !important; background: none !important; }
 
 /* ── the ladders card's rate tags (.pz-gpill): the words and number in their rate's colour ── */
-html:root .pz-gpill { padding-inline: 0; border: 0; border-radius: 0; background: none; }
+html:root .pz-gpill { padding-inline: 0; border: 0 !important; border-radius: 0 !important; background: none !important; }
 
 /* ── the patient preview's facts in the menu (.hp-chip: HVPG, PPG, PV, Hepatofugal) ── */
-html:root .hp-chip, html:root .hp-chip.high, html:root .hp-chip.rev { padding-inline: 0; border-radius: 0; background: none; }
+html:root .hp-chip, html:root .hp-chip.high, html:root .hp-chip.rev { padding-inline: 0; border-radius: 0 !important; background: none !important; }
 
 /* ── "Showing …" over a compared figure (.cmp-badge): the words with the labels' halo, not a dark tab ── */
-html:root .cmp-badge { padding-inline: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text); -webkit-text-stroke: 4px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
+html:root .cmp-badge { padding-inline: 0; border-radius: 0 !important; background: none !important; box-shadow: none !important; color: var(--text); -webkit-text-stroke: 4px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
 
 /* ── choices that were chips: words, the chosen one bold with a line under it ── */
-html:root .tr-chip, html:root .tr-chip[aria-pressed="true"] { border-radius: 0; background: none; color: var(--text-2); text-decoration: underline 2px transparent; text-underline-offset: .3em; transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
+html:root .tr-chip, html:root .tr-chip[aria-pressed="true"] { border-radius: 0 !important; background: none !important; color: var(--text-2); text-decoration: underline 2px transparent; text-underline-offset: .3em; transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
 html:root .tr-chip[aria-pressed="true"], html:root .tr-chip[aria-pressed="true"] b { color: var(--text); font-weight: 600; text-decoration-color: var(--text); }
-html:root .ir-chip, html:root .ir-chip[aria-pressed="true"] { border-radius: 0; background: none; text-decoration: underline 2px transparent; text-underline-offset: .3em; transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
+html:root .ir-chip, html:root .ir-chip[aria-pressed="true"] { border-radius: 0 !important; background: none !important; text-decoration: underline 2px transparent; text-underline-offset: .3em; transition: color var(--d-small) var(--ease), text-decoration-color var(--d-small) var(--ease); }
 html:root .ir-chip[aria-pressed="true"] { color: var(--text); text-decoration-color: var(--text); }
 html:root .ir-chips[data-n="0"] .ir-chip, html:root .ir-chips[data-n="1"] .ir-chip { text-decoration: none; }
 /* the trace toggles of Over time: the name, and a line in the trace's own colour under it while it is shown (the colour key was a bar inside a pill) */
-html:root .pt-chip { border-width: 0 0 2px; border-style: solid; border-color: transparent; border-radius: 0; background: none; padding-inline: 2px; transition: color var(--d-small) var(--ease), border-color var(--d-small) var(--ease); }
+html:root .pt-chip { border-width: 0 0 2px; border-style: solid; border-color: transparent; border-radius: 0 !important; background: none !important; padding-inline: 2px; transition: color var(--d-small) var(--ease), border-color var(--d-small) var(--ease); }
 html:root .pt-chip i { display: none; }
-html:root .pt-chip[aria-pressed="true"] { background: none; border-color: var(--chip); }
+html:root .pt-chip[aria-pressed="true"] { background: none !important; border-color: var(--chip); }
 @media (hover: hover) { html:root .pt-chip:hover:not([aria-pressed="true"]):not(:disabled) { border-color: color-mix(in srgb, var(--chip) 40%, transparent); color: var(--text-2); } }
 
 /* ── the lesion list's tags in the findings tool (.fr-pill, .fr-pillnote): words; a ruled-out lesion is struck through, a leading one is bold ── */
-html:root .fr-pill { padding-inline: 0; margin-inline-end: 8px; border: 0; border-radius: 0; overflow: visible; }
+html:root .fr-pill { padding-inline: 0; margin-inline-end: 8px; border: 0 !important; border-radius: 0 !important; overflow: visible; }
 html:root .fr-pill::before { display: none; }
 html:root .fr-pill[data-s="best"], html:root .fr-pill[data-s="tie"] { font-weight: 600; }
 html:root .fr-pill::after { left: 0; right: 0; }
-html:root .fr-pillnote { padding-inline: 0; border-radius: 0; background: none; color: var(--accent); }
+html:root .fr-pillnote { padding-inline: 0; border-radius: 0 !important; background: none !important; color: var(--accent); }
 
 /* ── the sinusoid's key (.sv-legend): the word "Protein" in the albumin's colour; no frosted pill, no dot ── */
-html:root .sv-legend { padding: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; font-weight: 600; color: color-mix(in srgb, var(--albumin-line, var(--albumin)) 80%, var(--text)); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
+html:root .sv-legend { padding: 0; border-radius: 0 !important; background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; font-weight: 600; color: color-mix(in srgb, var(--albumin-line, var(--albumin)) 80%, var(--text)); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }
 html:root .sv-legend::before, html:root .sv-legend::after { display: none; }
 html:root .sv-legend i.alb { display: none; }
 
 /* ── criteria rows: no hollow or filled circle before a rule (2D app-11 .pzc-c::before); the row that fits the case is bold, and an ordered list keeps its numerals ── */
 html:root .pz-crit:not(.has-cut):not(.ordered) .pzc-row:not(.pzc-hrow) .pzc-c::before { content: none; }
 /* a "none" in a table cell (.pz-nm was a hollow ring): a quiet dash */
-html:root .pz-nm { width: auto; height: auto; border: 0; border-radius: 0; vertical-align: baseline; color: var(--text-3); }
+html:root .pz-nm { width: auto; height: auto; border: 0 !important; border-radius: 0 !important; vertical-align: baseline; color: var(--text-3); }
 html:root .pz-nm::before { content: "–"; }
 /* the key's numbered ring (.pzk-n): the numeral alone */
-html:root .pzk-n { width: auto; height: auto; border: 0; border-radius: 0; }
+html:root .pzk-n { width: auto; height: auto; border: 0 !important; border-radius: 0 !important; }
 
 /* ── numbered step circles (.ms-dot of the HVPG steps, .hvpg-steps li::before, the instrument tabs' order badge): the numeral in the accent's ink, bold where it is the step now ── */
-html:root .ms-dot { width: auto; height: auto; border: 0; border-radius: 0; display: inline; font-size: inherit; }
+html:root .ms-dot { width: auto; height: auto; border: 0 !important; border-radius: 0 !important; display: inline; font-size: inherit; }
 html:root .ms-fill { display: none; }
 html:root .ms-dot b { color: var(--text-3); font-variant-numeric: tabular-nums; transition: color var(--d-small) var(--ease); }
 html:root .mon-steps li:is([data-state="now"], [data-state="done"]) .ms-dot b { color: var(--accent-ink); }
 html:root .mon-steps li[data-state="now"] { color: var(--text); font-weight: 600; }
-html:root .hvpg-steps li::before { width: auto; height: auto; border: 0; border-radius: 0; background: none; font-size: inherit; }
-html:root .hvpg-steps li[data-state="done"]::before { background: none; }
-html:root .instr-tab[data-slot="1"]::after, html:root .instr-tab[data-slot="2"]::after { width: auto; height: auto; top: -2px; right: 1px; border-radius: 0; background: none; color: var(--accent-ink); font: 700 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+html:root .hvpg-steps li::before { width: auto; height: auto; border: 0 !important; border-radius: 0 !important; background: none !important; font-size: inherit; }
+html:root .hvpg-steps li[data-state="done"]::before { background: none !important; }
+html:root .instr-tab[data-slot="1"]::after, html:root .instr-tab[data-slot="2"]::after { width: auto !important; height: auto !important; top: -2px; right: 1px; border-radius: 0 !important; background: none !important; color: var(--accent-ink); font: 700 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
 
 /* ── a trial's key rules (.tr-pips were a row of rings): "3 of 4 rules" in words ── */
 html:root .tr-pips { gap: 0; font: 600 12px/1.3 var(--font-ui); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 8px; }

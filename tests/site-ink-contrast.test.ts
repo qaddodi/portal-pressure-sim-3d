@@ -1,10 +1,11 @@
 // The audit's low-contrast words on the iPhone (build fd67073f, Soft look): "Splenic vein" 4.03:1 (a linked term inked 80% of its tone, the violet #7D5CDB) and "Sinusoidal" 4.26:1
 // (the level kicker, inked as the raw level colour). Both inks are the colour drawn toward the text colour; this pins the share so each reaches 4.5:1 on the page's own background in every look.
+import { merged2d } from './merged-2d.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const css = readFileSync(new URL('../src/ui/css2d/app-04-presenter.css', import.meta.url), 'utf8');
+const css = merged2d('app-04-presenter.css');
 const hex = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
 const mix = (a: number[], b: number[], p: number) => a.map((v, i) => v * p + b[i]! * (1 - p));
 const lum = (c: number[]) => { const f = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]!) + 0.7152 * f(c[1]!) + 0.0722 * f(c[2]!); };

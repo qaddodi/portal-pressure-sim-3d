@@ -1,4 +1,5 @@
 // The audit's 21 Nov report (?audit v2), the findings that were the app's: the profile chart past its card's foot, the summary table's blood pressure cell; and the two that were the audit's own.
+import { merged2d } from './merged-2d.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -29,7 +30,7 @@ test('the summary table\'s blood pressure cell wears 2D\'s .bp (it wraps at its 
   const t = src('src/ui/cards/TableCard.tsx');
   assert.match(t, /c\.k === 'map' \? 'num ref bp' : 'num ref'/);
   assert.match(t, /num dir\$\{c\.k === 'map' \? ' bp' : ''\}/);
-  assert.match(src('src/ui/css2d/app-04-presenter.css'), /td\.num\.bp \{ white-space: normal/);
+  assert.match(merged2d('app-04-presenter.css'), /td\.num\.bp \{ white-space: normal/);
 });
 
 // a minimal element for roleOf: its own classes and its ancestors', matched against the selector lists roleOf asks for (.class, [class*="x"], tag)
@@ -44,7 +45,7 @@ test('the words\' size is the paragraph\'s: a figure\'s step marker (.pz-step, 2
   assert.equal(roleOf(el([], [line])), 'body');
   assert.equal(roleOf(el(['pz-step'], [line])), 'other');
   assert.equal(roleOf(el(['pz-pill'], [line])), 'other');
-  assert.match(src('src/ui/css2d/app-04-presenter.css'), /\.pz-step \{[^}]*font-size: max\(12px, \.68em\)/);
+  assert.match(merged2d('app-04-presenter.css'), /\.pz-step \{[^}]*font-size: max\(12px, \.68em\)/);
 });
 
 test('a card leaving and the one coming in are two series, so the swap of one for the other is not a card that "snapped" in height', () => {
@@ -169,7 +170,7 @@ test('the Tests cards, the deck screen and the doppler measure after the observe
 });
 
 test('the phone dock\'s readouts are never narrower than their tiles (a reading ran 14 to 21 px off the right edge after the Ascites, TIPS Doppler and Recompensation talks)', () => {
-  const css = src('src/ui/css2d/app-10-thumb-dock.css');
+  const css = merged2d('app-10-thumb-dock.css');
   assert.match(css, /\.app\.thumb \.vdock \.readouts:not\(\.all\) \{ width: auto; min-width: max-content;/);
   assert.match(css, /\.vdock:not\(\.mini\) \.readouts:not\(\.all\) \{ width: auto; min-width: max-content; \}/);
 });

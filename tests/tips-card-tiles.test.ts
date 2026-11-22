@@ -1,11 +1,12 @@
 // The TIPS card (21 Nov 2026, play-test): its three tiles sat at different heights (a tile's words were centred in a stretched box, so a tile with a shorter small line floated lower), the
 // numbers line lost its last unit at the card's edge, and the actions ran in two ragged rows. Root cause of the tiles: content centred in a box the grid stretches. Node only.
+import { merged2d } from './merged-2d.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const plate = readFileSync(new URL('../src/ui/css2d/app-06-plate.css', import.meta.url), 'utf8');
-const cards = readFileSync(new URL('../src/ui/css2d/app-08-cards.css', import.meta.url), 'utf8');
+const plate = merged2d('app-06-plate.css');
+const cards = merged2d('app-08-cards.css');
 const editorCss = readFileSync(new URL('../src/ui/action/stent/stent-editor.css', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../src/ui/action/stent/StentPanel.tsx', import.meta.url), 'utf8');
 const rule = (css: string, sel: string): string => css.split('\n').find((l) => l.startsWith(sel + ' {')) ?? '';
@@ -89,7 +90,7 @@ test('the readings stand in the card\'s header, between its name and its state',
 test('an open action card stands over the view pill\'s slot and the pill fades out under it, eased', () => {
   const card = readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
-  const dock = readFileSync(new URL('../src/ui/css2d/app-10-thumb-dock.css', import.meta.url), 'utf8');
+  const dock = merged2d('app-10-thumb-dock.css');
   assert.match(card, /\$\{sheetFoot\(device\)\}px/, 'the card\'s foot is the one sheet foot: the dock\'s top and the gap over it');
   assert.match(card, /- pillSpace\(\)\), true\)/, 'and only what stands above the pill\'s slot takes room from the figure');
   assert.match(shell, /cardOver \? ' ac-over-pill' : ''/);

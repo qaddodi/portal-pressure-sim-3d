@@ -1,5 +1,6 @@
 // The shunt's guide (2D stage-hover.js shuntMove, styles .stent-guide): from the vessel the shunt starts at, a dashed line follows the pointer in the accent colour (the danger colour while the pointer is
 // over a vessel it cannot join), 2.5 px wide, dashes 6 on 4 off, round at its ends. One quad in the figure's plane, its dashes cut in the fragment shader by screen pixels, drawn over everything on the vessels' pass.
+import { LOOKS } from '../looks/looks.ts';
 import { Color, DoubleSide, Mesh, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
 import { VESSEL_LAYER } from './layers.ts';
 import { Ease } from '../clock/ease.ts';
@@ -34,7 +35,7 @@ export class ShuntGuide {
     this.mix = new Ease(1, 'shunt-guide-colour', (k) => (this.mat.uniforms.color!.value as Color).copy(this.from).lerp(this.to, k), c);
     this.mat = new ShaderMaterial({ name: 'shunt guide',
       vertexShader: VS, fragmentShader: FS, transparent: true, depthTest: false, depthWrite: false, side: DoubleSide,
-      uniforms: { color: { value: new Color('#2f7cf6') }, lenPx: { value: 1 }, widthPx: { value: WIDTH_PX }, dash: { value: DASH_PX }, gap: { value: GAP_PX }, alpha: { value: 0 } },
+      uniforms: { color: { value: new Color(LOOKS.light.accent) }, lenPx: { value: 1 }, widthPx: { value: WIDTH_PX }, dash: { value: DASH_PX }, gap: { value: GAP_PX }, alpha: { value: 0 } },
     });
     this.mesh = new Mesh(new PlaneGeometry(1, 1), this.mat);
     this.mesh.renderOrder = 1100; this.mesh.frustumCulled = false; this.mesh.visible = false; this.mesh.name = 'shunt-guide';

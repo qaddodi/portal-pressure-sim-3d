@@ -16,7 +16,7 @@ test('Soft carries the two deeper vessel tones the owner accepted', () => {
 });
 
 test('pressure signals are the spec table (HVPG colours come from the engine\'s cuts, never here)', () => {
-  assert.deepEqual([LOOKS.light.ok, LOOKS.light.caution, LOOKS.light.danger], ['#157A58', '#B07A0A', '#C23F2A']);
+  assert.deepEqual([LOOKS.light.ok, LOOKS.light.caution, LOOKS.light.danger], ['#157A58', '#8F6208', '#C23F2A']);
   assert.deepEqual([LOOKS.dark.ok, LOOKS.dark.caution, LOOKS.dark.danger], ['#34C38F', '#F0B43C', '#F2634D']);
 });
 

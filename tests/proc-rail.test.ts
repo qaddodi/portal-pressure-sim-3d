@@ -1,3 +1,4 @@
+import { merged2d } from './merged-2d.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -53,8 +54,8 @@ test('the card has one row and no paragraph or button row left (the old .pz-proc
   assert.doesNotMatch(src, /pz-procs|pz-abb|pz-ab"/);
   assert.match(src, /railOf\(st\)/);
   assert.match(src, /transform: `scaleX/); assert.match(src, /transform: `translateX/);
-  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
-  assert.doesNotMatch(css, /\.pz-procs/);
+  const css = merged2d('app-04-presenter.css');
+  assert.doesNotMatch(readFileSync('src/ui/css2d-3d.css', 'utf8'), /\.pz-procs/);   // (2D's copied sheet still carries the old rules, dead: nothing renders them)
   for (const sel of ['.pz-prail-fill {', '.pz-prail-at {']) {
     const at = css.indexOf(`\n${sel}`), rule = css.slice(at, css.indexOf('}', at));
     assert.match(rule, /transition: transform var\(--d-surface\)/, `${sel} glides`);
@@ -70,7 +71,7 @@ test('EUS glue: every step\'s short line is on the card (never behind hover), th
   const r = railOf({ ...base, steps: glue, phase: 'play', at: 1, ring: 2 });
   assert.deepEqual(r.lines, ['line 0', 'line 1', 'line 2']); assert.equal(r.line, 2);
   assert.equal(railOf(base).lines, null, 'no lines row for a procedure without them');
-  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
+  const css = merged2d('app-04-presenter.css');
   assert.match(css, /\.pz-prail-cap > span \{ grid-area: 1 \/ 1; opacity: 0; transition: opacity/);
   assert.doesNotMatch(readFileSync('src/ui/cards/ProcRow.tsx', 'utf8'), /s\[8\]/, 'the line is not a tooltip');
 });
@@ -84,7 +85,7 @@ test('a long name is never cut off: measured and scaled to fit its room (to 10 p
   const src = readFileSync('src/ui/cards/ProcRow.tsx', 'utf8');
   assert.match(src, /fitRailName\(el\)/); assert.match(src, /observeThenFit\(/); assert.match(src, /fonts\.ready\.then/);
   assert.doesNotMatch(src, /--ch|chars/, 'no character-count guess');
-  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
+  const css = merged2d('app-04-presenter.css');
   assert.doesNotMatch(css.slice(css.indexOf('.pz-prail {'), css.indexOf('.pz-prail-cap')), /text-overflow: ellipsis|cqi/);
   assert.match(css, /\.pz-prail-tx \{[^}]*font-size: max\(10px, calc\(1em \* var\(--pr-z, 1\)\)\)/);
   assert.match(css, /\.pz-prail-t\[data-wrap\] > \.pz-prail-tx \{[^}]*white-space: normal/);
@@ -93,7 +94,7 @@ test('a long name is never cut off: measured and scaled to fit its room (to 10 p
 test('a late font never resizes the name on screen: the words stay hidden until they are fitted with it, then fade in', () => {
   const src = readFileSync('src/ui/cards/ProcRow.tsx', 'utf8');
   assert.match(src, /fonts\.status === 'loaded'/); assert.match(src, /setAttribute\('data-fit', ''\)/);
-  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
+  const css = merged2d('app-04-presenter.css');
   assert.match(css, /\.pz-prail-t \{[^}]*opacity: 0; transition: opacity/);
   assert.match(css, /\.pz-prail-t\[data-fit\] \{ opacity: 1; \}/);
 });

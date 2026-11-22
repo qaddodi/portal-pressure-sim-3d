@@ -1,5 +1,6 @@
 // The ascites deck agrees with itself (3D amendments to the copied 2D deck, src/decks/ag/ascites-amend.ts): a colour means what it says, a card and its chart measure the same thing, and the
 // words say what the model's numbers say. The numbers are the engine's own (a slide's state, run in node: no browser, no picture).
+import { merged2d } from './merged-2d.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -102,9 +103,9 @@ test('the heart-failure slide draws its own dot at SAAG 1.3 and protein 4.5 (the
 });
 
 test('a pill that is followed by a stop (2.2 g/dL.) keeps only the hair of room: the rule reaches a pill inside its no-break span, as Line sets it', () => {
-  const css = readFileSync(new URL('../src/ui/css2d/app-04-presenter.css', import.meta.url), 'utf8');
+  const css = merged2d('app-04-presenter.css');
   assert.match(css, /\.pz-stop :is\(\.pz-val, \.pz-term\) \{ margin-inline-end: \.08em; \}/);
-  assert.ok(!/\.pz-stop > :is\(\.pz-val/.test(css), 'not the child combinator: a value pill is a grandchild of .pz-stop');
+  // (2D's own rule is the child combinator, which a pill inside its no-break span escapes; the descendant rule above is in css2d-3d.css and out-ranks it by order)
   const line = readFileSync(new URL('../src/ui/cards/Line.tsx', import.meta.url), 'utf8');
   assert.match(line, /<span className="pz-nw"><span className=\{`pz-val/, 'the value pill sits inside .pz-nw, so it is never a direct child of .pz-stop');
 });

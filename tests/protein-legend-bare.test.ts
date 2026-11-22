@@ -27,25 +27,18 @@ function spec(sel: string): [number, number, number] {
 }
 const gt = (x: number[], y: number[]) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
 
-test('no rule fills the Protein legend more strongly than humanized.css\'s background: none', () => {
-  const human = rules(readFileSync(new URL('ui/humanized.css', root), 'utf8')).find(([s, b]) => /^html:root \.sv-legend$/.test(s) && /background: none/.test(b));
+test('humanized.css strips the legend\'s paint with !important, so no 2D rule (an id inside :is() included) can out-rank it', () => {
+  const human = rules(readFileSync(new URL('ui/humanized.css', root), 'utf8')).find(([s]) => /^html:root \.sv-legend$/.test(s));
   assert.ok(human, 'humanized.css keeps the legend bare');
-  const floor = spec(human![0]);
-  const bad: string[] = [];
-  for (const f of walk(root)) for (const [sel, body] of rules(readFileSync(f, 'utf8'))) {
-    if (!/background(-color)?\s*:\s*(?!none|transparent)/.test(body) && !/\bbackground\s*:\s*(?!none|transparent)/.test(body)) continue;
-    for (const one of sel.split(/,(?![^()]*\))/)) {
-      // a selector whose subject is the legend itself (not a descendant such as `.sv-legend i.alb`)
-      const subject = one.trim().replace(/::?[\w-]+(\([^()]*\))?$/, '');
-      if (/\.sv-legend(?![\w-])/.test(one) && /(^|[\s>+~])(\.sv-legend|[^\s>+~]*\.sv-legend[^\s>+~]*)(\[[^\]]*\]|:[\w-]+(\([^()]*\))?)*$/.test(subject) && gt(spec(one.trim()), floor) > 0) bad.push(`${f.pathname.split('/src/')[1]}: ${one.trim()}`);
-    }
-  }
-  assert.deepEqual(bad, [], 'these fill the legend over humanized.css (the black bar)');
+  for (const prop of ['background', 'box-shadow', 'border-radius', 'backdrop-filter']) assert.match(human![1], new RegExp(`(^|[;\\s])${prop}:\\s*(none|0)\\s*!important`), `${prop} is !important`);
 });
 
-test('no :is() list in any stylesheet that fills glass names the legend', () => {
+test('no other !important rule fills the legend, and the 2D copies still name it (they are never edited)', () => {
   const bad: string[] = [];
-  for (const f of walk(root)) for (const [sel, body] of rules(readFileSync(f, 'utf8'))) if (/\.sv-legend/.test(sel) && /\bbackground\s*:\s*var\(--(surface|glass|frost)/.test(body) && /:is\([^)]*\.sv-legend/.test(sel)) bad.push(`${f.pathname.split('/src/')[1]}: ${sel.slice(0, 80)}`);
+  for (const f of walk(root)) for (const [sel, body] of rules(readFileSync(f, 'utf8'))) {
+    if (/ui\/humanized\.css$/.test(f.pathname)) continue;
+    if (/\bbackground(-color)?\s*:\s*(?!none|transparent)[^;]*!important/.test(body) && /\.sv-legend(?![\w-])/.test(sel)) bad.push(`${f.pathname.split('/src/')[1]}: ${sel.slice(0, 80)}`);
+  }
   assert.deepEqual(bad, []);
 });
 
