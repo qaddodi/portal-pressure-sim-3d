@@ -20,6 +20,7 @@ import { restyle } from '../labels/roll.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
+import { creditClaim } from '../labels/credit-claim.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 import { HandWatch } from '../labels/hand-watch.ts';
 
@@ -62,7 +63,7 @@ export function LobuleCaptions() {
     const view = (): Box => lobuleLabelView(useUi.getState().vp, BAR, cel.rig.targetRoom);
     const blockers = (): Box[] => {
       const out = talkRects(useUi.getState().boxes).map(rectToBox), note = footBlocker(useFootNote.getState().rect);
-      return note ? [...out, note] : out;   // (the foot note, while it shows: no name, reading or leader stands under it)
+      return note ? [...out, note, ...creditClaim.boxes] : [...out, ...creditClaim.boxes];   // (the foot note, while it shows: no name, reading or leader stands under it)
     };
 
     const make = (id: string, m: CapMeta): El => {

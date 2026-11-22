@@ -20,6 +20,7 @@ import { U } from '../../scene/sinusoid/view.ts';
 import { Vector3 } from 'three';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
+import { creditClaim } from '../../scene/labels/credit-claim.ts';
 /** The Sinusoid view's vessel on the canvas now (the lumen and its wall as a strip over the whole screen), or null when the view is not up or the camera is still flying to it (the strip is not where it will be yet). */
 const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0, 0, 0];
 function sinusoidVessel() {
@@ -113,7 +114,7 @@ export function Credit() {
       if (talk && (lay === 'wide' || lay === 'short')) {
         const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
-        el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true;
+        el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true; creditClaim.set({ x: at.x, y: at.y, w, h });
         return;
       }
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it
@@ -127,11 +128,11 @@ export function Credit() {
       const at = CORNERS.map((c) => spots[c]).find((s) => s) ?? null;
       el.classList.toggle('covered', !at);   // (no free place: hidden by a fade, never a pop)
       el.classList.add('placed');
-      if (!at) { shown = false; return; }
-      const put = () => { el.style.setProperty('--cx', `${Math.round(at.x)}px`); el.style.setProperty('--cy', `${Math.round(at.y)}px`); at0 = at; shown = true; el.classList.remove('moving'); };
+      if (!at) { shown = false; creditClaim.set(null); return; }
+      const put = () => { el.style.setProperty('--cx', `${Math.round(at.x)}px`); el.style.setProperty('--cy', `${Math.round(at.y)}px`); at0 = at; shown = true; el.classList.remove('moving'); creditClaim.set({ x: Math.round(at.x), y: Math.round(at.y), w, h }); };
       // a spot that moves while the credit shows fades out, moves while it is clear and fades back (never a jump across the figure)
       if (shown && at0 && (Math.abs(at0.x - at.x) > 4 || Math.abs(at0.y - at.y) > 4)) {
-        el.classList.add('moving'); clock.cancel(hop); hop = clock.after(put, FADE_MS);
+        el.classList.add('moving'); creditClaim.set(null); clock.cancel(hop); hop = clock.after(put, FADE_MS);
       } else { clock.cancel(hop); put(); }
     };
     place();
@@ -145,7 +146,7 @@ export function Credit() {
     const deck = document.querySelector('.deck-ui');
     const mo = deck && typeof MutationObserver === 'function' ? new MutationObserver(changed) : null;
     mo?.observe(deck!, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-phase'] });
-    return () => { clock.cancel(timer); clock.cancel(hop); clock.cancel(late); clock.cancel(settle); ro?.disconnect(); mo?.disconnect(); };
+    return () => { creditClaim.set(null); clock.cancel(timer); clock.cancel(hop); clock.cancel(late); clock.cancel(settle); ro?.disconnect(); mo?.disconnect(); };
   }, [view, talk, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }
