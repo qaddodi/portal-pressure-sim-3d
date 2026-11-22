@@ -55,7 +55,14 @@ const one = (v) => (Math.round(v * 10) / 10).toFixed(1);
 const tail = `
 export { PATH, NI, LIVER_NAMES, SPOKEN, AT_FP, ZONE_LOOK, RATE_OF, zoneLines, zoneW };
 `;
-const layout = banner('tool-profile.js') + head + A + B + tail;
+// 3D departure (21 Nov 2026, Mohammad: the chart's HVPG and PPG read as the card does): the brackets' and pills' values have one decimal ("HVPG 0.5"), so the widths they are fitted to are
+// the widest of those ("00.0"), and the phone's pills read one(); the stations' own readings stay whole numbers (his 19 Oct rule).
+const decimals = (src) => {
+  const swaps = [['tw(`${name} 00`, 700)', 'tw(`${name} 00.0`, 700)', 2], ["parts = [tw(name, 600), tw('00', 700)]", "parts = [tw(name, 600), tw('00.0', 700)]", 1], ['v: whole(p[k]), rate', 'v: one(p[k]), rate', 1]];
+  for (const [a, b, n] of swaps) { if (src.split(a).length - 1 !== n) throw new Error(`decimals: ${a} not found ${n} times`); src = src.split(a).join(b); }
+  return src;
+};
+const layout = banner('tool-profile.js') + head + decimals(A + B) + tail;
 
 const files = [[join(OUT, 'curve-near.generated.js'), curve], [join(OUT, 'layout.generated.js'), layout]];
 let bad = 0;

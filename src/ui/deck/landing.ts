@@ -4,7 +4,7 @@ import { sceneApi } from '../../scene/api.ts';
 import { useUi } from '../ui-store.ts';
 import { makeLanding } from './landing-core.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 /** The cards are all in: none leaving or waiting, and every one past its entrance (CardFrame marks a card `data-live` once its entrance has ended). */
 export function cardsAreIn(root: ParentNode = document): boolean {
   for (const c of root.querySelectorAll<HTMLElement>('.dk-card[data-card]')) {
@@ -19,7 +19,7 @@ const landing = makeLanding({
   cardsIn: () => typeof document === 'undefined' || cardsAreIn(),
   now: () => clock.now(),
   later: (fn, ms) => clock.after(fn, ms),
-  cancel: (h) => clock.cancel(h as number),
+  cancel: (h) => clock.cancel(h as TimerId),
 });
 
 /** The position's key; empty while the talk has no stops yet (nothing can land before there is a slide). */

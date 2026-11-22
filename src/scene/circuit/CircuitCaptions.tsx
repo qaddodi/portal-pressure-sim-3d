@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react';
 import '../labels/labels.css';
 import './captions.css';
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { latest } from '../../engine/index.ts';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import { useSettings } from '../../state/settings.ts';
@@ -31,6 +31,7 @@ import { readUiWalls } from './ui-walls.ts';
 import { resSig, resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
+import { HandWatch } from '../labels/hand-watch.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[]).map((n, i) => [n.id, i]));
 /** What a leader crossing a vessel costs the solver, per line (the hepatic artery's name hung from a leader across the whole sinusoid bundle). */
@@ -96,7 +97,7 @@ export function CircuitCaptions() {
 
     const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
     // the floating bars are read at rest (once the layout has settled after a change), not in a frame
-    let uiWalls: Box[] = [], wallTimer = 0;
+    let uiWalls: Box[] = [], wallTimer: TimerId | null = null;
     const readWalls = () => { uiWalls = readUiWalls(); clock.invalidate('circuit-captions'); };   // (the signature holds the walls' boxes: a changed wall is seen there, never forced)
     const wallsLater = () => { clock.cancel(wallTimer); wallTimer = clock.after(readWalls, 260); };
     wallsLater();
@@ -233,6 +234,7 @@ export function CircuitCaptions() {
         useShell.getState().figure.labelLevel, [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
         [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
     };
+    const hand = new HandWatch();
     const tick = () => {
       const now = clock.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
@@ -243,7 +245,7 @@ export function CircuitCaptions() {
       cel.mapPoint(800, 500, tmp); pc.x = tmp.x; pc.y = tmp.y;   // (four corners of a square on the plate: the words ride its perspective exactly under a tilt, ride.ts)
       cel.mapPoint(700, 500, tmp); pd.x = tmp.x; pd.y = tmp.y;
       const g = gate.step({
-        now, dt, on: onMap, moving: cel.rig.isMoving, a: pa, b: pb, c: pc, d: pd, layout: layoutSig,
+        now, dt, on: onMap, moving: cel.rig.isMoving, byHand: hand.step(cel.rig.handView, cel.rig.isMoving), a: pa, b: pb, c: pc, d: pd, layout: layoutSig,
         fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()),
       });
       if (g.solve) solveNow();

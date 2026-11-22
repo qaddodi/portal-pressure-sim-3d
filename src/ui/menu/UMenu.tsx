@@ -34,7 +34,7 @@ import { loadPatient } from './patients.ts';
 import { openFromReadings } from '../readings/FromReadings.tsx';
 import { GROUP_WHERE, fold, filterRows, emptyNote, stepRow, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
 
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 const PRESET_SUMMARY: Record<string, string> = Object.fromEntries((PRESETS as { id: string; summary?: string }[]).map((p) => [p.id, p.summary ?? '']));
 const TABS = UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[];
 const TAB_ICON: Record<MenuTab, string> = { present: 'projector', patients: 'scenario' };
@@ -141,7 +141,7 @@ export function UMenu() {
   const [query, setQuery] = useState('');
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [hover, setHover] = useState<{ k: string; el: HTMLElement } | null>(null);
-  const hoverT = useRef(0), hideT = useRef(0);
+  const hoverT = useRef<TimerId | null>(null), hideT = useRef<TimerId | null>(null);
   const root = typeof document === 'undefined' ? null : document.querySelector('.sh-root');
   const close = () => useShell.getState().close();
   useSheetSwipe(ref, close, () => sheet, true);   // (2D menu.js: a phone's menu is a sheet that follows a pull down)

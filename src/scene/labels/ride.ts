@@ -10,6 +10,7 @@
 //   - once the picture is still, the words are placed again only where the carried place no longer holds (a caption under a card or past the edge, a new zoom, other words): a pure pan that keeps
 //     every box clear just keeps its places; when a new place is needed the words fade out where they stand, are placed at the fade's end, and fade in (never a pop).
 import { FADE } from './alpha.ts';
+import { isCut } from './hand-watch.ts';
 import type { Box } from './geometry.ts';
 
 /** A jump of a dot, in px, between two frames, that is a cut and not a hand's pan (the same as the Anatomy's, controller.ts FOLLOW_JUMP). */
@@ -26,6 +27,8 @@ export interface RideIn {
   on: boolean;
   /** The camera (a hand, a glide) is moving the picture now. */
   moving: boolean;
+  /** This frame's move of the picture is the hand's alone (hand-watch.ts: a pan, a pinch, the wheel): continuous, so a dot's jump in it is carried and is never a cut. Absent: false. */
+  byHand?: boolean;
   /** Two points of the picture, projected now: any two that stay apart. */
   a: Pt; b: Pt;
   /** Two more, so a, b, c, d are the corners of a quad on the plate (no three in line, in that order round it): the dots are then carried by the plate's perspective map, exactly. */
@@ -118,7 +121,7 @@ export class Ride {
     const { now, dt, on, a, b } = i;
     // A cut (a reference point that leaps more than FOLLOW_JUMP in one frame, in this view or on its way in or out) is not carried, and the words fading out because of it are not moved by it either:
     // the carry is frozen at the picture before the cut until the words are placed again (Mohammad's audit 21 Nov: lobule names moved 700 to 1,300 px in one frame at alpha 0.5; fade and move are tied).
-    const jumped = !!this.lastA && Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y) > FOLLOW_JUMP;
+    const jumped = !!this.lastA && isCut(Math.hypot(a.x - this.lastA.x, a.y - this.lastA.y), FOLLOW_JUMP, !!i.byHand);
     if (jumped) this.frozen = true;
     if (!this.frozen) {
       this.nowA.x = a.x; this.nowA.y = a.y; this.nowB.x = b.x; this.nowB.y = b.y;

@@ -352,13 +352,13 @@
 }
 /* Phone: the same content as a bottom sheet, one column, the column headings sticking. */
 /* The one sheet layer (sheet-layer.js): every menu, the main menu, Why? and their scrims are laid in it. Over the thumb dock it is cut on the
-   dock's top line (--sheet-foot-screen is 8 px above it), so nothing in it, however it is moved, dragged or animated, is ever drawn below that
+   dock's top line (--sheet-foot-screen is one --sheet-gap above it), so nothing in it, however it is moved, dragged or animated, is ever drawn below that
    line or takes a touch there: the play bar, the timeline, the readouts and the tabs are never covered, and stay live under an open menu.
    It is the containing block of what is in it (contain: layout) and spans the viewport, so their fixed places are what they were. One cut for
    every sheet; none of them carries its own. One above the popover level, so the start screen (the same level) never covers a menu. */
 .sheet-layer { position: fixed; inset: 0; z-index: calc(var(--z-popover) + 1); pointer-events: none; contain: layout; }
 :where(.sheet-layer > *) { pointer-events: auto; }
-html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot-screen, 8px) - 8px)) 0); }
+html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot-screen, 8px) - var(--sheet-gap, 8px))) 0); }
 /* (13 Nov 2026, menu recs C5) The scrim under a menu sheet takes the tap and dims nothing: a sheet's frost is drawn in the figure's canvas,
    under this layer, so a veil here darkened the sheet's own glass too and Layers and Settings no longer matched the Treat and Tests cards. */
 .um-scrim { position: fixed; inset: 0; z-index: var(--z-popover); background: none; animation: crossfade var(--d-small) var(--ease); }
