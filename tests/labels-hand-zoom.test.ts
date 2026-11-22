@@ -23,7 +23,7 @@ function world(withHand = true) {
     now: () => t, project: (p: Vector3, o: { x: number; y: number }) => { rig.project(p, o); o.x += dx; tick.push({ x: o.x, y: o.y }); return o; }, cameraMoving: () => moving,
     ...(withHand ? { hand: () => rig.handView } : {}), free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null,
     blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, zoom: () => rig.handZoom,
-  } as unknown as LabelDeps;
+  } as LabelDeps;
   const ctl = new LabelController(d); ctl.setState({ ...NO_STATE, ...shown });
   const frame = () => { t += 16; tick = []; ctl.tick(); };
   /** every label's dot is where its anchor projects to NOW: the ring is never left at a place the picture has moved from */
