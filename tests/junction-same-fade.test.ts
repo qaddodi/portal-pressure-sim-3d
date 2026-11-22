@@ -46,7 +46,7 @@ test('every vessel that ends on the faint cava comes to the cava\'s own opacity 
 });
 
 test('no vein end renders open: back faces are never drawn and the cut at the wall is a pixel wide, never along the cava\'s axis, never a feather into the lumen', () => {
-  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard;/);
+  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) DROP\(\d+\);/);
   assert.match(VESSEL_FS, /cavA = mix\(1\.0 - smoothstep\(-0\.5, 0\.5, cdPx\), 1\.0, circT\);/);
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 0\.6 \* vNbr\.y, cd\)/);
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\)/);

@@ -231,4 +231,4 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .cl-lead[data-tone="custom"] { --lc: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text, var(--text))); }
 .cl-lead[data-tone="note"] { --lc: var(--cl-text, var(--text)); }
 .cl-lead[data-tone] .cl-lead-line, .cl-lead[data-tone] .cl-lead-dot { background: var(--lc); }
-.cl-lead[data-tone] .cl-lead-dot { box-shadow: 0 0 0 1.5px var(--lb-halo, var(--cl-surface, #000)); }
+.cl-lead[data-tone] .cl-lead-dot { filter: drop-shadow(0 0 1.5px var(--lb-halo, var(--cl-surface, #000))); }

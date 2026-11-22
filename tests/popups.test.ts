@@ -53,7 +53,7 @@ test('P2: a second note crossfades its words in place (the old fade out, the new
   assert.match(tsx, /TOAST_SWAP_MS = 120/);
   assert.match(tsx, /setShown\(next\); setSwap\(false\);[^\n]*TOAST_SWAP_MS\)/);
   assert.match(tsx, /data-swap=/);
-  assert.match(css, /\.sh-toast > span \{ display: block; transition: opacity 120ms linear; \}/);
+  assert.match(css, /\.sh-toast > span \{ display: block; transition: opacity var\(--d-flip\) linear; \}/);
   assert.match(css, /\.sh-toast\[data-swap\] > span \{ opacity: 0; \}/);
 });
 

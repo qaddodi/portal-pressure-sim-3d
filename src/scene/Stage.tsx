@@ -88,7 +88,9 @@ function SceneBridge() {
 
   // Under the splash, before the first frame (L3, 21 Nov): the 3D lobule and sinusoid are constructed (their materials, no geometry) and every program of the scene graph, those two views, the hidden devices and the
   // stand-ins for what is made later (materials/prototypes.ts) is compiled, into the post pass's target when the figure is drawn into one: programs are keyed on the output colour space, materials/warm.ts. three builds
-  // them in parallel where the driver can. The first frame waits for this (let go when no stage of the start has been stamped for BOOT_STALL_MS: boot/ready.ts watchStall; the clock does not decide), and so does the cover's lift (boot/ready.ts compileDone), so nothing compiles in front of the viewer.
+  // them in parallel where the driver can.
+  // The first frame waits for this (let go when no stage of the start has been stamped for BOOT_STALL_MS: boot/ready.ts watchStall; the clock does not decide),
+  // and so does the cover's lift (boot/ready.ts compileDone), so nothing compiles in front of the viewer.
   const compiled = useRef(false);
   useEffect(() => {
     let alive = true;

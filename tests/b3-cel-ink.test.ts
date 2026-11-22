@@ -9,6 +9,7 @@ import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { CHEVRON_GLSL } from '../src/scene/blood/chevron-glsl.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { canvasBuffers } from '../src/scene/post-aa.ts';
 
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK)`));   // (a vein's line; an artery's wall multiplies it, tests/artery-wall.test.ts)
@@ -129,7 +130,10 @@ test('the outline is continuous by construction: painted in the tube\'s own frag
   assert.match(VESSEL_FS, /float dLat = tl > 1e-3 \? abs\(dot\(dvPx, vec2\(-tS\.y, tS\.x\) \/ tl\)\) : length\(dvPx\);/, 'the exact lateral distance in device px');
   assert.match(VESSEL_FS, /float inkT = smoothstep\(rDevAx - 0\.5, rDevAx \+ 0\.5, dLat\) \* endK \* inkOn;/, 'half a pixel of antialiasing each side of the lumen\'s edge');
   assert.doesNotMatch(VESSEL_FS + VESSEL_VS, /gl_FrontFacing \|\| |attribute float hull|vHull|hullOn/, 'no hull');
-  assert.match(read('../src/scene/Stage.tsx'), /stencil: !post/);   // (with the anti-aliasing pass on the figure draws into the pass's own target, which has the stencil: post-aa.ts)
+  assert.match(read('../src/scene/Stage.tsx'), /stencil: buffers\.stencil/);   // (the canvas's stencil comes from canvasBuffers: with the anti-aliasing pass on the figure draws into the pass's own target, which has the stencil; any page that can draw straight to the canvas keeps it: post-aa.ts)
+  assert.deepEqual(canvasBuffers('fxaa', false), { depth: false, stencil: false });
+  assert.equal(canvasBuffers('off', false).stencil, true, 'a figure drawn straight to the canvas needs the stencil');
+  assert.equal(canvasBuffers('fxaa', true).stencil, true, 'the inspector may switch the pass off live');
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
   const s = new CelScene();
   s.dispose();

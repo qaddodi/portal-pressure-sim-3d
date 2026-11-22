@@ -46,5 +46,5 @@ test('the Settings row hands the tap to sendFeedback, which reads the screen onc
   const row = readFileSync(new URL('../src/ui/settings/SettingsSheet.tsx', import.meta.url), 'utf8');
   assert.match(row, /void sendFeedback\(email\)/);
   const send = readFileSync(new URL('../src/ui/shell/send-feedback.ts', import.meta.url), 'utf8');
-  assert.match(send, /FEEDBACK_SHEET_MS/); assert.match(send, /FEEDBACK_READ_MS/); assert.match(send, /Copy the full report/);
+  assert.match(send, /FEEDBACK_SHEET_MS/); assert.match(send, /FEEDBACK_READ_MS/); assert.match(send, /Copy full report/);
 });

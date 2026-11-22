@@ -205,7 +205,7 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   assert.match(VESSEL_VS, /attribute vec2 nbr;/);
   assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
   assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
-  assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
+  assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) DROP\(\d+\);/);
   assert.match(VESSEL_FS, /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\)/);
 });
 
@@ -242,7 +242,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
     assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
   }
   assert.match(VESSEL_FS, /uniform float cavaCut;/);
-  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) discard;/);
+  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) DROP\(\d+\);/);
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
 });
 

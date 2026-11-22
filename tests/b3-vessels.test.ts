@@ -114,7 +114,7 @@ test('the vessel vertex shader parses; there is no hull attribute and the outlin
   parse!(VESSEL_VS.replace(/^\n/, ''));
   assert.doesNotMatch(VESSEL_VS, /attribute float hull/);
   assert.doesNotMatch(VESSEL_FS, /hullOn|vHull/);
-  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard/);
+  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) DROP\(\d+\)/);
 });
 
 
