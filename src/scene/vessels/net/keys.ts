@@ -69,13 +69,13 @@ export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, 
 
 /**
  * The keys of every wide junction region. `states[p][e]` is edge e's swell in real state p (live width over the width it was built at), `bakeScale[e]` the factor the mesh was baked at (ranges.ts): a key's radii relative to the baked bones are swell / bakeScale.
- * A narrow region gets none (its one set is the base shape).
+ * Every region gets keys (a region with one real state gets one).
  */
 export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[], states: readonly (readonly number[])[], bakeScale: ArrayLike<number>, armEdges: (node: string) => number[]): RegionKeys[] {
   const out: RegionKeys[] = [];
   for (const d of done) {
     const arms = armEdges(d.node), vec = states.map((s) => arms.map((e) => s[e]!));
-    if (!isWide(vec, arms.length)) continue;
+    const wide = isWide(vec, arms.length);   // (every region is keyed from its own real states; a wide one may carry up to MAX_KEYS_FOLDING, plan owner 22 Nov)
     // up to MAX_KEYS keys; a region whose keys still fold gets up to MAX_KEYS_FOLDING (plan owner, 22 Nov), and any fold left is recorded on its key
     const bake = (picked: number[]): RegionKeys['keys'] => picked.map((p) => {
       const s = states[p]!, fKey = new Float64Array(skel.edges.length).map((_, e) => (s[e] ?? 1) / bakeScale[e]!), folds: [number, number] = [0, 0];
@@ -87,9 +87,9 @@ export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[],
       };
       return { state: p, folds, swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
     });
-    let keys = bake(pickKeys(vec, MAX_KEYS));
+    let keys = bake(pickKeys(vec, wide ? MAX_KEYS_FOLDING : MAX_KEYS));
     const own = d.variant === 1 ? 1 : 0, foldsOf = (ks: RegionKeys['keys']): number => ks.reduce((a, k) => a + k.folds[own], 0);   // (a mesh is judged at the layout it was built at)
-    if (foldsOf(keys) > 0) { const more = bake(pickKeys(vec, MAX_KEYS_FOLDING)); if (foldsOf(more) < foldsOf(keys) || more.length > keys.length) keys = more; }
+    if (foldsOf(keys) > 0 && !wide) { const more = bake(pickKeys(vec, MAX_KEYS_FOLDING)); if (foldsOf(more) < foldsOf(keys) || more.length > keys.length) keys = more; }
     out.push({ node: d.node, variant: d.variant, vertStart: d.rg.free[0], vertCount: d.rg.free[1], arms, keys });
   }
   return out;

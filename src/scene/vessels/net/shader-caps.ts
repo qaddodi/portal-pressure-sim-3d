@@ -2,7 +2,6 @@
 // A long or bent arm cut to 8 evenly spaced samples (the first cut, net/regions.ts) lets the tube stand outside the live union: the root cause of the extension's ink poking out. Here the bones of each capsule are CHOSEN: the subset of at most `max` that, over the Circuit's t and the
 // real swell states, leaves the least of the full bone chain's surface outside the polyline's capsule (a bone's tube stands outside by its distance from the segment plus its radius, less the capsule's radius there). A minimax choice by dynamic programming over the chain.
 import { bonesAtT } from './window.ts';
-import { sdUnion, SKIN_K } from '../skin/sdf.ts';
 import type { Skeleton } from './types.ts';
 
 type V3 = readonly [number, number, number];
@@ -58,35 +57,3 @@ export function shaderBones(skel: Skeleton, chains: readonly (readonly number[])
   });
 }
 
-/**
- * HOW FAR THE ARMS' EXTENSIONS STAND OUTSIDE THE UNION THE SHADER HOLDS, per junction region (plan owner, 22 Nov): for every vertex of an arm's tube between its seam ring and the node (at the t of `ts` and each per-edge radius factor of `scales`, applied to `skel`'s
- * radii), the signed distance to the smooth union of the region's capsules as the vertex stage builds it (`rows`: each capsule's bones, live centres and radii) over the narrowest arm's radius. 0 or less: inside. The extension is the fillet's ink hull's to hide, so it must be 0.
- */
-export function extensionsOutside(skel: Skeleton, mesh: { position: Float32Array; bone: Uint16Array; weight: Float32Array; offset: Float32Array; index: Uint32Array }, reports: readonly { node: string; kind: string; variant?: number; arms: number[]; seams: number[]; triStart: number; triCount: number; capBones?: number[][]; caps?: unknown }[], rows: readonly { caps: readonly { bones: readonly number[]; mate: number }[] }[], scales: readonly ArrayLike<number>[], ts: readonly number[]): { node: string; worst: number; at: { t: number; edge: string } }[] {
-  const junctions = reports.filter((n) => n.kind === 'junction' && n.caps), inRegion = new Uint8Array(mesh.index.length / 3), tube = new Uint8Array(mesh.position.length / 3);
-  for (const n of junctions) inRegion.fill(1, n.triStart, n.triStart + n.triCount);
-  for (let t = 0; t < inRegion.length; t++) if (!inRegion[t]) for (let s = 0; s < 3; s++) tube[mesh.index[3 * t + s]!] = 1;
-  const poses = ts.map((t) => bonesAtT(skel, t)), out: { node: string; worst: number; at: { t: number; edge: string } }[] = [];
-  junctions.forEach((n, ri) => {
-    if ((n.variant ?? 0) !== 0 || !n.capBones) return;
-    const cluster = n.node.split('+'), ext: { v: number; edge: number }[] = [];
-    n.arms.forEach((edge, i) => {
-      const e = skel.edges[edge]!, [first, count] = e.bones, end = cluster.includes(e.from) ? 0 : 1, seam = end === 0 ? first + n.seams[i]! : first + count - 1 - n.seams[i]!;
-      for (let v = 0; v < tube.length; v++) { if (!tube[v]) continue; const b = mesh.bone[4 * v]!; if (b < first || b >= first + count || b === seam || (end === 0 ? b > seam : b < seam)) continue; ext.push({ v, edge }); }
-    });
-    let worst = { x: -Infinity, t: 0, edge: -1 };
-    for (const sc of scales) ts.forEach((t, ti) => {
-      const B = poses[ti]!, rl = (g: number): number => B[g]!.r * sc[skel.bones[g]!.edge]!;
-      const caps = rows[ri]!.caps.map((c) => { const pts = new Float64Array(3 * c.bones.length), r = new Float64Array(c.bones.length); c.bones.forEach((g, q) => { pts.set(B[g]!.cen, 3 * q); r[q] = rl(g); }); return c.mate >= 0 ? { n: c.bones.length, pts, r, mate: c.mate } : { n: c.bones.length, pts, r }; });
-      const narrow = Math.min(...n.capBones!.slice(0, n.arms.length).map((ids) => rl(ids[0]!))), k = SKIN_K * narrow;
-      for (const { v, edge } of ext) {
-        const p = [0, 0, 0];
-        for (let q = 0; q < 4; q++) { const w = mesh.weight[4 * v + q]!; if (!(w > 0)) continue; const g = mesh.bone[4 * v + q]!, F = B[g]!.F, R = rl(g), o = [mesh.offset[12 * v + 3 * q]!, mesh.offset[12 * v + 3 * q + 1]!, mesh.offset[12 * v + 3 * q + 2]!]; for (let d = 0; d < 3; d++) p[d]! += w * (B[g]!.cen[d]! + R * (F[0][d]! * o[0]! + F[1][d]! * o[1]! + F[2][d]! * o[2]!)); }
-        const x = sdUnion(caps, k, p[0]!, p[1]!, p[2]!) / narrow;
-        if (x > worst.x) worst = { x, t, edge };
-      }
-    });
-    out.push({ node: n.node, worst: worst.x, at: { t: worst.t, edge: skel.edges[worst.edge]?.id ?? '' } });
-  });
-  return out;
-}

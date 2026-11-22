@@ -192,7 +192,7 @@ test('the baked file round-trips a mesh bit for bit, and its digest follows the 
   for (const k of ['position', 'bone', 'weight', 'offset', 'normal', 'offsetMap', 'bakeScale', 'index'] as const) assert.deepEqual(Array.from(back.mesh[k]!), Array.from(m[k]!), k);
   assert.equal(back.mesh.keys, undefined, 'no states, no keys');
   // keys round-trip too (net/keys.ts)
-  const E = fx.skel.edges.length, states = [0.4, 0.7, 1.15].map((x) => Array.from({ length: E }, (_, e) => (e % 2 ? 1 : x))), kr = buildNetMesh(fx.skel, undefined, { states, maps: true }), keyed = kr.mesh, kb = decodeNet(encodeNet(keyed, digest, kr.nodes))!;
+  const E = fx.skel.edges.length, states = [0.4, 0.7, 1.15].map((x) => Array.from({ length: E }, () => x)), kr = buildNetMesh(fx.skel, undefined, { states, maps: true }), keyed = kr.mesh, kb = decodeNet(encodeNet(keyed, digest, kr.nodes))!;
   assert.ok(keyed.keys && keyed.keys.length > 0);
   assert.deepEqual(kb.mesh.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), Array.from(k.offset), Array.from(k.offsetMap)])]), keyed.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), Array.from(k.offset), Array.from(k.offsetMap)])]));
   assert.deepEqual(kb.nodes.map((n) => [n.node, n.variant, n.switchT, n.vertStart, n.triStart]), kr.nodes.filter((n) => n.kind === 'junction').map((n) => [n.node, n.variant, n.switchT, n.vertStart, n.triStart]), 'the junction reports with their variants and windows ride in the file');
@@ -217,7 +217,7 @@ test('every through pair, merged or not, is judged by the no-neck rule on the un
   assert.ok(t.through[0]!.mated && !t.through[0]!.toggled, 'at one node the pair is the mate minimum');
 });
 
-test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge fail', async () => {
+test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge (as a bulge) fail', async () => {
   const { throughNeck } = await import('../src/scene/vessels/net/neck.ts');
   const { armCapsule, skinKOf } = await import('../src/scene/vessels/skin/sdf.ts');
   const arm = { vesselId: 'x', end: 0 as const, courseIndex: 0, dataIndex: 0, lensIndex: 0, baseD: 1, widthKind: 0 as const, restR: 0.1 };
@@ -231,8 +231,35 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
   assert.ok(!gap.ok && /neck/.test(gap.why), 'two capsules with a gap between their ends are a neck');
   const pinch = throughNeck(axis, [0.1, 0.1], [cap(-0.3, -2, 0.1, 0.1), cap(0.3, 2, 0.1, 0.1), cap(-0.3, 0.3, 0.06, 0.06)], k);
   assert.ok(!pinch.ok, 'a thin bridge between two fat arms is a neck');
+  // a pair whose radius is smaller at the node than at the narrower arm's far end is a taper of the vessel, not a neck (real figure, CONF: the trunk is 0.0245 at the node and 0.0255 further out): the floor is the pair's own radius there
+  const taperAxis: [number, number, number][] = [[-2, 0, 0], [0, 0, 0], [2, 0, 0]], taper = throughNeck(taperAxis, [0.1, 0.085, 0.1], [{ ...cap(0, -2, 0.085, 0.1), mate: 1 }, { ...cap(0, 2, 0.085, 0.1), mate: 0 }], k);
+  assert.ok(taper.ok, taper.why);
   const ledge = throughNeck(axis, [0.1, 0.07], [cap(0, -2, 0.1, 0.1), cap(0, 2, 0.07, 0.07)], k);
-  assert.ok(!ledge.ok && /slope/.test(ledge.why), 'a step from 0.1 to 0.07 is a step in the slope');
+  assert.ok(!ledge.ok && /bulge/.test(ledge.why), 'a step from 0.1 to 0.07 is not a neck, but the union humps where the two meet: a bulge (the slope check is gone; the ceiling sees it)');
+});
+
+// THE GATE IS JUDGED AT THE REAL STATES, SO THE BAKE RADIUS DOES NOT MOVE IT (plan owner, 22 Nov): the same live vessel baked at max / f for f from 1.1 to 1.3 (the skeleton's radii R / f, every state's swell f) gets the same through-pair verdict and
+// margin, and meshes. A cliff at some f (a pair that passed at one bake radius and necked at another) fails here.
+test('the neck gate reads the live radii: its verdict and margin do not change with the bake factor (1.1 to 1.3)', () => {
+  const live = (u: number, a: number, b: number): number => a + (b - a) * u;
+  for (const [ra, rb] of [[0.1, 0.1], [0.1, 0.104], [0.104, 0.1], [0.1, 0.096]] as const) {
+    const out: { f: number; margin: number; mated: boolean; toggled: boolean }[] = [];
+    for (const f of [1.1, 1.15, 1.2, 1.25, 1.3]) {
+      const skel = makeSkeleton([{ id: 'N', runOn: ['TR0', 'TR1'] }, { id: 'a' }, { id: 'b' }, { id: 'c' }], [
+        { id: 'TR0', from: 'a', to: 'N', curve: (u) => [-3 + 3 * u, 0, 0], rad: (u) => live(u, ra, ra) / f },
+        { id: 'TR1', from: 'N', to: 'b', curve: (u) => [3 * u, 0, 0], rad: (u) => live(u, rb, rb) / f },
+        { id: 'BR', from: 'N', to: 'c', curve: (u) => [3 * u * Math.cos(1.2), 3 * u * Math.sin(1.2), 0], rad: () => 0.04 / f },
+      ]);
+      const res = buildNetMesh(skel, undefined, { states: [[f, f, f], [f * 0.9, f * 0.9, f * 0.9]] }), th = res.nodes[0]!.through[0];
+      assert.ok(th, `through pair judged at f ${f}`);
+      out.push({ f, margin: th!.margin, mated: th!.mated, toggled: th!.toggled });
+    }
+    for (const o of out) {
+      assert.equal(o.mated, out[0]!.mated, `mate choice moves with the bake factor (${ra}/${rb}): ${JSON.stringify(out)}`);
+      assert.equal(o.toggled, out[0]!.toggled, `toggle moves with the bake factor: ${JSON.stringify(out)}`);
+      assert.ok(Math.abs(o.margin - out[0]!.margin) < 0.01, `margin moves with the bake factor (${ra}/${rb}): ${JSON.stringify(out)}`);
+    }
+  }
 });
 
 // ---- the real figure's lessons (WP0's skeleton, 22 Nov): what the first run on it broke, each pinned at its root ----
