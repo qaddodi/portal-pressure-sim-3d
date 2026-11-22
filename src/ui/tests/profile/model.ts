@@ -13,7 +13,7 @@ import { NODES } from '../../../engine/hales/portal/topology.js';
 import { tenthGap } from '../../../engine/hales/core/gap.js';
 import { MARK_NAME, hvpgSentence, measuredTop } from '../../charts/profile/wedge.ts';
 import { sampler } from '../../../scene/lenses/oklab.ts';
-import { LENS_TOKENS } from '../../../scene/lenses/tokens.copied.ts';
+import { PRESSURE_RAMP } from '../../../scene/lenses/pressure-ramp.ts';
 import { PROFILE_PATHS, SHORT } from './copied/anatomy.copied.js';
 import { monotoneSegs, curveTester } from './copied/curve-near.copied.js';
 import {
@@ -55,11 +55,11 @@ const DIM_NAME = (k: string) => `${k} `;
 const W = (s: string, size: number, weight: number) => measure(s, size, weight);
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 
-// the 2D pressure ramp (colormap.js pressureColor: the look's ramp over 0..35 in 256 steps)
+// the pressure ramp (pressure-ramp.ts, the one source), read over 0..35 in 256 steps as 2D's colormap.js pressureColor does
 const RAMPS = new Map<string, ReturnType<typeof sampler>>();
 export function pressureColour(p: number, look: string): Rgba {
   let s = RAMPS.get(look);
-  if (!s) { s = sampler((LENS_TOKENS as unknown as Record<string, { pressure: Parameters<typeof sampler>[0] }>)[look]!.pressure); RAMPS.set(look, s); }
+  if (!s) { s = sampler(PRESSURE_RAMP[look as keyof typeof PRESSURE_RAMP]); RAMPS.set(look, s); }
   const q = Math.round((Math.min(35, Math.max(0, p)) / 35) * 255) / 255 * 35;
   const c = s.at(q);
   return [c[0], c[1], c[2], 1];

@@ -18,9 +18,11 @@ export const VESSEL_TEXEL = {
 /** The dive's dissolve: a part fades by dropping a growing share of its pixels in a fixed screen pattern (interleaved gradient noise), so an object can be there, half there
  *  and gone with no alpha and no sorting, and never pops. `fade` 1 draws everything (one compare), 0 nothing. The toon, ink and vessel passes use the same pattern, so an
  *  object's ink goes with its fill. */
-export const FADE_GLSL = /* glsl */ `
+export const FADE_UNIFORM_GLSL = /* glsl */ `
 uniform float fade;
-bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade; }
+`;
+/** The dissolve's two functions, reading `fade` and `vUv`'s reveal: the program declares `fade` (a uniform, or ?geom=net's per-edge value). */
+export const FADE_FUNCS_GLSL = /* glsl */ `bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade; }
 // A tube drawing on or retracting along its length (\`reveal\`, 0 to 1 over u): the front is a soft gradient, a tenth of the length, dissolved in the same screen pattern, never a hard cut.
 bool frontOut(float u, float rv) {
   if (rv >= 0.9999) return false;
@@ -28,6 +30,7 @@ bool frontOut(float u, float rv) {
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 `;
+export const FADE_GLSL = FADE_UNIFORM_GLSL + FADE_FUNCS_GLSL;
 
 export const TOON_VS = /* glsl */ `
 attribute vec3 tang;

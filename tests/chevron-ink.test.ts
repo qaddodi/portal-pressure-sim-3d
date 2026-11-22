@@ -96,10 +96,10 @@ test('the ink is written to the fifth row of the colour texture, with the vessel
 });
 
 test('the vessel shader reads the vessel\'s own ink for each lens set, mixes the two sets by the lens crossfade, and eases the stored value', () => {
-  assert.match(VESSEL_FS, /float chevCreamOf\(vec4 la, sampler2D grad, float mode, float idx, vec3 col\) \{/);
+  assert.match(VESSEL_FS, /float chevCreamOf\(vec4 la, sampler2D grad, float mode, float idx, vec3 col, float raw\) \{/);
   assert.match(VESSEL_FS, new RegExp(`texelFetch\\(grad, ivec2\\(int\\(idx\\), ${CHEV_INK_ROW}\\), 0\\)\\.r`), 'the fifth row');
   assert.match(VESSEL_FS, /if \(la\.a > 0\.5 && mode < 1\.5\) return smoothstep\(0\.0, 1\.0, /, 'only where the lens runs colours along the vessel, and the stored value is smoothed');
-  assert.match(VESSEL_FS, /float cream = mix\(chevCreamOf\(la, lensGradA, lensModeA, lensI, col\), chevCreamOf\(lb, lensGradB, lensModeB, lensI, col\), lensMix\);/);
+  assert.match(VESSEL_FS, /float cream = mix\(chevCreamOf\(la, lensGradA, lensModeA, lensI, col, lensRawA\), chevCreamOf\(lb, lensGradB, lensModeB, lensI, col, lensRawB\), lensMix\);/);
   assert.match(VESSEL_FS, /chevInk\(cream, markDark, markLight\)/);
   assert.doesNotMatch(VESSEL_FS, /step\(0\.26/, 'no hard step on the luminance is left');
   assert.doesNotMatch(CHEVRON_GLSL, /step\(0\.26/);

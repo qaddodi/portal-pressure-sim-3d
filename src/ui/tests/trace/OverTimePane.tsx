@@ -93,7 +93,7 @@ export function OverTimePane({ plot }: { plot: number }) {
   const hold = useRef<{ release(): void } | null>(null);
   const sync = () => {
     const f = latest.frame, run = !!f?.running && (now.current.range !== 'days' || now.current.stripDays);
-    if (run && !hold.current) hold.current = clock.hold('trace'); else if (!run && hold.current) { hold.current.release(); hold.current = null; }
+    if (run && !hold.current) hold.current = clock.hold('trace', { steady: true }); else if (!run && hold.current) { hold.current.release(); hold.current = null; }
   };
   useEffect(() => {
     const off = onFrame(() => { wall.current = clock.now(); dirty.current = true; sync(); clock.invalidate('trace'); });

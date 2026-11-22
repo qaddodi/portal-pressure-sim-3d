@@ -6,7 +6,7 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses, type Pin } from './coil.ts';
-import { NETWORK, NETWORK_BY_ID, NODE_Z, cutEnd, type NetVessel } from './network.ts';
+import { NETWORK, NETWORK_BY_ID, NODE_Z, SVC_TRIBUTARY_IDS, cutEnd, type NetVessel } from './network.ts';
 import { LIVER_BRANCH_HOSTS, SPLIT_AT, TIP } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
@@ -78,6 +78,7 @@ const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: numb
 function depthEnds(v: NetVessel): { zf: number | undefined; zt: number | undefined; sf: number; st: number; through: boolean } {
   let zf = NODE_Z.get(v.from), zt = NODE_Z.get(v.to), through = false;
   if (smoothJoinsOn()) { const r = endDepth(v.to, zt); if (r.rise) { zt = r.z; through = true; } }
+  if (smoothJoinsOn() && SVC_TRIBUTARY_IDS.has(v.id) && zf != null && zt != null) through = true;   // (the azygos arch: one slope from its node's depth to the cava's, network.ts SVC_TRIBUTARY_IDS)
   // (the end of a vein that branches is its split, not a node: it stays on its own plane, where its children begin)
   if (SPLIT_AT[v.id] != null) { if ((LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id)) zt = undefined; else zf = undefined; }
   return { zf, zt, sf: END_SHARE, st: END_SHARE, through };

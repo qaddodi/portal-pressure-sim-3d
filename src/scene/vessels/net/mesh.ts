@@ -26,11 +26,17 @@ export const SEAM_TRIES = 12;
 /** The most arms one junction region may have (the skin builder's limit); short edges inside a merged region are not arms. */
 export const MAX_ARMS = 6;
 /** The least angle (degrees) any triangle of a junction's fillet may have. */
+/** the margins beyond the blend width k a seam ring must clear the other arms by, as shares of the narrower radius, tried in this order */
+/** how far out, in radii, an arm's capsule runs while seams are only being planned */
+const PLAN_REACH = 24;
+export const CLEAR_MARGINS = [0.5, 0.25, 0] as const;
 export const MIN_ANGLE = 12;
 
 export class NetMeshError extends Error {
   readonly node: string;
-  constructor(node: string, why: string) { super(`net mesh: ${node}: ${why}`); this.name = 'NetMeshError'; this.node = node; }
+  /** the edge whose junctions cannot be kept apart (its seam did not fit or its ring cleared nothing): `buildNetMesh` merges the junctions at its ends and builds again */
+  readonly mergeEdge?: number;
+  constructor(node: string, why: string, mergeEdge?: number) { super(`net mesh: ${node}: ${why}`); this.name = 'NetMeshError'; this.node = node; if (mergeEdge !== undefined) this.mergeEdge = mergeEdge; }
 }
 
 /** What the mesher recorded about one node, for the tests and the renders. */
@@ -45,7 +51,7 @@ export interface NodeReport {
   /** every through pair of the region (the two edges that run on through it, across short edges too): whether its arms are united by the mate minimum, whether the no-neck rule made that choice (the other one necked), and the profile's lowest value over the rule's floor */
   through: { arms: [number, number]; mated: boolean; toggled: boolean; margin: number }[];
 }
-export interface NetMeshResult { mesh: NetMesh; edges: number[]; nodes: NodeReport[]; report: { vertices: number; triangles: number; sweepTriangles: number } }
+export interface NetMeshResult { mesh: NetMesh; edges: number[]; nodes: NodeReport[]; /** only in a lenient diagnosis run: the regions that would not mesh (left unfilled) */ failures: { node: string; why: string }[]; report: { vertices: number; triangles: number; sweepTriangles: number } }
 
 type V3 = [number, number, number];
 const sub = (a: Vec3, b: Vec3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -68,7 +74,16 @@ export function networksOf(skel: Skeleton): number[][] {
 }
 
 /** Builds the mesh of one network (`edges`, indices into `skel.edges`; default: the whole skeleton as one). */
-export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMeshResult {
+export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: { lenient?: boolean }): NetMeshResult {
+  // (a seam that did not fit once the fillet was built, which no plan can foresee, merges its edge's two junctions and the whole network is built again)
+  const forced = new Set<number>();
+  for (;;) {
+    try { return buildOnce(skel, edges, opts, forced); }
+    catch (e) { if (e instanceof NetMeshError && e.mergeEdge !== undefined && !forced.has(e.mergeEdge)) { forced.add(e.mergeEdge); continue; } throw e; }
+  }
+}
+
+function buildOnce(skel: Skeleton, edges: readonly number[] | undefined, opts: { lenient?: boolean } | undefined, forced: ReadonlySet<number>): NetMeshResult {
   const inNet = new Set(edges ?? skel.edges.map((_, i) => i));
   const ctx = new Map<number, EdgeCtx>();
   for (const i of inNet) {
@@ -119,9 +134,11 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
   const visited = new Set<number>();
   const weldAt = (c: EdgeCtx, end: 0 | 1): { node: string; w: Weld } | null => {
     const id = end === 0 ? skel.edges[c.idx]!.from : skel.edges[c.idx]!.to, nd = nodes.find((n) => n.id === id);
-    return nd && nd.edges.length === 2 ? { node: nd.id, w: welds.get(nd.id)! } : null;
+    return nd && nd.edges.length === 2 && !jset.has(nd.id) ? { node: nd.id, w: welds.get(nd.id)! } : null;
   };
-  const twoNodes = nodes.filter((n) => n.edges.length === 2);
+  /** (made once the junction regions are final: a run-on node that a region took in has a seam, not a shared ring) */
+  const buildWelds = (): void => {
+  const twoNodes = nodes.filter((n) => n.edges.length === 2 && !jset.has(n.id));
   for (const root of ctx.keys()) {
     if (visited.has(root)) continue;
     visited.add(root);
@@ -142,6 +159,7 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
       }
     }
   }
+  };
   /** The permutation (and the roll of B's lattice) that puts B's ring at its end on A's ring at its end: B's vertex j is A's vertex perm[j]. */
   function alignPerm(A: EdgeCtx, ea: 0 | 1, B: EdgeCtx, eb: 0 | 1, keepAlpha: boolean): { perm: number[]; alpha: number } {
     const SA = sample(A, endBone(A, ea)), SB = sample(B, endBone(B, eb)), q = ringOf(SA, A.alpha).p, p0 = ringOf(SB, keepAlpha ? B.alpha : 0).p;
@@ -180,19 +198,31 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
   // ---- junction regions ----
   // A junction is a node of three or more edges. Two junctions joined by an edge SHORTER than their two blend zones plus the edge's own end radii (length < kA + kB + RA + RB) are one REGION: the short edge is not swept, its capsule joins the union and the
   // region's fillet binds to its bones. A region of more than MAX_ARMS arms (counted without the short edges) fails the bake and names the cluster. No fallback.
-  const jnodes = nodes.filter((n) => n.edges.length >= 3), jset = new Set(jnodes.map((n) => n.id));
+  const jnodes = nodes.filter((n) => n.edges.length >= 3), jset = new Set(jnodes.map((n) => n.id)), jbase = new Set(jset);
   const parent = new Map(jnodes.map((n) => [n.id, n.id]));
   const root = (x: string): string => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x)!)!); x = parent.get(x)!; } return x; };
   const kAt = (nd: (typeof nodes)[number]): number => SKIN_K * Math.min(...nd.edges.map((x) => { const c = ctx.get(x.edge)!; return c.bones[endBone(c, x.end)]!.r[0]; }));
   const shortEdges = new Set<number>();
-  for (const c of ctx.values()) {
+  /** two junctions an edge apart that the edge cannot hold apart join into one region: the edge joins the union whole (it is not swept) */
+  // (the node at the far end of a merged edge joins the region too, whatever it is: a run-on node becomes one more place an arm leaves the region, a free end is a stub the region swallows with its cap)
+  const mergeable = (c: EdgeCtx): boolean => { const e = skel.edges[c.idx]!; return e.from !== e.to && (jset.has(e.from) || jset.has(e.to)); };
+  const mergeEdge = (c: EdgeCtx): void => {
     const e = skel.edges[c.idx]!;
-    if (e.from === e.to || !jset.has(e.from) || !jset.has(e.to)) continue;
-    const A = nodes.find((n) => n.id === e.from)!, B = nodes.find((n) => n.id === e.to)!;
-    if (c.cum[c.count - 1]! < kAt(A) + kAt(B) + c.bones[0]!.r[0] + c.bones[c.count - 1]!.r[0]) { shortEdges.add(c.idx); parent.set(root(e.from), root(e.to)); }
+    shortEdges.add(c.idx);
+    for (const id of [e.from, e.to]) if (!jset.has(id)) { jset.add(id); jnodes.push(nodes.find((n) => n.id === id)!); parent.set(id, id); }
+    parent.set(root(e.from), root(e.to));
+  };
+  /** the arc length of an edge in the map pose (an edge the map pose collapses is as short as it gets there) */
+  const mapLength = (c: EdgeCtx): number => { let t = 0; for (let m = 1; m < c.count; m++) t += Math.hypot(...sub(c.bones[m]!.pos[1], c.bones[m - 1]!.pos[1])); return t; };
+  for (const c of ctx.values()) {
+    const e = skel.edges[c.idx]!, A = nodes.find((n) => n.id === e.from)!, B = nodes.find((n) => n.id === e.to)!, len = Math.min(c.cum[c.count - 1]!, mapLength(c));
+    if (e.from === e.to) continue;
+    if (jbase.has(e.from) && jbase.has(e.to)) { if (len < kAt(A) + kAt(B) + c.bones[0]!.r[0] + c.bones[c.count - 1]!.r[0]) mergeEdge(c); }   // (an edge to a node that is no junction merges only when its seam does not fit: the planning pass below)
   }
-  const regions = new Map<string, typeof nodes>();
-  for (const n of jnodes) { const r = root(n.id), g = regions.get(r); if (g) g.push(n); else regions.set(r, [n]); }
+  for (const i of forced) { const c = ctx.get(i); if (c && mergeable(c)) mergeEdge(c); }
+  let regions = new Map<string, typeof nodes>();
+  const groupRegions = (): void => { regions = new Map(); for (const n of jnodes) { const r = root(n.id), g = regions.get(r); if (g) g.push(n); else regions.set(r, [n]); } };
+  groupRegions();
   const lo = new Map<number, number>(), hi = new Map<number, number>();   // the seam bone each end of an edge is cut back to (free and run-on ends: none)
   for (const c of ctx.values()) { lo.set(c.idx, 0); hi.set(c.idx, c.count - 1); }
   const seamKey = (e: number, s: number): string => `${e}:${s}`;
@@ -202,10 +232,12 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
   const reports: NodeReport[] = [], memo = new Map<string, number>();
   const pendingSkins: (() => void)[] = [];
   const nodeOf = (e: EdgeCtx, end: 0 | 1) => nodes.find((n) => n.id === (end === 0 ? skel.edges[e.idx]!.from : skel.edges[e.idx]!.to))!;
+  const plannedSeams = new Map<string, number>();
   const otherEndLimit = (c: EdgeCtx, end: 0 | 1): number => {
     // how many bones in from this end a seam may stand: leave one segment between this seam and whatever the other end is cut to
-    const other = nodeOf(c, end === 0 ? 1 : 0), cuts = other.edges.length >= 3;
-    const used = end === 0 ? c.count - 1 - hi.get(c.idx)! : lo.get(c.idx)!;   // (the other end's seam, if already placed, in bones from that end)
+    const other = nodeOf(c, end === 0 ? 1 : 0), cuts = jset.has(other.id);
+    const placed = end === 0 ? c.count - 1 - hi.get(c.idx)! : lo.get(c.idx)!;   // (the other end's seam, if already placed, in bones from that end)
+    const used = placed > 0 ? placed : plannedSeams.get(`${c.idx}:${end === 0 ? 1 : 0}`) ?? 0;   // (or the one the planning pass found for it)
     if (cuts) return used > 0 ? c.count - 2 - used : Math.floor((c.count - 2) / 2);
     return c.count - 2;
   };
@@ -222,16 +254,18 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
   };
   const smoothstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-  for (const region of regions.values()) {
+  const failures: { node: string; why: string }[] = [];
+  /** what a planning pass learns about a region's seams (see below): the bone each arm's seam stands at, and the arms whose ring clears nothing */
+  interface Plan { seam: Map<string, number>; failed: number[] }
+  const meshRegion = (region: typeof jnodes, plan?: Plan): void => {
     const rid = region.map((n) => n.id).join('+'), ids = new Set(region.map((n) => n.id));
     const armsRaw: Arm[] = [], internal: Arm[] = [];
     for (const nd of region) for (const x of nd.edges) {
       if (shortEdges.has(x.edge)) { if (x.end === 0) internal.push(armOf(x, nd.id)); continue; }
       const e = skel.edges[x.edge]!;
-      if (ids.has(e.from) && ids.has(e.to)) throw new NetMeshError(rid, `the edge ${e.id} joins two nodes of one region and is not short enough to merge them (a loop)`);
       armsRaw.push(armOf(x, nd.id));
     }
-    if (armsRaw.length > MAX_ARMS) throw new NetMeshError(rid, `the merged region has ${armsRaw.length} arms (the most is ${MAX_ARMS}): ${armsRaw.map((a) => a.ctx.id).join(', ')}`);
+    if (armsRaw.length > MAX_ARMS) { if (plan) return; throw new NetMeshError(rid, `the merged region has ${armsRaw.length} arms (the most is ${MAX_ARMS}): ${armsRaw.map((a) => a.ctx.id).join(', ')}`); }
     const mean = (d: 0 | 1 | 2): number => region.reduce((t, n) => t + n.pos[0][d], 0) / region.length, J: Vec3 = region.length === 1 ? region[0]!.pos[0] : [mean(0), mean(1), mean(2)];
     // widest first (the skin's arm order)
     const order = armsRaw.map((_, i) => i).sort((a, b) => armsRaw[b]!.r - armsRaw[a]!.r || a - b);
@@ -244,18 +278,21 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
     }
     const skinArms: SkinArm[] = arms.map((a) => ({ vesselId: a.ctx.id, end: a.end, courseIndex: 0, dataIndex: 0, lensIndex: 0, baseD: 1, widthKind: 0, restR: a.r, jointR: a.r, ...(region.length > 1 ? { at: nodes.find((n) => n.id === a.node)!.pos[0] } : {}) }));
     const k = skinKOf(skinArms);
-    const limit = arms.map((a) => Math.max(1, otherEndLimit(a.ctx, a.end)));
+    const limit = arms.map((a) => plan ? Math.max(1, a.ctx.count - 2) : Math.max(1, otherEndLimit(a.ctx, a.end)));
     // the capsules (axes) first: each arm's bones out from its node, long enough to carry its seam; then the short edges whole. Every one is a capsule of the union, so the fillet fills the region between the arms.
     const base: Capsule[] = [], boneAt: ((seg: number, t: number) => number)[] = [], capOf: (Arm | null)[] = [];
     /** the global bone nearest the point at segment `seg`, fraction `t` of a capsule that is `a`'s axis resampled to CAPSULE_SEGS even steps of `step` */
     const along = (a: Arm, step: number) => (seg: number, t: number): number => gbone(a.ctx, a.bonesOut[nearestBone(a.arc, (seg + t) * step)]!);
     arms.forEach((a, i) => {
-      const reach = Math.min(a.arc[a.arc.length - 1]!, Math.max(ARM_REACH * a.r, 0.9 * a.arc[Math.min(a.arc.length - 1, limit[i]! + 1)]!));
+      // (long enough to carry the seam, no longer: an arm that runs on for a hundred radii curves back toward its neighbours, and the fillet's domain grows to take them in)
+      const hint = plannedSeams.get(`${a.edge}:${a.end}`), far = hint !== undefined ? Math.min(limit[i]!, hint + SEAM_TRIES) : limit[i]!;
+      const reach = Math.min(a.arc[a.arc.length - 1]!, Math.max(ARM_REACH * a.r, 0.9 * a.arc[Math.min(a.arc.length - 1, far + 1)]!), plan ? PLAN_REACH * a.r : Infinity);
       const len = Math.max(reach, 3 * a.r), cap = armCapsule({ ...skinArms[i]!, end: 0 }, a.pts, len, radiusAtArm(a));   // (the points already run out of the node, so the capsule must not turn them again)
       boneAt.push(along(a, len / CAPSULE_SEGS)); capOf.push(null);
       base.push(cap);
     });
-    for (const a of internal) { const len = a.arc[a.arc.length - 1]!; base.push(armCapsule({ ...skinArms[0]!, end: 0 }, a.pts, len, radiusAtArm(a))); boneAt.push(along(a, len / CAPSULE_SEGS)); capOf.push(a); }
+    const internalCap = new Map<(typeof internal)[number], Capsule>();
+    for (const a of internal) { const len = a.arc[a.arc.length - 1]!, c = armCapsule({ ...skinArms[0]!, end: 0 }, a.pts, len, radiusAtArm(a)); internalCap.set(a, c); base.push(c); boneAt.push(along(a, len / CAPSULE_SEGS)); capOf.push(a); }
     const caps: Capsule[] = base.slice();
     const applyMates = (): void => { base.forEach((c, i) => { caps[i] = mateOf.has(i) ? { ...c, mate: mateOf.get(i)! } : c; }); };
     applyMates();
@@ -270,13 +307,20 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
           const ai = arms.findIndex((a) => a.edge === x.edge && a.end === x.end && a.node === cur.nd.id);
           if (ai < 0) return null;
           const a = arms[ai]!;
-          let m = 1; while (m < a.arc.length - 1 && a.arc[m]! < 1.5 * a.r) m++;
-          for (let i = pts.length ? 1 : 0; i <= m; i++) { pts.push(a.pts[i]!); rad.push(a.rad[i]!); }
+          // (the axis is the capsule's own polyline, not the bones': the union is made of the capsules, which cut a bend's corners, and a profile measured about the bones' line would read that offset as a neck)
+          const c = base[ai]!;
+          let acc = 0;
+          for (let i = 0; i < c.n; i++) {
+            if (i > 0) acc += Math.hypot(c.pts[3 * i]! - c.pts[3 * i - 3]!, c.pts[3 * i + 1]! - c.pts[3 * i - 2]!, c.pts[3 * i + 2]! - c.pts[3 * i - 1]!);
+            if (i > 0 || !pts.length) { pts.push([c.pts[3 * i]!, c.pts[3 * i + 1]!, c.pts[3 * i + 2]!]); rad.push(c.r[i]!); }
+            if (acc >= 1.5 * a.r) break;
+          }
           return { arm: ai, pts, rad, via };
         }
         const it = internal.find((a) => a.edge === x.edge)!, fwd = x.end === 0;
         via.push({ edge: x.edge, fwd, pts: it.pts, rad: it.rad, bone: it.bonesOut.map((m) => gbone(it.ctx, m)) });
-        for (let i = pts.length ? 1 : 0; i < it.pts.length; i++) { const j = fwd ? i : it.pts.length - 1 - i; pts.push(it.pts[j]!); rad.push(it.rad[j]!); }
+        const ic = internalCap.get(it)!;
+        for (let i = pts.length ? 1 : 0; i < ic.n; i++) { const j = fwd ? i : ic.n - 1 - i; pts.push([ic.pts[3 * j]!, ic.pts[3 * j + 1]!, ic.pts[3 * j + 2]!]); rad.push(ic.r[j]!); }
         const e = skel.edges[x.edge]!, far = nodes.find((n) => n.id === (fwd ? e.to : e.from))!, back = far.edges.findIndex((y) => y.edge === x.edge && y.end === (fwd ? 1 : 0));
         if (!far.runOn || !far.runOn.includes(back)) return null;
         cur = { nd: far, x: far.edges[far.runOn[0] === back ? far.runOn[1] : far.runOn[0]]! };
@@ -284,18 +328,25 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
       return null;
     };
     const throughReport: NodeReport['through'] = [], seenPair = new Set<string>();
-    for (const nd of region) if (nd.runOn) {
+    for (const nd of region) if (nd.runOn && !plan) {   // (a planning pass only places seams: the neck rule runs in the real one)
       const s0 = sideOf(nd, nd.runOn[0]), s1 = sideOf(nd, nd.runOn[1]);
       if (!s0 || !s1 || s0.arm === s1.arm) continue;
       const key = [s0.arm, s1.arm].sort().join('-');
       if (seenPair.has(key)) continue;
       seenPair.add(key);
       const axis = [...s0.pts].reverse().concat(s1.pts.slice(1)), rad = [...s0.rad].reverse().concat(s1.rad.slice(1));
-      let res = throughNeck(axis, rad, caps, k), toggled = false;
+      // the pair is judged ALONE: the other arms' fillets only add material (a thin branch flares the trunk it leaves, a branch meeting at a shallow angle thickens it on every side), so what the rule must catch is the pair's own waist or ledge
+      const viaEdges0 = new Set([...s0.via, ...s1.via].map((v) => v.edge));
+      const alone = (): Capsule[] => {
+        const ids = [s0.arm, s1.arm];
+        for (let i = arms.length; i < caps.length; i++) if (capOf[i] && viaEdges0.has(capOf[i]!.edge)) ids.push(i);
+        return ids.map((i) => { const c = caps[i]!; return c.mate !== undefined && ids.includes(c.mate) ? { ...c, mate: ids.indexOf(c.mate) } : { ...c, mate: undefined }; });
+      };
+      let res = throughNeck(axis, rad, alone(), k), toggled = false;
       if (!res.ok) {
         if (mateOf.get(s0.arm) === s1.arm) { mateOf.delete(s0.arm); mateOf.delete(s1.arm); } else { mateOf.set(s0.arm, s1.arm); mateOf.set(s1.arm, s0.arm); }
         applyMates();
-        let again = throughNeck(axis, rad, caps, k);
+        let again = throughNeck(axis, rad, alone(), k);
         if (!again.ok && (s0.via.length || s1.via.length)) {
           // across short edges the mate minimum of the two ARMS leaves the short edge blending with them (a bump at each node): the pair is made ONE capsule from far point to far point, through the short edges' bones, both arms' slots holding it, mated to each other; the short edges' own capsules leave the union
           const A = base[s0.arm]!, B = base[s1.arm]!, pts: number[] = [], rr: number[] = [], bn: number[] = [];
@@ -311,7 +362,7 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
           caps.length = base.length;
           mateOf.set(s0.arm, s1.arm); mateOf.set(s1.arm, s0.arm);
           applyMates();
-          again = throughNeck(axis, rad, caps, k);
+          again = throughNeck(axis, rad, alone(), k);
         }
         if (!again.ok) throw new NetMeshError(rid, `the through pair ${arms[s0.arm]!.ctx.id} - ${arms[s1.arm]!.ctx.id} necks with the plain union and with the mate minimum: ${res.why}`);
         res = again; toggled = true;
@@ -319,27 +370,40 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
       throughReport.push({ arms: [arms[s0.arm]!.edge, arms[s1.arm]!.edge], mated: mateOf.get(s0.arm) === s1.arm, toggled, margin: res.margin });
     }
     // the seam of each arm starts at the first bone whose ring clears every other capsule by k + half its radius (the fixture rule of tests/skin-mesh.test.ts), and every arm is pushed one bone further out each failed try
+    let failedArm = -1;
     const seamBones = (try_: number): number[] | null => {
       const out: number[] = [];
+      let missed = false;
+      failedArm = -1;
       for (let i = 0; i < arms.length; i++) {
         const a = arms[i]!;
         let found = -1;
-        for (let m = 1; m <= limit[i]!; m++) {
-          const S = sample(a.ctx, a.end === 0 ? m : a.ctx.count - 1 - m), ring = ringOf(S, a.ctx.alpha).p;
-          let ok = true;
-          for (let j = 0; j < RADIAL && ok; j++) for (let q = 0; q < caps.length; q++) if (q !== i && mateOf.get(i) !== q && sdArm(caps[q]!, ring[3 * j]!, ring[3 * j + 1]!, ring[3 * j + 2]!) < k + 0.5 * a.r) { ok = false; break; }
-          if (ok) { found = m; break; }
+        // the ring must stand outside every other arm's blend zone (k) and, where it can, a margin of half the narrower radius beyond it; an arm that meets another at a shallow angle never gets that margin before its edge ends, and takes the smaller ones (CLEAR_MARGINS) the skin builder's own checks then judge
+        for (const margin of CLEAR_MARGINS) {
+          for (let m = 1; m <= limit[i]! && found < 0; m++) {
+            const S = sample(a.ctx, a.end === 0 ? m : a.ctx.count - 1 - m), ring = ringOf(S, a.ctx.alpha).p;
+            let ok = true;
+            for (let j = 0; j < RADIAL && ok; j++) for (let q = 0; q < caps.length; q++) if (q !== i && mateOf.get(i) !== q && sdArm(caps[q]!, ring[3 * j]!, ring[3 * j + 1]!, ring[3 * j + 2]!) < k + margin * Math.min(a.r, caps[q]!.r[0]!)) { ok = false; break; }
+            if (ok) found = m;
+          }
+          if (found >= 0) break;
         }
-        if (found < 0) return null;
+        if (found < 0) { failedArm = i; if (!plan) return null; plan.failed.push(a.edge); missed = true; continue; }
         out.push(found + try_);
       }
-      return out;
+      return missed ? null : out;
     };
-    let built = false, lastWhy = 'no seam ring clears the other arms', tries = 0;
+    if (plan) {
+      const seams = seamBones(0);
+      if (seams) arms.forEach((a, i) => plan.seam.set(`${a.edge}:${a.end}`, seams[i]!));
+      return;
+    }
+    let built = false, lastWhy = 'no seam ring clears the other arms', tries = 0, mergeEdge: number | undefined;
     for (; tries < SEAM_TRIES && !built; tries++) {
       const seams = seamBones(tries);
-      if (!seams) break;
-      if (seams.some((s, i) => s > limit[i]!)) { lastWhy = 'the seams do not fit inside the edges (an edge is too short for its two junctions)'; break; }
+      if (!seams) { if (failedArm >= 0) mergeEdge = arms[failedArm]!.edge; break; }
+      const over = seams.findIndex((s, i) => s > limit[i]!);
+      if (over >= 0) { lastWhy = 'the seams do not fit inside the edges (an edge is too short for its two junctions)'; mergeEdge = arms[over]!.edge; break; }
       const rings: Float32Array[] = [], normals: Float32Array[] = [];
       arms.forEach((a, i) => { const S = sample(a.ctx, a.end === 0 ? seams[i]! : a.ctx.count - 1 - seams[i]!), r = ringOf(S, a.ctx.alpha); rings.push(r.p); normals.push(r.nrm); });
       const junction: SkinJunction = { node: rid, J, arms: skinArms, surface: true };
@@ -388,7 +452,26 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
         reports.push({ node: rid, kind: 'junction', seams: armSeams.slice(), arms: armList.map((a) => a.edge), triStart: tstart / 3, triCount: (tris.length - tstart) / 3, vertStart: vstart, vertCount: vb.length - vstart, tries: usedTries, through: throughReport });
       });
     }
-    if (!built) throw new NetMeshError(rid, `the junction will not mesh: ${lastWhy}`);
+    if (!built) throw new NetMeshError(rid, `the junction will not mesh: ${lastWhy}`, mergeEdge !== undefined && mergeable(ctx.get(mergeEdge)!) && !shortEdges.has(mergeEdge) ? mergeEdge : undefined);
+  };
+  // A junction an edge cannot keep apart from the next is merged with it (the edge's two seams, each as far out as its ring needs to clear the other arms, must fit inside it; an arm whose ring clears nothing before its edge ends is the same case): plan the seams of every region, merge the edges that fail, and plan again until none does.
+  // An arm that runs on into a plain node or a free end cannot be merged away, and fails in the meshing below, named.
+  for (let round = 0; round < jnodes.length; round++) {
+    const plan: Plan = { seam: new Map(), failed: [] };
+    for (const region of regions.values()) meshRegion(region, plan);
+    let merged = false;
+    for (const c of ctx.values()) {
+      if (shortEdges.has(c.idx) || !mergeable(c)) continue;
+      const s0 = plan.seam.get(`${c.idx}:0`), s1 = plan.seam.get(`${c.idx}:1`);
+      if (plan.failed.includes(c.idx) || (s0 !== undefined && s1 !== undefined && s0 + s1 > c.count - 2)) { mergeEdge(c); merged = true; }
+    }
+    if (!merged) { plan.seam.forEach((v, key) => plannedSeams.set(key, v)); break; }
+    groupRegions();
+  }
+  buildWelds();
+  for (const region of regions.values()) {
+    try { meshRegion(region); }
+    catch (e) { if (opts?.lenient && e instanceof NetMeshError && !(e.mergeEdge !== undefined && !forced.has(e.mergeEdge))) failures.push({ node: e.node, why: e.message }); else throw e; }   // (lenient: the diagnosis run lists every failing region; the bake never is)
   }
   function nearestBone(arc: readonly number[], d: number): number {
     let best = 0;
@@ -458,7 +541,7 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
   }
   const sweepTriangles = (tris.length - sweepStart) / 3;
   for (const f of pendingSkins) f();
-  for (const nd of nodes) if (nd.edges.length <= 2) reports.push({ node: nd.id, kind: nd.edges.length === 2 ? 'runon' : 'cap', seams: [], arms: nd.edges.map((x) => x.edge), triStart: 0, triCount: 0, vertStart: 0, vertCount: 0, tries: 0, through: [] });
+  for (const nd of nodes) if (nd.edges.length <= 2 && !jset.has(nd.id)) reports.push({ node: nd.id, kind: nd.edges.length === 2 ? 'runon' : 'cap', seams: [], arms: nd.edges.map((x) => x.edge), triStart: 0, triCount: 0, vertStart: 0, vertCount: 0, tries: 0, through: [] });
 
   // ---- the binding: each vertex's offset in each of its bones' frames, divided by the bone's radius ----
   const V = vb.length, position = Float32Array.from(pos), bone = new Uint16Array(4 * V), weight = new Float32Array(4 * V), offset = new Float32Array(12 * V), normal = new Float32Array(12 * V);
@@ -476,5 +559,5 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[]): NetMesh
     }
   }
   const mesh: NetMesh = { position, bone, weight, offset, normal, index: Uint32Array.from(tris) };
-  return { mesh, edges: [...ctx.keys()], nodes: reports, report: { vertices: V, triangles: tris.length / 3, sweepTriangles } };
+  return { mesh, edges: [...ctx.keys()], nodes: reports, failures, report: { vertices: V, triangles: tris.length / 3, sweepTriangles } };
 }

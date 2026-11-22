@@ -6,6 +6,6 @@ const FACES = ['400 17px Inter', '600 17px Inter', '600 26px "Source Serif 4"', 
 export async function fontsReady(timeoutMs = 4000): Promise<boolean> {
   if (typeof document === 'undefined' || !document.fonts) return true;
   const loading = Promise.all([...FACES.map((f) => document.fonts.load(f, 'HVPG 0123456789 mmHg')), document.fonts.ready]).then(() => true);
-  const late = new Promise<boolean>((res) => clock.after(() => res(false), timeoutMs));
+  const late = new Promise<boolean>((res) => clock.afterReal(() => res(false), timeoutMs));
   try { return await Promise.race([loading, late]); } catch { return false; }
 }

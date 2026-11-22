@@ -1,6 +1,6 @@
-// The pressure colour ramp (2D: colormap.js pressureColor): the look's --ramp-pressure stops, mixed in OKLab, read from a 256-step table over 0 to 35 mmHg,
-// each colour rounded to whole 0-255 channels as the 2D app rounds it. The stops come from the 2D theme tokens (looks2d/theme-tokens.js) of the look.
-import { tokensOfLook } from '../looks2d/theme-tokens.js';
+// The pressure colour ramp (2D: colormap.js pressureColor): the look's stops (scene/lenses/pressure-ramp.ts), mixed in OKLab, read from a 256-step table over 0 to 35 mmHg,
+// each colour rounded to whole 0-255 channels as the 2D app rounds it. 
+import { PRESSURE_RAMP } from '../../../scene/lenses/pressure-ramp.ts';
 import type { Rgba } from '../colour.ts';
 import type { LookId } from '../../../looks/looks.ts';
 
@@ -32,7 +32,7 @@ const luts = new Map<LookId, [number, number, number][]>();
 function lutOf(look: LookId): [number, number, number][] {
   let lut = luts.get(look);
   if (lut) return lut;
-  const stops = rampStops((tokensOfLook(look) as Record<string, string>)['ramp-pressure']!);
+  const stops: [number, string][] = PRESSURE_RAMP[look].map(([c, p]) => [p, c]);   // (pressure-ramp.ts: the one source)
   if (stops.length < 2) throw new TypeError('a colour ramp needs two stops');
   const hex = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16) / 255;
   const lab = stops.map(([, h]) => toOklab(hex(h, 1), hex(h, 3), hex(h, 5)));

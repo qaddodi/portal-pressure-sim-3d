@@ -1,6 +1,7 @@
 // The five looks: UI tokens and 3D tones in one table (docs/look-and-feel.md sections 3 and 4).
 // UI tokens become CSS custom properties on :root (applyLook); the 3D scene reads the same table through lookTones().
 export type LookId = 'light' | 'soft' | 'dark' | 'navy' | 'black';
+import { pressureViolet, pressureWine } from '../scene/lenses/pressure-ramp.ts';
 export type LookChoice = LookId | 'system';
 export const LOOK_IDS: readonly LookId[] = ['light', 'soft', 'dark', 'navy', 'black'];
 export const LOOK_LABELS: Record<LookChoice, string> = { light: 'Light', soft: 'Soft', dark: 'Dark', navy: 'Navy', black: 'Black', system: 'System' };
@@ -54,6 +55,8 @@ export function lookVars(id: LookId): Record<string, string> {
     '--organ-body': l.plate, '--ink': l.ink, '--shadow-rgb': l.shadowRgb,
     '--organ-liver': l.liver, '--organ-spleen': l.spleen, '--organ-gut': l.gut, '--organ-stomach': l.stomach, '--organ-heart': l.heart,
     '--vein-portal': l.portal, '--vein-systemic': l.systemic,
+    // the pressure ramp's 12 and 20 mmHg stops as flat colours (CSS tints of the HVPG against PPG plane): the ramp's own (scene/lenses/pressure-ramp.ts), set inline so they beat the 2D stylesheet's copy
+    '--ramp-violet': pressureViolet(id), '--ramp-wine': pressureWine(id),
   };
 }
 

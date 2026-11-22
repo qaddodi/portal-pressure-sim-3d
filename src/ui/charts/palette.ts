@@ -3,6 +3,7 @@
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { CHART_TOKENS, TINT_RATIOS } from './tokens.generated.ts';
 import { mix, parseColour, withAlpha, type Rgba } from './colour.ts';
+import { pressureViolet, pressureWine } from '../../scene/lenses/pressure-ramp.ts';
 
 export interface Palette {
   look: LookId;
@@ -27,6 +28,8 @@ export function paletteOf(id: LookId): Palette {
     surface: parseColour(l.card), text: parseColour(l.text), 'text-2': parseColour(l.text2), 'text-3': parseColour(l.text3),
     ok: parseColour(l.ok), caution: parseColour(l.caution), danger: parseColour(l.danger), accent: parseColour(l.accent), 'accent-soft': parseColour(l.accentSoft),
     'vein-portal': parseColour(l.portal), 'vein-systemic': parseColour(l.systemic),
+    // the pressure ramp's 12 and 20 mmHg stops as flat colours (the HVPG against PPG plane's violet and wine zones): the same stops as the vessels wear (scene/lenses/pressure-ramp.ts), never a second typed copy
+    'ramp-violet': parseColour(pressureViolet(id)), 'ramp-wine': parseColour(pressureWine(id)),
   };
   // the tints beside the surface keep the 2D app's distance from it, measured from the 3D card toward the 3D text
   for (const n of ['surface-2', 'surface-3', 'border', 'border-strong'] as const) {

@@ -26,7 +26,7 @@ export function holdSplash(lifter?: Lift): void {
   waiting = true; done = false; frames = -1; labels = false; compiled = false;
   document.documentElement.dataset.boot = 'wait';
   clock.cancel(timer);
-  timer = clock.after(release, BOOT_FAILSAFE_MS);
+  timer = clock.afterReal(release, BOOT_FAILSAFE_MS);
 }
 
 /** True from holdSplash() until the cover is released or failed: the figure has not been drawn yet, so a lost context is a boot failure, not something to recover from. */

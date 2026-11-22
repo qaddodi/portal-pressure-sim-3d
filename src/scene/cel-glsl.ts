@@ -23,21 +23,41 @@ float celTubeHw(float rDev) { return smoothstep(${F(CEL_STYLE.TONES_FROM)}, ${F(
 // the lens colour made saturated and deep (a pale end of a ramp is darkened, its hue kept): the one flat base every tone is cut from
 float celTubeLum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 // (tubeDark: 1 on the dark looks (Dark, Navy, Black), the brighter caps; declared once by the program that includes this: vessels/shaders.ts, materials/shaders.ts)
+// tubeRawK: how much of the colour about to be made is AUTHORED AS DRAWN (the pressure ramp, lenses/pressure-ramp.ts): 0 for every other colour (a lens's 2D ramp, an artery, the tone colours), 1 where the lens colour is the
+// pressure ramp. Each program sets it where it mixes the lens colour into base (vessels/shaders.ts, skin/shaders.ts, blood/cells/shader.ts: la.a x lensRawA, lb.a x lensRawB, crossfaded by lensMix, so a lens switch eases
+// from the transform to the raw colour with the colours themselves and nothing pops). celTubeBase reads it, so every consumer (tone, ink, dust, heads, streaks, glow) agrees.
+float tubeRawK = 0.0;
 vec3 celTubeBase(vec3 b) {
   float l = celTubeLum(b);
   vec3 c = clamp(mix(vec3(l), b, ${F(CEL_STYLE.TUBE.SAT)}), 0.0, 1.0);
   float lcap = mix(${F(CEL_STYLE.TUBE.LCAP)}, ${F(CEL_STYLE.TUBE.LCAP_DARK)}, tubeDark), vcap = mix(${F(CEL_STYLE.TUBE.VCAP)}, ${F(CEL_STYLE.TUBE.VCAP_DARK)}, tubeDark);
-  return c * min(min(1.0, lcap / max(celTubeLum(c), 1e-3)), vcap / max(max(c.r, max(c.g, c.b)), 1e-3));
+  return mix(c * min(min(1.0, lcap / max(celTubeLum(c), 1e-3)), vcap / max(max(c.r, max(c.g, c.b)), 1e-3)), b, tubeRawK);
+}
+// OKLab lightness lift (the JS twin: cel-ink.ts celTubeLift): sRGB in and out as the scene writes it, hue and chroma kept, clamped to the gamut
+vec3 celTubeLift(vec3 c, float dL) {
+  vec3 q = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+  vec3 lms = pow(max(vec3(dot(vec3(0.4122214708, 0.5363325363, 0.0514459929), q), dot(vec3(0.2119034982, 0.6806995451, 0.1073969566), q), dot(vec3(0.0883024619, 0.2817188376, 0.6299787005), q)), vec3(0.0)), vec3(1.0 / 3.0));
+  vec3 lab = vec3(dot(vec3(0.2104542553, 0.793617785, -0.0040720468), lms), dot(vec3(1.9779984951, -2.428592205, 0.4505937099), lms), dot(vec3(0.0259040371, 0.7827717662, -0.808675766), lms));
+  lab.x += dL;
+  vec3 k = vec3(lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z, lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z, lab.x - 0.0894841775 * lab.y - 1.291485548 * lab.z);
+  k = k * k * k;
+  vec3 o = vec3(dot(vec3(4.0767416621, -3.3077115913, 0.2309699292), k), dot(vec3(-1.2684380046, 2.6097574011, -0.3413193965), k), dot(vec3(-0.0041960863, -0.7034186147, 1.707614701), k));
+  o = clamp(o, 0.0, 1.0);
+  return clamp(mix(12.92 * o, 1.055 * pow(o, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), o)), 0.0, 1.0);
 }
 // the fill: TWO flat tones across the tube, matte and opaque: the saturated base on the lit side, a hue-preserving darker step (a touch more saturated) on the other, one hard edge EDGE_PX device px across between them at
 // VESSEL_STEP_AT. No highlight, no rim, no translucency. s the lit-side measure (n.L against the world light, celLightView), sw its change per device pixel (fwidth(s), taken
 // outside any branch), rDev the radius in device px; a hairline (under TONES_FROM) is the base alone.
-vec3 celTubeTone(vec3 base, float s, float sw, float rDev) {
+vec3 celTubeToneArt(vec3 base, float s, float sw, float rDev, float art) {
   float et = max(0.5 * ${F(CEL_STYLE.EDGE_PX)} * sw, 1e-4), hw = celTubeHw(rDev);
   float shadowT = 1.0 - smoothstep(${F(CEL_STYLE.VESSEL_STEP_AT)} - et, ${F(CEL_STYLE.VESSEL_STEP_AT)} + et, s);
   vec3 b = celTubeBase(base);
   vec3 sh = b * (1.0 - ${F(CEL_STYLE.SHADE)});
   sh = clamp(mix(vec3(celTubeLum(sh)), sh, ${F(CEL_STYLE.TUBE.SHADE_SAT)}), 0.0, 1.0);
-  return mix(b, sh, hw * shadowT);
+  vec3 c = mix(b, sh, hw * shadowT);
+  // an ARTERY's lumen is one tone step lighter (CEL_STYLE.ARTERY.LIFT_L in OKLab lightness, hue and chroma kept), both tones, easing in with the tones' own radius gate: a hairline is the base alone, and art 0 (a vein) takes no part
+  float lift = art * hw * ${F(CEL_STYLE.ARTERY.LIFT_L)};
+  return lift > 0.0 ? celTubeLift(c, lift) : c;
 }
+vec3 celTubeTone(vec3 base, float s, float sw, float rDev) { return celTubeToneArt(base, s, sw, rDev, 0.0); }
 `;
