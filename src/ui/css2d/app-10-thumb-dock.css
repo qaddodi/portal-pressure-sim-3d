@@ -197,7 +197,7 @@
 /* Settings › "Frosted glass" off (html[data-noglass]): no live blur anywhere, which spares the GPU re-blurring the
    moving figure every frame. Cards and the figure's label pills turn solid instead. */
 :root[data-noglass] *, :root[data-noglass] *::before, :root[data-noglass] *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-:root[data-noglass] :is(.sv-legend, .pz-fk, .pz .pz-fk.pz-fk, .toast) { background: var(--surface); }
+:root[data-noglass] :is(.pz-fk, .pz .pz-fk.pz-fk, .toast) { background: var(--surface); }
 :root[data-noglass] :is(.pz-shade, .pz-shade.pz-card, .pz-shade.stack, .pz-data.pz-data, .pz-case, .pz-bar, .pz.stack .pz-bar, .pz-scales, .cl-glass) { --gl-glass: 0; background: var(--surface); }
 /* (The upright split sheet's two glass pieces: its own fill is none, the pieces carry the glass, so they turn solid with the rest.) */
 /* (The split sheet is its two pseudo-element cards, solid here; its own box is no third card behind them: with the blur off it showed as a second rounded panel round the tiles and the instrument card, Mohammad, 3 Nov 2026.) */
@@ -210,7 +210,7 @@
    (the lobule, a dive, a fade, a label across it), shows the solid look of Settings › Blur effect off instead of the browser's backdrop blur, so
    nothing over the moving figure is re-blurred by the browser on any frame. The teaching card's shade keeps a layer of its own the whole time,
    never made and dropped as its glass changes hands (the iPhone lost its outline, tabs and credit on that swap, 1 Nov). */
-:root:root :is(.sv-legend, .pz-fk, .pz .pz-fk.pz-fk, .toast):not([data-gl]) { background: var(--surface); }
+:root:root :is(.pz-fk, .pz .pz-fk.pz-fk, .toast):not([data-gl]) { background: var(--surface); }
 :root:root :is(.pz-shade, .pz-shade.pz-card, .pz-shade.stack, .pz-data.pz-data, .pz-case, .pz-bar, .pz.stack .pz-bar, .pz-scales, .cl-glass):not([data-gl]) { background: var(--surface); }
 :root:root .pz.stack.stack .pz-data.pz-sheet:not([data-gl])::before, :root:root .pz.stack.stack .pz-data.pz-sheet:not([data-gl])::after { background: var(--surface); }
 :root:root .pz.pz-wide.pz-wide .pz-data.pz-sheet:not([data-gl])::before, :root:root .pz.pz-wide.pz-wide .pz-data.pz-sheet:not([data-gl])::after { background: var(--surface); }

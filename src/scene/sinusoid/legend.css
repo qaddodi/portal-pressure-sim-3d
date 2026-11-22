@@ -5,5 +5,5 @@
 .topbar .stage-bar.top > .sv-legend.out { animation: lk-out var(--d-small) var(--ease-arrive) forwards; }
 .topbar .stage-bar.top > .sb-right { order: 2; }
 .topbar .stage-bar.top:has(> .sv-legend) > .sb-right { margin-left: 0; }
-.app.thumb .topbar .stage-bar.top > .sv-legend { position: absolute; top: calc(100% + 6px); right: 0; margin: 0; order: 0; }
+.app.thumb .topbar .stage-bar.top > .sv-legend { position: absolute; left: auto; top: calc(100% + 8px); right: 0; margin: 0; order: 0; }
 @media (prefers-reduced-motion: reduce) { .topbar .stage-bar.top > .sv-legend, .topbar .stage-bar.top > .sv-legend.out { animation: none; } }
