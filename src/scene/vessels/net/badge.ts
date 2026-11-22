@@ -1,7 +1,7 @@
 // The ?geom=net corner badge: says which mesh the page is drawing, so a tester who sees no difference (the network meshes are meant to look like today's tubes at rest) can still tell. "Mesh: network" once the
 // network figure is in, "Mesh: fallback (reason)" when it is not (files missing, baked from another skeleton, an error), "Mesh: loading network" meanwhile. Only ever made under ?geom=net (scene.ts mountNet), so
 // the default page builds no element. It fades by a CSS animation on opacity (no timer, no script per frame); each new state is a new element, so the animation starts again.
-export type NetBadgeState = 'loading' | 'network' | 'fallback';
+export type NetBadgeState = 'loading' | 'network' | 'partial' | 'fallback';
 export interface NetBadge { state: NetBadgeState; text: string }
 
 const STYLE_ID = 'net-badge-style', BADGE_ID = 'net-badge';
@@ -15,22 +15,28 @@ let last: NetBadge | null = null;
 export const netBadge = (): NetBadge | null => last;
 
 /** The words for a state: the fallback names its reason, trimmed so the badge stays a corner note. */
-export function netBadgeText(state: NetBadgeState, why = ''): string {
-  if (state === 'network') return 'Mesh: network';
+/** The part of the figure an object is, in words (net0 the arteries, net1 the veins, loose the collaterals and shunts). */
+export const partName = (draw: string): string => (draw === 'net0' ? 'arteries' : draw === 'net1' ? 'veins' : draw === 'loose' ? 'collaterals' : draw);
+
+export function netBadgeText(state: NetBadgeState, why = '', detail = ''): string {
+  const d = detail.replace(/\s+/g, ' ').trim();
+  // some parts drawn by the network, some by the old tubes: the headline says which, the reason follows
+  if (state === 'partial') return `Mesh: network (${why}: old tubes)${d ? ` - ${d.length > 380 ? `${d.slice(0, 377)}...` : d}` : ''}`;
+  if (state === 'network') return why ? `Mesh: network (${why})` : 'Mesh: network';
   if (state === 'loading') return 'Mesh: loading network';
   const w = why.replace(/\s+/g, ' ').trim();
   return `Mesh: fallback${w ? ` (${w.length > 420 ? `${w.slice(0, 417)}...` : w})` : ''}`;
 }
 
 /** Shows the state in the corner (a no-op without a document: a test or a script reads `netBadge()` instead). */
-export function showNetBadge(state: NetBadgeState, why = ''): void {
-  last = { state, text: netBadgeText(state, why) };
+export function showNetBadge(state: NetBadgeState, why = '', detail = ''): void {
+  last = { state, text: netBadgeText(state, why, detail) };
   if (typeof document === 'undefined') return;
   if (!document.getElementById(STYLE_ID)) { const s = document.createElement('style'); s.id = STYLE_ID; s.textContent = CSS; document.head.appendChild(s); }
   document.getElementById(BADGE_ID)?.remove();
   const el = document.createElement('div');
   el.id = BADGE_ID; el.setAttribute('role', 'status'); el.textContent = last.text;
-  if (state === 'fallback') el.style.animation = 'net-badge-stay 60s ease-in-out forwards';   // (a fallback stays up a minute: its reason is the point)
-  el.style.setProperty('--nb', state === 'network' ? '#3fb27f' : state === 'loading' ? '#8a8f98' : '#e8913a');
+  if (state === 'fallback' || state === 'partial') el.style.animation = 'net-badge-stay 60s ease-in-out forwards';   // (a fallback stays up a minute: its reason is the point)
+  el.style.setProperty('--nb', state === 'network' ? '#3fb27f' : state === 'loading' ? '#8a8f98' : state === 'partial' ? '#d6b43a' : '#e8913a');
   document.body.appendChild(el);
 }

@@ -626,22 +626,25 @@ export class CelScene {
   /** The draws not yet seen to put pixels on the screen (their old tubes stay up until they have), and what the badge says when they are all settled. */
   private netUndecided: import('./vessels/net/network-object.ts').NetDraw[] = [];
   private netFailed: string[] = [];
+  /** Objects whose vessels are all out of the picture in this state (a closed collateral has no presence: nothing to draw, so no pixel is no failure). Their old tubes stay, and they are looked at again each frame. */
+  private netIdle: import('./vessels/net/network-object.ts').NetDraw[] = [];
   private netSteps = 0;
-  private netSay: ((state: 'loading' | 'network' | 'fallback', why?: string) => void) | null = null;
+  private netSay: ((state: 'loading' | 'network' | 'partial' | 'fallback', why?: string, detail?: string) => void) | null = null;
   private netGl: WebGLRenderer | null = null;
+  private netPart: (draw: string) => string = (n) => n;
   /** Whether the network figure draws this vessel (so its tube is hidden and its old fade is 0). */
   netDraws(o: CelObject): boolean { return !!this.netIds && this.netIds.has(o.edge?.id ?? '') && this.byEdge.get(o.edge?.id ?? '') === o; }
   /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw).
    *  Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
   private async mountNet(): Promise<void> {
-    const { showNetBadge } = await import('./vessels/net/badge.ts');
+    const { showNetBadge, partName } = await import('./vessels/net/badge.ts');
     showNetBadge('loading');
     try {
       const { loadNetResult } = await import('./vessels/net/load.ts');
       const { data, why } = await loadNetResult();
       if (this.disposed) return;
       if (!data) { showNetBadge('fallback', why); return; }
-      this.netSay = showNetBadge;
+      this.netSay = showNetBadge; this.netPart = partName;
       await this.attachNet(data);
       // (a program the device refuses is drawn plain by the shader guard: the badge then says the network is not drawn as designed)
       const { onShaderFailure, shaderFailures } = await import('../debug/shader-fail.ts');
@@ -664,7 +667,7 @@ export class CelScene {
     if (!n) return;
     this.body.remove(n.group); n.dispose();
     for (const o of this.vessels) (o as VesselObject).setNetHidden(false);
-    this.netIds = null; this.netUndecided = [];
+    this.netIds = null; this.netUndecided = []; this.netIdle = [];
     this.pushFades(); this.moving = true;
   }
   /** Builds the figure from loaded network meshes (the page's `mountNet`, and a test, which hands the baked files it read from disk). */
@@ -686,7 +689,7 @@ export class CelScene {
     const js = await import('./vessels/net/junc-sdf.ts');
     if (js.juncSdf()) { const j = js.JuncSdf.build(this.net.draws); if (j instanceof js.JuncSdf) { this.junc = j; this.net.group.add(j.mesh); } else console.warn(`junc-sdf: ${j.why}`); }
     // The tubes hold the state and the picking, and stay DRAWN until the figure has been seen to put a pixel of an object on the screen (probe.ts): a figure that draws nothing must never leave vessels missing.
-    this.netIds = new Set(); this.netUndecided = [...this.net.draws]; this.netFailed = []; this.netSteps = 0;
+    this.netIds = new Set(); this.netUndecided = [...this.net.draws]; this.netIdle = []; this.netFailed = []; this.netSteps = 0;
     if (assumeDrawn) { this.netUndecided = []; for (const d of this.net.draws) this.netOwn(d, true); }
     this.stepNet();
     this.pushFades();
@@ -697,13 +700,21 @@ export class CelScene {
     const n = this.net;
     if (!n) return false;
     let moving = n.sync();
+    // an object that was out of the picture when it was checked takes over its tubes the moment it shows a pixel (a collateral that opens)
+    if (this.netIdle.length) {
+      const was = this.netIdle.length;
+      this.netIdle = this.netIdle.filter((d) => { if (n.standing(d) !== 'drawn') return true; this.netOwn(d, true); return false; });
+      if (this.netIdle.length !== was) moving = true;
+    }
     if (this.netUndecided.length) {
       this.netSteps++;
       this.netUndecided = this.netUndecided.filter((d) => {
         let st = n.standing(d);
         if (st === 'pending' && this.netSteps > NET_PROBE_STEPS) st = 'blank';   // (drawn never, or its queries never answered)
         if (st === 'pending') return true;
-        if (st === 'drawn') this.netOwn(d, true); else { this.netFailed.push(d.name); this.netOwn(d, false); }
+        if (st === 'drawn') this.netOwn(d, true);
+        else if (!n.expectsPixels(d)) this.netIdle.push(d);   // (nothing of it is in the picture in this state: not a failure, its tubes draw the same nothing)
+        else { this.netFailed.push(d.name); this.netOwn(d, false); }
         return false;
       });
       if (this.netUndecided.length) moving = true;
@@ -722,13 +733,16 @@ export class CelScene {
   private netSettled(): void {
     const n = this.net, say = this.netSay;
     if (!n || !say) return;
-    if (!this.netFailed.length) { say('network'); return; }
+    if (!this.netFailed.length) { say('network', this.netIdle.length ? `${this.netIdle.map((d) => this.netPart(d.name)).join(', ')} out of the picture in this state` : ''); return; }
     const c = this.netGl?.getContext() as WebGL2RenderingContext | null | undefined;
     const caps = c && typeof c.getParameter === 'function'
       ? `float targets ${c.getExtension('EXT_color_buffer_float') ? 'yes' : 'NO'}, vertex textures ${c.getParameter(c.MAX_VERTEX_TEXTURE_IMAGE_UNITS)}, attributes ${c.getParameter(c.MAX_VERTEX_ATTRIBS)}` : 'no context';
-    const why = `${this.netFailed.join(', ')} put no pixel on the screen, so their old tubes stay. ${n.probe.report()} [${caps}]`;
+    const meant = n.draws.filter((d) => this.netFailed.includes(d.name)).map((d) => `${d.name} ${n.expectedEdges(d)}/${d.edges.length} edges in the picture`).join(', ');
+    const why = `${this.netFailed.join(', ')} put no pixel on the screen, so their old tubes stay. ${meant}. ${n.probe.report()} [${caps}]`;
     console.warn(`[?geom=net] ${why}`);
-    say('fallback', why);
+    // all parts blank: the old figure; some: the headline names the parts that are old tubes
+    if (this.netFailed.length >= n.draws.length) say('fallback', why);
+    else say('partial', this.netFailed.map((f) => this.netPart(f)).join(' and '), why);
   }
   /** The network figure now drawn (null without ?geom=net, or while it loads): for the tests and the debug page. */
   get netFigure(): NetFigure | null { return this.net; }

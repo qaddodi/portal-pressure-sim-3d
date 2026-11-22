@@ -195,6 +195,14 @@ export class NetFigure {
 
   /** Reads the draw queries (once per drawn frame, after the passes that draw the figure). Returns whether any answered. */
   poll(gl: WebGLRenderer): boolean { return this.probe.poll(gl.getContext()); }
+  /** How many of the object's edges are meant to be in the picture now: presence and an alpha (a closed collateral has neither, so it draws nothing and that is right). */
+  expectedEdges(d: NetDraw): number {
+    let n = 0;
+    for (const e of d.edges) if ((this.state.get(e, 'presence')[0] ?? 0) > 0.5 && (this.state.get(e, 'fade')[0] ?? 0) > 0.01) n++;
+    return n;
+  }
+  /** Whether anything of the object is meant to be in the picture now. */
+  expectsPixels(d: NetDraw): boolean { return this.expectedEdges(d) > 0; }
   /** An object's standing: 'drawn' once a pixel of it has passed, 'blank' when it had its frames and none did, else 'pending'. */
   standing(d: NetDraw): ProbeState { return this.probe.state(d.meshes.map((m) => m.name)); }
 

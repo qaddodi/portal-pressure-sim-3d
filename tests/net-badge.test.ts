@@ -1,7 +1,7 @@
 // The ?geom=net corner badge and the loader's reasons: a tester who sees no difference can tell which mesh is drawn. Node only (no DOM: the badge records its state, the page shows it).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { netBadge, netBadgeText, showNetBadge } from '../src/scene/vessels/net/badge.ts';
+import { netBadge, netBadgeText, partName, showNetBadge } from '../src/scene/vessels/net/badge.ts';
 import { loadNetResult } from '../src/scene/vessels/net/load.ts';
 
 test('the badge says network, loading, or fallback with its reason (trimmed), and is recorded without a document', () => {
@@ -12,6 +12,13 @@ test('the badge says network, loading, or fallback with its reason (trimmed), an
   assert.ok(netBadgeText('fallback', 'x'.repeat(400)).length < 450, 'a long reason is cut');
   showNetBadge('fallback', 'why'); assert.deepEqual(netBadge(), { state: 'fallback', text: 'Mesh: fallback (why)' });
   showNetBadge('network'); assert.equal(netBadge()?.state, 'network');
+});
+
+test('a partly drawn figure says which parts are old tubes in its headline', () => {
+  assert.equal(netBadgeText('partial', 'collaterals', ''), 'Mesh: network (collaterals: old tubes)');
+  assert.match(netBadgeText('partial', 'veins and collaterals', 'loose drew 0/23'), /^Mesh: network \(veins and collaterals: old tubes\) - loose drew 0\/23$/);
+  assert.equal(partName('net0'), 'arteries'); assert.equal(partName('net1'), 'veins'); assert.equal(partName('loose'), 'collaterals');
+  assert.equal(netBadgeText('network', 'collaterals out of the picture in this state'), 'Mesh: network (collaterals out of the picture in this state)');
 });
 
 test('files the deploy did not carry (HTTP 404) come back as a reason naming the file and the address', async () => {

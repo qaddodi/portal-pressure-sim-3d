@@ -61,3 +61,24 @@ test('the scene keeps every old tube until its object is seen drawn, and brings 
     else if (edgeIds.has(id)) assert.equal(visible, true, `${id}: its object was not seen, its tube stays`);
   }
 });
+
+test('an object whose vessels are all out of the picture (closed collaterals) is idle, not a failure: its tubes stay, and it takes over when it first shows a pixel', { skip }, async () => {
+  const scene = new CelScene({ joins: 'old' });
+  await scene.attachNet(data!);
+  const net = scene.netFigure!, loose = net.draws.find((d) => d.name === 'loose')!;
+  for (const e of loose.edges) { const o = scene.vesselObject(data!.skel.edges[e]!.id.split('#')[0]!); if (o) o.group.visible = false; }
+  scene.stepNet();
+  assert.equal(net.expectsPixels(loose), false, 'no presence: nothing of it is meant to show');
+  assert.equal(net.expectsPixels(net.draws.find((d) => d.name === 'net1')!), true);
+  const f = fakeGL((k) => (k.includes('loose') ? 0 : 30));
+  for (let i = 0; i < 300; i++) { for (const d of net.draws) for (const m of d.meshes) f.draw(net.probe, m.name); net.probe.poll(f.gl); scene.stepNet(); }
+  const looseIds = new Set(loose.edges.map((e) => data!.skel.edges[e]!.id.split('#')[0]!));
+  const vis = (id: string) => (scene.vesselObject(id) as unknown as { toon: { visible: boolean } }).toon.visible;
+  for (const id of looseIds) assert.equal(vis(id), true, `${id}: idle, its tube is left as it is`);
+  assert.equal(vis(data!.skel.edges[net.draws.find((d) => d.name === 'net1')!.edges[0]!]!.id.split('#')[0]!), false, 'the veins were seen drawn: their tubes are hidden');
+  // the collaterals open: the figure shows a pixel, and the object takes over
+  for (const e of loose.edges) { const o = scene.vesselObject(data!.skel.edges[e]!.id.split('#')[0]!); if (o) o.group.visible = true; }
+  const open = fakeGL(() => 20);
+  for (let i = 0; i < 4; i++) { for (const m of loose.meshes) open.draw(net.probe, m.name); net.probe.poll(open.gl); scene.stepNet(); }
+  for (const id of looseIds) if (scene.vesselObject(id)) assert.equal(vis(id), false, `${id}: now drawn by the figure, its tube goes`);
+});
