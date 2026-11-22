@@ -186,6 +186,7 @@ test('the sweep: text or a picture cut by a clipping ancestor, past the screen, 
   assert.deepEqual(k(scan({ items: [item({ what: 'Alpha', box: [20, 100, 120, 118] }), item({ what: 'Beta', box: [60, 104, 160, 122] })] })), ['text-overlap']);
   assert.deepEqual(k(scan({ items: [item({ what: 'Same', box: [20, 100, 120, 118] }), item({ what: 'Same', box: [21, 101, 121, 119] })] })), [], 'the same words twice is a halo, not an overlap');
   assert.deepEqual(k(scan({ items: [item({ what: 'tiny', box: [20, 100, 60, 108], px: 7 })] })), ['small-text']);
+  assert.deepEqual(k(scan({ items: [item({ what: 'fitted', box: [20, 100, 60, 108], px: 10.5, fitted: true })] })), [], 'a card the app zoomed down to fit keeps its shrink (22 Nov: keep shrink)');
   assert.deepEqual(k(scan({ items: [item({ what: 'pale', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)' })] })), ['low-contrast']);
   assert.deepEqual(k(scan({ items: [item({ what: 'mid-fade', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5, fading: true })] })), [], 'text under a running fade is judged when it lands');
   assert.deepEqual(k(scan({ items: [item({ what: 'dim at rest', box: [20, 100, 60, 118], fg: 'rgba(200, 200, 200, 1)', opacity: 0.5 })] })), ['low-contrast'], 'text translucent at rest is still judged');
