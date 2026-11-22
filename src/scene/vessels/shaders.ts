@@ -292,6 +292,8 @@ uniform sampler2D lensGradB;
 uniform sampler2D lensLaneB;
 uniform float lensModeA;
 uniform float lensModeB;
+uniform float lensRawA;
+uniform float lensRawB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
@@ -485,6 +487,7 @@ void main() {
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
+  tubeRawK = mix(la.a * lensRawA, lb.a * lensRawB, lensMix);   // (the pressure ramp is authored as drawn: cel-glsl.ts tubeRawK)
 
   // the fill: exactly TWO flat tones, lit by the one world light (cel-glsl.ts: the base, a hard edge EDGE_PX device px across, the shade, no gradient), so two pieces of one vein shade alike at their join and a turned camera
   // changes nothing; no rim, no highlight. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
@@ -513,6 +516,7 @@ void main() {
     if (cavaCut < 1.5) {
       vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
       base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+      tubeRawK = mix(tubeRawK, mix(la2.a * lensRawA, lb2.a * lensRawB, lensMix), wB);
       float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
@@ -606,7 +610,10 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
+    float rawKeep = tubeRawK;
+    tubeRawK = mix(laH.a * lensRawA, lbH.a * lensRawB, lensMix);
     vec3 inkH = ${inkColourGlsl('baseH')};
+    tubeRawK = rawKeep;
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the

@@ -7,6 +7,7 @@ import { type LensId, HEAT_MAX, flowPos, oxygenPos } from './model.ts';
 import { type Rgb, delta3, hexToRgb01, rgb01ToHex, sampler } from './oklab.ts';
 import type { LookId } from '../palette.ts';
 import { figureHex } from '../vessels/cel-ink.ts';
+import { PRESSURE_RAMP, RAW_LENSES } from './pressure-ramp.ts';
 
 export interface LegendNum { at: number; text: string; optional?: boolean }
 export interface LegendDot { colour: string; name: string; title: string }
@@ -45,8 +46,9 @@ export function refWords(ref: string) {
  *  cel-ink.ts celTubeBase: saturated, deep, capped) AFTER the ramp is read, so a key never shows a colour the vessels do not wear (the pale end of the pressure ramp, the dark looks' brighter caps): ONE place for the bar,
  *  the lens menu's swatch and the action card's strip. */
 export function rampStops(look: LookId, name: 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen', max: number, n = 11): [string, number][] {
-  const s = sampler(LENS_TOKENS[look][name]);
-  return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(s.at((i / (n - 1)) * max, [0, 0, 0])), look), (i / (n - 1)) * 100]);
+  const raw = RAW_LENSES.has(name);   // (the pressure ramp is authored as drawn: pressure-ramp.ts, no transform)
+  const s = sampler(raw ? PRESSURE_RAMP[look] : LENS_TOKENS[look][name]);
+  return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(s.at((i / (n - 1)) * max, [0, 0, 0])), look, raw), (i / (n - 1)) * 100]);
 }
 /** The Change lens's bar: the figure's own three-colour scale (sRGB, as delta3), read at 11 steps and put through the same transform as the vessels (the three stops alone would be blended AFTER the caps). */
 function deltaStops(look: LookId, n = 11): [string, number][] {

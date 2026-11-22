@@ -58,8 +58,10 @@ export function celTones(s: number, sw: number, rDev: number): { mul: number } {
   return { mul: 1 - hw * CEL.SHADE * shadow };
 }
 const lumOf = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
-/** The twin of celTubeBase: the lens colour made saturated and deep (chroma x SAT, no lighter than LCAP, hue kept). */
-export function celTubeBase(b: readonly [number, number, number], dark = false): [number, number, number] {
+/** The twin of celTubeBase: the lens colour made saturated and deep (chroma x SAT, no lighter than LCAP, hue kept). `raw`: the colour is authored as drawn (the pressure ramp, lenses/pressure-ramp.ts) and is returned as it is,
+ *  the twin of the shader's tubeRawK = 1 (cel-glsl.ts). */
+export function celTubeBase(b: readonly [number, number, number], dark = false, raw = false): [number, number, number] {
+  if (raw) return [b[0], b[1], b[2]];
   const T = CEL_STYLE.TUBE, l = lumOf(b);
   const c = b.map((v) => clamp(l + (v - l) * T.SAT, 0, 1)) as [number, number, number];
   const k = Math.min(1, (dark ? T.LCAP_DARK : T.LCAP) / Math.max(lumOf(c), 1e-3), (dark ? T.VCAP_DARK : T.VCAP) / Math.max(...c, 1e-3));
@@ -67,14 +69,14 @@ export function celTubeBase(b: readonly [number, number, number], dark = false):
 }
 /** A lens colour as the FIGURE draws it, `#RRGGBB` in and out: the vessels never wear the raw ramp, the shader makes it saturated and deep first (celTubeBase: chroma x SAT, no lighter than LCAP, no channel above VCAP, brighter caps on the dark looks).
  *  Every key that names a vessel colour (the lens bar, its dots, the lens menu's swatch, the action card's strip) goes through here, so what the key says is what the vessel is (external review, 20 Nov: the caps were applied after the legend was built). */
-export function figureHex(hex: string, look: LookId): string {
+export function figureHex(hex: string, look: LookId, raw = false): string {
   const n = parseInt(hex.slice(1), 16);
-  const c = celTubeBase([((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255], DARK_LOOKS.has(look));
+  const c = celTubeBase([((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255], DARK_LOOKS.has(look), raw);
   return '#' + c.map((v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 /** The twin of celTubeTone: the colour of the tube at lit measure `s`: the saturated base on the lit side, the shade (base x (1 - SHADE), a touch more saturated, hue kept) on the other, never toward white. */
-export function celTubeColor(base: readonly [number, number, number], s: number, sw: number, rDev: number): [number, number, number] {
-  const T = CEL_STYLE.TUBE, t = celTones(s, sw, rDev), b = celTubeBase(base);
+export function celTubeColor(base: readonly [number, number, number], s: number, sw: number, rDev: number, raw = false): [number, number, number] {
+  const T = CEL_STYLE.TUBE, t = celTones(s, sw, rDev), b = celTubeBase(base, false, raw);
   const shadeAmt = (1 - t.mul) / CEL.SHADE;
   const sh0 = b.map((v) => v * (1 - CEL.SHADE)), ls = lumOf(sh0);
   const sh = sh0.map((v) => clamp(ls + (v - ls) * T.SHADE_SAT, 0, 1));
@@ -82,8 +84,8 @@ export function celTubeColor(base: readonly [number, number, number], s: number,
 }
 
 /** The twin of the outline's colour (shaders.ts inkH): the look's casing taken INK_OWN of the way to a deep tone of the vessel's own base (x INK_TONE, INK_TONE_DARK on the dark looks), in 0..1 sRGB as the shader blends it. */
-export function tubeInk(look: LookId, base: readonly [number, number, number]): [number, number, number] {
-  const T = CEL_STYLE.TUBE, tone = DARK_LOOKS.has(look) ? T.INK_TONE_DARK : T.INK_TONE, b = celTubeBase(base, DARK_LOOKS.has(look));
+export function tubeInk(look: LookId, base: readonly [number, number, number], raw = false): [number, number, number] {
+  const T = CEL_STYLE.TUBE, tone = DARK_LOOKS.has(look) ? T.INK_TONE_DARK : T.INK_TONE, b = celTubeBase(base, DARK_LOOKS.has(look), raw);
   const cas = CASING[look].rgb;
   return [0, 1, 2].map((i) => (cas[i]! / 255) * (1 - T.INK_OWN) + b[i]! * tone * T.INK_OWN) as [number, number, number];
 }

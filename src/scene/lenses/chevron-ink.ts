@@ -8,6 +8,7 @@
 import { CHEV_INK, CHEV_INK_ROW, chevLatchJs, chevLum } from '../blood/chevron-glsl.ts';
 import { celTubeBase, isDarkLook } from '../vessels/cel-ink.ts';
 import { LENS_EDGE_COUNT, type LensData } from './model.ts';
+import { isRawLens } from './pressure-ramp.ts';
 
 const NE = LENS_EDGE_COUNT;
 export const INK_ROW = CHEV_INK_ROW;
@@ -15,12 +16,12 @@ export const INK_ROW = CHEV_INK_ROW;
 /** The mean linear luminance a coloured vessel is drawn at, or null when the lens does not colour it: the four colours along it, each through the vessels' own transform. */
 export function drawnLuminance(d: LensData, k: number, look: string): number | null {
   if (d.mode !== 1 || d.grad[k * 4 + 3]! <= 0) return null;
-  const dark = isDarkLook(look);
+  const dark = isDarkLook(look), raw = isRawLens(d.lens);   // (an as-drawn lens, the pressure ramp, is not put through the transform)
   let sum = 0, n = 0;
   for (let row = 0; row < 4; row++) {
     const i = (row * NE + k) * 4;
     if (d.grad[i + 3]! <= 0) continue;
-    sum += chevLum(celTubeBase([d.grad[i]!, d.grad[i + 1]!, d.grad[i + 2]!], dark)); n++;
+    sum += chevLum(celTubeBase([d.grad[i]!, d.grad[i + 1]!, d.grad[i + 2]!], dark, raw)); n++;
   }
   return n ? sum / n : null;
 }
