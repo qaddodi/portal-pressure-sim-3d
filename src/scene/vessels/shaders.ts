@@ -521,7 +521,7 @@ void main() {
   {
     if (dotted > 0.5) discard;
     float rCssS = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
-    float lineS = ${inkPxGlsl('rCssS', 'rCssS')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float lineS = ${inkPxGlsl('rCssS', 'rCssS', '1.0 - lensUse')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
     float sS = dLat / dpr - rCssS - lineS;   // CSS px past the line's outer edge
     float bandS = smoothstep(-0.5, 0.0, sS) * (1.0 - smoothstep(${F(SHADOW_FEATHER)} * shadowPx, shadowPx, sS));
     float d0S = vUv.x * len * vU, d1S = (1.0 - vUv.x) * len * vU, rS = max(vR, 1e-6);

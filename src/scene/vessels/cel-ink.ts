@@ -109,7 +109,7 @@ export function tubeInk(look: LookId, base: readonly [number, number, number], r
 // shadow tone and strength. Behind means behind: a vessel of the same tier (a junction's neighbour) is nearer than the hull, so it is never shadowed, and an end that joins another vessel fades the band out over the
 // join (shadowEndsOf), so nothing gaps at a junction.
 /** The band's width beyond the outline, CSS px: the same on every screen. Its last (1 - SHADOW_FEATHER) share fades out. */
-export const SHADOW_PX = 2;
+export const SHADOW_PX = 3;
 export const SHADOW_FEATHER = 0.55;
 /** How far behind its own tube the hull lies, scene units (the tiers are 0.01 apart at the least, frame2d.ts TIER_Z; a tube's own bulge is at most 0.15 x its radius, shaders.ts TUBE_DEPTH_SHARE; at 0.007 a thin vessel of the same tier as a fat trunk is still nearer than the trunk's hull, tests/crossing-shadow.test.ts). */
 export const SHADOW_DEPTH = 0.007;
