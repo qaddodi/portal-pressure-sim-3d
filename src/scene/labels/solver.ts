@@ -124,6 +124,8 @@ const DROP_ROUNDS = 3;
 /** What a clear spot on the side opposite the preferred one costs over one on it (px of leader at 0.1 each, as 20 px more). */
 const PREFER_COST = 12;
 const CLEAR_STEP = 10, CLEAR_MAX = 340, CLEAR_ANGLES = 36;
+/** The furthest a box's centre stands from its dot on any search (the clear rings; the wide gaps and the callout gaps are far inside it), px, plus the dot room: what a spot's neighbours are found within. */
+const RING_REACH = CLEAR_MAX + 20;
 /** The spots of an item that must stand clear of the lines: the box's centre on rings about the dot, nearest ring first. */
 const CLEAR_SPOTS: readonly (readonly [number, number, number])[] = (() => {
   const out: [number, number, number][] = [];
@@ -138,7 +140,42 @@ type Seg = [number, number, number, number];
  *  (the Circuit's "MHV" stood in the gap between two tubes with its halo over both, a box on the pale tube, 22 Nov). Absent: a hairline. */
 export type Line = readonly [number, number, number, number, number?];
 /** Whether a line, drawn at its own width and `air` more, passes through the box. */
-const onLine = (l: Line, box: Box, air: number): boolean => crosses(l[0], l[1], l[2], l[3], grow(box, air + (l[4] ?? 0)));
+export const onLine = (l: Line, box: Box, air: number): boolean => crosses(l[0], l[1], l[2], l[3], grow(box, air + (l[4] ?? 0)));
+
+/** The lines in a grid of cells, so a box or a leader asks only the few lines near it (the solver's cost was candidates x every line of the figure, about 100 ms a solve on a Mac: the stall on leaving a talk, opening a view or a patient glide).
+ *  A line is entered in every cell its box (grown by its own half width) touches; a query names every line whose box, grown by `air`, may touch the asked box. The exact tests then run on those few only. */
+const GRID_CELL = 48;
+export class LineGrid {
+  private readonly cells = new Map<number, number[]>();
+  private readonly seen: Uint32Array;
+  private readonly lines: readonly Line[];
+  /** (a line too long for the grid, or without a finite end: always asked) */
+  private readonly far: number[] = [];
+  private stamp = 0;
+  constructor(lines: readonly Line[]) {
+    this.lines = lines;
+    this.seen = new Uint32Array(lines.length);
+    lines.forEach((l, i) => {
+      const w = l[4] ?? 0;
+      const x0 = Math.floor((Math.min(l[0], l[2]) - w) / GRID_CELL), x1 = Math.floor((Math.max(l[0], l[2]) + w) / GRID_CELL);
+      const y0 = Math.floor((Math.min(l[1], l[3]) - w) / GRID_CELL), y1 = Math.floor((Math.max(l[1], l[3]) + w) / GRID_CELL);
+      if (!Number.isFinite(x0 + x1 + y0 + y1) || (x1 - x0 + 1) * (y1 - y0 + 1) > 4096) { this.far.push(i); return; }
+      for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) { const k = cx * 65536 + cy; const c = this.cells.get(k); if (c) c.push(i); else this.cells.set(k, [i]); }
+    });
+  }
+  /** Calls `visit(line)` once for each line that may touch the box grown by `air`; stops when it returns true. Returns whether it did. */
+  some(x0: number, y0: number, x1: number, y1: number, air: number, visit: (l: Line) => boolean): boolean {
+    const st = ++this.stamp;
+    for (const i of this.far) if (visit(this.lines[i]!)) return true;
+    const cx0 = Math.floor((x0 - air) / GRID_CELL), cx1 = Math.floor((x1 + air) / GRID_CELL), cy0 = Math.floor((y0 - air) / GRID_CELL), cy1 = Math.floor((y1 + air) / GRID_CELL);
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+      const c = this.cells.get(cx * 65536 + cy);
+      if (!c) continue;
+      for (const i of c) { if (this.seen[i] === st) continue; this.seen[i] = st; if (visit(this.lines[i]!)) return true; }
+    }
+    return false;
+  }
+}
 /** Air kept between a label and the disc of a vessel seen end-on (px). */
 const KEEP_AIR = 3;
 export const FACE_COS = 0.5, FACE_CLASH = 1e5;
@@ -146,7 +183,8 @@ export const FACE_COS = 0.5, FACE_CLASH = 1e5;
 function segDist(s: Seg, x: number, y: number): number {
   const vx = s[2] - s[0], vy = s[3] - s[1], l2 = vx * vx + vy * vy;
   const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - s[0]) * vx + (y - s[1]) * vy) / l2)) : 0;
-  return Math.hypot(s[0] + vx * t - x, s[1] + vy * t - y);
+  const ex = s[0] + vx * t - x, ey = s[1] + vy * t - y;
+  return Math.sqrt(ex * ex + ey * ey);
 }
 
 /** The least distance between two segments (0 when they cross). */
@@ -157,7 +195,7 @@ function segsDist(a: Seg, b: Seg): number {
 /** Air a leader keeps from a tube's drawn edge, px: a hairline squeezed between two tubes (the hepatic artery's, down the gap of the sinusoid bundle) is as much "through the vessels" as one across them. */
 export const LEADER_AIR = 8;
 /** Whether a leader runs through a vessel's drawn band or closer than LEADER_AIR to its edge; the vessel the dot itself stands on (within its band and 2 px) is not counted. Only a line that carries its width. */
-function leaderTouches(from: Seg, l: Line, ax: number, ay: number): boolean {
+export function leaderTouches(from: Seg, l: Line, ax: number, ay: number): boolean {
   const w = l[4] ?? 0, s: Seg = [l[0], l[1], l[2], l[3]];
   if (segDist(s, ax, ay) < w + 2) return false;
   const r = w + LEADER_AIR;
@@ -249,6 +287,7 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
 
 export function solve(input: SolveInput): Solved {
   const { view, lines = [], keep = [], leaderLineCost = 0 } = input;
+  const grid = new LineGrid(lines);
   const blockersAir = input.blockers.map((b) => grow(b, AIR_BLOCKER));
   // (the last resort for a label that must stand: it may touch a card's edge, never lie under it)
   const blockersRaw = input.blockers;
@@ -268,7 +307,7 @@ export function solve(input: SolveInput): Solved {
   }
   spreadDots(items, view, input.blockers);
 
-  let placedBoxes: { id: string; box: Box }[] = [];
+  let placedBoxes: { id: string; box: Box; /** the box with AIR_LABEL round it (a label keeps that from it) and with 1 px (a leader may not cross it), made once */ air: Box; near: Box }[] = [];
   let leaders: { id: string; seg: Seg }[] = [];
   let placed: Placement[] = [];
   let dropped: string[] = [];
@@ -281,27 +320,32 @@ export function solve(input: SolveInput): Solved {
     const no = (c: Cand, reason: string): void => { if (tally) { const k = (c.cost < NEAR_COST ? '' : c.cost < RING_COST ? 'wide:' : 'ring:') + reason; tally[k] = (tally[k] ?? 0) + 1; } };
     for (let fi = 0; fi < (nearOnly ? 1 : it.forms.length); fi++) {
       const f = it.forms[fi];
+      // (the other dots a box of this form could stand within 9 px of: none further than the widest spot of the search, so the per-spot test asks these few, not every item)
+      const reach = RING_REACH + f.w + f.h;
+      const dots = relax < 2 ? items.filter((o) => o !== it && Math.abs(o.ax - it.ax) < reach && Math.abs(o.ay - it.ay) < reach) : [];
       {
         for (const c of candidates(it, f, !!it.must || relax > 0)) {
           if (nearOnly && c.cost >= 20) continue;   // (an optional name: the ring beside its vessel only)
+          // (a spot whose own cost already reaches the best found cannot beat it: every penalty after this only adds. Skipped at once, not judged; `?capwhy` still judges them all, to count what threw each out)
+          if (best && !tally && fi * FORM_COST + c.cost >= best.cost) continue;
           const box: Box = { x0: it.ax + c.dx, y0: it.ay + c.dy, x1: it.ax + c.dx + f.w, y1: it.ay + c.dy + f.h };
-          if (!within(box, inner)) { no(c, 'view'); continue; }
+          if (!within(box, inner)) { if (tally) no(c, 'view'); continue; }
           if (offOrgans && it.onOther?.(box)) continue;
           let bad = false;
           for (const b of blockers) if (hits(box, b)) { bad = true; break; }
-          if (bad) { no(c, 'card'); continue; }
-          for (const p of placedBoxes) if (hits(box, grow(p.box, AIR_LABEL))) { bad = true; no(c, 'label:' + p.id); break; }
+          if (bad) { if (tally) no(c, 'card'); continue; }
+          for (const p of placedBoxes) if (hits(box, p.air)) { bad = true; if (tally) no(c, 'label:' + p.id); break; }
           if (bad) continue;
-          if (!it.region) for (const k of keep) if (k.id !== it.id && boxGap(box, k.x, k.y) < k.r + KEEP_AIR) { bad = true; no(c, 'disc:' + k.id); break; }
+          if (!it.region) for (const k of keep) if (k.id !== it.id && boxGap(box, k.x, k.y) < k.r + KEEP_AIR) { bad = true; if (tally) no(c, 'disc:' + k.id); break; }
           if (bad) continue;
-          if (relax < 2) for (const o of items) if (o !== it && boxGap(box, o.ax, o.ay) < 9) { bad = true; no(c, 'dot:' + o.id); break; }
+          for (const o of dots) if (o.ax > box.x0 - 9 && o.ax < box.x1 + 9 && o.ay > box.y0 - 9 && o.ay < box.y1 + 9 && boxGap(box, o.ax, o.ay) < 9) { bad = true; if (tally) no(c, 'dot:' + o.id); break; }
           if (bad) continue;
           // the dot's own place: a label never covers its own dot (a region's name, drawn on what it names, has none)
-          if (!it.region && boxGap(box, it.ax, it.ay) < 3) { no(c, 'ownDot'); continue; }
+          if (!it.region && boxGap(box, it.ax, it.ay) < 3) { if (tally) no(c, 'ownDot'); continue; }
           // (measured from the vessel's edge as drawn, not from its middle: a label hugging a fat vein has no line)
           const gap = it.region ? 0 : boxGap(box, it.ax, it.ay) - (it.vw ?? 0);
-          if (it.minLead && !it.region && relax < 2 && gap < it.minLead) { no(c, 'minLead'); continue; }
-          if (strictLines) { let under = false; for (const l of lines) if (onLine(l, box, LINE_AIR)) { under = true; break; } if (under) continue; }
+          if (it.minLead && !it.region && relax < 2 && gap < it.minLead) { if (tally) no(c, 'minLead'); continue; }
+          if (strictLines && grid.some(box.x0, box.y0, box.x1, box.y1, LINE_AIR, (l) => onLine(l, box, LINE_AIR))) continue;
           const leader = !it.region && !it.callout && gap > LEAD_ON;
           if (nearOnly && leader) continue;
           let seg: Seg | null = null;
@@ -310,34 +354,34 @@ export function solve(input: SolveInput): Solved {
             const [px, py] = nearestOn(box, it.ax, it.ay);
             seg = [it.ax, it.ay, px, py];
             const len = Math.hypot(px - it.ax, py - it.ay);
-            if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) { no(c, 'reach'); continue; }
+            if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) { if (tally) no(c, 'reach'); continue; }
             if (len > SHORT_LEAD) pen += (len - SHORT_LEAD) * 0.2;
             if (leaderLineCost > 0 && len > 1) {
               const k = Math.min(1, ((it.vw ?? 0) + 4) / len), from: Seg = [seg[0] + (seg[2] - seg[0]) * k, seg[1] + (seg[3] - seg[1]) * k, seg[2], seg[3]];
               let n = 0;
-              for (const l of lines) if (segsCross(from, [l[0], l[1], l[2], l[3]]) || (l[4] !== undefined && leaderTouches(from, l, it.ax, it.ay))) n++;
-              if (n > 0 && relax < 2) { no(c, 'leaderLine'); continue; }
+              grid.some(Math.min(from[0], from[2]), Math.min(from[1], from[3]), Math.max(from[0], from[2]), Math.max(from[1], from[3]), LEADER_AIR, (l) => { if (segsCross(from, [l[0], l[1], l[2], l[3]]) || (l[4] !== undefined && leaderTouches(from, l, it.ax, it.ay))) n++; return false; });
+              if (n > 0 && relax < 2) { if (tally) no(c, 'leaderLine'); continue; }
               pen += leaderLineCost * Math.min(n, 4);
             }
-            for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; no(c, 'leaderCard'); break; }
+            for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; if (tally) no(c, 'leaderCard'); break; }
             if (bad) continue;
-            for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], grow(p.box, 1))) { bad = true; no(c, 'leaderThrough:' + p.id); break; }
+            for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], p.near)) { bad = true; if (tally) no(c, 'leaderThrough:' + p.id); break; }
             if (bad) continue;
-            for (const k of keep) if (k.id !== it.id && segDist(seg, k.x, k.y) < k.r) { bad = true; no(c, 'leaderDisc:' + k.id); break; }
+            for (const k of keep) if (k.id !== it.id && segDist(seg, k.x, k.y) < k.r) { bad = true; if (tally) no(c, 'leaderDisc:' + k.id); break; }
             if (bad) continue;
-            if (relax < 1) for (const l of leaders) if (segsCross(seg, l.seg)) { bad = true; no(c, 'leaderCross:' + l.id); break; }
+            if (relax < 1) for (const l of leaders) if (segsCross(seg, l.seg)) { bad = true; if (tally) no(c, 'leaderCross:' + l.id); break; }
             if (bad) continue;
           }
           // an earlier label's leader never runs through this box, whatever this label is (a region's name has no leader of its own: the right atrium's leader ran through RIGHT ATRIUM, phone play-test 20 Nov)
-          for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; no(c, 'underLeader:' + l.id); break; }
+          for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; if (tally) no(c, 'underLeader:' + l.id); break; }
           if (bad) continue;
           let lineHits = 0;
-          for (const l of lines) if (onLine(l, box, 0)) lineHits++;
+          grid.some(box.x0, box.y0, box.x1, box.y1, 0, (l) => { if (onLine(l, box, 0)) lineHits++; return false; });
           // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
           // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
           // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
-          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region && !it.looseFar) { no(c, 'line'); continue; }
-          if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region && !it.callout) { no(c, 'line'); continue; }
+          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region && !it.looseFar) { if (tally) no(c, 'line'); continue; }
+          if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region && !it.callout) { if (tally) no(c, 'line'); continue; }
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
@@ -349,7 +393,7 @@ export function solve(input: SolveInput): Solved {
     }
     if (!best) return false;
     if (tally) { tally['@relax'] = relax; tally['@form'] = best.form; tally['@lineHits'] = best.hits; tally['@spotCost'] = Math.round(best.c.cost); }
-    placedBoxes.push({ id: it.id, box: best.box });
+    placedBoxes.push({ id: it.id, box: best.box, air: grow(best.box, AIR_LABEL), near: grow(best.box, 1) });
     if (best.seg) leaders.push({ id: it.id, seg: best.seg });
     placed.push({ id: it.id, form: best.form, dx: best.c.dx, dy: best.c.dy, w: it.forms[best.form].w, h: it.forms[best.form].h, leader: best.leader, au: it.au, ...(best.c.tail ? { tail: best.c.tail } : {}) });
     return true;
