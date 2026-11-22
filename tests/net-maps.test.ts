@@ -47,3 +47,23 @@ for (const fx of fixtures()) {
     assert.equal(r.mapNotes.length, 0, r.mapNotes.map((x) => x.why).join('; '));
   });
 }
+
+// The window search runs on the junction peel (net/peel.ts, WP3's 2e89eea8), the same rule as the shader and the oracle: at a given t every bone inside a region's seam rings has ONE share, the node's.
+import { bonesAtT } from '../src/scene/vessels/net/window.ts';
+import { peelTable } from '../src/scene/vessels/net/peel.ts';
+for (const fx of fixtures()) {
+  const r = buildNetMesh(fx.skel, undefined, { maps: true }), regions = r.nodes.filter((n) => n.kind === 'junction' && (n.variant ?? 0) === 0 && n.capBones);
+  if (!regions.length) continue;
+  test(`${fx.name}: a region's bones inside its seam rings share one peel share in the window search`, () => {
+    const peel = peelTable(fx.skel, r.nodes);
+    for (const t of [0.3, 0.5, 0.7]) {
+      const bones = bonesAtT(fx.skel, t, peel);
+      for (const rg of regions) {
+        // (the bones the table puts inside the region, on every arm: the capsule runs a few bones past its seam ring)
+        const inside = (g: number): boolean => { const pe = peel[fx.skel.bones[g]!.edge]!, u = fx.skel.bones[g]!.u; return (pe[0] >= 0 && u <= pe[1] + 1e-9) || (pe[2] >= 0 && u >= pe[3] - 1e-9); };
+        const shares = new Set(rg.capBones!.slice(0, rg.arms.length).flat().filter(inside).map((g) => bones[g]!.share.toFixed(6)));
+        assert.equal(shares.size, 1, `${rg.node} at t = ${t}: one share inside the region (got ${[...shares].join(', ')})`);
+      }
+    }
+  });
+}

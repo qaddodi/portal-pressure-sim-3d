@@ -16,6 +16,7 @@ import { relax } from './relax.ts';
 import { fitAll } from './fit.ts';
 import { boneFrame, bonePos, boneRadius, type Pose } from './pose.ts';
 import { bonesAtT, windowOf, type Window } from './window.ts';
+import { peelTable } from './peel.ts';
 import { regionKeys } from './keys.ts';
 import { bakeScaleOf } from './ranges.ts';
 import { sewnEnds } from './sewn.ts';
@@ -156,11 +157,12 @@ export function buildNetMesh(skel: Skeleton, edges?: readonly number[], opts?: {
     const byNode = new Map<string, NodeReport[]>();
     for (const n of res.nodes) if (n.kind === 'junction' && n.caps && n.capBones) (byNode.get(n.node) ?? byNode.set(n.node, []).get(n.node)!).push(n);
     const region = (n: NodeReport) => ({ node: n.node, variant: (n.variant ?? 0) as 0 | 1 | 2, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, triStart: n.triStart, triCount: n.triCount, capBones: n.capBones!, mates: n.caps!.map((c) => c.mate) });
-    const drop = new Set<NodeReport>();
+    const drop = new Set<NodeReport>(), peel = peelTable(scaled, res.nodes), cache = new Map<number, ReturnType<typeof bonesAtT>>();
+    const at = (t: number) => cache.get(t) ?? (cache.set(t, bonesAtT(scaled, t, peel)), cache.get(t)!);   // (the junction peel's bones at each t, once for every region)
     for (const [node, list] of byNode) {
       const body = list.find((n) => (n.variant ?? 0) === 0), map = list.find((n) => n.variant === 1), mid = list.find((n) => n.variant === 2);
       if (!body || !map) { if (mid) drop.add(mid); continue; }
-      const w = windowOf(scaled, res.mesh, region(body), region(map), mid && region(mid));
+      const w = windowOf(scaled, res.mesh, region(body), region(map), mid && region(mid), at);
       res.windows.set(node, w);
       if (w.switchT) { body.switchT = w.switchT; map.switchT = w.switchT; if (mid) drop.add(mid); }
       else if (w.mid?.windows) { body.switchT = w.mid.windows[0]; mid!.switchT = w.mid.windows[0]; mid!.switchT2 = w.mid.windows[1]; map.switchT = w.mid.windows[1]; }
