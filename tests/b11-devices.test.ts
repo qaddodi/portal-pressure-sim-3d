@@ -1,5 +1,6 @@
 // B11 scene devices: the Doppler probe, the FibroScan probe and the endoscope with its ligator cap and EUS needle (src/scene/devices/probes/). Numbers are the 2D app's, copied by script; here: the copy is
 // current (when a 2D checkout is named), the geometry keeps the 2D app's rules (the Doppler angle, the gate, the stations' order), the devices ease in and out and leave with the Circuit, and the Tests card drives them.
+import { fadeFrames } from './device-clock.ts';
 import { NEEDLE_POINT } from '../src/scene/devices/probes/scope.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -269,7 +270,7 @@ test('the readings the devices wear: the probe\'s screen number, turned with its
 test('the echoendoscope follows the EUS-PPG\'s procedure frame: the way in, the port, the transducer, the bevelled needle, the hit\'s rings and the reading\'s ripples', () => {
   const sc = new EndoScope(createShared());
   const w = scopeWay(), drive = { u: 1, tgt: 0, aim: 1, fan: 1, needle: 0, flash: 0, read: 0 };
-  const priv = sc as unknown as { parts_: { port: { group: { visible: boolean } }; face: { group: { visible: boolean } }; needle: { group: { visible: boolean } } }; needleBuf: { rings: { r: number }[] }; flashRings: { group: { visible: boolean } }[]; rippleRings: { group: { visible: boolean } }[] };
+  const priv = sc as unknown as { parts_: { port: { group: { visible: boolean } }; face: { group: { visible: boolean } }; needle: { group: { visible: boolean } } }; needleBuf: { rings: { r: number }[] }; flashPart: { group: { visible: boolean } }; rippleRings: { group: { visible: boolean } }[] };
   let now = 0;
   const run = (n = 1) => { for (let i = 0; i < n; i++) { now += 16; sc.update(16, true, 'eus', 'pv', undefined, undefined, drive, now); } };
   run();
@@ -277,7 +278,7 @@ test('the echoendoscope follows the EUS-PPG\'s procedure frame: the way in, the 
   assert.ok(priv.parts_.face.group.visible, 'the transducer\'s face is on the scope');
   assert.ok(priv.parts_.port.group.visible, 'the port opens with the aim');
   assert.equal(priv.parts_.needle.group.visible, false, 'no needle until it is out');
-  assert.equal(priv.flashRings[0]!.group.visible, false); assert.equal(priv.rippleRings[0]!.group.visible, false);
+  assert.equal(priv.flashPart.group.visible, false); assert.equal(priv.rippleRings[0]!.group.visible, false);
   // the needle out: steel to a bevelled point (the last rings narrow to NEEDLE_POINT of the width: a sharp point, owner 20 Nov 2026 "more needle-y"; it was 2D's fifth), its end on the line from the port
   drive.needle = 1; run();
   const rs = priv.needleBuf.rings, full = rs[0]!.r;
@@ -285,11 +286,14 @@ test('the echoendoscope follows the EUS-PPG\'s procedure frame: the way in, the 
   assert.ok(Math.abs(rs[rs.length - 1]!.r / full - NEEDLE_POINT) < 1e-6, `the point is sharp: ${rs[rs.length - 1]!.r / full}`);
   assert.ok(rs[rs.length - 2]!.r < full && rs[rs.length - 2]!.r > rs[rs.length - 1]!.r, 'it narrows over the bevel');
   assert.ok(sc.pose.needleEnd.length() > 0);
-  // the hit: two rings; the reading: two ripples
+  // the hit: the needle fills with blood (flashback, no flat ring); the reading: two ripples
   drive.flash = 0.3; run();
-  assert.ok(priv.flashRings.every((r) => r.group.visible));
+  assert.ok(priv.flashPart.group.visible);
+  assert.equal('flashRings' in sc, false, 'no flat ring at the needle point');
   drive.flash = 0; drive.read = 1; run();
-  assert.ok(priv.rippleRings.every((r) => r.group.visible) && priv.flashRings.every((r) => !r.group.visible));
+  assert.ok(priv.rippleRings.every((r) => r.group.visible));
+  fadeFrames();
+  assert.equal(priv.flashPart.group.visible, false, 'the flashback drains when the hit is over');
   // the hepatic vein's station: the scope is pulled back to the cardia's, as the frame's tgt says
   drive.tgt = 1; drive.read = 2; run();
   assert.ok(Math.abs(sc.d - w.hvD) < 1e-9);

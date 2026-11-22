@@ -149,10 +149,10 @@ test('the glue cast and coil are drawn in the varix and come away with clear()',
   assert.equal(isDrawn(g.group), false);
   g.set({ coil: 0.6, column: 0, flash: 0.3, opacity: 1 });
   assert.ok(isDrawn(g.group) && g.coil.group.visible && !g.cast.group.visible);
-  assert.ok(g.flashes[0]!.group.visible && g.flashes[1]!.group.visible);
+  assert.equal('flashes' in g, false, 'the hit is the needle filling with blood, not a flat ring');
   g.set({ coil: 1, column: 0.7, flash: 0, opacity: 1 });
-  fadeFrames();   // (the hit's rings ease out)
-  assert.ok(g.coil.group.visible && g.cast.group.visible && !g.flashes[0]!.group.visible);
+  fadeFrames();
+  assert.ok(g.coil.group.visible && g.cast.group.visible);
   assert.equal(g.cast.deviceTone, 'glue');
   g.set({ coil: 1, column: 1, flash: 0, opacity: 0.5 });
   assert.ok(g.cast.group.visible);
