@@ -157,6 +157,7 @@ export function LabelLayer() {
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
       zoom: () => cel.rig.handZoom,
+      hand: () => cel.rig.handView,
       level: () => useShell.getState().figure.labelLevel,
       chips: () => useBlood.getState().chips,
       stenosed: () => stenosedNodes(),
