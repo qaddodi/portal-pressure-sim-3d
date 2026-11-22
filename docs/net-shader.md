@@ -9,6 +9,9 @@
 Against the owner's criteria (bound normal within 3 deg p99 of the SHADE normal; fillet within 0.05 R of the live union), linear blend skinning does NOT meet them once the arms deform differently:
 - Rest / Circuit t=.25 on Y and H: p99 3.3 deg, union 0.058 R (just over); T, TT, STUB, FOUR: 7 to 10 deg at rest; HS (the hard fixture): 50 deg at rest.
 - Map pose / t=.75: 8 to 61 deg. Differential swell 1.2/.85: 7 to 50 deg. Presence .3: 20 to 54 deg, union 0.5 to 4.7 R.
-- No triangle flips in any state. Edges stay under 3x except an arm at presence .3 (T, FOUR, H, TT).
+- No triangle flips in any state. Edges stay under 3x except an arm at presence .3 (T, FOUR, H, TT) and the neck fixture HT in the map pose (3.1 to 5.9x). HT is bad even at rest (48 deg, 0.9 R).
 Likely remedies: a per-vertex live-union gradient for the junction vertices (they are few); or limits on the swell ratio / presence of an arm at a junction.
 Also open: the cava ramp length (design only, not tested; judge on a device), the ink-width-across-fillets check (not yet written), `?geom=net` wiring (WP4), crossings of one network (`tests/net-crossings.test.ts`: 7 in the body pose, 18 in the map pose; a faded and a solid vessel in one draw blend in vertex order), and the real skeleton does not mesh yet (HA:art vertex limit).
+
+## Zero-length map pieces (WP0 ruling 3), `tests/net-zero-map.test.ts`
+The real skeleton has no bone with a zero map tangent today (every landing is at least 3 radii long in the map) and does not mesh yet, so the test collapses the short middle piece of a trunk with two landings (HT-like, 1 R and 0.5 R long) onto one map point. At the map pose and at t = .25 / .5 / .75 / 1: no NaN, no flipped triangle; stretch is under 3x except the 1 R piece at t = 1 (3.02x, a todo). The shader's frame for a zero map difference is the bone's own body tangent (no NaN), NOT the host's tangent as ruled: the host's map tangent at the node is in no texture. Carrying it is a one-column change in WP1 (net/bones.ts: write the host's map tangent into a zero-length bone's frame), which I have not done.
