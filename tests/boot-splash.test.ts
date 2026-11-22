@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Script, createContext } from 'node:vm';
 
 const HTML = readFileSync('index.html', 'utf8');
-interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean; held?: boolean }
+interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean; held?: boolean; rows?: boolean }
 
 function run(o: Opts = {}) {
   const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;   // (the cover's script: found by what it defines, not by its place: the look script before it came first from 22 Nov)
@@ -16,7 +16,7 @@ function run(o: Opts = {}) {
     const el: any = { id, className: '', innerHTML: '<i>orig</i>', parentNode: { removeChild() { el.removed = true; } }, removed: false, children: {} as Record<string, any>, history,
       style: { setProperty: (k: string, v: string) => { css[k] = v; if (k === '--p') history.push(Number(v)); } },
       getAttribute: (k: string) => attrs[k] ?? null, setAttribute: (k: string, v: string) => { attrs[k] = v; }, removeAttribute: (k: string) => { delete attrs[k]; }, hasAttribute: (k: string) => k in attrs,
-      querySelector: (sel: string) => { if (o.richBar && sel === '.boot-bar' && !el.innerHTML.includes('boot-msg')) return (el.children['.boot-bar'] ??= { style: {}, offsetHeight: 1 }); const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
+      querySelector: (sel: string) => { if (o.rows && (sel === '.boot-stage' || sel === '.boot-pct')) return (el.children[sel] ??= { textContent: '', attrs: {} as Record<string, string>, setAttribute(k: string, v: string) { this.attrs[k] = v; }, removeAttribute(k: string) { delete this.attrs[k]; } }); if (o.richBar && sel === '.boot-prog' && !el.innerHTML.includes('boot-msg')) return (el.children['.boot-prog'] ??= { style: {}, offsetHeight: 1 }); const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
     return el;
   };
   const boot = mkEl('boot'), root = mkEl('root'); root.firstChild = null;
@@ -207,7 +207,7 @@ test('A3: the bar fades out first, then the note comes in (CSS: 240 ms, 4 px ris
   c.advance(3000);   // the offline note is due: the bar is asked to fade, the content is still the old one
   assert.equal(c.boot.className, 'slow', 'the state changes at once');
   assert.equal(c.boot.innerHTML, '<i>orig</i>', 'but what is on screen waits for the bar to fade');
-  const bar = c.boot.children['.boot-bar']; assert.equal(bar.style.opacity, '0'); assert.match(bar.style.transition, /opacity 160ms/);
+  const bar = c.boot.children['.boot-prog']; assert.equal(bar.style.opacity, '0'); assert.match(bar.style.transition, /opacity 160ms/);
   c.advance(3200); assert.match(c.boot.innerHTML, /boot-msg/, 'the note is in once the bar is gone');
   assert.match(HTML, /@keyframes boot-msg-in \{ from \{ opacity: 0; transform: translateY\(4px\); \} to \{ opacity: 1; transform: none; \} \}/);
   assert.match(HTML, /#boot \.boot-msg \{[^}]*animation: boot-msg-in 240ms cubic-bezier\(\.2,\.8,\.2,1\) both/);
@@ -230,4 +230,35 @@ test('the splash notes keep their technical line behind a Details link, hidden u
   c.advance(9000);
   assert.match(c.boot.innerHTML, /<button type="button" class="boot-det" data-details>Details<\/button><code hidden>entry not started/);
   assert.match(HTML, /#boot \.boot-msg code\[hidden\] \{ display: none; \}/);
+});
+
+
+// ---- splash style D (Mohammad, 22 Nov): under the bar, the stage in plain words and the percent: "Building the figure  64%" ----
+test('D: the percent follows the bar (never down, never 100 before the lift), the stage name is the stage the start has reached, and a new name crosses over instead of snapping', () => {
+  const c = run({ total: 1_000_000, entries: () => file(12), dcl: false, rows: true });
+  c.advance(1600);
+  const stage = c.boot.children['.boot-stage'], pct = c.boot.children['.boot-pct'];
+  assert.equal(stage.textContent, 'Getting ready'); assert.match(pct.textContent, /^\d+%$/); assert.ok(parseInt(pct.textContent) <= 55, 'bytes alone: up to 55%');
+  c.ctx.ppsBootStarted = true; c.advance(2500);
+  assert.equal(stage.textContent, 'Starting the engine');
+  c.ctx.ppsBootStage('engine'); c.advance(3300);
+  assert.equal(stage.attrs['data-swap'], undefined, 'the crossing is over by the next tick');
+  assert.equal(stage.textContent, 'Building the figure'); const p = parseInt(pct.textContent); assert.ok(p >= 66 && p < 78, `engine reached: ${p}%`);
+  // a change of name: first the words fade out (data-swap), then they change and fade back in (the CSS has the opacity transition)
+  c.ctx.ppsBootStage('scene'); c.advance(3600); assert.equal(stage.attrs['data-swap'], '1', 'fading out, the old words still there'); assert.equal(stage.textContent, 'Building the figure');
+  c.advance(3900); assert.equal(stage.textContent, 'Polishing the look'); assert.equal(stage.attrs['data-swap'], undefined);
+  for (const st of ['compile', 'first-draw', 'labels']) c.ctx.ppsBootStage(st);
+  c.advance(9000); assert.equal(stage.textContent, 'Almost there'); assert.ok(parseInt(pct.textContent) <= 99, 'never 100 while the cover is up');
+  let last = 0; const seen = parseInt(pct.textContent); assert.ok(seen >= last);
+  c.ctx.ppsBootLift(); assert.equal(pct.textContent, '100%', '100 only as the cover lifts');
+});
+
+test('D: the markup and the look: one row under the bar, the stage left in the mute colour, the percent right in tabular digits; the slow note takes the whole block away', () => {
+  assert.match(HTML, /<div class="boot-prog"><div class="boot-bar"><i><\/i><b><\/b><\/div><div class="boot-row"><span class="boot-stage"><\/span><span class="boot-pct"><\/span><\/div><\/div>/);
+  assert.match(HTML, /#boot \.boot-pct \{[^}]*font-variant-numeric: tabular-nums/);
+  assert.match(HTML, /#boot \.boot-stage \{[^}]*transition: opacity 160ms/); assert.match(HTML, /#boot\[data-det\] \.boot-row \{ opacity: 1; \}/, 'shown with the bar, not before');
+  const names = [...HTML.matchAll(/NAMES=\{([^}]*)\}/g)][0]![1]!;
+  for (const n of [...names.matchAll(/'([^']+)'(?=[,}]|$)/g)].map((m) => m[1]!).filter((x) => /\s/.test(x))) assert.ok(n.length <= 20, `${n} fits 140 px at 12 px beside the percent`);
+  const c = run({ entries: () => file(3), dcl: false, realCover: true, fonts: 'now' }); c.advance(9000);
+  assert.doesNotMatch(c.boot.innerHTML, /boot-prog|boot-row/, 'the slow note keeps the mark and the name only');
 });

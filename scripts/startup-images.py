@@ -21,7 +21,7 @@ NAME = 'Portal Pressure Simulator 3D'
 # (CSS width, CSS height, device pixel ratio, status bar height in CSS px), portrait; iPads also go out in landscape
 PHONES = [(440, 956, 3, 62), (402, 874, 3, 62), (430, 932, 3, 59), (393, 852, 3, 59), (428, 926, 3, 47), (390, 844, 3, 47), (375, 812, 3, 44), (414, 896, 3, 44), (414, 896, 2, 44), (375, 667, 2, 20)]
 PADS = [(1032, 1376, 2, 24), (1024, 1366, 2, 24), (834, 1210, 2, 24), (834, 1194, 2, 24), (820, 1180, 2, 24), (810, 1080, 2, 24), (768, 1024, 2, 20)]
-MARK, GAP, NAME_PX, BAR_BLOCK = 64, 16, 20, 7   # (the cover: mark, flex gap, name size, the bar's 3 px plus its 4 px margin, laid out even while it is still invisible)
+MARK, GAP, NAME_PX, BAR_BLOCK = 64, 16, 20, 29   # (the cover: mark, flex gap, name size, the progress block: its 4 px margin, the 3 px bar, 6 px and the 16 px row of the stage and percent, laid out even while still invisible)
 
 def font(px):
     cache = os.path.join('/tmp', 'source-serif-600-opsz20.ttf')
