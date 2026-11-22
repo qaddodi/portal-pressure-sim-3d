@@ -41,7 +41,6 @@ import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
 import { SKIN_K } from '../skin/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
 import { REGION_CAPS, REGION_HEAD, REGION_PTS } from './regions.ts';
-import { PEEL_EASE_RADII } from './peel.ts';
 import { SIDE_END_MIN, FLARE_K, FLARE_SPAN } from '../fork-joins.copied.js';
 import { BONE_TEXELS, BONES_PER_ROW } from './bones.ts';
 import { EDGE_LAYOUT } from './edge-state.ts';
@@ -67,7 +66,7 @@ const fetchOf = (name: string, row: string): string => { const s = slotOf(name);
 export const NET_VS_COLUMNS: readonly string[] = [
   'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
   'hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiFade', 'hiPx', 'hiEnds',
-  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse', 'sewn', 'peelA',
+  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse', 'sewn',
 ];
 export const NET_FS_COLUMNS: readonly string[] = [
   'tone', 'vindex', 'baseD', 'len', 'radius', 'lensIndex', 'lensUse', 'lensSpan', 'reveal', 'fade', 'flowAmount', 'smokeOn', 'dotted', 'hiColor', 'glowK', 'inkOn',
@@ -185,28 +184,6 @@ mat3 frameTo(mat3 F, vec3 T) {
   float k = 1.0 / (1.0 + c);
   return mat3(T, F[1] * c + cross(ax, F[1]) + ax * (dot(ax, F[1]) * k), F[2] * c + cross(ax, F[2]) + ax * (dot(ax, F[2]) * k));
 }
-// THE JUNCTION PEEL (net/peel.ts): inside a junction region every bone takes the region's node's peel share; outside it each arm eases from that share to its own flow-peel share over ${PEEL_EASE_RADII} arm radii with a smoothstep. peelA is
-// (anchor bone at end 0, the u of the region's boundary from end 0, the same at end 1): an edge with no region has anchor -1 and its own share, circPeel(circT, mapRank(M)), exactly as before.
-float peelShareAt(vec3 Mq, float uq, float rr) {
-  float own = circPeel(circT, mapRank(Mq));
-  float w = own;
-  bool both = peelA.x > -0.5 && peelA.z > -0.5;
-  // the free stretch between two regions' boundaries (an edge that joins two junctions) is shared: each end eases over at most half of it, so the two eases never meet inside a region
-  float span = both ? (peelA.w - peelA.y) * len : 1.0e9;
-  float inside = -1.0;
-  for (int e = 0; e < 2; e++) {
-    float anchor = e == 0 ? peelA.x : peelA.z;
-    if (anchor < -0.5) continue;
-    float seam = e == 0 ? peelA.y : peelA.w;
-    float wn = circPeel(circT, mapRank(texelFetch(boneTex, boneTexel(int(anchor + 0.5), 0) + ivec2(1, 0), 0).xyz));
-    float dd = e == 0 ? uq - seam : seam - uq;   // (u past the boundary: not positive inside)
-    if (dd <= 0.0) { if (inside < 0.0) inside = wn; continue; }
-    float Le = min(${F(PEEL_EASE_RADII)} * max(rr, 1e-6), 0.5 * max(span, 0.0));
-    float s = Le > 0.0 ? smoothstep(0.0, 1.0, min(dd * len / Le, 1.0)) : 1.0;
-    w += (wn - own) * (1.0 - s);
-  }
-  return inside >= 0.0 ? inside : clamp(w, 0.0, 1.0);
-}
 // A SEWN END (net/sewn.ts, 2D's sideEndScale / flareScale in fork-joins.copied.js): the tube runs on into its host, narrows to SIDE_END_MIN past the wall and flares at the heel, sized from the host's LIVE lumen (sewnTex, written once per frame by the same netBone).
 // The scale of the radius at distance d (the edge's own units) from the end, for a host of radius hostR; flags: 1 inside, 2 sink, 4 flare, 8 capped (a generated end's flare never takes the tube wider than its host: tubes.ts).
 float sewnNarrow(float d, float hostR) {
@@ -256,8 +233,7 @@ NetBone netBone(int bi, bool lite) {
       stay = clamp(1.0 - 2.0 * circT, 0.0, 1.0);
     } else {
       float rank = mapRank(M.xyz);
-      bool peeled = peelA.x > -0.5 || peelA.z > -0.5;
-      w = peeled ? peelShareAt(M.xyz, u, A.w) : circPeel(circT, rank);
+      w = circPeel(circT, rank);
       vec3 cA = A.xyz, cT = circTurnPt(M.xyz);
       cen = mix(cA, cT, w);
       if (circFlat > 0.0) { vec3 o0 = mix(circAnchA, circTurnPt(circAnchC), w); cen = o0 + (cen - o0) * (1.0 - circFlat); }
@@ -270,10 +246,7 @@ NetBone netBone(int bi, bool lite) {
       vec3 dA = (An.xyz - Ap.xyz) / du, dM = (Mn.xyz - Mp.xyz) / du;
       // the moving centreline's derivative along the vessel: (1 - w) A' + w C' + w' (C - A), the last term the flow peel's own gradient (circuit/shader.ts circuitMorph)
       float rs = (rank > 0.0 && rank < 1.0) ? dM.x / CIRC_MAPK / CIRC_SPAN : 0.0;
-      // the share's gradient along the vessel: the flow peel's own (2D), or, where the edge belongs to a region, its change along this edge from the neighbours' shares (flat inside the region)
-      float dwdu = circPeelSlope(circT, rank) * rs;
-      if (peeled) dwdu = (peelShareAt(Mn.xyz, un, A.w) - peelShareAt(Mp.xyz, up, A.w)) / du;
-      vec3 Tm = (1.0 - w) * dA + w * circTurnDir(dM) + dwdu * (cT - cA);
+      vec3 Tm = (1.0 - w) * dA + w * circTurnDir(dM) + circPeelSlope(circT, rank) * rs * (cT - cA);
       vec3 T = dot(Tm, Tm) > 1e-9 ? normalize(Tm) : Fb[0];
       // the map course's heading turned since the stent's start (the old shader's turn minus stentT0: the heading is the unturned map tangent's angle, taken near the stent's start heading)
       if (dot(dM.xy, dM.xy) > 1e-12) dturn = mod(atan(dM.y, dM.x) - stentT0 + 3.14159265, 6.2831853) - 3.14159265;
