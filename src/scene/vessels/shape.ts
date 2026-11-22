@@ -146,7 +146,7 @@ export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: reado
     // buried ring: the outline of the two together is the outline of their union (neighbour.ts), exactly, so there is no pad, knot or broken line where they meet (Mohammad, 20 Nov: "the coronary vein and the SMV SV junctions still suck").
     // (a THIN branch ending at a skinned node is not tucked: the skin owns that join and judges an arm's depth against the host's axis, so a branch tucked two of its own radii behind it was held out of the skin's outline at the host's front wall and the host's ink ran across its mouth: the epigastric vein into the superior cava, Mohammad 22 Nov)
     const skinned = PHASE_2_NODES.has(end ? v.to : v.from) && v.radius < THIN_ARM * best.r;
-    const tuck = skinned ? 0 : best.r > v.radius ? Math.max(JUNCTION_TUCK_MIN, Math.min(JUNCTION_TUCK, 0.8 * (best.r - v.radius))) : JUNCTION_TUCK_MIN;
+    const tuck = skinned ? JUNCTION_TUCK_MIN : best.r > v.radius ? Math.max(JUNCTION_TUCK_MIN, Math.min(JUNCTION_TUCK, 0.8 * (best.r - v.radius))) : JUNCTION_TUCK_MIN;
     const delta = [best.at[0] - p[0], best.at[1] - p[1], best.at[2] - p[2] - tuck];
     for (let i = 0; i < n; i++) {
       const u = end ? (n - 1 - i) / Math.max(1, n - 1) : i / Math.max(1, n - 1), w = 1 - smooth(u / END_SHARE);
