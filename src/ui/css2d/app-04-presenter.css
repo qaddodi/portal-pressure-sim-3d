@@ -401,7 +401,8 @@
    and glide; the dots change colour with an ease; the name fades in. Nothing reflows: the track's width is set by the step count, the words take what is left on one line. */
 .pz-prail { --pr-b: 36px; --pr-gap: 1.6em; display: flex; align-items: center; gap: .75em; min-height: var(--pr-b); margin: 0; font: 400 var(--s-lab)/1.2 var(--font-ui); color: var(--text-3); transition: opacity var(--d-small) var(--ease); }
 .pz.stack .pz-prail { --pr-b: 34px; --pr-gap: 1.45em; gap: .6em; }
-.pz-prail[data-why] { opacity: .5; }
+.pz-prail-box { transition: opacity var(--d-small) var(--ease); }
+.pz-prail-box[data-why] { opacity: .5; }
 .pz-prail-go { appearance: none; flex: 0 0 auto; display: grid; place-items: center; width: var(--pr-b); height: var(--pr-b); padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); cursor: pointer; transition: opacity var(--d-flip) var(--ease), scale var(--d-flip) var(--ease); }
 .pz-prail-go svg { width: 56%; height: 56%; fill: currentColor; }
 .pz-prail-go:active:not(:disabled) { scale: .94; }
@@ -418,8 +419,14 @@
 .pz-prail-at { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: transform var(--d-surface) var(--ease), opacity var(--d-small) var(--ease); }
 .pz-prail-at.on { opacity: 1; }
 .pz-prail-at > i { position: absolute; top: 50%; left: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--accent); }
-.pz-prail-t { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pz-prail-tx { animation: pz-prail-in var(--d-small) var(--ease) both; }
+/* the words never cut: they size to the room left on the row from their length (--ch, ui/cards/proc-rail.ts chars; Inter's mean advance ~.56em), down to 10 px (his "keep shrink");
+   only past that do they wrap */
+.pz-prail-t { flex: 1 1 auto; min-width: 0; container-type: inline-size; }
+.pz-prail-tx { display: block; font-size: clamp(10px, calc(100cqi / (var(--ch) * .56)), 1em); overflow-wrap: anywhere; animation: pz-prail-in var(--d-small) var(--ease) both; }
+/* EUS glue's short line per step: every line in one grid cell, so the cell is as tall as the longest and nothing reflows; the current one fades in as the last fades out */
+.pz-prail-cap { display: grid; margin: .4em 0 0; font: 400 var(--s-lab)/1.3 var(--font-ui); color: var(--text-2); }
+.pz-prail-cap > span { grid-area: 1 / 1; opacity: 0; transition: opacity var(--d-surface) var(--ease); }
+.pz-prail-cap > span.on { opacity: 1; }
 .pz-prail-t b { font-weight: 600; color: var(--text); }
 .pz-prail-n { margin-inline-end: .5em; font-weight: 500; font-size: .86em; font-variant-numeric: tabular-nums; }
 @keyframes pz-prail-in { from { opacity: 0; } }

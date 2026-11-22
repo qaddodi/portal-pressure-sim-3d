@@ -11,6 +11,10 @@ export interface Rail {
   fill: number; ring: number; ringOn: boolean;
   /** the words after the track: before Play the procedure and its step count; then "2/4" and the step's name */
   count: string; name: string; sub: string;
+  /** the words' length in characters: the CSS sizes them to fit the row's width from it (shrink first, wrap last; his "keep shrink", 21 Nov) */
+  chars: number;
+  /** a procedure whose every step has its short line (EUS coils and glue): those lines, and the one on show (the current step's; step 1's before Play). Never hidden behind hover (22 Nov). */
+  lines: string[] | null; line: number;
   /** the button: what it does (its accessible name and tooltip), its icon, and whether it can be pressed */
   action: string; icon: 'play' | 'replay'; disabled: boolean; why: string;
 }
@@ -23,11 +27,10 @@ export function railOf(st: Pick<ProcState, 'steps' | 'at' | 'ring' | 'phase' | '
   const fill = started ? Math.min(1, Math.max(0, st.at) / last) : 0;
   const ring = started ? Math.max(0, mark) / last : 0;
   const step = started ? st.steps[Math.max(0, mark)] : undefined;
+  const count = started ? `${Math.max(0, mark) + 1}/${n}` : '', name = started ? (step?.[1] ?? '') : st.name, sub = started ? '' : `${n} step${n === 1 ? '' : 's'}`;
+  const lines = n > 0 && st.steps.every((x) => x[8]) ? st.steps.map((x) => x[8]!) : null;
   return {
-    dots, fill, ring, ringOn: started,
-    count: started ? `${Math.max(0, mark) + 1}/${n}` : '',
-    name: started ? (step?.[1] ?? '') : st.name,
-    sub: started ? '' : `${n} step${n === 1 ? '' : 's'}`,
+    dots, count, name, sub, chars: count.length + (count ? 2 : 0) + name.length + (sub ? sub.length + 3 : 0), lines, line: started ? Math.max(0, mark) : 0, fill, ring, ringOn: started,
     action: st.phase === 'done' ? `Replay ${st.name}` : st.phase === 'play' ? 'Next step' : `Play ${st.name}`,
     icon: st.phase === 'done' ? 'replay' : 'play',
     disabled: !!st.why || (st.phase === 'play' && raw >= n - 1),

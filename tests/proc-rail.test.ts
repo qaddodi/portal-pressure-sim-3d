@@ -59,7 +59,26 @@ test('the card has one row and no paragraph or button row left (the old .pz-proc
     const at = css.indexOf(`\n${sel}`), rule = css.slice(at, css.indexOf('}', at));
     assert.match(rule, /transition: transform var\(--d-surface\)/, `${sel} glides`);
   }
-  assert.match(css, /\.pz-prail-tx \{ animation: pz-prail-in/, 'the name fades in, never pops');
+  assert.match(css, /\.pz-prail-tx \{[^}]*animation: pz-prail-in/, 'the name fades in, never pops');
   // every deck's procedure comes through this one row
   assert.match(readFileSync('src/ui/cards/TeachingCard.tsx', 'utf8'), /<ProcRow slide=\{slide\} deck=\{deck\} \/>/);
+});
+
+test('EUS glue: every step\'s short line is on the card (never behind hover), the current one shown, all in one cell so nothing reflows', () => {
+  const glue = ['Varix found', 'Needle in', 'Coils'].map((t, i) => [`g${i}`, t, 'c', '', '', '', '', '', `line ${i}`]);
+  assert.equal(railOf({ ...base, steps: glue }).line, 0, 'step 1\'s line before Play');
+  const r = railOf({ ...base, steps: glue, phase: 'play', at: 1, ring: 2 });
+  assert.deepEqual(r.lines, ['line 0', 'line 1', 'line 2']); assert.equal(r.line, 2);
+  assert.equal(railOf(base).lines, null, 'no lines row for a procedure without them');
+  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
+  assert.match(css, /\.pz-prail-cap > span \{ grid-area: 1 \/ 1; opacity: 0; transition: opacity/);
+  assert.doesNotMatch(readFileSync('src/ui/cards/ProcRow.tsx', 'utf8'), /s\[8\]/, 'the line is not a tooltip');
+});
+
+test('a long name is never cut off: it shrinks to fit (to 10 px), wraps only past that', () => {
+  const r = railOf({ ...base, steps: [['a', 'Varices obliterated'], ['b', 'x']], phase: 'play', at: 0, ring: 0 });
+  assert.equal(r.chars, '1/2'.length + 2 + 'Varices obliterated'.length);
+  const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
+  assert.doesNotMatch(css.slice(css.indexOf('.pz-prail {'), css.indexOf('.pz-prail-cap')), /text-overflow: ellipsis|white-space: nowrap/);
+  assert.match(css, /\.pz-prail-tx \{[^}]*font-size: clamp\(10px, calc\(100cqi \/ \(var\(--ch\)/);
 });
