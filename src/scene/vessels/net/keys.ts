@@ -1,0 +1,77 @@
+// THE KEYED START of a wide junction (plan owner, 22 Nov, "Rulings on the bake radius"): a region whose arms swell over more than 2:1 carries up to four KEYS, each the fillet fitted to one real state of its arms' radii. The shader starts a vertex
+// at the normalised blend of the keys (weights by inverse log-radius distance, WP3), then projects it onto the live union as always, so a blend of fold-free keys cannot fold.
+// A key is baked by CONTINUATION, not by one projection: the arms' radii ramp from the baked shape to the key in STEPS small steps and each step's free vertices are projected with 3 Newton steps (a direct projection folds a few triangles at a wide ratio;
+// the ramp gives none). Each key is stored in the bones' frames at BOTH poses (the body's, and the map's, which ramps from the map fit), in units of the bone radius AT THE KEY'S STATE (so at that state the shader's start is the key exactly, and at another it is the key scaled by the live radii, the way `offset` is).
+// Which states: the vector of every arm's swell (widthSwell of the engine's diameter) over the real states (every preset), clustered by farthest point in log space into at most MAX_KEYS keys, the largest state first.
+import { fitCaps, fitK, boundPositions, offsetsAt, project, type FitDone, type FitMesh } from './fit.ts';
+import { relax } from './relax.ts';
+import type { Skeleton } from './types.ts';
+
+export const MAX_KEYS = 4, KEY_STEPS = 24, NEWTON = 3, WIDE_RATIO = 2;
+/** The keys of one junction region: its free vertices [vertStart, vertStart + vertCount), the edges of its arms, and per key the arms' swell and the fitted offsets (12 floats a vertex) at the body pose and at the map pose. */
+export interface RegionKeys { node: string; vertStart: number; vertCount: number; arms: number[]; keys: { /** index into the states it was baked from */ state: number; swell: number[]; offset: Float32Array; offsetMap: Float32Array }[] }
+
+/** Which of the states (each a vector of arm swells) are the keys: the one with the largest radii first, then each time the state farthest, in log space, from those chosen. Duplicates (within `eps` in log space) count once. */
+export function pickKeys(states: readonly (readonly number[])[], max = MAX_KEYS, eps = 0.02): number[] {
+  const logs = states.map((v) => v.map((x) => Math.log(Math.max(x, 1e-6))));
+  const dist = (a: number[], b: number[]): number => Math.hypot(...a.map((x, i) => x - b[i]!));
+  const chosen: number[] = [];
+  let first = 0;
+  logs.forEach((l, i) => { if (l.reduce((a, b) => a + b, 0) > logs[first]!.reduce((a, b) => a + b, 0)) first = i; });
+  if (!logs.length) return chosen;
+  chosen.push(first);
+  while (chosen.length < max) {
+    let best = -1, far = eps;
+    logs.forEach((l, i) => { const d = Math.min(...chosen.map((c) => dist(l, logs[c]!))); if (d > far) { far = d; best = i; } });
+    if (best < 0) break;
+    chosen.push(best);
+  }
+  return chosen;
+}
+
+/** A region is wide when any arm's swell spans more than WIDE_RATIO over the states. */
+export function isWide(states: readonly (readonly number[])[], arms: number): boolean {
+  for (let a = 0; a < arms; a++) { let lo = Infinity, hi = 0; for (const s of states) { lo = Math.min(lo, s[a]!); hi = Math.max(hi, s[a]!); } if (hi > WIDE_RATIO * lo) return true; }
+  return false;
+}
+
+/** One key at one pose by continuation: the radii factor per edge ramps from 1 (the baked shape) to `fKey`; the seam rings follow the bones, the free vertices are projected onto each step's union. Returns the region's vertex positions (3 per `rg.verts`). */
+export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, fKey: Float64Array, steps = KEY_STEPS): Float64Array {
+  const { rg } = d, V = rg.verts.length, free = rg.verts.map((v) => v >= rg.free[0] && v < rg.free[0] + rg.free[1]);
+  const pos = pose === 1 ? Float64Array.from(d.map) : boundPositions(skel, m, rg, 0), fs = new Float64Array(fKey.length), ring = pose === 1 ? m.offset : m.offset;
+  const local = new Map(rg.verts.map((v, q) => [v, q])), tris = rg.tris.map((v) => local.get(v)!), fixed = Uint8Array.from(free, (f) => (f ? 0 : 1));
+  for (let k = 1; k <= steps; k++) {
+    const t = k / steps;
+    for (let e = 0; e < fs.length; e++) fs[e] = 1 + (fKey[e]! - 1) * t;
+    const caps = fitCaps(skel, rg, pose, -1, fs), kk = fitK(skel, rg, pose, -1, fs), tube = boundPositions(skel, m, rg, pose, ring, fs);
+    for (let q = 0; q < V; q++) {
+      if (!free[q]) { pos[3 * q] = tube[3 * q]!; pos[3 * q + 1] = tube[3 * q + 1]!; pos[3 * q + 2] = tube[3 * q + 2]!; } else project(caps, kk, pos, 3 * q, NEWTON);
+    }
+    // the ramp keeps the fillet on the step's surface but bunches its triangles where an arm swells: a round of the fit's own relaxation (fold guard on, seam rings fixed) after each step, ten at the key
+    relax({ pos, tris, fixed, caps, k: kk }, { rounds: k === steps ? 10 : 1, pull: 0.5, soft: 0 });
+  }
+  return pos;
+}
+
+/**
+ * The keys of every wide junction region. `states[p][e]` is edge e's swell in real state p (live width over the width it was built at), `bakeScale[e]` the factor the mesh was baked at (ranges.ts): a key's radii relative to the baked bones are swell / bakeScale.
+ * A narrow region gets none (its one set is the base shape).
+ */
+export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[], states: readonly (readonly number[])[], bakeScale: ArrayLike<number>, armEdges: (node: string) => number[]): RegionKeys[] {
+  const out: RegionKeys[] = [];
+  for (const d of done) {
+    const arms = armEdges(d.node), vec = states.map((s) => arms.map((e) => s[e]!));
+    if (!isWide(vec, arms.length)) continue;
+    const keys = pickKeys(vec).map((p) => {
+      const s = states[p]!, fKey = new Float64Array(skel.edges.length).map((_, e) => (s[e] ?? 1) / bakeScale[e]!);
+      const key = (pose: 0 | 1): Float32Array => {
+        const pos = continueTo(skel, m, d, pose, fKey), off = offsetsAt(skel, m, d.rg, pose, pos, fKey), n = d.rg.free[1], res = new Float32Array(12 * n);
+        d.rg.verts.forEach((v, q) => { if (v >= d.rg.free[0] && v < d.rg.free[0] + n) res.set(off.subarray(12 * q, 12 * q + 12), 12 * (v - d.rg.free[0])); });
+        return res;
+      };
+      return { state: p, swell: arms.map((e) => s[e]!), offset: key(0), offsetMap: key(1) };
+    });
+    out.push({ node: d.node, vertStart: d.rg.free[0], vertCount: d.rg.free[1], arms, keys });
+  }
+  return out;
+}

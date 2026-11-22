@@ -81,9 +81,9 @@ export function fixtures(): Fixture[] {
   const trunk = (u: number): V3 => [3 * u, 0.6 * Math.sin(2.2 * u), 0.25 * Math.sin(1.3 * u + 0.5)];
   const part = (u0: number, u1: number, rev = false) => (u: number): V3 => trunk(rev ? u1 + (u0 - u1) * u : u0 + (u1 - u0) * u);
   out.push({ name: 'CHAIN', junctions: [], skel: makeSkeleton([{ id: 'a' }, { id: 'm' }, { id: 'n' }, { id: 'z' }], [
-    { id: 'C0', from: 'a', to: 'm', curve: part(0, 0.35), rad: lin(0.08, 0.1) },
-    { id: 'C1', from: 'm', to: 'n', curve: part(0.35, 0.7), rad: lin(0.1, 0.1), roll: deg(50) },
-    { id: 'C2', from: 'z', to: 'n', curve: part(0.7, 1, true), rad: lin(0.05, 0.1) },
+    { id: 'K0', from: 'a', to: 'm', curve: part(0, 0.35), rad: lin(0.08, 0.1) },
+    { id: 'K1', from: 'm', to: 'n', curve: part(0.35, 0.7), rad: lin(0.1, 0.1), roll: deg(50) },
+    { id: 'K2', from: 'z', to: 'n', curve: part(0.7, 1, true), rad: lin(0.05, 0.1) },
   ]) });
   // H: two junctions joined by a short fat edge, each with two thinner arms
   out.push({ name: 'H', junctions: ['L', 'R'], skel: makeSkeleton([{ id: 'L' }, { id: 'R' }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], [

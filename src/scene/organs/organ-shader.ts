@@ -109,20 +109,20 @@ void main() {
   // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
+  float lay = layer;
   if (poolA.z > 0.004) {
-    // the pool: a level in the figure (a line across the stomach, per pixel, never per vertex). dU is how many figure units below the surface this pixel is (negative above it).
+    // the pool: a level in the figure (a line across the stomach, per pixel, never per vertex), mirrored by poolShade in pool-level.ts (which the node render and the tests run).
+    // dU is how many figure units below the surface this pixel is (negative above it).
     float dU = (vBox.y - poolA.x) * poolA.y;
-    float aa = max(fwPool, 0.9);   // the waterline is a soft blend about a unit wide (colours blend, never step), and never narrower than a pixel
+    float aa = max(fwPool, 1.5);   // the waterline is a soft blend a few units wide (colours blend, never step), and never narrower than a pixel
     float body = smoothstep(-aa, aa, dU);
-    float wet = smoothstep(-4.5, -aa, dU) * (1.0 - body);   // the meniscus: the wall just above the surface is wet, a film that climbs a few units and fades
-    fill += poolDelta * (body + 0.38 * wet);
-    float deep = smoothstep(0.0, 70.0, dU) * body;   // deeper blood is darker
-    fill = mix(fill, ogDark.rgb, 0.3 * deep * poolA.z);
-    float line = (1.0 - smoothstep(0.0, 1.8, abs(dU - 1.0))) * body;   // the surface's own thin dark line, where the blood meets the air
-    fill = mix(fill, ogDark.rgb, 0.22 * line * poolA.z);
+    float wet = smoothstep(-3.5, -aa, dU) * (1.0 - body);   // the meniscus: the wall just above the surface is wet, a faint film that climbs a few units and fades
+    fill += poolDelta * (body + 0.25 * wet);
+    fill *= 1.0 - 0.26 * smoothstep(0.0, 90.0, dU) * body * poolA.z;   // deeper blood is darker, in the same hue
     float lobe = exp(-pow((vBox.x - poolLand.x) / max(poolLand.y, 1e-4), 2.0));   // the jet lands: a lighter, fresher patch on the surface, a little wider than the jet
-    float topLight = (smoothstep(1.4, 2.6, dU) * (1.0 - smoothstep(4.0, 9.0, dU))) * body;   // a lighter band just under the surface (the blood's own light)
-    fill = mix(fill, ogLight.rgb, clamp((0.12 + poolA.w * lobe * 0.3) * topLight * poolA.z, 0.0, 1.0));
+    float skin = (1.0 - smoothstep(0.0, 6.0, dU)) * smoothstep(-0.5, 2.0, dU);   // the lit skin of the surface: a few units under it
+    fill = mix(fill, ogLight.rgb, clamp((0.07 + poolA.w * lobe * 0.12) * skin * poolA.z, 0.0, 1.0));
+    lay = mix(layer, max(layer, 0.9), body * poolA.z);   // blood is not a wash: it lies on the page nearly opaque, so it reads red, not mauve
   }
   if (nodAmt > 0.0) {
     vec4 nt = texture2D(nodTex, vRest);
@@ -166,7 +166,7 @@ void main() {
     fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
   }
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
-  gl_FragColor = vec4(fill, layer * fade * win);
+  gl_FragColor = vec4(fill, lay * fade * win);
 }`;
 
 /** The organ outline: the hull's width in the figure's units (2D's .org-line is 1.1 SVG units, the kidney 1.4), so it scales with the figure as 2D's does,

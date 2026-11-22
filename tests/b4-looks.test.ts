@@ -99,6 +99,19 @@ test('the pool level: a fuller pool stands higher, the jet lands inside the box,
   assert.ok(lo.landX > 0 && lo.landX < 1, 'the jet lands inside the stomach\'s box');
   assert.ok(lo.unitsPerBox === 0.9 * 300);
   for (const bit of ['poolA', 'fwidth(vBox.y)', 'smoothstep(-aa, aa, dU)', 'wet', 'poolDelta']) assert.ok(ORGAN_FS.includes(bit), bit);
+  // the pool's own arithmetic (poolShade mirrors the GLSL): the waterline is a smooth blend, blood is nearly opaque, deeper is darker, and nothing above the surface is dyed
+  const { poolShade } = await import('../src/scene/organs/pool-level.ts');
+  const wash = [0.9, 0.75, 0.68], delta = [-0.2, -0.5, -0.45], light = [1, 0.95, 0.9];
+  const at = (dU: number) => poolShade(wash, 0.72, { dU, lobe: 0, amount: 1, flow: 0.8, delta, light });
+  assert.deepEqual(at(-30).fill.map((v) => +v.toFixed(3)), wash, 'dry wall above the surface is the wash');
+  assert.ok(Math.abs(at(-30).layer - 0.72) < 1e-9, 'and keeps the wash\'s opacity');
+  assert.ok(at(30).layer > 0.89, 'blood lies on the page nearly opaque');
+  assert.ok(at(80).fill[1]! < at(8).fill[1]!, 'deeper blood is darker');
+  let prev = at(-8).fill[1]!, worst = 0;
+  for (let d = -8; d <= 8; d += 0.25) { const g = at(d).fill[1]!; worst = Math.max(worst, Math.abs(g - prev)); prev = g; }
+  assert.ok(worst < 0.06, `the waterline blends over several units, never a step (largest step ${worst.toFixed(3)} per quarter unit)`);
+  const land = poolShade(wash, 0.72, { dU: 2, lobe: 1, amount: 1, flow: 1, delta, light }).fill, none = poolShade(wash, 0.72, { dU: 2, lobe: 0, amount: 1, flow: 1, delta, light }).fill;
+  assert.ok(land[1]! > none[1]!, 'the surface is lighter where the jet lands');
   assert.ok(ORGAN_FS.indexOf('fwidth(vBox.y)') < ORGAN_FS.indexOf('discard;'), 'the pool\'s derivative is taken before the window\'s discard');
 });
 
