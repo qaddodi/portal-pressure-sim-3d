@@ -62,6 +62,7 @@ test('P2: when the new words change the box\'s width it eases (transform only, r
   assert.match(tsx, /borderBoxSize\?\.\[0\]\?\.inlineSize/);
   assert.match(tsx, /translate\(-50%, 0\) scaleX\(\$\{r\}\)/);
   assert.match(tsx, /scaleX\(\$\{1 \/ r\}\)/);
+  assert.match(tsx, /pseudoElement: '::before'/);   // (the dot is counter-scaled too)
   assert.match(tsx, /prefers-reduced-motion: reduce/);
   assert.doesNotMatch(tsx.replace(/const p = n\.offsetParent[^\n]*\n/, ''), /getBoundingClientRect\(\)\.width|style\.width/);
 });

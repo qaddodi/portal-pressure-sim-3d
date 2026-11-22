@@ -29,7 +29,7 @@ export function Toast() {
   const label = view.label;
   const el = useRef<HTMLDivElement>(null);
   // the width easing: the box's last width, and whether a swap of words has just been committed; when the new words make the box another width it scales from the old width to 1 over D_SMALL
-  // (scaleX on the box, the inverse on its words and button so they are never stretched), instead of snapping.
+  // (scaleX on the box, the inverse on its words, button and dot so they are never stretched), instead of snapping.
   const lastW = useRef(0), swapped = useRef(false);
   useEffect(() => {
     const n = el.current;
@@ -44,6 +44,7 @@ export function Toast() {
       const o = { duration: D_SMALL, easing: EASE_ARRIVE };
       n.animate([{ transform: `translate(-50%, 0) scaleX(${r})` }, { transform: 'translate(-50%, 0) scaleX(1)' }], o);
       for (const c of Array.from(n.children)) c.animate([{ transform: `scaleX(${1 / r})` }, { transform: 'scaleX(1)' }], o);
+      try { n.animate([{ transform: `scaleX(${1 / r})` }, { transform: 'scaleX(1)' }], { ...o, pseudoElement: '::before' }); } catch { /* a browser without pseudo-element animation: the dot squeezes for the glide */ }   // (the dot is the box's ::before)
     });
     ro.observe(n);
     return () => ro.disconnect();
