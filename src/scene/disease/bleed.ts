@@ -51,6 +51,9 @@ void main() {
 /** What the jet's ink material is built with besides its shaders (the program stand-in, materials/prototypes.ts, wears the same). */
 export const JET_INK_FLAGS = { side: BackSide } as const;
 
+/** The balloon is drawn up this far (0..1) when it covers the tear and the stream stops. */
+export const SEAT_STOPS_JET = 0.35;
+
 export class BleedLayer {
   readonly group = new Group();
   private obj: CelObject | null = null;
@@ -72,6 +75,8 @@ export class BleedLayer {
   private time = 0;
   private rows = makeBleedRows();
   private params: JetParams = { x0: 0, y0: 0, xl: 0, yl: 0, r0: 3, brk: 0.7, spurt: 0.5 };
+  /** How far the tamponade's gastric balloon is drawn up against the cardia (0..1, the scene sets it each frame): a seated balloon covers the tear, so the jet stops as it comes (its tail drains, easing) and runs again if it is let go. */
+  seat = 0;
   /** Reduce Motion: the jet holds still (it still grows out and drains off, easing). */
   still = false;
   constructor(shared: CelShared) { this.shared = shared; this.group.visible = false; }
@@ -81,14 +86,15 @@ export class BleedLayer {
   /** True while the jet grows, drains or runs (a running jet asks for a frame after each one: it flows). */
   set(b: BleedState, dt: number, instant = false): boolean {
     if (b.active) this.last = { ...b };
+    const live = b.active && this.seat < SEAT_STOPS_JET;
     let moving = false;
-    if (instant) { this.grow.value = b.active ? 1 : 0; this.drain.value = 0; }
-    else if (b.active) { moving = this.grow.to(1, dt) || moving; moving = this.drain.to(0, dt) || moving; }   // (it grows out, whatever it was doing)
+    if (instant) { this.grow.value = live ? 1 : 0; this.drain.value = 0; }
+    else if (live) { moving = this.grow.to(1, dt) || moving; moving = this.drain.to(0, dt) || moving; }   // (it grows out, whatever it was doing)
     else moving = this.drain.to(1, dt) || moving;   // (the tail leaves; the head stays where it was)
     this.wanted = this.grow.value > 0.003 && this.drain.value < 0.995 && !!this.last;
     this.group.visible = this.wanted && this.body > 0.001;
     if (!this.wanted) {
-      if (!b.active) { this.grow.value = 0; this.drain.value = 0; }   // (nothing is shown: ready for the next one)
+      if (!live) { this.grow.value = 0; this.drain.value = 0; }   // (nothing is shown: ready for the next one)
       this.time = 0;
       return moving;
     }

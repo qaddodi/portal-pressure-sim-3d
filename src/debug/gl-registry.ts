@@ -73,11 +73,11 @@ export function namedSources(): Map<string, string> {
 }
 
 /** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */
-/** The organ wash wrapped for the art (the heart's line: art only), the stomach (art, the esophagus's tone and fade; its fill has vertex paint) and the colon (art, the rectum's fade): fill and outline. */
+/** The organ wash wrapped for the art (the heart's line: art only), the stomach (art, the esophagus's tone and fade; its pool is per pixel) and the colon (art, the rectum's fade): fill and outline. */
 function organArtPrograms(): Program[] {
   const eso = { poly: [775, -90, 799, -90, 813, 266, 792, 266], box: [775, -90, 38, 356] as [number, number, number, number], fade: [40, -40] as [number, number], seam: [226, 262] as [number, number] };
   const out: Program[] = [];
-  for (const [name, o, defines] of [['art', { art: true, eso: null }, undefined], ['stomach', { art: true, eso }, { VERTEX_INK: '' }], ['colon', { art: true, eso: null, fade: true }, undefined]] as const) {
+  for (const [name, o, defines] of [['art', { art: true, eso: null }, undefined], ['stomach', { art: true, eso }, undefined], ['colon', { art: true, eso: null, fade: true }, undefined]] as const) {
     const p = patchedShaders(ORGAN_VS, ORGAN_FS, ORGAN_INK_VS, INK_FS, o);
     out.push(lateMaterialProgram(`organ wash + ${name}`, p.vs, p.fs, defines));
     if (name !== 'art') out.push(lateMaterialProgram(`organ outline + ${name}`, p.inkVs, p.inkFs));

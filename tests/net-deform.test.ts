@@ -31,7 +31,7 @@ for (const fx of fixtures()) {
   for (let t = 0; t < m.index.length; t += 3) for (let k = 0; k < 3; k++) { const a = m.index[t + k]!, b = m.index[t + (k + 1) % 3]!; ends.set(a < b ? `${a}_${b}` : `${b}_${a}`, 1); }
 
   // (the 4:1 differential swell belongs to the junction projection, tests/net-implicit.test.ts: this file measures the bone blend alone, which is only the projection's START)
-  for (const [name, st] of states(fx.skel).filter(([n]) => n !== 'swell .5/2')) {
+  for (const [name, st] of states(fx.skel).filter(([n]) => !n.startsWith('swell real'))) {
     const d = deformLive(m, fx.skel, { ...st, ink: 0, sag: 0 }), bones = liveBones(fx.skel, st);
     const flips = faceNormals(d.position, m.index);
 

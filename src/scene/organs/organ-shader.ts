@@ -71,6 +71,11 @@ uniform float nodAmt;
 uniform vec3 sepDelta;
 uniform vec2 nodK;
 varying vec2 vRest;
+// the pool of blood in the stomach (pool-level.ts), drawn per pixel: x the surface's place in the box (vBox.y), y the figure's units in one box height, z how much blood there is (0 none: nothing below runs),
+// w how strongly the jet lands on the surface; poolLand x the landing's place in the box (vBox.x), y its half width in box widths; poolDelta how far the pool's colour is from the organ's
+uniform vec4 poolA;
+uniform vec3 poolLand;
+uniform vec3 poolDelta;
 // Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
 uniform float depthAmt;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
@@ -90,6 +95,7 @@ void main() {
   float turn = 1.0 - clamp(normalize(vNw).z, 0.0, 1.0);
   float w = max(fwidth(turn), 1e-4);
   float fwLam = fwidth(dot(normalize(vNw), LIGHT));
+  float fwPool = fwidth(vBox.y) * poolA.y;
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
   float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
@@ -103,6 +109,21 @@ void main() {
   // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
+  if (poolA.z > 0.004) {
+    // the pool: a level in the figure (a line across the stomach, per pixel, never per vertex). dU is how many figure units below the surface this pixel is (negative above it).
+    float dU = (vBox.y - poolA.x) * poolA.y;
+    float aa = max(fwPool, 0.9);   // the waterline is a soft blend about a unit wide (colours blend, never step), and never narrower than a pixel
+    float body = smoothstep(-aa, aa, dU);
+    float wet = smoothstep(-4.5, -aa, dU) * (1.0 - body);   // the meniscus: the wall just above the surface is wet, a film that climbs a few units and fades
+    fill += poolDelta * (body + 0.38 * wet);
+    float deep = smoothstep(0.0, 70.0, dU) * body;   // deeper blood is darker
+    fill = mix(fill, ogDark.rgb, 0.3 * deep * poolA.z);
+    float line = (1.0 - smoothstep(0.0, 1.8, abs(dU - 1.0))) * body;   // the surface's own thin dark line, where the blood meets the air
+    fill = mix(fill, ogDark.rgb, 0.22 * line * poolA.z);
+    float lobe = exp(-pow((vBox.x - poolLand.x) / max(poolLand.y, 1e-4), 2.0));   // the jet lands: a lighter, fresher patch on the surface, a little wider than the jet
+    float topLight = (smoothstep(1.4, 2.6, dU) * (1.0 - smoothstep(4.0, 9.0, dU))) * body;   // a lighter band just under the surface (the blood's own light)
+    fill = mix(fill, ogLight.rgb, clamp((0.12 + poolA.w * lobe * 0.3) * topLight * poolA.z, 0.0, 1.0));
+  }
   if (nodAmt > 0.0) {
     vec4 nt = texture2D(nodTex, vRest);
     fill += sepDelta * nt.r;

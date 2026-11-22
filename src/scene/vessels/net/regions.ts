@@ -8,7 +8,7 @@ import type { Skeleton } from './types.ts';
 /** The most capsules of a region (the ruling says 6 arms; the short edges of a merged region and a run capsule come on top) and the bones along each. */
 export const REGION_CAPS = 8, REGION_PTS = 8;
 /** A region's row in the region texture: one head texel (capsule count, arm count, k scale), two of mates, then the bone indices four to a texel. */
-export const REGION_TEXELS = 3 + (REGION_CAPS * REGION_PTS) / 4;
+export const REGION_TEXELS = 3 + Math.ceil((REGION_CAPS * REGION_PTS) / 4);
 
 export interface Region { node: string; vertStart: number; vertCount: number; arms: number; caps: { bones: number[]; mate: number }[] }
 

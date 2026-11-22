@@ -3,6 +3,7 @@
 // own tiers (frame2d.ts TIER_Z): nothing is placed by hand, warped or smoothed. A vessel's width is the 2D figure's (widthAt: vesselPx of its diameter, the
 // liver's beds fixed, the arteries half, the cava three quarters, with the few named exceptions), in the same units, so it is the same width on the plate.
 import { Vector3 } from 'three';
+import { drawnDiameter } from '../../engine/tract-override.ts';
 import { EDGES, JUNCTION_PIECES, PART_OF, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from './paths.copied.ts';
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
@@ -397,7 +398,7 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
   // (the Circuit draws them: 2D's map shows the portal venules dividing and the sinusoids gathering, and Mohammad wants them there, 20 Nov)
   if (v.kind === 'liver') return o.circuit ? 'shown' : 'hidden';
   if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' ? 'ghost' : 'hidden';
-  if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
+  if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 || drawnDiameter(v.id) > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
   return 'shown';
 }

@@ -180,7 +180,7 @@ test('70 edges of 64 bones fit under the budget: under 1 MB, one texture row of 
   const t = new BoneTable(bones, spans.map((s) => ({ bones: s })));
   assert.equal(t.rows, 70); assert.ok(t.data.byteLength < 1e6, `${t.data.byteLength} bytes`);
   assert.deepEqual(t.bone(64 * 69 + 10).edge, 69);
-  assert.throws(() => new BoneTable(bones, [{ bones: [0, 65] }]), /holds 64/);
+  assert.throws(() => new BoneTable(bones, [{ bones: [0, MAX_BONES_PER_EDGE + 1] }]), /holds/);   // (an edge holds up to MAX_BONES_PER_EDGE: 64, and more where a corner needs them, 22 Nov)
 });
 
 test('a coil step rewrites only that edge\'s bones and uploads only the rows they lie in', () => {
