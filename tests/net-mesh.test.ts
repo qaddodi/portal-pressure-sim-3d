@@ -217,7 +217,7 @@ test('every through pair, merged or not, is judged by the no-neck rule on the un
   assert.ok(t.through[0]!.mated && !t.through[0]!.toggled, 'at one node the pair is the mate minimum');
 });
 
-test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge (as a bulge) fail', async () => {
+test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge fail', async () => {
   const { throughNeck } = await import('../src/scene/vessels/net/neck.ts');
   const { armCapsule, skinKOf } = await import('../src/scene/vessels/skin/sdf.ts');
   const arm = { vesselId: 'x', end: 0 as const, courseIndex: 0, dataIndex: 0, lensIndex: 0, baseD: 1, widthKind: 0 as const, restR: 0.1 };
@@ -235,7 +235,7 @@ test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge 
   const taperAxis: [number, number, number][] = [[-2, 0, 0], [0, 0, 0], [2, 0, 0]], taper = throughNeck(taperAxis, [0.1, 0.085, 0.1], [{ ...cap(0, -2, 0.085, 0.1), mate: 1 }, { ...cap(0, 2, 0.085, 0.1), mate: 0 }], k);
   assert.ok(taper.ok, taper.why);
   const ledge = throughNeck(axis, [0.1, 0.07], [cap(0, -2, 0.1, 0.1), cap(0, 2, 0.07, 0.07)], k);
-  assert.ok(!ledge.ok && /bulge/.test(ledge.why), 'a step from 0.1 to 0.07 is not a neck, but the union humps where the two meet: a bulge (the slope check is gone; the ceiling sees it)');
+  assert.ok(!ledge.ok && /slope/.test(ledge.why), 'a step from 0.1 to 0.07 is no neck (the radius never falls under the narrower arm\'s) but a step in the slope: judged on the baked union, as a preference between the two unions');
 });
 
 // THE GATE IS JUDGED AT THE REAL STATES, SO THE BAKE RADIUS DOES NOT MOVE IT (plan owner, 22 Nov): the same live vessel baked at max / f for f from 1.1 to 1.3 (the skeleton's radii R / f, every state's swell f) gets the same through-pair verdict and
@@ -394,3 +394,13 @@ for (const fx of fixtures()) {
     }
   });
 }
+
+// THE FILLET'S FIDELITY (plan owner, 22 Nov): every region's edge midpoints stand within REFINE.tol of the union, or within a stated multiple of it where a refinement at the tolerance would leave a sliver (REFINE.achieved: Infinity = refinement dropped)
+test('the fillet is refined to its midpoint tolerance: every region reaches it, or a stated multiple of it, and none is left unrefined', async () => {
+  const { REFINE } = await import('../src/scene/vessels/net/mesh.ts');
+  for (const fx of fixtures()) {
+    REFINE.achieved.clear();
+    buildNetMesh(fx.skel);
+    for (const [rid, got] of REFINE.achieved) assert.ok(got <= 16 * REFINE.tol + 1e-12, `${fx.name} ${rid}: refinement ${got === Infinity ? 'dropped' : `only to ${got}`} (tolerance ${REFINE.tol})`);
+  }
+});

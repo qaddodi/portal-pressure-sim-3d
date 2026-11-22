@@ -13,7 +13,7 @@ import { presetSwells } from './net-states.mjs';
 const sk = skeleton(), grid = Array.from({ length: 21 }, (_, i) => i * 0.05);
 const states = await presetSwells(sk);   // (the bake's own options, so the gate judges the same states: only the keys are left out)
 const res = buildNetMesh(sk, networksOf(sk)[1], { lenient: true, maps: true, states, keys: false }), scaled = scaledSkeleton(sk, res.mesh.bakeScale);
-const INK_MAX = 0.02,   // (IVCS_RA, the one arm that tapers sharply across the junction: the shader's sdArm treats a capsule's taper as linear in the radius, the mesh sweeps the real bones: 0.014 R; every other region is at most 0.005)
+const INK_MAX = 0.01,
    inkWorst = [], bad = { drawn: [], gap: [], ink: [] };
 const regions = res.nodes.filter((n) => n.kind === 'junction' && n.caps);
 // 1
