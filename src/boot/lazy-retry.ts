@@ -23,7 +23,7 @@ const offlineNow = (): boolean => typeof navigator !== 'undefined' && navigator.
 
 export async function retryImport<T>(load: () => Promise<T>, o: { delays?: readonly number[]; wait?: (ms: number) => Promise<void> } = {}): Promise<T> {
   const delays = o.delays ?? RETRY_DELAYS_MS;
-  const wait = o.wait ?? ((ms: number) => new Promise<void>((r) => clock.after(r, ms)));
+  const wait = o.wait ?? ((ms: number) => new Promise<void>((r) => clock.afterReal(r, ms)));
   let last: unknown;
   for (let i = 0; i <= delays.length; i++) {
     try { return await load(); } catch (e) {

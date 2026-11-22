@@ -84,11 +84,11 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     const off = onFrame((f) => {
       m.ingest(f); refresh(); dirty.current = true;
       const live = m.live;
-      if (live && !hold) hold = clock.hold('doppler'); else if (!live && hold) { hold.release(); hold = null; }
+      if (live && !hold) hold = clock.hold('doppler', { steady: true }); else if (!live && hold) { hold.release(); hold = null; }
       clock.invalidate('doppler');
     });
     const tick = clock.on('tween', () => { if (dirty.current || hold) { dirty.current = false; draw(); } });
-    if (m.live) hold = clock.hold('doppler');
+    if (m.live) hold = clock.hold('doppler', { steady: true });
     return () => { off(); tick(); hold?.release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [mode, invert, sweepIndex, h, probe, gate]);
