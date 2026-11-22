@@ -24,7 +24,7 @@ import { BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } fro
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, armR, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
-import { plainOf, weldOf } from './plain.ts';
+import { partKey, partOf, partSets, plainOf, weldOf } from './plain.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, uFadeOf, wedgeSeamD, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
@@ -104,8 +104,10 @@ interface Built {
   node: string; mesh: SkinMesh | null; draw: SkinDraw | null; arms: ArmLink[];
   /** the skin of the arms that stay, drawn while a growing arm is not yet whole (null: none, or the skin has no growing arm) */
   plain: PlainBuilt | null;
-  /** the weld share last written (NaN: not yet) */
-  w: number;
+  /** a skin with more than one growing arm: the skin of the permanent arms and each proper set of the growers (plain.ts partOf), by partKey; the welded skin is every grower, the plain trunk none. Drawn when exactly that set of growers is there (Plan 16) */
+  parts: Map<string, PlainBuilt>;
+  /** the weld share last written (NaN: not yet), and which skins stand in for the pair then (`in` the one with the growers there, `out` the one without the grower that is coming or going; '' none) */
+  w: number; sel: string;
   /** the nodes (one, or two for a merged skin) and every vessel the skin stands on, hidden ones included: what a mark is matched against, and what a rebuild plans again */
   sources: readonly string[]; vessels: ReadonlySet<string>; hidden: readonly string[];
   /** an arm changed since the last rebuild; `slow`: that rebuild took over SKIN_BUILD_SLOW_MS; `at`: the step it ran in */
@@ -253,15 +255,27 @@ export class SkinSet {
   /** The junction nodes that are skinned. */
   get nodes(): readonly string[] { return this.drawn.map((b) => b.node); }
   /** The vessel ids of a built skin's arms, in arm order (the draw returned by `make`). */
-  armIdsOf(draw: SkinDraw): readonly string[] { const b = this.built.find((x) => x.draw === draw || x.plain?.draw === draw); return b ? (b.draw === draw ? b.arms.map((a) => a.id) : b.plain!.keep.map((i) => b.arms[i]!.id)) : []; }
+  armIdsOf(draw: SkinDraw): readonly string[] {
+    const b = this.built.find((x) => x.draw === draw || x.plain?.draw === draw || [...x.parts.values()].some((p) => p.draw === draw));
+    if (!b) return [];
+    if (b.draw === draw) return b.arms.map((a) => a.id);
+    const q = b.plain?.draw === draw ? b.plain : [...b.parts.values()].find((p) => p.draw === draw)!;
+    return q.keep.map((i) => b.arms[i]!.id);
+  }
   /** The drawing objects of the skins as they stand (the ones a retried plan took back are not among them). */
   liveDraws(): readonly SkinDraw[] { return this.drawn.map((b) => b.draw!).filter(Boolean); }
   /** The drawn skins' objects, each with the vessel ids of its arms (the inspector hides a skin when none of its arms is shown). */
   drawnArms(): { object: Object3D; node: string; arms: readonly string[] }[] {
-    return this.drawn.flatMap((b) => [{ object: b.draw.object, node: b.node, arms: b.arms.map((a) => a.id) }, ...(b.plain ? [{ object: b.plain.draw.object, node: `${b.node}~plain`, arms: b.plain.keep.map((i) => b.arms[i]!.id) }] : [])]);
+    return this.drawn.flatMap((b) => [{ object: b.draw.object, node: b.node, arms: b.arms.map((a) => a.id) }, ...(b.plain ? [{ object: b.plain.draw.object, node: `${b.node}~plain`, arms: b.plain.keep.map((i) => b.arms[i]!.id) }] : []), ...[...b.parts].map(([k, p]) => ({ object: p.draw.object, node: `${b.node}~with${k}`, arms: p.keep.map((i) => b.arms[i]!.id) }))]);
   }
   /** The plain trunks standing beside the welded skins (a node with a growing arm and three or more arms that stay). */
   plainDraws(): readonly SkinDraw[] { return this.drawn.flatMap((b) => (b.plain ? [b.plain.draw] : [])); }
+  /** The parts of a node's skin (one per proper set of its growing arms, by plain.ts partKey): mesh and draw, for the tests. */
+  partsOf(node: string): ReadonlyMap<string, { mesh: SkinMesh; draw: SkinDraw; keep: readonly number[] }> { return this.drawn.find((b) => b.node === node)?.parts ?? new Map(); }
+  /** The parts that failed to build (`node:key: why`): they fall back to the welded skin, named so a test fails on one. */
+  readonly partFailed: string[] = [];
+  /** The plain trunk's drawing object of a node, or undefined. */
+  plainDrawOf(node: string): SkinDraw | undefined { return this.drawn.find((b) => b.node === node)?.plain?.draw; }
   /** The plain trunk's mesh of a node, or undefined. */
   plainOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.plain?.mesh; }
   /** The vessels a node's skin replaces whole (a merged skin's shared run: its tube is not drawn at all, the skin is all there is of it). */
@@ -450,6 +464,40 @@ export class SkinSet {
         plain = { mesh: meshP, draw: null as unknown as SkinDraw, keep: pp.keep, bake: { axes: axesP, mesh: meshP, pace: this.paces.get(key) ?? 0 } };
       } catch { plain = null; }
     }
+    // a skin with more than one growing arm is also built for each set of them that is THERE (Plan 16): with one open and the other collapsed the welded skin carries the absent one's whole stub beside the open one, and no per-pixel rule moves the surface
+    // a pixel lies on. Each part has the same seam rings and cuts and the arms' axes as the welded skin chose them; a part whose grower's neck bulges is tried at the other widenings, as the welded skin is.
+    const parts = new Map<string, PlainBuilt>(), partBake: Record<string, PlainBake | null> = {};
+    for (const there of growing ? partSets(plan) : []) {
+      const pq = partOf(plan, there);
+      if (!pq) continue;
+      const key = partKey(there), node = pq.junction.node, baked = ready?.parts?.[key];
+      if (baked === null) { partBake[key] = null; continue; }
+      try {
+        const sub = (ax: readonly ArmAxis[]): ArmAxis[] => pq.keep.map((i) => { const a = ax[i]!, m = a.mate === undefined ? -1 : pq.keep.indexOf(a.mate); return m >= 0 ? { ...a, mate: m } : { pts: a.pts, radii: a.radii }; });
+        const make = (ax: ArmAxis[]): SkinMesh => {
+          const m = buildSkinSteady(pq.junction, pq.cuts, pq.keep.map((i) => pos[i]!), pq.keep.map((i) => nor[i]!), ax.map(capsuleOf), undefined, this.paces);
+          m.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { m.restR[v] = rest[pq.keep[a]!]![q]!; }));
+          return m;
+        };
+        let axesQ: ArmAxis[], meshQ: SkinMesh;
+        if (baked) { axesQ = baked.axes; meshQ = baked.mesh; this.paces.set(node, baked.pace); }
+        else {
+          axesQ = sub(axes); meshQ = make(axesQ);
+          let best = worstBulge(meshQ, axesQ);
+          for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
+            const ax = sub(axesAt(NECK_FRACTIONS[q]!));
+            let m: SkinMesh;
+            try { m = make(ax); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
+            const b = worstBulge(m, ax);
+            if (b < best) { best = b; axesQ = ax; meshQ = m; }
+          }
+          if (best > BULGE_MAX) this.bulgeOver.push({ node, bulge: best });
+        }
+        const bake: PlainBake = { axes: axesQ, mesh: meshQ, pace: this.paces.get(node) ?? 0 };
+        partBake[key] = bake;
+        parts.set(key, { mesh: meshQ, draw: this.deps.make(meshQ, axesQ, pq.keep.map((i) => objs[i]!) as VesselObject[]), keep: pq.keep, bake });
+      } catch (e) { partBake[key] = null; this.partFailed.push(`${j.node}:${key}: ${(e as Error).message}`); }
+    }
     // without a plain trunk the whole skin comes in over the tubes' cut ends, and a hole or a hidden vessel cannot be dithered back: such a skin takes no growing arm (the retry ladder drops it and names it)
     if (growing && !plain && plan.hidden.length) throw new SkinBuildError(j.node, 'a growing arm on a skin that hides a vessel whole, and no plain trunk to weld from');
     if (plain) plain.draw = this.deps.make(plain.mesh, plain.bake.axes, pp!.keep.map((i) => objs[i]!) as VesselObject[]);
@@ -465,7 +513,7 @@ export class SkinSet {
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
     for (const a of j.arms) vessels.add(a.vesselId);
-    return { node: j.node, mesh, draw, arms, plain, w: NaN, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes, bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0, ...(growing && pp ? { plain: plain ? plain.bake : null } : {}) } };
+    return { node: j.node, mesh, draw, arms, plain, parts, w: NaN, sel: '', sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes, bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0, ...(growing && pp ? { plain: plain ? plain.bake : null } : {}), ...(parts.size || Object.keys(partBake).length ? { parts: partBake } : {}) } };
   }
 
   /** Records a skin's cuts and skinned ends (its arms' ends, and every vessel it replaces whole), without touching the tubes. */
@@ -586,7 +634,7 @@ export class SkinSet {
   private lost(node: string): Built {
     const sources = node.split('+');
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
-    return { node, mesh: null, draw: null, arms: [], plain: null, w: NaN, sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [], bake: null };
+    return { node, mesh: null, draw: null, arms: [], plain: null, parts: new Map(), w: NaN, sel: '', sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [], bake: null };
   }
 
   private fail(node: string, message: string, warn: (m: string) => void): void {
@@ -646,7 +694,7 @@ export class SkinSet {
       // the node cannot be built on this shape: today's joins until an arm changes again
       this.unweld(b); this.release(b, true);
       this.dropCuts(b);
-      b.draw = null; b.plain = null; b.mesh = null; b.arms = [];
+      b.draw = null; b.plain = null; b.parts = new Map(); b.mesh = null; b.arms = [];
       this.deps.endsChanged?.();
     }
     const ms = this.now() - t0;
@@ -676,15 +724,16 @@ export class SkinSet {
     this.built = [];
     this.fellBack.length = 0;
     this.dropped.length = 0;
+    this.partFailed.length = 0;
   }
 
   dispose(): void { this.clear(); }
 
   /** A built skin's objects into the scene (the plain trunk beside the welded skin). */
-  private place(b: Built): void { this.deps.add(b.draw!.object); if (b.plain) this.deps.add(b.plain.draw.object); }
+  private place(b: Built): void { this.deps.add(b.draw!.object); if (b.plain) this.deps.add(b.plain.draw.object); for (const p of b.parts.values()) this.deps.add(p.draw.object); }
   /** A built skin's objects disposed, and out of the scene when they were in it. */
   private release(b: Built, inScene: boolean): void {
-    for (const d of [b.draw, b.plain?.draw]) if (d) { if (inScene) this.deps.remove(d.object); d.dispose(); }
+    for (const d of [b.draw, b.plain?.draw, ...[...b.parts.values()].map((p) => p.draw)]) if (d) { if (inScene) this.deps.remove(d.object); d.dispose(); }
   }
   /** The tubes' cut ends a skin was dithering come back whole (the weld uniform's rest value 1). */
   private unweld(b: Built): void {
@@ -696,9 +745,9 @@ export class SkinSet {
   sync(): boolean {
     let changed = false;
     for (const b of this.drawn) {
-      let any = false, blend = false, weld = 1, heldBy = 0;   // (weld: the least share of any PRESENT growing arm's hand-over, plain.ts weldOf; a growing arm that is not there (a closed shunt) holds nothing back, weldHeld below)
+      let any = false, blend = false, weld = 1, heldBy = 0, coming = -1;   // (weld: the least share of any PRESENT growing arm's hand-over, plain.ts weldOf; a growing arm that is not there (a closed shunt) holds nothing back, weldHeld below)
       b.arms.forEach((a, i) => {
-        const both = (fn: (d: SkinDraw, k: number) => void): void => { fn(b.draw, i); if (b.plain && a.pi >= 0) fn(b.plain.draw, a.pi); };
+        const both = (fn: (d: SkinDraw, k: number) => void): void => { fn(b.draw, i); if (b.plain && a.pi >= 0) fn(b.plain.draw, a.pi); for (const p of b.parts.values()) { const k = p.keep.indexOf(i); if (k >= 0) fn(p.draw, k); } };
         const u = a.obj.toon.uniforms, v = (k: string) => u[k]!.value as { x: number; y: number; z: number; w: number };
         const fade: FadeState = { mode: u.fadeMode!.value as number, a: [v('fadeA').x, v('fadeA').y, v('fadeA').z, v('fadeA').w], line: [v('fadeLine').x, v('fadeLine').y, v('fadeLine').z, v('fadeLine').w], cavaEnd: [v('cavaEnd').x, v('cavaEnd').y], stumpCut: v('stump').x, len: u.len!.value as number, units: 300 };
         const hi: HiState = { on: u.hiOn!.value as number, dir: u.hiDir!.value as number, offset: u.hiOffset!.value as number, ahead: u.hiAhead!.value as number, behind: u.hiBehind!.value as number, ends: [v('hiEnds').x, v('hiEnds').y], fade: u.hiFade!.value as number, len: u.len!.value as number };
@@ -719,7 +768,7 @@ export class SkinSet {
           // (a growing arm that is not THERE at all (a closed shunt, its thread dotted) never holds the weld of the one beside it: S_PC closed kept C9's skin at weld 0 on the lower IVC in Budd-Chiari, the flat-capped tube with no join)
           const here = (u.dotted!.value as number) < 0.5 && pr > 0;
           a.here = here;
-          if (here) { weld = Math.min(weld, weldOf(pr)); heldBy++; }
+          if (here) { const wd = weldOf(pr); if (wd < weld || coming < 0) coming = i; weld = Math.min(weld, wd); heldBy++; }
           if (a.keep !== here) { a.keep = here; both((d, k) => d.setKeep?.(k, here)); any = true; }   // (an absent growing arm hands its weight to the arms that stay)
         }
         if (a.last[10] !== pr) { a.last[10] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
@@ -743,15 +792,23 @@ export class SkinSet {
         if (a.obj.toon.transparent || a.obj.behindOrgans) blend = true;   // (a skin copy is fractional wherever an arm's share of it is: it blends)
       });
       if (b.arms.some((a) => a.grow) && !heldBy) weld = 0;   // (no growing arm is there: the plain trunk alone, as before)
-      if (b.arms.some((a) => a.grow) && b.w !== weld) {
-        // the weld: the welded skin keeps the pixels whose screen pattern is under `weld`, the plain trunk the rest, and a tube's cut end the pixels neither of them draws (no pixel is two skins; at 1 the cut is whole, at 0 the skin is not drawn)
-        b.w = weld; any = true;
-        b.draw.setWeld?.(1, weld); b.plain?.draw.setWeld?.(-1, weld);
+      // the pair that stands for the weld (Plan 16): `in` is the skin of the growers that are THERE (the welded skin when every one is, a part when some are, none when none are), `out` the skin without the one whose weld is lowest (the one coming or going: the plain trunk
+      // when it is the only one there, as before). Every other skin of the node is not drawn. A part that could not be built falls back to the welded skin (with its keep flags) for `in` and to the plain trunk for `out`, today's behaviour.
+      const gi = b.arms.map((a, i) => (a.grow ? i : -1)).filter((i) => i >= 0), there = gi.filter((i) => b.arms[i]!.here);
+      const skinOf = (set: readonly number[]): SkinDraw | null => (set.length === gi.length ? b.draw : set.length === 0 ? b.plain?.draw ?? null : b.parts.get(partKey(set))?.draw ?? null);
+      const inD = there.length ? skinOf(there) ?? b.draw : null, outD = there.length ? skinOf(there.filter((i) => i !== coming)) ?? b.plain?.draw ?? null : b.plain?.draw ?? null;
+      const sel = `${weld}|${there.join('.')}|${coming}`;
+      if (gi.length && (b.w !== weld || b.sel !== sel)) {
+        // the weld: the skin `in` keeps the pixels whose screen pattern is under `weld`, the skin `out` the rest, and a tube's cut end the pixels neither of them draws (no pixel is two skins; at 1 the cut is whole, at 0 the skin is not drawn)
+        b.w = weld; b.sel = sel; any = true;
+        for (const d of [b.draw, ...[...b.parts.values()].map((p) => p.draw)]) if (d !== inD && d !== outD) d.setWeld?.(1, 0);   // (not drawn: the welded form before its weld begins)
+        if (b.plain && b.plain.draw !== outD) b.plain.draw.setWeld?.(-1, 1);   // (the plain trunk once the weld is whole)
+        inD?.setWeld?.(1, weld); outD?.setWeld?.(-1, weld);
         for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, a.grow && !a.here ? 0 : weld);   // (an absent growing arm's own thread keeps its end)
         if (!b.plain) for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, weld);   // (a host's hole is dithered back with the weld when no plain trunk stands in for it)
       }
       if (any) changed = true;
-      b.draw.setTransparent(blend); b.plain?.draw.setTransparent(blend);
+      b.draw.setTransparent(blend); b.plain?.draw.setTransparent(blend); for (const p of b.parts.values()) p.draw.setTransparent(blend);
     }
     return changed;
   }
