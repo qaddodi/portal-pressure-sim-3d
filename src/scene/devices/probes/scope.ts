@@ -1,7 +1,7 @@
 // The endoscope (2D eus-scope.js, whose way down is the only scope route the 2D figure draws): in through the top of the figure, down the middle of the esophagus and through the cardia into the proximal
-// stomach, a black insertion tube 12 units across with a rigid grey tip and a dark lens. Three ways to work with it, one scope:
-//   'scope'  to the cardia, looking (the plain endoscopy card);
-//   'band'   to the lowest ligation band's place, with the ligator's clear cap on its tip and a band loaded on it (the bands the model counts are src/scene/devices/bands.ts);
+// stomach, a black insertion tube 12 units across with a rigid grey tip and a dark lens. Ways to work with it, one scope:
+//   'scope'  to the cardia, looking (the plain endoscopy card). Banding adds nothing to it and never moves it (owner, 22 Nov 2026: "DO NOT put an extra thing on the scope with banding nor move the scope when bands apply"):
+//            the bands are the varices' own (src/scene/devices/bands.ts); the scope has no ligator cap, no ring and no mode for them;
 //   'eus'    the linear echoendoscope to a station in the stomach: its bending section turns the tip until the needle's line from the working channel meets the target (eusPose, the 2D app's own), the
 //            ultrasound sector fans out, and the 25-gauge needle crosses the wall into the left portal vein (station 'pv') or the left hepatic vein (station 'hv').
 // The route, the stations, the targets, the bend's limits and the needle's exit are the 2D app's, copied by script; the scope travels at a steady pace and eases between places, never cutting.
@@ -13,7 +13,6 @@ import { EDGE_PATH_2D } from '../../vessels/paths.copied.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { ORGAN_Z } from '../../organs/z.ts';
 import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.ts';
-import { BAND } from '../../procedures/copied/band-ring.js';
 import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
 import { TAIL_UNITS } from '../device-object.ts';
 import type { Ring } from '../tube-rings.ts';
@@ -38,8 +37,8 @@ export const SCOPE_UP = 86;   // (was 40: 20 Nov, "a bit higher looking down at 
 /** The scope's way as the 2D app lays it: the lead-in above the figure, the esophagus, the cardia and the proximal stomach, resampled every STEP units. */
 export interface ScopeWay {
   pts: P2[]; cum: number[]; total: number;
-  /** the lengths along the way where the cardia ends, the lowest band's place, and the hepatic vein's station is nearest */
-  cardiaD: number; bandD: number; hvD: number;
+  /** the lengths along the way where the cardia ends, and the hepatic vein's station is nearest */
+  cardiaD: number; hvD: number;
   /** a point and the unit direction at length d */
   at(r: ScopeWay, d: number): { p: P2; t: P2 };
 }
@@ -65,21 +64,18 @@ function makeWay(route: { build(B: object): void }): ScopeWay {
   const near = (q: readonly number[]): number => { let best = Infinity, d = 0; pts.forEach((p, i) => { const e = Math.hypot(p[0] - q[0]!, p[1] - q[1]!); if (e < best) { best = e; d = cum[i]!; } }); return d; };
   // the way's direction at a length: over a few samples either side
   const way: ScopeWay = {
-    pts, cum, total, cardiaD: lenAt(endOf.cardia ?? raw.length - 1), hvD: near(EUS_STATIONS.hv.at), bandD: 0,
+    pts, cum, total, cardiaD: lenAt(endOf.cardia ?? raw.length - 1), hvD: near(EUS_STATIONS.hv.at),
     at(r, d) {
       const x = Math.min(r.total, Math.max(0, d)), i = Math.min(r.pts.length - 2, Math.max(0, Math.floor(x / STEP))), u = Math.min(1, Math.max(0, (x - r.cum[i]!) / (r.cum[i + 1]! - r.cum[i]! || 1)));
       const a = r.pts[i]!, b = r.pts[i + 1]!, j0 = Math.max(0, i - 2), j1 = Math.min(r.pts.length - 1, i + 3), dx = r.pts[j1]![0] - r.pts[j0]![0], dy = r.pts[j1]![1] - r.pts[j0]![1], l = Math.hypot(dx, dy) || 1;
       return { p: [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u], t: [dx / l, dy / l] };
     },
   };
-  // the ligator's work: the scope's end just above the lowest band, whose place is the 2D band's own height
-  way.bandD = cum[pts.findIndex((p) => p[1] >= (BAND as { y0: number }).y0 - 6)] ?? way.cardiaD;
   return way;
 }
 
 /** How far down the way the scope's tip goes for a mode and a station (figure units). */
 export function workD(mode: ScopeMode, station: 'pv' | 'hv', way: ScopeWay = scopeWay()): number {
-  if (mode === 'band') return way.bandD;
   if (mode === 'glue') return way.total;
   if (mode === 'eus') return station === 'hv' ? way.hvD : way.total;
   return Math.max(0, way.cardiaD - SCOPE_UP);
@@ -160,8 +156,8 @@ export class EndoScope {
   readonly group = new Group();
   readonly parts: ProbePart[] = [];
   private readonly bufs: TubeBuf[] = [];
-  /** how far down its way the tip is, figure units; the bend's turn (0 straight to 1 aimed), the sector's, the needle's, the cap's: each eased */
-  d = 0; aim = 0; fan = 0; needle = 0; cap = 0; opacity = 1;
+  /** how far down its way the tip is, figure units; the bend's turn (0 straight to 1 aimed), the sector's, the needle's, each eased */
+  d = 0; aim = 0; fan = 0; needle = 0; opacity = 1;
   private way = scopeWay();
   private readonly eusWay = this.way; private readonly glueWay = glueScopeWay();
   /** how far the parked glue scope has faded out (0 whole, 1 gone) once the slide's procedure is taken off */
@@ -169,10 +165,10 @@ export class EndoScope {
   /** the glue slide's target: the varix, at its needle's point */
   private glueT: P2 = [0, 0];
   private readonly shaft: TubeBuf; private readonly bend: TubeBuf; private readonly tip: TubeBuf; private readonly lens: TubeBuf;
-  private readonly capBuf: TubeBuf; private readonly bandBuf: TubeBuf; private readonly needleBuf: TubeBuf; private readonly faceBuf: TubeBuf; private readonly portBuf: TubeBuf; private readonly arrayBuf: TubeBuf;
+  private readonly needleBuf: TubeBuf; private readonly faceBuf: TubeBuf; private readonly portBuf: TubeBuf; private readonly arrayBuf: TubeBuf;
   private sheathBuf!: TubeBuf; private sheathPart!: ProbePart; private sheathLen = 0;
   private readonly lightBufs: TubeBuf[] = []; private readonly chanBuf: TubeBuf;
-  private readonly parts_: { shaft: ProbePart; bend: ProbePart; tip: ProbePart; lens: ProbePart; cap: ProbePart; band: ProbePart; needle: ProbePart; face: ProbePart; port: ProbePart; array: ProbePart; lights: ProbePart[]; chan: ProbePart };
+  private readonly parts_: { shaft: ProbePart; bend: ProbePart; tip: ProbePart; lens: ProbePart; needle: ProbePart; face: ProbePart; port: ProbePart; array: ProbePart; lights: ProbePart[]; chan: ProbePart };
   /** the shaft's rings in all (the longer of the two ways): its uv.x runs 0 to 1 over them */
   private readonly N: number;
   /** the hit's two rings and the manometer's two ripples at the target (2D eusDraw: flash, ring) */
@@ -232,7 +228,7 @@ export class EndoScope {
     // (the redesign, 20 Nov 2026, from the owner's photos of echoendoscopes: a black flexible tube with thin white depth rings; a bending section a shade lifted and grooved; a polished silver distal housing; the curvilinear transducer's
     //  cream cap with its dark acoustic face; a thin bright needle out of the port behind it. A forward-viewing endoscope has the bending section too, and a tip with a lens, two light guides and the working channel.)
     const sh = mk('poly', (t) => SCOPE_TUBE(t), N, 1, 1, CAST), bd = mk('poly', (t) => SCOPE_BEND(t), BEND_RINGS, 1, 1, CAST), tp = mk('steel', (t) => SCOPE_SILVER(t), TIP_RINGS, 1, 2, { ...CAST }), ln = mk('poly', (t) => t.port, 2, 0.7, 3, SOFT);
-    const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4, { edge: 'none' }), nd = mk('steel', SCOPE_NEEDLE, NEEDLE_RINGS, 0.6, 5, { edge: NEEDLE_EDGE, radial: 12 });
+    const nd = mk('steel', SCOPE_NEEDLE, NEEDLE_RINGS, 0.6, 5, { edge: NEEDLE_EDGE, radial: 12 });
     // the transducer's cap (cream, curved, on the side that meets the wall), its dark face, and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port; the port has no outline)
     const fc = mk('graft', (t) => SCOPE_CREAM(t), CAP_RINGS, 0.6, 3, { edge: scopeEdge(), radial: SCOPE_RADIAL }), pt = mk('graft', (t) => t.port, 2, 0.4, 4, { edge: 'none' });
     const ar = mk('graft', (t) => t.port, CAP_RINGS, 0.4, 4, { edge: 'none' });
@@ -241,9 +237,9 @@ export class EndoScope {
     const ringPart = (colour: PartColour, order: number): ProbePart => { const part = new ProbePart(withTang(new RingGeometry(0.8, 1, 48)), 'steel', shared, colour, { px: 0, order }, { edge: 'none' }); this.parts.push(part); this.group.add(part.group); return part; };
     for (let i = 0; i < 2; i++) this.rippleRings.push(ringPart((t) => t.trPv, 6));
     { const fb = mk('graft', PV_RING, 2, 0, 6, { edge: 'none', radial: 12 }); this.flashBuf = fb.buf; this.flashPart = fb.part; }
-    this.shaft = sh.buf; this.bend = bd.buf; this.tip = tp.buf; this.lens = ln.buf; this.capBuf = cp.buf; this.bandBuf = bn.buf; this.needleBuf = nd.buf;
+    this.shaft = sh.buf; this.bend = bd.buf; this.tip = tp.buf; this.lens = ln.buf; this.needleBuf = nd.buf;
     { const sb = mk('poly', SCOPE_SHEATH, 2, 0.6, 5, { edge: scopeEdge(), radial: 16 }); this.sheathBuf = sb.buf; this.sheathPart = sb.part; }
-    this.parts_ = { shaft: sh.part, bend: bd.part, tip: tp.part, lens: ln.part, cap: cp.part, band: bn.part, needle: nd.part, face: fc.part, port: pt.part, array: ar.part, lights: lights.map((l) => l.part), chan: ch.part };
+    this.parts_ = { shaft: sh.part, bend: bd.part, tip: tp.part, lens: ln.part, needle: nd.part, face: fc.part, port: pt.part, array: ar.part, lights: lights.map((l) => l.part), chan: ch.part };
     for (const b of [this.shaft, this.bend, this.tip, this.lens]) b.rings.forEach((r) => { r.r = R; });
     // The sector is a see-through wash (owner, 20 Nov 2026: "like the FibroScan waves"): the apex, then FAN_ROWS arcs of FAN_COLS points; its alpha falls off with the reach and toward its two sides, never a flat sheet.
     this.fanGeo.setAttribute('position', new BufferAttribute(new Float32Array(FAN_VERTS * 3), 3));
@@ -294,7 +290,7 @@ export class EndoScope {
     this.glueT = [q[0], q[1]];
   }
 
-  /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the ligator's cap or the needle and its sector. */
+  /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the needle and its sector. */
   private lay(): void {
     const way = this.way, R = len3(EUS_SCOPE_R as number) * SCOPE_SLIM, g = this.g, v = this.v, w = this.w, dv = this.dv;
     const D = this.d, eus = this.mode === 'eus' || this.mode === 'glue';
@@ -371,18 +367,6 @@ export class EndoScope {
       else { put(this.lens, 0, 0.1, 0.34); put(this.lightBufs[0]!, -0.56, 0, 0.22); put(this.lightBufs[1]!, 0.56, 0, 0.22); put(this.chanBuf, 0, -0.42, 0.26); }
     }
     this.pose.tip.copy(w); this.pose.dir.copy(dv);
-    // the ligator's clear cap on the tip, with a band loaded on its rim
-    if (this.mode === 'band') {
-      const a = at3(end, this.v), b = this.w.copy(a).addScaledVector(dv, len3(9));
-      this.capBuf.line(a, b, R * 1.28);
-      const c = this.dv.clone(), n1 = new Vector3(-c.y, c.x, 0), n2 = new Vector3(0, 0, 1), cr = R * 1.3, nb = this.bandBuf.n;
-      for (let i = 0; i < nb; i++) {
-        const th = (i / (nb - 1)) * Math.PI * 2, r = this.bandBuf.rings[i]!;
-        r.c.copy(b).addScaledVector(n1, Math.cos(th) * cr).addScaledVector(n2, Math.sin(th) * cr);
-        r.t.copy(n1).multiplyScalar(-Math.sin(th)).addScaledVector(n2, Math.cos(th)).normalize(); r.r = len3(1.6);
-      }
-      this.bandBuf.commit();
-    }
     // the needle out of the working channel, and the ultrasound sector it works in
     if (eus) {
       const R2 = (EUS_SCOPE_R as number) * SCOPE_SLIM, RIG = EUS_RIGID as number;
@@ -476,12 +460,12 @@ export class EndoScope {
       const goal = D.u * (this.way.total + (this.way.hvD - this.way.total) * D.tgt);
       moving = Math.abs(goal - this.d) > 1e-6 || D.aim !== this.aim || D.fan !== this.fan || D.needle !== this.needle || D.tgt !== this.tgt || D.flash !== this.flash || D.read !== this.read || this.mode !== 'eus';
       this.mode = 'eus'; this.station = D.tgt >= 0.5 ? 'hv' : 'pv'; this.drove = true;
-      this.d = goal; this.aim = D.aim; this.fan = D.fan; this.needle = D.needle; this.tgt = D.tgt; this.flash = D.flash; this.read = D.read; this.cap = 0;
+      this.d = goal; this.aim = D.aim; this.fan = D.fan; this.needle = D.needle; this.tgt = D.tgt; this.flash = D.flash; this.read = D.read;
       if (this.read > 0 || this.flash > 0) moving = true;
     } else {
       if (mode !== this.mode || station !== this.station) {
-        // another job or station: the needle goes in, the cap off, and the tip travels to the new place
-        if (this.needle > 0.002 || this.cap > 0.002 && mode !== 'band') { this.needle = Math.max(0, this.needle - dt / 0.5); this.cap = mode === 'band' ? this.cap : Math.max(0, this.cap - dt / 0.3); this.lay(); return true; }
+        // another job or station: the needle goes in, and the tip travels to the new place
+        if (this.needle > 0.002) { this.needle = Math.max(0, this.needle - dt / 0.5); this.lay(); return true; }
         this.mode = mode; this.station = station; this.tgt = station === 'hv' ? 1 : 0; if (mode === 'glue') this.setGlueTarget(); this.aim = 0; this.fan = 0; this.dirty = true;
         const w = mode === 'glue' ? this.glueWay : this.eusWay;
         if (w !== this.way) { this.way = w; this.d = 0; }
@@ -493,13 +477,12 @@ export class EndoScope {
       const there = Math.abs(goal - this.d) < 1e-3 && on;
       const eus = this.mode === 'eus' || this.mode === 'glue', aimGoal = eus && there ? 1 : 0, fanGoal = eus && this.aim > 0.98 ? 1 : 0;
       const needleGoal = needleSet != null ? needleSet : eus && this.fan > 0.98 ? 1 : 0;
-      const capGoal = this.mode === 'band' && on ? 1 : 0;
       const step = (x: number, g: number, secs: number): number => (Math.abs(g - x) < 1e-3 ? g : x + Math.sign(g - x) * Math.min(Math.abs(g - x), dt / secs));
-      const a0 = this.aim, f0 = this.fan, n0 = this.needle, c0 = this.cap;
-      this.aim = step(this.aim, aimGoal, 1.3); this.fan = step(this.fan, fanGoal, 0.5); this.needle = step(this.needle, needleGoal, 0.9); this.cap = step(this.cap, capGoal, 0.3);
+      const a0 = this.aim, f0 = this.fan, n0 = this.needle;
+      this.aim = step(this.aim, aimGoal, 1.3); this.fan = step(this.fan, fanGoal, 0.5); this.needle = step(this.needle, needleGoal, 0.9);
       // (a pane that plays the glue slide's steps (the procedure layer's frame) sets all of it: how far in, the elevator and port, the sector and the needle)
       if (glued) { const G = drive as ScopeDrive; this.d = goal; this.aim = G.aim; this.fan = G.fan; this.needle = G.needle; const gf = G.flash ?? 0; if (gf !== this.flash) this.dirty = true; this.flash = gf; }
-      moving = this.d !== was || this.aim !== a0 || this.fan !== f0 || this.needle !== n0 || this.cap !== c0;
+      moving = this.d !== was || this.aim !== a0 || this.fan !== f0 || this.needle !== n0;
     }
     const eus = this.mode === 'eus' || this.mode === 'glue';
     const vis = this.d > 0.5;
@@ -511,8 +494,8 @@ export class EndoScope {
       this.lay();
       const p = this.parts_;
       // Every part is asked to show or go (fading over DEVICE_FADE_MS, never a frame's switch): the mode decides which (a gastroscope's lens and lights, an echoendoscope's transducer and needle). The rings are `layRings`'s,
-      // and the cap, the band and the port are eased by the scope's own numbers (cap, aim), so their alpha alone brings them and takes them away.
-      const needleOn = eus && this.needle * this.g.len > 0.4, own = (this.own ||= [p.cap, p.band, p.port, this.flashPart, ...this.rippleRings]);
+      // and the port is eased by the scope's own number (aim), so its alpha alone brings it and takes it away.
+      const needleOn = eus && this.needle * this.g.len > 0.4, own = (this.own ||= [p.port, this.flashPart, ...this.rippleRings]);
       p.tip.recolour(eus ? SCOPE_SILVER_C : SCOPE_DISTAL_C);   // (a forward-viewing gastroscope's end is short, black and rounded (owner's Fujifilm photo); the echoendoscope's is the chrome housing)
       const off = this.off; off.clear();
       if (!this.bendShown()) off.add(p.bend);
@@ -520,7 +503,6 @@ export class EndoScope {
       if (!(needleOn && this.sheathLen > 0.001)) off.add(this.sheathPart);
       if (!eus) { off.add(p.face); off.add(p.array); } else { for (const l of p.lights) off.add(l); off.add(p.chan); }
       if (this.gone === 0) for (const o of this.parts) if (!own.includes(o)) o.show(!off.has(o));
-      p.cap.present(); p.band.present(); p.cap.setAlpha(this.cap * 0.55); p.band.setAlpha(this.cap);
       p.port.present(); p.port.setAlpha(eus ? 0.9 * this.aim : 0);
       this.sheathPart.setGloss(1); p.needle.setGloss(1);
       this.sector(eus && this.fan > 0.002); this.fanMat.opacity = this.fan;
