@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { CLOT_INSIDE, CLOT_RINGS, clotShapeOf, clotShares } from '../src/scene/disease/clots.ts';
+import { CLOT_INSIDE, CLOT_RINGS, CLOT_RINGS_PAST, clotShapeOf, clotShares } from '../src/scene/disease/clots.ts';
 import { drawnHost, hostAt, swellsOf } from '../src/scene/disease/host.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
 import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
@@ -84,12 +84,12 @@ test('every preset: every clot it has is built inside its vein, as a ClotObject 
   }
 });
 
-test('a clot draws after the vessels and before the devices (render order), one fill and one outline each', async () => {
+test('a clot draws in its vein\'s slot (just after the vein\'s copy: 0.25, 2.25 for a vein behind the organs), depth-tested and writing no depth, before the devices', async () => {
   const st = await presetState('budd-chiari');
   const s = new CelScene(), c = s.disease.clots;
   c.set(st.params.thrombus ?? {}, 0.016, true, st.frame.D);
   let n = 0;
-  for (const g of c.group.children) for (const m of g.children) { n++; const mesh = m as unknown as { renderOrder: number; material: { depthTest: boolean; transparent: boolean } }; assert.ok(mesh.renderOrder >= 900 && mesh.renderOrder < 1000, `render order ${mesh.renderOrder}`); }
+  for (const g of c.group.children) for (const m of g.children) { n++; const mesh = m as unknown as { renderOrder: number; material: { depthTest: boolean; transparent: boolean } }; assert.ok(mesh.renderOrder > 0 && mesh.renderOrder < 3 && mesh.renderOrder % 1 !== 0, `render order ${mesh.renderOrder}`); assert.equal(mesh.material.depthTest, true); assert.equal((mesh.material as unknown as { depthWrite: boolean }).depthWrite, false); }
   assert.ok(n >= 6, 'three clots, a fill and an outline each');
   s.dispose?.();
 });
@@ -100,8 +100,11 @@ test('a clot in a vein that opens into the cava runs to the cava\'s wall (the ju
     const h = drawnHost(id)!, w = cavaWallShare(h);
     assert.ok(w != null && w > 0.5 && w <= 1, `${id} meets the cava's wall at ${w}`);
     for (const v of [0.05, 0.5, 1]) {
-      const sh = clotShares(h, v);
-      assert.ok(Math.abs(sh[sh.length - 1]! - Math.max(0.6 + 0.22 * v, w)) < 1e-9, `${id} v ${v}: last ring at ${sh[sh.length - 1]}`);
+      const sh = clotShares(h, v), reach = Math.max(0.6 + 0.22 * v, w);
+      assert.ok(Math.abs(sh[CLOT_RINGS - 1]! - reach) < 1e-9, `${id} v ${v}: the 2D rings end at ${sh[CLOT_RINGS - 1]}`);
+      // (and on past the wall to the vein's own end, inside the cava's lumen, where the per-pixel cut ends it as it ends the vein)
+      assert.equal(sh.length, reach < 1 - 1e-9 ? CLOT_RINGS + CLOT_RINGS_PAST : CLOT_RINGS);
+      assert.ok(Math.abs(sh[sh.length - 1]! - 1) < 1e-9 || reach >= 1 - 1e-9);
     }
   }
   const pt = drawnHost('PV_TRUNK')!;
