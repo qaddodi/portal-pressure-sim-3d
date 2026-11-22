@@ -90,10 +90,24 @@ export function splitWidth(c: FigCard, t: CathType, measure: Measure): number {
   return Math.max(t.name * 12.6, cap);
 }
 
+/** A mark on the figure (a vessel's, an organ's) is a coloured label with a leader; only a slide's lobule pointer (a ring, its own look) and the other card kinds are not. */
+export const isLabelMark = (c: FigCard): boolean => c.kind === 'mark' && !('lobule' in c.anchor);
+/** The label's weight (labels.css `.cl[data-fig="mark"] .cl-k`), and the air round its words in its box, px. */
+const MARK_WEIGHT = 650;
+const MARK_AIR = 2;
+
+/** A leader from the edge of a label's box to the point it names: it starts on the nearest point of the box and ends at the point. null when the point stands in the box or against it. */
+export function boxLeader(box: { x: number; y: number; w: number; h: number }, to: { x: number; y: number }): [number, number, number, number] | null {
+  const fx = Math.min(Math.max(to.x, box.x), box.x + box.w), fy = Math.min(Math.max(to.y, box.y), box.y + box.h);
+  return Math.hypot(to.x - fx, to.y - fy) < 3 ? null : [fx, fy, to.x, to.y];
+}
+
 /** A card's size (border box) and its Reading: a mark is one line of words; a site is the catheter's three lines (name, number, unit). */
 export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number; h: number } {
   const C = LS.CATH;
   if (c.kind === 'mark') {
+    // a mark on a vessel or an organ is a coloured label, not a card (the station names' look: words with a halo, a dot on the place and a thin leader): its box is its words and a breath of air
+    if (isLabelMark(c)) return { w: ceil2(measure(c.text, t.name, MARK_WEIGHT, 0) + 2 * MARK_AIR), h: ceil2(normal(t.name) + 2 * MARK_AIR) };
     const w = measure(c.text, t.name, C.NAME.weight, C.NAME.track * t.name) + 2 * t.padX + 2 * t.border;
     return { w: ceil2(w), h: ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name)) };
   }
@@ -279,7 +293,7 @@ export class FigureCards {
       root.append(focus, line, ring);
       rec.co = { root, ring, line, focus, tx: '', key: '', ltx: '', k: 0, at: 'translate3d(0,0,0)', len: 0 };
     }
-    if (spec.kind === 'step') {
+    if (spec.kind === 'step' || isLabelMark(spec)) {
       // the leader to the vessel the number names (2D: a dot on the vessel and a thin line to the chip; a group's number a line to each of its vessels)
       const root = document.createElement('div'); root.className = 'cl-lead'; this.parent.appendChild(root);
       rec.lead = { root, lines: [], dots: [], tx: [], k: [], kd: [], at: [], len: [] };
@@ -459,10 +473,11 @@ export class FigureCards {
   }
 
   /** The leader of a step: a dot on each point the number names and a thin line to it from the circle's edge (transform and opacity only). */
-  private paintLead(r: Rec, box: CardOut, a: number, dia: number): void {
+  private paintLead(r: Rec, box: CardOut, a: number, dia: number, h = dia): void {
     const lead = r.lead; if (!lead) return;
-    const c = r.spec, pts: { x: number; y: number }[] = [];
-    if ('edge' in c.anchor) { const p = this.anchors.get(c.id); if (p) pts.push(p); }
+    const c = r.spec, pts: { x: number; y: number }[] = [], mark = isLabelMark(c);
+    if (mark) { const p = this.anchors.get(c.id); if (p) pts.push(p); }   // (a mark's leader runs to the one place it names, whatever that is: a vessel's middle, an organ's point, a node)
+    else if ('edge' in c.anchor) { const p = this.anchors.get(c.id); if (p) pts.push(p); }
     else if ('edges' in c.anchor) c.anchor.edges.forEach((_, i) => { const p = this.anchors.get(`${c.id}#${i}`); if (p) pts.push(p); });
     const circle = { cx: box.x0 + dia / 2, cy: box.y0 + dia / 2, r: dia / 2 };
     while (lead.lines.length < pts.length) {
@@ -470,7 +485,7 @@ export class FigureCards {
       lead.root.append(l, dt); lead.lines.push(l); lead.dots.push(dt); lead.tx.push(''); lead.k.push(0); lead.kd.push(0); lead.at.push('translate3d(0,0,0)'); lead.len.push(0);
     }
     lead.lines.forEach((l, i) => {
-      const p = pts[i], seg = p ? stepLeader(circle, p) : null;
+      const p = pts[i], seg = p ? (mark ? boxLeader({ x: box.x0, y: box.y0, w: dia, h }, p) : stepLeader(circle, p)) : null;
       const on = !!p && r.box?.ok !== false, round = (n: number) => Math.round(n * 100) / 100;
       // (a leader or its dot that is not wanted shrinks to nothing by its scale and is never switched off: it eases out as it came in)
       const kd = (lead.kd[i] = this.ease(lead.kd[i]!, on)), kl = (lead.k[i] = this.ease(lead.k[i]!, on && !!seg));
@@ -483,6 +498,12 @@ export class FigureCards {
       if (tx !== lead.tx[i]) { lead.tx[i] = tx; l.style.transform = tx; }
     });
     lead.root.style.opacity = String(Math.round(a * 1000) / 1000);
+    if (mark) {
+      // the leader and its dot wear the words' colour (they cross over to a new one with the words)
+      const tone = toneOf(c.tone);
+      if (lead.root.dataset.tone !== tone.attr) restyle(lead.root, () => { lead.root.dataset.tone = tone.attr; }, a);
+      if (tone.css) lead.root.style.setProperty('--cl-tone', tone.css); else lead.root.style.removeProperty('--cl-tone');
+    }
   }
 
   /** A caliper's two ends on the canvas: the spleen's axis (2D `spleenCaliper`) or a line across a vessel, wall to wall at its middle. */
@@ -545,6 +566,7 @@ export class FigureCards {
     place(r.card, box.x0, box.y0);
     fade(r.card, r.a);
     if (c.kind === 'step') this.paintLead(r, box, r.a, sz.w);
+    else if (isLabelMark(c)) this.paintLead(r, box, r.a, sz.w, sz.h);
     if (r.co) this.paintRing(r, box, a, sz);
   }
 
