@@ -4,6 +4,7 @@
 // geometry on a GPU only). Three.js builds a ShaderMaterial's final source itself, in WebGLProgram: its own prefix (version, precision, built-in attributes and uniforms, the
 // `attribute`/`varying` defines, the colour-space helpers) and then ours. `assemble` rebuilds that text exactly, so tests/glsl-compile.test.ts can hand it to glslang (the Khronos
 // reference compiler, no browser) and the ?gl page can compare it with what the device's own compiler says.
+import { isStandIn } from '../scene/materials/program-key.ts';
 import { type Material, type Object3D, type ShaderMaterial, ShaderChunk, BackSide, DoubleSide, NormalBlending } from 'three';
 
 export interface Program {
@@ -92,6 +93,7 @@ const isShader = (m: Material | undefined): m is ShaderMaterial => !!m && (m as 
 export function collectMaterials(root: Object3D, named: ReadonlyMap<string, string> = new Map()): Program[] {
   const byKey = new Map<string, Program>();
   root.traverse((o) => {
+    if (isStandIn(o)) return;   // (compile-only: materials/prototypes.ts)
     const mat = (o as unknown as { material?: Material | Material[] }).material;
     for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) {
       if (!isShader(m)) continue;

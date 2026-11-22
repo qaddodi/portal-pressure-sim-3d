@@ -56,6 +56,7 @@ import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from '.
 import { Highlight, OrganPins, glowGate } from './highlight.ts';
 /** Each vessel's course and radius, for the selection's glow (glow.ts). */
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
+import { addOrganHalos, programPrototypes } from './materials/prototypes.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
@@ -167,6 +168,10 @@ function withNeighbour(id: string, g: BufferGeometry): void {
 const SLICE_MS = 4;
 export class CelScene {
   readonly scene = new Scene();
+  /** The hidden stand-ins for the programs the scene graph does not hold until something happens (materials/prototypes.ts). */
+  private readonly protos: Group;
+  /** Settles when the organs are in the scene (their geometry and art files arrived and were built), or failed. */
+  readonly organsBuilt: Promise<void>;
   /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
   private readonly body = new Group();
   private readonly shuntGuide = new ShuntGuide();
@@ -213,15 +218,25 @@ export class CelScene {
   get microBuilt(): boolean { return this.micro !== null; }
   get sinus3d(): Sinusoid3D { return this.buildMicro().sinus; }
   get lobule3d(): Lobule3D { return this.buildMicro().lobule; }
+  /** The two 3D views' constructors, which make every one of their materials (and none of their geometry): done under the splash, before the warm-up, so their 21 programs are compiled with the rest and the
+   *  idle slices that follow only fill in meshes (L3, 21 Nov). The constructors are cheap (about 50 ms on a laptop); the meshes are the slow part, and they are L4's steps. */
+  constructMicro(): void { this.buildMicro(); }
   private buildMicro(): { sinus: Sinusoid3D; lobule: Lobule3D } {
     if (this.micro) return this.micro;
-    const sinus = span('build:sinusoid3d', () => new Sinusoid3D(this.sinus, this.shared)); this.sinus.group.add(sinus.group);
+    const sinus = this.makeSinus();
     const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
     if (this.microDpr) lobule.setDpr(this.microDpr);
     this.moving = true;
     this.onMicroBuilt?.();
     return this.micro;
+  }
+  /** The sinusoid's constructor, a step of its own in the idle slices (the lobule's is the next one: L4, 21 Nov). */
+  private microSinus: Sinusoid3D | null = null;
+  private makeSinus(): Sinusoid3D {
+    if (this.microSinus) return this.microSinus;
+    const sinus = span('build:sinusoid3d', () => new Sinusoid3D(this.sinus, this.shared)); this.sinus.group.add(sinus.group);
+    return (this.microSinus = sinus);
   }
   /** The 3D parts are built AND their shapes prepared (the sinusoid's passes, micro3d/sinusoid-shape.ts): only then are they updated, drawn or shown. */
   get microReady(): boolean { return this.micro !== null && this.micro.sinus.shapeReady; }
@@ -249,7 +264,7 @@ export class CelScene {
   private microStep(): boolean {
     {
       if (this.disposed) return true;
-      if (!this.micro) this.buildMicro();
+      if (!this.micro) { if (!this.microSinus) this.makeSinus(); else this.buildMicro(); }   // (one constructor a step)
       else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
       else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
       else if (!this.microPrimed) { this.microPrimed = true; this.snapMicroToModel(); this.micro.lobule.update(true, 0, 0, 1, true); }   // (what the lobule's first shown frame would build: built now, hidden)
@@ -362,7 +377,8 @@ export class CelScene {
     this.disease.ascites.still = !!opts.reduceMotion;   // (so does the pool's surface: no ripple, no slosh)
     this.disease.ascites.setLiving(useSettings.getState().fluidSurface, true);   // (Settings > Figure depth > Living fluid: read at boot, then glided)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
-    Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
+    // (the promise settles once the organs are built, or failed: the warm-up under the splash waits for it so the organs' programs are compiled with the rest, Stage.tsx)
+    this.organsBuilt = Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); addOrganHalos(this.protos, this.disease.organs.objects); this.moving = true; clock.invalidate('organs'); }, (e) => { console.error(e); });
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -427,6 +443,8 @@ export class CelScene {
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
+    this.protos = programPrototypes(this.shared);
+    this.scene.add(this.protos);   // (hidden stand-ins for the programs nothing holds yet: compiled with the rest under the splash, materials/prototypes.ts)
     this.applyLook(this.look);
   }
 

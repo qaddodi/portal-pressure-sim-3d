@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const doc = { documentElement: { dataset: {} as Record<string, string> } };
 (globalThis as { document?: unknown }).document = doc;
-const { holdSplash, figureDrawn, labelsShown, release, REVEAL_MS } = await import('../src/boot/ready.ts');
+const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, REVEAL_MS } = await import('../src/boot/ready.ts');
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test('held: nothing lifts the cover before a frame is drawn; the drawn frame and the next one (labels placed) lift it, once', async () => {
@@ -13,6 +13,10 @@ test('held: nothing lifts the cover before a frame is drawn; the drawn frame and
   holdSplash(() => { lifted++; });
   assert.equal(doc.documentElement.dataset.boot, 'wait');
   await wait(60); assert.equal(lifted, 0, 'no frame yet');
+  figureDrawn(); figureDrawn(); await wait(200);
+  assert.equal(lifted, 0, 'a frame before the programs are compiled does not count (L3): the cover never lifts on a figure that would still compile in front of the viewer');
+  assert.equal(programsCompiled(), false);
+  compileDone(); assert.equal(programsCompiled(), true);
   figureDrawn(); figureDrawn();
   assert.equal(lifted, 0, 'the frame is not enough: the labels are placed in the next one');
   await wait(200);
@@ -130,7 +134,9 @@ test('the baked-skin fetch and decode are bounded, and startup spans wrap decode
   assert.match(baked, /BAKED_FETCH_MS/); assert.match(baked, /BAKED_DECODE_MS/); assert.match(baked, /spanAsync\(`decode:/);
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
   assert.match(stage, /firstDraw\(cel\.view/); assert.match(stage, /spanAsync\('compile:warm'/);
-  assert.match(stage, /Promise\.race\(\[warmP\(\)[\s\S]{0,120}\.then\(\(\) => cel\.buildMicroIdle\(\)\)/, 'the late build starts after the warm-up, not beside it');
+  assert.match(stage, /Promise\.race\(\[all, new Promise[\s\S]{0,160}compileDone\(\)/, 'the warm-up is capped and then reports the compile done: the cover waits for it');
+  assert.match(stage, /if \(!compiled\.current\) return;/, 'and the first frame waits for it too');
+  assert.match(stage, /clock\.after\(\(\) => cel\.buildMicroIdle\(\), 400\)/, 'the meshes are built after the first picture, once everything is compiled');
   assert.doesNotMatch(stage, /warm\(\); cel\.buildMicroIdle\(\)/);
   assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /span\('build:lobule3d'/);
   assert.match(readFileSync('src/ui/perf/mount.ts', 'utf8'), /spans: spans\(\)/);

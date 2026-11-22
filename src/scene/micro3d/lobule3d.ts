@@ -40,10 +40,10 @@ const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
 import { endTaper, lymphCover, type Cover } from '../lobule/lymph.ts';
-import { lobuleRoutes, type LobuleRouteCourse } from './lobule-routes.ts';
+import { lobuleRoutesSteps, type LobuleRouteCourse } from './lobule-routes.ts';
 import { dustTuner } from '../blood/dust.ts';
 import { staticRouteTexture } from '../blood/routes.ts';
-import { MICRO_DPR, MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
+import { MICRO_DPR, MeshBuilder, MicroPart, Pacer, meshWork, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
 import { joinsMode } from '../vessels/skin/joins-mode.ts';
 import { bileWeldCourses, bloodWeldCourses, trimmedInside } from '../lobule/weld-courses.ts';
 import { requestWelds, type WeldRequest } from '../lobule/weld-client.ts';
@@ -683,12 +683,12 @@ export class Lobule3D {
   private buildVessels(): void { if (!this.vgen) this.vgen = this.vesselSteps(); while (!this.vgen.next().done); this.vgen = null; this.vesselsBuilt = true; }
   /** The same, one part at a time: each `yield` is a place an idle slice may end. */
   private *vesselSteps(): Generator<void> {
-    const net = this.flat.net, plan = this.weldPlan;
+    const net = this.flat.net, plan = this.weldPlan, pace = new Pacer(), done = this.coloured;   // (a step ends once STEP_WORK of vertices are written and copied: cel3d.ts meshWork)
     this.coloured.length = 0;
     const by = (...k: Course['kind'][]) => net.courses.filter((c) => k.includes(c.kind));
-    const coloured = (part: MicroPart, b: MeshBuilder, seg: Seg | null, w: number[], k: number[], alt?: { seg2: Seg; w2: number[]; m: number[] }) => {
-      b.build(part.geometry);
-      this.coloured.push({ part, seg, w: Float32Array.from(w), k: Float32Array.from(k), ...(alt ? { seg2: alt.seg2, w2: Float32Array.from(alt.w2), m: Float32Array.from(alt.m) } : {}) });
+    const coloured = function* (part: MicroPart, b: MeshBuilder, seg: Seg | null, w: number[], k: number[], alt?: { seg2: Seg; w2: number[]; m: number[] }): Generator<void> {
+      yield* b.buildSteps(part.geometry, pace);
+      done.push({ part, seg, w: Float32Array.from(w), k: Float32Array.from(k), ...(alt ? { seg2: alt.seg2, w2: Float32Array.from(alt.w2), m: Float32Array.from(alt.m) } : {}) });
       part.setTint([1, 1, 1]);
     };
     // the dust's courses (lobule-routes.ts), one column each, in the order they are first written
@@ -704,7 +704,7 @@ export class Lobule3D {
     };
     // the welded tubes (lobule/welds.ts): each course's kept stretches, then the skin of every junction whose host it is, written with the same per-vertex numbers the unwelded tubes have
     const kindOf = new Map<string, Course['kind']>(net.courses.map((c) => [`${c.kind}${c.id}`, c.kind]));
-    const welded = (cs: Course[], seg: number, withSwell: boolean, alt: ((rho: number) => number) | null, family: (kind: Course['kind']) => boolean) => {
+    const welded = function* (cs: Course[], seg: number, withSwell: boolean, alt: ((rho: number) => number) | null, family: (kind: Course['kind']) => boolean): Generator<void, PartData> {
       const d: PartData = { b: new MeshBuilder(), W: [], K: [], fc: [], ...(withSwell ? { sw: [] as number[] } : {}), ...(alt ? { W2: [] as number[], M: [] as number[] } : {}) };
       const keys = new Set(cs.map((c) => `${c.kind}${c.id}`));
       const opts = (out: WeldCourseOut): EmitOpts => ({
@@ -712,8 +712,8 @@ export class Lobule3D {
         // (no marks just outside the central vein, where the sinusoids pour into it)
         marksAt: (o, i) => !(withSwell && Math.hypot(o.pts[i]![0], o.pts[i]![1]) / R < DISC_R.cv * 1.6),
       });
-      for (const c of cs) emitCourse(d, plan!.courses.get(`${c.kind}${c.id}`)!, opts(plan!.courses.get(`${c.kind}${c.id}`)!));
-      for (const sk of plan!.skins) if (keys.has(sk.host)) emitSkin(d, sk, plan!.courses, opts(plan!.courses.get(sk.host)!), (key) => family(kindOf.get(key)!));
+      for (const c of cs) { emitCourse(d, plan!.courses.get(`${c.kind}${c.id}`)!, opts(plan!.courses.get(`${c.kind}${c.id}`)!)); if (pace.due()) yield; }
+      for (const sk of plan!.skins) if (keys.has(sk.host)) { emitSkin(d, sk, plan!.courses, opts(plan!.courses.get(sk.host)!), (key) => family(kindOf.get(key)!)); if (pace.due()) yield; }
       return d;
     };
     // the dust's place on each vertex of a tube (lobule-routes.ts): the course's column, its arc from the start, its length, and the true place across (never hushed: the particles run on through every joint);
@@ -731,9 +731,10 @@ export class Lobule3D {
       for (let v = 0; v < 2 * capVerts; v++) FC.push(col, v < capVerts ? 0 : Lw, Lw, 3);
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
-    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube, SEG = TUBE_SEG) => {
+    const tubes = function* (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube, SEG = TUBE_SEG): Generator<void, { b: MeshBuilder; W: number[]; K: number[]; caps: Map<Course, number>; FC: number[] }> {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>(), FC: number[] = [];
       for (const c of cs) {
+        if (pace.due()) yield;
         const pts = c.pts.map((p, i) => at3(p, typeof z === 'number' ? z : z(c, i)));
         const before = b.count;
         tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], SEG, true);
@@ -754,14 +755,14 @@ export class Lobule3D {
       // (a sinusoid ends inside the central vein's mouth: its last samples there are dropped, so it pours over the lip rather than lying across the opening)
       const cs = by(kind).map((c) => trimInside(c, DISC_R.cv * 0.78));
       if (plan) {
-        const d = welded(cs, TUBE_SEG, true, () => 0, (k) => k !== 'tw');
-        coloured(this.sin[kind], d.b, 'sin', d.W, d.K, { seg2: 'art', w2: d.W2!, m: d.M! });
+        const d = yield* welded(cs, TUBE_SEG, true, () => 0, (k) => k !== 'tw');
+        yield* coloured(this.sin[kind], d.b, 'sin', d.W, d.K, { seg2: 'art', w2: d.W2!, m: d.M! });
         this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(d.sw!, 2));
         this.sin[kind].geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4));
         continue;
       }
-      const t = tubes(cs, sinR, sinWAt, OVER_Z);
-      coloured(this.sin[kind], t.b, 'sin', t.W, t.K);
+      const t = yield* tubes(cs, sinR, sinWAt, OVER_Z);
+      yield* coloured(this.sin[kind], t.b, 'sin', t.W, t.K);
       this.sin[kind].geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4));
       // each vertex's radius and its place's share of congestion's widening (cel3d SWELL): the width runs smoothly along every course and through every join (widths.ts congShare)
       const sw: number[] = [];
@@ -773,17 +774,17 @@ export class Lobule3D {
         for (let v = 0; v < cap; v++) at(n - 1);
       }
       this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
-      yield;
+      if (pace.due()) yield;
     }
-    if (plan) { const d = welded(by('in'), TUBE_SEG, false, sinW, (k) => k === 'in'); coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
-    else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    yield;
-    if (plan) { const d = welded(by('tw'), TUBE_SEG, false, null, () => false); coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
-    else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    yield;
+    if (plan) { const d = yield* welded(by('in'), TUBE_SEG, false, sinW, (k) => k === 'in'); yield* coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
+    else { const t = yield* tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); yield* coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    if (pace.due()) yield;
+    if (plan) { const d = yield* welded(by('tw'), TUBE_SEG, false, null, () => false); yield* coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
+    else { const t = yield* tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); yield* coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    if (pace.due()) yield;
     // the terminal lymphatics along the edges
-    { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0, LZ.tube, THIN_SEG); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    yield;
+    { const t = yield* tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0, LZ.tube, THIN_SEG); yield* coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    if (pace.due()) yield;
     // the lymph channels (2D's `ly`, "a thin channel beside each sinusoid, between the sinusoid and its plate", geometry.ts): a thin lymph tube along the OUTSIDE of its sinusoid, from the limiting plate in, tapering
     // to a thread before the central vein (widths.ts lyTaper); it runs out against the blood, so the course is laid from the vein to the edge. Mohammad 20 Nov 2026: "those lymph vessels should be drawn like on the
     // outside of the blood vessels and taper to nothing closer to 90% of the way to the central vein". They were a flat sleeve centred ON each sinusoid, a third wider than the sinusoid each side: where two sinusoids
@@ -801,9 +802,11 @@ export class Lobule3D {
         // (a cross-link meets the sinusoid's side where its lymph runs: the channel dives under it over a few tube widths rather than stopping at its mouth)
         ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
       ];
-      const under = new Map(lym.map((c) => [c, lymphCover(c.pts, (i) => r(c, i), covers)]));
-      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!, THIN_SEG), sw: number[] = [], hg: number[] = [];
+      const under = new Map<(typeof lym)[number], number[]>();
+      for (const c of lym) { under.set(c, lymphCover(c.pts, (i) => r(c, i), covers)); meshWork.n += c.pts.length * covers.length / 4; if (pace.due()) yield; }   // (a course at a time: each tests its samples against every vessel it may pass under)
+      const t = yield* tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!, THIN_SEG), sw: number[] = [], hg: number[] = [];
       for (const c of lym) {
+        if (pace.due()) yield;
         // (the tube hugs its sinusoid's wall: each vertex carries the plan direction out from the sinusoid's axis, the wall's radius and the place's share of congestion's widening, so the vertex shader moves it out by the
         //  wall's own growth, cel3d HUG: a swollen sinusoid takes its lymph with it instead of covering it)
         const sib = net.courses[c.sib!]!, hug = c.pts.map((q) => {
@@ -816,15 +819,16 @@ export class Lobule3D {
           // (a stretch that does not stand against its sinusoid, the reach across the inlet to the terminal lymphatic, does not move with it)
           return [(q[0] - fx) / l, -(q[1] - fy) / l, bd < sinRadius(sib.kind as 's0', rho) + 3 * DUCT_R ? sinRadius(sib.kind as 's0', rho) * R : 0, congShare(rho)] as const;
         });
+        meshWork.n += c.pts.length * 3;
         const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); hg.push(...hug[i]!); };
         for (let i = 0; i < n; i++) for (let k = 0; k < THIN_SEG; k++) at(i);
         const cap = t.caps.get(c)!;
         for (let v = 0; v < cap; v++) at(0);
         for (let v = 0; v < cap; v++) at(n - 1);
       }
-      coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2)); this.duct.geometry.setAttribute('hug', new Float32BufferAttribute(hg, 4));
+      yield* coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2)); this.duct.geometry.setAttribute('hug', new Float32BufferAttribute(hg, 4));
     }
-    yield;
+    if (pace.due()) yield;
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
     // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule
     {
@@ -834,7 +838,7 @@ export class Lobule3D {
         const o: EmitOpts = { R, seg: 6, endHush: 0, dustCol: weldCol };
         for (const k of keys) emitCourse(d, plan.courses.get(k)!, o);
         for (const sk of plan.skins) if (keys.has(sk.host)) emitSkin(d, sk, plan.courses, o, () => true);
-        coloured(this.bile, d.b, null, d.W, d.K);
+        yield* coloured(this.bile, d.b, null, d.W, d.K);
         this.bile.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4));
       } else {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [], FC: number[] = [];
@@ -846,38 +850,40 @@ export class Lobule3D {
         flowAux(b, before, pts, ringVerts, (b.count - before - ringVerts) / 2, n * 0.29, null, 6);
         dustFC(FC, b, before, ringVerts, (b.count - before - ringVerts) / 2, 6, pts, 'bile', Math.max(2e-4, c.radius[0]! * R));
       });
-      coloured(this.bile, b, null, W, K);
+      yield* coloured(this.bile, b, null, W, K);
       this.bile.geometry.setAttribute('fcourse', new Float32BufferAttribute(FC, 4));
       }
     }
-    yield;
+    if (pace.due()) yield;
     // the lobule's dust routes, built once from every course that carries dust: the blood's, the lymph's and the bile's, each family joined only to itself (lobule-routes.ts)
     {
-      const segs = lobuleRoutes(dustCourses, 0.004 * R);
+      pace.restart(); yield;   // (the route table, family by family, and its texture are steps of their own)
+      const segs = yield* lobuleRoutesSteps(dustCourses, 0.004 * R);
+      pace.restart();
       const rad = new Map(dustCourses.map((c) => [c.col, c.radius]));
       this.dustRoute.value.dispose();
       this.dustRoute.value = staticRouteTexture(Math.max(1, dustCourses.length), segs, (k) => rad.get(k) ?? 0.01 * R);
     }
-    yield;
+    if (pace.due()) yield;
     // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
     // and bile should not look like empty cyllindars, just filll them with the color")
-    const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false, top?: number) => {
+    const mouths = function* (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false, top?: number): Generator<void> {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
       for (const c of cs) {
         const p = c.pts[Math.floor(c.pts.length / 2)]!;
         mouth(b, p[0] * R, -p[1] * R, r * R, LZ.lip, LZ.mouthDepth * Math.min(1, r / DISC_R.pv), K, MOUTH_SEG, vessel, top);
       }
       for (let v = 0; v < b.count; v++) W.push(seg === 'cv' ? 1 : 0);
-      coloured(part, b, seg, W, K);
+      yield* coloured(part, b, seg, W, K);
     };
     // each pool's top: a hair above the tallest tube that runs into it (the inlets into the venule, the twigs into the arteriole, the canals of Hering into the ductule, the terminal
     // lymphatics into the lymphatic, the sinusoids into the central vein), so a tube that reaches it is lost inside it and none runs over it
     const POUR = 1.04, N_IN = by('in')[0]?.pts.length ?? 40;
-    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true, (LZ.tube + inletRadius(0, N_IN, 0) * R) * POUR);
-    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true, (OVER_Z + twigR(0, RS_N) * R) * POUR);
-    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true, (LZ.cellTop + 0.001 + 0.0078 * R) * POUR);
-    mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true, (LZ.tube + LT_R * R) * POUR);
-    mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
+    yield* mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true, (LZ.tube + inletRadius(0, N_IN, 0) * R) * POUR);
+    yield* mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true, (OVER_Z + twigR(0, RS_N) * R) * POUR);
+    yield* mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true, (LZ.cellTop + 0.001 + 0.0078 * R) * POUR);
+    yield* mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true, (LZ.tube + LT_R * R) * POUR);
+    yield* mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
   }
 
   /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well but faded so it shows it's blocked"): from the host's eased fibPost, as 2D grows its plug (scarGrowth,

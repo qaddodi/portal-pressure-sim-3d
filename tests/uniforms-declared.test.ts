@@ -1,5 +1,6 @@
 // A ShaderMaterial must give every uniform its shaders declare. Three.js skips a uniform the material lacks, so the GL program keeps the value the last material drawn with the same
 // program uploaded: the stomach's seat (no hiOn) drew with the tapped spleen's hiOn = 1, and the esophagus lit white (iPhone and Mac, 20 Nov: "when i select spleen; i see every organ highlighted").
+import { isStandIn } from '../src/scene/materials/program-key.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -22,6 +23,7 @@ test('every ShaderMaterial in the scene (organs, seats, vessels, devices) gives 
   const missing: string[] = [];
   let n = 0;
   s.scene.traverse((o) => {
+    if (isStandIn(o)) return;
     const m = (o as { material?: unknown }).material;
     if (!(m instanceof ShaderMaterial)) return;
     n++;

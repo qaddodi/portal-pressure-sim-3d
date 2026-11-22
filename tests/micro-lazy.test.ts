@@ -13,7 +13,7 @@ test('the scene does not construct the 3D parts in its constructor', () => {
   assert.equal((scene.match(/new Sinusoid3D\(/g) ?? []).length, 1);
   assert.equal((scene.match(/new Lobule3D\(/g) ?? []).length, 1);
   const build = scene.slice(scene.indexOf('private buildMicro()'), scene.indexOf('buildMicroIdle()'));
-  assert.match(build, /new Sinusoid3D\(/); assert.match(build, /new Lobule3D\(/);
+  assert.match(build, /this\.makeSinus\(\)/); assert.match(build, /new Lobule3D\(/);   // (the sinusoid's constructor is a step of its own: makeSinus)
 });
 
 test('a view change to the lobule or sinusoid builds them before anything draws', () => {
@@ -33,9 +33,10 @@ test('the dpr seen before the build is applied when it happens', () => {
   assert.match(scene, /if \(this\.microDpr\) lobule\.setDpr\(this\.microDpr\)/);
 });
 
-test('Stage compiles the programs when they appear, and asks for the idle build after the first warm', () => {
-  assert.match(stage, /cel\.onMicroBuilt = warm/);
-  assert.match(stage, /warmP\(\)[\s\S]{0,160}cel\.buildMicroIdle\(\)/);   // (serialised 21 Nov: the build follows the warm-up's compile)
+test('Stage constructs the two views and compiles every program under the splash, and asks for the idle build of their meshes after the first picture', () => {
+  assert.match(stage, /cel\.constructMicro\(\);[\s\S]{0,600}warmPrograms\(/);   // (L3, 21 Nov: the constructors make every material, no geometry; the compile follows)
+  assert.match(stage, /clock\.after\(\(\) => cel\.buildMicroIdle\(\), 400\)/);
+  assert.doesNotMatch(stage, /cel\.onMicroBuilt = warm/, 'nothing compiles when the meshes are built any more');
 });
 
 test('the red cell has 16 segments and well under half its old triangles', () => {
