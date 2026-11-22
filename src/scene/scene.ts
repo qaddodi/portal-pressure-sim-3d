@@ -11,6 +11,7 @@ import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
+import { CAPUT_FAN_ID, FAN_FRONT } from './vessels/feeder-fan.ts';
 import { CAUDATE_VEIN_ID, CAUDATE_WHEN } from './vessels/caudate-veins.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
@@ -25,8 +26,6 @@ import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
 import { CircuitSkinSet } from './circuit/skins.ts';
-import { geomNet, netPlain } from './vessels/net/flag.ts';
-import type { NetFigure } from './vessels/net/network-object.ts';
 import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /**
@@ -37,8 +36,6 @@ import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 const CAVA_BURY = 0.9;
 /** The ascending lumbar collateral, drawn like the cava (fades.ts CAVA_LIKE) but named on its own. */
 const LUMBAR_ID = 'C9';
-/** ?geom=net: how many frames of its own the figure gets to show a pixel (probe.ts PROBE_FRAMES answered queries) before it is called blank. */
-const NET_PROBE_STEPS = 240;
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
@@ -467,7 +464,6 @@ export class CelScene {
     this.protos = programPrototypes(this.shared);
     this.scene.add(this.protos);   // (hidden stand-ins for the programs nothing holds yet: compiled with the rest under the splash, materials/prototypes.ts)
     this.applyLook(this.look);
-    if (geomNet()) void this.mountNet();   // (?geom=net: the vessels from the network meshes, fetched and built after the figure, off the load path)
   }
 
   private unJoins: () => void = () => {};
@@ -603,6 +599,7 @@ export class CelScene {
       }
     }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
+    if (def.id === CAPUT_FAN_ID) o.setFrontDepth(FAN_FRONT);   // (the caput veins lie on the abdominal wall: over every other vein)
     if (!def.feeder) { const e = shadowEndsOf(def); o.setShadowEnds(e[0], e[1]); o.setMapDepth(mapDepthOf(def.id)); }   // (the crossing shadow's joins, and the Circuit's over and under)
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -615,137 +612,6 @@ export class CelScene {
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
   }
-
-  // ---- ?geom=net (vessels/net, docs/net-wiring.md) ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  private net: NetFigure | null = null;
-  /** ?geom=net&junc=sdf: the ray-marched junction trial (net/junc-sdf.ts), null otherwise */
-  private junc: import('./vessels/net/junc-sdf.ts').JuncSdf | null = null;
-  private netFailOff: (() => void) | null = null;
-  /** The vessels the network draws: the ids of the skeleton's edges. The rest (fans of tributaries, liver branches, caudate veins, the splenic tree: no skeleton edge until WP5) keep drawing as today. */
-  private netIds: Set<string> | null = null;
-  /** The draws not yet seen to put pixels on the screen (their old tubes stay up until they have), and what the badge says when they are all settled. */
-  private netUndecided: import('./vessels/net/network-object.ts').NetDraw[] = [];
-  private netFailed: string[] = [];
-  /** Objects whose vessels are all out of the picture in this state (a closed collateral has no presence: nothing to draw, so no pixel is no failure). Their old tubes stay, and they are looked at again each frame. */
-  private netIdle: import('./vessels/net/network-object.ts').NetDraw[] = [];
-  private netSteps = 0;
-  private netSay: ((state: 'loading' | 'network' | 'partial' | 'fallback', why?: string, detail?: string) => void) | null = null;
-  private netGl: WebGLRenderer | null = null;
-  private netPart: (draw: string) => string = (n) => n;
-  /** Whether the network figure draws this vessel (so its tube is hidden and its old fade is 0). */
-  netDraws(o: CelObject): boolean { return !!this.netIds && this.netIds.has(o.edge?.id ?? '') && this.byEdge.get(o.edge?.id ?? '') === o; }
-  /** Fetches the baked network meshes and puts the figure in beside the tubes (which stay: they hold the state, the picking and the Circuit's draw).
-   *  Does nothing, and says why on the console, when the files are missing or are for another skeleton. */
-  private async mountNet(): Promise<void> {
-    const { showNetBadge, partName } = await import('./vessels/net/badge.ts');
-    showNetBadge('loading');
-    try {
-      const { loadNetResult } = await import('./vessels/net/load.ts');
-      const { data, why } = await loadNetResult();
-      if (this.disposed) return;
-      if (!data) { showNetBadge('fallback', why); return; }
-      this.netSay = showNetBadge; this.netPart = partName;
-      await this.attachNet(data);
-      // (a program the device refuses is drawn plain by the shader guard: the badge then says the network is not drawn as designed)
-      const { onShaderFailure, shaderFailures } = await import('../debug/shader-fail.ts');
-      this.netFailOff = onShaderFailure(() => {
-        const f = shaderFailures().at(-1);
-        if (f && f.kind.startsWith('net')) showNetBadge('fallback', `the ${f.kind} shader was refused by this device, drawn plain: ${f.log.split('\n').filter((l) => l.trim()).slice(0, 3).join(' | ') || 'no log'}`);
-      });
-    } catch (e) {
-      // (a failure while the figure is built: the old tubes stay, and the badge says so rather than the page silently looking the same)
-      console.warn('[?geom=net] the network figure failed to build; the old tubes stay', e);
-      this.dropNet();
-      showNetBadge('fallback', `error: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-  /** Takes the network figure out again and gives the tubes back (a failed build under ?geom=net). */
-  private dropNet(): void {
-    const n = this.net;
-    this.net = null;
-    this.junc?.dispose(); this.junc = null;
-    if (!n) return;
-    this.body.remove(n.group); n.dispose();
-    for (const o of this.vessels) (o as VesselObject).setNetHidden(false);
-    this.netIds = null; this.netUndecided = []; this.netIdle = [];
-    this.pushFades(); this.moving = true;
-  }
-  /** Builds the figure from loaded network meshes (the page's `mountNet`, and a test, which hands the baked files it read from disk). */
-  async attachNet(data: import('./vessels/net/load.ts').NetData, assumeDrawn = false): Promise<void> {
-    const { NetFigure: Figure } = await import('./vessels/net/network-object.ts');
-    const vo = (id: string) => this.vesselObject(id);
-    const first = (tone: NetVessel['tone']): Color => (vo(NETWORK.find((v) => v.tone === tone)!.id)!.toon.uniforms.color!.value as Color);
-    const edgeIds = data.skel.edges.map((e) => e.id.split('#')[0]!);
-    const behind = new Set<number>(); edgeIds.forEach((id, i) => { if (vo(id)?.behindOrgans) behind.add(i); });
-    const clamps = this.disease.clamps;
-    this.net = new Figure(data, {
-      plain: netPlain(),
-      uniforms: (id) => vo(id)?.toon.uniforms, fade: (id) => { const o = vo(id); return o ? this.composeFade(o, false) : undefined; }, copies: (id) => vo(id)?.netCopies(),
-      present: (id) => vo(id)?.group.visible, waist: (id) => (vo(id) ? clamps.waistOf(id) : undefined),
-      fixed: (id) => { const o = vo(id); return o ? { lenMap: (o.toonMesh.geometry.getAttribute('cl') as BufferAttribute | undefined)?.getY(0) ?? 1, noMap: [...this.fans.values()].includes(id) } : undefined; },
-      template: () => vo(NETWORK[0]!.id)!.toon.uniforms, tones: () => [first('portal'), first('sys'), first('artery')],
-    }, behind);
-    this.body.add(this.net.group);
-    const js = await import('./vessels/net/junc-sdf.ts');
-    if (js.juncSdf()) { const j = js.JuncSdf.build(this.net.skel, this.net.draws); if (j instanceof js.JuncSdf) { this.junc = j; this.net.group.add(j.group); } else console.warn(`junc-sdf: ${j.why}`); }
-    // The tubes hold the state and the picking, and stay DRAWN until the figure has been seen to put a pixel of an object on the screen (probe.ts): a figure that draws nothing must never leave vessels missing.
-    this.netIds = new Set(); this.netUndecided = [...this.net.draws]; this.netIdle = []; this.netFailed = []; this.netSteps = 0;
-    if (assumeDrawn) { this.netUndecided = []; for (const d of this.net.draws) this.netOwn(d, true); }
-    this.stepNet();
-    this.pushFades();
-    this.moving = true; clock.invalidate('net');
-  }
-  /** One frame of the network figure: the rows from the vessels' state, and the check that each object has put pixels on the screen. */
-  stepNet(): boolean {
-    const n = this.net;
-    if (!n) return false;
-    let moving = n.sync();
-    // an object that was out of the picture when it was checked takes over its tubes the moment it shows a pixel (a collateral that opens)
-    if (this.netIdle.length) {
-      const was = this.netIdle.length;
-      this.netIdle = this.netIdle.filter((d) => { if (n.standing(d) !== 'drawn') return true; this.netOwn(d, true); return false; });
-      if (this.netIdle.length !== was) moving = true;
-    }
-    if (this.netUndecided.length) {
-      this.netSteps++;
-      this.netUndecided = this.netUndecided.filter((d) => {
-        let st = n.standing(d);
-        if (st === 'pending' && this.netSteps > NET_PROBE_STEPS) st = 'blank';   // (drawn never, or its queries never answered)
-        if (st === 'pending') return true;
-        if (st === 'drawn') this.netOwn(d, true);
-        else if (!n.expectsPixels(d)) this.netIdle.push(d);   // (nothing of it is in the picture in this state: not a failure, its tubes draw the same nothing)
-        else { this.netFailed.push(d.name); this.netOwn(d, false); }
-        return false;
-      });
-      if (this.netUndecided.length) moving = true;
-      else this.netSettled();
-    }
-    return moving;
-  }
-  /** An object is now drawn by the figure (its old tubes go, their fade is 0), or is not (they stay). */
-  private netOwn(d: import('./vessels/net/network-object.ts').NetDraw, drawn: boolean): void {
-    if (!this.net || !this.netIds || !drawn) return;
-    for (const e of d.edges) this.netIds.add(this.net.skel.edges[e]!.id.split('#')[0]!);
-    for (const o of this.vessels) if (this.netDraws(o)) (o as VesselObject).setNetHidden(true);
-    this.pushFades(); this.moving = true;
-  }
-  /** Every object's check is in: the badge says which mesh the page now draws. */
-  private netSettled(): void {
-    const n = this.net, say = this.netSay;
-    if (!n || !say) return;
-    if (!this.netFailed.length) { say('network', this.netIdle.length ? `${this.netIdle.map((d) => this.netPart(d.name)).join(', ')} out of the picture in this state` : ''); return; }
-    const c = this.netGl?.getContext() as WebGL2RenderingContext | null | undefined;
-    const caps = c && typeof c.getParameter === 'function'
-      ? `float targets ${c.getExtension('EXT_color_buffer_float') ? 'yes' : 'NO'}, vertex textures ${c.getParameter(c.MAX_VERTEX_TEXTURE_IMAGE_UNITS)}, attributes ${c.getParameter(c.MAX_VERTEX_ATTRIBS)}` : 'no context';
-    const meant = n.draws.filter((d) => this.netFailed.includes(d.name)).map((d) => `${d.name} ${n.expectedEdges(d)}/${d.edges.length} edges in the picture`).join(', ');
-    const why = `${this.netFailed.join(', ')} put no pixel on the screen, so their old tubes stay. ${meant}. ${n.probe.report()} [${caps}]`;
-    console.warn(`[?geom=net] ${why}`);
-    // all parts blank: the old figure; some: the headline names the parts that are old tubes
-    if (this.netFailed.length >= n.draws.length) say('fallback', why);
-    else say('partial', this.netFailed.map((f) => this.netPart(f)).join(' and '), why);
-  }
-  /** The network figure now drawn (null without ?geom=net, or while it loads): for the tests and the debug page. */
-  get netFigure(): NetFigure | null { return this.net; }
 
   /** The vessel object of an edge, or undefined. */
   vesselObject(id: string): VesselObject | undefined { return this.byEdge.get(id) as VesselObject | undefined; }
@@ -1192,12 +1058,11 @@ export class CelScene {
   }
   /** What an object's `fade` is: ONE value composed of everything that dissolves it (before, the dive's dissolve and the Circuit's change both wrote the uniform and the last writer won): the dive's
    *  dissolve of the body, the Circuit's change for what leaves with the organs (1 - t), and a conditional tributary group's own `live`. (A fan's Circuit fade, 2D's 1 - 2 * T0, is the vertex shader's.) */
-  private composeFade(o: CelObject, forOld = true): number {
+  private composeFade(o: CelObject): number {
     let f = this.fadeNow;
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
-    if (forOld && this.net && this.netDraws(o)) f = 0;   // (?geom=net: the old tubes and the skins that follow their fade are not drawn: the network draws them)
     return f;
   }
   /**
@@ -1503,7 +1368,6 @@ export class CelScene {
         if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
         return anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
       } },
-      { id: 'net', step: () => this.stepNet() },
       { id: 'micro', step: ({ now }) => {
         this.stepSinusDive();
         this.stepCutaway();
@@ -1730,10 +1594,6 @@ export class CelScene {
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
-    this.netGl = gl;
-    this.net?.prepass(gl);   // (?geom=net: the sewn hosts' radii and each junction region's live capsules, once per drawn frame)
-    this.junc?.prepass(gl);   // (?junc=sdf: what the ray-marched junctions read of their capsule points, and the cut)
-    lap('render: network passes');
     gl.render(this.scene, cam);
     lap('render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)');
     gl.autoClear = false;
@@ -1741,7 +1601,6 @@ export class CelScene {
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
     lap('render: pass 2, vessel layer');
-    this.net?.poll(gl);   // (the occlusion queries of the figure's draws, read once per frame: stepNet decides from them)
     if (this.highlight.glowing) this.glowFx.run(gl, into, cam, this.scene, dpr);   // (the picked vessel's glow: its mask, blurred, over the figure outside it)
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     lap('render: glow, blur, resolve');
@@ -1754,7 +1613,6 @@ export class CelScene {
     this.disposed = true; for (const e of this.eases) e.dispose();
     this.unJoins();
     for (const k of [...this.inspectMarks.keys()]) this.putInspectMarks(k, null);
-    this.netFailOff?.(); this.net?.dispose();
     this.skins?.dispose();
     this.circuitSkins?.dispose();
     this.micro?.sinus.dispose(); this.micro?.lobule.dispose();

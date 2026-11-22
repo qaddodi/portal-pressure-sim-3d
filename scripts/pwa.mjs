@@ -152,7 +152,7 @@ self.addEventListener('fetch', (e) => {
   const mine = URLS.has(bare);
   if (!mine && !url.pathname.startsWith(SCOPE.pathname + 'assets/')) return;
   // A hashed file (assets/) never changes under its name, so the build before may serve it to a tab that still runs it. A file whose name carries no hash (the baked meshes, the organ data) changes under
-  // its name: the build before holds the OLD one, so it is never served in this build's place (22 Nov: ?geom=net was refused on a phone for the network meshes of the build before, 10 minutes and a deploy
+  // its name: the build before holds the OLD one, so it is never served in this build's place (22 Nov: a phone was served the build before's baked meshes, 10 minutes and a deploy
   // after they were rebaked). Such a file comes from this build's own copy, else from the network past the HTTP cache (the host lets a browser keep it ten minutes), and the build before only answers offline.
   const hashedAsset = url.pathname.startsWith(SCOPE.pathname + 'assets/');
   e.respondWith((async () => {

@@ -4,10 +4,12 @@ attribute vec3 tang;
 // a stent narrows its shunt's lumen (waist, end stenosis): the share of the tube taken off at this vertex, 0 on every vessel that has none (a missing attribute reads 0)
 attribute float narrow;
 attribute vec2 nbr;   // a fork's other tube: this vertex's signed distance from its axis and its radius there, scene units (0: none; neighbour.ts)
+attribute float tipK;   // a fan's free tip: the share of the alpha taken off here, 0 to 1 (a missing attribute reads 0)
 attribute vec2 lensR;   // a fan's course: the stretch of the host's colour ramp it wears, (from, span) (0, 0: the vessel's own lensSpan)
 attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk; a run-on eases to its neighbour's width)
 attribute float rkc;   // the same on the Circuit's map: the course's own share only (a strand is thinner than its trunk), without the body's tapers, collars and beads, which belong to the 3D figure (the map draws a vessel one width along its length)
 uniform float inflate;
+uniform float frontDepth;   // how far toward the viewer this vessel is drawn in the depth buffer, scene units (the caput fan over every other vein): a depth offset only
 uniform float mapDepth;   // the Circuit's over and under: how far toward the viewer this line stands on the map's plate, scene units (circuit/map-depth.ts); applied as a depth offset only, scaled by the change's share
 uniform float shadowPx;   // the crossing shadow's band beyond the line, CSS px (cel-ink.ts SHADOW_PX): the SHADOW program's hull is the tube this much wider
 uniform float shadowDepth;   // and how far behind its own tube it lies, scene units: on the body and on the map
@@ -269,6 +271,7 @@ void main() {
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
+  fa *= 1.0 - tipK;   // (a fan's free tip eases to transparent: body and outline together)
   vFade = fa;
   // the other tube's radius is the one it is DRAWN at: its built radius times its own live swell (the engine's diameter). Its built radius put the cut and the union's outline inside the real wall wherever the engine widens it (Mohammad, 20 Nov: "a big gaping hole" at the hepatic veins' mouths)
   vNbr = vec2(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0));
@@ -321,6 +324,7 @@ void main() {
   c.z = mix(cc.z / cc.w, c.z / c.w, 0.15 * (1.0 - circT)) * c.w;   // depth by the tier of the axis (TUBE_DEPTH_SHARE): a fat tube at a lower tier never bulges over a thin one above it; on the Circuit's plate none at all (a flat line has no bulge: the lines' own depths, mapDepth, decide a crossing)
   // the Circuit's lines lie on one plate: each stands its own mapDepth in front of it (a depth offset, nothing moves), so a crossing has an over and an under (circuit/map-depth.ts)
   c.z -= mapDepth * circT * (-projectionMatrix[3][2]) / c.w;
+  c.z -= frontDepth * (-projectionMatrix[3][2]) / c.w;
 #ifdef SHADOW
   c.z += mix(shadowDepth, shadowDepthC, circT) * (-projectionMatrix[3][2]) / c.w;   // (the hull lies behind its own tube: a neighbour at the same tier is nearer, so it is never shadowed)
 #endif

@@ -1,7 +1,7 @@
 // A vessel's tubes at its present shape: its own course (coiled as it opens), the strands of a braided collateral, or a fan of tributaries. Built from the 2D
 // figure's own courses and rules (coil.ts, coil.copied.ts); the scene rewrites a vessel's positions in place when the shape moves (VesselObject.reshape).
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { fanCaps, fanLensRanges } from './feeder-fan.ts';
+import { FAN_TIP_FROM, fanCaps, fanLensRanges, fanTips } from './feeder-fan.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
@@ -304,10 +304,11 @@ function hubRootRadius(s: ShapeState): number {
 /** A tree of tributaries (the caput's fan): each course wears the stretch of the host's colour ramp its place gives it (no colour step at a fork), and only the widest end at a point keeps its cap (one round hub). */
 function withFanJoints(courses: Course[]): Course[] {
   if (courses.length < 2) return courses;
-  const lens = fanLensRanges(courses), caps = fanCaps(courses);
+  const lens = fanLensRanges(courses), caps = fanCaps(courses), tips = fanTips(courses);
   return courses.map((c, i) => {
     const cl = c.capless, capless: readonly [boolean, boolean] = [(cl?.[0] ?? false) || !caps[i]![0], (cl?.[1] ?? false) || !caps[i]![1]];
-    return { ...c, ...(lens[i] ? { lens: lens[i]! } : {}), ...(capless[0] || capless[1] ? { capless } : {}) };
+    // (a free tip narrows to a point and eases to transparent over the last of its course: it thins out of sight, it never ends in a stub)
+    return { ...c, ...(lens[i] ? { lens: lens[i]! } : {}), ...(capless[0] || capless[1] ? { capless } : {}), ...(tips[i] && lens[i] ? { tipFade: FAN_TIP_FROM, point: [false, true] as const } : {}) };
   });
 }
 

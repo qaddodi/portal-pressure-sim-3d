@@ -31,7 +31,7 @@ uniform vec3 circAnchC;
 uniform vec2 circTrackSize;
 uniform sampler2D circTrack;
 `;
-/** The peel and the turn, as functions of a rank and a point: the morph's rule written once. The vessel's per-vertex morph (above) and ?geom=net's per-bone morph (vessels/net/shaders.ts) both use it. Reads: circRot, circM (declared by the program). */
+/** The peel and the turn, as functions of a rank and a point: the morph's rule written once. The vessel's per-vertex morph (above) uses it. Reads: circRot, circM (declared by the program). */
 export const CIRC_PEEL_GLSL = /* glsl */ `const float CIRC_DL = ${PEEL_DL.toFixed(4)};
 const float CIRC_MAPK = ${MAP_K.toFixed(6)};
 const float CIRC_SPAN = ${PEEL_SPAN.toFixed(1)};

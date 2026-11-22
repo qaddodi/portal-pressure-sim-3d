@@ -164,21 +164,21 @@ vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float w
   return vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ac + ar * (1.0 - ac));   // (the head's outline is always the dark ink: a flat head with a dark line, never a pale ring)
 }`;
 
-/** A vessel's width on the map (map units, before the boost's floor on the screen) of this kind and diameter (width.ts circuitWidthMap). Reads: circBoost. Spliced exactly where it stood in vessels/shaders.ts; ?geom=net (net/shaders.ts) splices the same text. */
+/** A vessel's width on the map (map units, before the boost's floor on the screen) of this kind and diameter (width.ts circuitWidthMap). Reads: circBoost. Spliced exactly where it stood in vessels/shaders.ts. */
 export const CIRC_WIDTH_OF_GLSL = /* glsl */ `float circWidthOf(float d, float kind) {
   if (kind > 1.5) return 8.0 * circBoost;
   if (kind > 0.5) return 3.0;
   return clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
 }`;
 
-/** The stump of a divided vein as a share of the radius at arc `a` (units from the start), `R` the radius there. Reads: stump. Spliced exactly where it stood in vessels/shaders.ts; ?geom=net (net/shaders.ts) splices the same text. */
+/** The stump of a divided vein as a share of the radius at arc `a` (units from the start), `R` the radius there. Reads: stump. Spliced exactly where it stood in vessels/shaders.ts. */
 export const STUMP_K_GLSL = /* glsl */ `float stumpK(float a, float R) {
   float q = clamp((a - stump.x) / max(R, 1e-3), 0.0, 1.0);
   float pq = (a - stump.y) / 5.5;
   return max(sqrt(max(0.0, 1.0 - (1.0 - q) * (1.0 - q))), 0.02) * (1.0 - 0.2 * stump.z * exp(-pq * pq));
 }`;
 
-/** A free end in the Circuit is round: the pixels outside a half circle at the end are carved away. Reads: circT, circCap, vUv, len, vU, vCen, projY, vR, inkOn. Spliced exactly where it stood in vessels/shaders.ts; ?geom=net (net/shaders.ts) splices the same text. */
+/** A free end in the Circuit is round: the pixels outside a half circle at the end are carved away. Reads: circT, circCap, vUv, len, vU, vCen, projY, vR, inkOn. Spliced exactly where it stood in vessels/shaders.ts. */
 export const CAP_CARVED_GLSL = /* glsl */ `bool capCarved(float across) {
   float k = smoothstep(0.7, 1.0, circT);
   if (k <= 0.0 || circCap.x + circCap.y < 0.5) return false;
@@ -194,7 +194,7 @@ export const CAP_CARVED_GLSL = /* glsl */ `bool capCarved(float across) {
   return across * across + q * q > 1.0;
 }`;
 
-/** The stent in the Circuit, the surgical stitches, the stump's tie and the wedge's amber column, painted on the tube (a part of main, in its own locals: c, across, pxArc, fwPx, fwTh, fwAcr, inkT; with stentU, stentWire, stentGoldC, seamA, seamB, stump, wedge, wedgeD, wedgeCol, circT, len, vU, vR, vR0, vArcLen, vUv, and what the stent's heading needs). Spliced exactly where it stood in vessels/shaders.ts; ?geom=net (net/shaders.ts) splices the same text. */
+/** The stent in the Circuit, the surgical stitches, the stump's tie and the wedge's amber column, painted on the tube (a part of main, in its own locals: c, across, pxArc, fwPx, fwTh, fwAcr, inkT; with stentU, stentWire, stentGoldC, seamA, seamB, stump, wedge, wedgeD, wedgeCol, circT, len, vU, vR, vR0, vArcLen, vUv, and what the stent's heading needs). Spliced exactly where it stood in vessels/shaders.ts. */
 export const PROCEDURE_MARKS_GLSL = /* glsl */ `  // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
@@ -269,7 +269,7 @@ export const PROCEDURE_MARKS_GLSL = /* glsl */ `  // the stent in the Circuit (t
     c = mix(c, wedgeCol, WEDGE_A * wa * (1.0 - inkT));   // (under the outline: the vessel's line stays)
   }`;
 
-/** A free end's fade at one place (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE) and the cava end's ease: `fa` in, `fa` out; at `uv.x` along the vessel, `position.xy` in the figure, with `mapFa` its Circuit fade. Reads: fadeMode, fadeA, fadeLine, circT, stump, circShare, len, vU, cavaEnd. Spliced exactly where it stood in vessels/shaders.ts; ?geom=net (net/shaders.ts) splices the same text. */
+/** A free end's fade at one place (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE) and the cava end's ease: `fa` in, `fa` out; at `uv.x` along the vessel, `position.xy` in the figure, with `mapFa` its Circuit fade. Reads: fadeMode, fadeA, fadeLine, circT, stump, circShare, len, vU, cavaEnd. Spliced exactly where it stood in vessels/shaders.ts. */
 export const FADE_ALPHA_GLSL = /* glsl */ `  if (fadeMode > 2.5) {
     // tube-geo.js tubeAlpha: the projection of the point on the line
     vec2 fd = fadeLine.zw - fadeLine.xy;
@@ -291,7 +291,7 @@ export const FADE_ALPHA_GLSL = /* glsl */ `  if (fadeMode > 2.5) {
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);`;
 
-/** How much of the picked vessel's line shows at `uv.x` along it (`vHi`): the highlight's own distance rule. Reads: hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiEnds, hiFade, len. Spliced exactly where it stood in vessels/shaders.ts; ?geom=net (net/shaders.ts) splices the same text. */
+/** How much of the picked vessel's line shows at `uv.x` along it (`vHi`): the highlight's own distance rule. Reads: hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiEnds, hiFade, len. Spliced exactly where it stood in vessels/shaders.ts. */
 export const HIGHLIGHT_ALONG_GLSL = /* glsl */ `  float aU = uv.x * len;
   float distH = hiDir > 0.5 ? hiOffset + aU : (hiDir < -0.5 ? hiOffset + (len - aU) : 0.0);
   float limitH = hiDir < -0.5 ? hiBehind : hiAhead;

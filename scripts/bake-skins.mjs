@@ -6,40 +6,6 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-// `--net` bakes the network meshes of ?geom=net (net/mesh.ts) instead, from net/skeleton.ts: one public/anatomy/net-<n>.<digest>.bin (gzip) per network, and a junction that will not mesh FAILS the bake naming itself (no fallback). Not part of the default build.
-if (process.argv.includes('--net')) {
-  const sk = new URL('../src/scene/vessels/net/skeleton.ts', import.meta.url);
-  if (!existsSync(fileURLToPath(sk))) { console.error('net bake: src/scene/vessels/net/skeleton.ts does not exist yet (WP0)'); process.exit(1); }
-  const { skeleton } = await import(sk.href);
-  const { buildNetMesh, networksOf, REFINE } = await import('../src/scene/vessels/net/mesh.ts');
-  if (process.env.REFTOL) REFINE.tol = Number(process.env.REFTOL);   // (measure what a tolerance in R of the narrowest arm costs)
-  const { encodeNet, skeletonDigest } = await import('../src/scene/vessels/net/baked.ts');
-  const { presetSwells } = await import('./net-states.mjs');
-  const skel = skeleton(), digest = skeletonDigest(skel), states = await presetSwells(skel);   // (the real states: the wide junctions' keys, net/keys.ts)
-  mkdirSync(fileURLToPath(new URL('../public/anatomy/', import.meta.url)), { recursive: true });
-  // cached by digest: a file that is for THIS skeleton and newer than every source the mesher reads is kept (the page never meshes, so a stale file is never laid in; a fresh checkout has none and bakes once)
-  const { readFileSync, statSync, readdirSync } = await import('node:fs'), { gunzipSync } = await import('node:zlib');
-  const srcNewest = Math.max(...['../src/scene/vessels/net/', '../src/scene/vessels/net/junction/', '../src/scene/vessels/skin/'].flatMap((d) => readdirSync(fileURLToPath(new URL(d, import.meta.url))).filter((f) => f.endsWith('.ts')).map((f) => statSync(fileURLToPath(new URL(d + f, import.meta.url))).mtimeMs)), statSync(fileURLToPath(import.meta.url)).mtimeMs);
-  const fresh = (file) => { try { const b = gunzipSync(readFileSync(file)), dl = b.readUInt32LE(16), d = b.subarray(20, 20 + dl).toString(); return d === digest && statSync(file).mtimeMs >= srcNewest; } catch { return false; } };
-  // (a file is named by the skeleton it was baked from, net-<n>.<digest>.bin: the files of any other digest, and the old unnamed ones, are removed, so the build can only ship files for this page's skeleton)
-  const { unlinkSync } = await import('node:fs'), want = new Set(networksOf(skel).map((_, n) => `net-${n}.${digest}.bin`));
-  for (const f of readdirSync(fileURLToPath(new URL('../public/anatomy/', import.meta.url)))) if (/^net-\d+(\.[^.]+)?\.bin$/.test(f) && !want.has(f)) { unlinkSync(fileURLToPath(new URL(`../public/anatomy/${f}`, import.meta.url))); console.log(`${f}: another skeleton's, removed`); }
-  const { loadLadder, saveLadder } = await import('./net-ladder.mjs'), ladder = loadLadder(), workers = (await import('node:os')).availableParallelism();   // (the rungs that took last time: a rung that folds is not built again)
-  if (process.argv.includes('--check')) {   // (builds nothing: every network's file for THIS skeleton is on disk and says so itself, else a non-zero exit with the names)
-    const bad = [...want].filter((f) => { try { const b = gunzipSync(readFileSync(fileURLToPath(new URL(`../public/anatomy/${f}`, import.meta.url)))); return b.subarray(20, 20 + b.readUInt32LE(16)).toString() !== digest; } catch { return true; } });
-    console.log(bad.length ? `net bake: missing or for another skeleton (page digest ${digest}): ${bad.join(', ')}` : `net bake: ${want.size} files, all for digest ${digest}`);
-    process.exit(bad.length ? 1 : 0);
-  }
-  networksOf(skel).forEach((edges, n) => {
-    if (fresh(fileURLToPath(new URL(`../public/anatomy/net-${n}.${digest}.bin`, import.meta.url))) && !process.argv.includes('--force')) { console.log(`net-${n}.${digest}.bin: current (digest ${digest}), kept`); return; }
-    const t0 = Date.now(), r = buildNetMesh(skel, edges, { states, maps: true, ladder, workers });
-    const gz = gzipSync(Buffer.from(encodeNet(r.mesh, digest, r.nodes)), { level: 9 });
-    writeFileSync(fileURLToPath(new URL(`../public/anatomy/net-${n}.${digest}.bin`, import.meta.url)), gz);
-    console.log(`net-${n}.${digest}.bin: ${edges.length} edges, ${r.report.vertices} vertices, ${r.report.triangles} triangles, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${Date.now() - t0} ms${r.mapNotes.length ? `; ${r.mapNotes.length} regions without a bridging map mesh: ${r.mapNotes.map((x) => x.node).join(', ')}` : ''}`);
-  });
-  if (saveLadder(ladder)) console.log('scripts/net-ladder.json updated: commit it with the mesher');
-  process.exit(0);
-}
 process.env.PPS_NO_BAKED = '1';   // (the bake builds live: it must never lay in the file it is about to replace)
 const out = fileURLToPath(new URL('../public/anatomy/skins.bin', import.meta.url));
 const outCircuit = fileURLToPath(new URL('../public/anatomy/circuit-skins.bin', import.meta.url));
