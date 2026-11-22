@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { partOf } from '../src/engine/hales/portal/topology.js';
 import { cardFor, normalizeSel, type Card, type Verb } from '../src/ui/action/cards.ts';
 import type { Env } from '../src/ui/action/read.ts';
 import { EI } from '../src/ui/action/read.ts';
@@ -11,6 +12,10 @@ import type { Sel } from '../src/ui/action/selection.ts';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type J = any;
 const fx: J = JSON.parse(readFileSync('tests/fixtures/actions-2d.json', 'utf8'));
+// Plan 17 (22 Nov): a piece of a split vein is the vein (its tap selects the host), so 2D's separate card for a piece is the one place 3D departs on purpose: tests/piece-sel.test.ts holds that.
+const isPiece = (s: J) => s?.type === 'edge' && partOf(s.id) !== s.id;
+fx.cards = fx.cards.filter((c: J) => !isPiece(c.sel));
+for (const sets of Object.values<J>(fx.sets)) for (const k of Object.keys(sets)) if (k.startsWith('edge:') && partOf(k.slice(5)) !== k.slice(5)) delete sets[k];
 const keyOf = (s: Sel) => `${s.type}:${(s as J).id ?? (s as J).part ?? (s as J).zone}`;
 const STATIC = ['type', 'id', 'key', 'label', 'short', 'icon', 'min', 'max', 'step', 'def', 'info', 'hist', 'options', 'ticks', 'tickNames', 'danger', 'quiet', 'small', 'unit'];
 const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o));
