@@ -172,6 +172,16 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .cl[data-fig="step"] { justify-content: center; padding: 0; border-radius: 50%; }
 .cl[data-fig="step"] .cl-k { color: var(--bg, #fff); font-weight: 700; letter-spacing: 0; }
 .cl[data-fig="step"] .cl-glass path { fill: var(--text); stroke: none; }
+/* the step disc is the one glass too (plan 20): with the blur on, its face is the text colour at 82 % over the shared blur and the shape is only the clip; blur off, reduced transparency
+   or no backdrop blur keeps the solid fill above */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair { background: color-mix(in srgb, var(--text) 82%, transparent) !important; }
+  html:not([data-noglass]) .cl[data-fig="step"] .cl-glass path { fill: none; }
+  @media (prefers-reduced-transparency: reduce) {
+    html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--text) !important; }
+    html:not([data-noglass]) .cl[data-fig="step"] .cl-glass path { fill: var(--text); }
+  }
+}
 .cl[data-fig="caliper"] .cl-k { letter-spacing: 0; }
 .cl-cal { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
 .cl-cal[data-on] { visibility: visible; }
