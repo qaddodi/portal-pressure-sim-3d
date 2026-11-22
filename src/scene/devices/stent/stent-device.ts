@@ -71,8 +71,7 @@ export class StentDevice {
     this.glint = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0, order: 4, spec: 0 }, 'ink');
     this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.6, order: 5 }, stentGoldEdge);
     this.objects = [this.graft, this.back, this.wires, this.glint, this.gold];
-    for (const o of this.objects) this.group.add(o.group);
-    this.group.visible = false;
+    for (const o of this.objects) { o.park(); this.group.add(o.group); }
   }
 
   /** The shunt's vessel: it carries the narrowing. */
@@ -152,8 +151,9 @@ export class StentDevice {
 
   private apply(): void {
     const a = this.amount;
-    this.group.visible = a > 0.002 && !!this.paths;
-    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a * GOLD_ALPHA);
+    for (const o of this.objects) o.present();   // (the stent's own eased share is the whole fade: a part leaves the list when it reaches nothing)
+    const w = this.paths ? 1 : 0;
+    this.graft.setAlpha(w * a * GRAFT_ALPHA); this.back.setAlpha(w * a * BACK_ALPHA); this.wires.setAlpha(w * a * FRONT_ALPHA); this.glint.setAlpha(w * a * GLINT_ALPHA); this.gold.setAlpha(w * a * GOLD_ALPHA);
     this.graft.setShadowAlpha(a);   // (the sleeve is nearly clear, its shadow is not: it follows the stent's own share)
     if (this.lastPalette) { for (const o of this.objects) o.applyPalette(this.lastPalette); this.paintWire(); }
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
