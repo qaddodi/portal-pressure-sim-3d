@@ -48,13 +48,23 @@ test('P1: a note a finger or the pointer is on stays; it fades TOAST_LINGER_MS a
   useShell.setState({ toast: null });
 });
 
-test('P2: a second note crossfades its words in place (the old fade out, the new fade in; the box stays)', () => {
+test('P2: a second note crossfades its words in place (the old fade out, the new fade in)', () => {
   const tsx = src('src/ui/shell/Toast.tsx'), css = src('src/ui/shell/shell.css');
   assert.match(tsx, /TOAST_SWAP_MS = 120/);
-  assert.match(tsx, /clock\.after\(\(\) => \{ setShown\(next\); setSwap\(false\); \}, TOAST_SWAP_MS\)/);
+  assert.match(tsx, /setShown\(next\); setSwap\(false\);[^\n]*TOAST_SWAP_MS\)/);
   assert.match(tsx, /data-swap=/);
-  assert.match(css, /\.sh-toast > span \{ transition: opacity 120ms linear; \}/);
+  assert.match(css, /\.sh-toast > span \{ display: block; transition: opacity 120ms linear; \}/);
   assert.match(css, /\.sh-toast\[data-swap\] > span \{ opacity: 0; \}/);
+});
+
+test('P2: when the new words change the box\'s width it eases (transform only, read from the ResizeObserver, words and button counter-scaled), never snaps', () => {
+  const tsx = src('src/ui/shell/Toast.tsx');
+  assert.match(tsx, /borderBoxSize\?\.\[0\]\?\.inlineSize/);
+  assert.match(tsx, /translate\(-50%, 0\) scaleX\(\$\{r\}\)/);
+  assert.match(tsx, /scaleX\(\$\{1 \/ r\}\)/);
+  assert.match(tsx, /pseudoElement: '::before'/);   // (the dot is counter-scaled too)
+  assert.match(tsx, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(tsx.replace(/const p = n\.offsetParent[^\n]*\n/, ''), /getBoundingClientRect\(\)\.width|style\.width/);
 });
 
 test('P4: a note that explains what the app chose to do is not red; a failure still is', async () => {
