@@ -41,11 +41,14 @@ test('in between, the plain tubes show: where both fillets are dissolved the sha
   assert.ok(none > 0, 'a stretch of t with no fillet');
 });
 
-test('the vertex stage collapses a fillet with no share before it reads a bone, and the fragment stage dissolves it in the shared screen pattern', () => {
+test('a fillet with no share is never moved away (its triangles at a seam ring share vertices with the plain tube: a lone vertex sent off screen stretches them across it): the projection is skipped and the fragment stage discards it, dissolving in the shared screen pattern', () => {
   const main = NET_VS.slice(NET_VS.indexOf('vDraw = 1.0;'), NET_VS.indexOf('vec3 pAcc = vec3(0.0)'));
   assert.match(main, /float share = smoothstep\(fd\.x, fd\.y, circT\) \* \(1\.0 - smoothstep\(fd\.z, fd\.w, circT\)\);/);
-  assert.match(main, /if \(share <= 0\.0\) \{ gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\); return; \}/);
-  assert.ok(!/netBone\(/.test(main), 'the early out reads only the region row');
+  assert.match(main, /if \(share <= 0\.0\) fillOff = true;/);
+  assert.ok(!/gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\); return;/.test(NET_VS), 'no early return that moves a vertex off the screen');
+  assert.ok(!/netBone\(/.test(main), 'the share reads only the region row');
+  assert.match(NET_VS, /if \(region > -0\.5 && !fillOff\) \{\s*\/\/ THE PROJECTION/, 'no projection (the expensive part) for a fillet with no share');
+  assert.match(NET_VS, /if \(region > -0\.5 && !fillOff\) \{\s*\/\/ \(every region has keys: one path\)/, 'no key reads either');
   assert.ok(NET_FS.includes(`if (vDraw < 0.999 && ${SCREEN_DITHER_GLSL} >= vDraw) discard;`));
   assert.ok(NET_FS.indexOf('vDraw < 0.999') < NET_FS.indexOf('vec3 n = normalize(vN);'), 'before any derivative');
 });

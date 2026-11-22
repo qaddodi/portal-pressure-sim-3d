@@ -11,7 +11,7 @@ import { VESSEL_LAYER } from '../../layers.ts';
 import { NET_CAP_FS, NET_CAP_VS, NET_FS, NET_GLOBALS, NET_RING_SAG, NET_SEWN_FS, NET_SEWN_VS, NET_VS, capPointIds, sewnPointIds } from './shaders.ts';
 import { BoneTable } from './bones.ts';
 import { EdgeStateTable } from './edge-state.ts';
-import { REGION_CAPS, REGION_PTS, keyPlan, regionTexture, regionsOf, type Region } from './regions.ts';
+import { REGION_CAPS, REGION_PTS, extensionRows, keyPlan, regionTexture, regionsOf, type Region } from './regions.ts';
 import { NetRows, type RowSource } from './rows.ts';
 import type { NetData, NetMeshData } from './load.ts';
 import type { NodeReport } from './mesh.ts';
@@ -146,7 +146,7 @@ export class NetFigure {
     const skel = this.skel, u = this.uniforms;
     const mesh = nets.length === 1 ? nets[0]!.mesh : mergeMeshes(nets.map((n) => n.mesh));
     const regions: Region[] = nets.length === 1 && nets[0]!.nodes.length ? regionsOf(skel, nets[0]!.nodes as NodeReport[]) : [];
-    const V = mesh.position.length / 3, kp = regions.length && mesh.keys?.length ? keyPlan(skel, regions, mesh.keys, mesh, mesh.bakeScale ?? []) : undefined, rt = regionTexture(regions, V, kp);
+    const V = mesh.position.length / 3, kp = regions.length ? keyPlan(skel, regions, mesh.keys, mesh, mesh.bakeScale ?? []) : undefined, rt = regionTexture(regions, V, kp, regions.length ? extensionRows(skel, mesh, nets[0]!.nodes as NodeReport[]) : undefined);
     const edges = nets.flatMap((n) => n.edges);
     const vEdge = vertexEdges(skel, mesh);
     const organsSet = new Set(edges.filter((e) => behind.has(e)));

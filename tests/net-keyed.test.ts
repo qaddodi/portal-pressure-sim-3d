@@ -51,10 +51,15 @@ test('the weights are the shader\'s: at a key\'s own lumens that key has the who
 test('the vertex stage blends the keys by those weights into the offsets the bone blend reads, before the projection', () => {
   assert.match(NET_VS, /int regionAttr = region > -0\.5 \? int\(region \+ 0\.5\) : 0;/);
   assert.ok(NET_VS.includes(`kslot = regionAttr / ${KEY_RIDX}`));
-  assert.match(NET_VS, /if \(kslot > 0\) \{[\s\S]*kw\[k\] = 1\.0 \/ \(dk \* dk\);/, 'weights 1 / (distance + 0.001)^2');
+  assert.match(NET_VS, /if \(region > -0\.5 && !fillOff\) \{[\s\S]*kw\[k\] = 1\.0 \/ \(dk \* dk\);/, 'weights 1 / (distance + 0.001)^2');
   assert.match(NET_VS, /float dk = sqrt\(d2\) \+ 0\.001;/);
   assert.match(NET_VS, /vec3 o = k == 0 \? o0\.xyz/, 'the bone blend reads the blended offsets, not the attributes');
   assert.match(NET_VS, /vec3 om = k == 0 \? m0\.xyz/);
   assert.ok(!/k == 0 \? off0\.xyz/.test(NET_VS) && !/k == 0 \? offM0\.xyz/.test(NET_VS));
   assert.match(NET_VS, /texelFetch\(capTex, ivec2\(c \* \d+, rrow\), 0\)\.w/, 'the arms\' live lumens are the capsule pass\'s');
+});
+
+test('one path: a region without keys is a bake error, not a second way for the shader to start', () => {
+  assert.throws(() => keyPlan(skel, [rg], undefined, mesh, [1, 1]), /has no keys/);
+  assert.throws(() => keyPlan(skel, [rg], [], mesh, [1, 1]), /has no keys/);
 });
