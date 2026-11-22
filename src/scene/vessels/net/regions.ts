@@ -53,7 +53,7 @@ export function regionsOf(skel: Skeleton, nodes: readonly NodeReport[]): Region[
       return { bones, mate: c.mate };
     });
     const variant = n.variant ?? 0;
-    out.push({ node: n.node, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, caps, variant, window: n.switchT ?? (variant === 0 ? BODY_ONLY : MAP_ONLY), ...(n.switchT2 ? { window2: n.switchT2 } : {}) });
+    out.push({ node: n.node, vertStart: n.vertStart, vertCount: n.vertCount, arms: n.arms.length, caps, variant, window: n.switchT ?? (variant === 0 ? BODY_ONLY : MAP_ONLY) });
   }
   return out;
 }

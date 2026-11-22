@@ -74,7 +74,6 @@ export function continueTo(skel: Skeleton, m: FitMesh, d: FitDone, pose: 0 | 1, 
 export function regionKeys(skel: Skeleton, m: FitMesh, done: readonly FitDone[], states: readonly (readonly number[])[], bakeScale: ArrayLike<number>, armEdges: (node: string) => number[]): RegionKeys[] {
   const out: RegionKeys[] = [];
   for (const d of done) {
-    if (d.variant === 2) continue;   // (a mid mesh carries no keys yet: its start is its one arrangement, scaled by the live radii)
     const arms = armEdges(d.node), vec = states.map((s) => arms.map((e) => s[e]!));
     if (!isWide(vec, arms.length)) continue;
     // up to MAX_KEYS keys; a region whose keys still fold gets up to MAX_KEYS_FOLDING (plan owner, 22 Nov), and any fold left is recorded on its key

@@ -118,29 +118,22 @@ export function fitRegion(skel: Skeleton, m: FitMesh, rg: FitRegion, pose: Pose,
 }
 
 /** What `fitAll` reads of a junction's report (net/mesh.ts NodeReport). `variant` is the pose the region's mesh was built at (0 body, 1 map). */
-export interface FitReport { node: string; kind: string; arms: number[]; triStart: number; triCount: number; vertStart: number; vertCount: number; variant?: 0 | 1 | 2; caps?: { mate: number }[]; capBones?: number[][]; rings?: number[][] }
+export interface FitReport { node: string; kind: string; arms: number[]; triStart: number; triCount: number; vertStart: number; vertCount: number; variant?: 0 | 1; caps?: { mate: number }[]; capBones?: number[][]; rings?: number[][] }
 
 /** A junction region ready to be fitted at other states: where it stands at both layouts (3 numbers per `rg.verts`: `at[0]` the body's, `at[1]` the map's; the one it was built at is the build, the other its fit). */
-export interface FitDone { rg: FitRegion; node: string; variant: 0 | 1 | 2; at: [Float64Array, Float64Array] }
+export interface FitDone { rg: FitRegion; node: string; variant: 0 | 1; at: [Float64Array, Float64Array] }
 
 /**
  * The other layout's fit of every junction region. `m.offset` holds each vertex's offsets AT THE POSE ITS MESH WAS BUILT (a map-built mesh's free vertices carry their map offsets there); the result is the body set (`offset`, with the map-built
  * vertices' fitted body offsets and `position`) and the map set (`offsetMap`: the body `offset` for a tube vertex), and the regions for the keys.
  */
-export function fitAll(skel: Skeleton, m: FitMesh & { index: Uint32Array }, reports: readonly FitReport[], midPose?: Pose): { offset: Float32Array; offsetMap: Float32Array; position: Float32Array; done: FitDone[] } {
+export function fitAll(skel: Skeleton, m: FitMesh & { index: Uint32Array }, reports: readonly FitReport[]): { offset: Float32Array; offsetMap: Float32Array; position: Float32Array; done: FitDone[] } {
   const offset = Float32Array.from(m.offset), offsetMap = Float32Array.from(m.offset), position = Float32Array.from(m.position), done: FitDone[] = [];
   for (const r of reports) {
     if (r.kind !== 'junction' || !r.caps || !r.capBones || !r.rings) continue;
     const v0 = r.variant ?? 0, p0 = (v0 === 1 ? 1 : 0) as 0 | 1, p1 = (1 - p0) as 0 | 1, used = new Set<number>(), tris = Array.from(m.index.subarray(3 * r.triStart, 3 * (r.triStart + r.triCount)));
     for (const v of tris) used.add(v);
     const rg: FitRegion = { verts: [...used].sort((a, b) => a - b), tris, free: [r.vertStart, r.vertCount], arms: r.arms.length, caps: r.capBones.map((bones, i) => ({ bones, mate: r.caps![i]!.mate })), rings: r.rings };
-    if (v0 === 2) {
-      // a mid mesh (built at t = 0.5, net/mesh.ts): its offsets serve both sets, there is nothing to fit; its keys are those of the base shape
-      const mid = boundPositions(skel, m, rg, midPose ?? 0.5);
-      for (let v = r.vertStart; v < r.vertStart + r.vertCount; v++) for (let j = 0; j < 12; j++) offsetMap[12 * v + j] = m.offset[12 * v + j]!;
-      done.push({ rg, node: r.node, variant: 2, at: [mid, mid] });
-      continue;
-    }
     const built = boundPositions(skel, m, rg, p0), other = fitRegion(skel, m, rg, p1, boundPositions(skel, m, rg, p1), -1), otherOff = offsetsAt(skel, m, rg, p1, other);
     rg.verts.forEach((v, q) => {
       if (!(v >= r.vertStart && v < r.vertStart + r.vertCount)) return;
