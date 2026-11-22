@@ -159,3 +159,61 @@ test('a plane summary given the room its panel leaves it is never taller than it
     }
   }
 });
+
+// ---- the zoomed card (Mohammad, 22 Nov: "zooming into a card on mac fucks everything") ----
+// The card zoom is a transform (inline `scale`, up to 2.2) on the card. A chart that sized itself from a rect read it as 2.2 times its own width, drew itself that wide (cut at the card's right edge), and the card
+// was then sized to the taller chart (it grew again under the zoom, ran past the screen and over its neighbour). Charts and cards take their own sizes with the transform divided out, and a style write that is only motion
+// (the zoom's per-frame `translate` and `scale`, a glide's `opacity`) never makes a chart look again.
+type Fake = { style: { getPropertyValue(n: string): string }; parentElement: Fake | null; ownerDocument: { body: unknown }; getBoundingClientRect(): { width: number; height: number } };
+function zoomed(own: number, fit: number, scale: number): { host: Fake; undo: () => void } {
+  const body = {}, ownerDocument = { body };
+  const mk = (css: Record<string, string>, parent: Fake | null, w: number): Fake => ({ style: { getPropertyValue: (n: string) => css[n] ?? '' }, parentElement: parent, ownerDocument, getBoundingClientRect: () => ({ width: w, height: 0 }) });
+  const card = mk({ scale: scale.toFixed(4) }, null, 0);
+  const inner = mk({ zoom: String(fit) }, card, 0);
+  const host = mk({}, inner, own * fit * scale);   // (a rect is in screen pixels: the box's own width under the fit's zoom and the card's scale)
+  const g = globalThis as unknown as { getComputedStyle?: unknown }, old = g.getComputedStyle;
+  g.getComputedStyle = (e: Fake) => ({ getPropertyValue: (n: string) => e.style.getPropertyValue(n) });
+  return { host, undo: () => { g.getComputedStyle = old; } };
+}
+
+test('a chart in a zoomed card measures its own width, at every zoom the card takes and with the card fit', async () => {
+  const { ownWidth, scaleOf } = await import('../src/ui/charts/fit.ts');
+  for (const s of [1, 1.2, 1.7, 2.2]) for (const fit of [1, 0.88]) for (const own of [300, 340, 540]) {
+    const { host, undo } = zoomed(own, fit, s);
+    try {
+      assert.equal(scaleOf(host as unknown as Element), s);
+      assert.equal(ownWidth(host as unknown as Element), own, `box of ${own} px under a card zoom of ${s} and a fit of ${fit}`);
+    } finally { undo(); }
+  }
+});
+
+test('every chart, laid out at the width its zoomed box measures, keeps inside it (a Mac card of 300 to 540 px at the greatest zoom)', async () => {
+  const { ownWidth } = await import('../src/ui/charts/fit.ts');
+  const bad: string[] = [];
+  for (const own of [300, 340, 540]) for (const s of [1.2, 2.2]) {
+    const { host, undo } = zoomed(own, 1, s);
+    let w = 0;
+    try { w = ownWidth(host as unknown as Element); } finally { undo(); }
+    assert.equal(w, own);
+    for (const k of CHARTS) for (const sp of k.specimens) for (const why of outside(sp.build(ctxOf('light', w, 'desktop')))) bad.push(`${k.kind}/${sp.id} at ${own} under ${s}: ${why}`);
+  }
+  assert.deepEqual(bad, [], 'content outside its zoomed chart box');
+});
+
+test('a style write that is only motion does not make a chart look again; a fit or a size does', async () => {
+  const { sizeStyleMoved } = await import('../src/ui/charts/fit.ts');
+  const rec = (before: string | null, after: string) => [{ oldValue: before, target: { getAttribute: () => after } }] as unknown as MutationRecord[];
+  assert.equal(sizeStyleMoved(rec('transform-origin: 10px 20px; translate: 1px 2px; scale: 1.1000;', 'transform-origin: 10px 20px; translate: 3px 4px; scale: 1.3000;')), false, 'the card zoom, frame by frame');
+  assert.equal(sizeStyleMoved(rec(null, 'translate: 3px 4px; scale: 1.3000;')), false, 'the zoom setting off');
+  assert.equal(sizeStyleMoved(rec('opacity: 0.3; transform: translateX(4px);', 'opacity: 0.6; transform: translateX(9px);')), false, 'a glide');
+  assert.equal(sizeStyleMoved(rec('--pz-fit: 0.880; translate: 1px 2px;', '--pz-fit: 0.900; translate: 3px 4px;')), true, 'the card fit moved');
+  assert.equal(sizeStyleMoved(rec('height: 200px;', 'height: 240px;')), true, 'a size moved');
+});
+
+test('the card and its chart take their sizes from a rect with the card zoom divided out', () => {
+  const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
+  assert.equal([...frame.matchAll(/getBoundingClientRect\(\)\.height/g)].length, [...frame.matchAll(/getBoundingClientRect\(\)\.height \/ scaleOf\(el\)/g)].length, 'every height CardFrame reads of its words is divided by the transform scale');
+  const chart = readFileSync(new URL('../src/ui/charts/Chart.tsx', import.meta.url), 'utf8');
+  assert.match(chart, /ownWidth\(el, z\)/);
+  assert.match(chart, /sizeStyleMoved\(recs\)/);
+});
