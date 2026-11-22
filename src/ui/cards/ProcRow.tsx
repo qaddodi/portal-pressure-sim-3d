@@ -3,13 +3,14 @@
 // The fill is the step the animation is on, the ring the step Next or Back has navigated to (his two marks, 13 Nov); both move by transform and glide, the dots change colour
 // with an ease, the name fades in, so nothing pops and the row never reflows. One a patient cannot have shows dimmed with why. The procedure is guided by Next
 // (ui/deck/procs-link.ts); the button is the same press for a hand on the card. What the row says is ui/cards/proc-rail.ts (tests/proc-rail.test.ts).
-import type { CSSProperties } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { observeThenFit } from '../layout/fit-later.ts';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { procPlanOf } from '../deck/procs-plan.ts';
 import { useProc } from '../deck/procs-state.ts';
 import { playProcedure } from '../deck/procs-link.ts';
-import { railOf } from './proc-rail.ts';
+import { fitRailName, railOf } from './proc-rail.ts';
 
 const ICON = {
   play: <path d="M8 5.5v13l10.5-6.5z" />,
@@ -19,8 +20,20 @@ const ICON = {
 export function ProcRow({ slide, deck }: { slide: Slide; deck: Deck }) {
   const i = deck.slides.findIndex((x) => x.id === slide.id), cs = i < 0 ? null : copiedOf(deck.id)?.slides[i];
   const mine = useProc((s) => s.key === `${deck.id}/${slide.id}`), st = useProc();
+  const room = useRef<HTMLSpanElement>(null);
+  const r0 = railOf(st), words = `${r0.count}|${r0.name}|${r0.sub}`;
+  // the words measured, not guessed: again when they change, when the row's width changes and when the fonts arrive (as the choice rows, ab-short.ts)
+  useLayoutEffect(() => {
+    const el = room.current;
+    if (!el) return;
+    let live = true;
+    fitRailName(el);
+    if (typeof document !== 'undefined' && document.fonts) void document.fonts.ready.then(() => { if (live) fitRailName(el); });
+    const off = observeThenFit([el], () => fitRailName(el));
+    return () => { live = false; off(); };
+  }, [words, mine]);
   if (!cs || !procPlanOf(cs) || !mine) return null;
-  const r = railOf(st), n = st.steps.length;
+  const r = r0, n = st.steps.length;
   const track = { ['--n' as string]: String(Math.max(1, n - 1)) } as CSSProperties;
   return (
     <div className="pz-prail-box" role="group" aria-label={`${st.name}, step by step: Next plays each step`} {...(r.why ? { 'data-why': r.why, title: r.why } : {})}>
@@ -37,8 +50,8 @@ export function ProcRow({ slide, deck }: { slide: Slide; deck: Deck }) {
         ))}
         <span className={`pz-prail-at${r.ringOn ? ' on' : ''}`} style={{ transform: `translateX(${(r.ring * 100).toFixed(3)}%)` }} aria-hidden="true"><i /></span>
       </span>
-      <span className="pz-prail-t" aria-live="polite">
-        <span key={`${r.count}|${r.name}`} className="pz-prail-tx" style={{ ['--ch' as string]: String(Math.max(1, r.chars)) } as CSSProperties}>
+      <span ref={room} className="pz-prail-t" aria-live="polite">
+        <span key={`${r.count}|${r.name}`} className="pz-prail-tx">
           {r.count ? <span className="pz-prail-n">{r.count}</span> : null}
           <b>{r.name}</b>
           {r.sub ? <span className="pz-prail-sub"> · {r.sub}</span> : null}
