@@ -27,8 +27,10 @@ export function ProcRow({ slide, deck }: { slide: Slide; deck: Deck }) {
     const el = room.current;
     if (!el) return;
     let live = true;
-    fitRailName(el);
-    if (typeof document !== 'undefined' && document.fonts) void document.fonts.ready.then(() => { if (live) fitRailName(el); });
+    // the words show only once they are fitted with the real font (data-fit fades them in): a late font never resizes them on screen
+    const ready = () => { fitRailName(el); el.setAttribute('data-fit', ''); };
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    if (!fonts || fonts.status === 'loaded') ready(); else { fitRailName(el); void fonts.ready.then(() => { if (live) ready(); }); }
     const off = observeThenFit([el], () => fitRailName(el));
     return () => { live = false; off(); };
   }, [words, mine]);
