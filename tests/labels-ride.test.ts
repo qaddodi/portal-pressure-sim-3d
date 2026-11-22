@@ -121,6 +121,17 @@ test('boxesFit judges the carried boxes against the view and the cards', () => {
   assert.equal(boxesFit([it], ride, view, []), true);
   assert.equal(boxesFit([{ ...it, ax: 380 }], ride, view, []), false, 'past the edge');
   assert.equal(boxesFit([it], ride, view, [{ x0: 110, y0: 70, x1: 300, y1: 300 }]), false, 'under a card');
+  assert.equal(boxesFit([], ride, view, []), false, 'nothing placed is nothing to keep: a cold start that solved to no names is placed again once the picture has moved');
+});
+
+test('a solve that placed nothing is placed again when the picture comes to rest somewhere else (cold ?slide= start: the closer boot view, then the real framing)', () => {
+  const r = new Ride(); let t = 1000;
+  const pts = (x: number) => ({ a: { x, y: 100 }, b: { x: x + 100, y: 100 }, c: { x: x + 100, y: 200 }, d: { x, y: 200 } });
+  const run = (x: number, ms: number, moving: boolean) => { let out = r.step({ now: t, dt: 16, on: true, moving, ...pts(x), layout: () => 'L', fits: (ride) => boxesFit([], ride, { x0: 0, y0: 0, x1: 500, y1: 500 }, []) }); for (let k = 0; k < ms / 16; k++) { t += 16; out = r.step({ now: t, dt: 16, on: true, moving, ...pts(x), layout: () => 'L', fits: (ride) => boxesFit([], ride, { x0: 0, y0: 0, x1: 500, y1: 500 }, []) }); if (out.solve) return true; } return false; };
+  assert.equal(run(50, 2000, false), true, 'solved once at rest');
+  assert.equal(run(50, 1000, false), false, 'and not again while nothing changes');
+  run(80, 300, true);
+  assert.equal(run(80, 2000, false), true, 'the picture moved and came to rest: nothing was placed to keep, so it is placed again');
 });
 
 test('a caption carried under a card or past the edge fades out whole over FADE.roomMs and back once it stands clear (RoomFade, one rule for every view)', () => {
