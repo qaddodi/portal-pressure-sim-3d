@@ -442,25 +442,25 @@ void main() {
     fwNz = fwidth(nzD);
   }
   vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
-  if (frontOut(vUv.x, reveal)) discard;
-  if (fadedOut()) discard;
+  if (frontOut(vUv.x, reveal)) DROP(1);
+  if (fadedOut()) DROP(2);
   // a part with no map course (a fan, a strand) fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve (circuit/shader.ts)
-  if (circStay < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= circStay) discard;
-  if (vFade < 0.004) discard;
+  if (circStay < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= circStay) DROP(3);
+  if (vFade < 0.004) DROP(4);
   // past the seam the skin draws this junction. On the Circuit's map the tubes morph into flat lines and the map draws its own joins, so the cut part comes back as the skin goes (SKIN_CIRC_SPAN of the change), by the same screen pattern as circStay's; at rest it is a plain discard
   if (skinCutOn() && skinPast()) {
     float cutA = smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, circT);
     float cutH = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     float weldW = skinWeldAt();
     // (a growing arm's cut end is drawn where the skin is not: the skin keeps the pixels whose pattern is under the weld, skin-object.ts setWeld, so each pixel is one or the other)
-    if ((cutA <= 0.0 || cutH >= cutA) && (weldW > 0.9999 || cutH < weldW)) discard;
+    if ((cutA <= 0.0 || cutH >= cutA) && (weldW > 0.9999 || cutH < weldW)) DROP(5);
   }
   // the map's own cut (circuit/skins.ts): past a seam of the Circuit the map's skin draws the junction, and it comes in over the end of the change as this goes (the same screen pattern again: both drawn on one pixel never)
   if (skinPastC()) {
     float keepC = 1.0 - smoothstep(${F(SKIN_CIRC_IN)}, 1.0, vCircShare);
     float cutHC = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))), weldC = skinWeldAtC();
     // (a growing arm's cut end is drawn where the map's skin is not: the skin keeps the pixels whose pattern is under the weld, skin-object.ts setWeld, so each pixel is one or the other)
-    if ((keepC <= 0.0 || cutHC >= keepC) && (weldC > 0.9999 || cutHC < weldC)) discard;
+    if ((keepC <= 0.0 || cutHC >= keepC) && (weldC > 0.9999 || cutHC < weldC)) DROP(6);
   }
   vec3 n = normalize(vN);
   // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
@@ -468,12 +468,12 @@ void main() {
   float sideL = length(sideX);
   vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
   float across = dot(n, side);
-  if (capCarved(across)) discard;
-  if (!gl_FrontFacing) discard;
+  if (capCarved(across)) DROP(7);
+  if (!gl_FrontFacing) DROP(8);
   if (dotted > 0.5) {
     // a closed potential collateral: a dotted thread along the tube's axis, nothing round it
     float dash = fract(vUv.x * len / 0.09);
-    if (dash > 0.45) discard;
+    if (dash > 0.45) DROP(9);
   }
 
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
@@ -513,7 +513,7 @@ void main() {
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
   }
-  if (cavA < 0.004) discard;
+  if (cavA < 0.004) DROP(10);
 #ifdef VEIL
   fadeHere *= veilK;
 #elif defined(SHADOW)
@@ -550,7 +550,7 @@ void main() {
     return;
   }
 #endif
-  if (fadeHere < 0.004) discard;
+  if (fadeHere < 0.004) DROP(11);
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
@@ -616,7 +616,7 @@ void main() {
   if (dbgInk < 0.5) inkT = 0.0;
 #endif
   inkT *= 1.0 - nbrK;
-  if (nbrK > 0.5 && dLat > rDevAx + 0.5) discard;
+  if (nbrK > 0.5 && dLat > rDevAx + 0.5) DROP(12);
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);

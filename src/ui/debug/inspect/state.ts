@@ -55,6 +55,7 @@ export const PRESETS: readonly Preset[] = [
   { id: 'flat', label: 'Flat colour', hint: 'No cel bands: the body colour alone. A speck that stays is not the shading.', make: (s) => both(s, { shade: 1 }) },
   { id: 'normals', label: 'Normals', hint: 'The surface normal as colour: a NaN or a flipped normal shows as a black or a hard-edged patch.', make: (s) => both(s, { shade: 2 }) },
   { id: 'who', label: 'Who draws it', hint: 'Every tube its own colour, every skin solid magenta: which pixels are skin and which are tube.', make: (s) => ({ ...s, tube: { ...s.tube, tint: true }, skin: { ...s.skin, colour: '#ff00ff', amount: 0.55 } }) },
+  { id: 'why', label: 'Why tubes drop pixels', hint: 'Every pixel a TUBE drops is painted in the colour of the reason: blue reveal front, green fade dither, light green map dither, yellow vFade, cyan skin cut, teal map skin cut, orange round cap, red back face, white dotted, purple cava cut, pink final alpha, magenta inside the other lumen. A hole with no paint is not a discard.', make: (s) => ({ ...s, tube: { ...s.tube, why: true } }) },
   { id: 'drops', label: 'Dropped pixels', hint: 'Skin pixels the shader would drop are painted: red a back face, cyan the presence dither, yellow no alpha, magenta past the ink band.', make: (s) => ({ ...s, drop: true }) },
   { id: 'all', label: 'Show all collaterals + shunts', hint: 'Every collateral open and every fixed shunt in at once (a forged frame: the numbers are not the patient\'s). Look for gaps, stubs and overlaps.', make: (s) => ({ ...s, allCollaterals: true, allShunts: true }) },
   { id: 'old', label: 'Old joins', hint: 'The old overlapping tubes with no skins: a speck that stays is not a skin.', make: (s) => ({ ...s, joins: 'old' }) },
@@ -62,7 +63,7 @@ export const PRESETS: readonly Preset[] = [
 
 /** What Copy puts on the clipboard: one line each, so a paste in a thread says exactly what was on (and the other thread can set the same). */
 export function stateText(s: InspectState, build = ''): string {
-  const part = (p: PartView) => `shade=${p.shade} dust=${+p.dust} heads=${+p.heads} ink=${+p.ink} tint=${+p.tint} colour=${p.colour}@${p.amount}`;
+  const part = (p: PartView) => `shade=${p.shade} dust=${+p.dust} heads=${+p.heads} ink=${+p.ink} tint=${+p.tint} why=${+p.why} colour=${p.colour}@${p.amount}`;
   return [
     `inspector${build ? ` · ${build}` : ''}`,
     `joins=${s.joins} drop=${+s.drop} leave=${s.leave || 'none'} aa=${+s.aa}`,
