@@ -92,3 +92,12 @@ test('an organ name\'s box is judged on another organ exactly as the plain loops
   }
   assert.ok(on > 30 && off > 30, `the sample has both answers (${on} on, ${off} off)`);
 });
+
+import { solverWarmer } from '../src/scene/labels/solver-warm.ts';
+test('the solver warm-up (a background slot job) runs its rounds, one small solve a step, and finishes', () => {
+  const step = solverWarmer(5);
+  let steps = 0, done = false;
+  while (!done && steps < 20) { done = step(); steps++; }
+  assert.equal(steps, 5);
+  assert.equal(done, true);
+});

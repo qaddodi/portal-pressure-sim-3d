@@ -6,6 +6,8 @@ import { reduced } from '../../ui/a11y/motion.ts';
 import { D_SMALL } from '../../ui/motion.ts';
 import './labels.css';
 import { clock } from '../../clock/frame.ts';
+import { whenQuiet } from '../../clock/idle.ts';
+import { solverWarmer } from './solver-warm.ts';
 import { latest, patient, indexOf } from '../../engine/index.ts';
 import { flowReversed } from '../lenses/vel-normal.copied.js';
 import { NODES } from '../../engine/hales/portal/topology.js';
@@ -206,6 +208,9 @@ export function LabelLayer() {
     const recs = new Map<string, Rec>();
     const mk = (tag: string, cls: string, parent: HTMLElement = root) => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
 
+    // (the solver's code compiled before the first view needs it: a solve run cold was the worst first-time frame of the 22 Nov audit)
+    const warm = whenQuiet(solverWarmer(), { tag: 'solver-warm', budgetMs: 3, delayMs: 1500 });
+
     // ── build the skeleton once ──
     // (each station has two pictures: the label, and the one it is leaving while it crosses to a new spot or new words, drawn as its own element with no ring: fade.ts)
     for (const s of [...STATIONS, ...STENT_STATIONS]) {
@@ -302,7 +307,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { figCards.destroy(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { warm.cancel(); figCards.destroy(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
