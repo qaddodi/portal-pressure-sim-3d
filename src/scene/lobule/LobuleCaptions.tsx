@@ -93,6 +93,7 @@ export function LobuleCaptions() {
       const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, hide: !m, inView, unit: onSlide() });
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
       const out = solve({ items, view: vw, blockers: bl, lines: built.lines, keep: built.keep });
+      if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] solved:', JSON.stringify({ items: items.length, placed: out.placed.length, view: vw, room: cel.rig.targetRoom, fit: cel.rig.fitRoom, hand: cel.rig.handView, moving: cel.rig.isMoving, corners: [pa, pb, pc, pd], walls: bl.length }));
       placed = new Map(out.placed.map((p) => [p.id, p]));
       metas = built.meta;
       itemsNow = new Map(items.map((it) => [it.id, it]));
