@@ -4,7 +4,8 @@
 //
 // A procedure is guided by Next, as the 2D app does it (presenter.js procNext / procBack, "guided by Next", his ask 29 Oct): the first Next turns the figure to the anatomy and puts the catheter in (to step 1's
 // stop, the camera following its tip), each Next after it plays exactly one step and holds at its stop, Back runs the step before it backwards (from step 1, back to before the start: the slide as it was), and
-// the Next after the last step moves on. The live model takes the change as the sequence passes the procedure's `apply` time (a patient who already has the result has it taken back first, and put back).
+// the Next after the last step moves on. The live model takes the change as the sequence passes the procedure's `apply` time, and the procedure's graph (ui/charts/evgraph/live.ts) starts its run of the live model then.
+// A slide that plays a procedure lands on the state BEFORE it (hp/link.ts, 2D `pre`): the result comes only from the run. Back from the slide after lands on it done.
 // The presenter's move asks this link first (ui/deck/proc-step.ts, called from ui/ui-store.ts move); a slide that says `auto` starts as it lands going forward, like a time-lapse.
 import { sceneApi } from '../../scene/api.ts';
 import { clock, type TimerId } from '../../clock/frame.ts';
@@ -13,7 +14,10 @@ import { useShell } from '../shell/store.ts';
 import { viewAt } from './presenter-machine.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { currentParams, updateParams } from '../action/params.ts';
-import { latestMetrics, engineSend } from '../../decks/hp/figure-engine.ts';
+import { latestMetrics, engineSend, engineFrames } from '../../decks/hp/figure-engine.ts';
+import { landsDone } from '../../decks/hp/slide-motion.ts';
+import { eventGraphOf } from '../charts/evgraph/model.ts';
+import { leaveEvRun, resetEvRun, restoreEvRun, startEvRun } from '../charts/evgraph/live.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { route3d } from '../../scene/procedures/route3d.ts';
@@ -51,6 +55,7 @@ export function linkProcs(): () => void {
   let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: TimerId | undefined, lastView = 'body';
   let probeOff: (() => void) | null = null, probeHold: { release(): void } | null = null;
   let plan: ProcPlan | null = null;
+  let curStop = -1, prevStop = -1;   // the stop the talk is on, and the one it came from (Back from the slide after lands a procedure slide done)
   let auto: { g: number; key: string } | null = null;   // a slide whose procedure starts by itself once the slide has landed (2D procPlay, after the camera and the cards)
   const later = (fn: () => void, ms: number) => { const t = clock.after(fn, ms); timers.push(t); return t; };
   const room = () => useUi.getState().boxes.free;
@@ -59,7 +64,7 @@ export function linkProcs(): () => void {
   // `ctl` is the run on the figure: its kind, the card's index of its first step, how many steps it has, the step Next or Back has navigated to (`at`, the ring) and whether it is still going to that step's stop.
   // The first Next puts the catheter in (to step 1's stop), each Next after it plays the next step, Back runs the step before it backwards, and the Next after the last moves on. The figure's own clock runs
   // the sequence (scene/procedures/layer.ts drive/aimAt: a time that runs to a stop, turns round without a jump); this link only says which stop.
-  interface Ctl { kind: string; base: number; n: number; at: number; hold: boolean; applied: boolean; original: unknown; last: { name: string; at: number }; snaps: { before: unknown; own: unknown } | null }
+  interface Ctl { kind: string; base: number; n: number; at: number; hold: boolean; applied: boolean; last: { name: string; at: number }; snaps: { before: unknown; own: unknown } | null }
   let ctl: Ctl | null = null;
   let phase: ProcPhase = 'wait';
   let starting = false;              // the figure is turning to the anatomy before the first step: a Next waits with it
@@ -106,13 +111,23 @@ export function linkProcs(): () => void {
     setProc({ ring: ctl.base + ctl.at, phase: phase === 'run' ? 'play' : phase === 'done' ? 'done' : 'wait' });
   };
 
+  /** The procedure's graph follows the change: its run starts from the model's frame at the moment the patient changes, and goes when the change is taken back. Only the slide's own procedure has a graph (not the reading after it). */
+  function evChange(kind: string, on: boolean): void {
+    if (!key || !plan || kind !== plan.kind) return;
+    if (!on) { resetEvRun(key); return; }
+    const s = slideNow(), spec = s ? eventGraphOf(s) : null, { deck } = useUi.getState();
+    if (!s || !spec || !deck) return;
+    const i = copiedOf(deck.id)?.slides.indexOf(s) ?? -1, fp = i >= 0 ? (useStates.getState().results[deck.id]?.[i]?.fp as Record<string, number | null | undefined> | undefined) ?? null : null;
+    startEvRun(key, spec, fp, currentParams(), engineFrames);
+  }
+
   /** Start one kind of the slide's procedure standing before its first step, then send it to a stop. `base` is the card's index of the kind's first step. */
-  function begin(kind: string, base: number, g: number, onOver: (done: boolean) => void, params0: unknown): void {
+  function begin(kind: string, base: number, g: number, onOver: (done: boolean) => void): void {
     const sp = specFor(kind)!, eus = kind === 'eus', hold = HOLD_KINDS.has(kind), n = sp.steps.length;
     const morph = !!(sp as { morph?: boolean }).morph, scope = (sp as { scope?: 'band' }).scope ?? null, snaps = morph ? snapsOfSlide() : null;
-    const c: Ctl = { kind, base, n, at: -1, hold, applied: false, original: params0, last: { name: '', at: 0 }, snaps };
+    const c: Ctl = { kind, base, n, at: -1, hold, applied: false, last: { name: '', at: 0 }, snaps };
     // (a morph procedure's change is the engine's: from the state before the slide to the slide's own, or back)
-    const change = (on: boolean): void => { if (c.snaps) engineSend({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };
+    const change = (on: boolean): void => { evChange(kind, on); if (c.snaps) engineSend({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };
     ctl = c; playing = true; phase = 'run';
     sceneApi.procedure.drive(kind, {
       keep: hold,
@@ -136,9 +151,8 @@ export function linkProcs(): () => void {
         if (g !== gen || ctl !== c) return;
         playing = false; held = false; ctl = null; sceneApi.follow(null);
         if (rewound) {
-          // Back from the first step: the slide as it was (the patient who had the result has it again)
-          if (c.snaps) engineSend({ type: 'morph', snap: c.snaps.own, ms: MORPH_BACK_MS });   // (the slide's own state, as it landed)
-          else if (c.original) updateParams(() => c.original as never, { history: false, label: sp.name });   // (the patient as he was, who may have had the result: unapply took it off as the sequence went back past it)
+          // Back from the first step: the slide as it landed, before its procedure (the sequence going back past `apply` has already taken the result off: change(false))
+          resetEvRun(key);
           if (eus || scope) useProbes.getState().setEndoscope({ on: false });   // (the scope goes out with the run it was part of)
           phase = base > 0 ? 'between' : 'wait'; setProc({ phase: 'wait', at: base - 1, ring: base - 1 });
         } else if (done) {
@@ -198,6 +212,7 @@ export function linkProcs(): () => void {
       if (g !== gen) return;
       starting = false;
       const had = !!params && sp.had(params), sn = (sp as { morph?: boolean }).morph ? snapsOfSlide() : null;
+      resetEvRun(key);   // (a replay: the graph's line from the last play goes)
       if (sn) engineSend({ type: 'morph', snap: sn.before, ms: MORPH_BACK_MS });   // (an engine action cannot be taken back: the run starts from the state before the slide)
       else if (had) updateParams((q) => sp.undo(q) as never, { history: false, label: `${sp.name} undone` });
       setProc({ why: '', phase: 'play', at: -1, ring: 0 });
@@ -206,7 +221,7 @@ export function linkProcs(): () => void {
         if (g !== gen || !done) return;
         if (then) { phase = 'between'; setProc({ phase: 'wait', at: sp.steps.length - 1, ring: sp.steps.length }); return; }
         phase = 'done'; setProc({ phase: 'done', at: useProc.getState().steps.length - 1, ring: -1 });
-      }, params);
+      });
     };
     // (the figure may still be turning back from the lobule: a Next waits with it, for a few seconds at most, rather than leaving)
     if (sceneApi.figureView === 'body') go();
@@ -226,7 +241,7 @@ export function linkProcs(): () => void {
       if (g !== gen) return;
       if (!done) { phase = 'between'; setProc({ phase: 'wait', at: sp.steps.length - 1, ring: sp.steps.length - 1 }); return; }
       phase = 'done'; setProc({ phase: 'done', at: useProc.getState().steps.length - 1, ring: -1 });
-    }, currentParams());
+    });
     return true;
   }
 
@@ -295,7 +310,7 @@ export function linkProcs(): () => void {
   /** Take a slide's features off the figure. `keepLayers`: moving to another slide, which sets its own (the zone bands stay through a way out of the lobule). */
   function release(keepLayers = false): void {
     stopPlay(); stopProbe(); clearProc();
-    if (key) { sceneApi.setStented([]); }
+    if (key) { leaveEvRun(key); sceneApi.setStented([]); }
     if (washKey) { sceneApi.setWash(false); washKey = ''; }
     if (ringKey) { sceneApi.setCatheterRing(null); ringKey = ''; }
     if (layersOn && !keepLayers) { clock.cancel(layerTimer); const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); layersOn = false; }
@@ -303,7 +318,8 @@ export function linkProcs(): () => void {
   }
 
   const sync = (): void => {
-    const { deck, stops, pos, dir } = useUi.getState();
+    const { deck, stops, pos } = useUi.getState();
+    if (pos.stop !== curStop) { prevStop = curStop; curStop = pos.stop; }
     const v = stops.length ? viewAt(stops, pos) : null;
     const s = deck && v?.slide && v.words === 'teach' ? slideNow() : null;
     const k = s && deck && v?.slide ? `${deck.id}/${v.slide.id}` : '';
@@ -326,10 +342,13 @@ export function linkProcs(): () => void {
         const sp = specFor(plan.kind), steps = stepsOfPlan(plan);
         // (why: the spec's own refusal for this patient, on the card from the start, as 2D's procEl)
         const params = currentParams(), why = sp && params && !sp.had(params) ? sp.can(params, latestMetrics() as never) || '' : '';
-        setProc({ key: k, steps, at: dir < 0 ? steps.length - 1 : -1, ring: dir < 0 ? -1 : 0, phase: dir < 0 ? 'done' : 'wait', why, name: sp?.name ?? plan.kind });
-        // (Back onto a played-through slide: it stands done; Next moves on, the button plays it again.) Going forward the first Next starts it; `auto` starts it as the slide lands, after the camera and the cards have settled.
-        phase = dir < 0 ? 'done' : 'wait';
-        if (dir > 0 && sp && plan.auto) { auto = { g: gen, key: k }; tryAuto(); }
+        const done = landsDone(prevStop, pos.stop);
+        setProc({ key: k, steps, at: done ? steps.length - 1 : -1, ring: done ? -1 : 0, phase: done ? 'done' : 'wait', why, name: sp?.name ?? plan.kind });
+        // (Back from the slide after onto a played-through slide: it stands done, with its graph's line whole; Next moves on, the button plays it again. Any other way in lands before the procedure.)
+        // Going forward the first Next starts it; `auto` starts it as the slide lands, after the camera and the cards have settled.
+        phase = done ? 'done' : 'wait';
+        if (done) { const spec = eventGraphOf(s); if (spec) restoreEvRun(k, spec); }
+        if (!done && sp && plan.auto) { auto = { g: gen, key: k }; tryAuto(); }
       }
     }
     if (!key || !s) return;

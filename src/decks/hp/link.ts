@@ -13,7 +13,9 @@ import { playLapse, playsLapse, readyLapse, showLapseEnd, stopLapse } from './la
 import { slideLanded, onLanded } from '../../ui/deck/landing.ts';
 import { pushFor, showPushEnd } from './lapse-push.ts';
 import { pushShotOf } from './lapse-cam.ts';
-import { freshPatient, morphMsFor } from './slide-motion.ts';
+import { specOf, procKindOf } from '../../scene/procedures/copied/proc-anim.js';
+import '../../scene/procedures/instrument-specs.ts';   // (registers EVL and paracentesis, the procedures that are engine actions)
+import { freshPatient, landsDone, morphMsFor, opensBefore } from './slide-motion.ts';
 import { dipIn, dipOut } from '../../ui/shell/figure-dip.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -83,10 +85,15 @@ export function linkStates(deck: Deck): () => void {
       if (n.key === 'map') for (const k of ['sbp', 'dbp']) if (typeof fp?.[k] === 'number') r[`${k}@${n.at}`] = fp[k] as number;
     }
     useUi.getState().setReadings(r);
-    const snap = res?.[i]?.snap;
+    const own = res?.[i]?.snap, cs0 = stop.kind === 'slide' ? copied.slides[i] : undefined;
+    // (2D `pre`: a slide that plays its procedure, going forward, lands on the state BEFORE it; its own state, with the result, comes only from the run, or Back from the slide after)
+    // (a procedure that is an engine action, a band or a tap, has no params to undo: the state before it is the slide before's, as procs-link.ts snapsOfSlide runs it)
+    const morph = !!(cs0?.procedure && (specOf(procKindOf(cs0.procedure) ?? '') as { morph?: boolean } | null)?.morph);
+    const before = (res?.[i]?.before as { snap?: unknown } | null | undefined)?.snap ?? (morph && i > 0 ? res?.[i - 1]?.snap : undefined);
+    const snap = before && opensBefore(cs0, true, landsDone(from, pos.stop)) ? before : own;
     if (snap && snap !== morphed) {
       morphed = snap;
-      const cs = stop.kind === 'slide' ? copied.slides[i] : undefined;
+      const cs = cs0;
       const key = `${deck.id}/${ids[i]}`, cam = cs && stop.kind === 'slide' ? pushShotOf(cs) : null;
       if (playsLapse(cs, i) && res?.[i - 1]?.snap && !(from > pos.stop)) {
         // a time-lapse: the days play on the live figure from the slide before's state (the camera pushing slowly to where they end), then it eases to this slide's computed end;

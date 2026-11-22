@@ -4,13 +4,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { LABEL_NAMES } from '../src/scene/labels/names.copied.ts';
 import { STATIONS, TERM_STATIONS, stationsOfTerms, stationOfVessel } from '../src/scene/labels/stations.ts';
-import { KEY_LENSES, keyModel, rampStops } from '../src/scene/labels/key.ts';
+import { KEY_LENSES, keyModel } from '../src/scene/labels/key.ts';
 import { WALK, step, describe, neighbourInOrder } from '../src/scene/labels/walk.ts';
 import { MAPPED } from '../src/scene/vessels/network.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
 import { hasVessel } from '../src/engine/index.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
-import { schemeOf } from '../src/scene/labels/key.ts';
 import { pinned2D } from './two-d-pin.ts';
 
 // ── words: the 2D app's, never retyped ──
@@ -64,7 +63,7 @@ test('the catheter callout words are the 2D app\'s', () => {
 test('every lens has a key in every look, with the 2D words, and the ends are named only where the 2D key names them', () => {
   assert.equal(KEY_LENSES.length, 10);
   for (const look of LOOK_IDS) for (const lens of KEY_LENSES) {
-    const k = keyModel(lens, schemeOf(look))!;
+    const k = keyModel(lens, look)!;
     assert.ok(k.name && k.aria.startsWith('Vessels colored by'), `${lens} ${look}`);
     assert.ok(!!k.scale !== !!k.swatches, `${lens}: a scale or swatches, not both`);
     if (k.scale) assert.ok(/^linear-gradient\(in oklab to right, /.test(k.scale.gradient) && k.scale.gradient.includes('#'), `${lens} gradient`);
@@ -78,12 +77,6 @@ test('every lens has a key in every look, with the 2D words, and the ends are na
   assert.throws(() => keyModel('nonsense', 'light'), /no figure key/);
 });
 
-test('a ramp\'s stops run 0 to 1 whatever its own scale (pressure runs 0 to 30 mmHg)', () => {
-  const s = rampStops('#B8D5ED 0, #85B6E9 5, #6787E8 10, #925CDD 12, #A4216E 20, #680C2F 30');
-  assert.equal(s[0].at, 0); assert.equal(s[s.length - 1].at, 1); assert.ok(Math.abs(s[2].at - 1 / 3) < 1e-9);
-  const t = rampStops('#9CC7B5 0, #1B366A 1');
-  assert.equal(t[1].at, 1);
-});
 
 // ── the keyboard walk ──
 test('Tab reaches every drawn vessel once, in the engine\'s order, and each has words a screen reader can say', () => {

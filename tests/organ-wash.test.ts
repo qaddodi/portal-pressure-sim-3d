@@ -180,12 +180,12 @@ test('WP1b: the liver on Light and Dark is not the washed blob: its centre is th
   assert.doesNotMatch(ORGAN_FS, /sheen/i);
 });
 
-test('WP1b: the rim light (og-light on the upper left edge) is off on the liver, the stomach and the duodenum, 2D\'s on the others, in the see-through fill', () => {
+test('WP1b: the rim light (og-light on the upper left edge) is off on the liver (and its caudate lobe, the liver\'s own dome), the stomach and the duodenum, 2D\'s on the others, in the see-through fill', () => {
   const layer = new OrganLayer(createShared(), Object.fromEntries(Object.keys(ORGAN_STYLE).map((id) => [id, () => new BoxGeometry(0.4, 0.3, 0.1)])));
   layer.applyLook(PALETTES.light); layer.update(0);
   for (const id of Object.keys(ORGAN_STYLE)) {
     const rim = layer.byId.get(id)!.toon.uniforms.rimK!.value;
-    if (['liver', 'stomach', 'duodenum'].includes(id)) assert.equal(rim, 0, id); else assert.ok(rim > 0, id);
+    if (['liver', 'caudate', 'stomach', 'duodenum'].includes(id)) assert.equal(rim, 0, id); else assert.ok(rim > 0, id);
   }
   layer.dispose();
 });

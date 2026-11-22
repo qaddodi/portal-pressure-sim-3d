@@ -12,6 +12,7 @@ import { StentDevice } from '../devices/stent/stent-device.ts';
 import { VeinStent, canStent } from '../devices/stent/vein-stent.ts';
 import { OSTIUM_U } from './ostium.ts';
 import { Tamponade } from '../devices/balloons/tamponade.ts';
+import { tamponadeAt } from '../devices/balloons/tamponade-shape.ts';
 import { Bands } from '../devices/bands.ts';
 import { GlueCast } from '../devices/glue-cast.ts';
 import type { ScopeDrive } from '../devices/probes/scope.ts';
@@ -373,6 +374,8 @@ export class ProcedureLayer {
     let stentMoving = this.releaseTract(dt);
     for (const s of this.stents.values()) stentMoving = s.update(dt) || stentMoving;
     for (const s of this.veinStents.values()) stentMoving = s.update(dt) || stentMoving;
+    // (the tube follows the PROCEDURE's clock while its run is on the figure, the model's balloon afterwards: the model changes only at the run's T.apply)
+    { const on = this.step ?? this.run, t = this.step ? this.step.clk.t : this.run?.t ?? 0; this.tamponade.follow(on?.kind === 'tamponade' ? tamponadeAt(t) : null); }
     stentMoving = this.tamponade.update(dt) || stentMoving;
     stentMoving = this.bands.update(dt) || stentMoving;
     const sr = this.step;

@@ -26,6 +26,9 @@ test('each kind is a timeline the card, the layer and the camera already know: s
     assert.equal(sp.stops.length, sp.steps.length, `${k}: one stop to a step`);
     assert.ok(sp.stops.every((t, i) => t > (i ? sp.stops[i - 1]! : 0)) && sp.stops.at(-1) === sp.T.end, `${k}: stops rise to the end`);
     assert.ok(sp.T.apply > sp.stops[0]! && sp.T.apply < sp.T.back && sp.T.back < sp.T.end, `${k}: the change comes after the first step and before the way out`);
+    // the result comes in during the step whose words describe it (DIPS came in during "Needle across", a step early)
+    const lo = sp.stops[sp.resultStep - 1] ?? 0, hi = sp.stops[sp.resultStep]!;
+    assert.ok(sp.T.apply >= lo && sp.T.apply < hi, `${k}: the change (${sp.T.apply}) is in step ${sp.resultStep} (${lo} to ${hi})`);
     const legs = legsOf(k);
     assert.equal(legs.length, sp.steps.length, k);
     assert.equal(legs.at(-1)![1], sp.T.end, k);
@@ -77,7 +80,7 @@ test('the link plays a morph kind between the slide before and the slide itself,
   const link = readFileSync(new URL('../src/ui/deck/procs-link.ts', import.meta.url), 'utf8');
   assert.match(link, /type: 'morph', snap: on \? c\.snaps\.own : c\.snaps\.before/, 'the change is a morph between the two states');
   assert.match(link, /res\?\.\[i - 1\]\?\.snap/, 'the state before is the slide before it in the chain');
-  assert.match(link, /snap: c\.snaps\.own, ms: MORPH_BACK_MS/, 'Back from step 1 puts the slide back as it landed');
+  assert.doesNotMatch(link, /snap: c\.snaps\.own, ms: MORPH_BACK_MS/, 'Back from step 1 leaves the slide as it landed (before its procedure), it never puts the result back');
   assert.match(link, /setEndoscope\(\{ on: want, mode: scope \}\)/, 'the ligator scope follows the run');
   assert.match(link, /snap: sn\.before/, 'the first Next goes to the state before');
 });
