@@ -56,17 +56,18 @@ const stats = () => ({ rebuilds: 0, worstMs: 0, lastNode: '', ...(scene.skins?.s
 function run(name, begin, { each = null, goals = null, instant = false } = {}) {
   const before = new Map([...probes].map(([k, f]) => [k, f()])), s0 = stats();
   begin();
-  let worst = 0, worstAt = 0, prev = before, over50 = 0; const pops = new Map();
+  let worst = 0, worstAt = 0, worstLaps = '', prev = before, over50 = 0; const pops = new Map();
   for (let t = 0; t <= SECONDS * 1000; t += DT) {
     each?.(t); clockNow += DT;
+    const lap0 = { ...scene.systemMs };
     const a = performance.now(); scene.update(clockNow); const ms = performance.now() - a;
-    if (ms > worst) { worst = ms; worstAt = t; }
+    if (ms > worst) { worst = ms; worstAt = t; worstLaps = Object.entries(scene.systemMs).map(([k, v]) => [k, v - (lap0[k] ?? 0)]).filter(([, v]) => v > 0.5).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', '); }
     if (ms > BUDGET.updateMs) over50++;
     for (const [k, f] of probes) { const v = f(), d = Math.abs(v - prev.get(k)); if (d > BUDGET.pop && !pops.has(k)) pops.set(k, { at: t, from: +prev.get(k).toFixed(3), to: +v.toFixed(3) }); prev.set(k, v); }
   }
   const s1 = stats(), stuck = [];
   for (const [k, goal, now] of goals?.() ?? []) if (Math.abs(goal - now) > BUDGET.settle) stuck.push(`${k}: goal ${goal}, now ${+now.toFixed(3)}`);
-  const row = { step: name, updateMaxMs: +worst.toFixed(1), at: worstAt, over50, rebuilds: s1.rebuilds - s0.rebuilds, worstRebuildMs: +s1.worstMs.toFixed(0), lastNode: s1.lastNode, pops: [...pops].map(([k, v]) => ({ k, ...v })), stuck };
+  const row = { step: name, updateMaxMs: +worst.toFixed(1), at: worstAt, worstLaps, over50, rebuilds: s1.rebuilds - s0.rebuilds, worstRebuildMs: +s1.worstMs.toFixed(0), lastNode: s1.lastNode, pops: [...pops].map(([k, v]) => ({ k, ...v })), stuck };
   row.fail = [];
   if (row.updateMaxMs > BUDGET.updateMs) row.fail.push(`update ${row.updateMaxMs} ms > ${BUDGET.updateMs}`);
   if (row.rebuilds > BUDGET.rebuilds) row.fail.push(`${row.rebuilds} skin rebuilds > ${BUDGET.rebuilds} (${row.lastNode})`);
@@ -105,7 +106,7 @@ if (json) console.log(JSON.stringify({ construct, missing, budget: BUDGET, rows 
 else {
   console.log(`scene audit (node CPU, no GPU): scene built in ${construct.ms} ms, baked skins ${construct.baked ? 'laid in' : 'NOT in (live remesh; run scripts/bake-skins.mjs)'}${missing.length ? `, probes missing: ${missing.join(', ')}` : ''}`);
   console.log('step'.padEnd(34) + 'maxMs  >50  rebuilds  result');
-  for (const r of rows) console.log(r.step.padEnd(34) + String(r.updateMaxMs).padStart(5) + String(r.over50).padStart(5) + String(r.rebuilds).padStart(9) + '  ' + (r.fail.length ? 'FAIL ' + r.fail.join(' | ') : 'ok'));
+  for (const r of rows) console.log(r.step.padEnd(34) + String(r.updateMaxMs).padStart(5) + String(r.over50).padStart(5) + String(r.rebuilds).padStart(9) + '  ' + (r.fail.length ? 'FAIL ' + r.fail.join(' | ') : 'ok') + (r.updateMaxMs > 20 && r.worstLaps ? `   [worst frame at ${r.at} ms: ${r.worstLaps}]` : ''));
   console.log(`${rows.length - failed.length}/${rows.length} steps ok${failed.length ? `; ${failed.length} failed` : ''}. Numbers are node CPU; a phone is 2 to 4x slower.`);
 }
 scene.dispose();

@@ -102,7 +102,7 @@ test('the tube: no hole by default, setSkinHole writes the two slots and reports
   assert.match(VESSEL_FS, /uniform vec2 skinHole;/); assert.match(VESSEL_FS, /uniform vec2 skinHole2;/);
   assert.match(VESSEL_FS, /bool inSkinHole\(vec2 h\) \{ return h\.y > h\.x && vUv\.x > h\.x \+ [^;]*&& vUv\.x < h\.y - [^;]*; \}/, 'inside (lo, hi), a hair of margin so the seam rings themselves are kept');
   assert.match(VESSEL_FS, /inSkinHole\(skinHole\) \|\| inSkinHole\(skinHole2\)/);
-  assert.match(VESSEL_FS, /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s, 'the Circuit rule (the cut part comes back as the skin goes) is the cut\'s own');
+  assert.match(VESSEL_FS, /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*DROP\(5\);/s, 'the Circuit rule (the cut part comes back as the skin goes) is the cut\'s own');
 });
 
 test('the set keeps a vessel\'s holes (two slots), writes them to the tube, and takes them back; a third hole is a SkinBuildError', () => {

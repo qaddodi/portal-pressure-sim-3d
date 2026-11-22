@@ -55,9 +55,9 @@ export function divideOf(shunt: string, vein: string): Divide | null {
   memo.set(key, out);
   return out;
 }
-/** Where a ring at arc `a` (figure units from the vein's start) is laid when the stretch is divided: the vein's first `cut + R` units, the cut and the round end's one radius, are laid over the cap (`cut` to `cut + R`), ring by ring, so the quarter circle
- *  is made of every ring the stretch has and not of the few that lay in it (the vertex stage's own sum: shaders.ts, "THE STUMP'S ROUND END"). Past `cut + R` a ring stays where it is. */
-export const capArc = (a: number, cut: number, R: number): number => (cut > 0 && a < cut + R ? cut + R * (a / (cut + R)) : a);
+/** A divided vein is built with rings this many times closer than the usual (shape.ts tubularOf): its round end is the quarter circle over one radius, and it takes its shape from the rings that lie in it, so it needs a dozen of them. The rings stay on the vein's own
+ *  path: laying the stretch's rings over the cap along each ring's tangent put them off it on the portal trunk's bend, and the end came out a skewed spike. */
+export const DIVIDED_RING_K = 12;
 /** What the shader gets for one divided vein: the cut and the tie in units, the pinch share; `amount` is the shunt's drawing (0..1), `keepWhole` a side-to-side portocaval shunt. */
 export function stumpOf(shunt: string, vein: string, amount: number, keepWhole: boolean): [number, number, number] {
   const d = divideOf(shunt, vein);
