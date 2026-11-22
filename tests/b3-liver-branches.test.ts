@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
+import { NBR_CUT_PX } from '../src/scene/vessels/shaders.ts';
 import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT } from '../src/scene/vessels/liver-branches.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 
@@ -203,9 +204,15 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   }
   assert.equal(forkMateOf('PV_TRUNK'), null);
   assert.match(VESSEL_VS, /attribute vec2 nbr;/);
-  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
+  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, nbrPx\)/);
+  assert.match(VESSEL_FS, /float nbrPx = \(vNbr\.y - abs\(vNbr\.x\)\)/);
   assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
-  assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
+  // THE DOTTED HOLES ON THE SPLENIC VEIN (Mohammad, 22 Nov; the inspector's "Why tubes drop pixels" painted them magenta: this very discard): `nbr` is the plane's measure, the neighbour's drawn lumen lies where the camera puts it, so a band pixel is
+  // dropped only NBR_CUT_PX (CSS) inside it, never on the wall itself (where two walls running side by side within a pixel or two left a sliver of holes along the edge)
+  assert.match(VESSEL_FS, /nbrCut = smoothstep\([0-9.]+ \* dpr - 0\.5, [0-9.]+ \* dpr \+ 0\.5, nbrPx\)/);
+  assert.match(VESSEL_FS, /if \(nbrCut > 0\.5 && dLat > rDevAx \+ 0\.5\) DROP\(12\);/);
+  assert.ok(!/nbrK > 0\.5 && dLat/.test(VESSEL_FS), 'the drop is not decided on the wall itself any more');
+  assert.ok(NBR_CUT_PX >= 2 && NBR_CUT_PX <= 3, 'the margin is a line\'s width or so, in CSS px');
   assert.match(VESSEL_FS, /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\)/);
 });
 
@@ -242,7 +249,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
     assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
   }
   assert.match(VESSEL_FS, /uniform float cavaCut;/);
-  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) discard;/);
+  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) DROP\(10\);/);
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
 });
 

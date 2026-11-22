@@ -304,3 +304,12 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
    12 % of the lens, in its corner, outside the round clip, and the disc stood as its bare red ground; 22 Nov). A clip leaves the box at its own size from the first frame, so the scope is drawn whole. */
 .pz-lens-disc { transform: none; clip-path: circle(8px at var(--lens-ox, 50%) var(--lens-oy, 50%)); transition: clip-path var(--d-surface) var(--ease-arrive); }
 .pz-lens.on .pz-lens-disc { transform: none; clip-path: circle(100% at 50% 50%); }
+
+/* The colour key as the first row of a data card (CardKey.tsx): plain words and short colour lines in the card's own ink, no pill, no glass; it is the card's content, so it comes and goes with the card. 12 px floor. */
+.pz-ckey { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .2em .75em; margin: 2px 0 8px; font: 400 var(--t-cap)/1.3 var(--font-ui); color: var(--text-2); }
+.pz-ckey b { font-weight: 600; color: var(--text); }
+.pz-ckey-items { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .2em .8em; }
+.pz-ckey-k { display: inline-flex; align-items: center; gap: .4em; white-space: nowrap; }
+.pz-ckey-k i, .pz-ckey-bar { flex: none; border-radius: .2em; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent); }
+.pz-ckey-k i { width: 1.1em; height: .4em; }
+.pz-ckey-bar { width: 4.4em; height: .55em; border-radius: 999px; }

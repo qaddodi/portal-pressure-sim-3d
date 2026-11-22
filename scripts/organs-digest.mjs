@@ -7,7 +7,7 @@ const at = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 /** The inputs: the data and the code that turns it into the finished organs (prepare.ts and what it calls, the 2D frame and the caudate's outline). */
 export const ORGAN_INPUTS = [
   'public/anatomy/organs.bin', 'src/scene/organs/organs-manifest.json',
-  'src/scene/organs/prepare.ts', 'src/scene/organs/layer.ts', 'src/scene/organs/contour.ts', 'src/scene/organs/organ-depth.ts', 'src/scene/organs/normal-smooth.ts', 'src/scene/organs/z.ts', 'src/scene/organs/caudate.ts', 'src/scene/frame2d.ts', 'src/scene/organs/baked.ts',
+  'src/scene/organs/prepare.ts', 'src/scene/organs/layer.ts', 'src/scene/organs/contour.ts', 'src/scene/organs/subdivide.ts', 'src/scene/organs/organ-depth.ts', 'src/scene/organs/normal-smooth.ts', 'src/scene/organs/z.ts', 'src/scene/organs/caudate.ts', 'src/scene/frame2d.ts', 'src/scene/organs/baked.ts',
 ];
 export function organsDigest() {
   let h = 0x811c9dc5, n = 0;
