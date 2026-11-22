@@ -92,3 +92,29 @@ test('gate 6: the vessel and skin programs parse in pure JS, every variant', { s
   for (const d of [[], ['SKIN_COPY 1'], ['SKIN_COPY 2'], ['GLOW'], ['SKIN_NOMARKS'], ['SKIN_NOINK'], ['SKIN_NODUST'], ['SKIN_NOHEADS'], ['SKIN_DEBUG']]) parse!(w(d.map((x) => x), SKIN_FS.replace(/^\n/, '')).replace(/#define (SKIN_COPY) 1 1/, '#define $1 1'));
   parse!(SKIN_VS.replace(/^\n/, ''));
 });
+
+import { clotRange as range4, clotPiece as piece4 } from '../src/scene/disease/clot-field.ts';
+import { ClotGrow } from '../src/scene/disease/clot-ease.ts';
+test('gate 4: no pop. The drawn occlusion eases on the clot\'s own quintic profile; its covered area changes by at most 2 % of its final area per frame at 60 fps, growing, receding and on a retarget (no kink)', () => {
+  const id = 'PV_TRUNK', { side } = clotPhases(id), cache = new Map<number, number>();
+  const area = (v: number): number => {
+    const k = Math.round(v * 5000); if (cache.has(k)) return cache.get(k)!;
+    let s = 0; const vv = k / 5000;
+    if (vv > 0.003) { const { a, b } = range4(vv, null), u = piece4(a, b, 1, 0, 1, side * vv, id); for (let i = 0; i < 150; i++) for (let j = 0; j < 41; j++) s += clotAtTwin(u, (i + 0.5) / 150, (j - 20) / 20, 20, 20).cover; }
+    cache.set(k, s); return s;
+  };
+  const run = (from: number, to: number, retarget?: { at: number; to: number }): number => {
+    const g = new ClotGrow(); g.to(from, true); let prev = area(g.v), worst = 0, t = 0, pv = g.vel;
+    const fin = Math.max(area(from), area(to), retarget ? area(retarget.to) : 0); g.to(to);
+    for (let f = 0; f < 600; f++) {
+      if (retarget && Math.abs(t - retarget.at) < 1e-6) g.to(retarget.to);
+      g.step(1 / 60); t += 1 / 60;
+      const a = area(g.v); worst = Math.max(worst, Math.abs(a - prev) / fin); prev = a;
+      assert.ok(Math.abs(g.vel - pv) < 0.05, `no kink: the rate jumped ${pv} -> ${g.vel}`); pv = g.vel;
+    }
+    assert.equal(g.v, retarget ? retarget.to : to);
+    return worst;
+  };
+  for (const [f, t] of [[0, 1], [0, 0.66], [1, 0], [0.66, 0], [0.3, 0.66], [0, 0.2], [0.2, 0.1]] as const) assert.ok(run(f, t) <= 0.02, `${f} -> ${t}: ${run(f, t)}`);
+  assert.ok(run(0, 1, { at: 0.5, to: 0 }) <= 0.02, 'reversed at 0.5 s and back to 0');
+});

@@ -7,7 +7,7 @@ import { Group } from 'three';
 import type { LookId } from '../../looks/looks.ts';
 import type { Palette } from '../palette.ts';
 import { type Host, type Swells, cavaWallShare, drawnHost, swellsOf } from './host.ts';
-import { lesionStep } from './follow.ts';
+import { ClotGrow } from './clot-ease.ts';
 import { clotTokens } from './paint.ts';
 import { setClotTones } from './clot-uniforms.ts';
 import { type ClotUniform, clotPhases, clotPiece, clotRange, CLOT_V_FROM } from './clot-field.ts';
@@ -15,7 +15,9 @@ import { type ClotUniform, clotPhases, clotPiece, clotRange, CLOT_V_FROM } from 
 /** What the layer needs of a drawn vessel: its piece's clot uniform. */
 export interface ClotSink { setClot(c: ClotUniform | null): void }
 
-interface Clot { id: string; goal: number; cur: number; written: number; cava: number }
+interface Clot { id: string; grow: ClotGrow; goal: number; cur: number; written: number; cava: number }
+
+const hasClotSink = (v: object): v is ClotSink => typeof (v as { setClot?: unknown }).setClot === 'function';
 
 /** Where each piece of the drawn vein lies along its whole arc (scene units): [start, end] per piece, the pieces sharing their joints. */
 export function pieceRanges(host: Host): Array<[number, number]> {
@@ -39,23 +41,22 @@ export class ClotLayer {
 
   /** The drawn vessels by network id: the pieces a clot is written to. */
   bindPieces(vessels: readonly { edge?: { id: string } | null }[]): void {
-    for (const v of vessels) if (v.edge && typeof (v as unknown as ClotSink).setClot === 'function') {
-      const l = this.sinks.get(v.edge.id) ?? []; l.push(v as unknown as ClotSink); this.sinks.set(v.edge.id, l);
-    }
+    for (const v of vessels) if (v.edge && hasClotSink(v)) { const l = this.sinks.get(v.edge.id) ?? []; l.push(v); this.sinks.set(v.edge.id, l); }
   }
 
   applyLook(look: LookId, _p: Palette): void { setClotTones(clotTokens(look)); }
 
   /** The params' thrombus map. `instant` (a new patient) takes it whole. `D`: the engine's diameter of every edge (mm): a cava-opening vein's clot runs to the cava's drawn wall. Returns true while a clot grows or shrinks. */
   set(thrombus: Record<string, number>, dt: number, instant = false, D: ArrayLike<number> | null = null): boolean {
-    for (const id of Object.keys(thrombus)) if (!this.clots.has(id) && drawnHost(id)) this.clots.set(id, { id, goal: 0, cur: 0, written: -1, cava: NaN });
+    for (const id of Object.keys(thrombus)) if (!this.clots.has(id) && drawnHost(id)) this.clots.set(id, { id, grow: new ClotGrow(), goal: 0, cur: 0, written: -1, cava: NaN });
     let moving = false;
     for (const c of this.clots.values()) {
       c.goal = thrombus[c.id] ?? 0;
-      const next = instant ? c.goal : lesionStep(c.cur, c.goal, dt);
+      c.grow.to(c.goal, instant); c.grow.step(instant ? 0 : dt);
+      const next = c.grow.v;   // (the DRAWN occlusion eases on its own profile: clot-ease.ts; the engine's value is untouched)
       const host = drawnHost(c.id)!, cava = (swellsOf(host, D) as Swells).cava ?? 1;
       if (next !== c.cur || c.written !== next || Math.abs(cava - c.cava) > 0.004 * cava) { c.cur = next; this.write(c, host, cava); }
-      if (c.cur !== c.goal) moving = true;
+      if (c.cur !== c.goal || c.grow.vel !== 0) moving = true;
     }
     return moving;
   }
