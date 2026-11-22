@@ -45,8 +45,12 @@ void main() {
   gl_FragColor = vec4(g.rgb / max(g.a, 1e-4), a);
 }`;
 
+/** The organs' lay: the same shader but for the line that decides "inside". The vessels' lay eases `inside` with the mask weight; an organ's mask weight IS its eased pick weight, so early in the ease that put glow over the organ's interior (the flash before the glow). Here inside is on from the first sliver of weight, so the interior never takes glow and only the halo outside the rim rises. LAY_FS itself stays byte for byte (the vessels' program is unchanged). */
+export const LAY_INSIDE_LINE = 'float inside = smoothstep(0.0, 1.0, texture2D(tMask, vUv).a);';
+export const LAY_HARD_FS = LAY_FS.replace(LAY_INSIDE_LINE, 'float inside = step(0.5 / 255.0, texture2D(tMask, vUv).a);');
+
 /** The glow's two passes, compiled by the GLSL compile test and the ?gl page (src/debug/gl-auto.ts reads this). */
-export const GL_PROGRAMS = [{ name: 'glow blur', vs: GLOW_FX_VS, fs: BLUR_FS }, { name: 'glow lay', vs: GLOW_FX_VS, fs: LAY_FS }] as const;
+export const GL_PROGRAMS = [{ name: 'glow blur', vs: GLOW_FX_VS, fs: BLUR_FS }, { name: 'glow lay', vs: GLOW_FX_VS, fs: LAY_FS }, { name: 'glow lay (organs, hard inside)', vs: GLOW_FX_VS, fs: LAY_HARD_FS }] as const;
 
 /** What the lay's two samplers hold until the first mask is made (the lay quad of the figure is on the scene graph from the start, hidden: a sampler with no value is a bug the uniform check names). */
 const NO_MASK = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
@@ -60,11 +64,12 @@ export class GlowFx {
   private readonly scene = new Scene();
   private readonly quad: Mesh;
   private readonly blur = new ShaderMaterial({ name: 'glow blur', vertexShader: GLOW_FX_VS, fragmentShader: BLUR_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tSrc: { value: null }, stepUv: { value: new Vector2() }, sigma: { value: 1 } } });
-  private readonly lay = new ShaderMaterial({ name: 'glow lay',
-    vertexShader: GLOW_FX_VS, fragmentShader: LAY_FS, transparent: true, depthTest: false, depthWrite: false,
+  private readonly lay: ShaderMaterial;
+  private makeLay(insideHard: boolean): ShaderMaterial { return new ShaderMaterial({ name: 'glow lay',
+    vertexShader: GLOW_FX_VS, fragmentShader: insideHard ? LAY_HARD_FS : LAY_FS, transparent: true, depthTest: false, depthWrite: false,
     blending: CustomBlending, blendEquation: AddEquation, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: ZeroFactor, blendDstAlpha: OneFactor,   // (the figure's own alpha is left as it is)
     uniforms: { tBlur: { value: NO_MASK }, tMask: { value: NO_MASK } },
-  });
+  }); }
   /** The two passes' materials: the warm-up compiles them under the splash (materials/warm.ts passWarmScene) and the shader guard watches them. */
   get materials(): readonly ShaderMaterial[] { return [this.blur, this.lay]; }
   private readonly size = new Vector2();
@@ -74,8 +79,9 @@ export class GlowFx {
   /** The lay as an object of the figure (not of this class's own quad scene): a full-screen quad, hidden until the owner asks for it, whose draw order is the owner's to set. Shares the lay material, so no second program. */
   readonly figure: Mesh;
 
-  constructor(layer: number = GLOW_LAYER) {
-    this.layer = layer;
+  /** `insideHard`: the organs' lay (see LAY_HARD_FS). */
+  constructor(layer: number = GLOW_LAYER, insideHard = false) {
+    this.layer = layer; this.lay = this.makeLay(insideHard);
     const plane = new PlaneGeometry(2, 2);
     this.quad = new Mesh(plane, this.blur);
     this.quad.frustumCulled = false;

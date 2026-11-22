@@ -322,7 +322,7 @@ export class CelScene {
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();
   /** The organs' glow (a tapped or pinned organ): the same pipeline, its own mask and textures; its lay is a quad of the figure's first pass (see `render`), not a pass over the finished figure. */
-  readonly organGlowFx = new GlowFx(ORGAN_GLOW_LAYER);
+  readonly organGlowFx = new GlowFx(ORGAN_GLOW_LAYER, true);
   private readonly dive = new Group();
   private readonly sinFrame = new Group();
   private fadeNow = 1;

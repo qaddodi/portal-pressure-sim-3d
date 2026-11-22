@@ -92,7 +92,7 @@ function armSd3(a: TwinArm, x: number, y: number, z: number, sw: number, g: numb
   return d - (R[bi]! + (R[bi + 1]! - R[bi]!) * bt) * sw;
 }
 /** The twin of skinNormalExact: the UNIT gradient of the live union at (x, y, z), or `fallback` when there is none. `absentFrom` is SKIN_ARM_ABSENT. */
-export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y: number, z: number, absentFrom: number, fallback: [number, number, number] = [0, 0, 1]): [number, number, number] {
+export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y: number, z: number, absentFrom: number, fallback: [number, number, number] = [0, 0, 1], distOut?: number[]): [number, number, number] {
   let acc = 0, first = true;
   const g = [0, 0, 0], ug = [0, 0, 0], mg = [0, 0, 0];
   for (let i = 0; i < arms.length; i++) {
@@ -113,6 +113,7 @@ export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y
     g[0] = fa * g[0]! + fb * ug[0]!; g[1] = fa * g[1]! + fb * ug[1]!; g[2] = fa * g[2]! + fb * ug[2]!;
     acc = b + (a - b) * h - k * h * (1 - h);
   }
+  if (distOut) distOut[0] = acc;
   const gl = Math.hypot(g[0]!, g[1]!, g[2]!);
   return gl > 1e-4 ? [g[0]! / gl, g[1]! / gl, g[2]! / gl] : fallback;
 }
