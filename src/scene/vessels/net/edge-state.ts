@@ -9,6 +9,7 @@ import { TIER_Z } from '../../frame2d.ts';
 import { circuitWidth } from '../vessel-object.ts';
 import type { NetTone } from '../network.ts';
 import type { SkelEdge } from './types.ts';
+import { rangedUpload } from './texture-upload.ts';
 
 /** What a row starts from: the edge's tone and tier (the skeleton's own) and how its width follows the engine's diameter (network.ts widthKind). */
 export interface EdgeInit extends Pick<SkelEdge, 'tone' | 'tier'> { widthKind?: 0 | 1 | 2 }
@@ -101,6 +102,7 @@ export class EdgeStateTable {
   writes = 0;
   private lo = Infinity; private hi = -1;
   private tex: DataTexture | null = null;
+  private upload: ((start: number, count: number) => void) | null = null;
 
   constructor(edges: readonly EdgeInit[]) {
     this.rows = edges.length;
@@ -140,7 +142,7 @@ export class EdgeStateTable {
     if (!this.tex) {
       const t = new DataTexture(this.data, EDGE_TEXELS, Math.max(1, this.rows), RGBAFormat, FloatType);
       t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
-      this.tex = t;
+      this.tex = t; this.upload = rangedUpload(t);
       this.lo = Infinity; this.hi = -1;   // (the first upload is whole)
     }
     return this.tex;
@@ -148,11 +150,9 @@ export class EdgeStateTable {
 
   /** Hands the dirty rows to the GPU: one update range covering them, then forgets them. A no-op when nothing changed. */
   flush(): void {
-    const t = this.tex;
-    if (!t || this.hi < 0) return;
+    if (!this.upload || this.hi < 0) return;
     const stride = EDGE_TEXELS * 4;
-    t.addUpdateRange(this.lo * stride, (this.hi - this.lo + 1) * stride);
-    t.needsUpdate = true;
+    this.upload(this.lo * stride, (this.hi - this.lo + 1) * stride);
     this.lo = Infinity; this.hi = -1;
   }
 }
