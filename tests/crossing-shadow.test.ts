@@ -151,3 +151,38 @@ test('the band starts at the line the vertex stage really drew: the artery\'s he
   assert.ok(heavy(lineOf('lineG')), 'the glow\'s line carries it');
   assert.ok(heavy(lineOf('inkPx')), 'the tube\'s line carries it');
 });
+
+// Plan 18: the band falls only on a vessel. The stencil bit that only vessel surfaces write gates the shadow, so the liver and the page never carry a second outline.
+import { MeshBasicMaterial, AlwaysStencilFunc, EqualStencilFunc, ReplaceStencilOp, KeepStencilOp } from 'three';
+import { readFileSync } from 'node:fs';
+import { VESSEL_STENCIL, markVesselStencil, shadowStencil } from '../src/scene/vessels/cel-ink.ts';
+import { partOf } from '../src/engine/hales/portal/topology.js';
+
+test('the shadow draws only where a vessel surface wrote the vessel bit, and writes nothing', () => {
+  const m = shadowStencil(new MeshBasicMaterial()), w = markVesselStencil(new MeshBasicMaterial());
+  assert.equal(VESSEL_STENCIL, 4);
+  assert.deepEqual([m.stencilFunc, m.stencilRef, m.stencilFuncMask, m.stencilWriteMask, m.stencilZPass], [EqualStencilFunc, 4, 4, 0, KeepStencilOp]);
+  assert.deepEqual([w.stencilFunc, w.stencilRef, w.stencilFuncMask, w.stencilWriteMask, w.stencilZPass], [AlwaysStencilFunc, 4, 4, 4, ReplaceStencilOp]);
+});
+
+test('the tube, the veil copy and the skin copies write the vessel bit; the shadow reads it; the strand ink, the gut and the vessels use disjoint bits', () => {
+  const vo = readFileSync('src/scene/vessels/vessel-object.ts', 'utf8'), sk = readFileSync('src/scene/vessels/skin/skin-object.ts', 'utf8');
+  assert.match(vo, /markVesselStencil\(markBlends\(new ShaderMaterial\(\{ name: 'vessel toon'/);
+  assert.match(vo, /markVesselStencil\(markBlends\(new ShaderMaterial\(\{ name: 'vessel veil'/);
+  assert.match(vo, /shadowStencil\(new ShaderMaterial\(\{ name: 'vessel crossing shadow'/);
+  assert.match(sk, /markVesselStencil\(markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/);
+  const cel = readFileSync('src/scene/materials/cel.ts', 'utf8'), gut = readFileSync('src/scene/organs/layer.ts', 'utf8');
+  assert.match(cel, /stencilRef = 1; this\.ink\.stencilFuncMask = 1; this\.ink\.stencilWriteMask = 1;/);
+  assert.match(gut, /stencilRef = 2; m\.stencilFuncMask = 2; m\.stencilWriteMask = 2;/);
+  assert.equal(1 & 2 & VESSEL_STENCIL, 0); assert.equal((1 | 2) & VESSEL_STENCIL, 0);
+});
+
+test('two pieces of one vein are a run-on, not a join: the band runs straight through the piece joint, and a real branch there still sets the fade', () => {
+  const by = (id: string) => NETWORK.find((v) => v.id === id)!;
+  for (const v of NETWORK) if (!v.feeder) for (const end of [0, 1] as const) for (const o of neighboursAt(v, end)) assert.notEqual(partOf(o.id), partOf(v.id), `${v.id} end ${end} counts ${o.id}`);
+  const a = by('PV_TRUNK_1'), b = by('PV_TRUNK');
+  if (a && b) {
+    const shared = [0, 1].map((e) => e as 0 | 1).find((e) => neighboursAt(a, e).length === 0 || neighboursAt(a, e).some((o) => o.id !== b.id));
+    assert.ok(shared !== undefined);
+  }
+});

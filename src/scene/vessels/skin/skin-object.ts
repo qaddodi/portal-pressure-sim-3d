@@ -19,6 +19,7 @@ import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
 import { opensIntoCava } from '../fades.ts';
 import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
+import { markVesselStencil } from '../cel-ink.ts';
 import { vdbgDefines, vdbgUniforms } from '../debug-view.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
 
@@ -136,11 +137,11 @@ export class SkinObject implements SkinDraw {
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
-      const material = markBlends(new ShaderMaterial({
+      const material = markVesselStencil(markBlends(new ShaderMaterial({
         name: 'skin',
         vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c),
         uniforms,
-      }));
+      })));
       const mesh = new Mesh(g, material);
       mesh.frustumCulled = false;   // (the vertex stage moves the skin by the live widths: its rest sphere is not where it is drawn)
       mesh.name = `skin:${circuit ? 'circuit:' : ''}${skin.junction.node}${c ? (c === 1 ? ':solid' : ':veil') : ''}`;

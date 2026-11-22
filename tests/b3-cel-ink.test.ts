@@ -97,7 +97,7 @@ test('a vessel is ONE draw of one opaque matte tube: one mesh, one material, no 
   const m = o.toonMesh.material as import('three').ShaderMaterial;
   assert.ok(!Array.isArray(m), 'one material');
   assert.ok(!('FAR_WALL' in m.defines) && !('NEAR_WALL' in m.defines), 'no far/near wall split');
-  assert.equal(m.transparent, false, 'opaque'); assert.equal(m.depthWrite, true); assert.equal(m.stencilWrite, false, 'no stencil: no bit to share, no ink to cut');
+  assert.equal(m.transparent, false, 'opaque'); assert.equal(m.depthWrite, true); assert.equal(m.stencilWrite, true); assert.equal(m.stencilFunc, 519, 'the vessel bit is written, never tested: no ink to cut');
   const g = o.toonMesh.geometry;
   assert.equal(g.groups.length, 0); assert.equal(g.getAttribute('hull'), undefined);
   s.dispose();
@@ -235,5 +235,5 @@ test('the tube is built ink wider than its lumen, by the figure\'s line, with it
   assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/);
   assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* narrowK - 1\.0\) \+ inkW \+ shW \+ \(lumenW \+ inkW \+ shW\) \* /);   // (shW: 0, the crossing shadow's hull only adds its band, shaders.ts SHADOW)
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(src, /polygonOffset|stencil|addGroup|makeHull|hullMat/, 'no hull material is left');
+  assert.doesNotMatch(src, /polygonOffset|addGroup|makeHull|hullMat/, 'no hull material is left');
 });

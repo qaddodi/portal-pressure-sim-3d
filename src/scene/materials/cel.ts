@@ -151,7 +151,7 @@ export class CelObject {
     this.ink.transparent = false;   // (a vessel is opaque: its line is solid ink, never blended)
     this.ink.depthWrite = false;
     // one outline round the union, as the vessels' (vessels/vessel-object.ts hullMat): a pixel takes the ink once, strands crossing each other and their vein included
-    this.ink.stencilWrite = true; this.ink.stencilRef = 1; this.ink.stencilFunc = NotEqualStencilFunc; this.ink.stencilFail = KeepStencilOp; this.ink.stencilZFail = KeepStencilOp; this.ink.stencilZPass = ReplaceStencilOp;
+    this.ink.stencilWrite = true; this.ink.stencilRef = 1; this.ink.stencilFuncMask = 1; this.ink.stencilWriteMask = 1; this.ink.stencilFunc = NotEqualStencilFunc; this.ink.stencilFail = KeepStencilOp; this.ink.stencilZFail = KeepStencilOp; this.ink.stencilZPass = ReplaceStencilOp;
     this.basePx = cssPx;
     this.ink.uniforms.px.value = this.basePx;
     this.toon.uniforms.spec.value = 0;

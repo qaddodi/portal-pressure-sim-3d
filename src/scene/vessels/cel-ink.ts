@@ -2,6 +2,7 @@
 // shaders run (shaders.ts), so a test can hold the shader's numbers to the 2D app's: the outline is `LINE_R` of the radius held between LINE_MIN and LINE_MAX CSS px (converted with the screen's pixel ratio in the shaders), in the look's casing
 // colour at the look's casing alpha; the fill is exactly two tones (shade, base) lit by the one WORLD light (CEL_STYLE.LIGHT, n.L), so two pieces of one vein shade the
 // same at a join and a camera that orbits changes no shade; there is no highlight and no rim.
+import { AlwaysStencilFunc, EqualStencilFunc, KeepStencilOp, ReplaceStencilOp, type Material } from 'three';
 import type { LookId } from '../../looks/looks.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { fromOklab, toOklab } from '../lenses/oklab.ts';   // (the figure's one cel style: every surface reads its bands and its line from there)
@@ -111,6 +112,21 @@ export function tubeInk(look: LookId, base: readonly [number, number, number], r
 /** The band's width beyond the outline, CSS px: the same on every screen. Its last (1 - SHADOW_FEATHER) share fades out. */
 export const SHADOW_PX = 3;
 export const SHADOW_FEATHER = 0.55;
+/** The stencil bit only an opaque vessel surface writes in the vessels' pass (tubes, the cava veil, junction skins): the crossing shadow is drawn only where it is set, so it falls on a vessel and never on the liver or the page.
+ *  Bit 1 is the strand ink's (cel.ts), bit 2 the gut's (organs/layer.ts): the three write masks are disjoint. */
+export const VESSEL_STENCIL = 4;
+/** A vessel surface writes the vessel bit wherever it is drawn. */
+export function markVesselStencil<M extends Material>(m: M): M {
+  m.stencilWrite = true; m.stencilRef = VESSEL_STENCIL; m.stencilFuncMask = VESSEL_STENCIL; m.stencilWriteMask = VESSEL_STENCIL;
+  m.stencilFunc = AlwaysStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
+  return m;
+}
+/** The crossing shadow draws only where the vessel bit is set, and writes nothing. */
+export function shadowStencil<M extends Material>(m: M): M {
+  m.stencilWrite = true; m.stencilRef = VESSEL_STENCIL; m.stencilFuncMask = VESSEL_STENCIL; m.stencilWriteMask = 0;
+  m.stencilFunc = EqualStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = KeepStencilOp;
+  return m;
+}
 /** How far behind its own tube the hull lies, scene units (the tiers are 0.01 apart at the least, frame2d.ts TIER_Z; a tube's own bulge is at most 0.15 x its radius, shaders.ts TUBE_DEPTH_SHARE; at 0.007 a thin vessel of the same tier as a fat trunk is still nearer than the trunk's hull, tests/crossing-shadow.test.ts). */
 export const SHADOW_DEPTH = 0.007;
 /** The Circuit's: its lines are one plate, ordered by MAP_DEPTH_STEP apart (circuit/map-depth.ts), so the hull lies half a step behind. */

@@ -116,7 +116,7 @@ test('no card or strip code reads the engine store, runs its own frame loop, or 
 
 test('the cards and the strip are in the one glass block, the presenter pill wears it as a face, and no sheet sets its own background after it', () => {
   const glass = readFileSync('src/ui/glass.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  const sel = /html:not\(\[data-noglass\]\) :is\(([\s\S]*?)\n  \) \{/.exec(glass)![1];
+  const sel = /html:not\(\[data-noglass\]\) :where\(([\s\S]*?)\n  \) \{/.exec(glass)![1];
   for (const need of ['.dk-card', '.dk-strip']) assert.ok(sel.includes(need), `${need} is glass`);
   assert.ok(!/\.dk-bar/.test(sel) && /\.dk-bar::before/.test(glass), 'the presenter pill holds the Settings sheet, so its frost is a face');
   // a card/strip rule written in deck-ui.css would not beat the glass (it is !important), but it would show without the glass: none sets a background of its own
