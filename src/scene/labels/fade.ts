@@ -43,14 +43,22 @@ export interface Shown {
   dim: number;
   /** The picture the label is leaving while it crosses over to `p` (null when it is not crossing). */
   from: Ghost | null;
-  /** The new picture's share while crossing (easeMove of the time), 1 when not crossing. The old one's share is 1 - mix. */
+  /** The new picture's share while crossing (`inWeight` of the time), 1 when not crossing. */
   mix: number;
+  /** The old picture's share while crossing (`outWeight`), 0 when not crossing. */
+  oldMix: number;
   /** Crossing progress 0..1, linear in time. */
   u: number;
 }
 
 /** The 2D camera's quintic smoothstep 6t^5 - 15t^4 + 10t^3 (ui/ease.js easeMove): the weights a crossing runs on. */
 export const easeMove = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
+
+/** The share of the crossing the old picture has gone by (Mohammad, 22 Nov: "Hepatic artery" twice, both half pale): the new one comes in as the old one is nearly out, never two equal copies. Mirror images:
+ *  outWeight(u) = inWeight(1 - u), so a crossing turned round at u carries on from where each picture is, with no jump. At the middle each is 0.27 and together 0.55: nothing blinks, and no frame has two copies above 0.3. */
+export const CROSS_SPAN = 0.8;
+export const inWeight = (u: number): number => easeMove((u - (1 - CROSS_SPAN)) / CROSS_SPAN);
+export const outWeight = (u: number): number => inWeight(1 - u);
 
 /** Whether two placements are one spot (the same form and leader, the box within FADE.movePx of where it stood against its dot). */
 export const samePlace = (a: Placement, b: Placement): boolean =>
@@ -70,7 +78,7 @@ export class LabelFader {
     let busy = false;
     const out = dt / FADE.outMs, inn = dt / FADE.inMs, dimStep = dt / FADE.dimMs, cross = dt / FADE.moveMs;
     for (const [id, w] of wants) {
-      if (!this.st.has(id) && !hold) this.st.set(id, { p: w.p, ref: w.p, key: keyOf(w), snap: w.snap, alpha: 0, dim: w.dim ? 1 : 0, from: null, mix: 1, u: 1 });
+      if (!this.st.has(id) && !hold) this.st.set(id, { p: w.p, ref: w.p, key: keyOf(w), snap: w.snap, alpha: 0, dim: w.dim ? 1 : 0, from: null, mix: 1, oldMix: 0, u: 1 });
     }
     for (const [id, s] of this.st) {
       const w = wants.get(id);
@@ -83,17 +91,22 @@ export class LabelFader {
           const invisible = s.alpha <= 0.001;
           const small = !reworded && s.p.form === w.p.form && s.p.leader === w.p.leader && !apart(s.p, w.p) && Math.abs(s.p.au - w.p.au) < 0.01
             && Math.abs(s.ref.dx - w.p.dx) <= FADE.smallPx && Math.abs(s.ref.dy - w.p.dy) <= FADE.smallPx;
-          if (small) { s.p = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.u = 1; }
-          else if (invisible || s.p.form < 0) { s.p = w.p; s.ref = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.u = 1; }
-          else {
-            // (begun from the picture that stands: one still crossing lets go of the old one it was leaving, which was only a part shown)
-            s.from = s.from && s.mix < 0.5 ? s.from : { p: s.p, key: s.key, snap: s.snap };
-            s.p = w.p; s.ref = w.p; s.key = key; s.snap = w.snap; s.u = 0; s.mix = 0;
+          if (small) { s.p = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.oldMix = 0; s.u = 1; }
+          else if (invisible || s.p.form < 0) { s.p = w.p; s.ref = w.p; s.key = key; s.snap = w.snap; s.from = null; s.mix = 1; s.oldMix = 0; s.u = 1; }
+          else if (s.from && key === s.from.key && samePlace(s.from.p, w.p)) {
+            // wanted back where the picture it is leaving stands: the crossing turns round from where it is (the two pictures swap parts, u becomes 1 - u: neither jumps), never begins again
+            const back = s.from;
+            s.from = { p: s.p, key: s.key, snap: s.snap };
+            s.p = back.p; s.ref = back.p; s.key = back.key; s.snap = w.snap; s.u = 1 - s.u; s.mix = inWeight(s.u); s.oldMix = outWeight(s.u);
+          } else {
+            // (begun from the picture that stands; a crossing still running keeps one ghost only, the stronger of its two pictures)
+            s.from = s.from && s.oldMix > s.mix ? s.from : { p: s.p, key: s.key, snap: s.snap };
+            s.p = w.p; s.ref = w.p; s.key = key; s.snap = w.snap; s.u = 0; s.mix = 0; s.oldMix = 1;
           }
         } else { s.snap = w.snap; }
       }
-      if (hold) { s.from = null; s.mix = 1; s.u = 1; }
-      if (s.from) { s.u = Math.min(1, s.u + cross); s.mix = easeMove(s.u); if (s.u >= 1) { s.from = null; s.mix = 1; } else busy = true; }
+      if (hold) { s.from = null; s.mix = 1; s.oldMix = 0; s.u = 1; }
+      if (s.from) { s.u = Math.min(1, s.u + cross); s.mix = inWeight(s.u); s.oldMix = outWeight(s.u); if (s.u >= 1) { s.from = null; s.mix = 1; s.oldMix = 0; } else busy = true; }
       // dimming eases on its own, never jumps
       const dimTarget = w?.dim ? 1 : 0;
       if (s.dim !== dimTarget) { s.dim = s.dim < dimTarget ? Math.min(dimTarget, s.dim + dimStep) : Math.max(dimTarget, s.dim - dimStep); if (s.dim !== dimTarget) busy = true; }
