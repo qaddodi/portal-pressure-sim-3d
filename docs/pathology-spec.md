@@ -71,6 +71,8 @@ Cirrhosis means complete bridging septa around nodules at every stage: the septa
 | TR / Pericardial / Contractility | IVC and HVs dilate, liver dusk, ascites | zone-3 sinusoids widen |
 | Albumin | ascites | lymph protein |
 
+**IVC web: no caudate.** The web sits above the caudate veins' entry into the cava, so their outflow is blocked too: their flow does not rise, the lobe does not enlarge, and the figure draws none (caudateShown false, pinned by the gate).
+
 ## Decisions (Mohammad, 22 Nov 2026, 6:21 PM ET)
 1. **Budd-Chiari lobule:** congestion only, no centrilobular ring.
 2. **Cardiac lobule (rhf, constrictive):** congestion only, no ring.
@@ -98,7 +100,7 @@ Cirrhosis means complete bridging septa around nodules at every stage: the septa
     "pregnancy":        { "thrombus": [], "lead": "septa" },
     "sos":              { "thrombus": [], "lead": "cv", "congestionMin": 0.4 },
     "budd-chiari":      { "thrombus": ["RHV_IVC", "MHV_IVC", "LHV_IVC"], "lead": "none", "congestionMin": 0.4, "caudateShown": true, "open": ["C9"] },
-    "ivc-web":          { "thrombus": [], "stenosis": ["IVCS_RA"], "lead": "none", "congestionMin": 0.4 },
+    "ivc-web":          { "thrombus": [], "stenosis": ["IVCS_RA"], "lead": "none", "congestionMin": 0.4, "caudateShown": false },
     "rhf":              { "thrombus": [], "lead": "none", "congestionMin": 0.4 },
     "constrictive":     { "thrombus": [], "lead": "none", "congestionMin": 0.4 }
   }
