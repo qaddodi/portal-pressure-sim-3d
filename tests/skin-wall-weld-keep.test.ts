@@ -3,7 +3,7 @@
 //  1. THE WELD OF A TUBE END HAS ONE OWNER. The cava wall skin (S_PC and C9 land on the IVC's wall) has the IVC tube on both sides of it as arms, cut by a HOLE, and the sync wrote its weld to those arms' ENDS as well: ends that belong to the skins at them (the IVCI skin's seam
 //     at the tube's start). With no growing arm there (Healthy) the weld was 0, which draws a cut end whole: the IVC tube drew again under the IVCI skin from its seam to the node, two veil layers of one vessel (alpha 0.45 twice is 0.70): the lighter rectangle, with the tube's outline across it.
 //  2. AN ABSENT GROWING ARM HANDS ITS WEIGHT TO THE ARMS THAT STAY. With C9 open and S_PC closed (Budd-Chiari) the wall skin is welded, and S_PC's arm had presence 0 but kept its weight in the blend: the presence dither threw away every pixel it owned, over the stretch of the cava the tube
-//     leaves to the skin (the hole), so the cava was missing there with a screen-door edge. The fragment stage now shares the weights among the arms that are there (skin/shaders.ts armKeep; skin-set.ts sync writes it).
+//     leaves to the skin (the hole), so the cava was missing there with a screen-door edge. The fragment stage now shares the weights among the arms that are there (skin/shaders.ts keepOf: the flags are bits of armFlow[1].w; skin-set.ts sync writes them).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
@@ -47,7 +47,7 @@ test('the twin: the weights of the arms that are there are the mesh\'s weights s
 
 test('the fragment stage shares the weights among the kept arms (one wAt for the whole shader) and the skin takes the flags', () => {
   assert.match(SKIN_FS, /float wAt\(int i\) \{ return rawW\(i\) \* keepOf\(i\) \* gWKeep; \}/);
-  assert.match(SKIN_FS, /gWKeep = [^;]*> 6\.0 - 0\.5 \? 1\.0 : 1\.0 \/ max\(kept, 1\.0e-4\)/, 'every arm kept: the weights as they are');
+  assert.match(SKIN_FS, /gWKeep = [^;]*> exp2\(float\(6\)\) - 1\.5 \? 1\.0 : 1\.0 \/ max\(kept, 1\.0e-4\)/, 'every arm kept: the weights as they are');
   assert.doesNotMatch(SKIN_FS, /vWeight\[i\] \* armCopy/, 'no blend reads the raw weights');
 });
 
