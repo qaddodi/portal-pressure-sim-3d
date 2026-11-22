@@ -54,8 +54,8 @@ test('the live radius is one function: the network vertex shader has no second c
   assert.equal((NET_VS.match(/vec2 circPeel\(|float circPeel\(/g) ?? []).length, 1);
 });
 
-test('six programs, and the network pair stays within the 15-varying floor', () => {
-  assert.equal(GL_PROGRAMS.length, 6);
+test('seven programs, and the network pair stays within the 15-varying floor', () => {
+  assert.equal(GL_PROGRAMS.length, 7);
   const varyings = (src: string): number => {
     let n = 0;
     for (const m of src.matchAll(/^\s*(?:flat\s+)?out\s+(\w+)\s+\w+(\[(\d+)\])?\s*;/gm)) n += Number(m[3] ?? 1) * (m[1] === 'mat3' ? 3 : m[1] === 'mat4' ? 4 : 1);
