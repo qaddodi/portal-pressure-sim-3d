@@ -70,7 +70,7 @@ export const GUT_GROUP: ReadonlySet<string> = new Set(['bowel', 'colon']);
 export const GUT_RENDER: Readonly<Record<string, { fill: number; ink: number }>> = { colon: { fill: 14, ink: 15.6 }, bowel: { fill: 14.5, ink: 15.4 } };
 
 /** The organs whose shade steps are cut by the smoothed normal (organ-shader.ts shadeN); the small bowel's folds are its relief, so it keeps its own (the colon is a plain pillow: its own normals were only the triangulation's noise). */
-const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'colon']);
+export const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'colon']);
 
 /** The 1x1 texture an organ with no liver look samples (its nodAmt is 0, so it is never read). */
 const NO_TEX = new DataTexture(new Uint8Array([0, 0, 128, 255]), 1, 1);

@@ -15,6 +15,8 @@ export interface InstrumentSpec {
   name: string; label: string; graft: true;
   T: { apply: number; back: number; end: number; [k: string]: number }; stops: number[]; steps: Step[];
   morph?: true; scope?: 'scope';
+  /** plays by itself as its slide lands going forward (the slide need not say `auto`: procs-plan.ts procPlanOf) */
+  auto?: true;
   /** a catheter route the procedure runs a device on (route.ts), with the stretch its balloon lies along */
   route?: string; balloonSpan?: string;
   /** the step whose words describe the result the model takes at `T.apply`: the result must come in during that step, never before it (tests/instrument-procedures.test.ts) */
@@ -27,12 +29,11 @@ const nothing = (): string => '';
 
 export const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
   evl: {
-    name: 'Band (EVL)', label: 'Band (EVL)', graft: true, morph: true, scope: 'scope',
-    T: { apply: 2500, back: 6200, end: 7800 }, stops: [2200, 5200, 7800], resultStep: 1,
+    name: 'Band (EVL)', label: 'Band (EVL)', graft: true, morph: true, scope: 'scope', auto: true,
+    T: { apply: 2500, back: 6200, end: 7800 }, stops: [7800], resultStep: 0,
+    // (owner, 22 Nov 2026: "no steps, just show the bands ... like scope view": one step, the plain scope stands at its station and the scope view shows the bands easing in; the run plays as the slide lands)
     steps: [
-      step('scope', 'Scope in', 'The endoscope is passed through the esophagus to the varices.', 'Scope', 'C1b'),
-      step('band', 'Bands placed', 'A band is released around the base of each varix, starting at the gastroesophageal junction and working upward.', 'Bands', 'C1b'),
-      step('done', 'Varices banded', 'The banded varices thrombose and slough over the following days. Banding is repeated until the varices are gone.', 'Banded', 'C1b'),
+      step('band', 'Varices banded', 'A band is released around the base of each varix, starting at the gastroesophageal junction and working upward. The banded varices thrombose and slough over the following days. Banding is repeated until the varices are gone.', 'Banded', 'C1b'),
     ],
     can: nothing, offered: () => true, apply: (p) => p, had: () => false, undo: (p) => p,
   },

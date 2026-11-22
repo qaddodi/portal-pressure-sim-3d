@@ -63,16 +63,26 @@ function axisOf(id: string, state: ShapeState): MateAxis | null {
   return { P, R: P.map((_, i) => radiusAtU(c, cum[i]! / L, L)), n };
 }
 
-/** `nbr` for every vertex of vessel `id`'s tube (`positions`: its xyz, as built): (distance of the vertex from its fork mate's axis in the figure's plane, signed (positive left of the mate's heading) with ONE mate and unsigned with several (see below); the mate's radius there; 0 where the vertex lies past the mate's ends).
+/** Floats per vertex of the `nbr` attribute: (distance from the mate's axis, the mate's radius there, how far past the mate's nearer end). */
+export const NBR_STRIDE = 3;
+/** `z` of a vertex against the cava, which carries on past its pieces' ends: "far inside its length" for the shader. */
+export const NBR_NO_END = -1e3;
+
+/** `nbr` for every vertex of vessel `id`'s tube (`positions`: its xyz, as built), NBR_STRIDE floats each: (x, y, z).
+ *  x: the distance of the vertex from its fork mate's axis in the figure's plane, signed (positive left of the mate's heading) with ONE mate and unsigned with several (see below).
+ *  y: the mate's radius at the nearest point of its axis, never 0 (past the mate's end it is the radius there).
+ *  z: how far the vertex lies past the mate's NEARER END, along the end segment's own line, in scene units: negative inside the mate's length, 0 on its end plane, positive past it. It is LINEAR in the vertex position (the larger of the two ends' planes), so the GPU's
+ *  blend of it is exact; the radius is not (it ramps from its value to 0 past an end in the old encoding, and the blend read "inside the lumen" a whole triangle past the end: the pale stepped line in a vein's shade band, Mohammad 22 Nov). The shader cuts the ink drop and the shade pull
+ *  by z (shaders.ts nbrK, nbrT). Against the cava (it goes on past its pieces' ends, into the next piece) z is NBR_NO_END.
  *  With several mates (a trunk with branches on it, a branch on a trunk of two pieces) each vertex takes the one it lies deepest in. Null for a vessel with no mate. */
 export function neighbourAttr(id: string, positions: ArrayLike<number>, state: ShapeState = REST): Float32Array | null {
   const cava = forkMateOf(id) == null && cavaMateOf(id) != null;
   const axes = nbrMatesOf(id).map((m) => axisOf(m, state)).filter((a): a is MateAxis => !!a);
   if (!axes.length) return null;
-  const count = positions.length / 3, out = new Float32Array(count * 2);
+  const count = positions.length / 3, out = new Float32Array(count * NBR_STRIDE);
   for (let v = 0; v < count; v++) {
     const x = positions[v * 3]!, y = positions[v * 3 + 1]!;
-    let bestDepth = Infinity, bd = 0, br = 0, first = true;
+    let bestDepth = Infinity, bd = 0, br = 0, bz = NBR_NO_END, first = true;
     for (const { P, R, n } of axes) {
       let best = Infinity, bs = 0, bt = 0, braw = 0;
       for (let i = 0; i < n - 1; i++) {
@@ -84,14 +94,21 @@ export function neighbourAttr(id: string, positions: ArrayLike<number>, state: S
       const i = bs, ax = P[i]![0]!, ay = P[i]![1]!, dx = P[i + 1]![0]! - ax, dy = P[i + 1]![1]! - ay;
       const side = dx * (y - ay) - dy * (x - ax) >= 0 ? 1 : -1;
       const past = (i === 0 && braw < 0) || (i === n - 2 && braw > 1);
-      const dist = side * Math.sqrt(best), rad = past && !cava ? 0 : R[i]! + (R[i + 1]! - R[i]!) * bt;   // (the cava goes on past its piece's ends, into the next piece: a vein that opens near one is inside it there too)
-      const depth = rad > 0 ? Math.abs(dist) - rad : Infinity;   // (how far inside this mate's lumen: negative is inside)
-      if (first || depth < bestDepth) { bestDepth = depth; bd = dist; br = rad; first = false; }
+      const dist = side * Math.sqrt(best), rad = R[i]! + (R[i + 1]! - R[i]!) * bt;
+      const depth = past && !cava ? Infinity : Math.abs(dist) - rad;   // (how far inside this mate's lumen: negative is inside; the cava goes on past its piece's ends, a vein that opens near one is inside it there too)
+      // how far past the nearer end, on each end's own segment line: the larger of the two
+      let z = NBR_NO_END;
+      if (!cava) {
+        const f0x = P[1]![0]! - P[0]![0]!, f0y = P[1]![1]! - P[0]![1]!, l0 = Math.hypot(f0x, f0y) || 1e-12;
+        const eX = P[n - 1]![0]! - P[n - 2]![0]!, eY = P[n - 1]![1]! - P[n - 2]![1]!, l1 = Math.hypot(eX, eY) || 1e-12;
+        z = Math.max(-((x - P[0]![0]!) * f0x + (y - P[0]![1]!) * f0y) / l0, ((x - P[n - 1]![0]!) * eX + (y - P[n - 1]![1]!) * eY) / l1);
+      }
+      if (first || depth < bestDepth) { bestDepth = depth; bd = dist; br = rad; bz = z; first = false; }
     }
     // (with several mates the vertices of one triangle can read different mates, whose signs (sides of their headings) differ: the GPU's blend of a +0.02 and a -0.6 passes through 0 between them, "on the other tube's axis", deep inside a lumen that is not there, and the tube
     //  dropped a dotted row of pixels along its edge (Mohammad, 22 Nov, splenic vein; simulated on the real tubes: SV_CONF, PV_TRUNK_1). The shader only reads |x|, so such a vertex carries it unsigned and the blend never crosses zero. One mate keeps the sign: it is the same
     //  mate over the whole tube, so its blend is exact where a mate's lumen lies between a triangle's vertices.)
-    out[v * 2] = axes.length > 1 ? Math.abs(bd) : bd; out[v * 2 + 1] = br;
+    out[v * NBR_STRIDE] = axes.length > 1 ? Math.abs(bd) : bd; out[v * NBR_STRIDE + 1] = br; out[v * NBR_STRIDE + 2] = bz;
   }
   return out;
 }

@@ -8,6 +8,7 @@ import { type Rgb, type Sampler, delta3, hexToRgb01, sampler } from './oklab.ts'
 import { ORIGIN_N, OXY_MIN, originFractions, oxygenSat } from './blood-model.ts';
 import type { LookId } from '../palette.ts';
 import { PRESSURE_RAMP } from './pressure-ramp.ts';
+import { VELOCITY_RAMP } from './velocity-ramp.ts';
 
 /** The twelve lenses: the ten of the Layers menu, plus the two a deck asks for ('system', 'since'), and 'neutral' (Anatomy: no colouring). */
 export const LENS_IDS = ['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass', 'system', 'since'] as const;
@@ -60,10 +61,13 @@ export const GRAD_ROWS = 5;
 export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 4 * GRAD_ROWS), lanes: new Float32Array(NE * 2 * 4) });
 
 const samplers = new Map<string, Sampler>();
-export const samplerFor = (look: LookId, name: keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>): Sampler => {
+type RampName = keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>;
+/** The stops a lens wears in a look: pressure and velocity from their own modules (the one source each, authored as drawn: RAW_LENSES), the others the 2D ramps. */
+export const rampOf = (look: LookId, name: RampName) => (name === 'pressure' ? PRESSURE_RAMP[look] : name === 'velocity' ? VELOCITY_RAMP[look] : LENS_TOKENS[look][name]);
+export const samplerFor = (look: LookId, name: RampName): Sampler => {
   const key = `${look}|${name}`;
   let s = samplers.get(key);
-  if (!s) { s = sampler(name === 'pressure' ? PRESSURE_RAMP[look] : LENS_TOKENS[look][name]); samplers.set(key, s); }   // (pressure: pressure-ramp.ts, the one source; the others are the 2D ramps)
+  if (!s) { s = sampler(rampOf(look, name)); samplers.set(key, s); }
   return s;
 };
 

@@ -39,6 +39,7 @@ test('every slide the 2D rule picks gets the ring, in every deck; no other does'
       if (viewAt(stops, pos).words === 'case') return;   // (a case card that could not be left: nothing measured yet)
       assert.equal(w.want, rule, `${id}/${s.id}: the ring follows the 2D rule`);
       assert.equal(w.grows, rule && !!scopeGrows(c), `${id}/${s.id}: grows`);
+      assert.equal(w.auto, rule && (c as { procedure?: unknown }).procedure === 'evl', `${id}/${s.id}: the lens opens by itself on the EVL slides and nowhere else`);
       if (rule) { picked++; per[id] = (per[id] ?? 0) + 1; }
     });
   }
@@ -95,6 +96,22 @@ test('the gate: on at once, off only after the varices have been gone for the wa
   const n = stepGate(stepGate(newGate(), on, 0).gate, { ...on, want: false, open: true }, 1);
   assert.equal(n.gate.has, false); assert.equal(n.close, true);
   assert.equal(stepGate(newGate(), { ...on, want: false }, 0).gate.has, false);
+});
+
+test('the gate after banding: the varices are gone (present turns false) and the ring and the open lens stay for the whole slide visit', () => {
+  const on = { want: true, grows: false, present: true, gastric: false, open: false };
+  let g = stepGate(newGate(), on, 0).gate;
+  g = stepGate(g, { ...on, present: false, open: true }, 3000).gate;
+  for (let t = 4000; t < 30000; t += 1000) { const r = stepGate(g, { ...on, present: false, open: true }, t); g = r.gate; assert.equal(r.gate.has, true, `still standing at ${t}`); assert.equal(r.close, false); }
+});
+
+test('the lens opens by itself, once for each visit, after the camera has held still, and a lens the viewer shut stays shut', () => {
+  const src = readFileSync(new URL('../src/ui/scope/ScopeLens.tsx', import.meta.url), 'utf8');
+  assert.match(src, /if \(!L\.auto \|\| L\.autoDone \|\| L\.open\) return;/, 'only the slides that ask, once, never over an open lens');
+  assert.match(src, /clock\.now\(\) - L\.ringMoved < STILL_MS/, 'the camera is held still for STILL_MS first');
+  assert.match(src, /L\.autoDone = true;\s*openRef\.current\(\)/, 'it asks the lens to open once, by the lens\'s own open (placeLens keeps it off the cards, and open() refuses a ring that is not there)');
+  assert.match(src, /clock\.cancel\(L\.autoT\); L\.autoT = null; L\.autoDone = false;/, 'a new visit to the slide asks again');
+  assert.doesNotMatch(src.slice(src.indexOf('const close = ')), /autoDone = false/, 'shutting the lens never re-arms it');
 });
 
 test('the caption: the grade, the bleed, the bands', () => {

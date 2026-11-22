@@ -19,7 +19,7 @@ export function bindTests(): () => void {
     const on = (pane: string, slide: boolean): boolean => slide || (t.open && t.pane === pane);
     if (p.doppler.on !== on('doppler', p.slide.doppler)) p.setDoppler({ on: on('doppler', p.slide.doppler) });
     if (p.fibro.on !== on('fibroscan', p.slide.fibro) || p.fibro.organ !== t.fibro) p.setFibro({ on: on('fibroscan', p.slide.fibro), organ: t.fibro });
-    if (p.endoscope.on !== on('endoscopy', p.slide.endoscope)) p.setEndoscope({ on: on('endoscopy', p.slide.endoscope) });
+    if (p.endoscope.on !== on('endoscopy', p.slide.endoscope)) { const want = on('endoscopy', p.slide.endoscope); p.setEndoscope(want ? { on: true, place: false } : { on: false }); }   // (the card's own scope travels in: it never takes a slide's `place`)
   };
   // the Doppler pane's vessel and sample gate (a stent's third) place the probe
   const syncDop = (): void => {

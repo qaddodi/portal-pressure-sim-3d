@@ -26,6 +26,6 @@ export const pressureRampText = (look: LookId): string => PRESSURE_RAMP[look].ma
 export const pressureViolet = (look: LookId): string => PRESSURE_RAMP[look][3]![0];
 export const pressureWine = (look: LookId): string => PRESSURE_RAMP[look][4]![0];
 
-/** Lenses whose colours are authored as drawn: the vessels skip the saturation step and the caps for them (cel-ink.ts celTubeBase `raw`). Every other lens keeps the 2D ramps and the transform. */
-export const RAW_LENSES: ReadonlySet<LensId> = new Set<LensId>(['pressure']);
+/** Lenses whose colours are authored as drawn: the vessels skip the saturation step and the caps for them (cel-ink.ts celTubeBase `raw`). Velocity joined them with ramp F (velocity-ramp.ts, 22 Nov). Every other lens keeps the 2D ramps and the transform. */
+export const RAW_LENSES: ReadonlySet<LensId> = new Set<LensId>(['pressure', 'velocity']);
 export const isRawLens = (lens: LensId): boolean => RAW_LENSES.has(lens);
