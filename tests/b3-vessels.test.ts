@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGES, NODES } from '../src/engine/hales/portal/topology.js';
 import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
-import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, RUN_ONS, NEEDS_C3_IDS, collateralOpen, presenceOf, recruitFrac, radiusOf, vesselPx, widthPx } from '../src/scene/vessels/network.ts';
+import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, RUN_ONS, NEEDS_C3_IDS, collateralOpen, presenceOf, recruitFrac, SURGICAL_SHUNT_IDS, radiusOf, vesselPx, widthPx } from '../src/scene/vessels/network.ts';
 import { EDGE_PATH_2D, NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
 import { pathToFileURL } from 'node:url';
@@ -47,6 +47,11 @@ test('collaterals open by growth or flow; the epigastric veins follow the paraum
   const closed = (id: string, f: typeof healthy.frame) => presenceOf({ id, kind: 'collateral' }, f, { collaterals: false });
   assert.equal(closed('C1a', healthy.frame), 'hidden');
   assert.equal(presenceOf({ id: 'C1a', kind: 'collateral' }, healthy.frame, { collaterals: true }), 'ghost');
+  // a surgical shunt in place (the engine gives it a diameter): no closed potential collateral stands as a dotted stub beside its ends; without one it still does
+  for (const shunt of SURGICAL_SHUNT_IDS) {
+    const D = Float32Array.from(healthy.frame.D); D[indexOf(shunt)] = 1;
+    assert.equal(presenceOf({ id: 'C1a', kind: 'collateral' }, { ...healthy.frame, D }, { collaterals: true }), 'hidden', `${shunt} in place hides the ghosts`);
+  }
   let opened = 0;
   for (const v of NETWORK) if (v.kind === 'collateral' && collateralOpen(v.id, cirr.frame)) opened++;
   assert.ok(opened > 0, 'a decompensated cirrhosis has open collaterals');
