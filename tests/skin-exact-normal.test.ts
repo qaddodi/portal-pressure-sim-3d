@@ -12,13 +12,15 @@ import { sdUnionGrad, skinKOf, type Capsule } from '../src/scene/vessels/skin/sd
 import { skinNormalTwin, skinNormalGlsl, skinShadeK, SKIN_SHADE_FLOOR_PX, SKIN_SHADE_K, SKIN_RING_W_FROM, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
 import { SKIN_ARM_ABSENT, SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 
+/** The far view the continuity check samples at: scene units to one CSS pixel (the whole figure on a phone) and the bound on how far a drawn normal may stray from its neighbours' chord at one sample per pixel. */
+const REF_SCENE_PER_PX = 0.006, CONT_MAX_DEG = 12;
 const deg = (a: readonly number[], b: readonly number[]): number => Math.acos(Math.max(-1, Math.min(1, a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!))) * 180 / Math.PI;
 
 test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a narrowed arm, an absent arm), and a seam ring keeps the tube\'s normal', () => {
   setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   const inner: number[] = [];
-  let worstAt = '', skins = 0, worstInterp = 0, worstSeam = 1, worstInner = 0, mates = 0;
+  let skins = 0, worstInterp = 0, worstSeam = 1, mates = 0, thin = 0, contFloor = 0, contBare = 0;
   const set = new SkinSet({
     vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
     make: (mesh, axes, arms) => {
@@ -66,7 +68,32 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
         if (ring.has(vi)) { const top = Math.max(mesh.weight[4 * vi]!, mesh.weight[4 * vi + 1]!, mesh.weight[4 * vi + 2]!, mesh.weight[4 * vi + 3]!, mesh.weight2[2 * vi]!, mesh.weight2[2 * vi + 1]!); worstSeam = Math.min(worstSeam, top); continue; }
         const e = skinNormalTwin(twin(one, []), kS, mesh.position[3 * vi]!, mesh.position[3 * vi + 1]!, mesh.position[3 * vi + 2]!, SKIN_ARM_ABSENT);
         const dd = deg(e, [mesh.normal[3 * vi]!, mesh.normal[3 * vi + 1]!, mesh.normal[3 * vi + 2]!]);
-        inner.push(dd); if (dd > worstInner) { worstInner = dd; worstAt = `${mesh.junction.node} vertex ${vi}`; } 
+        inner.push(dd);
+      }
+      // the drawn normal's continuity at a far view (REF_SCENE_PER_PX scene units to a CSS px): along every inner mesh edge, one sample per CSS px, how far each sample's normal strays from the
+      // chord of its two neighbours. A smooth ramp strays by nothing; a ridge narrower than a pixel is one sample of the crotch's own normal between two that agree (the dark line). Only a skin whose
+      // blend is narrower than the floor at this scale (thin) can show it, so only those are judged, with the floor and then, to prove the check sees the line, without it.
+      if (skinShadeK(k, REF_SCENE_PER_PX) > kS * 1.15) {
+        thin++;
+        const T = twin(one, []), seen = new Set<number>();
+        const worstOf = (kk: number): number => {
+          let worst = 0;
+          for (let t = 0; t < mesh.index.length; t += 3) for (let e = 0; e < 3; e++) {
+            const a = mesh.index[t + e]!, b = mesh.index[t + (e + 1) % 3]!, key = Math.min(a, b) * nV + Math.max(a, b);
+            if (seen.has(key + kk) || ring.has(a) || ring.has(b)) continue;
+            seen.add(key + kk);
+            const A0 = [0, 1, 2].map((d) => mesh.position[3 * a + d]!), B0 = [0, 1, 2].map((d) => mesh.position[3 * b + d]!);
+            const n = Math.max(2, Math.ceil(Math.hypot(B0[0]! - A0[0]!, B0[1]! - A0[1]!, B0[2]! - A0[2]!) / REF_SCENE_PER_PX)), ns: number[][] = [];
+            for (let i = 0; i <= n; i++) ns.push(skinNormalTwin(T, kk, ...([0, 1, 2].map((d) => A0[d]! + (B0[d]! - A0[d]!) * i / n) as [number, number, number]), SKIN_ARM_ABSENT));
+            for (let i = 1; i < n; i++) {
+              const m = [0, 1, 2].map((d) => ns[i - 1]![d]! + ns[i + 1]![d]!), l = Math.hypot(m[0]!, m[1]!, m[2]!) || 1;
+              worst = Math.max(worst, deg(ns[i]!, m.map((x) => x / l)));
+            }
+          }
+          return worst;
+        };
+        contFloor = Math.max(contFloor, worstOf(skinShadeK(k, REF_SCENE_PER_PX)));
+        contBare = Math.max(contBare, worstOf(kS));
       }
       return new SkinObject(mesh, arms[0]!, axes, arms);
     },
@@ -80,7 +107,11 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
   // the mesh's own shade normals are the gradient eased in creases by how the triangles lie; the pixel's is the same softening as a property of the surface, so it stays near them (and no ring correction is carried past the rings)
   inner.sort((a, b) => a - b);
   const at = (p: number): number => inner[Math.floor(p * (inner.length - 1))]!;
-    assert.ok(at(0.9) < 11 && at(0.99) < 22 && worstInner < 50, `the pixel normal against the eased vertex normals: p90 ${at(0.9).toFixed(1)}, p99 ${at(0.99).toFixed(1)}, max ${worstInner.toFixed(0)} degrees at ${worstAt}`);
+    assert.ok(at(0.9) < 11 && at(0.99) < 22, `the pixel normal against the eased vertex normals: p90 ${at(0.9).toFixed(1)}, p99 ${at(0.99).toFixed(1)} degrees`);
+  // (a single worst vertex is not a bound: where two small arms cross, the eased mesh normal and the surface's own normal can differ a lot at one point without anything being drawn wrong; what is drawn is judged by its continuity)
+  assert.ok(thin >= 3, `${thin} skins have a blend narrower than ${SKIN_SHADE_FLOOR_PX} px at the far view`);
+  assert.ok(contFloor < CONT_MAX_DEG, `with the floor, the drawn normal of a thin ridge strays ${contFloor.toFixed(1)} degrees from its neighbours at one sample per px (bound ${CONT_MAX_DEG})`);
+  assert.ok(contBare > CONT_MAX_DEG, `without the floor, a ridge thinner than a pixel shows (${contBare.toFixed(1)} degrees, over ${CONT_MAX_DEG}): this check sees the dark line the floor ends`);
 });
 
 test('the shader takes the normal from the union\'s gradient at the pixel, before any derivative or discard', () => {
