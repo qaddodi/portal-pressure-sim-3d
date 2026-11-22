@@ -14,7 +14,7 @@ const skip = data ? false : 'the baked network meshes are not in public/anatomy 
 
 async function figure() {
   const scene = new CelScene({ joins: 'old' });
-  await scene.attachNet(data!);
+  await scene.attachNet(data!, true);
   return { scene, net: scene.netFigure! };
 }
 

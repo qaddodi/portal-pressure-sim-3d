@@ -35,7 +35,7 @@ import { QUIET_BACK } from '../../camera/quiet.ts';
 import { CEL_STYLE } from '../../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../../cel-glsl.ts';
 import { CAP_CARVED_GLSL, CHEV_CREAM_GLSL, CHEV_ONE_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, FLOW_MARKS_GLSL, HIGHLIGHT_ALONG_GLSL, LENS_OF_AT_GLSL, PROCEDURE_MARKS_GLSL, STUMP_K_GLSL, SWELL_OF_GLSL, glowToneGlsl, glowWeightGlsl, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
-import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
+import { CIRC_INK_K, CIRC_INNER, SHADOW_FEATHER } from '../cel-ink.ts';
 import { VDBG_GLSL } from '../debug-view.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
 import { SKIN_K } from '../skin/sdf.ts';
@@ -66,17 +66,17 @@ const fetchOf = (name: string, row: string): string => { const s = slotOf(name);
 export const NET_VS_COLUMNS: readonly string[] = [
   'vindex', 'baseD', 'widthKind', 'len', 'lenMap', 'radius', 'circW', 'circRow', 'circFlat', 'circAnchA', 'circAnchC', 'inflate', 'liveW', 'inkOn',
   'hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiFade', 'hiPx', 'hiEnds',
-  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse', 'sewn', 'bakeScale',
+  'fadeMode', 'fadeA', 'fadeLine', 'mapFade', 'cavaEnd', 'stump', 'waist', 'noMap', 'presence', 'stentT0', 'lensUse', 'sewn', 'bakeScale', 'mapDepth',
 ];
 export const NET_FS_COLUMNS: readonly string[] = [
   'tone', 'vindex', 'baseD', 'len', 'radius', 'lensIndex', 'lensUse', 'lensSpan', 'reveal', 'fade', 'flowAmount', 'smokeOn', 'dotted', 'hiColor', 'glowK', 'inkOn',
-  'stump', 'seamA', 'seamB', 'stentU', 'wedge', 'wedgeD', 'circCap', 'solidK', 'veilK', 'quietK', 'arcHost',
+  'stump', 'seamA', 'seamB', 'stentU', 'wedge', 'wedgeD', 'circCap', 'solidK', 'veilK', 'quietK', 'arcHost', 'shadowEnd',
 ];
 
 /** What the network object must carry as plain uniforms (and the textures): one set for the whole network, never per vessel. WP4 builds the material's uniforms from this list; tests/net-shader.test.ts holds it to the shaders. */
 export const NET_GLOBALS: Readonly<Record<string, string>> = {
   // both stages
-  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', keyTex: 'sampler2D', sewnTex: 'sampler2D', sewnRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
+  boneTex: 'sampler2D', regionTex: 'sampler2D', capTex: 'sampler2D', capRows: 'float', keyTex: 'sampler2D', shadowPx: 'float', shadowDepth: 'float', shadowDepthC: 'float', shadowA: 'float', shadowCol: 'vec3', sewnTex: 'sampler2D', sewnRows: 'float', edgeTex: 'sampler2D', vdata: 'sampler2D', vdataSize: 'vec2', useData: 'float', res: 'vec2', circT: 'float',
   // vertex stage
   circRot: 'vec2', circM: 'vec3', circTrackSize: 'vec2', circTrack: 'sampler2D', circBoost: 'float', circPerPx: 'float', ringSag: 'float',
   // fragment stage
@@ -92,6 +92,11 @@ const MAP_X0 = PEEL_X0;
 
 // ---- the vertex stage ----
 /** Everything of the vertex stage the capsule pass shares with it: the attributes, the edge-state loaders and netBone with its radius rule (one source). */
+/** An arm's EXTENSION (its tube from the seam to the node) lies on the fillet's surface (outside the blend zone the union IS the capsule): while the fillet is whole it is not drawn, and while the fillet dissolves its radius is mix(1, EXT_INSET, share), so it stays
+ *  inside the fillet by the fillet's flats' sag (the refine tolerance, 0.05 R), the ring corners' (TUBE_SAG) and a depth margin: 1 - (0.05 + TUBE_SAG + 0.02) = 0.91 at most (plan owner's review, N1). */
+export const EXT_INSET = 0.88;
+/** A branch's chevrons, dust and streaks fade out across a fillet by the dominant edge's share of the vertex's bone weight: smoothstep(MARK_FROM, MARK_TO), so only an arm's own flank carries marks and no phase of one edge is blended with another's (plan owner's review, N3). MARK_ROW_TOL: edge rows are integers, so a fragment more than this from its triangle's row is in a mixed triangle. */
+export const MARK_FROM = 0.7, MARK_TO = 0.92, MARK_ROW_TOL = 0.02;
 const NET_VS_PRELUDE = /* glsl */ `
 attribute vec4 bone;      // the four bones this vertex is bound to (indices into the bone texture, as floats)
 attribute vec4 weight;
@@ -121,6 +126,11 @@ uniform vec2 circTrackSize;
 uniform sampler2D circTrack;
 uniform float circBoost;   // 2D's circBoost: the map's lines are drawn up to 1.75 times wide when it is zoomed out
 uniform float circPerPx;   // map units under one CSS pixel here
+#ifdef SHADOW
+uniform float shadowPx;      // the crossing shadow's band beyond the line, CSS px (cel-ink.ts SHADOW_PX)
+uniform float shadowDepth;   // how far behind its own tube the hull lies (SHADOW_DEPTH; the Circuit's: shadowDepthC)
+uniform float shadowDepthC;
+#endif
 uniform float ringSag;     // the sweep ring's polygon corners stand this share of the radius outside its flats (shaders.ts TUBE_SAG for the mesher's RADIAL)
 // the edge's row, as the old shader's per-vessel uniforms (the shared GLSL below reads these names)
 ${declare(NET_VS_COLUMNS)}
@@ -133,6 +143,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;   // vW, vR, vU, vArcLen: the clip depth, the lumen's half width and the figure's units in a scene unit here, and the length along the course drawn now (shaders.ts vArcLen)
 varying vec4 vPackB;   // vFade, vCircShare, circStay, vHi
+varying vec2 vMarkE;   // the marks' weight in a fillet (the dominant edge's bone weight, eased: 1 in a tube) and the vertex's dominant edge row: a fragment whose edge row is not its triangle's (flat vEdge.x) is in a mixed triangle, where the phase of two edges would blend
 varying float vDraw;   // a junction region's fillet: the share of its pixels the screen dither keeps; 1 for everything else
 varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
@@ -213,7 +224,7 @@ float sewnCollar(float u, float arc, float lumen, int row) {
   if (cap > 0.0) k = min(a, max(n, cap / lumen));
   return k;
 }
-struct NetBone { vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; float lumenRest; };
+struct NetBone { float mapDepth; vec3 cen; mat3 F; float lumen; float pad; float share; float fa; float hi; float pres; float u; int row; float stay; float unit; float arc; float lumen0; float dturn; float lumenRest; };
 int netRowLoaded = -1;   // (the edge row the globals hold now: a junction's capsules read their bones edge by edge, so most reads reuse it)
 // lite: only the bone's live centre and live lumen (the junction projection's capsules); the rest of the struct is not set
 NetBone netBone(int bi, bool lite) {
@@ -293,7 +304,12 @@ ${HIGHLIGHT_ALONG_GLSL}
   o.cen = cen; o.F = F; o.lumen = lumenW; o.share = circShare; o.fa = fa * presence; o.hi = vHi; o.pres = presence; o.u = u; o.row = row; o.stay = stay; o.unit = vU; o.arc = mix(len, lenMap, circShare); o.lumen0 = lumen0W; o.dturn = dturn;
   // The outline's ink, the ring polygon's sag and the lift push the surface along its NORMAL (the vertex stage adds them once, along the blended bound normal): in a tube that is the ring direction, as the old shader's, and in a fillet it
   // is the shade normal, so the outline keeps its width across a junction (an offset pushed along each arm's own direction would thin it where the arms diverge). The ring's flats sit at the lumen + ink, its corners ringSag farther out.
-  o.pad = inkW + (lumenW + inkW) * ringSag + inflate;
+  float shW = 0.0;
+#ifdef SHADOW
+  shW = shadowPx * wpcV / vU;   // (the crossing shadow's hull: the tube and its line, wider by the band: vessels/shaders.ts)
+#endif
+  o.mapDepth = mapDepth;
+  o.pad = inkW + shW + (lumenW + inkW + shW) * ringSag + inflate;
   o.lumenRest = rest * bakeScale;   // (a junction vertex's offsets are in units of the radius the mesh was BAKED at: net/mesh.ts scaledSkeleton)
   return o;
 }`;
@@ -349,22 +365,37 @@ void main() {
   // where it is 0 the mesh is a point (no work, no fragments)
   vDraw = 1.0;
   // (the vertex attribute is the region's row, plus ${KEY_RIDX} x the vertex's key slot when its region has keys)
+  // AN EXTENSION VERTEX (region <= -2: -2 - the row of its node's first fillet): hidden while its node's fillet (the body's plus the map's share) is whole, inset below the fillet's surface while it dissolves
+  float extF = 1.0;
+  bool fillOff = false;
+  if (region < -1.5) {
+    int er = int(-region - 2.0 + 0.5);
+    vec4 e0 = texelFetch(regionTex, ivec2(3, er), 0);
+    float esh = smoothstep(e0.x, e0.y, circT) * (1.0 - smoothstep(e0.z, e0.w, circT));
+    int pr = int(texelFetch(regionTex, ivec2(4, er), 0).z + 0.5) - 1;
+    if (pr >= 0) { vec4 e1 = texelFetch(regionTex, ivec2(3, pr), 0); esh += smoothstep(e1.x, e1.y, circT) * (1.0 - smoothstep(e1.z, e1.w, circT)); }
+    // (hidden by the discard, not moved: its triangles at the seam ring share vertices with the fillet's)
+    if (esh >= 0.999) vDraw = 0.0;
+    extF = mix(1.0, ${F(EXT_INSET)}, esh);
+  }
   int regionAttr = region > -0.5 ? int(region + 0.5) : 0;
   int rrow = regionAttr - (regionAttr / ${KEY_RIDX}) * ${KEY_RIDX}, kslot = regionAttr / ${KEY_RIDX};
   if (region > -0.5) {
     int r0 = rrow;
     vec4 fd = texelFetch(regionTex, ivec2(3, r0), 0);
     float share = smoothstep(fd.x, fd.y, circT) * (1.0 - smoothstep(fd.z, fd.w, circT));
-    if (share <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    // (a fillet triangle at a seam ring has its other vertices on the plain tube, so a vertex is never moved away alone: with no share it keeps its bone-blend start, the projection is skipped and every fragment is discarded)
+    if (share <= 0.0) fillOff = true;
     vDraw = share;
   }
   vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
+  float mapDepthAcc = 0.0;
   float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
   int rowOf[4] = int[4](-1, -1, -1, -1);
   float rowA = 0.0, rowB = 0.0, uA = 0.0, uB = 0.0, wA = -1.0, wB = -1.0;
   // THE KEYED START of a wide junction: the offsets are the normalised blend of the keys' (weights 1 / (distance + 0.001)^2, the distance in ln lumen between the arms' live lumens, from the capsule pass, and each key's); the projection below is unchanged
   vec4 o0 = off0, o1 = off1, o2 = off2, m0 = offM0, m1 = offM1, m2 = offM2;
-  if (kslot > 0) {
+  if (region > -0.5 && !fillOff) {   // (every region has keys: one path)
     vec4 kh = texelFetch(regionTex, ivec2(4, rrow), 0);
     int nk = int(kh.x + 0.5), hs = int(kh.y + 0.5), nArm = int(texelFetch(regionTex, ivec2(0, rrow), 0).y + 0.5);
     float lnLive[${REGION_CAPS}];
@@ -401,13 +432,14 @@ void main() {
     if (wk <= 0.0) continue;
     NetBone b = netBone(int(bone[k] + 0.5), false);
     rowOf[k] = b.row;
-    float sc = region > -0.5 ? b.lumenRest : b.lumen;   // (a junction vertex STARTS from the rest arrangement, the projection below follows the live radii)
+    float sc = region > -0.5 ? b.lumenRest : b.lumen * extF;   // (a junction vertex STARTS from the rest arrangement, the projection below follows the live radii)
     vec3 o = k == 0 ? o0.xyz : (k == 1 ? vec3(o0.w, o1.xy) : (k == 2 ? vec3(o1.zw, o2.x) : o2.yzw));
     vec3 nr = k == 0 ? nrm0.xyz : (k == 1 ? vec3(nrm0.w, nrm1.xy) : (k == 2 ? vec3(nrm1.zw, nrm2.x) : nrm2.yzw));
     vec3 om = k == 0 ? m0.xyz : (k == 1 ? vec3(m0.w, m1.xy) : (k == 2 ? vec3(m1.zw, m2.x) : m2.yzw));
     pAcc += wk * (b.F * (o * sc));
     pMapAcc += wk * (b.F * (om * sc));
     padAcc += wk * b.pad;
+    mapDepthAcc += wk * b.mapDepth;
     nAcc += wk * (b.F * nr);
     tAcc += wk * b.F[0];
     cenAcc += wk * b.cen;
@@ -416,12 +448,13 @@ void main() {
     if (wk > wA) { wB = wA; rowB = rowA; uB = uA; wA = wk; rowA = float(b.row); uA = b.u; }
     else if (wk > wB) { wB = wk; rowB = float(b.row); uB = b.u; }
   }
+  float markK = 1.0;   // (a fillet fades a branch's marks out across it by the dominant edge's bone weight; the projection below sets it)
   float nl = length(nAcc), tl = length(tAcc);
   vec3 nUnit = nl > 1e-6 ? nAcc / nl : vec3(0.0, 0.0, 1.0);
   vec3 nPush = nUnit;   // (the direction the ink, the ring's sag and the lift push along: a tube's is its normal; a junction vertex's is the union's gradient at the sharp width, below)
   // the body set and the map set, blended by the vertex's peel share (a tube vertex has the same offsets in both, so it is unchanged; a junction vertex moves from its body shape to its shrink-wrap on the map)
   pAcc = cenAcc + mix(pAcc, pMapAcc, clamp(shareAcc, 0.0, 1.0));
-  if (region > -0.5) {
+  if (region > -0.5 && !fillOff) {
     // THE PROJECTION: the capsules from their bones (live centre and lumen), k from the narrowest ARM's live lumen at the junction, three Newton steps onto the live union, the normal the union's gradient at the shade width
     int rr = rrow;
     vec4 hd = texelFetch(regionTex, ivec2(0, rr), 0);
@@ -448,8 +481,9 @@ void main() {
     }
     nPush = gU / max(length(gU), 1.0e-9);
     // the normal: the union's gradient at the SHADE width, eased to the nearest arm's own radial direction where one arm is nearly all there is (exact-normal.ts: a seam ring is the tube's)
-    float wmax = 0.0;
+    float wmax = 0.0;   // (the dominant edge's share of the vertex's weight)
     for (int a = 0; a < 4; a++) { float sw = 0.0; for (int b2 = 0; b2 < 4; b2++) if (rowOf[b2] == rowOf[a] && rowOf[a] >= 0) sw += weight[b2]; wmax = max(wmax, sw); }
+    markK = smoothstep(${F(MARK_FROM)}, ${F(MARK_TO)}, wmax);
     vec3 gS;
     netUnion(pAcc, ${F(SKIN_SHADE_K)} * kU, nc, gS);
     float bestSd = 1.0e20;
@@ -477,8 +511,16 @@ void main() {
   vPackD = vec2(lumen0Acc, vSkewV);
   vPackC = vec4(uA, 0.0, uB, wB > 0.0 ? wB / (wA + wB) : 0.0);
   vEdge = vec2(rowA, wB > 0.0 ? rowB : rowA);
+  vMarkE = vec2(markK, rowA);
   vec4 c = projectionMatrix * mv;
-  c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)}) * c.w;   // depth by the tier of the axis (shaders.ts TUBE_DEPTH_SHARE)
+  c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)} * (1.0 - circT)) * c.w;   // depth by the tier of the axis (shaders.ts TUBE_DEPTH_SHARE): a fat tube never bulges over a thin one above it; on the Circuit's plate none at all (a flat line has no bulge)
+  // the Circuit's lines lie on one plate: each stands its own mapDepth in front of it (a depth offset, nothing moves), so a crossing has an over and an under (circuit/map-depth.ts)
+  c.z -= mapDepthAcc * circT * (-projectionMatrix[3][2]) / c.w;
+#ifdef SHADOW
+  c.z += mix(shadowDepth, shadowDepthC, circT) * (-projectionMatrix[3][2]) / c.w;   // (the hull lies behind its own tube: a neighbour at the same tier is nearer, so it is never shadowed)
+  // (a junction's fillet and the arms' extensions are one surface with their neighbours: they cast no shadow)
+  if (region > -0.5 || region < -1.5) vDraw = 0.0;
+#endif
   vPackA = vec4(c.w, lumenAcc, unitAcc, arcAcc);
   vPackB = vec4(fadeAcc, shareAcc, stayAcc, hiAcc);
   gl_Position = c;
@@ -494,6 +536,11 @@ ${declare(NET_FS_COLUMNS)}
 ${loader('loadEdgeFS', NET_FS_COLUMNS)}
 ${FADE_FUNCS_GLSL}
 ${WEDGE_GLSL}
+#ifdef SHADOW
+uniform float shadowPx;
+uniform float shadowA;     // the look's shadow strength and tone (cel-ink.ts SHADOW[look]: ONE table, set once per look)
+uniform vec3 shadowCol;
+#endif
 uniform float tubeDark;   // 1 on the dark looks: brighter tube caps (cel-glsl.ts celTubeBase)
 ${CEL_TUBE_GLSL}
 ${CEL_LIGHT_GLSL}
@@ -543,6 +590,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;
 varying vec4 vPackB;
+varying vec2 vMarkE;
 varying float vDraw;
 varying vec4 vPackC;
 varying vec2 vPackD;
@@ -649,6 +697,8 @@ void main() {
   float fadeHere = vFade;
 #ifdef VEIL
   fadeHere *= veilK;
+#elif defined(SHADOW)
+  fadeHere *= max(solidK, veilK);   // (the band follows whichever copy of the vessel is showing)
 #else
   fadeHere *= solidK;
 #endif
@@ -663,6 +713,23 @@ void main() {
     return;
   }
 #endif
+#ifdef SHADOW
+  // THE CROSSING SHADOW (cel-ink.ts SHADOW, the same rule as the old tubes' program): this tube's hull, drawn after every tube with the depth test on and no depth write: it falls only on what is behind this tube, in the look's shadow tone, over the band beyond the line
+  // (feathered) and not at all over this tube itself. Where an end joins another edge it fades out over that join (shadowEnd), and a fillet and the extensions cast none (the vertex stage), so a junction never gaps and never shadows itself.
+  {
+    if (dotted > 0.5) discard;
+    float rCssS = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
+    float lineS = ${inkPxGlsl('rCssS', 'rCssS', '1.0 - lensUse')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float sS = dLat / dpr - rCssS - lineS;   // CSS px past the line's outer edge
+    float bandS = smoothstep(-0.5, 0.0, sS) * (1.0 - smoothstep(${F(SHADOW_FEATHER)} * shadowPx, shadowPx, sS));
+    float d0S = vUv.x * len * vU, d1S = (1.0 - vUv.x) * len * vU, rS = max(vR, 1e-6);
+    float endS = (shadowEnd.x > 0.0 ? smoothstep(0.5 * shadowEnd.x * rS, shadowEnd.x * rS, d0S) : 1.0) * (shadowEnd.y > 0.0 ? smoothstep(0.5 * shadowEnd.y * rS, shadowEnd.y * rS, d1S) : 1.0);
+    float aS = shadowA * bandS * endS * fadeHere;
+    if (aS < 0.004) discard;
+    gl_FragColor = vec4(shadowCol, aS);
+    return;
+  }
+#endif
   if (fadeHere < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from
@@ -674,7 +741,9 @@ void main() {
   // THE DUST (blood/dust-glsl.ts) is part of the tube: inside the lumen, following its alpha, under the chevrons
   float sD = arcS * vU;
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, lenH * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU);
-  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere);
+  // (marks in a fillet: faded by the dominant edge's weight, and none where a triangle mixes two edges: their phases must not blend)
+  float markK = vMarkE.x * (1.0 - smoothstep(0.0, ${F(MARK_ROW_TOL)}, abs(vMarkE.y - vEdge.x)));
+  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere) * markK;
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif
@@ -702,7 +771,7 @@ void main() {
   float pxArc = fwPx;
   float acrossW = fwAw;
   vec4 hd = flowHeads(across, acrossW, arcS * vU, lenH * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, 1.0, la, lb, color, base);
-  hd = clamp(hd, 0.0, 1.0);
+  hd = clamp(hd, 0.0, 1.0) * markK;
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);
 #endif
@@ -776,6 +845,7 @@ export const sewnPointIds = (edges: number): Float32Array => Float32Array.from({
 export const GL_PROGRAMS = [
   { name: 'net vessel', vs: NET_VS, fs: NET_FS },
   { name: 'net vessel VEIL', vs: NET_VS, fs: NET_FS, defines: { VEIL: 1 } },
+  { name: 'net vessel SHADOW', vs: NET_VS, fs: NET_FS, defines: { SHADOW: 1 } },
   { name: 'net vessel GLOW', vs: NET_VS, fs: NET_FS, defines: { GLOW: 1 } },
   { name: 'net vessel (inspector)', vs: NET_VS, fs: NET_FS, defines: { VDBG: 1 } },
   { name: 'net capsules', vs: NET_CAP_VS, fs: NET_CAP_FS },
@@ -784,3 +854,4 @@ export const GL_PROGRAMS = [
 
 /** shaders.ts's sag for the mesher's ring (the uniform `ringSag`'s default): the mesher's RADIAL decides it, net/mesh.ts. */
 export const NET_RING_SAG = TUBE_SAG;
+

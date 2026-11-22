@@ -184,17 +184,21 @@ test('networksOf groups edges that share a node, and one network builds the same
   assert.equal(whole.mesh.index.length, only.mesh.index.length);
 });
 
-test('the baked file round-trips a mesh bit for bit, and its digest follows the skeleton', async () => {
+test('the baked file round-trips a mesh (exact but the snorm16 offsets and oct-encoded normals), and its digest follows the skeleton', async () => {
   const { decodeNet, encodeNet, skeletonDigest } = await import('../src/scene/vessels/net/baked.ts');
   const fx = fixtures().find((f) => f.name === 'FOUR')!, m = buildNetMesh(fx.skel).mesh, digest = skeletonDigest(fx.skel);
   const back = decodeNet(encodeNet(m, digest))!;
   assert.equal(back.digest, digest);
-  for (const k of ['position', 'bone', 'weight', 'offset', 'normal', 'offsetMap', 'bakeScale', 'index'] as const) assert.deepEqual(Array.from(back.mesh[k]!), Array.from(m[k]!), k);
+  for (const k of ['position', 'bone', 'weight', 'bakeScale', 'index'] as const) assert.deepEqual(Array.from(back.mesh[k]!), Array.from(m[k]!), k);
+  // the offsets are snorm16 in a per-array scale (error at most half a step), the normals oct-encoded to 2 x int8 per bone slot (a fraction of a degree): plan owner, 22 Nov
+  for (const k of ['offset', 'offsetMap'] as const) { const a = m[k]!, b = back.mesh[k]!, step = Math.max(...Array.from(a, Math.abs)) / 32767; for (let i = 0; i < a.length; i++) assert.ok(Math.abs(a[i]! - b[i]!) <= step * 0.51 + 1e-7, `${k}[${i}] ${a[i]} vs ${b[i]}`); }
+  for (let i = 0; i < m.normal.length; i += 3) { const a = m.normal.subarray(i, i + 3), b = back.mesh.normal.subarray(i, i + 3), la = Math.hypot(...a); if (la < 1e-6) { assert.equal(Math.hypot(...b), 0); continue; } assert.ok((a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!) / la > Math.cos((1 * Math.PI) / 180), `normal ${i / 3} off by more than 1 degree`); }
   assert.equal(back.mesh.keys, undefined, 'no states, no keys');
   // keys round-trip too (net/keys.ts)
   const E = fx.skel.edges.length, states = [0.4, 0.7, 1.15].map((x) => Array.from({ length: E }, () => x)), kr = buildNetMesh(fx.skel, undefined, { states, maps: true }), keyed = kr.mesh, kb = decodeNet(encodeNet(keyed, digest, kr.nodes))!;
   assert.ok(keyed.keys && keyed.keys.length > 0);
-  assert.deepEqual(kb.mesh.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), Array.from(k.offset), Array.from(k.offsetMap)])]), keyed.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), Array.from(k.offset), Array.from(k.offsetMap)])]));
+  assert.deepEqual(kb.mesh.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), k.offset.length, k.offsetMap.length])]), keyed.keys!.map((r) => [r.node, r.vertStart, r.vertCount, r.arms, r.keys.map((k) => [k.state, k.swell.map((x) => Math.fround(x)), k.offset.length, k.offsetMap.length])]));
+  for (const [ri, r] of keyed.keys!.entries()) for (const [ki, k] of r.keys.entries()) for (const nm of ['offset', 'offsetMap'] as const) { const a = k[nm], b = kb.mesh.keys![ri]!.keys[ki]![nm], step = Math.max(...Array.from(a, Math.abs)) / 32767; for (let i = 0; i < a.length; i++) assert.ok(Math.abs(a[i]! - b[i]!) <= step * 0.51 + 1e-7, `key ${nm}[${i}]`); }
   assert.deepEqual(kb.nodes.map((n) => [n.node, n.variant, n.switchT, n.vertStart, n.triStart]), kr.nodes.filter((n) => n.kind === 'junction').map((n) => [n.node, n.variant, n.switchT, n.vertStart, n.triStart]), 'the junction reports with their variants and windows ride in the file');
   assert.equal(decodeNet(new ArrayBuffer(32)), null);
   const moved = fixtures().find((f) => f.name === 'FOUR')!.skel;
@@ -403,4 +407,19 @@ test('the fillet is refined to its midpoint tolerance: every region reaches it, 
     buildNetMesh(fx.skel);
     for (const [rid, got] of REFINE.achieved) assert.ok(got <= 16 * REFINE.tol + 1e-12, `${fx.name} ${rid}: refinement ${got === Infinity ? 'dropped' : `only to ${got}`} (tolerance ${REFINE.tol})`);
   }
+});
+
+test('no through pair bulges past BULGE_MAX: where the plain union does, the pair takes the mate minimum', async () => {
+  const { BULGE_MAX } = await import('../src/scene/vessels/net/mesh.ts');
+  for (const fx of fixtures()) for (const n of buildNetMesh(fx.skel).nodes) for (const t of n.through) assert.ok(t.hump <= BULGE_MAX, `${fx.name} ${n.node}: hump ${t.hump}`);
+});
+
+// FIDELITY IN PIXELS (plan owner, 22 Nov): a region's midpoint tolerance, converted to CSS pixels at the closest zoom (6 x the whole figure's fit) on iPhone and Mac, is at most 0.5 px. The real figure is judged by scripts/net-accept.mjs (it builds the network);
+// here the conversion itself: the figure that fills the viewport at fit spans 6 x its pixels at the closest zoom, so a tolerance of 1/12 of a pixel at fit is 0.5 px.
+test('the pixel conversion: the closest zoom is 6 x the whole figure\'s fit, over the phone and the Mac', async () => {
+  const { MAX_ZOOM, pixelsPerUnitAtMaxZoom, tolerancePx } = await import('../src/scene/vessels/net/fidelity.ts');
+  assert.equal(MAX_ZOOM, 6);
+  const ext = { w: 1, h: 2 };   // fits a 390 x 844 phone at min(390, 422) = 390 px per unit; a 844 x 390 landscape phone at min(844, 195) = 195; the Mac at min(1440, 450) = 450
+  assert.equal(pixelsPerUnitAtMaxZoom(ext), 6 * 450);
+  assert.ok(Math.abs(tolerancePx(0.5 / (6 * 450), ext) - 0.5) < 1e-9);
 });

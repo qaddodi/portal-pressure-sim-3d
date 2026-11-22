@@ -54,8 +54,8 @@ test('the live radius is one function: the network vertex shader has no second c
   assert.equal((NET_VS.match(/vec2 circPeel\(|float circPeel\(/g) ?? []).length, 1);
 });
 
-test('six programs, and the network pair stays within the 15-varying floor', () => {
-  assert.equal(GL_PROGRAMS.length, 6);
+test('seven programs, and the network pair stays within the 15-varying floor', () => {
+  assert.equal(GL_PROGRAMS.length, 7);
   const varyings = (src: string): number => {
     let n = 0;
     for (const m of src.matchAll(/^\s*(?:flat\s+)?out\s+(\w+)\s+\w+(\[(\d+)\])?\s*;/gm)) n += Number(m[3] ?? 1) * (m[1] === 'mat3' ? 3 : m[1] === 'mat4' ? 4 : 1);
@@ -77,7 +77,7 @@ test('the junction projection in the vertex stage: the oracle\'s constants (k sc
   assert.ok(NET_VS.includes(`vec4 capP[${REGION_CAPS * REGION_PTS}];`));
   assert.equal(REGION_TEXELS, REGION_HEAD + Math.ceil((REGION_CAPS * REGION_PTS) / 4));
   assert.match(NET_VS, /pAcc \+= nPush \* padAcc;/, 'the ink, the sag and the lift push along the sharp gradient for a junction vertex');
-  assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen;/, 'a junction vertex starts at the rest radii');
+  assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen \* extF;/, 'a junction vertex starts at the rest radii (an extension vertex\'s radius is its inset)');
 });
 
 test('the capsule pass: one render-to-texture pass with the same netBone and radius rule, and the junction vertex only reads its result', async () => {

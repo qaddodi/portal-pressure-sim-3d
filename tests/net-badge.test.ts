@@ -22,8 +22,8 @@ test('files the deploy did not carry (HTTP 404) come back as a reason naming the
   try {
     const r = await loadNetResult('./');
     assert.equal(r.data, null);
-    assert.match(r.why, /^anatomy\/net-\d+\.bin: HTTP 404 \(\.\/anatomy\/net-\d+\.bin\)/);
-    assert.ok(seen.length >= 16 && seen.every((u) => u.startsWith('./anatomy/net-')), 'one fetch per network, from the page\'s own base');
+    assert.match(r.why, /^anatomy\/net-\d+\.bin: HTTP 404 \(\.\/anatomy\/net-\d+\.bin\?d=[^)]+\)/);
+    assert.ok(seen.length >= 16 && seen.every((u) => u.startsWith('./anatomy/net-') && u.includes('.bin?d=')), 'one fetch per network, from the page\'s own base');
   } finally { globalThis.fetch = real; console.warn = warn; }
 });
 
