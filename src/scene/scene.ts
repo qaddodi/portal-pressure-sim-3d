@@ -27,7 +27,7 @@ import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vesse
 import { CircuitSkinSet } from './circuit/skins.ts';
 import { geomNet, netPlain } from './vessels/net/flag.ts';
 import type { NetFigure } from './vessels/net/network-object.ts';
-import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
+import { SKIN_CIRC_IN, SKIN_CUT_C_NONE } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /**
  * A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are
@@ -54,7 +54,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { dustTuner } from './blood/dust.ts';
 import { turnTargets } from './blood/routes.ts';
-import { CIRCUIT_MATES, mateUniform } from './circuit/mates.ts';
+import { CIRCUIT_MATES, mateUniform, skinnedEase } from './circuit/mates.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { MICRO_DPR } from './micro3d/cel3d.ts';
@@ -532,8 +532,8 @@ export class CelScene {
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       const sk = this.skins?.endsOf(def.id) ?? [false, false];   // (a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6)
       o.setMates(sk[0] ? null : mate(sj?.mate[0]), sk[1] ? null : mate(sj?.mate[1]));
-      // (the map's own pairs and their taper: an end the Circuit's skin has taken over has none, the skin's weights blend the live widths there, as on the body)
-      { const cm = CIRCUIT_MATES.get(def.id), ce = this.circuitSkins?.endsOf(def.id) ?? [false, false]; if (cm) o.setCircuitMates(ce[0] ? null : mateUniform(cm[0]), ce[1] ? null : mateUniform(cm[1]), [cm[0]?.ease ?? 0, cm[1]?.ease ?? 0]); }
+      // (the map's own pairs and their taper, at EVERY end: a skinned end keeps it as far as its skin's cut (circuit/mates.ts skinnedEase), where the welded skin carries on; a skin whose growing arm is closed is not drawn, and a run-on pair then met at the node at two widths, a hard step: Mohammad, 22 Nov, the SMV node)
+      { const cm = CIRCUIT_MATES.get(def.id); if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), skinnedEase(def.id, cm, this.circuitSkins?.endsOf(def.id) ?? [false, false], this.circuitSkins?.cutOf(def.id) ?? SKIN_CUT_C_NONE)); }
       // (a junction's fork: the outline of the branch and its trunk is the union's, with the switch on)
       { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; o.setNbrOn(!!md); if (md) o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); }
       // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.

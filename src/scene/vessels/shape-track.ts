@@ -9,6 +9,7 @@ import { buildTubes } from './tubes.ts';
 import { BEAD_SITE, varixBead } from './varix-bead.copied.js';
 import { bandsStep } from './band-ease.copied.js';
 import { slicesFor } from '../circuit/geometry.ts';
+import { sewOnMap } from '../circuit/map-sewn.ts';
 import { RESHAPE_ATTRIBUTES, type ReshapeFrame, type VesselObject } from './vessel-object.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -111,8 +112,16 @@ export class ShapeTracks {
   /** How many shapes were built (a tube geometry made) and how many were blended from key frames: the tests read these, and ?perf can. */
   readonly stats = { builds: 0, blends: 0 };
 
+  /** A vessel's tubes at a shape, as the scene first built them: the map's sunk and flared ends are laid on the rings' map radius (`rkc`) here too. The scene lays them when it builds a tube (scene.ts addVessel), and `reshape` copies `rkc` from what is built, so a
+   *  rebuild that left them out put every collateral's and shunt's map end back to the full width the moment its shape first changed (Mohammad, 22 Nov: the paraumbilical vein, wide, stepping down to the node's width at its skin's seam). */
+  private tubesAt(it: Item, state: ShapeState): ReturnType<typeof buildTubes> {
+    const b = buildTubes(coursesOf(it.v, state), it.tubular, it.v.radius);
+    sewOnMap(it.v.id, b.geometry, b.runs);
+    return b;
+  }
+
   private frameAt(it: Item, wig: number): ReshapeFrame {
-    const { geometry, length } = buildTubes(coursesOf(it.v, { ...it.state, wig }), it.tubular, it.v.radius);
+    const { geometry, length } = this.tubesAt(it, { ...it.state, wig });
     const arrays = new Map<string, Float32Array>();
     for (const name of RESHAPE_ATTRIBUTES) { const a = geometry.getAttribute(name); if (a) arrays.set(name, (a.array as Float32Array).slice()); }
     geometry.dispose();
@@ -143,7 +152,7 @@ export class ShapeTracks {
     if (key === it.built) return false;
     if (it.v.plan!.kind === 'coil') this.blend(it);
     else {
-      const { geometry, length } = buildTubes(coursesOf(it.v, it.state), it.tubular, it.v.radius);
+      const { geometry, length } = this.tubesAt(it, it.state);
       it.obj.reshape(geometry, length);
       geometry.dispose();
       this.stats.builds++;

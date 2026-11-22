@@ -85,3 +85,12 @@ export function flowLenAt(id: string, bodyLen: number, t: number): number {
   const c = mapLen(id);
   return c > 0 ? bodyLen + (c - bodyLen) * Math.min(1, t) : bodyLen;
 }
+
+/** The half length of each end's taper on the map (the shader's `cease`), where an end may be a skin's. A skinned end carries on into its mate as any end does, but only as far as its skin's cut: past the cut ring the welded skin draws the node (seam rings
+ *  at the tube's own width, circuit/skins.ts circuitTube), so the tube there must be its own width and the taper ends at the ring. The skin is not drawn while its growing arm is closed (a node of two permanent arms and a shunt or collateral: SMV), and the
+ *  tubes then met at the node at two widths with no taper at all, a hard step (Mohammad, 22 Nov: "width step at the SMV node"). `cut`: the skin's (u0, u1) cut of the tube, `ends`: which ends are skinned. */
+export function skinnedEase(id: string, mates: CircuitMates, ends: readonly [boolean, boolean], cut: readonly [number, number]): [number, number] {
+  const len = mapLen(id);
+  const reach = [Math.max(0, cut[0]) * len, Math.max(0, 1 - cut[1]) * len];
+  return [0, 1].map((e) => { const ease = mates[e]?.ease ?? 0; return ends[e] ? Math.min(ease, reach[e]!) : ease; }) as [number, number];
+}
