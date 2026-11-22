@@ -93,10 +93,6 @@ export const HEP_FADE_IN = 0.85;
 export const LIVER_FADE_OUT: Readonly<Record<string, number>> = { PVH_R_2: 0.6, PVH_L_1: 0.6 };
 export const LIVER_FADE_IN: Readonly<Record<string, number>> = { RHV_IVC_1: 0.6, MHV_IVC: 0.6, LHV_IVC: 0.6 };
 
-/** A vein whose start is carried on past the collaterals that land on it (starts.ts START_IN_ORGAN) normally fades in over that stretch. The azygos arch does not: it ends in a plain rounded cap with its ink, solid to the end, a short stub behind the landing
- *  (Mohammad, 22 Nov: a flat faded end read as "open", a pinpoint taper as wrong; "it should end like a vein"). */
-export const SOLID_LEAD_IN: ReadonlySet<string> = new Set(['AZY_SVC']);
-
 /** The rectal varices run on further down (starts.ts END_ON): they fade out over the new stretch instead of the 2D one. */
 const FADE_DOWN_ON: Readonly<Record<string, readonly [number, number]>> = { C4: [940, 1005] };
 /** The lobar arteries' ends on the map (2D's circuit lets them run out under the lane tips; here they fade to nothing over the last 70 % of the short course, gone before the lane, so no blunt end can show). */
@@ -175,7 +171,7 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   // (the artery runs on to its bed's node now, starts.ts alongVein: the fade starts where it always did along the portal branch)
   if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, mapFade: MAP_ART_FADE, connect: [] }; }
   const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
-  if (inOrgan > 0 && !isArtery && !SOLID_LEAD_IN.has(id)) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
+  if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const tip = TIP_FADE_2D[id];
   if (tip && !isArtery) return { mode: 1, from: 0, to: tip, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const join = isArtery ? 0 : ivcJoinSpan(id);

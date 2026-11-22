@@ -71,7 +71,7 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
     const n = axes.length, mates = throughMates(axes, mesh.junction.arms.map((a) => !!(a as { growing?: boolean }).growing)), kM = skinKOf(mesh.junction.arms);
     const ap = axes.map((ax) => ax.pts.map((p, i) => px(p, ax.radii[i]!)));
     // skinArmPx
-    const armPx = (fx: number, fy: number, a: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[]): number => {
+    const armPx = (fx: number, fy: number, a: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[], sub = 0): number => {
       const P = ap[a]!;
       const segs = ([[P[0], P[1]], [P[1], P[2]], [P[2], P[3]]] as number[][][]).map(([p, q]) => {
         const abx = q![0]! - p![0]!, aby = q![1]! - p![1]!, t = Math.min(1, Math.max(0, ((fx - p![0]!) * abx + (fy - p![1]!) * aby) / Math.max(abx * abx + aby * aby, 1e-6)));
@@ -81,10 +81,13 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
       if (fragW < 0) return best.d;
       // (the shader's hold-out, skin/shaders.ts skinArmPx: how far the pixel's own place in the figure lies from the arm's capsule, in 3D, in px at the pixel's depth; `screenDepth` is the rule before 22 Nov)
       const gap = screenDepth ? Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * dpr - best.r - inkPx : sd3(axes[a]!, fragP!) / Math.max(wpc(fragW), 1e-9) * dpr;
-      return best.d + 2 * kPx * smooth(0.25 * kPx, kPx, gap);
+      return best.d + 2 * kPx * (smooth(0.25 * kPx, kPx, gap) - sub);
     };
+    // (the shader's skinArmHeld: the hold-out's share, 0 to 1; the outline takes it relative to the least-held arm, skin/shaders.ts skinSdPx)
+    const armHeld = (a: number, fragW: number, kPx: number, fragP: readonly number[]): number => smooth(0.25 * kPx, kPx, sd3(axes[a]!, fragP, 1) / Math.max(wpc(fragW), 1e-9) * dpr);
     const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[]): number => {
-      const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx, fragP));
+      const sub = fragW >= 0 && !screenDepth ? Math.min(...axes.map((_, i) => armHeld(i, fragW, kPx, fragP!))) : 0;
+      const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx, fragP, sub));
       let o = 0, first = true;
       for (let i = 0; i < n; i++) {
         const m = mates[i]!;

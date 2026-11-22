@@ -3,6 +3,7 @@
 // each once per pixel, so they show through each other as 2D's groups do. Plain strings so the tests can read them without a GPU.
 import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
+import { RIM_SPECK } from './rim-profile.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
@@ -106,8 +107,9 @@ vec3 rimShadeNormal(vec3 n) {
   float f = clamp(vRimS, 0.0, 1.0) * 7.0;
   vec4 wa = max(vec4(0.0), 1.0 - abs(f - vec4(0.0, 1.0, 2.0, 3.0))), wb = max(vec4(0.0), 1.0 - abs(f - vec4(4.0, 5.0, 6.0, 7.0)));
   float nzP = clamp(dot(rimP0, wa) + dot(rimP1, wb) + vRimC, 0.0, 1.0);
-  float k = (1.0 - smoothstep(0.75, 1.0, vRimS)) * rimW;
   float hl = length(n.xy);
+  // (the speck guard: where the normal nearly faces the eye its direction round the rim, n.xy / |n.xy|, is noise, so the strip's share fades in with |n.xy|, RIM_SPECK in rim-profile.ts; twin: rimShadeNormal there)
+  float k = (1.0 - smoothstep(0.75, 1.0, vRimS)) * rimW * smoothstep(${num(RIM_SPECK[0])}, ${num(RIM_SPECK[1])}, hl);
   vec2 dir = hl > 1e-4 ? n.xy / hl : vec2(0.0);
   return normalize(mix(n, vec3(dir * sqrt(max(0.0, 1.0 - nzP * nzP)), nzP), k));
 }

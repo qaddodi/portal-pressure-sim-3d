@@ -191,9 +191,9 @@ test('the two tubes of a fork know each other: every vertex carries its distance
     for (const id of [host, k]) {
       const c = coursesOf(B.get(id)!, REST)[0]!, flat = c.pts.flatMap((p) => [p[0], p[1], p[2]]);
       const a = neighbourAttr(id, flat)!;
-      assert.equal(a.length, c.pts.length * 2, `${id}: two numbers a vertex`);
+      assert.equal(a.length, c.pts.length * 3, `${id}: three numbers a vertex`);
       let inside = 0, outside = 0;
-      for (let i = 0; i < c.pts.length; i++) { const lat = Math.abs(a[i * 2]!), r = a[i * 2 + 1]!; if (r > 0) { if (lat < r) inside++; else outside++; } }
+      for (let i = 0; i < c.pts.length; i++) { const lat = Math.abs(a[i * 3]!), r = a[i * 3 + 1]!; if (r > 0 && a[i * 3 + 2]! < 0) { if (lat < r) inside++; else outside++; } }
       assert.ok(inside > 0 && outside > 0, `${id}: part of its axis lies in its mate's lumen and part outside it (${inside} in, ${outside} out)`);
     }
     // the branch's start lies on the vein's axis; the vein's axis there lies inside the branch's lumen
@@ -202,7 +202,7 @@ test('the two tubes of a fork know each other: every vertex carries its distance
     assert.ok(Math.abs(a[0]!) < 0.2 * rad(host), `${k}: its join stands on the vein's axis`);
   }
   assert.equal(forkMateOf('PV_TRUNK'), null);
-  assert.match(VESSEL_VS, /attribute vec2 nbr;/);
+  assert.match(VESSEL_VS, /attribute vec3 nbr;/);
   assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
   assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
   assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
@@ -238,7 +238,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
     c.pts.forEach((p, i) => { flat[3 * i] = p[0]; flat[3 * i + 1] = p[1]; flat[3 * i + 2] = p[2]; });
     const a = neighbourAttr(id, flat)!, n = c.pts.length;
     assert.ok(a, `${id} knows the cava`);
-    const inside = (i: number): boolean => a[2 * i + 1]! > 0 && Math.abs(a[2 * i]!) < a[2 * i + 1]!;
+    const inside = (i: number): boolean => a[3 * i + 1]! > 0 && Math.abs(a[3 * i]!) < a[3 * i + 1]!;
     assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
   }
   assert.match(VESSEL_FS, /uniform float cavaCut;/);

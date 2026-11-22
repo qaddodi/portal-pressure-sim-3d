@@ -1,0 +1,636 @@
+{
+ "smooth:C1b": [
+  null,
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8828016947832454,
+    0.42505266785858814,
+    -0.1999784919288232
+   ]
+  }
+ ],
+ "smooth:C2": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9422905865025786,
+    -0.3347961328758539,
+    0
+   ]
+  },
+  null
+ ],
+ "smooth:C3": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8080500538294556,
+    0.5891138349302398,
+    0
+   ]
+  },
+  {
+   "hostR": 0.008381831072885431,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8727212968235879,
+    -0.40407852519361187,
+    -0.2740038020683481
+   ]
+  }
+ ],
+ "smooth:C4": [
+  {
+   "hostR": 0.011757237504546488,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.22047041886125737,
+    0.9622247458376789,
+    0.15973832634892696
+   ]
+  },
+  null
+ ],
+ "smooth:C5": [
+  null,
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9998194975314969,
+    0.018999272508835367,
+    0
+   ]
+  }
+ ],
+ "smooth:C6": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.6956860527183245,
+    -0.7181895864891992,
+    0.014987792087890825
+   ]
+  },
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9990669088736472,
+    0.04318925321946954,
+    0
+   ]
+  }
+ ],
+ "smooth:C7": [
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.536714746665138,
+    0.843674472299929,
+    0.012274587635156525
+   ]
+  },
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.013035118347796339,
+    0.9999150392356637,
+    0
+   ]
+  }
+ ],
+ "smooth:C9": [
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.02567960210089793,
+    0.9996702246420764,
+    0
+   ]
+  },
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8828016947832454,
+    0.42505266785858814,
+    -0.1999784919288232
+   ]
+  }
+ ],
+ "smooth:C8": [
+  {
+   "hostR": 0.025931795898537887,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.6305926250944196,
+    0.7761140001163029,
+    0
+   ]
+  },
+  {
+   "hostR": 0.025931795898537887,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.7034335732293827,
+    0.7107610062839284,
+    0
+   ]
+  }
+ ],
+ "smooth:TIPS": [
+  {
+   "hostR": 0.021080295982191306,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9121236134859858,
+    0.409915251876858,
+    0
+   ]
+  },
+  {
+   "hostR": 0.021080295982191306,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.9360510550569777,
+    0.3518642100679164,
+    0
+   ]
+  }
+ ],
+ "smooth:DIPS": [
+  {
+   "hostR": 0.025931795898537887,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.7139337905033261,
+    0.7002132123700275,
+    0
+   ]
+  },
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.013171066103734365,
+    0.9999132577467362,
+    0
+   ]
+  }
+ ],
+ "smooth:S_PC": [
+  null,
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": true,
+   "flare": true
+  }
+ ],
+ "smooth:S_DSR": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": false,
+   "sink": false,
+   "flare": false
+  },
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true
+  }
+ ],
+ "smooth:S_MC": [
+  {
+   "hostR": 0.022741656610823478,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.07777001633696194,
+    0.9969713258459085,
+    0
+   ]
+  },
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.015511117978614933,
+    0.9998796953729251,
+    0
+   ]
+  }
+ ],
+ "smooth:REX": [
+  {
+   "hostR": 0.022741656610823478,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.07777001633696194,
+    0.9969713258459085,
+    0
+   ]
+  },
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8132250849510325,
+    0.581949277176616,
+    0
+   ]
+  }
+ ],
+ "2d:C1b": [
+  null,
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.9010016697591045,
+    0.43381561877289043,
+    0
+   ]
+  }
+ ],
+ "2d:C2": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9422905865025786,
+    -0.3347961328758539,
+    0
+   ]
+  },
+  null
+ ],
+ "2d:C3": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8080500538294556,
+    0.5891138349302398,
+    0
+   ]
+  },
+  {
+   "hostR": 0.008381831072885431,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8727212968235879,
+    -0.40407852519361187,
+    -0.2740038020683481
+   ]
+  }
+ ],
+ "2d:C4": [
+  {
+   "hostR": 0.011757237504546488,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.22047041886125737,
+    0.9622247458376789,
+    0.15973832634892696
+   ]
+  },
+  null
+ ],
+ "2d:C5": [
+  null,
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9998194975314969,
+    0.018999272508835367,
+    0
+   ]
+  }
+ ],
+ "2d:C6": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.6956860527183245,
+    -0.7181895864891992,
+    0.014987792087890825
+   ]
+  },
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9990669088736472,
+    0.04318925321946954,
+    0
+   ]
+  }
+ ],
+ "2d:C7": [
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.536714746665138,
+    0.843674472299929,
+    0.012274587635156525
+   ]
+  },
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.013035118347796339,
+    0.9999150392356637,
+    0
+   ]
+  }
+ ],
+ "2d:C9": [
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.02567960210089793,
+    0.9996702246420764,
+    0
+   ]
+  },
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.9010016697591045,
+    0.43381561877289043,
+    0
+   ]
+  }
+ ],
+ "2d:C8": [
+  {
+   "hostR": 0.025931795898537887,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.6305926250944196,
+    0.7761140001163029,
+    0
+   ]
+  },
+  {
+   "hostR": 0.025931795898537887,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.7034335732293827,
+    0.7107610062839284,
+    0
+   ]
+  }
+ ],
+ "2d:TIPS": [
+  {
+   "hostR": 0.021080295982191306,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.9121236134859858,
+    0.409915251876858,
+    0
+   ]
+  },
+  {
+   "hostR": 0.021080295982191306,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.9360510550569777,
+    0.3518642100679164,
+    0
+   ]
+  }
+ ],
+ "2d:DIPS": [
+  {
+   "hostR": 0.025931795898537887,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.7139337905033261,
+    0.7002132123700275,
+    0
+   ]
+  },
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.013171066103734365,
+    0.9999132577467362,
+    0
+   ]
+  }
+ ],
+ "2d:S_PC": [
+  null,
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": true,
+   "flare": true
+  }
+ ],
+ "2d:S_DSR": [
+  {
+   "hostR": 0.019366310393251814,
+   "inside": false,
+   "sink": false,
+   "flare": false
+  },
+  {
+   "hostR": 0.015743126961590585,
+   "inside": true,
+   "sink": false,
+   "flare": true
+  }
+ ],
+ "2d:S_MC": [
+  {
+   "hostR": 0.022741656610823478,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.07777001633696194,
+    0.9969713258459085,
+    0
+   ]
+  },
+  {
+   "hostR": 0.026970946707539422,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.015511117978614933,
+    0.9998796953729251,
+    0
+   ]
+  }
+ ],
+ "2d:REX": [
+  {
+   "hostR": 0.022741656610823478,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    -0.07777001633696194,
+    0.9969713258459085,
+    0
+   ]
+  },
+  {
+   "hostR": 0.019366310393251814,
+   "inside": true,
+   "sink": false,
+   "flare": true,
+   "capped": true,
+   "dir": [
+    0.8132250849510325,
+    0.581949277176616,
+    0
+   ]
+  }
+ ]
+}

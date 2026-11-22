@@ -54,7 +54,10 @@ export class ProbeLayer {
       // the procedure is off: the scope parked over the varix fades out where it stands
       e = this.scope.leave(dt);
       if (!e) this.gluing = false;
-    } else e = this.scope.update(dt, on(s.endoscope.on), s.endoscope.mode, s.endoscope.station, s.endoscope.u, s.endoscope.needle, this.env.eus?.() ?? null, now);
+    } else if (s.endoscope.place && !on(s.endoscope.on)) {
+      // a scope a slide's procedure stood at its station fades out where it stands (2D parkMs), never walking back up the esophagus
+      e = this.scope.leave(dt);
+    } else e = this.scope.update(dt, on(s.endoscope.on), s.endoscope.mode, s.endoscope.station, s.endoscope.u, s.endoscope.needle, this.env.eus?.() ?? null, now, !!s.endoscope.place);
     if (this.env.screen) this.writeLabels(s.doppler.edge, s.doppler.seg);
     return a || f || e;
   }
