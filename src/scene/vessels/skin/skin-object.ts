@@ -90,6 +90,8 @@ export class SkinObject implements SkinDraw {
   readonly glow: Mesh;
   /** the group the copies stand in (it is what the scene adds) */
   readonly object: Object3D;
+  /** Which arms the weights are shared among (shaders.ts armKeep): 1 each, 0 for a growing arm that is not there. */
+  private keepMask = (1 << SKIN_ARMS) - 1;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
@@ -126,7 +128,7 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4()] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
       
@@ -215,6 +217,10 @@ export class SkinObject implements SkinDraw {
     this.armAF[i]!.w = p;
     this.showCopies();
   }
+  /** Share the weights among the arms that are there only (shaders.ts armKeep): a growing arm that is not (a closed shunt, a dotted thread) hands its weight to the arms that stay. */
+  setKeep(i: number, on: boolean): void { this.keepMask = on ? this.keepMask | (1 << i) : this.keepMask & ~(1 << i); (this.material.uniforms.armFlow!.value as Vector4[])[1]!.w = this.keepMask; }
+  /** The arms' keep flags (a test reads them). */
+  keepOf(): readonly number[] { return Array.from({ length: SKIN_ARMS }, (_, i) => (this.keepMask >> i) & 1); }
   /** Whether arm `k` is there at all: its tube's presence at the seam. */
   private isThere(k: number): boolean { return this.armAF[k]!.w > 0.002; }
   /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (its presence): a skin has no visibility of its own, it inherits its arms'. */

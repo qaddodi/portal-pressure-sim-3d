@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NetMeshError, RADIAL, buildNetMesh, networksOf } from '../src/scene/vessels/net/mesh.ts';
 import { minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
-import { deform, fixtures, makeSkeleton, topology, volume, type FixEdge } from './net-lib.ts';
+import { deform, deformNormals, fixtures, geometricNormals, makeSkeleton, topology, volume, type FixEdge } from './net-lib.ts';
 
 for (const fx of fixtures()) {
   const r = buildNetMesh(fx.skel), m = r.mesh, V = m.position.length / 3, T = m.index.length / 3;
@@ -73,18 +73,102 @@ test('a run-on carries one ring across its node: the chain has no sliver where i
   assert.equal(shared, 2 * RADIAL, 'the two nodes of the chain each share one ring, bound half to each side');
 });
 
-test('a junction that will not mesh fails the bake and names itself (no fallback)', () => {
-  const a = (o: [number, number, number], ang: number, len: number): FixEdge['curve'] => (u) => [o[0] + Math.cos(ang) * len * u, o[1] + Math.sin(ang) * len * u, o[2]];
-  const edges: FixEdge[] = [
-    { id: 'M', from: 'L', to: 'R', curve: a([-0.15, 0, 0], 0, 0.3), rad: () => 0.1, bones: 6 },
-    { id: 'La', from: 'L', to: 'a', curve: a([-0.15, 0, 0], 2.4, 2), rad: () => 0.1 },
-    { id: 'Lb', from: 'L', to: 'b', curve: a([-0.15, 0, 0], -2.4, 2), rad: () => 0.1 },
-    { id: 'Rc', from: 'R', to: 'c', curve: a([0.15, 0, 0], 0.7, 2), rad: () => 0.1 },
-    { id: 'Rd', from: 'R', to: 'd', curve: a([0.15, 0, 0], -0.7, 2), rad: () => 0.1 },
-  ];
-  const skel = makeSkeleton(['L', 'R', 'a', 'b', 'c', 'd'].map((id) => ({ id })), edges);
-  assert.throws(() => buildNetMesh(skel), (e: unknown) => e instanceof NetMeshError && (e.node === 'L' || e.node === 'R' || e.node === 'M'));
+/** An arm out of (x, 0, 0) along the angle `ang`, `len` long. */
+const out = (x: number, ang: number, len: number): FixEdge['curve'] => (u) => [x + Math.cos(ang) * len * u, Math.sin(ang) * len * u, 0];
+const ids = (xs: string[]): { id: string }[] => xs.map((id) => ({ id }));
+
+test('two junctions joined by a short edge are ONE region: the short edge is inside the fillet, its bones carry the fillet, and it is not swept', () => {
+  const fx = fixtures().find((f) => f.name === 'HS')!, r = buildNetMesh(fx.skel), m = r.mesh;
+  const nodes = r.nodes.filter((n) => n.kind === 'junction');
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0]!.node, 'L+R');
+  assert.equal(nodes[0]!.arms.length, 4, 'four arms; the short edge is not one');
+  assert.ok(!nodes[0]!.arms.includes(fx.skel.edges.findIndex((e) => e.id === 'M')));
+  const [first, count] = fx.skel.edges.find((e) => e.id === 'M')!.bones;
+  let bound = 0;
+  for (let v = 0; v < m.position.length / 3; v++) for (let i = 0; i < 4; i++) if (m.weight[4 * v + i]! > 0 && m.bone[4 * v + i]! >= first && m.bone[4 * v + i]! < first + count) { bound++; break; }
+  assert.ok(bound > RADIAL, `${bound} vertices bound to the short edge's bones`);
 });
+
+test('a merged region of more than 6 arms fails the bake and names its cluster (no fallback)', () => {
+  const edges: FixEdge[] = [
+    { id: 'M', from: 'L', to: 'R', curve: (u) => [-0.12 + 0.24 * u, 0, 0], rad: () => 0.1, bones: 6 },
+    ...[1.9, 2.5, -1.9, -2.5].map((ang, i): FixEdge => ({ id: `L${i}`, from: 'L', to: `l${i}`, curve: out(-0.12, ang, 2), rad: () => 0.06 })),
+    ...[0.5, 0.9, -0.6].map((ang, i): FixEdge => ({ id: `R${i}`, from: 'R', to: `r${i}`, curve: out(0.12, ang, 2), rad: () => 0.06 })),
+  ];
+  const skel = makeSkeleton(ids(['L', 'R', 'l0', 'l1', 'l2', 'l3', 'r0', 'r1', 'r2']), edges);
+  assert.throws(() => buildNetMesh(skel), (e: unknown) => e instanceof NetMeshError && e.node === 'L+R' && /7 arms/.test(e.message));
+  // the same cluster with 6 arms meshes
+  const six = makeSkeleton(ids(['L', 'R', 'l0', 'l1', 'l2', 'r0', 'r1', 'r2']), edges.filter((e) => e.id !== 'L3'));
+  assert.doesNotThrow(() => buildNetMesh(six));
+});
+
+for (const fx of fixtures()) {
+  const r = buildNetMesh(fx.skel), m = r.mesh, V = m.position.length / 3;
+  const angle = (a: Float32Array, b: Float32Array, v: number): number => (Math.acos(Math.min(1, Math.max(-1, a[3 * v]! * b[3 * v]! + a[3 * v + 1]! * b[3 * v + 1]! + a[3 * v + 2]! * b[3 * v + 2]!))) * 180) / Math.PI;
+
+  test(`${fx.name}: normals are bound in the bones' frames: unit, and the rest blend returns the rest normal`, () => {
+    const n0 = deformNormals(m, fx.skel, 0), geo = geometricNormals(m.position, m.index);
+    // (the rest normal is the blend of the rotated ones: recompute it from the stored world normal through the position's own frame to compare)
+    for (let v = 0; v < V; v++) { assert.ok(Math.abs(Math.hypot(n0[3 * v]!, n0[3 * v + 1]!, n0[3 * v + 2]!) - 1) < 1e-5); for (let i = 0; i < 4; i++) if (m.weight[4 * v + i]! > 0) assert.ok(Math.abs(Math.hypot(m.normal[12 * v + 3 * i]!, m.normal[12 * v + 3 * i + 1]!, m.normal[12 * v + 3 * i + 2]!) - 1) < 1e-5, 'a stored normal is a unit vector'); }
+    // tube vertices (no skin triangle uses them): the ring's direction matches the geometry's own normal within 3 degrees at rest
+    const skin = new Uint8Array(V);
+    for (const nd of r.nodes) if (nd.kind === 'junction') for (let t = nd.triStart; t < nd.triStart + nd.triCount; t++) for (let s = 0; s < 3; s++) skin[m.index[3 * t + s]!] = 1;
+    const tube: number[] = [], fil: number[] = [];
+    const endBone = new Set<number>();
+    for (const nd of fx.skel.nodes) if (nd.edges.length === 1) { const x = nd.edges[0]!, e = fx.skel.edges[x.edge]!; endBone.add(x.end === 0 ? e.bones[0] : e.bones[0] + e.bones[1] - 1); }
+    for (let v = 0; v < V; v++) { if (m.weight[4 * v]! === 1 && endBone.has(m.bone[4 * v]!)) continue; (skin[v] ? fil : tube).push(angle(n0, geo, v)); }   // (the dome's rings: the geometry's average over the cap's first facet is not the sphere's normal)
+    tube.sort((a, b) => a - b); fil.sort((a, b) => a - b);
+    assert.ok(tube[Math.floor(0.99 * (tube.length - 1))]! < 3, `tube normals p99 ${tube[Math.floor(0.99 * (tube.length - 1))]!.toFixed(2)} deg from the geometry's`);
+    if (process.env.NET_DEBUG) console.log(fx.name, 'tube p99', tube[Math.floor(0.99 * (tube.length - 1))]?.toFixed(2), 'fillet p50/p90/p99', [0.5, 0.9, 0.99].map((q) => fil.length ? fil[Math.floor(q * (fil.length - 1))]!.toFixed(1) : '-').join('/'));
+    // the fillet's normal is the union's gradient at the shade width: it follows the surface within 40 degrees at p99 (it is softer than the mesh on purpose, exact-normal.ts)
+    if (fil.length) assert.ok(fil[Math.floor(0.99 * (fil.length - 1))]! < 40, `fillet p99 ${fil[Math.floor(0.99 * (fil.length - 1))]!.toFixed(1)}`);
+  });
+
+  test(`${fx.name}: normals at the map pose stay unit and face outward from their own bones' axes`, () => {
+    const n1 = deformNormals(m, fx.skel, 1), p1 = deform(m, fx.skel, 1), geo = geometricNormals(p1, m.index), a: number[] = [];
+    for (let v = 0; v < V; v++) { assert.ok(Math.abs(Math.hypot(n1[3 * v]!, n1[3 * v + 1]!, n1[3 * v + 2]!) - 1) < 1e-5); a.push(angle(n1, geo, v)); }
+    a.sort((x, y) => x - y);
+    assert.ok(a[Math.floor(0.9 * (a.length - 1))]! < 25, `p90 ${a[Math.floor(0.9 * (a.length - 1))]!.toFixed(1)} deg from the deformed geometry's`);
+  });
+}
+
+/** The distance from the axis (x, 0, 0) to the mesh along the ray at azimuth `th`, in the plane at x (the nearest hit), or Infinity. */
+function radiusAt(m: { position: Float32Array; index: Uint32Array }, x: number, th: number): number {
+  const dy = Math.cos(th), dz = Math.sin(th);
+  let best = Infinity;
+  for (let t = 0; t < m.index.length; t += 3) {
+    const P = [0, 1, 2].map((s) => m.index[t + s]! * 3);
+    if (Math.min(...P.map((o) => m.position[o]!)) > x || Math.max(...P.map((o) => m.position[o]!)) < x) continue;
+    // intersect the ray (x, 0, 0) + s (0, dy, dz) with the triangle (Moller-Trumbore, direction in the plane x = const)
+    const a = P[0]!, b = P[1]!, c = P[2]!, e1 = [0, 1, 2].map((d) => m.position[b + d]! - m.position[a + d]!), e2 = [0, 1, 2].map((d) => m.position[c + d]! - m.position[a + d]!), D = [0, dy, dz];
+    const h = [D[1]! * e2[2]! - D[2]! * e2[1]!, D[2]! * e2[0]! - D[0]! * e2[2]!, D[0]! * e2[1]! - D[1]! * e2[0]!], det = e1[0]! * h[0]! + e1[1]! * h[1]! + e1[2]! * h[2]!;
+    if (Math.abs(det) < 1e-12) continue;
+    const q = [x - m.position[a]!, -m.position[a + 1]!, -m.position[a + 2]!], u = (q[0]! * h[0]! + q[1]! * h[1]! + q[2]! * h[2]!) / det;
+    if (u < 0 || u > 1) continue;
+    const w = [q[1]! * e1[2]! - q[2]! * e1[1]!, q[2]! * e1[0]! - q[0]! * e1[2]!, q[0]! * e1[1]! - q[1]! * e1[0]!], v = (D[0]! * w[0]! + D[1]! * w[1]! + D[2]! * w[2]!) / det;
+    if (v < 0 || u + v > 1) continue;
+    const s = (e2[0]! * w[0]! + e2[1]! * w[1]! + e2[2]! * w[2]!) / det;
+    if (s > 0 && s < best) best = s;
+  }
+  return best;
+}
+
+for (const name of ['T', 'FOUR', 'STUB', 'TT', 'HT']) {
+  test(`${name}: a through pair never necks across its junction: the trunk's radius stays between the two arms' and changes without a step in its slope`, () => {
+    const fx = fixtures().find((f) => f.name === name)!, m = buildNetMesh(fx.skel).mesh;
+    // the surface's radius round the axis at each station: the LOWER QUARTILE over 28 azimuths (the branches' fillets only ever add, and cover a minority of them, and the 14-gon's flats and the skin's irregular triangles average out)
+    const dx = 0.02, prof: number[] = [], xs: number[] = [];
+    for (let x = -0.7; x <= 0.7 + 1e-9; x += dx) { const rs: number[] = []; for (let k = 0; k < 28; k++) rs.push(radiusAt(m, x, (2 * Math.PI * (k + 0.5)) / 28)); rs.sort((a, b) => a - b); prof.push(rs[7]!); xs.push(x); }
+    // the two arms' own tube radius at their stations just outside the seams (the same measure, so the 14-gon's flats cancel)
+    const outer = (sign: number): number => { const x = sign * 0.62; return prof[xs.findIndex((v) => Math.abs(v - x) < 1e-6)]!; };
+    const rA = outer(-1), rB = outer(1), floor = 0.98 * Math.min(rA, rB), ceil = 1.08 * Math.max(rA, rB);   // (the lower bound is the rule; the upper only stops a bulge: a fillet may add a little where the branch leaves)
+    for (let i = 0; i < prof.length; i++) { assert.ok(prof[i]! >= floor, `x ${xs[i]!.toFixed(2)}: radius ${prof[i]!.toFixed(4)} is below min(RA, RB) - 2% = ${floor.toFixed(4)} (a neck)`); assert.ok(prof[i]! <= ceil, `x ${xs[i]!.toFixed(2)}: radius ${prof[i]!.toFixed(4)} is above max(RA, RB) + 8%`); }
+    // no step in the slope: over a 0.06 baseline (the skin's triangles wobble the radius by about 1 %, 0.001, so a shorter one reads noise) the slope changes by under 0.08 between neighbouring stations (a taper ends in a smooth ease; a neck or a ledge of 5 % is a jump of 0.16)
+    const W = 3, slope = prof.slice(W).map((v, i) => (v - prof[i]!) / (W * dx));
+    for (let i = 1; i < slope.length; i++) assert.ok(Math.abs(slope[i]! - slope[i - 1]!) < 0.08, `x ${xs[i + 1]!.toFixed(2)}: the slope jumps from ${slope[i - 1]!.toFixed(3)} to ${slope[i]!.toFixed(3)}`);
+  });
+}
 
 test('networksOf groups edges that share a node, and one network builds the same as the whole skeleton', () => {
   const fx = fixtures().find((f) => f.name === 'H')!;
@@ -111,4 +195,37 @@ test('the baked file round-trips a mesh bit for bit, and its digest follows the 
   const moved = fixtures().find((f) => f.name === 'FOUR')!.skel;
   moved.bones[3]!.pos[0] = [9, 9, 9];
   assert.notEqual(skeletonDigest(moved), digest);
+});
+
+test('every through pair, merged or not, is judged by the no-neck rule on the union it is meshed on, and none necks', () => {
+  let pairs = 0;
+  for (const fx of fixtures()) {
+    const r = buildNetMesh(fx.skel);
+    for (const nd of r.nodes) for (const p of nd.through) { pairs++; assert.ok(p.margin >= 1, `${fx.name} ${nd.node}: the pair's profile is at ${p.margin.toFixed(3)} of the floor`); }
+  }
+  assert.ok(pairs >= 5, `${pairs} through pairs checked`);
+  const ht = buildNetMesh(fixtures().find((f) => f.name === 'HT')!.skel).nodes[0]!;
+  assert.equal(ht.through.length, 1, 'the pair across the short edge is found');
+  assert.equal(ht.arms.length, 4);
+  assert.ok(ht.through[0]!.toggled && ht.through[0]!.mated, 'across a merged short edge the plain union bulges at each node, so the pair becomes one capsule, mated');
+  const t = buildNetMesh(fixtures().find((f) => f.name === 'T')!.skel).nodes[0]!;
+  assert.ok(t.through[0]!.mated && !t.through[0]!.toggled, 'at one node the pair is the mate minimum');
+});
+
+test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge fail', async () => {
+  const { throughNeck } = await import('../src/scene/vessels/net/neck.ts');
+  const { armCapsule, skinKOf } = await import('../src/scene/vessels/skin/sdf.ts');
+  const arm = { vesselId: 'x', end: 0 as const, courseIndex: 0, dataIndex: 0, lensIndex: 0, baseD: 1, widthKind: 0 as const, restR: 0.1 };
+  const cap = (x0: number, x1: number, r0: number, r1: number) => armCapsule(arm, [[x0, 0, 0], [x1, 0, 0]], Math.abs(x1 - x0), (d) => r0 + (r1 - r0) * (d / Math.abs(x1 - x0)));
+  const axis: [number, number, number][] = [[-0.5, 0, 0], [0.5, 0, 0]], k = skinKOf([arm]);
+  const ok = throughNeck(axis, [0.1, 0.1], [{ ...cap(0, -2, 0.1, 0.1), mate: 1 }, { ...cap(0, 2, 0.1, 0.1), mate: 0 }], k);   // (a through pair is mated: united by a plain minimum, as the mesher does)
+  const bump = throughNeck(axis, [0.1, 0.1], [cap(0, -2, 0.1, 0.1), cap(0, 2, 0.1, 0.1)], k);
+  assert.ok(!bump.ok, 'the plain smooth union of a through pair bulges: the rule sees it');
+  assert.ok(ok.ok, ok.why);
+  const gap = throughNeck(axis, [0.1, 0.1], [cap(-0.2, -2, 0.1, 0.1), cap(0.2, 2, 0.1, 0.1)], k);
+  assert.ok(!gap.ok && /neck/.test(gap.why), 'two capsules with a gap between their ends are a neck');
+  const pinch = throughNeck(axis, [0.1, 0.1], [cap(-0.3, -2, 0.1, 0.1), cap(0.3, 2, 0.1, 0.1), cap(-0.3, 0.3, 0.06, 0.06)], k);
+  assert.ok(!pinch.ok, 'a thin bridge between two fat arms is a neck');
+  const ledge = throughNeck(axis, [0.1, 0.07], [cap(0, -2, 0.1, 0.1), cap(0, 2, 0.07, 0.07)], k);
+  assert.ok(!ledge.ok && /slope/.test(ledge.why), 'a step from 0.1 to 0.07 is a step in the slope');
 });

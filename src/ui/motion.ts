@@ -19,3 +19,7 @@ export const EASE_ARRIVE = 'cubic-bezier(.2, .8, .2, 1)';
 export const EASE_MOVE = 'cubic-bezier(.5, 0, .5, 1)';
 /** = tokens.css --ease-in. */
 export const EASE_IN = 'cubic-bezier(.4, 0, 1, 1)';
+/** own pace: the card rail's curve (2D's rail: old cards ride out, new ones come in; cards/rail.ts easeRail is the same curve as a function). */
+export const EASE_RAIL = 'cubic-bezier(.32, .72, 0, 1)';
+/** own pace: a frame or two on top of a leave's CSS time before its element is unmounted, so the leave is never cut short by the unmount. */
+export const LEAVE_SLACK_MS = 60;

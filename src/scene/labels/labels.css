@@ -9,7 +9,7 @@
 .lb-key-layer { z-index: calc(var(--z-cards, 10) + 1); }   /* (over the cards: the key stands in the words card's foot; under the chrome: menus and sheets cover it) */
 /* The key's frost is the browser's backdrop blur, which sees nothing past an ancestor that fades or is promoted for opacity (a backdrop root). So the key's layer and wrap never fade or carry will-change: opacity;
    the key itself fades (tests/deck-fade-blur.test.ts). */
-.lb-key-layer .lb-key { transition: opacity 240ms var(--ease, ease); }
+.lb-key-layer .lb-key { transition: opacity var(--d-small) var(--ease-arrive); }
 body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0; }
 .lb, .lb-lead, .lb-anchor, .cm, .wb { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
 .lb-key-wrap { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform; }   /* (it holds the key's glass: no opacity promotion, see above) */
@@ -142,8 +142,8 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
   background: var(--glass); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   box-shadow: 0 14px 34px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6)), 0 2px 6px -1px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2));
   font: var(--lb-key-weight, 400) var(--lb-key-fs, 12px) / var(--lb-key-line, 1.25) var(--font-ui, Inter, system-ui, sans-serif); color: var(--text-2); }
-.lb-key-in { animation: lb-key-in 240ms var(--ease, ease) both; }
-.lb-key-out { position: absolute; left: 0; top: 0; pointer-events: none; animation: lb-key-out 240ms var(--ease, ease) both; }
+.lb-key-in { animation: lb-key-in var(--d-small) var(--ease-arrive) both; }
+.lb-key-out { position: absolute; left: 0; top: 0; pointer-events: none; animation: lb-key-out var(--d-small) var(--ease-arrive) both; }
 @keyframes lb-key-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lb-key-out { from { opacity: 1; } to { opacity: 0; } }
 .lb-key-twin { flex-wrap: nowrap; max-width: none; min-height: 0; }
@@ -195,8 +195,8 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .cl-lead-dot { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--text); will-change: transform; }   /* (a leader or dot that is not wanted is scaled to 0, never visibility) */
 
 /* The stent's waist bracket (waist-bracket.ts): a flat bar and two ticks in the label ink with the labels' halo, laid by transform and opacity; it fades with the waist and leaves the same way (visibility waits for the fade). */
-.wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s linear var(--d-small, 200ms); }
-.wb[data-on] { transition: opacity var(--d-small, 200ms) var(--ease, ease), visibility 0s; }
+.wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
+.wb[data-on] { transition: opacity var(--d-small) var(--ease-arrive), visibility 0s; }
 .wb { --wb-w: 1px; --wb-a: 0.8; }
 /* a quiet dimension line: one hairline in the label ink, a soft halo (a blur, not a hard ring: the hard 1px ring read as a thick black bar with a white core on the dark look), fine end ticks the same weight */
 .wb-bar { width: 100px; height: var(--wb-w); margin-top: calc(var(--wb-w) / -2); background: var(--lb-val); filter: drop-shadow(0 0 1.5px var(--lb-halo)); border-radius: 0.5px; }
