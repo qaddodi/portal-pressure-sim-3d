@@ -94,7 +94,7 @@ function useEnv(deck: Deck, i: number) {
   const own = results?.[i];
   // the patient a compare button has put the model in, if one is pressed: every chart of the slide reads it, as the figure does (variant-words.ts)
   const variant = useVariant((v) => (v.key === `${deck.id}/${cs.id}` ? v.state : null));
-  const st = useMemo(() => (variant && own ? { ...own, fp: variant.fp as never, params: variant.params ?? own.params } : own), [own, variant]);
+  const st = useMemo(() => (variant && own ? { ...own, fp: variant.fp, params: variant.params ?? own.params } : own), [own, variant]);
   const fpOf = (id: string): Fp | null => { const j = copied.slides.findIndex((x) => x.id === id); return (results?.[j]?.fp as Fp | undefined) ?? null; };
   return { copied, cs, st, fp: (st?.fp ?? null) as Fp | null, params: st?.params, healthy, results, fpOf };
 }

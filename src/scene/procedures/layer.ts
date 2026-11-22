@@ -30,7 +30,7 @@ interface Leaving { t: number; from: CatheterState | null; glue: GlueLast | null
 interface GlueLast { coil: number; column: number; flash: number; opacity: number }
 type Rec = { u: number; balloon: number; column: number; opacity: number; step: number; shot: string; needle: number; wire: number; flash: number; coil?: number; read?: number; [k: string]: unknown };
 /** One move of a procedure on the clock. */
-interface Run { kind: string; t: number; t0: number; from: number; to: number; speed: number; rec: Rec; onEnd?: () => void; onFrame?: (r: Readonly<Rec>) => void; keep: boolean }
+interface Run { kind: string; t: number; t0: number; from: number; to: number; speed: number; rec: Rec; onEnd?: () => void; onStop?: () => void; onFrame?: (r: Readonly<Rec>) => void; keep: boolean }
 
 /** A procedure driven one step at a time (a presentation: Next plays the next step and holds at its stop, Back runs it backwards). */
 interface StepRun { kind: string; clk: StepClock; rec: Rec; arrived: boolean; rewind: boolean; pauseUntil: number; moved: boolean; keep: boolean; onFrame?: (r: Readonly<Rec>) => void; onArrive?: (t: number) => void; onEnd?: (e: { done: boolean; rewound: boolean }) => void }
@@ -54,6 +54,8 @@ export interface PlayOptions {
   speed?: number;
   onFrame?: (r: Readonly<Rec>) => void;
   onEnd?: () => void;
+  /** the run was stopped before its end (`stop()`: the card closed, a new patient, another control): the runner gives back what it claimed (the camera, the readings, the owner). Not called after `onEnd`. */
+  onStop?: () => void;
   /** leave the last frame up when it ends (a step's end), instead of clearing */
   keep?: boolean;
 }
@@ -260,7 +262,7 @@ export class ProcedureLayer {
     const spec = specOf(kind) as { T: { end: number } } | null;
     if (!spec) throw new Error(`no procedure ${kind}`);
     const from = o.from ?? 0, to = o.to ?? spec.T.end;
-    this.run = { kind, t: from, t0: now, from, to, speed: o.speed ?? 1, rec: { ...this.frame } as Rec, onEnd: o.onEnd, onFrame: o.onFrame, keep: !!o.keep };
+    this.run = { kind, t: from, t0: now, from, to, speed: o.speed ?? 1, rec: { ...this.frame } as Rec, onEnd: o.onEnd, onStop: o.onStop, onFrame: o.onFrame, keep: !!o.keep };
     this.dirty = true;
   }
 
@@ -291,8 +293,10 @@ export class ProcedureLayer {
 
   /** End the move: clear the devices (or leave the last frame up with `keep`). */
   stop(keep = false): void {
+    const r = this.run;
     this.run = null; this.step = null;
     if (!keep) this.clear(LEAVE_MS);
+    r?.onStop?.();   // (after the run is gone, so a runner that stops again from here finds nothing to stop)
   }
 
   /** Take the devices off the figure: at once, or (`fadeMs`) easing out in place as 2D's cathOut does when a slide is left, so nothing pops (the device a leaving slide's step left standing, the glue's coil and cast). */

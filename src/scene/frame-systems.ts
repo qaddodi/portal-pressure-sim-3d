@@ -1,0 +1,27 @@
+// The scene's frame as a list of systems (R6). Each system has an id and a `step` that says whether it still moves; `runSystems` runs ALL of them in order
+// (never `a() || b()`: a system that follows a moving one must still run), ORs the answers and adds each one's cost to `totals[id]`, which is what ?perf and the
+// audit read to name the system that makes a frame slow. A new system is one entry in the list, and its name in ?perf is its id.
+export interface FrameSystem<C> { readonly id: string; step(ctx: C): boolean }
+
+/** What the scene's systems hand each other within one frame (the time, and what an earlier system worked out that a later one needs). */
+export interface FrameCtx {
+  /** page time of this frame, ms */
+  now: number;
+  /** ms since the last scene update (at most 100) */
+  dt: number;
+  /** the blood streams moved this frame (the cells ride on them) */
+  streams: boolean;
+  /** a procedure is on the figure: the flow marks ease out */
+  procQuiet: boolean;
+}
+
+/** Runs every system once, in order. Returns whether any still moves. */
+export function runSystems<C>(systems: readonly FrameSystem<C>[], ctx: C, totals: Record<string, number>, now: () => number): boolean {
+  let moving = false;
+  for (const s of systems) {
+    const t0 = now();
+    if (s.step(ctx)) moving = true;
+    totals[s.id] = (totals[s.id] ?? 0) + (now() - t0);
+  }
+  return moving;
+}
