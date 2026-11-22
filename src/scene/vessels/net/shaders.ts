@@ -27,7 +27,7 @@
 import { CIRC_PEEL_GLSL } from '../../circuit/shader.ts';
 import { CIRC_C, MAP_CENTRE } from '../../circuit/map.ts';
 import { PEEL_SPAN, PEEL_X0 } from '../../circuit/peel.ts';
-import { FADE_FUNCS_GLSL } from '../../materials/shaders.ts';
+import { FADE_FUNCS_GLSL, SCREEN_DITHER_GLSL } from '../../materials/shaders.ts';
 import { WEDGE_GLSL } from '../wedge-glsl.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
@@ -40,7 +40,7 @@ import { VDBG_GLSL } from '../debug-view.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
 import { SKIN_K } from '../skin/sdf.ts';
 import { SKIN_RING_W_FROM, SKIN_SHADE_K } from '../skin/exact-normal.ts';
-import { REGION_CAPS, REGION_PTS } from './regions.ts';
+import { REGION_CAPS, REGION_HEAD, REGION_PTS } from './regions.ts';
 import { SIDE_END_MIN, FLARE_K, FLARE_SPAN } from '../fork-joins.copied.js';
 import { BONE_TEXELS, BONES_PER_ROW } from './bones.ts';
 import { EDGE_LAYOUT } from './edge-state.ts';
@@ -133,6 +133,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;   // vW, vR, vU, vArcLen: the clip depth, the lumen's half width and the figure's units in a scene unit here, and the length along the course drawn now (shaders.ts vArcLen)
 varying vec4 vPackB;   // vFade, vCircShare, circStay, vHi
+varying float vDraw;   // a junction region's two meshes: the body mesh's share of the pixels (variant 0), or 2 + it (the map mesh, which keeps the rest); 1 for everything else
 varying vec2 vPackD;   // vR0 (the lumen's half width before a stenosis or the stent's waist pinches it) and vSkew (the stent wires' shift, shaders.ts)
 varying vec4 vPackC;   // vUv.x, vUv.y, the second bone's place along its own edge (vUvB), the second bone's share (vBlend: 0 in a tube, up to 0.5 in a fillet)
 flat varying vec2 vEdge;   // the edge of the bone that holds the vertex most, and the second's: the fragment stage's discrete state (flat: one per triangle)
@@ -342,6 +343,16 @@ float netUnion(vec3 p, float k, int nc, out vec3 g) {
   return acc;
 }
 void main() {
+  // A JUNCTION REGION HAS TWO MESHES (body-built and map-built, regions.ts), both projected onto the one live union; the screen dither hands over from one to the other over [b, a] of t, and the one not drawn is a point (no work, no fragments)
+  vDraw = 1.0;
+  if (region > -0.5) {
+    int r0 = int(region + 0.5);
+    float variantM = texelFetch(regionTex, ivec2(0, r0), 0).z;
+    vec2 win = texelFetch(regionTex, ivec2(3, r0), 0).xy;
+    float wb = win.y > win.x ? 1.0 - smoothstep(win.x, win.y, circT) : (circT < win.y ? 1.0 : 0.0);
+    if (variantM < 0.5 ? wb <= 0.0 : wb >= 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    vDraw = variantM < 0.5 ? wb : 2.0 + wb;
+  }
   vec3 pAcc = vec3(0.0), pMapAcc = vec3(0.0), nAcc = vec3(0.0), tAcc = vec3(0.0), cenAcc = vec3(0.0);
   float padAcc = 0.0, lumen0Acc = 0.0, dturnAcc = 0.0, arcAcc = 0.0, fadeAcc = 0.0, hiAcc = 0.0, shareAcc = 0.0, lumenAcc = 0.0, presAcc = 0.0, unitAcc = 0.0, stayAcc = 1.0;
   int rowOf[4] = int[4](-1, -1, -1, -1);
@@ -493,6 +504,7 @@ varying vec3 vT;
 varying vec3 vZf;
 varying vec4 vPackA;
 varying vec4 vPackB;
+varying float vDraw;
 varying vec4 vPackC;
 varying vec2 vPackD;
 flat varying vec2 vEdge;
@@ -548,7 +560,9 @@ void main() {
   if (frontOut(vUv.x, reveal)) discard;
   if (fadedOut()) discard;
   // a part with no map course fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve
-  if (circStay < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= circStay) discard;
+  if (circStay < 0.999 && ${SCREEN_DITHER_GLSL} >= circStay) discard;
+  // a junction region's two meshes hand over in the same pattern: the body mesh keeps the pixels below its share, the map mesh the others, so every pixel is drawn by exactly one of them
+  if (vDraw < 0.999 || vDraw > 1.001) { bool mapMesh = vDraw > 1.5; float wbS = mapMesh ? vDraw - 2.0 : vDraw; float nzS = ${SCREEN_DITHER_GLSL}; if (mapMesh ? nzS < wbS : nzS >= wbS) discard; }
   if (vFade < 0.004) discard;
   vec3 n = normalize(vN);
   vec3 sideX = cross(normalize(vT), normalize(vV));
@@ -685,7 +699,7 @@ void main() {
   float rid = floor(capId / W + 0.001);
   float within = capId - rid * W;
   int rr = int(rid + 0.5), slot = int(within + 0.5);   // the bones of a region are packed four to a texel from texel 3, capsule after capsule
-  vec4 bi4 = texelFetch(regionTex, ivec2(3 + slot / 4, rr), 0);
+  vec4 bi4 = texelFetch(regionTex, ivec2(${REGION_HEAD} + slot / 4, rr), 0);
   NetBone nb = netBone(int(bi4[slot - (slot / 4) * 4] + 0.5), true);
   vCapOut = vec4(nb.cen, nb.lumen);
   gl_PointSize = 1.0;

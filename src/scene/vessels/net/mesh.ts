@@ -82,6 +82,9 @@ export interface NodeReport {
   /** every through pair of the region (the two edges that run on through it, across short edges too): whether its arms are united by the mate minimum, whether the no-neck rule made that choice (the other one necked), and the profile's lowest value over the rule's floor */
   /** junction: the union's capsules as meshed (axis points, radii at them, the mate's index or -1), the arms' first, then the short edges' and any run-on capsule: what the shader's implicit-skinning projection rebuilds from the live bones (net/regions.ts) */
   caps?: { pts: number[]; r: number[]; mate: number }[];
+  /** a region built twice (plan owner, 22 Nov): 0 the body-layout mesh, 1 the map-layout mesh (absent: body), and the t window `[b, a]` over which the two hand over by the screen dither (net/regions.ts bodyShare); absent: this mesh is drawn alone */
+  variant?: 0 | 1;
+  switchT?: readonly [number, number];
   /** junction: the bones each of `caps` runs through, and each arm's seam ring (mesh vertex ids): what net/fit.ts needs to fit the region at the other states */
   capBones?: number[][]; rings?: number[][];
   through: { arms: [number, number]; mated: boolean; toggled: boolean; margin: number }[];
