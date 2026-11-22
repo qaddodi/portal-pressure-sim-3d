@@ -64,3 +64,22 @@ test('four programs, and the network pair stays within the 15-varying floor', ()
   const used = varyings(NET_VS);
   assert.ok(used <= 15, `${used} varyings, the floor is 15`);
 });
+
+test('the junction projection in the vertex stage: the oracle\'s constants (k scale, shade width, ease), three Newton steps, the region row layout, and the push along the union\'s own gradient', async () => {
+  const { SKIN_K } = await import('../src/scene/vessels/skin/sdf.ts');
+  const { SKIN_RING_W_FROM, SKIN_SHADE_K } = await import('../src/scene/vessels/skin/exact-normal.ts');
+  const { REGION_CAPS, REGION_PTS, REGION_TEXELS } = await import('../src/scene/vessels/net/regions.ts');
+  const f = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+  assert.match(NET_VS, /for \(int s = 0; s < 3; s\+\+\) \{\s*float f = netUnion\(pAcc, kU, nc, gU\);/, 'three Newton steps on the union');
+  assert.ok(NET_VS.includes(`float kU = ${f(SKIN_K)} * kMin;`), 'k is SKIN_K x the narrowest arm\'s live lumen');
+  assert.ok(NET_VS.includes(`${f(SKIN_SHADE_K)} * kU`) && NET_VS.includes(`smoothstep(0.6, ${f(SKIN_RING_W_FROM)}, wmax)`), 'the shade width and the ease to the tube\'s own normal');
+  assert.ok(NET_VS.includes(`vec4 capP[${REGION_CAPS * REGION_PTS}];`));
+  assert.equal(REGION_TEXELS, 3 + (REGION_CAPS * REGION_PTS) / 4);
+  assert.match(NET_VS, /pAcc \+= nPush \* padAcc;/, 'the ink, the sag and the lift push along the sharp gradient for a junction vertex');
+  assert.match(NET_VS, /float sc = region > -0\.5 \? b\.lumenRest : b\.lumen;/, 'a junction vertex starts at the rest radii');
+});
+
+test('the free-end fade is each bone\'s own, at its REST position: a hidden returning tail does not take the pixel\'s y', () => {
+  assert.match(NET_VS, /vec3 position = A\.xyz;/, 'the fade code reads the bone\'s body-pose centre');
+  assert.ok(!/fadeMode/.test(NET_FS) && !/gl_FragCoord\.y[^;]*fade/i.test(NET_FS), 'the fragment stage fades by the bone-weighted vFade only');
+});
