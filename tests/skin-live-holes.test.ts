@@ -10,6 +10,9 @@ import { gateSkins } from './skin-gate-lib.ts';
 import { closeCamera, rasterLive, swellOf } from './skin-live-lib.ts';
 
 const SCREEN = { w: 393, h: 852, dpr: 2, pxPerUnit: 500 } as const;
+/** The hold-out ramp these twin tests were written against (0.25 k to k): the patches they pin (heldMin, the lumen rescue, the shade union) are for the whole welded skin as it stands when a part could not be built; with the later ramp (16C, 1 k to 2 k) the stub is held in
+ *  sooner and these bites are fewer, so they ask for the ramp they bite on. */
+const OLD_RAMP = [0.25, 1] as const;
 /** The skin's pixels the live union calls vessel and no fragment is kept at, past what the skin has with every arm there (a sliver of the mesh's outer edge, by design). */
 const EXTRA_HOLE_MAX = 0.02;
 
@@ -44,7 +47,7 @@ test('a growing arm that is not there leaves no hole in its host: every skin, at
   } finally { g.done(); }
 });
 
-test('the test bites: with each arm held out on its own (the rule until 22 Nov) the azygos skin of the Schistosomiasis patient has a tenth of its pixels unpainted', async () => {
+test('the test bites: with each arm held out on its own (the rule until 22 Nov) the azygos skin of the Schistosomiasis patient has pixels unpainted (2 percent at this zoom, none with the rule)', async () => {
   const g = gateSkins();
   try {
     const s = g.skins.find((k) => k.node.startsWith('wall:AZY_SVC'))!, arms = s.mesh.junction.arms, fr = await frameOf('schisto');
@@ -52,9 +55,9 @@ test('the test bites: with each arm held out on its own (the rule until 22 Nov) 
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     assert.deepEqual(keep, [true, true, false, true], 'C9 collapsed, the varices open');
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
-    const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true, noRescue: true }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
-    assert.ok(old.hole / old.covered > 0.08, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
-    assert.ok(now.hole / now.covered < 0.03, `${(100 * now.hole / now.covered).toFixed(1)} % with it`);
+    const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true, noRescue: true, ramp: OLD_RAMP }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
+    assert.ok(old.hole / old.covered > 0.015, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
+    assert.ok(now.hole / now.covered < 0.005, `${(100 * now.hole / now.covered).toFixed(1)} % with it`);
   } finally { g.done(); }
 });
 
@@ -71,7 +74,7 @@ test('the shade follows the outline: at the Schistosomiasis azygos, the stub pix
     const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0 });
-    const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, {}, { normals: true });
+    const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { ramp: OLD_RAMP }, { normals: true });
     assert.ok(r.newlyDrawn > 200, `${r.newlyDrawn} stub pixels are drawn in the host's lumen`);
     assert.ok(r.newlyDrawnBandFlip / r.newlyDrawn > 0.4, `${r.newlyDrawnBandFlip} of ${r.newlyDrawn} would change cel band if shaded as a stub`);
     const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
@@ -87,7 +90,7 @@ test('a pixel the arms\' screen union calls lumen is never dropped: the narrow v
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     assert.ok(swell[3]! < 0.5, `C1b is at swell ${swell[3]!.toFixed(2)} of its built width`);
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
-    const before = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { noRescue: true }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
+    const before = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { noRescue: true, ramp: OLD_RAMP }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
     assert.ok(before.hole >= 20, `${before.hole} pixels are dropped inside the union without the rule`);
     assert.equal(now.hole, 0, 'none with it');
     const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
@@ -106,7 +109,7 @@ test('a pixel of an absent arm\'s stub is not taken for a seam ring: the normal 
     const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0 });
-    const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, {}, { normals: true });
+    const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { ramp: OLD_RAMP }, { normals: true });
     assert.ok(r.vertexNormalWrongly > 20, `${r.vertexNormalWrongly} pixels of the stub took the mesh's normal as a seam ring before`);
   } finally { g.done(); }
 });

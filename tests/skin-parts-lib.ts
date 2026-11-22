@@ -41,10 +41,12 @@ export function offUnion(skin: GateSkin, swell: readonly number[], keep: readonl
 import { collateralOpen } from '../src/scene/vessels/network.ts';
 import { partKey } from '../src/scene/vessels/skin/plain.ts';
 import { swellOf } from './skin-live-lib.ts';
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { TIER_Z } from '../src/scene/frame2d.ts';
 import type { gateSkins } from './skin-gate-lib.ts';
 
 /** One skin at one frame of the engine: the mesh the skin set draws for the growers that are there (skin-set.ts sync), and the live swell and keep flags of its arms. `kind`: whole (no growing arm), welded (every grower there), part (some), plain (none, the plain trunk), tubes (none and no plain trunk: the tubes' own cut ends carry the weld). */
-export interface Drawn { /** the welded skin of the node at the same frame (what was drawn before parts): its mesh, live swells and keep flags */ full: { skin: GateSkin; swell: number[]; keep: boolean[] }; node: string; kind: 'whole' | 'welded' | 'part' | 'plain' | 'tubes'; here: string[]; growers: string[]; skin: GateSkin | null; swell: number[]; keep: boolean[] }
+export interface Drawn { /** the welded skin of the node at the same frame (what was drawn before parts): its mesh, live swells and keep flags */ full: { skin: GateSkin; swell: number[]; keep: boolean[] }; node: string; kind: 'whole' | 'welded' | 'part' | 'plain' | 'tubes'; here: string[]; growers: string[]; skin: GateSkin | null; swell: number[]; keep: boolean[]; /** each arm's tier z (frame2d.ts TIER_Z) */ tierZ: number[] }
 export interface EngineFrame { D: ArrayLike<number> }
 
 export function drawnSkins(g: ReturnType<typeof gateSkins>, fr: EngineFrame & Record<string, unknown>): Drawn[] {
@@ -60,6 +62,6 @@ export function drawnSkins(g: ReturnType<typeof gateSkins>, fr: EngineFrame & Re
     else { skin = g.plain(s.node) ?? null; kind = skin ? 'plain' : 'tubes'; }
     const a = skin?.mesh.junction.arms ?? [];
     const fa = s.mesh.junction.arms, full = { skin: s, swell: fa.map((x) => swellOf(fr.D[x.dataIndex]!, x.baseD, x.widthKind)), keep: fa.map((x) => !x.grow || collateralOpen(x.vesselId, fr as never)) };
-    return { ...base, full, kind, skin, swell: a.map((x) => swellOf(fr.D[x.dataIndex]!, x.baseD, x.widthKind)), keep: a.map((x) => !x.grow || collateralOpen(x.vesselId, fr as never)) };
+    return { ...base, full, kind, skin, swell: a.map((x) => swellOf(fr.D[x.dataIndex]!, x.baseD, x.widthKind)), keep: a.map((x) => !x.grow || collateralOpen(x.vesselId, fr as never)), tierZ: a.map((x) => TIER_Z[NETWORK_BY_ID.get(x.vesselId)!.tier as keyof typeof TIER_Z]) };
   });
 }
