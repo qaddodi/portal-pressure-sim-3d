@@ -172,10 +172,10 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .cl[data-fig="step"] { justify-content: center; padding: 0; border-radius: 50%; }
 .cl[data-fig="step"] .cl-k { color: var(--bg, #fff); font-weight: 700; letter-spacing: 0; }
 .cl[data-fig="step"] .cl-glass path { fill: var(--text); stroke: none; }
-/* the step disc is the one glass too (plan 20): with the blur on, its face is the text colour at 82 % over the shared blur and the shape is only the clip; blur off, reduced transparency
+/* the step disc is the one glass too (plan 20): with the blur on, its face is the text colour at 95 % over the shared blur and the shape is only the clip; blur off, reduced transparency
    or no backdrop blur keeps the solid fill above */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair { background: color-mix(in srgb, var(--text) 82%, transparent) !important; }
+  html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair { background: color-mix(in srgb, var(--text) 95%, transparent) !important; }
   html:not([data-noglass]) .cl[data-fig="step"] .cl-glass path { fill: none; }
   @media (prefers-reduced-transparency: reduce) {
     html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--text) !important; }
@@ -206,8 +206,8 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 
 /* A step's leader (plan 21: a thin line to the vessel's edge, no dot on a vessel; a dot, 5 px with the labels' halo, only where it names an area: an organ, the sinusoids a group stands for). Moved by transform; the layer fades it with the number. */
 .cl-lead { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
-.cl-lead-line { position: absolute; left: 0; top: 0; width: 1px; height: 1.5px; margin-top: -0.75px; transform-origin: 0 50%; background: var(--text); box-shadow: 0 0 0 0.5px var(--lb-halo, var(--cl-surface, transparent)); will-change: transform; }
-.cl-lead-dot { position: absolute; left: 0; top: 0; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 1px var(--lb-halo, var(--cl-surface, transparent)); will-change: transform; }   /* (a leader or dot that is not wanted is scaled to 0, never visibility) */
+.cl-lead-line { position: absolute; left: 0; top: 0; width: 1px; height: 2.5px; margin-top: -1.25px; transform-origin: 0 50%; background: linear-gradient(to bottom, var(--lb-halo, var(--cl-surface, transparent)) 0 0.5px, var(--lead-c, var(--text)) 0.5px 2px, var(--lb-halo, var(--cl-surface, transparent)) 2px); will-change: transform; }   /* (plan 21b: drawn by scaleX, so NO box-shadow, outline or filter: a shadow scales with the box and ran 0.5 x length past each end. The halo is inside the line's own height.) */
+.cl-lead-dot { position: absolute; left: 0; top: 0; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--text); filter: drop-shadow(0 0 1px var(--lb-halo, var(--cl-surface, transparent))); will-change: transform; }   /* (a leader or dot that is not wanted is scaled to 0, never visibility) */
 
 /* The stent's waist bracket (waist-bracket.ts): a flat bar and two ticks in the label ink with the labels' halo, laid by transform and opacity; it fades with the waist and leaves the same way (visibility waits for the fade). */
 .wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
@@ -240,5 +240,6 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .cl-lead[data-tone="danger"] { --lc: var(--cl-danger-ink, var(--danger)); }
 .cl-lead[data-tone="custom"] { --lc: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text, var(--text))); }
 .cl-lead[data-tone="note"] { --lc: var(--cl-text, var(--text)); }
-.cl-lead[data-tone] .cl-lead-line, .cl-lead[data-tone] .cl-lead-dot { background: var(--lc); }
+.cl-lead[data-tone] .cl-lead-line { --lead-c: var(--lc); }
+.cl-lead[data-tone] .cl-lead-dot { background: var(--lc); }
 .cl-lead[data-tone] .cl-lead-dot { filter: drop-shadow(0 0 1.5px var(--lb-halo, var(--cl-surface, #000))); }

@@ -152,8 +152,8 @@ export function leaderToEdge(seg: [number, number, number, number], half: number
   if (len - back <= 0.5) return null;
   return [seg[0], seg[1], seg[2] - (dx / len) * back, seg[3] - (dy / len) * back];
 }
-/** Whether a step's or a mark's leader ends in a dot: only where it names an area (an organ, the sinusoid field a group stands for, a station, a node), never on a single vessel, where its edge is the mark. */
-export const leadHasDot = (anchor: Anchor): boolean => !('edge' in anchor);
+/** Whether a step's or a mark's leader ends in a dot: only where it names a point that is not a vessel (an organ, a station, a node), never on a vessel or a group of vessels (plan 21b), where each line's end at the vessel's edge is the mark. */
+export const leadHasDot = (anchor: Anchor): boolean => !('edge' in anchor) && !('edges' in anchor);
 
 export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { x: number; y: number }): [number, number, number, number] | null {
   const dx = to.x - circle.cx, dy = to.y - circle.cy, len = Math.hypot(dx, dy);
@@ -393,7 +393,16 @@ export class FigureCards {
       } else this.reach.delete(c.id);
       // a lobule callout's ring: its radius on the screen, from a point one ring radius off along the plate (it changes only as the camera does, so it hides the card like any other move)
       if ('lobule' in c.anchor) { const e = d.lobuleRing(c.anchor.lobule, this.q); if (e) { const b = d.project(e, this.pt2); put(c.id + '#r', { x: ringPx(Math.hypot(b.x - at.x, b.y - at.y)), y: 0 }); } }
-      if (c.kind === 'step' && 'edges' in c.anchor) c.anchor.edges.forEach((e, i) => { const q = anchorPoint({ edge: e }, this.q, d.lobule, stepMidOf(e)); if (q) put(`${c.id}#${i}`, d.project(q, { x: 0, y: 0 })); });
+      if (c.kind === 'step' && 'edges' in c.anchor) c.anchor.edges.forEach((e, i) => {
+        const q = anchorPoint({ edge: e }, this.q, d.lobule, stepMidOf(e)); if (q) put(`${c.id}#${i}`, d.project(q, { x: 0, y: 0 }));
+        // (each member vessel's own reach, so a group's lines stop at their vessel's edge too)
+        const cv = curveOf(e), vs = NETWORK_BY_ID.get(e), u = stepMidOf(e);
+        if (cv && vs) {
+          cv.getPointAt(u, this.p); cv.getPointAt(Math.min(1, u + 0.02), this.q);
+          const a0 = d.project(this.p, this.pt), b0 = d.project(this.q, this.pt2), n0 = Math.hypot(b0.x - a0.x, b0.y - a0.y) || 1, per = n0 / (this.p.distanceTo(this.q) || 1);
+          this.reach.set(`${c.id}#${i}`, { half: Math.max(2, vs.radius * per), tx: (b0.x - a0.x) / n0, ty: (b0.y - a0.y) / n0 });
+        } else this.reach.delete(`${c.id}#${i}`);
+      });
     }
     // each caliper's two ends on the canvas
     const ends = new Map<string, [number, number, number, number]>();
@@ -508,7 +517,7 @@ export class FigureCards {
       lead.root.append(l, dt); lead.lines.push(l); lead.dots.push(dt); lead.tx.push(''); lead.k.push(0); lead.kd.push(0); lead.at.push('translate3d(0,0,0)'); lead.len.push(0);
     }
     lead.lines.forEach((l, i) => {
-      const p = pts[i], reach = this.reach.get(c.id), dotted = leadHasDot(c.anchor) || !reach;
+      const p = pts[i], reach = this.reach.get('edges' in c.anchor ? `${c.id}#${i}` : c.id), dotted = leadHasDot(c.anchor) || !reach;
       let seg = p ? (mark ? boxLeader({ x: box.x0, y: box.y0, w: dia, h }, p) : stepLeader(circle, p)) : null;
       if (seg && !dotted && reach) seg = leaderToEdge(seg, reach.half, { x: reach.tx, y: reach.ty });
       const on = !!p && r.box?.ok !== false, round = (n: number) => Math.round(n * 100) / 100;
