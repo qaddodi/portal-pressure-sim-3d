@@ -12,7 +12,9 @@ import { Engine } from '../src/engine/hales/portal/engine.js';
 import { computeMetrics } from '../src/engine/hales/portal/metrics.js';
 import { fingerprintOf } from '../src/engine/hales/portal/fingerprint.js';
 import { deepMerge, sanitizeParams } from '../src/engine/hales/portal/scenario.js';
-import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { RW_LOADERS, RW_IDS } from '../src/decks/rw/copied/index.ts';
+import { HP_IDS, isHpDeck, loadHpDeck } from '../src/decks/hp/index.ts';
+import { AG_IDS, loadAgDeck, type AgId } from '../src/decks/ag/index.ts';
 import { chainOf, sequencer } from '../src/decks/hp/numbers.ts';
 import { controlsOf, type CompareOpt } from '../src/decks/controls.ts';
 import { variantStateOf, sliderOpt, type Own, type Picked, type Seq } from '../src/ui/talk/variant-state.ts';
@@ -104,11 +106,14 @@ test('the ladder of a normal heart is not the failing heart\'s (the 21 Nov bug),
 
 // The what-if sliders are the same family (Mohammad, 21 Nov): a slider moved the model and the slide's charts read the slide's own state. The slider's value is a parameter change on the slide's own base,
 // worked out as a parameter button's is (controls-run.ts dragWhatIf); its ends must give the charts the patient the figure shows, and a value that moves the model moves the readings.
-for (const id of ['treatment', 'shunts', 'tipping'] as const) {
+/** A talk's copied deck from whichever batch holds it (A to G, H to P, R to W). */
+const deckOf = async (id: string): Promise<{ slides: CopiedSlide[] }> =>
+  ((id in RW_LOADERS ? await RW_LOADERS[id]!() : isHpDeck(id) ? await loadHpDeck(id) : await loadAgDeck(id as AgId))) as unknown as { slides: CopiedSlide[] };
+let slidersMoved = 0;
+for (const id of [...RW_IDS, ...HP_IDS, ...AG_IDS]) {
   test(`${id}: every what-if slider gives the slide's charts the patient the figure shows, at both ends`, async () => {
-    const d = (await RW_LOADERS[id]!()) as unknown as { slides: CopiedSlide[] };
+    const d = await deckOf(id);
     const cache = new Map<string, Promise<Picked>>();
-    let ends = 0;
     for (let i = 0; i < d.slides.length; i++) {
       const w = controlsOf(d.slides[i]!)?.whatIf;
       if (!w || w.tool || !w.paths.length) continue;
@@ -123,13 +128,15 @@ for (const id of ['treatment', 'shunts', 'tipping'] as const) {
           const a: number | null | undefined = st.fp[k], b: number | null | undefined = fig[k];
           assert.ok(typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.35, `${at}: ${k}: the chart reads ${a}, the figure shows ${b}`);
         }
-        moved.push(st.fp.pv as number); ends++;
+        moved.push(st.fp.pv as number); slidersMoved++;
       }
       assert.ok(Number.isFinite(moved[0]) && Number.isFinite(moved[1]), `${id}/${d.slides[i]!.id}: readings`);
     }
-    assert.ok(ends > 0, `${id}: no slider was moved`);
   });
 }
+test('the sliders of every talk were pressed (the talks with a parameter slider: stiffness, treatment, shunts, tipping, tips-doppler, tips-complete, the HVPG, circuit and endoscopy talks…)', () => {
+  assert.ok(slidersMoved >= 20, `only ${slidersMoved} slider ends were pressed`);
+});
 
 test('a what-if slider asks for the charts\' state once it rests, and the slide\'s own value gives the slide\'s own state back', () => {
   const run = readFileSync('src/ui/talk/controls-run.ts', 'utf8');

@@ -7,7 +7,7 @@
 // the Next after the last step moves on. The live model takes the change as the sequence passes the procedure's `apply` time (a patient who already has the result has it taken back first, and put back).
 // The presenter's move asks this link first (ui/deck/proc-step.ts, called from ui/ui-store.ts move); a slide that says `auto` starts as it lands going forward, like a time-lapse.
 import { sceneApi } from '../../scene/api.ts';
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { useUi } from '../ui-store.ts';
 import { useShell } from '../shell/store.ts';
 import { viewAt } from './presenter-machine.ts';
@@ -46,10 +46,10 @@ export const MORPH_MS = 2200, MORPH_BACK_MS = 900;
 export function linkProcs(): () => void {
   let key = '';                      // `${deck}/${slide}` of the slide whose features are on the figure
   let gen = 0;                       // a play's generation: a newer play or a slide change ends the older one's callbacks
-  let timers: number[] = [];
+  let timers: TimerId[] = [];
   let playing = false;               // a procedure of this link is on the figure
   let held = false;                  // a procedure that holds its last frame (HOLD_KINDS) is standing on the figure
-  let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: number | undefined, lastView = 'body';
+  let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: TimerId | undefined, lastView = 'body';
   let probeOff: (() => void) | null = null, probeHold: { release(): void } | null = null;
   let plan: ProcPlan | null = null;
   let auto: { g: number; key: string } | null = null;   // a slide whose procedure starts by itself once the slide has landed (2D procPlay, after the camera and the cards)

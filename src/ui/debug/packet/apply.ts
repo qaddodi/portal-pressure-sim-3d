@@ -1,27 +1,14 @@
 // Puts a link's `#x` part on a booted page, through the app's own writers (settings, shell store, scene API). Returns what it could not apply, never throws.
 // Runs once after boot on the preview copy (debug/mount.ts); the deep link (the talk, the patient) is the app's own load path and has been applied by then.
-import { useSettings } from '../../../state/settings.ts';
-import { useShell } from '../../shell/store.ts';
-import { goToView } from '../../shell/view-actions.ts';
 import { sceneApi } from '../../../scene/api.ts';
+import { applyExtras } from '../../shell/share-apply.ts';
 import { cleanExtras, type Extras } from './state.ts';
 import { updateParams, presetBase } from '../../action/params.ts';
 import { useEngine } from '../../../engine/index.ts';
 import { flagValue } from '../flags.ts';
-import type { LookChoice } from '../../../looks/looks.ts';
-import type { LensId } from '../../../scene/lenses/model.ts';
 
 import { clock } from '../../../clock/frame.ts';
-export function applyExtras(raw: unknown): string[] {
-  const x: Extras = cleanExtras(raw), skipped: string[] = [];
-  const tryDo = (name: string, fn: () => void) => { try { fn(); } catch (e) { skipped.push(`${name}: ${(e as Error)?.message ?? e}`); } };
-  if (x.look) tryDo('look', () => useSettings.getState().setLook(x.look as LookChoice));
-  if (x.lens) tryDo('lens', () => sceneApi.setLens(x.lens as LensId, true));
-  if (x.labels) tryDo('labels', () => useShell.getState().setFigure({ labelLevel: x.labels as 'key' | 'all' | 'none' }));
-  if (x.figure) tryDo('figure', () => useShell.getState().setFigure(x.figure!));
-  if (x.view && x.view !== useShell.getState().view) tryDo('view', () => { if (!goToView(x.view as 'anatomic' | 'lobule' | 'sinusoid')) skipped.push(`view: ${x.view} is not drawn yet`); });
-  return skipped;
-}
+export { applyExtras };
 
 /** Polls `ready` every 150 ms until it is true or `ms` has passed; the answer is whether it was. (A debug-only wait on the page's own boot; nothing here runs per frame.) */
 const until = (ready: () => boolean, ms: number): Promise<boolean> => new Promise((done) => {

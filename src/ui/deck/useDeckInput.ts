@@ -23,7 +23,7 @@ const toggleFull = () => {
 /** The clicker's keys (clicker.ts decides; this carries it out). While a sheet, a menu or a dialog is open its own keys win (Esc closes it first). */
 export function useDeckInput() {
   useEffect(() => {
-    let digits = '', timer: number | undefined;
+    let digits = '', timer: TimerId | undefined;
     // the laser is the talk's own: made with it, kept from slide to slide, put away under the black screen and when the talk ends (2D ink-gl.js: active() is "a talk, not blacked")
     const laser = createLaser({ active: () => { const u = useUi.getState(); return !!u.deck && !u.black; } });
     const offPos = useUi.subscribe((st, prev) => { if (st.black && !prev.black) laser.set(false); });
@@ -53,7 +53,7 @@ export function useDeckInput() {
 }
 
 import { useDialogs } from './dialogs.ts';
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 const useDialogOpen = () => !!useDialogs.getState().dialog;
 
 function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: ReturnType<typeof useShell.getState>, laser: Laser, d: { digits(): string; set(v: string): void; clear(): void }): void {

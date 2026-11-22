@@ -7,7 +7,7 @@ import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
 import { useVariant, variantOf } from './variant-words.ts';
 import { variantStateOf, sliderOpt, type Picked, type Seq } from './variant-state.ts';
-import { clock } from '../../clock/frame.ts';
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
@@ -74,7 +74,7 @@ export const toolOptionStart = (deck: Deck, i: number, name: string, min: number
 /** The what-if slider: one value at its parameter paths, eased in. The slide's charts follow it too (the same state a parameter button gives them), once the slider has rested a moment: each value is a
  *  settled model worked out off screen, so a drag asks for the last one only. At the slide's own value the slide's own state is back. */
 const SLIDER_REST_MS = 250;
-let dragTimer: number | null = null, dragN = 0;
+let dragTimer: TimerId | null = null, dragN = 0;
 export function dragWhatIf(deck: Deck, i: number, paths: readonly string[], x: number): void {
   engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS });
   const key = slideKey(deck, i), n = ++dragN;

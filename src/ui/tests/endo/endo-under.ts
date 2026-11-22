@@ -7,6 +7,7 @@ import { columnConsts } from '../copied/endo-columns.copied.js';
 import { ENDO_VS, endoFS } from '../copied/endo-shader.copied.js';
 import { SCOPE_TOKENS } from '../copied/scope-tokens.copied.js';
 import type { FieldState } from './field.ts';
+import { ENDO_PROGRAM, takeWarm } from '../../../boot/warm-programs.ts';
 
 const rgb = (name: string): [number, number, number] => {
   const t = (SCOPE_TOKENS as Record<string, string>)[name.replace(/^--/, '')];
@@ -22,11 +23,15 @@ interface Built { gl: WebGL2RenderingContext; gen: number; prog: WebGLProgram; U
 
 function build(gl: WebGL2RenderingContext, gen: number): Built {
   const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(`endo shader: ${gl.getShaderInfoLog(s)}`); return s; };
-  const prog = gl.createProgram()!;
-  gl.attachShader(prog, sh(gl.VERTEX_SHADER, ENDO_VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, endoShaderSource()));
-  gl.bindAttribLocation(prog, 0, 'p');
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(`endo program: ${gl.getProgramInfoLog(prog)}`);
+  // (the preload ladder compiled this program beside the page, on this same context: src/boot/warm-programs.ts)
+  let prog = takeWarm(ENDO_PROGRAM, gl, gen);
+  if (!prog) {
+    prog = gl.createProgram()!;
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, ENDO_VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, endoShaderSource()));
+    gl.bindAttribLocation(prog, 0, 'p');
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(`endo program: ${gl.getProgramInfoLog(prog)}`);
+  }
   const U: Record<string, WebGLUniformLocation | null> = {};
   for (const n of UNIS) U[n] = gl.getUniformLocation(prog, n);
   const buf = gl.createBuffer()!;
