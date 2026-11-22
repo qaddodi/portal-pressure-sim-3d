@@ -26,13 +26,16 @@ test('each kind is a timeline the card, the layer and the camera already know: s
     assert.equal(sp.stops.length, sp.steps.length, `${k}: one stop to a step`);
     assert.ok(sp.stops.every((t, i) => t > (i ? sp.stops[i - 1]! : 0)) && sp.stops.at(-1) === sp.T.end, `${k}: stops rise to the end`);
     assert.ok(sp.T.apply > sp.stops[0]! && sp.T.apply < sp.T.back && sp.T.back < sp.T.end, `${k}: the change comes after the first step and before the way out`);
+    // the result comes in during the step whose words describe it (DIPS came in during "Needle across", a step early)
+    const lo = sp.stops[sp.resultStep - 1] ?? 0, hi = sp.stops[sp.resultStep]!;
+    assert.ok(sp.T.apply >= lo && sp.T.apply < hi, `${k}: the change (${sp.T.apply}) is in step ${sp.resultStep} (${lo} to ${hi})`);
     const legs = legsOf(k);
     assert.equal(legs.length, sp.steps.length, k);
     assert.equal(legs.at(-1)![1], sp.T.end, k);
     for (let i = 0; i < sp.steps.length; i++) { assert.equal(stopOf(k, i), sp.stops[i]); assert.equal(stepAt(k, sp.stops[i]!), i, `${k}: step ${i} ends at its stop`); }
     // a graft's frame: no catheter, the step the clock is in, no shot (the slide's own camera stays)
     const f = procFrame(k, sp.stops[0]!) as { u: number; step: number; shot: string };
-    assert.deepEqual([f.u, f.step, f.shot], [0, 0, '']);
+    assert.deepEqual([f.u, f.step, f.shot], [0, 0, k === 'dips' ? 'way' : '']);   // (the DIPS has a catheter on a route: its steps frame it, 'way' then 'tip'; the rest keep the slide's own camera)
     for (const s of sp.steps) assert.ok(s[1].length > 3 && s[2].length > 30 && !/AASLD|EASL|Baveno VII\b|\bWarren\b/.test(s[2]), `${k}: the step words`);
   }
 });

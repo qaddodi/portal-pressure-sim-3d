@@ -241,6 +241,7 @@ export class LabelController {
   private firstTick = true;
   private keySize: { w: number; h: number } | null = null;
   private keyNatural: { w: number; h: number } | null = null;
+  private keyShort: { w: number; h: number } | null = null;
   /** The room each drawn label has now (0 under a card or past the edge, 1 clear), eased over FADE.roomMs (2D roomFade). */
   private readonly room = new RoomFade();
   /** The boxes of the names drawn so far this frame (see step 4 of tick). */
@@ -272,13 +273,19 @@ export class LabelController {
     if (this.keyNatural && Math.abs(this.keyNatural.w - w) < 0.5 && Math.abs(this.keyNatural.h - h) < 0.5) return;
     this.keyNatural = { w, h }; this.dirty = true;
   }
+  /** The key's size on one line with the swatches' short names (a second hidden twin reports it); null when the key has none. */
+  setKeyShort(w: number, h: number): void {
+    if (w <= 0) { if (this.keyShort) { this.keyShort = null; this.dirty = true; } return; }
+    if (this.keyShort && Math.abs(this.keyShort.w - w) < 0.5 && Math.abs(this.keyShort.h - h) < 0.5) return;
+    this.keyShort = { w, h }; this.dirty = true;
+  }
   /** Where the key docks (key-dock.ts: the 2D app's own places), or null when it has no words or no size yet. */
   keyDock(): Dock | null {
     if (!this.state.key) return null;
     // (decided by the key on one line only: the size it is drawn at depends on this very decision, so using it would never settle)
     const natural = this.keyNatural;
     if (!natural) return null;
-    return dockKey({ vp: this.deps.vp(), words: this.deps.words(), natural, wrapped: this.keySize });
+    return dockKey({ vp: this.deps.vp(), words: this.deps.words(), natural, wrapped: this.keySize, short: this.keyShort });
   }
   keyBox(): Box | null { return this.keyDock()?.box ?? null; }
   /** Fonts or sizes changed: forms are measured again. */

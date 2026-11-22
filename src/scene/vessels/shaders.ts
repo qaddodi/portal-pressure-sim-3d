@@ -31,7 +31,7 @@ export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
  *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
  *  (at most 0.15 x 0.035 = 0.005, under the narrowest gap that has to hold, cava to artery 0.02) only sorts two tubes of one tier. */
 export const TUBE_DEPTH_SHARE = 0.15;
-import { CIRC_INK_K, CIRC_INNER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
+import { CIRC_INK_K, CIRC_INNER, SHADOW_FEATHER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 import { VDBG_GLSL } from './debug-view.ts';
 
 export const VESSEL_VS = /* glsl */ `
@@ -44,6 +44,10 @@ attribute vec2 lensR;   // a fan's course: the stretch of the host's colour ramp
 attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk; a run-on eases to its neighbour's width)
 attribute float rkc;   // the same on the Circuit's map: the course's own share only (a strand is thinner than its trunk), without the body's tapers, collars and beads, which belong to the 3D figure (the map draws a vessel one width along its length)
 uniform float inflate;
+uniform float mapDepth;   // the Circuit's over and under: how far toward the viewer this line stands on the map's plate, scene units (circuit/map-depth.ts); applied as a depth offset only, scaled by the change's share
+uniform float shadowPx;   // the crossing shadow's band beyond the line, CSS px (cel-ink.ts SHADOW_PX): the SHADOW program's hull is the tube this much wider
+uniform float shadowDepth;   // and how far behind its own tube it lies, scene units: on the body and on the map
+uniform float shadowDepthC;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float vindex;
@@ -202,7 +206,11 @@ ${HIGHLIGHT_ALONG_GLSL}
   float lumenW = radius * rkE * swell * narrowK;
   { vec2 tl = aTan.xy; float tn = length(tl); if (circShare > 0.0 && tn > 1e-5) { tl /= tn; vSkew = circShare * dot(aNor.xy, vec2(-tl.y, tl.x)) * lumenW * vU * (turn - stentT0); } }
   // (the ring is a polygon: its flats sit at the radius, its corners ${F(TUBE_SAG)} of the radius farther out, so the silhouette never falls inside the line)
-  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  float shW = 0.0;
+#ifdef SHADOW
+  shW = shadowPx * wpcV / vU;   // (the crossing shadow's hull: the tube and its line, wider by the band)
+#endif
+  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + shW + (lumenW + inkW + shW) * ${F(TUBE_SAG)});
   // where this tube carries on into another (a mate), its end ring runs on a hair (under a CSS px) into the next: two flat rings that meet exactly leave a light line between them where their edges are smoothed, along the whole of a straight join
   // (only where the tube is opaque: a faint tube (the cava at 0.45, a fading vein) drawn twice over those 1.5 px is a darker band, a faint dashed line across it at every join of its pieces; Mohammad, 20 Nov)
   float runOn = RUN_ON_PX * smoothstep(0.97, 1.0, fa);
@@ -216,7 +224,12 @@ ${HIGHLIGHT_ALONG_GLSL}
   vUv = uv;
   vLensR = lensR;
   vec4 c = projectionMatrix * mv;
-  c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)}) * c.w;   // depth by the tier of the axis (TUBE_DEPTH_SHARE): a fat tube at a lower tier never bulges over a thin one above it
+  c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)} * (1.0 - circT)) * c.w;   // depth by the tier of the axis (TUBE_DEPTH_SHARE): a fat tube at a lower tier never bulges over a thin one above it; on the Circuit's plate none at all (a flat line has no bulge: the lines' own depths, mapDepth, decide a crossing)
+  // the Circuit's lines lie on one plate: each stands its own mapDepth in front of it (a depth offset, nothing moves), so a crossing has an over and an under (circuit/map-depth.ts)
+  c.z -= mapDepth * circT * (-projectionMatrix[3][2]) / c.w;
+#ifdef SHADOW
+  c.z += mix(shadowDepth, shadowDepthC, circT) * (-projectionMatrix[3][2]) / c.w;   // (the hull lies behind its own tube: a neighbour at the same tier is nearer, so it is never shadowed)
+#endif
   vW = c.w;
   gl_Position = c;
   // a tube of no radius (a strand a band has closed, a channel not yet grown) is not drawn: not even its ink, which has a width of its own on screen
@@ -271,6 +284,10 @@ uniform vec2 lensSpan;
 uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
+uniform float shadowPx;   // the crossing shadow (cel-ink.ts SHADOW): the band's width beyond the line, CSS px
+uniform float shadowA;   // its strength in this look
+uniform vec3 shadowCol;   // its tone
+uniform vec2 shadowEnd;   // the radii over which it fades out at each end that joins another vessel (0: a free end)
 uniform float glowK;   // the glow's strength (1; a shunt's target under the pointer more: highlight.ts HOVER_GLOW)
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
@@ -481,6 +498,8 @@ void main() {
   if (cavA < 0.004) discard;
 #ifdef VEIL
   fadeHere *= veilK;
+#elif defined(SHADOW)
+  fadeHere *= max(solidK, veilK);   // (the band follows whichever copy of the vessel is showing)
 #else
   fadeHere *= solidK;
 #endif
@@ -493,6 +512,23 @@ void main() {
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
     float wG = ${glowWeightGlsl('vHi')} * glowK * fadeHere * cavA * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
     gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
+    return;
+  }
+#endif
+#ifdef SHADOW
+  // THE CROSSING SHADOW (cel-ink.ts SHADOW): this vessel's hull, drawn after every tube with the depth test on and no depth write: it falls only on what is behind this tube, in the look's shadow tone, over the band
+  // beyond the line (shadowFeather) and not at all over this tube itself. Where an end joins another vessel it fades out over that join (shadowEndK), so a junction never gaps.
+  {
+    if (dotted > 0.5) discard;
+    float rCssS = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
+    float lineS = ${inkPxGlsl('rCssS', 'rCssS')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float sS = dLat / dpr - rCssS - lineS;   // CSS px past the line's outer edge
+    float bandS = smoothstep(-0.5, 0.0, sS) * (1.0 - smoothstep(${F(SHADOW_FEATHER)} * shadowPx, shadowPx, sS));
+    float d0S = vUv.x * len * vU, d1S = (1.0 - vUv.x) * len * vU, rS = max(vR, 1e-6);
+    float endS = (shadowEnd.x > 0.0 ? smoothstep(0.5 * shadowEnd.x * rS, shadowEnd.x * rS, d0S) : 1.0) * (shadowEnd.y > 0.0 ? smoothstep(0.5 * shadowEnd.y * rS, shadowEnd.y * rS, d1S) : 1.0);
+    float aS = shadowA * bandS * endS * fadeHere * cavA;
+    if (aS < 0.004) discard;
+    gl_FragColor = vec4(shadowCol, aS);
     return;
   }
 #endif

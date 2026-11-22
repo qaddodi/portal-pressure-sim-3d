@@ -7,10 +7,13 @@ import type { Shape, TextShape } from './scene.ts';
 /** Inter's baseline sits this far down a line box whose height is the font size (ascent .969, descent .241, line-height 1). */
 export const BASELINE_EM = 0.864;
 
+/** The halo's span: the word's own place and size, behind the letters, stroked round so a corner never draws a spike. */
+const HALO_CSS = 'position:absolute;left:0;top:0;pointer-events:none;stroke-linejoin:round;';
+
 /** A word that joins a chart already showing words eases in (nothing pops: Mohammad, 20 Nov); the chart's own first words come with the chart. */
 export const WORD_IN_MS = 240;
 
-interface Slot { fresh: boolean; el: HTMLSpanElement; style: string; text: string; t: string; o: string; c: string; h: string }
+interface Slot { fresh: boolean; el: HTMLSpanElement; txt: HTMLSpanElement; halo: HTMLSpanElement | null; style: string; text: string; t: string; o: string; c: string; h: string }
 
 export class TextLayer {
   readonly root: HTMLDivElement;
@@ -29,9 +32,12 @@ export class TextLayer {
   sync(shapes: readonly Shape[]) {
     const words = shapes.filter((s): s is TextShape => s.k === 'text');
     while (this.slots.length < words.length) {
-      const el = this.root.ownerDocument.createElement('span');
+      const doc = this.root.ownerDocument, el = doc.createElement('span'), txt = doc.createElement('span');
+      // (positioned, and after the halo in the box: an absolutely positioned halo paints over an unpositioned sibling, so the letters must be positioned too, or the halo covers them)
+      txt.style.cssText = 'position:relative;';
+      el.append(txt);
       this.root.append(el);
-      this.slots.push({ fresh: this.shown, el, style: '', text: '', t: '', o: '', c: '', h: '' });
+      this.slots.push({ fresh: this.shown, el, txt, halo: null, style: '', text: '', t: '', o: '', c: '', h: '' });
     }
     while (this.slots.length > words.length) this.slots.pop()!.el.remove();
     words.forEach((w, i) => {
@@ -41,16 +47,21 @@ export class TextLayer {
         `font:${w.italic ? 'italic ' : ''}${w.weight ?? 500} ${w.size}px/1 var(${w.font === 'display' ? '--display' : '--ui'}, system-ui, sans-serif);`,
         w.upper ? 'text-transform:uppercase;' : '',
         w.ls ? `letter-spacing:${w.ls}em;` : '',
-        w.halo ? 'paint-order:stroke fill;' : '',
         'font-variant-numeric:tabular-nums lining-nums;',
       ].join('');
-      if (style !== sl.style) { sl.el.style.cssText = style; sl.style = style; sl.t = ''; sl.o = ''; sl.c = ''; sl.h = ''; }
+      if (style !== sl.style) { sl.el.style.cssText = style; sl.style = style; sl.t = ''; sl.o = ''; sl.c = ''; }
       // (the colours are written alone, and only when they differ: a colour glide rewrites one property, never the whole font and box style)
       const c = toCss(w.color);
       if (c !== sl.c) { sl.el.style.color = c; sl.c = c; }
+      // (the halo is its own span under the letters, the same words stroked in the halo's colour: never `paint-order` on the letters themselves, which WebKit does not honour for
+      //  HTML text, so on an iPhone the stroke was laid OVER the fill and a word on a bar drew as a dark smear: the halo is under the letters whatever the browser)
       const h = w.halo ? `${w.halo.w}px ${toCss(w.halo.color)}` : '';
-      if (h !== sl.h) { sl.el.style.setProperty('-webkit-text-stroke', h); sl.h = h; }
-      if (w.s !== sl.text) { sl.el.textContent = w.s; sl.text = w.s; }
+      if (h !== sl.h) {
+        sl.h = h;
+        if (w.halo && !sl.halo) { sl.halo = this.root.ownerDocument.createElement('span'); sl.halo.setAttribute('aria-hidden', 'true'); sl.halo.style.cssText = HALO_CSS; if (sl.el.insertBefore) sl.el.insertBefore(sl.halo, sl.txt); else sl.el.append(sl.halo); sl.halo.textContent = w.s; }
+        if (sl.halo) { const hc = w.halo ? toCss(w.halo.color) : 'transparent'; sl.halo.style.color = hc; sl.halo.style.setProperty('-webkit-text-stroke', h || '0 transparent'); sl.halo.style.display = w.halo ? '' : 'none'; }
+      }
+      if (w.s !== sl.text) { sl.txt.textContent = w.s; if (sl.halo) sl.halo.textContent = w.s; sl.text = w.s; }
       const dx = w.anchor === 'end' ? -100 : w.anchor === 'middle' ? -50 : 0;
       // (a turned word turns about its anchor: the box's own corner moves to the anchor first, so the letters end where the point is, whichever way it is turned)
       const t = w.rot

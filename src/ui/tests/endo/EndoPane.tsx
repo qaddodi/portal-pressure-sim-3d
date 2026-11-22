@@ -29,7 +29,7 @@ import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
 type Any = any;
 const still = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt; slide: boolean }) {
+export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt; slide: boolean }) {
   useSlidePin((s) => s.n);   // (a slide's own numbers: the readings follow the state it pins)
   const pin = slide ? pinnedVarix() : null, pinRef = useRef(pin); pinRef.current = pin;
   const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame, opt, slide ? pinnedVarix() : null)); });

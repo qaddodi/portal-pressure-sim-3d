@@ -71,11 +71,12 @@ test('a vessel is one geometry with uv.x along the flow from 0 to 1 and a tangen
 // budget and add about 33 draws on top. They are counted apart and capped on their own, so the original figure still guards the tubes and organs and a skin storm still fails.
 test('the scene stays inside the draw-call budget (spec: under 100 for tubes and organs, the welded skins capped apart)', () => {
   const s = new CelScene();
-  let meshes = 0, skins = 0;
-  s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) { if (o.name.startsWith('skin:')) skins++; else meshes++; } });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
+  let meshes = 0, skins = 0, shadows = 0;
+  s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) { if (o.name.startsWith('skin:')) skins++; else if (o.name === 'crossing/shadow') shadows++; else meshes++; } });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
   assert.ok(meshes < 100, `${meshes} draw calls for tubes and organs`);
   assert.ok(skins <= 40, `${skins} draw calls for welded skins`);
-  assert.ok(meshes + skins < 150, `${meshes + skins} draw calls in all`);
+  assert.ok(shadows <= 60, `${shadows} draw calls for crossing shadows (one per drawn vessel, S3)`);
+  assert.ok(meshes + skins + shadows < 210, `${meshes + skins + shadows} draw calls in all`);
   s.setView('lobule'); s.setView('body');
   s.dispose();
 });
@@ -84,7 +85,7 @@ test('a vessel is one draw: body and ink share one mesh and one material (a vess
   const s = new CelScene();
   for (const o of s.vessels) {
     let n = 0;
-    o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh && c !== o.glowMesh) n++; });   // (the selection glow's hull is the vessel's own, hidden until a pick: glow.ts)
+    o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh && c !== o.glowMesh && c.name !== 'crossing/shadow') n++; });   // (the selection glow's hull is the vessel's own, hidden until a pick: glow.ts)
     assert.equal(n, BACK_EDGES.has(o.edge!.id) ? 2 : 1, o.edge!.id);
     assert.equal(o.toonMesh.geometry.getAttribute('hull'), undefined, 'no hull copy');
     assert.ok(!Array.isArray(o.toonMesh.material), 'one material');

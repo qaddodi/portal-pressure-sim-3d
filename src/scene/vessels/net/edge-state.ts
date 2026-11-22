@@ -33,6 +33,7 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   // identity (written once)
   col('tone', 1, (e) => [TONES.indexOf(e.tone)], null),
   col('tier', 1, (e) => [TIERS.indexOf(e.tier)], null),
+  col('sewn', 4, [-1, -1, 0, 0], null),   // the edge's sewn ends (net/sewn.ts, written once): the host's bone at end 0 and end 1 (-1: none) and the flags of each (SEWN_INSIDE 1, SEWN_SINK 2, SEWN_FLARE 4, SEWN_CAPPED 8)
   col('radius', 1, [0.02]),   // the vessel's nominal radius, scene units: what the Circuit's live width is measured against (shaders.ts circSwell: map half-width over this), and the dust's section
   col('waist', 3, [0, 0.2, 0.5], null),   // a stenosis's waist (disease/clamps.ts waistNarrow): how narrowed (0 none), the bell's sigma, its centre along THIS edge (the old `narrow` attribute, one value per vertex, is a function of u)
   col('lenMap', 1, [1], null),   // the vessel's length along its MAP course, scene units (the old `cl.y`): the Circuit's stent cells tile by it (shaders.ts vArcLen)
@@ -47,6 +48,8 @@ export const EDGE_COLUMNS: readonly EdgeColumn[] = [
   col('glowK', 1, [1]), col('quietK', 1, [0]), col('solidK', 1, [1]), col('veilK', 1, [1]),
   col('circFlat', 1, [0]), col('circAnchA', 3, [0, 0, 0]), col('circAnchC', 3, [0, 0, 0]),
   col('lensSpan', 2, [0, 1]),
+  // the crossing shadow (cel-ink.ts SHADOW): the Circuit's depth offset (circuit/map-depth.ts mapDepthOf) and the band's fade length over each joined end (vessels/shadow.ts shadowEndsOf, in this edge's radii; 0 a free end), written once per edge
+  col('mapDepth', 1, [0]), col('shadowEnd', 2, [0, 0]),
   // the highlight (highlight.ts)
   col('hiOn', 1, [0]), col('hiDir', 1, [0]), col('hiOffset', 1, [0]), col('hiAhead', 1, [1]), col('hiBehind', 1, [1]), col('hiFade', 1, [1]), col('hiPx', 1, [1.6]),
   col('hiEnds', 2, [HI_NONE, HI_NONE]), col('hiColor', 3, [0, 0, 0]),

@@ -101,3 +101,23 @@ test('the key beside the phone\'s pill never stands taller than the foot the wor
     }
   }
 });
+
+// Root cause of "the lens legend wastes space" (iPhone, 22 Nov, First pass, not ammonia): the dock went from two long lines straight to a row of its own, never trying the swatches' short names as the 2D app
+// does (presenter.js fitKey: two lines, then the short names, only then a row above the pill), so a key that fits beside the pill with Raw / Clear / HA / Sys took a whole row from the figure.
+test('a key too long beside the phone\'s pill stands there with the short names before it takes a row of its own', () => {
+  const vp = SCREENS['iphone-portrait'], bar = barOf(vp).rect, room = bar.x - (vp.safe.left + PHONE_SIDE) - 8;
+  const natural = { w: room * 2.3, h: 18 }, short = { w: room * 1.5, h: 18 };
+  assert.equal(dockKey({ vp, words: null, natural }).at, 'above-pill', 'without short names: a row above');
+  const d = dockKey({ vp, words: null, natural, short });
+  assert.equal(d.at, 'beside-pill'); assert.equal(d.short, true); assert.equal(d.wrap, room);
+  assert.equal(dockKey({ vp, words: null, natural: { w: room * 1.6, h: 18 }, short }).short, false, 'long names that fit two lines stay long');
+  assert.equal(dockKey({ vp, words: null, natural: { w: room * 4, h: 18 }, short: { w: room * 3, h: 18 } }).at, 'above-pill', 'too long even short: a row above');
+});
+
+test('the portal-blood split card\'s box holds its caption row, so the names that keep off it keep off all of it', async () => {
+  const { splitWidth, cardSize } = await import('../src/scene/labels/figure-cards.ts');
+  const t = { name: 12, num: 18 } as never, measure = (s: string, size: number) => s.length * size * 0.6;
+  const c = { id: 's', kind: 'split', text: '', split: { liver: 100, shunt: 0, rate: 'lo' } } as never;
+  assert.ok(splitWidth(c, t, measure) > 12 * 12.6, 'wider than 12.6 em when the caption is');
+  assert.equal(cardSize(c, t, measure).w, Math.ceil((splitWidth(c, t, measure) + 8) * 100) / 100);
+});
