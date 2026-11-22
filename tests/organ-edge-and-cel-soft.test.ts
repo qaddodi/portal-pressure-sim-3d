@@ -26,14 +26,14 @@ test('C: the organ outline is one pixel wider and its edge ramps by distance in 
   assert.match(ORGAN_INK_VS, /w \+= 1\.0 \/ max\(dpr, 1\.0\);/);
   assert.match(INK_FS, /#ifdef INK_EDGE[\s\S]*?varying float vRd;/);
   assert.match(INK_FS, /clamp\(vRd \/ max\(length\(vec2\(dFdx\(vRd\), dFdy\(vRd\)\)\), 1e-5\) - 0\.5, 0\.0, 1\.0\)/);
-  assert.match(INK_FS, /\* cov;/);
+  assert.match(INK_FS, /\* cov\)/);
 });
 
 test('C: ringDistance is 0 on the rim, rises inward to the cap, and the liver has a rim', async () => {
   await organsReady;
   for (const id of ['liver', 'spleen', 'stomach']) {
     const g = ORGAN_MESHES[id]!(); smoothSilhouette(g); refineRim(g);
-    const d = ringDistance(g, 3);
+    const d = ringDistance(g);
     let zero = 0, cap = 0;
     for (const v of d) { assert.ok(v >= 0 && v <= 3); if (v === 0) zero++; if (v === 3) cap++; }
     assert.ok(zero > 20, `${id}: rim points ${zero}`);

@@ -247,14 +247,11 @@ export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
 export const PIN_PX = 0, SELECT_PX = 0;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
-/** What an organ's glow shell and the spleen's normal-range ring are built with besides the organ's own ink shaders (the program stand-in, materials/prototypes.ts, wears the same). */
+/** An organ's glow as hulls from the widest (drawn first) to the narrowest: how far past the organ's line each reaches (figure units, as the organ's line is) and the alpha it adds. They stack to a bright rim and a long soft tail. */
+/** What an organ's glow shells and the spleen's normal-range ring are built with besides the organ's own ink shaders (the program stand-in, materials/prototypes.ts, wears the same). */
 export const HALO_FLAGS = { side: BackSide, transparent: true, depthWrite: false } as const;
-/** The glow shell's defines (INK_FS): a feathered hull whose coverage is one squared fall from the outline to its outer edge. The stand-in wears the same, so the first highlight compiles nothing. */
-export const GLOW_DEFINES = { INK_EDGE: '', INK_GLOW: '' } as const;
 
-/** An organ's glow: ONE hull, `out` figure units past the organ's line (as the organ's line is measured), whose alpha is `alpha` at the line and falls smoothly to nothing at its outer edge (INK_FS, INK_GLOW).
- *  It was five flat hulls stacked (26 / 19 / 13 / 8 / 4 units at 0.05 .. 0.2), each a hard-edged plateau: five concentric bands round the organ, not a glow (Mohammad, 22 Nov). Their total at the line was 0.56. */
-export const ORGAN_GLOW = { out: 26, alpha: 0.7 } as const;
+export const ORGAN_GLOW: readonly { out: number; alpha: number }[] = [{ out: 26, alpha: 0.05 }, { out: 19, alpha: 0.07 }, { out: 13, alpha: 0.1 }, { out: 8, alpha: 0.14 }, { out: 4, alpha: 0.2 }];
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the
@@ -277,27 +274,32 @@ export class OrganPins {
   /** The normal-sized spleen's outline inside an enlarged one (2D `normalOutline`). */
   setNormalOutline(on: boolean): void { this.normal = on; }
 
-  private glows = new Map<string, Mesh>();
+  private glows = new Map<string, Mesh[]>();
 
-  /** The organ's glow: ORGAN_GLOW's one soft hull round the organ's own line, in the organ's selection colour, eased in with `amount`. Made the first time the organ is lit. */
+  /** The organ's glow: ORGAN_GLOW's hulls, each wider and fainter than the last, round the organ's own line, in the organ's selection colour, eased in with `amount`. Made the first time the organ is lit. */
   private glowOf(id: string, o: CelObject, amount: number): void {
-    let shell = this.glows.get(id);
-    if (!shell) {
+    let shells = this.glows.get(id);
+    if (!shells) {
       if (amount <= 0 || !o.group.parent) return;
       const ink = o.group.children.find((c) => (c as Mesh).material === o.ink) as Mesh | undefined, base = ink ? ink.renderOrder - 0.45 : 0;
-      const u = o.ink.uniforms;
-      const mat = new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS, defines: { ...GLOW_DEFINES },
-        uniforms: { ...u, px: { value: 0 }, color: { value: new Color() }, hiColor: { value: new Color() }, inkA: { value: 0 }, hiOn: { value: 0 }, hiPx: { value: 0 } } });
-      shell = new Mesh(ink?.geometry ?? o.toonMesh.geometry, mat);
-      shell.frustumCulled = false; shell.renderOrder = base; shell.visible = false; shell.name = `highlight/glow/${id}/0`;
-      o.group.add(shell);
-      this.glows.set(id, shell);
+      shells = ORGAN_GLOW.map((g, j) => {
+        const u = o.ink.uniforms;
+        const mat = new ShaderMaterial({ name: 'organ halo', vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, ...HALO_FLAGS,
+          uniforms: { ...u, px: { value: 0 }, color: { value: new Color() }, hiColor: { value: new Color() }, inkA: { value: 0 }, hiOn: { value: 0 }, hiPx: { value: 0 } } });
+        const m = new Mesh(ink?.geometry ?? o.toonMesh.geometry, mat);
+        m.frustumCulled = false; m.renderOrder = base + 0.05 * j; m.visible = false; m.name = `highlight/glow/${id}/${j}`;
+        o.group.add(m);
+        return m;
+      });
+      this.glows.set(id, shells);
     }
     const e = amount * amount * (3 - 2 * amount), hi = o.ink.uniforms.hiColor!.value as Color, px = o.ink.uniforms.px!.value as number;
-    const u = (shell.material as ShaderMaterial).uniforms;
-    u.px!.value = px + ORGAN_GLOW.out; u.inkA!.value = ORGAN_GLOW.alpha * e;
-    (u.color!.value as Color).copy(hi); (u.hiColor!.value as Color).copy(hi);
-    shell.visible = e > 0.001;
+    shells.forEach((m, j) => {
+      const u = (m.material as ShaderMaterial).uniforms, g = ORGAN_GLOW[j]!;
+      u.px!.value = px + g.out; u.inkA!.value = g.alpha * e;
+      (u.color!.value as Color).copy(hi); (u.hiColor!.value as Color).copy(hi);
+      m.visible = e > 0.001;
+    });
   }
 
   step(dtMs: number, byId: ReadonlyMap<string, CelObject>): boolean {
