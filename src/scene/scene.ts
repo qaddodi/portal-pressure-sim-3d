@@ -556,8 +556,12 @@ export class CelScene {
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       const sk = this.skins?.endsOf(def.id) ?? [false, false];   // (a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6)
       o.setMates(sk[0] ? null : mate(sj?.mate[0]), sk[1] ? null : mate(sj?.mate[1]));
-      // (the map's own pairs and their taper, at EVERY end: a skinned end keeps it as far as its skin's cut (circuit/mates.ts skinnedEase), where the welded skin carries on; a skin whose growing arm is closed is not drawn, and a run-on pair then met at the node at two widths, a hard step: Mohammad, 22 Nov, the SMV node)
-      { const cm = CIRCUIT_MATES.get(def.id); if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), skinnedEase(def.id, cm, this.circuitSkins?.endsOf(def.id) ?? [false, false], this.circuitSkins?.cutOf(def.id) ?? SKIN_CUT_C_NONE)); }
+      // (the map's own pairs and their taper, at EVERY end: a skinned end keeps it as far as its skin's cut (circuit/mates.ts skinnedEase), where the welded skin carries on;
+      // a skin whose growing arm is closed is not drawn, and a run-on pair then met at the node at two widths, a hard step: Mohammad, 22 Nov, the SMV node)
+      {
+        const cm = CIRCUIT_MATES.get(def.id);
+        if (cm) o.setCircuitMates(mateUniform(cm[0]), mateUniform(cm[1]), skinnedEase(def.id, cm, this.circuitSkins?.endsOf(def.id) ?? [false, false], this.circuitSkins?.cutOf(def.id) ?? SKIN_CUT_C_NONE));
+      }
       // (a junction's fork: the outline of the branch and its trunk is the union's, with the switch on)
       { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; o.setNbrOn(!!md); if (md) o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); }
       // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.

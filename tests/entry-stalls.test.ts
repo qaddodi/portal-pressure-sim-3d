@@ -35,7 +35,8 @@ test('the page uploads the hidden geometries once the micro views are primed, at
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8'), scene = readFileSync('src/scene/scene.ts', 'utf8');
   assert.match(stage, /cel\.onMicroPrimed = /); assert.match(stage, /new GeometryUploader\(/);
   assert.match(scene, /this\.onMicroPrimed\?\.\(\)/);
-  assert.match(scene, /this\.snapMicroToModel\(\); this\.micro\.lobule\.update\(true, 0, 0, 1, true\)/);
+  // (the lobule is snapped to the patient's state once, before its cells are primed, and its first frame is then built hidden)
+  assert.match(scene, /this\.primeSnapped = true; this\.snapMicroToModel\(\);[^\n]*\n\s*if \(this\.micro\.lobule\.primeCells\(\)\) \{ this\.microPrimed = true; this\.micro\.lobule\.update\(true, 0, 0, 1, true\); \}/);
 });
 
 test('the sinusoid: a stellate activation different from the primed one repaints no wall colours', () => {

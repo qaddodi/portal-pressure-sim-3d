@@ -191,14 +191,15 @@ import { SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { radiusAtU } from '../src/scene/vessels/tubes.ts';
 import { bundleShare } from '../src/scene/vessels/shape.ts';
+import { WEAVE } from '../src/scene/vessels/coil.ts';
 test('every vessel that carries on into another (the 2D run-on rule), collateral or not, is mated to it, has no cap at the join, and meets it at one radius', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   try {
     const endR = (id: string, end: 0 | 1): number => {
       let best = 0;
       const cs = coursesOf(NETWORK_BY_ID.get(id)!, REST).filter((c) => c.radius > 0);
-      // (a varix's n strands land on one point and together make the trunk's width there, each 1/sqrt(n) of it: shape.ts bundleShare, 21 Nov; their end is read as the width they make together)
-      for (const c of cs) { const len = new CatmullRomCurve3(c.pts.map((p) => new Vector3(p[0], p[1], p[2]))).getLength(); best = Math.max(best, radiusAtU(c, end, len) / bundleShare(c.sewn?.[end], cs.length)); }
+      // (a varix's n strands land on one point and together make the trunk's width there, each 1/sqrt(n) of it: shape.ts bundleShare, 21 Nov; woven strands, coil.ts WEAVE, meet on one axis and are each the whole trunk, 22 Nov; their end is read as the width they make together)
+      for (const c of cs) { const len = new CatmullRomCurve3(c.pts.map((p) => new Vector3(p[0], p[1], p[2]))).getLength(); best = Math.max(best, radiusAtU(c, end, len) / bundleShare(c.sewn?.[end], WEAVE[id] ? 1 : cs.length)); }
       return best;
     };
     assert.ok(RUN_ONS.length > 20);
