@@ -154,7 +154,7 @@ function radiusAt(m: { position: Float32Array; index: Uint32Array }, x: number, 
   return best;
 }
 
-for (const name of ['T', 'FOUR', 'STUB', 'TT']) {
+for (const name of ['T', 'FOUR', 'STUB', 'TT', 'HT']) {
   test(`${name}: a through pair never necks across its junction: the trunk's radius stays between the two arms' and changes without a step in its slope`, () => {
     const fx = fixtures().find((f) => f.name === name)!, m = buildNetMesh(fx.skel).mesh;
     // the surface's radius round the axis at each station: the LOWER QUARTILE over 28 azimuths (the branches' fillets only ever add, and cover a minority of them, and the 14-gon's flats and the skin's irregular triangles average out)
@@ -195,4 +195,37 @@ test('the baked file round-trips a mesh bit for bit, and its digest follows the 
   const moved = fixtures().find((f) => f.name === 'FOUR')!.skel;
   moved.bones[3]!.pos[0] = [9, 9, 9];
   assert.notEqual(skeletonDigest(moved), digest);
+});
+
+test('every through pair, merged or not, is judged by the no-neck rule on the union it is meshed on, and none necks', () => {
+  let pairs = 0;
+  for (const fx of fixtures()) {
+    const r = buildNetMesh(fx.skel);
+    for (const nd of r.nodes) for (const p of nd.through) { pairs++; assert.ok(p.margin >= 1, `${fx.name} ${nd.node}: the pair's profile is at ${p.margin.toFixed(3)} of the floor`); }
+  }
+  assert.ok(pairs >= 5, `${pairs} through pairs checked`);
+  const ht = buildNetMesh(fixtures().find((f) => f.name === 'HT')!.skel).nodes[0]!;
+  assert.equal(ht.through.length, 1, 'the pair across the short edge is found');
+  assert.equal(ht.arms.length, 4);
+  assert.ok(ht.through[0]!.toggled && ht.through[0]!.mated, 'across a merged short edge the plain union bulges at each node, so the pair becomes one capsule, mated');
+  const t = buildNetMesh(fixtures().find((f) => f.name === 'T')!.skel).nodes[0]!;
+  assert.ok(t.through[0]!.mated && !t.through[0]!.toggled, 'at one node the pair is the mate minimum');
+});
+
+test('the neck rule itself: a continuous run passes, a gap, a pinch and a ledge fail', async () => {
+  const { throughNeck } = await import('../src/scene/vessels/net/neck.ts');
+  const { armCapsule, skinKOf } = await import('../src/scene/vessels/skin/sdf.ts');
+  const arm = { vesselId: 'x', end: 0 as const, courseIndex: 0, dataIndex: 0, lensIndex: 0, baseD: 1, widthKind: 0 as const, restR: 0.1 };
+  const cap = (x0: number, x1: number, r0: number, r1: number) => armCapsule(arm, [[x0, 0, 0], [x1, 0, 0]], Math.abs(x1 - x0), (d) => r0 + (r1 - r0) * (d / Math.abs(x1 - x0)));
+  const axis: [number, number, number][] = [[-0.5, 0, 0], [0.5, 0, 0]], k = skinKOf([arm]);
+  const ok = throughNeck(axis, [0.1, 0.1], [{ ...cap(0, -2, 0.1, 0.1), mate: 1 }, { ...cap(0, 2, 0.1, 0.1), mate: 0 }], k);   // (a through pair is mated: united by a plain minimum, as the mesher does)
+  const bump = throughNeck(axis, [0.1, 0.1], [cap(0, -2, 0.1, 0.1), cap(0, 2, 0.1, 0.1)], k);
+  assert.ok(!bump.ok, 'the plain smooth union of a through pair bulges: the rule sees it');
+  assert.ok(ok.ok, ok.why);
+  const gap = throughNeck(axis, [0.1, 0.1], [cap(-0.2, -2, 0.1, 0.1), cap(0.2, 2, 0.1, 0.1)], k);
+  assert.ok(!gap.ok && /neck/.test(gap.why), 'two capsules with a gap between their ends are a neck');
+  const pinch = throughNeck(axis, [0.1, 0.1], [cap(-0.3, -2, 0.1, 0.1), cap(0.3, 2, 0.1, 0.1), cap(-0.3, 0.3, 0.06, 0.06)], k);
+  assert.ok(!pinch.ok, 'a thin bridge between two fat arms is a neck');
+  const ledge = throughNeck(axis, [0.1, 0.07], [cap(0, -2, 0.1, 0.1), cap(0, 2, 0.07, 0.07)], k);
+  assert.ok(!ledge.ok && /slope/.test(ledge.why), 'a step from 0.1 to 0.07 is a step in the slope');
 });

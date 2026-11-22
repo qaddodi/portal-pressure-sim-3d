@@ -9,7 +9,7 @@ import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/mes
 import { bakeMask, covers, edgeOnLine, maskOf, EDGE_CELL } from '../src/scene/devices/probes/organ-edge.ts';
 import { FibroProbe, fibroPlace, fadeOf, WAVE_ARCS, WAVE_STROKE_A } from '../src/scene/devices/probes/fibro-probe.ts';
 import { SCAN } from '../src/scene/devices/probes/copied/scan-probe.copied.js';
-import { EndoScope, SCOPE_UP, scopeWay, workD } from '../src/scene/devices/probes/scope.ts';
+import { EndoScope, SCOPE_UP, scopeWay, workD, BEND_WIDE, TIP_WIDE, CREASE_DEPTH } from '../src/scene/devices/probes/scope.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { len3 } from '../src/scene/frame2d.ts';
 import type { DeviceObject } from '../src/scene/devices/device-object.ts';
@@ -99,7 +99,13 @@ test('the scope\'s tip is one tube with its shaft: the shaft\'s width, starting 
   for (let t = 0; t < 8000; t += 16) sc.update(16, true, 'scope', 'pv');
   const k = sc as unknown as { shaft: { rings: { c: Vector3; r: number }[] }; bend: { rings: { c: Vector3; r: number }[] }; tip: { rings: { c: Vector3; r: number }[] } };
   const R = k.shaft.rings[0]!.r, first = k.tip.rings[0]!, last = k.tip.rings[k.tip.rings.length - 1]!;
-  assert.ok(k.tip.rings.every((r) => r.r === R) && k.bend.rings.every((r) => r.r === R), 'the bending section and the tip are as wide as the shaft from end to end');
+  // (the owner's 20 Nov photo, "the tip end should look different": the bending section's cover is a little WIDER than the tube, a collar swelling from the shaft's own width up to BEND_WIDE, its creases never deeper than CREASE_DEPTH, and the tip is the cover's width, domed down at its end)
+  const rel = (rs: { r: number }[]) => rs.map((r) => r.r / R);
+  assert.ok(k.shaft.rings.every((r) => r.r === R), 'the shaft is one width');
+  assert.ok(Math.abs(k.bend.rings[0]!.r - R) < 1e-9, 'the bending section starts at the shaft\'s own width');
+  assert.ok(rel(k.bend.rings).every((x) => x >= 1 - CREASE_DEPTH - 1e-9 && x <= BEND_WIDE + 1e-9), 'the cover is never narrower than its creases allow nor wider than BEND_WIDE');
+  assert.ok(Math.abs(Math.max(...rel(k.bend.rings)) - BEND_WIDE) < 1e-6 && Math.abs(rel(k.bend.rings).at(-1)! - BEND_WIDE) < 1e-6, 'and it ends at the cover\'s full width');
+  assert.ok(Math.abs(rel(k.tip.rings)[0]! - TIP_WIDE) < 1e-6 && rel(k.tip.rings).every((x) => x <= TIP_WIDE + 1e-9 && x > 0.5), 'the tip starts at the cover\'s width and only domes in from there');
   // shaft, bending section and tip are one chain: each starts where the one before stops (the tip a ring's length inside the bend)
   const n = sc.pose.shaftRings, next = k.shaft.rings[n + 1]!, b0 = k.bend.rings[0]!, b1 = k.bend.rings[k.bend.rings.length - 1]!;
   assert.ok(b0.c.distanceTo(next.c) < len3(1.2 * 3), `the bending section starts at the shaft (${b0.c.distanceTo(next.c)})`);

@@ -194,7 +194,7 @@ export function declarations(src: string): Decl[] {
 const slotsOf = (d: Decl) => (SLOTS[d.type] ?? 1) * (Number.isFinite(d.array) ? d.array : 1);
 
 export interface Budget { attributes: number; varyings: number; samplers: number; vertexUniformVectors: number; fragmentUniformVectors: number }
-/** The slots a program asks of the GPU, counted from its own source plus three's built-ins. The ES 3.0 floor every phone meets: 16 attributes, 15 varying vectors, 16 samplers a stage, 256 and 224 uniform vectors. */
+/** The slots a program asks of the GPU, counted from its own source plus three's built-ins. The ES 3.0 floor every phone meets: 16 attributes, 15 varying vectors (each declaration counts a whole row: real drivers do not all pack per ES 2.0 Appendix A), 16 samplers a stage, 256 and 224 uniform vectors. */
 export function budget(p: Program): Budget {
   const v = declarations(p.vertexGlsl), f = declarations(p.fragmentGlsl);
   const attrs = v.filter((d) => d.storage === 'attribute' || d.storage === 'in');

@@ -43,8 +43,7 @@ export class VeinStent {
     this.L = this.curve.getLength();
     this.wires = new DeviceObject(mergeTubes([], WIRE_RADIAL), 'stentWire', shared, { px: 0.7, order: 3 }, 'ink');
     this.objects = [this.wires];
-    this.group.add(this.wires.group);
-    this.group.visible = false;
+    this.wires.park(); this.group.add(this.wires.group);
   }
 
   applyPalette(p: Palette): void { this.lastPalette = p; for (const o of this.objects) o.applyPalette(p); }
@@ -92,8 +91,7 @@ export class VeinStent {
 
   private apply(): void {
     const a = this.amount * this.amount * (3 - 2 * this.amount);   // (easeInOut, as the 2D stent's strength is)
-    this.group.visible = a > 0.002 && !!this.key;
-    this.wires.setAlpha(a);
+    this.wires.present(); this.wires.setAlpha(this.key ? a : 0);   // (its own eased share is the whole fade: the part leaves the list when it reaches nothing)
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
   }
 
