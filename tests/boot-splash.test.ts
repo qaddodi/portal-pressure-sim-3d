@@ -238,25 +238,37 @@ test('D: the percent follows the bar (never down, never 100 before the lift), th
   const c = run({ total: 1_000_000, entries: () => file(12), dcl: false, rows: true });
   c.advance(1600);
   const stage = c.boot.children['.boot-stage'], pct = c.boot.children['.boot-pct'];
-  assert.equal(stage.innerHTML, 'Getting ready'); assert.match(pct.textContent, /^\d+%$/); assert.ok(parseInt(pct.textContent) <= 55, 'bytes alone: up to 55%');
+  assert.equal(stage.innerHTML, '<span>Getting ready</span>'); assert.match(pct.textContent, /^\d+%$/); assert.ok(parseInt(pct.textContent) <= 55, 'bytes alone: up to 55%');
   c.ctx.ppsBootStarted = true; c.advance(2500);
-  assert.equal(stage.innerHTML, 'Starting <b><i>Hales Engine</i></b>', 'Hales Engine in bold italic');
+  assert.match(stage.innerHTML, /Starting <b><i>Hales Engine<\/i><\/b>/, 'Hales Engine in bold italic');
   c.ctx.ppsBootStage('engine'); c.advance(3300);
-  assert.equal(stage.attrs['data-swap'], undefined, 'the crossing is over by the next tick');
-  assert.equal(stage.innerHTML, 'Building the figure'); const p = parseInt(pct.textContent); assert.ok(p >= 66 && p < 78, `engine reached: ${p}%`);
-  // a change of name: first the words fade out (data-swap), then they change and fade back in (the CSS has the opacity transition)
-  c.ctx.ppsBootStage('scene'); c.advance(3600); assert.equal(stage.attrs['data-swap'], '1', 'fading out, the old words still there'); assert.equal(stage.innerHTML, 'Building the figure');
-  c.advance(3900); assert.equal(stage.innerHTML, 'Polishing the look'); assert.equal(stage.attrs['data-swap'], undefined);
+  assert.match(stage.innerHTML, /<span class="n">Building the figure<\/span>/); const p = parseInt(pct.textContent); assert.ok(p >= 66 && p < 78, `engine reached: ${p}%`);
+  // a change of name: the old words (.o) fade out and the new (.n) fade in, both written in the same tick, so there is never a moment with the new name missing
+  c.ctx.ppsBootStage('scene'); c.advance(3600); assert.equal(stage.innerHTML, '<span class="o">Building the figure</span><span class="n">Polishing the look</span>');
   for (const st of ['compile', 'first-draw', 'labels']) c.ctx.ppsBootStage(st);
-  c.advance(9000); assert.equal(stage.innerHTML, 'Almost there'); assert.ok(parseInt(pct.textContent) <= 99, 'never 100 while the cover is up');
+  c.advance(9000); assert.match(stage.innerHTML, /<span class="n">Almost there<\/span>/); assert.ok(parseInt(pct.textContent) <= 99, 'never 100 while the cover is up');
   let last = 0; const seen = parseInt(pct.textContent); assert.ok(seen >= last);
   c.ctx.ppsBootLift(); assert.equal(pct.textContent, '100%', '100 only as the cover lifts');
+});
+
+test('D: the stage name is present at every tick from the first bar to the lift, at exactly 55%, and again after the row was rebuilt (a restored cover), never left empty', () => {
+  const c = run({ total: 1_000_000, entries: () => file(12), dcl: false, rows: true });
+  c.advance(1600); const stage = c.boot.children['.boot-stage'], pct = c.boot.children['.boot-pct'];
+  const text = () => String(stage.innerHTML).replace(/<[^>]+>/g, '');
+  for (let t = 2000; t <= 4000; t += 500) { c.advance(t); if (pct.textContent) assert.ok(text().length > 0, `named at ${t} ms (${pct.textContent})`); }
+  c.ctx.ppsBootStarted = true;
+  for (let t = 4500; t <= 7000; t += 500) { c.advance(t); assert.ok(text().length > 0, `named at ${t} ms (${pct.textContent})`); }
+  assert.ok(parseInt(pct.textContent) >= 55);
+  c.ctx.ppsBootStage('engine');
+  stage.innerHTML = ''; // the row was rebuilt empty (the note's Keep waiting puts the saved cover back)
+  c.advance(8000); assert.ok(text().length > 0, 'a rebuilt, empty row is named again at the next tick');
+  assert.doesNotMatch(String(stage.innerHTML), /class="o"/, 'no old words to fade when there were none');
 });
 
 test('D: the markup and the look: one row under the bar, the stage left in the mute colour, the percent right in tabular digits; the slow note takes the whole block away', () => {
   assert.match(HTML, /<div class="boot-prog"><div class="boot-bar"><i><\/i><b><\/b><\/div><div class="boot-row"><span class="boot-stage"><\/span><span class="boot-pct"><\/span><\/div><\/div>/);
   assert.match(HTML, /#boot \.boot-pct \{[^}]*font-variant-numeric: tabular-nums/);
-  assert.match(HTML, /#boot \.boot-stage \{[^}]*transition: opacity 160ms/); assert.match(HTML, /#boot\[data-det\] \.boot-row \{ opacity: 1; \}/, 'shown with the bar, not before');
+  assert.match(HTML, /#boot \.boot-stage > \.n \{ animation: boot-stage-in/); assert.doesNotMatch(HTML, /data-swap/, 'the stage name never depends on a timer to appear'); assert.match(HTML, /#boot\[data-det\] \.boot-row \{ opacity: 1; \}/, 'shown with the bar, not before');
   const names = [...HTML.matchAll(/NAMES=\{([^}]*)\}/g)][0]![1]!;
   for (const n of [...names.matchAll(/'([^']+)'(?=[,}]|$)/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '')).filter((x) => /\s/.test(x))) assert.ok(n.length <= 21, `${n} fits 172 px at 12 px beside the percent`);
   const c = run({ entries: () => file(3), dcl: false, realCover: true, fonts: 'now' }); c.advance(9000);
