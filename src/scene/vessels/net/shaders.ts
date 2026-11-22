@@ -652,9 +652,9 @@ void main() {
   float W = ${F(REGION_CAPS * REGION_PTS)};
   float rid = floor(capId / W + 0.001);
   float within = capId - rid * W;
-  int rr = int(rid + 0.5), flat = int(within + 0.5);   // the bones of a region are packed four to a texel from texel 3, capsule after capsule
-  vec4 bi4 = texelFetch(regionTex, ivec2(3 + flat / 4, rr), 0);
-  NetBone nb = netBone(int(bi4[flat - (flat / 4) * 4] + 0.5), true);
+  int rr = int(rid + 0.5), slot = int(within + 0.5);   // the bones of a region are packed four to a texel from texel 3, capsule after capsule
+  vec4 bi4 = texelFetch(regionTex, ivec2(3 + slot / 4, rr), 0);
+  NetBone nb = netBone(int(bi4[slot - (slot / 4) * 4] + 0.5), true);
   vCapOut = vec4(nb.cen, nb.lumen);
   gl_PointSize = 1.0;
   gl_Position = vec4((within + 0.5) / W * 2.0 - 1.0, (rid + 0.5) / capRows * 2.0 - 1.0, 0.0, 1.0);

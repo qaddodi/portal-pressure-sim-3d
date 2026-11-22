@@ -84,7 +84,7 @@ test('the capsule pass: one render-to-texture pass with the same netBone and rad
   const { REGION_CAPS, REGION_PTS } = await import('../src/scene/vessels/net/regions.ts');
   assert.equal(NET_CAP_VS.split('NetBone netBone(').length - 1, 1, 'one netBone in the capsule program: the prelude the vertex stage shares');
   assert.equal((NET_CAP_VS.match(/float circWidthOf\(/g) ?? []).length, 1, 'the live radius is the one function, no CPU twin');
-  assert.match(NET_CAP_VS, /netBone\(int\(bi4\[flat - \(flat \/ 4\) \* 4\] \+ 0\.5\), true\)/, 'the pass evaluates each region bone once, lite');
+  assert.match(NET_CAP_VS, /netBone\(int\(bi4\[slot - \(slot \/ 4\) \* 4\] \+ 0\.5\), true\)/, 'the pass evaluates each region bone once, lite');
   assert.match(NET_CAP_VS, /vCapOut = vec4\(nb\.cen, nb\.lumen\);/, 'it writes (centre, lumen), what the oracle\'s capsules hold');
   // the junction main: capsule points come from capTex, never from a bone evaluation per vertex
   const main = NET_VS.slice(NET_VS.indexOf('float kMin = 1.0e9;'), NET_VS.indexOf('float kU = '));
