@@ -176,20 +176,9 @@ ${CIRCUIT_VS_CALL}
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vArcLen = mix(len, cl.y, circShare);
   vSkew = 0.0;
-  // THE STUMP'S ROUND END is drawn from the whole divided stretch's rings, never from the few that happen to lie in the cap: the stretch up to the cap's far end (the cut and one radius) is laid over the cap, ring by ring along each ring's own tangent
-  // (uv and the ring's place move together, so the tie, the fade and the marks all read the new arc), so a quarter circle one radius long is always made of every ring the stretch has: before, the cap took the three rings (a ring every 1/180 of a
-  // scene unit against a radius of 0.017) that lay in it and was a flat cut whose end moved with the cut (Mohammad, 22 Nov: "tied off the portal vein looks bad")
-  vec2 uvS = uv;   // (the attribute is read-only: from here the stretch laid over the cap is uv from here)
-#define uv uvS
-  if (stump.x > 0.0 && circShare < 0.001) {
-    float capR = radius * swell * vU, capZ = stump.x + capR, arcA = uv.x * len * vU;
-    if (arcA < capZ) {
-      float arcB = stump.x + capR * (arcA / capZ);
-      aPos += aTan * ((arcB - arcA) / vU);
-      uv.x = arcB / (len * vU);
-    }
-    swell *= stumpK(uv.x * len * vU, capR);
-  }
+  // THE STUMP'S ROUND END: the cut and one radius past it narrow as a quarter circle (stumpK), from the rings the tube has there. A divided vein is built with rings a twelfth of the usual distance apart (shape.ts tubularOf), so the quarter circle has
+  // a dozen of them. (Laying the stretch's rings over the cap along each ring's own tangent was tried: on the vein's bend every ring went off its path and the end was a skewed spike; Mohammad, 22 Nov: "tied off the portal vein looks bad")
+  if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * swell * vU);
   float fa = 1.0;
   // the Circuit lets an artery's end go the same way (mapFade: from, to along the map course, on): it eases to nothing before it reaches the lane tip, never a blunt end; every other fade is off on the map
   float mapFa = mapFade.z > 0.5 ? 1.0 - smoothstep(mapFade.x, mapFade.y, uv.x) : 1.0;

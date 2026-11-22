@@ -16,7 +16,7 @@ import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from '
 import { fadeOf, leadInPoint } from './fades.ts';
 import { PHASE_2_NODES } from './skin/nodes.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
-import { DIVIDED } from './divide.ts';
+import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
 import { fanEnd, leaveAsBundle } from './strand-fan.ts';
 import { clearAt, clearances, type ClearProfile } from './clearance.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
@@ -350,6 +350,6 @@ export function tubularOf(v: NetVessel, minFirst = 0): number[] {
   return rest.map((c, i) => {
     let len = 0;
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
-    return Math.max(i === 0 ? minFirst : Math.min(STRAND_RINGS_MAX, Math.ceil(minFirst * STRAND_RING_K)), tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? 3 : 1)));   // (a divided vein's round stump is built from rings a third as far apart: vessels/divide.ts)
+    return Math.max(i === 0 ? minFirst : Math.min(STRAND_RINGS_MAX, Math.ceil(minFirst * STRAND_RING_K)), tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? DIVIDED_RING_K : 1)));   // (a divided vein's round stump is built from rings a twelfth as far apart: vessels/divide.ts)
   });
 }
