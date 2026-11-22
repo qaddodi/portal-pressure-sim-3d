@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { railOf } from '../src/ui/cards/proc-rail.ts';
+import { nameFit, railOf } from '../src/ui/cards/proc-rail.ts';
 
 // Mohammad, 22 Nov: a procedure's steps (a wrapped paragraph of numbered words) and its Play button (a row of its own) were "wasting so much space" on the teaching card.
 // He picked mock A, the one-row step rail, "for all": ONE row for every procedure of every deck, from the one component, ui/cards/ProcRow.tsx.
@@ -75,10 +75,17 @@ test('EUS glue: every step\'s short line is on the card (never behind hover), th
   assert.doesNotMatch(readFileSync('src/ui/cards/ProcRow.tsx', 'utf8'), /s\[8\]/, 'the line is not a tooltip');
 });
 
-test('a long name is never cut off: it shrinks to fit (to 10 px), wraps only past that', () => {
-  const r = railOf({ ...base, steps: [['a', 'Varices obliterated'], ['b', 'x']], phase: 'play', at: 0, ring: 0 });
-  assert.equal(r.chars, '1/2'.length + 2 + 'Varices obliterated'.length);
+test('a long name is never cut off: measured and scaled to fit its room (to 10 px in CSS), wrapped only past that', () => {
+  assert.equal(nameFit(120, 200), 1, 'fits: full size');
+  assert.equal(nameFit(200, 200.4), 1, 'a half pixel of rounding fits');
+  assert.equal(nameFit(250, 200), 0.8, 'too wide: the scale that fits');
+  assert.ok(250 * nameFit(250, 199) <= 199, 'never a hair over');
+  assert.equal(nameFit(0, 200), 1, 'nothing measured yet: full size');
+  const src = readFileSync('src/ui/cards/ProcRow.tsx', 'utf8');
+  assert.match(src, /fitRailName\(el\)/); assert.match(src, /observeThenFit\(/); assert.match(src, /document\.fonts\.ready/);
+  assert.doesNotMatch(src, /--ch|chars/, 'no character-count guess');
   const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8');
-  assert.doesNotMatch(css.slice(css.indexOf('.pz-prail {'), css.indexOf('.pz-prail-cap')), /text-overflow: ellipsis|white-space: nowrap/);
-  assert.match(css, /\.pz-prail-tx \{[^}]*font-size: clamp\(10px, calc\(100cqi \/ \(var\(--ch\)/);
+  assert.doesNotMatch(css.slice(css.indexOf('.pz-prail {'), css.indexOf('.pz-prail-cap')), /text-overflow: ellipsis|cqi/);
+  assert.match(css, /\.pz-prail-tx \{[^}]*font-size: max\(10px, calc\(1em \* var\(--pr-z, 1\)\)\)/);
+  assert.match(css, /\.pz-prail-t\[data-wrap\] > \.pz-prail-tx \{[^}]*white-space: normal/);
 });

@@ -11,8 +11,6 @@ export interface Rail {
   fill: number; ring: number; ringOn: boolean;
   /** the words after the track: before Play the procedure and its step count; then "2/4" and the step's name */
   count: string; name: string; sub: string;
-  /** the words' length in characters: the CSS sizes them to fit the row's width from it (shrink first, wrap last; his "keep shrink", 21 Nov) */
-  chars: number;
   /** a procedure whose every step has its short line (EUS coils and glue): those lines, and the one on show (the current step's; step 1's before Play). Never hidden behind hover (22 Nov). */
   lines: string[] | null; line: number;
   /** the button: what it does (its accessible name and tooltip), its icon, and whether it can be pressed */
@@ -30,10 +28,27 @@ export function railOf(st: Pick<ProcState, 'steps' | 'at' | 'ring' | 'phase' | '
   const count = started ? `${Math.max(0, mark) + 1}/${n}` : '', name = started ? (step?.[1] ?? '') : st.name, sub = started ? '' : `${n} step${n === 1 ? '' : 's'}`;
   const lines = n > 0 && st.steps.every((x) => x[8]) ? st.steps.map((x) => x[8]!) : null;
   return {
-    dots, count, name, sub, chars: count.length + (count ? 2 : 0) + name.length + (sub ? sub.length + 3 : 0), lines, line: started ? Math.max(0, mark) : 0, fill, ring, ringOn: started,
+    dots, count, name, sub, lines, line: started ? Math.max(0, mark) : 0, fill, ring, ringOn: started,
     action: st.phase === 'done' ? `Replay ${st.name}` : st.phase === 'play' ? 'Next step' : `Play ${st.name}`,
     icon: st.phase === 'done' ? 'replay' : 'play',
     disabled: !!st.why || (st.phase === 'play' && raw >= n - 1),
     why: st.why,
   };
+}
+
+/** The words after the track never cut (22 Nov): measured on one line at full size (`contentW`) against the room the row leaves them (`roomW`), they take the scale that makes them fit
+ *  (1 when they already do). The CSS holds the 10 px floor (his "keep shrink", 21 Nov); words that still do not fit at it wrap (ProcRow's fit pass checks that after it sets the scale). */
+export function nameFit(contentW: number, roomW: number): number {
+  if (!(contentW > 0) || contentW <= roomW + 0.5) return 1;
+  return Math.max(0.01, Math.floor((roomW / contentW) * 1000) / 1000);
+}
+
+/** Fit the rail's words to their room: measure them unscaled on one line, scale them to fit, and let them wrap only where the CSS floor stops the scale short. Reads layout (scroll and client widths). */
+export function fitRailName(room: HTMLElement): void {
+  const words = room.firstElementChild as HTMLElement | null;
+  if (!words) return;
+  room.removeAttribute('data-wrap'); room.style.removeProperty('--pr-z');
+  const z = nameFit(words.scrollWidth, room.clientWidth);
+  if (z < 1) room.style.setProperty('--pr-z', String(z));
+  if (words.scrollWidth > room.clientWidth + 1) room.setAttribute('data-wrap', '');
 }
