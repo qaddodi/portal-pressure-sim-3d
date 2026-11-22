@@ -35,7 +35,7 @@ for (const fx of fixtures()) {
 
   test(`${fx.name}: an offset set equal to the body set changes nothing, in every state`, () => {
     for (const [, st] of sts) {
-      const a = deformLive(m, fx.skel, { ...st, ink: 0, sag: 0 }), b = deformLive({ ...m, offsetMap: Float32Array.from(m.offset) }, fx.skel, { ...st, ink: 0, sag: 0 });
+      const a = deformLive({ ...m, offsetMap: m.offset }, fx.skel, { ...st, ink: 0, sag: 0 }), b = deformLive({ ...m, offsetMap: Float32Array.from(m.offset) }, fx.skel, { ...st, ink: 0, sag: 0 });
       for (let i = 0; i < a.position.length; i++) assert.ok(Math.abs(a.position[i]! - b.position[i]!) < 1e-6);
     }
   });

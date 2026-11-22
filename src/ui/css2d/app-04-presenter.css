@@ -396,29 +396,41 @@
    No shared track and no filled pill, an iOS switch's look (DG4, 17 Oct). */
 .pz-abb[aria-pressed="true"] { color: var(--text); border-color: var(--accent); box-shadow: inset 0 0 0 .5px var(--accent); }
 .pz-strain-b { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; min-width: 11em; }   /* (hold-to-strain: a long press on a phone must not select, scroll or open a menu) */
-/* A procedure's steps (presenter.js procEl): a line of words, each after the slides' own step circle, progress only (Next plays
-   them). The step on show takes the text colour and an accent circle, the rest stay quiet; only colours change, so the line never
-   reflows. */
-.pz-procs { margin: 0; font: 400 var(--s-body)/1.4 var(--font-ui); color: var(--text-3); text-wrap: pretty; }
-.pz.stack .pz-procs { font-size: var(--s-lab); }
-.pz-proc { white-space: nowrap; transition: none; }
-.pz-proc .pz-step { transition: none; }
-.pz-proc.on { color: var(--text); }
-.pz-proc.on .pz-step { background: var(--accent); color: var(--on-accent); }
-/* Two marks (his ask, 13 Nov 2026): the fill, above, is the step the animation is on; the ring is the step Next or Back has navigated to, a thin accent ring a hair outside
-   its circle. An outline, so no layout moves and nothing animates (transition none above). The words' card clips at its own edge (overflow: clip, no padding), so the row starts
-   a ring's width in (--pz-ring) and has 2px below the last row: the ring of a step that opens a row, or sits on the last row, is whole, on the first line and on every wrapped one. */
-.pz-procs { --pz-ring: 3px; padding: 0 0 2px var(--pz-ring); }
-.pz-proc.at .pz-step { outline: 1.5px solid var(--accent); outline-offset: 1px; }
-.pz-procs[data-why] { opacity: .5; }
-/* EUS coils and glue lists its steps (presenter.js procEl, a short line on each): one row each, number, word, its line, all on the card from the
-   start at its full size (his ask, 10 Nov 2026). The steps played stay in full ink (.done) and the one on show is lit (.on), colours only, so the
-   list never reflows. On a phone's stacked card it is the one-line row again with the lines hidden, so that card does not grow. */
-.pz-procs-list .pz-proc { display: block; white-space: normal; padding-block: .18em; }
-.pz-procs-list .pz-proc.done { color: var(--text); }
-.pz-proc-line { margin-inline-start: .15em; }
-.pz.stack .pz-procs-list .pz-proc { display: inline; white-space: nowrap; padding-block: 0; }
-.pz.stack .pz-proc-line { display: none; }
+/* A procedure's steps: ONE row (Mohammad, 22 Nov, mock A, every procedure; ui/cards/ProcRow.tsx, ui/cards/proc-rail.ts). A round accent play button, a track with one dot
+   per step, the step on show by name. The fill (the step the animation is on) and the ring (the step Next or Back has navigated to, his two marks, 13 Nov) move by transform
+   and glide; the dots change colour with an ease; the name fades in. Nothing reflows: the track's width is set by the step count, the words take what is left on one line. */
+.pz-prail { --pr-b: 36px; --pr-gap: 1.6em; display: flex; align-items: center; gap: .75em; min-height: var(--pr-b); margin: 0; font: 400 var(--s-lab)/1.2 var(--font-ui); color: var(--text-3); transition: opacity var(--d-small) var(--ease); }
+.pz.stack .pz-prail { --pr-b: 34px; --pr-gap: 1.45em; gap: .6em; }
+.pz-prail-box { transition: opacity var(--d-small) var(--ease); }
+.pz-prail-box[data-why] { opacity: .5; }
+.pz-prail-go { appearance: none; flex: 0 0 auto; display: grid; place-items: center; width: var(--pr-b); height: var(--pr-b); padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); cursor: pointer; transition: opacity var(--d-flip) var(--ease), scale var(--d-flip) var(--ease); }
+.pz-prail-go svg { width: 56%; height: 56%; fill: currentColor; }
+.pz-prail-go:active:not(:disabled) { scale: .94; }
+.pz-prail-go:disabled { opacity: .4; cursor: default; }
+.pz-prail-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* the track: its width is the gaps between the dots; the dots sit at k / n of it, the fill scales from the left, the ring's box spans the track and translates by the ring's share of it */
+.pz-prail-track { position: relative; flex: 0 0 auto; width: calc(var(--n) * var(--pr-gap)); height: 18px; margin-inline: 9px; }
+.pz-prail-line, .pz-prail-fill { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px; background: var(--border-strong); }
+.pz-prail-fill { background: var(--accent); transform-origin: 0 50%; transition: transform var(--d-surface) var(--ease); }
+.pz-prail-dot { position: absolute; top: 50%; left: calc(var(--k) * var(--pr-gap)); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface);
+  transition: background-color var(--d-small) var(--ease), border-color var(--d-small) var(--ease), scale var(--d-small) var(--ease); }
+.pz-prail-dot.done { background: var(--accent); border-color: var(--accent); }
+.pz-prail-dot.on { background: var(--accent); border-color: var(--accent); scale: 1.4; }
+.pz-prail-at { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: transform var(--d-surface) var(--ease), opacity var(--d-small) var(--ease); }
+.pz-prail-at.on { opacity: 1; }
+.pz-prail-at > i { position: absolute; top: 50%; left: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--accent); }
+/* the words never cut: measured on one line and scaled to fit the room the row leaves them (ui/cards/proc-rail.ts fitRailName, --pr-z), down to 10 px (his "keep shrink");
+   only past that do they wrap (data-wrap) */
+.pz-prail-t { flex: 1 1 auto; min-width: 0; }
+.pz-prail-tx { display: block; width: max-content; white-space: nowrap; font-size: max(10px, calc(1em * var(--pr-z, 1))); animation: pz-prail-in var(--d-small) var(--ease) both; }
+.pz-prail-t[data-wrap] > .pz-prail-tx { width: auto; white-space: normal; overflow-wrap: anywhere; }
+/* EUS glue's short line per step: every line in one grid cell, so the cell is as tall as the longest and nothing reflows; the current one fades in as the last fades out */
+.pz-prail-cap { display: grid; margin: .4em 0 0; font: 400 var(--s-lab)/1.3 var(--font-ui); color: var(--text-2); }
+.pz-prail-cap > span { grid-area: 1 / 1; opacity: 0; transition: opacity var(--d-surface) var(--ease); }
+.pz-prail-cap > span.on { opacity: 1; }
+.pz-prail-t b { font-weight: 600; color: var(--text); }
+.pz-prail-n { margin-inline-end: .5em; font-weight: 500; font-size: .86em; font-variant-numeric: tabular-nums; }
+@keyframes pz-prail-in { from { opacity: 0; } }
 .pz-abb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Projector-size catheter readings. */
 .app.presenting .cath-label { padding: calc(7px * min(var(--label-k, 1), 1.7)) calc(16px * min(var(--label-k, 1), 1.7)) calc(8px * min(var(--label-k, 1), 1.7)); border-radius: calc(14px * min(var(--label-k, 1), 1.7)); }

@@ -24,7 +24,7 @@ for (const fx of fixtures()) {
     const capsOf = regs.map((rg) => rg.caps.map((c): Capsule => { const pts = new Float64Array(3 * c.bones.length), rr = new Float64Array(c.bones.length); c.bones.forEach((bi, j) => { pts.set(bones[bi]!.cen, 3 * j); rr[j] = bones[bi]!.lumen; }); return { n: c.bones.length, pts, r: rr, mate: c.mate >= 0 ? c.mate : undefined }; }));
     const resid: number[] = [], ang: number[] = [], inkW: number[] = [];
     regs.forEach((rg, ri) => {
-      const caps = capsOf[ri]!, k = pose.k[ri]!, R = k / SKIN_K, h = 0.02 * R;
+      const caps = capsOf[ri]!, k = pose.k[ri]!, R = k / SKIN_K, h = 0.001 * R;   // (a finite difference at 0.02 R straddles the sharpest crotch vertex of a fillet: 6.9 deg off a normal that is right to 0.01 deg at this step)
       for (let v = rg.vertStart; v < rg.vertStart + rg.vertCount; v++) {
         const x = [pose.position[3 * v]!, pose.position[3 * v + 1]!, pose.position[3 * v + 2]!];
         resid.push(Math.abs(sdUnion(caps, k, x[0]!, x[1]!, x[2]!)) / R);
