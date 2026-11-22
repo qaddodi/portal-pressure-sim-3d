@@ -13,7 +13,7 @@ export interface ProbeState {
   /** The FibroScan probe on the skin over an organ. */
   fibro: { on: boolean; organ: FibroOrgan };
   /** The endoscope down the esophagus. `u`: how far in it is, 0 to 1 (unset: all the way to its work place, eased); `needle`: the EUS needle out, 0 to 1 (unset: out in 'eus', away elsewhere); `station`: the EUS-PPG's two stations. */
-  endoscope: { on: boolean; mode: ScopeMode; u?: number; needle?: number; station: 'pv' | 'hv' };
+  endoscope: { on: boolean; mode: ScopeMode; u?: number; needle?: number; station: 'pv' | 'hv'; /** a slide's procedure puts the scope AT its station (it fades in there and fades out where it stands, never travelling along the esophagus): the EVL slides; the Tests card never sets it */ place?: boolean };
   /** The instruments a deck slide has put in its data card (ui/talk/ToolCard.tsx): their devices stand on the figure while the slide is up, whatever the Tests card is doing (bind-tests.ts leaves them be). */
   slide: { doppler: boolean; fibro: boolean; endoscope: boolean };
   /** The Doppler slide asks the figure to call out all three of a stent's points (2D `tool.points`, pinDoppler). */

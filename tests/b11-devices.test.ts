@@ -108,6 +108,31 @@ test('devices are off until the Tests card shows their instrument, ease in, and 
   layer.dispose();
 });
 
+test('a slide\'s scope (`place`) appears at its station and fades out where it stands, never travelling; the Tests card\'s own scope still travels', () => {
+  const layer = new ProbeLayer(createShared(), { organBox: () => new Box3(new Vector3(-1, -0.5, -0.2), new Vector3(1, 0.5, 0.2)), kpa: () => 8 });
+  for (const p of Object.values(PALETTES).slice(0, 1)) layer.applyPalette(p);
+  let now = 0;
+  const run = (ms: number) => { for (let t = 0; t < ms; t += 16) { now += 16; layer.update(now); } };
+  run(100);
+  const at = workD('scope', 'pv');
+  useProbes.getState().setEndoscope({ on: true, mode: 'scope', place: true });
+  layer.update(now += 16);
+  assert.ok(Math.abs(layer.scope.d - at) < 1e-6, 'at its station on the first frame: it did not walk in');
+  run(1200);
+  assert.ok(Math.abs(layer.scope.d - at) < 1e-6, 'and it has not moved');
+  useProbes.getState().setEndoscope({ on: false });
+  for (let i = 0; i < 20; i++) { layer.update(now += 16); assert.ok(Math.abs(layer.scope.d - at) < 1e-6 || layer.scope.d === 0, 'it fades where it stands, never walking back up'); }
+  run(1500);
+  assert.equal(layer.scope.d, 0, 'gone once it has faded');
+  // the card's own scope: place is off, so it travels in from the top again
+  useProbes.getState().setEndoscope({ on: true, place: false });
+  layer.update(now += 16);
+  assert.ok(layer.scope.d < at * 0.5, 'the Tests card\'s scope starts its way in');
+  useProbes.getState().setEndoscope({ on: false, place: false });
+  run(3000);
+  layer.dispose();
+});
+
 test('a new vessel eases the probe out and in at its new place; a new organ does the same for the FibroScan probe', () => {
   const sh = createShared();
   const d = new DopplerProbe(sh), f = new FibroProbe(sh);

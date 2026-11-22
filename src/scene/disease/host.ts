@@ -10,7 +10,7 @@ import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
-import { neighbourAttr } from '../vessels/neighbour.ts';
+import { neighbourAttr, NBR_STRIDE } from '../vessels/neighbour.ts';
 import { CAVA_RECEDE, cavaPieceOf, opensIntoCava } from '../vessels/fades.ts';
 import { cavaRamp } from '../vessels/fade-alpha.ts';
 
@@ -56,7 +56,7 @@ export function drawnHost(id: string): Host | null {
       for (let i = from; i < pts.length; i++) { flat[(i - from) * 3] = pts[i]!.x; flat[(i - from) * 3 + 1] = pts[i]!.y; flat[(i - from) * 3 + 2] = pts[i]!.z; }
       const nb = neighbourAttr(q, flat);
       if (nb) for (let i = from; i < pts.length; i++) {
-        const Rc = nb[(i - from) * 2 + 1]!, cd = Rc - Math.abs(nb[(i - from) * 2]!);
+        const Rc = nb[(i - from) * NBR_STRIDE + 1]!, cd = Rc - Math.abs(nb[(i - from) * NBR_STRIDE]!);
         if (Rc > 0) A[i] = A[i]! + (CAVA_RECEDE - A[i]!) * cavaRamp(cd / Rc);
       }
     }
@@ -112,7 +112,7 @@ export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
   }
   const nb = nbCache.get(h.id);
   if (!nb) return null;
-  const wall = (i: number): number => Math.abs(nb[i * 2]!) - nb[i * 2 + 1]! * cavaSwell;   // (> 0 outside the lumen)
+  const wall = (i: number): number => Math.abs(nb[i * NBR_STRIDE]!) - nb[i * NBR_STRIDE + 1]! * cavaSwell;   // (> 0 outside the lumen)
   let k = h.pts.length - 1;
   while (k > 0 && wall(k) < 0) k--;
   if (k >= h.pts.length - 1) return 1;

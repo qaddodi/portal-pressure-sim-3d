@@ -68,7 +68,7 @@ test('the other tube is taken at the radius it is DRAWN at: every vessel measure
   const { nbrMatesOf } = await import('../src/scene/vessels/neighbour.ts');   // (every junction is a fork since 8952d0f8: the mate is the first of nbrMatesOf, as the scene wires it)
   const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
   const { indexOf } = await import('../src/engine/vessel-data.ts');
-  assert.match(VESSEL_VS, /vNbr = vec2\(nbr\.x, nbr\.y \* \(nbrMate\.x >= 0\.0 \? swellOf\(nbrMate\.x, nbrMate\.y, nbrMate\.z\) : 1\.0\)\);/);
+  assert.match(VESSEL_VS, /vNbr = vec3\(nbr\.x, nbr\.y \* \(nbrMate\.x >= 0\.0 \? swellOf\(nbrMate\.x, nbrMate\.y, nbrMate\.z\) : 1\.0\), nbr\.z\);/);
   assert.doesNotMatch(VESSEL_VS, /vNbr = nbr;/);
   const s = new CelScene();
   try {

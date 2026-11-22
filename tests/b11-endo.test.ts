@@ -44,6 +44,21 @@ test('banding deflates the banded columns and cinches their knuckles, then holds
   assert.equal(m.state.kn.every((x) => x === 0), true);
 });
 
+test('a band added eases in: its knuckle rises over the beats that follow, never from nothing to whole in one step (the scope view of the EVL slides)', () => {
+  const m = new FieldMotion();
+  run(m, base, 3000);
+  let t = 5000;
+  const one = { ...base, bands: 1 };
+  m.step(one, t); t += 50;
+  assert.ok(m.state.kn[0]! < 0.2, 'the first beat after the band has barely started');
+  const seen: number[] = [];
+  for (let i = 0; i < 80; i++) { m.step(one, t); t += 50; seen.push(m.state.kn[0]!); }
+  assert.ok(seen.some((x) => x > 0.2 && x < 0.8), 'it passes through the middle');
+  assert.ok(seen.every((x, i) => i === 0 || x >= seen[i - 1]! - 1e-9), 'and only rises');
+  assert.ok(seen.every((x, i) => i === 0 || x - seen[i - 1]! < 0.5), 'no single beat jumps it');
+  assert.ok(seen.at(-1)! > 0.99, 'it ends whole');
+});
+
 test('the scope frame is whole: the clips balance and the bleed adds to it', () => {
   const pal = paletteOf('light');
   const m = new FieldMotion();
