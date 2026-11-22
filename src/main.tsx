@@ -10,6 +10,7 @@ import './ui/humanized.css';   // the 2D pills, chips and badges taken off: plai
 import './ui/glass.css';   // the one glass for every panel, menu, pill and card (tests/glass.test.ts)
 import { applyLook, resolveLook } from './looks/looks.ts';
 import { lookGlide } from './looks/glide.ts';
+import { followDevice } from './looks/follow-device.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
 import { bootEngine, useEngine } from './engine/index.ts';
@@ -46,9 +47,9 @@ lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's 
 const paint = () => lookGlide.change(resolveLook(useSettings.getState().look, dark.matches));
 paint();
 useSettings.subscribe(paint);
+followDevice({ doc: document, win: window, mq: dark, glide: lookGlide, choice: () => useSettings.getState().look });
 applyGlass(useSettings.getState().blur);
 useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
-dark.addEventListener('change', paint);
 installCrashNet();   // errors no boundary sees (handlers, timers, promises, a clock system): kept for the reports, and a quiet recovery when the app is left broken (boot/crash-net.ts)
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 // A lazy part's file is gone (a tab open across two deploys) or the network failed: Vite fires this before the import rejects. The rejection is NOT swallowed: lazyRetry tries again and the pane says so (LazyBoundary);
