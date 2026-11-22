@@ -2,6 +2,7 @@
 // texture added. Plain strings so the unit tests can check them without a GPU; `node scripts/glsl-compile.mjs` compiles them in
 // software WebGL2 (the one headless step the owner allows, and only on about:blank).
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../cel-glsl.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 
 /** Texel layout of the per-vessel data texture, written by src/engine/vessel-data.ts (one texel per topology edge, RGBA32F, nearest). */
 export const VESSEL_TEXEL = {
@@ -134,7 +135,7 @@ void main() {
   float d = dot(n, l) * 0.5 + 0.5;
   float q = d * bands;
   float f = fract(q);
-  float w = fwidth(q) * 0.75;
+  float w = fwidth(q) * ${(CEL_STYLE.EDGE_PX / 2).toFixed(3)};   // (the band's edge: HALF of EDGE_PX each side, so the whole ramp is EDGE_PX device px, the figure's one edge width)
 #ifdef TUBE_TONES
   vec3 sideX = cross(normalize(vT), normalize(vV));
   float sideL = length(sideX);

@@ -114,7 +114,7 @@ void main() {
   // the neighbours in the same three flat tones as the lobule (cel.ts), about their own local lightness; the blur they are drawn at softens the edge, and they carry no ink: they stay quiet
   float lbN = celLight(texture2D(tile, uv, bias + 3.0).rgb);
   float dvN = (celLight(col) - lbN) / max(lbN, 0.08);
-  col = celTissue(col, lbN, max(fwidth(dvN) * CEL_EDGE_PX * 1.5, 1e-3) + ${FIELD_EDGE_PER_MIP.toFixed(4)} * bias);
+  col = celTissue(col, lbN, max(fwidth(dvN) * CEL_EDGE_HALF, 1e-3) + ${FIELD_EDGE_PER_MIP.toFixed(4)} * bias);
   // the quiet copy (tile-gl.js): toward its luma by 0.45, the page's colour over it at 0.42, then NEIGHBOUR_FLAT more
   float l = dot(col, vec3(0.3, 0.59, 0.11));
   col = mix(col, vec3(l), 0.45);

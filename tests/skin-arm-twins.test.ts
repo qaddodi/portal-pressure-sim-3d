@@ -35,6 +35,7 @@ test('no fade is 1; a hepatic vein\'s cava end and a divided vein\'s stump scale
   assert.ok(Math.abs(liveFadeAt({ ...none, cavaEnd: [0.4, 0.45] }, 1, 0, 0) - 0.45) < 1e-12, 'the cava\'s alpha at its end');
   assert.equal(liveFadeAt({ ...none, stumpCut: 300 }, 0.4, 0, 0), 0, '0.4 x 2 x 300 = 240 figure units: inside the divided stretch');
   assert.equal(liveFadeAt({ ...none, stumpCut: 300 }, 0.6, 0, 0), 1, '360: past it');
+  assert.equal(liveFadeAt({ ...none, stumpCut: 100 }, 0.4, 0, 0), 0, 'the divided vein\'s START arm is never drawn, even when its seam lies past the cut (the skin drew the divided stretch back as a bulge between the stump and the shunt)');
 });
 
 test('the highlight twin: the picked vein\'s own line, and the glow running ahead of and behind a bolus', () => {

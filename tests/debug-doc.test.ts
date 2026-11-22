@@ -28,7 +28,7 @@ test('the doc has its fourteen sections, in order, and the rules that keep the c
 test('every verb the doc lists is one the command has, and every flag in the doc table is one the page reads', async () => {
   const src = readFileSync(new URL('../scripts/debug.mjs', import.meta.url), 'utf8');
   for (const v of ['rules', 'limits', 'flags', 'report', 'packet', 'links', 'test', 'scan', 'doc']) { assert.match(src, new RegExp(`debug -- ${v}`)); assert.match(doc, new RegExp(`\`${v}[ \`\\[]`)); }
-  assert.match(doc, /\?debug=frame/); assert.match(doc, /Copy the full report/); assert.match(doc, /kill ledger/);
+  assert.match(doc, /\?debug=frame/); assert.match(doc, /Copy full report/); assert.match(doc, /kill ledger/);
 });
 
 test('every rule names an owner file that exists (the doc tells an agent where to go)', () => {

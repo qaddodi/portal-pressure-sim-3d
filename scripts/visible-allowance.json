@@ -15,6 +15,7 @@
   "src/scene/disease/clots.ts": 3,
   "src/scene/disease/dye.ts": 4,
   "src/scene/disease/landmarks.ts": 4,
+  "src/scene/disease/scope-ring.ts": 2,
   "src/scene/disease/strands.ts": 3,
   "src/scene/highlight.ts": 4,
   "src/scene/lobule/mark.ts": 2,

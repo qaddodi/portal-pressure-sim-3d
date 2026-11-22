@@ -5,6 +5,7 @@ import { frameStats, timeline, fadeEpisodes, fadeFindings, stallWindows, layoutF
 import { judgeScan } from './scan-judge.ts';
 import type { RawScan } from './scan.ts';
 import type { AnimRec } from './ledger.ts';
+import { mark } from '../../../clock/blocks.ts';
 import { memoryClimb } from '../../../clock/render-stats.ts';
 import type { SequenceProof } from './sequence.ts';
 import { SLOW_BUSY_MS, LOW_FPS, type RowGpu, type AuditRow, type AuditData, type AuditSize, type ConsoleLine, type Coverage } from './report.ts';
@@ -85,6 +86,7 @@ export async function runAudit(steps: AsyncIterable<Step> | Iterable<Step>, deps
   for await (const step of steps) {
     if (o.shouldStop?.()) { stopped = true; break; }
     const t0 = deps.mark(), s0 = deps.now();
+    mark(`step ${step.id}`);   // (a main-thread block in the run's boot digest names the step it came in: clock/blocks.ts)
     let label = step.label, failed: string | null = null;
     try { const l = await step.run(); if (l) label = l; } catch (e) { failed = String((e as Error)?.message ?? e); }
     const st = await deps.settle();

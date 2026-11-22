@@ -43,7 +43,7 @@ test('every material whose transparent flag is flipped while the page runs is ma
   // vessel tubes, their veil copies and every junction skin copy flip at run time (setTipFade, setCavaEnd, setCavaCut, setTransparent), only through setBlendState ...
   const vo = src('scene/vessels/vessel-object.ts'), so = src('scene/vessels/skin/skin-object.ts');
   assert.match(vo, /const toon = markBlends\(new ShaderMaterial\(/);
-  assert.match(vo, /const mat = markBlends\(new ShaderMaterial\(\{ vertexShader: this\.toon\.vertexShader/, 'the veil copy');
+  assert.match(vo, /const mat = markBlends\(new ShaderMaterial\(\{ name: 'vessel veil', vertexShader: this\.toon\.vertexShader/, 'the veil copy');
   assert.match(so, /const material = markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/, 'the three skin copies (the Circuit\'s too: one class)');
   assert.match(so, /setTransparent\(on: boolean\)/);
   assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);

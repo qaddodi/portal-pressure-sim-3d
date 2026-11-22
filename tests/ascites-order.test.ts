@@ -2,13 +2,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AscitesLayer, POOL_ORDER, SHELL_BACK_ORDER } from '../src/scene/disease/ascites.ts';
-import { ORGAN_ORDER } from '../src/scene/organs/layer.ts';
+import { GUT_RENDER, ORGAN_ORDER } from '../src/scene/organs/layer.ts';
 import { patchedShaders } from '../src/scene/organs/organ-art.ts';
 import { INK_FS } from '../src/scene/materials/shaders.ts';
 import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
 
 test('the pool is drawn after every organ and its ink, ignoring depth', () => {
-  assert.ok(POOL_ORDER > 2 * (ORGAN_ORDER.length - 1) + 1);
+  // an organ's ink is drawn at 2 * its place + 1, but the gut (colon, bowel) is blended in its own order (GUT_RENDER): the last draw is the larger of the two
+  const lastInk = Math.max(...ORGAN_ORDER.map((id, i) => GUT_RENDER[id]?.ink ?? 2 * i + 1));
+  assert.ok(POOL_ORDER > lastInk, `the pool (${POOL_ORDER}) is drawn after the last organ ink (${lastInk})`);
   const [back, front] = new AscitesLayer().group.children as any[];
   assert.equal(front.renderOrder, POOL_ORDER);
   assert.equal(front.material.depthTest, false);

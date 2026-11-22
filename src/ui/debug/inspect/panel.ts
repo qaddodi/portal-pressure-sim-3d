@@ -135,6 +135,7 @@ export function mountInspect(): void {
     check(s, 'Dust', () => get().dust, (v) => put({ dust: v }));
     check(s, 'Chevrons', () => get().heads, (v) => put({ heads: v }));
     check(s, 'Outline ink', () => get().ink, (v) => put({ ink: v }));
+    if (key === 'tube') check(s, 'Paint dropped pixels (colour = why)', () => get().why, (v) => put({ why: v }));
     check(s, key === 'tube' ? 'Colour per vessel' : 'Colour per junction', () => get().tint, (v) => put({ tint: v }));
     const c = el('input', { type: 'color', value: get().colour }); c.oninput = () => { put({ colour: c.value }); };
     syncers.push(() => { c.value = get().colour; });
