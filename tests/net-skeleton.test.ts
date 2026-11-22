@@ -15,7 +15,7 @@ import type { Bone } from '../src/scene/vessels/net/types.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
 import { networksOf } from '../src/scene/vessels/net/mesh.ts';
-import { ARM_BLEND_RADII, isSewn, BONES_PER_EDGE, BONES_MAX, CORNER_ARC_BONES, boneCount, samplesOf, FADE_SEEN, WALL_STARTS, hiddenCounts, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
+import { ARM_BLEND_RADII, ARM_MAX_TURN, isSewn, BONES_PER_EDGE, BONES_MAX, CORNER_ARC_BONES, boneCount, samplesOf, FADE_SEEN, WALL_STARTS, hiddenCounts, FILLET_BONES, KNOWN_BIG_MOVES, MAX_MOVE_RADII, MAX_MOVE_SHARE, bonesOf, mapRadiusOf, nodeIdOf, skeleton, skeletonReport } from '../src/scene/vessels/net/skeleton.ts';
 
 const S = skeleton(), R = skeletonReport();
 const dist = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -153,6 +153,7 @@ test('the map keeps the body\'s side: an arm that leaves a host line on one side
     const side = (pose: 0 | 1, i: number): number => { const A = arms(pose), t = A[host[0]!]!.d, d = A[i]!.d; return Math.atan2(t[0] * d[1] - t[1] * d[0], t[0] * d[0] + t[1] * d[1]) * 180 / Math.PI; };
     for (let i = 0; i < n.edges.length; i++) {
       if (host.includes(i) || sewnEdge(n.edges[i]!.edge)) continue;   // (sewn ends are no fillet arms)
+      if (R.armsKept.some((k) => k.node === n.id && k.arm === S.edges[n.edges[i]!.edge]!.id)) continue;   // (J1: its own course arrives from the other side, so it keeps that side rather than hook back into the node)
       const b = side(0, i), m = side(1, i);
       if (Math.abs(b) > 20 && Math.abs(b) < 160 && Math.abs(m) > 20 && Math.abs(m) < 160) { assert.equal(Math.sign(m), Math.sign(b), `${n.id}: ${S.edges[n.edges[i]!.edge]!.id} is on the ${b > 0 ? 'left' : 'right'} of the host in the body and the other side on the map`); checked++; }
     }
@@ -457,4 +458,40 @@ test('crossings: the 2D lines cross in 7 pairs in the body and 3 on the map (pin
     const now = crossPairs(pose, false);
     for (const x of now) assert.ok(RAW_CROSSINGS[name].includes(x), `${name}: ${x} is a crossing the skeleton adds`);
   }
+});
+
+// J1 (22 Nov): no edge hooks back into its own node. Root cause it pins: the map's arm layout (the body's node structure, mirrored and spread) turned an arm against the way its own 2D course arrives, so the course ran past the node and U-turned back into it
+// (SV_CONF at CONF 159 degrees, LGV_CONF at PVT_L and EPI_SVC at SVC_E 180). An arm turned more than ARM_MAX_TURN keeps its own course's direction.
+/** The end `end` of an edge in `pose` hooks when, walking in from it, the course goes more than 2 r away, covers more than 3 r of arc, and comes back within 2 r of the end point; returns the u it comes back at (or -1). */
+function hookAt(bones: readonly Bone[], end: 0 | 1, pose: 0 | 1): number {
+  const n = bones.length, at = (k: number): Bone => bones[end ? n - 1 - k : k]!, E = at(0), r = E.r[pose];
+  let arc = 0, away = 0;
+  for (let k = 1; k < n; k++) {
+    arc += dist(at(k).pos[pose], at(k - 1).pos[pose]);
+    const d = dist(at(k).pos[pose], E.pos[pose]);
+    away = Math.max(away, d);
+    if (arc > 3 * r && d < 2 * r && away > 2 * r) return at(k).u;
+    if (arc > 40 * r) break;
+  }
+  return -1;
+}
+test('J1: no edge end hooks back into its own node, in either pose (every edge, both ends)', () => {
+  const bad: string[] = [];
+  S.edges.forEach((e, i) => {
+    const b = bonesOf(S, i);
+    for (const pose of [0, 1] as const) for (const end of [0, 1] as const) { const u = hookAt(b, end, pose); if (u >= 0) bad.push(`${e.id} end ${end} ${pose ? 'map' : 'body'} comes back at u=${u.toFixed(2)}`); }
+  });
+  assert.deepEqual(bad, []);
+});
+test('J1: the hook scan sees a hook (an edge that runs past its node and U-turns back into it)', () => {
+  const mk = (u: number, x: number, y: number): Bone => ({ edge: 0, u, pos: [[x, y, 0], [x, y, 0]], r: [0.01, 0.01], frame: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] });
+  const pts: [number, number][] = [[0, 0], [0.05, 0], [0.1, 0], [0.1, -0.05], [0.05, -0.04], [0.01, -0.015]];
+  const hook = pts.map(([x, y], k) => mk(k / 5, x, y));
+  assert.ok(hookAt(hook, 0, 0) >= 0, 'the hook is seen');
+  assert.equal(hookAt(pts.slice(0, 4).map(([x, y], k) => mk(k / 3, x, y)), 0, 0), -1, 'a plain bend is not');
+});
+test('J1: arms the layout would turn more than ARM_MAX_TURN keep their own course (and every one that was laid turns less)', () => {
+  assert.ok(R.armsKept.length > 0);
+  for (const k of R.armsKept) assert.ok(k.turn > ARM_MAX_TURN, `${k.arm} at ${k.node}`);
+  for (const id of ['SV_CONF', 'LGV_CONF', 'EPI_SVC']) assert.ok(R.armsKept.some((k) => k.arm === id), id);
 });
