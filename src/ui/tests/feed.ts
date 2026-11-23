@@ -69,13 +69,14 @@ export class SampleFeed {
   /** the Days chart's points, one a day (2D days), and what changed them */
   days: DayPoint[] = [];
   daysVer = 0;
-  /** the worker's count of the states it replaced, as of the last frame (see adopt) */
-  private daysGen: number | null = null;
   /** a patient that comes with its past: these days are laid in when the frame that replaced the model's state arrives (seedDays) */
   private seed: DayPoint[] | null = null;
   private treatKey: string | null = null;
   private bandsNow: unknown = null;
   private stepNext = false;
+  /** the worker's generation the day record belongs to, and the day History is going back to (the next state change keeps the points up to it) */
+  private daysGen = -1;
+  private keepTo: number | null = null;
   private calmKept = new Map<string, { ver: number; x: number[]; mid: number[] }>();
   private waiting = false;
   /** this record's generation (a new one each time the record is emptied), and the one that has asked the engine for its past */
@@ -126,10 +127,9 @@ export class SampleFeed {
   }
   /** resolves the promise seedDays gave, when the days are in (or when they were let go) */
   private landed: (() => void) | null = null;
-  private newPatient() {
-    this.days.length = 0; this.treatKey = null; this.bandsNow = null; this.calmKept.clear();
+  /** A replaced state came in: a history's days that were waiting are its record now. */
+  private layInSeed() {
     if (this.seed) { this.days.push(...this.seed); this.seed = null; }
-    this.daysVer++;
     this.landed?.(); this.landed = null;
   }
 
@@ -141,11 +141,16 @@ export class SampleFeed {
     const was = this.wheel.laid;
     if (f.jump) {
       this.clear();
-      // The days belong to the patient, not to a jump: the worker's `gen` counts the states it REPLACED (a patient, a restore, a reset), while an action, a change of clock or a time-lapse's first day
-      // is a jump frame too, and emptying the record there cleared a history under whoever pressed a button. A frame with no `gen` (a test's) is a new patient.
-      if (f.gen == null || f.gen !== this.daysGen) this.newPatient();
+      // The day record lives as long as the patient does: a jump of the clock (+1 month, run to the next event) is the same patient some days on, so its points stay. It starts over
+      // only for a new patient, a reset or a morph (the worker's `gen` counts those), and goes back to the day of the entry History restored (keepDaysTo).
+      const g = f.gen ?? 0, keep = this.keepTo; this.keepTo = null;
+      if (g !== this.daysGen) {
+        this.daysGen = g;
+        if (keep != null) { const kept = this.days.filter((d) => d.day <= keep); this.days.length = 0; this.days.push(...kept); } else this.days.length = 0;
+        this.treatKey = null; this.bandsNow = null; this.calmKept.clear(); this.daysVer++;
+        this.layInSeed();
+      }
     }
-    if (f.gen != null) this.daysGen = f.gen;
     if (s && s.t && s.t.length && f.clock !== 'disease') {
       const n = s.t.length, last = this.last, t0 = s.t[0]! + this.off;
       if (!this.t.length && this.head[1]) {
@@ -228,6 +233,8 @@ export class SampleFeed {
     this.stepNext = false;
     if (grew) { this.daysVer++; if (!this.days.length) this.calmKept.clear(); }
   }
+  /** History is restoring the entry of this day: the record keeps its points up to it, not the later ones. */
+  keepDaysTo(day: number) { this.keepTo = day; }
   /** The Days list's trace, calmed (2D calmOf): made once for each change of the days, never for a frame that drew the same ones. */
   calmOf(key: string): { x: number[]; mid: number[] } | null {
     const c = this.calmKept.get(key);
@@ -289,5 +296,5 @@ export function startFeed(): void {
 /** The record as a trace reads it (arrays read when asked: a backfill replaces them). */
 export const record = {
   get t() { return feed.t; }, get ch() { return feed.ch; }, get binT() { return feed.binT; }, get bin() { return feed.bin; }, get beats() { return feed.beat.times; },
-  get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, calm: (key: string) => feed.calmOf(key),
+  get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, keepDaysTo: (day: number) => feed.keepDaysTo(day), calm: (key: string) => feed.calmOf(key),
 };

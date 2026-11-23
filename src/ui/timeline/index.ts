@@ -11,6 +11,7 @@ import { useShell } from '../shell/store.ts';
 import { registerFeature } from '../shell/features.ts';
 import { Timeline, type EventIn, type Snap, type TimelineHost } from './model.ts';
 import { announce } from './announce.ts';
+import { record } from '../tests/feed.ts';
 import { useTimeline } from './store.ts';
 
 export { fmtClock, captureFrame } from './model.ts';
@@ -26,7 +27,7 @@ export const getInterventionLabels = () => labels;
 
 const host: TimelineHost = {
   snapshot: async () => ((await engine().request({ type: 'snapshot' })) as unknown as { snap?: Snap }).snap ?? null,
-  restore: (snap) => { engine().send({ type: 'restore', snap }); setParams(sanitizeParams(snap.params)); },
+  restore: (snap) => { record.keepDaysTo(snap.day); engine().send({ type: 'restore', snap }); setParams(sanitizeParams(snap.params)); },
   frame: () => latest.frame,
   params: () => patient.params,
   advance: (days) => engine().send(days === 'event' ? { type: 'advance', untilEvent: true } : { type: 'advance', days }),

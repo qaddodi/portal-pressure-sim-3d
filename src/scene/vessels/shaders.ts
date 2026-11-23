@@ -621,7 +621,7 @@ void main() {
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
-  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere * cavA);   // (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
+  fd = dSafe(clamp(dSafe(fd), 0.0, 1.0) * dHold(fadeHere * cavA));   // (dSafe, on the bits: a NaN is no dust, dust-glsl.ts) (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif

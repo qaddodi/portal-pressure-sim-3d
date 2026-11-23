@@ -90,6 +90,13 @@ test('the data: the run is the days recorded, the hidden measures are left out, 
   assert.equal(baseName('Paracentesis'), 'Paracentesis');
 });
 
+test('one day only: the run is shown over thirty days and each reading is a dot, not a blank card', () => {
+  const one = buildData({ calm: (k) => (k === 'CONF' || k === 'hvpg' ? { x: [0], mid: [k === 'hvpg' ? 2.3 : 9] } : null), entries: [], labelsOf: LABELS, hidden: null });
+  assert.equal(one.empty, false); assert.equal(one.short, true); assert.deepEqual(one.full, [0, 30]);
+  const f = bigFrame({ ...inp(), series: one.series, hvpg: one.hvpg, on: ['pv'], lines: [], meds: [], full: one.full, win: one.full, cursor: null }, ctxOf('light', 760)).frame;
+  assert.equal(f.shapes.filter((s) => s.k === 'circle').length, 2);
+});
+
 test('the TIPS opens to its route, its stent and the numbers before and after', () => {
   const rows = tipsFacts({ tips: { on: true, d: 8 }, stentGeom: { TIPS: { len: 8 } } }, 84, 120, { shunt: SER.shunt, pv: SER.pv, ivc: SER.ivc, hvpg: HV, asc: SER.asc });
   const get = (k: string) => rows.find((r) => r[0] === k)?.[1];
@@ -137,4 +144,55 @@ test('every measure has a unit lane and a colour the palette (or its own fallbac
   for (const m of MEASURES) assert.ok(MEASURE_OF[m.id] === m && m.name && m.short && m.words(1).length > 0);
   assert.equal(MEASURE_OF.shunt!.words(0.254), '25%');
   assert.equal(MEASURE_OF.asc!.words(1.55), '1.6 L');
+});
+
+test('the HVPG lane grows with a high patient: a decompensated 24 mmHg is inside its lane, with its own ticks (never cut at 16)', () => {
+  const hi: Series = { x: [0, 50, 100], y: [16.5, 24, 20] } as Series;
+  const { frame, geo } = bigFrame(inp({ hvpg: hi, win: [0, 100], full: [0, 100], cursor: 50 }), ctxOf('light', 760));
+  const lane = geo.lanes.find((l) => l.id === 'hvpg')!;
+  const { words } = judge(frame, 'light');
+  assert.ok(words.some((t) => t.s === '20'), 'a tick at 20');
+  // the line's highest point is no higher than the lane's top
+  const ys = frame.shapes.flatMap((s) => (s.k === 'path' ? s.pts.filter((_, i) => i % 2 === 1) : []));
+  assert.ok(ys.every((y) => y >= 0), 'in the box');
+  assert.ok(lane.h > 0);
+});
+
+// The chart's readings against the model's own, from a real patient (decompensated cirrhosis, then a TIPS): the units and the scale each lane reads.
+test('the day record reads the model: ascites mL to L, the shunt as 0..1, the PPG and cardiac output as the metrics, a TIPS raises the shunt and lowers the PPG', async () => {
+  const { createCore } = await import('../src/engine/hales/host/worker-core.js');
+  const out: { type: string; day?: number; metrics?: Record<string, unknown>; Pf?: ArrayLike<number>; params?: Record<string, unknown> }[] = [];
+  const core = createCore((m: never) => { out.push(m); });
+  const last = () => [...out].reverse().find((m) => m.type === 'frame')!;
+  await core.handle({ type: 'init' }); await core.handle({ type: 'run', running: false });
+  await core.handle({ type: 'preset', id: 'cirr-decomp', reqId: 1 });
+  const a = last(), ea = dayExtras(a as never), ma = a.metrics as { ascites: { volume: number }; shuntFraction: number; co: number; ppg: number };
+  assert.equal(ea.asc, ma.ascites.volume / 1000);
+  assert.ok(ea.asc! > 0.2 && ea.asc! < 10, `ascites in litres (${ea.asc})`);
+  assert.equal(ea.shunt, ma.shuntFraction); assert.ok(ea.shunt! >= 0 && ea.shunt! <= 1);
+  assert.equal(ea.ppg, ma.ppg); assert.equal(ea.co, ma.co);
+  assert.ok(ea.var! > 0 && ea.smv! > 0 && ea.smv! >= ea.var!, 'the SMV pressure is above the varix, both read from the node pressures');
+  const p = JSON.parse(JSON.stringify((core.engine() as { params: unknown }).params)); p.tips = { on: true, d: 8 };
+  await core.handle({ type: 'setParams', params: p, settle: true });
+  const eb = dayExtras(last() as never);
+  assert.ok(eb.shunt! > ea.shunt!, 'the TIPS raises the share bypassing the liver');
+  assert.ok(eb.ppg! < ea.ppg!, 'and lowers the PPG');
+  core.dispose();
+});
+
+// The cause of "Only today is recorded" (23 Nov): every frame after a jump of the clock (+1 month) carries `jump`, and the feed emptied the day record on it, so a patient run on
+// for months had one day. The record now lives as long as the patient (the worker's `gen`) and goes back only as far as the entry History restored.
+test('the day record survives the clock jumping on, starts over for a new patient and goes back to the restored day', async () => {
+  const { SampleFeed } = await import('../src/ui/tests/feed.ts');
+  const feed = new SampleFeed();
+  const f = (day: number, jump: boolean, gen: number) => ({ jump, gen, clock: 'hemo', day, metrics: { hvpg: 10 + day / 10, pv: 15, whvp: 12, fhvp: 5, ra: 4, ivc: 5, sv: 14 } }) as never;
+  const days = () => feed.days.map((d) => d.day).join();
+  feed.adopt(f(0, true, 1)); feed.adopt(f(0, false, 1));
+  feed.adopt(f(30, true, 1)); feed.adopt(f(30, false, 1));
+  feed.adopt(f(60, true, 1)); feed.adopt(f(89, true, 1));
+  assert.equal(days(), '0,30,60,89', 'a jump keeps the days before it');
+  feed.keepDaysTo(60); feed.adopt(f(60, true, 2));
+  assert.equal(days(), '0,30,60', 'History went back to day 60: the later day is dropped, the earlier kept');
+  feed.adopt(f(0, true, 3));
+  assert.equal(days(), '0', 'a new patient starts a new record');
 });

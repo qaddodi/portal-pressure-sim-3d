@@ -2,6 +2,7 @@
 // candidates a segment instead of the scan's K x (2N + 1)), what keeps it inside its cell, and that the ?dust panel can switch it with the look easing like every other setting.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { DUST_GLSL, DUST_MACROS } from '../src/scene/blood/dust-glsl.ts';
 import { DUST_KMAX, DUST_LANES_MAX, DUST_LANE_LOOK, DUST_NMAX, DUST_NUMERIC, DUST_PRESETS, DUST_SELECTS, DUST_UNIFORMS, dustDefaults, dustDerive, dustText, parseDust } from '../src/scene/blood/dust-spec.ts';
 import { DUST_EASE_MS, DustTuner } from '../src/scene/blood/dust.ts';
@@ -93,4 +94,15 @@ test('look B hashes a streak in two steps: the cheap four first, the rest only f
   const b = src.slice(src.indexOf('vec4 dustTubeB('), src.indexOf('vec4 dustTube(DFrame F, vec3 lit'));
   assert.equal((b.match(/P = dLaneFill\(P\);/g) ?? []).length, 2, 'filled in the tube and in the skin');
   for (const part2 of b.split('P = dLaneFill(P);').slice(0, -1)) assert.match(part2, /dNear\(/, 'only after the reach test');
+});
+
+// ROOT CAUSE of the black blocks and specks at the junctions on the iPhone (Mohammad, 20 and 23 Nov): dSafe tested a NaN with a comparison (`dot(v, v) < 64.0`), which a phone GPU's fast maths folds away, so a NaN term of the dust
+// went through, clamp() and the product with the wall left it a NaN, and the pixel was written as 0 0 0. A NaN is now found on its bits (the exponent all ones), in every particle and again on the dust the shader paints.
+test('a NaN or an infinity in the dust is found on the bits, per particle and on what is painted', () => {
+  assert.match(DUST_GLSL, /bool dBad\(vec4 v\) \{ return any\(equal\(floatBitsToUint\(v\) & uvec4\(0x7f800000u\), uvec4\(0x7f800000u\)\)\); \}/, 'an exponent of all ones is NaN or infinity, an integer test');
+  assert.match(DUST_GLSL, /vec4 dSafe\(vec4 v\) \{ return \(dBad\(v\) \|\| dot\(v, v\) >= 64\.0\) \? vec4\(0\.0\) : v; \}/);
+  assert.equal((DUST_GLSL.match(/c = clamp\(dSafe\(c\), 0\.0, 1\.0\);/g) ?? []).length, 4, 'every particle of both looks, tube and skin');
+  const src = fs.readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8') + fs.readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
+  assert.match(src, /fd = dSafe\(clamp\(dSafe\(fd\), 0\.0, 1\.0\) \* dHold\(fadeHere \* cavA\)\);/, 'the tube paints no NaN');
+  assert.match(src, /dustAcc \*= dWall\(skinWall\([^\n]*\n\s*dustAcc = dSafe\(dustAcc\);/, 'the skin paints no NaN');
 });

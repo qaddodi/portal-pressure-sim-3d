@@ -12,7 +12,7 @@ export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTM
     const away = (e: PointerEvent) => {
       const t = e.target as HTMLElement | null;
       if (ref.current?.contains(t as Node) || t?.closest?.(`[data-opens="${sheet}"]`)) return;
-      useShell.getState().close();
+      useShell.getState().closeByPress();   // (this capture listener runs before the scrim's own: the press is recorded here, or the opener's click reopens the sheet it just closed)
     };
     window.addEventListener('pointerdown', away, true);
     return () => window.removeEventListener('pointerdown', away, true);

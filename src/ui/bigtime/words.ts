@@ -14,6 +14,7 @@ export const BT = {
   caseNote: 'Not made by the model. Shown only when the case gives a value, as a step on the day it was drawn.',
   empty: 'Nothing to draw yet.',
   emptyHint: ' Move the clock on and the lines draw here.',
+  shortHint: 'Only today is recorded. Move the clock on and the lines draw here.',
   earlier: 'Earlier',
   later: 'Later',
   nothingHappened: 'Nothing has happened yet.',

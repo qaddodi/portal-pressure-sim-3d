@@ -1,8 +1,11 @@
 /* The timeline chart's card (docs/approved/timeline-chart.md). The card is the shell's own sheet: its glass is the standard card glass (glass.css lists `.sh-sheet`), nothing blurs the figure
    behind it. Moves are opacity and transform only; nothing scrolls inside it. */
-.sh-sheet[data-kind="timeline"] { z-index: 6; left: calc(var(--safe-l, 0px) + 28px); right: calc(var(--safe-r, 0px) + 28px); top: calc(var(--safe-t, 0px) + 28px); bottom: calc(var(--safe-b, 0px) + 28px); width: auto; max-height: none; margin-left: 0; }
+.sh-sheet[data-kind="timeline"] { --bt-gap: clamp(14px, 1.6vw, 24px); z-index: 3; left: calc(var(--safe-l, 0px) + var(--bt-gap)); right: calc(var(--safe-r, 0px) + var(--bt-gap)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)); bottom: calc(var(--bot-occ, 84px) + var(--bt-gap)); width: auto; max-height: none; margin-left: 0; }
+/* the chart has its own zoom: the figure's zoom pill eases out while it is open */
+.app.bt-up .zoom-pill { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
 .sh-sheet[data-kind="timeline"] > .sh-sheet-body { flex: 1; min-height: 0; padding: 0; overflow: hidden; display: flex; }
-.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="timeline"] { top: calc(var(--safe-t, 0px) + 52px) !important; bottom: calc(var(--safe-b, 0px) + 10px) !important; max-height: none; }
+/* the same room as every other card: under the top bar (the patient picker and the pressure legend), above the dock and the timeline bar; a phone's sheet keeps its own foot (the shell's rule) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="timeline"] { top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)) !important; max-height: none; }
 
 .bt { --bt-row: clamp(30px, 4.5vh, 42px); position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 27%, 360px); column-gap: 40px; padding: 22px 30px 20px 34px; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums; -webkit-user-select: none; user-select: none; }
 .bt button { font-family: inherit; }
@@ -15,6 +18,7 @@
 .bt-plot { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: crosshair; outline: none; }
 .bt-plot:focus-visible, .bt-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .bt-strip { position: relative; flex: none; height: 34px; margin-top: 8px; overflow: hidden; touch-action: none; cursor: ew-resize; outline: none; }
+.bt-hint { margin: 2px 0 0; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
 .bt-empty { margin: 18px 0; font: 400 var(--t-body) / 1.45 var(--ui); color: var(--text-2); } .bt-empty b { color: var(--text); font-weight: 600; }
 
 .bt-side { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -23,7 +27,7 @@
 .bt-tabs button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text-3); transition: color var(--d-small) var(--ease); }
 .bt-tabs button[aria-pressed="true"] { color: var(--text); }
 .bt .bt-done { margin-left: auto; padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--accent); }
-.bt-body { flex: 1; min-height: 0; overflow: hidden; }
+.bt-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 
 .bt-grp header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: clamp(6px, 1.6vh, 14px) 0 4px; border-bottom: 1px solid var(--edge); font: 400 var(--t-cap) / 1.2 var(--ui); }
 .bt-grp header b { font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); }
@@ -45,6 +49,7 @@
 .bt-note { margin: 0; font: 400 var(--t-cap) / 1.35 var(--ui); color: var(--text-3); }
 .bt-inert span { color: var(--text-3); font-weight: 450; }
 
+.bt-happen { position: absolute; inset: 0; }   /* its box is the room the side has, never its own rows (a list sized by its content fed its own page size back and flickered) */
 .bt-list { list-style: none; margin: 0; padding: 0; }
 .bt-list li { border-top: 1px solid var(--edge); }
 .bt-list li > button { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: baseline; gap: 12px; width: 100%; min-height: 38px; padding: 8px 0; border: 0; background: none; text-align: left; font: 400 var(--t-body) / 1.3 var(--ui); color: var(--text-2); }

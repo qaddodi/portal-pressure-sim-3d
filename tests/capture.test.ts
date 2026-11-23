@@ -286,7 +286,7 @@ test('A random sample is one picture a slide: its last step, counted "n of 25", 
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(all, /single = !!\(ui\.pick && ui\.pick\.size\)/); assert.match(all, /sub = single \? 0 :/, 'a step replaces the one before it');
   assert.match(all, /const put = \(f: ZipFile\)/); assert.match(all, /\$\{reached\} of \$\{pick!\.size\}/);
-  assert.match(all, /if \(!single \|\| fresh\) \{ shots\+\+; done\+\+; \}/, 'steps are not extra pictures');
+  assert.match(all, /if \(!single \|\| fresh\) shots\+\+/); assert.match(all, /if \(!single \|\| fresh\) done\+\+/, 'steps are not extra pictures');
 });
 
 test('Capture: a half turn is a turn (the table\'s down arrows), a stuck Next does not end the walk, a strip fills by frames, and a card must be up', () => {
@@ -312,4 +312,14 @@ test('Copy after a capture says what was captured: deck, slide, scenario, device
 test('A step number is centred in its round face, both ways (the base tag rule aligns to the baseline: a lone number sat at the top)', () => {
   const css = src('src/scene/labels/labels.css');
   assert.match(css, /\.cl\[data-fig="step"\] \{ justify-content: center; align-items: center; padding: 0; \}/);
+});
+
+test('A phone on its side takes both cards: -teaching with the words in view, -instrument after the column slides up; Random N counts slides', () => {
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /isSideways\(innerWidth, innerHeight\) && !!useUi\.getState\(\)\.boxes\.data && !!useUi\.getState\(\)\.boxes\.words/);
+  assert.match(all, /shoot\(both \? 'teaching' : ''\)/); assert.match(all, /setDocked\(true\)/); assert.match(all, /shoot\('instrument'\)/); assert.match(all, /setDocked\(false\)/);
+  assert.match(all, /\$\{base0\}-\$\{view\}/, 'the file name says which card');
+  assert.match(all, /if \(!single \|\| fresh\) shots\+\+/); assert.match(all, /if \(!single \|\| fresh\) done\+\+/, 'a slide counts once against Random N, a picture counts in the total');
+  assert.match(all, /thumbs\.length - lastThumbs/, 'a later step replaces both small copies');
+  assert.match(all, /-teaching \(the words in view\) and -instrument/, 'the README says so');
 });

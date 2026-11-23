@@ -28,8 +28,6 @@ test('the days are the patient\'s: a jump frame that is an action or a change of
   assert.equal(f.days.length, 5, 'an action does not empty the record');
   f.adopt(frame(6, { jump: true, gen: 2 }), 0);   // (a restore, a new patient)
   assert.equal(f.days.length, 1, 'a replaced state does');
-  f.adopt(frame(7, { jump: true }), 0);           // (a frame with no gen, as a test makes it, is a new patient)
-  assert.equal(f.days.length, 1);
 });
 
 test('a banded patient\'s days are not a step a day: bands are counted, not how much of the last is left', () => {
