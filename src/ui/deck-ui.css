@@ -119,7 +119,10 @@
 .deck-ui[data-layout="tab"] .dk-bar.phone { --tap-ox: 3px; }   /* (an upright iPad: 2D's own `.pz.stack .pz-bar .ib { margin: -4px -3px }`, tests/tap-cells.test.ts holds the 3) */
 .deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px calc(-1 * var(--tap-ox)); }
 .deck-ui[data-layout="stack"] .dk-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
-.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 2px; font-size: var(--t-lab); }
+/* The pill's two ends (Back, Exit) are 28 px slots, not 32 (Plan 44, Mohammad 23 Nov: "on iPhone make the pill little less wide"): the same rule with a deeper reach, 8 px each side, so the box is still 44 px, the icon is still
+   centred in its slot (a 16 px icon, 6 px clear of the end; the 16 px curve is 2.1 px in at the icon's top row) and the cell, which reaches out past the pill's end by the same 2 x --tap-ox, is still 44 px wide. */
+.deck-ui[data-layout="stack"] .dk-bar.phone > .ib:is(:first-child, :last-child) { --tap-ox: 8px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0; font-size: var(--t-lab); }
 /* ── the pill's tap cells (root fix, 20 Nov, review item P2): a button's 44 px box reaches over its neighbours, so the boxes overlapped (12 px between two buttons here, 6 px on an
    upright iPad) and whichever came later in the page took the shared strip: Back lost 6 px to the count, Next and the gear were 32 px wide. The boxes stay as they are (they paint
    the press tint and place the icon, so the look is the same); the touch moves off them onto a pseudo-element that is each button's own cell: its slot (the 32 px it takes in the pill)
@@ -243,6 +246,24 @@ body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
 body[data-card-zoom] .lb-layer:not(.lb-key-layer) { opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
 .lb-key-layer .lb-key { transition: opacity var(--d-small) var(--ease-arrive); }
 body[data-card-zoom] .lb-key-layer .lb-key { opacity: 0; }   /* (the key fades itself: its layer holds glass, deck-fade-blur.test.ts) */
+/* A zoomed card owns the screen: the slide pill fades with the veil and comes back as the card starts home (Plan 44: data-card-zoom is "" going in, "up" landed, "back" going home).
+   The pill holds glass (its frost is .dk-bar::before, glass.css), so the whole never fades, or the frost would go flat on the first frame (deck-fade-blur.test.ts): its face and its parts do, on the veil's own timing.
+   (!important: 2D's button rules are more specific and carry a transition list of their own.) While it is hidden it takes no touch, so a tap where it stood reaches the card or the veil, which both put the card home. */
+html:not([data-noglass]) .deck-ui .dk-bar::before { transition: opacity var(--d-zoom-out) var(--ease-arrive); }
+html:not([data-noglass]) .deck-ui .dk-bar > :not(.dk-settings), html:not([data-noglass]) .deck-ui .dk-bar .dk-settings > .ib { transition: opacity var(--d-zoom-out) var(--ease-arrive), scale var(--d-flip) var(--ease) !important; }
+html:not([data-noglass]) body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar::before { opacity: 0; transition-duration: var(--d-zoom-in); }
+html:not([data-noglass]) body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar > :not(.dk-settings),
+html:not([data-noglass]) body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar .dk-settings > .ib { opacity: 0 !important; transition: opacity var(--d-zoom-in) var(--ease-arrive), scale var(--d-flip) var(--ease) !important; }
+body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar { pointer-events: none; }
+body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar :is(button, .ib), body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar :is(button, .ib)::after { pointer-events: none !important; }
+/* blur off: the pill is one solid piece with no face and nothing nested blurs, so the whole may fade (a browser with no backdrop blur at all: the end of glass.css) */
+html[data-noglass] .deck-ui .dk-bar { transition: opacity var(--d-zoom-out) var(--ease-arrive); }
+html[data-noglass] body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar { opacity: 0; transition-duration: var(--d-zoom-in); }
+/* Leaving a talk (talk.ts stopTalk sets data-leaving): the same, on the small step and the ease-in the other chrome leaves on. A whole fade here (it was WAAPI on .dk-bar) flattened the frost for those 240 ms. */
+html:not([data-noglass]) .deck-ui .dk-bar[data-leaving]::before { opacity: 0; transition: opacity var(--d-small) var(--ease-in); }
+html:not([data-noglass]) .deck-ui .dk-bar[data-leaving] > :not(.dk-settings), html:not([data-noglass]) .deck-ui .dk-bar[data-leaving] .dk-settings > .ib { opacity: 0 !important; transition: opacity var(--d-small) var(--ease-in) !important; }
+.deck-ui .dk-bar[data-leaving] { pointer-events: none; }
+html[data-noglass] .deck-ui .dk-bar[data-leaving] { opacity: 0; transition: opacity var(--d-small) var(--ease-in); }
 .dk-card { z-index: 2; }
 .dk-pos { z-index: 2; }
 

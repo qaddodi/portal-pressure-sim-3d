@@ -96,7 +96,9 @@ export function stopTalk(): void {
         rail.leave(plate ? [c, plate] : [c], { dir: 1, par: 1, reduce });
       }
       // the presenter's bar and what else floats over the talk fade with them (2D fades the cards and their glass, then chrome comes back in)
-      for (const b of document.querySelectorAll<HTMLElement>('.dk-bar, .pz-veil')) b.animate?.([{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], { duration: D_SMALL, easing: EASE_IN, fill: 'forwards' });
+      // (the bar holds glass, so it never fades whole, or its frost goes flat: its face and parts fade by the attribute, deck-ui.css; the veil holds none)
+      for (const b of document.querySelectorAll<HTMLElement>('.dk-bar')) b.setAttribute('data-leaving', '');
+      for (const b of document.querySelectorAll<HTMLElement>('.pz-veil')) b.animate?.([{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], { duration: D_SMALL, easing: EASE_IN, fill: 'forwards' });
       await wait(cards.length ? (reduce ? D_SMALL : OUT_DONE) + 40 : 0);
       const who = {}, s = saved;
       const dim = s ? dipIn(who) : null;   // (the dim begins with the talk's end, under the chrome coming back)

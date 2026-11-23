@@ -38,11 +38,14 @@
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
   }
   /* the presenter pill holds the Settings sheet, a glass of its own: its frost is a face behind its words, not the pill itself */
-  html:not([data-noglass]) .dk-bar { isolation: isolate; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  html:not([data-noglass]) .dk-bar { isolation: isolate; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-color: transparent !important; box-shadow: none !important; }
+  /* (the pill's own 1 px border and shadow (2D .pz-bar, app-05-presenter-cards.css) move onto the face, pixel for pixel: the face at inset -1px is the pill's border box, so it can fade without leaving an empty outline: Plan 44) */
   html:not([data-noglass]) .dk-bar::before {
-    content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+    content: ''; position: absolute; inset: -1px; z-index: -1; border-radius: inherit; pointer-events: none; box-sizing: border-box;
     background: var(--glass-tint); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); box-shadow: inset 0 0 0 1px var(--glass-edge), var(--glass-shadow);
   }
+  html:not([data-noglass]) .app.pz-hi .dk-bar::before { border-color: color-mix(in srgb, var(--text) 32%, transparent); }
   /* the dock holds the view pill, which stands above it: its frost is the .vd-face child, and the dock's own fill goes */
   html:not([data-noglass]) .vdock { isolation: isolate; background: transparent !important; }
   .vdock > .vd-face { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
@@ -63,4 +66,10 @@
 }
 /* where there is no backdrop blur the vdock keeps the lifted sheet's own fill, and its face is empty */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .vdock > .vd-face { display: none; } }
+/* No backdrop blur at all: the slide pill is one solid piece (2D's own), so it may fade whole when a card zooms or a talk ends (Plan 44; with blur it fades by its face and parts: deck-ui.css) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .deck-ui .dk-bar { transition: opacity var(--d-zoom-out) var(--ease-arrive) !important; }
+  body[data-card-zoom]:not([data-card-zoom="back"]) .deck-ui .dk-bar { opacity: 0; transition-duration: var(--d-zoom-in); }
+  .deck-ui .dk-bar[data-leaving] { opacity: 0; transition: opacity var(--d-small) var(--ease-in) !important; }
+}
 html[data-noglass] .vdock > .vd-face { display: none; }

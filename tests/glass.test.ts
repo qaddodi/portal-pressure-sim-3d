@@ -28,7 +28,7 @@ test('reduced transparency is an override of the glass, never a gate on it (Safa
 });
 test('glass is not nested: a glass holding a popover or another glass carries its frost on a face', () => {
   // the presenter pill holds the Settings sheet; the dock holds the view pill's face
-  assert.match(bare, /\.dk-bar::before/); assert.match(bare, /\.dk-bar \{ isolation: isolate; background: transparent !important/);
+  assert.match(bare, /\.dk-bar::before/); assert.match(bare, /\.dk-bar \{ isolation: isolate; background: transparent !important[^}]*border-color: transparent !important; box-shadow: none !important; \}/, 'the pill\'s own border and shadow ride on its face (Plan 44)');
   const list = /html:not\(\[data-noglass\]\) :where\(([\s\S]*?)\n  \) \{/.exec(bare)![1];
   assert.ok(!list.includes('.dk-bar') && !list.includes('.vdock,') && !/\.vdock\s*$/.test(list), 'the dock and the presenter pill are not in the self-glass list');
   const dock = readFileSync('src/ui/shell/Dock.tsx', 'utf8');

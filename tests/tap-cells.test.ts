@@ -32,25 +32,44 @@ function cells(layout: 'stack' | 'tab', countW: number) {
   const boxW = layout === 'stack' ? px(val(deck, /\.dk-bar\.phone \.ib \{ width: (\d+px); height: 44px; margin: -6px calc\(-1 \* var\(--tap-ox\)\); \}/)[1]!) : px(val(pres2d, /\.pz\.stack \.pz-bar \.ib \{ width: (\d+px); min-width: 0; height: 44px; margin: -4px -(\d+)px; \}/)[1]!);
   if (layout === 'tab') assert.equal(px(val(pres2d, /\.pz\.stack \.pz-bar \.ib \{[^}]*margin: -4px -(\d+px); \}/)[1]!), ox, 'the tab layout\'s overhang is the 2D margin');
   if (layout === 'stack') assert.equal(px(val(deck, /\.dk-bar\.phone \.ib \{ width: 44px; height: 44px; margin: (-\d+px)/)[1]!), -ox, 'the vertical reach is the same number');
-  const slot = boxW - 2 * ox;
+  // Plan 44: an iPhone's two ends (Back, Exit) take a deeper reach, so their slots are narrower (their cells reach out past the pill by the same amount, so they stay 44)
+  const endOx = layout === 'stack' ? px(val(deck, /\[data-layout="stack"\] \.dk-bar\.phone > \.ib:is\(:first-child, :last-child\) \{ --tap-ox: ([\d.]+px); \}/)[1]!) : ox;
+  const slot = boxW - 2 * ox, endSlot = boxW - 2 * endOx;
   // slots, left to right: Back, count, Next, gear, Exit
-  const widths = [slot, countW, slot, slot, slot];
+  const widths = [endSlot, countW, slot, slot, endSlot];
   const starts: number[] = []; let x = 0; for (const w of widths) { starts.push(x); x += w; }
   const out = widths.map((w, i) => {
     let l = starts[i]!, r = starts[i]! + w;
-    if (i !== 1) { if (i === 0) l -= ox * 2; if (i === 4) r += ox * 2; }   // the two ends reach out for the rest of their 44 px
+    if (i !== 1) { if (i === 0) l -= endOx * 2; if (i === 4) r += endOx * 2; }   // the two ends reach out for the rest of their 44 px
     return { l, r };
   });
-  return { out, ox, slot, pillW: x };
+  return { out, ox, endOx, slot, endSlot, pillW: x };
 }
+/** The count's width at the smallest phone type: its min-width, in em of --t-lab's floor (12 px; 12.01 on a 393 wide phone). */
+const countMin = () => Number(val(deck, /\.dk-bar\.phone > button\.pzb-n \{ min-width: ([\d.]+)em;/)[1]) * 12;
 
-test('the phone talk pill (stack): five cells, none over another, Back and Exit 44 wide, every cell 44 tall, the pill is the size it was', () => {
-  const { out, ox, slot, pillW } = cells('stack', 49.4);
-  assert.equal(ox, 6); assert.equal(slot, 32);
+test('the phone talk pill (stack): five cells, none over another, Back and Exit 44 wide, every cell 44 tall, the ends\' slots are 28 and the pill is 12 px narrower than it was (Plan 44)', () => {
+  const count = countMin();
+  const { out, ox, endOx, slot, endSlot, pillW } = cells('stack', count);
+  assert.equal(ox, 6); assert.equal(slot, 32); assert.equal(endOx, 8); assert.equal(endSlot, 28);
   for (let i = 1; i < out.length; i++) assert.ok(out[i]!.l >= out[i - 1]!.r - 1e-9, `cell ${i} starts at or after cell ${i - 1} ends`);
   assert.equal(out[0]!.r - out[0]!.l, 44); assert.equal(out[4]!.r - out[4]!.l, 44);
+  assert.equal(out[2]!.r - out[2]!.l, 32, 'Next is the slot it was'); assert.equal(out[3]!.r - out[3]!.l, 32, 'the gear too');
   assert.ok(out[1]!.r - out[1]!.l >= 44, 'the count is wide');
-  assert.equal(pillW, 4 * 32 + 49.4, 'the visible pill is unchanged: the slots are the old margin boxes');
+  assert.ok(Math.abs(count - 45.6) < 1e-9);
+  assert.ok(Math.abs(pillW - (2 * 28 + 2 * 32 + count)) < 1e-9);
+  assert.ok(Math.abs((4 * 32 + count) - pillW - 8) < 1e-9, 'the ends gave 8 px; the count\'s own 2 px padding each side (gone) is 4 more on a wide count like "14 / 14"');
+  assert.match(deck, /\.dk-bar\.phone > button\.pzb-n \{[^}]*padding: 0;/);
+  // the layout constant is the real width (the pill\'s 1 px border each side too), within 1 px
+  const plan = readFileSync('src/ui/layout/plan.ts', 'utf8');
+  const w = Number(val(plan, /PILL_W_PHONE = (\d+)/)[1]);
+  assert.ok(Math.abs(w - (pillW + 2)) <= 1, `PILL_W_PHONE ${w} is the CSS sum ${pillW + 2}`);
+});
+test('the ends\' icons clear the pill\'s rounded end: a 16 px icon in a 28 px slot, the 16 px half circle is 2.1 px in at the icon\'s top row', () => {
+  const R = 16, icon = 16, slot = 28, rowFromCentre = icon / 2;
+  const curveIn = R - Math.sqrt(R ** 2 - rowFromCentre ** 2), iconFromEnd = (slot - icon) / 2;
+  assert.ok(curveIn < iconFromEnd - 3, `${curveIn.toFixed(2)} px of curve, ${iconFromEnd} px of room`);
+  assert.match(deck, /\.dk-bar\.phone \.ib :is\(svg, \.ic\) \{ width: 16px; height: 16px; \}/);
 });
 test('an upright iPad\'s pill (tab) follows the same rule with 2D\'s own 3 px', () => {
   const { out, slot } = cells('tab', 60);

@@ -76,7 +76,7 @@ export function createCardZoom(clock: Clock = theClock) {
   }
   const wake = () => { if (!off) off = clock.on('tween', step, 30); if (!hold) hold = clock.hold('card-zoom'); };
   const sleep = () => { hold?.release(); hold = null; off?.(); off = null; };
-  /** The glide in has landed: body[data-card-zoom] is "up" (it is "" while the zoom glides in or out: the Doppler's own layer goes only while it stands still, css3d-over-2d.css). */
+  /** The glide in has landed: body[data-card-zoom] is "up" (it is "" while the zoom glides in, "back" while it glides home, absent at rest: the Doppler's own layer goes only while it stands still, css3d-over-2d.css). */
   const landed = () => { if (st?.mark && !st.closing) st.mark.dataset.cardZoom = 'up'; };
   function drive(to: Cur, ms: number, into = false): Promise<void> {
     return new Promise((done) => {
@@ -128,7 +128,7 @@ export function createCardZoom(clock: Clock = theClock) {
       if (st.closing) return st.closing;
       const s = st;
       s.veil?.classList.remove('on');
-      if (s.mark) s.mark.dataset.cardZoom = '';
+      if (s.mark) s.mark.dataset.cardZoom = 'back';   // (gliding home: the slide pill and the veil come back now, not after the glide: deck-ui.css)
       s.cell?.card?.setAttribute('data-cell-zoom', 'back');   // (the other panels come back up while it glides home: deck-ui.css)
       if (o.instant || o.reduce) { end(); return Promise.resolve(); }
       const ms = reverseMs(SHUT_MS, s.cur.s, s.plan.s);

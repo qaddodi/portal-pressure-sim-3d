@@ -58,7 +58,7 @@ export const BAR_H = 44;
 export const BAR = 56;
 export const PILL_W = 272;
 /** An iPhone's pill (Mohammad, 20 Nov: smaller, in the card's lower right corner): 32 px tall, each button's 44 px tap box reaching over its edge (deck-ui.css), about this wide. */
-export const BAR_H_PHONE = 32, PILL_W_PHONE = 188, PILL_CORNER = 14;
+export const BAR_H_PHONE = 32, PILL_W_PHONE = 168, PILL_CORNER = 14;
 export const PILL_W_SIDE = 156;   // (iPhone on its side: the count, the settings and Exit, as 2D's phone pill; a swipe moves the talk)
 /** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
 export const FOOT_ZONE = 62;

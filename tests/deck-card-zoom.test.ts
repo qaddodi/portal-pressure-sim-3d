@@ -45,6 +45,28 @@ test('the card and its neighbours glide on the one clock about the card\'s middl
   assert.equal(zoom.on, false); assert.deepEqual(focus[0]!.v, {}); assert.deepEqual(other[0]!.v, {});
 });
 
+// Plan 44 (Mohammad, 23 Nov: "when we zoom hide the pill"): the pill must tell "going in" from "going home", so the mark says so.
+test('body[data-card-zoom] is "" gliding in, "up" landed, "back" gliding home, and gone at rest; reset takes it off', async () => {
+  const { zoom, tick } = world();
+  const mark = { dataset: {} as Record<string, string | undefined> };
+  const c = [el({ left: 40, top: 60, width: 400, height: 300 })];
+  assert.equal(zoom.open({ focus: c, others: [], area, mark }), true);
+  assert.equal(mark.dataset.cardZoom, '', 'gliding in');
+  for (let i = 0; i < 12; i++) tick(50);
+  assert.equal(mark.dataset.cardZoom, 'up', 'landed');
+  const back = zoom.close();
+  assert.equal(mark.dataset.cardZoom, 'back', 'the first call of close: the pill comes back as the card starts home');
+  tick(50);
+  assert.equal(mark.dataset.cardZoom, 'back', 'still gliding home');
+  for (let i = 0; i < 12; i++) tick(50);
+  await back;
+  assert.equal(mark.dataset.cardZoom, undefined, 'at rest');
+  assert.equal(zoom.open({ focus: c, others: [], area, mark }), true);
+  tick(50);
+  zoom.reset();
+  assert.equal(mark.dataset.cardZoom, undefined, 'reset');
+});
+
 test('a slide change puts it back at once; a card that would not grow is not zoomed', () => {
   const { zoom, tick } = world();
   const c = [el({ left: 40, top: 60, width: 400, height: 300 })];

@@ -49,7 +49,7 @@ test('the factor is the plan\'s from open() (before any frame) to the end of the
   for (let i = 0; i < 12; i++) tick(50);
   assert.equal(mark.dataset.cardZoom, 'up', 'the glide in has landed');
   const back = zoom.close();
-  assert.equal(mark.dataset.cardZoom, '', 'gliding home');
+  assert.equal(mark.dataset.cardZoom, 'back', 'gliding home (Plan 44: the slide pill comes back as it starts)');
   tick(100);
   assert.equal(zoomKOf(child as never), 2.2, 'still while it glides home');
   for (let i = 0; i < 12; i++) tick(50);

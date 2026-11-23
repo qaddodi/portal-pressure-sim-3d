@@ -50,15 +50,16 @@ test('the figure key\'s wrap and layer are not backdrop roots: the key fades its
   assert.match(deck, /body\[data-card-zoom\] \.lb-key-layer \.lb-key \{ opacity: 0; \}/);
 });
 test('no stylesheet of ours promotes or fades, as a whole, a class that holds a frosted face', () => {
-  const HOLDERS = ['lb-key-wrap', 'lb-key-layer', 'pal-back', 'modal-back', 'nb-views', 'topbar', 'vdock'];
+  const HOLDERS = ['lb-key-wrap', 'lb-key-layer', 'pal-back', 'modal-back', 'nb-views', 'topbar', 'vdock', 'dk-bar'];
   const files = ['src/scene/labels/labels.css', 'src/ui/deck-ui.css', 'src/ui/shell/chrome-3d.css', 'src/ui/shell/shell.css', 'src/ui/glass.css'];
   for (const f of files) {
-    const t = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    // (where there is no frost the pill is one solid piece and may fade whole: a browser with no backdrop blur; html[data-noglass] is exempted below)
+    const t = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@supports not \(\([^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
     for (const m of t.matchAll(/([^{}@]+)\{([^{}]*)\}/g)) {
       const subject = m[1]!.split(',').map((s) => s.trim().split(/[\s>+~]+/).pop()!);
       const fades = /will-change:[^;]*opacity|transition:[^;]*opacity|animation:[^;]*(fade|crossfade)/.test(m[2]!) && !/animation: none/.test(m[2]!);
       if (!fades) continue;
-      for (const s of subject) for (const h of HOLDERS) assert.ok(!new RegExp(`^(\\.${h}|\\.sh-root)?(\\.[\\w-]+)*\\.${h}(\\[[^\\]]*\\]|\\.[\\w-]+|:[\\w-]+(\\([^)]*\\))?)*$`).test(s) || /:has\(|\.lb-key$/.test(m[1]!) , `${f}: ${m[1]!.trim()} fades a holder of glass`);
+      for (const s of subject) for (const h of HOLDERS) assert.ok(!new RegExp(`^(\\.${h}|\\.sh-root)?(\\.[\\w-]+)*\\.${h}(\\[[^\\]]*\\]|\\.[\\w-]+|:[\\w-]+(\\([^)]*\\))?)*$`).test(s) || /:has\(|\.lb-key$|html\[data-noglass\]/.test(m[1]!) , `${f}: ${m[1]!.trim()} fades a holder of glass`);
     }
   }
 });
