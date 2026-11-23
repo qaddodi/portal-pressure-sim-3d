@@ -508,8 +508,12 @@ export class LabelController {
     // card fade out and come back, over and over (Mohammad, 20 Nov: the FHVP, WHVP, HVPG and EUS-PPG callouts "keep flashing in and out of existence").
     const cutPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && isCut(Math.hypot(a[0] - b[0], a[1] - b[1]), FOLLOW_JUMP, byHand));
     const slidPt = (a: [number, number] | null, b: [number, number] | null) => !!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35);
-    if (cutPt(nowTip, this.cTipPx) || cutPt(nowAhead, this.cAheadPx) || got !== this.cGot) { moved = true; if (!this.cutCard) this.cutCard = { tip: this.cTipPx, ahead: this.cAheadPx }; }
-    else if (slidPt(nowTip, this.cTipPx) || slidPt(nowAhead, this.cAheadPx)) following = true;
+    // Only a point a card points to can cut. The point ahead of the tip belongs to the WHVP and the stack; the FHVP's tag and a blocked vein's words stand at the tip alone. The route's ahead point leaps by
+    // 150 px when the tip crosses into the next part of the route (the end of the part it is in, layer.ts aheadAt), and that leap was a "cut" that faded the tip's own tag out and back for as long as the
+    // catheter moved (Mohammad, 23 Nov: "Occluded and No reading flicker as the catheter moves"; the live replay in tests/blocked-tag-steady.test.ts).
+    const kindsNow = pr ? pr.kinds : calloutsFor(this.state.cath), usesAhead = kindsNow.some((k) => k !== 'f');
+    if (cutPt(nowTip, this.cTipPx) || (usesAhead && cutPt(nowAhead, this.cAheadPx)) || got !== this.cGot) { moved = true; if (!this.cutCard) this.cutCard = { tip: this.cTipPx, ahead: this.cAheadPx }; }
+    else if (slidPt(nowTip, this.cTipPx) || (usesAhead && slidPt(nowAhead, this.cAheadPx))) following = true;
     this.cTipPx = nowTip; this.cAheadPx = nowAhead; this.cGot = got;
     // A picture that moved places its labels again once it is still: the solve judges screen positions (cards, other labels, the vessels' lines), and none of them is in the signature below. Without
     // this a solve made while the camera stood somewhere else (the dive's far end, where every dot is off the screen and nothing can be placed) was kept for ever after the camera came back, and every
