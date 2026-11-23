@@ -15,7 +15,7 @@ import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
 import { septaBands } from '../src/scene/lobule/collagen-paint.ts';
 import { bandOutlineFlat } from '../src/scene/lobule/from2d/lobule-look.generated.js';
 import { bandGeomInto } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
-import { COLL_A, COLL_A0, EDGE_BOX, EDGE_PLATE_PX, E_LO, E_SPAN, K_EDGE, K_IN, K_MID, K_OUT, K_OUT_END, STRIA_DARK, STRIA_LIT, TRACT_EDGE_K, TRACT_FADE, TRACT_RT, TRACT_RT_PX, angleToByte, byteToAngle, byteToEdge, coverageAt, coverageOver, edgeToByte, tToByte, tractEdge, tractFrontPx, tractRamp } from '../src/scene/lobule/collagen-edge.ts';
+import { COLL_A, COLL_A0, EDGE_BOX, EDGE_PLATE_PX, E_LO, E_SPAN, K_EDGE, K_IN, K_MID, K_OUT, K_OUT_END, STRIA_DARK, STRIA_GAIN, STRIA_LIT, TRACT_EDGE_K, TRACT_FADE, TRACT_RT, TRACT_RT_PX, angleToByte, byteToAngle, byteToEdge, coverageAt, coverageOver, edgeToByte, tToByte, tractEdge, tractFrontPx, tractRamp } from '../src/scene/lobule/collagen-edge.ts';
 import { ROPE_LIFT_MAX, ropeColour, ropeS } from '../src/scene/lobule/relief.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -276,7 +276,7 @@ test('GATE relief: the lit flank lifts at least 0.06 and the shade flank deepens
 });
 
 test('GATE striations: a dark fibre or a nucleus lowers the colour by at most STRIA_DARK (5%), so no dark worm is possible (the speckle gate); a lit strand lifts it by up to 20%, so the fibres show', () => {
-  assert.ok(STRIA_DARK <= 0.05 + 1e-12, 'a dark striation is at most 5% of the colour'); assert.ok(STRIA_LIT >= 0.2 && STRIA_LIT <= 0.5, 'a lit strand shows whole (the painter\'s LITE fibres)'); 
+  assert.ok(STRIA_DARK <= 0.05 + 1e-12, 'a dark striation is at most 5% of the colour'); assert.ok(STRIA_GAIN >= 1); assert.ok(STRIA_LIT >= 0.2 && STRIA_LIT <= 0.5, 'a lit strand shows whole (the painter\'s LITE fibres)'); 
   for (const look of LOOK_IDS) {
     const T = lookColours(look), cols = [T.rgb01('--lz-septum'), ...(T.dark ? [[0.86, 0.78, 0.6]] : [[0.78, 0.64, 0.44]])];
     for (const c of cols) {

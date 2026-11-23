@@ -156,7 +156,7 @@ vec4 plateTexLod(vec2 uv, float bias) { return plateAt(uv, bias); }
 // the painted fibres, as 606d60f4's raised-relief build had them (Mohammad: "it had already been done before"): the atlas's painted colour at the pixel's own level (the painter's LITE strands, 45% toward white, lie along every band), against the flat token it was painted from:
 // the ratio is the strand, kept whole on the lit side (up to STRIA_LIT) and capped on the dark side (STRIA_DARK: a deep fibre or a nucleus never makes a dark worm), weighted by how much collagen the texel holds
 float collStria(vec4 f, vec3 flatCol) {
-  float s = celLight(f.rgb / max(f.a, 0.04)) / max(celLight(flatCol), 0.05) - 1.0;
+  float s = (celLight(f.rgb / max(f.a, 0.04)) / max(celLight(flatCol), 0.05) - 1.0) * STRIA_GAIN;
   s = s > 0.0 ? min(s, STRIA_LIT) : max(s, -STRIA_DARK);
   return s * smoothstep(0.12, 0.35, f.a);
 }

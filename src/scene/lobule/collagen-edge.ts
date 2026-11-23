@@ -47,8 +47,8 @@ export const coverageOver = (t: number, ta: number): number => COLL_A + (coverag
  *  (a hex septum's runs across its whole half width). */
 export const TRACT_EDGE_K = 0.75, TRACT_FADE = 1;
 /** The striations (Plan 49): the painted fibres as 606d60f4's raised-relief build had them. The painter's LITE strands (45% toward white) are in the atlas; the shader reads the atlas's painted colour at the pixel's own level against the flat token it was painted from,
- *  so a lit strand shows whole (up to STRIA_LIT of the colour) and a DARK one (a deep fibre, a fibroblast nucleus) is capped at STRIA_DARK (5%), so no dark worm is possible. (Plan 48's mip 1.5 minus mip 4 difference was under 1% of the colour: p95 0.013.) */
-export const STRIA_LIT = 0.35, STRIA_DARK = 0.05;
+ *  so a lit strand shows (its contrast gained by STRIA_GAIN, the strands being thin and laid under the painter's second pass; up to STRIA_LIT of the colour) and a DARK one (a deep fibre, a fibroblast nucleus) is capped at STRIA_DARK (5%), so no dark worm is possible. (Plan 48's mip 1.5 minus mip 4 difference was under 1% of the colour: p95 0.013.) */
+export const STRIA_GAIN = 3, STRIA_LIT = 0.35, STRIA_DARK = 0.05;
 
 /** The tract's front radius in plate px at growth p: the inverse of the arrival times' old rule (the tract of radius rt (0.8 + 0.9 g) is whole at g), so the disc grows as it always did, from 0.8 rt at the first arrival to the cuff's edge at full growth. */
 export const tractFrontPx = (p: number): number => TRACT_RT_PX * (0.8 + 0.9 * ((p - TAU_LO) * TAU_MAX) / TAU_SPAN);
@@ -68,6 +68,7 @@ const float COLL_A = ${F(COLL_A)};
 const float COLL_A0 = ${F(COLL_A0)};
 const float TRACT_EDGE_K = ${F(TRACT_EDGE_K)};
 const float TRACT_FADE = ${F(TRACT_FADE)};
+const float STRIA_GAIN = ${F(STRIA_GAIN)};
 const float STRIA_LIT = ${F(STRIA_LIT)};
 const float STRIA_DARK = ${F(STRIA_DARK)};
 const float TRACT_RT_PX = ${F(TRACT_RT_PX)};
