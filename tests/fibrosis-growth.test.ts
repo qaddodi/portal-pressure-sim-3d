@@ -109,7 +109,7 @@ test('deterministic: the same layout gives the same arrival times, byte for byte
   const hash = (a: Uint8Array) => createHash('sha1').update(a).digest('hex');
   const again = collagenTau(shape, cv * PLATE_S, N, B);
   assert.equal(hash(again), hash(tau));
-  { let n = 0, e = 0; for (let i = 0; i < N * N; i++) { if (tau[4 * i] !== NEVER) n++; if (tau[4 * i + 2] > 0) e++; } assert.ok(n > 500, 'the septa have times'); assert.ok(e > 500, 'and edges (the signed distance, channel B)'); }
+  { let n = 0; for (let i = 0; i < N * N; i++) { if (tau[4 * i] !== NEVER) n++; assert.equal(tau[4 * i + 3], 255, 'alpha whole, so an upload never premultiplies the times away'); } assert.ok(n > 500, 'the septa have times'); }
 });
 
 test('the layer and the times at the plate\'s size, in bytes (an iPhone paints the same 2048 px plate)', () => {

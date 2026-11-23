@@ -31,7 +31,7 @@ import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { PlateClient, type PlateExtra } from '../lobule/plate-client.ts';
-import { ATLAS_W, collagenFlat, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
+import { ATLAS_W, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
 import { CollagenAtlas } from '../lobule/collagen-atlas.ts';
 import { collagenTau, flipRows } from '../lobule/collagen-tau.ts';
 import { easeGrow, growGoal } from '../lobule/growth.ts';
@@ -288,7 +288,7 @@ export class Lobule3D {
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true; this.blankColl = blank;
     this.marksMat = new ShaderMaterial({ name: 'lobule marks',
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uCollS: { value: new Vector3() }, uCollSB: { value: new Vector3() }, uCollT: { value: new Vector3() }, uCollTB: { value: new Vector3() }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uCv: { value: new Vector4() }, uCvCol: { value: new Vector3() }, uScarK: { value: 1 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uCv: { value: new Vector4() }, uCvCol: { value: new Vector3() }, uScarK: { value: 1 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
       transparent: false, depthWrite: false, depthTest: true, side: DoubleSide,   // (depth-TESTED, writing none: the vessels still draw over it, and the sinusoid scene that stands over the lobule at the dive's landing hides it; it was depth-blind, so Disse's lining, the septa and the tracts were painted over the whole sinusoid until the lobule dropped out, then popped off: 23 Nov)
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -764,9 +764,6 @@ export class Lobule3D {
   private syncColl(): void {
     const u = this.marksMat.uniforms;
     u.mapC!.value = this.atlas.now ?? this.blankColl; u.mapCB!.value = this.atlas.next ?? this.blankColl;
-    // the collagen's flat colours (Plan 48): the look of the atlas on screen and of the one crossfading in, mixed by mixB in the shader like the atlases
-    const now = (this.collLook || this.flat.look) as LookId, next = (this.atlas.crossing && this.collNext ? this.collNext : now) as LookId, a = collagenFlat(now), b = collagenFlat(next);
-    (u.uCollS!.value as Vector3).set(...a.septum); (u.uCollT!.value as Vector3).set(...a.tract); (u.uCollSB!.value as Vector3).set(...b.septum); (u.uCollTB!.value as Vector3).set(...b.tract);
   }
   /** The graphics context came back (Stage.tsx rebuild): the atlas went with it and its pixels are gone, so it is painted again on the next step. */
   contextRestored(): void {
