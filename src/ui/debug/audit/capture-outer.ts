@@ -37,13 +37,16 @@ export function addCaptureControls(k: OuterKit): void {
   save.hidden = true;
   wrap.append(picker.el, go, stopBtn, save); bar.append(wrap);
 
+  /** What each size says now: the status shows them side by side. */
+  const lines = new Map<string, string>();
+  const say = (id: string, t: string) => { lines.set(id, t); status.textContent = [...lines.values()].join(' | '); };
   /** One size: a fresh frame, its files when it ends. */
-  const one = (id: string, sel: { decks: string[] | null; pick: string[] | null }, speed: number, again = 0): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
+  const one = (id: string, sel: { decks: string[] | null; pick: string[] | null }, speed: number, again = 0, of = 1): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
     const box = doc.createElement('div'), frame = doc.createElement('iframe'); box.className = 'ao-wrap'; frame.title = `${d.label} ${d.w}x${d.h}`;
     frame.src = captureSrc(win.location.pathname, searchNow(), { speed, pick: sel.pick, decks: sel.decks }) + (again ? `&retry=${again}-${new Date().getTime()}` : '');
-    box.append(frame); room.textContent = ''; room.append(box);
-    const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, r.width - 24), Math.max(1, r.height - 24));
+    box.append(frame); room.append(box); box.style.margin = '0 6px';
+    const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     box.style.width = `${Math.round(d.w * s)}px`; box.style.height = `${Math.round(d.h * s)}px`;
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${s})`;
     let finished = false, silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), 300000);
@@ -52,8 +55,8 @@ export function addCaptureControls(k: OuterKit): void {
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
       const m = e.data as CaptureMsg | null; if (!m || typeof m !== 'object' || !('capture' in m)) return;
       clock.cancel(silent); silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), 300000);
-      if (m.capture === 'hello') status.textContent = `${d.label}: the app has started; capturing…`;
-      else if (m.capture === 'progress') status.textContent = `${d.label} ${m.n} of ${m.total}: ${m.text}`;
+      if (m.capture === 'hello') say(id, `${d.label}: the app has started; capturing…`);
+      else if (m.capture === 'progress') say(id, `${d.label} ${m.n} of ${m.total}: ${m.text}`);
       else if (m.capture === 'done') end({ files: m.files, notes: m.notes });
       else if (m.capture === 'failed') end({ files: [], notes: [], why: m.why });
     };
@@ -69,12 +72,16 @@ export function addCaptureControls(k: OuterKit): void {
     k.setBusy(true); stop = false; zip = null; save.hidden = true; go.disabled = true;
     const at = new Date(), all: ZipFile[] = [], enc = new TextEncoder(), notes: string[] = [], speed = k.speed() > 1 ? k.speed() : 20;
     try {
-      for (const id of ids) {
-        if (stop) break;
-        status.textContent = `${FRAME_DEVICES[id]!.label}: loading the app…`;
-        let r = await one(id, sel, speed);
+      // every size at once, side by side in the room (a frame is its own page: its own clock, its own GPU canvas; a Mac holds well over six). Each size's pictures wait for its own frames, so the sizes slow one another a little and the whole run is about as long as the slowest.
+      lines.clear(); room.textContent = '';
+      const done = await Promise.all(ids.map(async (id) => {
+        say(id, `${FRAME_DEVICES[id]!.label}: loading the app…`);
+        let r = await one(id, sel, speed, 0, ids.length);
         // a frame that could not fetch a part of the app (a deploy landed while it started) is started again, up to twice, on a fresh address
-        for (let again = 1; r.why && /module script|dynamically imported|Load failed|Failed to fetch/i.test(r.why) && again <= 2 && !stop; again++) { status.textContent = `${FRAME_DEVICES[id]!.label}: a part of the app would not load; trying again (${again} of 2)…`; r = await one(id, sel, speed, again); }
+        for (let again = 1; r.why && /module script|dynamically imported|Load failed|Failed to fetch/i.test(r.why) && again <= 2 && !stop; again++) { say(id, `${FRAME_DEVICES[id]!.label}: a part of the app would not load; trying again (${again} of 2)…`); r = await one(id, sel, speed, again, ids.length); }
+        return { id, r };
+      }));
+      for (const { id, r } of done) {
         if (r.why) notes.push(`${FRAME_DEVICES[id]!.label}: ${r.why}`);
         for (const f of r.files) all.push({ name: `${id}/${f.name}`, data: f.data });
       }

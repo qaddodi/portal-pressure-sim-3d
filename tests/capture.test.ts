@@ -275,3 +275,9 @@ test('The Mac capture page is simple: sizes, decks with All and None, one how-ma
   assert.match(pick, /'All slides'/); assert.match(pick, /mk\('All'/); assert.match(pick, /mk\('None'/);
   assert.match(cap, /module script\|dynamically imported/); assert.match(child, /importAgain\(/); assert.match(child, /responseStatus/);
 });
+
+test('The Mac capture runs every ticked size at once, side by side', () => {
+  const cap = src('src/ui/debug/audit/capture-outer.ts');
+  assert.match(cap, /Promise\.all\(ids\.map\(async \(id\) =>/); assert.match(cap, /one\(id, sel, speed, 0, ids\.length\)/); assert.match(cap, /\(r\.width - 24 - 12 \* \(of - 1\)\) \/ of/, 'the frames share the room');
+  assert.ok(!/for \(const id of ids\) \{\s*if \(stop\) break;/.test(cap), 'no size waits for the one before');
+});
