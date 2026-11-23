@@ -128,6 +128,15 @@ test('every phone sheet sits behind the dock and the timeline: one z-index, in m
   for (const f of ['src/ui/shell/shell.css', 'src/ui/tests/tests.css', 'src/ui/action/action.css']) assert.ok(!/z-index: (?:[3-9]\d|\d{3,})\b[^;]*\}?/.test(src(f).split('\n').filter((l) => /\.sh-sheet \{|\.t-pos \{|\.ac-card \{/.test(l)).join('')), f);
 });
 
+test('a pulled sheet is clipped at the dock top by its pull, so it never shows below the timeline bar', () => {
+  const css = src('src/ui/shell/menu-motion.css'), sw = src('src/ui/shell/sheet-swipe.ts');
+  assert.ok(css.includes('html.thumb-ui :is([data-pulling], [data-swiped], [data-pulled]) { clip-path: inset(-80px -80px calc(var(--sheet-pull, 0px) - var(--sheet-gap, 8px) - 12px) -80px); }'));
+  assert.ok(sw.includes("el.style.setProperty('--sheet-pull'") && (sw.match(/removeProperty\('--sheet-pull'\)/g) ?? []).length >= 3, 'the pull is written beside the offset and taken off with it');
+  // the line: a sheet rests --sheet-gap above the dock top; with pull p the clip's bottom inset is p - gap - 12, so the line sits 12 px inside the dock at every p
+  const inset = (p: number) => p - 8 - 12, sheetBottom = (p: number) => 0 + p, clipLine = (p: number) => sheetBottom(p) - inset(p);
+  for (const p of [0, 40, 400, 900]) assert.equal(clipLine(p), 20);
+});
+
 test('glide runs its frames to 1 and then says it is done; follow writes the number it was last given', async () => {
   const seen: number[] = [];
   await new Promise<void>((res) => { glide({ ms: 40, curve: (u) => u, apply: (k) => seen.push(k), done: res }); });

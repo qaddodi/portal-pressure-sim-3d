@@ -18,6 +18,10 @@ html.thumb-ui .sh-root > .pal-back.leaving > .pal { animation: mn-sheet-out var(
 html.thumb-ui { --z-sheet-phone: calc(var(--z-panel, 10) + 10); }
 html.thumb-ui .sh-root > .menu.as-sheet, html.thumb-ui .sh-root > .menu.as-sheet.sw-in, html.thumb-ui .sh-root > .umenu.sheet, html.thumb-ui .sh-root > .pal-back { z-index: var(--z-sheet-phone); }
 html.thumb-ui .sh-root > .um-scrim { z-index: calc(var(--z-sheet-phone) - 1); }
+/* A pulled sheet tucks behind the timeline bar and is never seen below it (owner, 23 Nov: "I can see it fly all the way down"). The pull is written as --sheet-pull (shell/sheet-swipe.ts), and the sheet is
+   clipped at a line 12 px inside the dock's top edge, which is one --sheet-gap under where every phone sheet rests (--thumb-occ): the clip's bottom inset is the pull less that distance, so the line stays still
+   on the screen while the sheet moves through it. The other three sides reach 80 px out, so its shadow and its top corners are not cut. Under the dock's rounded corners the line is inside the dock, which covers it. */
+html.thumb-ui :is([data-pulling], [data-swiped], [data-pulled]) { clip-path: inset(-80px -80px calc(var(--sheet-pull, 0px) - var(--sheet-gap, 8px) - 12px) -80px); }
 /* the preview under a menu row folds open and shut by its own keyframes (2D transitions it from a class set a frame later; React mounts it open) */
 @keyframes um-inline-in { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 @keyframes um-inline-out { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }

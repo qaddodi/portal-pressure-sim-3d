@@ -25,7 +25,11 @@ const OWN = 'input[type="range"], textarea, [contenteditable], [role="slider"], 
 
 interface Grab { via: 'pointer' | 'touch'; id: number; sc: HTMLElement | null; x: number; y: number; top: boolean; more: boolean; on: boolean; dy: number; t: number; h: number; here: number; trail: [number, number][]; m: ReturnType<typeof follow> | null }
 
-const write = (el: HTMLElement, prop: 'translate' | 'transform' = 'translate') => (v: number) => { el.style[prop] = v ? (prop === 'translate' ? `0px ${v}px` : `translateY(${v}px)`) : ''; };
+/** The pull is written as the panel's own offset and, beside it, as `--sheet-pull`: menu-motion.css clips a pulled sheet at the dock's top edge by it, so it tucks behind the timeline bar and never shows below it. */
+const write = (el: HTMLElement, prop: 'translate' | 'transform' = 'translate') => (v: number) => {
+  el.style[prop] = v ? (prop === 'translate' ? `0px ${v}px` : `translateY(${v}px)`) : '';
+  if (v) el.style.setProperty('--sheet-pull', `${v}px`); else el.style.removeProperty('--sheet-pull');
+};
 
 /** The nearest ancestor of `target` (up to `panel`) that scrolls vertically. */
 function scroller(panel: HTMLElement, target: Element): HTMLElement | null {
@@ -50,7 +54,7 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     const shut = () => panel.dataset.open === 'false' || panel.classList.contains('out') || panel.classList.contains('leaving') || panel.hasAttribute('inert');
     let seenShut = shut();
     const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });
-    const clear = () => { mo?.disconnect(); clock.cancel(tm); away = null; run?.stop(); run = null; off = 0; panel.style[o.prop ?? 'translate'] = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
+    const clear = () => { mo?.disconnect(); clock.cancel(tm); away = null; run?.stop(); run = null; off = 0; panel.style[o.prop ?? 'translate'] = ''; panel.style.removeProperty('--sheet-pull'); delete panel.dataset.swiped; delete panel.dataset.pulled; };
     mo?.observe(panel, { attributes: true, attributeFilter: ['data-open', 'class', 'inert'] });
     const tm = clock.after(() => { if (!shut()) clear(); }, AWAY_FALLBACK_MS);   // (a close that did not happen: the sheet comes back)
     away = clear;
@@ -142,6 +146,6 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     panel.removeEventListener('pointerdown', onPDown); panel.removeEventListener('pointermove', onPMove); panel.removeEventListener('pointerup', onPEnd); panel.removeEventListener('pointercancel', onPEnd);
     panel.removeEventListener('lostpointercapture', onLost); panel.removeEventListener('touchstart', onTStart); panel.removeEventListener('touchmove', onTMove);
     panel.removeEventListener('touchend', onTEnd); panel.removeEventListener('touchcancel', onTEnd); panel.removeEventListener('click', onClick, true);
-    run?.stop(); s?.m?.stop(); away?.(); panel.style[o.prop ?? 'translate'] = ''; delete panel.dataset.pulling; delete panel.dataset.swiped; delete panel.dataset.pulled;
+    run?.stop(); s?.m?.stop(); away?.(); panel.style[o.prop ?? 'translate'] = ''; panel.style.removeProperty('--sheet-pull'); delete panel.dataset.pulling; delete panel.dataset.swiped; delete panel.dataset.pulled;
   };
 }
