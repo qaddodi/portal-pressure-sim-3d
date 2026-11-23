@@ -14,6 +14,8 @@ type Paintable = Item & { clips?: ClipRect[]; ts?: Shadow[] };
 const num = (v: string | null | undefined) => { const n = parseFloat(v ?? ''); return Number.isFinite(n) ? n : 0; };
 const clear = (c: string) => !c || c === 'transparent' || /^rgba\(.*,\s*0\)$/.test(c) || /^rgb\(.*\/\s*0(\.0+)?\)$/.test(c) || /^color\(.*\/\s*0(\.0+)?\)$/.test(c);
 const spin = (m: DOMMatrix) => Math.abs(m.b) > 1e-3 || Math.abs(m.c) > 1e-3;
+/** A turn the browser has already worked into the box (spin: a quarter or an eighth) or a half turn (a, d both negative: b and c are 0, so `spin` does not see it: the table's down arrows are the up arrow turned half round). */
+const turned = (m: DOMMatrix) => spin(m) || (m.a < -1e-3 && m.d < -1e-3);
 const SKIP = '.sh-toast, .lb-ghost, .lb-old, .lb-walk, .lb-sr, .lb-key-twin, .lb-key-probe, .lb-key-out, script, style, template, noscript, [data-capture-skip]';
 const SVG_SKIP = new Set(['defs', 'clippath', 'mask', 'symbol', 'pattern', 'marker', 'lineargradient', 'radialgradient', 'filter', 'style', 'title', 'desc', 'metadata', 'use', 'image', 'foreignobject']);
 /** Text kept for a screen reader (`clip: rect(0 0 0 0)`, `clip-path: inset(50%)`, the `.sr-only` rule): on the page but never seen, so never drawn. */
@@ -36,7 +38,7 @@ function polygonClip(cs: CSSStyleDeclaration, r: DOMRect, el?: Element): Clip | 
 }
 /** The turn of an element's own transform or its nearest ancestor's (a FibroScan screen turns with its body), in radians. */
 function turnOf(el: Element): number {
-  for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) { const t = readStyle(e).transform; if (t && t !== 'none') { const m = new DOMMatrix(t); if (spin(m)) return Math.atan2(m.b, m.a); } }
+  for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) { const t = readStyle(e).transform; if (t && t !== 'none') { const m = new DOMMatrix(t); if (turned(m)) return Math.atan2(m.b, m.a); } }
   return 0;
 }
 /** An SVG paint: a colour, or the middle stop of the gradient it names (a canvas path takes one colour here), or null for none. */
