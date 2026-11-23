@@ -122,3 +122,12 @@ test('the debug paint reaches its uniform: every choice of the select, off by de
   t.set({ dustDebug: 'off' }); t.step(16);
   assert.equal(t.uniform.value[ix], 0);
 });
+
+// A colour that is not a number never reaches the figure (the figure's texture reads a NaN back as 0 0 0 on a phone: a black block). The last word of the tube and of the skin is dFinite, with the tone before the dust as the fallback.
+test('the tube and the skin end with a colour that is a number', () => {
+  assert.match(DUST_GLSL, /vec3 dFinite\(vec3 c, vec3 fb\) \{ return dBad\(vec4\(c, 0\.0\)\) \? fb : c; \}/);
+  const tube = fs.readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const skin = fs.readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
+  assert.match(tube, /c = dFinite\(c, dFinite\(cBody, vec3\(0\.5\)\)\);[^\n]*\n\s*gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
+  assert.match(skin, /c = dFinite\(c, dFinite\(cBody, vec3\(0\.5\)\)\);[\s\S]*gl_FragColor = vec4\(c, alpha\);/);
+});

@@ -91,7 +91,7 @@ vec3 dbgEnd(vec3 c, float id) {
   return mix(c, dbgCol.rgb, dbgCol.a);
 }
 #else
-#define DROP(n) { if (D_dbg > 6.5 && n != 7 && n != 8) { gl_FragColor = vec4(dDropCol(float(n)), 1.0); return; } discard; }   // (?dust, Paint the trouble, Colours: a drop painted in its reason's colour; the caps and the back faces are always dropped)
+#define DROP(n) discard;
 #endif
 
 // a vessel behind the organs (the cava) is drawn a second time over them with VEIL defined: OPAQUE, as every vessel is (no alpha at rest: two flat tones and the ink; Mohammad, 20 Nov: "Why is the venacava glassy")
@@ -565,17 +565,12 @@ vec4 dustCover = vec4(0.0);   // (the dust as painted on this pixel, for the deb
 float dustBadSeen = 0.0;   // (the debug paint, ?dust: set when dSafe dropped a term, so a pixel that lost one can be shown)
 bool dBad(vec4 v) { return any(equal(floatBitsToUint(v) & uvec4(0x7f800000u), uvec4(0x7f800000u))); }
 vec4 dSafe(vec4 v) { bool bad = dBad(v) || dot(v, v) >= 64.0; dustBadSeen = max(dustBadSeen, bad ? 1.0 : 0.0); return bad ? vec4(0.0) : v; }
-// ?dust > Paint the trouble, 'why' (7): the colour of the reason a vessel pixel is dropped (the tube's DROP(n), shaders.ts; the skin's own three), instead of the drop. 1 blue, 2 green, 3 pale green, 4 yellow, 5 cyan, 6 teal, 9 white, 10 purple, 11 pink, 12 and 13 magenta; skin: pale orange presence, orange alpha, brown band
-vec3 dDropCol(float n) {
-  if (n < 1.5) return vec3(0.1, 0.2, 1.0); if (n < 2.5) return vec3(0.0, 0.8, 0.0); if (n < 3.5) return vec3(0.6, 1.0, 0.5); if (n < 4.5) return vec3(1.0, 0.9, 0.0);
-  if (n < 5.5) return vec3(0.0, 1.0, 1.0); if (n < 6.5) return vec3(0.0, 0.5, 0.5); if (n < 9.5) return vec3(1.0); if (n < 10.5) return vec3(0.6, 0.2, 0.9);
-  if (n < 11.5) return vec3(1.0, 0.4, 0.7); if (n < 20.5) return vec3(1.0, 0.0, 1.0); if (n < 21.5) return vec3(1.0, 0.8, 0.5); if (n < 22.5) return vec3(1.0, 0.5, 0.0); return vec3(0.5, 0.25, 0.0);
-}
+// A colour that is not a number never reaches the figure: the pixel keeps the fallback (the vessel's tone before the dust and the heads). A NaN written to the figure's texture is read back as 0 0 0 by a phone GPU: a black block
+vec3 dFinite(vec3 c, vec3 fb) { return dBad(vec4(c, 0.0)) ? fb : c; }
 // ?dust > Paint the trouble (debug, off by default): magenta where a dust term was not a number or ran away, cyan where the vessel's own colour or alpha is not a number
 vec3 dDbgPaint(vec3 c, float a) {
   if (D_dbg < 0.5) return c;
-  if (D_dbg > 5.5 && D_dbg < 6.5) return vec3(0.0, 0.4, 1.0);   // (every pixel a vessel's fragment reaches the end with: solid blue, alpha made 1 by the shader's last lines)
-  if (D_dbg > 4.5 && D_dbg < 5.5) return dustCover.a > 0.02 ? vec3(0.0, 1.0, 0.0) : c;
+  if (D_dbg > 4.5) return dustCover.a > 0.02 ? vec3(0.0, 1.0, 0.0) : c;
   if (D_dbg > 3.5) return (a > 0.05 && max(c.r, max(c.g, c.b)) < 0.012) ? vec3(1.0, 1.0, 0.0) : c;
   if (D_dbg > 1.5 && D_dbg < 3.5 && dBad(vec4(c, a))) return vec3(0.0, 1.0, 1.0);
   if (mod(D_dbg, 2.0) > 0.5 && D_dbg < 3.5 && dustBadSeen > 0.5) return vec3(1.0, 0.0, 1.0);
@@ -1363,7 +1358,7 @@ void main() {
 #ifdef VDBG
   c = dbgEnd(c, vindex);
 #endif
-  if (D_dbg > 5.5 && D_dbg < 6.5) { fadeHere = 1.0; cavA = 1.0; }
   c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
+  c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
   gl_FragColor = vec4(c, fadeHere * cavA);
 }

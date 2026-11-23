@@ -94,6 +94,6 @@ vec3 dbgEnd(vec3 c, float id) {
   return mix(c, dbgCol.rgb, dbgCol.a);
 }
 #else
-#define DROP(n) { if (D_dbg > 6.5 && n != 7 && n != 8) { gl_FragColor = vec4(dDropCol(float(n)), 1.0); return; } discard; }   // (?dust, Paint the trouble, Colours: a drop painted in its reason's colour; the caps and the back faces are always dropped)
+#define DROP(n) discard;
 #endif
 `;

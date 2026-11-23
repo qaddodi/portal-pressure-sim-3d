@@ -472,7 +472,7 @@ void main() {
 #ifdef SKIN_DEBUG
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
-  if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) { if (D_dbg > 6.5) { gl_FragColor = vec4(dDropCol(21.0), 1.0); return; } discard; }
+  if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // THE ALPHA IS THE PRESENT ARMS' ONLY (Mohammad, 20 Nov: a dotted pink and blue patch left at the old end of both hepatic arteries, at the sinusoid nodes): the body does not draw the liver's beds, so at SIN_R and SIN_L the arteriole is the one arm that is there, and the skin is dithered
   // by its share (pres). The alpha blended EVERY arm's fade by weight, the hidden beds' too (PRE_R whole, SIN_RR 0.8), so the skin kept an alpha and a colour from vessels that are not drawn at the pixels the artery's own dither let through, long after the artery had faded to nothing. The alpha is the weighted fade of the arms that are
   // there (each arm's weight times its presence, over their sum), so an arm that is not drawn adds nothing, and where the one that is has faded the skin is gone with it.
@@ -504,7 +504,7 @@ void main() {
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
-  if (alpha < 0.004) { if (D_dbg > 6.5) { gl_FragColor = vec4(dDropCol(22.0), 1.0); return; } if (D_dbg > 1.5 && D_dbg < 3.5) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); return; } discard; }   // (?dust, Paint the trouble: cyan where the skin is dropped here)
+  if (alpha < 0.004) discard;
   // the live lumen's radius at the axis' depth, and the line the vertex stage built the mesh ink wider by (the tube's own rule: a share of the radius held between two CSS widths, thinned with a hairline)
   float swellB = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) swellB += wAt(i) * swAt(i);
@@ -529,7 +529,6 @@ void main() {
 #ifdef SKIN_DEBUG
   if (sdPx > inkDev + 0.5 + seamPad) { gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
-  if (D_dbg > 6.5 && sdPx > inkDev + 0.5 + seamPad) { gl_FragColor = vec4(dDropCol(23.0), 1.0); return; }   // (?dust, Paint the trouble, Colours)
   if (sdPx > inkDev + 0.5 + seamPad) discard;   // (past the band: the mesh is a little wider than the union's line where the arms spread)
   // THE BODY COLOUR: each arm's lens colour at its seam's ramp position (the tube's own rule, the two lens sets crossfaded by lensMix), then the arms blended by weight: a gradient through the junction, the tube's colour on a seam
   vec3 base = vec3(0.0);
@@ -711,7 +710,11 @@ void main() {
       c = mix(c, wedgeColS, WEDGE_A * waS * (1.0 - inkT));   // (under the outline: the vessel's line stays)
     }
   }
-  if (D_dbg > 5.5 && D_dbg < 6.5) alpha = 1.0;
   c = dDbgPaint(c, alpha);   // (?dust, Paint the trouble: off unless asked)
+#ifndef SKIN_NOMARKS
+  c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
+#else
+  c = dFinite(c, vec3(0.5));
+#endif
   gl_FragColor = vec4(c, alpha);
 }`;
