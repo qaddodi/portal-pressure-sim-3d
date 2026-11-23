@@ -611,9 +611,12 @@ export class CameraRig {
     this.apply();
     const n = this.project(d.p), k = d.k0 * Math.pow(d.k1 / d.k0, m), cx = this.width / 2, cy = this.height / 2, e = Math.min(1, Math.max(0, this.eNow));
     h.k = k;
-    // (the screen's place of a point is the centre + k · (its place with the hand home less the centre) + the pan, which is not zoomed: the projection's window is offset by the pan before the zoom is taken)
-    h.x = d.sx + (d.lx - d.sx) * e - cx - k * (n.x - cx);
-    h.y = d.sy + (d.ly - d.sy) * e - cy - k * (n.y - cy);
+    // (the screen's place of a point is the centre + k · (its place with the hand home less the centre) + (k - 1) · the room's offset + the pan. Three scales the window's offset by the zoom, so the pan is not
+    //  zoomed but the room's centring is: with the room not centred on the canvas (cards on a side or the top) the old centre + k · (...) + pan missed (k - 1) · offset, 5 x 70 px = 350 px at zoom 6 on an iPad: the
+    //  place dived to jumped on the first frame and flew off its way, 23 Nov "zooming into the wrong place when zoomed into a different area")
+    const off = viewOffset(this.cur.room.w > 1 ? this.cur.room : { x: 0, y: 0, w: this.width, h: this.height }, this.width, this.height);
+    h.x = d.sx + (d.lx - d.sx) * e - cx - k * (n.x - cx) - (k - 1) * off.x;
+    h.y = d.sy + (d.ly - d.sy) * e - cy - k * (n.y - cy) - (k - 1) * off.y;
   }
 
   /** The aim and the width of a retargeted move on a cubic Hermite from where it was, starting at the speed it had and ending at rest. */
