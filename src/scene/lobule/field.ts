@@ -13,6 +13,7 @@ import { EDGE_FADE, FADE_MID, FADE_SPAN, NEIGHBOUR_FLAT, blurWrapped, neighbourB
 import { LOBULE_R } from './shots.ts';
 import { PLATE_Z, blankTexture } from './plate.ts';
 import { GROW_H, TAU_LO } from './growth.ts';
+import { PX_PER_R, TRACT_REACH_PX, tractRadiusPx, tractSoftPx } from './collagen-edge.ts';
 import { lookColours, type RGB } from './lz-colours.ts';
 import type { LookId } from '../../looks/looks.ts';
 
@@ -33,12 +34,12 @@ export const FIELD_Z = PLATE_Z - 0.1;
 /** Plan 31 part C: the lobule's own six corners (lobule radii, the tile's lattice: a flat-topped hexagon) and the tract's full radius there (the cuff's outer edge at growth 1). The neighbour plates' rounded corners reach into these
  *  discs and showed through the tract's reveal as a stippled wedge with straight edges; inside them the field draws only its gap tone, so a home tract always lies on one ground. */
 export const HOME_CORNERS: readonly [number, number][] = Array.from({ length: 6 }, (_, i) => [Math.cos((i * Math.PI) / 3), Math.sin((i * Math.PI) / 3)] as [number, number]);
-export const HOME_TRACT_R = 1.84 * 0.1 * 1.06;   // (the cuff's outer edge, 1.7 x 1.08 of the tract's radius, and the most its wavy edge swells, 6 %)
+export const HOME_TRACT_R = TRACT_REACH_PX / PX_PER_R;   // (how far the tract's painted bundles and collar reach, collagen-edge.ts: Plan 49c, the tract has no disc and no clip any more)
 /** The plates give way entirely inside HOME_TRACT_R and ease back to the tile from there out to this many times it (outside the cuff, so nothing of the tract's reveal lies on the ease). */
 export const HOME_EASE = 1.25;
 /** Plan 31c: the cleared disc follows the tract collagen that is drawn (growth.ts front: the cream reaches tau p + GROW_H; the tract of radius rt (0.8 + 0.9 g) reaches r at g = (r / rt - 0.8) / 0.9), so with no tract collagen (Healthy, p = 0) there is nothing to clear and the field is untouched.
  *  At p = 1 it is HOME_TRACT_R, the cuff's full edge. */
-export const homeRadius = (p: number): number => HOME_TRACT_R * (0.8 + 0.9 * Math.min(1, Math.max(0, p) + GROW_H)) / 1.7;
+export const homeRadius = (p: number): number => Math.min(HOME_TRACT_R, (tractRadiusPx(Math.min(1, Math.max(0, p) + GROW_H)) + tractSoftPx(Math.min(1, Math.max(0, p) + GROW_H))) / PX_PER_R);
 /** 0 with no tract collagen, 1 once the first of it is whole (growth.ts: the earliest arrival is TAU_LO, whole at TAU_LO + GROW_H = 0.135). A ramp that wide moves no pixel more than 0.08 in a frame at GROW_RATE (1.5 / 0.135 x 0.35 / 60 = 0.065); a 0.02 ramp moved it 0.43. */
 export const HOME_ON = TAU_LO + GROW_H;
 export const homeK = (p: number): number => { const x = Math.min(1, Math.max(0, p / HOME_ON)); return x * x * (3 - 2 * x); };

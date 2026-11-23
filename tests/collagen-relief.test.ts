@@ -3,19 +3,47 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LOBULE_PLATE_FS } from '../src/scene/lobule/plate.ts';
-import { COLL_RELIEF_G, RELIEF_D_PX, RELIEF_LOD, reliefColour } from '../src/scene/lobule/relief.ts';
+import { COLL_EDGE_LO, COLL_RELIEF_G, RELIEF_D_PX, RELIEF_LOD, reliefColour } from '../src/scene/lobule/relief.ts';
 import { badSamplers, usedBeforeDeclared } from './gl-undeclared.ts';
+import { rasterCtx } from './helpers/raster-ctx.ts';
+import { buildLobule } from '../src/scene/lobule/geometry.ts';
+import { PLATE_BOX, PLATE_S, plateShape } from '../src/scene/lobule/plate.ts';
+import { collagenInput, paintCollagenWorld } from '../src/scene/lobule/collagen-paint.ts';
+import { TRACT_REACH_PX } from '../src/scene/lobule/collagen-edge.ts';
+import { lookColours } from '../src/scene/lobule/lz-colours.ts';
+import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
+import { DISC_R } from '../src/scene/lobule/widths.ts';
 
 test('the plate shader reads each declared name after its declaration, and every sampler call is well formed', () => {
   assert.deepEqual(usedBeforeDeclared(LOBULE_PLATE_FS), []);
   assert.deepEqual(badSamplers(LOBULE_PLATE_FS), []);
 });
 
-test('the collagen keeps the painter\'s own colour and only its faint passes\' alpha is softened (mip 3), the dense core as painted', () => {
-  assert.match(LOBULE_PLATE_FS, /vec4 softPass\(vec4 sharp, vec4 soft\)/);
-  assert.match(LOBULE_PLATE_FS, /smoothstep\(0\.35, 0\.75, sharp\.a\)/);
-  assert.match(LOBULE_PLATE_FS, /cs = softPass\(cs, collAt\(uvS, 3\.0\)\)/);
-  assert.match(LOBULE_PLATE_FS, /cu = softPass\(cu, collAt\(uvT, 3\.0\)\)/);
+test('the collagen keeps the painter\'s own colour; its alpha is a smooth curve of a coarse copy (no terraces, no faint apron), the dense core as painted', () => {
+  assert.match(LOBULE_PLATE_FS, /float collEdgeA\(float a\)/);
+  assert.match(LOBULE_PLATE_FS, /vec4 softPass\(vec4 sharp, vec2 uvx, float lod\)/);
+  assert.match(LOBULE_PLATE_FS, /smoothstep\(0\.45, 0\.65, soft\.a\)/, 'the painter\'s own alpha only deep inside a band');
+  assert.match(LOBULE_PLATE_FS, /cs = softPass\(cs, uvS, 3\.0\)/);
+  assert.match(LOBULE_PLATE_FS, /cu = softPass\(cu, uvT, 0\.0\)/);
+  assert.equal(COLL_EDGE_LO > 0.0 && COLL_EDGE_LO < 0.2, true, 'the faint outer pass (0.12 of the painter\'s) drops out');
+  assert.match(LOBULE_PLATE_FS, /hT = TRACT_SOFT \* fT;/, 'the tract front fades, it is never a crisp circle');
+});
+
+test('the painted tract has no rim and reaches no further than TRACT_REACH_PX (so the front and the field\'s cleared disc cover it all)', () => {
+  const N = 512, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), net = buildLobule(), shape = { ...plateShape(net), cells: [] }, cv = DISC_R.cv;
+  const L = lookColours('dark' as never); useTokens((n: string, a?: number | string) => L.tk(n, a));
+  const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, 'dark' as never), 'tracts');
+  const corners = net.corners.map(([x, y]) => [(x * PLATE_S + B) * sc, (B - y * PLATE_S) * sc] as const);
+  const step = 4, dens = new Float64Array(60), area = new Float64Array(60); let far = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const d = Math.min(...corners.map(([cx, cy]) => Math.hypot(x + 0.5 - cx, y + 0.5 - cy))) * (2048 / N), k = Math.floor(d / step);
+    if (k >= 60) continue;
+    area[k]! += 1; const a = r.alpha[y * N + x]!; dens[k]! += a; if (a >= 0.03) far = Math.max(far, d);
+  }
+  assert.ok(far <= TRACT_REACH_PX + 4, `reach ${far.toFixed(0)} px <= ${TRACT_REACH_PX}`);
+  // (the painter's flat disc ended at a circle: the coverage fell from its plateau to the surround within one annulus; the bundles' ends fall over about 40 px)
+  let worst = 0; for (let k = 20; k < 55; k++) worst = Math.max(worst, dens[k]! / Math.max(1, area[k]!) - dens[k + 1]! / Math.max(1, area[k + 1]!));
+  assert.ok(worst < 0.3, `no circular rim (the mean coverage never falls by more than 0.3 in 4 px: ${worst.toFixed(2)})`);
 });
 
 test('the relief is read from a coarse mip before the dissolve\'s discard, and shades the collagen only by its coverage (no cel step, no edge line over it)', () => {

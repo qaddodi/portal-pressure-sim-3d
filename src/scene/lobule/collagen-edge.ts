@@ -24,12 +24,23 @@ export function tractRamp(p: number): number {
   const t = clamp((p - (TAU_LO - GROW_H)) / (2 * GROW_H), 0, 1);
   return t * t * (3 - 2 * t);
 }
+/** The tract's growth front is SOFT (Mohammad, 23 Nov 2026: "a hard-edged pale disc ... clipped straight"): the painted tract (collagen-paint.ts paintTract) has no rim, its bundles and the cuff's reach about 1.2 x the old radius, so the front sits TRACT_FRONT_K times
+ *  further out and fades over TRACT_SOFT of itself either side of that radius, never cutting a bundle. */
+export const TRACT_FRONT_K = 1.45, TRACT_SOFT = 0.18;
+/** How far from a tract's centre its painted bundles and collar reach, plate px (measured on the painted tract layer, alpha above 0.03: tests/collagen-relief.test.ts keeps it); the front is whole by here at growth 1. */
+export const TRACT_REACH_PX = 192;
+export const PX_PER_R = EDGE_PLATE_PX / (2 * EDGE_BOX);
+/** The front's radius and its half width (plate px) at growth p. */
+export const tractRadiusPx = (p: number): number => TRACT_FRONT_K * tractFrontPx(p);
+export const tractSoftPx = (p: number): number => TRACT_SOFT * tractRadiusPx(p);
 /** The tract's signed edge distance (plate px, + inside) of a pixel r plate px from the tract's centre. */
-export const tractEdge = (p: number, r: number): number => tractFrontPx(p) - r;
+export const tractEdge = (p: number, r: number): number => tractRadiusPx(p) - r;
 
 /** GLSL twin of the numbers the plate shader reads. */
 export const COLL_EDGE_GLSL = /* glsl */ `
 const float TRACT_RT_PX = ${F(TRACT_RT_PX)};
+const float TRACT_FRONT_K = ${F(TRACT_FRONT_K)};
+const float TRACT_SOFT = ${F(TRACT_SOFT)};
 const float TRACT_TAU_LO = ${F(TAU_LO)};
 const float TRACT_TAU_K = ${F(TAU_MAX / TAU_SPAN)};
 const float TRACT_RAMP_H = ${F(GROW_H)};

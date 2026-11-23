@@ -79,7 +79,7 @@ test('Plan 31 C: the field gives every home corner\'s tract disc to the gap tone
   for (const u of ['uniform vec3 gapCol;', 'uniform vec2 homeC[6];', 'uniform float homeR;']) assert.ok(LOBULE_FIELD_FS.includes(u), u);
   assert.match(LOBULE_FIELD_FS, /col = mix\(col, gapCol, home\)/);
   assert.equal(HOME_CORNERS.length, 6);
-  assert.ok(Math.abs(HOME_TRACT_R - 1.84 * 1.06 * net.rt) < 1e-12, 'the cuff\'s outer edge at growth 1, at its widest');
+  assert.ok(HOME_TRACT_R >= 1.84 * 1.06 * net.rt, 'the painted tract\'s whole reach (bundles and collar), at growth 1');
   for (const [i, c] of net.corners.entries()) assert.ok(Math.hypot(c[0] - HOME_CORNERS[i]![0], Math.abs(c[1]) - Math.abs(HOME_CORNERS[i]![1])) < 1e-6 || net.corners.some((q) => Math.hypot(q[0] - HOME_CORNERS[i]![0], q[1] - HOME_CORNERS[i]![1]) < 1e-6), 'the corners are the lobule\'s own');
   const name = '@shaderfrog/glsl-parser', m = await import(name);
   m.parser.parse(LOBULE_FIELD_FS.replace(/^\n/, '').replace(/^#include.*$/gm, ''), { quiet: true });
@@ -136,7 +136,7 @@ test('Plan 31c: the cleared home disc follows the drawn tract collagen: Healthy 
   const { easeGrow, GROW_H } = await import('../src/scene/lobule/growth.ts');
   assert.equal(homeK(0), 0, 'Healthy: nothing cleared, the field is untouched');
   assert.match(LOBULE_FIELD_FS, /home \*= homeK;/);
-  assert.ok(Math.abs(homeRadius(1) - HOME_TRACT_R) < 1e-12, 'growth 1 is the cuff\'s full edge, as before');
+  assert.ok(Math.abs(homeRadius(1) - HOME_TRACT_R) < 1e-12, 'growth 1 is the tract\'s full reach');
   for (const p of [0.25, 0.5, 0.75, 1]) assert.ok(homeRadius(p) >= net.rt * (0.8 + 0.9 * Math.min(1, p + GROW_H)) * 1.06 - 1e-12, `p ${p}: the disc reaches the front's outer edge, cuff swell included`);
   // no pop: the clear share at a pixel just outside the disc, at every frame of an eased 0 to 1 and back
   let worst = 0;

@@ -3,7 +3,7 @@
 // never per frame"); the 3D lobule (micro3d/lobule3d.ts) lays it under its cells with the shader here.
 import { CEL_TISSUE_GLSL } from './cel.ts';
 import { CEL_LIGHT_GLSL } from '../cel-glsl.ts';
-import { COLL_RELIEF_G, RELIEF_D_PX, RELIEF_GLSL, RELIEF_LOD } from './relief.ts';
+import { COLL_EDGE_LO, COLL_LOD_SEPTA, COLL_LOD_TRACT, COLL_EDGE_TOP, COLL_RELIEF_G, RELIEF_D_PX, RELIEF_GLSL, RELIEF_LOD } from './relief.ts';
 import { COLL_EDGE_GLSL } from './collagen-edge.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { DataTexture } from 'three';
@@ -154,8 +154,12 @@ vec4 collAt(vec2 uvx, float bias) {
   vec4 b = texture2D(mapC, uvx, bias);
   return mixB > 0.0 ? mix(b, texture2D(mapCB, uvx, bias), mixB) : b;
 }
-vec4 softPass(vec4 sharp, vec4 soft) {
-  float a = mix(soft.a, sharp.a, smoothstep(0.35, 0.75, sharp.a));
+// The band's alpha profile, smooth (Mohammad, 23 Nov 2026: "banded, looks like glow ... fibrous bands of varying intensity, fade"): the painter lays a band in three passes, so its alpha steps 0.12, 0.33, 0.67 and its union with a neighbour has corners. The alpha is taken from a coarse copy (two mips: 3 and 4 for the septa, an 8 to 16 px blur, about the pass spacing of a band; 0 and 1 for the tracts, whose bundles are a fifth of that) through one smooth monotone curve
+// that drops the faint outer pass (the wide pale apron) and eases up to the dense core; only deep inside a band, where the coarse alpha is dense, is the painter's own alpha (with its fibre streaks) shown, blended in smoothly. The COLOUR stays the painter's own.
+float collEdgeA(float a) { return ${COLL_EDGE_TOP.toFixed(3)} * smoothstep(${COLL_EDGE_LO.toFixed(3)}, ${COLL_EDGE_TOP.toFixed(3)}, a); }
+vec4 softPass(vec4 sharp, vec2 uvx, float lod) {
+  vec4 soft = 0.5 * (collAt(uvx, lod) + collAt(uvx, lod + 1.0));
+  float a = mix(collEdgeA(soft.a), sharp.a, smoothstep(0.45, 0.65, soft.a));
   vec3 col = mix(soft.rgb / max(soft.a, 1e-4), sharp.rgb / max(sharp.a, 1e-4), smoothstep(0.0, 0.02, sharp.a));
   return vec4(col * a, a);
 }
@@ -166,8 +170,8 @@ vec4 collagenAt(vec2 uv) {
   vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
   vec4 cu = collAt(uvT, 0.0), cs = collAt(uvS, 0.0);
   // (the painter's three passes end in hard terraces: the alpha of a faint pass takes a softer copy of itself (three mip levels coarser) so the passes blend into the cells, the dense core stays as painted; the COLOUR stays the painter's own, fibre streaks and all, as in the mock)
-  cs = softPass(cs, collAt(uvS, 3.0));
-  cu = softPass(cu, collAt(uvT, 3.0));
+  cs = softPass(cs, uvS, ${COLL_LOD_SEPTA.toFixed(1)});
+  cu = softPass(cu, uvT, ${COLL_LOD_TRACT.toFixed(1)});
   float fs = front(texture2D(mapT, uv).r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x);
   // the tracts: the nearest hexagon corner (the lobule's corners are at cos and sin of k pi/3, in lobule radii; v is up, y is down)
   float rT = 1e9;
@@ -176,9 +180,9 @@ vec4 collagenAt(vec2 uv) {
     rT = min(rT, length((uv - vec2(0.5 + cos(an) / ${(2 * PLATE_BOX).toFixed(2)}, 0.5 - sin(an) / ${(2 * PLATE_BOX).toFixed(2)})) * PLATE_PXF));
   }
   float tp = (uP.y - TRACT_TAU_LO) * TRACT_TAU_K;   // (the front's tau in the painter's units: the disc is whole to 0.8 rt + 0.9 tp rt)
-  float eT = TRACT_RT_PX * (0.8 + 0.9 * tp) - rT;   // (the pixel's distance inside the front)
-  float aT = max(0.5 * length(vec2(dFdx(eT), dFdy(eT))), 0.02);
-  float ft = smoothstep(-aT, aT, eT) * smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
+  float fT = TRACT_FRONT_K * TRACT_RT_PX * (0.8 + 0.9 * tp);   // (the front's radius; it fades over TRACT_SOFT of itself either side, so no bundle is cut)
+  float eT = fT - rT, hT = TRACT_SOFT * fT;
+  float ft = smoothstep(-hT, hT, eT) * smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
   gCov = max(cs.a * fs, cu.a * ft); gFr = vec2(fs, ft);
   // (the septa first, the tracts over them, as the painter lays them)
   return cu * ft + cs * fs * (1.0 - cu.a * ft);
@@ -191,7 +195,7 @@ float reliefH(vec2 uv, vec2 fr) {
   vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
   vec4 cu = textureLod(mapC, uvT, ${RELIEF_LOD.toFixed(1)}), cs = textureLod(mapC, uvS, ${RELIEF_LOD.toFixed(1)});
   if (mixB > 0.0) { cu = mix(cu, textureLod(mapCB, uvT, ${RELIEF_LOD.toFixed(1)}), mixB); cs = mix(cs, textureLod(mapCB, uvS, ${RELIEF_LOD.toFixed(1)}), mixB); }
-  return cs.a * fr.x + cu.a * fr.y;
+  return collEdgeA(cs.a) * fr.x + collEdgeA(cu.a) * fr.y;
 }
 // the slope of that height per plate pixel (x right, y up): 8 fetches, once per fragment
 vec2 reliefSlope(vec2 uv, vec2 fr) {

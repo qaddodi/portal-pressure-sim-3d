@@ -1,13 +1,18 @@
 # Fibrosis look (approved by Mohammad, 23 Nov 2026)
 
-Reference: `fibrosis-color-mocks/C-relief-dark.png` and `C-relief-light.png`, built by `fibrosis-color-mocks/render.mts` (C, "Raised relief"). The plate shader (`src/scene/lobule/plate.ts`, `collagenAt`, `softPass`, relief in `main`) reproduces it; `tests/collagen-relief.test.ts` pins it.
+Reference: `fibrosis-color-mocks/C-relief-dark.png` and `C-relief-light.png`, built by `fibrosis-color-mocks/render.mts` (C, "Raised relief"), with the amendments below (his words, same day). The plate shader (`src/scene/lobule/plate.ts`: `collagenAt`, `softPass`, `collEdgeA`, relief in `main`) and the painters in `collagen-paint.ts` reproduce it; `tests/collagen-relief.test.ts`, `tests/collagen-tau-stipple.test.ts` and `tests/collagen-under-vessels.test.ts` pin it.
 
 ## Traits
 - Visible ropes: the painter's fibre streaks, with a lit side and a shade side (subtle relief from the slope of the band's height against the one light).
-- Tonal variation along the band (the painter's three passes, not one flat colour).
-- Soft fade inside the band only; crisp edge.
+- Tonal variation along the band (the painter's passes, not one flat colour).
+- Soft fade inside the band only; crisp edge. Bands of varying intensity that fade out: "should all look like fibrous bands of varying intensity, fade etc".
+- Smooth course: "the fibrosis bands should also be smoother (i mean in terms of the course they're running, now they're jagged or have sharp edges)". Centre lines are smooth curves (a Catmull-Rom through the septa's points), widths change gently, and the alpha profile is smooth, so no polyline corners and no kinks where bands meet.
+- Vessels on top: "the fibrosis should not cover up the blood bile or lymph vessels". Every vessel draws after the collagen (the plate's marks write no depth and draw first), in every view, at every growth and in the dive.
 
 ## Rejected
 - Glow outside the band, any halo, a flat plateau, blobs.
+- Terraces: "banded, looks like glow" (the painter's three passes showing as stepped outlines), and the wide pale apron round a tract.
+- A hard-edged pale disc behind the portal venule, clipped straight where it meets the hepatocytes: the tract is bundles only, no flat disc, no clip, and its growth front is soft.
+- A stipple or speckle (two overlapping bands tying in the arrival times).
 - Braids or cords, a 3D look, dark worms.
 - Cutting septa or tracts off at the hexagon line.

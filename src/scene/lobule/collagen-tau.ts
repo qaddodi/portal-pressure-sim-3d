@@ -11,6 +11,8 @@ import { tauToByte } from './growth.ts';
 /** The fronts' own meeting point of the hex-edge bridges, in septU (today's reach is 1 at su (1 - 0.3) / 2.4). */
 export const SEPTA_MEET = 0.29;
 const TAU = Math.PI * 2;
+/** Two bands whose depth at a pixel (d / half) differs by less than this are tied there: the earlier arrival shows. */
+const TIE = 0.12;
 const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(a, x));
 
 /** A band's front is irregular and stable: low-frequency noise along it from its own seed. */
@@ -20,7 +22,7 @@ const jitter = (seed: number, u: number): number => 0.6 * Math.sin(TAU * 1.3 * u
 export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: number): Uint8Array {
   const out = new Uint8Array(n * n * 4);
   for (let k = 0; k < n * n; k++) { out[4 * k] = 255; out[4 * k + 3] = 255; }   // (R never; A whole, so an upload never premultiplies R away)
-  const sc = n / (2 * box), best = new Float32Array(n * n).fill(Infinity);
+  const sc = n / (2 * box), best = new Float32Array(n * n).fill(Infinity), first = new Float32Array(n * n).fill(Infinity);   // (how far inside its band the pixel is, d / half, of the band that holds it; and that band's arrival)
   const toPx = (v: number): number => (v + box) * sc;
   const g = { P: new Float64Array(54), N: new Float64Array(54), Wd: new Float64Array(27), n: 26, L0: 1 };
   for (const b of septaBands(G)) {
@@ -36,14 +38,19 @@ export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: numb
         const t = clamp(((wx - ax) * dx + (wy - ay) * dy) / L2, 0, 1), ex = ax + t * dx - wx, ey = ay + t * dy - wy, d = Math.hypot(ex, ey);
         const half = 2.1 * Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t);   // (the painted outer edge: every pixel of the painter's faintest pass has its time, and the arrival times' thickening is measured against it)
         const k = y * n + x;
-        if (d > half || d >= best[k]!) continue;
+        if (d > half) continue;
         const u = (i + t) / g.n;
         let tau: number;
         if (b.kind === 'hex') { const h = 2 * Math.min(u, 1 - u); tau = SEPTA_MEET * h + 0.03 * Math.sin(Math.PI * h) * jitter(seed, u); }
         else if (b.kind === 'pc') tau = 0.18 + 0.4 * u + 0.03 * Math.sin(Math.PI * u) * jitter(seed, u);
         else tau = 0.6 + 0.3 * u + 0.03 * Math.sin(Math.PI * u) * jitter(seed, u);
         tau += 0.1 * Math.min(1, d / half) ** 2;
-        best[k] = d; out[4 * k] = tauToByte(tau);
+        // (the band the pixel is most inside wins; where two are about as deep (within TIE) the EARLIER wins. Plain "nearest centre line" flipped from pixel to pixel where two bands overlap over a near-common course, a stipple of early and late
+        //  texels: Mohammad 23 Nov, the black speckle at the portal corner)
+        const nd = d / half;
+        if (nd > best[k]! + TIE || (nd >= best[k]! - TIE && tau >= first[k]!)) continue;
+        if (nd < best[k]!) best[k] = nd;
+        first[k] = tau; out[4 * k] = tauToByte(tau);
       }
     }
   }

@@ -8,6 +8,10 @@ export const RELIEF_G = 100;
 export const RELIEF_D_PX = 8, RELIEF_LOD = 4;
 /** The collagen's own gain (the septa and tracts, fitted to mock C by tests/helpers and the node twin: mean 3 of 255 against render.mts), a plain clamp. */
 export const COLL_RELIEF_G = 40;
+/** The collagen's smooth alpha profile (plate.ts collEdgeA): the painter's faint outer pass (alpha 0.12) is below LO and drops out, the curve eases up to TOP, the dense core's alpha of one pass. */
+export const COLL_EDGE_LO = 0.08, COLL_EDGE_TOP = 0.66;
+/** The coarse copy's first mip level (and the next one): wide bands (septa) an 8 to 16 px blur, narrow bundles (tracts) none to 2 px. */
+export const COLL_LOD_SEPTA = 3, COLL_LOD_TRACT = 0;
 /** The relief is linear up to this |s| and then eases into 1 (a smooth knee, never a clamp): a thin band's steep flank (a spur, a third as wide as a hex septum) would otherwise sit flat at |s| = 1 and its edge would be a crease
  *  in a smooth gradient (tests/collagen-screen.test.ts). The hex and bridge septa peak below it, so their relief is exactly the linear one. */
 export const RELIEF_KNEE = 0.7;
