@@ -230,7 +230,11 @@ test('a coil easing open builds one key frame in a frame, never two, and ends as
   try {
     const shapes = r.inside.shapes, c4 = r.items.find((it) => it.v.id === 'C4')!;
     for (const it of r.items) { it.shown = 0; it.spread = 1; it.strandsOn = false; }
-    for (let f = 0; f < 5; f++) shapes.step(16);   // (what the other vessels were still settling from, built before the count starts)
+    // (what the other vessels were still settling from is built before the count starts: until they are settled, not for a fixed 5 frames. A step rebuilds within SHAPE_BUDGET_MS of the WALL clock, so on a loaded machine
+    //  (pre-push runs four test files at once) only one fits a frame, the rest were still due when the count began, and "2 builds in one frame" was another vessel's: the flake of 22 Nov, named 23 Nov)
+    let busy = true;
+    for (let f = 0; f < 400 && (busy || f < 5); f++) busy = shapes.step(16);
+    assert.equal(busy, false, 'the others settled before the count');
     c4.shown = 1; c4.strandsOn = true;
     let most = 0, moved = false;
     for (let f = 0; f < 150; f++) {
