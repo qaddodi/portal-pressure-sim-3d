@@ -45,8 +45,22 @@ export function outlinePolygon(d: string): [number, number][] {
   }
   return out;
 }
+/** The belly's own curve (review a56feaf2, item 5, Mohammad 23 Nov: "Reshape to a belly curve"). 2D's wall runs from the waist (y 470) to the lower belly (y 954) as a near-straight diagonal, and with the flat
+ *  surface on top the 3D water read as a straight-sided tub. Each flank point is pushed OUTWARD by a half sine of its height, so the flank leaves the waist straight down, bulges at mid height and rolls into the
+ *  floor with the floor's own slope; the waist, the lower belly and the floor are 2D's own points (nothing moves inward, so no organ is left outside the wall). `BELLY` is the push as a share of the flank's inset
+ *  (336 to 434 at rest): a belly already bowed by its volume (the bulge steps) needs less, and the inset is what that bow takes away. */
+export const BELLY = { top: 470, foot: 954, share: 0.36 } as const;
+export function bellyPolygon(poly: readonly (readonly [number, number])[]): [number, number][] {
+  let inset = 0; for (const q of poly) if (q[1] >= BELLY.foot - 1e-6 && q[1] <= BELLY.foot + 1e-6 && q[0] < 712) inset = Math.max(inset, q[0] - 336);
+  const a = BELLY.share * inset;
+  return poly.map(([x, y]) => {
+    if (!(y > BELLY.top && y < BELLY.foot)) return [x, y];
+    const push = a * Math.sin(Math.PI * (y - BELLY.top) / (BELLY.foot - BELLY.top));
+    return [x < 712 ? x - push : x + push, y];
+  });
+}
 const POLYS = new Map<number, [number, number][]>();
-export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, outlinePolygon(ABDOMEN_OUTLINES[step]!)), POLYS.get(step)!);
+export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!))), POLYS.get(step)!);
 
 /** Where a vertical line at x crosses the polygon: its lowest and highest y (2D, y down), or null outside it. */
 export function crossings(poly: readonly [number, number][], x: number): [number, number] | null {

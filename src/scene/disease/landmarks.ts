@@ -2,11 +2,11 @@
 // drawAscites, `.flank`). It lies behind the organs. 2D also draws the navel's ring while the paraumbilical vein is open (caput medusae, stage-diaphragm.js caputK, in quarters); the 3D figure does not (Mohammad, 22 Nov: the tan ring beside the
 // caput's hub was an artefact), but the eased share is kept (`state().navel`).
 import { BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial } from 'three';
-import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { rawColor } from '../materials/cel.ts';
 import { type LookId } from '../../looks/looks.ts';
 import { x3, y3 } from '../frame2d.ts';
-import { outlinePolygon, bulgeStep, bellyZ } from './ascites.ts';
+import { bulgeStep, bellyZ } from './ascites.ts';
+import { polyOf } from './ascites-pool.ts';
 import { Eased, stepHeld } from './follow.ts';
 
 /** The flank's line (2D .flank: --organ-body-line, 1.4 wide, at .8) */
@@ -18,7 +18,7 @@ export const FLANK_ORDER = -1;
 const QUARTERS = [0, 0.25, 0.5, 0.75, 1];
 
 /** The flank line for a bulge step: the wall's outline without its two top corners, in 2D units. */
-export function flankPoints(step: number): [number, number][] { const p = outlinePolygon(ABDOMEN_OUTLINES[step]!); return p.slice(1, p.length - 1); }
+export function flankPoints(step: number): [number, number][] { const p = polyOf(step); return p.slice(1, p.length - 1); }
 
 /** A flat ribbon of the given half width along a polyline (2D units in, scene units out), at depth z. */
 export function ribbon(pts: readonly (readonly [number, number])[], half: number, z: number): BufferGeometry {

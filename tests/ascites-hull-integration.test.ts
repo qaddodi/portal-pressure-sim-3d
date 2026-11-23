@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { PerspectiveCamera, Raycaster, Vector3 } from 'three';
 import { AscitesLayer, bellyZ, bulgeStep, outlinePolygon, SHELL_BACK_ORDER } from '../src/scene/disease/ascites.ts';
 import { HULL, HullLayout, hullThickness } from '../src/scene/disease/ascites-hull.ts';
+import { polyOf } from '../src/scene/disease/ascites-pool.ts';
 import { HULL_MID, HULL_TB_MAX, HULL_TF_MAX, HULL_VS, hullVertex } from '../src/scene/disease/ascites-hull-glsl.ts';
 import { fluidBase, fluidLevel } from '../src/scene/disease/copied/fluid-step.js';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
@@ -74,7 +75,7 @@ test('the flank ribbon lies on the hull\'s middle plane', () => {
 test('the tap goes through the hull: a ray at the middle of the water hits it, 60 units outside the wall misses', () => {
   const a = new AscitesLayer(); a.set(5000); a.step(0.016, 0);
   const ray = (x: number, y: number): Raycaster => new Raycaster(new Vector3(x, y, 5), new Vector3(0, 0, -1));
-  const poly = outlinePolygon(ABDOMEN_OUTLINES[bulgeStep(5000)]!), left = Math.min(...poly.map((q) => q[0]));
+  const poly = polyOf(bulgeStep(5000)), left = Math.min(...poly.map((q) => q[0]));
   const { h } = fluidLevel(5000);
   const y = fluidBase(712, h) + 80;
   const hit = a.pick(ray(x3(712), y3(y)));
@@ -84,7 +85,7 @@ test('the tap goes through the hull: a ray at the middle of the water hits it, 6
 });
 
 test('round when turned: the projected outline turns <= 15 degrees between rows and has no straight run over 40 CSS px', () => {
-  const ml = 8500, step = bulgeStep(ml), poly = outlinePolygon(ABDOMEN_OUTLINES[step]!), { h } = fluidLevel(ml);
+  const ml = 8500, step = bulgeStep(ml), poly = polyOf(step), { h } = fluidLevel(ml);
   let ymin = Infinity; for (const q of poly) ymin = Math.min(ymin, q[1]);
   const L = new HullLayout(); L.lay(poly, (x) => Math.max(fluidBase(x, h), ymin));
   const s = SHOTS.play, [tx, ty, tz] = s.target, r = s.r, yaw = 25 * D2R;
