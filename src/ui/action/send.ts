@@ -4,26 +4,10 @@ import { engine } from '../../engine/boot.ts';
 import { live } from '../../engine/store.ts';
 import { timeline } from '../timeline/index.ts';
 import { useShell } from '../shell/store.ts';
-import { TREAT_WORDS } from '../treat/treat.generated.ts';
+import { actionLabel, type Action } from './action-label.ts';
 import { talkOn } from '../../state/deck.ts';
 
-type Action = { kind: string; [k: string]: unknown };
-
-const FLUID_LABEL: Record<string, string> = { crystalloid: '1 L crystalloid', prbc: '1 unit PRBC', albumin: 'Albumin infusion' };
-
-/** The History label of an action (the 2D doAction's table), or '' when it has none. */
-export function actionLabel(a: Action): string {
-  switch (a.kind) {
-    case 'infuse': return FLUID_LABEL[String(a.fluid)] ?? '';
-    case 'hemorrhage': return `Hemorrhage ${a.mL} mL`;
-    case 'band': return TREAT_WORDS.procedures.band.label;
-    case 'valsalva': return 'Valsalva';
-    case 'rupture': return 'Varix ruptured (manual)';
-    case 'stopBleed': return 'Bleeding stopped';
-    case 'paracentesis': return `Paracentesis ${(((a.mL as number) || 0) / 1000).toFixed(1)} L${a.albumin ? ' + albumin' : ''}`;
-    default: return '';
-  }
-}
+export { actionLabel };
 
 export const BANDS_MAX = 4;   // (the engine's cap, engine.band)
 const FLUID_SAYS: Record<string, string> = { crystalloid: '1 L crystalloid running (≈25% stays intravascular).', prbc: '1 unit of packed red cells running.', albumin: 'Albumin given: plasma oncotic pressure rises.' };

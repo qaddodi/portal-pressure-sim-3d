@@ -118,6 +118,11 @@
   ],
   "restore": [
    {
+    "file": "src/ui/histories/open.ts",
+    "follows": "local setParams(sanitizeParams(snap.params)) beside the send; the baked days are laid in by the feed on the jump frame",
+    "tick": "setParams"
+   },
+   {
     "file": "src/ui/timeline/index.ts",
     "follows": "local setParams(sanitizeParams(snap.params)) beside the send",
     "tick": "setParams"
