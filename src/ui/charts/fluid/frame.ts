@@ -95,13 +95,19 @@ export function fluidFrame(f: Fluid | null, forces: Forces | null, c: ChartCtx, 
     const tileW = two ? (W - gap) / 2 : W, padX = 0.7 * em, inner = tileW - 2 * padX;
     const bn = 1.7 * em, bnLine = 1.15 * bn, small = 0.6 * bn;
     const capH = row, nH = bnLine, plateH = 0.5 * em + 2 * 0.18 * em, footH = row, tg = 0.1 * em;
-    const tileH = 0.6 * em + capH + tg + nH + tg + plateH + tg + footH + 0.65 * em;
+    // (nothing is cut: a caption or a foot too long for its tile wraps to a second line, and both tiles stand as tall as the taller; owner rule "nothing is clipped", review bbe955e5 item 8)
+    const spaced = (t: string, sz: number, wt?: number) => measure(t, sz, wt) + 0.06 * sz * t.length;
+    const fw2 = two && forces ? forcesWords(forces.out, forces.pull) : null;
+    const specs = [{ cap: 'Liver + gut lymph', foot: sw.limit }, ...(two ? [{ cap: 'Net filtration', foot: fw2 ? fw2.wFoot : '' }] : [])];
+    const capLines = specs.map((t) => wrapWords(t.cap.toUpperCase(), inner, em, 500, spaced, Infinity)), footLines = specs.map((t) => wrapWords(t.foot, inner, em, 500, measure, Infinity));
+    const capN = Math.max(1, ...capLines.map((l) => l.length)), footN = Math.max(1, ...footLines.map((l) => l.length));
+    const tileH = 0.6 * em + capN * capH + tg + nH + tg + plateH + tg + footN * footH + 0.65 * em;
     const tileBg = a(text, 0.055);
-    const tile = (x: number, cap: string, num: string, unit: string, foot: string, gauge: ((gx: number, gy: number, gw: number) => void) | null) => {
+    const tile = (x: number, at: number, num: string, unit: string, gauge: ((gx: number, gy: number, gw: number) => void) | null) => {
       shapes.push({ k: 'rect', x, y, w: tileW, h: tileH, r: 0.75 * em, fill: tileBg });
       let ty = y + 0.6 * em;
-      say(x + padX, ty + capH / 2, ellip(cap.toUpperCase(), inner - 0.06 * em * cap.length, em, 500), em, 500, text3, 'start', { ls: 0.06, upper: true });
-      ty += capH + tg;
+      capLines[at]!.forEach((ln, q) => say(x + padX, ty + capH * (q + 0.5), ln, em, 500, text3, 'start', { ls: 0.06, upper: true }));
+      ty += capN * capH + tg;
       // (the number and its unit share a baseline: the line box's half-leading puts it .5 (1.15 − 1.21) em of the number's size above the content area)
       const base = ty + 0.5 * (1.15 - 1.21) * bn + 0.969 * bn;
       const nw = measure(num, bn, 500);
@@ -111,9 +117,9 @@ export function fluidFrame(f: Fluid | null, forces: Forces | null, c: ChartCtx, 
       ty += nH + tg;
       if (gauge) gauge(x + padX, ty + 0.18 * em, inner);
       ty += plateH + tg;
-      say(x + padX, ty + footH / 2, ellip(foot, inner, em, 500), em, 500, text3);
+      footLines[at]!.forEach((ln, q) => say(x + padX, ty + footH * (q + 0.5), ln, em, 500, text3));
     };
-    tile(0, 'Liver + gut lymph', mlInt(d.made), 'mL/day', sw.limit, (gx, gy, gw) => {
+    tile(0, 0, mlInt(d.made), 'mL/day', (gx, gy, gw) => {
       const bar = 0.5 * em, P = gaugeParts({ carried: d.carried, over: d.over, room: Math.max(0, d.room) }, gw);
       slot(gx, gy, gw, bar, 0.3 * em);
       part('fluid.seg.car', gx + P.car.x, P.car.w, gy, gy + bar, [0.25, 0.25], [END_ROUND, END_ROUND]);
@@ -124,8 +130,8 @@ export function fluidFrame(f: Fluid | null, forces: Forces | null, c: ChartCtx, 
       }
     });
     if (two) {
-      const fw = forces ? forcesWords(forces.out, forces.pull) : null;
-      tile(tileW + gap, 'Net filtration', fw ? fw.wNum : NOT_SHOWN, fw ? fw.wUnit : '', fw ? fw.wFoot : '', forces ? (gx, gy, gw) => tug(gx, gy, gw, forces, true) : null);
+      const fw = fw2;
+      tile(tileW + gap, 1, fw ? fw.wNum : NOT_SHOWN, fw ? fw.wUnit : '', forces ? (gx, gy, gw) => tug(gx, gy, gw, forces, true) : null);
     }
     y += tileH + 0.3 * em;
     // the answer: the sentence and the day's change, baseline aligned (margin-top .35em)
@@ -134,10 +140,12 @@ export function fluidFrame(f: Fluid | null, forces: Forces | null, c: ChartCtx, 
     const nc = sw.dir === 'up' ? pal.tok('caution-ink') : sw.dir === 'down' ? pal.tok('ok-ink') : text;
     const nw = measure(sw.net, ns, 600);
     say(W, ansBase, sw.net, ns, 600, nc, 'end', { baseline: 'alphabetic' });
-    say(0, ansBase, ellip(sw.title, W - nw - 0.6 * em, ts, 500), ts, 500, text, 'start', { baseline: 'alphabetic' });
-    y += ansH + 0.3 * em;
-    say(0, y + row / 2, ellip(sw.detail, W, em, 500), em, 500, text3);
-    y += row;
+    const titleLines = wrapWords(sw.title, W - nw - 0.6 * em, ts, 500, measure, Infinity);
+    titleLines.forEach((ln, q) => say(0, ansBase + q * ansH, ln, ts, 500, text, 'start', { baseline: 'alphabetic' }));
+    y += titleLines.length * ansH + 0.3 * em;
+    const detailLines = wrapWords(sw.detail, W, em, 500, measure, Infinity);
+    detailLines.forEach((ln, q) => say(0, y + row * (q + 0.5), ln, em, 500, text3));
+    y += row * detailLines.length;
     label = `Fluid balance, mL/day: ${sw.title}${d.net ? `, ${mlInt(Math.abs(d.net))}` : ''}. Lymph formation ${mlInt(d.made)} (hepatic ${mlInt(d.liver)}, splanchnic ${mlInt(d.gut)}); thoracic duct and lymphatic drainage ${mlInt(d.carried)}, capacity ${mlInt(d.limit)}${d.room > 0 ? `, ${mlInt(d.room)} unused` : ''}. ${sw.detail}`;
   } else {
     // ── the flow picture ──

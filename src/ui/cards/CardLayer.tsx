@@ -29,6 +29,7 @@ import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates, ensureStates } from '../../decks/hp/calc.ts';
+import { mergeStates } from '../charts/baked/view.ts';
 import { inputsIn, wordsStateIndex, GIVE_UP_MS } from './inputs-in.ts';
 import { tokensOf } from '../text/tokens.ts';
 import { Strip } from '../wallet/Strip.tsx';
@@ -192,7 +193,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const [late, setLate] = useState('');
   useEffect(() => { const t = clock.after(() => setLate(pagesKey), 320); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
-  const states = useStates((st) => st.results[deck.id]);
+  // (the states baked at build time count as in: the cards of a slide opened first by a link or a jump no longer wait for the whole live chain to be worked out, 6 s and more on a phone: Encephalopathy 8, review bbe955e5)
+  const liveStates = useStates((st) => st.results[deck.id]);
+  const states = useMemo(() => mergeStates(deck.id, liveStates), [deck.id, liveStates]);
   const toolAt = view?.data && here?.key.startsWith('tool:') && carried && copiedOf(deck.id) ? deck.slides.findIndex((x) => x.id === carried.id) : -1;
   // (and the words card whose line prints the slide's own readings waits for that slide's state too: no "…" holes in the sentence, wordsStateIndex)
   const wordsAt = view?.slide && view.words === 'teach' ? wordsStateIndex(view.slide.line, deck.slides.findIndex((x) => x.id === view.slide!.id), !!copiedOf(deck.id), (t) => tokensOf(t).some((q) => q.token.kind === 'value' && !q.token.at)) : -1;

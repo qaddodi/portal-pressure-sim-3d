@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
@@ -10,6 +10,11 @@ import { useVariant } from '../talk/variant-words.ts';
 import { variantsOf, idOf } from './variants.ts';
 import { cardFields } from './card-fields.ts';
 import { richOf } from '../text/rich.ts';
+import { useStates } from '../../decks/hp/calc.ts';
+import { copiedOf } from '../../decks/hp/deck.ts';
+import { mergeStates } from '../charts/baked/view.ts';
+import { modelLines } from '../charts/flowtime/model.ts';
+import { valueText, VALUE_PENDING } from '../text/tokens.ts';
 
 
 const eqClass = (p: EqPart) => (p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined);
@@ -34,12 +39,34 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
   const many = list.length > 1;
   // (roll-reserve.ts `still`: nothing on the slide can bring a very different reading, so a reading keeps only its own width and no gap stands after it)
   const ctl = slide.controls, still = !slide.lapse && !ctl?.whatIf && !ctl?.strain && !ctl?.compare?.opts.some((o) => o.preset || o.slide);
+  // (roll-reserve.ts: only a slider or a strain can take a reading far from where it stands, so only they hold a minus slot; a time-lapse's readings hold the width of the widest they take on its days, not a padded one)
+  const live = !!(ctl?.whatIf || ctl?.strain);
+  const liveStates = useStates((st) => (deck ? st.results[deck.id] : undefined));
+  const seen = useMemo(() => {
+    const idx = deck ? deck.slides.findIndex((x) => x.id === slide.id) : -1;
+    if (!deck || !slide.lapse || live || ctl?.compare?.opts.some((o) => o.preset || o.slide) || idx < 0) return undefined;
+    const states = mergeStates(deck.id, liveStates) as readonly ({ fp?: Record<string, number | null | undefined>; start?: { fp?: Record<string, number | null | undefined> }; trail?: unknown } | undefined)[] | undefined;
+    const here = states?.[idx];
+    if (!here?.fp) return undefined;
+    const fps = [here.fp, idx > 0 ? states?.[idx - 1]?.fp : null, here.start?.fp].filter(Boolean) as Record<string, number | null | undefined>[];
+    const tl = (copiedOf(deck.id)?.slides[idx] as { tool?: { lines?: readonly string[] } } | undefined)?.tool?.lines;
+    const model = tl ? modelLines(tl) : [], rows = Array.isArray(here.trail) ? (here.trail as readonly (readonly number[])[]) : [];
+    return (key: string, whole: boolean): readonly string[] | undefined => {
+      if (key === 'map' || key === 'plt') return undefined;
+      const vals = fps.map((f) => f[key]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      const c = model.indexOf(key);
+      if (c >= 0) for (const r of rows) { const v = r[1 + c]; if (typeof v === 'number' && Number.isFinite(v)) vals.push(v); }
+      if (!vals.length) return undefined;
+      const lo = Math.min(...vals), hi = Math.max(...vals);
+      return [lo, hi].map((v) => valueText(key, { [key]: v }, whole)).filter((t) => t !== VALUE_PENDING);
+    };
+  }, [deck, slide, live, ctl, liveStates]);
   const titles = (Tag: 'h1' | 'h2', style?: CSSProperties) => many
     ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here; return <Tag key={idOf(w)} className="pz-h" style={style} data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}>{w.title}</Tag>; })}</div>
     : <Tag className="pz-h" style={style}>{shown.title}</Tag>;
   const lines = () => many
-    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here, t = on ? text : pageOf(sentences(w.line), pages, page).join(' '), g = on ? f : cardFields(deck, slide, { ...slide, ...w }, page, pages); return t ? <p key={idOf(w)} className="pz-line" data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}><Line text={t} read={read} slide={rich} fp={fp} pill={g.pill} still={still} /></p> : null; })}</div>
-    : text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} still={still} /></p> : null;
+    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here, t = on ? text : pageOf(sentences(w.line), pages, page).join(' '), g = on ? f : cardFields(deck, slide, { ...slide, ...w }, page, pages); return t ? <p key={idOf(w)} className="pz-line" data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}><Line text={t} read={read} slide={rich} fp={fp} pill={g.pill} still={still} seen={seen} minus={live} /></p> : null; })}</div>
+    : text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} still={still} seen={seen} minus={live} /></p> : null;
   const eq = slide.eq && page === 0;
   const rich = richOf(slide);
   // the title's one step down when a sideways phone has no wider column left: 2D's own knob for it (--pz-tk), set from the trimmed size
@@ -78,7 +105,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       {lines()}
       {f.sides.length ? (
         <div className="pz-sides" role="group" aria-label="What each guideline says">
-          {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} slide={rich} fp={fp} still={still} /></p></div>)}
+          {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} slide={rich} fp={fp} still={still} seen={seen} minus={live} /></p></div>)}
         </div>
       ) : null}
       {f.caveat ? <p className="pz-caveat">{f.caveat}</p> : null}
