@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { marksOf, isMed, type EntryIn } from '../src/ui/bigtime/marks.ts';
 import { valueAt, tickStep, pointsIn, type Series } from '../src/ui/bigtime/record.ts';
 import { buildData, baseName } from '../src/ui/bigtime/data.ts';
-import { bigFrame, stripFrame, leadOf, type BigIn } from '../src/ui/bigtime/frame.ts';
+import { bigFrame, stripFrame, leadOf, TITLE_H, type BigIn } from '../src/ui/bigtime/frame.ts';
 import { before, isTips, tipsFacts, readingsAt } from '../src/ui/bigtime/facts.ts';
 import { zoomed, slid } from '../src/ui/bigtime/store.ts';
 import { dayExtras } from '../src/ui/bigtime/day-keys.ts';
@@ -133,9 +133,11 @@ test('a phone sets the event names upright; a wide card sets them in rows above 
   for (const a of wide) for (const b of wide) if (a !== b && Math.abs(a.y - b.y) < 1) assert.ok(a.x + a.s.length * 6 < b.x || b.x + b.s.length * 6 < a.x, `${a.s} over ${b.s}`);
 });
 
-test('no cursor: the lane titles read the newest day and there is no crosshair; nothing chosen says so', () => {
+test('no cursor: the lane titles are the names alone (a reading at the left edge would be the newest day beside a line that starts elsewhere) and there is no crosshair; nothing chosen says so', () => {
   const f = bigFrame(inp({ cursor: null }), ctxOf('light', 760)).frame;
   assert.ok(!f.shapes.some((s) => s.k === 'text' && /^Day \d/.test(s.s)));
+  const titles = f.shapes.filter((s): s is TextShape => s.k === 'text' && s.weight === 600 && s.y < 400 && /\d/.test(s.s) && s.x < 300 && !/^\d+$/.test(s.s) && !s.s.startsWith('Day'));
+  assert.deepEqual(titles.filter((t) => /(mmHg| L|%)$|^\d+\.\d$/.test(t.s)).map((t) => t.s), [], 'no reading in a lane title without the crosshair');
   const none = bigFrame(inp({ on: [], hvpg: null, meds: [], lines: [] }), ctxOf('light', 760)).frame.shapes.filter((s): s is TextShape => s.k === 'text');
   assert.ok(none.some((t) => /Nothing chosen/.test(t.s)));
 });
@@ -239,4 +241,52 @@ test('the chart is one tap from the timeline bar: a Chart button beside Compare,
   assert.ok(/chart && <button[^\n]*open\('timeline'\)/.test(bar) && /chart=\{upright\}/.test(bar), 'the jump menu carries it where the row has no room');
   const css = readFileSync(new URL('../src/ui/css3d-over-2d.css', import.meta.url), 'utf8');
   assert.ok(/max-width: 599px\) and \(orientation: portrait\) \{ \.vdock \.tl-pin\.tl-chart \{ display: none/.test(css), 'hidden only on a phone held upright');
+});
+
+
+test('root cause: a lane title has its own strip, so no curve is drawn through it (the "Shunt fraction 85%" title sat on the line)', () => {
+  for (const w of [380, 760, 1200]) {
+    const { frame, geo } = bigFrame(inp({ cursor: null }), ctxOf('dark', w));
+    for (const lane of geo.lanes) {
+      const top = lane.t + TITLE_H;
+      // every path (a measure's line) inside the lane stays below the title strip
+      for (const sh of frame.shapes) if (sh.k === 'path' && sh.pts.length >= 4) for (let i = 1; i < sh.pts.length; i += 2) if (sh.pts[i]! >= lane.t - 1 && sh.pts[i]! <= lane.t + lane.h + 1) assert.ok(sh.pts[i]! >= top - 1.5, `${w}: a line at y ${sh.pts[i]} is over the ${lane.id} title`);
+    }
+  }
+});
+
+test('ascites ticks are every 2 L when the lane runs past 5 L, so no two crowd (1 to 8 stacked on one another)', () => {
+  const ticks = (max: number) => { const { frame, geo } = bigFrame(inp({ cursor: null, series: { ...inp().series, asc: { x: [0, 100], y: [0.5, max] } } }), ctxOf('dark', 1200)), a = geo.lanes.find((l) => l.id === 'asc')!; return frame.shapes.filter((s): s is TextShape => s.k === 'text' && /^\d$/.test(s.s) && s.x < 40 && s.anchor === 'end' && s.y >= a.t && s.y <= a.t + a.h + 1).map((t) => t.s); };
+  const tall = ticks(7);
+  assert.ok(tall.includes('4') && tall.includes('6') && !tall.includes('3') && !tall.includes('5'), `7 L: ${tall}`);
+});
+
+test('an event that comes again (Ascites forming) keeps its line and says its words once', () => {
+  const again = [E(1, 'event', 20, 'Ascites forming', { sev: 'caution' }), E(2, 'event', 60, 'Ascites forming', { sev: 'caution' }), E(3, 'event', 90, 'Ascites forming', { sev: 'caution' })];
+  const m = marksOf([E(0, 'start', 0, 'P', { params: {} }), ...again], LABELS);
+  for (const w of [380, 1200]) {
+    const f = bigFrame(inp({ lines: m.lines, meds: [] }), ctxOf('light', w)).frame;
+    assert.equal(f.shapes.filter((s) => s.k === 'text' && (s.s === 'Ascites forming' || s.s === 'Ascites')).length, 1, `${w}: said once`);
+    assert.equal(f.shapes.filter((s) => s.k === 'line' && s.y2 > 100 && s.x1 === s.x2 && s.pen && s.pen.w <= 1.6).length >= 3, true, `${w}: one line each`);
+  }
+});
+
+test('the What to graph list: every measure with a record is a row (Splenic, SMV, EUS-PPG too), the group head carries the unit, and the rows share the room the card gives (nothing cut at the foot)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/ui/bigtime/Chooser.tsx', import.meta.url), 'utf8'), css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
+  assert.ok(!/WORDS_ONLY/.test(src), 'no measure is only words');
+  assert.ok(/--bt-n/.test(src) && /\.bt-choose \{ --bt-row: clamp\(26px, calc\(\(100cqh/.test(css) && /container-type: size/.test(css), 'the row height is its share of the body');
+  assert.equal(MEASURE_OF.co!.row!(8.04), '8.0');
+  assert.equal(MEASURE_OF.co!.words(8.04), '8.0 L/min');
+  assert.equal(MEASURE_OF.asc!.row!(6.74), '6.7');
+});
+
+test('root cause (EUS-PPG had no history line): every saved patient history carries every key the day record keeps today, so a key added later fails here until the histories are baked again', async () => {
+  const { LOAD } = await import('../src/ui/histories/index.generated.ts');
+  const want = ['hvpg', 'asc', 'shunt', 'co', 'ppg', 'eus', 'var', 'smv'];
+  for (const [id, load] of Object.entries(LOAD)) {
+    const { days } = await (load as () => Promise<{ days: { v: Record<string, number> }[] }>)();
+    const last = days[days.length - 1]!.v;
+    for (const k of want) assert.ok(k in last, `${id}: no "${k}" in its days: run node scripts/gen-histories.mjs`);
+  }
 });

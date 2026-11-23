@@ -20,6 +20,8 @@ export interface Measure {
   scale: (v: number) => number;
   /** the reading in words, in the lane's unit */
   words: (v: number) => string;
+  /** the reading as the list's row writes it when the group's header already names the unit ("6.7" under Volume L); `words` when absent */
+  row?: (v: number) => string;
   /** the Over time pane's hide rule: a measure the learner has not yet measured is not drawn */
   hide?: 'pv' | 'trueHVPG' | 'ra';
   /** drawn when the card first opens */
@@ -42,9 +44,9 @@ export const MEASURES: readonly Measure[] = [
   { id: 'hvpg', key: 'hvpg', name: 'HVPG', short: 'HVPG', group: 'gradients', lane: 'hvpg', tok: 'tr-hvpg', scale: same, words: mm, hide: 'trueHVPG', on: true },
   { id: 'ppg', key: 'ppg', name: 'PPG', short: 'PPG', group: 'gradients', lane: 'hvpg', tok: 'tr-ppg', scale: same, words: mm, hide: 'pv', on: false },
   { id: 'eus', key: 'eus', name: 'EUS-PPG', short: 'EUS-PPG', group: 'gradients', lane: 'hvpg', tok: 'tr-hv', scale: same, words: mm, hide: 'pv', on: false },
-  { id: 'asc', key: 'asc', name: 'Ascites volume', short: 'Ascites', group: 'volume', lane: 'asc', tok: 'asc', scale: same, words: (v) => `${fmt(v, 1)} L`, on: true },
+  { id: 'asc', key: 'asc', name: 'Ascites volume', short: 'Ascites', group: 'volume', lane: 'asc', tok: 'asc', scale: same, words: (v) => `${fmt(v, 1)} L`, row: (v) => fmt(v, 1), on: true },
   { id: 'shunt', key: 'shunt', name: 'Shunt fraction', short: 'Shunt fraction', group: 'shunt', lane: 'shunt', tok: 'shunt', scale: (v) => v * 100, words: (v) => `${Math.round(v * 100)}%`, on: true },
-  { id: 'co', key: 'co', name: 'Cardiac output', short: 'Cardiac output', group: 'heart', lane: 'co', tok: 'tr-ra', scale: same, words: (v) => `${fmt(v, 1)} L/min`, on: false },
+  { id: 'co', key: 'co', name: 'Cardiac output', short: 'Cardiac output', group: 'heart', lane: 'co', tok: 'tr-ra', scale: same, words: (v) => `${fmt(v, 1)} L/min`, row: (v) => fmt(v, 1), on: false },
 ];
 export const MEASURE_OF: Readonly<Record<string, Measure>> = Object.fromEntries(MEASURES.map((m) => [m.id, m]));
 /** the HVPG lane is always the headline (the mocks): its own key and word */
@@ -55,7 +57,7 @@ export const GROUPS: readonly { id: GroupId; name: string; unit: string }[] = [
   { id: 'gradients', name: 'Gradients', unit: 'mmHg' },
   { id: 'volume', name: 'Volume', unit: 'L' },
   { id: 'shunt', name: 'Shunt', unit: '% of splanchnic inflow' },
-  { id: 'heart', name: 'Heart', unit: '' },
+  { id: 'heart', name: 'Heart', unit: 'L/min' },
 ];
 /** the cut-offs a lane draws, from the model's own (pressure-cuts.js: HVPG 10 and 12; flow cuts: the large shunt 0.3; ascites grades 150 mL and 1500 mL) */
 export const CASE_ONLY = ['Sodium', 'Creatinine', 'Bilirubin', 'INR', 'MELD-Na'] as const;

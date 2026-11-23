@@ -41,6 +41,8 @@ export interface Geo {
 const WEIGHT: Record<LaneId, number> = { p: 3, hvpg: 1.5, asc: 1.7, shunt: 1.7, co: 1.4 };
 const ORDER: readonly LaneId[] = ['p', 'hvpg', 'asc', 'shunt', 'co'];
 export const ROW_H = 17, MED_H = 24, AXIS_H = 24, GAP = 22;
+/** the strip at the top of each lane that holds its title: the lines are drawn below it, so a title never sits on a curve */
+export const TITLE_H = 20;
 
 /** a measure's colour, and its ink for words (the palette's `-ink` twin where it has one; the shunt and the origin colours are the figure's own) */
 export function colourOf(pal: Palette, tok: string): Rgba {
@@ -77,7 +79,7 @@ function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
   if (!ms.length) return null;
   const peak = Math.max(...ms.map((m) => maxOf(inp.series[m.id]) * (m.id === 'shunt' ? 100 : 1)));
   if (id === 'p') { const max = niceMax(peak, 24, 4); return { id, ms, max, ticks: max > 40 ? [0, 20, 40, 60].filter((t) => t <= max) : [0, 10, 20, 30].filter((t) => t <= max), cuts: [] }; }
-  if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i), fill: true, cuts: [{ v: ASCITES_CUTS[1]! / 1000, word: `Grade 2 · ${ASCITES_CUTS[1]! / 1000} L`, ink: 'text-2' }, { v: ASCITES_CUTS[0]! / 1000, word: `Grade 1 · ${ASCITES_CUTS[0]! / 1000} L`, ink: 'text-3' }] }; }
+  if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i).filter((t) => max <= 5 || t % 2 === 0), fill: true, cuts: [{ v: ASCITES_CUTS[1]! / 1000, word: `Grade 2 · ${ASCITES_CUTS[1]! / 1000} L`, ink: 'text-2' }, { v: ASCITES_CUTS[0]! / 1000, word: `Grade 1 · ${ASCITES_CUTS[0]! / 1000} L`, ink: 'text-3' }] }; }
   if (id === 'shunt') { const max = Math.min(100, niceMax(peak, 70, 10)); return { id, ms, max, ticks: [0, 20, 40, 60, 80, 100].filter((t) => t <= max), cuts: [{ v: FLOW_CUTS.shuntLarge * 100, word: `Large shunt ${Math.round(FLOW_CUTS.shuntLarge * 100)}%`, ink: 'text-2' }] }; }
   const max = niceMax(peak, 9, 3);
   return { id, ms, max, ticks: Array.from({ length: Math.floor(max / 3) + 1 }, (_, i) => i * 3), cuts: [] };
@@ -116,8 +118,11 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const placed: Placed[] = [];
   let top: number;
   if (!phone) {
-    const end: number[] = [];
+    const end: number[] = [], told = new Set<string>();
     for (const e of lines) {
+      // the same event again (Ascites forming, four times) keeps its line and loses its words: the first one says it, History lists every day
+      if (e.kind === 'event' && told.has(e.label)) { placed.push({ e, x: X(e.day), r: -1, w: 0 }); continue; }
+      told.add(e.label);
       const w = measure(e.label, fs, e.tone === 'change' ? 600 : 500), x = Math.min(X(e.day) + 5, W - 6 - w);
       let r = 0; while (end[r] != null && end[r]! > x - 8) r++;
       end[r] = x + w; placed.push({ e, x, r, w });
@@ -125,7 +130,10 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     top = 6 + Math.max(2, end.length) * ROW_H + 8;
   } else {
     let band = 40, lastR = -1e9, lastSide = 'r' as 'l' | 'r';
+    const told = new Set<string>();
     for (const e of lines) {
+      if (e.kind === 'event' && told.has(e.label)) { placed.push({ e, x: X(e.day), r: -1, w: 0, side: 'l', ls: [] }); continue; }
+      told.add(e.label);
       const ls = wrap2(e.label, fs), w = Math.max(...ls.map((l) => measure(l, fs, e.tone === 'change' ? 600 : 500)));
       const need = ls.length * 14, x = X(e.day);
       const side: 'l' | 'r' = x - need < lastR && lastSide === 'l' ? 'r' : 'l';
@@ -147,7 +155,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
 
   // zones, grids, cut-offs
   for (const g of geoLanes) {
-    const Y = (v: number) => g.t + g.h - v / g.s.max * g.h;
+    const Y = (v: number) => g.t + g.h - v / g.s.max * (g.h - TITLE_H);
     if (g.s.zone) {
       const N = 40;
       for (let i = 0; i < N; i++) {
@@ -197,11 +205,11 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   // event lines (behind the traces), then the traces
   shapes.push({ k: 'clip', x: L, y: 0, w: plotW, h: bottom + 1 });
   for (const p of placed) {
-    const ink = toneInk(pal, p.e.tone), line0 = phone ? top - 8 - p.w - 8 : p.r * ROW_H + 14;
+    const ink = toneInk(pal, p.e.tone), line0 = p.r < 0 ? top - 6 : phone ? top - 8 - p.w - 8 : p.r * ROW_H + 14;
     shapes.push({ k: 'line', x1: X(p.e.day), y1: Math.max(2, line0), x2: X(p.e.day), y2: bottom, pen: pen(pal.alpha(ink, p.e.tone === 'change' ? 0.85 : 0.55), p.e.tone === 'change' ? 1.6 : 1) });
   }
   for (const g of geoLanes) {
-    const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * g.h;
+    const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * (g.h - TITLE_H);
     if (g.s.zone && inp.hvpg) { const pts = pointsIn(inp.hvpg, x0, x1, X, Y), col = colourOf(pal, HVPG.tok); shapes.push(pts.length >= 4 ? { k: 'path', pts, pen: pen(col, 2.2, { cap: 'round', join: 'round' }) } : { k: 'circle', cx: pts[0] ?? 0, cy: pts[1] ?? 0, r: 4, fill: col }); }
     for (const m of g.s.ms) {
       const s = inp.series[m.id]!, sc: Series = m.id === 'shunt' ? { x: s.x, y: s.y.map((v) => v * 100) } : s;
@@ -215,8 +223,8 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     }
   }
   shapes.push({ k: 'unclip' });
-  // lane titles: the name in plain weight, the reading at the crosshair (the newest day when there is none) bold, in the measure's ink
-  const at = inp.cursor ?? inp.full[1];
+  // lane titles: the name in plain weight and, with the crosshair on a day, that day's reading bold in the measure's ink (without one the title is the name alone: a reading at the left edge would be the newest day's, beside a line that starts somewhere else)
+  const at = inp.cursor ?? inp.full[1];   // (the words of a reading, only when the crosshair is down)
   for (const g of geoLanes) {
     let x = L + 8;
     const hv = g.s.zone ? [{ name: HVPG.name, val: valueAt(inp.hvpg, at) == null ? null : valueAt(inp.hvpg, at)!.toFixed(1).replace('-', '−'), ink: inkOf(pal, HVPG.tok) }] : [];
@@ -224,21 +232,21 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     for (const p of parts) {
       const nm = `${p.name} `;
       say({ x, y: g.t + 14, s: nm, color: p.ink, weight: 500 }); x += measure(nm, fs, 500);
-      if (p.val) { say({ x, y: g.t + 14, s: p.val, color: p.ink, weight: 600 }); x += measure(p.val, fs, 600); }
+      if (p.val && inp.cursor != null) { say({ x, y: g.t + 14, s: p.val, color: p.ink, weight: 600 }); x += measure(p.val, fs, 600); }
       x += 18;
     }
   }
   // event words
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
-    if (!phone) say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight });
+    if (!phone) { if (p.r >= 0) say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight }); }
     else (p.ls ?? []).forEach((l, i, a) => { const xx = p.side === 'r' ? X(p.e.day) + 5 + 11 + i * 14 : X(p.e.day) - 5 - (a.length - 1 - i) * 14; say({ x: xx, y: top - 8, s: l, color: ink, weight, rot: -90, anchor: 'start' }); });
   }
   // the crosshair
   if (cx != null && inp.cursor != null) {
     shapes.push({ k: 'line', x1: cx, y1: phone ? top - 6 : top - 4, x2: cx, y2: bottom, pen: pen(pal.alpha(text, 0.5), 1) });
     for (const g of geoLanes) {
-      const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * g.h;
+      const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * (g.h - TITLE_H);
       const dots: { v: number | null; col: Rgba }[] = [...(g.s.zone ? [{ v: valueAt(inp.hvpg, inp.cursor), col: colourOf(pal, HVPG.tok) }] : []),
         ...g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], inp.cursor!); return { v: v == null ? null : m.id === 'shunt' ? v * 100 : v, col: colourOf(pal, m.tok) }; })];
       for (const d of dots) if (d.v != null) shapes.push({ k: 'circle', cx, cy: Y(d.v), r: 3.8, fill: d.col, pen: pen(pal.tok('surface'), 1.6) });

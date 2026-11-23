@@ -27,7 +27,9 @@
 .bt-tabs button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text-3); transition: color var(--d-small) var(--ease); }
 .bt-tabs button[aria-pressed="true"] { color: var(--text); }
 .bt .bt-done { margin-left: auto; padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--accent); }
-.bt-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.bt-body { position: relative; flex: 1; min-height: 0; overflow: hidden; container-type: size; }
+/* the list shares the room the card gives it: a row is as tall as its share of what is left after the group heads and the case note (never over the standard row), so a long list never runs off the foot */
+.bt-choose { --bt-row: clamp(26px, calc((100cqh - 40px * var(--bt-g, 5) - 104px) / var(--bt-n, 10)), 42px); }
 
 .bt-grp header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: clamp(6px, 1.6vh, 14px) 0 4px; border-bottom: 1px solid var(--edge); font: 400 var(--t-cap) / 1.2 var(--ui); }
 .bt-grp header b { font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); }

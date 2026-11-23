@@ -1,6 +1,6 @@
 // "What to graph" (docs/approved/timeline-chart.md): the measures grouped by unit, each a row of its name in its colour, a small history line and the reading at the crosshair. A measure that is
 // off is grey. Medicines and procedures are words in the same list; the labs only a case can give are grey words with their reason.
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { Chart, type ChartCtx } from '../charts/Chart.tsx';
 import { pen, type Frame } from '../charts/scene.ts';
 import { paletteOf } from '../charts/palette.ts';
@@ -12,9 +12,6 @@ import { valueAt, pointsIn, maxOf, type Series } from './record.ts';
 import { useBig } from './store.ts';
 import { BT } from './words.ts';
 import { useLookId } from '../charts/Chart.tsx';
-
-/** the measures that are only words in the list, even on a wide card (nothing to compare them with at a glance) */
-const WORDS_ONLY = new Set(['sv', 'smv']);
 
 function Spark({ s, m, off }: { s: Series; m: Measure; off: boolean }) {
   const build = (c: ChartCtx): Frame => {
@@ -30,12 +27,15 @@ export function Chooser({ data, at, compact }: { data: Data; at: number; compact
   const look = useLookId(), pal = paletteOf(look);
   const css = (m: Measure) => toCss(inkOf(pal, m.tok));
   const meds = data.meds, procs = useMemo(() => [...new Set(data.lines.filter((l) => l.kind === 'change').map((l) => baseName(l.label)))], [data.lines]);
+  // (how many rows and groups the list holds, so the row height shares the room the card gives it: nothing scrolls, nothing is cut off at the foot)
+  const shown = GROUPS.map((g) => MEASURES.filter((m) => m.group === g.id && data.series[m.id])).filter((ms) => ms.length), nRows = shown.reduce((a, ms) => a + ms.filter((m) => !compact || on[m.id]).length, 0);
+  const sized = { '--bt-n': Math.max(1, nRows), '--bt-g': shown.length + (meds.length || procs.length ? 1 : 0) } as CSSProperties;
   return (
-    <div className="bt-choose">
+    <div className="bt-choose" style={sized}>
       {GROUPS.map((g) => {
         const ms = MEASURES.filter((m) => m.group === g.id && data.series[m.id]);
         if (!ms.length) return null;
-        const rows = ms.filter((m) => !WORDS_ONLY.has(m.id) && (!compact || on[m.id])), words = ms.filter((m) => !rows.includes(m));
+        const rows = ms.filter((m) => !compact || on[m.id]), words = ms.filter((m) => !rows.includes(m));
         return (
           <section key={g.id} className="bt-grp">
             <header><b>{g.name}</b><span>{g.unit}</span></header>
@@ -45,7 +45,7 @@ export function Chooser({ data, at, compact }: { data: Data; at: number; compact
                 <button key={m.id} type="button" className="bt-row" aria-pressed={!off} data-off={off || undefined} style={off ? undefined : { color: css(m) }} onClick={() => toggle(m.id)}>
                   <span className="bt-name">{m.name}</span>
                   <Spark s={data.series[m.id]!} m={m} off={off} />
-                  <span className="bt-val">{v == null ? '—' : m.words(v)}</span>
+                  <span className="bt-val">{v == null ? '—' : (m.row ?? m.words)(v)}</span>
                 </button>
               );
             })}
