@@ -14,7 +14,9 @@ import { collageLayout, slug, stampTime, deliverWay } from '../../capture/captur
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
-export interface AllUi { status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number }
+export interface AllUi { status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number;
+  /** capture this one talk only (its id); default every talk */ only?: string;
+  /** leave the talk open on this stop at the end (the talk the person was in); default the talk is left */ restore?: number }
 export interface AllResult { /** wall seconds for the whole run, and per slide: waiting for the slide to be still, drawing it */ secs: number; perSlide: { waitMs: number; drawMs: number }; speed: number; zip: Blob; zipName: string; collages: { name: string; blob: Blob }[]; shots: number; decks: number; stopped: boolean; notes: string[] }
 
 const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
@@ -58,9 +60,9 @@ async function sheet(title: string, thumbs: { n: number; title: string; img: HTM
 export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const encoding: Promise<void>[] = [];
   const at = new Date(), notes: string[] = [], files: ZipFile[] = [], collages: { name: string; blob: Blob }[] = [], enc = new TextEncoder();
-  const { failed } = await loadAllDecks();
+  const { failed } = ui.only && builtinDecks().some((d) => d.id === ui.only) ? { failed: [] as string[] } : await loadAllDecks();
   if (failed.length) notes.push(`these talks would not load, so they are not captured: ${failed.join(', ')}`);
-  const decks = builtinDecks(), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
+  const decks = builtinDecks().filter((d) => !ui.only || d.id === ui.only), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
   const speed = ui.speed && ui.speed > 1 ? ui.speed : 8, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   clock.setScale(speed);   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const rate = clock.every(() => speedAnimations(document, speed), sampleRealMs(33, speed));
@@ -109,13 +111,16 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       }
       if (stopped) break;
     }
-  } finally { clock.cancel(rate); clock.setScale(1); if (talkOn()) leaveTalk(); }
+  } finally {
+    clock.cancel(rate); clock.setScale(1);
+    if (ui.restore !== undefined && talkOn()) useUi.getState().go(ui.restore); else if (talkOn()) leaveTalk();   // (the talk the person was in stays open where they were)
+  }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
   files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x`, `${shots} slides in ${decksDone} talks${stopped ? ' (stopped early)' : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that exact view, the patient, the look, the camera, the sliders).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
-  return { secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-all-decks-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
+  return { secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
 }
 
 /** Hands a file over: the share sheet on a touch device that takes files, otherwise a download. Must be called from a tap (the share sheet asks for one). Resolves false when the person closed the sheet. */

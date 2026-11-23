@@ -33,6 +33,10 @@ export const CAPTURE = {
   notShared: 'Nothing was sent. Copy the link to reopen this exact view.', ready: 'Capture ready. Tap Share to send it.',
   share: 'Share', copyLink: 'Copy link', linkCopied: 'Link copied. It reopens this exact view.', linkFailed: 'Couldn’t copy the link from here.',
   failed: 'Couldn’t capture the screen. Try again in a moment.',
+  deckRow: 'Capture this deck', deckHint: 'Every slide of this talk as pictures, with a contact sheet',
+  stop: 'Stop', save: 'Save', deckStart: 'Capturing every slide of this talk. Tap Stop to keep what’s done.', deckStopping: 'Stopping after this slide.',
+  deckProgress: (n: number, total: number) => `Capturing slide ${Math.min(n + 1, total)} of ${total}. Tap Stop to keep what’s done.`,
+  deckDone: (n: number, stopped: boolean) => `${stopped ? 'Stopped. ' : ''}${n} slide${n === 1 ? '' : 's'} captured, with a contact sheet. Tap Save.`,
 } as const;
 export const BOOT_CRASH = { title: 'The simulator didn’t start', body: 'The model didn’t load, and reloading usually fixes it.', reload: 'Reload' } as const;
 /** The app-level safety net (AppBoundary.tsx): a render error outside a card never blanks the app. */

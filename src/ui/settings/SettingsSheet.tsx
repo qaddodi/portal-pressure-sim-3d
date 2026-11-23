@@ -72,8 +72,12 @@ function WrongHere() {
 
 /** Capture screen (3D only): one picture of the whole screen, for troubleshooting. The sheet lets go first, so it is not in the picture; the code is fetched when the row is first tapped. */
 function CaptureRow() {
+  const talk = useTalkOn();
   const touch = typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 1;
-  return <MenuItem icon="camera" label={CAPTURE.row} kb={touch ? null : '⌥⇧S'} title={CAPTURE.hint} onClick={() => { void import('../capture/capture.ts').then((m) => m.captureScreen({ settle: true })); }} />;
+  return (<>
+    <MenuItem icon="camera" label={CAPTURE.row} kb={touch ? null : '⌥⇧S'} title={CAPTURE.hint} onClick={() => { void import('../capture/capture.ts').then((m) => m.captureScreen({ settle: true })); }} />
+    {talk ? <MenuItem icon="grid" label={CAPTURE.deckRow} title={CAPTURE.deckHint} onClick={() => { void import('../capture/capture-deck.ts').then((m) => m.captureThisDeck()); }} /> : null}
+  </>);
 }
 
 type PageId = 'history' | 'help' | 'advanced';

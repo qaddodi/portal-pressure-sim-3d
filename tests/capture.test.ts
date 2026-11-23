@@ -172,7 +172,7 @@ test('a deck\'s contact sheet: three across for a laptop or iPad, five for a pho
 
 test('Capture all decks: in the audit panel, every talk and stop, kept out of its own pictures, saved from a fresh tap', () => {
   const page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
-  assert.match(page, /btn\('Capture all decks'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
+  assert.match(page, /btn\('Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
   assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(real\)/); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
   assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });
@@ -183,4 +183,13 @@ test('Capture all decks runs the page fast: the clock at speed, the animations a
   assert.match(all, /encoding\.push\(/); assert.match(all, /await Promise\.all\(encoding\)/);
   assert.match(all, /ratio: innerWidth < 600/, 'a laptop and an iPad at 1x');
   assert.ok(!/Date\.now|performance\.now/.test(all), 'wall time is read from a Date, not the scaled clock or a raw time call');
+});
+
+test('Capture this deck: a Settings row inside a talk, a Stop in the toast that keeps what is done, one Save at the end; the audit has a talk picker and a big Stop', () => {
+  const sheet = src('src/ui/settings/SettingsSheet.tsx'), deck = src('src/ui/capture/capture-deck.ts'), page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(sheet, /talk \? <MenuItem icon="grid" label=\{CAPTURE\.deckRow\}/);
+  assert.match(deck, /only: id/); assert.match(deck, /stop: \(\) => stopped/); assert.match(deck, /restore: back/); assert.match(deck, /CAPTURE\.save/);
+  assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
+  assert.match(page, /Talk to capture/); assert.match(page, /Stop and keep what/); assert.match(page, /only: deckSel\.value/);
+  assert.ok(!/—/.test(src('src/ui/shell/words.ts').match(/export const CAPTURE = \{[\s\S]*?\} as const;/)![0]));
 });
