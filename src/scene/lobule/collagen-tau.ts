@@ -1,13 +1,17 @@
-// The collagen layer's arrival times (Plan 25b): for every pixel of the layer, when (at what growth p of its channel) the collagen there appears. Computed, not painted, from the same centre lines the painter draws along
-// (bandGeomInto's points, the septa's paths, the tracts' and the vein's centres), so it is exact and the same every time. One byte per channel (growth.ts): R the septa, G the portal tracts, B the vein (always 255: never, it is not in this layer); 255: never.
+// The collagen layer's arrival times and edges (Plan 25b, Plan 47): for every pixel of the layer, when (at what growth p of its channel) the collagen there appears, and where the band's crisp edge lies. Computed, not painted, from the same centre lines
+// the painter draws along (bandGeomInto's points, the septa's paths), so it is exact and the same every time. One RGBA texel per pixel:
+//   R  the septa's arrival time, one byte (growth.ts); 255: never
+//   G  the edge's outward normal, x (right), as a byte (collagen-edge.ts unitToByte)
+//   B  the signed distance e (plate px, + inside) to the band's body: the painter's middle pass, CORE_K x its width (collagen-edge.ts edgeToByte); 0: outside, far
+//   A  the edge's outward normal, y (up), as a byte
+// (The portal tracts have no texels here: their disc is round about the hexagon's corner, so the shader computes its radius, collagen-edge.ts. The vein is cv-band.ts's.)
 //   septa      the hex-edge bridges grow from both tracts and meet in the middle at su 0.29 (as today's reach does); the portal-central bridges creep from the tract to the vein; the spurs push in last;
 //              every band thickens from a strand to its full width, and a seeded low-frequency jitter keeps each front organic and the same every time
-//   tracts     radially out: the inverse of today's tract radius G.rt (0.8 + 0.9 g)
-//   vein       none: cv-band.ts draws the central vein's collar and ring analytically from the eased growth of this channel, so B stays 255 (never)
 import { bandGeomInto, fibHash } from './from2d/lobule-paint.generated.js';
-import { septaBands, tractCorners, type CollagenShape } from './collagen-paint.ts';
-import { NEVER, tauToByte } from './growth.ts';
-import { softPadWorld } from './collagen-soft.ts';
+import { septaBands } from './collagen-paint.ts';
+import type { CollagenShape } from './collagen-paint.ts';
+import { tauToByte } from './growth.ts';
+import { CORE_K, E_LO, edgeToByte, unitToByte } from './collagen-edge.ts';
 
 /** The fronts' own meeting point of the hex-edge bridges, in septU (today's reach is 1 at su (1 - 0.3) / 2.4). */
 export const SEPTA_MEET = 0.29;
@@ -17,27 +21,34 @@ const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(
 /** A band's front is irregular and stable: low-frequency noise along it from its own seed. */
 const jitter = (seed: number, u: number): number => 0.6 * Math.sin(TAU * 1.3 * u + fibHash(seed) * TAU) + 0.4 * Math.sin(TAU * 3.1 * u + fibHash(seed + 9) * TAU);
 
-/** The layer's arrival times as RGBA bytes (A 255), row 0 at the top of the canvas (world y = -box), n × n pixels over world [-box, box]. `_cvR` (the vein's wall radius) is unused now: the vein is not in this layer. */
+/** The layer's texels as RGBA bytes, row 0 at the top of the canvas (world y = -box), n x n pixels over world [-box, box]. `_cvR` (the vein's wall radius) is unused: the vein is not in this layer. */
 export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: number): Uint8Array {
-  const out = new Uint8Array(n * n * 4).fill(255);
-  const sc = n / (2 * box), pad = softPadWorld(box), best = new Float32Array(n * n).fill(Infinity);
+  const out = new Uint8Array(n * n * 4);
+  for (let k = 0; k < n * n; k++) { out[4 * k] = 255; out[4 * k + 1] = 128; out[4 * k + 3] = 128; }   // (never, no normal, outside)
+  const sc = n / (2 * box), best = new Float32Array(n * n).fill(Infinity), bestE = new Float32Array(n * n).fill(-Infinity);
   const toPx = (v: number): number => (v + box) * sc;
-  // ---- R: the septa
+  const reach = 1 - E_LO + 1;   // plate px past the body that a texel is kept (the one pixel of anti-aliasing and the linear filter's neighbours)
   const g = { P: new Float64Array(54), N: new Float64Array(54), Wd: new Float64Array(27), n: 26, L0: 1 };
   for (const b of septaBands(G)) {
     bandGeomInto(g, b.A, b.B, b.o, b.o.path);
     const P = g.P, Wd = g.Wd, seed = b.o.seed;
     for (let i = 0; i < g.n; i++) {
-      const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = 2.1 * Math.max(Wd[i]!, Wd[i + 1]!, 0.5) + pad;
+      const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = (CORE_K / 2) * Math.max(Wd[i]!, Wd[i + 1]!) + reach / sc;   // (the painter's pass k is k x the width across: bandHalf is Wd k / 2 each side)
       const x0 = Math.max(0, Math.floor(toPx(Math.min(ax, bx) - wmax))), x1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ax, bx) + wmax)));
       const y0 = Math.max(0, Math.floor(toPx(Math.min(ay, by) - wmax))), y1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ay, by) + wmax)));
       const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
         const wx = (x + 0.5) / sc - box, wy = (y + 0.5) / sc - box;
         const t = clamp(((wx - ax) * dx + (wy - ay) * dy) / L2, 0, 1), ex = ax + t * dx - wx, ey = ay + t * dy - wy, d = Math.hypot(ex, ey);
-        const half = 2.1 * Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t);   // (the painted edge; the soft copy spreads `pad` past it and the arrival times reach as far, or front() would cut a hard edge there)
+        const w = Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t), half = 2.1 * w;   // (the painted outer edge, which the arrival times' thickening is measured against)
+        const e = ((CORE_K / 2) * Math.max(0, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t) - d) * sc;   // plate px inside the body (the painter's middle pass: bandHalf)
+        if (e < E_LO - 1) continue;
         const k = y * n + x;
-        if (d > half + pad || d >= best[k]!) continue;
+        if (e > bestE[k]!) {   // (the union of the bands: the edge and the normal of the body that reaches furthest)
+          bestE[k] = e; out[4 * k + 2] = edgeToByte(e);
+          out[4 * k + 1] = unitToByte(d > 1e-9 ? -ex / d : 0); out[4 * k + 3] = unitToByte(d > 1e-9 ? ey / d : 0);   // (outward, x right and y UP: the canvas's y runs down)
+        }
+        if (d >= best[k]!) continue;
         const u = (i + t) / g.n;
         let tau: number;
         if (b.kind === 'hex') { const h = 2 * Math.min(u, 1 - u); tau = SEPTA_MEET * h + 0.03 * Math.sin(Math.PI * h) * jitter(seed, u); }
@@ -48,19 +59,6 @@ export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: numb
       }
     }
   }
-  // ---- G: the portal tracts, radially (the tract of radius G.rt (0.8 + 0.9 g) reaches r at g = (r / G.rt - 0.8) / 0.9)
-  const rmax = G.rt * 2 + pad;
-  for (const [cx, cy] of tractCorners(G)) {
-    const x0 = Math.max(0, Math.floor(toPx(cx - rmax))), x1 = Math.min(n - 1, Math.ceil(toPx(cx + rmax)));
-    const y0 = Math.max(0, Math.floor(toPx(cy - rmax))), y1 = Math.min(n - 1, Math.ceil(toPx(cy + rmax)));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const r = Math.hypot((x + 0.5) / sc - box - cx, (y + 0.5) / sc - box - cy);
-      if (r > rmax) continue;
-      const b = tauToByte(clamp((r / G.rt - 0.8) / 0.9, 0, 1)), k = 4 * (y * n + x) + 1;
-      if (out[k] === NEVER || b < out[k]!) out[k] = b;
-    }
-  }
-  // ---- B: the vein is not in this layer (cv-band.ts draws it from its radius): its byte stays 255, never
   return out;
 }
 

@@ -7,7 +7,6 @@ import { CV_A, CV_FILL, CV_S_MAX, cvAlpha, cvGeom, cvRelief, cvWall, cvEdge } fr
 import { LOBULE_PLATE_FS, PLATE_BOX, PLATE_S, plateShape } from '../src/scene/lobule/plate.ts';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { DISC_R } from '../src/scene/lobule/widths.ts';
-import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
 import { collagenInput, paintCollagenWorld } from '../src/scene/lobule/collagen-paint.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
@@ -87,11 +86,9 @@ test('the relief has one lit and one shade flank across the band (one reversal),
   assert.ok(Math.abs(cvRelief(g.rL, g, [1, 0], [-1, 0])) < 1e-9 && Math.abs(cvRelief(g.rC, g, [1, 0], [-1, 0])) < 1e-9);
 });
 
-test('the vein is NOT in the collagen layer: no tract/septa painting at its centre, and channel B of the arrival times is all 255', () => {
+test('the vein is NOT in the collagen layer: no tract/septa painting at its centre', () => {
   const N = 192, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), look = 'light' as never, L = lookColours(look);
   useTokens((n: string, a?: number | string) => L.tk(n, a));
-  const tau = collagenTau(shape, DISC_R.cv * PLATE_S, N, B);
-  for (let i = 0; i < N * N; i++) assert.equal(tau[4 * i + 2], 255, 'channel B never');
   const r = rasterCtx(N);
   paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, DISC_R.cv, look), 'tracts');
   const R2 = 0.2 * PLATE_S * sc;   // 0.2 R round the vein, in pixels (the tracts lie at the hexagon's corners, a whole radius away)

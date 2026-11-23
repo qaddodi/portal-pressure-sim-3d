@@ -7,6 +7,8 @@ import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { PLATE_BOX, PLATE_S, plateShape } from '../src/scene/lobule/plate.ts';
 import { collagenInput, paintCollagenWorld, septaBands } from '../src/scene/lobule/collagen-paint.ts';
 import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
+import { tractReveal } from './helpers/tract-front.ts';
+import { tractFrontPx } from '../src/scene/lobule/collagen-edge.ts';
 import { front, growGoal, septaStrength } from '../src/scene/lobule/growth.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
@@ -16,7 +18,7 @@ const net = buildLobule(), shape = { ...plateShape(net), cells: [] };
 const look = 'light' as never, L = lookColours(look);
 useTokens((n: string, a?: number | string) => L.tk(n, a));
 const N = 512, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), cv = DISC_R.cv;
-const tau = collagenTau(shape, cv * PLATE_S, N, B);
+const tau = collagenTau(shape, cv * PLATE_S, N, B), tractAt = tractReveal(N, B);   // (the tracts' reveal is analytic about the hexagon's corners, Plan 47; the vein is not in this layer: its reveal here is 0)
 const layerT = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts'); return r; })();
 const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa'); return r; })();   // (the septa's own plate)
 
@@ -26,7 +28,7 @@ function shares(s: { septU: number; fibPre: number; fibPost: number }) {
   for (let i = 0; i < N * N; i++) {
     const sa = layer.alpha[i]!, ta = layerT.alpha[i]!; if (sa <= 0 && ta <= 0) continue;
     // (the painter's order: the septa first, the tracts over them, the vein's cuff and ring last: a pixel belongs to the last channel that shows it)
-    const f = [front(tau[4 * i]!, g[0]) * septaStrength(g[0]), front(tau[4 * i + 1]!, g[1]), front(tau[4 * i + 2]!, g[2])];
+    const f = [front(tau[4 * i]!, g[0]) * septaStrength(g[0]), tractAt(i, g[1]!), 0];
     if (ta * Math.max(f[1]!, f[2]!) > 0.05) { const k = f[2]! > 0.5 ? 2 : 1; area[k]! += ta * f[k]!; } else area[0]! += sa * f[0]!;
   }
   const tot = area[0]! + area[1]! + area[2]!;
@@ -92,7 +94,7 @@ test('Plan 31 C gate: at every home corner and at tract growth 0.25, 0.5, 0.75 a
     let shown = 0, worst = 0;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const i = y * N + x, wx = ((x + 0.5) / sc - B) / S, wy = ((y + 0.5) / sc - B) / S;
-      if (!hexOut(wx, wy) || layerT.alpha[i]! * front(tau[4 * i + 1]!, p) <= 0.02) continue;
+      if (!hexOut(wx, wy) || layerT.alpha[i]! * tractAt(i, p) <= 0.02) continue;
       const corner = HOME_CORNERS.reduce((m, c) => Math.min(m, Math.hypot(wx - c[0], wy - c[1])), 9);
       if (corner > HOME_TRACT_R * 1.3) continue;   // (the vein is inside the hexagon; a tract pixel lies at a corner)
       shown++; worst = Math.max(worst, plateShare(corner, p));
@@ -109,16 +111,19 @@ test('Plan 31 no pop: moving cirrhosis 0 to 1 and back at the eased rates, no pi
   const { easeGrow } = await import('../src/scene/lobule/growth.ts');
   const A0 = { septU: 0, fibPre: 1, fibPost: 1 }, A1 = { septU: 1, fibPre: 1, fibPost: 1 };
   const comp = (g: number[], i: number): number => {
-    const fs = front(tau[4 * i]!, g[0]!) * septaStrength(g[0]!), ft = Math.max(front(tau[4 * i + 1]!, g[1]!), front(tau[4 * i + 2]!, g[2]!));
+    const fs = front(tau[4 * i]!, g[0]!) * septaStrength(g[0]!), ft = tractAt(i, g[1]!);
     return 1 - (1 - layer.alpha[i]! * fs) * (1 - layerT.alpha[i]! * ft);
   };
   const idx: number[] = []; for (let i = 0; i < N * N; i++) if (layer.alpha[i]! > 0 || layerT.alpha[i]! > 0) idx.push(i);
   let worst = 0, frames = 0;
   for (const [from, to] of [[A0, A1], [A1, A0]] as const) {
-    const g = growGoal(from), goal = growGoal(to); let prev = idx.map((i) => comp(g, i));
+    const g = growGoal(from), goal = growGoal(to); let prev = idx.map((i) => comp(g, i)), prevT = idx.map((i) => tractAt(i, g[1]!)), prevG1 = g[1]!;
     for (let f = 0; f < 400; f++, frames++) {
       for (let c = 0; c < 3; c++) g[c] = easeGrow(g[c]!, goal[c]!, 1 / 60);
-      const cur = idx.map((i) => comp(g, i)); for (let k = 0; k < cur.length; k++) worst = Math.max(worst, Math.abs(cur[k]! - prev[k]!)); prev = cur;
+      // (a tract's front is a crisp edge now, Plan 47: the pixels it is crossing are judged by its speed, below, which is what makes a glide of a shape and not a pop; every other pixel by its change)
+      const cur = idx.map((i) => comp(g, i)); for (let k = 0; k < cur.length; k++) { const t = tractAt(idx[k]!, g[1]!), t0 = prevT[k]!; if (layerT.alpha[idx[k]!]! > 0 && ((t > 0.02 && t < 0.98) || (t0 > 0.02 && t0 < 0.98))) continue; worst = Math.max(worst, Math.abs(cur[k]! - prev[k]!)); } prev = cur; prevT = idx.map((i) => tractAt(i, g[1]!));
+      assert.ok(tractFrontPx(g[1]!) - tractFrontPx(prevG1) <= 1, 'the tracts\' edge glides less than one plate px a frame');
+      prevG1 = g[1]!;
     }
     assert.deepEqual(g.map((v, c) => Math.round((v - goal[c]!) * 1e6)), [0, 0, 0], 'ends at the goal');
   }
@@ -155,7 +160,7 @@ test('Plan 31c gate 3 (amended): where pS = 0 (schistosomiasis, SOS) the composi
   for (let i = 0; i < N * N; i++) {
     const fs: number = front(tau[4 * i]!, g[0]) * septaStrength(g[0]);
     assert.equal(fs, 0, 'no septa reveal at pS = 0');
-    const ft = Math.max(front(tau[4 * i + 1]!, g[1]), front(tau[4 * i + 2]!, g[2]));
+    const ft = tractAt(i, g[1]!);
     const nu = layerT.alpha[i]! * ft;                                      // the composite now: the tracts and the vein alone
     const old = 1 - (1 - nu) * (1 - layer.alpha[i]! * 0.75 * front(tau[4 * i]!, 1));   // (a stand-in for the old ghost: the septa's own alpha where they showed under a tract)
     if (layerT.alpha[i]! > 0) shown++;

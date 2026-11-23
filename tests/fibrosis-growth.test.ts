@@ -8,6 +8,8 @@ import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { PLATE_BOX, PLATE_PX, PLATE_S, LOBULE_PLATE_FS, paintPlateWorld, plateInput, plateShape } from '../src/scene/lobule/plate.ts';
 import { collagenInput, paintCollagenWorld, septaBands } from '../src/scene/lobule/collagen-paint.ts';
 import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
+import { tractReveal } from './helpers/tract-front.ts';
+import { tractFrontPx } from '../src/scene/lobule/collagen-edge.ts';
 import { GROW_H, GROW_RATE, NEVER, TAU_LO, TAU_SPAN, easeGrow, front, growGoal, septaStrength } from '../src/scene/lobule/growth.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { useTokens, bandGeomInto } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
@@ -19,7 +21,7 @@ const look = 'light' as never, L = lookColours(look);
 useTokens((n: string, a?: number | string) => L.tk(n, a));
 const N = 512, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), cv = DISC_R.cv;
 const H = { congU: 0, septU: 0, fibSin: 0, act: 0, fibPre: 0, fibPost: 0 }, FULL = { ...H, septU: 1, fibPre: 1, fibPost: 1 };
-const tau = collagenTau(shape, cv * PLATE_S, N, B);
+const tau = collagenTau(shape, cv * PLATE_S, N, B), tractAt = tractReveal(N, B);   // (the septa's times are texels; the tracts' disc is analytic about the corners, Plan 47)
 const rasterOf = (s: typeof H) => { const r = rasterCtx(N); r.skipFills(2); paintPlateWorld(r.ctx, N, sc, -B, -B, { ...plateInput(shape, sins, cv, s, look), zonesOn: false }); return r; };
 const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts'); return r; })();
 const layerS = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa'); return r; })();
@@ -44,7 +46,7 @@ test('the collagen layer over the tissue with none of it equals today\'s one-pas
 });
 
 /** The visible collagen of a channel at growth p (the shader's own rule on the layer's alpha). */
-const visible = (ch: number, p: number, i: number): boolean => (ch === 0 ? layerS : layer).alpha[i]! * front(tau[4 * i + ch]!, p) * (ch === 0 ? septaStrength(p) : 1) > 0.05;
+const visible = (ch: number, p: number, i: number): boolean => (ch === 0 ? layerS.alpha[i]! * front(tau[4 * i]!, p) * septaStrength(p) : layer.alpha[i]! * tractAt(i, p)) > 0.05;
 
 test('nested by construction: each channel\'s collagen at p is a subset of its collagen at any larger p (101 steps, pixel by pixel), and it grows (the vein is not in this layer: cv-band.ts)', () => {
   for (const ch of [0, 1]) {
@@ -82,6 +84,7 @@ test('no pop: at the eased rate and 60 fps no pixel\'s alpha changes by more tha
       const d = Math.max(Math.abs(front(b, n) - front(b, p)), Math.abs(front(b, n) * septaStrength(n) - front(b, p) * septaStrength(p)));
       if (d > worst.d) worst = { d, byte: b, p };
     }
+    assert.ok(tractFrontPx(n) - tractFrontPx(p) <= 1, 'the tracts\' crisp edge glides less than one plate px a frame (it never jumps)');
     p = n;
   }
   console.log(`# no pop: largest per-frame alpha change ${worst.d.toFixed(4)} at stored time ${(worst.byte / 254).toFixed(3)} when p = ${worst.p.toFixed(3)}; a full change takes ${(frames / 60).toFixed(2)} s`);
@@ -106,8 +109,7 @@ test('deterministic: the same layout gives the same arrival times, byte for byte
   const hash = (a: Uint8Array) => createHash('sha1').update(a).digest('hex');
   const again = collagenTau(shape, cv * PLATE_S, N, B);
   assert.equal(hash(again), hash(tau));
-  for (let ch = 0; ch < 2; ch++) { let n = 0; for (let i = 0; i < N * N; i++) if (tau[4 * i + ch] !== NEVER) n++; assert.ok(n > 500, `channel ${ch} has times`); }
-  for (let i = 0; i < N * N; i++) assert.equal(tau[4 * i + 2], NEVER, 'the vein is not in the layer (cv-band.ts draws it): channel B is never');
+  { let n = 0, e = 0; for (let i = 0; i < N * N; i++) { if (tau[4 * i] !== NEVER) n++; if (tau[4 * i + 2] > 0) e++; } assert.ok(n > 500, 'the septa have times'); assert.ok(e > 500, 'and edges (the signed distance, channel B)'); }
 });
 
 test('the layer and the times at the plate\'s size, in bytes (an iPhone paints the same 2048 px plate)', () => {

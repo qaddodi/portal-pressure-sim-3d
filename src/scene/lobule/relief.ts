@@ -1,10 +1,9 @@
-// The lobule's fibrosis bands as raised ropes (Mohammad, 23 Nov 2026, picked mock C "Raised relief"). Root cause of the flat, ringed bands: the collagen was ONE flat colour per layer, its depth came only from the
-// painter's three passes (hard-edged terraces), and the plate's cel step (celTissue) and edge line then turned every terrace edge into a tone line. Here the collagen field's own alpha (the SAME smooth field the soft edge shows, a B-spline of mip 5, collagen-field.ts) is the height of a rope; its slope against the ONE world light lifts the colour toward white on the lit side and deepens it on the shade side, smoothly, and the collagen stays out of the cel step and the edge
-// line, weighted by its coverage. A flat band (the middle of a rope) has slope 0 and keeps exactly the painted colour; healthy tissue has no coverage and is untouched bit for bit.
-// The JS twin below and the GLSL are written from the same numbers, so a test can judge the colours without a GPU (tests/collagen-relief.test.ts).
+// The lobule's collagen as raised ropes (Mohammad, 23 Nov 2026, picked mock C "Raised relief"; Plan 47: crisp, never glowing). A rope's relief comes from its own DISTANCE to its edge (collagen-tau.ts: the septa's signed edge distance and outward normal are baked, the tracts' radius is analytic), never from a blurred copy of the band:
+// the rope's cross-section rises from its edge over ROPE_W plate px and is flat after (the crown): one lit flank and one shade flank against the ONE world light, nothing outside the edge, and the lift never takes the colour more than ROPE_LIFT_MAX of lightness above the collagen's own. The vein's band (cv-band.ts) keeps reliefS, the slope form, with its own analytic height.
+// The JS twin below and the GLSL are written from the same numbers, so a test can judge the colours without a GPU (tests/collagen-crisp.test.ts).
 import { glslNum as F } from '../cel-glsl.ts';
 
-/** The slope's gain per plate pixel of collagen alpha (the smooth collagen field's analytic gradient, collagen-field.ts, plate pixels at PLATE_PX): the steepest flank of a real septum peaks at |s| about 0.8 and never clamps, its flat middle stays 0. */
+/** The slope's gain per unit of height slope (the vein's analytic band height, cv-band.ts): the steepest flank peaks at |s| about 0.8 and never clamps, its flat middle stays 0. */
 export const RELIEF_G = 100;
 /** The relief is linear up to this |s| and then eases into 1 (a smooth knee, never a clamp): a thin band's steep flank (a spur, a third as wide as a hex septum) would otherwise sit flat at |s| = 1 and its edge would be a crease
  *  in a smooth gradient (tests/collagen-screen.test.ts). The hex and bridge septa peak below it, so their relief is exactly the linear one. */
@@ -29,13 +28,44 @@ export function reliefColour(c: readonly number[], s: number): [number, number, 
   return o;
 }
 
+/** How far in from a rope's edge its shoulder reaches, in plate px (the crown is flat beyond it). */
+export const ROPE_W = 16;
+/** A lit flank never takes the collagen's lightness more than this above its own (the mock's lit offset): a sheen on the rope, never brighter than the collagen can be. */
+export const ROPE_LIFT_MAX = 0.09;
+const luma = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
+
+/** The rope's relief at e plate px inside its edge (e <= 0: the edge or outside), for an outward edge normal (nx, ny) and the world light (Lx, Ly), both in the plate's x (right) and y (up): the shoulder's tilt, 1 at the edge easing to 0 at ROPE_W
+ *  (smooth at both ends), times how squarely it faces the light: + on the lit flank, - on the shade flank, 0 on the crown. */
+export function ropeS(e: number, nx: number, ny: number, Lx: number, Ly: number): number {
+  const x = clamp(e / ROPE_W, 0, 1), tilt = 1 - x * x * (3 - 2 * x), ln = Math.hypot(Lx, Ly), nn = Math.hypot(nx, ny);
+  if (ln < 1e-3 || nn < 1e-3) return 0;
+  return tilt * ((nx * Lx + ny * Ly) / (nn * ln)) + 0;   // (+ 0: never -0)
+}
+/** The colour of a rope with relief s: reliefColour, but the lit lift is scaled so it never exceeds ROPE_LIFT_MAX of lightness. */
+export function ropeColour(c: readonly number[], s: number): [number, number, number] {
+  if (s <= 0) return reliefColour(c, s);
+  const lit = [0, 1, 2].map((i) => (1 - c[i]!) * RELIEF_LIT[i]!), k = Math.min(1, ROPE_LIFT_MAX / Math.max(luma(lit), 1e-4));
+  return [c[0]! + lit[0]! * k * s, c[1]! + lit[1]! * k * s, c[2]! + lit[2]! * k * s];
+}
+
 const V3 = (v: readonly number[]): string => `vec3(${v.map(F).join(', ')})`;
-/** GLSL twin of reliefS and reliefColour (fragment and vertex safe: no derivative). */
+/** GLSL twin of reliefS, ropeS, reliefColour and ropeColour (fragment and vertex safe: no derivative). */
 export const RELIEF_GLSL = /* glsl */ `
 const float RELIEF_G = ${F(RELIEF_G)};
 const vec3 RELIEF_LIT = ${V3(RELIEF_LIT)};
 const vec3 RELIEF_SHADE = ${V3(RELIEF_SHADE)};
 const float RELIEF_KNEE = ${F(RELIEF_KNEE)};
 float reliefS(vec2 dh, vec2 L) { float x = -RELIEF_G * dot(dh, L), a = abs(x); return sign(x) * (min(a, RELIEF_KNEE) + (1.0 - RELIEF_KNEE) * tanh(max(a - RELIEF_KNEE, 0.0) / (1.0 - RELIEF_KNEE))); }
+const float ROPE_W = ${F(ROPE_W)};
+const float ROPE_LIFT_MAX = ${F(ROPE_LIFT_MAX)};
+float ropeS(float e, vec2 n, vec2 L) {
+  float x = clamp(e / ROPE_W, 0.0, 1.0), tilt = 1.0 - x * x * (3.0 - 2.0 * x), ln = length(L), nn = length(n);
+  return (ln < 1e-3 || nn < 1e-3) ? 0.0 : tilt * dot(n, L) / (nn * ln);
+}
 vec3 reliefColour(vec3 c, float s) { return mix(c * (1.0 - RELIEF_SHADE * -min(s, 0.0)), c + (1.0 - c) * RELIEF_LIT * max(s, 0.0), step(0.0, s)); }
+vec3 ropeColour(vec3 c, float s) {
+  vec3 lit = (1.0 - c) * RELIEF_LIT;
+  float k = min(1.0, ROPE_LIFT_MAX / max(dot(lit, vec3(0.299, 0.587, 0.114)), 1e-4));
+  return mix(c * (1.0 - RELIEF_SHADE * -min(s, 0.0)), c + lit * k * max(s, 0.0), step(0.0, s));
+}
 `;
