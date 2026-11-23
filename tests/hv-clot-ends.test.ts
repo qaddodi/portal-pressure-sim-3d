@@ -8,6 +8,7 @@ import { CAUDATE_VEIN_ID } from '../src/scene/vessels/caudate-veins.ts';
 import { neighbourAttr } from '../src/scene/vessels/neighbour.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
+import { shaderText, block } from './shader-text.ts';
 
 const VEINS = ['RHV_IVC', 'MHV_IVC', 'LHV_IVC', CAUDATE_VEIN_ID];
 const hosts = new Map<string, Host | null>();
@@ -181,8 +182,8 @@ test('plan 34e gate 4 (stable frame to frame): the clot\'s cover has no step any
     }
   }
   // (the cut is the same function in the tube (cavA) and the skin (skinOutsideTrunk): no time, no noise, no derivative, no depth in it)
-  const cut = SKIN_FS.slice(SKIN_FS.indexOf('float skinOutsideTrunk('), SKIN_FS.indexOf('// THE DEPTH HOLD-OUT'));
-  assert.ok(!/fwidth|dFd|time|rand|fract\(|gl_FragDepth|texture/i.test(cut), 'the skin\'s cut reads only the pixel and the arms\' axes');
+  const cut = block(shaderText(SKIN_FS), 'float skinOutsideTrunk(');
+  assert.ok(cut.length > 100 && !/fwidth|dFd|time|rand|fract\(|gl_FragDepth|texture/i.test(cut), 'the skin\'s cut reads only the pixel and the arms\' axes');
 });
 
 test('plan 34e gate 3: the portal trunk, the splenic confluence and the renal veins are unchanged (a mid vein\'s clot is clotSpan\'s and the cut is in the shaders\' hepatic-vein branches only)', () => {
@@ -195,10 +196,10 @@ test('plan 34e gate 3: the portal trunk, the splenic confluence and the renal ve
       assert.deepEqual(clotUniforms(h, v, 1.3, id, 0.8), want, `${id} v=${v}: the cava's and the vein's swell do not move it`);
     }
   }
-  assert.match(SKIN_FS, /armCopy\[i\]\.w < -1\.5 && ct\.x > 0\.0 \? skinOutsideTrunk\(gl_FragCoord\.xy\) : 1\.0/);
-  assert.match(SKIN_FS, /k \*= smoothstep\(-0\.5, 0\.5, \(abs\(lat\) - 1\.0\) \* rPx\);/);
-  assert.match(SKIN_FS, /if \(armData\[j\]\.x < 0\.0 \|\| armCopy\[j\]\.w < -0\.5 \|\| keepOf\(j\) < 0\.5\) continue;/);
-  assert.match(VESSEL_FS, /covC \*= cavA;/);
+  assert.match(shaderText(SKIN_FS), /armCopy\[i\]\.w < -1\.5 && ct\.x > 0\.0 \? skinOutsideTrunk\(gl_FragCoord\.xy\) : 1\.0/);
+  assert.match(shaderText(SKIN_FS), /k \*= smoothstep\(-0\.5, 0\.5, \(abs\(lat\) - 1\.0\) \* rPx\);/);
+  assert.match(shaderText(SKIN_FS), /if \(armData\[j\]\.x < 0\.0 \|\| armCopy\[j\]\.w < -0\.5 \|\| keepOf\(j\) < 0\.5\) continue;/);
+  assert.match(shaderText(VESSEL_FS), /covC \*= cavA;/);
 });
 
 test('plan 34d: a mid vein keeps clotSpan; the clot covers the pieces of a vein with no step at a joint', () => {
