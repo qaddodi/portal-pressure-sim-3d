@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { TRIALS } from '../src/ui/charts/trial/trials.generated.ts';
 import { trialLayout, fitWords, trialWords, trialOf, type Fit } from '../src/ui/charts/trial/model.ts';
@@ -83,4 +84,10 @@ test('the endpoint line never says the follow-up twice (ATTIRE: "days 3 to 15, d
     const t = trialOf(id)!, w = endpointOf(t).toLowerCase(), f = String(t.followUp ?? '').trim().toLowerCase();
     if (f) assert.equal(w.split(f).length - 1 <= 1, true, `${id}: ${w}`);
   }
+});
+
+test('flow-time: the two heads\' values are the third from last and last shapes (each head pushes its dot, then its value), so a close pair is separated', () => {
+  const s = readFileSync(new URL('../src/ui/charts/flowtime/frame.ts', import.meta.url), 'utf8');
+  assert.match(s, /shapes\.length - 3 \+ 2 \* j/);
+  assert.doesNotMatch(s, /shapes\.length - 2 \+ j/);
 });

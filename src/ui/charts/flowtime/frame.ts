@@ -111,8 +111,15 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   // two heads close together: the lower band's value goes under its head, clear of the other
   const a = heads[0]!.hy - 0.7 * f, b = heads[1]!.hy - 0.7 * f;
   if (Math.abs(a - b) < 1.4 * f) {
-    const j = a > b ? 0 : 1, vi = shapes.length - 2 + j, s = shapes[vi] as Extract<Shape, { k: 'text' }>;
+    const j = a > b ? 0 : 1, vi = shapes.length - 3 + 2 * j, s = shapes[vi] as Extract<Shape, { k: 'text' }>;
     shapes[vi] = { ...s, y: Math.min(heads[j]!.hy + 1.5 * f, B - 0.25 * f) };
+  }
+  // the two values still on one another (a short plot, both stood under their heads and the lower one stopped at the axis: "32.1 kPa" over "6.8 mmHg", iPhone on its side): the upper one rises off the lower
+  {
+    const vs = [shapes.length - 3, shapes.length - 1].map((k) => shapes[k] as Extract<Shape, { k: 'text' }>);
+    const wide = (t: Extract<Shape, { k: 'text' }>) => cw(t.s, f * 1.1, true), x0 = (t: Extract<Shape, { k: 'text' }>) => (t.anchor === 'end' ? t.x - wide(t) : t.x);
+    const [p0, p1] = vs, up = p0!.y <= p1!.y ? 0 : 1, hi = vs[up]!, lo = vs[1 - up]!, sideBySide = x0(hi) < x0(lo) + wide(lo) && x0(lo) < x0(hi) + wide(hi);
+    if (sideBySide && lo.y - hi.y < 1.05 * f) shapes[shapes.length - 3 + 2 * up] = { ...hi, y: Math.max(top + 0.85 * f, lo.y - 1.15 * f) };
   }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
   return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };

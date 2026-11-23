@@ -174,3 +174,6 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
    The copied rule gave the card's words their zoom of 1 to let the instrument give way, but here the instrument sits inside `.dk-in` with them, so the fit was worked out and never applied: the card
    stood 563 px tall and ran 33 px into the words card (Variceal bleed 2, iPhone upright, 23 Nov 2026). The fit is only written when the ladder has run out of steps. */
 .pz.stack .pz-data:is(.tool-open, .tool-only) > .dk-in { zoom: var(--pz-fit, 1); }
+
+/* A tile's second line ("Below 12 mmHg reference") wraps inside the tile when the tile is narrower than it (iPhone on its side: the line ran out past the tile's left edge); it is never cut or let out. */
+.deck-ui.pz .pz-data .pz-tiles .pz-tile :is(.pzt-r, .pzt-d) { white-space: normal; text-wrap: balance; overflow-wrap: anywhere; max-width: 100%; text-align: center; }
