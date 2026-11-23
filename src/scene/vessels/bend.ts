@@ -9,7 +9,7 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 /** The tightest bend a course may have, in its tube's radii: a tube bent tighter shows a corner. */
 export const BEND_MIN_R = 2;
 /** The fairing aims a little above the floor, so the tube's own spline (which rounds a kink a little differently from the polyline) still clears it. */
-export const BEND_AIM_R = 2.3;
+export const BEND_AIM_R = 2.1;
 /** Relaxation: the share of the way to the neighbours' midpoint a point of a failing stretch moves each round, how far (in points) the stretch reaches past a failing vertex, how that reach grows each hundred rounds, and the most rounds. */
 const RELAX = 0.5, REACH0 = 3, ROUNDS = 400;
 

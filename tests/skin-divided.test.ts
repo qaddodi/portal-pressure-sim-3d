@@ -11,6 +11,7 @@ import { bakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject, type ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { leavingOf, partOf, partSpecs } from '../src/scene/vessels/skin/plain.ts';
+import { THROUGH_DEG } from '../src/scene/vessels/skin/through.ts';
 import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { DIVIDED, divideOf, stumpOf } from '../src/scene/vessels/divide.ts';
@@ -67,13 +68,13 @@ test('SVD with the shunt: the skin is {V_SPL, S_DSR} (or {V_SPL, C6, S_DSR}), th
       const sh = idsOf(n, k).indexOf(n === 'SVD' ? 'S_DSR' : 'S_PC');
       assert.ok(ax[sh]!.mate !== undefined, `${n} ${k}: the shunt is through-paired`);
     }
-    // SVD {V_SPL, S_DSR}: outward directions 170 degrees apart, and ONE even taper between the seams (no step): V_SPL's seam radius to the shunt's at its own seam
+    // SVD {V_SPL, S_DSR}: outward directions within the through rule (35 degrees of straight), and ONE even taper between the seams (no step): V_SPL's seam radius to the shunt's at its own seam
     const p3 = svd.get('3L')!, ax = b.axes.get(p3.draw as SkinObject)!;
     const [v, s] = [ax[0]!, ax[1]!];
     assert.equal(v.mate, 1); assert.equal(s.mate, 0);
     const dir = (a: ArmAxis): number[] => { const d = [0, 1, 2].map((i) => a.pts[3][i]! - a.pts[2][i]!), l = Math.hypot(d[0]!, d[1]!, d[2]!); return d.map((x) => x / l); };
     const dot = dir(v)[0]! * dir(s)[0]! + dir(v)[1]! * dir(s)[1]! + dir(v)[2]! * dir(s)[2]!;
-    assert.ok(dot < -0.95, `a through run: outward dot ${dot.toFixed(3)} (170 degrees is -0.985)`);
+    assert.ok(dot < -Math.cos((THROUGH_DEG * Math.PI) / 180), `a through run: outward dot ${dot.toFixed(3)} (within ${THROUGH_DEG} degrees of straight is under ${(-Math.cos((THROUGH_DEG * Math.PI) / 180)).toFixed(3)})`);
     const rv = v.radii[2]!, rs = s.radii[2]!;
     assert.ok(Math.abs(rv - 0.0194) < 2e-4 && Math.abs(rs - 0.0209) < 2e-4, `seam radii ${rv.toFixed(4)} -> ${rs.toFixed(4)}`);
     assert.ok(rs / rv - 1 < 0.09, `an even ${(100 * (rs / rv - 1)).toFixed(1)} % taper`);

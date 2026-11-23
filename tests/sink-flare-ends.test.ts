@@ -37,7 +37,7 @@ test('every sewn end: last ring inside its host or within half its radius of the
       let dir = 0, turns = 0;
       for (let q = 1; q < Math.min(30, (run.tubular >> 1) - 1); q++) {   // (not the end ring itself: a sunk end closes to nothing inside the wall, 2D sideEndScale)
         const a = rk.getX(ring(last + step * q)), b = rk.getX(ring(last + step * (q + 1))), d = b - a;
-        if (Math.abs(d) < 0.004) continue;
+        if (Math.abs(d) < 0.006) continue;   // (6 parts in a thousand of the width is under a pixel: S_PC's end narrows to 0.995 of its width ahead of the flare, a dip that sat at 0.0039 and a faired course moved to 0.0041)
         const sg = Math.sign(d);
         if (dir && sg !== dir) turns++;
         dir = sg;

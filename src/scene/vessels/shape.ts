@@ -213,6 +213,8 @@ function held(v: NetVessel, s: ShapeState, cs: Course[]): Course[] {
 
 // THE BEND FLOOR (bend.ts): a drawn course bends no tighter than BEND_MIN_R radii of its tube. The 2D plan's hooks and the depth dives are faired here, once per course and cached (a course that clears the floor is returned as it was).
 // A coiling vessel's course moves with the wiggle, so only its ends are faired, and by the displacement the fairing gives its course AT REST (the same at every wiggle: the held ends under a skin, and the skin's own rest course, agree).
+/** The courses faired: the surgical shunts, which the owner reported (S_PC 0.7, S_MC 0.8, S_DSR 0.9 radii by the spline). The nine other courses under the floor (hepatic veins, C5, C6, the strands) stay as they were: the junction tables read their exact places (a collateral's landing on the azygos, tests/shunt-ends.test.ts), so they need a plan of their own. */
+export const FAIRED: ReadonlySet<string> = new Set(['S_PC', 'S_MC', 'S_DSR']);
 let unfaired = false;
 const fairCache = new Map<string, { sig: string; pts: Vec3[] }>();
 const fairDelta = new Map<string, { n: number; d: Vec3[] } | null>();
@@ -220,7 +222,7 @@ const FAIR_ENDS_R = 12;
 const sigOf = (p: readonly Vec3[]): string => { let a = 0, b = 0, c = 0; for (let i = 0; i < p.length; i++) { const w = i + 1; a += p[i]![0] * w; b += p[i]![1] * w; c += p[i]![2] * w; } return `${p.length}|${a}|${b}|${c}`; };
 function fairMain(v: NetVessel, m: Vec3[], coils: boolean): Vec3[] {
   const R = v.radius;
-  if (unfaired || !(R > 0) || v.feeder) return m;
+  if (unfaired || !(R > 0) || !FAIRED.has(v.id)) return m;
   if (!coils) {
     const sig = sigOf(m), hit = fairCache.get(v.id);
     if (hit && hit.sig === sig) return hit.pts;
