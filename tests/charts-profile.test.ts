@@ -216,7 +216,7 @@ test('the frame: every piece in every look, no word under 12 px, nothing outside
         assert.equal(f.w, w);
         assert.ok(f.h >= plan.G.need - 1);
         const words = f.shapes.filter((s): s is TextShape => s.k === 'text').map((s) => s.s);
-        assert.ok(words.includes('mmHg') && words.includes('sinusoidal'), 'the unit and the brace\'s name');
+        assert.ok(words.includes('sinusoidal') && !words.includes('mmHg') && !words.includes('HEPATIC'), 'the bracket\'s name; no unit, no second zone line (Gut to Heart, 23 Nov)');
         for (const n of plan.G.fit.names) assert.ok(words.includes(n), `${look}: station name ${n}`);
         for (const v of p.v) assert.ok(words.includes(words0(v)), `${look}: reading ${v}`);
         assert.equal(f.label, profileWords(plan.goal, SPANS));
@@ -347,14 +347,29 @@ test('the phone grid\'s strips: a case on one line with its blocks, and the name
   assert.ok(names.includes('sinusoidal') && names.includes('Pre-') && names.includes('Intra-') && names.includes('Post-'));
 });
 
-test('the unit stands by the top gridline, over its number, not under the brace at the foot (Mohammad, 21 Nov: "the mmHg sits orphaned under the axis")', async () => {
-  const healthy = profileOf(await fpOf('healthy'))!;
-  for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop'], [430, 'tablet-portrait'], [720, 'desktop']] as const) {
-    const c = ctxOf('light', w, d), f = Math.max(12, c.type.sm), plan = planProfile(w, 0, f, goalOf(healthy, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
-    const unit = fr.shapes.find((s) => s.k === 'text' && s.s === 'mmHg') as { y: number; x: number };
-    const lines = fr.shapes.filter((s) => s.k === 'line' && (s as { y1: number; y2: number }).y1 === (s as { y2: number }).y2 && (s as { x1: number }).x1 > 0) as unknown as { y1: number }[];
-    const topLine = Math.min(...lines.map((l) => l.y1));
-    assert.ok(unit.y < topLine, `${w}: the unit (${unit.y}) is over the top gridline (${topLine})`); assert.ok(unit.y > 0, 'and inside the box'); assert.equal(unit.x, 0);
+test('Gut to Heart is spacier at the same height (23 Nov): zone names one word, "sinusoidal" in a bracket row, no unit or gridline numbers, no "Healthy" on the healthy line', async () => {
+  const { profileGeo: geo2D } = await import('../src/ui/charts/profile/layout.generated.js') as unknown as { profileGeo: typeof profileGeo };
+  const healthy = profileOf(await fpOf('healthy'))!, csph = profileOf(await fpOf('csph'))!;
+  for (const [w, d] of [[300, 'phone-portrait'], [398, 'phone-portrait'], [430, 'tablet-portrait'], [720, 'desktop']] as const) {
+    const c = ctxOf('dark', w, d), f = Math.max(12, c.type.sm), tw = twAt(f), h = heightFor(w, f, SPANS);
+    const old = geo2D(w, h, f, tw, false, SPANS), G = profileGeo(w, h, f, tw, false, SPANS);
+    assert.equal(G.need, old.need, `${w}: the floor of the card's height is the 2D tool's, so the card is as tall as before`);
+    assert.ok(G.Z - G.T >= old.Z - old.T - 0.01, `${w}: the plot is never shorter than before`);
+    if (old.zone.lines === 2) { assert.ok(G.T < old.T && G.zone.word, `${w}: the zone strip lost its second line`); assert.ok(G.Z - G.T > old.Z - old.T + 8, `${w}: the plot gained at least 8 px`); }
+    for (let k = 0; k < SPANS.length; k++) assert.ok(G.brY(k) > G.Z && G.brY(k) < G.B, `${w}: bracket row ${k} stands in its band`);
+    for (let k = 1; k < SPANS.length; k++) assert.ok(G.brY(k) - G.brY(k - 1) >= old.brY(k) - old.brY(k - 1) - 0.01, `${w}: the bracket rows are no closer than before`);
+    const plan = planProfile(w, h, f, goalOf(healthy, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
+    const texts = fr.shapes.filter((s): s is TextShape => s.k === 'text'), words = texts.map((t) => t.s);
+    assert.ok(!words.includes('mmHg') && !words.includes('Healthy') && !words.includes('HEPATIC'), `${w}: no unit, no name on the healthy line, one-word zones`);
+    assert.ok(words.includes('PRE') || old.zone.lines !== 2, 'the zone words');
+    assert.ok(!texts.some((t) => t.anchor === 'end' && /^\d+$/.test(t.s)), `${w}: no gridline numbers`);
+    const sin = texts.find((t) => t.s === 'sinusoidal')!, names = texts.filter((t) => t.s === plan.G.fit.names[0]);
+    assert.ok(sin.y > names[0]!.y + 0.8 * f && sin.y + 0.3 * f <= fr.h, `${w}: "sinusoidal" stands under the names, inside the box`);
+    assert.equal(fr.h, plan.h);
+    judge(fr, 'dark', { onCard: false });
+    // another state: the healthy line is named again where it is a different line, and the readings keep clear of each other
+    const p2 = planProfile(w, h, f, goalOf(csph, healthy, null), healthy, null, SPANS), w2 = profileFrameAtRest(p2, c).shapes.filter((s): s is TextShape => s.k === 'text').map((t) => t.s);
+    assert.ok(w2.includes('Healthy'), `${w}: a state other than healthy still names the healthy line`);
   }
 });
 
@@ -406,23 +421,14 @@ test('the HVPG and PPG glide to a new patient: midway the printed values are bet
 
 // Lobule deck review, 23 Nov (slide 8): the Gut's reading "23" stood at the left edge over the last letters of "mmHg", and every reading wore a 4 px halo of the card's opaque colour that closed
 // into one dark pill ("dark chips on every number"). The unit steps clear of every reading, and a halo on this chart is an outline.
-test('the unit stands clear of every reading, and the words wear an outline halo, never a chip', async () => {
-  const { measure } = await import('../src/ui/charts/measure.ts');
+test('the words wear an outline halo, never a chip', async () => {
   const { OUTLINE_W } = await import('../src/ui/charts/profile/frame.ts');
   const healthy = profileOf(await fpOf('healthy'))!;
   for (const id of ['healthy', 'schisto', 'csph', 'cirr-decomp', 'pvt-chronic']) {
     const p = profileOf(await fpOf(id))!;
     for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop'], [430, 'tablet-portrait'], [720, 'desktop']] as const) {
       const c = ctxOf('dark', w, d), f = Math.max(12, c.type.sm), plan = planProfile(w, 0, f, goalOf(p, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
-      const texts = fr.shapes.filter((s): s is TextShape => s.k === 'text');
-      const unit = texts.find((s) => s.s === 'mmHg')!;
-      const ub = { x0: unit.x, x1: unit.x + measure('mmHg', unit.size, unit.weight ?? 500), y0: unit.y - 0.76 * unit.size, y1: unit.y + 0.24 * unit.size };
-      for (const t of texts) {
-        if (t === unit || !/^−?\d+$/.test(t.s) || t.anchor !== 'middle' || !t.halo) continue;   // (the readings on their dots)
-        const hw = measure(t.s, t.size, t.weight ?? 700) / 2, b = { x0: t.x - hw, x1: t.x + hw, y0: t.y - 0.76 * t.size, y1: t.y + 0.24 * t.size };
-        assert.ok(b.x1 <= ub.x0 || b.x0 >= ub.x1 || b.y1 <= ub.y0 || b.y0 >= ub.y1, `${id} ${w}: the reading ${t.s} lies over the unit`);
-      }
-      for (const t of texts) if (t.halo) assert.ok(t.halo.w <= OUTLINE_W + 1e-9, `${id} ${w}: "${t.s}" has a ${t.halo.w} px halo (an outline is at most ${OUTLINE_W})`);
+      for (const t of fr.shapes.filter((s): s is TextShape => s.k === 'text')) if (t.halo) assert.ok(t.halo.w <= OUTLINE_W + 1e-9, `${id} ${w}: "${t.s}" has a ${t.halo.w} px halo (an outline is at most ${OUTLINE_W})`);
     }
   }
 });

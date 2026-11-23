@@ -10,7 +10,7 @@ import { hvpgSentence } from './wedge.ts';
 export const {
   STATIONS, SPANS, NO_SPANS, BRACE_NAME, FULL_NAMES, SHORT_NAMES, ZONES, BLOCK_FALL, NUM_PAD, BR_PAD, BR_GAP, PILL_GAP,
   spansOf, spansStented, hasStent, profileOf, axisTop, blocksOf, blockSpan, chartScale, pillReadings, whole, zoneSpans, zoneSize,
-  profileGeo, nameFit, zoneFit, bracketFit, braceD, numberSides, placePills, placeLineNames, pillSize, LIVER_NAMES, SPOKEN, RATE_OF, PATH,
+  profileGeo: profileGeo2D, nameFit, zoneFit, bracketFit, braceD, numberSides, placePills, placeLineNames, pillSize, LIVER_NAMES, SPOKEN, RATE_OF, PATH,
 } = L as unknown as {
   STATIONS: string[]; SPANS: Span[]; NO_SPANS: Span[]; BRACE_NAME: string; FULL_NAMES: Record<string, string>; SHORT_NAMES: Record<string, string>;
   ZONES: { cls: string; one: string; top: string }[]; BLOCK_FALL: number; NUM_PAD: number; BR_PAD: number; BR_GAP: number; PILL_GAP: number;
@@ -43,7 +43,25 @@ export interface LineName { t: string; c: 'hl' | 'bf'; x: number; y: number; w: 
 export interface Geo {
   w: number; h: number; f: number; L: number; R: number; T: number; B: number; Z: number; slot: number; x(i: number): number;
   fit: { names: string[]; rows: number; dx: number[]; low: boolean[] }; brMode: ('gap' | 'tight' | 'stack')[]; brFs: number[]; spans: Span[];
-  zone: { lines: number; tight: boolean }; zb: number; hdr: number; need: number; braceY: number; nameX(i: number): number; nameY(i: number): number; brY(k: number): number;
+  zone: { lines: number; tight: boolean; /** two lines of name made one: the first word only (PRE, INTRA, POST) */ word?: boolean }; zb: number; hdr: number; need: number; braceY: number; /** the baseline-centre row of the inline "sinusoidal" bracket */ sinY: number; nameX(i: number): number; nameY(i: number): number; brY(k: number): number;
+}
+
+/** The room the card gives back to the chart without growing (Gut to Heart, 23 Nov: "this top card can use some space ... without changing the card height"). The 2D layout's zone names took two
+ *  lines (PRE / HEPATIC) and the liver's brace its own row under the station names. Here the zone names are one word on one line, and "sinusoidal" stands in a bracket on the row under the names (the
+ *  bracket style of HVPG and PPG), a row shorter than the brace. The chart's height and its `need` floor stay the 2D tool's, so the card's height never changes: the room goes to the plot
+ *  (55 %) and to air between the bracket rows (45 %). */
+const SIN_ROW = 1.0;   // em the brace row gives back
+const AIR = 0.45;      // share of the freed room that goes to the brackets' rows
+export function profileGeo(w: number, h: number, f: number, tw: Tw, inside = false, spans: Span[] = SPANS): Geo {
+  const G0 = profileGeo2D(w, h, f, tw, inside, spans);
+  const cut1 = G0.zone.lines === 2 ? 1.05 * zoneSize(f) : 0, braceH = 1.85 * f, braceH2 = braceH - SIN_ROW * f;
+  const nameH = G0.fit.rows * 1.25 * f + 0.4 * f, n = spans.length, band0 = G0.B - G0.Z;
+  const T = G0.T - cut1, q = inside || !n ? 0 : (cut1 + SIN_ROW * f) * AIR, band = band0 + q;
+  const B = Math.max(T + 3 * f + band, h - nameH - braceH2 - 0.5 * f), Z = inside ? B : B - band;
+  const nameY = (i: number) => B + 1.05 * f + (G0.fit.low[i] ? 1.25 * f : 0);
+  return { ...G0, T, B, Z, hdr: G0.hdr - cut1, zone: cut1 ? { ...G0.zone, word: true } : G0.zone, nameY,
+    braceY: B + nameH - 0.1 * f, sinY: B + 1.05 * f + (G0.fit.rows - 1) * 1.25 * f + 1.15 * f,
+    brY: (k: number) => (band0 > 0 ? Z + (G0.brY(k) - G0.Z) * (band / band0) : G0.brY(k)) };
 }
 
 export const NS = STATIONS.length;

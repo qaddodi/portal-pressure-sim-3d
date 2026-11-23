@@ -71,39 +71,19 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     shapes.push({ k: 'rect', x: tx0, y: y0, w: tx1 - tx0, h: G.B - y0, fill: lk(ZONE_LOOK[k]).fill });
   });
   shapes.push({ k: 'unclip' });
-  // The unit's words ("mmHg", at the left edge over the top gridline's number) and the box they take: a zone's name that would be set over them stands clear of them instead (the first zone's "HEPATIC"
-  // reached left into the unit on a card under about 340 px, and on any card when the names took two lines: they were printed over each other).
-  const unitL = lk('plot.unit'), unitW = measure('mmHg', unitL.size!, unitL.weight ?? 500);
-  // (and clear of every reading: the Gut's stands at the left edge, and its "23" (a reading above the top gridline) was set over the unit's last letters. A reading that meets the unit's box sends the unit up, to just over it.)
   const holes = holesOf(G, f, tw, py, sh.v);
-  let unitY = profileUnitY(gridOf(G, f, top).map((g) => g.y), f);
-  for (let again = 0; again < NS; again++) {
-    const hit = holes.find(([a, , c, d]) => a < unitW + 2 && c < unitY + 0.24 * unitL.size! + 1 && d > unitY - 0.76 * unitL.size! - 1);
-    if (!hit) break;
-    unitY = hit[2] - 0.24 * unitL.size! - 2;
-  }
-  const unitBox = { x1: unitW, y0: unitY - 0.76 * unitL.size!, y1: unitY + 0.24 * unitL.size! };
   if (G.zone.lines) {
     const tk = lk('prof.zone.text'), size0 = zf < f - 0.01 ? zf : f, lsp = G.zone.tight ? 0 : 0.06;
-    const names = zs.map(([a, b], k) => { const ls: string[] = zoneLines(k, G.zone.lines); return { ls, m: (G.x(a) + G.x(b)) / 2, tw: Math.max(...ls.map((t) => measure(t, size0, tk.weight ?? 500) + lsp * size0 * t.length)) }; });
-    // (the name stands over the zone's middle; the first zone's, past the unit's words, is moved right of them, as far as the next zone's name leaves room, and no further)
-    names.forEach((n, k) => {
-      const rows = n.ls.map((_, j) => G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf);
-      if (!rows.some((y) => y - 0.76 * size0 < unitBox.y1 && y + 0.24 * size0 > unitBox.y0) || n.m - n.tw / 2 >= unitBox.x1 + 10) return;
-      const next = names[k + 1];
-      n.m = Math.max(n.m, Math.min(unitBox.x1 + 10 + n.tw / 2, next ? next.m - next.tw / 2 - 6 - n.tw / 2 : Infinity));
-    });
+    const names = zs.map(([a, b], k) => { const ls: string[] = zoneLines(k, G.zone.lines).slice(0, G.zone.word ? 1 : 2); return { ls, m: (G.x(a) + G.x(b)) / 2, tw: Math.max(...ls.map((t) => measure(t, size0, tk.weight ?? 500) + lsp * size0 * t.length)) }; });
     names.forEach((n) => n.ls.forEach((t, j) => shapes.push(text(n.m, G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf, t, tk, { size: size0, ls: lsp }))));
   }
 
-  // The gridlines (no 0 on the axis, its line stays) and the unit in the bottom row.
-  const gl = lk('plot.grid.line'), gt = lk('plot.grid.text');
+  // The gridlines, bare: every reading carries its own number, and the unit is the card's words (Gut to Heart, 23 Nov: the numbers and "mmHg" crowded the plot's left edge).
+  const gl = lk('plot.grid.line');
   gridOf(G, f, top).forEach((g, k) => {
+    if (k % 2) return;   // (bare lines: every other one, the 10s, so the plot is not a ruled page)
     shapes.push({ k: 'line', x1: G.L, x2: G.R, y1: g.y, y2: g.y, pen: { color: gl.stroke!, w: gl.width ?? 1 } });
-    if (k) shapes.push(text(G.L - 6, g.y + 0.35 * f, words0(g.v), gt, { anchor: 'end' }));
   });
-  // (The unit stands by the top gridline, over its number, not orphaned under the brace at the foot where 2D put it: Mohammad, 21 Nov, "the mmHg sits under the axis". profileUnitY, pinned by a test.)
-  shapes.push(text(0, unitY, 'mmHg', unitL, { anchor: 'start' }));
 
   // The line's fill, closed down to the zero line, and the line: one piece a span of the gradient.
   const line = smooth(xs, py), np = line.length / 2, fillK = lk('prof.fill').opacity ?? 0.16;
@@ -147,14 +127,20 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
 
   // The healthy and earlier lines' names, each with a halo of the card's colour (no box behind the word).
   const nk = lk('prof.name');
-  for (const n of view.names) shapes.push(text(n.x, n.y, n.t, nk, { halo: vk.halo }));
+  // (a line that is the healthy one needs no "Healthy" on it: the dashed line lies under it)
+  const same = !!plan.hl && plan.hl.v.every((v, i) => Math.abs(v - plan.goal.v[i]!) < 0.05);
+  for (const n of view.names) if (!(same && n.c === 'hl')) shapes.push(text(n.x, n.y, n.t, nk, { halo: vk.halo }));
   // The stations' names under the axis, and the brace named sinusoidal under the liver's three.
   STATIONS.forEach((_, i) => shapes.push(text(G.nameX(i), G.nameY(i), G.fit.names[i]!, nk)));
+  // "sinusoidal" stands in a bracket under the liver's three names, in the bracket style of HVPG and PPG: ticks up at the ends, the bar broken round the word.
   const i0 = STATIONS.indexOf(PATH.liver[0]), i1 = STATIONS.indexOf(PATH.liver[1]);
   if (i0 >= 0) {
-    const bp = lk('prof.brace.path');
-    shapes.push({ k: 'path', pts: bracePts(G.x(i0) - 0.42 * G.slot, G.x(i1) + 0.42 * G.slot, G.braceY, 0.55 * f), pen: { color: bp.stroke!, w: bp.width ?? 1.5, cap: bp.cap ?? 'round', join: bp.join ?? 'round' } });
-    shapes.push(text((G.x(i0) + G.x(i1)) / 2, G.braceY + 1.55 * f, BRACE_NAME, lk('prof.brace.text')));
+    const bp = lk('prof.brace.path'), bt = lk('prof.brace.text'), x0 = G.x(i0) - 0.42 * G.slot, x1 = G.x(i1) + 0.42 * G.slot, mid = (x0 + x1) / 2, y = G.sinY;
+    const ww = measure(BRACE_NAME, bt.size!, bt.weight ?? 500), pen = { color: bp.stroke!, w: bp.width ?? 1.5, cap: bp.cap ?? 'round', join: bp.join ?? 'round' } as const;
+    const gapL = Math.min(mid - ww / 2 - 7, x1), gapR = Math.max(mid + ww / 2 + 7, x0);
+    shapes.push({ k: 'path', pts: [x0, y - 0.3 * f, x0, y, gapL, y], pen });
+    shapes.push({ k: 'path', pts: [x1, y - 0.3 * f, x1, y, gapR, y], pen });
+    shapes.push(text(mid, y + 0.36 * f, BRACE_NAME, bt));
   }
 
   // The brackets (HVPG, EUS-PPG, PPG) in their cut-off colours, each label inside its own bracket; held back, they are out.
