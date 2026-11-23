@@ -1,6 +1,7 @@
 // The label layer: the figure's station pills, their leaders, the catheter's reading cards and the colour key, drawn as DOM over the canvas
 // and moved by the clock. React builds the skeleton once; the clock's `tags` phase writes transform and opacity straight on the elements
 // (never through React state). The decisions (what is shown, where, when) are in controller.ts, the solver, the fader.
+import { figurePending } from '../../ui/deck/figure-pending.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { reduced } from '../../ui/a11y/motion.ts';
 import { D_SMALL } from '../../ui/motion.ts';
@@ -177,7 +178,7 @@ export function LabelLayer() {
           veinShown: (edge) => { const v = NETWORK_BY_ID.get(edge); return !!v && v.tone !== 'artery' && deps.drawn!(v as never); }, params: shownParams(),
         });
       },
-      hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit || cel.diving,   // (the station names and their values stand only where the body is settled: not over a dive, going in or coming back; the small views have their own captions)
+      hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit || cel.diving || figurePending(),   // (the station names and their values stand only where the body is settled: not over a dive, going in or coming back; the small views have their own captions)
       anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit && !cel.diving,   // (the readout callouts: only where the body stands settled, never over a dive, going in or coming back)
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
       present: (id) => {
