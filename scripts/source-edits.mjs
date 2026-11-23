@@ -37,6 +37,14 @@ export const TIPS_DOPPLER_REVIEW = [
   //     at every point: 0% is slide 5's 36 and 9.7 mmHg, and 65% is still 16.7 mmHg and 23 cm/s (the ring)
   SET('tips-doppler', 'slides.relation.tool.patient', { preset: 'cirr-decomp', params: { cirrhosis: 0.92, tips: { on: true, d: 10 }, splanchnicTone: 0.7, habrStrength: 1.5, apShunt: 0.5 } }),
   SET('tips-doppler', 'slides.relation.tool.days', 30),
+  // 15 [2.2, 5]: the hepatic vein had no trace anywhere in the deck. The Doppler's paired strip puts it under the portal vein's: triphasic before the TIPS (the right atrium's a wave briefly reverses its flow),
+  //     flat after a patent one (the stent's flow fills it and nothing reverses). Its a, S, v, D are named in the notes. (The portal vein's own "Phasic" label is src/ui/tests/doppler/phasic-cut.js.)
+  SET('tips-doppler', 'slides.before.tool.pair', true),
+  SET('tips-doppler', 'slides.mpv.tool.pair', true),
+  P('tips-doppler', 'slides.before.line', 'Every follow-up study is compared with this one.', 'Under the trace, the hepatic vein is triphasic. Every follow-up study is compared with this one.'),
+  P('tips-doppler', 'slides.before.notes', 'Record these values: after TIPS they should rise.', 'Record these values: after TIPS they should rise. The strip under the trace is the right hepatic vein, which follows the right atrium: a small reversal (a), the forward wave of systole (S), a short pause (v) and the forward wave of diastole (D) make it triphasic.'),
+  P('tips-doppler', 'slides.mpv.line', 'A later fall to {<30 cm/s} is one sign of TIPS stenosis.', 'A later fall to {<30 cm/s} is one sign of TIPS stenosis. Under the trace, the hepatic vein is flat: it no longer reverses.'),
+  P('tips-doppler', 'slides.mpv.notes', 'A main portal vein velocity that falls again on follow-up points to stenosis downstream.', 'A main portal vein velocity that falls again on follow-up points to stenosis downstream. The strip under the trace is the right hepatic vein: with the stent delivering portal blood into it, its a wave no longer reverses flow and the triphasic pattern flattens (biphasic or monophasic).'),
 ];
 
 export const SOURCE_PATCHES = [

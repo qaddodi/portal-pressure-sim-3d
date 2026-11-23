@@ -62,6 +62,12 @@ let body = lines(rd0, rd1).join('\n');
 // (doppler.js reads the store's parameters and the chosen gate; the pane hands them in)
 body = body.replace(/store\.get\(\)\.params/g, 'env.params()').replace(/store\.get\(\)\.dopGate/g, 'env.dopGate()');
 if (/store\./.test(body)) throw new Error('doppler.js reading still reads the store somewhere else');
+// (Departure from 2D, 23 Nov 2026: a portal vein's Phasic / Monophasic cut is src/ui/tests/doppler/phasic-cut.js, not 2D's 0.15, which called every cirrhotic portal vein "Phasic".)
+{
+  const cut = /pi > 0\.5 \? 'Pulsatile' : pi > 0\.15 \? 'Phasic' : 'Monophasic'/g, quiet = "pattern === 'Monophasic' ? 'Normal: hepatopetal, continuous.'";
+  if ((body.match(cut) || []).length !== 2 || !body.includes(quiet)) throw new Error('doppler.js: the portal vein pattern words are not where the phasic departure expects them');
+  body = body.replace(cut, "pi > 0.5 ? 'Pulsatile' : pi > PORTAL_PHASIC_PI ? 'Phasic' : 'Monophasic'").replace(quiet, "pattern === 'Monophasic' ? 'Hepatopetal and continuous: a stiff liver, as in cirrhosis, damps the phasicity a healthy portal vein shows.'");
+}
 put('doppler-reading.copied.js', HEAD('doppler.js, reading() to say()') + [
   `import { EDGES, dopplerK, stentReadsOf, stentGate } from '../../../../engine/hales/portal/topology.js';`,
   `import { gateKindsFromParams, reductionJet, kindOf } from '../../../../engine/hales/portal/stent-geom.js';`,
@@ -70,6 +76,7 @@ put('doppler-reading.copied.js', HEAD('doppler.js, reading() to say()') + [
   `import { pulsatility } from '../../copied/doppler-marks.copied.js';`,
   `import { gateFactors } from './gate-factors.copied.js';`,
   `import { clamp } from '../../copied/num.copied.js';`,
+  `import { PORTAL_PHASIC_PI } from '../phasic-cut.js';`,
   `import { EI, STENT_OUT, PROBES, RI_TEXT, GATE_KINDS, NOTE_BACK, NOTE_SLOW, NOTE_NOT_EXPECTED, REDUCTION_NOTE, rangeNoteOf, SEGS } from './doppler-tables.copied.js';`,
   ``,
   `/** The Doppler's reading of the record it is handed. env: { params(): the patient's parameters, dopGate(): 'proximal' | 'mid' | 'distal' | 'site' | null }. The closure state doppler.js keeps (the record, the beat times, the frame, the probe...) is set by sync(). */`,

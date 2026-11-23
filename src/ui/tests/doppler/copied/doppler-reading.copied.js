@@ -6,6 +6,7 @@ import { velNormal, judgeFlow } from '../../../../scene/lenses/vel-normal.copied
 import { pulsatility } from '../../copied/doppler-marks.copied.js';
 import { gateFactors } from './gate-factors.copied.js';
 import { clamp } from '../../copied/num.copied.js';
+import { PORTAL_PHASIC_PI } from '../phasic-cut.js';
 import { EI, STENT_OUT, PROBES, RI_TEXT, GATE_KINDS, NOTE_BACK, NOTE_SLOW, NOTE_NOT_EXPECTED, REDUCTION_NOTE, rangeNoteOf, SEGS } from './doppler-tables.copied.js';
 
 /** The Doppler's reading of the record it is handed. env: { params(): the patient's parameters, dopGate(): 'proximal' | 'mid' | 'distal' | 'site' | null }. The closure state doppler.js keeps (the record, the beat times, the frame, the probe...) is set by sync(). */
@@ -156,7 +157,7 @@ export function createReading(env) {
       const toStent = branch === 'PVH_R' && stent === 'TIPS' ? 1 : -1;
       if (branch && (toStent < 0 ? r.mean < -2 : r.mean > 2)) {
         dir = toStent < 0 ? 'Hepatofugal' : 'Hepatopetal'; sev = 'ok';
-        pattern = pi > 0.5 ? 'Pulsatile' : pi > 0.15 ? 'Phasic' : 'Monophasic';
+        pattern = pi > 0.5 ? 'Pulsatile' : pi > PORTAL_PHASIC_PI ? 'Phasic' : 'Monophasic';
         note = toStent < 0 ? NOTE_BACK[stent] : 'Expected with a TIPS: the segment before the stent flows hepatopetal into it; beyond the stent the right branches are hepatofugal.';
         return say(dir, sev, pattern, note, pi, true);
       }
@@ -164,13 +165,13 @@ export function createReading(env) {
       else if (reverses && Math.abs(r.mean) < swing * 0.35) { dir = 'To-and-fro'; sev = 'danger'; }
       else if (r.mean < 0) { dir = 'Hepatofugal'; sev = 'critical'; }
       else { dir = 'Hepatopetal'; sev = j.slow ? 'caution' : 'ok'; }
-      pattern = pi > 0.5 ? 'Pulsatile' : pi > 0.15 ? 'Phasic' : 'Monophasic';
+      pattern = pi > 0.5 ? 'Pulsatile' : pi > PORTAL_PHASIC_PI ? 'Phasic' : 'Monophasic';
       note = dir === 'Hepatofugal' ? 'Hepatofugal flow: portal blood exits through portosystemic collaterals.'
         : dir === 'To-and-fro' ? 'Bidirectional flow each cycle, preceding flow reversal.'
         : dir === 'Stasis' ? 'Near-zero net flow: stasis predisposes to portal vein thrombosis.'
         : pattern === 'Pulsatile' ? 'A pulsatile portal vein suggests transmitted right heart pressure (heart failure, tricuspid regurgitation) or an arterioportal shunt.'
         : j.slow ? (stent ? NOTE_SLOW[stent] : 'Hepatopetal but slow: typical of portal hypertension.')
-        : pattern === 'Monophasic' ? 'Normal: hepatopetal, continuous.'
+        : pattern === 'Monophasic' ? 'Hepatopetal and continuous: a stiff liver, as in cirrhosis, damps the phasicity a healthy portal vein shows.'
         : 'Normal: hepatopetal with mild phasicity.';
       // Flow toward the liver in a branch that a working stent would reverse: the stent no longer draws it, as when it narrows.
       if (branch && dir === 'Hepatopetal') { sev = 'caution'; note = NOTE_NOT_EXPECTED[stent]; }
