@@ -288,3 +288,13 @@ test('A random sample is one picture a slide: its last step, counted "n of 25", 
   assert.match(all, /const put = \(f: ZipFile\)/); assert.match(all, /\$\{reached\} of \$\{pick!\.size\}/);
   assert.match(all, /if \(!single \|\| fresh\) \{ shots\+\+; done\+\+; \}/, 'steps are not extra pictures');
 });
+
+test('Capture: a half turn is a turn (the table\'s down arrows), a stuck Next does not end the walk, a strip fills by frames, and a card must be up', () => {
+  const dom = src('src/ui/capture/capture-dom.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(dom, /const turned = \(m: DOMMatrix\) => spin\(m\) \|\| \(m\.a < -1e-3 && m\.d < -1e-3\)/); assert.match(dom, /if \(turned\(m\)\) return Math\.atan2\(m\.b, m\.a\)/);
+  assert.match(all, /inStop > 30/); assert.match(all, /st\.go\(here \+ 1\)/); assert.match(all, /the walk jumped on/);
+  assert.match(all, /STRIP_FRAMES/); assert.match(all, /no card is up yet/); assert.match(all, /lens and the view it was taken with/, 'the README says what the JSON holds');
+  // a half turn is a = d = -1 with b = c = 0 (cos 180, sin 180): the case `spin` alone does not see
+  const a = Math.cos(Math.PI), b2 = Math.sin(Math.PI);
+  assert.ok(Math.abs(b2) < 1e-3 && a < -1e-3, 'b and c are 0'); assert.ok(Math.abs(Math.abs(Math.atan2(b2, a)) - Math.PI) < 1e-6);
+});

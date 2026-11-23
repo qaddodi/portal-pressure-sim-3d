@@ -30,6 +30,9 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 const blobOf = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob | null>((ok) => c.toBlob(ok, type, q));
 const bytesOf = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
 /** A Doppler strip says "—" for its speed while its canvas still reads "Acquiring…" (about 3 s of page time; a slide with no flow may say it for good). */
+/** The instruments that draw a strip across time (a trace, the vital signs, a Doppler): their holds, and how many frames a strip needs to fill (about 3 s of the page at the clock's own pace). */
+const LIVE = new Set(['vitals', 'trace', 'doppler', 'endo-scope', 'eus-ppg', 'ir']);
+const STRIP_FRAMES = 45;
 function dopplerAcquiring(): boolean {
   const dv = document.querySelector('.instrument-view.dop .dop-vel');
   return !!dv && !!dv.textContent?.includes('—') && Number(readStyle(dv).opacity) > 0.5 && !dv.closest('[data-out="true"]') && readBox(dv).width > 0;
@@ -38,13 +41,17 @@ function dopplerAcquiring(): boolean {
  *  half seconds (a toast's timer rule, a loop of many turns) or one on anything but the cards, the labels and the bars is a perpetual motion, not a slide settling, and is left out. The audit's own check (page/live.ts busyWhy)
  *  counts every running animation, which kept this waiting five seconds on a slide that had been still for a moment. */
 const CONTENT = '.dk-card, .dk-plate, .lb-layer, .dk-bar, .vdock, .topbar, .stage-credit, .zoom-pill, .dk-strip';
-function arriving(clockToo = true, dopplerToo = true): string {
+function arriving(clockToo = true, stripsToo = true, frames = 99): string {
   try {
     if (cel.rig.isMoving) return 'the camera is moving';
     if (clockToo && clock.moving > 0) return `moving: ${clock.movingTags().join(', ')}`;   // (a glide, a tween, a card sliding, the labels placing: the clock's own list of what is in motion; the steady instruments, a live trace, are not in it)
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
-    if (dopplerToo && dopplerAcquiring()) return 'the Doppler is acquiring';
+    if (stripsToo) {
+      if (dopplerAcquiring()) return 'the Doppler is acquiring';
+      if (!document.querySelector('.dk-card[data-phase="in"], .dk-plate[data-phase="in"]')) return 'no card is up yet';
+      if (frames < STRIP_FRAMES && clock.stats().holds.some((t) => LIVE.has(t))) return 'a live strip is still filling';
+    }
     for (const a of document.getAnimations()) {
       if (a.playState !== 'running' || !(a.effect instanceof KeyframeEffect)) continue;
       if (!Number.isFinite(a.effect.getTiming().iterations) || Number(a.effect.getComputedTiming().endTime) > 2500) continue;
@@ -63,17 +70,21 @@ const tagWords = (): string => [...document.querySelectorAll('.lb-layer .cl-k')]
  *  real pauses are given in page time (`real`). */
 async function stillPage(real: (ms: number) => number, needWords = false): Promise<{ moving: string; words: string; perpetual: string }> {
   await sleep(real(60));   // (the press has reached the cards: they mount and begin on the next frames)
+  let frames = 0;
+  const off = clock.on('tween', () => { frames++; });   // (frames drawn since this wait began: a strip fills by frames, not by the clock)
   const t0 = clock.now(), limit = real(needWords ? 7000 : 5000);
   let still = -1, why = '', words = '';
   while (clock.now() - t0 < limit) {
-    why = arriving(clock.now() - t0 < real(4000), clock.now() - t0 < real(2500)); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
+    why = arriving(clock.now() - t0 < real(4000), clock.now() - t0 < real(3000), frames); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
     if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
     if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real(words.includes(BLOCKED_SAYS.first) ? 25 : 60)) { why = ''; break; } } else still = -1;
     await sleep(real(15));
   }
+  off();
   const gaveUp = clock.now() - t0 >= limit;
   if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
-  const perpetual = [clock.moving > 0 ? `the clock still held motion after 4 s (${clock.movingTags().join(', ')})` : '', dopplerAcquiring() ? 'the Doppler still said Acquiring… after 2.5 s (it may in the app too)' : ''].filter(Boolean).join('; ');
+  const soft = arriving(false, true, frames);
+  const perpetual = [clock.moving > 0 ? `the clock still held motion after 4 s (${clock.movingTags().join(', ')})` : '', soft ? `${soft}, still, after 3 s (the picture shows it so; it may in the app too)` : ''].filter(Boolean).join('; ');
   return { moving: gaveUp ? why : '', words: tagWords(), perpetual };
 }
 /** A slide whose catheter stands against a blocked vein (its words "Occluded" and "No reading" must be on the figure). */
@@ -133,7 +144,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
-      let sub = 0, lastStop = -1, presses = 0, shownNow = '';
+      let sub = 0, lastStop = -1, presses = 0, shownNow = '', inStop = 0, inStopAt = -1;
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
         const fresh = k !== lastStop;   // (the first picture of this slide)
@@ -184,6 +195,15 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       for (; presses < stops * 40; presses++) {
         if (ui.stop()) { stopped = true; break; }
         if (!useUi.getState().move('next')) break;
+        // a Next that keeps saying yes without the talk leaving its stop (a page that is never the last, a step that never ends): after 30 presses the walk jumps on and says so, so one stuck slide costs one picture, not the rest of the talk
+        const here = useUi.getState().pos.stop;
+        inStop = here === inStopAt ? inStop + 1 : 1; inStopAt = here;
+        if (inStop > 30) {
+          const st = useUi.getState();
+          notes.push(`${d.title} stop ${here + 1}: Next was pressed ${inStop} times and the talk stayed on it (page ${typeof st.page === 'number' ? st.page + 1 : st.page} of ${st.pageCount}, beat ${st.pos.beat + 1}); the walk jumped on. On a phone this could be a slide Next cannot leave: check it`);
+          st.go(here + 1); inStop = 0;
+          if (useUi.getState().pos.stop === here) break;
+        }
         if (useUi.getState().pos.stop > last) break;   // (past the last picked slide of this talk)
         await grab(); await blockedThen();
       }
@@ -201,7 +221,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
-  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, `${shots} pictures in ${decksDone} talks${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that exact view, the patient, the look, the camera, the sliders).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
+  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, `${shots} pictures in ${decksDone} talks${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
   return { files, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
