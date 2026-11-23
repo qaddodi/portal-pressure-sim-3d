@@ -19,3 +19,9 @@ export function addLabelBox(x: number, y: number, w: number, h: number): void {
 }
 /** The labels and callouts showing now. */
 export const probeAvoid = (): readonly Box[] => view;
+
+// The figure's colour key (the lens's legend, labels/key-dock.ts) is drawn over the figure at the foot, so the Doppler probe keeps off it like it keeps off a card: a probe half behind the Direction key, or a gate under it,
+// read as covered (TIPS Doppler review, items 3 and 10, 23 Nov 2026). The label controller writes it when it docks the key; the probe's cards read it (devices/probes/cards.ts). Null while no key stands.
+let keyRoom: Box | null = null;
+export const setKeyRoom = (b: Box | null): void => { keyRoom = b ? { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 } : null; };
+export const probeKeyRoom = (): Box | null => keyRoom;

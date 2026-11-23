@@ -10,7 +10,11 @@ const MINUS = '−';
 /** The least digits in a whole part: a blood pressure reads three ("120/80 (93)"), the platelets' thousands three ("150,000"), every other reading two. */
 const leastDigits = (key?: string): number => (key === 'map' || key === 'plt' ? 3 : 2);
 
-export function reserveOf(text: string, key?: string, whole = false): string {
+/** `still`: no control on the slide can bring a very different reading (no slider, hold-to-strain, time-lapse or patient switch), so a shown reading reserves only its own width: the padding (a second digit, a minus slot)
+ *  is for a reading that can change its size, and left after one that cannot it reads as a gap before the next word, "18.2 mmHg   to" and "1.1 L   of ascites" (TIPS Doppler review, 23 Nov 2026).
+ *  A reading not yet in reserves its typical value, so its arrival does not re-wrap the line. */
+export function reserveOf(text: string, key?: string, whole = false, still = false): string {
+  if (still && text !== VALUE_PENDING) return text;
   const unit = key ? (TILE as Record<string, { u?: string } | undefined>)[key]?.u ?? '' : '';
   const sign = key && SIGNED.has(key) ? MINUS : '';
   if (text === VALUE_PENDING) {

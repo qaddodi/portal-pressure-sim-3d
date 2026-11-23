@@ -76,6 +76,10 @@
 /* ── type ──
    The words' type (.pz-kick, .pz-h, .pz-line, .pz-eq, .pz-val, .pz-term) and the data card's (.pz-dh, .pz-tile) are the lifted 2D rules. What is left here is the card-owned bits. */
 .dk-num { font-variant-numeric: tabular-nums lining-nums; font-weight: 600; white-space: nowrap; }
+/* Prose figures are proportional (TIPS Doppler review, item 8, 23 Nov 2026): the card's tabular figures gave a "1" a full-width cell, so ">190 cm/s" read ">1 90 cm/s" and "10%" read "1 0%". Tabular figures stay
+   where a number changes in place: a reading's own box (.dk-num, .pz-val, a step disc), the tiles and the tables. */
+.deck-ui :is(.pz-h, .pz-line, .pz-side-p, .pz-caveat, .pz-cite, .pz-sub, .pz-causes, .pz-eq) { font-variant-numeric: lining-nums proportional-nums; }
+.deck-ui :is(.pz-line, .pz-side-p, .pz-h) :is(.dk-num, .pz-val, .pz-step) { font-variant-numeric: tabular-nums lining-nums; }
 .dk-body + .dk-body { margin-top: 10px; }
 .dp-eqnote { margin: 2px 0 8px; font-size: var(--fs-data); opacity: 0.72; }
 

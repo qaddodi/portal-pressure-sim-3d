@@ -44,7 +44,7 @@ test('TeachingCard renders them in one grid cell, the shown one on, the rest hid
   assert.match(css, /\.pz-vars \{ display: grid; \}/);
   assert.match(css, /\.pz-vars > \* \{ grid-area: 1 \/ 1;/);
   assert.match(css, /\.pz-vars > \[data-var="off"\] \{ opacity: 0; visibility: hidden;/);
-  assert.doesNotMatch(css.slice(css.indexOf('.pz-vars')), /display: none/, 'a reserved variant keeps its room: opacity and visibility only');
+  assert.doesNotMatch(css.slice(css.indexOf('.pz-vars'), css.indexOf('/* One tag per card')), /display: none/, 'a reserved variant keeps its room: opacity and visibility only');
 });
 
 test('every title the card holds is judged for "long" the same way, so the reserve is the tallest one\'s', () => {

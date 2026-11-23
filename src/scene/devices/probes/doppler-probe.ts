@@ -91,6 +91,10 @@ interface Frame { gate: Vector3; ex: Vector3; ey: Vector3; U: number }
 /** What is drawn: the gate's distance to the face (px), the lumen's radius (px), the probe's size, the flow axis's turn from the line of sight (degrees), how far the marks have closed (0 to 1). */
 interface Draw { D: number; r: number; k: number; phi: number; out: number }
 
+/** The stretch of the sampled vessel round the gate that is not counted as busy, px (its own course there is what the line of sight meets). */
+export const OWN_CLEAR = 46;
+/** How far a label keeps off the probe's body and cable, px: the cable's tail reaches the end of the search's room and a name 4 px from it read as touching it (TIPS Doppler review, item 11: "Portal vein 36 cm/s" on the cable). */
+export const BODY_CLAIM_PAD = 9;
 const NO_AVOID: readonly Box[] = [], NO_BUSY: number[][] = [], NO_BAN: string[] = [];
 const hMix = (h: number, v: number): number => Math.imul(h ^ (v | 0), 16777619) >>> 0;
 const hStr = (v: string): number => { let h = 2166136261; for (let i = 0; i < v.length; i++) h = Math.imul(h ^ v.charCodeAt(i), 16777619); return h >>> 0; };
@@ -320,7 +324,10 @@ export class DopplerProbe {
     let n = 0;
     const g = this.gate3, rs = R / B.sc + 0.1, p = this.tmp, pt = this.sm;
     for (const v of NETWORK) {
-      if (v.id === id || v.pts.length < 2) continue;
+      if (v.pts.length < 2) continue;
+      // the vessel the probe samples counts too, but only where it is away from the gate: its own course right at the gate is what the line of sight meets, and further along a stent or a vein runs under a probe standing
+      // beside it (TIPS Doppler review, item 10: the probe lay across the mid stent on the slide that samples the hepatic end)
+      const own = v.id === id;
       // a quick look in the plate: the course's box against the room the search looks into
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const q of v.pts) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; }
@@ -331,6 +338,7 @@ export class DopplerProbe {
         const a = v.pts[i]!;
         env.project(p.set(a[0], a[1], g.z), pt);
         if (Math.abs(pt.x - B.ox) >= R + q || Math.abs(pt.y - B.oy) >= R + q) { lx = NaN; continue; }
+        if (own && Math.hypot(pt.x - B.ox, pt.y - B.oy) < OWN_CLEAR + q) { lx = NaN; continue; }
         if (!Number.isNaN(lx)) {
           // a point every 6 px along the stretch from the last
           const dx = pt.x - lx, dy = pt.y - ly, m = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
@@ -506,7 +514,7 @@ export class DopplerProbe {
   footprint(out: Box[]): void {
     if (!this.on || this.shown <= 0 || !this.overlay) return;
     const b = this.bodyBox, L = this.lines;
-    addClaim(out, b.x0, b.y0, b.x1, b.y1, 4);
+    addClaim(out, b.x0, b.y0, b.x1, b.y1, BODY_CLAIM_PAD);
     addStroke(out, L[LINE_SIGHT * 4]!, L[LINE_SIGHT * 4 + 1]!, L[LINE_SIGHT * 4 + 2]!, L[LINE_SIGHT * 4 + 3]!, 6);
     addClaim(out, L[LINE_AXIS * 4]!, L[LINE_AXIS * 4 + 1]!, L[LINE_AXIS * 4 + 2]!, L[LINE_AXIS * 4 + 3]!, 6);
   }

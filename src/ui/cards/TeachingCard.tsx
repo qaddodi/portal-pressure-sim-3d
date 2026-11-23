@@ -32,12 +32,14 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
   const all = variantsOf(slide, deck), here = idOf(shown);
   const list = all.some((w) => idOf(w) === here) ? all : [...all, shown];
   const many = list.length > 1;
+  // (roll-reserve.ts `still`: nothing on the slide can bring a very different reading, so a reading keeps only its own width and no gap stands after it)
+  const ctl = slide.controls, still = !slide.lapse && !ctl?.whatIf && !ctl?.strain && !ctl?.compare?.opts.some((o) => o.preset || o.slide);
   const titles = (Tag: 'h1' | 'h2', style?: CSSProperties) => many
     ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here; return <Tag key={idOf(w)} className="pz-h" style={style} data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}>{w.title}</Tag>; })}</div>
     : <Tag className="pz-h" style={style}>{shown.title}</Tag>;
   const lines = () => many
-    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here, t = on ? text : pageOf(sentences(w.line), pages, page).join(' '), g = on ? f : cardFields(deck, slide, { ...slide, ...w }, page, pages); return t ? <p key={idOf(w)} className="pz-line" data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}><Line text={t} read={read} slide={rich} fp={fp} pill={g.pill} /></p> : null; })}</div>
-    : text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null;
+    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here, t = on ? text : pageOf(sentences(w.line), pages, page).join(' '), g = on ? f : cardFields(deck, slide, { ...slide, ...w }, page, pages); return t ? <p key={idOf(w)} className="pz-line" data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}><Line text={t} read={read} slide={rich} fp={fp} pill={g.pill} still={still} /></p> : null; })}</div>
+    : text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} still={still} /></p> : null;
   const eq = slide.eq && page === 0;
   const rich = richOf(slide);
   // the title's one step down when a sideways phone has no wider column left: 2D's own knob for it (--pz-tk), set from the trimmed size
@@ -76,7 +78,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       {lines()}
       {f.sides.length ? (
         <div className="pz-sides" role="group" aria-label="What each guideline says">
-          {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} slide={rich} fp={fp} /></p></div>)}
+          {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} slide={rich} fp={fp} still={still} /></p></div>)}
         </div>
       ) : null}
       {f.caveat ? <p className="pz-caveat">{f.caveat}</p> : null}

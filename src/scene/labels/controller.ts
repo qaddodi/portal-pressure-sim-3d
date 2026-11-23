@@ -21,6 +21,7 @@ import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { LS, boxSize, organRun, stationRuns, type Say } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
+import { setKeyRoom } from './probe-boxes.ts';
 import { RoomFade } from './ride.ts';
 import { STENT_IDS, STENT_STATIONS, COMPACT_W as STENT_COMPACT, geoFrac, geoLines, geoSets, geoSize, encodeGeo, pointName, type StentView, type StentId } from './stent-labels.ts';
 import { STENT_SITES } from '../../engine/hales/portal/topology.js';
@@ -528,6 +529,7 @@ export class LabelController {
     const view = d.view(), blockers = [...d.blockers(), ...(d.claims?.() ?? [])];
     this.dock = this.keyDock();
     const keyBox = this.dock?.box ?? null;
+    setKeyRoom(keyBox);   // (the Doppler probe keeps off the key as it keeps off a card)
     if (keyBox) blockers.push(keyBox);
     // a card stands only where what it points at exists: in the Anatomy. In another view it eases out (the cards' own 240 ms) instead of being clamped to the screen's edge
     const here = d.anatomy ? d.anatomy() : true;

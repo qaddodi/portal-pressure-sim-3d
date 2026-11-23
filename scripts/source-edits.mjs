@@ -14,6 +14,31 @@ const APPEND = (deck, at, append) => ({ deck, at, append });
 
 const AASLD_RULE = 'AASLD 2024 (guidance statement 7) uses a different rule of five from the same two numbers: CSPH is presumed at an LSM ≥25 kPa regardless of the platelet count, at 20 to 24.9 kPa with platelets <150,000/µL, or at 15 to 19.9 kPa with platelets <110,000/µL; it is excluded at an LSM <15 kPa with platelets ≥150,000/µL; all other combinations are indeterminate, and SSM or the HVPG can decide. So AASLD presumes CSPH where Baveno VIII stays indeterminate at 20 to 25 kPa with platelets <150,000/µL and at 15 to 20 kPa with platelets <110,000/µL, and at exactly 15 kPa Baveno VIII rules CSPH out where AASLD does not. AASLD advises caution with its rule in MASLD with obesity, an ALT >3 times the upper limit of normal, and primary sclerosing cholangitis with a dominant stricture, where it is less well calibrated.';
 
+
+/** The TIPS Doppler deck's review patches (23 Nov 2026), in one list so the copied file can be brought up to date without the 2D checkout. */
+export const TIPS_DOPPLER_REVIEW = [
+  // 4 [2.2]: the text said "pale", and the figure draws the slow end of the velocity map in indigo and blue (ramp F): the words name what is drawn
+  P('tips-doppler', 'slides.before.line', 'so the portal veins are pale on the velocity map', 'so the portal veins are indigo or blue on the velocity map'),
+  // 1 [3.1, 3.2]: the first view was centred on the right portal vein alone, a close-up of the bifurcation with the stent above it, under the Doppler card. It is centred between the portal end and the middle of the stent.
+  SET('tips-doppler', 'slides.jet.cam', [520, 300, 630, 450]),
+  // 2 [4]: the aliasing slide named no lens, so the figure fell back to the pressure look in the middle of a velocity lesson
+  SET('tips-doppler', 'slides.alias.lens', 'velocity'),
+  // 9 [7]: the jet was only "above 190": the slide says its reading, the model's, as the figure's Dist tag reads it
+  P('tips-doppler', 'slides.narrow.line', 'The jet at the stenosis is {>190 cm/s}, the rest of the stent {<90 cm/s}, and the PPG has risen to {ppg}.', 'The jet at the stenosis reads {tipsVel}, past the {190 cm/s} cut-off. The rest of the stent is {<90 cm/s}, and the PPG has risen to {ppg}.'),
+  // 10 [10]: the stenosed state of this slide is the one slide 7 stands in (distal, no waist), so the probe samples the same place
+  SET('tips-doppler', 'slides.fix.compare.0.params', { stenosis: { TIPS: 0.65 }, stenosisSite: { TIPS: 'distal' }, stentGeom: { TIPS: { red: 0 } } }),
+  // 5, 6 [12]: the stenosed row is compared with the patent stent (a worse reading is red, never "better"), the stent's Doppler trace stands in each row (a stent that is not there has no trace),
+  //     and the portal vein velocity is a column of its own with its unit in the legend
+  SET('tips-doppler', 'slides.summary.cols', ['ppg', 'pvVel', 'wave']),
+  SET('tips-doppler', 'slides.summary.wave', 'TIPS'),
+  SET('tips-doppler', 'slides.summary.of.0.blank', ['wave']),
+  SET('tips-doppler', 'slides.summary.of.2.vs', 'jet'),
+  // 14 [11]: the curve swept the stenosis from the slide's own state, six months on, so its 0% was 38.6 cm/s where the patent stent's slide (a month on) reads 36. It runs the jet slide's own patient, a month after the stent,
+  //     at every point: 0% is slide 5's 36 and 9.7 mmHg, and 65% is still 16.7 mmHg and 23 cm/s (the ring)
+  SET('tips-doppler', 'slides.relation.tool.patient', { preset: 'cirr-decomp', params: { cirrhosis: 0.92, tips: { on: true, d: 10 }, splanchnicTone: 0.7, habrStrength: 1.5, apShunt: 0.5 } }),
+  SET('tips-doppler', 'slides.relation.tool.days', 30),
+];
+
 export const SOURCE_PATCHES = [
   // ---- stiffness: the two slides that set AASLD against Baveno VIII, rewritten as Baveno VIII alone (the comparison moves to the notes) ----
   SET('stiffness', 'slides.aasld.tool', { kind: 'path', of: 'first-visit', short: 'First-visit path', patient: { bmi: false, ant: false } }),
@@ -106,6 +131,9 @@ export const SOURCE_PATCHES = [
   //      so a title saying it "stays normal" contradicted the card beside it. The slide's point is the contrast with the portal vein (20 mmHg), and the words now say that. The speaker notes keep the teaching sentence. ----
   P('lobule', 'slides.wedge-sinusoid.title', 'the sinusoidal pressure stays normal', 'the sinusoidal pressure stays well below the portal pressure'),
   P('lobule', 'slides.wedge-sinusoid.line', 'keeps the sinusoidal pressure at {sin} while the portal pressure is high.', 'holds the sinusoidal pressure to {sin} while the portal pressure is {pv}.'),
+
+  // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
+  ...TIPS_DOPPLER_REVIEW,
 ];
 
 function step(node, key) {
@@ -114,9 +142,9 @@ function step(node, key) {
 }
 
 /** The deck's JSON text with the source patches of its talk applied (a talk that has none comes back as it was). */
-export function sourceEdits(json) {
+export function sourceEdits(json, patches = SOURCE_PATCHES) {
   const probe = JSON.parse(json);
-  const mine = SOURCE_PATCHES.filter((p) => p.deck === probe.id);
+  const mine = patches.filter((p) => p.deck === probe.id);
   if (!mine.length) return json;
   const indent = /^\{\n( +)/.exec(json)?.[1].length ?? 1;
   const deck = probe;
