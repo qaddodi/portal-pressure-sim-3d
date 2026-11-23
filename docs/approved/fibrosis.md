@@ -22,6 +22,9 @@ analytic band (cv-band.ts: opaque tan ring, polygonal edge, glow collar) is reti
 
 - No pale apron round the hexagon: a hex-edge septum lies inside the vessel ring (its centre line is moved in by 0.085 R), so it fills the hexagon's edge and spills out no more than about 0.04 R; the tracts at the corners still reach out as approved (capture a56feaf2, ascites 5, "a pale cream apron round the whole hexagon"; `tests/collagen-relief.test.ts`).
 
+- Wide bands, not a ball of hairlines (capture bbe955e5, treatment 10): a tract's bands are about a sixth of its radius wide (past the relief's coarse mip, so each has a lit and a shade side), three or two to a ring, four rings, the outer one partial.
+- The vein's collar thins outward (capture bbe955e5, where-resistance 5, "flat sides and a cream halo between the sinusoids"): its outer rings are shorter and lighter, so the edge is bundle ends fraying into the tissue, not a plateau or a glow; the shader's fade starts at 0.75 of the collar (a harder edge, 0.85, made a hard-edged disc, rejected).
+
 ## Rejected
 - Glow outside the band, any halo, a flat plateau, blobs.
 - Terraces: "banded, looks like glow" (the painter's three passes showing as stepped outlines), and the wide pale apron round a tract.

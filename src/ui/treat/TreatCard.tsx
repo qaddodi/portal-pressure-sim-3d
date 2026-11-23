@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './treat.css';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
+import { attachTabSwipe, neighbourTab } from '../shell/tab-swipe.ts';
 import { I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
 import { useThumb } from '../shell/thumb.ts';
@@ -172,6 +173,17 @@ export function TreatCard() {
       onGone: () => { push.current = null; setMounted(false); },
     });
   }, [mounted]);
+  // a sideways swipe on the card goes to the next or the previous tab, as a tap on it does (owner, 23 Nov: swipe between the tabs of every menu on touch screens); read live, so the closure never goes stale
+  const live = useRef({ open, page, tab, go: (_id: TabId) => undefined as void });
+  const has = !!p;
+  useEffect(() => {
+    const el = ref.current;
+    if (!has || !el) return;
+    return attachTabSwipe(el, {
+      enabled: () => live.current.open && !live.current.page,
+      step: (dir) => { const id = neighbourTab(TABS.map((t) => t[0]), live.current.tab, dir); if (id) live.current.go(id); },
+    });
+  }, [has]);
   if (!p) return null;
   const close = () => useTreat.getState().setOpen(false);
   const setTab = (id: TabId) => {
@@ -181,6 +193,7 @@ export function TreatCard() {
     setGone((g) => (g[id] ? { ...g, [id]: false } : g));
     useTreat.getState().setTab(id);
   };
+  live.current = { open, page, tab, go: setTab };
   const openPage = () => {
     if (mounted) return;
     ask();

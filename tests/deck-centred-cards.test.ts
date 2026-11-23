@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { sideColW } from '../src/ui/layout/rules2d.ts';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planLayout, centredBox, centredKind, pzhOf, type Need } from '../src/ui/layout/plan.ts';
@@ -30,7 +31,8 @@ test('the outline is 2D\'s panel: on a Mac its reading width (50 body sizes, 82%
   const p = planLayout(mac, need('title', 600));
   assert.equal(p.cards.length, 1); assert.equal(p.strip, null);
   assert.ok(centred(p.cards[0]!.rect, mac) && Math.abs(p.cards[0]!.rect.y + p.cards[0]!.rect.h / 2 - 450) <= 1, 'centred both ways');
-  assert.equal(centredBox(side, 'panel', 'outline').w, 852 - 59 - 59 - 168 - 10, 'a phone on its side: the panel takes the room left of the pill\'s column at the right (docs/approved/landscape-phone.md)');
+  assert.equal(centredBox(side, 'panel', 'outline').w, sideColW(852), 'a phone on its side: a card standing alone is the one card column, never a wide panel (docs/approved/landscape-phone.md: every slide uses the column)');
+  assert.equal(centredBox(side, 'case').w, sideColW(852));
   const ph = centredBox(phone, 'panel');
   assert.equal(ph.w, 393 - 16); assert.equal(ph.maxH, 852 - 72 - 34);
   const q = planLayout(phone, need('title', 500)).cards[0]!.rect;
@@ -49,13 +51,13 @@ test('a summary table or a chart slide is one centred panel (2D visual): no word
   assert.match(t, /TeachingCard panel/); assert.match(t, /TableCard/); assert.match(t, /ToolCard/);
 });
 
-test('the case is 2D\'s big centred card: 920 px at most (the width less 32 px on a phone), 70% on an upright iPad, centred both ways, never left', () => {
+test('the case is 2D\'s big centred card: 920 px at most (the width less 32 px on a phone), 70% on an upright iPad, centred both ways, never left (a phone on its side: the card column, centred down)', () => {
   assert.equal(centredBox(mac, 'case').w, 920);
   assert.equal(centredBox(phone, 'case').w, 393 - 32);
   assert.equal(centredBox(ipad, 'case').w, Math.round(0.7 * 820));
   for (const vp of [mac, phone, ipad, side]) {
     const r = planLayout(vp, need('case', 300)).cards[0]!.rect;
-    assert.ok(centred(r, vp), `${vp.w}x${vp.h} centred across`);
+    if (vp !== side) assert.ok(centred(r, vp), `${vp.w}x${vp.h} centred across`);
     assert.ok(Math.abs(r.y + r.h / 2 - vp.h / 2) <= 1, `${vp.w}x${vp.h} centred down`);
   }
   assert.equal(centredBox(mac, 'case').maxH, Math.round(900 - 2 * Math.max(84, 0.11 * 900)));

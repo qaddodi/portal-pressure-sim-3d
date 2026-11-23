@@ -58,6 +58,55 @@
           "width": 504
         },
         {
+          "page": 0,
+          "size": 9.6,
+          "leading": 13.248,
+          "find": "pick a talk to play it",
+          "width": 504,
+          "runs": [
+            [
+              "Main menu",
+              true
+            ],
+            [
+              " (top left, shows the patient name, \"Healthy\" here): opens the list of presentations, patients and histories. On ",
+              false
+            ],
+            [
+              "Present",
+              true
+            ],
+            [
+              " pick a talk to play it; on ",
+              false
+            ],
+            [
+              "Patients",
+              true
+            ],
+            [
+              " pick a case to load; on ",
+              false
+            ],
+            [
+              "Histories",
+              true
+            ],
+            [
+              " open a patient who has already been treated. It also has search, Copy link to this view and Help. ",
+              false
+            ],
+            [
+              "Tests",
+              true
+            ],
+            [
+              ": opens the Tests card with tabs for Pressure, HVPG, Doppler, Scope, Ascites, Fibro and Readouts, the measurements you can take on this patient.",
+              false
+            ]
+          ]
+        },
+        {
           "page": 1,
           "size": 9.6,
           "leading": 13.27,
@@ -131,6 +180,47 @@
           ],
           "find": "A short loading screen",
           "width": 350
+        },
+        {
+          "page": 0,
+          "size": 12,
+          "leading": 16.56,
+          "find": "talk to play it",
+          "width": 350,
+          "runs": [
+            [
+              "Main menu",
+              true
+            ],
+            [
+              " (top left, shows the patient name, \"Healthy\" here): opens presentations, patients and histories. On ",
+              false
+            ],
+            [
+              "Present",
+              true
+            ],
+            [
+              " pick a talk to play it; on ",
+              false
+            ],
+            [
+              "Patients",
+              true
+            ],
+            [
+              " pick a case; on ",
+              false
+            ],
+            [
+              "Histories",
+              true
+            ],
+            [
+              " open a treated one. It also has search, Copy link to this view and Help.",
+              false
+            ]
+          ]
         },
         {
           "page": 5,

@@ -4,6 +4,7 @@ import { useUi } from '../ui-store.ts';
 import { talkOn, talkId } from '../../state/deck.ts';
 import { useEngine } from '../../engine/index.ts';
 import { UI } from '../strings.generated.ts';
+import { shareableId } from '../histories/meta.ts';
 import { cel, sceneApi } from '../../scene/api.ts';
 import { currentParams, updateParams } from '../action/params.ts';
 import { selectStructure, useSelection } from '../action/selection.ts';
@@ -29,7 +30,7 @@ export function shareNow(): ShareNow {
   const moved = orbit !== 0 || hand.k !== 1 || hand.x !== 0 || hand.y !== 0;
   const deckId = talkOn() ? talkId() : null;
   return {
-    preset: useEngine.getState().presetId ?? sh.patientId, params: currentParams(), view: sh.view, sel: useSelection.getState().sel,
+    preset: shareableId(useEngine.getState().presetId ?? sh.patientId), params: currentParams(), view: sh.view, sel: useSelection.getState().sel,
     cam: moved ? { orbit, k: hand.k, x: hand.x, y: hand.y } : null,
     deck: deckId ? { id: deckId, slide: useUi.getState().pos.stop + 1 } : null,
     fig: figureNow(),

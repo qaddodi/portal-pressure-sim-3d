@@ -56,6 +56,17 @@ export function mountDust(): void {
     inputs.forEach((f) => f()); refreshText(); msg.textContent = `${p[0]}: easing in.`;
   };
   box.append(el('div', {}, ['Dust · ', el('span', { className: 'val', textContent: 'values glide, nothing snaps' })]), preset);
+  // B-safe: one tap for the test "do the specks depend on the load": half the lanes, one train (the defaults come back with the second tap)
+  const full = { lanes: Number(dustDefaults().lanes), trains: Number(dustDefaults().trains) };
+  const safe = el('button', { textContent: 'B-safe: half the lanes, one train' });
+  let isSafe = false;
+  safe.onclick = () => {
+    isSafe = !isSafe;
+    dustTuner.set(isSafe ? { lanes: Math.max(4, Math.round(full.lanes / 2)), trains: 1 } : { lanes: full.lanes, trains: full.trains });
+    safe.textContent = isSafe ? 'B-safe is ON (tap for the full B)' : 'B-safe: half the lanes, one train';
+    inputs.forEach((f) => f()); preset.value = 'edited'; refreshText();
+  };
+  box.append(el('div', { className: 'bar' }, [safe]));
 
   for (const g of GROUPS) {
     box.append(el('h4', { textContent: g }));

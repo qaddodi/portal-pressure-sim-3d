@@ -26,7 +26,7 @@ const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, 
 /** The vein's reveal at pixel i at its channel's growth p (plate.ts veinFront: from the lumen's edge to the collar's, soft at both ends). */
 const veinAt = (i: number, p: number): number => {
   const gm = cvGeom(cv, net.rcv0, p), rv = Math.hypot(((i % N) + 0.5) - N / 2, (Math.floor(i / N) + 0.5) - N / 2) / (N / (2 * PLATE_BOX)), sm = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  return sm(gm.rL - 0.012, gm.rL + 0.012, rv) * (1 - sm(gm.rw + 0.6 * (gm.rC - gm.rw), gm.rC, rv)) * gm.k;
+  return sm(gm.rL - 0.012, gm.rL + 0.012, rv) * (1 - sm(gm.rw + 0.75 * (gm.rC - gm.rw), gm.rC, rv)) * gm.k;
 };
 /** The visible collagen's alpha-weighted area by the last-painted channel that shows it (septa, tracts, vein), at the goals of a state. */
 function shares(s: { septU: number; fibPre: number; fibPost: number }) {

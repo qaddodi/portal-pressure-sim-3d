@@ -54,3 +54,19 @@ export function chipsOf(s: Snap): Chip[] {
   if (s.pvFlow < -0.05) out.push({ cls: 'hp-chip rev', title: 'Portal flow is reversed, away from the liver', word: 'Hepatofugal', value: '' });
   return out;
 }
+
+// ── The three lists: Present, Patients and Histories ──
+export const MENU_TABS = ['present', 'patients', 'histories'] as const;
+export type MenuTabId = (typeof MENU_TABS)[number];
+/** The tab a step to the left or right lands on, going round (the arrow keys on a tab or a row). */
+export const stepTab = (tab: MenuTabId, dir: 1 | -1): MenuTabId => MENU_TABS[(MENU_TABS.indexOf(tab) + dir + MENU_TABS.length) % MENU_TABS.length]!;
+
+const NONE_HERE: Record<MenuTabId, string> = { present: 'No presentation matches.', patients: 'No patient matches.', histories: 'No history matches.' };
+const MATCH_WORD: Record<MenuTabId, [string, string]> = { present: ['presentation matches', 'presentations match'], patients: ['patient matches', 'patients match'], histories: ['history matches', 'histories match'] };
+/** The "nothing here" note for three lists: which other list has the most matches (the first of them when equal) and how many (menu.js filter, as emptyNote words it for two). */
+export function emptyNoteOf(tab: MenuTabId, counts: Record<MenuTabId, number>, query: string): { show: boolean; text: string; other: string; otherTab: MenuTabId | null } {
+  let best: MenuTabId | null = null;
+  for (const t of MENU_TABS) if (t !== tab && counts[t] > 0 && (best == null || counts[t] > counts[best])) best = t;
+  const n = best ? counts[best] : 0;
+  return { show: !!wordsOf(query).length && counts[tab] === 0, text: NONE_HERE[tab], other: best ? `${n} ${MATCH_WORD[best][n === 1 ? 0 : 1]} ›` : '', otherTab: best };
+}

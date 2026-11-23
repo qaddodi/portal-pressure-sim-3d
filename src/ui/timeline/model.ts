@@ -18,6 +18,8 @@ export interface Entry {
   detail?: string; sev?: string; evId?: string; keys?: string[]; action?: boolean;
   t: number; day: number;
   snap?: Snap; frame?: Pinned;
+  /** the patient's settings after this entry, for an entry that was not taken on this page (a model patient's history has no snapshot to give: the chart reads the medicines from these) */
+  params?: unknown;
   /** the model could not save this moment: the row says so instead of being skipped by Undo unseen (2D review B4) */
   snapFailed?: boolean;
 }
@@ -243,6 +245,15 @@ export class Timeline {
       if (this.restorable(i)) { this.goTo(i); if (i === this.liveIndex()) this.cursor_ = -1; this.fire(); return this.entries_[i]!.label; }
     }
     return false;
+  }
+
+  /** A patient who comes with a history (a model patient's, baked): these entries are its History, the model is already at its end. The ids are this page's; `baseline` is the settings now. */
+  adopt(entries: readonly Omit<Entry, 'id'>[], baseline: unknown): void {
+    if (this.pending) this.host.cancel(this.pending.timer);
+    this.gen++; this.pending = null; this.lastEv = {};
+    this.seq = 0;
+    this.entries_ = entries.map((e) => ({ ...e, id: ++this.seq }));
+    this.cursor_ = -1; this.baseline = clone(baseline); this.fire();
   }
 
   // ---- a patient's history kept while a talk shows another (2D: patientHistory.save / load) ----

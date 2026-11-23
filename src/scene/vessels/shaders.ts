@@ -697,5 +697,6 @@ ${PROCEDURE_MARKS_GLSL}
 #ifdef VDBG
   c = dbgEnd(c, vindex);
 #endif
+  c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
   gl_FragColor = vec4(c, fadeHere * cavA);
 }`;
