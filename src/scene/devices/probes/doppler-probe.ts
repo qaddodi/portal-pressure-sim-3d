@@ -13,7 +13,7 @@ import type { Palette } from '../../palette.ts';
 import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
 import { len3, UNITS_PER_SCENE } from '../../frame2d.ts';
 import { STENT_SITES } from '../../../engine/hales/portal/topology.js';
-import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, makeProbePose, makeProbeGeom, probeGeomInto, probeSwing, probeTurn, probeFade } from './copied/dop-probe.copied.js';
+import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, probePoseInto, makeProbePose, makeProbeGeom, probeGeomInto, probeSwing, probeTurn, probeFade } from './copied/dop-probe.copied.js';
 import { easeMove } from '../../../ui/tests/copied/ease.copied.js';
 import { smooth01 } from '../../../ui/tests/copied/num.copied.js';
 import type { Ring } from '../tube-rings.ts';
@@ -28,6 +28,8 @@ const RAD = Math.PI / 180;
 /** The marks' places in `lines`. */
 /** How long after the view last changed it still counts as moving, ms. */
 export const VIEW_SETTLE_MS = 300;
+/** The place is chosen once the camera has been still, and the cards unchanged, this long (ms); verified against the cards and the stage this often; and chosen again only when the cards have covered it this long. */
+export const LAND_MS = 150, CARD_STILL_MS = 150, VERIFY_MS = 120, COVERED_MS = 350;
 export const LINE_SIGHT = 0, LINE_AXIS = 1, LINE_BAR_A = 2, LINE_BAR_B = 3;
 /** The probe's body, face to end, in px along its axis from the face and the radius there (dop-probe.js BODY: the face band, the neck, the handle, its round end). */
 const PROFILE: readonly (readonly [number, number])[] = [[0, 9], [2, 11], [10, 11], [18, 6], [42, 6], [46, 4.5], [48, 0.5]];
@@ -85,6 +87,7 @@ interface Frame { gate: Vector3; ex: Vector3; ey: Vector3; U: number }
 /** What is drawn: the gate's distance to the face (px), the lumen's radius (px), the probe's size, the flow axis's turn from the line of sight (degrees), how far the marks have closed (0 to 1). */
 interface Draw { D: number; r: number; k: number; phi: number; out: number }
 
+const NO_AVOID: readonly Box[] = [], NO_BUSY: number[][] = [], NO_BAN: string[] = [];
 const hMix = (h: number, v: number): number => Math.imul(h ^ (v | 0), 16777619) >>> 0;
 const hStr = (v: string): number => { let h = 2166136261; for (let i = 0; i < v.length; i++) h = Math.imul(h ^ v.charCodeAt(i), 16777619); return h >>> 0; };
 /** b - a in -180 to 180. */
@@ -133,9 +136,12 @@ export class DopplerProbe {
   private tgt = { ang: 0, d: 0, k: 1, ax: 0, r: 0, sw: 0 };
   private readonly mind = createProbeMind();
   private readonly fit = makeProbePose() as Fit;
-  private readonly opt = { g: [0, 0], t: [0, 0], r: 0, away: false, w: 0, h: 0, cards: [] as readonly Box[], keep: 0, keepReach: 0, keepRev: false, keepK: 1, sc: 1, avoid: [] as readonly Box[], busy: [] as number[][], ban: [] as string[], lock: false, slack: 0 };
+  private readonly opt = { g: [0, 0], t: [0, 0], r: 0, away: false, w: 0, h: 0, cards: [] as readonly Box[], keep: 0, keepReach: 0, keepRev: false, keepK: 1, sc: 1, avoid: [] as readonly Box[], busy: [] as number[][], ban: [] as string[], lock: false, slack: 0, k: 1 };
   private side = 0; private reach = 0; private rev = false; private k = 1; private keyOn = false;
-  private syncKey = 0; private searchAt = -1e9; private searchGap = 150; private lastSig = 0;
+  private syncKey = 0; private searchAt = -1e9;
+  /** the camera's last glide (ms), the cards' last change and their signature, and when the place first stood covered (-1: it does not) */
+  private movedAt = -1e9; private cardAt = -1e9; private cardSig = 0; private coveredAt = -1;
+  private readonly verify = makeProbePose() as Fit;
   private readonly basis: Basis = newBasis();
   private readonly gate3 = new Vector3(); private readonly tan3 = new Vector3();
   private sm = { x: 0, y: 0 };
@@ -303,36 +309,67 @@ export class DopplerProbe {
     return out;
   }
 
-  /** The probe's search and its place, as dprobePaint does it. True while it is placed afresh. */
+  /** The probe's place (stage-doppler.js dprobePaint's search), chosen ONCE and then held (owner, 23 Nov 2026: "just pick a spot right away and doesn't change so easily unless needed").
+   *  The 2D search ran every 50 to 150 ms for as long as the slide stood, against inputs that never stop changing (the labels that settle around the probe, the camera's map, the quieter-figure score), and its kept
+   *  place gave way to a "better" one whenever any of them shifted: the probe jumped from side to side. Now:
+   *   - a probe not yet shown picks when the camera has landed and the cards have stopped moving (LAND_MS, CARD_STILL_MS), at once and without a second wait for the place to hold;
+   *   - a probe shown only checks that its place is still clear of the cards and the stage (labels and the quieter-figure score are not asked: they make way for the probe, it does not make way for them), every VERIFY_MS;
+   *   - it picks again only when the vessel or third changes (stepScreen), or the cards have covered its place for COVERED_MS together (a new card truly lands on it). It then glides there (swings), as before.
+   *  True while it is placed afresh. */
   private place(now: number, edge: string, seg: DopplerSeg, env: ScreenEnv, B: Basis, reduce: boolean, swing: boolean): 'go' | 'hide' | 'hold' | 'wait' {
     const g = gateOf(edge, gateFraction(edge, seg))!;
     // the gate and the flow on the screen
     const gx = B.ox, gy = B.oy, ts = toScreen(B, g.t.x, g.t.y, { x: 0, y: 0 });
     const tl = Math.hypot(ts.x, ts.y) || 1, rPx = g.r * B.sc, cards = env.cards(), size = env.size();
     const sameKey = this.keyOn && this.placedKey === `${edge}|${seg ?? ''}`;
-    let key = hMix(hStr(edge), hStr(seg ?? ''));
-    key = hMix(key, Math.round(B.a * 100)); key = hMix(key, Math.round(B.b * 100)); key = hMix(key, Math.round(B.c * 100)); key = hMix(key, Math.round(B.d * 100));
-    key = hMix(key, Math.round(size.w / 8)); key = hMix(key, Math.round(size.h / 8)); key = hMix(key, Math.round(gx / 12)); key = hMix(key, Math.round(gy / 12));
-    for (const c of cards) { key = hMix(key, Math.round(c.x0 / 16)); key = hMix(key, Math.round(c.y0 / 16)); key = hMix(key, Math.round(c.x1 / 16)); key = hMix(key, Math.round(c.y1 / 16)); }
-    // asked every frame, the search runs at most every 150 ms while its inputs hold, and a changing layout (a drag, a card's glide) every 50 ms
-    const gap = key === this.syncKey ? this.searchGap : 50;
-    if (this.on && now - this.searchAt < gap) return 'go';
-    if (key !== this.syncKey) this.searchGap = 150;
-    this.syncKey = key; this.searchAt = now;
-    this.mind.sync(key);
+    // the cards' signature (to 8 px): they have to hold still before a fresh place is chosen
+    let cs = 0;
+    for (const c of cards) { cs = hMix(cs, Math.round(c.x0 / 8)); cs = hMix(cs, Math.round(c.y0 / 8)); cs = hMix(cs, Math.round(c.x1 / 8)); cs = hMix(cs, Math.round(c.y1 / 8)); }
+    cs = hMix(hMix(cs, Math.round(size.w / 8)), Math.round(size.h / 8));
+    if (cs !== this.cardSig) { this.cardSig = cs; this.cardAt = now; }
+    const placed = this.on && sameKey;
+    if (!placed && (now - this.movedAt < LAND_MS || now - this.cardAt < CARD_STILL_MS)) return 'wait';
+    if (placed) {
+      // it rides the vessel's turn on the screen every frame (the camera moves under it; its side, end and distance are the place's and do not change): the line of sight leaves at the Doppler angle from the flow
+      const aw = (awayFromProbe(edge) as boolean) !== this.rev, t = this.tgt, ang = Math.atan2(ts.y, ts.x) * 180 / Math.PI + this.side * (aw ? 180 - PROBE.ANGLE : PROBE.ANGLE);
+      t.ang = ang; t.ax = ang + (aw ? this.side : -this.side) * PROBE.ANGLE; t.r = rPx;
+      this.cur.ang = ang + angTo(ang, this.cur.ang);   // the short way round
+      if (now - this.searchAt < VERIFY_MS) return 'go';
+    }
+    this.searchAt = now;
     const O = this.opt;
     O.g[0] = gx; O.g[1] = gy; O.t[0] = ts.x / tl; O.t[1] = ts.y / tl; O.r = rPx; O.away = awayFromProbe(edge) as boolean; O.w = size.w; O.h = size.h; O.cards = cards;
     O.keep = sameKey ? this.side : 0; O.keepReach = this.reach; O.keepRev = this.rev; O.keepK = this.k; O.sc = B.sc / (UNITS_PER_SCENE / 1);
-    O.avoid = env.avoid?.() ?? []; O.busy = this.busyAround(env, B, edge, PROBE.GAP + PROBE.LEN + 140, O.busy); O.ban = this.mind.banned() as string[]; O.lock = this.mind.locked() as boolean; O.slack = this.headOff ? 0 : SLACK;
+    O.slack = this.headOff ? 0 : SLACK;
+    if (placed) {
+      // Is the place it stands at still clear of the cards and the stage? Asked of the same search, with no labels and no drawings to weigh, locked to that place at its size: it answers with the place itself while it is
+      // clear (through SLACK px of give), and with another only when this one is covered. Its angle and distance follow the vessel's turn on the screen (the camera) either way.
+      O.avoid = NO_AVOID; O.busy = NO_BUSY; O.ban = NO_BAN; O.lock = true; O.k = this.k;
+      const v = probePoseInto(this.verify, O) as Fit;
+      const holds = !v.none && v.side === this.side && v.reach === this.reach && v.rev === this.rev && !!v.headOff === this.headOff;
+      if (holds) {
+        this.coveredAt = -1;
+        this.tgt.d = v.D - Math.max(0, rPx); this.tgt.k = v.k;
+        return 'go';
+      }
+      if (this.coveredAt < 0) this.coveredAt = now;
+      // (covered for a moment only: a card passing, the view under the hand. It stays and follows the vessel; the place is asked again at the next look.)
+      if (now - this.coveredAt < COVERED_MS) return 'go';
+    }
+    this.coveredAt = -1;
+    let key = hMix(hStr(edge), hStr(seg ?? ''));
+    key = hMix(key, Math.round(size.w / 8)); key = hMix(key, Math.round(size.h / 8));
+    for (const c of cards) { key = hMix(key, Math.round(c.x0 / 16)); key = hMix(key, Math.round(c.y0 / 16)); key = hMix(key, Math.round(c.x1 / 16)); key = hMix(key, Math.round(c.y1 / 16)); }
+    this.mind.sync(key);
+    // (the labels showing when the place is chosen are weighed, as 2D does; they are never asked again)
+    O.avoid = env.avoid?.() ?? []; O.busy = this.busyAround(env, B, edge, PROBE.GAP + PROBE.LEN + 140, O.busy); O.ban = this.mind.banned() as string[]; O.lock = false;
     const pose = fitPoseInto(this.fit, O) as Fit;
     const n = this.tgt;
     const next = { ang: pose.ang, d: pose.D - Math.max(0, rPx), k: pose.k, ax: pose.ang + pose.phi, r: rPx, sw: probeSwing(pose.side, O.away === pose.rev) as number };
-    let sig = hMix(key, pose.side); sig = hMix(sig, pose.reach); sig = hMix(sig, +pose.rev); sig = hMix(sig, Math.round(pose.k * 1000)); sig = hMix(sig, Math.round(pose.ang / 5)); sig = hMix(sig, Math.round(gx / 4)); sig = hMix(sig, Math.round(gy / 4));
-    this.searchGap = sig === this.lastSig ? Math.min(600, this.searchGap * 2) : 150; this.lastSig = sig;
     // (what a fresh show waits to see hold still is the PLACE it would take: side, end, size, vessel. `sig` also holds the plate's map, the gate to 4 px and the turn to 5 degrees, which the gentle tilt
     //  changes every frame in free play, so a probe not yet shown waited for ever: the same fresh-show wait, keyed on the place only)
     const holds = hMix(hMix(hMix(hMix(hMix(hStr(edge), hStr(seg ?? '')), pose.side), pose.reach), +pose.rev), Math.round(pose.k * 1000));
-    const act = this.mind.act({ pose, tgt: next, on: this.on, cur: this.has ? this.cur : null, sig: holds, now, instant: reduce, swing }) as 'go' | 'hide' | 'hold' | 'restart' | 'wait' | 'jump';
+    const act = this.mind.act({ pose, tgt: next, on: this.on, cur: this.has ? this.cur : null, sig: holds, now, instant: true, swing }) as 'go' | 'hide' | 'hold' | 'restart' | 'wait' | 'jump';
     if (act === 'hold') return 'hold';
     // (While the view is being moved it never goes: the figure under the hand is a layout that changes every frame, and "no place" there is not an answer yet. It is asked again, and if there is still none
     //  450 ms after the view settles it hides then: the 2D app's own rule, whose camera never turned under the hand.)
@@ -360,6 +397,7 @@ export class DopplerProbe {
     const g = want ? gateOf(edge, gateFraction(edge, seg), { p: this.gate3, t: this.tan3, r: 0 }) : null;
     const key = `${edge}|${seg ?? ''}`;
     let moving = false;
+    if (env.moving?.() ?? false) this.movedAt = now;
     if (!g) this.leave();
     else if ((env.moving?.() ?? false) && !this.on) { this.mind.hide(); moving = true; }   // a camera glide hides it until it lands; shown, it stays and rides the vessel
     else if (this.on && key !== this.placedKey) { this.leave(); this.swap = true; }       // another vessel or third: it swings out where it stood
@@ -429,6 +467,8 @@ export class DopplerProbe {
     return a > 0.01 && this.fr.U > 0 ? { runs: [{ rings: this.head.rings, from: 0, to: this.head.n - 1 }], sc: 1 / this.fr.U, alpha: a } : null;
   }
   get placed(): DopplerPose | null { return this.shown > 0 ? this.pose : null; }
+  /** The place it stands at (side of the vessel, reach, end, size: the 2D search's names), for tests; null while it is not placed. */
+  get standsAt(): { side: number; reach: number; rev: boolean; k: number } | null { return this.on ? { side: this.side, reach: this.reach, rev: this.rev, k: this.k } : null; }
   /** True while the probe is drawn or swinging out (the layer keeps asking for frames). */
   get active(): boolean { return this.shown > 0 || this.on; }
   dispose(): void { for (const o of this.parts) o.dispose(); for (const b of this.bufs) b.geometry.dispose(); this.wedgeGeo.dispose(); this.wedgeMat.dispose(); }
