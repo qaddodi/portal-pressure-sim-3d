@@ -91,7 +91,9 @@ export const hexTo01 = (hex: string): [number, number, number] => { const n = pa
 /** CSS px from the wall over which the pool fades out (22 until 21 Nov: a soft glow with no edge, and the water missing along the flanks where the colon lies; now just an anti-aliased edge, the ink line is the hull's: ascites-hull-glsl.ts OUTLINE_PX), and over which the surface's ripple is rested against the wall. */
 export const FEATHER_PX = 2, RIPPLE_REST_PX = 30;
 /** The surface climbs the wall by CLIMB_PX at the wall, falling off by exp(-distance / CLIMB_FALL_PX); only the top RIPPLE_DEPTH 2D units of the water move with the surface. */
-export const CLIMB_PX = 7, CLIMB_FALL_PX = 9, RIPPLE_DEPTH = 16;
+export const CLIMB_PX = 20, CLIMB_FALL_PX = 28, RIPPLE_DEPTH = 16;
+/** The surface sags a little between its two walls: SAG_PX at the middle, none at a wall, easing in over SAG_FALL_PX from it (Mohammad, 23 Nov: mock C, "soft meniscus + faint sag"; docs/approved/ascites-surface.md). */
+export const SAG_PX = 5, SAG_FALL_PX = 90;
 /** The ripple's crest-to-mean at 2D's full amplitude (2 units): never less than 2D's own units, and at least this many CSS px (so it reads on a phone). */
 export const RIPPLE_PX = 3.5, RIPPLE_AMP2D = 2;
 /** The crisp pale line on the surface: full to LINE_FROM_PX under it, gone by LINE_TO_PX, LINE_K toward white (a cel line over 2D's soft meniscus); and a soft sheen, SHEEN_K toward white, fading over the top SHEEN_PX: the water's glassy top. */
@@ -116,7 +118,7 @@ export function poolLift(v: { wx: number; aW: number; aD: number; phase: number;
   const pxu = v.pxu ?? 1, boost = 1 + (rippleBoost(pxu) - 1) * v.living;
   const ripple = (Math.sin(v.wx / 38 + v.phase) * 0.7 + Math.sin(v.wx / 23 - v.phase * 1.3) * 0.3) * v.amp * boost;
   const rest = 1 + (ss(0, RIPPLE_REST_PX / pxu, v.aW) - 1) * v.living;
-  const climb = (CLIMB_PX / pxu) * Math.exp(-v.aW / (CLIMB_FALL_PX / pxu));
+  const climb = (CLIMB_PX / pxu) * Math.exp(-v.aW / (CLIMB_FALL_PX / pxu)) - (SAG_PX / pxu) * ss(0, SAG_FALL_PX / pxu, v.aW);
   const tilt = Math.min(1, Math.max(-1, (v.wx - 712) / 400)) * v.slosh * rippleBoost(pxu);
   return (ripple * rest + v.living * (climb + tilt)) * (1 - ss(0, RIPPLE_DEPTH, v.aD));
 }
@@ -165,7 +167,7 @@ float poolLift(float wx, float aW, float aD, float pxu) {
   float boost = clamp(${f(RIPPLE_PX)} / (${f(RIPPLE_AMP2D)} * max(pxu, 1e-3)), 1.0, 5.0);
   float ripple = (sin(wx / 38.0 + uPhase) * 0.7 + sin(wx / 23.0 - uPhase * 1.3) * 0.3) * uAmp * mix(1.0, boost, uLiving);
   float rest = mix(1.0, smoothstep(0.0, ${f(RIPPLE_REST_PX)} / pxu, aW), uLiving);
-  float climb = ${f(CLIMB_PX)} / pxu * exp(-aW * pxu / ${f(CLIMB_FALL_PX)});
+  float climb = ${f(CLIMB_PX)} / pxu * exp(-aW * pxu / ${f(CLIMB_FALL_PX)}) - ${f(SAG_PX)} / pxu * smoothstep(0.0, ${f(SAG_FALL_PX)} / pxu, aW);
   float tilt = clamp((wx - 712.0) / 400.0, -1.0, 1.0) * uSlosh * boost;
   return (ripple * rest + uLiving * (climb + tilt)) * (1.0 - smoothstep(0.0, ${f(RIPPLE_DEPTH)}, aD));
 }

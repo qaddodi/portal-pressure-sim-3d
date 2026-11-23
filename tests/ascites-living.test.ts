@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  AscitesLayer, CLIMB_PX, POOL_BASE_GLSL, FEATHER_PX, LIVING_TAU, POOL_COLS, POOL_ROWS, RIPPLE_DEPTH, RIPPLE_PX, RIPPLE_REST_PX, SLOSH_MAX,
+  AscitesLayer, CLIMB_PX, SAG_PX, POOL_BASE_GLSL, FEATHER_PX, LIVING_TAU, POOL_COLS, POOL_ROWS, RIPPLE_DEPTH, RIPPLE_PX, RIPPLE_REST_PX, SLOSH_MAX,
   bulgeStep, outlinePolygon, poolLift, rippleBoost, sloshStep, wallDistance,
 } from '../src/scene/disease/ascites.ts';
 import { HULL_FS, HULL_VS } from '../src/scene/disease/ascites-hull-glsl.ts';
@@ -54,7 +54,8 @@ test('the soft edge: the surface climbs the wall and rests the ripple against it
   const at = (aW: number, living = 1, amp = 2, pxu = 1) => poolLift({ wx: 500, aW, aD: 0, phase: 0.3, amp, slosh: 0, living, pxu });
   assert.ok(Math.abs(at(0, 1, 0) - CLIMB_PX) < 1e-9, 'at the wall the surface stands CLIMB_PX up it (one px to the unit)');
   assert.ok(at(0, 1, 0) > at(6, 1, 0) && at(6, 1, 0) > at(40, 1, 0), 'and falls back to the level as it leaves the wall');
-  assert.ok(Math.abs(at(80, 1, 0)) < 0.02, 'flat water far from the wall');
+  assert.ok(Math.abs(at(400, 1, 0) + SAG_PX) < 1e-3 && at(40, 1, 0) > at(400, 1, 0), 'far from the wall the water rests SAG_PX under the level (mock C: a faint sag, no flat tray)');
+  assert.ok(Math.abs(at(0, 1, 0) - at(150, 1, 0)) > CLIMB_PX, 'the climb and the sag together make a soft meniscus at the wall');
   const free = poolLift({ wx: 500, aW: 400, aD: 0, phase: 0.3, amp: 2, slosh: 0, living: 1 });
   const wall = poolLift({ wx: 500, aW: 0, aD: 0, phase: 0.3, amp: 2, slosh: 0, living: 1 });
   assert.ok(Math.abs(wall - CLIMB_PX) < 1e-9 && Math.abs(free) <= 2 * rippleBoost(1) + 1e-9, 'the ripple rests to nothing at the wall');
@@ -69,7 +70,7 @@ test('the soft edge: the surface climbs the wall and rests the ripple against it
 test('the effects are screen pixels: on a phone (0.6 px per 2D unit) the ripple, the climb and the feather are as many pixels as on a big screen (the first pass was a pixel each: "a flat muddy wash")', () => {
   const pxu = 0.6;
   assert.ok(rippleBoost(pxu) > 2.5 && rippleBoost(0.0001) <= 5 && rippleBoost(5) === 1, 'a small figure enlarges the ripple, a big one leaves 2D\'s own');
-  const crest = Math.max(...Array.from({ length: 200 }, (_, i) => poolLift({ wx: 100 + i * 5, aW: 900, aD: 0, phase: 0, amp: 2, slosh: 0, living: 1, pxu }))) * pxu;
+  const crest = Math.max(...Array.from({ length: 200 }, (_, i) => poolLift({ wx: 100 + i * 5, aW: 900, aD: 0, phase: 0, amp: 2, slosh: 0, living: 1, pxu }))) * pxu + SAG_PX;   // (read against the sag's level)
   assert.ok(crest > RIPPLE_PX * 0.55, `the ripple's crest is ${crest.toFixed(2)} px on a phone`);
   assert.ok(Math.abs(poolLift({ wx: 500, aW: 0, aD: 0, phase: 0, amp: 0, slosh: 0, living: 1, pxu }) * pxu - CLIMB_PX) < 1e-9, 'the climb is CLIMB_PX px');
   const off = Math.max(...Array.from({ length: 200 }, (_, i) => Math.abs(poolLift({ wx: 100 + i * 5, aW: 900, aD: 0, phase: 0, amp: 2, slosh: 0, living: 0, pxu }))));
