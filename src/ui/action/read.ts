@@ -53,7 +53,7 @@ const BAR_KEY: Record<string, string> = { CONF: 'pv', SIN_R: 'whvp', RHV: 'fhvp'
 const pf = (f: EngineFrame) => f.Pf || f.P;
 const qf = (f: EngineFrame) => f.Qf || f.Q;
 /** The pressure a station prints: the bottom bar's reading where the bar has one (a card and the bar never disagree), else the node's. */
-function stationP(f: EngineFrame, id: string, PF: ArrayLike<number>): number {
+export function stationP(f: EngineFrame, id: string, PF: ArrayLike<number>): number {
   const mk = BAR_KEY[id], m = f.metrics as unknown as Record<string, unknown> & { vitals?: { ra?: number } };
   const v = mk && (mk === 'ra' ? m?.vitals?.ra ?? m?.ra : m?.[mk]);
   return typeof v === 'number' && Number.isFinite(v) ? v : PF[NI[id]!]!;
@@ -150,7 +150,7 @@ export const ST = {
 export interface LobuleState extends LobuleModel { portalQ: number; portalRef: number; lymphRef: number }
 const LOBE_PRE = 'PRE_R';
 export function lobuleOf({ f, p, ref }: Env): LobuleState {
-  const m = lobuleModel({ P: f.P, Q: qf(f), params: p, metrics: f.metrics }, ref, p);
+  const m = lobuleModel({ P: pf(f), Q: qf(f), params: p, metrics: f.metrics }, ref, p);
   return { ...m, portalQ: qf(f)[EI[LOBE_PRE]!]!, portalRef: ref?.Q?.[EI[LOBE_PRE]!] ?? 0, lymphRef: m.lymph0 };
 }
 export const portalBack = (m: LobuleState) => flowReversed(m.portalQ, m.portalRef);

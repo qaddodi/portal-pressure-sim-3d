@@ -155,7 +155,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       // a catheter against a blocked vein says "Occluded" at its tip, then 2.6 s later "No reading" (cath-show.ts): the second words are a picture of their own, taken once they stand
       const blockedThen = async (): Promise<void> => {
         if (!shownNow.includes(BLOCKED_SAYS.first)) return;
-        await until(() => tagWords().includes(BLOCKED_SAYS.then), BLOCKED_SAYS.afterMs + 1500);
+        await until(() => tagWords().includes(BLOCKED_SAYS.then), BLOCKED_SAYS.afterMs + real(2000));   // (the words come on the label layer's FRAMES, a few a second on a slow screen: so the wait is two REAL seconds past the 2.6 s, not 1.5 s of page time, which at speed N is 1/N of a second and a handful of frames)
         if (tagWords().includes(BLOCKED_SAYS.then)) await grab(); else notes.push(`${d.title} ${sub + 1}: the words "${BLOCKED_SAYS.then}" did not come`);
       };
       useUi.getState().go(0);

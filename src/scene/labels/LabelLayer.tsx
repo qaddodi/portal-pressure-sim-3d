@@ -30,6 +30,7 @@ import { STENT_STATIONS, decodeGeo, geoPx, geoGapPx, geoLineSize } from './stent
 import { stentReads } from './stent-reads.ts';
 import { bindLabelHits, labelNodeAt } from './hit.ts';
 import { useSelection } from '../../ui/action/selection.ts';
+import { stationP } from '../../ui/action/read.ts';
 import { buildCath } from './cath-dom.ts';
 import { ClampMarks } from './clamp-marks.ts';
 import { WaistBrackets } from './waist-bracket.ts';
@@ -158,7 +159,7 @@ export function LabelLayer() {
       vp: () => ui.getState().vp,
       words: () => ui.getState().boxes.words,
       reversed: (edge) => { const f = latest.frame, ref = patient.reference; if (!f) return false; const k = indexOf(edge); return flowReversed(f.Qf[k] ?? 0, ref ? (ref.Q[k] ?? 0) : 0); },
-      pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
+      pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (stationP(f, node, f.Pf) ?? null) : null; },   // (the bottom bar's number where it has one, else the shown node pressure: a label, a card and the bar never disagree)
       reading: (k) => ui.getState().readings[k] ?? null,
       zoom: () => cel.rig.handZoom,
       hand: () => cel.rig.handView,

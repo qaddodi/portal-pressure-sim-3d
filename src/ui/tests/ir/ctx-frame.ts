@@ -27,6 +27,8 @@ export class FrameCtx {
   private path: El[] = [];
   private cur: number[] | null = null;
   private halo: { s: string; color: Rgba; w: number } | null = null;
+  /** The capsules the monitor asked to fill (never drawn) and the ground colour each had: the words that stand inside one wear that colour as their halo (see `emit`, `fillText`). */
+  private caps: { x: number; y: number; w: number; h: number; color: Rgba }[] = [];
 
   readonly w: number;
   readonly h: number;
@@ -62,6 +64,9 @@ export class FrameCtx {
         // a round box as wide as it is tall and fully round is one dot of an inked line (inkSeg)
         if (fill && e.w === e.h && Math.abs(e.r - e.w / 2) < 1e-6 && e.w <= 4) { dots.push(e.x + e.r, e.y + e.r); dotW = e.w; continue; }
         const r = Math.min(e.r, e.w / 2, e.h / 2);
+        // A capsule round words (a level's tag, the gradient's tag) is a pill: never drawn (owner, 22 Nov 2026: no pill, chip or badge; words wear a halo, never a box; docs/HUMANIZED-DESIGN.md section 0).
+        // The copied monitor still asks for it; the words that follow take its ground colour as their halo, so they stay legible over the dashes and the trace.
+        if (e.h >= 8 && r >= e.h / 2 - 0.01) { if (fill) this.caps.push({ x: e.x, y: e.y, w: e.w, h: e.h, color: col }); continue; }
         this.shapes.push(fill ? { k: 'rect', x: e.x, y: e.y, w: e.w, h: e.h, r, fill: col } : { k: 'rect', x: e.x, y: e.y, w: e.w, h: e.h, r, pen: { color: col, w: this.lineWidth } });
       } else if (e.k === 'circle') {
         this.shapes.push(fill ? { k: 'circle', cx: e.cx, cy: e.cy, r: e.r, fill: col } : { k: 'circle', cx: e.cx, cy: e.cy, r: e.r, pen: { color: col, w: this.lineWidth } });
@@ -98,8 +103,13 @@ export class FrameCtx {
   }
   measureText(s: string): { width: number } { const f = this.fontOf(); return { width: measure(s, f.size, f.weight) }; }
   strokeText(s: string): void { this.halo = { s, color: this.penC(), w: this.lineWidth }; }
+  /** The halo of a word standing inside a dropped capsule: the capsule's own ground colour (the first fill, the most opaque), 3 px. */
+  private capHalo(x: number, y: number): { color: Rgba; w: number } | undefined {
+    for (const c of this.caps) if (x >= c.x - 1 && x <= c.x + c.w + 1 && y >= c.y - 1 && y <= c.y + c.h + 1) return { color: c.color, w: 3 };
+    return undefined;
+  }
   fillText(s: string, x: number, y: number): void {
-    const f = this.fontOf(), halo = this.halo && this.halo.s === s ? { color: this.halo.color, w: this.halo.w } : undefined;
+    const f = this.fontOf(), halo = this.halo && this.halo.s === s ? { color: this.halo.color, w: this.halo.w } : this.capHalo(x, y);
     this.halo = null;
     this.shapes.push({
       k: 'text', x, y, s, size: f.size, weight: f.weight, color: this.fillC(),

@@ -73,10 +73,14 @@ test('a station or a micro-vessel stands for the structure 2D opens', () => {
 
 for (const id of fx.presets as string[]) {
   test(`${id}: every card reads, says and shows what 2D's does`, () => {
-    const env = patient(id);
+    const shown = patient(id);
+    // (2D's lobule cards read the engine's beat-by-beat pressures at the instant the golden was taken; this app reads the SHOWN ones, as every other reading does, so the portal venule a card prints is the number
+    // the lobule's label prints (tests/reads-one-source.test.ts). The one departure: the golden's lobule cards are read against the instant's pressures, which is all the 2D value was.)
+    const instant = { ...shown, f: { ...shown.f, Pf: shown.f.P } };
     const rec = fx.readings[id];
     for (const c of fx.cards) {
       if (c.none) continue;
+      const env = keyOf(c.sel).startsWith('lobule:') ? instant : shown;
       const card = cardFor(c.sel)!, w = `${id} ${keyOf(c.sel)}`, r = rec[keyOf(c.sel)];
       if (!r) continue;
       if (r.value) for (const [lens, want] of Object.entries(r.value)) { sameReading(card.value({ ...env, lens }), want, `${w} value (${lens})`); }

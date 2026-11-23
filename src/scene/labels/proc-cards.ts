@@ -7,6 +7,7 @@ import { sceneApi } from '../api.ts';
 import { useLabels, type ProcCards } from './store.ts';
 import type { CalloutKind } from './cath-show.ts';
 import type { Tone } from './cath.ts';
+import { readFrame } from '../../ui/tests/slide/reads.ts';
 
 /** The 2D card record (proc-anim.js): key 'f' stands at the tip, 'w' ahead of it, 'g' is the IR gradient (at the tip), 's' the stack with its rows and its result. */
 interface Card { key?: string; at?: string; kicker?: string; text?: string; unit?: string; cls?: string; rows?: Card[]; calc?: Card }
@@ -62,8 +63,10 @@ export function runCards(kind: string, o: { quiet?: boolean; capture?: boolean }
   if (o.quiet) useLabels.getState().set({ quiet: true });
   const set = (kinds: CalloutKind[], s: string): void => { into.kinds = kinds; into.sig = s; useLabels.getState().set({ proc: { ...into } }); };
   return {
-    frame(t, f): void {
+    frame(t, live0): void {
       if (!live || !spec?.labels) return;
+      // (a reading is taken from the shown pressures, or the slide's own, never the instant's beat: tests/slide/reads.ts)
+      const f = readFrame(live0 as Parameters<typeof readFrame>[0]);
       if (o.capture && spec.capture && spec.steps) {
         // each reading is taken once its callout has come (2D playProcedure: capture at the step's mark)
         for (let i = got + 1; i < spec.steps.length; i++) { if (t >= markAt(kind, i)) { spec.capture(i, rd, f); got = i; } else break; }

@@ -20,6 +20,7 @@ import { EUS, type Reads } from './eus-words.ts';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
 import { useScope } from './scope-state.ts';
 import { claim } from '../owner.ts';
+import { readFrame } from '../slide/reads.ts';
 import { M, eusAt, pinLive, resetMonitor } from './eus-source.ts';
 
 const readsRef = READS as unknown as { eus: Reads };
@@ -84,7 +85,7 @@ export function playEus(): void {
       if (r.step !== E.step && r.step >= 0) { E.step = r.step; useScope.getState().setEus('run', r.step); bump(); }
       // each reading is taken once its callout has come (the needle has reached the vein and the pressure has settled): the model's frame then
       const mk = r.step < 0 ? -1 : t >= markAt('eus', r.step) ? r.step : r.step - 1;
-      for (let i = E.got + 1; i <= mk; i++) { spec.capture(i, readsRef.eus, latest.frame); E.got = i; bump(); }
+      for (let i = E.got + 1; i <= mk; i++) { spec.capture(i, readsRef.eus, readFrame(latest.frame)); E.got = i; bump(); }
       if (t >= EUS.T.end - 1) E.done = true;
     },
     onEnd: () => { camHome(); cards?.end(); cards = null; E.run = false; M.run = false; E.step = -1; tk.finish(E.done); pinLive(); sleep(); bump(); },

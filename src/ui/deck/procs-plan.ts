@@ -79,6 +79,10 @@ export function tipShot(name: string, at: { x: number; y: number; z: number }, k
 }
 
 // ── guided by Next (2D presenter.js procNext / procBack, his ask 29 Oct) ──
+/** The vein the EUS-PPG's scope stands at on a step (the needle's position): the portal vein first, then the hepatic vein, and the result step stays where the needle last read, in the hepatic vein: the
+ *  tracing's "needle in HV", the HV reading and the figure agree (HVPG deck review 1, 23 Nov 2026: step 4 stood the needle back in the portal vein, a station the fallback `pv` gave every step that was not 'hv'). */
+export const eusStationOf = (stepId: string): 'pv' | 'hv' => (stepId === 'hv' || stepId === 'done' ? 'hv' : 'pv');
+
 /** The stop step k ends at, ms of the procedure's own time (2D `P.stops[k]`: one stop for each step; the last of a kind that holds its last frame, the glue slide's scope, stops before the fade-out leg). */
 export function stopOf(kind: string, k: number): number | null {
   const sp = specFor(kind);

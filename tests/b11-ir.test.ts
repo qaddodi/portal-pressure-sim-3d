@@ -190,3 +190,14 @@ test('the TIPS view\'s own parts are the 2D file\'s: the numbers, the menu\'s vi
   useIr.getState().setSub('compare'); useIr.getState().setLens('pressure');
   assert.deepEqual([useIr.getState().sub, useIr.getState().lens], ['compare', 'pressure']);
 });
+
+test('the monitor draws no pill: a level\'s tag and the gradient\'s are words with a halo, never a rounded box (owner, 22 Nov: no pill, chip or badge)', () => {
+  const key = {};
+  let f = monitorFrame(key, HVPG_SCRIPT, st('run', T.free), 460, 240, 'x');
+  for (let t = T.free; t <= T.sum + 1800; t += 50) f = monitorFrame(key, HVPG_SCRIPT, st('run', t), 460, 240, 'x');
+  const caps = f.shapes.filter((s) => s.k === 'rect' && (s as { r?: number }).r !== undefined && (s as { h: number }).h >= 8 && (s as { r: number }).r >= (s as { h: number }).h / 2 - 0.01);
+  assert.equal(caps.length, 0, 'a capsule is drawn round words');
+  const texts = f.shapes.filter((s) => s.k === 'text') as TextShape[];
+  for (const w of ['8.2', '22.6']) assert.ok(texts.some((s) => s.s === w && s.halo), `${w} stands on a halo`);
+  assert.ok(texts.some((s) => /^HVPG\s+14\.4$/.test(s.s) && s.halo), `the gradient's words stand on a halo: ${texts.map((s) => s.s).join('|')}`);
+});

@@ -27,6 +27,7 @@ import { releaseCamera } from '../cam-release.ts';
 import type { MonitorState } from './monitor.ts';
 import { useMeasured } from '../hidden.ts';
 import { claim } from '../owner.ts';
+import { readFrame } from '../slide/reads.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -199,7 +200,7 @@ function beginPpg(kind: 'irivc' | 'irpv'): void {
       if (rec.step !== p.step && rec.step >= 0) { p.step = rec.step; bump(); }
       // each reading is taken as its callout comes (2D playProcedure: capture at the step's mark)
       const mk = rec.step < 0 ? -2 : t >= markAt(kind, rec.step) ? rec.step : -1;
-      if (mk !== p.mark && mk > -2) { p.mark = mk; if (mk >= 0 && rd) P.capture(mk, rd, latest.frame); }
+      if (mk !== p.mark && mk > -2) { p.mark = mk; if (mk >= 0 && rd) P.capture(mk, rd, readFrame(latest.frame)); }
       const shot = String(rec.shot || '');
       if (shot && shot !== R.procCam) { R.procCam = shot; camTo(shot); }
     },

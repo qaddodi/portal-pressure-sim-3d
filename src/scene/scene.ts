@@ -1236,13 +1236,13 @@ export class CelScene {
   private snapMicroToModel(): void {
     const f = latest.frame;
     if (!f) return;
-    const m = lobuleModel({ P: f.P, Q: f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
+    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());   // (the shown pressures and flows, as every reading is: not the instant's beat)
     this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
   }
   private feedViews(snap: boolean): void {
     const f = latest.frame;
     if (!f) return;
-    const m = lobuleModel({ P: f.P, Q: f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
+    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
     if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
     else if (this.figureView === 'sinusoid') {
       snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));

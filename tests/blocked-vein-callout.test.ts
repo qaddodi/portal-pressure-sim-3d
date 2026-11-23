@@ -61,3 +61,17 @@ test('leaving the blocked state takes the words away and coming back starts at "
   w.step(1500);
   assert.equal(w.ctl.cath.pills[0]!.reading.kicker, BLOCKED_SAYS.first);
 });
+
+test('"No reading" comes on a slow screen too (8 frames a second), and after a camera glide that moved the tip every frame', () => {
+  // (HVPG deck review 1, 23 Nov: the capture at 20x waited "No reading" out in page time, a handful of frames. The words are counted in the label layer's page time from the first still frame, so they must
+  // come however few frames the screen draws, and a tip that was gliding must not leave the layer holding for ever.)
+  const w = world();
+  const t0 = w.asked.length;
+  for (let i = 0; i < 6; i++) w.step(16);
+  const slow = (ms: number) => { for (let i = 0; i < ms / 125; i++) w.step(125); };
+  slow(1000);
+  assert.equal(w.ctl.cath.pills[0]!.reading.kicker, BLOCKED_SAYS.first);
+  slow(BLOCKED_SAYS.afterMs + 500);
+  assert.equal(w.ctl.cath.pills[0]!.reading.kicker, BLOCKED_SAYS.then);
+  assert.ok(w.asked.length > t0);
+});

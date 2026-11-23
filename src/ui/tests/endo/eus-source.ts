@@ -3,6 +3,7 @@
 // vein, as the figure's callout beside the needle prints them); each reading is a trace with its beat and breath, recorded as the clock passes. The state is kept here, not in a
 // component, so the pane coming and going never draws the trace differently. Pure: no scene, no clock (the run is eus-run.ts).
 import { latest } from '../../../engine/store.ts';
+import { readFrame } from '../slide/reads.ts';
 import { NODES } from '../../../engine/hales/portal/topology.js';
 import { newWave, syncWave } from '../copied/hvpg-clock.copied.js';
 import { scriptOf, phaseOf, takenOf, readingWords } from '../ir/copied/reading-scripts.copied.js';
@@ -26,7 +27,7 @@ const out: { st: MonitorState; v: Obj } = { st: { ph: 'idle', t: 0, v: null, run
 
 /** The live veins' pressures (2D eus-ppg.js pinLive): the monitor's readings before the needle has taken its own. */
 export function pinLive(): void {
-  const P = latest.frame?.P as ArrayLike<number> | undefined;
+  const P = readFrame(latest.frame)?.P;   // (the shown pressures, or the slide's own: the same numbers as the text and the chart, tests/slide/reads.ts)
   M.fp.lpv = P ? r1(P[NI.LPV!]!) : NaN; M.fp.lhv = P ? r1(P[NI.LHV!]!) : NaN; M.fp.eus = r1(M.fp.lpv - M.fp.lhv);
 }
 /** A new run: the monitor starts afresh, waiting for the needle (2D mon.configure). */

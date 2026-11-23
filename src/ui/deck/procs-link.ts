@@ -27,7 +27,7 @@ import { UNITS_PER_SCENE } from '../../scene/frame2d.ts';
 import { Vector3 } from 'three';
 import { ARRIVE_MS } from './scene-link.ts';
 import { slideLanded, onLanded } from './landing.ts';
-import { askOf, layersWant, procKey, specFor, stepsOfPlan, stopOf, tipShot, type ProcCursor, type ProcPhase, type ProcPlan } from './procs-plan.ts';
+import { askOf, eusStationOf, layersWant, procKey, specFor, stepsOfPlan, stopOf, tipShot, type ProcCursor, type ProcPhase, type ProcPlan } from './procs-plan.ts';
 import { setProcStep } from './proc-step.ts';
 import { runCards, type CardRun } from '../../scene/labels/proc-cards.ts';
 import { clearProc, setProc, useProc } from './procs-state.ts';
@@ -150,7 +150,7 @@ export function linkProcs(): () => void {
         else if (c.applied && t < sp.T.apply) { c.applied = false; change(false); }
         // (the scope of a kind that holds stands from the run's first frame until the slide is left, laid at its station and faded in there: `place`; another kind's goes out on the way-out leg)
         if (scope) { const e = useProbes.getState().endoscope, want = hold || t < (sp.T.back ?? sp.T.end); if (e.on !== want || (want && (e.mode !== scope || (hold && !e.place)))) useProbes.getState().setEndoscope(want ? { on: true, mode: scope, ...(hold ? { place: true } : {}) } : { on: false }); }
-        if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', place: false, station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
+        if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', place: false, station: eusStationOf(String(sp.steps[rec.step]?.[0] ?? '')) });
         camera(String(rec.shot || ''), c.last, kind);
       },
       onArrive: () => {
