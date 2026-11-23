@@ -57,3 +57,14 @@ test('a name keeps off another organ while any spot is clear, and is never left 
   const never = solve({ items: [{ ...it, spots: [], onOther: () => true }], view, blockers: [] });
   assert.equal(never.placed.length, 1, 'never left off for it');
 });
+
+test('the last resort keeps a name on its own organ over a vessel before it leaves it for another organ (RIGHT ATRIUM sat on the liver edge below the atrium, phone, Variceal bleed 2)', () => {
+  const view = { x0: 0, y0: 0, x1: 800, y1: 600 };
+  const below = (b: { y0: number; y1: number }) => b.y0 >= 305 ? 1 : b.y1 > 305 ? (b.y1 - 305) / (b.y1 - b.y0) : 0;   // another organ lies below y 305, so no spot keeps off it; its own is above
+  const it: Item = { id: 'organ:heart', ax: 400, ay: 300, au: 0.5, forms: [form], pri: 2, region: true, spots: [[0, 40], [0, 60]], onOther: (b) => below(b) > 0 };
+  const lines: [number, number, number, number][] = [[300, 300, 500, 300]];   // the IVC across the atrium
+  const was = solve({ items: [it], view, blockers: [], lines }).placed[0];
+  assert.equal(was.dy, 40 - 9, 'priced by lines alone, it left its organ');
+  const now = solve({ items: [{ ...it, otherShare: below }], view, blockers: [], lines }).placed[0];
+  assert.equal(now.dy, -9, 'it stays on its own organ');
+});

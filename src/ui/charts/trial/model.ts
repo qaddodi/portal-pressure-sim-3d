@@ -51,6 +51,9 @@ export function effectOf(t: Trial): string | null {
 const TIME = /(\d[\d.]*)\s*(day|week|month|year)/gi;
 /** Whether the endpoint already names the follow-up time ("Alive at 6 weeks, 6 weeks" would read it twice). */
 export function sameTime(endpoint: string, followUp: string): boolean {
+  // The whole follow-up phrase already inside the endpoint ("days 3 to 15" in "..., days 3 to 15"), whatever its shape.
+  const fu = String(followUp).trim().toLowerCase();
+  if (fu && String(endpoint).toLowerCase().includes(fu)) return true;
   const f = [...String(followUp).matchAll(TIME)];
   if (f.length !== 1) return false;
   const [, n, u] = f[0]!, e = String(endpoint);
@@ -66,7 +69,7 @@ export function fitWords(fit: Fit | null | undefined): string | null {
   if (fit.verdict === 'no') {
     const r = (fit.rows ?? []).find((x) => x?.state === 'no');
     if (!r?.rule) return 'Does not fit';
-    const v = typeof r.value === 'string' || Number.isFinite(r.value as number) ? ` (this patient: ${r.value})` : '';
+    const v = typeof r.value === 'string' || Number.isFinite(r.value as number) ? ` (this patient: ${typeof r.value === 'string' ? lcFirst(r.value) : r.value})` : '';
     return `Does not fit: ${lcFirst(String(r.rule))}${v}`;
   }
   return groupOf(fit) === 'possible' ? possiblyWords(fit) : 'Cannot tell from the model';

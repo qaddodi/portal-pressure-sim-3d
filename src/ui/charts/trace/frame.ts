@@ -63,7 +63,7 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
   // gridlines and their numbers; the unit once at the top of the axis
   const grid = lk('plot.grid.line', { cut: false }), gt = lk('plot.grid.text');
   for (let q = 0; q <= pMax / gStep; q++) { rule(L, Y(q * gStep), R, Y(q * gStep), grid); say(L - 8, Y(q * gStep) + 0.35 * fs, String(q * gStep), gt, { anchor: 'end' }); }
-  say(Math.max(L - 8, unitW), T - 8, 'mmHg', lk('plot.unit'), { anchor: 'end' });
+  say(Math.max(L - 8, unitW), T - 0.6 * fs - 2, 'mmHg', lk('plot.unit'), { anchor: 'end' });
   // a faint upright line at each state, from the top of the plot to its axis
   const mark = lk('talk.mark.line');
   pts.forEach((_, i) => rule(X(i), T - 4, X(i), B, mark));

@@ -6,6 +6,8 @@ import { useUi, type Readings } from '../../ui/ui-store.ts';
 import { tokensOf } from '../../ui/text/tokens.ts';
 import type { Deck } from '../schema.ts';
 import { ensureStates, useStates } from './calc.ts';
+import { readingsOf } from './readings-of.ts';
+import { mergeStates } from '../../ui/charts/baked/view.ts';
 import { copiedOf } from './deck.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { viewAt } from '../../ui/deck/presenter-machine.ts';
@@ -31,12 +33,6 @@ const at = (deck: Deck): { key: string; at: string }[] => {
 
 /** Which state a position shows: the title and the first slide show the first slide's; the quick check keeps the last's. */
 export const stateIndex = (kind: 'title' | 'slide' | 'check', stop: number, n: number): number => (kind === 'slide' ? stop - 1 : kind === 'check' ? n - 1 : 0);
-
-const numeric = (fp: Readonly<Record<string, unknown>> | null | undefined): Readings => {
-  const out: Readings = {};
-  if (fp) for (const [k, v] of Object.entries(fp)) if (typeof v === 'number') out[k] = v;
-  return out;
-};
 
 export function linkStates(deck: Deck): () => void {
   const copied = copiedOf(deck.id);
@@ -78,9 +74,11 @@ export function linkStates(deck: Deck): () => void {
     const i = stateIndex(stop.kind, pos.stop, ids.length);
     // until this slide's state is in, the headline numbers are the live figure's (the first slide opens at once; the others follow as the states arrive)
     const live = useEngine.getState();
-    const r: Readings = res?.[i] ? numeric(res[i]!.fp) : { whvp: live.whvp, fhvp: live.fhvp, hvpg: live.hvpg, ivc: live.ivc, ra: live.ra, pv: live.pv };
+    // (the readings the words print come from the live states and, where those are not yet in, the ones baked at build time: the cards gate on the same merge (CardLayer), so a line is never let in ahead of its numbers, "recurred to …", Ten years 12)
+    const shown = mergeStates(deck.id, res);
+    const r: Readings = readingsOf(shown?.[i]?.fp, live);
     for (const n of named) {
-      const fp = res?.[ids.indexOf(n.at)]?.fp;
+      const fp = shown?.[ids.indexOf(n.at)]?.fp;
       if (typeof fp?.[n.key] === 'number') r[`${n.key}@${n.at}`] = fp[n.key] as number;
       if (n.key === 'map') for (const k of ['sbp', 'dbp']) if (typeof fp?.[k] === 'number') r[`${k}@${n.at}`] = fp[k] as number;
     }
