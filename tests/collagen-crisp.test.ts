@@ -15,7 +15,7 @@ import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
 import { septaBands } from '../src/scene/lobule/collagen-paint.ts';
 import { bandOutlineFlat } from '../src/scene/lobule/from2d/lobule-look.generated.js';
 import { bandGeomInto } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
-import { COLL_A, COLL_A0, EDGE_BOX, EDGE_PLATE_PX, E_LO, E_SPAN, K_IN, K_MID, K_OUT, K_OUT_END, STRIA_K, STRIA_MAX, TRACT_FADE, TRACT_RT, TRACT_RT_PX, angleToByte, byteToAngle, byteToEdge, coverageAt, edgeToByte, tToByte, tractEdge, tractFrontPx, tractRamp } from '../src/scene/lobule/collagen-edge.ts';
+import { COLL_A, COLL_A0, EDGE_BOX, EDGE_PLATE_PX, E_LO, E_SPAN, K_EDGE, K_IN, K_MID, K_OUT, K_OUT_END, STRIA_K, STRIA_MAX, TRACT_EDGE_K, TRACT_FADE, TRACT_RT, TRACT_RT_PX, angleToByte, byteToAngle, byteToEdge, coverageAt, coverageOver, edgeToByte, tToByte, tractEdge, tractFrontPx, tractRamp } from '../src/scene/lobule/collagen-edge.ts';
 import { ROPE_LIFT_MAX, ropeColour, ropeS } from '../src/scene/lobule/relief.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -53,7 +53,7 @@ function hexMiddle(): { x: number; y: number; nx: number; ny: number; half: numb
   const g = { P: new Float64Array(54), N: new Float64Array(54), Wd: new Float64Array(27), n: 26, L0: 1 };
   bandGeomInto(g, b.A, b.B, b.o, b.o.path);
   const i = 13, px = (v: number): number => (v + box) * sc;
-  return { x: px(g.P[2 * i]!), y: px(g.P[2 * i + 1]!), nx: g.N[2 * i]!, ny: g.N[2 * i + 1]!, half: (K_MID / 2) * g.Wd[i]! * sc, core: (K_IN / 2) * g.Wd[i]! * sc, paint: K_OUT / 2 * g.Wd[i]! * sc };
+  return { x: px(g.P[2 * i]!), y: px(g.P[2 * i + 1]!), nx: g.N[2 * i]!, ny: g.N[2 * i + 1]!, half: (K_EDGE / 2) * g.Wd[i]! * sc, core: (K_IN / 2) * g.Wd[i]! * sc, paint: K_OUT / 2 * g.Wd[i]! * sc };
 }
 
 /** Where along the normal (plate px from the centre line, on `side`) the baked distance crosses 0: the band's edge on that side, found, not assumed (the painter's widths wander along a band). */
@@ -72,7 +72,7 @@ function bodyPolygon(b: ReturnType<typeof septaBands>[number]): [number, number]
     moveTo(x: number, y: number) { pts.push([px(x), px(y)]); }, lineTo(x: number, y: number) { pts.push([px(x), px(y)]); },
     arc(cx: number, cy: number, r: number, a0: number, a1: number, ccw: boolean) { let d = a1 - a0; if (ccw) { while (d > 0) d -= 2 * Math.PI; } else { while (d < 0) d += 2 * Math.PI; } for (let k = 1; k <= 24; k++) pts.push([px(cx + r * Math.cos(a0 + d * k / 24)), px(cy + r * Math.sin(a0 + d * k / 24))]); },
   };
-  bandOutlineFlat(ctx, g.P, g.N, g.Wd, K_MID, K_MID);
+  bandOutlineFlat(ctx, g.P, g.N, g.Wd, K_EDGE, K_EDGE);
   return pts;
 }
 const inside = (poly: [number, number][], x: number, y: number): boolean => {
@@ -80,7 +80,7 @@ const inside = (poly: [number, number][], x: number, y: number): boolean => {
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i]!, [xj, yj] = poly[j]!; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; }
   return c;
 };
-test('the septa\'s texels are the painter\'s own middle pass: inside it e is above 0 and outside below, every septum', () => {
+test('the septa\'s texels are the painter\'s own dense core (Plan 49): inside it e is above 0 and outside below, every septum', () => {
   for (const b of septaBands(G)) {
     const poly = bodyPolygon(b), xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
     let wrong = 0, worst = 0, count = 0;
@@ -148,7 +148,7 @@ test('GATE no glow: one device pixel past a band\'s edge nothing of the collagen
 test('GATE no glow, tracts: the disc ends at its front, one pixel, at every growth, and grows as it did (nested, reversible)', () => {
   let last = -1;
   for (let p = 0; p <= 1.0001; p += 0.05) {
-    const rf = tractFrontPx(p);
+    const rf = TRACT_EDGE_K * tractFrontPx(p);   // (Plan 49: the edge is the dense bundles' radius, TRACT_EDGE_K of the front)
     for (const M of MS) {
       const a = 0.5 / M, r1 = rf + 1 / M + 0.02;
       assert.equal(smooth(-a, a, tractEdge(p, r1)), 0, `p ${p}: nothing a pixel past the front`);
@@ -192,70 +192,71 @@ test('GATE a rope: one lit flank and one shade flank across the whole fade, a fl
 // ---- Plan 48: the fade, judged as the shader composites it (the JS twins of collCoverage and ropeColour over the look's cells)
 const lumOf = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 const over = (col: readonly number[], a: number, under: readonly number[]): number[] => [0, 1, 2].map((i) => col[i]! * a + under[i]! * (1 - a));
-test('GATE fade (Plan 48b): the edge is the middle pass, 0.55 at the edge, nothing past it, a smooth climb INSIDE to 0.89 at fw_in, and the composite over Dark cells spans at least 0.08 from coverage alone', () => {
+test('GATE fade (Plan 49): the edge is the dense core, whole and crisp over the dark surround, fading INTO the cells across the band\'s whole half width, nothing past it', () => {
   const m = hexMiddle();
-  // the painter's depth here: the middle pass's half width minus the core's (0.225 x the width)
-  const fw = m.half - m.core;
-  assert.ok(Math.abs(fw / (m.half * 2) - (K_MID - K_IN) / 2 / K_MID) < 1e-9 && fw > 15 && fw < 60, `a hex septum's fade depth is ${fw.toFixed(1)} plate px (0.225 of its width, which the painter's lump varies along the band)`);
-  assert.equal(TRACT_FADE, 0.15); assert.equal(COLL_A0, 0.55);
+  // the fade runs from the edge to the centre line: its depth is the band's whole half width (K_EDGE x w / 2, the painter's core)
+  const fw = m.half;
+  assert.ok(Math.abs(fw / (m.core) - K_EDGE / K_IN) < 1e-9 && fw > 20 && fw < 130, `a hex septum's fade depth is ${fw.toFixed(1)} plate px (its whole half width, which the painter's lump varies along the band)`);
+  assert.equal(TRACT_FADE, 1); assert.equal(TRACT_EDGE_K, 0.75); assert.equal(COLL_A0, 0.55); assert.equal(K_EDGE, K_IN);
   for (const M of MS) for (const side of [1, -1]) {
     const x0 = crossing(m, side);
-    // GATE anti-glow: the edge sits at the middle pass (1.45 x w / 2), never the outer pass (2.1 x w / 2, ${m.paint - m.half} plate px further). The bake measures the distance to the centre line against the width interpolated along it, so where the painter's lump makes the width change 10% over one 32 px segment
-    // the offset polygon's edge (what the painter draws, at the node) and the bake's differ by up to 1.5 px at this node (0.94 measured); that is far from the outer pass, which is what the gate is about
-    assert.ok(Math.abs(x0 - m.half) <= 1.5, `M ${M}: the edge is ${x0.toFixed(2)} plate px from the centre line, the middle pass is ${m.half.toFixed(2)}`);
-    assert.ok(m.paint - m.half > 20 && x0 < m.half + 3, 'the outer pass lies far beyond the edge, and nothing is drawn there');
-    // no halo: nothing beyond the middle pass + 1 px, at any depth value the texels hold there
+    // GATE anti-glow: the edge sits at the dense core (K_IN x w / 2), never the middle pass (1.45) or the outer one (2.1). The bake measures the distance to the centre line against the width interpolated along it, so where the painter's lump makes the width change 10% over one 32 px segment
+    // the offset polygon's edge (what the painter draws, at the node) and the bake's differ by up to 1.5 px at this node; that is far from the middle pass, which is what the gate is about
+    assert.ok(Math.abs(x0 - m.half) <= 1.5, `M ${M}: the edge is ${x0.toFixed(2)} plate px from the centre line, the core is ${m.half.toFixed(2)}`);
+    assert.ok((K_MID - K_EDGE) / 2 * (m.half * 2 / K_EDGE) > 8 && x0 < m.half + 3, 'the middle pass lies beyond the edge, and nothing is drawn there');
+    // no halo: nothing beyond the edge + 1 px, over the surround (ta 0) or over cells (ta 1), at any depth value the texels hold there
     for (let d = x0 + 1 / M + 0.02; d <= m.paint + 20; d += 0.37) {
       const x = m.x + side * m.nx * d, y = m.y + side * m.ny * d;
-      assert.equal(cover(edgeAt(x, y), M) * coverageAt(sample(3, x, y) / 255), 0, `M ${M}: coverage past the edge at ${(d - x0).toFixed(2)} px`);
+      for (const ta of [0, 1]) assert.equal(cover(edgeAt(x, y), M) * coverageOver(sample(3, x, y) / 255, ta), 0, `M ${M}: coverage past the edge at ${(d - x0).toFixed(2)} px (tissue ${ta})`);
     }
-    // the edge: one pixel inside it the coverage is the painter's middle tier
-    const xr = m.x + side * m.nx * (x0 - 1), yr = m.y + side * m.ny * (x0 - 1);
-    const rim = cover(edgeAt(xr, yr), M) * coverageAt(sample(3, xr, yr) / 255);
-    assert.ok(rim >= 0.54, `M ${M}: edge coverage ${rim.toFixed(4)} one plate px inside`);
-    // from the edge to the core: monotonic to 0.89 by e = fw, the steepest step between adjacent DEVICE pixels small (no band, no terrace)
+    // the edge: one pixel inside it, over the dark surround the band is whole (crisp, no dim skirt); over cells it is the painter's middle tier, 0.55
+    const xr = m.x + side * m.nx * (x0 - 1), yr = m.y + side * m.ny * (x0 - 1), tr = sample(3, xr, yr) / 255;
+    assert.ok(cover(edgeAt(xr, yr), M) * coverageOver(tr, 0) >= COLL_A - 0.005, `M ${M}: whole over the surround at the edge`);
+    assert.ok(cover(edgeAt(xr, yr), M) * coverageOver(tr, 1) >= 0.54, `M ${M}: 0.55 or more over cells at the edge`);
+    // from the edge to the centre line over cells: monotonic to 0.89 by e = fw, the steepest step between adjacent DEVICE pixels small (no band, no terrace)
     let prev = -1, steepest = 0, reached = -1;
-    for (let d = x0 - 1; d >= x0 - fw - 20; d -= 1 / M) {
+    for (let d = x0 - 1; d >= x0 - fw; d -= 1 / M) {
       const x = m.x + side * m.nx * d, y = m.y + side * m.ny * d;
-      const c = cover(edgeAt(x, y), M) * coverageAt(sample(3, x, y) / 255);
+      const c = cover(edgeAt(x, y), M) * coverageOver(sample(3, x, y) / 255, 1);
       if (prev >= 0) { assert.ok(c >= prev - 1e-3, `M ${M}: the coverage never falls going in (${prev.toFixed(4)} then ${c.toFixed(4)} at ${(x0 - d).toFixed(1)} px)`); steepest = Math.max(steepest, Math.abs(c - prev)); }
       if (reached < 0 && c >= COLL_A - 0.005) reached = x0 - d;
       prev = c;
     }
     assert.ok(reached > 0 && reached <= fw + 1.5, `M ${M}: whole (0.89) by ${reached.toFixed(1)} plate px in, fw ${fw.toFixed(1)}`);
-    // (the painter's lump makes this stretch of the hex septum the NARROWEST (w 87, fw_in 19.6 plate px): 1.5 x 0.34 / fw = 0.026 per plate px, so 0.038 per device px at M 0.68 (1.5 plate px); at the plan's w 168 (fw_in 38) it is 0.02. No terrace either way)
     assert.ok(steepest <= 0.04, `M ${M}: the steepest step is ${steepest.toFixed(4)}`);
   }
-  // the core: on the centre line the coverage is whole
-  assert.ok(Math.abs(coverageAt(sample(3, m.x, m.y) / 255) - COLL_A) < 1e-6, 'the core is whole on the centre line');
-  // the composite over Dark cells: coverage alone spans at least 0.08 (the plan: 0.66 at the edge to 0.76 at the core), climbing
+  // the centre line: the coverage is whole
+  assert.ok(Math.abs(coverageAt(sample(3, m.x, m.y) / 255) - COLL_A) < 0.01, 'the crown is whole on the centre line');
+  // the surround share is smooth and monotone: more tissue under the band, more fade
+  for (let t = 0; t <= 1; t += 0.1) for (let ta = 0; ta < 1; ta += 0.1) assert.ok(coverageOver(t, ta + 0.1) <= coverageOver(t, ta) + 1e-12);
+  // the composite over Dark cells: coverage alone spans at least 0.08 (0.55 at the edge to 0.89 at the crown), climbing
   for (const look of ['dark', 'navy', 'black'] as const) {
     const T = lookColours(look), tok = T.rgb01('--lz-septum'), cell = T.rgb01('--og-liver-1');
-    const Ls = [0, 0.25, 0.5, 0.75, 1].map((t) => lumOf(over(tok, coverageAt(t), cell)));
+    const Ls = [0, 0.25, 0.5, 0.75, 1].map((t) => lumOf(over(tok, coverageOver(t, 1), cell)));
     assert.ok(Ls[4]! - Ls[0]! >= 0.08, `${look}: composite spans ${(Ls[4]! - Ls[0]!).toFixed(3)} (edge ${Ls[0]!.toFixed(3)}, core ${Ls[4]!.toFixed(3)}, cells ${lumOf(cell).toFixed(3)})`);
     for (let i = 1; i < Ls.length; i++) assert.ok(Ls[i]! > Ls[i - 1]!, `${look}: lightness climbs edge to core`);
   }
 });
 
-test('Plan 48b profile across a hex septum at his zoom (568 device px lobule radius, 0.68 device px per plate px), from the border outward', () => {
+test('Plan 49 profile across a hex septum at his zoom (568 device px lobule radius, 0.68 device px per plate px), from the border outward', () => {
   const M = 0.68, R = 839;
   assert.ok(Math.abs(568 / R - M) < 0.01);
-  // (1) the plan's table, by the JS twins, for the plan's septum (w = 0.2 R = 168 plate px: edge 1.45 w / 2 = 122, core 84): coverage by device px from the hexagon's border
-  const w = 0.2 * R, edge = K_MID * w / 2, core = K_IN * w / 2, fwIn = edge - core;
-  const prof = (devPx: number): number => { const e = edge - devPx / M; return cover(e, M) * coverageAt(e / fwIn); };
-  const rows = [0, 57, 70, 83, 84, 100, 120].map((dev) => `${dev} device px (${(dev / M).toFixed(0)} plate px): ${prof(dev).toFixed(3)}`);
-  console.log('plan table, w 168:\n' + rows.join('\n'));
-  assert.ok(Math.abs(fwIn - 0.225 * w) < 1e-9 && Math.abs(fwIn - 37.8) < 0.1);
-  assert.equal(prof(0), COLL_A); assert.ok(Math.abs(prof(57) - COLL_A) < 0.01, 'the core, whole, to 84 plate px (57 device px)');
-  assert.ok(prof(70) > 0.55 && prof(70) < COLL_A, 'the inner fade, smooth');
-  assert.ok(prof(edge * M - 1) >= 0.54, 'a device px inside the edge: the painter\'s 0.55');
-  assert.equal(prof(edge * M + 1), 0, 'a device px past the edge: exactly 0'); assert.equal(prof(120), 0); assert.equal(prof(100), 0);
-  // (2) the baked texels at the narrowest stretch of the real band (w 87 plate px, its edge 63 plate px = 43 device px out): nothing past the edge + 1 device px, the edge 0.55 or more
+  // (1) a septum of w = 0.2 R = 168 plate px: its edge K_EDGE x w / 2 = 84 plate px (57 device px) from the hexagon's border, the fade across all of it
+  const w = 0.2 * R, edge = K_EDGE * w / 2, fwIn = edge;
+  const prof = (devPx: number, ta: number): number => { const e = edge - devPx / M; return cover(e, M) * coverageOver(e / fwIn, ta); };
+  const rows = [0, 20, 40, 56, 58, 70].map((dev) => `${dev} device px (${(dev / M).toFixed(0)} plate px): over cells ${prof(dev, 1).toFixed(3)}, over the surround ${prof(dev, 0).toFixed(3)}`);
+  console.log('profile, w 168:\n' + rows.join('\n'));
+  assert.equal(prof(0, 1), COLL_A); assert.equal(prof(0, 0), COLL_A);
+  assert.ok(prof(40, 1) > 0.55 && prof(40, 1) < COLL_A, 'the fade, smooth, across the half width');
+  assert.ok(prof(edge * M - 1, 1) >= 0.54, 'a device px inside the edge over cells: the painter\'s 0.55');
+  assert.ok(prof(edge * M - 1, 0) >= COLL_A - 0.005, 'a device px inside the edge over the surround: whole');
+  assert.equal(prof(edge * M + 1, 0), 0, 'a device px past the edge: exactly 0'); assert.equal(prof(edge * M + 1, 1), 0); assert.equal(prof(70, 1), 0);
+  // (2) the baked texels at the narrowest stretch of the real band: nothing past the edge + 1 device px, the edge whole over the surround
   const m = hexMiddle();
-  const at = (dev: number): number => { const d = dev / M, x = m.x + m.nx * d, y = m.y + m.ny * d; return cover(edgeAt(x, y), M) * coverageAt(sample(3, x, y) / 255); };
+  const at = (dev: number, ta: number): number => { const d = dev / M, x = m.x + m.nx * d, y = m.y + m.ny * d; return cover(edgeAt(x, y), M) * coverageOver(sample(3, x, y) / 255, ta); };
   const x0 = crossing(m, 1) * M;
-  console.log(`real node (w ${(2 * m.half / K_MID).toFixed(0)} plate px): edge at ${x0.toFixed(1)} device px; ` + [0, 20, 30, x0 - 1, x0 + 1.5, x0 + 30, x0 + 60].map((d) => `${d.toFixed(0)}: ${at(d).toFixed(3)}`).join(', '));
-  assert.equal(at(x0 + 1.5), 0); assert.equal(at(x0 + 60), 0); assert.ok(at(x0 - 1) >= 0.54);
+  console.log(`real node (w ${(2 * m.half / K_EDGE).toFixed(0)} plate px): edge at ${x0.toFixed(1)} device px; ` + [0, 20, 30, x0 - 1, x0 + 1.5, x0 + 30, x0 + 60].map((d) => `${d.toFixed(0)}: ${at(d, 1).toFixed(3)}`).join(', '));
+  assert.equal(at(x0 + 1.5, 0), 0); assert.equal(at(x0 + 60, 1), 0); assert.ok(at(x0 - 1, 1) >= 0.54); assert.ok(at(x0 - 1, 0) >= COLL_A - 0.005);
 });
 
 test('GATE relief: the lit flank lifts at least 0.06 and the shade flank deepens at least 0.08 at the middle of the fade, never past the lift cap, no channel past 0.95; the crown is flat', () => {
@@ -323,13 +324,13 @@ test('GLSL: no blurred copy is left in the plate; the edge is the distance, take
   const t = shaderText(LOBULE_PLATE_FS);
   for (const gone of ['collField', 'COLL_FIELD', 'SOFT_E0', 'SOFT_E1', 'gFS', 'gFU', 'textureLod', 'gCov']) assert.ok(!t.includes(gone), `${gone} is gone`);
   assert.match(t, /smoothstep\(-aS, aS, eS\)/); assert.match(t, /smoothstep\(-aT, aT, eT\)/);
-  assert.ok(t.indexOf('collagenAt(vUv)') < t.indexOf('if (fadedOut()) discard;'), 'the collagen\'s derivatives are read before the dissolve\'s discard');
+  assert.ok(t.indexOf('collagenAt(vUv, tw)') < t.indexOf('if (fadedOut()) discard;'), 'the collagen\'s derivatives are read before the dissolve\'s discard');
   const body = t.slice(t.indexOf('vec4 collagenAt('), t.indexOf('float plateEdge('));
   const fetches = (body.match(/texture2D\(/g) ?? []).length + (body.match(/texelFetch\(/g) ?? []).length;
   assert.ok(fetches <= 10, `the collagen costs ${fetches} fetches (the blurred copy cost 24 more; Plan 48: 4 atlas reads, the arrival texel and its nearest angle, 4 more only while a look crossfades)`);
   // Plan 48: the flat tokens are the base colour; the atlas's colour is never un-premultiplied into it (a nucleus then was an opaque dark worm); healthy tissue reads nothing
   assert.ok(!t.includes('collColour'), 'collColour (the un-premultiplied atlas colour) is gone');
-  assert.match(t, /ropeColour\(baseS,/); assert.match(t, /ropeColour\(baseT,/); assert.match(t, /collCoverage\(tm\.a\)/); assert.match(t, /collCoverage\(tT\)/);
+  assert.match(t, /ropeColour\(baseS,/); assert.match(t, /ropeColour\(baseT,/); assert.match(t, /collCoverage\(tm\.a, ta\)/); assert.match(t, /collCoverage\(tT, ta\)/);
   assert.match(t, /uP\.x \+ uP\.y \+ uP\.z <= 0\.0\) return vec4\(0\.0\)/, 'healthy tissue (no growth) takes no collagen fetch: bit-identical');
   assert.ok(body.indexOf('texelFetch(') < body.indexOf('return vec4(colT * covT'), 'the angle is read inside the collagen');
   assert.deepEqual(undeclared(LOBULE_PLATE_FS, ['cameraPosition', 'modelMatrix', 'modelViewMatrix', 'projectionMatrix', 'viewMatrix', 'normalMatrix']), [], 'every name is declared before it is used');

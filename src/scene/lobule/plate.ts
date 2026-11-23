@@ -158,7 +158,7 @@ float collStria(vec4 f, vec4 c) {
   float lf = celLight(f.rgb / max(f.a, 0.04)), lc = celLight(c.rgb / max(c.a, 0.04));
   return clamp(lf - lc, -STRIA_MAX, STRIA_MAX) * smoothstep(0.12, 0.35, min(f.a, c.a));
 }
-vec4 collagenAt(vec2 uv) {
+vec4 collagenAt(vec2 uv, float ta) {   // ta: how much tissue lies under the band here (0 over the dark surround: the band is whole to its crisp edge; 1 over cells: it fades into them)
   if (uBaseK > 0.5 || uP.x + uP.y + uP.z <= 0.0) return vec4(0.0);
   vec2 L = vL;
   // (the collagen atlas is two plates wide: the tracts and the vein on the left, the septa on the right)
@@ -175,7 +175,7 @@ vec4 collagenAt(vec2 uv) {
   // the septa
   float eS = tm.b * tm.b * E_SPAN + E_LO;
   float aS = max(0.5 * length(vec2(dFdx(eS), dFdy(eS))), 0.02);
-  float covS = smoothstep(-aS, aS, eS) * collCoverage(tm.a) * front(tm.r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x);
+  float covS = smoothstep(-aS, aS, eS) * collCoverage(tm.a, ta) * front(tm.r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x);
   vec3 colS = ropeColour(baseS, ropeS(tm.a, vec2(cos(angS), sin(angS)), L)) * (1.0 + STRIA_K * collStria(cs, cs4));
   // the tracts: the nearest hexagon corner (the lobule's corners are at cos and sin of k pi/3, in lobule radii; v is up, y is down)
   float rT = 1e9; vec2 dT = vec2(0.0, 1.0);
@@ -186,11 +186,11 @@ vec4 collagenAt(vec2 uv) {
     if (r < rT) { rT = r; dT = d / max(r, 1e-4); }
   }
   float tp = (uP.y - TRACT_TAU_LO) * TRACT_TAU_K;   // (the front's tau in the painter's units: the disc is whole to 0.8 rt + 0.9 tp rt)
-  float rF = TRACT_RT_PX * (0.8 + 0.9 * tp), eT = rF - rT;   // (the front's radius, and the pixel's distance inside it)
+  float rF = TRACT_EDGE_K * TRACT_RT_PX * (0.8 + 0.9 * tp), eT = rF - rT;   // (the edge's radius at this growth (the front's, scaled to the dense bundles), and the pixel's distance inside it)
   float aT = max(0.5 * length(vec2(dFdx(eT), dFdy(eT))), 0.02);
   float tT = clamp(eT / max(TRACT_FADE * rF, 1.0), 0.0, 1.0);
   float ramp = smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
-  float covT = smoothstep(-aT, aT, eT) * collCoverage(tT) * ramp;
+  float covT = smoothstep(-aT, aT, eT) * collCoverage(tT, ta) * ramp;
   vec3 colT = ropeColour(baseT, ropeS(tT, dT, L)) * (1.0 + STRIA_K * collStria(cu, cu4));
   // (the septa first, the tracts over them, as the painter lays them)
   vec4 o = vec4(colS * covS, covS);
@@ -210,7 +210,8 @@ void main() {
   float cvR = length(vUv - 0.5) * CV_SPAN * uScarK;
   float cvAA = max(fwidth(cvR), 1e-6);
   vec4 p = plateTex(vUv);
-  vec4 kl = collagenAt(vUv);   // (the collagen over it, premultiplied, rope relief in its colour; the edges' derivatives are taken inside, here, before the discard)
+  float tw = smoothstep(0.15, 0.85, plateTexLod(vUv, 5.0).a);   // (the tissue under the band, a smooth share: a coarse mip, so the fade never steps at the hexagon's line)
+  vec4 kl = collagenAt(vUv, tw);   // (the collagen over it, premultiplied, rope relief in its colour; the edges' derivatives are taken inside, here, before the discard)
   vec3 c = p.rgb / max(p.a, 1e-4);
   vec4 m = plateTexLod(vUv, 3.0);
   float lb = celLight(m.rgb / max(m.a, 1e-3));

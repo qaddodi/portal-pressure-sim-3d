@@ -11,7 +11,7 @@ import { bandGeomInto, fibHash } from './from2d/lobule-paint.generated.js';
 import { septaBands } from './collagen-paint.ts';
 import type { CollagenShape } from './collagen-paint.ts';
 import { tauToByte } from './growth.ts';
-import { E_LO, K_IN, K_MID, angleToByte, edgeToByte, tToByte } from './collagen-edge.ts';
+import { E_LO, K_EDGE, K_MID, angleToByte, edgeToByte, tToByte } from './collagen-edge.ts';
 
 /** The fronts' own meeting point of the hex-edge bridges, in septU (today's reach is 1 at su (1 - 0.3) / 2.4). */
 export const SEPTA_MEET = 0.29;
@@ -32,10 +32,11 @@ export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: numb
   for (const b of septaBands(G)) {
     bandGeomInto(g, b.A, b.B, b.o, b.o.path);
     const P = g.P, Wd = g.Wd, seed = b.o.seed;
-    // (the painter's bandHalf: Wd k / 2; the middle pass is the same width to its ends, so the edge needs no narrowing)
-    const hOut = (i: number): number => Wd[i]! * K_MID / 2, hIn = (i: number): number => Wd[i]! * K_IN / 2;
+    // (the painter's bandHalf: Wd k / 2; the core is the same width to its ends, so the edge needs no narrowing)
+    // (the arrival time still reaches the painter's middle pass: every pixel the painter draws as septum has its time, as before; only the edge and the fade are the core's)
+    const hOut = (i: number): number => Wd[i]! * K_EDGE / 2, hMid = (i: number): number => Wd[i]! * K_MID / 2;
     for (let i = 0; i < g.n; i++) {
-      const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = Math.max(hOut(i), hOut(i + 1)) + reach / sc;
+      const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = Math.max(hMid(i), hMid(i + 1)) + reach / sc;
       const x0 = Math.max(0, Math.floor(toPx(Math.min(ax, bx) - wmax))), x1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ax, bx) + wmax)));
       const y0 = Math.max(0, Math.floor(toPx(Math.min(ay, by) - wmax))), y1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ay, by) + wmax)));
       const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
@@ -43,14 +44,17 @@ export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: numb
         const wx = (x + 0.5) / sc - box, wy = (y + 0.5) / sc - box;
         const t = clamp(((wx - ax) * dx + (wy - ay) * dy) / L2, 0, 1), ex = ax + t * dx - wx, ey = ay + t * dy - wy, d = Math.hypot(ex, ey);
         const w = Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t), half = 2.1 * w;   // (the painted outer edge, which the arrival times' thickening is measured against)
-        const ho = hOut(i) + (hOut(i + 1) - hOut(i)) * t, hi = hIn(i) + (hIn(i + 1) - hIn(i)) * t;
-        const e = (ho - d) * sc;   // plate px inside the MIDDLE pass (the band's edge)
-        if (e < E_LO - 1) continue;
-        const k = y * n + x, fw = Math.max(1, (ho - hi) * sc), td = clamp(e / fw, 0, 1);
-        if (e > bestE[k]!) { bestE[k] = e; out[4 * k + 2] = edgeToByte(e); }   // (the union of the bands: the outer edge that reaches furthest)
-        if (td > bestT[k]!) {   // (the deepest fade wins, so the profile is the max of the bands' own: continuous where two bands cross; its normal goes with it)
-          bestT[k] = td; out[4 * k + 3] = tToByte(td);
-          out[4 * k + 1] = angleToByte(d > 1e-9 ? Math.atan2(ey, -ex) : 0);   // (outward, x right and y UP: the canvas's y runs down)
+        const ho = hOut(i) + (hOut(i + 1) - hOut(i)) * t, hm = hMid(i) + (hMid(i + 1) - hMid(i)) * t;
+        if ((hm - d) * sc < E_LO - 1) continue;
+        const e = (ho - d) * sc;   // plate px inside the dense core's edge (the band's edge)
+        const k = y * n + x;
+        if (e >= E_LO - 1) {
+          const fw = Math.max(1, ho * sc), td = clamp(e / fw, 0, 1);   // (the fade runs across the band's whole half width: t is 1 on its centre line)
+          if (e > bestE[k]!) { bestE[k] = e; out[4 * k + 2] = edgeToByte(e); }   // (the union of the bands: the outer edge that reaches furthest)
+          if (td > bestT[k]!) {   // (the deepest fade wins, so the profile is the max of the bands' own: continuous where two bands cross; its normal goes with it)
+            bestT[k] = td; out[4 * k + 3] = tToByte(td);
+            out[4 * k + 1] = angleToByte(d > 1e-9 ? Math.atan2(ey, -ex) : 0);   // (outward, x right and y UP: the canvas's y runs down)
+          }
         }
         if (d >= best[k]!) continue;
         const u = (i + t) / g.n;
