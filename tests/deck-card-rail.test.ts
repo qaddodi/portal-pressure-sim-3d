@@ -131,7 +131,7 @@ test('only the card the plan is for takes its place, and a card going out is nev
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
   assert.match(layer, /e\.phase === 'in' && e\.key === wantedKey/);
-  assert.match(frame, /if \(out\) \{ anims\.current\.forEach\(\(a\) => a\.cancel\(\)\)/);
+  assert.match(frame, /if \(out\) \{ settle\(host\); return; \}/);
 });
 
 // The play-test thread (9836a7a, Mac): about a second with no frames after the press; the old card was "gone by the first frame after it". A move was timed from the

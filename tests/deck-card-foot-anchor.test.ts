@@ -23,8 +23,11 @@ test('it is revealed from its foot up and sinks from the top down, the shadow pl
   assert.match(frame, /inset\(\$\{d\}px 0 0 0 round/, 'shrinking: clipped from the top');
   assert.match(frame, /transformOrigin: org/);
   assert.match(frame, /shrinkNow\(h\)/, 'a shrink starts in the measuring callback too, like a growth');
-  assert.match(frame, /translateY\(\$\{a === 'foot' \? d : d \/ 2\}px\)/, 'the words stand at their final places while the frame sinks');
-  assert.match(frame, /innerRef\.current\?\.style\.removeProperty\('transform'\)/);
+  // the words stand at their final places while the frame sinks (card-glide.ts wordShift: all of d on the foot, half when centred), shifted child by child and put back with the held height (Plan 46)
+  const glide = readFileSync(new URL('../src/ui/cards/card-glide.ts', import.meta.url), 'utf8');
+  assert.match(frame, /beginSink\(host, prev, next, a\)/);
+  assert.match(glide, /anchor === 'foot' \? d : anchor === 'mid' \? d \/ 2 : 0/);
+  assert.match(frame, /committed\(host, animH\)/);
 });
 
 test('the quick check\'s rows count the card\'s shift', () => {
