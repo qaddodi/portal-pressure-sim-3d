@@ -149,15 +149,15 @@ test('the gridlines: every 5, every 10 over 40, every other where they would cro
   assert.equal(whole0(999), 300);
 });
 
-test('the colour of a pressure: the look\'s own pressure ramp (v2, src/scene/lenses/pressure-ramp.ts), in OKLab, from 0 to 35 mmHg', () => {
-  assert.deepEqual(pressureRgb('light', 0), [146, 189, 226]);
-  assert.deepEqual(pressureRgb('light', 35), [95, 1, 31], 'past the last stop: the last colour');
-  assert.deepEqual(pressureRgb('light', -4), [146, 189, 226]);
-  assert.deepEqual(pressureRgb('dark', 0), [211, 236, 254], 'the dark looks have their own ramp');
-  assert.deepEqual(pressureRgb('soft', 0), [118, 158, 191]);
+test('the colour of a pressure: the look\'s own pressure ramp (v2, src/scene/lenses/pressure-ramp.ts), in OKLab, from 0 to 35 mmHg (Dusk, option A, eb3ad35a: the ramp stops are pinned in pressure-ramp.test.ts, this holds the profile to them)', () => {
+  assert.deepEqual(pressureRgb('light', 0), [152, 185, 209]);
+  assert.deepEqual(pressureRgb('light', 35), [79, 2, 59], 'past the last stop: the last colour');
+  assert.deepEqual(pressureRgb('light', -4), [152, 185, 209]);
+  assert.deepEqual(pressureRgb('dark', 0), [213, 237, 254], 'the dark looks have their own ramp');
+  assert.deepEqual(pressureRgb('soft', 0), [132, 162, 183]);
   const lo = pressureRgb('light', 5), hi = pressureRgb('light', 20);
   assert.ok(lo[0] > hi[0] || lo[2] > hi[2], 'a higher pressure is a deeper colour');
-  assert.deepEqual(pressureColour('light', 0, 0.5), [146 / 255, 189 / 255, 226 / 255, 0.5]);
+  assert.deepEqual(pressureColour('light', 0, 0.5), [152 / 255, 185 / 255, 209 / 255, 0.5]);
 });
 
 test('the glide: the shown numbers follow the goal on the 2D filter, blocks fade in, a hold takes the brackets out', async () => {
