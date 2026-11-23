@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BoxGeometry, BufferGeometry } from 'three';
+import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { CelShared } from '../src/scene/materials/cel.ts';
 import { paletteFor } from '../src/scene/palette.ts';
 import { OrganLayer } from '../src/scene/organs/layer.ts';
@@ -90,12 +91,20 @@ test('the organs: the liver follows cirrhosis and congestion, the spleen its siz
   o.dispose(); s.dispose?.();
 });
 
-test('a new geometry on a clot disposes the one it replaces', () => {
+test('a clot change writes the vein\'s own clot uniforms and makes or disposes nothing: the clot is the vein\'s pixels (plan 26), so there is no clot geometry to replace', () => {
   const s = new CelScene(); const c = s.disease.clots;
+  const pieces = (s.vessels as unknown as VesselObject[]).filter((o) => o.toon?.uniforms?.clotA);
+  assert.ok(pieces.length > 50, 'every drawn vein piece carries the clot uniform');
+  const a = () => pieces.map((o) => (o.toon.uniforms.clotA!.value as { z: number }).z);
+  let disposed = 0; for (const o of pieces) o.toonMesh.geometry.addEventListener('dispose', () => disposed++);
   c.set({ PV_TRUNK: 0.4 }, 0.016, true);
-  const mesh = (c.group.children[0] as unknown as { children: { geometry: BufferGeometry }[] }).children[0]!;
-  let disposed = 0; mesh.geometry.addEventListener('dispose', () => disposed++);
+  const first = a();   // (sv: side times occlusion, zero for a piece with no clot)
+  assert.ok(first.some((z) => z !== 0), 'the clot is in the vein\'s uniforms');
   c.set({ PV_TRUNK: 0.9 }, 0.016, true);
-  assert.equal(disposed, 1);
+  assert.ok(a().some((z, i) => Math.abs(z) > Math.abs(first[i]!)), 'a bigger clot is a bigger side times occlusion in the same uniforms');
+  assert.equal(disposed, 0, 'nothing was disposed or rebuilt');
+  assert.equal(c.group.children.length, 0, 'the layer holds no mesh');
+  c.set({}, 0.016, true);
+  assert.ok(a().every((z) => z === 0), 'no clot, no uniform');
   s.dispose?.();
 });

@@ -12,6 +12,7 @@
 import { AddEquation, Color, CustomBlending, DataTexture, HalfFloatType, LinearFilter, Mesh, NoBlending, OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, SrcAlphaFactor, UnsignedByteType, Vector2, WebGLRenderTarget, ZeroFactor, type Camera, type TextureDataType, type WebGLRenderer } from 'three';
 import { BLUR_TAPS, GLOW_A_MAX, GLOW_GAIN, GLOW_LAYER, GLOW_SIGMA, blurTaps } from './glow.ts';
 import { glslNum as F } from './cel-glsl.ts';
+import { gate } from './gate.ts';
 
 export const GLOW_FX_VS = /* glsl */ `varying vec2 vUv;
 void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -87,7 +88,7 @@ export class GlowFx {
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
     this.figure = new Mesh(plane, this.lay);
-    this.figure.frustumCulled = false; this.figure.visible = false; this.figure.name = 'glow lay';
+    this.figure.frustumCulled = false; gate(this.figure, 0); this.figure.name = 'glow lay';
     this.figure.raycast = () => {};   // (a full-screen quad is never a pick)
   }
 

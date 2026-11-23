@@ -141,7 +141,7 @@ test('every station keeps its dot at every zoom: "Lower IVC" stands on the cava 
     const ctl = new LabelController(deps); ctl.setState({ ...NO_LABEL_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     const out = new Map<string, { x: number; y: number }>();
-    for (const d of ctl.out) if (d.dot) out.set(d.id, d.dot);
+    for (const d of ctl.out) if (d.anchor) out.set(d.id, d.anchor);   // (the point the name stands for: a name beside its vessel has no ring, plan 21)
     return { rig, out };
   };
   const iv = stationById('IVCI')!, conf = stationById('CONF')!;

@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { lintFiles, judge, RULES, conflictMarkers } from './lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers, css2dEdits } from './lint-rules.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const problems = [];
@@ -17,6 +17,13 @@ for (const f of ['AGENTS.md', 'CLAUDE.md', 'index.html']) if (!existsSync(join(r
 let tracked = [];
 try { tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 26 }).split('\0').filter((f) => /\.(m?[jt]sx?|json|css|html|md|ya?ml|glsl|vert|frag|txt)$/.test(f) && existsSync(join(root, f))); } catch { /* (no git: the check is skipped) */ }
 for (const f of tracked) { const at = conflictMarkers(readFileSync(join(root, f), 'utf8')); if (at.length) problems.push(`${f}: unresolved merge conflict markers at line ${at.slice(0, 5).join(', ')}`); }
+
+// The 2D stylesheets are 2D's bytes (rule no-css2d-edit, no allowance): a hand edit or a hand-made sheet in src/ui/css2d fails here.
+{
+  const dir = join(root, 'src/ui/css2d');
+  const source = JSON.parse(readFileSync(join(dir, 'SOURCE.json'), 'utf8'));
+  problems.push(...css2dEdits(readdirSync(dir).filter((n) => n.endsWith('.css')).map((name) => ({ name, bytes: readFileSync(join(dir, name)) })), source));
+}
 
 const walk = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {
   const p = `${dir}/${e.name}`;

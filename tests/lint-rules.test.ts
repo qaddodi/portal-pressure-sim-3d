@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { lintFiles, judge, RULES, conflictMarkers } from '../scripts/lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers, css2dEdits } from '../scripts/lint-rules.mjs';
+import { createHash } from 'node:crypto';
 
 type Hit = { rule: string; path: string; line: number; text: string };
 const lint = (path: string, text: string): string[] => (lintFiles([{ path, text }]) as Hit[]).map((h) => h.rule);
@@ -53,4 +54,15 @@ test('unresolved merge conflict markers are found, ordinary lines and rulers are
   const marks = ['<'.repeat(7) + ' HEAD', '='.repeat(7), '>'.repeat(7) + ' abc123'];
   assert.deepEqual(conflictMarkers(`a\n${marks.join('\n')}\nb`), [2, 3, 4]);
   assert.deepEqual(conflictMarkers('x = a <<<<<<< b;\n// ======== a longer ruler\n  ======='), []);
+});
+
+test('no-css2d-edit: a hand-edited or hand-made 2D stylesheet is caught, the copied bytes and the 3D sheet beside them are not', () => {
+  const sha = (t: string): string => createHash('sha256').update(Buffer.from(t)).digest('hex').slice(0, 16);
+  const source = { order: ['tokens.css', 'app-01.css'], hashes: { 'tokens.css': sha('a{}'), 'app-01.css': sha('b{}') } };
+  const f = (name: string, text: string) => ({ name, bytes: Buffer.from(text) });
+  const good = [f('tokens.css', 'a{}'), f('app-01.css', 'b{}'), f('index.css', '@import "./tokens.css";')];
+  assert.deepEqual(css2dEdits(good, source), [], 'the copied bytes pass (index.css is the 3D loader)');
+  assert.equal(css2dEdits([f('tokens.css', 'a{}'), f('app-01.css', 'b{ gap: 12px }')], source).length, 1, 'an edited copy fails');
+  assert.equal(css2dEdits([...good, f('mine.css', 'c{}')], source).length, 1, 'a sheet SOURCE.json does not list fails');
+  assert.equal(css2dEdits([f('tokens.css', 'a{}')], source).length, 1, 'a missing copy fails');
 });

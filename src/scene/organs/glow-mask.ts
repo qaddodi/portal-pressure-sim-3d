@@ -9,6 +9,7 @@ import { CustomBlending, DoubleSide, MaxEquation, Mesh, OneFactor, ShaderMateria
 import type { CelObject } from '../materials/cel.ts';
 import { FADE_UNIFORM_GLSL } from '../materials/shaders.ts';
 import { ORGAN_GLOW_LAYER } from '../glow.ts';
+import { gate } from '../gate.ts';
 
 /** The dive's window as organ-shader.ts ORGAN_FS writes it (these two lines are the twin of its `q` and `win`; tests/organ-glow-mask.test.ts holds the two together). */
 export const ORGAN_WINDOW_Q = 'vec2 q = vClip.xy / vClip.w - cut.xy;';
@@ -49,7 +50,7 @@ export function organMask(id: string, o: CelObject): Mesh {
   const mat = new ShaderMaterial({ name: 'organ glow mask', vertexShader: ORGAN_MASK_VS, fragmentShader: ORGAN_MASK_FS, ...ORGAN_MASK_FLAGS,
     uniforms: { fade: o.toon.uniforms.fade!, cut: o.toon.uniforms.cut!, reveal: o.ink.uniforms.reveal!, hiColor: o.ink.uniforms.hiColor!, amt: { value: 0 } } });
   const m = new Mesh(o.toonMesh.geometry, mat);
-  m.frustumCulled = false; m.visible = false; m.name = `highlight/glow/${id}`;
+  m.frustumCulled = false; gate(m, 0); m.name = `highlight/glow/${id}`;
   m.raycast = () => {};
   m.layers.set(ORGAN_GLOW_LAYER);   // (not the figure's passes: the organ glow's own mask pass draws it)
   return m;
