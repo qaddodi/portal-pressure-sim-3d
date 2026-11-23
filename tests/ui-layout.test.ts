@@ -125,7 +125,7 @@ test('iPhone on its side: two side columns, the words left and the instrument ri
   assert.equal(t.cards.length, 1); assert.equal(t.cards[0].id, 'teach');
   assert.equal(t.docked, true); assert.equal(t.sidePill, 'tucked');
   assert.equal(t.strip!.rect.w, 30, 'the handle is a 30 px strip');
-  assert.equal(t.strip!.rect.x, d.x + d.w + 4, 'the strip stands 4 px beyond where the card ended');
+  assert.equal(t.strip!.rect.x + t.strip!.rect.w, d.x + d.w, 'the strip stands on the card\'s own right end, inside the safe area');
   assert.equal(t.tucked!.x, d.x, 'the tucked card keeps its own place; a translate slides it away');
   assert.equal(t.tuckDx, t.strip!.rect.x - d.x);
   assert.ok(t.free.w > p.free.w, 'the figure gets the room the card left');

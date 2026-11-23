@@ -91,7 +91,7 @@ export const footEdge = (vp: Viewport, m: number): number => vp.h - Math.max(m, 
 
 /** A phone held sideways: where the two side columns stand (docs/approved/landscape-phone.md). Top 12 from the screen's top, the foot 9 px above the home bar's inset (30 px up on an iPhone), the words' column at
  *  the left safe edge, the instrument's at the right one; the tucked strip is 30 px wide, 4 px past the instrument's right edge and never within 10 px of the screen's. */
-export const SIDE_EDGE = 12, STRIP_W = 30, STRIP_GAP = 4, SIDE_PILL_GAP = 10;
+export const SIDE_EDGE = 12, STRIP_W = 30, SIDE_PILL_GAP = 10;
 /** Room kept clear of the card's foot for the credit (a 12 px line standing 11 px up). */
 export const CRED_SIDE = 22;
 export function sideBox(vp: Viewport) {
@@ -99,7 +99,7 @@ export function sideBox(vp: Viewport) {
   const left = Math.max(vp.safe.left, 10), right = vp.w - Math.max(vp.safe.right, 10);
   const top = topEdge(vp, SIDE_EDGE), foot = vp.h - Math.max(SIDE_EDGE, vp.safe.bottom + 9);
   const dataX = right - w;
-  const stripX = Math.min(dataX + w + STRIP_GAP, vp.w - 10 - STRIP_W);
+  const stripX = dataX + w - STRIP_W;   // (inside the safe area: the strip stands on the card's own right end, never in the notch's inset)
   return { w, left, right, top, foot, room: foot - top, wordsX: left, dataX, stripX };
 }
 /** The middle of the figure's column, where the pill stands: between the words' card and the instrument (open), its strip (tucked), or the screen's right safe edge (no instrument on this slide); a panel that stands alone has the pill in the corner at its right. */

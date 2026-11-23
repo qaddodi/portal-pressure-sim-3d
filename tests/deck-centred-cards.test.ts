@@ -30,7 +30,7 @@ test('the outline is 2D\'s panel: on a Mac its reading width (50 body sizes, 82%
   const p = planLayout(mac, need('title', 600));
   assert.equal(p.cards.length, 1); assert.equal(p.strip, null);
   assert.ok(centred(p.cards[0]!.rect, mac) && Math.abs(p.cards[0]!.rect.y + p.cards[0]!.rect.h / 2 - 450) <= 1, 'centred both ways');
-  assert.equal(centredBox(side, 'panel', 'outline').w, Math.round(Math.min(1560, 852 - 2 * Math.max(Math.min(64, Math.max(16, 0.03 * 852)), 59))), 'a phone on its side keeps the whole width (2D .pz.low)');
+  assert.equal(centredBox(side, 'panel', 'outline').w, 852 - 59 - 59 - 168 - 10, 'a phone on its side: the panel takes the room left of the pill\'s column at the right (docs/approved/landscape-phone.md)');
   const ph = centredBox(phone, 'panel');
   assert.equal(ph.w, 393 - 16); assert.equal(ph.maxH, 852 - 72 - 34);
   const q = planLayout(phone, need('title', 500)).cards[0]!.rect;
