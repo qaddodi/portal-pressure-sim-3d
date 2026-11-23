@@ -4,6 +4,7 @@
 import type { FigurePlan } from './figure-plan.ts';
 import { toneCss } from './figure-plan.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
+import { CAUDATE_FRONT_Z } from '../../scene/organs/caudate.ts';
 import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D, VAL_TONE_2D } from '../../scene/labels/figure2d.copied.ts';
 import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
@@ -62,6 +63,9 @@ export function liveLabel(label: string, fp: Fp | null | undefined): string {
   });
 }
 
+/** An organ's anchor on the plate: 2D's point, at the organ's front (the caudate lobe lies on the cava's plane, so its mark sits on its dome, not 0.22 in front of it). */
+const organAnchor = (organ: string): Anchor => (organ === 'caudate' ? { at2d: ORGAN_ANCHOR_2D[organ]!.at, z: CAUDATE_FRONT_Z } : { at2d: ORGAN_ANCHOR_2D[organ]!.at });
+
 /** (the caudate lobe is in the organ layer but is shown by `caudate`, not outlined: 2D's lobe has its own line and no pin glow) */
 const pinsOf = (organs: readonly { id: string }[]): string[] => organs.map((o) => o.id).filter((id) => id in ORGAN_STYLE && id !== 'caudate');
 
@@ -78,7 +82,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   plan.marks.forEach((m, i) => {
     const text = m.clot ? clotWords(r.params?.thrombus?.[m.edges[0] ?? '']) : liveLabel(m.label, fp);
     if (!text) return;   // (a clot of 0 %: no mark at all)
-    const anchor: Anchor | null = m.organ ? { at2d: ORGAN_ANCHOR_2D[m.organ === 'kidney' ? 'kidney-l' : m.organ]!.at } : m.edges[0] && NETWORK_BY_ID.has(m.edges[0]) ? { edge: m.edges[0] } : null;
+    const anchor: Anchor | null = m.organ ? organAnchor(m.organ === 'kidney' ? 'kidney-l' : m.organ) : m.edges[0] && NETWORK_BY_ID.has(m.edges[0]) ? { edge: m.edges[0] } : null;
     if (!anchor) { notDrawn.push(`mark ${m.edges[0] ?? m.organ} (hidden in 2D too)`); return; }
     cards.push({ id: `mark:${i}`, kind: 'mark', text, tone: m.kind === 'block' ? 'block' : m.kind === 'treat' ? 'treat' : 'note', anchor });
   });
@@ -111,7 +115,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
     const edge = ids.find((id) => NETWORK_BY_ID.has(id));
     // a group's number stands between its vessels, on a leader to the middle of each (2D stage-label-solve.js: `fans`); a single vessel's, by its own middle
     const members = s.group ? ids.filter((id) => NETWORK_BY_ID.has(id)) : [];
-    const anchor: Anchor | null = s.organ ? { at2d: ORGAN_ANCHOR_2D[s.organ]!.at } : members.length > 1 ? { edges: members } : edge ? { edge } : null;
+    const anchor: Anchor | null = s.organ ? organAnchor(s.organ) : members.length > 1 ? { edges: members } : edge ? { edge } : null;
     if (!anchor) { notDrawn.push(`step ${s.n}`); continue; }
     cards.push({ id: `step:${s.n}`, kind: 'step', text: String(s.n), n: s.n, tone: 'note', anchor, at: s.at });
   }

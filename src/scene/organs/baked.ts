@@ -59,7 +59,7 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
     if (eso) put(eso.array as Float32Array);
     head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}) });
   }
-  for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; ORGAN_MESHES.stomach in meshes.ts)
+  for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; the stomach's mesh in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);
     for (let i = 0; i < q.length; i++) q[i] = Math.round(pos[i]! * BAKED_Q);
     put(q); put(new Uint16Array(g.index!.array));
