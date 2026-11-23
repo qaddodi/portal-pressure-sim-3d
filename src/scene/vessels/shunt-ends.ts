@@ -15,6 +15,8 @@ const ROWS: Readonly<Record<string, Row>> = {
   S_DSR: { hosts: [['V_SPL', 'SV_MID'], ['V_KID_L', 'V_KID_L_1']], inside: [false, true], flare: true },
   S_PC: { hosts: [[], ['IVC_IS', 'IVC_IS_1', 'ILI_IVC', 'ILI_IVC_1']], inside: [false, true], sink: true, flare: true },
 };
+/** The veins a shunt's end is sewn into where the table names them (the Warren shunt's renal end: the left renal vein, not the collateral that shares its node), else none. */
+export const sewnHostIds = (id: string, end: 0 | 1): readonly string[] => ROWS[id]?.hosts[end] ?? [];
 /** The share of its own width a shunt narrows to at a host end (stage-tubes.js: the host's width, clamped to 0.4 of its own at the least; 1 at the most). */
 export const SHUNT_END_MIN = 0.4;
 
