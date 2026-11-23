@@ -89,3 +89,9 @@ export function collagenInput(G: CollagenShape, cvR: number, look: LookId): Coll
   const L = lookColours(look);
   return { G, dark: L.dark, rgb: { col: L.rgb01('--lz-septum') }, cvIn: cvR * PLATE_S, shadow: L.tk('--lz-nodule-shadow') as string };
 }
+
+/** The collagen's flat colours for a look (Plan 48): the septa's token and the tracts' deeper periportal tone, exactly the painter's colours; the plate shader lays its fibres' striations over them. */
+export function collagenFlat(look: LookId): { septum: [number, number, number]; tract: [number, number, number] } {
+  const L = lookColours(look);
+  return { septum: L.rgb01('--lz-septum'), tract: [...(L.dark ? PRE_DARK : PRE_LIGHT)] as [number, number, number] };
+}

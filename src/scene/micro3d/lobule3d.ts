@@ -31,7 +31,7 @@ import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { PlateClient, type PlateExtra } from '../lobule/plate-client.ts';
-import { ATLAS_W, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
+import { ATLAS_W, collagenFlat, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
 import { CollagenAtlas } from '../lobule/collagen-atlas.ts';
 import { collagenTau, flipRows } from '../lobule/collagen-tau.ts';
 import { easeGrow, growGoal } from '../lobule/growth.ts';
@@ -193,6 +193,7 @@ export class Lobule3D {
   private readonly blankColl: Texture;
   private collStale = false;   // (a lost context took the atlas: painted again on the next step)
   private collLook = '';
+  private collNext = '';   // (the look of the atlas crossfading in)
   private tauTex: DataTexture | null = null;
   private readonly grow: [number, number, number] = [0, 0, 0];
   private crossT = 0;
@@ -283,11 +284,11 @@ export class Lobule3D {
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
     this.canvas = defaultCanvas(PLATE_PX);   // (the plate's one canvas maker, plate.ts: a 2D canvas sent as a texture, no GL context of its own)
     this.tex = this.canvas ? new CanvasTexture(this.canvas) : null;
-    const never = new DataTexture(new Uint8Array([255, 128, 0, 128]), 1, 1); never.needsUpdate = true;
+    const never = new DataTexture(new Uint8Array([255, 128, 0, 0]), 1, 1); never.needsUpdate = true;
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true; this.blankColl = blank;
     this.marksMat = new ShaderMaterial({ name: 'lobule marks',
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uCv: { value: new Vector4() }, uCvCol: { value: new Vector3() }, uScarK: { value: 1 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uCollS: { value: new Vector3() }, uCollSB: { value: new Vector3() }, uCollT: { value: new Vector3() }, uCollTB: { value: new Vector3() }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uCv: { value: new Vector4() }, uCvCol: { value: new Vector3() }, uScarK: { value: 1 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
       transparent: false, depthWrite: false, depthTest: true, side: DoubleSide,   // (depth-TESTED, writing none: the vessels still draw over it, and the sinusoid scene that stands over the lobule at the dive's landing hides it; it was depth-blind, so Disse's lining, the septa and the tracts were painted over the whole sinusoid until the lobule dropped out, then popped off: 23 Nov)
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -698,6 +699,7 @@ export class Lobule3D {
         this.marksMat.uniforms.mapB!.value = t; this.crossing = true;
         if (rd.coll) {
           this.atlas.stageBitmap(rd.coll);   // (closed once the GPU has it, collagen-atlas.ts)
+          this.collNext = rd.look;
         }
         this.syncColl();
       }
@@ -756,12 +758,15 @@ export class Lobule3D {
     const cctx = cv.getContext('2d'); if (!cctx) return;
     useTokens((name: string, a?: number | string) => L.tk(name, a));
     paintCollagenWorld(cctx, PLATE_PX, sc, -B, -B, collagenInput(this.shape, DISC_R.cv, this.flat.look));
-    this.atlas.setCanvas(cv); this.syncColl(); this.collLook = this.flat.look;
+    this.atlas.setCanvas(cv); this.collLook = this.flat.look; this.syncColl();
   }
   /** The plate shader's two collagen samplers: the look on screen and the one crossfading in (the same when none is). */
   private syncColl(): void {
     const u = this.marksMat.uniforms;
     u.mapC!.value = this.atlas.now ?? this.blankColl; u.mapCB!.value = this.atlas.next ?? this.blankColl;
+    // the collagen's flat colours (Plan 48): the look of the atlas on screen and of the one crossfading in, mixed by mixB in the shader like the atlases
+    const now = (this.collLook || this.flat.look) as LookId, next = (this.atlas.crossing && this.collNext ? this.collNext : now) as LookId, a = collagenFlat(now), b = collagenFlat(next);
+    (u.uCollS!.value as Vector3).set(...a.septum); (u.uCollT!.value as Vector3).set(...a.tract); (u.uCollSB!.value as Vector3).set(...b.septum); (u.uCollTB!.value as Vector3).set(...b.tract);
   }
   /** The graphics context came back (Stage.tsx rebuild): the atlas went with it and its pixels are gone, so it is painted again on the next step. */
   contextRestored(): void {

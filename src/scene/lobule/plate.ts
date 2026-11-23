@@ -126,7 +126,11 @@ uniform float mixB;
 uniform float opacity;
 uniform sampler2D mapC;    // the collagen atlas (collagen-paint.ts: the tracts and the vein's wall at their fullest on the left plate, the septa on the right): the fibres' colour only, never an edge
 uniform sampler2D mapCB;   // its twin for a crossfade (the same texture when only the tissue changed); sampled in collagenAt, so it must be declared (Plan 28: it was not, and the device refused the program)
-uniform sampler2D mapT;    // the septa's arrival times and crisp edge (collagen-tau.ts): R arrival (255 never), G and A the edge's outward normal, B the signed distance to the edge in plate px
+uniform sampler2D mapT;    // the septa's arrival times and edge (collagen-tau.ts): R arrival (255 never), G the edge's outward normal as an angle byte, B the signed distance to the outer edge in plate px (square-root mapped), A the fade's depth t
+uniform vec3 uCollS;       // the collagen's flat colours: the septa's (--lz-septum) and the tracts' deeper tone, and the same two of the look crossfading in (mixB of the way): the atlas gives the fibres' striations only
+uniform vec3 uCollSB;
+uniform vec3 uCollT;
+uniform vec3 uCollTB;
 uniform vec3 uP;           // the growth of the three channels now (growth.ts: eased on the clock, so a change of fibrosis shows more or less of the one layer and repaints nothing)
 uniform vec3 uBase;     // the tissue the plate lies on (the cells' tone): the scar of the central vein, which lies over a pool and not over cells, takes the band over it
 uniform float uBaseK;   // 1: the central vein's scar mesh (cv-band.ts inside the wall, over uBase), 0: the marks plate (the tissue and the collagen layer, then cv-band.ts past the wall)
@@ -144,25 +148,35 @@ vec4 plateAt(vec2 uv, float bias) {
 }
 vec4 plateTex(vec2 uv) { return plateAt(uv, 0.0); }
 vec4 plateTexLod(vec2 uv, float bias) { return plateAt(uv, bias); }
-// The collagen over the tissue (Plan 47: bands are SHAPES with a one device pixel edge, never a blur laid round them; collagen-edge.ts), premultiplied, as much of it as has grown. Every derivative here is taken in main before the dissolve's discard.
-//   septa: the edge is the baked distance e (mapT.b) and the rope's normal the baked one (mapT.g, a); how much of a septum shows is its arrival time (front), so a band eases in whole and crisp, never fades at its sides
-//   tracts: the disc is round about each hexagon corner, so its radius is the pixel's distance from the nearest corner against the front's radius at this growth: the edge is one pixel at every growth, and the disc grows as it did
-// Each shows the painted fibres inside (the atlas's colour over its own alpha) and takes the rope's relief (relief.ts): one lit flank, one shade flank, a flat crown, nothing outside the edge.
-// the painted fibres' own colour (the layer's colour over its alpha) where the layer is there; where it is faint (a wavy cuff edge, a band's rounded end) the layer's flat tone, read at a coarse level, so no edge pixel is ever a dark premultiplied remainder
-vec3 collColour(vec4 own, vec4 coarse) { return mix(coarse.rgb / max(coarse.a, 0.02), own.rgb / max(own.a, 0.05), smoothstep(0.05, 0.2, own.a)); }
+// The collagen over the tissue (Plan 47: bands are SHAPES with a one device pixel edge, never a blur laid round them; Plan 48: and they FADE, rim to core, over the painter's own fade width, never one flat number), premultiplied, as much of it as has grown. Every derivative here is
+// taken in main before the dissolve's discard. The base colour is the flat token (uCollS: --lz-septum; uCollT: the tracts' deeper tone), never the atlas's colour un-premultiplied (that made nuclei opaque dark worms and the fibres' alpha vanish); the atlas gives only the striations.
+//   septa: the edge is the baked distance e (mapT.b) and the fade's depth t (mapT.a); the rope's normal is the baked angle (mapT.g, read at the nearest texel); how much of a septum shows is its arrival time (front), so a band eases in whole, never fades at its sides
+//   tracts: the disc is round about each hexagon corner, so its radius is the pixel's distance from the nearest corner against the front's radius at this growth: the edge is one pixel at every growth, and the disc grows as it did; t is that distance over TRACT_FADE of the front's radius
+// Each takes the rope's relief (relief.ts): one lit flank, one shade flank, a flat crown, nothing outside the edge.
+// the painted fibres' lightness against their surroundings, FINE (mip 1.5) minus COARSE (mip 4), each over its own alpha, clamped to STRIA_MAX and weighted by how much collagen both levels hold: a fibre or a wavy edge shows as a few percent of lightness, and a nucleus or noisy low alpha can darken it by no more than STRIA_MAX x STRIA_K (a dark worm is impossible by construction)
+float collStria(vec4 f, vec4 c) {
+  float lf = celLight(f.rgb / max(f.a, 0.04)), lc = celLight(c.rgb / max(c.a, 0.04));
+  return clamp(lf - lc, -STRIA_MAX, STRIA_MAX) * smoothstep(0.12, 0.35, min(f.a, c.a));
+}
 vec4 collagenAt(vec2 uv) {
   if (uBaseK > 0.5 || uP.x + uP.y + uP.z <= 0.0) return vec4(0.0);
   vec2 L = vL;
   // (the collagen atlas is two plates wide: the tracts and the vein on the left, the septa on the right)
   vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
-  vec4 cu = texture2D(mapC, uvT), cs = texture2D(mapC, uvS), cu4 = texture2D(mapC, uvT, 4.0), cs4 = texture2D(mapC, uvS, 4.0);
-  if (mixB > 0.0) { cu = mix(cu, texture2D(mapCB, uvT), mixB); cs = mix(cs, texture2D(mapCB, uvS), mixB); cu4 = mix(cu4, texture2D(mapCB, uvT, 4.0), mixB); cs4 = mix(cs4, texture2D(mapCB, uvS, 4.0), mixB); }
+  vec4 cu = texture2D(mapC, uvT, 1.5), cs = texture2D(mapC, uvS, 1.5), cu4 = texture2D(mapC, uvT, 4.0), cs4 = texture2D(mapC, uvS, 4.0);
+  vec3 baseS = uCollS, baseT = uCollT;
+  if (mixB > 0.0) {
+    cu = mix(cu, texture2D(mapCB, uvT, 1.5), mixB); cs = mix(cs, texture2D(mapCB, uvS, 1.5), mixB); cu4 = mix(cu4, texture2D(mapCB, uvT, 4.0), mixB); cs4 = mix(cs4, texture2D(mapCB, uvS, 4.0), mixB);
+    baseS = mix(uCollS, uCollSB, mixB); baseT = mix(uCollT, uCollTB, mixB);
+  }
   vec4 tm = texture2D(mapT, uv);
+  ivec2 tsz = textureSize(mapT, 0);
+  float angS = texelFetch(mapT, clamp(ivec2(floor(uv * vec2(tsz))), ivec2(0), tsz - 1), 0).g * 6.28318530718 - 3.14159265359;   // (the normal's angle, the nearest texel: a filtered angle is wrong across its seam)
   // the septa
-  float eS = tm.b * E_SPAN + E_LO;
+  float eS = tm.b * tm.b * E_SPAN + E_LO;
   float aS = max(0.5 * length(vec2(dFdx(eS), dFdy(eS))), 0.02);
-  float covS = smoothstep(-aS, aS, eS) * front(tm.r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x) * COLL_A;
-  vec3 colS = ropeColour(collColour(cs, cs4), ropeS(eS, tm.ga * 2.0 - 1.0, L));
+  float covS = smoothstep(-aS, aS, eS) * collCoverage(tm.a) * front(tm.r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x);
+  vec3 colS = ropeColour(baseS, ropeS(tm.a, vec2(cos(angS), sin(angS)), L)) * (1.0 + STRIA_K * collStria(cs, cs4));
   // the tracts: the nearest hexagon corner (the lobule's corners are at cos and sin of k pi/3, in lobule radii; v is up, y is down)
   float rT = 1e9; vec2 dT = vec2(0.0, 1.0);
   for (int i = 0; i < 6; i++) {
@@ -172,11 +186,12 @@ vec4 collagenAt(vec2 uv) {
     if (r < rT) { rT = r; dT = d / max(r, 1e-4); }
   }
   float tp = (uP.y - TRACT_TAU_LO) * TRACT_TAU_K;   // (the front's tau in the painter's units: the disc is whole to 0.8 rt + 0.9 tp rt)
-  float eT = TRACT_RT_PX * (0.8 + 0.9 * tp) - rT;
+  float rF = TRACT_RT_PX * (0.8 + 0.9 * tp), eT = rF - rT;   // (the front's radius, and the pixel's distance inside it)
   float aT = max(0.5 * length(vec2(dFdx(eT), dFdy(eT))), 0.02);
+  float tT = clamp(eT / max(TRACT_FADE * rF, 1.0), 0.0, 1.0);
   float ramp = smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
-  float covT = smoothstep(-aT, aT, eT) * ramp * COLL_A;
-  vec3 colT = ropeColour(collColour(cu, cu4), ropeS(eT, dT, L));
+  float covT = smoothstep(-aT, aT, eT) * collCoverage(tT) * ramp;
+  vec3 colT = ropeColour(baseT, ropeS(tT, dT, L)) * (1.0 + STRIA_K * collStria(cu, cu4));
   // (the septa first, the tracts over them, as the painter lays them)
   vec4 o = vec4(colS * covS, covS);
   return vec4(colT * covT, covT) + o * (1.0 - covT);
