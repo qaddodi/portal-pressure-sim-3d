@@ -647,9 +647,11 @@ void main() {
   if (dbgHeads < 0.5) headAcc = vec4(0.0);
 #endif
   headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
+  dustAcc = clamp(dSafe(dustAcc), 0.0, 1.0);   // (a NaN from any arm's share, weight or wall is no dust, tested on the bits: dust-glsl.ts dSafe)
   dustAcc *= dHold(alpha);   // (the dust follows this pixel's final alpha: blood/dust-glsl.ts dHold)
   // THE WALL RULE BY THE PIXEL'S OWN DISTANCE TO THE OUTLINE (skin/dust-wall.ts): the arms' gates in dustTube read the normal's across, true only inside an arm's cylinder, so in a fillet they stood open on the line itself (dashes at the seams and the crotch)
   dustAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
+  dustAcc = dSafe(dustAcc);   // (and a NaN of the wall's own distance is no dust either)
   // (the HEADS keep the same wall: a head is gated by its arm's own cylinder, which at the fork's inner corner reaches past the union's lumen, so a chevron there was drawn up to and over the crotch's ink and clipped against it, white on
   // the light look: Mohammad, 21 Nov. A head lies within 0.6 of its axis, so the wall (from 0.90 of the way to the ink) never touches one inside its own tube)
   headAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));

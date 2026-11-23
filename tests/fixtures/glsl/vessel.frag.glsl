@@ -557,8 +557,11 @@ float dFlow(float root) { return texelFetch(streamTex, ivec2(int(root), 0), 0).w
 // THE DUST FOLLOWS THE PIXEL'S FINAL ALPHA (Mohammad, 20 Nov: dark specks and torn blocks at junctions, only with Blood streaks on): the dust is a colour inside the vessel's own, so a faded, veiled or half-present vessel (the cava, a vein into it, a vessel behind an
 // organ, a skin's seam) carries it at that alpha too; this holds it back further where the pixel is mostly gone, so a particle never stands out from a vessel that is not there (a plain ease, 0 below 0.05, whole from 0.6: nothing pops).
 float dHold(float a) { return smoothstep(0.05, 0.6, a); }
-// a NaN or an infinity from any term of the lattice (a degenerate route, a zero-width lane) becomes no dust, never a pixel of some other colour (a comparison with NaN is false)
-vec4 dSafe(vec4 v) { return dot(v, v) < 64.0 ? v : vec4(0.0); }
+// A NaN OR AN INFINITY from any term of the lattice (a degenerate route, a zero-width lane) becomes no dust, never a pixel of some other colour or a black one. IT IS TESTED ON THE BITS, NOT BY A COMPARISON: a phone GPU compiles with fast
+// maths (no NaN is assumed to exist), so the comparison dot(v, v) < 64.0 is whatever the compiler makes of it for a NaN, and a NaN that got through wrote the pixel as 0 0 0 (the black blocks and specks at the junctions, Mohammad's iPhone, 20 and 23 Nov;
+// the vertex NaN of 19 Nov drew the same). An exponent of all ones is NaN or infinity, an integer test no float mode can fold away (tests/dust-lanes.test.ts).
+bool dBad(vec4 v) { return any(equal(floatBitsToUint(v) & uvec4(0x7f800000u), uvec4(0x7f800000u))); }
+vec4 dSafe(vec4 v) { return (dBad(v) || dot(v, v) >= 64.0) ? vec4(0.0) : v; }
 // the wall rule (DUST_WALL_FROM, DUST_WALL_TO): 1 inside, 0 at the ink
 float dWall(float e) { return 1.0 - smoothstep(0.9, 0.96, abs(e)); }
 float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), 33), 0).x; }
@@ -591,6 +594,7 @@ vec4 dustTubeA(DFrame F, vec3 lit, vec3 ink, float rev) {
           vec2 mb = dMember(g, P.yl);
           if (mb.y <= 0.0 || !dNear(F, g, mb.x, P)) continue;
           vec4 c = dDraw(dPlace(F, g, mb.x, P), P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
+          c = clamp(dSafe(c), 0.0, 1.0);   // (a particle that is not a number is no particle; one that is past 0 .. 1 would invert what it lies over)
           acc = c + acc * (1.0 - c.a);
         }
       }
@@ -659,6 +663,7 @@ vec4 dustSkinA(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
             M = dMix(M, dPlace(Fb, gb, fb.y, P), sb / max(sa + sb, 1e-4));
           }
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);
+          c = clamp(dSafe(c), 0.0, 1.0);   // (a particle that is not a number is no particle; one that is past 0 .. 1 would invert what it lies over)
           acc = c + acc * (1.0 - c.a);
         }
       }
@@ -761,6 +766,7 @@ vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
           DMark M = dPlace(F, g, mb.x, P);
           M.len = min(M.len, max(2.0 * dCellExt(F, g, P.cf), M.dia));
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
+          c = clamp(dSafe(c), 0.0, 1.0);   // (a particle that is not a number is no particle; one that is past 0 .. 1 would invert what it lies over)
           acc = c + acc * (1.0 - c.a);
         }
       }
@@ -813,6 +819,7 @@ vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
             M = dMix(M, Mb, sb / max(sa + sb, 1e-4));
           }
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);
+          c = clamp(dSafe(c), 0.0, 1.0);   // (a particle that is not a number is no particle; one that is past 0 .. 1 would invert what it lies over)
           acc = c + acc * (1.0 - c.a);
         }
       }
@@ -1191,7 +1198,7 @@ void main() {
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
-  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere * cavA);   // (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
+  fd = dSafe(clamp(dSafe(fd), 0.0, 1.0) * dHold(fadeHere * cavA));   // (dSafe, on the bits: a NaN is no dust, dust-glsl.ts) (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif
