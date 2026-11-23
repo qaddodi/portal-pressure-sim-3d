@@ -95,6 +95,24 @@ export function onOtherOrgan(name: string, sil: Silhouettes, b: Box): boolean {
   return false;
 }
 
+/** The share (0 to 1) of a caption's box, by a 5 by 3 grid of points, that lies on an organ other than its own: what the last resort prices, so a name that cannot keep off every other organ stays on the least of them
+ *  (a name that crowded onto the liver edge below its atrium because a vessel line cost more than the liver did: the fallback counted only lines). */
+export function shareOnOther(name: string, sil: Silhouettes, b: Box): number {
+  const own = famOf(organOfName(name));
+  let n = 0;
+  for (let i = 0; i <= 4; i++) for (let j = 0; j <= 2; j++) {
+    const x = b.x0 + ((b.x1 - b.x0) * i) / 4, y = b.y0 + ((b.y1 - b.y0) * j) / 2;
+    for (const id of OTHER) {
+      if (famOf(id) === own) continue;
+      const rs = sil.rings.get(id) ?? [], es = sil.edges.get(id) ?? [], bs = sil.bounds.get(id) ?? [];
+      let c = 0;
+      rs.forEach((r, k) => { const q = bs[k]!; if (x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1 && inRing(x, y, r, es[k]!)) c++; });
+      if (c % 2 === 1) { n++; break; }
+    }
+  }
+  return n / 15;
+}
+
 /** The other places a name may stand (centres of its box, canvas px offsets from its anchor's screen point), nearest the anchor first. */
 export function spotOffsets(name: string, anchor2d: readonly [number, number], to: To2Screen): [number, number][] {
   const a = to(anchor2d[0], anchor2d[1]);

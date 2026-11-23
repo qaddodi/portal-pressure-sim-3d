@@ -35,6 +35,8 @@ export interface Item {
    *  its own place is under a vessel; and whether a box lies on another organ, which it keeps off where it can ("organs first where it can be, never left off for it"). */
   spots?: readonly (readonly [number, number])[];
   onOther?: (box: Box) => boolean;
+  /** How much of a box (0 to 1) lies on another organ: priced in the last resort, once no spot keeps off them all. */
+  otherShare?: (box: Box) => number;
   /** A tract name stands on the side its vessel faces: from the hub (cx, cy; the venule) along the unit spoke (ux, uy). A box whose middle turns more than 60 degrees from it is on the wrong side
    *  of the tract and costs as much as two crossed leaders (2D lobule-tract-labels.js fanCost: FACE_COS .5, CLASH), placed still, never left out for it. */
   face?: { cx: number; cy: number; ux: number; uy: number };
@@ -138,6 +140,8 @@ const CLEAR_SPOTS: readonly (readonly [number, number, number])[] = (() => {
 })();
 /** An organ's name under a vessel steps to the next spot of its organ that no vessel touches (the 2D app: the first spot no vessel touches), so a crossing costs more than any step. */
 const REGION_LINE_COST = 60;
+/** A region's name wholly on another organ costs this (a line costs 60 a hit): in the last resort it stands on its own organ over a vessel or two before it leaves it. */
+const OTHER_COST = 200;
 
 type Seg = [number, number, number, number];
 /** A vessel's centreline piece [x0, y0, x1, y1] and, optionally, half the width it is drawn at (px): a name stands that much further from it, so its words never lie on the tube's edge or its glow
@@ -370,6 +374,7 @@ export function solve(input: SolveInput): Solved {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
           }
+          if (!offOrgans && it.otherShare) pen += OTHER_COST * it.otherShare(box);
           const cost = fi * FORM_COST + c.cost - bonus + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
           if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg, hits: lineHits };
         }
