@@ -107,7 +107,7 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
   assert.ok(/:root \{ --sheet-rise: 24px; --sheet-ease: var\(--ease-arrive\); \}/.test(css));
   assert.ok(/@keyframes mn-sheet-in \{ from \{ opacity: 0; translate: 0 var\(--sheet-rise\); \} to \{ opacity: 1; translate: 0 0; \} \}/.test(css));
   assert.ok(/@keyframes mn-sheet-out \{ from \{ opacity: 1; translate: 0 0; \} to \{ opacity: 0; translate: 0 var\(--sheet-rise\); \} \}/.test(css));
-  for (const sel of ['.menu.as-sheet', '.umenu.sheet']) assert.ok(css.includes(`.sh-clip > ${sel} { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }`), sel);
+  for (const sel of ['.menu.as-sheet', '.umenu.sheet']) assert.ok(css.includes(`.sh-clip-in > ${sel} { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }`), sel);
   assert.ok(css.includes('.menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }') && css.includes('.umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }'), 'out is the same move back, on the same curve');
   assert.ok(!/translate: 0 calc\(100%/.test(css) && !/ease-in/.test(css.split('um-inline')[0]!), 'no full-height slide, no other curve');
   // the Frame sheets (Layers, History, Why?) and the Treat card take the same rise
@@ -121,7 +121,7 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
 test('every phone sheet sits behind the dock and the timeline: one z-index, in menu-motion.css', () => {
   const css = src('src/ui/shell/menu-motion.css');
   assert.ok(css.includes('html.thumb-ui { --z-sheet-phone: calc(var(--z-panel, 10) + 10); }'));
-  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-clip > ${sel}`) , sel);
+  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-clip-in > ${sel}`) , sel);
   assert.ok(/\{ z-index: var\(--z-sheet-phone\); \}/.test(css) && /\.um-scrim \{ z-index: calc\(var\(--z-sheet-phone\) - 1\); \}/.test(css));
   // the dock is --z-panel + 20 (2D app-10-thumb-dock.css), so 10 + 10 stays under it; the Frame sheets and the cards are lower still
   assert.ok(/\.app\.thumb \.vdock:not\(\.mini\) \{ z-index: calc\(var\(--z-panel\) \+ 20\)/.test(src('src/ui/css2d/app-10-thumb-dock.css')));
@@ -130,8 +130,13 @@ test('every phone sheet sits behind the dock and the timeline: one z-index, in m
 
 test('every phone sheet stands in one clip box that ends 12 px inside the dock top, so nothing shows below the timeline bar (rest, entrance, exit, swipe)', () => {
   const css = src('src/ui/shell/menu-motion.css');
-  assert.ok(css.includes('.sh-clip { position: absolute; inset: 0; pointer-events: none; }'));
-  assert.ok(css.includes('html.thumb-ui .sh-clip { clip-path: inset(0 0 calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px) - 12px) 0); }'));
+  assert.ok(css.includes('.sh-clip, .sh-clip-in { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }'));
+  assert.ok(css.includes('--clip-foot: calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px) - 12px)'));
+  assert.ok(css.includes('html.thumb-ui .sh-clip { bottom: var(--clip-foot); overflow: clip; }') && css.includes('html.thumb-ui .sh-clip-in { bottom: calc(-1 * var(--clip-foot)); }'), 'the outer box ends at the line, the inner one is the screen again');
+  // the blur: a backdrop root is an ancestor with clip-path, mask, filter, opacity < 1, mix-blend-mode or will-change of those; none on the box or its parts
+  const rules = [...css.matchAll(/(^|\n)([^\n{]*\.sh-clip(?:-in)?\b[^\n{]*)\{([^}]*)\}/g)].map((m) => m[3]!);
+  assert.ok(rules.length >= 5 && rules.every((r) => !/clip-path|mask|filter|opacity|mix-blend-mode|will-change|backdrop/.test(r)), 'nothing on .sh-clip makes a backdrop root');
+  assert.ok(!/clip-path/.test(src('src/ui/shell/SheetClip.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
   // every sheet kind is mounted in one, and the menus that mount only while open are put there
   const sheets = src('src/ui/shell/Sheets.tsx');
   assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<HistorySheet \/>[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
