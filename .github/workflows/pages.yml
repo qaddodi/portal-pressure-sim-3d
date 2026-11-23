@@ -52,16 +52,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # restore and save are separate steps on purpose: a push that lands while a run is going CANCELS it (concurrency below), and the plain cache action saves only when the whole job
+      # succeeds, so a cold run (about 3 minutes of bakes) that kept being cancelled would never fill the cache. Each save runs the moment its files exist, and the bakes' save runs even on a cancel.
       - name: Restore node_modules
         id: modules
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: preview/node_modules
           key: modules-${{ runner.os }}-node22-${{ hashFiles('preview/package-lock.json') }}
       # The last bakes, newest first (restore-keys): each bake's signature (or the charts' key) says which of them is stale. Only the bake outputs are listed, never public/anatomy/organs.bin
       # (a checked-in source that a restore must not replace).
       - name: Restore the baked files
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             preview/public/baked
@@ -78,6 +80,12 @@ jobs:
         if: steps.modules.outputs.cache-hit != 'true'
         working-directory: preview
         run: npm ci
+      - name: Save node_modules
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: preview/node_modules
+          key: modules-${{ runner.os }}-node22-${{ hashFiles('preview/package-lock.json') }}
       - name: Build the preview (integration branch) into site/preview
         working-directory: preview
         env:
@@ -87,6 +95,21 @@ jobs:
           VITE_BUILD="claude/project-thread-ge1swr@$(git rev-parse --short=8 HEAD)" npm run build
           mkdir -p ../site
           cp -r dist ../site/preview
+      # (a bake writes its signature only after its file is whole, and a chart file is written whole per deck: what a cancelled build left is safe to keep, and the next run finishes the rest)
+      - name: Save the baked files
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            preview/public/baked
+            preview/public/lobule
+            preview/public/anatomy/skins.bin
+            preview/public/anatomy/skins.bin.sig
+            preview/public/anatomy/circuit-skins.bin
+            preview/public/anatomy/circuit-skins.bin.sig
+            preview/public/anatomy/organs-baked.bin
+            preview/public/anatomy/organs-baked.bin.sig
+          key: bakes-${{ github.sha }}
       - name: Build the live site (main) into site/
         env:
           VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}

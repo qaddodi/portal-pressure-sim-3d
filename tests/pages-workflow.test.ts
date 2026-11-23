@@ -38,3 +38,11 @@ test('the build runs the four bakes at once and each bake skips itself on an unc
   assert.match(b, /Promise\.all\(\[\.\.\.\['bake-welds\.mjs', 'bake-skins\.mjs', 'bake-organs\.mjs', 'bake-charts\.mjs'\]\.map\(bakeNow\)/);
   assert.doesNotMatch(b, /spawnSync\(process\.execPath, \[fileURLToPath\(new URL\('\.\/bake-/, 'no bake is run one after another');
 });
+
+test('a push that cancels a running deploy cannot starve the caches: each is saved the moment its files exist, the bakes even on a cancel', () => {
+  assert.doesNotMatch(wf, /uses: actions\/cache@v4/, 'the plain action saves only when the whole job succeeds');
+  assert.equal((wf.match(/uses: actions\/cache\/restore@v4/g) ?? []).length, 2);
+  assert.match(wf, /name: Save node_modules\n\s+if: steps\.modules\.outputs\.cache-hit != 'true'\n\s+uses: actions\/cache\/save@v4/);
+  assert.match(wf, /name: Save the baked files\n\s+if: always\(\)\n\s+uses: actions\/cache\/save@v4/);
+  assert.ok(wf.indexOf('Save the baked files') < wf.indexOf('upload-pages-artifact'), 'saved before the upload, which a cancel may skip');
+});
