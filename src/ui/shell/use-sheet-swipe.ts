@@ -6,11 +6,16 @@ import './sheet-swipe.css';   // (what a pulled sheet and its grab bar look like
 export function useSheetSwipe(ref: RefObject<HTMLElement | null>, onClose: () => void, enabled: () => boolean = () => true, on = true, prop?: 'translate' | 'transform'): void {
   const live = useRef({ onClose, enabled });
   live.current = { onClose, enabled };
+  // A sheet that is in the page only while it is shown (the patient menu, a settings menu) has no element when the hook first runs, and a swipe wired once at mount never found it (owner, 23 Nov, iPad upright:
+  // "when I swipe it down, it doesn't close"). So after every render the hook looks at the element it is given and wires the swipe to whichever one is there, and unwires it when it is gone.
+  const wired = useRef<{ el: HTMLElement; prop: string | undefined; off: () => void } | null>(null);
   useEffect(() => {
-    const el = ref.current;
-    if (!el || !on) return;
-    return attachSheetSwipe(el, { onClose: () => live.current.onClose(), enabled: () => live.current.enabled(), ...(prop ? { prop } : {}) });
-  }, [ref, on, prop]);
+    const el = on ? ref.current : null, w = wired.current;
+    if (w && w.el === el && w.prop === prop) return;
+    w?.off(); wired.current = null;
+    if (el) wired.current = { el, prop, off: attachSheetSwipe(el, { onClose: () => live.current.onClose(), enabled: () => live.current.enabled(), ...(prop ? { prop } : {}) }) };
+  });
+  useEffect(() => () => { wired.current?.off(); wired.current = null; }, []);
 }
 
 /** The shell's frames are a bottom sheet on a phone: `.sh-root[data-bottom="true"][data-mode="free"]` (shell.css). */

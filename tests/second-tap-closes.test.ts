@@ -23,3 +23,20 @@ test('every scrim and backdrop that can lie over an opener closes by press', () 
   for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx']) assert.match(readFileSync(f, 'utf8'), /um-scrim[^\n]*onPointerDown=\{\(\) => useShell\.getState\(\)\.closeByPress\(\)\}/, f);
   assert.match(readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), /pal-back[^\n]*closeByPress\(\)/);
 });
+
+// 23 Nov, iPad upright: the first fix did not hold because the outside-press listener (window, capture) runs BEFORE the scrim's own handler and closed the sheet with a plain close(), so nothing was recorded.
+test('the outside-press listener and the scrim both close by press, in either order', () => {
+  s().close(); s().toggle('settings');
+  s().closeByPress();   // useOutside's capture listener (first)
+  s().closeByPress();   // the scrim's handler (second): a no-op that must not forget the first
+  s().toggle('settings'); assert.equal(s().sheet, null);
+  assert.match(readFileSync('src/ui/shell/Pop.tsx', 'utf8'), /useShell\.getState\(\)\.closeByPress\(\);[^\n]*\n\s*\};\n\s*window\.addEventListener\('pointerdown', away, true\)/);
+});
+
+// 23 Nov, iPad upright: swiping the patient menu down did not close it. Root cause: UMenu is in the page only while shown, so its element did not exist when useSheetSwipe ran once at mount, and the swipe was never wired.
+test('useSheetSwipe wires the element it finds after every render, not once at mount', () => {
+  const hook = readFileSync('src/ui/shell/use-sheet-swipe.ts', 'utf8');
+  assert.doesNotMatch(hook, /\}, \[ref, on, prop\]\);/);
+  assert.match(hook, /w\.el === el/);
+  assert.match(hook, /attachSheetSwipe\(el,/);
+});
