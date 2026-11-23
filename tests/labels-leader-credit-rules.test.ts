@@ -103,3 +103,23 @@ test('the Circuit hands the solver every line with its drawn half width', () => 
   assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /lines\.push\(\[px, py, tmp\.x, tmp\.y, hw\]\)/);
   assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /grow\(box, o\.w\)/, 'and a lane caption clears the same width');
 });
+
+// HVPG deck review 1, item 5 (Mohammad, 23 Nov: "route the arteriole leader around Resistance, yes"): the words of a slide's callout ("Resistance") lay across "Hepatic arteriole"'s leader on the lobule's
+// portal-tract slides. The callout's boxes are walls of every name (calloutClaims, LobuleCaptions blockers), and a leader never crosses a wall: it goes round to another side, or the name is left off.
+test('a leader is routed round a callout\'s words: a wall between the name and its dot never lies on the leader, even for a name that must stand', () => {
+  const dot = { ax: 300, ay: 300 };
+  const wall: Box = { x0: 250, y0: 215, x1: 350, y1: 245 };   // "Resistance", north of the dot, on the way to the north spot
+  // (a placed name: its offset from the dot, its size, and whether a leader joins it to the dot)
+  const judge = (p: { dx: number; dy: number; w: number; h: number; leader: boolean }) => {
+    const box: Box = { x0: dot.ax + p.dx, y0: dot.ay + p.dy, x1: dot.ax + p.dx + p.w, y1: dot.ay + p.dy + p.h };
+    assert.ok(!hits(box, wall), 'the name does not lie on the callout');
+    if (p.leader) assert.ok(!crosses(dot.ax, dot.ay, (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, wall), 'its leader does not cross the callout');
+  };
+  for (const extra of [{}, { must: true }]) {
+    const out = solve({ items: [it({ ...dot, dirs: ['N', 'E', 'W', 'S'] as never, ...extra })], view, blockers: [wall], lines: [] });
+    assert.equal(out.placed.length, 1, 'the name stands on another side');
+    judge(out.placed[0]! as never);
+  }
+  const north = solve({ items: [it({ ...dot, must: true })], view, blockers: [wall], lines: [] });   // (only north is open to it, and the wall is in the way)
+  for (const p of north.placed) judge(p as never);
+});

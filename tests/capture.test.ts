@@ -190,7 +190,7 @@ test('Capture this deck: a Settings row inside a talk, a Stop in the toast that 
   assert.match(sheet, /talk \? <MenuItem icon="grid" label=\{CAPTURE\.deckRow\}/);
   assert.match(deck, /only: id/); assert.match(deck, /stop: \(\) => stopped/); assert.match(deck, /restore: back/); assert.match(deck, /CAPTURE\.save/);
   assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
-  assert.match(page, /Talk to capture/); assert.match(page, /Stop and keep what/); assert.match(page, /only: deckSel\.value/);
+  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Random 25/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /decks: sel\.decks/);
   assert.ok(!/—/.test(src('src/ui/shell/words.ts').match(/export const CAPTURE = \{[\s\S]*?\} as const;/)![0]));
 });
 
@@ -246,4 +246,45 @@ test('Capture: halos under every letter, polygon clips (the table arrows), the D
   assert.match(frame, /hitchCap\(realMs: number\)/);
   for (const f of ['src/ui/deck/scene-link.ts', 'src/ui/cards/dock.ts', 'src/ui/cards/card-zoom.ts', 'src/ui/cards/rail.ts']) assert.match(src(f), /hitchCap\(/, `${f} counts a stalled frame by the clock's hitchCap`);
   assert.ok(!/Math\.min\(dt, 64\)/.test(src('src/ui/deck/cath-clock.ts')), 'the catheter\'s frame cap is a parameter');
+});
+
+test('Capture picks: ticked slides, a seeded random sample from random talks, and the outer page gives each size its own frame', async () => {
+  const p = await import('../src/ui/debug/audit/capture-pick.ts');
+  const decks = [{ id: 'a', title: 'A', slides: [{ title: 'a1' }, { title: 'a2' }, { title: 'a3' }] }, { id: 'b', title: 'B', slides: [{ title: 'b1' }, { title: 'b2' }] }];
+  assert.deepEqual(p.slideKeys(decks), ['a:1', 'a:2', 'a:3', 'b:1', 'b:2']);
+  const r1 = p.randomPick(decks, 3, 7), r2 = p.randomPick(decks, 3, 7);
+  assert.deepEqual(r1, r2, 'the same seed, the same slides'); assert.equal(new Set(r1).size, 3); assert.equal(p.randomPick(decks, 100, 1).length, 5, 'asking for more than there are takes all');
+  assert.deepEqual(r1, p.slideKeys(decks).filter((k) => r1.includes(k)), 'in talk order');
+  const seen = new Set<string>(); for (let s = 0; s < 40; s++) for (const k of p.randomPick(decks, 2, s)) seen.add(k);
+  assert.equal(seen.size, 5, 'every slide can be drawn');
+  const set = p.unpackPick(p.packPick(['a:2', 'b:1']))!; assert.ok(set.has('a:2') && set.has('b:1') && set.size === 2); assert.equal(p.unpackPick(''), null); assert.equal(p.unpackPick('junk,;;'), null);
+  assert.equal(p.lastPicked(set, 'a'), 2); assert.equal(p.lastPicked(set, 'c'), -1);
+  assert.equal(p.pickWords(['a:2', 'a:3', 'b:1']), 'a 2, 3; b 1');
+  const outer = await import('../src/ui/debug/audit/capture-outer.ts');
+  assert.equal(outer.captureSrc('/x/', '?audit=frames&sizes=mac&speed=20&look=dark', { speed: 20, pick: ['a:1', 'b:2'], decks: ['a', 'b'] }), '/x/?audit=capture&speed=20&pick=a:1,b:2&decks=a,b&look=dark');
+  assert.match(outer.captureZipName('abc123', ['iphone', 'mac'], new Date(2026, 10, 23, 9, 5, 7)), /^portal-pressure-capture-abc123-iphone\+mac-20261123-090507\.zip$/);
+  const all = src('src/ui/debug/audit/capture-all.ts'), child = src('src/ui/debug/audit/capture-child.ts'), mount = src('src/ui/debug/mount.ts');
+  assert.match(all, /pick\.has\(stopKey\(d\.id, k\)\)/, 'a slide not picked is walked past'); assert.match(all, /pos\.stop > last/, 'the walk ends after the last picked slide');
+  assert.match(child, /captureAllDecks\(/); assert.match(mount, /audit === 'capture'/);
+});
+
+test('The Mac capture page is simple: sizes, decks with All and None, one how-many choice, Capture and Stop; the self-test sits behind one button; a frame that cannot fetch a part is started again', () => {
+  const outer = src('src/ui/debug/audit/outer.ts'), cap = src('src/ui/debug/audit/capture-outer.ts'), pick = src('src/ui/debug/audit/capture-pick.ts'), child = src('src/ui/debug/audit/capture-child.ts');
+  assert.match(outer, /ao-test/); assert.match(outer, /data-mode=capture\] \.ao-test/); assert.match(outer, /flagValue\('mode'\) === 'test'/, 'Capture opens; the self-test is one tap away');
+  assert.match(cap, /b\('Capture'/); assert.match(cap, /b\('Stop'/); assert.ok(!/Capture slides'/.test(cap));
+  assert.match(pick, /'All slides'/); assert.match(pick, /mk\('All'/); assert.match(pick, /mk\('None'/);
+  assert.match(cap, /module script\|dynamically imported/); assert.match(child, /importAgain\(/); assert.match(child, /responseStatus/);
+});
+
+test('The Mac capture runs every ticked size at once, side by side', () => {
+  const cap = src('src/ui/debug/audit/capture-outer.ts');
+  assert.match(cap, /Promise\.all\(ids\.map\(async \(id\) =>/); assert.match(cap, /one\(id, sel, speed, 0, ids\.length\)/); assert.match(cap, /\(r\.width - 24 - 12 \* \(of - 1\)\) \/ of/, 'the frames share the room');
+  assert.ok(!/for \(const id of ids\) \{\s*if \(stop\) break;/.test(cap), 'no size waits for the one before');
+});
+
+test('A random sample is one picture a slide: its last step, counted "n of 25", the same in every size', () => {
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /single = !!\(ui\.pick && ui\.pick\.size\)/); assert.match(all, /sub = single \? 0 :/, 'a step replaces the one before it');
+  assert.match(all, /const put = \(f: ZipFile\)/); assert.match(all, /\$\{reached\} of \$\{pick!\.size\}/);
+  assert.match(all, /if \(!single \|\| fresh\) \{ shots\+\+; done\+\+; \}/, 'steps are not extra pictures');
 });
