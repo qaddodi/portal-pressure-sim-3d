@@ -32,6 +32,7 @@ import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { PlateClient, type PlateExtra } from '../lobule/plate-client.ts';
 import { ATLAS_W, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
+import { CollagenAtlas } from '../lobule/collagen-atlas.ts';
 import { collagenTau, flipRows } from '../lobule/collagen-tau.ts';
 import { easeGrow, growGoal } from '../lobule/growth.ts';
 import { CV_FILL, CV_OPEN_MIN, CV_RING_N, CV_WALL, cvInner, cvScarGrowth } from '../lobule/cv-intima.ts';
@@ -97,7 +98,7 @@ const at3 = (p: LP2, z: number): [number, number, number] => [p[0] * R, -p[1] * 
 /** What this scene reads of the lobule's host (lobule/view.ts: the network, the eased state, the layers' fades, the look, the field). */
 interface Flat {
   net: LobuleNet;
-  field: { readonly wideNow: number };
+  field: { readonly wideNow: number; setHome(p: number): void };
   /** The lobule root's one fade (lobule/one-fade.ts): this scene reads its `detail` uniform and writes both values through `group.setFade`. */
   fade: { readonly detail: { value: number } };
   group: Group & { setFade(detail: number, ground: number): void };
@@ -181,10 +182,9 @@ export class Lobule3D {
   private readonly plateQ = plateQuantizer();
   private plateReady: { key: string; bmp: ImageBitmap; look: string; coll: ImageBitmap | null } | null = null;
   // the collagen layer (collagen-paint.ts) and its arrival times (collagen-tau.ts): painted once per look, never for a change of fibrosis; the growth of the three channels (septa, tracts, the vein) eased on the clock
-  private readonly collCanvas: HTMLCanvasElement | null;
-  private readonly collTex: CanvasTexture | null;
-  private collFront: Texture | null = null;
-  private collSpare: Texture | null = null;
+  private readonly atlas = new CollagenAtlas();   // (one atlas resident; a second only while a look crossfades, Plan 31c)
+  private readonly blankColl: Texture;
+  private collStale = false;   // (a lost context took the atlas: painted again on the next step)
   private collLook = '';
   private tauTex: DataTexture | null = null;
   private readonly grow: [number, number, number] = [0, 0, 0];
@@ -277,15 +277,11 @@ export class Lobule3D {
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
     this.canvas = defaultCanvas(PLATE_PX);   // (the plate's one canvas maker, plate.ts: a 2D canvas sent as a texture, no GL context of its own)
     this.tex = this.canvas ? new CanvasTexture(this.canvas) : null;
-    this.collCanvas = defaultCanvas(PLATE_PX); if (this.collCanvas) this.collCanvas.width = PLATE_PX * ATLAS_W;   // (an atlas two plates wide: the tracts and the vein, the septa)
-    this.collTex = this.collCanvas ? new CanvasTexture(this.collCanvas) : null;
-    if (this.collTex) { this.collTex.flipY = true; this.collTex.premultiplyAlpha = true; this.collTex.generateMipmaps = true; this.collTex.minFilter = LinearMipmapLinearFilter; this.collTex.magFilter = LinearFilter; this.collTex.anisotropy = 4; }
-    this.collFront = this.collTex;
     const never = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); never.needsUpdate = true;
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
-    const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
+    const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true; this.blankColl = blank;
     this.marksMat = new ShaderMaterial({ name: 'lobule marks',
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: this.collTex ?? blank }, mapCB: { value: this.collTex ?? blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
       transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -654,10 +650,12 @@ export class Lobule3D {
     let moving = false;
     for (let i = 0; i < 3; i++) { this.grow[i] = unseen ? goal[i]! : easeGrow(this.grow[i]!, goal[i]!, dtS); if (this.grow[i] !== goal[i]) moving = true; }
     u.set(this.grow[0], this.grow[1], this.grow[2]);
+    this.flat.field.setHome(this.grow[1]);   // (the neighbour field clears a disc at each corner only as far as the tract collagen has grown: Healthy leaves the field as it was)
     return moving;
   }
   private stepPlates(unseen: boolean, dt: number): boolean {
     const f = this.flat;
+    if (this.collStale && this.marksKey !== '') { this.collStale = false; const L = lookColours(f.look), B = PLATE_BOX * PLATE_S; this.paintCollagenHere(L, B, PLATE_PX / (2 * B)); }
     // (the key comes from the goal through ONE quantiser with hysteresis, plate.ts plateQuantizer: a goal sitting on a step of 1/32, as a live model's does, held one key; with none it flipped
     //  between two and the plate was repainted and crossfaded back and forth, Mohammad 22 Nov: "the fibrosis bands around the portal tract are flashing")
     const s: PlateState = { ...this.plateQ(f.goalState), septU: 0, fibPre: 0, fibPost: 0 };   // (the tissue plate has none of the collagen that grows: it is repainted for the look, the congestion, the stellate cells and the Disse lining only)
@@ -689,10 +687,9 @@ export class Lobule3D {
         const old = t.image as ImageBitmap | null; t.image = rd.bmp; t.needsUpdate = true; if (old && typeof old.close === 'function') old.close();
         this.marksMat.uniforms.mapB!.value = t; this.crossing = true;
         if (rd.coll) {
-          const ct = this.collSpare ?? (this.collSpare = this.newPlateTexture());
-          const was = ct.image as ImageBitmap | null; ct.image = rd.coll; ct.needsUpdate = true; if (was && typeof was.close === 'function') was.close();
-          this.marksMat.uniforms.mapCB!.value = ct;
-        } else this.marksMat.uniforms.mapCB!.value = this.collFront;
+          this.atlas.stageBitmap(rd.coll);   // (closed once the GPU has it, collagen-atlas.ts)
+        }
+        this.syncColl();
       }
       this.crossT = unseen ? 1 : Math.min(1, this.crossT + dt / PLATE_CROSS_MS);
       const e = this.crossT * this.crossT * (3 - 2 * this.crossT);
@@ -702,11 +699,8 @@ export class Lobule3D {
         const t = this.marksMat.uniforms.mapB!.value as Texture, was = this.texFront;
         this.marksMat.uniforms.map!.value = t; this.texFront = t; this.texSpare = was === this.tex ? this.tex : was;
         this.marksMat.uniforms.mapB!.value = this.texSpare; this.marksMat.uniforms.mixB!.value = 0; this.crossing = false;
-        if (rd.coll) {
-          const ct = this.marksMat.uniforms.mapCB!.value as Texture, was = this.collFront;
-          this.marksMat.uniforms.mapC!.value = ct; this.collFront = ct; this.collSpare = was === this.collTex ? this.collTex : was; this.collLook = rd.look;
-        }
-        this.marksMat.uniforms.mapCB!.value = this.collFront;
+        if (rd.coll) { this.atlas.commit(); this.collLook = rd.look; }   // (the old look's atlas is disposed here: no spare is kept)
+        this.syncColl();
         this.marksKey = rd.key; this.plateReady = null; this.crossT = 0;
         return key !== rd.key;   // (the goal moved on while it faded in: the next plate is asked next frame)
       }
@@ -741,13 +735,29 @@ export class Lobule3D {
     paintPlateWorld(skipFirstFills(ctx, 2), n, sc, -B, -B, input);
     this.tex.needsUpdate = true;
     // the collagen at its fullest, once per look (never for a change of fibrosis), and its arrival times, once
-    const cctx = this.collCanvas?.getContext('2d');
-    if (cctx && this.collTex && this.collLook !== f.look) {
-      useTokens((name: string, a?: number | string) => L.tk(name, a));
-      paintCollagenWorld(cctx, n, sc, -B, -B, collagenInput(this.shape, DISC_R.cv, f.look));
-      this.collTex.needsUpdate = true; this.collLook = f.look;
-    }
+    if (this.collLook !== f.look) this.paintCollagenHere(L, B, sc);
     if (!this.tauTex) this.installTau(flipRows(collagenTau(this.shape, DISC_R.cv * PLATE_S, n, B), n));
+  }
+
+  /** The collagen at its fullest on the page (the first look, a page with no worker, a lost context): the 32 MB canvas lives only until the GPU has it. */
+  private paintCollagenHere(L: ReturnType<typeof lookColours>, B: number, sc: number): void {
+    const cv = defaultCanvas(PLATE_PX); if (!cv) return;
+    cv.width = PLATE_PX * ATLAS_W;   // (an atlas two plates wide: the tracts and the vein, the septa)
+    const cctx = cv.getContext('2d'); if (!cctx) return;
+    useTokens((name: string, a?: number | string) => L.tk(name, a));
+    paintCollagenWorld(cctx, PLATE_PX, sc, -B, -B, collagenInput(this.shape, DISC_R.cv, this.flat.look));
+    this.atlas.setCanvas(cv); this.syncColl(); this.collLook = this.flat.look;
+  }
+  /** The plate shader's two collagen samplers: the look on screen and the one crossfading in (the same when none is). */
+  private syncColl(): void {
+    const u = this.marksMat.uniforms;
+    u.mapC!.value = this.atlas.now ?? this.blankColl; u.mapCB!.value = this.atlas.next ?? this.blankColl;
+  }
+  /** The graphics context came back (Stage.tsx rebuild): the atlas went with it and its pixels are gone, so it is painted again on the next step. */
+  contextRestored(): void {
+    this.atlas.reset(); this.collLook = ''; this.collStale = true; this.syncColl();
+    const rd = this.plateReady; if (rd?.coll) { rd.coll.close(); this.plateReady = { ...rd, coll: null }; }
+    this.askedKey = '';
   }
 
   // ---- the vessels (built once; their widths follow the state through `inflate`, their colours through stepInk) -----------------
@@ -988,7 +998,7 @@ export class Lobule3D {
   dispose(): void {
     this.disposed = true;
     for (const p of this.partsForTest) p.dispose();
-    this.marks.geometry.dispose(); this.marksMat.dispose(); this.tex?.dispose(); this.texSpare?.dispose(); this.collTex?.dispose(); this.collSpare?.dispose(); this.tauTex?.dispose(); this.plates.dispose(); this.plateReady?.bmp.close();
+    this.marks.geometry.dispose(); this.marksMat.dispose(); this.tex?.dispose(); this.texSpare?.dispose(); this.atlas.dispose(); this.tauTex?.dispose(); this.plates.dispose(); this.plateReady?.bmp.close(); this.plateReady?.coll?.close();
   }
 }
 

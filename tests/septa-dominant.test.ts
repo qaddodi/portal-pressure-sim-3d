@@ -95,7 +95,7 @@ test('Plan 31 C gate: at every home corner and at tract growth 0.25, 0.5, 0.75 a
       if (!hexOut(wx, wy) || layerT.alpha[i]! * front(tau[4 * i + 1]!, p) <= 0.02) continue;
       const corner = HOME_CORNERS.reduce((m, c) => Math.min(m, Math.hypot(wx - c[0], wy - c[1])), 9);
       if (corner > HOME_TRACT_R * 1.3) continue;   // (the vein is inside the hexagon; a tract pixel lies at a corner)
-      shown++; worst = Math.max(worst, plateShare(corner));
+      shown++; worst = Math.max(worst, plateShare(corner, p));
     }
     console.log(`# source map at tract growth ${p}: ${shown} visible tract pixels outside the hexagon, the largest neighbour-plate share on any of them ${worst}`);
     assert.ok(shown > 0 && worst === 0, `p ${p}: ${worst}`);
@@ -124,4 +124,43 @@ test('Plan 31 no pop: moving cirrhosis 0 to 1 and back at the eased rates, no pi
   }
   console.log(`# no pop (cirrhosis 0 to 1 and back, ${frames} frames, ${idx.length} px): largest per-frame change of the composite alpha ${worst.toFixed(4)}`);
   assert.ok(worst <= 0.08, `${worst}`);
+});
+
+test('Plan 31c: the cleared home disc follows the drawn tract collagen: Healthy untouched, full radius at growth 1, covers the front, no pop at the eased rate', async () => {
+  const { homeRadius, homeK, HOME_TRACT_R, HOME_EASE, LOBULE_FIELD_FS } = await import('../src/scene/lobule/field.ts');
+  const { easeGrow, GROW_H } = await import('../src/scene/lobule/growth.ts');
+  assert.equal(homeK(0), 0, 'Healthy: nothing cleared, the field is untouched');
+  assert.match(LOBULE_FIELD_FS, /home \*= homeK;/);
+  assert.ok(Math.abs(homeRadius(1) - HOME_TRACT_R) < 1e-12, 'growth 1 is the cuff\'s full edge, as before');
+  for (const p of [0.25, 0.5, 0.75, 1]) assert.ok(homeRadius(p) >= net.rt * (0.8 + 0.9 * Math.min(1, p + GROW_H)) * 1.06 - 1e-12, `p ${p}: the disc reaches the front's outer edge, cuff swell included`);
+  // no pop: the clear share at a pixel just outside the disc, at every frame of an eased 0 to 1 and back
+  let worst = 0;
+  // (a fixed pixel at distance r: its clear alpha = homeK(p) x (1 - ease((r - homeRadius(p)) / (homeRadius(p) x (HOME_EASE - 1)))))
+  const clear = (r: number, p: number): number => { const x = Math.min(1, Math.max(0, (r - homeRadius(p)) / (homeRadius(p) * (HOME_EASE - 1)))); return homeK(p) * (1 - x * x * (3 - 2 * x)); };
+  for (const [a, b] of [[0, 1], [1, 0]] as const) {
+    let p: number = a;
+    const rs = Array.from({ length: 200 }, (_, i) => HOME_TRACT_R * 0.3 * (1 + i / 60));
+    let prev = rs.map((r) => clear(r, p));
+    for (let f = 0; f < 400; f++) { p = easeGrow(p, b, 1 / 60); const cur = rs.map((r) => clear(r, p)); for (let k = 0; k < cur.length; k++) worst = Math.max(worst, Math.abs(cur[k]! - prev[k]!)); prev = cur; }
+  }
+  console.log(`# home disc no pop: largest per-frame change of the clear alpha ${worst.toFixed(4)}`);
+  assert.ok(worst <= 0.08, `${worst}`);
+});
+
+test('Plan 31c gate 3 (amended): where pS = 0 (schistosomiasis, SOS) the composite is the one without septa; every pixel that differs from the old shared layer lies inside the old septa footprint', () => {
+  // (schisto 5.8 % and SOS 0.6 % of the figure's pixels differ from 86c20270: there are no septa in either, so the septum ghost under the tracts and the vein at septU = 0 was wrong, and removing it is the fix)
+  const g = growGoal({ septU: 0, fibPre: 1, fibPost: 1 });
+  assert.equal(g[0], 0);
+  let diff = 0, outside = 0, shown = 0;
+  for (let i = 0; i < N * N; i++) {
+    const fs: number = front(tau[4 * i]!, g[0]) * septaStrength(g[0]);
+    assert.equal(fs, 0, 'no septa reveal at pS = 0');
+    const ft = Math.max(front(tau[4 * i + 1]!, g[1]), front(tau[4 * i + 2]!, g[2]));
+    const nu = layerT.alpha[i]! * ft;                                      // the composite now: the tracts and the vein alone
+    const old = 1 - (1 - nu) * (1 - layer.alpha[i]! * 0.75 * front(tau[4 * i]!, 1));   // (a stand-in for the old ghost: the septa's own alpha where they showed under a tract)
+    if (layerT.alpha[i]! > 0) shown++;
+    if (Math.abs(old - nu) > 1e-9) { diff++; if (layer.alpha[i]! <= 0) outside++; }
+  }
+  console.log(`# gate 3: ${diff} px differ from a septum ghost, ${outside} outside the septa footprint (of ${shown} tract/vein px)`);
+  assert.equal(outside, 0);
 });

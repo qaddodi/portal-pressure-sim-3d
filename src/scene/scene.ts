@@ -238,6 +238,8 @@ export class CelScene {
   /** The roots whose never-drawn geometries are uploaded ahead of their first frame. */
   get uploadRoots(): Object3D[] { return [this.scene]; }
   get microBuilt(): boolean { return this.micro !== null; }
+  /** A lost graphics context came back: the lobule's collagen atlas keeps no pixels on the page once uploaded (Plan 31c), so it is painted again. */
+  contextRestored(): void { this.micro?.lobule.contextRestored(); }
   get sinus3d(): Sinusoid3D { return this.buildMicro().sinus; }
   get lobule3d(): Lobule3D { return this.buildMicro().lobule; }
   /** The two 3D views' constructors, which make every one of their materials (and none of their geometry): done under the splash, before the warm-up, so their 21 programs are compiled with the rest and the
