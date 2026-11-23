@@ -90,6 +90,13 @@ test('the data: the run is the days recorded, the hidden measures are left out, 
   assert.equal(baseName('Paracentesis'), 'Paracentesis');
 });
 
+test('one day only: the run is shown over thirty days and each reading is a dot, not a blank card', () => {
+  const one = buildData({ calm: (k) => (k === 'CONF' || k === 'hvpg' ? { x: [0], mid: [k === 'hvpg' ? 2.3 : 9] } : null), entries: [], labelsOf: LABELS, hidden: null });
+  assert.equal(one.empty, false); assert.equal(one.short, true); assert.deepEqual(one.full, [0, 30]);
+  const f = bigFrame({ ...inp(), series: one.series, hvpg: one.hvpg, on: ['pv'], lines: [], meds: [], full: one.full, win: one.full, cursor: null }, ctxOf('light', 760)).frame;
+  assert.equal(f.shapes.filter((s) => s.k === 'circle').length, 2);
+});
+
 test('the TIPS opens to its route, its stent and the numbers before and after', () => {
   const rows = tipsFacts({ tips: { on: true, d: 8 }, stentGeom: { TIPS: { len: 8 } } }, 84, 120, { shunt: SER.shunt, pv: SER.pv, ivc: SER.ivc, hvpg: HV, asc: SER.asc });
   const get = (k: string) => rows.find((r) => r[0] === k)?.[1];

@@ -152,6 +152,7 @@ export function TimelineCard() {
           <p className="bt-empty"><b>{BT.empty}</b>{BT.emptyHint}</p>
         ) : (
           <>
+            {data.short && <p className="bt-hint">{BT.shortHint}</p>}
             <div ref={plot.ref} className="bt-plot" role="slider" tabIndex={0} aria-label="Day" aria-valuemin={Math.round(full[0])} aria-valuemax={Math.round(full[1])} aria-valuenow={Math.round(at)} aria-valuetext={BT.day(at)}
               onPointerEnter={onEnter} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onLeave} onWheel={onWheel} onKeyDown={onKey}>
               {plot.h > 0 && plot.w > 0 && <Chart tag="bigtime" glide={false} label={`Over time, ${BT.range(w0, w1).toLowerCase()}`} deps={deps} build={build} />}

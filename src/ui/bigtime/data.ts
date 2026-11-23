@@ -13,8 +13,10 @@ export interface Data {
   happened: Happened[];
   /** the whole run, in days */
   full: [number, number];
-  /** nothing to draw yet: fewer than two days recorded */
+  /** nothing recorded at all */
   empty: boolean;
+  /** only one day recorded (a patient the clock has not run on): the lanes show where the readings stand, and the card says the lines draw as time passes */
+  short: boolean;
 }
 export interface DataIn {
   calm(key: string): { x: number[]; mid: number[] } | null;
@@ -36,9 +38,9 @@ export function buildData(i: DataIn): Data {
   const all = [...Object.values(series), ...(hvpg ? [hvpg] : [])];
   let a = Infinity, b = -Infinity;
   for (const s of all) { a = Math.min(a, s.x[0]!); b = Math.max(b, s.x[s.x.length - 1]!); }
-  const empty = !(b > a);
+  const empty = !Number.isFinite(a), short = !empty && !(b > a);
   const happened: Happened[] = i.entries.filter((e) => e.kind === 'event' || e.kind === 'change').map((e) => ({ id: e.id, day: e.day, label: e.label, kind: e.kind as 'event' | 'change', tone: e.kind === 'change' ? 'change' : (lines.find((l) => l.id === e.id)?.tone ?? 'info'), ...(e.detail ? { detail: e.detail } : {}), ...(e.params != null ? { params: e.params } : {}), ...(e.keys ? { keys: e.keys } : {}) }));
-  return { series, hvpg, lines, meds, happened, full: empty ? [0, 1] : [a, b], empty };
+  return { series, hvpg, lines, meds, happened, full: empty ? [0, 1] : short ? [a, a + 30] : [a, b], empty, short };
 }
 
 /** a procedure's name for the chooser and its toggle: the label without its size ("TIPS 8 mm" and "TIPS 10 mm" are one, "TIPS") */

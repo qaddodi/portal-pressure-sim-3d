@@ -195,7 +195,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   for (const g of geoLanes) {
     const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * g.h;
     if (g.s.zone) {
-      if (inp.hvpg) shapes.push({ k: 'path', pts: pointsIn(inp.hvpg, x0, x1, X, Y), pen: pen(colourOf(pal, HVPG.tok), 2.2, { cap: 'round', join: 'round' }) });
+      if (inp.hvpg) { const pts = pointsIn(inp.hvpg, x0, x1, X, Y), col = colourOf(pal, HVPG.tok); shapes.push(pts.length >= 4 ? { k: 'path', pts, pen: pen(col, 2.2, { cap: 'round', join: 'round' }) } : { k: 'circle', cx: pts[0] ?? 0, cy: pts[1] ?? 0, r: 4, fill: col }); }
       continue;
     }
     for (const m of g.s.ms) {
@@ -205,7 +205,8 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
         const base = Y(0);
         for (let k = 0; k < 6; k++) { const f = (k + 1) / 6, mid: number[] = []; for (let i = 0; i < pts.length; i += 2) mid.push(pts[i]!, pts[i + 1]! + (base - pts[i + 1]!) * f); shapes.push({ k: 'band', top: pts, bottom: mid, fill: pal.alpha(col, 0.07) }); }
       }
-      shapes.push({ k: 'path', pts, pen: pen(col, 2.2, { cap: 'round', join: 'round' }) });
+      if (pts.length >= 4) shapes.push({ k: 'path', pts, pen: pen(col, 2.2, { cap: 'round', join: 'round' }) });
+      else if (pts.length === 2) shapes.push({ k: 'circle', cx: pts[0]!, cy: pts[1]!, r: 4, fill: col });   // (one day only: where the reading stands)
     }
   }
   shapes.push({ k: 'unclip' });
