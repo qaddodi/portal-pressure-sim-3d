@@ -56,7 +56,7 @@ export function addCaptureControls(k: OuterKit): void {
       const m = e.data as CaptureMsg | null; if (!m || typeof m !== 'object' || !('capture' in m)) return;
       clock.cancel(silent); silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), 300000);
       if (m.capture === 'hello') say(id, `${d.label}: the app has started; capturing…`);
-      else if (m.capture === 'progress') say(id, `${d.label} ${m.n} of ${m.total}: ${m.text}`);
+      else if (m.capture === 'progress') say(id, `${d.label}: ${m.text}`);
       else if (m.capture === 'done') end({ files: m.files, notes: m.notes });
       else if (m.capture === 'failed') end({ files: [], notes: [], why: m.why });
     };

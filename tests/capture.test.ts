@@ -281,3 +281,10 @@ test('The Mac capture runs every ticked size at once, side by side', () => {
   assert.match(cap, /Promise\.all\(ids\.map\(async \(id\) =>/); assert.match(cap, /one\(id, sel, speed, 0, ids\.length\)/); assert.match(cap, /\(r\.width - 24 - 12 \* \(of - 1\)\) \/ of/, 'the frames share the room');
   assert.ok(!/for \(const id of ids\) \{\s*if \(stop\) break;/.test(cap), 'no size waits for the one before');
 });
+
+test('A random sample is one picture a slide: its last step, counted "n of 25", the same in every size', () => {
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /single = !!\(ui\.pick && ui\.pick\.size\)/); assert.match(all, /sub = single \? 0 :/, 'a step replaces the one before it');
+  assert.match(all, /const put = \(f: ZipFile\)/); assert.match(all, /\$\{reached\} of \$\{pick!\.size\}/);
+  assert.match(all, /if \(!single \|\| fresh\) \{ shots\+\+; done\+\+; \}/, 'steps are not extra pictures');
+});

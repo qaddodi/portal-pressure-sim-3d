@@ -111,7 +111,9 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const speed = ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   clock.setScale(speed);   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const rate = clock.every(() => speedAnimations(document, speed), sampleRealMs(33, speed));
-  const seen = new Set<string>();
+  const seen = new Set<string>(), single = !!(ui.pick && ui.pick.size);
+  let reached = 0;
+  const put = (f: ZipFile): void => { const i = files.findIndex((x) => x.name === f.name); if (i >= 0) files[i] = f; else files.push(f); };
   let waitMs = 0, drawMs = 0, shape0 = { w: 0, h: 0 };
   const pick = ui.pick && ui.pick.size ? ui.pick : null;
   let total = pick ? pick.size : decks.reduce((n, d) => n + d.slides.length + 2, 0), done = 0, shots = 0, stopped = false, decksDone = 0;
@@ -134,7 +136,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       let sub = 0, lastStop = -1, presses = 0, shownNow = '';
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
-        sub = k === lastStop ? sub + 1 : 0; lastStop = k;
+        const fresh = k !== lastStop;   // (the first picture of this slide)
+        sub = single ? 0 : fresh ? 0 : sub + 1; lastStop = k;   // (a random sample is one picture a slide, its last step: each step replaces the one before it)
         if (pick && !pick.has(stopKey(d.id, k))) {   // (a slide that is not picked is walked past, not taken: the walk still presses Next, so the steps the next slide stands on are the ones a person would reach)
           shownNow = '';
           const t = clock.now();
@@ -143,7 +146,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           return;
         }
         const title = stopName(k), n = sub ? `${k + 1}.${sub + 1}` : `${k + 1}`;
-        ui.status(`${d.title}: ${n} of ${stops} “${title}”`);
+        if (single && fresh) reached++;
+        ui.status(single ? `${reached} of ${pick!.size}: ${d.title} “${title}”` : `${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
         const { moving, words, perpetual } = await stillPage(real, blockedSlide(k));
         if (moving) notes.push(`${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
@@ -151,7 +155,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const when = new Date(), drawn = await drawScreen(when, { ratio: Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
-        if (!drawn) { notes.push(`${d.title}: ${n} could not be drawn`); done++; ui.progress(done, total); return; }
+        if (!drawn) { notes.push(`${d.title}: ${n} could not be drawn`); if (!single || fresh) done++; ui.progress(done, total); return; }
         const jpegP = blobOf(drawn.canvas, 'image/jpeg', 0.85).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next is reached)
         shape = { w: drawn.canvas.width, h: drawn.canvas.height }; shape0 = shape;
         const L = collageLayout(1, shape), thumb = document.createElement('canvas'); thumb.width = L.cellW * 2; thumb.height = L.cellH * 2;   // (twice the sheet's cell: a sharp one when the sheet is zoomed)
@@ -160,10 +164,12 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         drawMs += new Date().getTime() - d0;
         const base = `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
         const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...drawn.record }, null, 1));
-        encoding.push(jpegP.then((data) => { if (data) files.push({ name: `${base}.jpg`, data }); }));
-        files.push({ name: `${base}.json`, data: meta });
-        thumbs.push({ n, title, img: thumb });
-        shots++; done++; if (done >= total) total = done + stops; ui.progress(done, total);
+        encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.jpg`, data }); }));
+        put({ name: `${base}.json`, data: meta });
+        if (single && !fresh && thumbs.length) thumbs[thumbs.length - 1] = { n, title, img: thumb }; else thumbs.push({ n, title, img: thumb });
+        if (!single || fresh) { shots++; done++; }
+        if (!single && done >= total) total = done + stops;
+        ui.progress(done, total);
       };
       // the talk from its first stop, then Next as a person presses it, to the end: every beat (the case card first, then the slide), every page of a split card, every step of a procedure
       // (a catheter's advance, the EUS-PPG and HVPG readings) and every reading of a tracing. Next says whether it did anything: when it does not, the talk is over.
