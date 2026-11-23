@@ -118,6 +118,16 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
   assert.ok(!/mp-in|mp-out/.test(css), 'the pushed page is moved by the clock, not by keyframes');
 });
 
+test('every phone sheet sits behind the dock and the timeline: one z-index, in menu-motion.css', () => {
+  const css = src('src/ui/shell/menu-motion.css');
+  assert.ok(css.includes('html.thumb-ui { --z-sheet-phone: calc(var(--z-panel, 10) + 10); }'));
+  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-root > ${sel}`) , sel);
+  assert.ok(/\{ z-index: var\(--z-sheet-phone\); \}/.test(css) && /\.um-scrim \{ z-index: calc\(var\(--z-sheet-phone\) - 1\); \}/.test(css));
+  // the dock is --z-panel + 20 (2D app-10-thumb-dock.css), so 10 + 10 stays under it; the Frame sheets and the cards are lower still
+  assert.ok(/\.app\.thumb \.vdock:not\(\.mini\) \{ z-index: calc\(var\(--z-panel\) \+ 20\)/.test(src('src/ui/css2d/app-10-thumb-dock.css')));
+  for (const f of ['src/ui/shell/shell.css', 'src/ui/tests/tests.css', 'src/ui/action/action.css']) assert.ok(!/z-index: (?:[3-9]\d|\d{3,})\b[^;]*\}?/.test(src(f).split('\n').filter((l) => /\.sh-sheet \{|\.t-pos \{|\.ac-card \{/.test(l)).join('')), f);
+});
+
 test('glide runs its frames to 1 and then says it is done; follow writes the number it was last given', async () => {
   const seen: number[] = [];
   await new Promise<void>((res) => { glide({ ms: 40, curve: (u) => u, apply: (k) => seen.push(k), done: res }); });
