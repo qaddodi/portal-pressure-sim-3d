@@ -196,3 +196,19 @@ test('the day record survives the clock jumping on, starts over for a new patien
   feed.adopt(f(0, true, 3));
   assert.equal(days(), '0', 'a new patient starts a new record');
 });
+
+test('a jump is sampled a day at a time: every day it runs is a point of the record (a few days at a time only past 200)', async () => {
+  const { jumpStep } = await import('../src/ui/timeline/index.ts');
+  assert.deepEqual([7, 30, 90, 200, 365, 730].map(jumpStep), [1, 1, 1, 1, 2, 4]);
+  const { createCore } = await import('../src/engine/hales/host/worker-core.js');
+  const { SampleFeed } = await import('../src/ui/tests/feed.ts');
+  const feed = new SampleFeed();
+  const core = createCore((m: never) => { if ((m as { type: string }).type === 'frame') feed.adopt(m); });
+  await core.handle({ type: 'init' }); await core.handle({ type: 'run', running: false });
+  await core.handle({ type: 'preset', id: 'cirr-decomp', reqId: 1 });
+  for (let i = 0; i < 30; i++) await core.handle({ type: 'advance', days: 1 });
+  const d = feed.days.map((p) => p.day);
+  assert.deepEqual(d.slice(-30), Array.from({ length: 30 }, (_, i) => i + 1), 'a point for each day of the jump');
+  assert.ok(feed.days.every((p) => Number.isFinite(p.v.asc!) && Number.isFinite(p.v.shunt!)), 'each point carries the new lanes');
+  core.dispose();
+});
