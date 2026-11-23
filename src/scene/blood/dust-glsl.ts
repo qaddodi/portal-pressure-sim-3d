@@ -112,7 +112,7 @@ vec2 dTwist(float ae, float Lw, float turns) {
   return vec2(6.2831853 * turns * u * u * (3.0 - 2.0 * u), 6.2831853 * turns * 6.0 * u * (1.0 - u) / max(Lw, 1e-3));
 }
 // a particle of a root's lattice
-struct DPart { float alive; float h1; float h2; float h3; float h4; float h5; float h6; float h7; float rho; float yl; float zr; float se; float prof; float root; };
+struct DPart { float alive; float h1; float h2; float h3; float h4; float h5; float h6; float h7; float rho; float yl; float zr; float se; float prof; float root; float cf; };
 // its mark seen in one frame: the offset from the pixel (lumen radii, along and across), its tilt, depth, length and diameter, local speed, the edge's anti-aliasing
 struct DMark { vec2 dp; float slope; float depth; float len; float dia; float spd; float aa; float rhoE; };
 float dTurns(float edge) { return texelFetch(routeTex, ivec2(int(edge), 0), 0).w; }
@@ -211,7 +211,7 @@ DPart dPart(float root, int k, float jj, float Pf, float flowFig) {
   P.yl = P.rho * cos(th) / max(D_rhoMax, 0.05);   // its lane in the root (-1 .. 1)
   P.zr = P.rho * sin(th);
   P.se = (jj + 0.1 + 0.8 * P.h1 - 0.37 * fk) * Pf + flowFig * P.prof * D_flowK;
-  P.root = root;
+  P.root = root; P.cf = 0.5;
   return P;
 }
 // the cell of class k nearest the pixel's place se on the root's stream
@@ -362,8 +362,9 @@ vec2 dLaneWinB(DFrame F) {
   float a = (F.across - abs(F.cS.y) * rm - mg) / F.cS.x / rm, b = (F.across + abs(F.cS.y) * rm + mg) / F.cS.x / rm;
   return vec2(min(a, b), max(a, b));
 }
-// the streak of lane li, in the cell of that lane which holds the pixel's place se on the root's stream (cf: where in its cell the streak is centred, 0 .. 1)
-void dLanePart(DSeg g, float li, float tr, float nL, float Pf, float se, float flowFig, out DPart P, out float cf) {
+// the streak of lane li, in the cell of that lane which holds the pixel's place se on the root's stream (P.cf: where in its cell the streak is centred, 0 .. 1)
+DPart dLanePart(DSeg g, float li, float tr, float nL, float Pf, float se, float flowFig) {
+  DPart P;
   float rk = fract(g.root * 0.6180339) * 50.0, rm = max(D_rhoMax, 0.05);
   float lid = li + 977.0 * tr;   // (a lane carries up to two trains of streaks, each its own phase and hashes, on the same centre)
   float lj = dHash(vec2(li * 1.37 + 0.5, rk + 3.1)), ph = dHash(vec2(lid * 2.17 + 7.7, rk + 11.0));
@@ -377,25 +378,26 @@ void dLanePart(DSeg g, float li, float tr, float nL, float Pf, float se, float f
   P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
   P.rho = rho; P.yl = cy;
   P.zr = (2.0 * P.h2 - 1.0) * sqrt(max(rm * rm - rho * rho, 0.0));    // (its depth in the chord at that lane)
-  cf = 0.5 + (P.h1 - 0.5) * 0.4;
-  P.se = (jj - ph + cf) * Pf + flowFig * prof * D_flowK;
+  P.cf = 0.5 + (P.h1 - 0.5) * 0.4;
+  P.se = (jj - ph + P.cf) * Pf + flowFig * prof * D_flowK;
   P.prof = prof; P.root = g.root;
+  return P;
 }
 // half of the room its cell leaves it in frame F (lumen radii): the streak's length never exceeds twice this
 float dCellExt(DFrame F, DSeg g, float cf) {
   float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
   return min(cf, 1.0 - cf) * max(D_cellLen * g.rLat * F.U, 1e-4) / (abs(Bs) * max(F.vRc, 1e-5));
 }
-// the lanes of the root that a segment carries and the pixel can reach: first index, last index and the stride (at most DUST_LANE_LOOK of them)
-ivec3 dLaneSpan(DSeg g, vec2 win, float nL) {
+// the lanes of the root that a segment carries and the pixel can reach: first index, last index and the stride (at most DUST_LANE_LOOK of them), as whole numbers in floats (no integer conversion, no integer return value)
+vec3 dLaneSpan(DSeg g, vec2 win, float nL) {
   float c1 = g.c1 < 0.0 ? min(g.c1, -1e-4) : max(g.c1, 1e-4);
   float ya = max(win.x, g.y0 - 0.05), yb = min(win.y, g.y1 + 0.05);
-  if (yb < ya) return ivec3(0, -1, 1);
+  if (yb < ya) return vec3(0.0, -1.0, 1.0);
   float ra = g.c0 + c1 * ya, rb = g.c0 + c1 * yb;
   float lo = (min(ra, rb) + 1.0) * 0.5 * nL - 0.5 - 0.5 * D_laneJit - 1.0, hi = (max(ra, rb) + 1.0) * 0.5 * nL - 0.5 + 0.5 * D_laneJit + 1.0;
-  int i0 = int(max(floor(lo), 0.0)), i1 = int(min(ceil(hi), nL - 1.0));
-  int cnt = i1 - i0 + 1;
-  return ivec3(i0, i1, cnt > ${DUST_LANE_LOOK} ? 1 + (cnt - 1) / ${DUST_LANE_LOOK} : 1);
+  float i0 = clamp(floor(lo), 0.0, nL - 1.0), i1 = clamp(ceil(hi), 0.0, nL - 1.0);
+  float cnt = i1 - i0 + 1.0;
+  return vec3(i0, i1, cnt > ${DUST_LANE_LOOK}.0 ? 1.0 + floor((cnt - 1.0) / ${DUST_LANE_LOOK}.0) : 1.0);
 }
 vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F.edge)) return vec4(0.0);
@@ -416,19 +418,18 @@ vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
       float Pf = max(D_cellLen * g.rLat * F.U, 1e-4), flowFig = dFlow(g.root);
       float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
       float se = g.A + Bs * F.a;
-      ivec3 sp = dLaneSpan(g, win, nL);
+      vec3 sp = dLaneSpan(g, win, nL);
       for (int q = 0; q < ${DUST_LANE_LOOK}; q++) {
-        int ln = sp.x + q * sp.z;
-        if (ln > sp.y) break;
+        float ln = sp.x + float(q) * sp.z;
+        if (ln > sp.y) continue;
         for (int tr = 0; tr < 2; tr++) {
-          if (tr == 1 && D_trains < 1.5) break;
-          DPart P; float cf;
-          dLanePart(g, float(ln), float(tr), nL, Pf, se, flowFig, P, cf);
+          if (tr == 1 && D_trains < 1.5) continue;
+          DPart P = dLanePart(g, ln, float(tr), nL, Pf, se, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 mb = dMember(g, P.yl);
           if (mb.y <= 0.0 || !dNear(F, g, mb.x, P)) continue;
           DMark M = dPlace(F, g, mb.x, P);
-          M.len = min(M.len, max(2.0 * dCellExt(F, g, cf), M.dia));
+          M.len = min(M.len, max(2.0 * dCellExt(F, g, P.cf), M.dia));
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
           acc = c + acc * (1.0 - c.a);
         }
@@ -449,7 +450,7 @@ vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
     DFrame Fa = F0, Fb = F1;
     if (arm == 1) { Fa = F1; Fb = F0; }
     float wa = arm == 0 ? 1.0 - w1 : w1, wb = 1.0 - wa;
-    if (wa < 0.004 && arm == 1) break;
+    if (wa < 0.004 && arm == 1) continue;
     vec4 hd = texelFetch(routeTex, ivec2(int(Fa.edge), 0), 0);
     int nSeg = min(int(hd.x + 0.5), ${SEG_MAX});
     vec2 win = dLaneWinB(Fa);
@@ -458,14 +459,13 @@ vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       float Pf = max(D_cellLen * g.rLat * Fa.U, 1e-4), flowFig = dFlow(g.root);
       float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
       float se = g.A + Bs * Fa.a;
-      ivec3 sp = dLaneSpan(g, win, nL);
+      vec3 sp = dLaneSpan(g, win, nL);
       for (int q = 0; q < ${DUST_LANE_LOOK}; q++) {
-        int ln = sp.x + q * sp.z;
-        if (ln > sp.y) break;
+        float ln = sp.x + float(q) * sp.z;
+        if (ln > sp.y) continue;
         for (int tr = 0; tr < 2; tr++) {
-          if (tr == 1 && D_trains < 1.5) break;
-          DPart P; float cf;
-          dLanePart(g, float(ln), float(tr), nL, Pf, se, flowFig, P, cf);
+          if (tr == 1 && D_trains < 1.5) continue;
+          DPart P = dLanePart(g, ln, float(tr), nL, Pf, se, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 ma = dMember(g, P.yl);
           if (ma.y <= 0.0) continue;
@@ -474,12 +474,12 @@ vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
           DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
           if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;
           DMark M = dPlace(Fa, g, ma.x, P);
-          M.len = min(M.len, max(2.0 * dCellExt(Fa, g, cf), M.dia));
+          M.len = min(M.len, max(2.0 * dCellExt(Fa, g, P.cf), M.dia));
           float sa = wa * ma.y, sb = 0.0;
           if (fb.x >= 0.0) {
             sb = wb * fb.z;
             DMark Mb = dPlace(Fb, gb, fb.y, P);
-            Mb.len = min(Mb.len, max(2.0 * dCellExt(Fb, gb, cf), Mb.dia));
+            Mb.len = min(Mb.len, max(2.0 * dCellExt(Fb, gb, P.cf), Mb.dia));
             M = dMix(M, Mb, sb / max(sa + sb, 1e-4));
           }
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);

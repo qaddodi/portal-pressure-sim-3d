@@ -49,15 +49,29 @@ test('the shader: B finds a streak by its lane and its cell, a handful of candid
   assert.match(src, /float cy = \(li \+ 0\.5 \+ \(lj - 0\.5\) \* D_laneJit\) \/ nL \* 2\.0 - 1\.0;/, 'a lane\'s centre across the root\'s section, jittered by hash');
   assert.match(src, /float jj = floor\(\(se - flowFig \* prof \* D_flowK\) \/ Pf \+ ph\);/, 'the cell: the lane\'s own speed (the lab\'s flat profile) carries it along the root\'s stream');
   assert.match(src, /P\.alive = clamp\(\(D_densK \* D_fill - dHash\(sd\)\) \* 12\.0, 0\.0, 1\.0\);/, 'density thins by a threshold: single streaks fade, nothing pops');
-  assert.match(src, /cf = 0\.5 \+ \(P\.h1 - 0\.5\) \* 0\.4;/); assert.match(src, /P\.se = \(jj - ph \+ cf\) \* Pf \+ flowFig \* prof \* D_flowK;/, 'the streak is centred in its cell');
-  assert.equal((src.match(/M\.len = min\(M\.len, max\(2\.0 \* dCellExt\(F, g, cf\), M\.dia\)\);/g) ?? []).length, 1, 'the tube cuts the length to its cell');
-  assert.match(src, /Mb\.len = min\(Mb\.len, max\(2\.0 \* dCellExt\(Fb, gb, cf\), Mb\.dia\)\);/, 'and so does the skin, in both frames');
+  assert.match(src, /P\.cf = 0\.5 \+ \(P\.h1 - 0\.5\) \* 0\.4;/); assert.match(src, /P\.se = \(jj - ph \+ P\.cf\) \* Pf \+ flowFig \* prof \* D_flowK;/, 'the streak is centred in its cell');
+  assert.equal((src.match(/M\.len = min\(M\.len, max\(2\.0 \* dCellExt\(F, g, P\.cf\), M\.dia\)\);/g) ?? []).length, 1, 'the tube cuts the length to its cell');
+  assert.match(src, /Mb\.len = min\(Mb\.len, max\(2\.0 \* dCellExt\(Fb, gb, P\.cf\), Mb\.dia\)\);/, 'and so does the skin, in both frames');
   assert.match(src, /return min\(cf, 1\.0 - cf\) \* max\(D_cellLen \* g\.rLat \* F\.U, 1e-4\) \/ \(abs\(Bs\) \* max\(F\.vRc, 1e-5\)\);/, 'the room a cell leaves: its length over this vessel\'s speed ratio and lumen');
   assert.match(src, /vec4 a = wB < 0\.999 \? dustTubeA\(F, lit, ink, rev\) : vec4\(0\.0\);\s+vec4 b = wB > 0\.001 \? dustTubeB\(F, lit, ink, rev\) : vec4\(0\.0\);\s+return a \* \(1\.0 - wB\) \+ b \* wB;/);
   assert.match(src, /vec4 a = wB < 0\.999 \? dustSkinA\(F0, F1, w1, lit, ink, rev\) : vec4\(0\.0\);/);
   // the shared parts are shared: the same section frame, strip map, wall rule and tones
   for (const shared of ['dMember(g, P.yl)', 'dPlace(F, g, mb.x, P)', 'dDraw(M, P, t0, t1, t2, t3, ink, rev)']) assert.ok(b.includes(shared), shared);
   assert.ok(DUST_LANES_MAX >= 48 && b.includes(`${DUST_LANES_MAX}.0)`), 'the lane count is bounded');
+});
+
+// 23 Nov, Mohammad: pixels of the page's colour in the shape of streaks at junctions, gone with dust off and with look A (the lattice scan), present with look B. Look B was the only code with a `break` out of a loop, an `out` struct
+// parameter, an integer return value and float to int conversions of a computed bound: all of which A and the rest of the vessel shader avoid. The B code is written in A's shape (a value-returning function, `continue` only, floats for
+// the lane numbers), so a driver that mishandles one of those never meets it here. (The cause on the device is not proven: this pins the shape, see docs/approved/dust.md.)
+test('look B is written in the shape of look A: no break, no out parameter, no integer return, no float to int conversion', () => {
+  const b = DUST_GLSL.slice(DUST_GLSL.indexOf('vec2 dLaneWinB('), DUST_GLSL.indexOf('vec4 dustTube(DFrame F, vec3 lit'));
+  assert.doesNotMatch(b, /\bbreak\b/, 'a loop is left by continue (A\'s way), never by break');
+  assert.doesNotMatch(b, /\bout\s+(DPart|float|vec)/, 'no out parameter: a function returns its value');
+  const lane = b.slice(0, b.indexOf('vec4 dustTubeB('));
+  assert.doesNotMatch(b, /ivec3/, 'no integer vector return'); assert.doesNotMatch(lane, /\bint\b/, 'no integer in the lane functions');
+  assert.doesNotMatch(b, /int ln|ln = sp\.x \+ q/, 'the loop counter makes a float lane number, not an int');
+  assert.match(b, /DPart dLanePart\(DSeg g, float li, float tr, float nL, float Pf, float se, float flowFig\) \{/);
+  assert.match(b, /vec3 dLaneSpan\(DSeg g, vec2 win, float nL\) \{/);
 });
 
 test('the lane table gives up fewer lanes: more segments a vessel and finer slivers (real figure: 3 to 5 vessels of about 50 gave lanes away)', () => {

@@ -16,3 +16,6 @@
 
 ## Rejected / not done
 - Nothing rejected yet for this feature. Baked particle texture (option C) not built.
+
+## 23 Nov, later: page-coloured holes at junctions with look B (not with look A)
+Mohammad's screenshot: blocks and specks of exactly the page colour (#1A1917) in the shape of streaks at a junction; gone with dust off and with look A. They are pixels that were not drawn (not dark dust: the dust only ever changes colour). Node fuzz of look B's math (20 million candidates, real route tables, random frames) found no NaN or infinity, so the cause on the device is NOT proven. What differed from A was code shape only: B alone had `break`, an `out` struct parameter, an `ivec3` return and float to int conversions of computed loop bounds. B is now written in A's shape (tests/dust-lanes.test.ts pins it). If the holes persist, look A is the fallback (?dust, Look) and the next step is a magenta marker for bad dust pixels.
