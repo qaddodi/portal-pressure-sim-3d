@@ -126,7 +126,7 @@ uniform float mixB;
 uniform float opacity;
 uniform sampler2D mapC;    // the collagen atlas (collagen-paint.ts: the tracts and the vein's wall at their fullest on the left plate, the septa on the right): the fibres' colour only, never an edge
 uniform sampler2D mapCB;   // its twin for a crossfade (the same texture when only the tissue changed); sampled in collagenAt, so it must be declared (Plan 28: it was not, and the device refused the program)
-uniform sampler2D mapT;    // the septa's arrival times and edge (collagen-tau.ts): R arrival (255 never), G the edge's outward normal as an angle byte, B the signed distance to the outer edge in plate px (square-root mapped), A the fade's depth t
+uniform sampler2D mapT;    // the septa's arrival times and edge (collagen-tau.ts): R arrival (255 never), G the edge's outward normal as an angle byte, B the signed distance to the edge (the middle pass) in plate px (square-root mapped), A the fade's depth t
 uniform vec3 uCollS;       // the collagen's flat colours: the septa's (--lz-septum) and the tracts' deeper tone, and the same two of the look crossfading in (mixB of the way): the atlas gives the fibres' striations only
 uniform vec3 uCollSB;
 uniform vec3 uCollT;

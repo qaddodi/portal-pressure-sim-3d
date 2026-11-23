@@ -2,8 +2,8 @@
 // the painter draws along (bandGeomInto's points, the septa's paths), so it is exact and the same every time. One RGBA texel per pixel:
 //   R  the septa's arrival time, one byte (growth.ts); 255: never
 //   G  the edge's outward normal as one ANGLE byte (collagen-edge.ts angleToByte), of the band that is deepest here (read with the nearest texel: a filtered angle goes wrong across its seam)
-//   B  the signed distance e (plate px, + inside) to the band's OUTER edge: the painter's faint outer pass, K_OUT x its width (narrowing to the middle pass's at the ends, as bandOutlineFlat draws it); square-root mapped (collagen-edge.ts edgeToByte); 0: outside, far
-//   A  the fade's depth t = e / fw, 0 at the outer edge to 1 at the dense core's edge, fw the band's own fade width here (the outer pass's half width minus the core's: 0.55 x the width along its middle, less at the tapering ends); the deepest band's t
+//   B  the signed distance e (plate px, + inside) to the band's EDGE: the painter's MIDDLE pass, K_MID x its width (Plan 48b: the outer pass's faint tier is NOT drawn, so nothing lies outside this edge); square-root mapped (collagen-edge.ts edgeToByte); 0: outside, far
+//   A  the fade's depth t = e / fw_in, 0 at the edge to 1 at the dense core's edge, fw_in the band's own depth here (the middle pass's half width minus the core's: 0.225 x the width); the deepest band's t
 // (The portal tracts have no texels here: their disc is round about the hexagon's corner, so the shader computes its radius and its t, collagen-edge.ts. The vein is cv-band.ts's.)
 //   septa      the hex-edge bridges grow from both tracts and meet in the middle at su 0.29 (as today's reach does); the portal-central bridges creep from the tract to the vein; the spurs push in last;
 //              every band thickens from a strand to its full width, and a seeded low-frequency jitter keeps each front organic and the same every time
@@ -11,7 +11,7 @@ import { bandGeomInto, fibHash } from './from2d/lobule-paint.generated.js';
 import { septaBands } from './collagen-paint.ts';
 import type { CollagenShape } from './collagen-paint.ts';
 import { tauToByte } from './growth.ts';
-import { E_LO, K_IN, K_OUT, K_OUT_END, angleToByte, edgeToByte, tToByte } from './collagen-edge.ts';
+import { E_LO, K_IN, K_MID, angleToByte, edgeToByte, tToByte } from './collagen-edge.ts';
 
 /** The fronts' own meeting point of the hex-edge bridges, in septU (today's reach is 1 at su (1 - 0.3) / 2.4). */
 export const SEPTA_MEET = 0.29;
@@ -32,9 +32,8 @@ export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: numb
   for (const b of septaBands(G)) {
     bandGeomInto(g, b.A, b.B, b.o, b.o.path);
     const P = g.P, Wd = g.Wd, seed = b.o.seed;
-    // (the painter's bandHalf: Wd k / 2, the faint pass narrowing from k to kEnd over the first and last quarter of the band)
-    const ease = (i: number): number => { const t = Math.min(1, Math.min(i, g.n - i) / g.n * 4); return t * t * (3 - 2 * t); };
-    const hOut = (i: number): number => Wd[i]! * (K_OUT_END + (K_OUT - K_OUT_END) * ease(i)) / 2, hIn = (i: number): number => Wd[i]! * K_IN / 2;
+    // (the painter's bandHalf: Wd k / 2; the middle pass is the same width to its ends, so the edge needs no narrowing)
+    const hOut = (i: number): number => Wd[i]! * K_MID / 2, hIn = (i: number): number => Wd[i]! * K_IN / 2;
     for (let i = 0; i < g.n; i++) {
       const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = Math.max(hOut(i), hOut(i + 1)) + reach / sc;
       const x0 = Math.max(0, Math.floor(toPx(Math.min(ax, bx) - wmax))), x1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ax, bx) + wmax)));
@@ -45,7 +44,7 @@ export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: numb
         const t = clamp(((wx - ax) * dx + (wy - ay) * dy) / L2, 0, 1), ex = ax + t * dx - wx, ey = ay + t * dy - wy, d = Math.hypot(ex, ey);
         const w = Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t), half = 2.1 * w;   // (the painted outer edge, which the arrival times' thickening is measured against)
         const ho = hOut(i) + (hOut(i + 1) - hOut(i)) * t, hi = hIn(i) + (hIn(i + 1) - hIn(i)) * t;
-        const e = (ho - d) * sc;   // plate px inside the OUTER pass
+        const e = (ho - d) * sc;   // plate px inside the MIDDLE pass (the band's edge)
         if (e < E_LO - 1) continue;
         const k = y * n + x, fw = Math.max(1, (ho - hi) * sc), td = clamp(e / fw, 0, 1);
         if (e > bestE[k]!) { bestE[k] = e; out[4 * k + 2] = edgeToByte(e); }   // (the union of the bands: the outer edge that reaches furthest)

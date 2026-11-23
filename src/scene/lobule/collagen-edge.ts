@@ -1,8 +1,9 @@
 // The fibrosis bands' crisp, faded rope (Plan 47 + Plan 48, Mohammad 23 Nov 2026: "why is the fibrosis looking like a soft glow ... fibrosis should not be glowing", then "not just one color, not the variation roped we agreed on, not that faded and beautiful").
 // ROOT CAUSE of the glow (e1b0d34c made it the design): every septum and tract was drawn twice, a crisp core and a BLURRED COPY of itself (a cubic B-spline of mip 5, 32 plate px a texel, reaching 80 plate px past the painted edge): a blurred copy laid round
 // a shape is a glow by construction. Plan 47 deleted it; ROOT CAUSE of the flat look that followed (641cc1ea): coverage became one number inside the MIDDLE pass (0.89 flat, the outer tier gone) and the relief a 16 px rim. Plan 48: a band is a SHAPE with a one device
-// pixel edge computed from its DISTANCE to the painter's OUTER edge, and a coverage that FADES smoothly from a faint rim (nothing outside it) to the full strength at the core, the way C's three tiers did, with no tier:
-//   septa   the arrival times' texture (collagen-tau.ts) carries, per pixel: e (plate px, + inside) to the band's outer edge, square-root mapped, in B; t = e / (the fade's depth), in A; the edge's outward normal as one angle byte in G
+// pixel edge computed from its DISTANCE to the painter's edge, and a coverage that FADES smoothly from a strong edge to the full strength at the core, with no tier. Plan 48b (the glow was back: Plan 48 put the edge at the OUTER pass with a 0.12 rim, 120 device px outside the
+// hexagon on his iPhone, a soft cream ramp laid outward round a shape): the edge is the MIDDLE pass, the edge's coverage is the painter's middle tier (0.55), NOTHING lies outside it, and every fade is INSIDE the band:
+//   septa   the arrival times' texture (collagen-tau.ts) carries, per pixel: e (plate px, + inside) to the band's edge (the middle pass), square-root mapped, in B; t = e / (the fade's depth), in A; the edge's outward normal as one angle byte in G
 //   tracts  the disc is round about each hexagon corner, so its radius is computed in the shader from the corner (no texture): the front's radius now, TRACT_RT_PX x (0.8 + 0.9 tau), minus the pixel's; t = e / (TRACT_FADE x the front's radius)
 // the plate shader takes coverage = smoothstep(-a, a, e) (one device pixel, half each side) x coverageAt(t) (faint rim to full core), and the rope's relief from t (relief.ts ropeS). Pure numbers, no three: the arrival times (node) and the shader read the same ones.
 import { glslNum as F } from '../cel-glsl.ts';
@@ -16,14 +17,14 @@ export const K_OUT = 2.1, K_MID = 1.45, K_IN = 1;
 export const K_OUT_END = Math.min(K_OUT, K_MID);
 /** The edge distance is stored in a byte, square-root mapped so the step is finest at the edge: e = E_LO + E_SPAN (b / 255)^2. E_LO plate px outside (the one pixel of anti-aliasing and a texel of linear filtering) to E_LO + E_SPAN deep inside.
  *  The step at the edge (e about 0) is 0.14 plate px, under half a device pixel at every screen. */
-export const E_LO = -3, E_SPAN = 100;
+export const E_LO = -3, E_SPAN = 60;
 const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(a, x));
 export const edgeToByte = (e: number): number => Math.round(Math.sqrt(clamp((e - E_LO) / E_SPAN, 0, 1)) * 255);
 export const byteToEdge = (b: number): number => E_LO + E_SPAN * (b / 255) ** 2;
 /** The edge's outward normal as ONE byte: its angle (-PI .. PI) over 255 steps (1.4 degrees). Read with the nearest texel, never filtered (a filtered angle goes wrong across its seam). */
 export const angleToByte = (ang: number): number => Math.round(((ang + Math.PI) / (2 * Math.PI)) * 255);
 export const byteToAngle = (b: number): number => (b / 255) * 2 * Math.PI - Math.PI;
-/** The fade's depth t (0 at the outer edge, 1 at and past the core's edge) as a byte. */
+/** The fade's depth t (0 at the edge, 1 at and past the core's edge) as a byte. */
 export const tToByte = (t: number): number => Math.round(clamp(t, 0, 1) * 255);
 
 /** The tract's radius in lobule radii (geometry.ts rt) and in plate px. */
@@ -31,13 +32,13 @@ export const TRACT_RT = 0.1;
 export const TRACT_RT_PX = (TRACT_RT * EDGE_PLATE_PX) / (2 * EDGE_BOX);
 /** The painted collagen's strength where it is whole (the middle pass twice: 1 - (1 - 0.66)^2). */
 export const COLL_A = 0.89;
-/** The outer rim's coverage: C's first tier (the faint pass, 0.12): a defined edge and NOTHING outside it, so no halo, no glow. */
-export const COLL_A0 = 0.12;
-/** The fade from the rim (t 0) to the core (t 1): smooth, no tier, so the tissue shows through the outer part of every band. */
+/** The edge's coverage (Plan 48b): the painter's own middle tier (0.55), so the edge is a clear step of one device pixel and NOTHING lies outside it, no halo, no glow (Plan 48's 0.12 rim at the OUTER pass put a 63 device px soft ramp round the hexagon). */
+export const COLL_A0 = 0.55;
+/** The fade from the edge (t 0) to the core (t 1): smooth, no tier, INSIDE the band only, so the tissue shows through its inner part and the rope gives the variation. */
 export const fadeT = (t: number): number => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
-export const coverageAt = (t: number): number => COLL_A0 + (COLL_A - COLL_A0) * fadeT(t);
-/** A tract's fade is this share of its front radius (a hex septum's is (K_OUT - K_IN) / 2 = 0.55 of its width, 92 plate px). */
-export const TRACT_FADE = 0.35;
+export const coverageAt = (t: number): number => COLL_A0 + (COLL_A - COLL_A0) * fadeT(t);   // 0.55 + 0.34 smoothstep t
+/** A tract's fade (inside its front edge) is this share of its front radius (a hex septum's is (K_MID - K_IN) / 2 = 0.225 of its width, 38 plate px). */
+export const TRACT_FADE = 0.15;
 /** The striations' share of the colour (the painted fibres' lightness against their own surroundings, clamped, so no nucleus or fibre can ever make a dark worm: a nucleus darkens at most STRIA_MAX x STRIA_K). */
 export const STRIA_MAX = 0.06, STRIA_K = 0.6;
 
