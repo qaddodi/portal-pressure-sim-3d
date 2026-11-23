@@ -19,7 +19,7 @@ export interface Dock {
   /** The shortest it stands (the pill's row on a phone), px. */
   minH: number;
   /** Where it docks, for tests and the stylesheet's state. */
-  at: 'over-pill' | 'beside-pill' | 'above-pill';
+  at: 'over-pill' | 'beside-pill' | 'above-pill' | 'card-foot';
   /** The swatches stand as their short names (Raw, Clear, HA, Sys: 2D's fk-short) because the long ones would not fit beside the pill. */
   short: boolean;
 }
@@ -33,7 +33,7 @@ export const PHONE_UP_FOOT = D.phoneUp;
 export const TAB_FOOT = D.tabRow;
 export const TAB_UP_FOOT = D.tabUp;
 export const TAB_LEFT = { share: D.tabLeftShare, px: D.tabLeftPx } as const;
-const BESIDE_GAP = 8, CARD_GAP = 6;
+const BESIDE_GAP = 8, CARD_GAP = 6, CARD_FOOT_GAP = 4;
 /** The gap between the words' card's top edge and a key standing above it: the card's name tab (about 22 px) and a breath. */
 const ABOVE_CARD = 30;
 /** A key wrapped over two lines is about this much taller than on one (its rows share a line gap of .1 em). */
@@ -106,6 +106,14 @@ export function dockKey(i: DockIn): Dock {
     return { box: { x0: right - s.w, y0: bar.y - gap - s.h, x1: right, y1: bar.y - gap }, wrap, minH: 0, at: 'over-pill', short: false };
   };
   const one = make(natural.w, natural.h, GAP_ABOVE_PILL, null);
+  // The ramp key stands in the foot of the story card (docs/HUMANIZED-DESIGN.md, Mohammad 22 Nov; the capture review of 23 Nov: "the legend floats away from the card"): at the card's left padding, 4 px above its foot,
+  // where the card's own bottom padding holds it, so it never touches the words. A card whose padding is too thin for it, or a key wider than the card, keeps the place on top of the pill.
+  if (!side && i.words) {
+    const pad = cardPad(vp.w, vp.h), w = i.words;
+    if (natural.h + CARD_FOOT_GAP <= pad.y && natural.w <= w.w - 2 * pad.x) {
+      return { box: { x0: w.x + pad.x, y0: w.y + w.h - CARD_FOOT_GAP - natural.h, x1: w.x + pad.x + natural.w, y1: w.y + w.h - CARD_FOOT_GAP }, wrap: null, minH: 0, at: 'card-foot', short: false };
+    }
+  }
   if (side) {
     // a phone on its side: the card column (the words and, under them, the instrument) stands at the left whatever slide it is, so the key never reaches into it (landscape-phone.md)
     const colR = sideBox(vp).colR, room = Math.floor(right - colR - BESIDE_GAP);

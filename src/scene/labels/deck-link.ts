@@ -38,7 +38,7 @@ export function keyAtStop(stops: Stop[], i: number, beat = 0): string | null {
   const lens = keyOfSlide(v.slide, v.scene?.lens, v.words);
   if (!lens) return null;
   const buttons = !!v.slide?.controls?.compare?.opts.some((o) => o.how === 'lens');
-  return buttons || lensOfStop(stops, i - 1) !== lens ? lens : null;
+  return buttons || lens === 'heat' || lensOfStop(stops, i - 1) !== lens ? lens : null;   // (the heat lens's glow is not self-explaining: every heat slide names it, 23 Nov, TIPS candidacy 10)
 }
 /** The lens whose key is the first row of the slide's own data card (the stream lenses: key.ts keyPlace). The card keeps its key as long as it stands, so ask with the stop the card came from (keep.ts `from`). */
 export function cardKeyAt(stops: Stop[], i: number): string | null {

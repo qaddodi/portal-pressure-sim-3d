@@ -81,7 +81,8 @@ test('the key stands where it reads best and only where it is needed (Mohammad, 
       if (k && i > 0 && st.kind === 'slide' && stops[i - 1]!.kind === 'slide') {
         const prev = stops[i - 1] as { slide: Slide }, same = (prev.slide.scene?.lens ?? 'pressure') === (st.slide.scene?.lens ?? 'pressure');
         const buttons = !!st.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
-        if (same && !prev.slide.visual && !buttons) assert.fail(`${id}/${i}: the lens did not change, the key is not needed`);
+        const lens = st.slide.scene?.lens ?? 'pressure';   // (23 Nov, Mohammad: TIPS candidacy 10 names the heat lens too; the glow is not self-explaining, so every heat slide does)
+        if (same && !prev.slide.visual && !buttons && lens !== 'heat') assert.fail(`${id}/${i}: the lens did not change, the key is not needed`);
       }
     });
   }
