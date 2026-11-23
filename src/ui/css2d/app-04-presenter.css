@@ -582,9 +582,8 @@
   .pz-table table { font-size: var(--s-body); }
   .pz-table tr { display: grid; grid-template-columns: minmax(7.5rem, 1.8fr) repeat(var(--nc, 7), minmax(0, 1fr)) var(--asc-w, 0px); align-items: center; }
   .pz-table td[colspan="2"] { grid-column: span 2; }
-  .pz-table td.bp { font-size: .86em; }   /* ("114/68" then "(83)": the column is a seventh of the row, and at full size the slash broke "114" over "/68" over "(83)") */
   .pz-table thead th.num { padding-inline: 2px; font-size: 12px; letter-spacing: -.01em; }   /* (12 px: where a column is too narrow for the word the row's heads stand upright, below, presenter.js fitHeads) */
-  .pz .pz-table thead tr.th-up th.num { writing-mode: vertical-rl; text-orientation: sideways; rotate: 180deg; line-height: 1; padding: .4em 0; justify-self: center; text-align: start; }
+  .pz .pz-table thead tr.th-up th.num { writing-mode: vertical-rl; rotate: 180deg; line-height: 1; padding: .4em 0; justify-self: center; text-align: start; }
 
   .pz-table tbody th[scope="row"] { padding-right: 8px !important; }
   .pz-table thead { position: sticky; top: -16px; z-index: 2; }   /* (the card's padding: the heads stick to its top edge) */

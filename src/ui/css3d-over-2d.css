@@ -150,3 +150,11 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* A docked action card stands over the dock (--card-occ, Shell.tsx): the zoom pill rides above it by its own transform, as it does above a Tests sheet (--sheet-h); the note does the same in shell.css (23 Nov, Mohammad: the note covered the card's rows) */
 .zoom-pill { translate: 0 calc(-1 * (var(--sheet-h, 0px) + var(--card-occ, 0px))); }
+
+/* Capture review 86fc123e, 23 Nov 2026. The slide pill stands over the slide's 92% veil (a table, outline or quick-check slide): the veil comes later in the layer and washed it out. */
+.pz-bar { z-index: 1; }
+/* A phone table: the blood-pressure column (a seventh of the row) is a little smaller so "114/68" stays whole over "(83)"; the upright column heads turn sideways, never one upright letter a line. */
+@media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
+  .pz-table td.bp { font-size: .86em; }
+  .pz .pz-table thead tr.th-up th.num { text-orientation: sideways; }
+}
