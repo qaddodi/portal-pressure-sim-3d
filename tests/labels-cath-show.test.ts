@@ -156,3 +156,28 @@ test('the stack\'s order and leaders are the 2D planner\'s: the lower point\'s r
   // both orders put a leader on each reading, and the planner reports a cross it could not avoid
   assert.ok(p.d.every((d) => d.split('L').length >= 2));
 });
+
+test('EUS-PPG: the calculation stands between HV and PV, the upper point\'s tag above it and the lower one\'s below, whichever way they lie (23 Nov)', () => {
+  for (const [tip, ahead] of [[[600, 300], [640, 420]], [[600, 420], [640, 300]]] as const) {
+    const show = new CathShow();
+    show.solve({ ...base, cath: null, kinds: ['f', 'w', 'm'], tip, ahead, text, kickers: { f: 'HV', w: 'PV', h: 'EUS-PPG' } }); run(show, 800);
+    const by = Object.fromEntries(show.frame.pills.map((p) => [p.id, p]));
+    assert.ok(by.f && by.w && by.m, 'HV, PV and the calculation all stand');
+    const upper = tip[1] < ahead[1] ? by.f : by.w, lower = upper === by.f ? by.w : by.f;
+    assert.equal(upper.above, true); assert.equal(lower.above, false);
+    assert.ok(by.m.y > upper.y + upper.h - 0.01 && by.m.y + by.m.h < lower.y + 0.01, 'the calculation is between the two tags, not above either');
+    assert.deepEqual(by.m.to, [620, 360]);
+  }
+});
+
+test('a stack whose two points move apart (the camera turns) eases out instead of hanging its leaders in place', () => {
+  const show = new CathShow();
+  show.solve({ ...base, cath: 'result' }); run(show, 1500);
+  assert.ok(show.frame.sum && show.frame.sum.alpha > 0.99);
+  show.ride([610, 405], [640, 330]);   // the tip moved 10 px, the point ahead 10 px the other way: the average hides it
+  run(show, 400);
+  assert.equal(show.frame.sum, null, 'gone while the points disagree with its leaders');
+  show.ride([600, 400], [650, 330]);
+  run(show, 1500);
+  assert.ok((show.frame.sum as { alpha: number } | null)?.alpha! > 0.99, 'back once they agree');
+});

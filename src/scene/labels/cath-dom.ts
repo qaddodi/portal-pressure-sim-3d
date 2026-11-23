@@ -26,8 +26,8 @@ export interface CathDom { paint(f: CathFrame): void; destroy(): void }
 
 export function buildCath(parent: HTMLElement): CathDom {
   const C = LS.CATH;
-  const pills = { f: makeTag(parent, 'cl cl-pill'), w: makeTag(parent, 'cl cl-pill') };
-  pills.f.root.dataset.k = 'f'; pills.w.root.dataset.k = 'w';
+  const pills = { f: makeTag(parent, 'cl cl-pill'), w: makeTag(parent, 'cl cl-pill'), m: makeTag(parent, 'cl cl-pill') };
+  pills.f.root.dataset.k = 'f'; pills.w.root.dataset.k = 'w'; pills.m.root.dataset.k = 'h';
   const leads = { f: new TagLead(parent), w: new TagLead(parent) };
 
   // the stack
@@ -54,10 +54,18 @@ export function buildCath(parent: HTMLElement): CathDom {
     l.paint(seg, seg ? { x: d.to[0], y: d.to[1] } : null, d.alpha, d.reading.tone, snap);
   };
 
+  // the EUS-PPG's calculation stands between the two points it is taken from: words only, no leader, no dot
+  const paintMid = (d: PillDraw | undefined) => {
+    const c = pills.m;
+    if (!d) { if (c.root.hasAttribute('data-on')) { show(c, false); fade(c, 0); } return; }
+    show(c, true); words(c, d.reading, d.alpha); size(c, d.w, d.h); place(c, d.x, d.y + d.rise); fade(c, d.alpha);
+  };
+
   return {
     paint(f: CathFrame): void {
       paintPill(pills.f, leads.f, f.pills.find((p) => p.id === 'f'));
       paintPill(pills.w, leads.w, f.pills.find((p) => p.id === 'w'));
+      paintMid(f.pills.find((p) => p.id === 'm'));
       const s: SumDraw | null = f.sum;
       if (!s) { if (sumOn) { sumOn = false; sum.removeAttribute('data-on'); for (const c of [...rows, calc]) { show(c, false); fade(c, 0); } } return; }
       if (!sumOn) { sumOn = true; sum.setAttribute('data-on', ''); for (const c of [...rows, calc]) show(c, true); }
@@ -90,6 +98,6 @@ export function buildCath(parent: HTMLElement): CathDom {
       if (b !== braceOp) { braceOp = b; brace.style.opacity = b; }
       if (b !== leadsOp) { leadsOp = b; sleads.style.opacity = b; }
     },
-    destroy(): void { pills.f.root.remove(); pills.w.root.remove(); leads.f.destroy(); leads.w.destroy(); sum.remove(); },
+    destroy(): void { pills.f.root.remove(); pills.w.root.remove(); pills.m.root.remove(); leads.f.destroy(); leads.w.destroy(); sum.remove(); },
   };
 }

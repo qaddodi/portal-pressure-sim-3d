@@ -144,7 +144,7 @@ test('the catheter\'s readings (FHVP, WHVP, the HVPG stack) are tags with a lead
     judgeTree(parent, `cath ${cath}`);
   }
   const tagsMade: El[] = []; walk(parent, (e) => { if (e.classes.includes('cl')) tagsMade.push(e); });
-  assert.equal(tagsMade.length, 5, 'FHVP, WHVP, two stack rows and the HVPG');
+  assert.equal(tagsMade.length, 6, 'FHVP, WHVP, the EUS-PPG\'s calculation, two stack rows and the HVPG');
   for (const e of tagsMade) assert.ok(e.classes.includes('tg'), `${e.className} is a reading`);
   assert.equal(parent.kids.filter((k) => k.classes.includes('cl-lead')).length, 2, 'a leader for each reading that stands alone');
 });
