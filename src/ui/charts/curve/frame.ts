@@ -78,7 +78,7 @@ export function curveGeo(t: CurveTool, ser: Any | null, dots: Any[], goal: Goal 
   } else { const xs = P.curveXs(t).map((x: number) => x * ax.x); x0 = xs[0]; x1 = xs.at(-1)!; }
   const keyRead = false, kvW = 0;
   const keys0 = keyLs.length < 2 || keyLs.reduce((a: number, l: Any) => a + 22 + cw(l.name, f, 1) + 6 + cw(l.unit, f) + kvW, 0) + 2 * f <= w;
-  const sty = P.stylesOf(t), styW = sty ? sty.reduce((a: number, s: string) => a + 22 + 1.05 * cw(s, f, 1), 0) + f : 0, readW = ag ? cw(keyLs[0].name, f, 1) + 6 + cw(keyLs[0].unit, f) : 0;
+  const sty = P.stylesOf(t), styW = sty ? sty.reduce((a: number, s: string) => a + 22 + 1.05 * cw(s, f, 1) + f, 0) : 0, readW = ag ? cw(keyLs[0].name, f, 1) + 6 + cw(keyLs[0].unit, f) : 0;
   const styBelow = !!sty && readW + styW + 2 * f > w, styRows = styBelow ? 1 : 0;
   const altW = ag && alt ? ls.reduce((a: number, l: Any) => a + 22 + 1.05 * cw(l.name, f, 1), 0) + f * (ls.length - 1) : 0;
   const altBelow = ag && alt && (styBelow || readW + (sty ? styW + f : 0) + altW + 2 * f > w);
@@ -372,6 +372,13 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
   const label = `${ls.map((l: Any) => l.name).join(' and ')} against ${ax.name.toLowerCase()}, ${minusFixed(G.x0, ax.d)} to ${minusFixed(G.x1, ax.d)} ${ax.unit}`
     + (ok ? `; this case at ${minusFixed(goal!.x as number, ax.d)} ${ax.unit}: ${ls.map((l: Any, j: number) => (Number.isFinite(goal!.ys[j]) ? `${l.name} ${minusFixed(goal!.ys[j] as number, l.d)} ${l.unit}` : '')).filter(Boolean).join(', ')}` : '')
     + (dotPts.length ? `; also ${dotPts.map((d) => d.full).filter(Boolean).join(', ')}` : '');
+  // a cut-off a drawn line lies on (the closed-GRS fundal line is flat at 2.5 mm, exactly on the "Varix 2.5" cut-off, gastric varices 12): its dashes ran over the line's own dashes into one muddy band.
+  // The cut-off is drawn as a thin solid hairline under the line instead, so the line's dashes read over it.
+  cutShapes.forEach((q, i) => {
+    if (q.k !== 'line') return;
+    const under = lineShapes.some((l) => l.k === 'path' && l.pts.length >= 4 && l.pts.every((v, j) => j % 2 === 0 || Math.abs(v - q.y1) < 2));
+    if (under) cutShapes[i] = { ...q, pen: { ...q.pen, dash: undefined, w: Math.min(q.pen.w, 1) } };
+  });
   const shapes: Shape[] = [...panelShapes, ...zoneShapes, ...gridShapes, ...cutShapes, ...xCutShapes, ...legendShapes, ...(G.ag && !fits ? altShapes : []), ...axisShapes, ...stepShapes, ...atShapes, ...walkShapes, ...lineShapes, ...leadShapes, ...dotShapes, ...wordShapes];
   // the walks sit under the lines in 2D's order (walks, arrows, lines, leads, dots, names): walks above are pushed with arrows; keep that order
   return { frame: { w, h, shapes, label }, G, fits, crowded };

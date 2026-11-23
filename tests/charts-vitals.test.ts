@@ -128,3 +128,13 @@ test('registered and done: the gallery has its specimens and the plan\'s tool ki
   assert.ok(chartScore().done >= 1);
   eachLook((look) => { for (const sp of vitalsEntry.specimens) judge(sp.build(ctxOf(look, 360)), look, { onCard: false }); });
 });
+
+// Albumin 10 (23 Nov multi-size review): a healthy pressure (MAP 90) was printed in the arterial-line red on the monitor while the sentence beside it set the same 127/72 (90) in green. Red is the alarm alone.
+test('a pressure inside its cut-off is not drawn in red; past it, the alarm box is', () => {
+  const pal = paletteOf('dark' as never), ok = pal.tok('mon-ok');
+  const calm = vitalsFrame({ ids: ['hr', 'map', 'hb'], cells: cellsOf(['hr', 'map', 'hb'], { ...FP, map: 90, sbp: 127, dbp: 72 }), strip: null }, 360, pal);
+  const v = calm.shapes.find((s) => s.k === 'text' && s.key === 'v-map') as TextShape;
+  assert.deepEqual(v.color, ok, 'in the monitor\'s ok ink');
+  assert.notDeepEqual(v.color, pal.tok('mon-art'));
+  assert.notDeepEqual(v.color, pal.tok('mon-alarm'));
+});

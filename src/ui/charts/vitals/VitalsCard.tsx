@@ -35,10 +35,18 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
     const f = latest.frame, running = !!f?.running, parked = running && (f!.clock === 'disease' || f!.morphing);
     const hr = Math.min(220, Math.max(30, (m?.hr ?? NaN) > 20 ? m!.hr! : 70)), period = 60 / hr;
     let x1: number, times: number[];
-    if (parked && feed.beat.times.length) {
+    // (no beat has reached the feed yet: the strip lays beats of its own over the whole span at once, so a monitor that opens is never an empty black strip for the seconds the feed takes: albumin 10, 23 Nov review)
+    const cold = !Number.isFinite(feed.last) || !feed.beat.times.length;
+    if (cold || (parked && feed.beat.times.length)) {
       if (!synth.current) {
-        const live = headOf(feed.last, wall.current, now, false, 1) + LAG_S, last = feed.beat.times[feed.beat.times.length - 1]!;
-        synth.current = { w: beatWalk(live, Math.min(0.99, Math.max(0, (live - last) / period)), hr), times: feed.beat.times.slice(-40), at: now };
+        if (cold) {
+          const w = beatWalk(now / 1000 - SPAN_S, 0, hr), laid: number[] = [];
+          for (let t = 0; t < SPAN_S; t += 0.1) walkBeats(w, 0.1, hr, laid, null);
+          synth.current = { w, times: laid, at: now };
+        } else {
+          const live = headOf(feed.last, wall.current, now, false, 1) + LAG_S, last = feed.beat.times[feed.beat.times.length - 1]!;
+          synth.current = { w: beatWalk(live, Math.min(0.99, Math.max(0, (live - last) / period)), hr), times: feed.beat.times.slice(-40), at: now };
+        }
       }
       const s = synth.current, dt = Math.min(0.25, Math.max(0, (now - s.at) / 1000));
       s.at = now;
@@ -49,7 +57,7 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
       if (!Number.isFinite(feed.last)) return null;
       x1 = feed.headNow(f, wall.current, now); times = feed.beat.times;
     }
-    const x0 = Math.max(x1 - SPAN_S, feed.n ? feed.t[0]! : x1 - SPAN_S);
+    const x0 = Math.max(x1 - SPAN_S, feed.n && !cold ? feed.t[0]! : x1 - SPAN_S);
     if (!(x1 > x0 + 0.05) || !times.length) return null;
     const e = ekgSeries(times, x0, x1, period) as { x: number[]; v: number[] };
     return e.x.length > 1 ? { x: e.x.slice(), v: e.v.slice(), x1 } : null;

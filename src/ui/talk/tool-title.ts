@@ -34,7 +34,7 @@ const EXT: Record<string, { title: (t: T, s?: S) => string; short: (t: T) => str
   forest: { title: (t) => t?.title || 'The trials on one scale', short: (t) => t?.short || 'Trials' },
   reading: { title: (t, s) => t?.title || readingTitle(s?.procedure ?? t?.of), short: (t) => t?.short || 'Tracing' },
   criteria: { title: (t) => t?.title || 'Criteria', short: (t) => t?.title || 'Criteria' },
-  curve: { title: (t) => `${names(t).join(' and ')} by ${lc(axisMeta(t).name)}`, short: (t) => `By ${lc(axisMeta(t).name)}` },                             // ext-model.js
+  curve: { title: (t) => `${names(t).join(' and ')} by ${lc(axisMeta(t).name)}`, short: (t) => `${names(t).join(' and ')} by ${lc(axisMeta(t).name)}` },   // ext-model.js (2D's short form was "By <axis>", which named no reading: "By portal vein thrombus" read as a clipped title, 23 Nov review; a phone wraps the whole title)
   course: { title: (t) => courseOf(t).words.title, short: (t) => courseOf(t).words.short },
   plane: { title: (t) => planeTitle(toolPlane(t)), short: () => 'Two readings' },                                                                          // ext-panels.js
 };

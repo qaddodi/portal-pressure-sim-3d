@@ -76,7 +76,6 @@ const KNOWN_COLLISIONS: string[] = [
   'flowtime/meal-mid "9.5 mmHg" over "1.3 L/min"',
   'path/first-visit "Repeat LSM" over "Model or"',
   'path/first-visit "Repeat" over "Repeat LSM"',
-  'profile/clot "mmHg" over "22"',
   'saag/plane "Cirrhosis" over "Right heart failure"',
   'saag/plane "No portal hypertension" over "not modeled"',
   'small/four "HVPG" over "11.2"',

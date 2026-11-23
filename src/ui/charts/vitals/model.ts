@@ -104,7 +104,7 @@ export function vitalsFrame(spec: VitalsSpec, w: number, pal: Palette): Frame {
   const railOn = (hold && cells.some((c) => c.id === 'map')) || (hbRail && cells.some((c) => c.id === 'hb'));
   const L = vitalsLayout(Math.max(120, Math.round(w)), cells, railOn);
   const { pad, ew, eh, top, bot, y0, big } = L;
-  const bg = pal.tok('mon-bg'), text = pal.tok('mon-text'), bright = pal.tok('mon-bright'), alarm = pal.tok('mon-alarm'), grid = pal.tok('mon-grid'), ecg = pal.tok('mon-ecg'), art = pal.tok('mon-art');
+  const bg = pal.tok('mon-bg'), text = pal.tok('mon-text'), bright = pal.tok('mon-bright'), alarm = pal.tok('mon-alarm'), grid = pal.tok('mon-grid'), ecg = pal.tok('mon-ecg'), art = pal.tok('mon-ok');   // (the pressure's ink: the clinical arterial-line red said "worse" beside a healthy MAP of 90, and the sentence's green (albumin 10, 23 Nov review); red here is the alarm alone)
   const shapes: Shape[] = [];
   shapes.push({ k: 'rect', x: 0, y: 0, w: L.w, h: L.h, r: 12, fill: bg, key: 'monitor' });
   shapes.push({ k: 'rect', x: pad, y: Math.round(bot - 6), w: ew, h: 1, fill: grid, key: 'baseline' });

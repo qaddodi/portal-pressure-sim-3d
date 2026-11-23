@@ -10,6 +10,7 @@ import { courseWork, curveWork, goalOf } from '../src/ui/charts/curve/data.ts';
 import { AGAINST_TOOL, COURSE_TOOL, RELATION_TOOL, TIPS_TOOL, courseSeriesSpecimen, sweepStates } from '../src/ui/charts/curve/specimens.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 import type { TextShape } from '../src/ui/charts/scene.ts';
+import { measure } from '../src/ui/charts/measure.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const P: any = P0, C: any = C0;
@@ -179,4 +180,15 @@ test('a glide of the case\'s line moves that line and nothing else', () => {
   assert.ok(at(moved).x1 > at(out.frame).x1);
   assert.equal(moved.shapes.length, out.frame.shapes.length);
   assert.deepEqual(moved.shapes.filter((s) => s.k === 'text'), out.frame.shapes.filter((s) => s.k === 'text'));
+});
+
+// Gastric varices 12 (23 Nov multi-size review): the styles' key ("GRS open", "GRS closed") was measured one gap short, so "closed" ran past the chart's edge; and the closed fundal line, flat at the 2.5 mm cut-off, drew its dashes over the cut-off's dashes.
+test('the styles key stands inside the chart, and a cut-off a line lies on is a solid hairline under it', () => {
+  const t: Any = { kind: 'curve', x: 'hvpg', param: 'cirrhosis', from: 0.5, to: 1, step: 0.0625, lines: ['gv'], reading: 'Varix', cuts: 'ticks', styles: ['GRS open', 'GRS closed'], against: [{ label: 'Fundal', params: { occluded: { C5: true } }, own: 'Fundal', dash: true }] };
+  const ser = P.curveSeries(t, sweepStates(t, (x, h) => ({ gv: h ? 2.5 : 3 + (x - 0.5) * 14 })));
+  for (const w of [300, 360, 420]) {
+    const c = ctxOf('light' as never, w), out = curveFrame({ tool: t, ser, goal: null as never }, c);
+    assert.ok(out.frame.shapes.some((s) => s.k === 'text' && s.s === 'GRS closed'), 'the key is drawn');
+    for (const s of out.frame.shapes) if (s.k === 'text' && s.s === 'GRS closed') assert.ok(s.x + measure(s.s, s.size, s.weight ?? 500) <= out.frame.w + 0.5, `"GRS closed" ends inside the ${w} px chart`);
+  }
 });

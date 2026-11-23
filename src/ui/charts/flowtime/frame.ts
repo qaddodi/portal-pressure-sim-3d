@@ -103,7 +103,10 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     shapes.push({ k: 'circle', cx: hx, cy: hy, r: Math.max(4, f * 0.42), fill: dot.fill, pen: { color: dot.stroke!, w: dot.width! } });
     // near the start the first value is already there: the head's own value waits
     const off = m - ax.from < 0.36 * (ax.end - ax.from), vl = lk('ft.v', { off: false }, col);
-    shapes.push({ k: 'text', x: hx + (left ? -0.6 : 0.6) * f, y: hy - 0.7 * f, s: txt, size: vl.size!, weight: vl.weight, color: vl.fill!, anchor: left ? 'end' : 'start', halo: vl.halo, alpha: off ? 0 : 1 });
+    // a head's value that would stand on a first value (the plot is short on a phone: "12.9 mmHg" ran into "11.0 mmHg", meso-rex 9, 23 Nov review) goes under its head, else over it, whichever is clear
+    const px0 = left ? hx - 0.6 * f - tw : hx + 0.6 * f, px1 = px0 + tw, onStart = (y: number) => plan.starts.some(({ box: q }) => px0 < q[1] && q[0] < px1 && y - 0.85 * f < q[3] && q[2] < y + 0.25 * f);
+    const base = hy - 0.7 * f, ty = !onStart(base) ? base : [hy + 1.5 * f, hy - 2.1 * f].find((y) => y < B - 0.1 * f && y - 0.85 * f > top && !onStart(y)) ?? base;
+    shapes.push({ k: 'text', x: hx + (left ? -0.6 : 0.6) * f, y: ty, s: txt, size: vl.size!, weight: vl.weight, color: vl.fill!, anchor: left ? 'end' : 'start', halo: vl.halo, alpha: off ? 0 : 1 });
   });
   // two heads close together: the lower band's value goes under its head, clear of the other
   const a = heads[0]!.hy - 0.7 * f, b = heads[1]!.hy - 0.7 * f;
