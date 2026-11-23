@@ -10,7 +10,7 @@ export const LAB_R = 5.5;
 /** The lab's flow speed default (px/s): the panel's Flow speed is a multiplier of the blood's own display speed, 1 at this value. */
 export const LAB_SPEED = 44;
 
-export type Group = 'Particles' | 'Colour' | 'Flow' | 'Lesions';
+export type Group = 'Particles' | 'Lane streaks' | 'Colour' | 'Flow' | 'Lesions';
 export type SpecRow = readonly [key: string, label: string, min: number, max: number, step: number, def: number, group: Group];
 
 /** The lab's sliders that mean something on the real vessels (its vessel radius, outline, chevrons, tilt, zoom, scenario lesions and background are the app's own: see LAB_ONLY). Defaults are Mohammad's own pick of 20 Nov, 15:53 UTC (the look he chose for the app). */
@@ -24,6 +24,8 @@ export const DUST_SPEC: readonly SpecRow[] = [
   ['steps', 'Tone steps (0 = smooth)', 0, 8, 1, 0, 'Colour'], ['warm', 'Warm tint when reversed', 0, 1, 0.05, 0.35, 'Colour'],
   ['speed', 'Flow speed (lab px/s; 44 = the blood\'s own)', 0, 160, 2, 44, 'Flow'], ['uMax', 'Most speed-up', 1, 8, 0.5, 4.5, 'Flow'], ['uMin', 'Least speed (bulbs)', 0.05, 1, 0.05, 0.3, 'Flow'],
   ['flat', 'Centre faster than walls', 0, 1, 0.05, 0.5, 'Flow'], ['radExp', 'Crowd toward the centre', 0.25, 1.4, 0.05, 0.5, 'Flow'], ['rhoMax', 'Stay off the wall', 0.3, 0.95, 0.01, 0.8, 'Flow'],
+  ['lanes', 'Lanes across the stream', 8, 48, 1, 26, 'Lane streaks'], ['cellLen', 'Cell length (root radii; a streak stays inside its cell)', 2.4, 8, 0.1, 3.2, 'Lane streaks'],
+  ['fill', 'Share of cells holding a streak', 0.1, 1, 0.05, 0.8, 'Lane streaks'], ['trains', 'Streak trains a lane (1 or 2: 2 is the fuller look)', 1, 2, 1, 2, 'Lane streaks'], ['laneJit', 'Lane jitter', 0, 1, 0.05, 0.4, 'Lane streaks'],
   ['turb', 'Turbulence', 0, 2, 0.05, 1, 'Lesions'], ['swirl', 'Swirl strength', 0, 3, 0.1, 1.6, 'Lesions'], ['pitch', 'Swirl pitch (lab px)', 20, 120, 1, 60, 'Lesions'], ['wobble', 'Wobble', 0, 1.5, 0.05, 0.8, 'Lesions'],
   ['turbFreq', 'Wobble frequency', 0.4, 3, 0.1, 1, 'Lesions'], ['turbSpeed', 'Wobble speed', 0, 3, 0.1, 1, 'Lesions'], ['rhoJit', 'Sideways jitter', 0, 2, 0.05, 1, 'Lesions'], ['shrink', 'Smaller in narrowings', 0, 1, 0.05, 0.5, 'Lesions'],
 ];
@@ -31,6 +33,7 @@ export const DUST_SELECTS: readonly (readonly [key: string, label: string, optio
   ['colorBy', 'Colour by', [['random', 'Random'], ['speed', 'Local speed'], ['depth', 'Depth'], ['radius', 'Distance from wall'], ['source', 'Source vessel']], 'random', 'Colour'],
   ['partColor', 'Particle colour', [['auto', 'From the vessel'], ['custom', 'Custom']], 'auto', 'Colour'],
   ['vel', 'Speed follows', [['local', 'Local velocity'], ['flat', 'Flow only']], 'local', 'Flow'],
+  ['dustLook', 'Look (23 Nov rebuild)', [['b', 'B: lane streaks (new)'], ['a', 'A: lattice scan (before)']], 'b', 'Particles'],
 ];
 export const DUST_COLORS: readonly (readonly [key: string, label: string, def: string, group: Group])[] = [['partHex', 'Custom particle colour', '#9ec4ff', 'Colour']];
 /** The extra, app-only control: the shader's samples per pixel (0: by the device, see DUST_BUDGET). */
@@ -61,6 +64,7 @@ export const DUST_PRESETS: readonly (readonly [name: string, over: DustSettings]
   ['Cel dots', { density: 700, size: 2.4, soft: 0.05, opacity: 1, opVar: 0, steps: 4, hueSpread: 30, lightSpread: 0.32, depthDim: 0.3, stretch: 0 }],
   ['Soft streaks', { density: 1600, size: 1.4, stretch: 0.6, lenK: 0.12, soft: 0.8, opacity: 0.7 }],
   ['Turbulent storm', { turb: 1.6, swirl: 2.6, wobble: 1.2, rhoJit: 1.6, density: 2400, stretch: 0.5, size: 1.4 }],
+  ['A: the lattice scan, as before 23 Nov', { dustLook: 'a' }],
 ];
 
 export function clampKey(key: string, v: unknown, cur: number | string | undefined): number | string | undefined {
@@ -101,6 +105,8 @@ export function dustText(s: DustSettings): string {
 
 /** The shader's loop bounds (dust-glsl.ts): classes and cells a side. */
 export const DUST_KMAX = 4, DUST_NMAX = 9;
+/** The lane streaks' (look B) loop bounds: lanes across the root's section, and lanes one pixel looks at (a wider reach, a grazing view, takes every n-th). */
+export const DUST_LANES_MAX = 48, DUST_LANE_LOOK = 12;
 /** The density at which every cell of the grid holds a particle: the grid is as fine as the budget allows (a streak is too long for the budget to hold the lab's 1400 of them whole), and Density thins it from there, by a threshold per particle. */
 export const DUST_DENSITY_FULL = 2400;
 /** The longest streak the scan can find, in lumen radii. */
@@ -125,7 +131,7 @@ export const dustBand = (k: number, K: number, radExp: number, rhoMax: number): 
 export interface DustQuality { phone: boolean; devicePixels: number }
 
 /** The uniform values, in DUST_UNIFORMS order, for these (eased) numbers: `s` the numeric settings, `w` the eased weights of the selects (colour mode, custom colour, local velocity), `rgb` the custom colour. */
-export interface DustWeights { random: number; speed: number; depth: number; radius: number; source: number; custom: number; local: number }
+export interface DustWeights { random: number; speed: number; depth: number; radius: number; source: number; custom: number; local: number; lookB?: number }
 export const DUST_UNIFORMS = [
   'size', 'sizeVar', 'soft', 'opacity',
   'opVar', 'stretch', 'lenK', 'feather',
@@ -139,6 +145,8 @@ export const DUST_UNIFORMS = [
   'wRandom', 'wSpeed', 'wDepth', 'wRadius',
   'wSource', 'custom', 'nCls', 'win',
   'cr', 'cg', 'cb', 'lenCap',
+  'wLookB', 'lanes', 'laneJit', 'cellLen',
+  'fill', 'trains',
 ] as const;
 export type DustUniform = (typeof DUST_UNIFORMS)[number];
 export const DUST_VEC4 = Math.ceil(DUST_UNIFORMS.length / 4);
@@ -176,6 +184,7 @@ export function dustDerive(s: Readonly<Record<string, number>>, w: DustWeights, 
     wRandom: w.random, wSpeed: w.speed, wDepth: w.depth, wRadius: w.radius,
     wSource: w.source, custom: w.custom, nCls: K, win,
     cr: rgb[0]!, cg: rgb[1]!, cb: rgb[2]!, lenCap: lenMax,
+    wLookB: w.lookB ?? 1, lanes: Math.round(s.lanes ?? 26), laneJit: s.laneJit ?? 0.4, cellLen: s.cellLen ?? 3.2, fill: s.fill ?? 0.8, trains: Math.round(s.trains ?? 2),
   };
   return v;
 }

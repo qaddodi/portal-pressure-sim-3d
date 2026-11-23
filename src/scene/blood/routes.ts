@@ -25,9 +25,9 @@ import { DUST_UNIFORMS } from './dust-spec.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { flowLenAt } from '../circuit/mates.ts';
 
-export const SEG_MAX = 6;
+export const SEG_MAX = 8;
 /** A segment narrower than this (of the -1 .. 1 lane span) is dropped and its neighbours take its lanes. */
-export const SEG_MIN = 0.02;
+export const SEG_MIN = 0.006;
 /** A root's arc runs in a vessel at B (the root's speed over the vessel's); past these bounds the lattice would crowd or thin too far, so that share of the vessel carries its own particles instead. */
 export const B_MIN = 1 / 8, B_MAX = 8;
 /** The new layout fades in over this long when its structure changes (seconds). */

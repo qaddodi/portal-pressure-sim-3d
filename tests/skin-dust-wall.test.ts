@@ -68,7 +68,7 @@ function armGates(m: Made, v: number, n: V3, rad: number[]): number {
 test('the wall rule is written once and the skin applies it by the pixel\'s own distance to the outline, after the dust is held by the final alpha', () => {
   assert.equal((DUST_GLSL.match(/smoothstep\(0\.9, 0\.96/g) ?? []).length, 1, 'the 0.90 to 0.96 ramp stands in dWall only');
   assert.match(DUST_GLSL, /float dWall\(float e\) \{ return 1\.0 - smoothstep\(0\.9, 0\.96, abs\(e\)\); \}/);
-  assert.equal((DUST_GLSL.match(/\* dWall\(/g) ?? []).length, 2, 'the tube\'s dust and the skin\'s two-frame blend both end in dWall');
+  assert.equal((DUST_GLSL.match(/\* dWall\(/g) ?? []).length, 4, 'the tube\'s dust and the skin\'s two-frame blend, of both looks, end in dWall');
   assert.match(DUST_GLSL, /keepT \* dWall\(F\.across\)/);
   assert.equal(DUST_WALL_FROM, 0.9); assert.equal(DUST_WALL_TO, 0.96);
   const fs = SKIN_FS.slice(SKIN_FS.indexOf('void main()'));

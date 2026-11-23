@@ -242,7 +242,7 @@ test('the dust frame is finite and unit for every heading, the degenerate ones i
   assert.doesNotMatch(DUST_GLSL, /vec3 t = normalize\(T\)/, 'no unguarded normalize of the heading');
   assert.match(DUST_GLSL, /if \(tl < 1e-6\) return vec4\(1\.0, 0\.0, 0\.0, 1\.0\)/);
   assert.match(DUST_GLSL, /\/ \(g\.c1 < 0\.0 \? min\(g\.c1, -1e-4\) : max\(g\.c1, 1e-4\)\)/, 'a strip of no width never divides 0 by 0');
-  assert.equal((DUST_GLSL.match(/return clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 2, 'tube and skin dust stay inside 0 .. 1 premultiplied');
+  assert.equal((DUST_GLSL.match(/return clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 4, 'tube and skin dust, of both looks, stay inside 0 .. 1 premultiplied');
   assert.match(DUST_GLSL, /if \(!dNear\(Fa, g, ma\.x, P\) && \(fb\.x < 0\.0 \|\| !dNear\(Fb, gb, fb\.y, P\)\)\) continue;/, 'the skin culls a particle out of reach in both frames');
 });
 

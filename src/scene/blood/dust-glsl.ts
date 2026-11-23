@@ -14,7 +14,7 @@
 //   the skin       a junction skin sees each particle in its two heaviest arms' frames and draws it at the BLEND of the two places by the pixel's weights (dustSkin): a streak bends through the fork, never two ghosts
 //   cost           K classes x (2N + 1) cells for each lane segment the pixel can see (one away from a dividing line, two on it); a fading layout (routes.ts FADE_S) draws both for that while. Runtime numbers, no recompile.
 import { STREAK } from './streak-glsl.ts';
-import { DUST_KMAX, DUST_NMAX, DUST_UNIFORMS, DUST_VEC4, LAB_R } from './dust-spec.ts';
+import { DUST_KMAX, DUST_LANES_MAX, DUST_LANE_LOOK, DUST_NMAX, DUST_UNIFORMS, DUST_VEC4, LAB_R } from './dust-spec.ts';
 import { KEEP_ROW, SEG_MAX } from './routes.ts';
 
 const F = (x: number): string => { const r = Number(x.toPrecision(6)); return Number.isInteger(r) ? r.toFixed(1) : String(r); };
@@ -242,7 +242,7 @@ vec4 dSafe(vec4 v) { return dot(v, v) < 64.0 ? v : vec4(0.0); }
 float dWall(float e) { return 1.0 - smoothstep(${F(DUST_WALL_FROM)}, ${F(DUST_WALL_TO)}, abs(e)); }
 float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), ${KEEP_ROW}), 0).x; }
 bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
-vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
+vec4 dustTubeA(DFrame F, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F.edge)) return vec4(0.0);
   float keepT = dKeep(F.edge);
   if (keepT <= 0.001) return vec4(0.0);
@@ -299,7 +299,7 @@ DMark dMix(DMark a, DMark b, float t) {
 }
 // THE SKIN: a junction's pixel seen in its two heaviest arms' frames (F0, F1; w1 the share of the second). Each particle the first arm can see is drawn at the BLEND of its places in the two frames, by the share of each
 // that carries it, and only as much as the arms that carry it weigh here (a particle bound for the other branch fades as the pixel nears this one). Then the particles only the second arm carries.
-vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
+vec4 dustSkinA(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F0.edge)) return vec4(0.0);
   if (!dEdgeOk(F1.edge)) w1 = 0.0;
   float keepS = mix(dKeep(F0.edge), w1 > 0.0 ? dKeep(F1.edge) : dKeep(F0.edge), w1);
@@ -344,6 +344,164 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
     }
   }
   return clamp(dSafe(acc), 0.0, 1.0) * keepS * dWall(mix(F0.across, F1.across, w1));
+}
+// =====================================================================================================================================================================================================================
+// LOOK B, THE LANE STREAKS (Mohammad, 23 Nov: "rebuild the dust/streak"; the look A above is the lattice scan it replaces, kept switchable under ?dust). The same particles, the same route table, section frame, strip map, swirl,
+// wobble, tones and wall rule (dMember, dPlace, dDraw, dWall are shared), found a different way. A pixel no longer scans a lattice of cells: the root's section is D_lanes LANES, and a lane is a one-dimensional train of streaks
+// along the root's stream, up to D_trains (two) streaks trains, ONE streak at most in each cell of D_cellLen root radii, wholly inside its cell (its length is cut to what its cell holds in this vessel: a cell shortens in a slow, thin or fast-flowing branch, so the
+// streak shortens with it, smoothly, and never overlaps its neighbour). So the pixel looks at the cell that holds it in each lane it can reach: a handful of candidates a segment, where the scan looked at K x (2N + 1) = 36.
+//   the lane      its centre across the root's section (a hash jitters it by D_laneJit of its width), its speed the lab's flat profile at that centre, its phase a hash: all from (root, lane), nothing stored
+//   the cell      u = (se - flow x speed) / Pf + phase, Pf the cell's length on the root's stream (D_cellLen x the root's radius); its streak's hashes are (cell, lane, root); D_fill x density of the cells hold one, thinned by a threshold
+//                 so a density change fades single streaks in and out (nothing pops)
+//   the reach     the lanes that can touch the pixel (dLaneWinB: the section seen at a slant shows more of it); a view wider than DUST_LANE_LOOK lanes takes every n-th
+// =====================================================================================================================================================================================================================
+// the lanes (vessel units, -1 .. 1) a pixel can reach: the section's width seen at a slant, plus a streak's own thickness
+vec2 dLaneWinB(DFrame F) {
+  float rm = max(D_rhoMax, 0.05), mg = 0.16;
+  if (abs(F.cS.x) < 0.3) return vec2(-1.0, 1.0);
+  float a = (F.across - abs(F.cS.y) * rm - mg) / F.cS.x / rm, b = (F.across + abs(F.cS.y) * rm + mg) / F.cS.x / rm;
+  return vec2(min(a, b), max(a, b));
+}
+// the streak of lane li, in the cell of that lane which holds the pixel's place se on the root's stream (cf: where in its cell the streak is centred, 0 .. 1)
+void dLanePart(DSeg g, float li, float tr, float nL, float Pf, float se, float flowFig, out DPart P, out float cf) {
+  float rk = fract(g.root * 0.6180339) * 50.0, rm = max(D_rhoMax, 0.05);
+  float lid = li + 977.0 * tr;   // (a lane carries up to two trains of streaks, each its own phase and hashes, on the same centre)
+  float lj = dHash(vec2(li * 1.37 + 0.5, rk + 3.1)), ph = dHash(vec2(lid * 2.17 + 7.7, rk + 11.0));
+  float cy = (li + 0.5 + (lj - 0.5) * D_laneJit) / nL * 2.0 - 1.0;   // the lane's centre across the root's section (-1 .. 1)
+  float rho = abs(cy) * rm;
+  float prof = 1.0 + D_flat * (1.0 - 2.0 * rho * rho);                 // (the lab's flat profile: faster in the middle)
+  float jj = floor((se - flowFig * prof * D_flowK) / Pf + ph);
+  vec2 sd = vec2(mod(jj + lid * 131.0, 4093.0) + 0.5, lid * 7.13 + rk);
+  P.alive = clamp((D_densK * D_fill - dHash(sd)) * 12.0, 0.0, 1.0);    // (a threshold: a density change fades single streaks in and out)
+  P.h1 = dHash(sd + vec2(17.1, 3.7)); P.h2 = dHash(sd + vec2(5.3, 29.9)); P.h3 = dHash(sd + vec2(41.3, 11.1)); P.h4 = dHash(sd + vec2(23.7, 53.9));
+  P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
+  P.rho = rho; P.yl = cy;
+  P.zr = (2.0 * P.h2 - 1.0) * sqrt(max(rm * rm - rho * rho, 0.0));    // (its depth in the chord at that lane)
+  cf = 0.5 + (P.h1 - 0.5) * 0.4;
+  P.se = (jj - ph + cf) * Pf + flowFig * prof * D_flowK;
+  P.prof = prof; P.root = g.root;
+}
+// half of the room its cell leaves it in frame F (lumen radii): the streak's length never exceeds twice this
+float dCellExt(DFrame F, DSeg g, float cf) {
+  float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+  return min(cf, 1.0 - cf) * max(D_cellLen * g.rLat * F.U, 1e-4) / (abs(Bs) * max(F.vRc, 1e-5));
+}
+// the lanes of the root that a segment carries and the pixel can reach: first index, last index and the stride (at most DUST_LANE_LOOK of them)
+ivec3 dLaneSpan(DSeg g, vec2 win, float nL) {
+  float c1 = g.c1 < 0.0 ? min(g.c1, -1e-4) : max(g.c1, 1e-4);
+  float ya = max(win.x, g.y0 - 0.05), yb = min(win.y, g.y1 + 0.05);
+  if (yb < ya) return ivec3(0, -1, 1);
+  float ra = g.c0 + c1 * ya, rb = g.c0 + c1 * yb;
+  float lo = (min(ra, rb) + 1.0) * 0.5 * nL - 0.5 - 0.5 * D_laneJit - 1.0, hi = (max(ra, rb) + 1.0) * 0.5 * nL - 0.5 + 0.5 * D_laneJit + 1.0;
+  int i0 = int(max(floor(lo), 0.0)), i1 = int(min(ceil(hi), nL - 1.0));
+  int cnt = i1 - i0 + 1;
+  return ivec3(i0, i1, cnt > ${DUST_LANE_LOOK} ? 1 + (cnt - 1) / ${DUST_LANE_LOOK} : 1);
+}
+vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
+  if (!dEdgeOk(F.edge)) return vec4(0.0);
+  float keepT = dKeep(F.edge);
+  if (keepT <= 0.001) return vec4(0.0);
+  vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
+  vec4 hd = texelFetch(routeTex, ivec2(int(F.edge), 0), 0);
+  vec2 win = dLaneWinB(F);
+  float nL = clamp(floor(D_lanes + 0.5), 4.0, ${DUST_LANES_MAX}.0);
+  vec4 acc = vec4(0.0);
+  for (int set = 0; set < 2; set++) {
+    float wSet = set == 0 ? hd.y : 1.0 - hd.y;
+    int nSeg = min(int((set == 0 ? hd.x : hd.z) + 0.5), ${SEG_MAX});
+    if (wSet < 0.002) continue;
+    for (int i = 0; i < nSeg; i++) {
+      DSeg g = dSeg(F.edge, 1 + 2 * i + set * ${2 * SEG_MAX});
+      if (g.y1 < win.x || g.y0 > win.y) continue;
+      float Pf = max(D_cellLen * g.rLat * F.U, 1e-4), flowFig = dFlow(g.root);
+      float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+      float se = g.A + Bs * F.a;
+      ivec3 sp = dLaneSpan(g, win, nL);
+      for (int q = 0; q < ${DUST_LANE_LOOK}; q++) {
+        int ln = sp.x + q * sp.z;
+        if (ln > sp.y) break;
+        for (int tr = 0; tr < 2; tr++) {
+          if (tr == 1 && D_trains < 1.5) break;
+          DPart P; float cf;
+          dLanePart(g, float(ln), float(tr), nL, Pf, se, flowFig, P, cf);
+          if (P.alive <= 0.0) continue;
+          vec2 mb = dMember(g, P.yl);
+          if (mb.y <= 0.0 || !dNear(F, g, mb.x, P)) continue;
+          DMark M = dPlace(F, g, mb.x, P);
+          M.len = min(M.len, max(2.0 * dCellExt(F, g, cf), M.dia));
+          vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
+          acc = c + acc * (1.0 - c.a);
+        }
+      }
+    }
+  }
+  return clamp(dSafe(acc), 0.0, 1.0) * keepT * dWall(F.across);
+}
+vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
+  if (!dEdgeOk(F0.edge)) return vec4(0.0);
+  if (!dEdgeOk(F1.edge)) w1 = 0.0;
+  float keepS = mix(dKeep(F0.edge), w1 > 0.0 ? dKeep(F1.edge) : dKeep(F0.edge), w1);
+  if (keepS <= 0.001) return vec4(0.0);
+  vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
+  float nL = clamp(floor(D_lanes + 0.5), 4.0, ${DUST_LANES_MAX}.0);
+  vec4 acc = vec4(0.0);
+  for (int arm = 0; arm < 2; arm++) {
+    DFrame Fa = F0, Fb = F1;
+    if (arm == 1) { Fa = F1; Fb = F0; }
+    float wa = arm == 0 ? 1.0 - w1 : w1, wb = 1.0 - wa;
+    if (wa < 0.004 && arm == 1) break;
+    vec4 hd = texelFetch(routeTex, ivec2(int(Fa.edge), 0), 0);
+    int nSeg = min(int(hd.x + 0.5), ${SEG_MAX});
+    vec2 win = dLaneWinB(Fa);
+    for (int i = 0; i < nSeg; i++) {
+      DSeg g = dSeg(Fa.edge, 1 + 2 * i);
+      float Pf = max(D_cellLen * g.rLat * Fa.U, 1e-4), flowFig = dFlow(g.root);
+      float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+      float se = g.A + Bs * Fa.a;
+      ivec3 sp = dLaneSpan(g, win, nL);
+      for (int q = 0; q < ${DUST_LANE_LOOK}; q++) {
+        int ln = sp.x + q * sp.z;
+        if (ln > sp.y) break;
+        for (int tr = 0; tr < 2; tr++) {
+          if (tr == 1 && D_trains < 1.5) break;
+          DPart P; float cf;
+          dLanePart(g, float(ln), float(tr), nL, Pf, se, flowFig, P, cf);
+          if (P.alive <= 0.0) continue;
+          vec2 ma = dMember(g, P.yl);
+          if (ma.y <= 0.0) continue;
+          vec3 fb = wb > 0.004 ? dFind(Fb.edge, g.root, P.yl) : vec3(-1.0, 0.0, 0.0);
+          if (arm == 1 && fb.x >= 0.0) continue;   // (the first arm drew it)
+          DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
+          if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;
+          DMark M = dPlace(Fa, g, ma.x, P);
+          M.len = min(M.len, max(2.0 * dCellExt(Fa, g, cf), M.dia));
+          float sa = wa * ma.y, sb = 0.0;
+          if (fb.x >= 0.0) {
+            sb = wb * fb.z;
+            DMark Mb = dPlace(Fb, gb, fb.y, P);
+            Mb.len = min(Mb.len, max(2.0 * dCellExt(Fb, gb, cf), Mb.dia));
+            M = dMix(M, Mb, sb / max(sa + sb, 1e-4));
+          }
+          vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);
+          acc = c + acc * (1.0 - c.a);
+        }
+      }
+    }
+  }
+  return clamp(dSafe(acc), 0.0, 1.0) * keepS * dWall(mix(F0.across, F1.across, w1));
+}
+// THE LOOK IS A WEIGHT (the ?dust panel's Look, eased like every setting): both looks are drawn only while the weight is between them, so switching crossfades and the settled look costs one scan
+vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
+  float wB = clamp(D_wLookB, 0.0, 1.0);
+  vec4 a = wB < 0.999 ? dustTubeA(F, lit, ink, rev) : vec4(0.0);
+  vec4 b = wB > 0.001 ? dustTubeB(F, lit, ink, rev) : vec4(0.0);
+  return a * (1.0 - wB) + b * wB;
+}
+vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
+  float wB = clamp(D_wLookB, 0.0, 1.0);
+  vec4 a = wB < 0.999 ? dustSkinA(F0, F1, w1, lit, ink, rev) : vec4(0.0);
+  vec4 b = wB > 0.001 ? dustSkinB(F0, F1, w1, lit, ink, rev) : vec4(0.0);
+  return a * (1.0 - wB) + b * wB;
 }
 `;
 /** The Anatomy's: the root's stream distance is texel w of the streams' texture (blood/streams.ts). */

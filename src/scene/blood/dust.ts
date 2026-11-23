@@ -14,7 +14,7 @@ export class DustTuner {
   readonly uniform: { value: Float32Array } = { value: new Float32Array(DUST_VEC4 * 4) };
   private tgt: DustSettings = dustDefaults();
   private cur: Record<string, number> = {};
-  private w: DustWeights = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1 };
+  private w: DustWeights = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1, lookB: 1 };
   private rgb: [number, number, number] = [0.62, 0.77, 1];
   private phone = false;
   private devicePixels = 4.5e6;
@@ -51,7 +51,7 @@ export class DustTuner {
 
   private weightsOf(): DustWeights {
     const mode = String(this.tgt.colorBy);
-    return { random: mode === 'random' ? 1 : 0, speed: mode === 'speed' ? 1 : 0, depth: mode === 'depth' ? 1 : 0, radius: mode === 'radius' ? 1 : 0, source: mode === 'source' ? 1 : 0, custom: this.tgt.partColor === 'custom' ? 1 : 0, local: this.tgt.vel === 'flat' ? 0 : 1 };
+    return { random: mode === 'random' ? 1 : 0, speed: mode === 'speed' ? 1 : 0, depth: mode === 'depth' ? 1 : 0, radius: mode === 'radius' ? 1 : 0, source: mode === 'source' ? 1 : 0, custom: this.tgt.partColor === 'custom' ? 1 : 0, local: this.tgt.vel === 'flat' ? 0 : 1, lookB: this.tgt.dustLook === 'a' ? 0 : 1 };
   }
 
   /** Eases the values toward the targets by `dtMs`. Returns true while anything is still moving (the scene keeps asking for frames). */
@@ -70,7 +70,7 @@ export class DustTuner {
       this.cur[key] = go(this.cur[key]!, this.tgt[key] as number, r[3] - r[2]);
     }
     const want = this.weightsOf(), w = this.w as unknown as Record<string, number>;
-    for (const key of [...MODES, 'custom', 'local']) w[key] = go(w[key]!, (want as unknown as Record<string, number>)[key]!, 1);
+    for (const key of [...MODES, 'custom', 'local', 'lookB']) w[key] = go(w[key]!, (want as unknown as Record<string, number>)[key]!, 1);
     const rgb = hexRgb(String(this.tgt.partHex));
     for (let i = 0; i < 3; i++) this.rgb[i] = go(this.rgb[i]!, rgb[i]!, 1);
     this.write();

@@ -7,7 +7,7 @@ import { dustTuner } from '../../scene/blood/dust.ts';
 import { DUST_COLORS, DUST_NUMERIC, DUST_PRESETS, DUST_SELECTS, dustDefaults, dustText, parseDust, type DustSettings, type Group } from '../../scene/blood/dust-spec.ts';
 
 const KEEP_KEY = 'dust.keep.v1';
-const GROUPS: readonly Group[] = ['Particles', 'Colour', 'Flow', 'Lesions'];
+const GROUPS: readonly Group[] = ['Particles', 'Lane streaks', 'Colour', 'Flow', 'Lesions'];
 
 /** Settings kept on this device (or null): the saved text, parsed over the defaults. */
 export function keptDust(storage: Pick<Storage, 'getItem'> | null = typeof localStorage !== 'undefined' ? localStorage : null): DustSettings | null {

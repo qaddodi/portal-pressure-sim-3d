@@ -102,7 +102,7 @@ test('the skin\'s flow marks can read no NaN: normal and eye vector length-check
   assert.match(fs, /acA\[i\] = clamp\(dot\(n, /);
   assert.match(fs, /headAcc = clamp\(headAcc, 0\.0, 1\.0\);/);
   assert.match(fs, /dustAcc = clamp\(vec4\(dust\.rgb \* dOn, dust\.a \* dOn\), 0\.0, 1\.0\);/);
-  for (const f of ['vec4 dustTube(DFrame F', 'vec3 dFind(float edge', 'vec4 dustSkin(DFrame F0']) {
+  for (const f of ['vec4 dustTubeA(DFrame F', 'vec4 dustTubeB(DFrame F', 'vec3 dFind(float edge', 'vec4 dustSkinA(DFrame F0', 'vec4 dustSkinB(DFrame F0']) {
     const body = SKIN_FS.slice(SKIN_FS.indexOf(f), SKIN_FS.indexOf(f) + 260);
     assert.match(body, /dEdgeOk\(/, `${f} checks its route edge`);
   }
@@ -159,5 +159,5 @@ test('the dust is held back by the pixel\'s final alpha and guarded against NaN'
   assert.match(VESSEL_FS, /dHold\(fadeHere \* cavA\)/);
   assert.match(SKIN_FS, /dustAcc \*= dHold\(alpha\);/);
   assert.match(DUST_GLSL, /float dHold\(float a\) \{ return smoothstep\(0\.05, 0\.6, a\); \}/);
-  assert.equal((DUST_GLSL.match(/clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 2);
+  assert.equal((DUST_GLSL.match(/clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 4);
 });
