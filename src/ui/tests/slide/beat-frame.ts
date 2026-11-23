@@ -183,8 +183,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
     const ly = beforeLabelY(YB(wWas!), YB(fWas!), spans, top, bot) as number | null;
     if (ly != null) {
       wasBox = [lx, ly, lx + tw + 12, ly + 18];
-      shapes.push({ k: 'rect', x: lx, y: ly, w: tw + 12, h: 18, r: 5, fill: panel, key: 'was-plate' });
-      T(lx + 6, ly + 9.5, lab, 12, 500, faint, { key: 'was-label' });
+      T(lx + 6, ly + 9.5, lab, 12, 500, faint, { key: 'was-label', halo: { color: panel, w: 4 } });   // (the panel's colour round the letters, no box)
     }
   }
 
@@ -198,8 +197,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
     const label = `HVPG ${fmt(hv, 1)}`, ym = (YB(wNow) + YB(fNow)) / 2, lw = measure(label, 13 * 13 / 12, 700) + 12, lx = R - 8 - lw;
     const clear = !wasBox || wasBox[2]! + 6 < lx || wasBox[3]! + 4 < ym - 10 || wasBox[1]! - 4 > ym + 10;
     if (YB(fNow) - YB(wNow) >= 26 && R - L >= lw + 40 && clear) {
-      shapes.push({ k: 'rect', x: lx, y: ym - 10, w: lw, h: 20, r: 6, fill: panel, key: 'gap-plate' });
-      T(lx + 6, ym + 0.5, label, 13, 700, sevI, { key: 'gap-label' });
+      T(lx + 6, ym + 0.5, label, 13, 700, sevI, { key: 'gap-label', halo: { color: panel, w: 4 } });
     }
   }
 
