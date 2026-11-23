@@ -5,23 +5,27 @@
 :root { --sheet-rise: 24px; --sheet-ease: var(--ease-arrive); }
 @keyframes mn-sheet-in { from { opacity: 0; translate: 0 var(--sheet-rise); } to { opacity: 1; translate: 0 0; } }
 @keyframes mn-sheet-out { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 var(--sheet-rise); } }
-.sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
-.sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
-.sh-root > .umenu.sheet { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
-html.thumb-ui .sh-root > .pal-back:not([hidden]) > .pal { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
-html.thumb-ui .sh-root > .pal-back.leaving > .pal { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
-.sh-root > .umenu.sheet.still { animation: none; }
-.sh-root > .umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
+.sh-clip > .menu.as-sheet { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
+.sh-clip > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
+.sh-clip > .umenu.sheet { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
+html.thumb-ui .sh-clip > .pal-back:not([hidden]) > .pal { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
+html.thumb-ui .sh-clip > .pal-back.leaving > .pal { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
+.sh-clip > .umenu.sheet.still { animation: none; }
+.sh-clip > .umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
 /* ONE stacking rule for every phone sheet (owner, 23 Nov: "some slide in front of the timeline, some behind"): over the thumb dock a sheet is always BEHIND the dock (the dock is --z-panel + 20), whether it
    is coming in, standing, leaving or following a swipe, so it never slides over the timeline bar. Menus mounted only while open used --z-popover (60) and Search --z-dialog (80), which put them in front; the Frame
    sheets (3) and the cards (10) were already behind. Their dim layer sits just under them. Change --z-sheet-phone here, never a sheet's own z-index (tests/menu-parity.test.ts). */
 html.thumb-ui { --z-sheet-phone: calc(var(--z-panel, 10) + 10); }
-html.thumb-ui .sh-root > .menu.as-sheet, html.thumb-ui .sh-root > .menu.as-sheet.sw-in, html.thumb-ui .sh-root > .umenu.sheet, html.thumb-ui .sh-root > .pal-back { z-index: var(--z-sheet-phone); }
-html.thumb-ui .sh-root > .um-scrim { z-index: calc(var(--z-sheet-phone) - 1); }
-/* A pulled sheet tucks behind the timeline bar and is never seen below it (owner, 23 Nov: "I can see it fly all the way down"). The pull is written as --sheet-pull (shell/sheet-swipe.ts), and the sheet is
-   clipped at a line 12 px inside the dock's top edge, which is one --sheet-gap under where every phone sheet rests (--thumb-occ): the clip's bottom inset is the pull less that distance, so the line stays still
-   on the screen while the sheet moves through it. The other three sides reach 80 px out, so its shadow and its top corners are not cut. Under the dock's rounded corners the line is inside the dock, which covers it. */
-html.thumb-ui :is([data-pulling], [data-swiped], [data-pulled]) { clip-path: inset(-80px -80px calc(var(--sheet-pull, 0px) - var(--sheet-gap, 8px) - 12px) -80px); }
+html.thumb-ui .sh-clip > .menu.as-sheet, html.thumb-ui .sh-clip > .menu.as-sheet.sw-in, html.thumb-ui .sh-clip > .umenu.sheet, html.thumb-ui .sh-clip > .pal-back { z-index: var(--z-sheet-phone); }
+html.thumb-ui .sh-clip > .um-scrim { z-index: calc(var(--z-sheet-phone) - 1); }
+/* Every phone sheet stands in a `.sh-clip` (shell/SheetClip.tsx): a box as big as the screen that never moves, and on the thumb dock it clips at a line 12 px inside the dock's top edge, which is one --sheet-gap under
+   where a sheet rests (--thumb-occ, the screen's foot less the dock and the gap, safe area included). So a sheet at rest, coming in, leaving or pulled with a finger (owner, 23 Nov: "I can see it fly all the way
+   down") tucks behind the timeline bar and is never drawn below it, whatever its own height, tail or travel; under the dock's rounded corners the line is inside the dock, which covers it. The box also stacks
+   the sheets: the menus and shell sheets under the dock, the cards at the cards' own layer. Nothing else clips a sheet, and a sheet is never given a clip of its own. */
+.sh-clip { position: absolute; inset: 0; pointer-events: none; }
+html.thumb-ui .sh-clip { clip-path: inset(0 0 calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px) - 12px) 0); }
+html.thumb-ui .sh-clip[data-clip="sheets"] { z-index: var(--z-sheet-phone); }
+html.thumb-ui .sh-clip:is([data-clip="tests"], [data-clip="cards"]) { z-index: var(--z-cards, 10); }
 /* the preview under a menu row folds open and shut by its own keyframes (2D transitions it from a class set a frame later; React mounts it open) */
 @keyframes um-inline-in { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 @keyframes um-inline-out { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }

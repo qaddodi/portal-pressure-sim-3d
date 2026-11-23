@@ -10,6 +10,7 @@ import { builtinDeck, loadBuiltin } from '../../decks/registry.ts';
 import { useShell, type MenuTab } from '../shell/store.ts';
 import { useOutside } from '../shell/Pop.tsx';
 import { STACK_MQ, usePresence } from '../shell/Menu.tsx';
+import { sheetRoot } from '../shell/SheetClip.tsx';
 import { placeAt, visibleBottom } from '../shell/place.ts';
 import { Chart } from '../charts/Chart.tsx';
 import { clamp } from '../tests/copied/num.copied.js';
@@ -148,7 +149,7 @@ export function UMenu() {
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [hover, setHover] = useState<{ k: string; el: HTMLElement } | null>(null);
   const hoverT = useRef<TimerId | null>(null), hideT = useRef<TimerId | null>(null);
-  const root = typeof document === 'undefined' ? null : document.querySelector('.sh-root');
+  const root = sheetRoot();
   const close = () => useShell.getState().close();
   useSheetSwipe(ref, close, () => sheet, true);   // (2D menu.js: a phone's menu is a sheet that follows a pull down)
 

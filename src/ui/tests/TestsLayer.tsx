@@ -1,6 +1,7 @@
 // The Tests card (2D dock.js "Instruments card"): a card on the right of a wide screen, a sheet over the foot of a phone or an upright iPad, with a row of tabs (Pressure, IR,
 // Doppler, Endoscopy, Ascites, FibroScan, Readouts, Trials; Over time lives under Pressure). Always in the page and fading; the instrument on show is remembered on the device.
 // The Tests button, the I key and the search commands open it through the shell's `tests` feature.
+import { SheetClip } from '../shell/SheetClip.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import './tests.css';
@@ -289,7 +290,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const slotOf = (id: PaneId) => (split && second && tabOf(second) === id ? 2 : 1);
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
-    <div ref={posRef} className="t-pos" data-open={open} data-cold={open && swap.cold ? "true" : undefined} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} data-away={away || undefined} style={style}>
+    <SheetClip id="tests"><div ref={posRef} className="t-pos" data-open={open} data-cold={open && swap.cold ? "true" : undefined} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} data-away={away || undefined} style={style}>
       <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
         <i className="sh-grabbar" aria-hidden="true" />
@@ -317,6 +318,6 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
           {slots.map((s) => <Pane key={s.id} id={s.id} cls={s.cls} leaver={s.leaver} done={swap.left}>{open ? render(s.id) : null}</Pane>)}
         </div>
       </section>
-    </div>
+    </div></SheetClip>
   );
 }

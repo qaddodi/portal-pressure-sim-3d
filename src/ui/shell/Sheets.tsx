@@ -20,6 +20,7 @@ import { InApp } from './InApp.tsx';
 import { PageDialog } from './Pages.tsx';
 import { ActionCard } from '../action/ActionCard.tsx';
 import { useTalkOn } from '../../state/deck.ts';
+import { SheetClip } from './SheetClip.tsx';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -45,18 +46,20 @@ export function Sheets() {
   const device = useUi((s) => s.device);
   return (
     <>
-      <UMenu />
       {!talk && <InApp><ActionCard /></InApp>}
       {!talk && <InApp><TreatCard /></InApp>}
-      {figureRowsOwner(device) === 'sheet' && !talk && <LayersSheet />}
-      {!talk && <SettingsSheet place="top" />}
-      <HistorySheet />
-      <TimelineSheet />
-      <DifferencesSheet />
-      <WhySheet />
-      <SearchSheet />
-      <HelpMenu />
-      <Guide />
+      <SheetClip id="sheets">
+        <UMenu />
+        {figureRowsOwner(device) === 'sheet' && !talk && <LayersSheet />}
+        {!talk && <SettingsSheet place="top" />}
+        <HistorySheet />
+        <TimelineSheet />
+        <DifferencesSheet />
+        <WhySheet />
+        <SearchSheet />
+        <HelpMenu />
+        <Guide />
+      </SheetClip>
       <ResetDialog />
       <PageDialog />
       <DeckDialogs />

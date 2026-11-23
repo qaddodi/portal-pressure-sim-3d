@@ -4,9 +4,10 @@
 // through this, inside `#app`, where those rules reach it.
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { SheetClip } from './SheetClip.tsx';
 
 export function InApp({ children }: { children: ReactNode }) {
   const [app, setApp] = useState<HTMLElement | null>(() => (typeof document === 'undefined' ? null : document.getElementById('app')));
   useLayoutEffect(() => { setApp((o) => document.getElementById('app') ?? o); }, []);
-  return app ? createPortal(children, app) : null;
+  return app ? createPortal(<SheetClip id="cards">{children}</SheetClip>, app) : null;
 }

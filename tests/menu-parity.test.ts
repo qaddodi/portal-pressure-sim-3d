@@ -107,7 +107,7 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
   assert.ok(/:root \{ --sheet-rise: 24px; --sheet-ease: var\(--ease-arrive\); \}/.test(css));
   assert.ok(/@keyframes mn-sheet-in \{ from \{ opacity: 0; translate: 0 var\(--sheet-rise\); \} to \{ opacity: 1; translate: 0 0; \} \}/.test(css));
   assert.ok(/@keyframes mn-sheet-out \{ from \{ opacity: 1; translate: 0 0; \} to \{ opacity: 0; translate: 0 var\(--sheet-rise\); \} \}/.test(css));
-  for (const sel of ['.menu.as-sheet', '.umenu.sheet']) assert.ok(css.includes(`.sh-root > ${sel} { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }`), sel);
+  for (const sel of ['.menu.as-sheet', '.umenu.sheet']) assert.ok(css.includes(`.sh-clip > ${sel} { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }`), sel);
   assert.ok(css.includes('.menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }') && css.includes('.umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }'), 'out is the same move back, on the same curve');
   assert.ok(!/translate: 0 calc\(100%/.test(css) && !/ease-in/.test(css.split('um-inline')[0]!), 'no full-height slide, no other curve');
   // the Frame sheets (Layers, History, Why?) and the Treat card take the same rise
@@ -121,20 +121,27 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
 test('every phone sheet sits behind the dock and the timeline: one z-index, in menu-motion.css', () => {
   const css = src('src/ui/shell/menu-motion.css');
   assert.ok(css.includes('html.thumb-ui { --z-sheet-phone: calc(var(--z-panel, 10) + 10); }'));
-  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-root > ${sel}`) , sel);
+  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-clip > ${sel}`) , sel);
   assert.ok(/\{ z-index: var\(--z-sheet-phone\); \}/.test(css) && /\.um-scrim \{ z-index: calc\(var\(--z-sheet-phone\) - 1\); \}/.test(css));
   // the dock is --z-panel + 20 (2D app-10-thumb-dock.css), so 10 + 10 stays under it; the Frame sheets and the cards are lower still
   assert.ok(/\.app\.thumb \.vdock:not\(\.mini\) \{ z-index: calc\(var\(--z-panel\) \+ 20\)/.test(src('src/ui/css2d/app-10-thumb-dock.css')));
   for (const f of ['src/ui/shell/shell.css', 'src/ui/tests/tests.css', 'src/ui/action/action.css']) assert.ok(!/z-index: (?:[3-9]\d|\d{3,})\b[^;]*\}?/.test(src(f).split('\n').filter((l) => /\.sh-sheet \{|\.t-pos \{|\.ac-card \{/.test(l)).join('')), f);
 });
 
-test('a pulled sheet is clipped at the dock top by its pull, so it never shows below the timeline bar', () => {
-  const css = src('src/ui/shell/menu-motion.css'), sw = src('src/ui/shell/sheet-swipe.ts');
-  assert.ok(css.includes('html.thumb-ui :is([data-pulling], [data-swiped], [data-pulled]) { clip-path: inset(-80px -80px calc(var(--sheet-pull, 0px) - var(--sheet-gap, 8px) - 12px) -80px); }'));
-  assert.ok(sw.includes("el.style.setProperty('--sheet-pull'") && (sw.match(/removeProperty\('--sheet-pull'\)/g) ?? []).length >= 3, 'the pull is written beside the offset and taken off with it');
-  // the line: a sheet rests --sheet-gap above the dock top; with pull p the clip's bottom inset is p - gap - 12, so the line sits 12 px inside the dock at every p
-  const inset = (p: number) => p - 8 - 12, sheetBottom = (p: number) => 0 + p, clipLine = (p: number) => sheetBottom(p) - inset(p);
-  for (const p of [0, 40, 400, 900]) assert.equal(clipLine(p), 20);
+test('every phone sheet stands in one clip box that ends 12 px inside the dock top, so nothing shows below the timeline bar (rest, entrance, exit, swipe)', () => {
+  const css = src('src/ui/shell/menu-motion.css');
+  assert.ok(css.includes('.sh-clip { position: absolute; inset: 0; pointer-events: none; }'));
+  assert.ok(css.includes('html.thumb-ui .sh-clip { clip-path: inset(0 0 calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px) - 12px) 0); }'));
+  // every sheet kind is mounted in one, and the menus that mount only while open are put there
+  const sheets = src('src/ui/shell/Sheets.tsx');
+  assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<HistorySheet \/>[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
+  assert.ok(/<SheetClip id="cards">/.test(src('src/ui/shell/InApp.tsx')) && /<SheetClip id="tests">/.test(src('src/ui/tests/TestsLayer.tsx')));
+  for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx']) assert.ok(/sheetRoot\(\)/.test(src(f)) && !/querySelector\('\.sh-root'\)/.test(src(f)), f);
+  // no sheet carries a clip of its own, and nothing but the box clips one
+  for (const f of ['src/ui/shell/sheet-swipe.ts', 'src/ui/shell/shell.css', 'src/ui/tests/tests.css', 'src/ui/treat/treat.css', 'src/ui/action/action.css']) assert.ok(!/--sheet-pull/.test(src(f)), f);
+  // the line: the dock top is occ - gap above the screen's foot; the clip is 12 px lower, whatever a sheet's height, tail or pull
+  const dockTop = (occ: number, gap: number) => occ - gap, clipLine = (occ: number, gap: number) => occ - gap - 12;
+  for (const [occ, gap] of [[120, 8], [154, 12]] as const) assert.equal(dockTop(occ, gap) - clipLine(occ, gap), 12);
 });
 
 test('glide runs its frames to 1 and then says it is done; follow writes the number it was last given', async () => {

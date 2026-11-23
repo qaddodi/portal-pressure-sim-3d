@@ -10,6 +10,7 @@ import { useOutside } from './Pop.tsx';
 import { I } from './icons.tsx';
 import { placePopover } from './place.ts';
 import { pushPage, type Push } from './page-push.ts';
+import { sheetRoot } from './SheetClip.tsx';
 
 import { D_FLIP, D_SMALL, LEAVE_SLACK_MS } from '../motion.ts';
 import { clock } from '../../clock/frame.ts';
@@ -89,7 +90,7 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
     f(); mq.addEventListener('change', f);
     return () => mq.removeEventListener('change', f);
   }, []);
-  const root = typeof document === 'undefined' ? null : document.querySelector('.sh-root');
+  const root = sheetRoot();
   // the pushed page: kept while it slides back out, and given the menu's box as it was when the page was pushed (read once, in that tap)
   const kept = useRef<MenuPage | null>(null);
   if (page) kept.current = page;

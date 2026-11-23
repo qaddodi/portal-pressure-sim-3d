@@ -39,4 +39,4 @@
 /* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */
 .sh-root > .modal-back.show { pointer-events: auto; }
 /* the 2D menus, the palette and the sheet scrim sit in the shell, whose root takes no taps */
-.sh-root > .menu:not(.leaving), .sh-root > .umenu:not(.out), .sh-root > .um-pv, .sh-root > .um-scrim:not(.out), .sh-root > .pal-back:not([hidden]):not(.leaving) { pointer-events: auto; }
+.sh-clip > .menu:not(.leaving), .sh-clip > .umenu:not(.out), .sh-clip > .um-pv, .sh-clip > .um-scrim:not(.out), .sh-clip > .pal-back:not([hidden]):not(.leaving) { pointer-events: auto; }
