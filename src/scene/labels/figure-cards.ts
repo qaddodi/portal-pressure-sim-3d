@@ -105,7 +105,7 @@ const MARK_AIR = 2;
 export { boxLeader, leaderToEdge, LEAD_AIR };
 
 /** A card's size: a mark is one line of words (a vessel's, an organ's, the lobule's ring callout: the station names' look, words with a halo, its box its words and a breath of air); a step's
- *  number is a round disc; the portal blood's split is its own markup. */
+ *  number is a bold numeral (its box the old disc's size, so it stands where it did); the portal blood's split is its own markup. */
 export function cardSize(c: FigCard, t: TagType, measure: Measure): { w: number; h: number } {
   if (c.kind === 'mark') return { w: ceil2(measure(c.text, t.name, MARK_WEIGHT, 0) + 2 * MARK_AIR), h: ceil2(normal(t.name) + 2 * MARK_AIR) };
   if (c.kind === 'step') { const d = Math.round(t.name * 1.9); return { w: d, h: d }; }
@@ -315,8 +315,8 @@ export class FigureCards {
 
   private make(spec: FigCard): Rec {
     const split = spec.kind === 'split';
-    // a tag is its words (a step's number also carries its plain round face, `.cl-disc`): nothing else is built, so there is nothing to hide
-    const card = makeTag(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig', { disc: spec.kind === 'step' });
+    // a tag is its words (a step's number too: bold, with the words' halo, no face; Mohammad picked option 4, 23 Nov): nothing else is built, so there is nothing to hide
+    const card = makeTag(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig');
     card.root.dataset.fig = spec.kind;
     const rec: Rec = { card, spec, a: 0, box: null, sig: '', root: card.root };
     if (spec.kind === 'mark' && 'lobule' in spec.anchor) {

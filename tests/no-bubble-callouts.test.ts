@@ -114,7 +114,7 @@ function judgeTree(root: El, where: string): void {
   });
 }
 
-test('every card, caliper and bracket of every slide of every deck is built as words: a tag with no glass, no rim, no clip and no path, a step on a plain disc', async () => {
+test('every card, caliper and bracket of every slide of every deck is built as words: a tag with no glass, no rim, no clip and no path, a step is its numeral alone', async () => {
   let tags = 0, calipers = 0, spans = 0, steps = 0, ticks = 0;
   for (const { deck, slide } of await allSlides()) {
     const calls = figureCalls(figurePlan(slide));
@@ -124,7 +124,7 @@ test('every card, caliper and bracket of every slide of every deck is built as w
     for (let i = 0; i < 160; i++) { t += 16; fc.tick(); ticks++; }
     judgeTree(parent, `${deck}/${slide.id}`);
     walk(parent, (e) => {
-      if (e.classes.includes('cl')) { tags++; assert.ok(e.classes.includes('tg'), `${deck}/${slide.id}: ${e.className} is a reading without the tag class`); if (e.classes.includes('cl-step')) { steps++; assert.ok(e.kids.some((k) => k.className === 'cl-disc'), 'a step stands on its plain disc'); } }
+      if (e.classes.includes('cl')) { tags++; assert.ok(e.classes.includes('tg'), `${deck}/${slide.id}: ${e.className} is a reading without the tag class`); if (e.classes.includes('cl-step')) { steps++; assert.ok(!e.kids.some((k) => k.className === 'cl-disc'), 'a step is its numeral alone: no disc'); } }
     });
     calipers += calls.calipers.length; spans += calls.spans.length;
     fc.destroy();

@@ -63,6 +63,8 @@ html:root .pzk-n { width: auto; height: auto; border: 0 !important; border-radiu
 
 /* ── numbered step circles (.ms-dot of the HVPG steps, .hvpg-steps li::before, the instrument tabs' order badge): the numeral in the accent's ink, bold where it is the step now ── */
 html:root .ms-dot { width: auto; height: auto; border: 0 !important; border-radius: 0 !important; display: inline; font-size: inherit; }
+/* a figure's step marker in the words ({#1}; Mohammad, 23 Nov, option 4 of the step-disc mocks): the numeral alone, bold, in the text colour, on the words' baseline, no disc. docs/approved/step-markers.md */
+html:root .pz-step { display: inline; min-width: 0; height: auto; padding: 0 .08em; margin-block: 0; border-radius: 0; background: none; color: var(--text); font-size: max(12px, .9em); font-weight: 700; }
 html:root .ms-fill { display: none; }
 html:root .ms-dot b { color: var(--text-3); font-variant-numeric: tabular-nums; transition: color var(--d-small) var(--ease); }
 html:root .mon-steps li:is([data-state="now"], [data-state="done"]) .ms-dot b { color: var(--accent-ink); }

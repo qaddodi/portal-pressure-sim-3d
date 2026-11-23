@@ -15,8 +15,6 @@ export interface TagWords { kicker: string; value: string; unit: string; tone: s
 
 export interface Tag {
   root: HTMLElement;
-  /** A step's round face (a plain circle: `.cl-disc`), the one thing besides words a tag may carry; absent on every other tag. */
-  disc: HTMLElement | null;
   k: HTMLElement; n: HTMLElement; u: HTMLElement;
   tone: string; text: string; op: string; tx: string; size: string;
 }
@@ -26,12 +24,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 }
 
 /** A tag: its name, number and unit. `cls` is its own class (the layer's position rule and its kind); `tg` is on every one. */
-export function makeTag(parent: Element, cls: string, opts: { disc?: boolean } = {}): Tag {
+export function makeTag(parent: Element, cls: string): Tag {
   const root = el('div', `${cls} tg`, parent);
-  const disc = opts.disc ? el('i', 'cl-disc', root) : null;
-  if (disc) disc.setAttribute('aria-hidden', 'true');
   const k = el('small', 'cl-k', root), n = el('b', 'cl-n', root), u = el('span', 'cl-u', root);
-  return { root, disc, k, n, u, tone: '', text: '', op: '', tx: '', size: '' };
+  return { root, k, n, u, tone: '', text: '', op: '', tx: '', size: '' };
 }
 
 /** The words of a tag (written when they change). A tag that is showing (`alpha`) crosses over to its new words and tone, never steps (roll.ts `restyle`). */
@@ -56,7 +52,6 @@ export function fade(c: Tag, a: number): void {
   const o = opacity(a);
   if (o === c.op) return;
   c.op = o;
-  if (c.disc) c.disc.style.opacity = o;
   c.k.style.opacity = o; c.n.style.opacity = o; c.u.style.opacity = o;
 }
 export function place(c: Tag, x: number, y: number): void {
