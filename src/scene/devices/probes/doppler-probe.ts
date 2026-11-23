@@ -23,6 +23,7 @@ import { LOOKS } from '../../../looks/looks.ts';
 import { DOP_BODY_PX, DOP_FACE_PX, DOP_INK, DOP_RIM_PX } from '../edges.ts';
 import { basisAt, newBasis, toPlate, toScreen, type Basis, type Box, type Pt, type ScreenEnv } from './screen.ts';
 import type { DopplerSeg } from './state.ts';
+import { addClaim, addStroke } from '../../labels/probe-claims.ts';
 
 const RAD = Math.PI / 180;
 /** The marks' places in `lines`. */
@@ -467,6 +468,15 @@ export class DopplerProbe {
     return a > 0.01 && this.fr.U > 0 ? { runs: [{ rings: this.head.rings, from: 0, to: this.head.n - 1 }], sc: 1 / this.fr.U, alpha: a } : null;
   }
   get placed(): DopplerPose | null { return this.shown > 0 ? this.pose : null; }
+  /** What the probe takes of the figure once it stands (stage px, appended to `out`): the body, the line of sight from its face to the gate and the gate with the flow axis. Nothing while it is not placed or is leaving, so
+   *  the labels have it as an obstacle from the moment it is chosen and give the room back as it goes. */
+  footprint(out: Box[]): void {
+    if (!this.on || this.shown <= 0 || !this.overlay) return;
+    const b = this.bodyBox, L = this.lines;
+    addClaim(out, b.x0, b.y0, b.x1, b.y1, 4);
+    addStroke(out, L[LINE_SIGHT * 4]!, L[LINE_SIGHT * 4 + 1]!, L[LINE_SIGHT * 4 + 2]!, L[LINE_SIGHT * 4 + 3]!, 6);
+    addClaim(out, L[LINE_AXIS * 4]!, L[LINE_AXIS * 4 + 1]!, L[LINE_AXIS * 4 + 2]!, L[LINE_AXIS * 4 + 3]!, 6);
+  }
   /** The place it stands at (side of the vessel, reach, end, size: the 2D search's names), for tests; null while it is not placed. */
   get standsAt(): { side: number; reach: number; rev: boolean; k: number } | null { return this.on ? { side: this.side, reach: this.reach, rev: this.rev, k: this.k } : null; }
   /** True while the probe is drawn or swinging out (the layer keeps asking for frames). */

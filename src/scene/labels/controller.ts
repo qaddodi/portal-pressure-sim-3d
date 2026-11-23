@@ -41,6 +41,8 @@ export interface LabelDeps {
   view(): Box;
   /** Cards, the strip, the key: boxes a label never stands under. */
   blockers(): Box[];
+  /** Boxes the solve keeps clear of as well (the settled probe's footprint), asked only when a solve runs: a label already standing there is not faded out, it eases to its new place at the next rest. */
+  claims?(): readonly Box[];
   /** Text width in px (the pill's font); called at build time only, never per frame. */
   measure(text: string, size: number, weight: number, track?: number): number;
   /** The screen (CSS px, with its safe insets): label type sizes follow its short side, as the 2D app's do, and the key docks by the screen's layout. */
@@ -523,7 +525,7 @@ export class LabelController {
     this.blockSay = this.blockedAt >= 0 && now - this.blockedAt >= BLOCKED_SAYS.afterMs ? BLOCKED_SAYS.then : BLOCKED_SAYS.first;
 
     // 2. solve once the picture is still and something changed (the labelled set, a card, the view, the words)
-    const view = d.view(), blockers = [...d.blockers()];
+    const view = d.view(), blockers = [...d.blockers(), ...(d.claims?.() ?? [])];
     this.dock = this.keyDock();
     const keyBox = this.dock?.box ?? null;
     if (keyBox) blockers.push(keyBox);

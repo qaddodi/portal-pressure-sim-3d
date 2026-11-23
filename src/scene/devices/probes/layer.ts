@@ -13,7 +13,8 @@ import type { OrganEdge } from './fibro-place.ts';
 import { probeLabel } from '../../labels/probe-labels.ts';
 import { addCover, beginCover } from '../../labels/probe-cover.ts';
 import { ringsOutline } from './cover.ts';
-import { basisAt, newBasis } from './screen.ts';
+import { basisAt, newBasis, type Box } from './screen.ts';
+import { probeClaims } from '../../labels/probe-claims.ts';
 
 /** What the layer asks of the scene: an organ's box in the figure (null while it is not built), and the stiffness the FibroScan reads (kPa). */
 export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; /** where an organ's silhouette is on a line (organ-edge.ts): the FibroScan tip rests there; tests leave it out */ organEdge?: OrganEdge; kpa(organ: FibroOrgan): number | null; /** the screen the devices keep clear of the cards on (the scene's; tests leave it out) */ screen?: ScreenEnv; /** the EUS-PPG's procedure frame while it plays (null otherwise): the echoendoscope follows it */ eus?(): EusDrive | null }
@@ -28,6 +29,7 @@ export class ProbeLayer {
   private gluing = false;
   private readonly pts: number[] = [];
   private readonly cb = newBasis();
+  private readonly claim: Box[] = [];
   private readonly env: ProbeEnv;
 
   constructor(shared: CelShared, env: ProbeEnv) {
@@ -73,6 +75,7 @@ export class ProbeLayer {
     for (const c of [this.fibro.coverRuns(), this.doppler.coverRuns()]) if (c) addCover(ringsOutline(env, c.runs, c.sc, this.pts), c.alpha);
     const sp = this.scope.coverRuns();
     if (sp) addCover(ringsOutline(env, sp.runs, basisAt(env, sp.at, this.cb).sc, this.pts), sp.alpha);
+    this.claim.length = 0; dd.footprint(this.claim); probeClaims.set(this.claim);   // (the labels and callouts keep clear of the settled probe)
     dp.on = dd.overlay && dd.shown > 0; dp.alpha = dd.shown; dp.shut = dd.sampleShut; dp.lines.set(dd.lines);
   }
 
