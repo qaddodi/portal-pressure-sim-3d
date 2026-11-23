@@ -6,6 +6,7 @@ import { useUi, type Readings } from '../../ui/ui-store.ts';
 import { tokensOf } from '../../ui/text/tokens.ts';
 import type { Deck } from '../schema.ts';
 import { ensureStates, useStates } from './calc.ts';
+import { setFigurePending } from '../../ui/deck/figure-pending.ts';
 import { readingsOf } from './readings-of.ts';
 import { mergeStates } from '../../ui/charts/baked/view.ts';
 import { copiedOf } from './deck.ts';
@@ -75,6 +76,8 @@ export function linkStates(deck: Deck): () => void {
     // until this slide's state is in, the headline numbers are the live figure's (the first slide opens at once; the others follow as the states arrive)
     const live = useEngine.getState();
     // (the readings the words print come from the live states and, where those are not yet in, the ones baked at build time: the cards gate on the same merge (CardLayer), so a line is never let in ahead of its numbers, "recurred to …", Ten years 12)
+    // (the figure is on the slide once its live state is in: the labels wait for it, see figure-pending.ts)
+    setFigurePending(stop.kind === 'slide' && !res?.[i]?.snap && !useStates.getState().failed[deck.id]);
     const shown = mergeStates(deck.id, res);
     const r: Readings = readingsOf(shown?.[i]?.fp, live);
     for (const n of named) {
@@ -127,5 +130,5 @@ export function linkStates(deck: Deck): () => void {
   const offUi = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
   const offStates = useStates.subscribe((s, p) => { if (s.results[deck.id] !== p.results[deck.id]) sync(); });
   const offLanded = onLanded(tryRun);
-  return () => { offUi(); offStates(); offLanded(); waiting = null; stopLapse(); };
+  return () => { setFigurePending(false); offUi(); offStates(); offLanded(); waiting = null; stopLapse(); };
 }

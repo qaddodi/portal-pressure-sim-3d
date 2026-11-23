@@ -15,3 +15,13 @@ test('a slide whose state is in (live or baked) prints its own numbers, never th
   assert.equal(readingsOf({ hvpg: 14.3, varix: 5.9 }, live).varix, 5.9);
   assert.equal(readingsOf(undefined, live).hvpg, 11.1);
 });
+
+import { setFigurePending, figurePending } from '../src/ui/deck/figure-pending.ts';
+test('the labels wait while the figure has not reached the slide (Where resistance 7: "IVC 4.4" on a web slide whose chart read 16), and never past the give-up', () => {
+  setFigurePending(false);
+  assert.equal(figurePending(), false);
+  setFigurePending(true);
+  assert.equal(figurePending(), true, 'the figure is on the slide before: its labels stand down');
+  setFigurePending(false);
+  assert.equal(figurePending(), false, 'the state is in: they come back');
+});
