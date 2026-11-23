@@ -100,7 +100,7 @@ test('look B hashes a streak in two steps: the cheap four first, the rest only f
 // went through, clamp() and the product with the wall left it a NaN, and the pixel was written as 0 0 0. A NaN is now found on its bits (the exponent all ones), in every particle and again on the dust the shader paints.
 test('a NaN or an infinity in the dust is found on the bits, per particle and on what is painted', () => {
   assert.match(DUST_GLSL, /bool dBad\(vec4 v\) \{ return any\(equal\(floatBitsToUint\(v\) & uvec4\(0x7f800000u\), uvec4\(0x7f800000u\)\)\); \}/, 'an exponent of all ones is NaN or infinity, an integer test');
-  assert.match(DUST_GLSL, /vec4 dSafe\(vec4 v\) \{ return \(dBad\(v\) \|\| dot\(v, v\) >= 64\.0\) \? vec4\(0\.0\) : v; \}/);
+  assert.match(DUST_GLSL, /vec4 dSafe\(vec4 v\) \{ bool bad = dBad\(v\) \|\| dot\(v, v\) >= 64\.0;[^}]*return bad \? vec4\(0\.0\) : v; \}/);
   assert.equal((DUST_GLSL.match(/c = clamp\(dSafe\(c\), 0\.0, 1\.0\);/g) ?? []).length, 4, 'every particle of both looks, tube and skin');
   const src = fs.readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8') + fs.readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
   assert.match(src, /fd = dSafe\(clamp\(dSafe\(fd\), 0\.0, 1\.0\) \* dHold\(fadeHere \* cavA\)\);/, 'the tube paints no NaN');

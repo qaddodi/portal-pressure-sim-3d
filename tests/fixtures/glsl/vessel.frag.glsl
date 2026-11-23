@@ -357,6 +357,7 @@ uniform sampler2D routeTex;
 #define D_cellLen dustP[12].w
 #define D_fill dustP[13].x
 #define D_trains dustP[13].y
+#define D_dbg dustP[13].z
 float dHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec3 dRgb2Hsl(vec3 c) {
   float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)), l = 0.5 * (mx + mn), d = mx - mn, h = 0.0, s = 0.0;
@@ -560,8 +561,16 @@ float dHold(float a) { return smoothstep(0.05, 0.6, a); }
 // A NaN OR AN INFINITY from any term of the lattice (a degenerate route, a zero-width lane) becomes no dust, never a pixel of some other colour or a black one. IT IS TESTED ON THE BITS, NOT BY A COMPARISON: a phone GPU compiles with fast
 // maths (no NaN is assumed to exist), so the comparison dot(v, v) < 64.0 is whatever the compiler makes of it for a NaN, and a NaN that got through wrote the pixel as 0 0 0 (the black blocks and specks at the junctions, Mohammad's iPhone, 20 and 23 Nov;
 // the vertex NaN of 19 Nov drew the same). An exponent of all ones is NaN or infinity, an integer test no float mode can fold away (tests/dust-lanes.test.ts).
+float dustBadSeen = 0.0;   // (the debug paint, ?dust: set when dSafe dropped a term, so a pixel that lost one can be shown)
 bool dBad(vec4 v) { return any(equal(floatBitsToUint(v) & uvec4(0x7f800000u), uvec4(0x7f800000u))); }
-vec4 dSafe(vec4 v) { return (dBad(v) || dot(v, v) >= 64.0) ? vec4(0.0) : v; }
+vec4 dSafe(vec4 v) { bool bad = dBad(v) || dot(v, v) >= 64.0; dustBadSeen = max(dustBadSeen, bad ? 1.0 : 0.0); return bad ? vec4(0.0) : v; }
+// ?dust > Paint the trouble (debug, off by default): magenta where a dust term was not a number or ran away, cyan where the vessel's own colour or alpha is not a number
+vec3 dDbgPaint(vec3 c, float a) {
+  if (D_dbg < 0.5) return c;
+  if (D_dbg > 1.5 && dBad(vec4(c, a))) return vec3(0.0, 1.0, 1.0);
+  if (mod(D_dbg, 2.0) > 0.5 && dustBadSeen > 0.5) return vec3(1.0, 0.0, 1.0);
+  return c;
+}
 // the wall rule (DUST_WALL_FROM, DUST_WALL_TO): 1 inside, 0 at the ink
 float dWall(float e) { return 1.0 - smoothstep(0.9, 0.96, abs(e)); }
 float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), 33), 0).x; }
@@ -1343,5 +1352,6 @@ void main() {
 #ifdef VDBG
   c = dbgEnd(c, vindex);
 #endif
+  c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
   gl_FragColor = vec4(c, fadeHere * cavA);
 }

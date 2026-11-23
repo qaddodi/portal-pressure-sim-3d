@@ -504,7 +504,7 @@ void main() {
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
-  if (alpha < 0.004) discard;
+  if (alpha < 0.004) { if (D_dbg > 1.5) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); return; } discard; }   // (?dust, Paint the trouble: cyan where the skin is dropped here)
   // the live lumen's radius at the axis' depth, and the line the vertex stage built the mesh ink wider by (the tube's own rule: a share of the radius held between two CSS widths, thinned with a hairline)
   float swellB = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) swellB += wAt(i) * swAt(i);
@@ -709,5 +709,6 @@ void main() {
       c = mix(c, wedgeColS, WEDGE_A * waS * (1.0 - inkT));   // (under the outline: the vessel's line stays)
     }
   }
+  c = dDbgPaint(c, alpha);   // (?dust, Paint the trouble: off unless asked)
   gl_FragColor = vec4(c, alpha);
 }`;
