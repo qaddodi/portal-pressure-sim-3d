@@ -63,14 +63,16 @@ const toneInk = (pal: Palette, t: Tone): Rgba => (t === 'change' ? pal.tok('text
 interface LaneSpec { id: LaneId; ms: readonly Measure[]; max: number; ticks: readonly number[]; tickWords?: (v: number) => string; cuts: readonly { v: number; word: string; below?: boolean; ink: 'text-2' | 'text-3' | 'danger' }[]; fill?: boolean; zone?: boolean }
 
 const niceMax = (m: number, floor: number, step: number): number => Math.max(floor, Math.ceil((m * 1.12) / step) * step);
+/** the HVPG lane's ticks: every 5 mmHg, every 10 when the lane is tall (a decompensated patient reads above 20) */
+const hvpgTicks = (max: number): number[] => { const st = max > 30 ? 10 : 5; return Array.from({ length: Math.floor(max / st) + 1 }, (_, i) => i * st).filter((t) => t <= max - 2); };
 function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
-  if (id === 'hvpg') return inp.hvpg ? { id, ms: [], max: 16, ticks: [0, 5, 10], zone: true, cuts: [{ v: HVPG_CUTS.bleed, word: `Bleed risk ${HVPG_CUTS.bleed}`, ink: 'danger' }, { v: HVPG_CUTS.red, word: `CSPH ${HVPG_CUTS.red}`, ink: 'danger', below: true }] } : null;
+  if (id === 'hvpg') return inp.hvpg ? { id, ms: [], max: niceMax(maxOf(inp.hvpg), 16, 2), ticks: hvpgTicks(niceMax(maxOf(inp.hvpg), 16, 2)), zone: true, cuts: [{ v: HVPG_CUTS.bleed, word: `Bleed risk ${HVPG_CUTS.bleed}`, ink: 'danger' }, { v: HVPG_CUTS.red, word: `CSPH ${HVPG_CUTS.red}`, ink: 'danger', below: true }] } : null;
   const ms = laneOf(id).filter((m) => inp.on.includes(m.id) && inp.series[m.id]);
   if (!ms.length) return null;
   const peak = Math.max(...ms.map((m) => maxOf(inp.series[m.id]) * (m.id === 'shunt' ? 100 : 1)));
   if (id === 'p') { const max = niceMax(peak, 24, 4); return { id, ms, max, ticks: max > 40 ? [0, 20, 40, 60].filter((t) => t <= max) : [0, 10, 20, 30].filter((t) => t <= max), cuts: [] }; }
   if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i), fill: true, cuts: [{ v: ASCITES_CUTS[1]! / 1000, word: `Grade 2 · ${ASCITES_CUTS[1]! / 1000} L`, ink: 'text-2' }, { v: ASCITES_CUTS[0]! / 1000, word: `Grade 1 · ${ASCITES_CUTS[0]! / 1000} L`, ink: 'text-3' }] }; }
-  if (id === 'shunt') { const max = niceMax(peak, 70, 10); return { id, ms, max, ticks: [0, 20, 40, 60, 80, 100].filter((t) => t <= max), cuts: [{ v: FLOW_CUTS.shuntLarge * 100, word: `Large shunt ${Math.round(FLOW_CUTS.shuntLarge * 100)}%`, ink: 'text-2' }] }; }
+  if (id === 'shunt') { const max = Math.min(100, niceMax(peak, 70, 10)); return { id, ms, max, ticks: [0, 20, 40, 60, 80, 100].filter((t) => t <= max), cuts: [{ v: FLOW_CUTS.shuntLarge * 100, word: `Large shunt ${Math.round(FLOW_CUTS.shuntLarge * 100)}%`, ink: 'text-2' }] }; }
   const max = niceMax(peak, 9, 3);
   return { id, ms, max, ticks: Array.from({ length: Math.floor(max / 3) + 1 }, (_, i) => i * 3), cuts: [] };
 }
