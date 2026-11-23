@@ -7,8 +7,10 @@ import { SlideControls, LapseRow } from './SlideControls.tsx';
 import { ProcRow } from './ProcRow.tsx';
 import type { Deck } from '../../decks/schema.ts';
 import { useVariant } from '../talk/variant-words.ts';
+import { variantsOf, idOf } from './variants.ts';
 import { cardFields } from './card-fields.ts';
 import { richOf } from '../text/rich.ts';
+
 
 const eqClass = (p: EqPart) => (p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined);
 /** A slide's equation parts as MathML (2D `.pz-eq > math`): names, numbers, signs, subscripts and fractions, in 2D's own tags. */
@@ -26,6 +28,16 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
   const shown = variant ? { ...slide, title: variant.title, line: variant.line, kicker: variant.kicker, ...(variant.site ? { site: variant.site } : {}) } : slide;
   const text = pageOf(sentences(shown.line), pages, page).join(' ');
   const f = cardFields(deck, slide, shown, page, pages), tab = f.tab;
+  // every set of words the compare buttons can show stands in one grid cell (the title, the line), the shown one at full opacity: the card's height is the tallest's, taken once before it shows, and a press cross-fades
+  const all = variantsOf(slide, deck), here = idOf(shown);
+  const list = all.some((w) => idOf(w) === here) ? all : [...all, shown];
+  const many = list.length > 1;
+  const titles = (Tag: 'h1' | 'h2', style?: CSSProperties) => many
+    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here; return <Tag key={idOf(w)} className="pz-h" style={style} data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}>{w.title}</Tag>; })}</div>
+    : <Tag className="pz-h" style={style}>{shown.title}</Tag>;
+  const lines = () => many
+    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here, t = on ? text : pageOf(sentences(w.line), pages, page).join(' '), g = on ? f : cardFields(deck, slide, { ...slide, ...w }, page, pages); return t ? <p key={idOf(w)} className="pz-line" data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}><Line text={t} read={read} slide={rich} fp={fp} pill={g.pill} /></p> : null; })}</div>
+    : text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null;
   const eq = slide.eq && page === 0;
   const rich = richOf(slide);
   // the title's one step down when a sideways phone has no wider column left: 2D's own knob for it (--pz-tk), set from the trimmed size
@@ -35,13 +47,13 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       <>
         {deck && <NameTab deck={deck} air={false} />}
         <div className="pz-ph">
-          <h1 className="pz-h">{shown.title}</h1>
+          {titles('h1')}
           {eq && slide.eq && (
             <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
               <math><mrow><EqParts parts={slide.eq} /></mrow></math>
             </div>
           )}
-          {text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null}
+          {lines()}
           {f.caveat ? <p className="pz-caveat">{f.caveat}</p> : null}
           {f.cite ? <p className="pz-cite">{f.cite}</p> : null}
         </div>
@@ -54,14 +66,14 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       {tab ? <span className="pz-sitetab" data-site={tab.site} data-rail={tab.rail ? '' : undefined} aria-hidden="true">{tab.name}</span> : null}
       {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card that splits into pages (a phone on its side, 3D only) says which page this is. */}
       {pages > 1 ? <div className="pz-kick" data-site="none"><span className="dk-pageno">{page + 1} of {pages}</span></div> : null}
-      <h2 className="pz-h" style={kick}>{shown.title}</h2>
+      {titles('h2', kick)}
       {eq && slide.eq && (
         <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
           <math><mrow><EqParts parts={slide.eq} /></mrow></math>
         </div>
       )}
       {eq && slide.eqLegend && <p className="dp-eqnote">{slide.eqLegend}</p>}
-      {text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null}
+      {lines()}
       {f.sides.length ? (
         <div className="pz-sides" role="group" aria-label="What each guideline says">
           {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} slide={rich} fp={fp} /></p></div>)}

@@ -17,6 +17,7 @@ import { flagValue } from '../flags.ts';
 import { scanPage } from './scan.ts';
 import { srOnlyMemo } from '../sr-only.ts';
 import { startLedger } from './ledger.ts';
+import { grewFindings, clearGrew } from '../../cards/box-lock.ts';
 import type { Step, Reads } from './run.ts';
 import type { Box, LayoutRead } from './judge.ts';
 import type { ConsoleLine, Coverage, RowGpu } from './report.ts';
@@ -175,7 +176,7 @@ export function clipBox(win: Window, el: Element, stop: Element): Box | null {
 }
 
 /** A card's heading, to name it in a finding. */
-const titleOf = (card: HTMLElement): string => (card.querySelector('.pz-h, .pz-dtitle, .pz-dh > span:first-child, h1, h2, h3, [class*="title"]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+const titleOf = (card: HTMLElement): string => (card.querySelector('.pz-h:not([aria-hidden]), .pz-dtitle, .pz-dh > span:first-child, h1, h2, h3, [class*="title"]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
 
 /** Charts and plots of one card: an svg or a canvas big enough to be a picture, not an icon. */
 function chartsOf(win: Window, card: HTMLElement, vis: (el: Element) => number): { what: string; box: Box; clip: Box | null }[] {
@@ -254,7 +255,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
   const onVis = () => { if (win.document.hidden) hiddenSince = true; };
   win.document.addEventListener('visibilitychange', onVis);
   return {
-    mark() { rec.clear(); ledger.mark(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; sys0 = { ...(cel.systemMs ?? {}) }; markAt = clock.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = clock.now(); return mark; },
+    mark() { rec.clear(); ledger.mark(); clearGrew(); gaps = []; stalls = []; clock.resetStats(); skin0 = cel.skinStats?.rebuilds ?? 0; sys0 = { ...(cel.systemMs ?? {}) }; markAt = clock.now(); markLine = lines.length; hiddenSince = win.document.hidden; mark = clock.now(); return mark; },
     read(t0) {
       const st = clock.stats(), led = ledger.read();
       const rs = renderStats();
@@ -268,7 +269,7 @@ export function startTaps(win: Window = window, speed = 1): Tap {
         stalls: stalls.slice(), gpu,
         samples: rec.samples().filter((s) => s.t >= t0).map((s) => ({ ...s, t: s.t - t0 })), gaps: gaps.slice(), work: { p95: st.p95 / speed, max: st.max / speed },
         layout: safe(() => readLayout(win.document, win)), problems: safe(() => problems()) ?? [], console: lines.slice(markLine), hidden: hiddenSince || win.document.hidden,
-        scan: safe(() => scanPage(win.document, win)), anims: led.anims, generic: led.findings,
+        scan: safe(() => scanPage(win.document, win)), anims: led.anims, generic: [...led.findings, ...grewFindings()],
       };
     },
     stop() { clock.cancel(timer); ledger.stop(); off(); cons.error = orig.error; cons.warn = orig.warn; win.removeEventListener('error', onErr); win.removeEventListener('unhandledrejection', onRej); win.document.removeEventListener('visibilitychange', onVis); void mark; },

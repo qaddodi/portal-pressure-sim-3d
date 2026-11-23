@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { parseLine, gluePieces } from '../text/line.ts';
 import { valueText } from '../text/tokens.ts';
 import { Roll } from './Roll.tsx';
+import { reserveOf } from './roll-reserve.ts';
 import { nb } from '../text/glue.ts';
 import { typesetter, toneVar, stationTone, type Node, type RichSlide } from '../text/rich.ts';
 import { rateShown, tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
@@ -50,7 +51,7 @@ export function Line({ text, read, slide, fp, pill }: { text: string; read: (k: 
         const v = read(p.key, p.at);
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
         const { tone, rate } = v == null ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
-        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} /></span></span>, stop, i, open);
+        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0)} /></span></span>, stop, i, open);
       }
     }
   });

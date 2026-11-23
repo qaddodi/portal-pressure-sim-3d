@@ -1,5 +1,5 @@
 // Mohammad 23 Nov 2026 picked mock C "Raised relief" for the lobule's fibrosis bands. ROOT CAUSE of the flat, ringed bands: one flat colour per collagen layer, depth only from the painter's hard-edged passes, and the plate's
-// cel step and edge line turning every terrace edge into a tone line (plate.ts, relief.ts). The fix: the collagen's own alpha (a mip-3 blur) is a rope's height, its slope against the world light lifts or deepens the colour smoothly,
+// cel step and edge line turning every terrace edge into a tone line (plate.ts, relief.ts). The fix: the collagen field's own alpha (a B-spline of mip 5, collagen-field.ts) is a rope's height, its slope against the world light lifts or deepens the colour smoothly,
 // and the collagen is out of the cel step and the edge line, weighted by its coverage. These are the plan's gates, judged in node (no GPU): the numbers, the colours of every look, the raster twin, the shader's shape.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,8 +14,9 @@ import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js'
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
 import { celTissueJS, tissueTone } from '../src/scene/lobule/cel.ts';
 import { CEL_LIGHT_UNIT } from '../src/scene/cel-glsl.ts';
-import { SOFT_E0, SOFT_E1, SOFT_LOD } from '../src/scene/lobule/collagen-soft.ts';
-import { RELIEF_D_PX, RELIEF_G, RELIEF_GLSL, RELIEF_LIT, RELIEF_SHADE, reliefColour, reliefS } from '../src/scene/lobule/relief.ts';
+import { SOFT_E0, SOFT_E1 } from '../src/scene/lobule/collagen-soft.ts';
+import { COLL_LOD, COLL_PX } from '../src/scene/lobule/collagen-field.ts';
+import { RELIEF_G, RELIEF_KNEE, RELIEF_GLSL, RELIEF_LIT, RELIEF_SHADE, reliefColour, reliefS } from '../src/scene/lobule/relief.ts';
 import { toOklab } from '../src/scene/lenses/oklab.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
 
@@ -44,7 +45,7 @@ test('reliefColour(c, 0) is c, the lit side lifts, the shade deepens, and no cha
     const lit = reliefColour(c, 1), sh = reliefColour(c, -1);
     for (let i = 0; i < 3; i++) { assert.ok(lit[i]! >= c[i]! && sh[i]! <= c[i]!); }
   }
-  assert.deepEqual([...RELIEF_LIT], [0.52, 0.38, 0.26]); assert.deepEqual([...RELIEF_SHADE], [0.18, 0.21, 0.36]); assert.equal(RELIEF_G, 100);
+  assert.equal(RELIEF_KNEE, 0.7); assert.deepEqual([...RELIEF_LIT], [0.52, 0.38, 0.26]); assert.deepEqual([...RELIEF_SHADE], [0.18, 0.21, 0.36]); assert.equal(RELIEF_G, 100);
 });
 
 // the colour of a septum (its token) and of the portal tracts (collagen-paint.ts PRE_LIGHT / PRE_DARK) per look, against the cells
@@ -85,7 +86,7 @@ function twin(look: 'light' | 'dark', S: { septU: number; fibSin: number; act: n
   const tr = rasterCtx(N); paintCollagenWorld(tr.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts');
   const sp = rasterCtx(N); paintCollagenWorld(sp.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa');
   const goal = growGoal(S), grown = goal[0] + goal[1] + goal[2] > 0, M = N * N;
-  const smooth = (a: Float32Array) => (relief ? blur(a, Math.max(1, Math.round(2 ** (SOFT_LOD - 1) * K))) : a);   // (SOFT_LOD, 64 px at 2048: the soft copy, collagen-soft.ts)
+  const smooth = (a: Float32Array) => (relief ? blur(a, Math.max(1, Math.round(2 ** (COLL_LOD - 1) * K))) : a);   // (COLL_LOD, 32 px at 2048: the collagen field, collagen-field.ts)
   const sA = smooth(sp.alpha), tA = smooth(tr.alpha);
   const img = new Float32Array(M * 3), cov = new Float32Array(M), own = new Float32Array(M), alpha = new Float32Array(M), h = new Float32Array(M);
   for (let i = 0; i < M; i++) {
@@ -144,13 +145,13 @@ test('healthy tissue is bit-identical: no collagen coverage, no change of weight
   }
   // the shader: the early return of "no growth anywhere" comes before the soft edges and the relief samples, and the relief reads nothing where there is no collagen
   const fs = LOBULE_PLATE_FS;
-  assert.ok(fs.indexOf('if (uP.x + uP.y + uP.z <= 0.0)') < fs.indexOf('cs = mix(sS, cs'), 'the early return is before the soft edge');
-  assert.match(fs, /if \(cov > 0\.002\) rs = reliefS\(reliefSlope\(vUv, fr\), vL\);/);
+  assert.ok(fs.indexOf('if (uP.x + uP.y + uP.z <= 0.0)') < fs.indexOf('cs = mix(gFS.v, cs'), 'the early return is before the soft edge');
+  assert.match(fs, /if \(cov > 0\.002\) rs = reliefS\(gFS\.g \* fr\.x \+ gFU\.g \* fr\.y, vL\);/);
 });
 
 test('every look: the relief on collagen pixels is flat in the middle of a band and lit or shaded on its flanks', () => {
   // the twin's own slope, with the world light turned into the plate's axes as the vertex shader does it for a plate facing the camera (y up here, rows go down)
-  const after = twin('light', DECOMP, true), d = Math.max(1, Math.round(RELIEF_D_PX * K)), h = blur(after.h, Math.max(1, Math.round(4 * K)));
+  const after = twin('light', DECOMP, true), d = Math.max(1, Math.round(COLL_PX / 8 * K)), h = blur(after.h, Math.max(1, Math.round(COLL_PX / 4 * K)));
   const lx = CEL_LIGHT_UNIT[0], ly = CEL_LIGHT_UNIT[1], ss2: number[] = [];
   for (let y = d; y < N - d; y++) for (let x = d; x < N - d; x++) {
     const i = y * N + x; if (after.cov[i]! < 0.2) continue;
@@ -172,10 +173,11 @@ test('shader shape: the relief, the collagen kept out of the cel step and of the
   assert.match(main, /c = mix\(c, c0, kc\);/);
   assert.match(main, /c = mix\(c, reliefColour\(c, rs\), kc\);/);
   assert.match(main, /PLATE_EDGE_K \* smoothstep\(CEL_EDGE_LO, CEL_EDGE_HI, edge\) \* \(1\.0 - kc\)/, 'no edge line on the collagen');
-  assert.ok(main.indexOf('reliefSlope(vUv, fr)') > 0 && main.indexOf('reliefSlope(vUv, fr)') < main.indexOf('discard;'), 'the relief samples come before the first discard');
-  assert.ok(main.indexOf('plateTex(vUv)') < main.indexOf('reliefSlope(vUv, fr)') && main.indexOf('float cov = gCov;') < main.indexOf('plateEdge('), 'the coverage is read before plateEdge overwrites it');
-  assert.match(fs, /textureLod\(mapC, uvT, 3\.0\)/, 'the height is read at one explicit level (the same relief at every zoom)');
-  assert.match(fs, /cu = mix\(sU, cu, smoothstep\(SOFT_E0, SOFT_E1, sU\.a\)\)/, 'the pass edges are softened (collagen-terraces.test.ts judges how)');
+  assert.ok(main.indexOf('collField(vUv, 0.5)') > 0 && main.lastIndexOf('collField(') < main.indexOf('discard;'), 'the field (height and slope) is read before the first discard');
+  assert.ok(main.indexOf('float cov = gCov;') < main.indexOf('plateEdge('), 'the coverage is read before plateEdge overwrites it');
+  assert.match(fs, /textureLod\(mapC, a, COLL_LOD\)/, 'the height is read at one explicit level (the same relief at every zoom)');
+  assert.match(fs, new RegExp(`const float COLL_LOD = ${COLL_LOD.toFixed(1)};`));
+  assert.match(fs, /cu = mix\(gFU\.v, cu, smoothstep\(SOFT_E0, SOFT_E1, gFU\.v\.a\)\)/, 'the pass edges are softened (collagen-terraces.test.ts judges how)');
   for (const vs of [LOBULE_PLATE_VS, LOBULE_SCAR_VS]) { assert.match(vs, /varying vec2 vL;/); assert.match(vs, /vL = plateLight\(\);/); assert.match(vs, /CEL_LIGHT/, 'the one world light'); assert.match(vs, /mat3|modelMatrix/); }
   assert.ok(RELIEF_GLSL.includes('reliefColour'));
   let parse: ((s: string) => unknown) | null = null;
@@ -185,9 +187,8 @@ test('shader shape: the relief, the collagen kept out of the cel step and of the
   for (const src of [LOBULE_PLATE_FS, LOBULE_PLATE_VS, LOBULE_SCAR_VS]) parse!(src.replace(/^\n/, '').replace(/^#include.*$/gm, ''));
 });
 
-test('the atlas seam: the relief never reads across it (a septum\'s corner band reaches the plate\'s left and right edge, so the samples are kept half a mip-3 texel inside), and the top and bottom edges are clear in every look', () => {
-  assert.match(LOBULE_PLATE_FS, /uv = clamp\(uv, vec2\(RELIEF_EDGE\), vec2\(1\.0 - RELIEF_EDGE\)\);/);
-  assert.match(LOBULE_PLATE_FS, new RegExp(`const float RELIEF_EDGE = ${(RELIEF_D_PX / PLATE_PX).toFixed(6)};`), 'half a mip-3 texel (4 px of 2048): the first bilinear footprint that holds only its own plate');
+test('the atlas seam: no field fetch reads across it (every tap is kept on its own plate\'s texel centres: tests/collagen-screen.test.ts), and the top and bottom edges are clear in every look', () => {
+  assert.match(LOBULE_PLATE_FS, /float collU\(float t\) \{ return \(clamp\(t, 0\.0, COLL_N - 1\.0\) \+ 0\.5\) \/ COLL_N; \}/);
   const n = 512, sc2 = n / (2 * B), m = Math.ceil(16 * n / PLATE_PX);   // (16 px at 2048)
   for (const look of LOOK_IDS) {
     const L = lookColours(look); useTokens((nm: string, a?: number | string) => L.tk(nm, a));
