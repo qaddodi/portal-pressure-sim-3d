@@ -12,6 +12,7 @@ import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan
 import { observeThenFit } from '../layout/fit-later.ts';
 import { scaleOf } from '../charts/fit.ts';
 import { heldBy, openCharts } from './card-want.ts';
+import { boxOf, noteGrew, BOX_START } from './box-lock.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -51,16 +52,19 @@ interface Props {
 
 /** 2D's markLong (presenter.js): a title that sets in more than 2.4 lines is a long one and takes the smaller step (`.pz-h.long`, --s-big), so a long title never fills the card.
  *  Judged at the full size each time (the class is taken off, measured, put back), so a resize or a new title is judged afresh. A phone's stacked card has its own small title. */
+/** The one card whose box grows and shuts by design: the quick check opens an answer under its question (the card glides to it; CheckCard). Its room is not reserved up front (that would make it as tall as every answer open: a decision for the owner, Plan 45 question 1). */
+export const GROWS_BY_DESIGN: ReadonlySet<string> = new Set(['check']);
 /** The longest a leaving card waits for the cards replacing it before it goes anyway. */
 export const HOLD_OUT_MS = 700;
 
 export function markLong(root: HTMLElement | null, on: boolean): void {
-  const ttl = root?.querySelector<HTMLElement>('.pz-h');
-  if (!ttl) return;
-  ttl.classList.remove('long');
-  if (!on) return;
-  const lh = parseFloat(getComputedStyle(ttl).lineHeight) || ttl.offsetHeight;
-  if (ttl.offsetHeight > lh * 2.4) ttl.classList.add('long');
+  // (every title the card holds: a compare button's other titles stand in the same cell, hidden, and must be judged the same way so the card's reserve is the tallest one's)
+  root?.querySelectorAll<HTMLElement>('.pz-h').forEach((ttl) => {
+    ttl.classList.remove('long');
+    if (!on) return;
+    const lh = parseFloat(getComputedStyle(ttl).lineHeight) || ttl.offsetHeight;
+    if (ttl.offsetHeight > lh * 2.4) ttl.classList.add('long');
+  });
 }
 
 /** Which edge of a card stays where it is when its height changes: the foot (a phone's words card hangs from the screen's foot), the middle (a card the plan centres), or the top (the rest). */
@@ -80,6 +84,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const [live, setLive] = useState(false);          // the card has landed: from now on a move of its place glides
   const shownH = useRef<number | null>(null);        // the height the card is drawn at (for the glide)
   const anims = useRef<Animation[]>([]);
+  const box = useRef(BOX_START);                    // the card's lock (box-lock.ts): its height is decided before it shows and stands until a new key, width, step or viewport
   const now = useRef({ live: false, out: false, overflow: false, r: 0, rr: '', anchor: 'top' as Anchor });   // (what the measuring callback, made once, needs to know of the latest render)
   const out = entry.phase === 'out';
   const ready = rect.h > 0;
@@ -110,11 +115,19 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     shownH.current = h;
     sink(prev, h);
   };
+  // The one way a height glide ends or is cancelled (Plan 45): a cancelled glide never fires its `onfinish`, so `animH` and the words' inner offset it set would stay on (a card drawn at its old height with its
+  // words pushed down by the glide's distance: the words under the slide pill). Cancelling puts both back in the same call.
+  const settle = () => {
+    anims.current.forEach((x) => x.cancel());
+    anims.current = [];
+    setAnimH(null);
+    innerRef.current?.style.removeProperty('transform');
+  };
   const sink = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const o = opts ?? { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' }, d = prev - next, a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a];
-    anims.current.forEach((x) => x.cancel());
+    settle();
     setAnimH(prev);
     // (the words take their final places at once: the frame is still its old height, so they are moved down by what the frame's top has still to lose)
     if (a !== 'top' && innerRef.current) innerRef.current.style.transform = `translateY(${a === 'foot' ? d : d / 2}px)`;
@@ -128,13 +141,13 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const o = opts ?? { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
-    anims.current.forEach((a) => a.cancel());
+    settle();
     const a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a], g = next - prev;
     anims.current = [
       card.animate([{ clipPath: a === 'foot' ? `inset(${g}px 0 0 0 round ${rr})` : a === 'mid' ? `inset(${g / 2}px 0 ${g / 2}px 0 round ${rr})` : `inset(0 0 ${g}px 0 round ${rr})` }, { clipPath: `inset(0 0 0 0 round ${rr})` }], o),
       plate.animate([{ transform: `scaleY(${prev / next})`, transformOrigin: org }, { transform: 'scaleY(1)', transformOrigin: org }], o),
     ];
-    anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
+    anims.current[0].onfinish = () => settle();
   };
 
   // measure the words' natural height: the card is sized to it exactly
@@ -144,7 +157,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     // a centred card (2D's panel and case) keeps its padding on the card itself, so its height is its words' and that padding
     // `full`: the fit is made from scratch (the card's first measure, a new width, a new step). A pass the observer starts after the card is let in (`live`) only measures: it never changes a class, --pz-fit
     // or a chart's box in place unless the card is really past its room (Plan 43: nothing re-spaces while a card shows or moves). A card on its way out never measures: it keeps the layout it left with.
-    const report = (full = true) => {
+    const report = (full = true, fresh = false) => {
       if (now.current.out) return;
       if (full) markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
@@ -159,12 +172,18 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }
       const h = Math.ceil(el.getBoundingClientRect().height / scaleOf(el) + pad) + 2;   // (a card zoom is a transform: its rect is that many times the card's own height)
+      // The box is decided once (box-lock.ts, Plan 45): once the card is let in, a measure the observer makes (a reading changed its width, a chart drew, a font swapped) never shrinks it or moves it;
+      // a taller one still grows it by the glide (words are never clipped) and is logged for the audit. A new key, width, step or viewport (this effect's own first pass) takes the lock again.
+      const out = boxOf(box.current, { t: 'measure', key: lockKey, h, fresh, shown: gate.current && !GROWS_BY_DESIGN.has(entry.id) });
+      box.current = out.state;
+      if (!out.report) return;
+      if (out.grew) noteGrew({ card: entry.id, slide: entry.key, px: out.grew });
       growNow(h); shrinkNow(h);
       onHeight(entry.key, Math.round(rect.w), h, h + heldBy(el), openCharts(el));
     };
-    report(true);
+    report(true, true);
     // a chart that has drawn once tells the card (card-want.ts openCharts): the card judges whether it can come in at once, not at the next resize
-    const built = () => report(!now.current.live);
+    const built = () => report(!now.current.live);   // (not `fresh`: a chart that draws after the card showed is a measure like any other)
     el.addEventListener('pz-chart-built', built);
     const off = observeThenFit([el], () => report(!now.current.live));
     return () => { el.removeEventListener('pz-chart-built', built); off(); };   // (the pass writes onto what it observes, its class and --pz-fit: never inside the observer's own delivery)
@@ -180,7 +199,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!card || !plate || !ready) return;
     const prev = shownH.current;
     shownH.current = rect.h;
-    if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
+    if (out) { settle(); return; }   // (a card on its way out is never clipped by a height glide)
     if (prev == null || prev === rect.h || !(live || gate.current)) return;
     if (typeof card.animate !== 'function' || reduced()) return;
     const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
@@ -191,12 +210,13 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     }
   }, [rect.h, ready, live, out]);
   // the new height is in place: let go of the glide (cancelled here, after the commit, so no frame shows the full old card)
-  useLayoutEffect(() => { if (animH == null) { innerRef.current?.style.removeProperty('transform'); if (anims.current.length) { anims.current.forEach((a) => a.cancel()); anims.current = []; } } }, [animH]);
+  useLayoutEffect(() => { if (animH == null) { innerRef.current?.style.removeProperty('transform'); if (anims.current.length) settle(); } }, [animH]);
 
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after
   const gate = useRef(false);
-  if (go && ready) gate.current = true;
+  const lockKey = `${entry.key}|${Math.round(rect.w)}|${remeasure ?? ''}`;
+  if (go && ready && !gate.current) { gate.current = true; box.current = boxOf(box.current, { t: 'show', key: lockKey }).state; }
   now.current.live = live || gate.current;   // (a card sliding in is on screen: a change of its height glides, it never snaps)
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
   // A card that is going stays up, whole and readable, until the cards that replace it can come in (`go`: measured, fonts in), so no slide change shows an interval with nothing readable

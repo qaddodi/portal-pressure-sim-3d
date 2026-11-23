@@ -6,6 +6,7 @@ import { planLayout } from '../src/ui/layout/plan.ts';
 import { pzhOf } from '../src/ui/layout/plan.ts';
 import { layoutOf, isSideways } from '../src/ui/layout/rules2d.ts';
 import { layoutHeight, layoutCeiling, fitToRoom, heldToRoom } from '../src/ui/charts/profile/model.ts';
+import { chartH } from '../src/ui/layout/card-size.ts';
 import { heldPx } from '../src/ui/cards/card-want.ts';
 
 const S = [
@@ -49,17 +50,17 @@ test('a shorter words card only ever gives the data card more room (so each titl
   }
 });
 
-test('the two slides of his photos (iPad 1180x820): after the title\'s step the chart has at least 225 px', () => {
-  const vp = S[0]!, f = 12, pzh = pzhOf(vp as never), own = layoutHeight(392, f, layoutOf(vp.w, vp.h), isSideways(vp.w, vp.h), pzh)!;
+test('the two slides of his photos (iPad 1180x820): after the title\'s step the chart has its table height, 221 px (Plan 45: held down by the room, never grown into it)', () => {
+  const vp = S[0]!, f = 12, own = chartH(vp.w, vp.h);
   const PARTS = 90;   // (the data card's padding, "PRESSURE, GUT TO HEART" and the gap, measured)
   const chartAt = (wh: number) => {
     const cap = planLayout(vp as never, [{ id: 'teach', slot: 'words', h: wh }, { id: 'ladder', slot: 'data', h: 300, want: own + PARTS }], 'words').maxH.data;
-    return fitToRoom(own, cap - PARTS, f, layoutCeiling('short', false, pzh, f))!;
+    return heldToRoom(own, cap - PARTS, f)!;
   };
-  assert.ok(own >= 215 && own <= 235, `the chart's own height on this screen (${own})`);
+  assert.equal(own, 221, 'the table height on this screen');
   for (const [name, before, after] of [['Right heart failure', 485, 418], ['Schistosomiasis', 437, 362]] as const) {
     assert.ok(chartAt(before) < own, `${name}: held today (${chartAt(before)})`);
-    assert.ok(chartAt(after) >= 225, `${name}: ${chartAt(after)} after the title's step`);
+    assert.equal(chartAt(after), own, `${name}: ${chartAt(after)} after the title's step`);
   }
 });
 

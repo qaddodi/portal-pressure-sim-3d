@@ -1,3 +1,4 @@
+import { chartH } from './layout/card-size.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { mark } from '../clock/blocks.ts';
 import './css2d/index.css';   // the 2D app's own stylesheets, lifted unchanged (scripts/copy-2d-css.mjs); the shell imports the same file, loaded once
@@ -100,7 +101,7 @@ export function DeckUi() {
   const vars = {
     '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--fs-title-trim': `${t.slideTitleTrim}px`, '--lh-title': t.slideTitleLead,
     '--fs-body': `${t.body}px`, '--lh-body': t.bodyLead, '--fs-data': `${t.data}px`, '--fs-kicker': `${t.kicker}px`, '--fs-big': `${t.bigNumber}px`,
-    '--pz-tk-trim': t.slideTitle ? t.slideTitleTrim / t.slideTitle : 1, '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
+    '--pz-tk-trim': t.slideTitle ? t.slideTitleTrim / t.slideTitle : 1, '--pz-chart-px': `${chartH(vp.w, vp.h)}px`, '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
   } as CSSProperties;
   // the 2D app's own root classes: `pz` is its card layer, `stack` a phone or an upright iPad, `tab` the iPad, `short` a wide screen under 860 px, `pz-card` every screen with floating cards,
   // `pz-wide` the same with the data card stacked under the words. The lifted 2D stylesheet (src/ui/css2d) keys its type, colour and glass on these.

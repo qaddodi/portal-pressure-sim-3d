@@ -5,7 +5,8 @@ import type { ChartPainter } from '../painter.ts';
 import type { Frame } from '../scene.ts';
 import { profileFrame, type CellOpts } from './frame.ts';
 import { ProfileMotion } from './glide.ts';
-import { planProfile, profileWords, spansFor, layoutHeight, layoutCeiling, fitToRoom, type Fp, type ProfilePlan } from './model.ts';
+import { tableH } from '../../layout/chart-box.ts';
+import { planProfile, profileWords, spansFor, layoutHeight, heldToRoom, type Fp, type ProfilePlan } from './model.ts';
 import { useUi } from '../../ui-store.ts';
 import { layoutOf, isSideways } from '../../layout/rules2d.ts';
 import { pzhOf } from '../../layout/plan.ts';
@@ -71,10 +72,10 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
     m.reduce = reduced();
     const f = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
     // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
-    // (`base` is what the chart WANTS; `own` what its card's room gives it: held down to the room, or, on a wide screen with room to spare, grown to 2D's own ceiling)
+    // (`base` is what the chart WANTS: the screen's table height (layout/card-size.ts; a phone on its side keeps 2D's own); `own` what its card's room gives it: held down to the room, never grown into what the words leave over)
     const vp = useUi.getState().vp, lay = layoutOf(vp.w, vp.h), side = isSideways(vp.w, vp.h);
-    const base = height ?? (cell ? undefined : layoutHeight(c.w, f, lay, side, pzhOf(vp)));
-    const own = height ?? (cell ? undefined : fitToRoom(base, room, f, layoutCeiling(lay, side, pzhOf(vp), f)));
+    const base = height ?? (cell ? undefined : tableH() ?? layoutHeight(c.w, f, lay, side, pzhOf(vp)));
+    const own = height ?? (cell ? undefined : heldToRoom(base, room, f));
     const key = [c.w, f, own ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
     if (key !== planKey.current) {
       planKey.current = key;

@@ -132,3 +132,18 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
    is inside its box and stays.) */
 .pz:not(.stack):not(.low) .pz-panel.fill { --pz-grid-gap: clamp(8px, calc(1.2 * var(--pzh)), 16px); gap: var(--pz-grid-gap); }
 .pz:not(.stack):not(.low) .pz-panel.fill .pz-grid { gap: var(--pz-grid-gap); }
+
+/* ── Plan 45: one height for every instrument's picture, from the screen (layout/card-size.ts writes --pz-chart-px on .deck-ui once per viewport) ──
+   2D sized a stacked card's pictures by the card's WIDTH (60cqi: an upright iPad's Doppler a third of the screen) and a floating one's by pzh multiples that differed per instrument (FibroScan 42, vitals 26, HVPG 24).
+   Here every picture reads the one table; `--pz-fit` (the card's zoom to its room) still scales it. A phone on its side (.low) keeps its own short boxes, and the Doppler report no longer adds `--dop-free` on top. */
+.app.presenting .pz.stack.stack:not(.low) .pz-data.has-tool > .pz-tool { --pz-chart-h: var(--pz-chart-px); }
+.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui:not(.low) .pz-data .pz-tool[data-kind="doppler"] .dop-box,
+.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui:not(.low) .pz-data .pz-tool[data-kind="fibroscan"] .fibroscan-box,
+.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui:not(.low) .pz-data .pz-tool[data-kind="vitals"] .vitals-box,
+.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui:not(.low) .pz-data .pz-tool .pz-mon .hvpg-box,
+.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui:not(.low) .pz-data .pz-tool[data-kind="beats"] .pt-box { height: calc(var(--pz-chart-px) * var(--pz-fit, 1)); min-height: 0; flex: 0 0 auto; aspect-ratio: auto; }
+/* (the plane in a data card: the table height too, held to the card's room as before; the 2D rules sized it by the card's width on a stacked screen and 30 pzh on a floating one) */
+.deck-ui.deck-ui.deck-ui.deck-ui:not(.low):not(.stack) .pze-plot.pze-incard:not(.pze-short) { height: min(calc(var(--pz-chart-px) * var(--pz-fit, 1)), max(120px, calc(var(--pz-room, 9999px) - 5.5em))); }
+.deck-ui.deck-ui.deck-ui.deck-ui:not(.low):not(.stack) .pze-plot.pze-incard.pze-ownwords:not(.pze-short) { height: calc(min(var(--pz-chart-px), max(120px, calc(var(--pz-room, 9999px) - 5.5em))) + 1.3em + 6px); }
+.deck-ui.deck-ui.deck-ui.deck-ui.stack:not(.low) .pze-plot.pze-incard:not(.pze-short) { height: min(calc(var(--pz-chart-px) * var(--pz-fit, 1)), max(150px, var(--pz-ph, 9999px))); aspect-ratio: auto; }
+.deck-ui.deck-ui.deck-ui.deck-ui.stack:not(.low) .pze-plot.pze-incard.pze-ownwords:not(.pze-short) { height: calc(min(var(--pz-chart-px) * var(--pz-fit, 1), max(150px, var(--pz-ph, 9999px))) + 1.3em + 6px); }

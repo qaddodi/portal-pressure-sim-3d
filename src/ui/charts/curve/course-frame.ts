@@ -7,6 +7,7 @@ import { measure } from '../measure.ts';
 import * as C from './course-pure.generated.js';
 import { curveHeight } from './frame.ts';
 import { heldToRoom } from '../profile/model.ts';
+import { tableH } from '../../layout/chart-box.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -41,7 +42,7 @@ export function flattenPath(d: string, n = 14): number[] {
 }
 
 export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: Any; labels: Any } {
-  const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
+  const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(tableH() ?? curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
   const co = C.courseOf(spec.tool), ser = spec.ser;
   const { G, labels, zoneNames } = C.compose(w, h, f, co, ser) as Any;
   const { L, R, B, X, Y } = G, r = Math.max(3.5, 0.3 * f);

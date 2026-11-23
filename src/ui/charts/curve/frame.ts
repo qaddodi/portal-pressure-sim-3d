@@ -10,6 +10,7 @@ import { fitHeight, type Frame, type Shape, type TextShape } from '../scene.ts';
 import * as P from './curve-pure.generated.js';
 import { minusFixed } from '../looks2d/num.js';
 import { heldToRoom } from '../profile/model.ts';
+import { tableH } from '../../layout/chart-box.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -375,7 +376,7 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
 }
 
 export function curveFrame(spec: CurveSpec, c: ChartCtx): CurveOut {
-  const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
+  const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(tableH() ?? curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
   let out = drawOnce(spec, c, w, h, f, false, false);
   // a crowd of names: numbers on the dots and a key under the chart, if the plot keeps its height
   if (out.crowded) { const g2 = drawOnce(spec, c, w, h, f, true, false); if (g2.G.B - g2.G.T >= 5 * f) out = g2; }
