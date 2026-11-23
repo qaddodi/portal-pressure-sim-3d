@@ -69,6 +69,6 @@ test('the Protein legend sits beside the lens key: before the figure\'s pill in 
   const css = readFileSync(new URL('../src/scene/sinusoid/legend.css', import.meta.url), 'utf8');
   assert.match(css, /\.topbar \.stage-bar\.top > \.sv-legend \{ position: static; order: 1;[^}]*margin-left: auto/);
   assert.match(css, /\.stage-bar\.top:has\(> \.sv-legend\) > \.sb-right \{ margin-left: 0; \}/);
-  assert.match(css, /\.app\.thumb \.topbar \.stage-bar\.top > \.sv-legend \{ position: absolute; top: calc\(100% \+ 6px\); right: 0;/);
+  assert.match(css, /\.app\.thumb \.topbar \.stage-bar\.top > \.sv-legend \{ position: absolute; left: auto; top: calc\(100% \+ 8px\); right: 0;/);
   assert.match(css, /\.sv-legend\.out \{ animation: lk-out/);
 });

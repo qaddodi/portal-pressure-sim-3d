@@ -15,6 +15,7 @@ import { createGestures, type GestureEnv, type GestureHost } from '../src/scene/
 import { PRESETS, VIEWS, defaultState, stateText, wrapDeg } from '../src/ui/debug/inspect/state.ts';
 import { flagOn, inspectRequested, knownFlags } from '../src/ui/debug/flags.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
+import { SKIN_DIAGNOSTICS } from '../src/scene/vessels/skin/skin-object.ts';
 
 /** The shader text with every `#ifdef VDBG .. #endif` block taken out. */
 const withoutVdbg = (src: string): string => src.replace(/#ifdef VDBG\n[\s\S]*?#endif\n/g, '');
@@ -166,7 +167,9 @@ test('the named views and the presets: each says what it takes away, and a prese
 
 test('every program the panel can reach is registered for the compile check (the vessel and the skin with the hooks, and the three skin diagnostics)', () => {
   const names = rawPrograms('').map((p) => p.name);
-  for (const n of ['vessel (inspector)', 'skin (inspector)', 'skin (inspector, no marks)', 'skin (inspector, no ink)']) assert.ok(names.includes(n), n);
+  // (the skin programs are generated, gl-registry.ts skinPrograms: each of the three copies with the hooks, alone and with each diagnostic)
+  const want = ['vessel (inspector)', ...[0, 1, 2].flatMap((c) => ['', ...SKIN_DIAGNOSTICS.map((d) => `, ${d}`)].map((d) => `skin (copy ${c}, VDBG${d})`))];
+  for (const n of want) assert.ok(names.includes(n), n);
 });
 
 test('a program\'s budget and uniform check read its source as the driver\'s preprocessor leaves it: the hooks cost a page without the inspector nothing, and the inspector\'s own programs stay under the floor', async () => {
