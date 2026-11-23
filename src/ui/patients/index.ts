@@ -11,6 +11,8 @@ import { timeline, patientLabel } from '../timeline/index.ts';
 import { useCompare } from '../compare/store.ts';
 import { isYours, syncYours } from '../readings/yours.ts';
 import { switchBegins, switchLands, switchEnds } from './switching.ts';
+import { isHistory } from '../histories/meta.ts';
+import { openHistory, historyLetGo } from '../histories/open.ts';
 
 let loadGen = 0;
 
@@ -19,6 +21,7 @@ export async function loadPatient(id: string): Promise<boolean> {
   const yours = isYours(id);   // (a patient made from readings on this device: the engine is told the saved list first)
   if (!yours && !UI.presets.some((p) => p.id === id)) return false;
   const gen = ++loadGen;
+  historyLetGo();
   switchBegins();
   let params: unknown;
   try {
@@ -43,7 +46,7 @@ export async function loadPatient(id: string): Promise<boolean> {
 export async function restartPatient(): Promise<boolean> {
   useCompare.getState().stop();
   const id = useEngine.getState().presetId || 'healthy';
-  if (!(await loadPatient(id))) return false;
+  if (!(await (isHistory(id) ? openHistory(id) : loadPatient(id)))) return false;
   useShell.getState().say(`Restarted: ${patientLabel(id) || 'patient'}.`);
   return true;
 }

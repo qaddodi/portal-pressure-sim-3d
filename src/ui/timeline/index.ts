@@ -1,6 +1,7 @@
 // The one timeline of the page, joined to the engine and the shell: History, Undo and Redo, jumps, Compare's "Compare with now". `startTimeline()` is called once by the shell
 // (after the engine has booted); until then nothing is recorded.
 import { yoursName } from '../readings/yours.ts';
+import { historyName } from '../histories/meta.ts';
 import { engine, latest, live, patient, useEngine } from '../../engine/index.ts';
 import { setParams } from '../../engine/store.ts';
 import { sanitizeParams } from '../../engine/hales/portal/scenario.js';
@@ -17,7 +18,7 @@ export { fmtClock, captureFrame } from './model.ts';
 export type { Entry, Pinned } from './model.ts';
 
 /** 2D: patientLabel (readouts-text.js): the preset's label, or Custom once the parameters have been moved. */
-export const patientLabel = (id: string | null = useEngine.getState().presetId): string => UI.presets.find((p) => p.id === id)?.label || yoursName(id) || 'Custom';
+export const patientLabel = (id: string | null = useEngine.getState().presetId): string => UI.presets.find((p) => p.id === id)?.label || historyName(id) || yoursName(id) || 'Custom';
 
 let labels: (params: unknown) => Map<string, string> = () => new Map();
 /** The Treat batch hands over 2D's activeInterventions (key to label of every active change) so a change is named as it is in 2D. */
