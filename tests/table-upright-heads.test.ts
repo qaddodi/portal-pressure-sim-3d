@@ -17,3 +17,8 @@ test('upright table heads turn by transform, not writing-mode', () => {
 test('"No ascites" cell stays inside its columns', () => {
   assert.match(css, /td\.none \{[^}]*white-space: nowrap[^}]*overflow: clip/);
 });
+
+test('a signed change is proportional, and an equation sign is infix (slides 9.2 and 3, 187c7e53)', () => {
+  assert.match(readFileSync('src/scene/labels/labels.css', 'utf8'), /\.lb \.lb-delta, \.lb \.lb-alert \{ font-variant-numeric: proportional-nums/);
+  assert.match(readFileSync('src/ui/cards/TeachingCard.tsx', 'utf8'), /<mo key=\{i\} form="infix">/);
+});

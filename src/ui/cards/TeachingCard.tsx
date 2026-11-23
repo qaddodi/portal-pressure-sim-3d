@@ -20,7 +20,7 @@ import { valueText, VALUE_PENDING } from '../text/tokens.ts';
 const eqClass = (p: EqPart) => (p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined);
 /** A slide's equation parts as MathML (2D `.pz-eq > math`): names, numbers, signs, subscripts and fractions, in 2D's own tags. */
 function EqParts({ parts }: { parts: readonly EqPart[] }) {
-  return <>{parts.map((p, i) => p.tag === 'mo' ? <mo key={i}>{p.text}</mo>
+  return <>{parts.map((p, i) => p.tag === 'mo' ? <mo key={i} form="infix">{p.text}</mo>
     : p.tag === 'mn' ? <mn key={i}>{p.text}</mn>
     : p.tag === 'mfrac' ? <mfrac key={i} className={eqClass(p)}><mrow><EqParts parts={p.num ?? []} /></mrow><mrow><EqParts parts={p.den ?? []} /></mrow></mfrac>
     : p.sub ? <msub key={i} className={eqClass(p)}><mi>{p.text}</mi><mtext>{p.sub}</mtext></msub>

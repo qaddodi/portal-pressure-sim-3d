@@ -36,6 +36,8 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .lb .lb-unit:not(:empty) { display: inline-block; margin-left: var(--lb-g-unit); font-size: var(--lb-f-unit); font-weight: var(--lb-w-unit); color: var(--lb-name); }
 .lb .lb-delta:not(:empty) { display: inline-block; margin-left: var(--lb-g-delta); font-size: var(--lb-f-delta); font-weight: var(--lb-w-delta); color: var(--lb-val); }
 .lb .lb-alert:not(:empty) { display: inline-block; margin-left: var(--lb-g-delta); font-size: var(--lb-f-delta); font-weight: var(--lb-w-delta); color: var(--lb-alert); }
+/* A change such as "+16.4" is set proportional: the tabular "1" leaves a gap before the next digit ("+1 6.4", iPhone capture 187c7e53, slide 9.2). */
+.lb .lb-delta, .lb .lb-alert { font-variant-numeric: proportional-nums lining-nums; }
 /* words in place of the number ("microcirculation", "collaterals closed"): the unit's type, the name's gap */
 .lb[data-note] .lb-val { display: none; }
 .lb[data-note] .lb-unit:not(:empty) { margin-left: var(--lb-g-val); }
