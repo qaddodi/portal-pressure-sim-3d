@@ -48,13 +48,8 @@ const lookOf = (p: Palette): LookId => LOOK_IDS.find((id) => ORGAN_TONES_2D[id] 
 /** The per-vertex numbers of the esophagus on the stomach's pillow (the pillow is one shape with it, as 2D's SEAM_D is): `eso` how much of the esophagus's own tone shows
  *  (1 above y 226, none below y 262, as seamFG), `esoA` how much of the figure shows (1 below y 40, none above y -40, as esoFadeG). Linear in y, so the pillow's fine
  *  triangles carry them exactly. Positions are the scene's: y2d = 556 - 300 y. */
-/** The rectum's fade begins here at the latest (2D's starts at 902): a longer stretch, Mohammad 23 Nov "make the rectum actually fade out not just fade to black" (option 1). */
-export const RECTUM_FADE_FROM = 800;
-/** Where in the colon's gradient the held colour sits (the fade's start, about 0.7 down its box): through the fade the fill keeps this one colour and only its alpha falls. */
-export const RECTUM_HOLD_T = 0.7;
 /** The rectum's fade as `esoA` on the colon's pillow: 1 above the first y, 0 below the second (2D's rectFadeG, linear in y). */
 export function rectumAttribute(g: BufferGeometry, fade: [number, number]): void {
-  fade = [Math.min(fade[0], RECTUM_FADE_FROM), fade[1]];
   const pos = g.getAttribute('position'), a = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) a[i] = Math.min(1, Math.max(0, (fade[1] - (556 - pos.getY(i) * UNITS_PER_SCENE)) / (fade[1] - fade[0])));
   g.setAttribute('esoA', new Float32BufferAttribute(a, 1));
@@ -83,7 +78,7 @@ export function wrapMain(src: string, decl: string, body: string): string {
 }
 
 const f = (v: number) => v.toFixed(5);
-export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the organ fades out along y (the colon's rectum): fill and outline both, by the per-vertex `esoA` */ fade?: boolean; /** the fill keeps one colour while it fades (the rectum): only alpha falls, the shading and gradient do not dim it to black */ hold?: boolean }
+export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the organ fades out along y (the colon's rectum): fill and outline both, by the per-vertex `esoA` */ fade?: boolean }
 
 /** The patched shaders of an organ: its fill (vertex and fragment), and for the esophagus the ink's. Pure strings (tests read them). */
 export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: string, o: PatchOpts): { vs: string; fs: string; inkVs: string; inkFs: string } {
@@ -106,9 +101,7 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
   let ivd = '', ivb = '', ifd = '', ifb = '';
   if (o.fade || o.eso) {
     vd += 'attribute float esoA;\nvarying float vEsoA;\n'; vb += '  vEsoA = esoA;\n';
-    fd += 'varying float vEsoA;\n';
-    if (o.hold) fb += `  gl_FragColor.rgb = mix(mix(o1, o2, ${f(RECTUM_HOLD_T)}), gl_FragColor.rgb, smoothstep(0.0, 1.0, vEsoA));\n`;
-    fb += '  gl_FragColor.a *= vEsoA;\n';
+    fd += 'varying float vEsoA;\n'; fb += '  gl_FragColor.a *= vEsoA;\n';
     ivd = 'attribute float esoA;\nvarying float vEsoA;\n'; ivb = '  vEsoA = esoA;\n';
     ifd = 'varying float vEsoA;\n'; ifb = '  gl_FragColor.a *= vEsoA;\n';
   }
@@ -154,7 +147,7 @@ export class OrganArt {
     const art = d?.arts[id] ?? null, isStomach = id === 'stomach' && !!d;
     if (!art && !isStomach && !tail) return false;
     const eso = isStomach ? d!.eso : null;
-    const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade: id === 'colon' || tail, hold: id === 'colon' });
+    const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade: id === 'colon' || tail });
     toon.vertexShader = p.vs; toon.fragmentShader = p.fs; ink.vertexShader = p.inkVs; ink.fragmentShader = p.inkFs;
     toon.needsUpdate = ink.needsUpdate = true;
     // the AO seat (the soft halo round the outline) fades with the line: left whole it keeps a hollow outline where the fill and ink have gone (a faint box at the esophagus's top)

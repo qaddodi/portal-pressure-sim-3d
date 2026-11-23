@@ -94,7 +94,7 @@ test('the esophagus fades up as 2D\'s esoFadeG (opaque by y 40, gone by y -40), 
   assert.match(p.fs, /gl_FragColor\.a \*= vEsoA/);
 });
 
-test('the colon\'s rectum fades out as 2D\'s rectFadeG (902 to 1048 in 2D, begun earlier at 800 in 3D, Mohammad 23 Nov): fill, art and outline', () => {
+test('the colon\'s rectum fades out as 2D\'s rectFadeG (clear above y 902, gone by 1048): fill, art and outline', () => {
   assert.deepEqual(art.rectum, [902, 1048]);
   const g = ORGAN_MESHES.colon!();
   rectumAttribute(g, art.rectum);
@@ -102,16 +102,12 @@ test('the colon\'s rectum fades out as 2D\'s rectFadeG (902 to 1048 in 2D, begun
   let low = 0;
   for (let i = 0; i < pos.count; i++) {
     const y = y2d(pos.getY(i));
-    if (y <= 800) assert.equal(a.getX(i), 1);
+    if (y <= 902) assert.equal(a.getX(i), 1);
     if (y >= 1048) { assert.equal(a.getX(i), 0); low++; }
   }
   assert.ok(low > 0, 'the pillow reaches past where 2D has faded it away (the dark bar below the colon)');
   const p = patchedShaders(ORGAN_VS, ORGAN_FS, ORGAN_INK_VS, INK_FS, { art: true, eso: null, fade: true });
   assert.match(p.inkFs, /vEsoA/); assert.doesNotMatch(p.fs, /eso1/);
-  // the fill keeps one colour through the fade and only its alpha falls: the colour is held before alpha is scaled, the outline is untouched
-  const h = patchedShaders(ORGAN_VS, ORGAN_FS, ORGAN_INK_VS, INK_FS, { art: true, eso: null, fade: true, hold: true });
-  assert.ok(h.fs.indexOf('mix(mix(o1, o2,') > 0 && h.fs.indexOf('mix(mix(o1, o2,') < h.fs.indexOf('gl_FragColor.a *= vEsoA'));
-  assert.doesNotMatch(h.inkFs, /mix\(o1/);
 });
 
 test('the patch wraps the organ painter\'s main and never edits it (a shader without its one anchor is refused)', () => {
