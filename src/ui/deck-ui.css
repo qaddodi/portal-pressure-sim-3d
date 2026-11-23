@@ -302,8 +302,10 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="wall"] .endo-read > .endo-stress.endo-stress > .wall-big.wall-big > span { white-space: nowrap; }
 
 /* A value's pill gives up its own padding beside punctuation (21 Nov): the pill's .45em side room read as a space, "2.2 g/dL ." and "( 59.4 kPa )". The stop (or bracket) sits at the pill's edge. */
-.pz-stop > :is(.pz-val, .pz-term) { padding-inline-end: .2em; margin-inline-end: .02em; }
-.pz-open > :is(.pz-val, .pz-term), .pz-open > .pz-nw > .pz-val { padding-inline-start: .2em; }
+.pz-stop > :is(.pz-val, .pz-term) { padding-inline-end: 0; margin-inline-end: 0; }
+.pz-open > :is(.pz-val, .pz-term), .pz-open > .pz-nw > .pz-val { padding-inline-start: 0; }
+/* (23 Nov: the pills are gone, so there is no pill padding to give up: the .2em left here read "central veins ," and "( 59.4 kPa". A reading's stop is set inside its Roll box, Roll.tsx `after`.) */
+.dk-roll-stop { color: var(--text-2); font-weight: 400; }
 
 /* Words that are "not yet" or "earlier" are dimmed by COLOUR, never by opacity (22 Nov, the Mac audit): the HVPG tracing's reading steps (FHVP, WHVP, HVPG and their 1 2 3 dots) stood at 55% opacity, 3.24:1 on the card;
    the ghost reading beside a live one at 70%. Opacity thins the ink toward the paper, so no token could pass; a text token on its surface always does (--text-3 is 4.8:1 or more in every look,
@@ -341,3 +343,9 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz-vars > * { grid-area: 1 / 1; min-width: 0; transition: opacity var(--d-small) var(--ease), visibility 0s linear 0s; }
 .pz-vars > [data-var="off"] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--d-small) var(--ease), visibility 0s linear var(--d-small); }
 @media (prefers-reduced-motion: reduce) { .pz-vars > * { transition-duration: 0s; } .pz-vars > [data-var="off"] { transition-delay: 0s; } }
+
+/* One tag per card (23 Nov, Outflow review item 5): a card with a level tab (CARDIAC, POST-HEPATIC, POSTSINUSOIDAL: what THIS slide is about) does not also carry the deck's tab at its other corner,
+   which named the whole talk and said POSTSINUSOIDAL over a CARDIAC slide (and the same word twice on a postsinusoidal one). The deck's tab is the card's one tag where there is no level tab, and on a
+   wide screen where the level rail names the level instead (the level tab is hidden there, app-04 `.pz-shade:not(.stack) .pz-sitetab[data-rail]`). The half tab of air under it stays: the card's top does not move. */
+.pz-tabname:has(~ .pz-sitetab:not([data-rail])) { display: none; }
+.pz-shade.stack .pz-tabname:has(~ .pz-sitetab[data-rail]) { display: none; }

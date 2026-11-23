@@ -51,7 +51,8 @@ export function Line({ text, read, slide, fp, pill }: { text: string; read: (k: 
         const v = read(p.key, p.at);
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
         const { tone, rate } = v == null ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
-        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0)} /></span></span>, stop, i, open);
+        // (its stop is set inside the reading's own box, right after the digits: the reserve is wider than a short value, and that spare width must fall after the stop, not before it)
+        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0)} after={stop} /></span></span>, '', i, open);
       }
     }
   });

@@ -73,6 +73,9 @@ export const SOURCE_PATCHES = [
 
   // ---- the velocity lens's colours (ramp F, 22 Nov 2026: scripts/../src/scene/lenses/velocity-ramp.ts): the note names what the figure draws now ----
   P('tips-doppler', 'slides.before.notes', 'pale sand when slower, teal when normal and violet when faster', 'indigo when slower, teal when normal and coral when faster'),
+
+  // ---- the outflow deck, SOS wedge slide (23 Nov 2026, Outflow review item 3): the line read "the HVPG is 10.3 mmHg, ≥10 mmHg." (a reading, then a cut-off with no word between them). Said once, in words. ----
+  P('outflow', 'slides.soswedge.line', 'the HVPG is {hvpg}, {>=10 mmHg}.', 'the HVPG is {hvpg}, above the {10 mmHg} cut-off.'),
 ];
 
 function step(node, key) {
