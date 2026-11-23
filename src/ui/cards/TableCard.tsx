@@ -1,7 +1,7 @@
 // The summary table (the 2D `visual: 'table'`), drawn as the 2D app draws it (presenter.js summaryTable, its own stylesheet lifted into css2d: `.pz-table`): ONE heading row, a row per patient
 // (its site's heading over its name), and in each cell the arrow against normal (or against the row it is compared with) in the colour that goes with it, and no number: the numbers are
 // the reference row's (the anchor for the arrows) and the words a screen reader and a long press hear. On a phone each row is one line of a grid (css2d: `.pz-table tr`). Every cell is computed by
-// table-model.ts from the 2D app's own cut-offs. A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
+// table-model.ts from the 2D app's own cut-offs. A row's finding (its `note`) is one quiet line under its name, never a row of its own (the approved one-line-per-case layout, docs/approved/comparison-table.md). A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
@@ -96,20 +96,15 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
             const go = r.i >= 0 ? () => useUi.getState().go(r.i) : undefined;
             return (
               <Fragment key={`${r.key}:${n}`}>
-                {/* a phone's group heading: the site, once, over the rows that share it (the wide table keeps it over the name, in the row) */}
-                {!r.cont && r.head ? <tr className="dk-tgroup"><th scope="rowgroup" colSpan={nc + 1}><span className="pz-kick" data-site={r.site || 'none'}>{r.head}</span></th></tr> : null}
                 <tr className={`${r.i >= 0 ? '' : 'static'}${r.focus ? ' pzv-focus' : ''}${r.cont ? ' pz-cont' : ''}`.trim() || undefined} data-ref={r.ref || undefined}
                   tabIndex={r.i >= 0 ? 0 : undefined} aria-label={r.i >= 0 ? `${r.title}: go to this slide` : undefined}
                   onClick={go} onKeyDown={go ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); go(); } } : undefined}>
                   <th scope="row">
                     <span className="pz-kick" data-site={r.site || 'none'}>{r.head}</span>
-                    <span className="tw"><span className="tn">{r.title}</span>{r.vs ? <span className="vs">{r.vs}</span> : null}</span>
+                    <span className="tw"><span className="tn">{r.title}</span>{r.vs ? <span className="vs">{r.vs}</span> : null}{r.notes.map((t, j) => (t ? <span key={j} className="vs dk-tfind">{model.noteHeads.length > 1 && model.noteHeads[j] ? `${model.noteHeads[j]}: ` : ''}{t}</span> : null))}</span>
                   </th>
                   {r.cells.map((c, j) => <Td key={c.k + j} c={c} />)}
                 </tr>
-                {r.notes.some(Boolean) ? (
-                  <tr className="dk-tnrow"><td colSpan={nc + 1}>{r.notes.map((t, j) => (t ? <p key={j} className="dk-tnote">{model.noteHeads[j] ? <b className="dk-tnh">{model.noteHeads[j]}</b> : null}{t}</p> : null))}</td></tr>
-                ) : null}
               </Fragment>
             );
           })}

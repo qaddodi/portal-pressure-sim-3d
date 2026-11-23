@@ -46,7 +46,6 @@
   "ui/deck-ui.css | .deck-ui.pz .pz-tool > .pz-prof | max-height",
   "ui/deck-ui.css | .pz-ab[data-tight] | flex-wrap",
   "ui/deck-ui.css | .pz-ab[data-tight] | gap",
-  "ui/deck-ui.css | .pz-table.dk-pztable tbody tr.dk-tgroup .pz-kick | letter-spacing",
   "ui/humanized.css | html:root .instr-tab[data-slot=\"1\"]::after | font",
   "ui/humanized.css | html:root .instr-tab[data-slot=\"1\"]::after | right",
   "ui/humanized.css | html:root .instr-tab[data-slot=\"1\"]::after | top",

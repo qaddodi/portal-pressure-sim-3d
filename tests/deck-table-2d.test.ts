@@ -41,14 +41,14 @@ test('every deck table has compared cells with a direction, and a reference row 
 
 // Eyes on 7ac0595 (20 Nov): on an iPhone "CENTRAL VEINS" took two lines, "Sinusoidal obstruction syndrome" three, and every patient was a block of three or four lines. Root cause: the site stood over the name
 // inside the name's own narrow column. On a phone the site is a heading row, once over its group; the name has its column to itself, wider the fewer value columns there are.
-test('a phone\'s table: the site heads its group, the name has the column to itself', async () => {
+test('a phone\'s table: no group heading rows, the finding is a line under the name (approved layout A, 23 Nov), the name has the column to itself', async () => {
   const { readFileSync } = await import('node:fs');
   const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
-  assert.match(tsx, /!r\.cont && r\.head \? <tr className="dk-tgroup">/, 'a group heading row over the first row of each site');
+  assert.doesNotMatch(tsx, /dk-tgroup|dk-tnrow/, 'no heading row and no row of its own for a finding: one line per case');
+  assert.match(tsx, /className="vs dk-tfind"/, 'the finding sits under the name');
   assert.match(css, /--dk-name: calc\(14\.5rem - var\(--nc\) \* 1\.1rem\)/, 'the name column follows the value columns');
   assert.match(css, /tbody tr th\[scope="row"\] \.pz-kick \{ display: none; \}/, 'the site is not in the patient\'s row on a phone');
-  assert.match(css, /\.pz-table tr\.dk-tgroup \{ display: none; \}/, 'the wide table keeps the site over the name');
 });
 
 // Night sweep on 8d3d25b (20 Nov): on an 8-column table the heads were clipped (WHV, FHV, HVP) and the first head said LEVEL. Heads that do not fit stand upright as in 2D (fitHeads, `tr.th-up`), the name's column

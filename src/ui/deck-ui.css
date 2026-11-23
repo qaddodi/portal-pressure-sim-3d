@@ -194,23 +194,15 @@
 .dk-tpend { display: inline-block; width: 2.4em; height: 0.55em; border-radius: 0.3em; background: currentColor; opacity: 0.22; vertical-align: -0.05em; }
 .dk-tnone { display: block; text-align: center; color: var(--text-3); }
 .pz-table td.wave { padding-block: 2px; }
+.pz-table .dk-tfind { margin-top: .25em; }   /* (a row's finding: the quiet line under its name, the size of a `vs` line) */
 .pz-table td.wave .dk-wave { display: block; width: 100%; animation: dk-fade 0.6s ease-out both; }   /* (a trace eases in when it is drawn; baked, that is the card's first frame) */
-.pz-table tr.dk-tgroup { display: none; }
-.pz-table .dk-tnrow td { white-space: normal; text-align: left; font-weight: 400; }
-.dk-tnote { margin: 0; font: 400 var(--fs-data) / 1.35 var(--ui); color: var(--text-2); }
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .pz-table.dk-pztable { --dk-name: calc(14.5rem - var(--nc) * 1.1rem); }   /* (the name's least width: the fewer value columns, the wider) */
   .pz-table.dk-pztable.dk-up { --dk-name: calc(20.5rem - var(--nc) * 1.75rem); }   /* (heads upright: the columns need only their arrows) */
   .pz-table.dk-pztable tr { grid-template-columns: var(--dk-grid); }
-  .pz-table.dk-pztable tr.dk-tnrow, .pz-table.dk-pztable tr.dk-tgroup { grid-template-columns: minmax(0, 1fr); }
-  /* a patient is one line: the site is not in its row (it heads the group, once, quietly), and the name has the column to itself */
+  /* a patient is one line and its finding: no site in the row and no group heading (the approved one-line-per-case layout), the name has the column to itself */
+  .pz-table.dk-pztable tbody tr th[scope="row"] { padding-block: .3em; }
   .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
-  .pz-table.dk-pztable tbody tr.dk-tgroup { display: grid; cursor: default; background: none; border-top: 0; }
-  .pz-table.dk-pztable tbody tr.dk-tgroup th { display: block; padding: .7em 10px .05em; text-align: left; font-weight: inherit; }
-  .pz-table.dk-pztable tbody tr.dk-tgroup .pz-kick { display: block; font-size: var(--s-cap); letter-spacing: var(--caps-ls); opacity: .85; }
-  .pz-table.dk-pztable tbody tr.dk-tgroup + tr { border-top: 0; }
-  .pz-table.dk-pztable tbody tr:not(.dk-tgroup):not(.dk-tnrow) th[scope="row"] { padding-block: .3em; }
-  .pz-table.dk-pztable .dk-tnrow td { grid-column: 1 / -1; padding: 0 10px 8px; }
 }
 
 /* ── settings ── */
@@ -228,8 +220,6 @@
 .pz-rail-blk { box-sizing: border-box; border: 1.2px solid color-mix(in srgb, var(--danger) 70%, transparent); border-radius: var(--r-control);
   background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--danger) 55%, transparent) 0 3.5px, color-mix(in srgb, var(--danger) 10%, transparent) 3.5px 7px); }
 
-/* A table row's note names its column (2D: the note column's head, "Choice"), as a small label before the words. */
-.dk-tnote .dk-tnh { margin-right: .5em; font-weight: 600; color: var(--text-3); }
 
 /* ── card zoom (2D card-zoom.js, app.css .pz-zscrim): the tapped card grows to the middle, the page dims a little, the figure's labels sit out ── */
 .deck-ui .pz-zveil { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--stage-bg) 20%, transparent); opacity: 0; pointer-events: none; cursor: zoom-out; transition: opacity var(--d-zoom-out) var(--ease-arrive); }
