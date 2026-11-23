@@ -173,7 +173,7 @@ vec2 veinUv(vec2 uv) {
 // how much of the vein's collagen has grown at a point rv lobule radii from its centre: from the lumen's edge out to the collar's, soft at both ends (it frays into the bundles' own ends, never a glow)
 float veinFront(float rv) {
   float h = 0.012;
-  return smoothstep(uCv.x - h, uCv.x + h, rv) * (1.0 - smoothstep(uCv.y + 0.6 * (uCv.z - uCv.y), uCv.z, rv)) * uCv.w;
+  return smoothstep(uCv.x - h, uCv.x + h, rv) * (1.0 - smoothstep(uCv.y + 0.75 * (uCv.z - uCv.y), uCv.z, rv)) * uCv.w;
 }
 vec4 collagenAt(vec2 uv) {
   gCov = 0.0; gFr = vec2(0.0);

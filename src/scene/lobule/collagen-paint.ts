@@ -106,12 +106,12 @@ export function paintTract(c: CanvasRenderingContext2D, x: number, y: number, ra
     const sd = 311 + ring * 19 + k;
     bundle(c, rgb, radius, TAU * k / 7 + ring * 0.45 + phase, TAU / 7 * (1.7 + 0.4 * fibHash(sd)), 0.28 + 0.28 * ring, fibHash(sd + 5) * TAU, radius * (ring === 1 ? 0.36 : ring ? 0.27 : 0.3), (ring === 2 ? 0.42 : 0.64) + 0.14 * fibHash(sd + 4), sd, 0.8, 0.8, 0.5);
   }
-  // (the bands: distinct ropes on the floor, concentric about the tract as the periportal fibrosis lies, each ring with its own start, length, width and intensity, so it reads as bands of varying intensity and not a tangle or a cloud)
-  for (let ring = 0; ring < 6; ring++) {
-    const n = ring < 2 ? 3 : 4;
+  // (the bands: wide ropes on the floor, concentric about the tract as the periportal fibrosis lies, each ring with its own start, length, width and intensity. They are wide (about a sixth of the tract, past the relief's coarse mip), so each band has a lit and a shade side and the tract reads as bands and not as a ball of hairlines; the outer ring is partial, so the tract frays by its bands; Mohammad 23 Nov: "wide bands", capture bbe955e5, treatment 10)
+  for (let ring = 0; ring < 4; ring++) {
+    const n = ring === 3 ? 2 : 3;
     for (let k = 0; k < n; k++) {
-      const sd = 211 + ring * 17 + k, len = TAU / n * (0.8 + 0.35 * fibHash(sd + 1));
-      bundle(c, rgb, radius, TAU * k / n + ring * 0.83 + phase, len, 0.14 + 0.15 * ring, fibHash(sd + 5) * TAU, radius * (0.07 + 0.045 * fibHash(sd + 3)), 0.75 + 0.25 * fibHash(sd + 4), sd, 0.45, 0.5, 0.3);
+      const sd = 211 + ring * 17 + k, len = TAU / n * ((ring === 3 ? 0.55 : 0.85) + 0.3 * fibHash(sd + 1));
+      bundle(c, rgb, radius, TAU * k / n + ring * 0.83 + phase, len, 0.2 + 0.24 * ring, fibHash(sd + 5) * TAU, radius * (0.15 + 0.06 * fibHash(sd + 3)), 0.8 + 0.2 * fibHash(sd + 4) - (ring === 3 ? 0.15 : 0), sd, 0.45, 0.5, 0.3);
     }
   }
   c.restore();
@@ -127,8 +127,9 @@ export function paintVein(c: CanvasRenderingContext2D, P: CollagenInput): void {
   for (let ring = 0; ring < nR; ring++) {
     const r = rMin + (rMax - rMin) * (ring + 0.5) / nR, wr = (rMax - rMin) / nR;
     for (let k = 0; k < nB; k++) {
-      const sd = 600 + ring * 31 + k, span = TAU / nB * (1.55 + 0.35 * fibHash(sd));
-      bundle(c, PRE, 1, TAU * k / nB + ring * 0.37, span, r, fibHash(sd + 5) * TAU, wr * (0.95 + 0.4 * fibHash(sd + 3)), 0.8 + 0.2 * fibHash(sd + 4), sd, 0.85, 0.85, r * 0.04);
+      // (the collar thins outward: the outer rings are shorter and lighter, so its edge is the ends of bundles fraying into the tissue and not a round plateau or a glow)
+      const sd = 600 + ring * 31 + k, out = ring / (nR - 1), span = TAU / nB * (1.55 + 0.35 * fibHash(sd) - 0.6 * out * out);
+      bundle(c, PRE, 1, TAU * k / nB + ring * 0.37, span, r, fibHash(sd + 5) * TAU, wr * (0.95 + 0.4 * fibHash(sd + 3)), (0.8 + 0.2 * fibHash(sd + 4)) * (1 - 0.45 * out * out), sd, 0.85, 0.85, r * 0.04);
     }
   }
   c.restore();
