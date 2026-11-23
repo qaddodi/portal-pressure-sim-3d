@@ -9,7 +9,7 @@ import { create } from 'zustand';
 import type { Deck } from '../decks/schema.ts';
 import type { Rect, Viewport } from './layout/device.ts';
 import { deviceClass, type DeviceClass } from './layout/device.ts';
-import type { Plan, SidePill } from './layout/plan.ts';
+import type { Plan } from './layout/plan.ts';
 import { isSideways } from './layout/rules2d.ts';
 import { walletStart, swap as walletSwap, resetForSlide, type WalletState } from './wallet/wallet-machine.ts';
 import { first, apply, goto, samePos, isLast, type Pos, type Move, type Stop } from './deck/presenter-machine.ts';
@@ -29,8 +29,6 @@ export interface Boxes {
   bars: Rect[];
   /** The figure's room: the largest rectangle the cards leave free (CSS px, the camera shifts its projection into it). */
   free: Rect;
-  /** A phone on its side: where its pill stands now (plan.sidePill), so the pill eases to it on the compositor; null elsewhere. */
-  sidePill?: SidePill | null;
   /** The stop (slide) these boxes are the FINAL layout of: published only once every card of it is measured at its last ladder step, split and fitted (CardLayer `final`). The camera's slide move waits for it
    *  (deck/scene-link.ts), so a slide arrives fitted to the room it will keep, in one move. Absent (tests, free play): the boxes are taken as they are. */
   stop?: number;
@@ -175,7 +173,7 @@ export const useUi = create<UiState>((set, get) => ({
     const bars = [plan.bar?.rect].filter((r): r is Rect => !!r);
     const b = get().boxes;
     if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && b.bars.length === bars.length
-      && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && b.stop === stop && b.sidePill === plan.sidePill && get().dockShown === (plan.docked || plan.scrolled)) return;
-    set({ boxes: { words, data, strip, bars, free: plan.free, stop, sidePill: plan.sidePill }, dockShown: plan.docked || plan.scrolled });
+      && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && b.stop === stop && get().dockShown === (plan.docked || plan.scrolled)) return;
+    set({ boxes: { words, data, strip, bars, free: plan.free, stop }, dockShown: plan.docked || plan.scrolled });
   },
 }));
