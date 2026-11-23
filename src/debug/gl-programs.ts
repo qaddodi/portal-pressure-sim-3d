@@ -4,8 +4,8 @@
 // geometry on a GPU only). Three.js builds a ShaderMaterial's final source itself, in WebGLProgram: its own prefix (version, precision, built-in attributes and uniforms, the
 // `attribute`/`varying` defines, the colour-space helpers) and then ours. `assemble` rebuilds that text exactly, so tests/glsl-compile.test.ts can hand it to glslang (the Khronos
 // reference compiler, no browser) and the ?gl page can compare it with what the device's own compiler says.
-import { isStandIn } from '../scene/materials/program-key.ts';
-import { type Material, type Object3D, type ShaderMaterial, ShaderChunk, BackSide, DoubleSide, NormalBlending } from 'three';
+import { isStandIn, programKey } from '../scene/materials/program-key.ts';
+import { type InstancedMesh, type Material, type Object3D, type ShaderMaterial, ShaderChunk, BackSide, DoubleSide, NormalBlending } from 'three';
 
 export interface Program {
   /** a readable name: the shader it is made from, or where in the scene it was found */
@@ -19,7 +19,15 @@ export interface Program {
   kind: 'three' | 'raw';
   /** the material it came from, when it came from one (the uniform check reads it) */
   material?: ShaderMaterial;
+  /** the per-mesh flags the text was assembled with (three adds USE_COLOR, USE_INSTANCING and the attributes by mesh, not by material: `assemble`) */
+  flags?: MeshFlags;
+  /** a compile-only stand-in (materials/prototypes.ts): its text is checked, its uniforms are deliberately empty */
+  standIn?: boolean;
 }
+
+/** What three.js adds to a program for the MESH that draws it (WebGLPrograms: `vertexColors`, `vertexAlphas`, `instancing`, `instancingColor`): `vcol` USE_COLOR + `attribute vec3 color`, `valpha` USE_COLOR_ALPHA + `vec4 color` (the colour
+ *  attribute has four components), `inst` USE_INSTANCING + `attribute mat4 instanceMatrix`, `instcol` USE_INSTANCING_COLOR + `attribute vec3 instanceColor` (an InstancedMesh gets that attribute only after its first setColorAt: a second, late compile). */
+export interface MeshFlags { vcol?: boolean; valpha?: boolean; inst?: boolean; instcol?: boolean }
 
 /** What three.js' WebGLProgram puts in front of a ShaderMaterial's vertex source (three 0.187, WebGL2, no maps, no lights, no instancing, no fog, no tone mapping: the app's `flat` canvas). */
 const VERTEX_BUILTINS = [
@@ -67,7 +75,7 @@ const defineLines = (defines: Record<string, unknown> | undefined): string => Ob
 
 /** The source three.js gives the driver for a ShaderMaterial (or the source as it stands for a raw one). */
 export interface Assemblable { vertexShader: string; fragmentShader: string; defines?: Record<string, unknown>; side?: number; transparent?: boolean; blending?: number; alphaToCoverage?: boolean; isRawShaderMaterial?: boolean; glslVersion?: string | null }
-export function assemble(m: Assemblable): { vertexGlsl: string; fragmentGlsl: string; kind: 'three' | 'raw' } {
+export function assemble(m: Assemblable, f: MeshFlags = {}): { vertexGlsl: string; fragmentGlsl: string; kind: 'three' | 'raw' } {
   const defs = defineLines(m.defines);
   const side = [m.side === DoubleSide ? '#define DOUBLE_SIDED' : '', m.side === BackSide ? '#define FLIP_SIDED' : ''].filter(Boolean).join('\n');
   const version = m.glslVersion ? `#version ${m.glslVersion}\n` : '';
@@ -77,9 +85,13 @@ export function assemble(m: Assemblable): { vertexGlsl: string; fragmentGlsl: st
     return { vertexGlsl: version + pre + unroll(resolveIncludes(m.vertexShader)), fragmentGlsl: version + pre + unroll(resolveIncludes(m.fragmentShader)), kind: 'raw' };
   }
   const common = ['#define SHADER_TYPE ShaderMaterial', '#define SHADER_NAME ShaderMaterial', defs, side].filter(Boolean);
+  // (three's WebGLProgram, 0.187: the vertex prefix defines all four; the fragment prefix defines USE_COLOR for vertex colours OR instance colours, and USE_COLOR_ALPHA for a four-component colour)
+  const vFlags = [f.inst ? '#define USE_INSTANCING' : '', f.instcol ? '#define USE_INSTANCING_COLOR' : '', f.vcol ? '#define USE_COLOR' : '', f.valpha ? '#define USE_COLOR_ALPHA' : ''].filter(Boolean);
+  const fFlags = [f.inst ? '#define USE_INSTANCING' : '', f.instcol ? '#define USE_INSTANCING_COLOR' : '', f.vcol || f.instcol ? '#define USE_COLOR' : '', f.valpha ? '#define USE_COLOR_ALPHA' : ''].filter(Boolean);
+  const vAttrs = [f.inst ? 'attribute mat4 instanceMatrix;' : '', f.instcol ? 'attribute vec3 instanceColor;' : '', f.valpha ? 'attribute vec4 color;' : f.vcol ? 'attribute vec3 color;' : ''].filter(Boolean);
   const opaque = m.transparent === false && m.blending === NormalBlending && m.alphaToCoverage === false;
-  const vertexPrefix = ['#define attribute in', '#define varying out', '#define texture2D texture'].join('\n') + '\n' + [precision('highp'), ...common, ...VERTEX_BUILTINS, '\n'].join('\n');
-  const fragmentPrefix = FRAGMENT_DEFINES.join('\n') + '\n' + [precision('highp'), ...common, 'uniform mat4 viewMatrix;', 'uniform vec3 cameraPosition;', 'uniform bool isOrthographic;', opaque ? '#define OPAQUE' : '', OUTPUT_HELPERS, '\n'].filter((l) => l !== '').join('\n');
+  const vertexPrefix = ['#define attribute in', '#define varying out', '#define texture2D texture'].join('\n') + '\n' + [precision('highp'), ...common, ...vFlags, ...VERTEX_BUILTINS, ...vAttrs, '\n'].join('\n');
+  const fragmentPrefix = FRAGMENT_DEFINES.join('\n') + '\n' + [precision('highp'), ...common, ...fFlags, 'uniform mat4 viewMatrix;', 'uniform vec3 cameraPosition;', 'uniform bool isOrthographic;', opaque ? '#define OPAQUE' : '', OUTPUT_HELPERS, '\n'].filter((l) => l !== '').join('\n');
   return {
     vertexGlsl: '#version 300 es\n' + vertexPrefix + unroll(resolveIncludes(m.vertexShader)),
     fragmentGlsl: '#version 300 es\n' + fragmentPrefix + unroll(resolveIncludes(m.fragmentShader)),
@@ -90,22 +102,32 @@ export function assemble(m: Assemblable): { vertexGlsl: string; fragmentGlsl: st
 const isShader = (m: Material | undefined): m is ShaderMaterial => !!m && (m as ShaderMaterial).isShaderMaterial === true;
 
 /** Every distinct ShaderMaterial program under `root` (hidden objects too: a view that is not shown still compiles on the device the first time it is). `named` maps a source text to its name. */
-export function collectMaterials(root: Object3D, named: ReadonlyMap<string, string> = new Map()): Program[] {
+export function collectMaterials(root: Object3D, named: ReadonlyMap<string, string> = new Map(), opts: { standIns?: boolean } = {}): Program[] {
   const byKey = new Map<string, Program>();
   root.traverse((o) => {
-    if (isStandIn(o)) return;   // (compile-only: materials/prototypes.ts)
+    const standIn = isStandIn(o);
+    if (standIn && !opts.standIns) return;   // (compile-only: materials/prototypes.ts)
     const mat = (o as unknown as { material?: Material | Material[] }).material;
     for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) {
       if (!isShader(m)) continue;
-      const a = assemble(m);
-      const key = `${a.vertexGlsl}\u0000${a.fragmentGlsl}`;
-      if (byKey.has(key)) continue;
-      const base = named.get(m.fragmentShader) ?? named.get(m.vertexShader) ?? (o.name || m.name || 'unnamed');
-      const defs = Object.keys(m.defines ?? {}).filter((k) => (m.defines as Record<string, unknown>)[k] !== false);
-      const opaque = m.transparent === false && m.blending === NormalBlending && m.alphaToCoverage === false;
-      const name = base + (defs.length ? ` (${defs.join(', ')})` : '') + (m.side === DoubleSide ? ' · double-sided' : m.side === BackSide ? ' · back faces' : '') + (opaque ? ' · opaque' : ' · blended');
-      // (a device wears the toon fragment with an alpha put in front of it: a program of its own, named for the toon it was made from)
-      byKey.set(key, { name, vertex: m.vertexShader, fragment: m.fragmentShader, ...a, material: m });
+      // the per-mesh flags three.js adds (a vertex-colour material, an InstancedMesh with or without instance colours: the last is a second, late compile, so both are read)
+      const g = (o as { geometry?: { getAttribute?: (n: string) => { itemSize: number } | undefined } }).geometry;
+      const col = g?.getAttribute?.('color');
+      const im = o as InstancedMesh;
+      const base: MeshFlags = { vcol: m.vertexColors === true, valpha: m.vertexColors === true && col?.itemSize === 4, inst: im.isInstancedMesh === true, instcol: im.isInstancedMesh === true && !!im.instanceColor };
+      for (const f of base.inst && !base.instcol ? [base, { ...base, instcol: true }] : [base]) {
+        const key = programKey(o, m) + (f.instcol && !base.instcol ? '|instcol-late' : '');
+        const held = byKey.get(key);
+        if (held && (!held.standIn || standIn)) continue;   // (a real material replaces a stand-in of the same program: its uniforms are then checked)
+        const a = assemble(m, f);
+        const nm = named.get(m.fragmentShader) ?? named.get(m.vertexShader) ?? (o.name || m.name || 'unnamed');
+        const defs = Object.keys(m.defines ?? {}).filter((k) => (m.defines as Record<string, unknown>)[k] !== false);
+        const opaque = m.transparent === false && m.blending === NormalBlending && m.alphaToCoverage === false;
+        const name = nm + (defs.length ? ` (${defs.join(', ')})` : '') + (m.side === DoubleSide ? ' · double-sided' : m.side === BackSide ? ' · back faces' : '') + (opaque ? ' · opaque' : ' · blended')
+          + (f.valpha ? ' · colour4' : f.vcol ? ' · colour' : '') + (f.inst ? (f.instcol ? ' · instanced+colour' : ' · instanced') : '');
+        // (a device wears the toon fragment with an alpha put in front of it: a program of its own, named for the toon it was made from)
+        byKey.set(key, { name, vertex: m.vertexShader, fragment: m.fragmentShader, ...a, material: standIn ? undefined : m, flags: f, standIn: standIn || undefined });
+      }
     }
   });
   return uniqueNames([...byKey.values()]);

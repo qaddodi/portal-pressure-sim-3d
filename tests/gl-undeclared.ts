@@ -21,9 +21,17 @@ function chained(text: string, name: string): boolean {
   return false;
 }
 
+const prepped = new Map<string, string>();
+/** The text as the driver's preprocessor leaves it (defines expanded, `#ifdef` blocks chosen), kept by text so the three checks of one program preprocess it once (the skin's variants are slow). */
+export function preprocessed(glsl: string): string {
+  let t = prepped.get(glsl);
+  if (t === undefined) { t = preprocess(glsl, { preserve: { version: () => true } as never, stopOnError: false } as never); prepped.set(glsl, t); }
+  return t;
+}
+
 /** Every undeclared name (`name@line`) of one stage's assembled text; the sampler calls whose first argument is not a declared sampler uniform. */
 export function undeclared(glsl: string, three: readonly string[]): string[] {
-  const text = preprocess(glsl, { preserve: { version: () => true } as never, stopOnError: false } as never);
+  const text = preprocessed(glsl);
   const ast = parser.parse(text, { quiet: true }) as unknown as { scopes: Scope[] };
   const out: string[] = [];
   const known = (s: Scope | undefined, n: string): boolean => {
@@ -39,14 +47,16 @@ export function undeclared(glsl: string, three: readonly string[]): string[] {
   return out;
 }
 
-/** Samplers: every `texture2D(x, ...)`/`texture(x, ...)`/`textureLod(x, ...)` names a declared `uniform sampler*` (or a sampler parameter) as its first argument. */
+/** Samplers: every `texture2D(x, ...)`/`texture(x, ...)`/`textureLod(x, ...)` names a declared `uniform sampler*` (or a sampler parameter) as its first argument, read on the PREPROCESSED text (a sampler declared only under an
+ *  `#ifdef` and sampled outside it is no declaration), and each bad name is listed once (a sampler called twice, like the plate's `mapCB`, is one bad name, not two). */
 export function badSamplers(glsl: string): string[] {
+  const text = preprocessed(glsl);
   const samplers = new Set<string>();
-  for (const m of glsl.matchAll(/\b[iu]?sampler\w+\s+(\w+)/g)) samplers.add(m[1]!);   // (a uniform or a parameter)
-  for (const m of glsl.matchAll(/\buniform\s+(?:\w+\s+)?[iu]?sampler\w+\s+(\w+(?:\s*,\s*\w+)*)\s*;/g)) for (const n of m[1]!.split(',')) samplers.add(n.trim());   // (`uniform sampler2D a, b;`)
-  const bad: string[] = [];
-  for (const m of glsl.matchAll(/\b(?:texture2D|texture2DLodEXT|texture|textureLod|textureProj|textureGrad|texelFetch|textureSize)\s*\(\s*(\w+)\s*[,)]/g)) if (!samplers.has(m[1]!)) bad.push(m[1]!);
-  return bad;
+  for (const m of text.matchAll(/\b[iu]?sampler\w+\s+(\w+)/g)) samplers.add(m[1]!);   // (a uniform or a parameter)
+  for (const m of text.matchAll(/\buniform\s+(?:\w+\s+)?[iu]?sampler\w+\s+(\w+(?:\s*,\s*\w+)*)\s*;/g)) for (const n of m[1]!.split(',')) samplers.add(n.trim());   // (`uniform sampler2D a, b;`)
+  const bad = new Set<string>();
+  for (const m of text.matchAll(/\b(?:texture2D|texture2DLodEXT|texture|textureLod|textureProj|textureGrad|texelFetch|textureSize)\s*\(\s*(\w+)\s*[,)]/g)) if (!samplers.has(m[1]!)) bad.add(m[1]!);
+  return [...bad];
 }
 
 export const stageNames = (p: Program, stage: 'vertex' | 'fragment') => (p.kind === 'three' ? (stage === 'vertex' ? THREE_VERTEX_NAMES : THREE_FRAGMENT_NAMES) : []);

@@ -10,23 +10,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { CelScene } from '../src/scene/scene.ts';
-import { type Program, ES3_FLOOR, assemble, budget, declarations, uniformProblems, THREE_FRAGMENT_NAMES, THREE_VERTEX_NAMES } from '../src/debug/gl-programs.ts';
-import { GL_FILES, allPrograms } from '../src/debug/gl-registry.ts';
+import { loadAllPrograms } from './gl-all-programs.ts';
+import { type Program, ES3_FLOOR, assemble, budget, declarations, THREE_FRAGMENT_NAMES, THREE_VERTEX_NAMES } from '../src/debug/gl-programs.ts';
+import { GL_FILES } from '../src/debug/gl-registry.ts';
 import { onSceneGraph, programsOfModule } from '../src/debug/gl-auto.ts';
 import { glslFiles } from '../scripts/gl-scan.mjs';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { undeclared, badSamplers, stageNames } from './gl-undeclared.ts';
+import { uniformChecks } from './gl-gate.ts';
 
-const FIBRO = join('src', 'ui', 'tests', 'fibro', 'copied', 'fibro-gl.copied.js');
-// every file that holds GLSL and is not on the closed hand list is found by scanning and its programs read from the module (src/debug/gl-auto.ts): a new shader needs nothing registered
+// every file that holds GLSL and is not on the closed hand list is found by scanning and its programs read from the module (src/debug/gl-auto.ts): a new shader needs nothing registered.
+// The programs are the ones the app draws with, ALL of them: the one loader (tests/gl-all-programs.ts) builds the organs, the micro views and the late classes first (Plan 41).
 const scanned: string[] = glslFiles();
-const auto: Record<string, Record<string, unknown>> = {};
-for (const f of scanned.filter((x) => !(x in GL_FILES))) auto[f] = (await import(pathToFileURL(resolve('src', f)).href)) as Record<string, unknown>;
-const programs = allPrograms(new CelScene().scene, readFileSync(FIBRO, 'utf8'), auto);
+const { programs, auto } = await loadAllPrograms();
 
 const which = (bin: string) => spawnSync(bin, ['--version'], { encoding: 'utf8' }).status === 0;
 const GLSLANG = process.env.GLSLANG || ['glslangValidator', 'glslang'].find(which);
@@ -115,7 +113,7 @@ test('every program declares nothing twice, and nothing three.js already declare
 
 test('every uniform a ShaderMaterial\'s shader declares is in its material, with a value (a missing one reads 0, or throws on the first draw)', () => {
   const bad: string[] = [];
-  for (const p of programs) for (const problem of uniformProblems(p)) bad.push(`${p.name}: ${problem}`);
+  for (const p of programs) for (const problem of uniformChecks(p)) bad.push(problem);
   assert.deepEqual(bad, []);
 });
 

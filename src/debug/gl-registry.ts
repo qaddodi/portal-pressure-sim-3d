@@ -8,6 +8,7 @@ import { type Program, assemble, collectMaterials, lateMaterialProgram, rawProgr
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { SKIN_FS, SKIN_VS } from '../scene/vessels/skin/shaders.ts';
+import { SKIN_DIAGNOSTICS } from '../scene/vessels/skin/skin-object.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
 import { patchedShaders } from '../scene/organs/organ-art.ts';
@@ -24,6 +25,7 @@ import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
 import { DOF_COPY_FS, DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
 import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
+import { highpSamplers } from '../ui/tests/highp-samplers.js';
 import { createShared } from '../scene/materials/cel.ts';
 import { BufferGeometry } from 'three';
 
@@ -83,19 +85,25 @@ function organArtPrograms(): Program[] {
   return out;
 }
 
+/** Every skin program a page can reach (skin-object.ts skinDefines): the three copies (front, solid, veil) x the inspector's VDBG hooks x each build-time diagnostic alone (`?joins=`: SKIN_DIAGNOSTICS). Generated, so a diagnostic added there is checked here. */
+export function skinPrograms(): Program[] {
+  const out: Program[] = [];
+  for (const copy of [0, 1, 2]) for (const vdbg of [false, true]) for (const diag of [null, ...SKIN_DIAGNOSTICS]) {
+    if (copy === 0 && !vdbg && diag === null) { out.push(lateMaterialProgram('skin', SKIN_VS, SKIN_FS)); continue; }   // (the plain front copy: no define at all)
+    out.push(lateMaterialProgram(`skin (copy ${copy}${vdbg ? ', VDBG' : ''}${diag ? `, ${diag}` : ''})`, SKIN_VS, SKIN_FS, { SKIN_COPY: copy, ...(vdbg ? { VDBG: 1 } : {}), ...(diag ? { [diag]: 1 } : {}) }));
+  }
+  return out;
+}
+
 export function rawPrograms(fibroText: string): Program[] {
   const fibro = templateConstants(fibroText);
   const out = [
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
-    lateMaterialProgram('skin', SKIN_VS, SKIN_FS),
-    lateMaterialProgram('skin (solid copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 1 }),
-    lateMaterialProgram('skin (veil copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 2 }),
-    // the inspector's programs (?inspect: scene/vessels/debug-view.ts): the same sources with the VDBG hooks, and the skin's three build-time diagnostics, so every variant a panel switch can reach has been through the compile check
+    lateMaterialProgram('bleed jet ink', JET_INK_VS, JET_INK_FS),   // (made when a bleed first shows; its stand-in is skipped by the scene walk, so it was checked nowhere)
+    ...skinPrograms(),
+    // the inspector's vessel program (?inspect: scene/vessels/debug-view.ts): the same sources with the VDBG hooks
     lateMaterialProgram('vessel (inspector)', VESSEL_VS, VESSEL_FS, { VDBG: 1 }),
-    lateMaterialProgram('skin (inspector)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_DEBUG: 1 }),
-    lateMaterialProgram('skin (inspector, no marks)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOMARKS: 1 }),
-    lateMaterialProgram('skin (inspector, no ink)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_NOINK: 1 }),   // (spec 10.4: one source, three programs: the front copy is the one above)
     lateMaterialProgram('lobule plate', LOBULE_PLATE_VS, LOBULE_PLATE_FS),   // (the plate is mounted only with the lobule view: Plan 28, an undeclared mapCB reached a phone because no node run ever held this program)
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),
@@ -109,14 +117,14 @@ export function rawPrograms(fibroText: string): Program[] {
     rawProgram('doppler spectrum (chart)', SPECTRUM_VS, SPECTRUM_FS),
     rawProgram('endoscopic field', ENDO_VS, endoShaderSource()),
   ];
-  if (fibro.VS && fibro.FS) out.push(rawProgram('fibroscan map', fibro.VS, fibro.FS));
-  if (fibro.VS && fibro.SHOW_FS) out.push(rawProgram('fibroscan map (show)', fibro.VS, fibro.SHOW_FS));
+  if (fibro.VS && fibro.FS) out.push(rawProgram('fibroscan map', fibro.VS, highpSamplers(fibro.FS)));
+  if (fibro.VS && fibro.SHOW_FS) out.push(rawProgram('fibroscan map (show)', fibro.VS, highpSamplers(fibro.SHOW_FS)));
   return out;
 }
 
 /** Every program: the scene graph's, then the ones registered by hand. */
 export function allPrograms(root: Object3D, fibroText: string, auto: Readonly<Record<string, Record<string, unknown>>> = {}): Program[] {
-  const found = collectMaterials(root, namedSources());
+  const found = collectMaterials(root, namedSources(), { standIns: true });   // (the compile-only stand-ins are read too: their text is checked, their uniforms are empty on purpose)
   const have = new Set(found.map((p) => p.vertexGlsl + p.fragmentGlsl));
   const raw = rawPrograms(fibroText).filter((p) => !have.has(p.vertexGlsl + p.fragmentGlsl));
   for (const p of raw) have.add(p.vertexGlsl + p.fragmentGlsl);

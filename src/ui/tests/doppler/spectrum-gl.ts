@@ -13,6 +13,7 @@ import type { Under } from '../../charts/gl.ts';
 import { SYNTH_FS } from '../copied/doppler-synth.copied.js';
 import { DISPLAY_FS } from './copied/doppler-gl.copied.js';
 import { MAP } from './copied/doppler-colours.copied.js';
+import { highpSamplers } from '../highp-samplers.js';
 import { SPECTRUM_PROGRAM, takeWarm } from '../../../boot/warm-programs.ts';
 
 import { clock } from '../../../clock/frame.ts';
@@ -25,11 +26,14 @@ const MAIN_LINE = /void main\(\) \{\s*int x = int\(gl_FragCoord\.x\), ry = int\(
 const RING_READ = 'vec3 r = texelFetch(ring, ivec2(c, ly), 0).rgb;';
 const synthPart = SYNTH_FS.replace(MAIN_LINE, 'void synthMain(int x, int ry) {');
 // (the display pass without its header and its own `o`: the line shader's `precision` lines and `out vec4 o` stay)
-const displayPart = DISPLAY_FS.replace(/^#version 300 es\s*precision highp float;\s*precision highp int;\s*/, '').replace('out vec4 o;', '').replace(RING_READ, 'synthMain(lx, ly); vec3 r = o.rgb;');
+const displayPart = DISPLAY_FS.replace(/^#version 300 es\s*precision highp float;\s*precision highp int;\s*/, '').replace('out vec4 o;', '').replace(RING_READ, 'synthMain(lx, ly); vec3 r = o.rgb;')
+  // (the ring is not made here: its texture, the newest line's column `p` and the column `c` that only the ring read used are dropped, so the program declares nothing the host never sets: tests/shader-bindings.test.ts)
+  .replace(/^uniform sampler2D ring;\n/m, '').replace(/^uniform int p;[^\n]*\n/m, '').replace(/^  int c = lx \+ p \+ 1;\n  if \(c >= size\.x\) c -= size\.x;\n/m, '');
 /** The one fragment program: the line shader's pixel, then the noise floor and the wall filter. */
-export const SPECTRUM_FS = `${synthPart}\n${displayPart}`;
+/** (colA and colB are RGBA32F: the sampler is said to be highp, which the byte-copied 2D sources do not say: highp-samplers.js) */
+export const SPECTRUM_FS = highpSamplers(`${synthPart}\n${displayPart}`);
 /** True when both splices found what they look for (a changed 2D shader makes the join fail loudly, in tests/b11-doppler.test.ts, not as a blank trace). */
-export const SPECTRUM_JOINED = synthPart !== SYNTH_FS && displayPart.includes('synthMain(lx, ly)') && !displayPart.includes('texelFetch(ring') && !displayPart.includes('out vec4 o;');
+export const SPECTRUM_JOINED = synthPart !== SYNTH_FS && displayPart.includes('synthMain(lx, ly)') && !displayPart.includes('texelFetch(ring') && !/\bring\b|uniform int p;|lx \+ p \+ 1/.test(displayPart.replace(/\/\/[^\n]*/g, '')) && !displayPart.includes('out vec4 o;');
 
 /** What one frame of the trace is drawn from (device px; the model works it out with the frame, spectrum-model.ts / model.ts `frameFor`). */
 export interface SpectrumDraw {

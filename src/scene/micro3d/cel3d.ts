@@ -300,7 +300,7 @@ varying vec2 vH;
 float gapCut() {
   float u = vG.x - uGapX.x, j = floor(u);
   if (j < 0.0 || j >= uGapX.y) return 0.0;
-  float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
+  float hw = textureLod(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75), 0.0).r * uGapX.z;   // (level 0, never an implicit level: this runs after main's discards, tests/gl-derivative.ts)
   if (hw <= 0.0) return 0.0;
   float d = abs(u - j - 0.5) - hw, wpx = gGapW;
   if (d < 0.0) discard;
@@ -314,7 +314,7 @@ uniform vec2 uHoleP;
 float holeCut() {
   float u = vH.x - uGapX.x, j = floor(u);
   if (j < 0.0 || j >= uGapX.y) return 0.0;
-  float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
+  float hw = textureLod(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75), 0.0).r * uGapX.z;   // (level 0, never an implicit level: this runs after main's discards, tests/gl-derivative.ts)
   if (hw <= 0.0) return 0.0;
   float d = length(vec2(u - j - 0.5 - uHoleP.y, vH.y - uHoleP.x)) - hw, wpx = gGapW;
   if (d < 0.0) discard;

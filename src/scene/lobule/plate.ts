@@ -152,6 +152,7 @@ void main() {
   float dv = (celLight(c) - lb) / max(lb, 0.08);
   float fwDv = fwidth(dv);
   vec2 uvPerPx = vec2(length(vec2(dFdx(vUv.x), dFdy(vUv.x))), length(vec2(dFdx(vUv.y), dFdy(vUv.y))));
+  float edge = plateEdge(vUv, uvPerPx, uDpr);   // (it samples the plate with implicit levels: a texture call is a derivative too, so it is read here, before the discard, Plan 41)
   // (the dive's ONE dissolve, the same screen pattern as every tube, tile and mark of the scene: the marks go with the lobule, never before or after it)
   if (fadedOut()) discard;
   if (p.a < 0.002) { gl_FragColor = vec4(0.0); return; }
@@ -159,7 +160,7 @@ void main() {
   c = celTissue(c, lb, max(fwDv * CEL_EDGE_HALF, 1e-3));
   // the plate's edges (Mohammad 20 Nov: "fibrosis shouldn't be outlined with black ink"): what it holds is soft tissue (collagen, septa, nutmeg, the Zones), so a strong edge takes a
   // faint, deeper shade of the tissue's OWN colour, LINE_MIN CSS px across, never the cells' dark casing; it comes and goes with the mark, as the edge does
-  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, plateEdge(vUv, uvPerPx, uDpr)));
+  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, edge));
   gl_FragColor = vec4(c * p.a, p.a) * opacity;
 }`;
 

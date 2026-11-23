@@ -121,6 +121,7 @@ void main() {
   float w = max(fwidth(turn), 1e-4);
   float fwLam = fwidth(dot(nws, LIGHT));
   float fwPool = fwidth(vBox.y) * poolA.y;
+  vec4 nt = texture2D(nodTex, vRest);   // (the nodules' texture is mipmapped: its implicit LOD is a derivative too, so it is read here, before the discard, never after it)
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
   float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
@@ -161,7 +162,6 @@ void main() {
     lay = mix(layer, max(layer, 0.9), body * poolA.z);   // blood is not a wash: it lies on the page nearly opaque, so it reads red, not mauve
   }
   if (nodAmt > 0.0) {
-    vec4 nt = texture2D(nodTex, vRest);
     fill += sepDelta * nt.r;
     fill *= 1.0 + (nt.g - 0.5) * nodK.y * nodAmt;
     float nl = (nt.b - 0.5) * 2.0;
