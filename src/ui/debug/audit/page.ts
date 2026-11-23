@@ -98,9 +98,9 @@ export function mountAudit(mode: 'here' | 'run'): void {
     running = true; stop = false; cap = null; saveRow.hidden = true; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
       const m = await import('./capture-all.ts');
-      cap = await m.captureAllDecks({ status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      cap = await m.captureAllDecks({ speed: speed > 1 ? speed : undefined, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       bar.value = 100;
-      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done. '}${cap.shots} slides from ${cap.decks} talks, one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
+      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${cap.shots} slides from ${cap.decks} talks (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a slide at ${cap.speed}x), one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
       saveRow.hidden = false;
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; }
   };

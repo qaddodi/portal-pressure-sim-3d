@@ -176,3 +176,11 @@ test('Capture all decks: in the audit panel, every talk and stop, kept out of it
   assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(\)/); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
   assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });
+
+test('Capture all decks runs the page fast: the clock at speed, the animations at speed, encoding off the main thread, the page put back', () => {
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /clock\.setScale\(speed\)/); assert.match(all, /speedAnimations\(document, speed\)/); assert.match(all, /clock\.setScale\(1\)/);
+  assert.match(all, /encoding\.push\(/); assert.match(all, /await Promise\.all\(encoding\)/);
+  assert.match(all, /ratio: innerWidth < 600/, 'a laptop and an iPad at 1x');
+  assert.ok(!/Date\.now|performance\.now/.test(all), 'wall time is read from a Date, not the scaled clock or a raw time call');
+});

@@ -28,8 +28,9 @@ async function stateRecord(): Promise<unknown> {
 /** The screen drawn on one canvas, with what rides with it (the record, the build, the link). Null when the page could not be drawn. */
 export interface Drawn { canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number }
 
-/** The whole screen on one canvas at the device's pixel ratio, stamped. `at` is when it was pressed (the stamp and the record). */
-export async function drawScreen(at: Date): Promise<Drawn | null> {
+/** The whole screen on one canvas at the device's pixel ratio (or `opts.ratio`), stamped. `at` is when it was pressed (the stamp and the record). */
+export async function drawScreen(at: Date, opts: { ratio?: number } = {}): Promise<Drawn | null> {
+  const want = opts.ratio ?? devicePixelRatio;
   const root = document.getElementById('root') ?? document.body, rb = readBox(root);
   const vp = { w: rb.width, h: rb.height };
   if (vp.w <= 0 || vp.h <= 0) return null;
@@ -39,8 +40,8 @@ export async function drawScreen(at: Date): Promise<Drawn | null> {
   const record = captureRecord({ at, build, screen: `${innerWidth}x${innerHeight} at ${devicePixelRatio}x`, link, state: await stateRecord() });
   // the figure at the device's pixel ratio, drawn now (before anything can clear its canvas), then the page over it
   let taken: ReturnType<typeof figureShot.take> = null;
-  try { taken = figureShot.take(captureScale(vp, devicePixelRatio)); } catch { taken = null; }
-  const s = taken ? taken.canvas.width / taken.css.w : captureScale(vp, devicePixelRatio);
+  try { taken = figureShot.take(captureScale(vp, want)); } catch { taken = null; }
+  const s = taken ? taken.canvas.width / taken.css.w : captureScale(vp, want);
   const out = document.createElement('canvas'); out.width = Math.round(vp.w * s); out.height = Math.round(vp.h * s);
   const g = out.getContext('2d');
   if (!g) return null;
