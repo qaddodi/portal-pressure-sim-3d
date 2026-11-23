@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3, type BufferGeometry } from 'three';
 import { CIRCUIT_TREES, CUSTOM_EDGES, CIRCUIT_D } from '../src/scene/circuit/data.copied.ts';
-import { CircuitTubes, caudEnds, customEnds, treeEnds, treeHost } from '../src/scene/circuit/tubes.ts';
+import { CircuitTubes, caudEnds, customEnds, treeEnds, treeEndHost, treeHost } from '../src/scene/circuit/tubes.ts';
 import { END_SPAN, endShareAt, ringShare } from '../src/scene/circuit/map-ends.ts';
 import { SHUNT_END_MIN } from '../src/scene/vessels/shunt-ends.ts';
 import { FLARE_K } from '../src/scene/vessels/fork-joins.copied.js';
@@ -39,14 +39,16 @@ const sewn = (e: { hostR: number; inside: boolean; sink: boolean; flare: boolean
 
 const trees = Object.entries(CIRCUIT_TREES).flatMap(([lane, list]) => list.map((_, i) => ({ lane, i, id: `${lane}#${i}` })));
 
-test('every liver branch start, both caudate ends and both ends of every custom shunt have a sunk end (a host to sink in), the branch tips are free', () => {
+test('every liver branch start, both caudate ends and both ends of every custom shunt have a sunk end (a host to sink in), a branch tip is free unless it ends inside a tube (a sinusoid branch that rejoins its sibling or the lane)', () => {
   assert.equal(trees.length, 24);
   for (const t of trees) {
     const e = treeEnds(t.lane, t.i);
     assert.ok(e, `${t.id} has an end row`);
     const s = e!.ends[0];
     assert.ok(s && s.hostR > 0 && s.inside, `${t.id}: its start lies inside a host (${JSON.stringify(s)})`);
-    assert.equal(e!.ends[1], null, `${t.id}: its tip is free in the bed`);
+    const eh = treeEndHost(t.lane, t.i);
+    if (eh) assert.ok(sewn(e!.ends[1]) && e!.ends[1]!.hostR === eh.r, `${t.id}: its end lies inside ${eh.host} and closes there`);
+    else assert.equal(e!.ends[1], null, `${t.id}: its tip is free in the bed`);
     const h = treeHost(t.lane, t.i)!;
     assert.ok(h.dist * MAP_K <= h.r, `${t.id}: its start lies inside ${h.host} (${h.dist.toFixed(2)} map units from its course, its radius ${(h.r / MAP_K).toFixed(2)})`);
   }
@@ -82,7 +84,7 @@ test('no bulge: the end of every sewn end closes inside its host to 0.35 of its 
       for (let q = 0; q <= 200; q++) assert.ok(endShareAt(e, m.own, (q / 200) * 6 * e.hostR, len) * m.own <= Math.max(m.own, e.hostR) + 1e-9, `${id} end ${k}: the radius at ${q / 200 * 6} host radii stays within the host's or its own`);
     });
   }
-  assert.equal(checked, 12 + 2 + 2 * 119, 'the 12 portal-venule starts, the caudate lane\'s two ends, the custom shunts\' 238 (the 12 sinusoid starts are run-ons)');
+  assert.equal(checked, 12 + 12 + 2 + 2 * 119, 'the 12 portal-venule starts, the 12 sinusoid branch ends, the caudate lane\'s two ends, the custom shunts\' 238 (the 12 sinusoid starts are run-ons)');
 });
 
 test('the profile along every end: never under 0.35 of SHUNT_END_MIN, never over 1 + FLARE_K, 1 in the middle', () => {

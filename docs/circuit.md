@@ -54,6 +54,10 @@ The Anatomy's welds (`vessels/skin`, docs/junction-skin-spec.md) are on the map 
 - **Baked**: `scripts/bake-skins.mjs` also writes `anatomy/circuit-skins.bin` (digest `circuit/...`); the page fetches it with the Anatomy's and builds live when it is not the file for this figure.
 - **Not welded yet** (`circuitOldJoins`): the liver branch trees (24 branches), the caudate lane and the custom shunts, the map's own tubes (`circuit/tubes.ts`, no vessel of the network). A weld needs (1) those tubes as arms (their rings, presence and the tree's own width rule `treeCircW`
   in the skin shader), (2) a hole in the host lane on the map (a `skinHoleC` as the body's `skinHole`) for the branches that leave a lane's side, (3) a skin built when a custom shunt is routed. Never seen on a device.
+- **How the liver branches join until they are** (23 Nov, `circuit/tree-hosts.ts`, `map-depth.ts`; tests/circuit-tree-joins.test.ts): (1) every branch and the caudate lane stands at a depth of its own on the plate, each branch in front of the tube it leaves and the tube it reaches
+  (a sinusoid branch in front of the venule it runs on from), so no overlap ties; (2) the body's union rule holds on the map for them (`nbrMap`, shaders.ts): `nbr` of a branch is its distance from up to two tubes (the one it leaves or reaches, and the sibling that leaves or reaches the
+  same place), the vertex stage takes each one's live radius from `nbrW0` / `nbrW1` (the tube's `circW`), and the fragment stage draws no line, no inner line and no shade band where the pixel lies inside either lumen; (3) a branch's end inside a tube is sunk and closes there. The vessel
+  program is at its 16 attributes (tests/gl-gate.ts): no attribute was added. The caudate lane and the custom shunts keep their sunk ends and their arc-length bury; their union rule is not built (their hosts are vein tubes whose width comes from the data).
 
 ## Not done yet (gaps)
 - Nothing here has run on a real GPU (the new tangent GLSL, the ribbons and the caption layer are only checked in node): Mac play-test first.

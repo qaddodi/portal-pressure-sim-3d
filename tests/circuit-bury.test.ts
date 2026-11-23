@@ -13,19 +13,17 @@ import { createCircuitShared } from '../src/scene/circuit/uniforms.ts';
 const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, routeTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
 const buryOf = (o: { toon: { uniforms: Record<string, { value: unknown }> } }): [number, number] => { const v = o.toon.uniforms.bury!.value as Vector2; return [v.x, v.y]; };
 
-test('a liver branch is buried at its start (in the lane it leaves) and free at its tip; a branch of a branch is buried less than a branch of the lane', () => {
+test('a liver branch has no arc-length bury: the union rule (circuit/tree-hosts.ts, shaders.ts nbrMap) holds its ink back inside the tube it leaves or reaches, by geometry, at every end and every zoom', () => {
   const t = tubes(), objs = t.objects, ids = t.ids;
-  const trees = ids.map((e, i) => ({ ...e, bury: buryOf(objs[i]!) })).filter((e) => e.kind === 'tree');
+  const trees = ids.map((e, i) => ({ ...e, bury: buryOf(objs[i]!), u: objs[i]!.toon.uniforms as Record<string, { value: unknown }> })).filter((e) => e.kind === 'tree');
   assert.ok(trees.length >= 24, `${trees.length} branches`);
   for (const e of trees) {
+    assert.deepEqual(e.bury, [0, 0], `${e.id}: one mechanism, not two`);
+    assert.equal(e.u.nbrMap!.value, 1, `${e.id}: the union rule is on the map`);
     const [lane, i] = e.id.split('#') as [string, string];
-    // (a start that lies at the END of another tube, the portal venules' tips running on into the sinusoid lanes, is a run-on: its ring keeps its whole outline)
-    if (treeRunOn(lane, Number(i))) assert.equal(e.bury[0], 0, `${e.id}: a run-on's ring keeps its ink`);
-    else assert.ok(e.bury[0] > 0, `${e.id}: its start lies inside its parent`);
-    assert.equal(e.bury[1], 0, `${e.id}: its tip is free`);
+    // (a start that lies at the END of another tube, the portal venules' tips running on into the sinusoid lanes, is a run-on: its ring keeps its whole outline and is joined by the mates)
+    if (treeRunOn(lane, Number(i))) assert.ok(treeRunOns().get(e.id)![0], `${e.id}: a run-on`);
   }
-  const list = CIRCUIT_TREES.PRE_R!, first = trees.find((e) => e.id === 'PRE_R#0')!, second = trees.find((e) => e.id === 'PRE_R#1')!;
-  assert.ok(list[1]!.k < list[0]!.k && second.bury[0] < first.bury[0], `PRE_R#1 leaves PRE_R#0, a narrower tube than the lane (${second.bury[0]} < ${first.bury[0]})`);
   t.dispose();
 });
 
