@@ -151,6 +151,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const fitBusy = pairOver && !ladBusy && fitK === undefined && plan.overflow.includes(view?.data ?? 'ladder');
   const tooTall = !!view && plan.overflow.includes(view.words) && wordsHit?.sig === sig && !ladBusy && !fitBusy;
   // a pair that does not fit its column at this step widens to the next step first; only past the widest does the words card split
+  const tightens = sideways && tooTall && !tight && stepAt >= nSteps && !!view && pages >= capOf(view) && view.slide?.visual === 'table';
   const tooTallPair = sideways && (tooTall || (pair && plan.overflow.includes(view?.data ?? 'ladder') && dataHit?.sig === sig));
   useLayoutEffect(() => {
     if (!view) return;
@@ -191,7 +192,6 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
   // holds a slide back for good: past 320 ms the cards come in as they are.
   const fonts = useFontsReady();
-  const tightens = sideways && tooTall && !tight && stepAt >= nSteps && !!view && pages >= capOf(view) && view.slide?.visual === 'table';
   const growing = ladBusy || fitBusy || (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1)) || tightens;
   // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0) || (plan.docked && n.slot === 'data'));
