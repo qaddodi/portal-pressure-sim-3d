@@ -3,7 +3,7 @@
 import { fmt } from '../charts/fmt.ts';
 
 export type LaneId = 'p' | 'hvpg' | 'asc' | 'shunt' | 'co';
-export type GroupId = 'pressures' | 'volume' | 'shunt' | 'heart';
+export type GroupId = 'pressures' | 'gradients' | 'volume' | 'shunt' | 'heart';
 
 export interface Measure {
   id: string;
@@ -38,6 +38,10 @@ export const MEASURES: readonly Measure[] = [
   { id: 'var', key: 'var', name: 'Esophageal varix', short: 'Varix', group: 'pressures', lane: 'p', tok: 'tr-var', scale: same, words: mm, hide: 'pv', on: false },
   { id: 'sv', key: 'SV', name: 'Splenic', short: 'SV', group: 'pressures', lane: 'p', tok: 'tr-sv', scale: same, words: mm, hide: 'pv', on: false },
   { id: 'smv', key: 'smv', name: 'SMV', short: 'SMV', group: 'pressures', lane: 'p', tok: 'tr-smv', scale: same, words: mm, hide: 'pv', on: false },
+  // the gradients (one lane, the headline: the HVPG's zones when it is on): each its own series, read from the same shown pressures as the HVPG deck's catheter and needle (reads.ts)
+  { id: 'hvpg', key: 'hvpg', name: 'HVPG', short: 'HVPG', group: 'gradients', lane: 'hvpg', tok: 'tr-hvpg', scale: same, words: mm, hide: 'trueHVPG', on: true },
+  { id: 'ppg', key: 'ppg', name: 'PPG', short: 'PPG', group: 'gradients', lane: 'hvpg', tok: 'tr-ppg', scale: same, words: mm, hide: 'pv', on: false },
+  { id: 'eus', key: 'eus', name: 'EUS-PPG', short: 'EUS-PPG', group: 'gradients', lane: 'hvpg', tok: 'tr-hv', scale: same, words: mm, hide: 'pv', on: false },
   { id: 'asc', key: 'asc', name: 'Ascites volume', short: 'Ascites', group: 'volume', lane: 'asc', tok: 'asc', scale: same, words: (v) => `${fmt(v, 1)} L`, on: true },
   { id: 'shunt', key: 'shunt', name: 'Shunt fraction', short: 'Shunt fraction', group: 'shunt', lane: 'shunt', tok: 'shunt', scale: (v) => v * 100, words: (v) => `${Math.round(v * 100)}%`, on: true },
   { id: 'co', key: 'co', name: 'Cardiac output', short: 'Cardiac output', group: 'heart', lane: 'co', tok: 'tr-ra', scale: same, words: (v) => `${fmt(v, 1)} L/min`, on: false },
@@ -48,6 +52,7 @@ export const HVPG = { key: 'hvpg', name: 'HVPG', tok: 'tr-hvpg' } as const;
 
 export const GROUPS: readonly { id: GroupId; name: string; unit: string }[] = [
   { id: 'pressures', name: 'Pressures', unit: 'mmHg' },
+  { id: 'gradients', name: 'Gradients', unit: 'mmHg' },
   { id: 'volume', name: 'Volume', unit: 'L' },
   { id: 'shunt', name: 'Shunt', unit: '% of splanchnic inflow' },
   { id: 'heart', name: 'Heart', unit: '' },

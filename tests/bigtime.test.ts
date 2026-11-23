@@ -75,12 +75,12 @@ const SER: Record<string, Series> = {
 };
 const HV = run(121, (d) => (d < 84 ? 11.7 : 5.3));
 const DATA = buildData({ calm: (k) => ({ CONF: SER.pv, whvp: SER.wedge, RHV: SER.hv, IVCS: SER.ivc, asc: SER.asc, shunt: SER.shunt, hvpg: HV }[k] ? { x: ({ CONF: SER.pv, whvp: SER.wedge, RHV: SER.hv, IVCS: SER.ivc, asc: SER.asc, shunt: SER.shunt, hvpg: HV } as Record<string, Series>)[k]!.x as number[], mid: ({ CONF: SER.pv, whvp: SER.wedge, RHV: SER.hv, IVCS: SER.ivc, asc: SER.asc, shunt: SER.shunt, hvpg: HV } as Record<string, Series>)[k]!.y as number[] } : null), entries: ENTRIES, labelsOf: LABELS, hidden: null });
-const inp = (o: Partial<BigIn> = {}): BigIn => ({ series: DATA.series, hvpg: DATA.hvpg, on: ['pv', 'wedge', 'hv', 'ivc', 'asc', 'shunt'], lines: DATA.lines, meds: DATA.meds, full: DATA.full, win: [58, 112], cursor: 84, h: 760, ...o });
+const inp = (o: Partial<BigIn> = {}): BigIn => ({ series: DATA.series, hvpg: DATA.hvpg, on: ['pv', 'wedge', 'hv', 'ivc', 'hvpg', 'asc', 'shunt'], lines: DATA.lines, meds: DATA.meds, full: DATA.full, win: [58, 112], cursor: 84, h: 760, ...o });
 
 test('the data: the run is the days recorded, the hidden measures are left out, the list is events and changes in order', () => {
   assert.deepEqual(DATA.full, [0, 120]);
   assert.equal(DATA.empty, false);
-  assert.deepEqual(Object.keys(DATA.series).sort(), ['asc', 'hv', 'ivc', 'pv', 'shunt', 'wedge']);
+  assert.deepEqual(Object.keys(DATA.series).sort(), ['asc', 'hv', 'hvpg', 'ivc', 'pv', 'shunt', 'wedge']);
   assert.deepEqual(DATA.happened.map((h) => h.day), [36, 52, 63, 63, 70, 72, 84, 100]);
   const hid = buildData({ calm: (k) => (k === 'hvpg' ? { x: HV.x as number[], mid: HV.y as number[] } : k === 'CONF' ? { x: SER.pv!.x as number[], mid: SER.pv!.y as number[] } : k === 'whvp' ? { x: SER.wedge!.x as number[], mid: SER.wedge!.y as number[] } : null), entries: [], labelsOf: LABELS, hidden: new Set(['trueHVPG']) });
   assert.equal(hid.hvpg, null);
@@ -93,7 +93,7 @@ test('the data: the run is the days recorded, the hidden measures are left out, 
 test('one day only: the run is shown over thirty days and each reading is a dot, not a blank card', () => {
   const one = buildData({ calm: (k) => (k === 'CONF' || k === 'hvpg' ? { x: [0], mid: [k === 'hvpg' ? 2.3 : 9] } : null), entries: [], labelsOf: LABELS, hidden: null });
   assert.equal(one.empty, false); assert.equal(one.short, true); assert.deepEqual(one.full, [0, 30]);
-  const f = bigFrame({ ...inp(), series: one.series, hvpg: one.hvpg, on: ['pv'], lines: [], meds: [], full: one.full, win: one.full, cursor: null }, ctxOf('light', 760)).frame;
+  const f = bigFrame({ ...inp(), series: one.series, hvpg: one.hvpg, on: ['pv', 'hvpg'], lines: [], meds: [], full: one.full, win: one.full, cursor: null }, ctxOf('light', 760)).frame;
   assert.equal(f.shapes.filter((s) => s.k === 'circle').length, 2);
 });
 
@@ -171,6 +171,7 @@ test('the day record reads the model: ascites mL to L, the shunt as 0..1, the PP
   assert.ok(ea.asc! > 0.2 && ea.asc! < 10, `ascites in litres (${ea.asc})`);
   assert.equal(ea.shunt, ma.shuntFraction); assert.ok(ea.shunt! >= 0 && ea.shunt! <= 1);
   assert.equal(ea.ppg, ma.ppg); assert.equal(ea.co, ma.co);
+  assert.ok(Math.abs(ea.eus! - ea.ppg!) < 4, `the EUS-PPG (${ea.eus}) is the PPG's neighbour (${ea.ppg}): the left portal less the left hepatic vein`);
   assert.ok(ea.var! > 0 && ea.smv! > 0 && ea.smv! >= ea.var!, 'the SMV pressure is above the varix, both read from the node pressures');
   const p = JSON.parse(JSON.stringify((core.engine() as { params: unknown }).params)); p.tips = { on: true, d: 8 };
   await core.handle({ type: 'setParams', params: p, settle: true });
@@ -211,4 +212,21 @@ test('a jump is sampled a day at a time: every day it runs is a point of the rec
   assert.deepEqual(d.slice(-30), Array.from({ length: 30 }, (_, i) => i + 1), 'a point for each day of the jump');
   assert.ok(feed.days.every((p) => Number.isFinite(p.v.asc!) && Number.isFinite(p.v.shunt!)), 'each point carries the new lanes');
   core.dispose();
+});
+
+test('the gradients: HVPG, PPG and EUS-PPG are each a series with a toggle; the lane holds the ones that are on', () => {
+  const ppg: Series = { x: [0, 60, 120], y: [17, 15, 9] } as Series, eus: Series = { x: [0, 60, 120], y: [16.5, 14.8, 8.9] } as Series;
+  assert.deepEqual(MEASURES.filter((m) => m.lane === 'hvpg').map((m) => m.id), ['hvpg', 'ppg', 'eus']);
+  assert.deepEqual(MEASURES.filter((m) => m.lane === 'hvpg').map((m) => m.on), [true, false, false]);
+  const series = { ...DATA.series, ppg, eus };
+  const words = (on: string[]) => {
+    const { frame, geo } = bigFrame(inp({ series, on }), ctxOf('light', 760));
+    return { lanes: geo.lanes.map((l) => l.id).join(), w: judge(frame, 'light').words.map((t) => t.s) };
+  };
+  const all = words(['hvpg', 'ppg', 'eus']);
+  assert.equal(all.lanes, 'hvpg'); assert.ok(all.w.includes('HVPG ') && all.w.includes('PPG ') && all.w.includes('EUS-PPG '), 'a name and a reading for each');
+  const off = words(['ppg']);
+  assert.ok(!off.w.includes('HVPG ') && !off.w.includes('CSPH 10'), 'HVPG off: no HVPG line, no zones words');
+  assert.ok(off.w.includes('PPG '));
+  assert.equal(words(['pv']).lanes, 'p', 'none of the three on: no gradients lane');
 });

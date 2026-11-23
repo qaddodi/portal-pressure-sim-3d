@@ -18,6 +18,9 @@ export function dayExtras(f: DayFrame): Record<string, number> {
   if (co != null) out.co = co;
   if (ppg != null) out.ppg = ppg;
   const P = f.Pf;
+  // the EUS-PPG: the left portal vein less the left hepatic vein as the needle reads them, each at a tenth (the monitor's own sum, tests/endo/eus-source.ts pinLive)
+  const lpv = P ? num(P[NI.LPV!]) : null, lhv = P ? num(P[NI.LHV!]) : null;
+  if (lpv != null && lhv != null) out.eus = Math.round((Math.round(lpv * 10) / 10 - Math.round(lhv * 10) / 10) * 10) / 10;
   if (P) for (const [k, node] of [['var', 'VAR'], ['smv', 'SMV']] as const) { const i = NI[node], v = i == null ? null : num(P[i]); if (v != null) out[k] = v; }
   return out;
 }

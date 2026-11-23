@@ -66,7 +66,13 @@ const niceMax = (m: number, floor: number, step: number): number => Math.max(flo
 /** the HVPG lane's ticks: every 5 mmHg, every 10 when the lane is tall (a decompensated patient reads above 20) */
 const hvpgTicks = (max: number): number[] => { const st = max > 30 ? 10 : 5; return Array.from({ length: Math.floor(max / st) + 1 }, (_, i) => i * st).filter((t) => t <= max - 2); };
 function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
-  if (id === 'hvpg') return inp.hvpg ? { id, ms: [], max: niceMax(maxOf(inp.hvpg), 16, 2), ticks: hvpgTicks(niceMax(maxOf(inp.hvpg), 16, 2)), zone: true, cuts: [{ v: HVPG_CUTS.bleed, word: `Bleed risk ${HVPG_CUTS.bleed}`, ink: 'danger' }, { v: HVPG_CUTS.red, word: `CSPH ${HVPG_CUTS.red}`, ink: 'danger', below: true }] } : null;
+  if (id === 'hvpg') {
+    // the gradients' lane: the HVPG with its zones when it is on, the PPG and the EUS-PPG as lines of their own
+    const hv = inp.on.includes('hvpg') ? inp.hvpg : null, gs = laneOf('hvpg').filter((m) => m.id !== 'hvpg' && inp.on.includes(m.id) && inp.series[m.id]);
+    if (!hv && !gs.length) return null;
+    const max = niceMax(Math.max(maxOf(hv), ...gs.map((m) => maxOf(inp.series[m.id]))), 16, 2);
+    return { id, ms: gs, max, ticks: hvpgTicks(max), zone: !!hv, cuts: hv ? [{ v: HVPG_CUTS.bleed, word: `Bleed risk ${HVPG_CUTS.bleed}`, ink: 'danger' }, { v: HVPG_CUTS.red, word: `CSPH ${HVPG_CUTS.red}`, ink: 'danger', below: true }] : [] };
+  }
   const ms = laneOf(id).filter((m) => inp.on.includes(m.id) && inp.series[m.id]);
   if (!ms.length) return null;
   const peak = Math.max(...ms.map((m) => maxOf(inp.series[m.id]) * (m.id === 'shunt' ? 100 : 1)));
@@ -196,10 +202,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   }
   for (const g of geoLanes) {
     const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * g.h;
-    if (g.s.zone) {
-      if (inp.hvpg) { const pts = pointsIn(inp.hvpg, x0, x1, X, Y), col = colourOf(pal, HVPG.tok); shapes.push(pts.length >= 4 ? { k: 'path', pts, pen: pen(col, 2.2, { cap: 'round', join: 'round' }) } : { k: 'circle', cx: pts[0] ?? 0, cy: pts[1] ?? 0, r: 4, fill: col }); }
-      continue;
-    }
+    if (g.s.zone && inp.hvpg) { const pts = pointsIn(inp.hvpg, x0, x1, X, Y), col = colourOf(pal, HVPG.tok); shapes.push(pts.length >= 4 ? { k: 'path', pts, pen: pen(col, 2.2, { cap: 'round', join: 'round' }) } : { k: 'circle', cx: pts[0] ?? 0, cy: pts[1] ?? 0, r: 4, fill: col }); }
     for (const m of g.s.ms) {
       const s = inp.series[m.id]!, sc: Series = m.id === 'shunt' ? { x: s.x, y: s.y.map((v) => v * 100) } : s;
       const pts = pointsIn(sc, x0, x1, X, Y), col = colourOf(pal, m.tok);
@@ -216,8 +219,8 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const at = inp.cursor ?? inp.full[1];
   for (const g of geoLanes) {
     let x = L + 8;
-    const parts: { name: string; val: string | null; ink: Rgba }[] = g.s.zone ? [{ name: HVPG.name, val: valueAt(inp.hvpg, at) == null ? null : valueAt(inp.hvpg, at)!.toFixed(1).replace('-', '−'), ink: inkOf(pal, HVPG.tok) }]
-      : g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], at); return { name: m.short, val: v == null ? null : m.words(v), ink: inkOf(pal, m.tok) }; });
+    const hv = g.s.zone ? [{ name: HVPG.name, val: valueAt(inp.hvpg, at) == null ? null : valueAt(inp.hvpg, at)!.toFixed(1).replace('-', '−'), ink: inkOf(pal, HVPG.tok) }] : [];
+    const parts: { name: string; val: string | null; ink: Rgba }[] = [...hv, ...g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], at); return { name: m.short, val: v == null ? null : m.words(v), ink: inkOf(pal, m.tok) }; })];
     for (const p of parts) {
       const nm = `${p.name} `;
       say({ x, y: g.t + 14, s: nm, color: p.ink, weight: 500 }); x += measure(nm, fs, 500);
@@ -236,15 +239,15 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     shapes.push({ k: 'line', x1: cx, y1: phone ? top - 6 : top - 4, x2: cx, y2: bottom, pen: pen(pal.alpha(text, 0.5), 1) });
     for (const g of geoLanes) {
       const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * g.h;
-      const dots: { v: number | null; col: Rgba }[] = g.s.zone ? [{ v: valueAt(inp.hvpg, inp.cursor), col: colourOf(pal, HVPG.tok) }]
-        : g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], inp.cursor!); return { v: v == null ? null : m.id === 'shunt' ? v * 100 : v, col: colourOf(pal, m.tok) }; });
+      const dots: { v: number | null; col: Rgba }[] = [...(g.s.zone ? [{ v: valueAt(inp.hvpg, inp.cursor), col: colourOf(pal, HVPG.tok) }] : []),
+        ...g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], inp.cursor!); return { v: v == null ? null : m.id === 'shunt' ? v * 100 : v, col: colourOf(pal, m.tok) }; })];
       for (const d of dots) if (d.v != null) shapes.push({ k: 'circle', cx, cy: Y(d.v), r: 3.8, fill: d.col, pen: pen(pal.tok('surface'), 1.6) });
     }
     say({ x: cx, y: bottom + 19, s: `Day ${Math.round(inp.cursor)}`, color: text, weight: 700, anchor: 'middle' });
   }
   if (!specs.length) say({ x: L + plotW / 2, y: top + medsH + free / 2, s: 'Nothing chosen. Turn something on under What to graph.', color: t2, anchor: 'middle', size: fs });
   const f = frame();
-  return { frame: { ...f, label: `Over time, day ${Math.round(x0)} to ${Math.round(x1)}: ${specs.map((s) => (s.zone ? 'HVPG' : s.ms.map((m) => m.name).join(', '))).join('; ')}.` }, geo };
+  return { frame: { ...f, label: `Over time, day ${Math.round(x0)} to ${Math.round(x1)}: ${specs.map((s) => [...(s.zone ? ['HVPG'] : []), ...s.ms.map((m) => m.name)].join(', ')).join('; ')}.` }, geo };
 }
 
 /** The strip under the chart: the whole run as one thin line, the events as ticks, the window between its two grips. */

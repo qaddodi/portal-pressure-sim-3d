@@ -33,9 +33,9 @@ export const drawable = (hidden: ReadonlySet<string> | null): Measure[] => MEASU
 export function buildData(i: DataIn): Data {
   const series: Record<string, Series> = {};
   for (const m of drawable(i.hidden)) { const s = seriesOf(i.calm(m.key)); if (s) series[m.id] = s; }
-  const hvpg = i.hidden?.has('trueHVPG') ? null : seriesOf(i.calm('hvpg'));
+  const hvpg = series.hvpg ?? null;   // (the HVPG is a measure like the others; the field stays for what reads it by name)
   const { lines, meds } = marksOf(i.entries, i.labelsOf);
-  const all = [...Object.values(series), ...(hvpg ? [hvpg] : [])];
+  const all = Object.values(series);
   let a = Infinity, b = -Infinity;
   for (const s of all) { a = Math.min(a, s.x[0]!); b = Math.max(b, s.x[s.x.length - 1]!); }
   const empty = !Number.isFinite(a), short = !empty && !(b > a);
