@@ -34,7 +34,7 @@ export const DUST_SELECTS: readonly (readonly [key: string, label: string, optio
   ['partColor', 'Particle colour', [['auto', 'From the vessel'], ['custom', 'Custom']], 'auto', 'Colour'],
   ['vel', 'Speed follows', [['local', 'Local velocity'], ['flat', 'Flow only']], 'local', 'Flow'],
   ['dustLook', 'Look (23 Nov rebuild)', [['b', 'B: lane streaks (new)'], ['a', 'A: lattice scan (before)']], 'b', 'Particles'],
-  ['dustDebug', 'Paint the trouble (finding the black specks)', [['off', 'Off'], ['bad', 'Magenta: a dust term was not a number'], ['gone', 'Cyan: the vessel under the dust is missing'], ['both', 'Both']], 'off', 'Particles'],
+  ['dustDebug', 'Paint the trouble (finding the black specks)', [['off', 'Off'], ['bad', 'Magenta: a dust term was not a number'], ['gone', 'Cyan: the vessel under the dust is missing'], ['both', 'Both'], ['dark', 'Yellow: the shader itself wrote black here'], ['cover', 'Green: every pixel the dust touches']], 'off', 'Particles'],
 ];
 export const DUST_COLORS: readonly (readonly [key: string, label: string, def: string, group: Group])[] = [['partHex', 'Custom particle colour', '#9ec4ff', 'Colour']];
 /** The extra, app-only control: the shader's samples per pixel (0: by the device, see DUST_BUDGET). */
@@ -186,7 +186,7 @@ export function dustDerive(s: Readonly<Record<string, number>>, w: DustWeights, 
     wSource: w.source, custom: w.custom, nCls: K, win,
     cr: rgb[0]!, cg: rgb[1]!, cb: rgb[2]!, lenCap: lenMax,
     wLookB: w.lookB ?? 1, lanes: Math.round(s.lanes ?? 26), laneJit: s.laneJit ?? 0.4, cellLen: s.cellLen ?? 3.2, fill: s.fill ?? 0.8, trains: Math.round(s.trains ?? 2),
-    dbg: ({ bad: 1, gone: 2, both: 3 } as Record<string, number>)[String(s.dustDebug)] ?? 0,
+    dbg: ({ bad: 1, gone: 2, both: 3, dark: 4, cover: 5 } as Record<string, number>)[String(s.dustDebug)] ?? 0,
   };
   return v;
 }

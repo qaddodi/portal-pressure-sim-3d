@@ -504,7 +504,7 @@ void main() {
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
-  if (alpha < 0.004) { if (D_dbg > 1.5) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); return; } discard; }   // (?dust, Paint the trouble: cyan where the skin is dropped here)
+  if (alpha < 0.004) { if (D_dbg > 1.5 && D_dbg < 3.5) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); return; } discard; }   // (?dust, Paint the trouble: cyan where the skin is dropped here)
   // the live lumen's radius at the axis' depth, and the line the vertex stage built the mesh ink wider by (the tube's own rule: a share of the radius held between two CSS widths, thinned with a hairline)
   float swellB = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) swellB += wAt(i) * swAt(i);
@@ -655,6 +655,7 @@ void main() {
   // (the HEADS keep the same wall: a head is gated by its arm's own cylinder, which at the fork's inner corner reaches past the union's lumen, so a chevron there was drawn up to and over the crotch's ink and clipped against it, white on
   // the light look: Mohammad, 21 Nov. A head lies within 0.6 of its axis, so the wall (from 0.90 of the way to the ink) never touches one inside its own tube)
   headAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
+  dustCover = dustAcc;
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;

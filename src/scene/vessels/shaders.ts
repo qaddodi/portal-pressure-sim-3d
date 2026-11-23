@@ -625,6 +625,7 @@ void main() {
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif
+  dustCover = fd;
   cBody = c;
   streakCover = fd.a;
   c = c * (1.0 - fd.a) + fd.rgb;
