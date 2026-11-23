@@ -113,6 +113,8 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
   // the Frame sheets (Layers, History, Why?) and the Treat card take the same rise
   assert.ok(/max-height: 78%; transform: translateY\(var\(--sheet-rise, 24px\)\)/.test(src('src/ui/shell/shell.css')));
   assert.ok(/transform: translateY\(var\(--sheet-rise, 24px\)\)/.test(src('src/ui/treat/treat.css')));
+  const tc = src('src/ui/tests/tests.css');
+  assert.ok(tc.includes('.t-pos[data-kind="sheet"] { --t-x: 0px; --t-y: var(--sheet-rise, 24px); --t-o: 0; }') && tc.includes('transition-timing-function: var(--sheet-ease'), 'the Tests sheet takes the same rise and curve');
   assert.ok(!/mp-in|mp-out/.test(css), 'the pushed page is moved by the clock, not by keyframes');
 });
 

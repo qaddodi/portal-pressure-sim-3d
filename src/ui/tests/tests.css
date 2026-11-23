@@ -7,8 +7,9 @@
    Per-frame writes are transform and opacity only. Type sizes are custom properties the layer sets from the card type scale (data text is never under 12 px). */
 .t-pos { --t-x: 16px; --t-y: 0px; --t-o: 0; --t-out: var(--d-flip);
   position: absolute; left: 0; top: 0; z-index: var(--z-cards, 10); pointer-events: none; will-change: transform; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
-.t-pos[data-kind="sheet"] { --t-x: 0px; --t-y: calc(100% + 8px); --t-o: 1; }
+.t-pos[data-kind="sheet"] { --t-x: 0px; --t-y: var(--sheet-rise, 24px); --t-o: 0; }   /* (a phone's Tests sheet is the one phone-sheet motion: fade and a short rise, menu-motion.css) */
 .t-pos[data-kind="sheet"][data-thumb="true"] { --t-out: var(--d-small); }
+#app .t-pos[data-kind="sheet"][data-thumb="true"] > .t-card.instrument-workspace.float-ui, .t-pos[data-kind="sheet"][data-thumb="true"] > .t-card { transition-timing-function: var(--sheet-ease, var(--ease-arrive)); }
 @media (prefers-reduced-motion: reduce) { .t-pos, .t-pos[data-kind="sheet"] { --t-x: 0px; --t-y: 0px; --t-o: 0; --t-out: var(--d-flip); } }
 .t-pos[data-live="true"]:not([data-kind="sheet"]) { transition: transform var(--d-card-in) var(--ease-arrive); }   /* (a sheet's height change is eased by the pull's own glide; both would double-animate it) */
 .t-card { box-sizing: border-box; overflow: hidden;
