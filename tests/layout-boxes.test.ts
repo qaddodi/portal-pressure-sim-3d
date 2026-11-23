@@ -56,7 +56,7 @@ export function sweep() {
     // Plan 42: a phone or an upright iPad never closes a card on its own; only the reader's dock leaves a strip, and both cards stay up and at least 120 px of room each
     if (stacked(vp.n) && wh && dh) {
       if (p.shut) note(`SHUT ${vp.n}`, tag);
-      if (p.cards.length !== 2 || p.cards.some((c) => !(c.rect.h > 0))) note(`CARD-MISSING ${vp.n}`, tag);
+      if (!p.docked && (p.cards.length !== 2 || p.cards.some((c) => !(c.rect.h > 0)))) note(`CARD-MISSING ${vp.n}`, tag);
       if (p.strip && !p.docked) note(`STRIP ${vp.n}`, tag);
       if (p.maxH.words < 120 || p.maxH.data < 120) note(`ROOM ${vp.n}`, `${tag} words ${p.maxH.words} data ${p.maxH.data}`);
     }

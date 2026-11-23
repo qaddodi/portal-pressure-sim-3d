@@ -16,7 +16,10 @@ const SCREENS = [
 
 test('every placed card and strip lies inside the screen, for any data height, docked or not', () => {
   for (const vp of SCREENS) for (const dock of [false, true]) for (const active of ['words', 'data'] as const) for (const dh of [0, 120, 260, 400, 600, 900]) for (const wh of [150, 330, 520]) {
-    const p = planLayout(vp as never, [{ id: 'teach', slot: 'words', h: wh }, { id: 'ladder', slot: 'data', h: dh }] as never, active, 0, dock);
+    const needs = [{ id: 'teach', slot: 'words', h: wh }, { id: 'ladder', slot: 'data', h: dh }] as { id: string; slot: 'words' | 'data'; h: number }[];
+    let p = planLayout(vp as never, needs as never, active, 0, dock);
+    // (a card is never taller than the room its plan gives it: it pages or fits first, as the card layer does; the room of each follows the other's height, so twice)
+    for (let k = 0; k < 2; k++) { for (const n of needs) if (n.h) n.h = Math.min(n.h, Math.max(60, p.maxH[n.slot] || n.h)); p = planLayout(vp as never, needs as never, active, 0, dock); }
     const boxes = [...p.cards.map((c) => c.rect), ...(p.strip ? [p.strip.rect] : []), ...(p.tucked ? [p.tucked] : [])];
     for (const r of boxes) {
       const at = `${vp.n} dock=${dock} ${active} data ${dh} words ${wh}: ${JSON.stringify(r)}`;

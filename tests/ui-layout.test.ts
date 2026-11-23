@@ -114,7 +114,7 @@ test('iPhone on its side: the wallet. One 400 px column centred on the screen, t
   const c = p.cards[0].rect;
   assert.equal(c.w, Math.round(shufCol(0, vp.w))); assert.equal(c.w, 400);
   assert.ok(Math.abs(c.x + c.w / 2 - vp.w / 2) < 1, 'centred');
-  assert.equal(p.strip!.rect.h, SHUF.strip); assert.equal(p.strip!.rect.y + p.strip!.rect.h, vp.h);
+  assert.equal(p.strip!.rect.h, SHUF.strip); assert.equal(p.strip!.rect.y + p.strip!.rect.h, vp.h - vp.safe.bottom, 'the strip stands on the safe area (Plan 37: one footEdge)');
   assert.ok(p.strip!.rect.y > c.y + c.h, 'the strip is under the card');
   assert.equal(p.bar.edge, 'foot');
   assert.ok(!hit(p.strip!.rect, p.bar.rect) && !hit(c, p.bar.rect), 'clear of the pill');
