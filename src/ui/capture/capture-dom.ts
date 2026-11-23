@@ -163,8 +163,11 @@ function counterValue(el: Element, name: string): number {
   let top: Element | null = el.parentElement, n = 0;
   for (; top; top = top.parentElement) { const st = counterStep(readStyle(top).counterReset, name); if (st !== null) { n = st; break; } }
   for (const e of (top ?? document.body).querySelectorAll('*')) {
-    const st = counterStep(readStyle(e).counterIncrement, name);
-    if (st !== null) n += st;
+    // (an element steps a counter itself or through its `::before` / `::after`: the criteria list's numbers step on the `::before` that prints them, so the walk read 0 for every row)
+    for (const pseudo of [undefined, '::before', ...(e === el ? [] : ['::after'])]) {
+      const st = counterStep(readStyle(e, pseudo).counterIncrement, name);
+      if (st !== null) n += st;
+    }
     if (e === el) break;
   }
   return n;

@@ -329,3 +329,7 @@ test('the page walk multiplies every size by the CSS zoom it lives under (a card
   assert.equal(zoomOf('0.5'), 0.5); assert.equal(zoomOf('1'), 1); assert.equal(zoomOf(''), 1); assert.equal(zoomOf(undefined), 1); assert.equal(zoomOf('0'), 1); assert.equal(zoomOf('normal'), 1);
   assert.match(src('src/ui/capture/capture-dom.ts'), /kk \*= zoomOf\(cs\.zoom\)/);
 });
+
+test('the counter walk counts a step made on an element\'s ::before (the ordered criteria list read 0, 0, 0 in a capture)', () => {
+  assert.match(src('src/ui/capture/capture-dom.ts'), /for \(const pseudo of \[undefined, '::before'/);
+});
