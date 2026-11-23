@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, type CardIn } from '../src/scene/labels/figure-cards.ts';
+import { cardParts, placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, type CardIn } from '../src/scene/labels/figure-cards.ts';
 import { hits, type Box } from '../src/scene/labels/geometry.ts';
 import { RING_STROKE, typeVars, type Vp } from '../src/scene/labels/type.ts';
 
@@ -55,24 +55,21 @@ test('a lobule callout is a ring, a leader and coloured words, not a glass card 
   assert.doesNotMatch(css.split('\n').filter((l) => /^\.lz-co-(ring|line) /.test(l)).join('\n'), /\b4px|-2px/, 'no stroke number of its own in .lz-co-*');
   assert.equal(typeVars(VP)['--co-w'], `${RING_STROKE}px`, 'typeVars carries the stroke');
   assert.equal(RING_STROKE, 4, '2D\'s 4 px');
-  assert.match(css, /\.cl\[data-fig="callout"\] \.cl-glass[^{]*\{ opacity: 0; \}/, 'no glass card behind the words');
+  assert.deepEqual(cardParts({ kind: 'mark' }), { glass: false, ring: false }, 'no glass card behind the words: the parts are removed, not hidden (no-bubble-callouts.test.ts)');
   assert.match(css, /\.lz-co \{[^}]*--co: var\(--cl-danger/, 'block is the danger red');
 });
 
-test('the content under the ring is softly blurred by the app\'s one glass, eased with the ring and never by a wrapper\'s opacity', () => {
-  const fc = readFileSync('src/scene/labels/figure-cards.ts', 'utf8'), css = readFileSync('src/scene/labels/labels.css', 'utf8');
-  assert.match(fc, /className = 'cl-glass lz-co-focus'/, 'the glass class gives the blur and Blur effect off turns it off');
-  assert.match(fc, /fadeRing\(co, r\.a\)/, 'it fades with the ring');
-  assert.doesNotMatch(fc.split('private paintRing')[1]!.split('\n  }\n')[0]!, /co\.root\.style\.opacity/, 'a fading wrapper would show it unblurred until the fade ends');
-  assert.match(css, /\.lz-co-focus \{[^}]*--glass-blur: [1-8]px/, 'a light blur');
-  assert.doesNotMatch(css.split('.lz-co-focus')[1]!.split('\n')[0]!, /backdrop-filter/, 'glass.css is the only place that blurs');
-  assert.match(css, /reduced-transparency: reduce\) \{ \.lz-co-focus \{ display: none/, 'no solid disc under reduced transparency');
+test('the ring is clear inside: no glass, blur or tint under it, and it fades with its leader on its own pieces', () => {
+  const fc = readFileSync('src/scene/labels/figure-cards.ts', 'utf8');
+  assert.match(fc, /fadeRing\(co, r\.a\)/, 'it fades with the leader');
+  assert.doesNotMatch(fc.split('private paintRing')[1]!.split('\n  }\n')[0]!, /co\.root\.style\.opacity/);
+  assert.doesNotMatch(fc, /lz-co-focus|focus: HTMLElement/, 'the soft focus is gone');
 });
 
 test('a mark on a vessel or an organ is a coloured label with a leader, never a solid pill', () => {
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
   assert.doesNotMatch(css, /data-fig="mark"\]\[data-tone="danger"\] \.cl-glass[^{]*\{ background: var\(--cl-danger\) !important/);
-  assert.match(css, /\.cl\[data-fig="mark"\] \.cl-glass, \.cl\[data-fig="mark"\] \.cl-ring \{ opacity: 0/);
+  assert.deepEqual(cardParts({ kind: 'mark' }), { glass: false, ring: false });
 });
 
 test('the ring and the leader only move by transform and fade by opacity', () => {
