@@ -156,7 +156,12 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 /* A phone table: the blood-pressure column (a seventh of the row) is a little smaller so "114/68" stays whole over "(83)"; the upright column heads turn sideways, never one upright letter a line. */
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .pz-table td.bp { font-size: .86em; }
-  .pz .pz-table thead tr.th-up th.num { text-orientation: sideways; }
+  /* Upright heads turn by an ordinary transform, never writing-mode: the iPhone capture (187c7e53, slide 13) showed the stack as one upright letter a line, in reverse order, so the writing-mode + rotate pair is not trusted.
+     The head is as tall as its word (--hl letters) and its inner word lies on its side, reading upward. */
+  .pz .pz-table thead tr.th-up th.num { writing-mode: horizontal-tb; rotate: none; position: relative; height: calc(var(--hl, 4) * .62em + .8em); padding: 0; }
+  .pz .pz-table thead tr.th-up th.num > .hd { position: absolute; left: calc(50% + .5em); bottom: .4em; line-height: 1; white-space: nowrap; transform-origin: 0 100%; transform: rotate(-90deg); }
+  /* "No ascites" spans the two narrow SAAG and protein columns: it is centred and sized to them, never past the table's edge (slide 13, 187c7e53). */
+  .pz-table td.none { font-size: 12px; white-space: nowrap; text-align: center; padding-inline: 0; overflow: clip; }
 }
 
 /* The timeline chart's button in the bar (owner picked option A, 23 Nov 2026): it is a `.tl-pin` like Compare (a label on a Mac and an iPad held sideways, an icon elsewhere), but it stays on an iPad upright, where

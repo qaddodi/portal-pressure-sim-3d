@@ -94,7 +94,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
             <th>{model.rowHead}</th>
             {model.cols.map((c) => (
               <th key={c.k} className="num" title={c.cut || undefined} tabIndex={c.cut ? 0 : undefined}
-                onClick={c.cut ? showCut(c.k, c.label, c.cut) : undefined} onKeyDown={c.cut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); showCut(c.k, c.label, c.cut)(); } } : undefined}>{c.label}</th>
+                style={{ ['--hl' as string]: c.label.length }} onClick={c.cut ? showCut(c.k, c.label, c.cut) : undefined} onKeyDown={c.cut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); showCut(c.k, c.label, c.cut)(); } } : undefined}><span className="hd">{c.label}</span></th>
             ))}
           </tr>
         </thead>
