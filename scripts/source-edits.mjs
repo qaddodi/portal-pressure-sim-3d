@@ -76,6 +76,32 @@ export const SOURCE_PATCHES = [
 
   // ---- the outflow deck, SOS wedge slide (23 Nov 2026, Outflow review item 3): the line read "the HVPG is 10.3 mmHg, ≥10 mmHg." (a reading, then a cut-off with no word between them). Said once, in words. ----
   P('outflow', 'slides.soswedge.line', 'the HVPG is {hvpg}, {>=10 mmHg}.', 'the HVPG is {hvpg}, above the {10 mmHg} cut-off.'),
+
+  // ---- the prehepatic deck, review of 23 Nov 2026 (capture 58722f12) ----
+  // 3: the PPG curve started from the healthy patient (no volume expansion), so it ended near 26 while the slide's own reading, and every slide's text, say 27.3 at complete occlusion. With no
+  //    patient of its own the curve runs on the slide's own state (pvt-acute), so its last point IS the reading the words print. The words no longer claim one HVPG value for three different
+  //    model states (acute 1.9, recanalized 2.2, healthy 2.3): the HVPG stays normal, and the text says what it reads where it is read.
+  DROP('prehepatic', 'slides.relation.tool.patient'),
+  P('prehepatic', 'slides.relation.line', 'The HVPG stays near {hvpg} throughout.', 'The HVPG stays normal throughout, and is {hvpg} at occlusion.'),
+  P('prehepatic', 'checks.3.0', 'and the HVPG stays at {hvpg@anticoag}.', 'and the HVPG stays normal, {hvpg@clot} before and {hvpg@anticoag} after.'),
+  P('prehepatic', 'checks.3.1', 'so the HVPG did not change.', 'so the HVPG did not respond.'),
+  // 4: the title said "unchanged" over numbers that fall from 11.1 to 8.7 (carvedilol, then the vein reopening)
+  P('prehepatic', 'slides.course.title', 'Portal pressure tracked the thrombus while the HVPG was unchanged', 'Portal pressure tracked the thrombus; the HVPG did not follow it'),
+  // 1: the summary table's finding line under each name (the approved one-line-per-case layout), one short finding per case
+  SET('prehepatic', 'slides.summary.note', ['Finding']),
+  SET('prehepatic', 'slides.summary.of.0.note', ['Normal portal flow']),
+  SET('prehepatic', 'slides.summary.of.1.note', ['Portal vein occluded']),
+  SET('prehepatic', 'slides.summary.of.2.note', ['Collaterals around the occlusion']),
+  SET('prehepatic', 'slides.summary.of.3.note', ['CSPH, slow portal flow']),
+  SET('prehepatic', 'slides.summary.of.4.note', ['Thrombus over half the lumen']),
+  SET('prehepatic', 'slides.summary.of.5.note', ['Portal vein recanalized']),
+  // 5: the criteria card's title ran to three lines and crowded the card
+  P('prehepatic', 'slides.untreated.title', 'Untreated PVT is monitored, then anticoagulated or treated with TIPS', 'Untreated PVT is monitored, then treated'),
+  // 6: what the speaker notes carried and the screen never said (all from the deck's own notes: Baveno VIII 9.4, 9.5, 9.11 and the anticoagulant choice)
+  APPEND('prehepatic', 'slides.path-pvtdur.line', 'Finding them is the work-up of a first PVT: a myeloproliferative neoplasm (test for JAK2), an inherited thrombophilia, local inflammation or surgery, and cirrhosis (9.4, 9.5).'),
+  APPEND('prehepatic', 'slides.carv.line', 'Then choose the anticoagulant by liver function: low-molecular-weight heparin or a vitamin K antagonist, or a DOAC in Child-Pugh A and with caution in B, not in C.'),
+  P('prehepatic', 'slides.course.ask.1', 'not by the HVPG, which is unchanged.', 'not by the HVPG, which does not follow the thrombus.'),
+  P('prehepatic', 'slides.cavernoma.line', 'Varices develop.', 'Varices develop: look for them with endoscopy and treat them as in cirrhosis, with a nonselective beta-blocker or band ligation.'),
 ];
 
 function step(node, key) {

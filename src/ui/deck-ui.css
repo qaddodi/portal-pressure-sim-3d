@@ -196,14 +196,20 @@
 .pz-table td.wave { padding-block: 2px; }
 .pz-table .dk-tfind { margin-top: .25em; }   /* (a row's finding: the quiet line under its name, the size of a `vs` line) */
 .pz-table td.wave .dk-wave { display: block; width: 100%; animation: dk-fade 0.6s ease-out both; }   /* (a trace eases in when it is drawn; baked, that is the card's first frame) */
-@media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
-  .pz-table.dk-pztable { --dk-name: calc(14.5rem - var(--nc) * 1.1rem); }   /* (the name's least width: the fewer value columns, the wider) */
-  .pz-table.dk-pztable.dk-up { --dk-name: calc(20.5rem - var(--nc) * 1.75rem); }   /* (heads upright: the columns need only their arrows) */
-  .pz-table.dk-pztable tr { grid-template-columns: var(--dk-grid); }
-  /* a patient is one line and its finding: no site in the row and no group heading (the approved one-line-per-case layout), the name has the column to itself */
-  .pz-table.dk-pztable tbody tr th[scope="row"] { padding-block: .3em; }
-  .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
-}
+/* One line per case at EVERY width (docs/approved/comparison-table.md; Prehepatic review 1, 23 Nov 2026): the phone's grid rows were behind a media query, so a laptop took 2D's old wide table, with the group headings
+   (REFERENCE, NO CIRRHOSIS...) over the names and a name column a third of the table. The grid is the table's own now: the name has the room its words need (`--dk-name`: the fewer value columns the wider),
+   the value columns and the Doppler share the rest, and a case's finding is the small line under its name. No group heading anywhere. */
+.pz-table.dk-pztable { --dk-name: calc(14.5rem - var(--nc) * 1.1rem); }   /* (the name's least width: the fewer value columns, the wider) */
+.pz-table.dk-pztable.dk-up { --dk-name: calc(20.5rem - var(--nc) * 1.75rem); }   /* (heads upright: the columns need only their arrows) */
+.pz-table.dk-pztable :is(table, thead, tbody) { display: block; }
+.pz-table.dk-pztable tr { display: grid; grid-template-columns: var(--dk-grid); align-items: center; }
+.pz-table.dk-pztable td[colspan="2"] { grid-column: span 2; }
+.pz-table.dk-pztable thead th:not(.num):not(:first-child) { display: none; }
+.pz-table.dk-pztable tbody th[scope="row"] { display: block; min-width: 0; padding: .3em 8px .3em 12px; }
+.pz-table.dk-pztable .tw { display: block; min-width: 0; }
+.pz-table.dk-pztable .tn { margin: 0; line-height: 1.15; overflow-wrap: normal; -webkit-hyphens: manual; hyphens: manual; }
+.deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
+.dk-tnone.dk-noflow { font: 500 max(12px, .72em) / 1.2 var(--ui, system-ui); letter-spacing: .02em; }   /* (a flat trace says so in words, under its line) */
 
 /* ── settings ── */
 .dk-settings { position: relative; }

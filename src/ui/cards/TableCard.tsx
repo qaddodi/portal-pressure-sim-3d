@@ -23,9 +23,12 @@ export const withArrows = (t: string) => t.split(/(↑↑|↓↓|↑|↓|•|○
 /** "114/68 (83)" with a place to break after the slash: on a phone its column (a seventh of the row) is narrower than "114/68" itself, and a word that cannot break runs into the next cell. */
 export const bpBreaks = (t: string) => t.split('/').flatMap((x, i) => (i ? [<wbr key={i} />, '/' + x] : [x]));
 
+/** What a flat trace says (table-wave.ts waveWords: the hover title of a row with no flow). */
+const NO_FLOW = 'No flow';
+
 function Td({ c }: { c: Cell }) {
   switch (c.kind) {
-    case 'wave': return <td className="num wave" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} /> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}<span className="sr-only">{c.sr}</span></td>;
+    case 'wave': return <td className="num wave" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <><WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} />{c.wave!.title === NO_FLOW ? <span className="dk-tnone dk-noflow">{NO_FLOW}</span> : null}</> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}<span className="sr-only">{c.sr}</span></td>;
     case 'pend': return <td className="num pend" aria-busy="true"><span className="dk-tpend" aria-hidden="true" /><span className="sr-only">calculating</span></td>;
     case 'blank': return <td className="num blank" title={c.sr}><None /><span className="sr-only">{c.sr}</span></td>;
     case 'removed': return <td className="num none">Removed</td>;

@@ -138,7 +138,7 @@ export function apply(stops: Stop[], p: Pos, m: Move): Pos {
   return m === 'next' ? next(stops, p) : m === 'back' ? back(stops, p) : m === 'first' ? first() : last(stops);
 }
 
-/** The catheter state on show at a position (null: none out). The case beat has no catheter yet; the route slide's words bring it in; the quick check leaves the figure as the last slide with a catheter left it.
+/** The catheter state on show at a position (null: none out). The case beat has no catheter yet; the route slide's words bring it in; the quick check leaves the figure as the last slide left it.
  *  scene-link.ts runs the catheter's one clock (cath-clock.ts) to the place on the HVPG script this names. */
 export function cathPlace(stops: Stop[], p: Pos): CathState | null {
   const s = stops[p.stop];
@@ -157,8 +157,9 @@ export function catheterAt(stops: Stop[], p: Pos): { advance: number; balloon: n
 const catheterOf = (c: CathState | undefined | null): { advance: number; balloon: number } =>
   c === 'route' || c === 'free' ? { advance: 1, balloon: 0 } : c === 'wedge' || c === 'result' ? { advance: 1, balloon: 1 } : c === 'blocked' ? { advance: OSTIUM_U, balloon: 0 } : { advance: 0, balloon: 0 };
 
-/** The catheter state the last slide with one asked for: the quick check leaves the figure as that slide left it (none when no slide has a catheter). */
+/** The catheter state the LAST slide asked for: the quick check leaves the figure as that slide left it (none when the last slide has none out). It never looks back past the last slide: a deck whose slides 5 to 19 have no catheter
+ *  must not bring slide 4's wedged one back on the check (Prehepatic review 2, 23 Nov: the same cause showed on the outflow deck). */
 export const lastCath = (stops: Stop[]): CathState | undefined => {
-  for (let i = stops.length - 1; i >= 0; i--) { const s = stops[i]; if (s.kind === 'slide' && s.slide.cath) return s.slide.cath; }
+  for (let i = stops.length - 1; i >= 0; i--) { const s = stops[i]; if (s.kind === 'slide') return s.slide.cath ?? undefined; }
   return undefined;
 };
