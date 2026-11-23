@@ -48,10 +48,18 @@ const lookOf = (p: Palette): LookId => LOOK_IDS.find((id) => ORGAN_TONES_2D[id] 
 /** The per-vertex numbers of the esophagus on the stomach's pillow (the pillow is one shape with it, as 2D's SEAM_D is): `eso` how much of the esophagus's own tone shows
  *  (1 above y 226, none below y 262, as seamFG), `esoA` how much of the figure shows (1 below y 40, none above y -40, as esoFadeG). Linear in y, so the pillow's fine
  *  triangles carry them exactly. Positions are the scene's: y2d = 556 - 300 y. */
+/** The rectum tube is the colon's part right of this x (2D units); the cecum is left of it. Its alpha is gone by RECTUM_GONE_BY, after falling from RECTUM_GONE_FROM (Mohammad 23 Nov: "fade to nothing"). */
+export const RECTUM_X = 700, RECTUM_GONE_FROM = 950, RECTUM_GONE_BY = 1000;
+const smooth01 = (t: number): number => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
 /** The rectum's fade as `esoA` on the colon's pillow: 1 above the first y, 0 below the second (2D's rectFadeG, linear in y). */
 export function rectumAttribute(g: BufferGeometry, fade: [number, number]): void {
   const pos = g.getAttribute('position'), a = new Float32Array(pos.count);
-  for (let i = 0; i < pos.count; i++) a[i] = Math.min(1, Math.max(0, (fade[1] - (556 - pos.getY(i) * UNITS_PER_SCENE)) / (fade[1] - fade[0])));
+  for (let i = 0; i < pos.count; i++) {
+    const y = 556 - pos.getY(i) * UNITS_PER_SCENE, x = pos.getX(i) * UNITS_PER_SCENE + 700;
+    // the rectum tube's last stretch (right of RECTUM_X, below RECTUM_GONE_FROM) goes fully clear sooner: the colour is untouched, only alpha reaches 0 by RECTUM_GONE_BY. The cecum and the rest keep 2D's linear fade exactly.
+    const tail = x >= RECTUM_X ? 1 - smooth01((y - RECTUM_GONE_FROM) / (RECTUM_GONE_BY - RECTUM_GONE_FROM)) : 1;
+    a[i] = Math.min(1, Math.max(0, (fade[1] - y) / (fade[1] - fade[0]))) * tail;
+  }
   g.setAttribute('esoA', new Float32BufferAttribute(a, 1));
 }
 export function esoAttributes(g: BufferGeometry, eso: ArtData['eso']): void {

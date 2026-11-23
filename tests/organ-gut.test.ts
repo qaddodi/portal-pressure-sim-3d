@@ -105,6 +105,13 @@ test('the colon\'s rectum fades out as 2D\'s rectFadeG (clear above y 902, gone 
     if (y <= 902) assert.equal(a.getX(i), 1);
     if (y >= 1048) { assert.equal(a.getX(i), 0); low++; }
   }
+  // only the rectum tube's last stretch changed: the cecum (x < 700) and everything above y 950 keep the linear fade, and the tube is fully clear by y 1000
+  const lin = (y: number) => Math.min(1, Math.max(0, (1048 - y) / 146));
+  for (let i = 0; i < pos.count; i++) {
+    const y = y2d(pos.getY(i)), x = pos.getX(i) * 300 + 700;
+    if (x < 700 || y <= 950) assert.ok(Math.abs(a.getX(i) - lin(y)) < 1e-6, `unchanged at ${x.toFixed(0)},${y.toFixed(0)}`);
+    if (x >= 700 && y >= 1000) assert.equal(a.getX(i), 0);
+  }
   assert.ok(low > 0, 'the pillow reaches past where 2D has faded it away (the dark bar below the colon)');
   const p = patchedShaders(ORGAN_VS, ORGAN_FS, ORGAN_INK_VS, INK_FS, { art: true, eso: null, fade: true });
   assert.match(p.inkFs, /vEsoA/); assert.doesNotMatch(p.fs, /eso1/);
