@@ -164,3 +164,8 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .tl-pin.tl-chart > span { min-width: 0; }
 @media (max-width: 1100px) and (orientation: portrait) { .vdock .tl-pin.tl-chart { display: inline-flex; } }
 @media (max-width: 599px) and (orientation: portrait) { .vdock .tl-pin.tl-chart { display: none; } }
+
+/* The Doppler strip's pattern word wraps under the number and direction when the card is too narrow for one line; it is never cut with an ellipsis (the copied rule hid it:
+   "13 cm/s Hepatopetal · Ph", iPhone on its side, 23 Nov 2026). Same selectors as the copied rules, loaded after them. */
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="doppler"] .dop-report { flex-wrap: wrap; white-space: normal; overflow: visible; }
+:is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="doppler"] .dop-report > .dop-pattern { overflow: visible; text-overflow: clip; white-space: nowrap; }
