@@ -37,7 +37,7 @@ export function linkScene(): () => void {
 
   // the catheter: one frame, one time. Runs before the card systems (order -10) so the trace card reads this frame's time, not the last one's.
   const offClock = clock.on('tween', (f) => {
-    const moving = stepCath(cc, f.dt);
+    const moving = stepCath(cc, f.dt, clock.hitchCap(64));
     cathScript.t = cc.clk.t;
     const rd = readTaken(cc.clk.t);
     if (moving || !drawn || rd !== readWas) {

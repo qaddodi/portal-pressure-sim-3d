@@ -177,6 +177,8 @@ export function createClock(env: Env) {
     now,
     /** The speed of page time (1 = real). Only the audit sets it. */
     get scale() { return scale; },
+    /** A stalled-frame cap in page ms: `realMs` (what a stall may count for at 1x) times the speed, so the audit's 20x does not make every glide take twenty times the frames (a frame of 100 ms real is 2000 ms of page time, which the 50 ms and 64 ms caps cut to 1/40 of it). */
+    hitchCap(realMs: number) { return realMs * Math.max(1, scale); },
     setScale(n: number) {
       const k = Number.isFinite(n) && n > 0 ? n : 1;
       page0 = now(); real0 = env.now(); scale = k;

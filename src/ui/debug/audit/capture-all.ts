@@ -4,6 +4,7 @@
 // captured so far is kept); nothing is sent anywhere: the person saves the file with the share sheet (iPhone, iPad) or the download (Mac).
 import { builtinDecks } from '../../../decks/registry.ts';
 import { loadAllDecks, liveCatalog, openEntry } from '../page/live.ts';
+import { readBox, readStyle } from '../../layout-snap.ts';
 import { cel } from '../../../scene/api.ts';
 import { BLOCKED_SAYS } from '../../../scene/labels/cath-show.ts';
 import { useUi } from '../../ui-store.ts';
@@ -37,6 +38,8 @@ function arriving(clockToo = true): string {
     if (clockToo && clock.moving > 0) return `moving: ${clock.movingTags().join(', ')}`;   // (a glide, a tween, a card sliding, the labels placing: the clock's own list of what is in motion; the steady instruments, a live trace, are not in it)
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
+    const dv = document.querySelector('.instrument-view.dop .dop-vel');   // (a Doppler strip says "—" for its speed while its canvas still reads "Acquiring…"; it takes about 3 s of page time)
+    if (dv && dv.textContent?.includes('—') && Number(readStyle(dv).opacity) > 0.5 && !dv.closest('[data-out="true"]') && readBox(dv).width > 0) return 'the Doppler is acquiring';
     for (const a of document.getAnimations()) {
       if (a.playState !== 'running' || !(a.effect instanceof KeyframeEffect)) continue;
       if (!Number.isFinite(a.effect.getTiming().iterations) || Number(a.effect.getComputedTiming().endTime) > 2500) continue;
@@ -58,14 +61,14 @@ async function stillPage(real: (ms: number) => number, needWords = false): Promi
   const t0 = clock.now(), limit = real(needWords ? 7000 : 5000);
   let still = -1, why = '', words = '';
   while (clock.now() - t0 < limit) {
-    why = arriving(clock.now() - t0 < real(2500)); words = tagWords();   // (the clock's motion list counts for 2.5 s: a hold that is still there after that is a perpetual one, and is said in the README)
+    why = arriving(clock.now() - t0 < real(4000)); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
     if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
     if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real(words.includes(BLOCKED_SAYS.first) ? 25 : 60)) { why = ''; break; } } else still = -1;
     await sleep(real(15));
   }
   const gaveUp = clock.now() - t0 >= limit;
   if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
-  const perpetual = clock.moving > 0 && !gaveUp ? ` (moving for good: ${clock.movingTags().join(', ')})` : '';
+  const perpetual = clock.moving > 0 ? ` (${clock.movingTags().join(', ')})` : '';
   return { moving: gaveUp ? why : '', words: tagWords(), perpetual };
 }
 /** A slide whose catheter stands against a blocked vein (its words "Occluded" and "No reading" must be on the figure). */
@@ -130,7 +133,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         const { moving, words, perpetual } = await stillPage(real, blockedSlide(k));
         if (moving) notes.push(`${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words;
-        if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: waited 2.5 s for the clock's motion, then took the picture${perpetual}`); }
+        if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: the clock still held motion after 4 s, so the picture was taken anyway${perpetual}`); }
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const when = new Date(), drawn = await drawScreen(when, { ratio: Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
         if (!drawn) { notes.push(`${d.title}: ${n} could not be drawn`); done++; ui.progress(done, total); return; }

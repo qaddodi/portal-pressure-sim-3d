@@ -74,8 +74,8 @@ export function aimCath(c: CathClock, state: CathState | null, jump = false): vo
 }
 
 /** Advance by dt ms; returns whether it is still moving. */
-export function stepCath(c: CathClock, dt: number): boolean {
-  stepClock(c.clk, Math.min(dt, 64), rateAt(c.clk, c.jump, c.jumpRate));
+export function stepCath(c: CathClock, dt: number, cap = 64): boolean {   // (`cap`: a stalled frame counts at most this, the clock's hitchCap(64) at the audit's speed)
+  stepClock(c.clk, Math.min(dt, cap), rateAt(c.clk, c.jump, c.jumpRate));
   return c.clk.t !== c.clk.goal;
 }
 

@@ -68,7 +68,7 @@ export function createCardZoom(clock: Clock = theClock) {
   function step(f: FrameInfo) {
     const m = st?.run;
     if (!st || !m) return;
-    m.elapsed += Math.min(f.dt > 0 ? f.dt : 16, 50);   // (a stalled frame counts at most 50 ms: the glide goes on from where it was, never jumps)
+    m.elapsed += Math.min(f.dt > 0 ? f.dt : 16, clock.hitchCap(50));   // (a stalled frame counts at most 50 ms: the glide goes on from where it was, never jumps)
     const p = Math.min(1, Math.max(0, m.elapsed / m.ms));
     st.cur = lerp(m, easeArrive(p));
     paint();

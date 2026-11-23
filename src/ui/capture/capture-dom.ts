@@ -18,8 +18,22 @@ const SKIP = '.sh-toast, .lb-ghost, .lb-old, .lb-walk, .lb-sr, .lb-key-twin, .lb
 const SVG_SKIP = new Set(['defs', 'clippath', 'mask', 'symbol', 'pattern', 'marker', 'lineargradient', 'radialgradient', 'filter', 'style', 'title', 'desc', 'metadata', 'use', 'image', 'foreignobject']);
 /** Text kept for a screen reader (`clip: rect(0 0 0 0)`, `clip-path: inset(50%)`, the `.sr-only` rule): on the page but never seen, so never drawn. */
 const visuallyHidden = (cs: CSSStyleDeclaration): boolean => /^rect\(\s*0(px)?[ ,]+0(px)?[ ,]+0(px)?[ ,]+0(px)?\s*\)$/.test(cs.clip) || /^inset\(\s*50%/.test(cs.clipPath);
-const clipPathOf = (cs: CSSStyleDeclaration, r: DOMRect): Clip | undefined => { const m = cs.clipPath.match(/^path\(\s*["']?([\s\S]*?)["']?\s*\)$/); return m ? { d: m[1]!, x: r.left, y: r.top } : undefined; };
+const clipPathOf = (cs: CSSStyleDeclaration, r: DOMRect, el?: Element): Clip | undefined => { const m = cs.clipPath.match(/^path\(\s*["']?([\s\S]*?)["']?\s*\)$/); return m ? { d: m[1]!, x: r.left, y: r.top } : polygonClip(cs, r, el); };
 
+/** A `clip-path: polygon(...)` (the table's purpose-drawn arrows): its points as path data, turned with the element's own or its ancestor's rotation (a "down" arrow is the up arrow's box turned half round). */
+function polygonClip(cs: CSSStyleDeclaration, r: DOMRect, el?: Element): Clip | undefined {
+  const m = cs.clipPath.match(/^polygon\(\s*(?:(?:nonzero|evenodd)\s*,\s*)?([\s\S]*)\)$/);
+  if (!m || !el) return undefined;
+  const pts = m[1]!.split(',').map((p) => p.trim().split(/\s+/)).filter((p) => p.length === 2);
+  if (pts.length < 3) return undefined;
+  const at = (v: string, whole: number) => (v.endsWith('%') ? (num(v) / 100) * whole : num(v));
+  const turn = turnOf(el), cx = r.width / 2, cy = r.height / 2, cos = Math.cos(turn), sin = Math.sin(turn);
+  const d = pts.map((p, i) => {
+    const x = at(p[0]!, r.width) - cx, y = at(p[1]!, r.height) - cy;
+    return `${i ? 'L' : 'M'}${(cx + x * cos - y * sin).toFixed(2)} ${(cy + x * sin + y * cos).toFixed(2)}`;
+  }).join('') + 'Z';
+  return { d, x: r.left, y: r.top };
+}
 /** The turn of an element's own transform or its nearest ancestor's (a FibroScan screen turns with its body), in radians. */
 function turnOf(el: Element): number {
   for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) { const t = readStyle(e).transform; if (t && t !== 'none') { const m = new DOMMatrix(t); if (spin(m)) return Math.atan2(m.b, m.a); } }
@@ -217,7 +231,7 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
   if (cs.scale && cs.scale !== 'none') kk *= num(cs.scale) || 1;   // (the `scale` property: the first number, the one that grows the words)
   const shown = cs.visibility !== 'hidden';   // (a hidden card's child may be shown again)
   const r = readBox(el);
-  const own = clipPathOf(cs, r) ?? pclip;
+  const own = clipPathOf(cs, r, el) ?? pclip;
   const isRoot = el === document.body || el === document.documentElement || el.id === 'root';
   const cuts = !isRoot && (cs.overflowX !== 'visible' || cs.overflowY !== 'visible');
   const inner: ClipRect[] = cuts ? [...clips, { x: r.left, y: r.top, w: r.width, h: r.height, r: radiusOf(cs, r, kk) }] : clips;
@@ -249,6 +263,9 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
     const sw = num(cs.getPropertyValue('-webkit-text-stroke-width')) * kk, sc = cs.getPropertyValue('-webkit-text-stroke-color');
     const spaced = cs.letterSpacing !== 'normal' && Math.abs(num(cs.letterSpacing)) > 0.01;
     let font = '', turn = -1;
+    // a word's halo goes under the whole run's letters (the page's `paint-order: stroke fill`): every halo first, then every letter, or each letter's dark outline covers the one before it
+    const halos: ScreenItem[] = [], fills: ScreenItem[] = [];
+    const emit = (it: Paintable): void => { if (it.k === 'text' && it.halo && it.haloW > 0) { halos.push({ ...it, fill: 'rgba(0,0,0,0)', ts: undefined } as Paintable); fills.push({ ...it, halo: '', haloW: 0 }); } else fills.push(it); };
     for (const n of el.childNodes) {
       if (n.nodeType !== 3) continue;
       const text = n.textContent ?? '';
@@ -271,13 +288,14 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
             at += ch.length;
             if (!cr || cr.width <= 0) continue;
             if (SYMBOLS.test(ch)) { c.out.push({ k: 'path', d: symbolPath(ch, cr.left, cr.top + cr.height / 2 - fpx / 2, cr.width, fpx), m: [1, 0, 0, 1, 0, 0], fill: null, stroke: cs.color, sw: Math.max(1, fpx * 0.1), join: 'round', cap: 'round', alpha, clip: own, clips: inner } as Paintable); continue; }
-            c.out.push({ k: 'text', text: transformed(ch, cs.textTransform), x: cr.left, y: cr.top + cr.height / 2, w: cr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: 0, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+            emit({ k: 'text', text: transformed(ch, cs.textTransform), x: cr.left, y: cr.top + cr.height / 2, w: cr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: 0, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
           }
           continue;
         }
-        c.out.push({ k: 'text', text: shown, x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+        emit({ k: 'text', text: shown, x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
       }
     }
+    c.out.push(...halos, ...fills);
   }
   for (const ch of el.children) visit(ch, c, alpha, inner, kk, own);
   if (shown && r.width > 0 && r.height > 0 && !(el instanceof HTMLInputElement)) pseudoBox(c, el, '::after', cs, r, alpha, clips, own, kk);

@@ -113,7 +113,7 @@ export function createRail(clock: Clock = theClock) {
   function step(f: FrameInfo) {
     // the new cards go in only when the old are wholly out (2D waits for throwsOut()): no card ever lies over another
     if (!anyOut()) for (const r of runs.values()) if (r.after != null) { r.delay = r.after; r.elapsed = 0; r.after = undefined; }
-    const dt = Math.min(f.dt > 0 ? f.dt : 16, MAX_DT);
+    const dt = Math.min(f.dt > 0 ? f.dt : 16, clock.hitchCap(MAX_DT));
     for (const r of [...runs.values()]) {
       if (r.after != null) continue;
       r.elapsed += dt;

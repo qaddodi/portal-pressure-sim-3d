@@ -237,3 +237,13 @@ test('Capture draws a list\'s numbers, ticks and arrows (generated content and g
   assert.match(cap, /opts\.stamp !== false/); assert.match(all, /stamp: false/); assert.match(all, /Math\.min\(devicePixelRatio, 2\)/); assert.match(all, /pictures are \$\{shape0\.w\}x\$\{shape0\.h\} px/);
   assert.match(all, /clock\.moving/); assert.match(all, /blockedSlide\(k\)/, 'a blocked-catheter slide waits for its words');
 });
+
+test('Capture: halos under every letter, polygon clips (the table arrows), the Doppler\'s acquiring wait, and a stalled-frame cap that follows the audit speed', () => {
+  const dom = src('src/ui/capture/capture-dom.ts'), all = src('src/ui/debug/audit/capture-all.ts'), frame = src('src/clock/frame.ts');
+  assert.match(dom, /halos\.push/); assert.match(dom, /c\.out\.push\(\.\.\.halos, \.\.\.fills\)/, 'every halo first, then every letter: no letter\'s outline covers the one before');
+  assert.match(dom, /function polygonClip/); assert.match(dom, /polygon\\\(/);
+  assert.match(all, /the Doppler is acquiring/);
+  assert.match(frame, /hitchCap\(realMs: number\)/);
+  for (const f of ['src/ui/deck/scene-link.ts', 'src/ui/cards/dock.ts', 'src/ui/cards/card-zoom.ts', 'src/ui/cards/rail.ts']) assert.match(src(f), /hitchCap\(/, `${f} counts a stalled frame by the clock's hitchCap`);
+  assert.ok(!/Math\.min\(dt, 64\)/.test(src('src/ui/deck/cath-clock.ts')), 'the catheter\'s frame cap is a parameter');
+});

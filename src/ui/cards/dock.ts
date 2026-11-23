@@ -44,7 +44,7 @@ export function createDock(clock: Clock = theClock) {
   function step(f: FrameInfo) {
     const r = run;
     if (!r) return;
-    r.elapsed += Math.min(f.dt > 0 ? f.dt : 16, 50);
+    r.elapsed += Math.min(f.dt > 0 ? f.dt : 16, clock.hitchCap(50));
     const p = Math.min(1, r.elapsed / r.ms);
     lvl = r.from + (r.to - r.from) * easeArrive(p);
     paint();
