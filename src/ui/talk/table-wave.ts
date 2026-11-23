@@ -1,6 +1,6 @@
-// The summary table's Doppler column (2D col-wave.js, deck visuals V16: `cols: [..., 'wave']`, `wave: 'PV_TRUNK'` on the slide or on a row): a small trace in each row, about two beats of that row's own velocity
+// The summary table's Doppler column (2D col-wave.js, deck visuals V16: `cols: [..., 'wave']`, `wave: 'PV_TRUNK'` on the slide or on a row): a small trace in each row, eight seconds (two breaths, about nine beats) of that row's own velocity
 // at the vessel, drawn as the scanner shows it (toward the probe above the baseline in the Doppler's toward colour, away below in its away colour; the hepatic veins and the IVC drain away from the probe, so their
-// forward flow is below). Every row shares one scale (50 cm/s from the line to the edge unless the slide sets `waveMax`), so a slow vein stays low and a stent's jet runs to the edge. The numbers are pure
+// forward flow is below). Each row is drawn on its own scale (the row's peak, never under 20 cm/s, so a still vein stays a line and a pulsing one shows its beats and breaths; the slide's `waveMax` puts every row on one scale), and the words and the hover give the real cm/s. The numbers are pure
 // here (a test holds them); WaveCell.tsx draws the shapes with the charts' one GPU drawer.
 import type { TableRowSpec, TableSpec } from '../../decks/schema.ts';
 
@@ -12,9 +12,17 @@ export const NAME: Readonly<Record<string, string>> = {
   PV_TRUNK: 'main portal vein', PVH_R: 'right portal vein', PVH_L: 'left portal vein', SMV_CONF: 'superior mesenteric vein', SV_CONF: 'splenic vein',
   RHV_IVC: 'right hepatic vein', MHV_IVC: 'middle hepatic vein', LHV_IVC: 'left hepatic vein', IVCS_RA: 'IVC', A_HEP: 'hepatic artery', TIPS: 'stent',
 };
-export const WAVE_SECS = 2, WAVE_MAX = 50;
+export const WAVE_SECS = 8, WAVE_MAX = 50, WAVE_MIN = 20;
+/** One row's scale, cm/s from the baseline to the edge: its own peak plus a tenth, in steps of 5, never under WAVE_MIN (a trace with no flow, or a ripple of a few cm/s, stays flat). A slide's `waveMax` is every row's scale. */
+export const waveScale = (w: Trace | null | undefined, table?: Pick<TableSpec, 'waveMax'> | null): number => {
+  if (table?.waveMax != null && table.waveMax > 0) return table.waveMax;
+  if (!w?.v?.length) return WAVE_MAX;
+  return Math.max(WAVE_MIN, Math.ceil((Math.max(...w.v.map((v) => Math.abs(v))) * 1.1) / 5) * 5);
+};
+/** A trace as it is kept (baked, held): every second sample (40 ms apart, finer than the cell's pixels) and velocities to 0.1 cm/s. */
+export const packTrace = (w: Trace): Trace => ({ t: w.t.filter((_, i) => i % 2 === 0), v: w.v.filter((_, i) => i % 2 === 0).map((v) => Math.round(v * 10) / 10) });
 export const HEADING = 'Doppler';
-export const CUT = 'About two beats of each row\'s own trace: flow toward the probe above the line, away below it; every row on one scale, 50 cm/s from the line to the edge unless the slide says otherwise';
+export const CUT = 'Eight seconds of each row\'s own trace, about two breaths: flow toward the probe above the line, away below it; each row on its own scale, so compare the shapes (hover for the cm/s)';
 /** The cell's own units: a trace is drawn in a box 120 x 36 and the baseline is its middle. */
 export const W = 120, H = 36, MID = H / 2, PAD = 3;
 

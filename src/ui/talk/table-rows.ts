@@ -7,7 +7,7 @@ import type { ResolvedRow, Fp } from './table-model.ts';
 import { bakedById } from '../charts/baked/store.ts';
 import { slideFps, fpsNow } from './slide-states.ts';
 import { useStates } from '../../decks/hp/calc.ts';
-import { waveVessel, WAVE_SECS, type Trace } from './table-wave.ts';
+import { waveVessel, packTrace, WAVE_SECS, type Trace } from './table-wave.ts';
 
 const keyOf = (d: Deck, s: Slide) => `${d.id}:${s.id}`;
 export const useTables = create<{ rows: Record<string, ResolvedRow[]> }>(() => ({ rows: {} }));
@@ -21,7 +21,7 @@ function traceOf(snap: object, vessel: string): Promise<Trace | null> {
   let m = traces.get(snap);
   if (!m) traces.set(snap, (m = new Map()));
   if (!m.has(vessel)) {
-    const p = queue.then(() => engine().sequence([{ wave: { vessel, secs: WAVE_SECS } }], snap)).then((out) => ((out[0]?.extra as { wave?: Record<string, Trace> } | undefined)?.wave?.[vessel] ?? null), () => null);
+    const p = queue.then(() => engine().sequence([{ wave: { vessel, secs: WAVE_SECS } }], snap)).then((out) => { const w = (out[0]?.extra as { wave?: Record<string, Trace> } | undefined)?.wave?.[vessel]; return w ? packTrace(w) : null; }, () => null);
     queue = p.catch(() => undefined);
     m.set(vessel, p);
     void p.then((w) => { if (!w) m.delete(vessel); });   // (a run that gave nothing is asked again the next time the table is drawn)
@@ -36,8 +36,19 @@ const rowOf = (d: Deck, spec: TableRowSpec | string, f: Fp | null): ResolvedRow 
   return { spec: sp, i: at >= 0 ? at + 1 : -1, f, title: sp.title ?? sl?.title ?? '', kicker: sp.kicker ?? sl?.kicker ?? '' };
 };
 
-/** The rows before their numbers are in (their names, no readings): what the card measures first, so it does not grow when the numbers arrive. */
-export const pendingRows = (d: Deck, s: Slide): ResolvedRow[] => (s.table?.of ?? []).map((sp) => rowOf(d, sp, null));
+/** The rows as the build worked them out (the readings and the Doppler traces, baked/make.ts): complete in the card's very first drawing, no worker, no waiting. Null when the deck has no baked file for these words. */
+export function bakedRows(d: Deck, s: Slide): ResolvedRow[] | null {
+  const baked = bakedById(d.id);
+  if (!baked || !s.table) return null;
+  const specs = s.table.of, waves = baked.waves?.[s.id];
+  return specs.map((sp, j) => {
+    const id = typeof sp === 'string' ? sp : sp.id, at = id ? d.slides.findIndex((x) => x.id === id) : -1;
+    const f = (id ? (at >= 0 ? baked.states[at]?.fp : null) : baked.tables[s.id]?.[j]) as Fp | null ?? null;
+    return { ...rowOf(d, sp, f), ...(waves && waves[j] !== undefined ? { trace: waves[j] } : {}) };
+  });
+}
+/** The rows before their numbers are in (their names, no readings): what the card measures first, so it does not grow when the numbers arrive. The baked ones when there are some. */
+export const pendingRows = (d: Deck, s: Slide): ResolvedRow[] => bakedRows(d, s) ?? (s.table?.of ?? []).map((sp) => rowOf(d, sp, null));
 
 /** Starts working out a table's rows (once per slide); the store holds them, with empty numbers first. */
 export function resolveTable(d: Deck, s: Slide): void {
@@ -46,9 +57,11 @@ export function resolveTable(d: Deck, s: Slide): void {
   asked.add(k);
   const specs = s.table.of;
   const put = (fps: (Fp | null)[]) => useTables.setState((st) => ({ rows: { ...st.rows, [k]: specs.map((sp, j) => ({ ...rowOf(d, sp, fps[j] ?? null), ...(st.rows[k]?.[j]?.trace !== undefined ? { trace: st.rows[k]![j]!.trace } : {}) })) } }));
-  // (the rows' readings baked at build time are in the first drawing: a slide's own from the deck's states, a patient of the row's own from the table's entry)
-  const baked = bakedById(d.id);
-  put(baked ? specs.map((sp, j) => { const id = typeof sp === 'string' ? sp : sp.id, at = id ? d.slides.findIndex((x) => x.id === id) : -1; return (id ? (at >= 0 ? baked.states[at]?.fp : null) : baked.tables[s.id]?.[j]) as Fp | null ?? null; }) : []);
+  // (the rows' readings and traces baked at build time are in the first drawing; a deck that has them whole needs no worker at all)
+  const first = bakedRows(d, s);
+  useTables.setState((st) => ({ rows: { ...st.rows, [k]: first ?? pendingRows(d, s) } }));
+  const withWave = !!s.table.cols?.includes('wave');
+  if (first && first.every((r) => r.f && (!withWave || r.trace !== undefined))) return;
   void (async () => {
     try {
       const all = await slideFps(d).catch((): Fp[] => []);
@@ -66,7 +79,7 @@ export function resolveTable(d: Deck, s: Slide): void {
         specs.forEach((sp, j) => {
           const id = typeof sp === 'string' ? sp : sp.id, at = id ? d.slides.findIndex((x) => x.id === id) : -1, m = own.findIndex((o) => o.j === j);
           const snap = (id ? res[at]?.snap : (mine[m] as { snap?: unknown } | undefined)?.snap) as object | undefined;
-          if (!snap) return;
+          if (!snap || useTables.getState().rows[k]?.[j]?.trace !== undefined) return;
           void traceOf(snap, waveVessel(typeof sp === 'string' ? null : sp, s.table)).then((w) => {
             useTables.setState((st) => ({ rows: { ...st.rows, [k]: (st.rows[k] ?? []).map((r, q) => (q === j ? { ...r, trace: w } : r)) } }));
           });

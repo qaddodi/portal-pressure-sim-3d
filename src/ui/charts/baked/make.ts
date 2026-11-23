@@ -13,6 +13,7 @@ import { extraSteps } from '../ladder/data.ts';
 import { rowsOf } from '../ladder/model.ts';
 import { patientKey, planeRows, type PatientSpec } from '../plane/data.ts';
 import { deckSig, engineKey, BAKE_VERSION } from './key.ts';
+import { WAVE_SECS, packTrace, waveVessel, type Trace } from '../../talk/table-wave.ts';
 import type { BakedDeck, BakedState } from './store.ts';
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -54,7 +55,7 @@ export async function bakeDeck(deck: CopiedDeck, eng: ReturnType<typeof nodeEngi
   await seq.done;
   const states = out.map(light);
   const patients: BakedDeck['patients'] = {};
-  const b: BakedDeck = { v: BAKE_VERSION, key: engineKey(), sig: deckSig(deck), states, curves: {}, cohort: {}, ladders: {}, tables: {}, healthy, patients };
+  const b: BakedDeck = { v: BAKE_VERSION, key: engineKey(), sig: deckSig(deck), states, curves: {}, cohort: {}, ladders: {}, tables: {}, waves: {}, healthy, patients };
   const run = (slide: SlideState): RunFn => (st, from) => eng.sequence(st, from === undefined ? slide.base ?? slide.snap ?? undefined : from ?? undefined).then((r) => r ?? null, () => null);
   const fpOf = (id: string) => (out[deck.slides.findIndex((x) => x.id === id)]?.fp ?? null) as Any;
   const fpsLike = out.map((r) => (r?.fp ?? {}) as Any);
@@ -85,6 +86,17 @@ export async function bakeDeck(deck: CopiedDeck, eng: ReturnType<typeof nodeEngi
       const own = specs.map((sp, j) => ({ sp, j })).filter(({ sp }) => typeof sp !== 'string' && !sp.id && sp.preset);
       const mine = own.length ? await eng.sequence(own.map(({ sp }) => ({ preset: sp.preset, ...(sp.params ? { params: sp.params } : {}), ...(sp.days != null ? { presetDays: sp.days } : {}) }))) : [];
       b.tables[s.id] = specs.map((_, j) => { const m = own.findIndex((o) => o.j === j); return m >= 0 ? (mine[m]?.fp ?? null) : null; });
+      if (((s as Any).cols as string[] | undefined)?.includes('wave')) {
+        // (the Doppler column: each row's state, its vessel's velocity over WAVE_SECS, worked out here once so the card draws it in its first frame)
+        b.waves[s.id] = [];
+        for (let j = 0; j < specs.length; j++) {
+          const sp = specs[j], id = typeof sp === 'string' ? sp : sp.id, at = id ? deck.slides.findIndex((x) => x.id === id) : -1, m = own.findIndex((o) => o.j === j);
+          const snap = id ? out[at]?.snap : (mine[m] as Any)?.snap;
+          const vessel = waveVessel(typeof sp === 'string' ? null : sp, s as Any);
+          const w = snap ? (await eng.sequence([{ wave: { vessel, secs: WAVE_SECS } }], snap))[0]?.extra?.wave?.[vessel] as Trace | undefined : undefined;
+          b.waves[s.id]!.push(w ? packTrace(w) : null);
+        }
+      }
     }
     if ((s as Any).visual === 'plane' || tool.kind === 'plane') {
       const rows = planeRows(((s as Any).of ?? tool.of) as Any, deck.slides as Any);

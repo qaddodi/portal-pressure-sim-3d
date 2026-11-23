@@ -3,6 +3,7 @@
 // A deck's file is fetched when its talk opens (`loadBakedDeck`, bounded: a missing or late file only means the live path); under node (a test) it is read from disk.
 import { clock } from '../../../clock/frame.ts';
 import { BAKE_VERSION, engineKey, deckSig } from './key.ts';
+import type { Trace } from '../../talk/table-wave.ts';
 
 /** One state of a deck as a chart reads it (the engine's seqStep, without the snapshots). */
 export interface BakedState { fp: Record<string, number | null | undefined>; params?: unknown; trail?: unknown; start?: unknown; before?: unknown }
@@ -21,6 +22,8 @@ export interface BakedDeck {
   ladders: Record<string, unknown>;
   /** a summary table's own rows (a patient no slide shows), by slide id: one fingerprint for each row spec, null for a row of a slide */
   tables: Record<string, (Record<string, number | null | undefined> | null)[]>;
+  /** a summary table's Doppler column: one trace for each row spec (packTrace, WAVE_SECS long), null where the model gave none, by slide id */
+  waves: Record<string, (Trace | null)[]>;
   /** the healthy patient, and the patients no slide shows that this deck's planes draw (by patientKey) */
   healthy: Record<string, number | null | undefined> | null;
   patients: Record<string, Record<string, number | null | undefined> | null>;

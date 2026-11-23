@@ -8,7 +8,7 @@ import { NOT_MEASURABLE } from '../../engine/hales/portal/pressure-cuts.js';
 import { lcFirst } from '../../engine/hales/portal/lc-first.js';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
 import { fmt } from '../charts/fmt.ts';
-import { HEADING as WAVE_HEADING, CUT as WAVE_CUT, waveVessel, waveMax, waveWords, type Trace } from './table-wave.ts';
+import { HEADING as WAVE_HEADING, CUT as WAVE_CUT, waveVessel, waveScale, waveWords, type Trace } from './table-wave.ts';
 
 const TILES = TILE as Record<string, { x?: number; d?: number }>;
 const COLNAMES = COLS as Record<string, string>;
@@ -79,7 +79,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
     if (blank(r).includes(k)) return { ...base, kind: 'blank', sr: NOT_MEASURABLE.toLowerCase() };
     if (k === 'wave') {
       if (!r.f) return { ...base, kind: 'pend', sr: 'calculating' };
-      const vessel = waveVessel(r.spec, spec), max = waveMax(spec), trace = r.trace ?? null, w = waveWords(trace, vessel, max);
+      const vessel = waveVessel(r.spec, spec), trace = r.trace ?? null, max = waveScale(trace, spec), w = waveWords(trace, vessel, max);
       return { ...base, kind: 'wave', sr: w.sr, wave: { vessel, max, trace, pending: r.trace === undefined, title: w.title } };
     }
     if (!r.f || (rel && !isRef(r, n) && !refOfRow(r))) return { ...base, kind: 'pend', sr: 'calculating' };

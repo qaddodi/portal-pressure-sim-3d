@@ -6,7 +6,7 @@ import { DOPPLER } from '../src/decks/ag/doppler.copied.ts';
 import { DECK as PREHEPATIC } from '../src/decks/hp/data/prehepatic.copied.ts';
 import { TWO_INFLOWS } from '../src/decks/rw/copied/two-inflows.ts';
 import { tableModel, type ResolvedRow } from '../src/ui/talk/table-model.ts';
-import { AWAY, MID, H, WAVE_MAX, wavePoints, waveStats, waveVessel, waveWords, waveMax, HEADING } from '../src/ui/talk/table-wave.ts';
+import { AWAY, MID, H, WAVE_MAX, wavePoints, waveStats, waveVessel, waveWords, waveMax, waveScale, packTrace, WAVE_SECS, WAVE_MIN, HEADING } from '../src/ui/talk/table-wave.ts';
 import { waveFrame } from '../src/ui/talk/table-wave-frame.ts';
 
 const tableSlides = (d: { slides: readonly Record<string, unknown>[] }) => d.slides.filter((s) => s.visual === 'table' && Array.isArray((s as { cols?: string[] }).cols) && (s as { cols: string[] }).cols.includes('wave'));
@@ -68,7 +68,7 @@ test('the table model gives the wave column its heading, a pending cell until th
   assert.equal(m.cols[1]!.label, HEADING); assert.ok(m.cols[1]!.cut.length > 40, 'a tap on the heading says how to read it');
   const cell = (r: number) => m.rows[r]!.cells[1]!;
   assert.equal(cell(0).kind, 'pend');
-  assert.equal(cell(1).kind, 'wave'); assert.equal(cell(1).wave!.trace, trace); assert.equal(cell(1).wave!.pending, false); assert.equal(cell(1).wave!.max, 50);
+  assert.equal(cell(1).kind, 'wave'); assert.equal(cell(1).wave!.trace, trace); assert.equal(cell(1).wave!.pending, false); assert.equal(cell(1).wave!.max, 30, 'the row\'s own scale: its peak and a tenth, in 5s');
   assert.equal(cell(2).wave!.vessel, 'RHV_IVC'); assert.equal(cell(2).wave!.pending, true, 'not asked for yet');
   assert.equal(cell(3).wave!.pending, false); assert.equal(cell(3).wave!.trace, null, 'the model gave none');
   assert.match(cell(1).sr, /^Doppler of the main portal vein/);
@@ -79,4 +79,20 @@ test('the trace is drawn as two clipped halves of one path over a baseline, on t
   const fr = waveFrame({ t: [0, 1], v: [0, 20] }, 'PV_TRUNK', 50, 120, 40, p, p, 'words');
   assert.equal(fr.w, 120); assert.equal(fr.h, 40); assert.equal(fr.label, 'words');
   assert.deepEqual(fr.shapes.map((s) => s.k), ['line', 'clip', 'path', 'unclip', 'clip', 'path', 'unclip']);
+});
+
+test('each row is drawn on its own scale: a still vein stays a line, a small pulse fills its half, a slide\'s waveMax is every row\'s scale', () => {
+  assert.equal(waveScale({ t: [0, 1], v: [0, 0] }), WAVE_MIN, 'no flow is flat on the smallest scale');
+  assert.equal(waveScale({ t: [0, 1], v: [-7, -13] }), WAVE_MIN, 'a slow reversed flow under the floor');
+  assert.equal(waveScale({ t: [0, 1], v: [-12, 33] }), 40, 'the peak and a tenth, up to the next 5');
+  assert.equal(waveScale({ t: [0, 1], v: [0, 33] }, { waveMax: 80 }), 80, 'the slide sets one scale');
+  assert.equal(waveScale(null), 50); assert.equal(waveScale({ t: [], v: [] }), 50);
+  const peak = Math.max(...[-12, 33].map(Math.abs));
+  assert.ok(peak < waveScale({ t: [0, 1], v: [-12, 33] }), 'nothing runs to the edge');
+});
+
+test('a held trace is every second sample to 0.1 cm/s, and eight seconds of beats and breaths', () => {
+  assert.equal(WAVE_SECS, 8);
+  const w = { t: [0, 0.02, 0.04, 0.06, 0.08], v: [10.04, 11.26, 12.5, 13.74, 15.0] };
+  assert.deepEqual(packTrace(w), { t: [0, 0.04, 0.08], v: [10, 12.5, 15] });
 });

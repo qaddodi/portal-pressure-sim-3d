@@ -1,6 +1,7 @@
 // The keys of the baked chart data (Plan 33). The file is made in node at build time from the pinned engine and the decks as they are; the page uses a file only when its key is the page's own key and a deck's entry only
 // when the deck's words are the ones it was made from, so a re-synced engine or an edited deck can never serve numbers worked out for another one (a miss falls through to the live sweep as before).
 import pinned from '../../../engine/PINNED.json' with { type: 'json' };
+import { WAVE_SECS } from '../../talk/table-wave.ts';
 
 /** FNV-1a over a string, two lanes, as a short hex word. */
 export function fnv(s: string): string {
@@ -10,8 +11,8 @@ export function fnv(s: string): string {
 }
 
 /** What the numbers depend on besides the decks: the pinned engine (its commit and the hash of every file) and the format of the file. */
-export const BAKE_VERSION = 1;
-export const engineKey = (): string => fnv(JSON.stringify([BAKE_VERSION, pinned.engine, pinned.files]));
+export const BAKE_VERSION = 2;   // (2: a summary table's Doppler traces, `waves`)
+export const engineKey = (): string => fnv(JSON.stringify([BAKE_VERSION, pinned.engine, pinned.files, WAVE_SECS]));
 
 const sigs = new WeakMap<object, string>();
 /** A deck's signature: every slide as written (the steps, the tools, the cohorts, the rows). A deck whose words changed has another one. */
