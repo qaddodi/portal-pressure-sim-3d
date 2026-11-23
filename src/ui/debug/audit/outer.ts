@@ -90,6 +90,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
   bar.prepend(stamp); bar.append(meter, meterText, status, note);
+  void import('./capture-outer.ts').then((m) => m.addCaptureControls({ doc, win, bar, room, status, sizes: () => ALL_SIZES.filter((id) => wanted.has(id)), speed: () => speed, busy: () => running, setBusy: (b) => { running = b; start.disabled = b; } }));
   main.append(room, out); doc.body.append(bar, main);
 
   /** One size: a fresh frame in its own place, wait for its result, take it away. `of`: how many frames share the room. */

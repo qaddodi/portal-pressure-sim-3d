@@ -8,6 +8,7 @@ export async function mountDebug(): Promise<void> {
   if (flagOn('watch') || debugPage()) (await import('./watch/mount.ts')).mountWatch();
   const audit = auditPage(undefined, matchMedia('(pointer: fine)').matches);
   if (audit === 'here' || audit === 'run') (await import('./audit/page.ts')).mountAudit(audit);   // ?audit: the self-test (zero cost without it)
+  if (audit === 'capture') (await import('./audit/capture-child.ts')).mountCaptureChild();   // ?audit=capture: the app in a frame of the outer page, taking its pictures (capture-all.ts) and handing the files up
   const page = debugPage();
   if (page) (await import('./page/page.ts')).mountPage(page);
   (await import('./kill/mount.ts')).mountKillLedger();   // what the page held when a tab was ended (the Phone and Full checks print it)

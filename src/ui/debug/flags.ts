@@ -91,10 +91,10 @@ export function debugPage(at?: At): 'gallery' | 'check' | 'full' | 'frame' | nul
 
 /** Which self-test the address asks for: 'frames' (the outer page that holds the app in sized frames, one after the other), 'here' (this screen only), 'run' (the app inside a frame, which starts at once and reports to its parent), or null.
  *  A bare ?audit is the frames page where a mouse is the pointer (a Mac) and 'here' on a touch screen (an iPhone or iPad runs its own size, never a frame of another). */
-export function auditPage(at?: At, fine = false): 'frames' | 'here' | 'run' | null {
+export function auditPage(at?: At, fine = false): 'frames' | 'here' | 'run' | 'capture' | null {
   const v = flagValue('audit', at);
   if (v === null) return null;
-  if (v === 'run' || v === 'here' || v === 'frames') return v;
+  if (v === 'run' || v === 'here' || v === 'frames' || v === 'capture') return v;
   return fine ? 'frames' : 'here';
 }
 
