@@ -10,6 +10,7 @@ import {
   bulgeStep, outlinePolygon, poolLift, rippleBoost, sloshStep, wallDistance,
 } from '../src/scene/disease/ascites.ts';
 import { HULL_FS, HULL_VS } from '../src/scene/disease/ascites-hull-glsl.ts';
+import { polyOf } from '../src/scene/disease/ascites-pool.ts';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
 import { DEFAULTS } from '../src/state/settings.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
@@ -34,13 +35,14 @@ test('the hull hugs the wall: the last row of every column lies on it, none runs
   for (const ml of [800, 2500, 5000, 8500]) {
     const a = new AscitesLayer(); a.set(ml);
     const g = (a.group.children[1] as unknown as { geometry: { getAttribute(n: string): { array: Float32Array } } }).geometry;
-    const pos = g.getAttribute('position').array, aW = g.getAttribute('aW').array, NT = 20, COLS = 97, poly = outlinePolygon(ABDOMEN_OUTLINES[bulgeStep(ml)]!);
+    const pos = g.getAttribute('position').array, aW = g.getAttribute('aW').array, NT = 20, COLS = 97, poly = polyOf(bulgeStep(ml));
     for (let c = 0; c < COLS; c++) {
       const floor = c * NT + NT - 1, y = y2d(pos[floor * 3 + 1]!);
       assert.ok(y >= 440 - 1e-3 && y <= 1075, `${ml} mL, column ${c}: y ${y.toFixed(1)} is inside the cavity`);
       assert.ok(aW[floor]! < 1e-3, `${ml} mL, column ${c}: the floor row lies on the wall (${aW[floor]})`);
     }
-    for (const c of [20, 48, 76]) { const v = c * NT + 2; assert.ok(Math.abs(aW[v]! - wallDistance(poly, x2d(pos[v * 3]!), y2d(pos[v * 3 + 1]!))) < 1.5, `${ml} mL, column ${c}: the buffer holds the distance to the outline`); }
+    // (the whole outline also holds the dry wall just above the surface, which can stand a unit or two nearer than the wet wall the hull measures: the belly curve of 23 Nov moved that from 1 to 1.6)
+    for (const c of [20, 48, 76]) { const v = c * NT + 2; assert.ok(Math.abs(aW[v]! - wallDistance(poly, x2d(pos[v * 3]!), y2d(pos[v * 3 + 1]!))) < 3, `${ml} mL, column ${c}: the buffer holds the distance to the outline`); }
     a.dispose();
   }
 });
