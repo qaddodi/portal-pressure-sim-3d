@@ -709,16 +709,17 @@ float dCellExt(DFrame F, DSeg g, float cf) {
   float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
   return min(cf, 1.0 - cf) * max(D_cellLen * g.rLat * F.U, 1e-4) / (abs(Bs) * max(F.vRc, 1e-5));
 }
-// the lanes of the root that a segment carries and the pixel can reach: first index, last index and the stride (at most DUST_LANE_LOOK of them), as whole numbers in floats (no integer conversion, no integer return value)
-vec3 dLaneSpan(DSeg g, vec2 win, float nL) {
+// the lanes of the root that a segment carries and the pixel can reach: first index, last index, the stride and HOW MANY (at most DUST_LANE_LOOK), as whole numbers in floats. The count is a number the pixel works out, so the lane loop's bound is a
+// runtime number: a loop with a constant bound (12 lanes x 2 trains) is unrolled by a driver into 24 copies of the particle's whole path in every segment of every arm, which is the size look A's comment on its own loops warns of
+vec4 dLaneSpan(DSeg g, vec2 win, float nL) {
   float c1 = g.c1 < 0.0 ? min(g.c1, -1e-4) : max(g.c1, 1e-4);
   float ya = max(win.x, g.y0 - 0.05), yb = min(win.y, g.y1 + 0.05);
-  if (yb < ya) return vec3(0.0, -1.0, 1.0);
+  if (yb < ya) return vec4(0.0, -1.0, 1.0, 0.0);
   float ra = g.c0 + c1 * ya, rb = g.c0 + c1 * yb;
   float lo = (min(ra, rb) + 1.0) * 0.5 * nL - 0.5 - 0.5 * D_laneJit - 1.0, hi = (max(ra, rb) + 1.0) * 0.5 * nL - 0.5 + 0.5 * D_laneJit + 1.0;
   float i0 = clamp(floor(lo), 0.0, nL - 1.0), i1 = clamp(ceil(hi), 0.0, nL - 1.0);
-  float cnt = i1 - i0 + 1.0;
-  return vec3(i0, i1, cnt > 12.0 ? 1.0 + floor((cnt - 1.0) / 12.0) : 1.0);
+  float cnt = i1 - i0 + 1.0, stride = cnt > 12.0 ? 1.0 + floor((cnt - 1.0) / 12.0) : 1.0;
+  return vec4(i0, i1, stride, cnt >= 1.0 ? min(floor((i1 - i0) / stride) + 1.0, 12.0) : 0.0);
 }
 vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F.edge)) return vec4(0.0);
@@ -739,12 +740,11 @@ vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
       float Pf = max(D_cellLen * g.rLat * F.U, 1e-4), flowFig = dFlow(g.root);
       float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
       float se = g.A + Bs * F.a;
-      vec3 sp = dLaneSpan(g, win, nL);
-      for (int q = 0; q < 12; q++) {
+      vec4 sp = dLaneSpan(g, win, nL);
+      int nQ = int(sp.w + 0.5), nTr = D_trains < 1.5 ? 1 : 2;
+      for (int q = 0; q < nQ; q++) {
         float ln = sp.x + float(q) * sp.z;
-        if (ln > sp.y) continue;
-        for (int tr = 0; tr < 2; tr++) {
-          if (tr == 1 && D_trains < 1.5) continue;
+        for (int tr = 0; tr < nTr; tr++) {
           DPart P = dLanePart(g, ln, float(tr), nL, Pf, se, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 mb = dMember(g, P.yl);
@@ -780,12 +780,11 @@ vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       float Pf = max(D_cellLen * g.rLat * Fa.U, 1e-4), flowFig = dFlow(g.root);
       float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
       float se = g.A + Bs * Fa.a;
-      vec3 sp = dLaneSpan(g, win, nL);
-      for (int q = 0; q < 12; q++) {
+      vec4 sp = dLaneSpan(g, win, nL);
+      int nQ = int(sp.w + 0.5), nTr = D_trains < 1.5 ? 1 : 2;
+      for (int q = 0; q < nQ; q++) {
         float ln = sp.x + float(q) * sp.z;
-        if (ln > sp.y) continue;
-        for (int tr = 0; tr < 2; tr++) {
-          if (tr == 1 && D_trains < 1.5) continue;
+        for (int tr = 0; tr < nTr; tr++) {
           DPart P = dLanePart(g, ln, float(tr), nL, Pf, se, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 ma = dMember(g, P.yl);

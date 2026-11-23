@@ -44,7 +44,10 @@ test('the shader: B finds a streak by its lane and its cell, a handful of candid
   assert.match(src, /vec4 dustTubeA\(DFrame F/); assert.match(src, /vec4 dustSkinA\(DFrame F0/);
   const b = src.slice(src.indexOf('vec4 dustTubeB('), src.indexOf('vec4 dustTube(DFrame F, vec3 lit'));
   assert.doesNotMatch(b, /for \(int kk|for \(int n = -N|dCell\(|dPart\(/, 'B has no ring loop, no cell scan and none of the lattice\'s particle');
-  assert.equal((b.match(new RegExp(`for \\(int q = 0; q < ${DUST_LANE_LOOK}; q\\+\\+\\)`, 'g')) ?? []).length, 2, 'one lane loop in the tube and one in the skin, each bounded');
+  assert.equal((b.match(/for \(int q = 0; q < nQ; q\+\+\)/g) ?? []).length, 2, 'one lane loop in the tube and one in the skin, each bounded by the pixel\'s own count (never more than DUST_LANE_LOOK: dLaneSpan)');
+  assert.equal((b.match(/for \(int tr = 0; tr < nTr; tr\+\+\)/g) ?? []).length, 2, 'and one train loop in each');
+  assert.doesNotMatch(b, /for \(int (q|tr) = 0; \1 < (\d|\$\{)/, 'no lane or train loop has a constant bound: a driver unrolls it into copies of the whole particle path (look A\'s own comment)');
+  assert.match(src, new RegExp(`min\\(floor\\(\\(i1 - i0\\) / stride\\) \\+ 1\\.0, ${DUST_LANE_LOOK}\\.0\\)`), 'the count is capped at DUST_LANE_LOOK');
   assert.ok(DUST_LANE_LOOK <= 12 && DUST_LANE_LOOK * 2 < DUST_KMAX * (2 * DUST_NMAX + 1) * 2, 'the most lanes a pixel looks at a segment is a third of the scan\'s cells');
   assert.match(src, /float cy = \(li \+ 0\.5 \+ \(lj - 0\.5\) \* D_laneJit\) \/ nL \* 2\.0 - 1\.0;/, 'a lane\'s centre across the root\'s section, jittered by hash');
   assert.match(src, /float jj = floor\(\(se - flowFig \* prof \* D_flowK\) \/ Pf \+ ph\);/, 'the cell: the lane\'s own speed (the lab\'s flat profile) carries it along the root\'s stream');
@@ -71,7 +74,7 @@ test('look B is written in the shape of look A: no break, no out parameter, no i
   assert.doesNotMatch(b, /ivec3/, 'no integer vector return'); assert.doesNotMatch(lane, /\bint\b/, 'no integer in the lane functions');
   assert.doesNotMatch(b, /int ln|ln = sp\.x \+ q/, 'the loop counter makes a float lane number, not an int');
   assert.match(b, /DPart dLanePart\(DSeg g, float li, float tr, float nL, float Pf, float se, float flowFig\) \{/);
-  assert.match(b, /vec3 dLaneSpan\(DSeg g, vec2 win, float nL\) \{/);
+  assert.match(b, /vec4 dLaneSpan\(DSeg g, vec2 win, float nL\) \{/);
 });
 
 test('the lane table gives up fewer lanes: more segments a vessel and finer slivers (real figure: 3 to 5 vessels of about 50 gave lanes away)', () => {
