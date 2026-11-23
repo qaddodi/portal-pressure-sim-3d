@@ -13,3 +13,9 @@ test('the PPG slide carries the portal vein thrombosis case card, in the approve
 test('the heart and Budd-Chiari slides are left as they were (no case card asked for)', () => {
   for (const id of ['heart', 'bc']) assert.ok(!HVPG_DECK.slides.find((x) => x.id === id)?.vignette, id);
 });
+
+test('the PPG slide\'s line no longer repeats the case card', () => {
+  const s = HVPG_DECK.slides.find((x) => x.id === 'ppg')!;
+  assert.ok(s.line.startsWith('The HVPG stays normal because the thrombus lies upstream of the sinusoids'), s.line);
+  assert.ok(!/portal vein thrombus\./.test(s.line.split(';')[0]!), 'the thrombus is named once, by the card');
+});

@@ -142,6 +142,7 @@ export const SOURCE_PATCHES = [
 
   // ---- hvpg, 23 Nov 2026 (Mohammad: "slide 8/15 in HVPG PPG is missing a case card?", then "sure" to these words): the portal vein thrombosis slide changes patient and had no case card
   SET('hvpg', 'slides.ppg.vignette', 'A 41-year-old man has had variceal bleeding. His liver tests are normal, and imaging shows a chronic portal vein thrombus.'),
+  P('hvpg', 'slides.ppg.line', 'In another patient, imaging shows a portal vein thrombus. The HVPG stays normal', 'The HVPG stays normal'),   // (the case card now says it: 23 Nov, "Yes")
 
   // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
   ...TIPS_DOPPLER_REVIEW,
