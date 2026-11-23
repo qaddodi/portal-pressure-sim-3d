@@ -35,6 +35,10 @@ export interface SwipeApi {
   land(id: PaneId): void;
 }
 
+/** Whether the Tests card pages by a swipe: on any touch screen (a phone's sheet, an iPad upright or on its side, a side card), with one instrument up. Touch events only come from a touch screen, so a mouse is never a swipe
+ *  (owner, 23 Nov: "also swipe test cards on iPad, even landscape"; it was only the phone's sheet). */
+export const swipeOn = (g: { open: boolean; focus: boolean; second: unknown }): boolean => g.open && !g.focus && !g.second;
+
 type Trail = [number, number][];
 interface Sw {
   x: number; y: number; t: number; on: boolean; dx: number; w: number; carry: number; trail: Trail; i: number; j: number;

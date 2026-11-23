@@ -367,7 +367,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   return (
     <>
       {/* (2D's dip behind a case card: the figure at 22%, as this wash over it) */}
-      <div className={`pz-veil${view.words === 'check' ? ' on soft' : veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
+      {/* (a phone on its side keeps the figure in view beside its one column: no veil) */}
+      <div className={`pz-veil${plan.sideways ? '' : view.words === 'check' ? ' on soft' : veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
       {/* 2D's zoom veil: the page dims a little and a tap on it puts the card back */}
       <div ref={zveilRef} className="pz-zveil" aria-hidden="true" onClick={() => { void cardZoom.close({ reduce: reduceMotion() }); }} />
       {frames(wordsStack, 'words')}

@@ -44,8 +44,6 @@ export interface Plan {
   scrolled: boolean;
   /** How far the column slides up to put the instrument card in the middle (px; a phone on its side with both cards, else 0). */
   scrollDy: number;
-  /** A phone on its side: where the pill stands (it eases between these on the compositor), null on every other screen. */
-  sidePill: SidePill | null;
   /** The largest empty rectangle the cards leave: the figure's room. */
   free: Rect;
   /** Cards taller than the room they have; the card pages itself (never shrinks, never scrolls). */
@@ -111,13 +109,8 @@ export function columnOf(vp: Viewport, wordsH: number, dataH: number) {
   const b = sideBox(vp), wordsY = Math.round((vp.h - wordsH) / 2), dataY = wordsY + wordsH + SIDE_GAP, dataMidY = Math.round((vp.h - dataH) / 2);
   return { wordsY, dataY, scrollDy: Math.max(0, dataY - dataMidY), x: b.left, w: b.w };
 }
-/** The middle of the figure's column, where the pill stands: between the card column and the screen's right safe edge; a panel that stands alone has the pill in the corner at its right. */
-export type SidePill = 'column' | 'panel';
-export function sidePillCentre(vp: Viewport, state: SidePill): number {
-  const b = sideBox(vp);
-  if (state === 'panel') return b.right - PILL_W_SIDE / 2;   // (a panel that stands alone: the pill at the right of it, in the corner)
-  return (b.figL + b.right) / 2;
-}
+/** The middle of the figure's column, where the pill stands: between the card column and the screen's right safe edge, on every slide. */
+export const sidePillCentre = (vp: Viewport): number => { const b = sideBox(vp); return (b.figL + b.right) / 2; };
 
 export interface BarPlace { edge: 'foot' | 'card'; rect: Rect }
 /** Where the pill stands: lower right of a wide screen (2D `pzb-pill`), centred in the foot of the words' card on a phone, at its lower right on an upright iPad. */
@@ -137,7 +130,7 @@ export function barOf(vp: Viewport): BarPlace {
   if (sideways) {
     // a phone on its side: the phone's pill at the foot of the figure's column, level with the cards' foot (its open place; sidePillCentre says how far it moves when the instrument is tucked)
     const b = sideBox(vp);
-    return { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp, 'column') - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } };
+    return { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp) - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } };
   }
   const cm = margin(vp.w, vp.h, layout), w = PILL_W;
   const x = vp.w - Math.max(safe.right, cm) - w, y = vp.h - Math.max(cm, safe.bottom + 8) - BAR_H;
@@ -156,6 +149,12 @@ export const panelVisual = (n: { id: CardId; visual?: string }): string => (n.id
 export function centredBox(vp: Viewport, kind: CentredKind, visual = 'outline'): { w: number; maxH: number; top: number; room: number } {
   const layout = layoutOf(vp.w, vp.h), pzh = pzhOf(vp), { safe } = vp;
   const stack = layout === 'stack' || layout === 'tab';
+  if (isSideways(vp.w, vp.h)) {
+    // a phone on its side: every slide uses the card column (docs/approved/landscape-phone.md, Mohammad 23 Nov: "make every slide use the stacked column"): a card with no neighbour stands in it at the
+    // column's width, centred top to bottom, as tall as the screen allows (no neighbour to leave room for); the figure stays in view to its right, unveiled
+    const b = sideBox(vp), foot = Math.max(SIDE_GAP, safe.bottom + 9), room = Math.round(vp.h - 2 * foot);
+    return { w: b.w, maxH: room, top: Math.round((vp.h - room) / 2), room };
+  }
   if (kind === 'case') {
     const w = layout === 'tab' ? 0.7 * vp.w : Math.min(vp.w - 32 - 2 * Math.max(safe.left, safe.right), 920);
     return { w: Math.round(w), maxH: Math.round(vp.h - 2 * Math.max(84, 0.11 * vp.h)), top: 0, room: vp.h };
@@ -164,11 +163,6 @@ export function centredBox(vp: Viewport, kind: CentredKind, visual = 'outline'):
     // a phone's panel: 8 px from the top, 64 px (and the home bar) clear at the foot, centred between; an upright iPad's is 70% wide
     const sb = Math.max(safe.bottom, 0), w = layout === 'tab' ? 0.7 * vp.w : vp.w - 16;
     return { w: Math.round(w), maxH: Math.round(vp.h - 72 - sb), top: 8, room: vp.h - 72 - sb };
-  }
-  if (isSideways(vp.w, vp.h)) {
-    // a phone on its side: the panel stands in the screen's room from the top to the cards' foot (it never runs under the credit or the pill), as wide as the room left of the pill's column at the right
-    const b = sideBox(vp);
-    return { w: Math.round(vp.w - b.left - Math.max(safe.right, 10) - PILL_W_SIDE - SIDE_PILL_GAP), maxH: Math.round(b.room), top: Math.round(b.top), room: Math.round(b.room) };
   }
   const m = clampN(4 * pzh, 16, 56);
   let w = Math.min(1560, vp.w - 2 * Math.max(clampN(0.03 * vp.w, 16, 64), safe.left, safe.right));
@@ -205,7 +199,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const data = needs.find((n) => n.slot === 'data') ?? null;
   const placed: Placed[] = [];
   let bar = barOf(vp);
-  let strip: Strip | null = null, docked = false, tucked: Rect | null = null, short = false, scrolled = false, scrollDy = 0, sidePill: SidePill | null = null;
+  let strip: Strip | null = null, docked = false, tucked: Rect | null = null, short = false, scrolled = false, scrollDy = 0;
   const maxH: Record<Slot, number> = { words: 0, data: 0 };
   let bounds: Rect;
   const extra: Rect[] = [];
@@ -215,11 +209,11 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     // the outline, the quick check and a case: one card in the middle, as tall as its words need (never past its room), the figure framed whole behind the veil
     const c = centredBox(vp, alone, panelVisual(words!)), h = Math.min(words!.h, c.maxH);
     maxH.words = maxH.data = c.maxH;
-    const x = sideways && alone === 'panel' ? Math.round(sideBox(vp).left) : Math.round((vp.w - c.w) / 2), y = Math.round(c.top + (c.room - h) / 2);
-    placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
+    const x = sideways ? Math.round(sideBox(vp).left) : Math.round((vp.w - c.w) / 2), y = Math.round(c.top + (c.room - h) / 2);
+    placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' || sideways ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
-    if (sideways) { const b = sideBox(vp), pc = alone === 'panel'; bar = { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp, pc ? 'panel' : 'column') - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } }; }
-    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, scrolled: false, scrollDy: 0, sidePill: sideways ? (alone === 'panel' ? 'panel' : 'column') : null, free: bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, short: false, bar };
+    if (sideways) { const b = sideBox(vp); bar = { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp) - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } }; }
+    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, scrolled: false, scrollDy: 0, free: sideways ? largestFreeRect(bounds, placed.map((q) => q.rect), GAP) : bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, short: false, bar };
   } else if (sideways) {
     // One card column at the left (docs/approved/landscape-phone.md, Mohammad 23 Nov: "yes, good. let's do it"): the words centred top to bottom, the instrument under it and bleeding off the foot; the reader's swipe
     // up slides both up until the instrument is centred and the words bleed off the top (`scrolled`, `scrollDy`), a swipe down brings them back. Neither card is taller than leaves the other PEEK px showing.
@@ -233,8 +227,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
       const only = (words ?? data)!, h = Math.min(only.h, b.maxH);
       placed.push({ id: only.id, slot: only.slot, rect: { x: b.left, y: Math.round((vp.h - h) / 2), w: b.w, h } });
     }
-    sidePill = 'column';
-    bar = { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp, 'column') - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } };
+    bar = { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp) - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } };
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
     // (the pill stands over the figure's foot, glass on the picture: the figure keeps the screen's whole height beside the column)
   } else if (layout === 'stack' || layout === 'tab') {
@@ -298,7 +291,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   // (a card's own height, not the room it stands in: a pair's two cards stand the room's whole height whatever their words need)
   const need = (p: Placed) => needs.find((n) => n.slot === p.slot)?.h ?? p.rect.h;
   const overflow = placed.filter((p) => (sideways ? need(p) : p.rect.h) > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, scrolled, scrollDy, sidePill, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
+  return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, scrolled, scrollDy, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */

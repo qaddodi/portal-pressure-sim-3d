@@ -32,13 +32,18 @@ import { UI } from '../strings.generated.ts';
 import { presentTopics, patientGroups, LEVELS, slideCount, type DeckMeta } from './library.ts';
 import { loadPatient } from './patients.ts';
 import { openFromReadings } from '../readings/FromReadings.tsx';
-import { GROUP_WHERE, fold, filterRows, emptyNote, stepRow, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
+import { GROUP_WHERE, fold, filterRows, emptyNoteOf, stepRow, stepTab, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
+import { HISTORIES } from '../histories/index.generated.ts';
+import { HistoryPv, openFromMenu } from '../histories/HistoryPv.tsx';
+import { stateLine } from '../histories/state-words.ts';
+import { lengthWords } from '../histories/state-words.ts';
+import '../histories/histories.css';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Fade, fadeAttrs } from '../fade.tsx';
 const PRESET_SUMMARY: Record<string, string> = Object.fromEntries((PRESETS as { id: string; summary?: string }[]).map((p) => [p.id, p.summary ?? '']));
-const TABS = UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[];
-const TAB_ICON: Record<MenuTab, string> = { present: 'projector', patients: 'scenario' };
+const TABS = [...(UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[]), { id: 'histories', label: 'Histories' }] as readonly { id: MenuTab; label: string }[];   // (the 2D menu has two lists; the third is this app's)
+const TAB_ICON: Record<MenuTab, string> = { present: 'projector', patients: 'scenario', histories: 'clock' };
 const LEAVE_MS = 120;   // 2D --d-flip (a popover's exit); a sheet's is --d-small (menu.js close)
 const SHEET_LEAVE_MS = 240;
 
@@ -112,14 +117,14 @@ function Inline({ open, children }: { open: boolean; children: ReactNode }) {
   return <div className={`um-inline on${leaving ? ' out' : ''}`}><div>{children}</div></div>;
 }
 
-interface ItemProps { k: string; row: Row; hidden: boolean; current?: boolean; info: string; open: boolean; onInfo(): void; onHover(el: HTMLElement | null): void; onPress(): void; lead?: ReactNode; text: string; metas: ReactNode; trail?: ReactNode; pv: ReactNode; isNew?: boolean }
-function Item({ k, row, hidden, current, info, open, onInfo, onHover, onPress, lead, text, metas, trail, pv }: ItemProps) {
+interface ItemProps { k: string; row: Row; hidden: boolean; current?: boolean; info: string; open: boolean; onInfo(): void; onHover(el: HTMLElement | null): void; onPress(): void; lead?: ReactNode; text: string; sub?: ReactNode; metas: ReactNode; trail?: ReactNode; pv: ReactNode; isNew?: boolean }
+function Item({ k, row, hidden, current, info, open, onInfo, onHover, onPress, lead, text, sub, metas, trail, pv }: ItemProps) {
   return (
     <li {...fadeAttrs(!hidden, 'y')}><div className="fade-in um-li-in">
       <button type="button" className="um-row" data-k={k} data-find={row.find} aria-current={current ? 'true' : undefined} onClick={onPress}
         onPointerEnter={(e) => { if (e.pointerType === 'mouse') onHover(e.currentTarget); }} onPointerLeave={() => onHover(null)}
         onFocus={(e) => { if (e.currentTarget.matches(':focus-visible')) onHover(e.currentTarget); }} onBlur={() => onHover(null)}>
-        {lead}<span className="um-t">{text}</span>{metas}{trail}
+        {lead}<span className="um-t">{text}{sub}</span>{metas}{trail}
       </button>
       <button type="button" className="um-info" aria-label={`About ${info}`} aria-expanded={open} onClick={onInfo}><I n="info" /></button>
       <Inline open={open}>{pv}</Inline>
@@ -202,19 +207,23 @@ export function UMenu() {
 
   const topics = useMemo(() => presentTopics(), []);
   const groups = useMemo(() => patientGroups(), []);
+  const historyGroups = useMemo(() => { const out: { group: string; where: string; rows: typeof HISTORIES[number][] }[] = []; for (const h of HISTORIES) { let g = out.find((x) => x.group === h.group); if (!g) out.push(g = { group: h.group, where: h.where, rows: [] }); g.rows.push(h); } return out; }, []);
   const presentRows = useMemo<Row[]>(() => [
     ...topics.flatMap((t) => t.decks.map((d) => ({ key: 'd:' + d.id, find: fold([d.title, d.short].join(' ')), more: fold(d.summary) }))),
     ...mine.map((s) => ({ key: 's:' + s.id, find: fold([s.title, 'script'].join(' ')), more: fold(s.summary) })),
   ], [topics, mine]);
   const patientRows = useMemo<Row[]>(() => groups.flatMap((g) => g.patients.map((p) => ({ key: 'p:' + p.id, find: fold([p.label, g.group, GROUP_WHERE[g.group], p.id].join(' ')), more: fold(PRESET_SUMMARY[p.id]) }))), [groups]);
+  const histRows = useMemo<Row[]>(() => HISTORIES.map((h) => ({ key: 'h:' + h.id, find: fold([h.name, h.group, h.where, stateLine(h.state), h.path].join(' ')), more: fold(h.story) })), []);
+  const shownH = useMemo(() => new Set([...filterRows(histRows, query)].map((r) => r.key)), [histRows, query]);
   const shownP = useMemo(() => new Set([...filterRows(presentRows, query)].map((r) => r.key)), [presentRows, query]);
   const shownT = useMemo(() => new Set([...filterRows(patientRows, query)].map((r) => r.key)), [patientRows, query]);
   // (2D menu.js: Work backward's door heads the Patients list)
   const frShown = useMemo(() => [...filterRows([{ key: 'fr', find: fold('From readings work backward enter measured pressures stiffness reverse search scenarios'), more: fold('Enter what you measured and see which lesions could give it') }], query)].length > 0, [query]);
   const words = wordsOf(query).length > 0;
-  const here = tab === 'present' ? shownP.size : shownT.size, there = tab === 'present' ? shownT.size : shownP.size;
-  const empty = emptyNote(tab, here, there, query);
-  const rowOf = (key: string) => (key[0] === 'p' ? patientRows : presentRows).find((r) => r.key === key)!;
+  const counts = { present: shownP.size, patients: shownT.size, histories: shownH.size };
+  const here = counts[tab];
+  const empty = emptyNoteOf(tab, counts, query);
+  const rowOf = (key: string) => (key[0] === 'p' ? patientRows : key[0] === 'h' ? histRows : presentRows).find((r) => r.key === key)!;
 
   const setTab = (t: MenuTab, focus = false) => { useShell.setState({ menuTab: t }); setHover(null); if (focus) afterCommit(() => ref.current?.querySelector<HTMLElement>(`#umtab-${t}`)?.focus({ preventScroll: true })); };
   const visible = (col: Element | null) => [...(col?.querySelectorAll<HTMLElement>('li:not([data-fade="off"]) .um-row') ?? [])].filter((r) => !r.closest('.um-g[data-fade="off"]'));
@@ -228,7 +237,7 @@ export function UMenu() {
       else if (e.key === 'ArrowDown') { e.preventDefault(); visible(col())[0]?.focus(); }
       return;
     }
-    if (t.classList?.contains('um-tab') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); setTab(tab === 'present' ? 'patients' : 'present', true); return; }
+    if (t.classList?.contains('um-tab') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); setTab(stepTab(tab, e.key === 'ArrowRight' ? 1 : -1), true); return; }
     const row = t.closest?.('.um-row') as HTMLElement | null;
     if (row && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
@@ -236,7 +245,7 @@ export function UMenu() {
       if (at < 0) q.focus(); else list[at]?.focus();
     } else if (row && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       e.preventDefault();
-      const next: MenuTab = tab === 'present' ? 'patients' : 'present';
+      const next: MenuTab = stepTab(tab, e.key === 'ArrowRight' ? 1 : -1);
       setTab(next);
       afterCommit(() => visible(el.querySelector(`.um-col[data-col="${next}"]`))[0]?.focus());
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ') q.focus();
@@ -261,6 +270,7 @@ export function UMenu() {
     const id = k.slice(2);
     if (k[0] === 'd') { const d = topics.flatMap((t) => t.decks).find((x) => x.id === id); return d ? <DeckPv d={d} close={close} /> : null; }
     if (k[0] === 's') { const s = mine.find((x) => x.id === id); return s ? <ScriptPv s={s} close={close} /> : null; }
+    if (k[0] === 'h') { const h = HISTORIES.find((x) => x.id === id); return h ? <HistoryPv h={h} /> : null; }
     const g = groups.find((x) => x.patients.some((p) => p.id === id)); const p = g?.patients.find((x) => x.id === id);
     return g && p ? <PatientPv id={id} label={p.label} group={g.group} /> : null;
   };
@@ -291,7 +301,7 @@ export function UMenu() {
       <div className="um-grab" aria-hidden="true" />
       <i className="sh-grabbar" aria-hidden="true" />
       <div className="um-top">
-        <label className="um-search"><I n="search" /><input className="um-q" type="search" placeholder="Find a presentation or patient" aria-label="Find a presentation or patient" autoComplete="off" spellCheck={false} value={query} onChange={(e) => setQuery(e.target.value)} /><kbd className="um-kb">/</kbd></label>
+        <label className="um-search"><I n="search" /><input className="um-q" type="search" placeholder="Find a presentation, patient or history" aria-label="Find a presentation, patient or history" autoComplete="off" spellCheck={false} value={query} onChange={(e) => setQuery(e.target.value)} /><kbd className="um-kb">/</kbd></label>
         <button type="button" className="ib um-x" aria-label="Close the menu" onClick={close}><I n="close" /></button>
       </div>
       <div className="um-tabs" role="tablist" aria-label="Menu">
@@ -338,9 +348,27 @@ export function UMenu() {
             </Fade>
           ))}
         </section>
+        <section className="um-col" data-col="histories" id="umcol-histories" role="tabpanel" aria-labelledby="umtab-histories">
+          {historyGroups.map((g) => (
+            <Fade key={g.group} as="div" axis="y" className="um-g" on={!hiddenGroup(g.rows.map((h) => 'h:' + h.id), shownH)}>
+              <div className="um-gl" id={`umh-${g.group}`}><b>{g.group}</b><span>{g.where}</span></div>
+              <ul aria-labelledby={`umh-${g.group}`}>
+                {g.rows.map((h) => {
+                  const k = 'h:' + h.id;
+                  return (
+                    <Item key={k} k={k} row={rowOf(k)} hidden={!shownH.has(k)} current={patientId === h.id} info={h.name} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)}
+                      onPress={() => { void openFromMenu(h.id, false); }}
+                      text={h.name} sub={<span className="um-sub">{h.state.map((x, i) => <span key={i}>{i ? ', ' : ''}{x.tone === 'danger' ? <span className="hh-danger">{x.text}</span> : x.text}</span>)}</span>}
+                      metas={<span className="um-m">{lengthWords(h.days)}</span>} trail={patientId === h.id ? <I n="check" className="um-check" /> : null} pv={<HistoryPv h={h} />} />
+                  );
+                })}
+              </ul>
+            </Fade>
+          ))}
+        </section>
       </div>
       <Fade as="p" axis="y" className="um-empty" on={empty.show}><span>{empty.text}</span>
-        <Fade as="button" type="button" className="um-link um-other" on={!!empty.other} onClick={() => setTab(tab === 'present' ? 'patients' : 'present', true)}>{empty.other}</Fade></Fade>
+        <Fade as="button" type="button" className="um-link um-other" on={!!empty.other} onClick={() => empty.otherTab && setTab(empty.otherTab, true)}>{empty.other}</Fade></Fade>
       <footer className="um-foot">
         <button type="button" className="um-link" onClick={() => { close(); shareView(patientId); }}><I n="share" /><span>Copy link to this view</span></button>
         <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'history' })}><I n="clock" /><span>History</span></button>

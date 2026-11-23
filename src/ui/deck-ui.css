@@ -372,7 +372,6 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 /* ═══ A phone held sideways (Mohammad, 23 Nov 2026: "yes, good. let's do it", docs/approved/landscape-phone.md) ═══
    One card column at the left: the words centred, the instrument under it bleeding off the foot; a swipe up slides both up, a swipe down brings them back. The figure has the rest of the screen and
    the pill stands at the foot of its column. The planner (plan.ts sideBox, columnOf) places everything; these are the type, the pill and the credit. */
-.deck-ui[data-sideways] { --pad-x: 16px; --pad-y: 16px; }
 /* the words card's foot keeps a row for the credit line (the iPhone's rule, 20 px) */
 .deck-ui[data-sideways] .dk-card:has(.pz-cred) .dk-in { padding-bottom: calc(var(--pad-y) + 20px); }
 /* the sideways pill's cells: the phone pill's rules for an iPhone on its side (the originals above stay the stack's and the tab's, tests/tap-cells.test.ts) */

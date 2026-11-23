@@ -11,7 +11,8 @@ Traits (keep every one):
 - Neither card is ever taller than leaves the other 36 px showing (`maxH` = screen height less 2 x (36 + 12)); a taller one pages (never shrinks, never scrolls).
 - The copyright is in the foot of the words card, one 12 px line centred (so it slides away with that card); the floating copyright fades while a card stands on its row.
 - No strip, no handle, no tab, no badge. The peeking edge of the other card is the only hint.
-- The pill is the 32 px phone pill (Back, count, Next, settings, Exit). A slide with one card (a table) keeps it centred in the room; a slide with a lone words card stands it at the left, centred.
+- EVERY slide uses the column (Mohammad, 23 Nov, from the bbe955e5 review: "make every slide use the stacked column"). A slide with one card (a chart, a table, the outline, the quick check, a case) stands it alone in the column, centred top to bottom, as tall as the screen allows; the figure stays in view beside it with no veil. The copyright is in that card's foot too.
+- The pill is the 32 px phone pill (Back, count, Next, settings, Exit), centred in the figure's column on every slide.
 - Type: title 20, body 13.5, small words 12, numbers 26 px; text never shrinks to fit; card padding 16 px.
 
 Rejected: side columns with a swipe-right tuck and a strip handle (a4cb17c1); the 2D-style wallet (one wide card, the other a 48 px strip); the copyright in the free strip or hidden.
