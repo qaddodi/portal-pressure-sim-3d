@@ -29,3 +29,7 @@ Every reading on the figure is a **tag** (`tag-dom.ts`): a name, a number and a 
 ## Not done
 - The monitor's WHVP - FHVP trace callout (B11 owns it; `trace-callouts.js`).
 - On the sideways phone the figure is framed in a strip of about 150 px beside the centred wallet card, so the least important station names drop there, as 2D's do.
+
+## Measurement readings on the talk's slides, and the blocked vein (23 Nov 2026)
+- The talk's procedure run (`ui/deck/procs-link.ts` `begin`) starts `runCards` (scene/labels/proc-cards.ts) for every kind whose 2D spec has `labels` (EUS-PPG, HVPG catheter, IR IVC and portal pressure, TIPS gradient), feeds it each frame and ends it with the run. Before this only the Tests cards did, so the slides showed no PV, HV or gradient. `tests/talk-measurement-cards.test.ts`.
+- A catheter against a blocked hepatic vein (Budd-Chiari, `cath: 'blocked'`) stands one tag at its tip: "Occluded", then "No reading" in the same tag (`BLOCKED_SAYS` in cath-show.ts; words only, caution ink). `tests/blocked-vein-callout.test.ts`.

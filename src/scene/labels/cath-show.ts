@@ -17,7 +17,13 @@ const C = LS.CATH, N = LABEL_NAMES.CALLOUTS;
 
 export type PillId = 'f' | 'w';
 /** The readings as text, formatted as the cards print them. `hv` is the HVPG as a number (its band colours the card). */
-export interface CathText { f: string; w: string; h: string; hv: number | null }
+export interface CathText {
+  f: string; w: string; h: string; hv: number | null;
+  /** The words at the tip while the catheter stands against a blocked vein (BLOCKED_SAYS): they stand in the free card's place and cross over when they change. Absent: the readings' own. */
+  say?: string;
+}
+/** What the tip says against a blocked hepatic vein (Budd-Chiari): first that the vein is occluded, then, once the pushes have failed, that there is no reading. The words of a measurement that cannot be taken stand where its reading would. */
+export const BLOCKED_SAYS = { first: 'Occluded', then: 'No reading', afterMs: 2600 } as const;
 export interface CathIn {
   vp: Vp;
   cath: CathState | null;
@@ -43,12 +49,15 @@ export function calloutsFor(cath: CathState | null): CalloutKind[] {
     case 'free': return ['f'];
     case 'wedge': return ['f', 'w'];
     case 'result': return ['s'];
+    case 'blocked': return ['f'];   // (no number: the words of BLOCKED_SAYS at the tip)
     default: return [];
   }
 }
 
 export const toneOf = (hv: number | null): Tone => (hv == null || !Number.isFinite(hv) ? 'caution' : hvpgSev(hv));
-const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: N[kind].unit, tone });
+const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: value ? N[kind].unit : '', tone });
+/** The tag at a blocked vein's mouth: words only, in the caution ink. */
+const blockedReading = (say: string): Reading => ({ kicker: say, value: '', unit: '', tone: 'caution' });
 
 export interface PillDraw {
   id: PillId; reading: Reading;
@@ -121,11 +130,12 @@ export class CathShow {
     this.ride(inp.tip, inp.ahead);
     const pills = new Map<PillId, PillTarget>();
     let sum: SumTarget | null = null;
-    const rf = reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
+    const blocked = !inp.kinds && inp.cath === 'blocked';
+    const rf = blocked ? blockedReading(inp.text.say ?? BLOCKED_SAYS.first) : reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
     const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {
-        const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, r, inp.measure);
+        const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, blocked ? { ...r, kicker: BLOCKED_SAYS.then } : r, inp.measure);   // (a blocked vein's tag is sized for its longer words, so the one crosses over to the other in place)
         return { id, x: p[0], y: p[1], w: sz.w, h: sz.h, prefer: id === 'f', was: this.sides.get(id) ?? null };
       });
       const out = placePills(items, inp.band, inp.blockers);
@@ -172,7 +182,10 @@ export class CathShow {
   /** The numbers on show change without a new place (a reading counting up keeps its box): written into what stands. */
   setText(t: CathText, hold = false): void {
     const val = (r: Reading, v: string, tone = r.tone): Reading => (r.value === v && r.tone === tone ? r : { ...r, value: v, tone });
-    const tf = (p: PillTarget) => { const v = p.id === 'f' ? t.f : t.w; if (p.reading.value !== v) p.reading = val(p.reading, v); };
+    const tf = (p: PillTarget) => {
+      if (t.say !== undefined && p.id === 'f') { if (p.reading.kicker !== t.say) p.reading = { ...p.reading, kicker: t.say }; return; }
+      const v = p.id === 'f' ? t.f : t.w; if (p.reading.value !== v) p.reading = val(p.reading, v);
+    };
     const ts = (u: SumTarget) => { u.rows = [val(u.rows[0], t.w), val(u.rows[1], t.f)]; u.calc = val(u.calc, t.h, toneOf(t.hv)); };
     // A card that is leaving (the picture moves, the slide went, its stack took over) keeps the numbers it had: they belong to the patient it was measured on, not the one loading now.
     // `want` is only dropped once the picture is still, so while it holds nothing is written. A card whose target was replaced is not the wanted object, so it is never written either.

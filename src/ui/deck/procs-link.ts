@@ -29,6 +29,7 @@ import { ARRIVE_MS } from './scene-link.ts';
 import { slideLanded, onLanded } from './landing.ts';
 import { askOf, layersWant, procKey, specFor, stepsOfPlan, stopOf, tipShot, type ProcCursor, type ProcPhase, type ProcPlan } from './procs-plan.ts';
 import { setProcStep } from './proc-step.ts';
+import { runCards, type CardRun } from '../../scene/labels/proc-cards.ts';
 import { clearProc, setProc, useProc } from './procs-state.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 
@@ -66,12 +67,16 @@ export function linkProcs(): () => void {
   // the sequence (scene/procedures/layer.ts drive/aimAt: a time that runs to a stop, turns round without a jump); this link only says which stop.
   interface Ctl { kind: string; base: number; n: number; at: number; hold: boolean; applied: boolean; last: { name: string; at: number }; snaps: { before: unknown; own: unknown } | null }
   let ctl: Ctl | null = null;
+  /** The readings on the figure while a measurement plays (the EUS-PPG's PV and HV, the IR pressures, the HVPG's FHVP/WHVP): label tags at the vessels' own points, started with the run and ended with it (scene/labels/proc-cards.ts). */
+  let cards: CardRun | null = null;
+  const endCards = (): void => { cards?.end(); cards = null; };
   let phase: ProcPhase = 'wait';
   let starting = false;              // the figure is turning to the anatomy before the first step: a Next waits with it
   const cursor = (): ProcCursor => ({ phase, run: !!ctl, at: ctl?.at ?? -1, n: ctl?.n ?? 0, moving: !!sceneApi.procedure.driven?.moving });
 
   function stopPlay(): void {
     gen++;
+    endCards();
     timers.forEach((t) => clock.cancel(t)); timers = [];
     sceneApi.follow(null);
     if (playing || held) { sceneApi.procedure.stop(); playing = false; held = false; }
@@ -129,10 +134,15 @@ export function linkProcs(): () => void {
     // (a morph procedure's change is the engine's: from the state before the slide to the slide's own, or back)
     const change = (on: boolean): void => { evChange(kind, on); if (c.snaps) engineSend({ type: 'morph', snap: on ? c.snaps.own : c.snaps.before, ms: on ? MORPH_MS : MORPH_BACK_MS }); else updateParams((p) => (on ? sp.apply(p) : sp.undo(p)) as never, { history: false, label: on ? sp.name : `${sp.name} undone` }); };
     ctl = c; playing = true; phase = 'run';
+    // The measurement's readings stand on the figure as label tags (2D proc-anim.js `labels`): the talk's run never started them, only the Tests cards did, so the EUS-PPG's PV and HV, the IR pressures and the HVPG's
+    // readings showed nowhere on the slides. Each is taken at its step's mark (`capture`; nothing else takes them here); the figure's names stand aside as they do on the Tests cards (the HVPG's keep theirs).
+    endCards();
+    if ((sp as { labels?: unknown }).labels) cards = runCards(kind, { capture: true, quiet: kind !== 'hvpgcath' });
     sceneApi.procedure.drive(kind, {
       keep: hold,
       onFrame: (rec) => {
         if (g !== gen || ctl !== c) return;
+        cards?.frame(sceneApi.procedure.driven?.t ?? 0, engineFrames.now());
         if (rec.step >= 0 && base + rec.step !== useProc.getState().at) setProc({ at: base + rec.step });
         const t = sceneApi.procedure.driven?.t ?? 0;
         // the live model takes the change as the sequence passes the procedure's `apply` time, and gives it back going back past it
@@ -150,6 +160,7 @@ export function linkProcs(): () => void {
       },
       onEnd: ({ done, rewound }) => {
         if (g !== gen || ctl !== c) return;
+        endCards();
         playing = false; held = c.hold && done; ctl = null; sceneApi.follow(null);   // (a kind that holds leaves its last frame up: the slide's leaving takes it off, stopPlay)
         if (rewound) {
           // Back from the first step: the slide as it landed, before its procedure (the sequence going back past `apply` has already taken the result off: change(false))
@@ -167,6 +178,7 @@ export function linkProcs(): () => void {
       // (replaced on the figure by another run, a Tests card's for one: this slide's run is over, so its state goes with it; the stopPlay path has already moved `gen` on)
       onStop: () => {
         if (g !== gen || ctl !== c) return;
+        endCards();
         playing = false; held = false; ctl = null; starting = false; phase = 'wait'; sceneApi.follow(null);
       },
     });

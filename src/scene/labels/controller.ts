@@ -28,7 +28,7 @@ import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 import type { ProcCards } from './store.ts';
 import { HandWatch, isCut, type HandView } from './hand-watch.ts';
-import { CathShow, calloutsFor, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
+import { CathShow, calloutsFor, BLOCKED_SAYS, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
 
 export interface LabelDeps {
   now(): number;
@@ -55,7 +55,7 @@ export interface LabelDeps {
   reading(key: ReadingKey): number | null;
   /** The catheter's tip and the point just ahead of it (the sinusoid side), scene points. Returns how far it has got: 0 not at its place yet,
    *  1 the tip is there (the free reading can stand), 2 the balloon is wedged (the wedged reading and the summary can stand). */
-  cathere(tip: Vector3, ahead: Vector3): 0 | 1 | 2;
+  cathere(tip: Vector3, ahead: Vector3, blocked?: boolean): 0 | 1 | 2;
   /** The body's labels stand aside while the figure is the Circuit (or on its way there): the map has its own captions (circuit/CircuitCaptions.tsx). */
   hidden?(): boolean;
   /** The Anatomy is the figure (the catheter and its reading cards live on the body: a hepatic vein is not in the Lobule, the Sinusoid or the Circuit). Absent: always. */
@@ -239,6 +239,9 @@ export class LabelController {
   private cTipPx: [number, number] | null = null;
   private cAheadPx: [number, number] | null = null;
   private cGot: 0 | 1 | 2 = 0;
+  /** When the tip's words at a blocked vein came in (BLOCKED_SAYS): -1 while they are not on the figure. */
+  private blockedAt = -1;
+  private blockSay: string = BLOCKED_SAYS.first;
   private readonly cAhead = new Vector3();
   private readonly at = new Vector3();
   private readonly at2 = new Vector3();
@@ -494,7 +497,7 @@ export class LabelController {
     // want that loop skipped and nothing else removed, so the lens key of one slide stayed on the figure, over everything, across every slide after it (Mohammad, 22 Nov: "the lens legend sticks around").
     if (!this.state.key && this.wants.delete('key')) this.dirty = true;
     // the catheter's two points move with the picture too: where the tip and the point ahead stand now
-    const pr = this.state.proc, got = pr ? (pr.points(this.cTip, this.cAhead) ? 2 : 0) : d.cathere(this.cTip, this.cAhead);
+    const pr = this.state.proc, got = pr ? (pr.points(this.cTip, this.cAhead) ? 2 : 0) : d.cathere(this.cTip, this.cAhead, this.state.cath === 'blocked');
     const tipPx = got ? d.project(this.cTip, { x: 0, y: 0 }) : null, aheadPx = got ? d.project(this.cAhead, { x: 0, y: 0 }) : null;
     const nowTip: [number, number] | null = tipPx ? [tipPx.x, tipPx.y] : null, nowAhead: [number, number] | null = aheadPx ? [aheadPx.x, aheadPx.y] : null;
     // The same two rules as for every dot above: a point that jumped (a cut: it appeared, vanished or leapt) hides the cards until the picture is still; a point that moved by a little (a tilt, the
@@ -514,6 +517,10 @@ export class LabelController {
     if (following || drifting) this.lastDrift = now;
     const hold = now - this.lastMove < FADE.settleMs;
     const resting = now - this.lastFollow >= FOLLOW_MS;
+    // a catheter against a blocked vein says "Occluded" at its tip, then, once its pushes have failed, "No reading" (cath-show.ts BLOCKED_SAYS): counted from when the words are first up
+    if (this.state.cath !== 'blocked' || this.state.proc) this.blockedAt = -1;
+    else if (this.cGot >= 1 && !hold && this.blockedAt < 0) this.blockedAt = now;
+    this.blockSay = this.blockedAt >= 0 && now - this.blockedAt >= BLOCKED_SAYS.afterMs ? BLOCKED_SAYS.then : BLOCKED_SAYS.first;
 
     // 2. solve once the picture is still and something changed (the labelled set, a card, the view, the words)
     const view = d.view(), blockers = [...d.blockers()];
@@ -620,7 +627,7 @@ export class LabelController {
     }
     this.room.prune(this.fader.frame);
     for (const id of this.ringK.keys()) if (!this.fader.frame.has(id)) this.ringK.delete(id);
-    return busy || hold || this.dirty || roomBusy;
+    return busy || hold || this.dirty || roomBusy || (this.blockedAt >= 0 && now - this.blockedAt < BLOCKED_SAYS.afterMs + 50);
   }
 
   /** What a label says beside its name, drawn: the words it had when it was placed (its box is that wide), the number and the badge's text from now. A form that has let the unit, badge and alert go says none of them. */
@@ -736,6 +743,7 @@ export class LabelController {
   /** The readings as the cards print them now: the free and wedged pressures, and the HVPG they give. */
   cathText(): CathText {
     if (this.state.proc) return this.state.proc.text;
+    if (this.state.cath === 'blocked') return { f: '', w: '', h: '', hv: null, say: this.blockSay };
     const r = this.deps.reading.bind(this.deps), f = (v: number | null) => fmtPressure(v, null, false);
     return { f: f(r('fhvp')), w: f(r('whvp')), h: f(r('hvpg')), hv: r('hvpg') };
   }

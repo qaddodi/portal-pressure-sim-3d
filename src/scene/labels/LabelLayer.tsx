@@ -53,6 +53,7 @@ import { useBlood } from '../blood/options.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
+import { OSTIUM_U } from '../procedures/ostium.ts';
 
 // the figure's top and bottom (the plate's own bounds), projected to tell how big it stands now (controller.ts FIG_MIN_H)
 const plateTop = new Vector3((PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2, PLATE_BOUNDS.y1, FIGURE_Z), plateBottom = new Vector3((PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2, PLATE_BOUNDS.y0, FIGURE_Z);
@@ -181,10 +182,12 @@ export function LabelLayer() {
         if (sel?.type === 'organ' && sel.id === (id === 'VAR' ? 'varices' : 'gastric')) return true;
         return id === 'VAR' ? !!m?.varix?.present : (m?.gastricVarix?.d ?? 0) > 0 && !!m?.gastricVarix?.present;
       },
-      cathere: (tip: Vector3, ahead: Vector3) => {
+      cathere: (tip: Vector3, ahead: Vector3, blocked = false) => {
         // The tip and the point ahead of it are the DRAWN catheter's (the procedure layer's HVPG route, in the amber column), never the slice catheter's own old curve, which is not drawn any more:
         // read from it the point "ahead" was a fixed 0.4 scene units on, far off the vein, and the WHVP card pointed at nothing (20 Nov 2026).
         const c = cel.catheter;
+        // a blocked vein: the tip stands at its mouth (the ostium) and says why nothing can be read there
+        if (blocked) return c.current.advance >= OSTIUM_U - 0.01 && cel.procPoints('hvpg', tip, ahead) ? 1 : 0;
         if (c.current.advance < 0.999) return 0;
         if (!cel.catheterRead) return 0;   // (a reading's callout comes with its tracing settled on the monitor, not when the tip arrives)
         if (!cel.procPoints('hvpg', tip, ahead)) return 0;
