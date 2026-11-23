@@ -52,26 +52,32 @@ export const STORAGE_PREFIX = 'pps3d.';
 export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface', 'deviceShadow'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
 export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true, deviceShadow: true };
+/** Blood streaks start OFF on a phone (Mohammad, 24 Nov: "streaks off by default on iPhone, it's too heavy"); a phone that chose for itself afterwards keeps its choice. A save made before this carries the old default, so a phone takes the new one once
+ *  (`particlesV`); Mac and iPad keep what they saved. */
+export const PARTICLES_VERSION = 2;
+/** A phone: its short side under 500 CSS px, held either way (the stage's own rule). Not a phone where there is no window (the node tests). */
+export const onPhone = (): boolean => typeof innerWidth === 'number' && typeof innerHeight === 'number' && Math.min(innerWidth, innerHeight) < 500;
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
-export function parseSettings(raw: string | null): Settings {
+export function parseSettings(raw: string | null, phone: boolean = onPhone()): Settings {
   try {
     const o = raw ? JSON.parse(raw) : {};
-    const fig = o.figureV === FIGURE_SETTINGS_VERSION ? o : {};   // (an older save never chose the figure switches: the defaults)
+    const fig = o.figureV === FIGURE_SETTINGS_VERSION ? o : {};
+    const streaks = phone && o.particlesV !== PARTICLES_VERSION ? undefined : fig.particles;   // (a phone's streaks default off until it has chosen)   // (an older save never chose the figure switches: the defaults)
     return {
       look: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)) ? o.look : DEFAULTS.look,
       lookChosen: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)),
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), hideBehind: bool(fig.hideBehind, DEPTH_DEFAULTS.hideBehind), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
+      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(streaks, phone ? false : DEPTH_DEFAULTS.particles), hideBehind: bool(fig.hideBehind, DEPTH_DEFAULTS.hideBehind), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
 const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, hideBehind: s.hideBehind, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
-const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
+const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION, particlesV: PARTICLES_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({
   ...read(),
