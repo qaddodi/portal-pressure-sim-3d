@@ -39,12 +39,25 @@ test('warmPrograms compiles the scene once and nothing flips a flag', async () =
 
 const src = (p: string): string => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 
-test('every material whose transparent flag is flipped while the page runs is marked, and the boot warm-up is warmPrograms', () => {
+test('every material whose transparent flag is flipped while the page runs is marked, and the boot warm-up is warmPrograms', async () => {
   // vessel tubes, their veil copies and every junction skin copy flip at run time (setTipFade, setCavaEnd, setCavaCut, setTransparent), only through setBlendState ...
-  const vo = src('scene/vessels/vessel-object.ts'), so = src('scene/vessels/skin/skin-object.ts');
-  assert.match(vo, /const toon = markBlends\(new ShaderMaterial\(/);
-  assert.match(vo, /const mat = markBlends\(new ShaderMaterial\(\{ name: 'vessel veil', vertexShader: this\.toon\.vertexShader/, 'the veil copy');
-  assert.match(so, /const material = markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/, 'the three skin copies (the Circuit\'s too: one class)');
+  // (read off the made scene, not off the constructor's spelling: a wrapper round markBlends, markVesselStencil of plan 18, broke the old grep and changed nothing the check is for)
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const scene = new CelScene();
+  const seen = new Map<string, number>(), bad: string[] = [];
+  scene.scene.traverse((o) => {
+    const m = (o as Mesh).material as ShaderMaterial | ShaderMaterial[] | undefined;
+    for (const x of Array.isArray(m) ? m : m ? [m] : []) {
+      if (!/^(vessel toon|vessel veil|skin)$/.test(x.name)) continue;
+      seen.set(x.name, (seen.get(x.name) ?? 0) + 1);
+      if (x.userData.blends !== true || x.blending !== CustomBlending) bad.push(`${o.name || '?'} (${x.name})`);
+    }
+  });
+  assert.ok((seen.get('vessel toon') ?? 0) > 50, `the vessel tubes were found (${seen.get('vessel toon') ?? 0})`);
+  assert.deepEqual(bad, [], 'a tube, its veil copy or a skin copy that flips `transparent` is marked by markBlends (one program for both states)');
+  scene.dispose?.();
+  const so = src('scene/vessels/skin/skin-object.ts'), vo = src('scene/vessels/vessel-object.ts');
+  assert.match(so, /markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/, 'the three skin copies (the Circuit\'s too: one class; made when a weld is, so the default scene holds none to read)');
   assert.match(so, /setTransparent\(on: boolean\)/);
   assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
   assert.doesNotMatch(vo, /\.transparent = /, 'vessel-object flips only through setBlendState');

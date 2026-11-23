@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { CelScene } from '../src/scene/scene.ts';
 import { CIRCUIT_VS_HEAD } from '../src/scene/circuit/shader.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { shaderText } from './shader-text.ts';
 import { COURSES } from '../src/scene/circuit/course.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { PRESENCE_TIMES, PresenceTracks, presenceMs } from '../src/scene/vessels/presence-track.ts';
@@ -23,7 +24,7 @@ const src = (p: string): string => readFileSync(new URL(`../src/scene/${p}`, imp
 test('every vessel with no map course (each `~F` group, the liver\'s branching veins) carries zero course attributes, stays where it is in the Circuit\'s change and fades by 2D\'s clamp(1 - 2 * T0)', () => {
   assert.match(CIRCUIT_VS_HEAD, /if \(cl\.y <= 0\.0\) \{ circStay = clamp\(1\.0 - 2\.0 \* circT, 0\.0, 1\.0\); return; \}/, 'the shader fades a vertex with no course by 2D\'s curve and never morphs it');
   assert.match(CIRCUIT_VS_HEAD, /circStay = 1\.0;\n  if \(circT <= 0\.0\) return;/, 'at rest it is whole');
-  assert.match(VESSEL_FS, /if \(circStay < 0\.999 &&[^\n]*>= circStay\) discard;/, 'the fragment stage dithers it out in the dive\'s own screen pattern');
+  assert.match(shaderText(VESSEL_FS), /if \(circStay < 0\.999 &&[^\n]*>= circStay\) discard;/, 'the fragment stage dithers it out in the dive\'s own screen pattern');
   const noCourse = NETWORK.filter((v) => !COURSES.has(v.id));
   assert.ok(noCourse.length >= 4 && noCourse.every((v) => v.feeder), 'the vessels with no map course are exactly the tributary groups');
   assert.ok(noCourse.some((v) => v.id.endsWith('~F:b')), 'the branching veins are among them');

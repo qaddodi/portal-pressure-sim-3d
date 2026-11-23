@@ -119,7 +119,6 @@ uniform vec3 markLight;
 uniform vec3 markRev;
 uniform float lensUse;
 uniform float lensMix;
-uniform float lensTail;
 uniform sampler2D lensGradA;
 uniform sampler2D lensLaneA;
 uniform sampler2D lensGradB;
@@ -225,6 +224,25 @@ bool skinCutOn() { return dotted < 0.5 && (skinStartCut() >= 0.0 || skinCut.y <=
 float skinWeldAtC() { return (dotted < 0.5 && skinCutC.x >= 0.0 && vUv.x < skinCutC.x - 0.00002) ? skinWeldC.x : (dotted < 0.5 && skinCutC.y <= 1.0 && vUv.x > skinCutC.y + 0.00002) ? skinWeldC.y : 1.0; }
 float skinWeldAt() { return (dotted < 0.5 && skinStartCut() >= 0.0 && vUv.x < skinStartCut() - 0.00002) ? skinWeld.x : (dotted < 0.5 && skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002) ? skinWeld.y : (inSkinHole(skinHole) || inSkinHole(skinHole2)) ? skinWeld.z : 1.0; }
 bool skinPast() { return (dotted < 0.5 && ((skinStartCut() >= 0.0 && vUv.x < skinStartCut() - 0.00002) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
+
+// PLAN 12, THE OUTER EDGE ON THE TRUE CIRCLE. The tube is built wider than the circle of its lumen plus line (the ring is a 14-sided polygon built TUBE_SAG fatter so its flats stand on the circle and its corners outside it), so the outer edge of its
+// hull wobbles up to a pixel or more past the circle. Where the tube is PLAIN the hull is wider than the circle for that one reason only, and the pixels past the circle go. The reasons the hull is legitimately wider are every one a "no" below, in this one
+// place (tests/plain-here.test.ts reads the list): the Circuit, a highlighted line, a divided stump, a fork or a cava mouth (the union's outline, the neighbour's pull), a buried or run-on end, and the stretch the skin overlaps at a seam or a hole
+// (the skin draws that edge, and its band is up to SKIN_SEAM_PAD_PX wider).
+uniform float inflate;
+bool plainHere(float wpc0) {
+  if (circT > 0.0 || vHi > 0.001 || stump.x > 0.0 || dotted > 0.5 || inflate != 0.0 || nbrOn > 0.5 || cavaCut > 0.5) return false;
+  if (vNbr.y > 0.0 || vNbr.x != 0.0 || vNbr.z != 0.0) return false;
+  if (buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) < 0.9999) return false;
+  float arcPx = vArcLen * vU / max(wpc0, 1e-6);   // CSS px along the course from u = 0 to 1
+  float edgePx = 6.0;   // a joined or cut end's reach, CSS px
+  if ((mate0.x >= 0.0 && vUv.x * arcPx < edgePx) || (mate1.x >= 0.0 && (1.0 - vUv.x) * arcPx < edgePx)) return false;
+  if (skinStartCut() >= 0.0 && abs(vUv.x - skinStartCut()) * arcPx < edgePx) return false;
+  if (skinCut.y <= 1.0 && abs(vUv.x - skinCut.y) * arcPx < edgePx) return false;
+  if (skinHole.y > skinHole.x && (abs(vUv.x - skinHole.x) * arcPx < edgePx || abs(vUv.x - skinHole.y) * arcPx < edgePx)) return false;
+  if (skinHole2.y > skinHole2.x && (abs(vUv.x - skinHole2.x) * arcPx < edgePx || abs(vUv.x - skinHole2.y) * arcPx < edgePx)) return false;
+  return true;
+}
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -681,7 +699,7 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
   vec4 g0 = texelFetch(grad, i0, 0), g1 = texelFetch(grad, i1, 0);
   if (g0.a + g1.a < 0.5) return vec4(0.0);
-  float t = lensTail > 0.5 ? smoothstep(0.55, 1.0, u) : u;
+  float t = g1.a > 1.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
     if (lensSmooth > 0.5) {
       // the ramp's own colours along the vessel (model.ts: the pressure a third and two thirds of the way along), so a vessel that crosses a threshold passes through amber and not through a blend of its ends
@@ -795,6 +813,46 @@ vec2 seamStitch(vec4 A, vec4 B, float sl, float aa, float rr, float fwAcr) {
   return vec2((1.0 - smoothstep(0.2, 0.36, dd)) * dsh, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
 }
 
+uniform vec4 clotA;   // the vein's clot in this piece (disease/clot-field.ts): (f0, df, side * v, length); z 0: none, and the clot's code is never run
+uniform vec4 clotP;   // its seed's lump phases
+uniform vec3 clotShade;
+uniform vec3 clotBase;
+uniform vec3 clotLift;
+
+#define CLOT_INSIDE 1.0
+#define CLOT_WALL_SLACK_PX 1.0
+#define CLOT_CAP_LEN 0.6
+#define CLOT_V_FROM 0.003
+#define CLOT_V_TO 0.08
+#define CLOT_CAP_INK_FROM 0.0
+#define CLOT_CAP_INK_TO 0.35
+#define CLOT_FREE_FROM 0.1
+#define CLOT_FREE_TO 0.7
+
+// THE CLOT (disease/clot-field.ts, plan 26): coverage, distance inside the edge in device px, and the ink's free weight at a pixel. u: the share along the piece; lat: the signed lateral in lumen units (-1..1 across the lumen);
+// vRf: the lumen's half width, figure units; rDev: in device px. a = (f0, df, side * v, the clot's length in figure units), p = the seed's lump phases. Pure: no derivative (they are garbage after a discard on some devices).
+vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
+  float v = abs(a.z);
+  float side = a.z < 0.0 ? -1.0 : 1.0;
+  float f = a.x + a.y * u;
+  float fc = clamp(f, 0.0, 1.0);
+  float fl = 0.3 + 0.5 * v * v * v;
+  float body = fl + (1.0 - fl) * sqrt(max(sin(3.14159265 * fc), 0.0));
+  float lump = 1.0 + 0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y);
+  float h = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
+  float c = side * (CLOT_INSIDE - h) + side * (CLOT_WALL_SLACK_PX / max(rDev, 1.0));
+  float along = f < 0.0 ? -f : (f > 1.0 ? f - 1.0 : 0.0);
+  float dn = along * a.w / max(CLOT_CAP_LEN * vRf, 1e-6);
+  float q = (lat - c) / h;
+  float len = max(length(vec2(dn, q)), 1e-4);
+  float F = len - 1.0;
+  float gF = length(vec2(dn / (CLOT_CAP_LEN * max(rDev, 1e-3)), q / (h * max(rDev, 1e-3)))) / len;
+  float distIn = -F / gF;
+  float on = smoothstep(CLOT_V_FROM, CLOT_V_TO, v);
+  float free = max(1.0 - smoothstep(CLOT_FREE_FROM, CLOT_FREE_TO, side * q), smoothstep(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn));
+  return vec3(clamp(0.5 + distIn, 0.0, 1.0) * on, distIn, free);
+}
+
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
   // THE DERIVATIVES, before any discard: a quad whose other pixels have been discarded (the cut, the dissolve, a cap, a back face) gives a garbage fwidth on a device that drops the lane (Apple's), and the flow heads, the shade band and the
@@ -867,6 +925,15 @@ void main() {
   float nbrK = 0.0;
   // (past the other tube's open end nothing of it is drawn: the ink and the drop give way over half a pixel either side of its end plane, by vNbr.z, which the GPU blends exactly where the radius ramped to 0 over a whole triangle)
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT) * (1.0 - smoothstep(-0.5, 0.5, vNbr.z / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
+  // THE CLOT'S OWN PIXELS (plan 34b): coverage and shape are computed here, before the cava opacity ramp and the fade discards, so the ramp is lifted under the clot (a thrombus is not the cava: it stays as solid as the vein's own fade, with no screen dither on its caps).
+  float rDevC = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;
+  vec3 ct = vec3(0.0);
+  float covC = 0.0;
+  if (clotA.z != 0.0 && dotted < 0.5) {
+    float latC = tl > 1e-3 ? dot(dvPx, vec2(-tS.y, tS.x) / tl) / max(rDevC, 1e-3) : 0.0;
+    ct = clotAt(clotA, clotP.xy, vUv.x, latC, vR, rDevC);
+    covC = ct.x * (1.0 - smoothstep(rDevC + 0.5, rDevC + 1.5, dLat)) * (1.0 - smoothstep(0.0, 0.35, circT)) * (1.0 - nbrK);
+  }
   // A VEIN INTO THE CAVA (a vessel that merges into a faded one: Mohammad, 20 Nov: "there should be a gradual fade into the target vessel, so that they both have the same fade at the point of junction") is one tube with the cava: as it nears the
   // wall it takes the cava's COLOUR (wB: 0 more than 1.6 cava radii before it, 1 at it) and eases its OPACITY down to the cava's (fadeHere: from 2.5 cava radii before the wall, by the pixel's own distance from the wall, never by a share of the vein's
   // length, so the ramp is the same across the vein's width and the wall's slant cannot make a diagonal), so at the wall both are the same colour and the same alpha and there is no step either way. It is drawn up to the wall and not inside the lumen, cut
@@ -886,6 +953,7 @@ void main() {
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
   }
+  fadeHere = mix(fadeHere, vFade, covC);   // (plan 34b: the cava's opacity ramp is lifted in the clot's own pixels, before the dither and every fade discard: a thrombus is not the cava)
   if (cavA < 0.004) DROP(10);
 #ifdef VEIL
   fadeHere *= veilK;
@@ -926,6 +994,12 @@ void main() {
   if (fadeHere < 0.004) DROP(11);
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
+  // (plan 12: on a plain stretch the outer edge is the true circle of the lumen plus its line, half a pixel out as the skin's is, so the polygon's corners are gone and both sides of a seam stand on one curve)
+  if (plainHere(wpc0)) {
+    float rCssA = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6), rCssA0 = vR0 / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
+    float outerPx = rDevAx + min(3.0, clamp(0.3 * rCssA, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssA0) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCssA0))) * inkOn * dpr;
+    if (dLat > outerPx + 0.5) DROP(13);
+  }
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
@@ -979,6 +1053,18 @@ void main() {
   if (hd.a > 0.0) {
     if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
     c = c * (1.0 - hd.a) + hd.rgb;
+  }
+  // THE CLOT (plan 26) is painted here, in the vein's own fragment: over the dust and the heads, inside the lumen (clipped at its edge, before the ink band below), lit by this pixel's own n.L, so it has the vein's depth, fades, cuts and
+  // weights and looks the same from every angle. Its line is on its free edge and its caps only. A uniform branch: a vein with no clot runs none of this and is the same pixel as before.
+  if (clotA.z != 0.0 && dotted < 0.5) {
+    if (covC > 0.0) {
+      float etC = max(0.5 * 1.0 * fwSt, 1e-4);
+      vec3 toneC = mix(mix(clotShade, clotBase, smoothstep(-0.2 - etC, -0.2 + etC, sT)), clotLift, smoothstep(0.3 - etC, 0.3 + etC, sT));
+      float rCssC = rDevC / dpr;
+      float inkC = min(min(3.0, clamp(0.3 * rCssC, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssC) * (1.0 + 0.5 * (1.0 - lensUse) * smoothstep(0.15, 1.6, rCssC))) * dpr, 0.5 * rDevC);
+      vec3 lineC = mix(inkColor, clotShade * mix(0.32, 0.55, tubeDark), 0.75);
+      c = mix(c, mix(toneC, lineC, ct.z * (1.0 - smoothstep(inkC - 0.5, inkC + 0.5, ct.y))), covC);
+    }
   }
   // THE OUTLINE: the band between the lumen's edge and the tube's (it is built INK wider, see the vertex stage). The exact lateral distance from the pixel to the tube's axis, in device pixels, against the lumen's radius:
   // the line is continuous by construction (no second mesh, no stencil, no depth tie), constant in device pixels (the vertex stage widened the tube by the same line) and antialiased half a pixel each side. It follows the fade

@@ -279,7 +279,6 @@ uniform vec3 markLight;
 uniform vec3 markRev;
 uniform float lensUse;
 uniform float lensMix;
-uniform float lensTail;
 uniform sampler2D lensGradA;
 uniform sampler2D lensLaneA;
 uniform sampler2D lensGradB;

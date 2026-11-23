@@ -17,6 +17,8 @@ import { frameFor } from './b3-frames.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { useSettings } from '../src/state/settings.ts';
 import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
+import { AlwaysStencilFunc, KeepStencilOp } from 'three';
+import { VESSEL_STENCIL } from '../src/scene/vessels/cel-ink.ts';
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 const off = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(false); try { return f(); } finally { setSmoothJoins(was); } };
@@ -262,12 +264,14 @@ test('pressure colour runs smoothly along a chain: the two vessels of a run-on w
   for (let k = 0; k < NE; k++) { if (f.grad[k * 4 + 3] === 0) continue; for (let i = 0; i < 3; i++) assert.ok(Math.abs(f.grad[(2 * NE + k) * 4 + i]! - f.grad[(3 * NE + k) * 4 + i]!) < 1e-6, `${edges[k]!.id}: one colour through the middle`); }
 });
 
-test('no vessel shares a stencil bit with another: every tube is one opaque draw with the outline in its own fragments, so a crossing is never merged and a join is buried only by the mates (the same on or off)', () => {
+test('no vessel TESTS a stencil bit another one wrote: every tube is one opaque draw with the outline in its own fragments, so a crossing is never merged and a join is buried only by the mates (the same on or off). Every tube WRITES the one shared vessel bit (plan 18: the crossing shadow falls only where it is set) with a function that always passes', () => {
   const s = new CelScene();
   let n = 0;
   for (const v of MAPPED) {
     const m = s.vesselObject(v.id)!.toonMesh.material as import('three').ShaderMaterial;
-    assert.ok(!Array.isArray(m) && !m.stencilWrite, v.id);
+    assert.ok(!Array.isArray(m), v.id);
+    // (the old rule was "no stencil at all": a per-vessel bit merged a crossing. The shared bit is write-only for the tube, so it can never cut another tube's pixels.)
+    assert.ok(!m.stencilWrite || (m.stencilFunc === AlwaysStencilFunc && m.stencilRef === VESSEL_STENCIL && m.stencilWriteMask === VESSEL_STENCIL && m.stencilZFail === KeepStencilOp && m.stencilFail === KeepStencilOp), `${v.id}: a tube's stencil is the shared vessel bit, written and never read`);
     n++;
   }
   assert.ok(n > 50);

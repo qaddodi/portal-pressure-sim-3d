@@ -19,6 +19,8 @@ describe('stent look', () => {
 import { stentCircuitLook, STENT_FRONT_ALPHA } from '../src/scene/devices/stent/stent-look.ts';
 import { PALETTES } from '../src/scene/palette.ts';
 import { readFileSync } from 'node:fs';
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { block, shaderText } from './shader-text.ts';
 describe('stent look in the Circuit', () => {
   it('takes its colours and strengths from the one table, in every look', () => {
     for (const id of Object.keys(PALETTES) as (keyof typeof PALETTES)[]) {
@@ -26,20 +28,20 @@ describe('stent look in the Circuit', () => {
     }
   });
   it('has no fixed ink or gold left in the vessel shader stent', () => {
-    const src = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
+    const src = shaderText(VESSEL_VS) + '\n' + shaderText(VESSEL_FS) /* the assembled text of both vessel programs (tests/shader-text.ts) */;
     assert.ok(src.includes('stentWire.rgb') && !src.includes('mix(c, inkColor, 0.85 * cov * kS)') && !src.includes('vec3(0.86, 0.66, 0.2), gold * kS'));
   });
 });
 
 describe('the Circuit stent tiles by true arc length', () => {
-  const src = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
+  const src = shaderText(VESSEL_VS) + '\n' + shaderText(VESSEL_FS) /* the assembled text of both vessel programs (tests/shader-text.ts) */;
   it('measures the stent along the course the tube is drawn on (body at rest, map in the Circuit), not the body length', () => {
     assert.match(src, /vArcLen = mix\(len, cl\.y, circShare\)/);
     assert.match(src, /Lw = vArcLen \* vU, s = vUv\.x \* Lw/);
     assert.match(src, /fwPx = fwidth\(vUv\.x \* vArcLen \* vU\)/);
   });
   it('sizes every cell from the lumen alone (un), so a longer stent adds cells and never stretches them', () => {
-    const blk = src.slice(src.indexOf('if (stentU.x > 0.001'), src.indexOf('the running stitch'));
+    const blk = block(src, 'if (stentU.x > 0.001');
     assert.match(blk, /Pc = 11\.0 \* un/);
     assert.match(blk, /Nb = max\(1\.0, floor\(\(bEnd - t0\) \/ \(17\.0 \* un\)/);
     assert.doesNotMatch(blk, /\/ len\b|\* len\b/);
@@ -77,8 +79,8 @@ describe('the stent keeps real proportions on the map', () => {
     void pitch;
   });
   it('the shader uses the bare length, the skew and the nominal lumen in the stent block', () => {
-    const src = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
-    const blk = src.slice(src.indexOf('if (stentU.x > 0.001'), src.indexOf('the running stitch'));
+    const src = shaderText(VESSEL_VS) + '\n' + shaderText(VESSEL_FS) /* the assembled text of both vessel programs (tests/shader-text.ts) */;
+    const blk = block(src, 'if (stentU.x > 0.001');
     assert.match(blk, /sB = s0 \+ stentU\.w \* vR0/);
     assert.match(blk, /float sp = s - vSkew/);
     assert.doesNotMatch(blk, /stentU\.w \* Lw/);

@@ -27,6 +27,8 @@ test('constructing the micro views adds every one of their programs, and buildin
   const before = keys(sc.scene);
   sc.constructMicro();
   const boot = keys(sc.scene);
+  const named = [...programsOf(sc.scene).values()];
+  for (const n of ['lobule marks', 'lobule central-vein scar']) assert.ok(named.some((v) => v.endsWith(`(${n})`)), `${n} is compiled with the views, not when first shown`);
   assert.ok(boot.size >= before.size + 15, `the 3D lobule and sinusoid bring ${boot.size - before.size} programs: they were compiled when first shown (a driver stall in the dive)`);
   const micro = sc as unknown as { micro: { sinus: { shapeReady: boolean; prepareShapeStep(): boolean; update(on: boolean, rate: number, force: boolean): boolean }; lobule: { prepareVessels(): boolean; update(on: boolean, u: number, now: number, rate: number, force: boolean): boolean } } };
   while (!micro.micro.sinus.shapeReady) micro.micro.sinus.prepareShapeStep();
@@ -50,23 +52,25 @@ test('the devices (every procedure\'s catheter, the bands, the balloon, the glue
   assert.deepEqual(late.map((k) => programsOf(sc.scene).get(k)), []);
 });
 
-test('the stand-ins are on the scene graph (hidden), each one wears its material\'s shaders, and the clot is the real class', async () => {
+test('the stand-ins are on the scene graph (hidden), each one wears its material\'s shaders, and a clot has none: it is painted in its vein\'s own program (plan 26)', async () => {
   const sc = new CelScene();
   await sc.organsBuilt;
   const protos = sc.scene.getObjectByName('program-prototypes')!;
   assert.ok(protos, 'the scene holds the stand-ins');
   assert.equal(protos.visible, false);
   const names = protos.children.map((c) => c.name);
-  for (const n of ['prototype/circuit resistors', 'prototype/blood streaks', 'prototype/bleed jet ink', 'prototype/clot']) assert.ok(names.includes(n), n);
+  for (const n of ['prototype/circuit resistors', 'prototype/blood streaks', 'prototype/bleed jet ink']) assert.ok(names.includes(n), n);
+  assert.ok(!names.some((n) => /clot/.test(n)), 'no clot mesh, so no clot program to warm');
   assert.ok(names.some((n) => n.startsWith('prototype/organ halo')), 'the spleen\'s ring');
   assert.ok(names.includes('prototype/organ glow mask'), 'an organ\'s glow mask');
   // the resistor layer's own material has the stand-in's program
   const real = (new ResistorLayer() as unknown as { material(): ShaderMaterial }).material();
   const stand = protos.getObjectByName('prototype/circuit resistors') as Mesh;
   assert.equal(programKey(stand, stand.material as ShaderMaterial), programKey(stand, real));
-  // a clot built by the clot layer is a ClotObject on a ringTube: the stand-in is too
-  const g = (protos.getObjectByName('prototype/clot') as Object3D);
-  assert.ok(g, 'clot');
+  // the clot is the vein's own pixels: its uniforms are on the vein's program already, so a clot that comes adds nothing to compile
+  const vein = sc.vesselObject('PV_TRUNK')!;
+  assert.ok(vein.toon.uniforms.clotA && vein.toon.uniforms.clotP, 'the vein\'s program carries the clot uniforms');
+  assert.ok(!(sc.disease.clots.group.children.length), 'the clot layer holds no mesh');
   // every stand-in is a distinct program (none is dead weight)
   assert.equal(programsOf(protos).size >= names.length, true);
 });
@@ -116,7 +120,7 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/circuit/resistors.ts': { n: 1, how: 'stand-in', why: 'RESISTOR_FLAGS' },
   'scene/circuit/map-layer.ts': { n: 2, how: 'graph', why: 'the Circuit plate and dots' },
   'scene/shunt-guide.ts': { n: 1, how: 'graph', why: 'the shunt guide' },
-  'scene/micro3d/lobule3d.ts': { n: 1, how: 'micro', why: 'the marks plate, constructed under the splash' },
+  'scene/micro3d/lobule3d.ts': { n: 2, how: 'micro', why: 'the marks plate and the central vein\'s scar (Plan 24), both made in the lobule\'s constructor with the group, so both compile under the splash with the views (the first test names both programs)' },
   'scene/micro3d/cel3d.ts': { n: 2, how: 'micro', why: 'microMaterials: every part of both views' },
   'scene/devices/contact-shadow.ts': { n: 1, how: 'graph', why: 'the soft shadow of a device tube (the balloon\'s and the catheters\' are made with them)' },
   'scene/blood/cells/cells.ts': { n: 1, how: 'stand-in', why: 'STREAK_FLAGS' },

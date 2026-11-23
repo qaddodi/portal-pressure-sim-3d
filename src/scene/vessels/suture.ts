@@ -25,6 +25,7 @@ import { SKIN_CIRC_SPAN } from './skin/types.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import type { ArmSeam, SeamRing, SkinSet } from './skin/skin-set.ts';
 import type { VesselObject } from './vessel-object.ts';
+import { gate } from '../gate.ts';
 
 /** The figure's units in one scene unit on the body (the marks' lengths are figure units, as 2D's). */
 export const SUTURE_UNITS = 300;
@@ -153,7 +154,7 @@ export class SutureObject {
     this.mesh.frustumCulled = false;   // (the vertex stage places it)
     this.mesh.layers.set(VESSEL_LAYER);   // (the arm's front copy's: the vessels' pass)
     this.mesh.renderOrder = 4;   // (after the tubes' veil copy 2 and the crossing shadow 3: the thread lies over the line)
-    this.mesh.visible = false;
+    gate(this.mesh, 0);
     this.mesh.raycast = () => {};   // (the pick is the tube's)
   }
 
@@ -177,8 +178,8 @@ export class SutureObject {
     }
     const a = curve ? alpha : 0;
     if (Math.abs(a - this.alpha) > 1e-6) { this.alpha = a; u.sAlpha!.value = a; changed = true; }
-    const on = this.alpha >= 0.004 && !!curve;
-    if (this.mesh.visible !== on) { this.mesh.visible = on; changed = true; }
+    const was = this.mesh.visible;
+    if (gate(this.mesh, curve ? this.alpha : 0, 0.0039) !== was) changed = true;   // (the stitch's own eased alpha: drawn from one 8-bit step up)
     return changed;
   }
 

@@ -2,6 +2,7 @@ import { BackSide, Mesh, ShaderMaterial } from 'three';
 import { organMask } from './organs/glow-mask.ts';
 import type { CelObject } from './materials/cel.ts';
 import { HI_NONE } from './materials/shaders.ts';
+import { gate } from './gate.ts';
 
 // Vessel highlight (look-and-feel.md section 9): the picked vein (every piece the engine cuts it into) gets a glow (glow.ts) in its own tone, no outline of its own and no lift, that fades
 // away at the vein's two ends and is full in the middle. Nothing else is lit or dimmed. (`computeHighlight` can still walk the flow past the ends
@@ -276,6 +277,8 @@ export class OrganPins {
   private masks = new Map<string, Mesh>();
   /** Whether any organ's glow shows now (scene.ts runs the organ glow's mask and blur only then). */
   glowing = false;
+  /** The strongest lit organ's eased weight (0..1): the lay quad is drawn by it (scene.ts), so it leaves the draw list only once every mask has eased out. */
+  glowAmount = 0;
   /** Where the organ glow's lay stands in the organs' draw order: just before the line of the first lit organ in that order, so it lies over the organs drawn before it and under the ones drawn after, never over its own line. */
   glowOrder = 0;
 
@@ -292,7 +295,7 @@ export class OrganPins {
     }
     const e = amount * amount * (3 - 2 * amount);
     (m.material as ShaderMaterial).uniforms.amt!.value = e;
-    m.visible = e > 0.001;
+    gate(m, e);
   }
 
   step(dtMs: number, byId: ReadonlyMap<string, CelObject>): boolean {
@@ -310,9 +313,9 @@ export class OrganPins {
       }
       this.glowOf(id, o, this.on.get(id) ?? 0);
     }
-    let glowing = false, order = Infinity;
-    for (const m of this.masks.values()) if (m.visible) { glowing = true; order = Math.min(order, m.userData.order as number); }
-    this.glowing = glowing; this.glowOrder = glowing ? order : 0;
+    let glowing = false, order = Infinity, amt = 0;
+    for (const m of this.masks.values()) if (m.visible) { glowing = true; order = Math.min(order, m.userData.order as number); amt = Math.max(amt, (m.material as ShaderMaterial).uniforms.amt!.value as number); }
+    this.glowAmount = amt; this.glowing = glowing; this.glowOrder = glowing ? order : 0;
     // an organ asked for that the layer has not built: keep asking for frames until it is in
     for (const id of [...this.want, ...this.chosen]) if (!byId.has(id)) moving = true;
     const sp = byId.get('spleen');

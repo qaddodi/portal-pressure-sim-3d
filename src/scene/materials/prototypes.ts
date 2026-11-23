@@ -1,7 +1,7 @@
 // Program stand-ins (L3, 21 Nov): one hidden one-triangle object for each material recipe the scene graph does not hold at boot, so the warm-up (Stage, before the first frame) compiles every program the
 // figure can ever ask for under the splash, and nothing compiles after the cover has lifted. three.js shares one program between materials with the same shader text, defines and flags
 // (materials/program-key.ts), so a stand-in that wears the same shaders and the same flags as the real material compiles the real one's program. Every stand-in takes its shaders from the module that
-// makes the real material and its flags from a constant that module exports and uses itself (RESISTOR_FLAGS, STREAK_FLAGS, JET_INK_FLAGS, HALO_FLAGS), or is the real class (the clot), so a change to
+// makes the real material and its flags from a constant that module exports and uses itself (RESISTOR_FLAGS, STREAK_FLAGS, JET_INK_FLAGS, HALO_FLAGS), or is the real class, so a change to
 // either side reaches both. tests/program-warm.test.ts holds the rest: every program the scene can reach once fully built is either on the boot graph, a stand-in, or named there as not compiled here.
 //
 // The micro views are not stand-ins: the scene constructs them under the splash with no geometry (scene.ts constructMicro), which makes every one of their materials the real ones.

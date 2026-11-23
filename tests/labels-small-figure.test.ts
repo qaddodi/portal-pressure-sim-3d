@@ -88,7 +88,7 @@ test('with every drawn vessel known to the solver the phone\'s names cross fewer
     const segs: number[][] = [];
     for (const c of figureCourses()) { if (!atRest(c.v)) continue; let prev: { x: number; y: number } | null = null; for (const q of c.pts) { const a = rig.project(q, { x: 0, y: 0 }); if (prev) segs.push([prev.x, prev.y, a.x, a.y]); prev = { x: a.x, y: a.y }; } }
     const sv = ctl.out.find((d) => d.id === 'SV')!;
-    svGap.push(sv.dot ? Math.max(0, Math.max(sv.x - sv.dot.x, sv.dot.x - (sv.x + sv.w)), Math.max(sv.y - sv.dot.y, sv.dot.y - (sv.y + sv.h))) : 1e9);
+    svGap.push(sv.anchor ? Math.max(0, Math.max(sv.x - sv.anchor.x, sv.anchor.x - (sv.x + sv.w)), Math.max(sv.y - sv.anchor.y, sv.anchor.y - (sv.y + sv.h))) : 1e9);
     return ctl.out.filter((d) => d.kind === 'station' && !d.id.startsWith('organ') && segs.some((s) => crosses(s[0]!, s[1]!, s[2]!, s[3]!, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }))).map((d) => d.id);
   };
   const svGap: number[] = [];

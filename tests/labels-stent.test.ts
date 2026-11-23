@@ -124,9 +124,9 @@ test('a stent whose geometry changes crosses its words over (nothing blinks), an
 
 test('the Doppler samples a stent: its label points at the third the gate reads', () => {
   const w = world(mac); w.step();
-  const a = w.byId('TIPS:geo')!.dot!;
+  const a = w.byId('TIPS:geo')!.anchor!;
   w.knobs.sampled = 'distal'; w.step();
-  const b = w.byId('TIPS:geo')!.dot!;
+  const b = w.byId('TIPS:geo')!.anchor!;
   assert.ok(Math.hypot(a.x - b.x, a.y - b.y) > 5, 'the dot moved along the stent');
 });
 

@@ -3,6 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { block, shaderText } from './shader-text.ts';
 import { circuitWidthMap, circuitBranchWidth, CIRC_ARTERY, CIRC_BED, MIN_PX } from '../src/scene/circuit/width.ts';
 import { circBoostOf, mapPxPerUnit, MAP_K } from '../src/scene/circuit/map.ts';
 import { circuitWidth } from '../src/scene/vessels/vessel-object.ts';
@@ -54,7 +56,7 @@ test('the camera\'s scale: the shader\'s own rule gives map pixels per unit', ()
 });
 
 test('the shader carries the rule: the same constants, the units the map is in, the vessel\'s own start', () => {
-  const sh = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
+  const sh = shaderText(VESSEL_VS) + '\n' + shaderText(VESSEL_FS) /* the assembled text of both vessel programs (tests/shader-text.ts) */;
   assert.match(sh, /clamp\(1\.3 \* max\(2\.6, 2\.0 \* pow\(max\(d, 0\.1\), 0\.72\)\) \* 0\.95, 6\.0, 15\.0\) \* circBoost/);
   assert.match(sh, /return 0\.5 \* wc \* CIRC_MAPK/);
   assert.match(sh, /vU = mix\(300\.0, 1\.0 \/ CIRC_MAPK, circShare\)/);
@@ -104,7 +106,7 @@ test('no line is a hairline: a floor in CSS px for every kind, whatever the zoom
 });
 
 test('the Circuit holds nothing faint: the tip fades let go, the bands run full width and soft, free ends are round', async () => {
-  const sh = ['shaders.ts', 'glsl-shared.ts'].map((f) => readFileSync(new URL(`../src/scene/vessels/${f}`, import.meta.url), 'utf8')).join('\n') /* the rules both vessel programs share live in glsl-shared.ts */;
+  const sh = shaderText(VESSEL_VS) + '\n' + shaderText(VESSEL_FS) /* the assembled text of both vessel programs (tests/shader-text.ts) */;
   assert.doesNotMatch(sh, /circT \* \(1\.0 - fadeKeep\)/, 'the artery\'s fades no longer hold in the Circuit');
   assert.match(sh, /bool capCarved\(float across\)/);
   assert.match(sh, /if \(capCarved\(across\)\) discard;/);

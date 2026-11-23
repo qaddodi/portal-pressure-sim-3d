@@ -1,7 +1,7 @@
 // The pressure profile as a frame (looks: chart-looks/profile.js, hosts 'prof'; plot.js for the gridlines and the unit; card.js for the block's hatching).
 // The pieces and their order are the 2D tool's model (tool-profile.js buildModel / paintNow): the zones' tints and names, the gridlines, the unit, the fill
 // and the line (the 2D gradient is drawn as one short stroke or band a span, each in the gradient's colour at its middle), the red blocks (hatching clipped
-// to the block), the healthy and the earlier line, the axis, the readings on their dots, the lines' names on their chips, the stations' names, the
+// to the block), the healthy and the earlier line, the axis, the readings on their dots, the lines' names with a halo, the stations' names, the
 // sinusoidal brace, the brackets and the pills.
 import type { ChartCtx } from '../Chart.tsx';
 import { measure } from '../measure.ts';
@@ -130,13 +130,9 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
   const vk = lk('prof.v');
   for (let i = 0; i < NS; i++) shapes.push(text(xs[i]!, py[i]! + (plan.sides[i]?.by ?? 0.36 * f), words0(sh.v[i]!), vk));
 
-  // The healthy and earlier lines' names, each on a chip of the card's colour.
-  const chip = lk('prof.name.chip'), nk = lk('prof.name');
-  for (const n of view.names) {
-    const cw = n.w + 8;
-    shapes.push({ k: 'rect', x: n.x - cw / 2, y: n.y - 0.9 * f - 1, w: cw, h: 1.1 * f + 3, r: 3, fill: chip.fill });
-    shapes.push(text(n.x, n.y, n.t, nk));
-  }
+  // The healthy and earlier lines' names, each with a halo of the card's colour (no box behind the word).
+  const nk = lk('prof.name');
+  for (const n of view.names) shapes.push(text(n.x, n.y, n.t, nk, { halo: vk.halo }));
   // The stations' names under the axis, and the brace named sinusoidal under the liver's three.
   STATIONS.forEach((_, i) => shapes.push(text(G.nameX(i), G.nameY(i), G.fit.names[i]!, nk)));
   const i0 = STATIONS.indexOf(PATH.liver[0]), i1 = STATIONS.indexOf(PATH.liver[1]);

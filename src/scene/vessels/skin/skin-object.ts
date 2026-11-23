@@ -28,7 +28,7 @@ import { CLOT_TONES } from '../../disease/clot-uniforms.ts';
 export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
   'streamTex', 'chainTex', 'routeTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
-  'lensGradA', 'lensLaneA', 'lensModeA', 'lensRawA', 'lensGradB', 'lensLaneB', 'lensModeB', 'lensRawB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
+  'lensGradA', 'lensLaneA', 'lensModeA', 'lensRawA', 'lensGradB', 'lensLaneB', 'lensModeB', 'lensRawB', 'laneColA', 'laneColB', 'lensMix', 'lensSmooth',
   'circBoost', 'circPerPx',   // (the Circuit's width rule: the map's skins read them, circuit/skins.ts; the body's skin declares neither)
 ] as const;
 

@@ -133,7 +133,7 @@ test('the stylesheet and the layer carry the 2D card: one glass shape, hairline,
   assert.match(dom, /clipPath = `path\('\$\{g\.d\}'\)`/, 'the glass is clipped from the one outline');
   assert.match(css, /\.cl-glass path \{[^}]*stroke-width: 2/, 'a 2 px stroke clipped to the shape: 1 px shows');
   assert.match(css, /\.cl > \* \{ opacity: 0; \}/, 'opacity lives on the children');
-  assert.ok(!/\.cl[^{]*\{[^}]*(?<![-\w])opacity:/.test(css.replace(/\.cl > \* \{ opacity: 0; \}/, '').replace(/\.cl-(brace|leads?)[^{]*\{[^}]*\}/g, '')), 'no opacity written on a card itself');
+  assert.ok(!/\.cl[^{]*\{[^}]*(?<![-\w])opacity:/.test(css.replace(/\.cl > \* \{ opacity: 0; \}/, '').replace(/\.cl-(brace|leads?)[^{]*\{[^}]*\}/g, '').replace(/\.cl\[data-fig="[a-z]+"\][^{]*\.cl-(glass|ring)[^{]*\{ opacity: 0; \}/g, '').replace(/\.lb-layer \.cl:not\(\.cath-label\) > \.cl-glass[^{]*\{[^}]*\}/, '')), 'no opacity written on a card itself');
   for (const t of ['free', 'wedge', 'ok', 'caution', 'danger']) assert.match(css, new RegExp(`\\.cl\\[data-tone="${t}"\\]`), `${t} has its ink`);
 });
 

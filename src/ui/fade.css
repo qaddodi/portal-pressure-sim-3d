@@ -1,0 +1,15 @@
+/* The one fade (src/ui/fade.tsx): an element that comes and goes keeps its node and eases its opacity over the small duration; it is `inert` from the first frame it is asked off,
+   and at the end of the fade it is `visibility: hidden` and, where the browser can step `display` at the end of a transition (allow-discrete), gives its room back then
+   (an older browser gives it back at once: the old behaviour, never worse). `data-fade="on|off"`. A block whose room should leave with it (a list row, a group, a note)
+   is a grid whose one track eases 1fr to 0fr (`data-fade-axis="y"`; the content sits in `.fade-in`); a control in a row of controls does the same across (`"x"`). */
+html [data-fade] { transition: opacity var(--d-small) var(--ease), visibility var(--d-small) linear, display var(--d-small) allow-discrete; }
+@starting-style { html [data-fade="on"] { opacity: 0; } }
+html [data-fade="off"] { opacity: 0; visibility: hidden; pointer-events: none; display: none; }
+
+html [data-fade-axis] { transition: grid-template-rows var(--d-small) var(--ease), grid-template-columns var(--d-small) var(--ease), opacity var(--d-small) var(--ease), visibility var(--d-small) linear, padding var(--d-small) var(--ease), margin var(--d-small) var(--ease); }
+html [data-fade-axis="y"] { display: grid; grid-template-rows: 1fr; }
+html [data-fade-axis="y"][data-fade="off"] { display: grid; grid-template-rows: 0fr; margin-block: 0; padding-block: 0; }
+html [data-fade-axis="x"] { display: inline-grid; grid-template-columns: 1fr; }
+html [data-fade-axis="x"][data-fade="off"] { display: inline-grid; grid-template-columns: 0fr; margin-inline: 0; padding-inline: 0; }
+[data-fade-axis] > .fade-in { min-width: 0; min-height: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { html [data-fade], html [data-fade][data-fade-axis] { transition-duration: 0s; } }

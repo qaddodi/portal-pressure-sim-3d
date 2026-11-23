@@ -24,7 +24,7 @@
 //   streamTex, chainTex, streakAmt, dustP, time, markDark, markLight, markRev: the tubes' (shared by reference)
 //   skinKW       vec3   x the smooth-min blend width, scene units (`skinK` below); y, z a skin of a growing arm's pair (skin-set.ts): y +1 draws only the pixels whose screen pattern is under z (the welded skin coming in), -1 only the pixels at or over it (the plain trunk going out), 0 draws all
 //   lensUse + : 1 (the per-arm flag above is multiplied in), inkColor, inkColorCirc, tubeDark, fade, hiPx, inflate, res, dpr, projY, circT, vdata, vdataSize, useData, the two lens sets (lensGradA/B, lensLaneA/B,
-//   lensModeA/B, laneColA/B, lensMix, lensTail, lensSmooth) are the tubes' (shared by reference).
+//   lensModeA/B, laneColA/B, lensMix, lensSmooth) are the tubes' (shared by reference).
 //
 // GROWING ARMS (spec 10.2): a collateral or a shunt comes and goes. Its skin is ONE static full-size shape (nothing morphs): the arms that stay have a plain trunk skin of their own, and the welded skin comes in over the tube's flared end
 // from growth 0.9 to 1 by the screen pattern of `skinKW` (skin/plain.ts weldOf), the two skins and the tube's cut end drawing complementary pixels.
@@ -227,7 +227,6 @@ uniform float projY;
 uniform float hiPx;
 #define lensUse 1.0   // (the skin's own lens flag was a uniform that was always 1; the per-arm flag is multiplied in: armColor.a. A slot saved: tests/skin-shaders.test.ts)
 uniform float lensMix;
-uniform float lensTail;
 uniform float lensSmooth;
 uniform sampler2D lensGradA;
 uniform sampler2D lensLaneA;

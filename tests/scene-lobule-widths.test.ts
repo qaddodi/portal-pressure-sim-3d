@@ -50,7 +50,8 @@ test('the numbers equal the pinned 2D file\'s text', { skip }, () => {
   assert.match(f, /case 'ha': return Math\.max\(1\.6, R \* 0\.0115 \*/);
   assert.match(f, /case 'bd': return Math\.max\(1\.6, R \* 0\.0145\)/);
   assert.match(f, /lerp\(R \* 0\.015, R \* 0\.009, i \/ \(N - 1\)\)/);
-  assert.match(f, /case 'ly': return Math\.max\(1\.1, g\.rs0 \* 0\.5 \* lyWr\(m\.lr, 0\.45\)\) \* lyTaper/);
+  // the lymph: 2D at the pin widens it with the dissection (disseJ); 3D departs on purpose (the owner's spec: two thin tubes per sinusoid that thin to a thread before the central vein, lobule/lymph.ts lyTaper), so only the 2D rule is held here to notice when it moves again
+  assert.match(f, /case 'ly': \{ const j = disseJ\(m, t\.rho\[i\]\); return rs \* sinK\(t\.rho\[i\]\) \+ g\.rs0 \* \(0\.12 \+ 0\.42 \* Math\.sqrt\(j\)\)/);
   assert.match(f, /case 'lt': return Math\.max\(1\.5, R \* 0\.0075 \*/);
   assert.match(f, /case 'lv': return R \* 0\.016 \*/);
   assert.match(f, /const b = Math\.max\(0\.8, R \* 0\.0026 \*/);

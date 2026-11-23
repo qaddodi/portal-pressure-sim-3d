@@ -23,6 +23,7 @@ import { createFollow } from './copied/display-state.copied.js';
 import { fibroFrame, layoutOf, driftOf, MAP_RADIUS, type OrganId, type Layout } from './model.ts';
 import { setFibroProbe } from './probe-state.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
+import { fadeAttrs } from '../../fade.tsx';
 
 const TAG = 'fibro';
 const { F: FIELDS, NB, t0: WAVE_T0 } = elastogramInputs();
@@ -144,7 +145,7 @@ export function FibroPane({ plot, slide = false, bar = true, platelets = false }
           </Cv>
         </div>
         {!isSlide && (
-          <dl className="kv compact fs-key" style={{ flex: 'none' }} aria-label="Cut-offs, kPa" hidden={!rows.length}>
+          <dl className="kv compact fs-key" style={{ flex: 'none' }} aria-label="Cut-offs, kPa" {...fadeAttrs(rows.length > 0)}>
             {rows.flatMap(([t, v]) => [<dt key={`t${t}`}>{t}</dt>, <dd key={`v${t}`}>{v}</dd>])}
           </dl>
         )}

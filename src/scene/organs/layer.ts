@@ -2,7 +2,7 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { BackSide, KeepStencilOp, NotEqualStencilFunc, ReplaceStencilOp, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
+import { AlwaysDepth, AlwaysStencilFunc, BackSide, KeepStencilOp, NotEqualStencilFunc, ReplaceStencilOp, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
@@ -76,6 +76,9 @@ export const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 
 const NO_TEX = new DataTexture(new Uint8Array([0, 0, 128, 255]), 1, 1);
 NO_TEX.needsUpdate = true;
 
+/** The caudate lobe's organ id and the stencil bit it marks its pixels with (see useOrganShader). */
+const CAUDATE_ID = 'caudate', CAUDATE_STENCIL = 4;
+
 function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { value: number }): ShaderMaterial | null {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
@@ -109,6 +112,17 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = r.ink;
     m.stencilWrite = true; m.stencilRef = 2; m.stencilFuncMask = 2; m.stencilWriteMask = 2;
     m.stencilFunc = NotEqualStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
+  }
+  if (id === CAUDATE_ID) {
+    // the lobe lies on the cava's plane, INSIDE the liver (behind its front face, z 0.29), and is drawn over the liver as the vessels inside it are (2D draws it over the liver plate): its fill and ink skip the depth test,
+    // and the fill marks its pixels (stencil bit 4) so the ink (the BackSide hull) draws only where the fill is not: the same outline ring the depth test gave, and none of it through a half-faded fill. The fill
+    // writes no depth, so the liver's stays as it was for everything drawn after. The pillow is convex and FrontSide, so each pixel is covered once at any turn. Bits: 1 vessel outline, 2 gut, 4 lobe.
+    m.depthFunc = AlwaysDepth; m.depthWrite = false;
+    m.stencilWrite = true; m.stencilRef = CAUDATE_STENCIL; m.stencilWriteMask = CAUDATE_STENCIL; m.stencilFuncMask = CAUDATE_STENCIL;
+    m.stencilFunc = AlwaysStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
+    ink.depthFunc = AlwaysDepth;
+    ink.stencilWrite = true; ink.stencilWriteMask = 0; ink.stencilRef = CAUDATE_STENCIL; ink.stencilFuncMask = CAUDATE_STENCIL;
+    ink.stencilFunc = NotEqualStencilFunc; ink.stencilFail = KeepStencilOp; ink.stencilZFail = KeepStencilOp; ink.stencilZPass = KeepStencilOp;
   }
   if (!ORGAN_STYLE[id]?.ao) return null;
   // 2D's .org-ao: a flat soft seat round the outline (the stroke's outer half), under the fill and the line, in the organ's group. Drawn after the fill with the hull's

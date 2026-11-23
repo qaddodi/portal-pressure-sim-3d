@@ -16,6 +16,7 @@ import { tilesAt, liveResults, type Fp, type SlideTiles, type TileView } from '.
 import { Roll } from './Roll.tsx';
 import { I } from '../shell/icons.tsx';
 import { useCardZoomOn } from './card-zoom.ts';
+import { Fade, fadeAttrs } from '../fade.tsx';
 
 /** A slide's tiles from its state: the slide's own (the last one before it that changed the patient, as 2D has it), the state its change counts from, and the page's phone-ness. */
 export function useSlideTiles(deckId: string, slideId: string): (SlideTiles & { live?: boolean }) | null {
@@ -55,7 +56,7 @@ export function TilesHead({ deckId, slideId, onZoom }: { deckId: string; slideId
       <span className="pz-hr" data-n={heads.length}>
         {heads.map((x) => (
           <span key={x.k} className={`pz-hi${x.key ? ' key' : ''}`} data-rate={x.rate} data-measured={['hvpg', 'hvpgFall', 'ppg'].includes(x.k) ? '' : undefined}>
-            <span className="pz-hk">{x.head.name}</span><b><Roll text={x.head.text} still={t?.live} /></b><small hidden={!x.head.unit}>{x.head.unit}</small>
+            <span className="pz-hk">{x.head.name}</span><b><Roll text={x.head.text} still={t?.live} /></b><Fade as="small" on={!!x.head.unit}>{x.head.unit}</Fade>
           </span>
         ))}
       </span>
@@ -69,16 +70,16 @@ export function Tile({ t, live }: { t: TileView; live?: boolean }) {
   return (
     <div className={`pz-tile${b ? ' scaled' : ''}${t.key ? ' key' : ''}`} data-rate={t.rate}>
       <span className="pzt-k" data-s={t.short ?? undefined}>{t.name}</span>
-      <span className={`pzt-vu${t.pct ? ' pct' : ''}`}><span className="pzt-v"><Roll text={t.text} still={live} /></span><small hidden={!t.unit}>{t.unit}</small></span>
+      <span className={`pzt-vu${t.pct ? ' pct' : ''}`}><span className="pzt-v"><Roll text={t.text} still={live} /></span><Fade as="small" on={!!t.unit}>{t.unit}</Fade></span>
       <span className="pzt-r">{t.word}</span>
       <span className="pzt-d">{t.delta}</span>
       <span className={`pzt-bar${b ? '' : ' empty'}`} aria-hidden="true">
         <span className="pzb-track">
           <span className="pzb-zs">{b?.zones.map((z, i) => <i key={i} className="pzb-z" data-rate={z.rate} style={{ left: `${z.left}%`, width: `${z.width}%` }} />)}</span>
           {b?.ticks.map((x, i) => <i key={i} className="pzb-t" style={{ left: `${x}%` }} />)}
-          {b && <i className="pzb-link" hidden={b.was == null} style={b.was == null || b.now == null ? undefined : { translate: `${Math.min(b.now, b.was)}% 0`, scale: `${(Math.abs(b.now - b.was) / 100).toFixed(4)} 1` }} />}
-          {b && <i className="pzb-was" hidden={b.was == null} style={{ translate: `clamp(4.5px, ${b.was ?? 0}%, calc(100% - 4.5px)) 0` }} />}
-          {b && <i className="pzb-now" hidden={b.now == null} style={{ translate: `clamp(6px, ${b.now ?? 0}%, calc(100% - 6px)) 0` }} />}
+          {b && <i className="pzb-link" {...fadeAttrs(b.was != null)} style={b.was == null || b.now == null ? undefined : { translate: `${Math.min(b.now, b.was)}% 0`, scale: `${(Math.abs(b.now - b.was) / 100).toFixed(4)} 1` }} />}
+          {b && <i className="pzb-was" {...fadeAttrs(b.was != null)} style={{ translate: `clamp(4.5px, ${b.was ?? 0}%, calc(100% - 4.5px)) 0` }} />}
+          {b && <i className="pzb-now" {...fadeAttrs(b.now != null)} style={{ translate: `clamp(6px, ${b.now ?? 0}%, calc(100% - 6px)) 0` }} />}
         </span>
         {b?.labels.map((l, i) => <span key={i} className="pzb-l" style={{ left: `${l.left}%` }}>{l.text}</span>)}
       </span>

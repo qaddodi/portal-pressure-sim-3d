@@ -121,6 +121,7 @@ import { GLOW_LAYER, ORGAN_GLOW_LAYER } from './glow.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
 import { MAP_CENTRE, MAP_K, circBoostOf, mapPxPerUnit } from './circuit/map.ts';
+import { gate } from './gate.ts';
 
 const CIRC_MID: readonly [number, number] = [VB_CIRC[0] + VB_CIRC[2] / 2, VB_CIRC[1] + VB_CIRC[3] / 2];
 /** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand INSIDE the liver (the lobule in the liver, the sinusoid in the lobule). */
@@ -237,6 +238,8 @@ export class CelScene {
   /** The roots whose never-drawn geometries are uploaded ahead of their first frame. */
   get uploadRoots(): Object3D[] { return [this.scene]; }
   get microBuilt(): boolean { return this.micro !== null; }
+  /** A lost graphics context came back: the lobule's collagen atlas keeps no pixels on the page once uploaded (Plan 31c), so it is painted again. */
+  contextRestored(): void { this.micro?.lobule.contextRestored(); }
   get sinus3d(): Sinusoid3D { return this.buildMicro().sinus; }
   get lobule3d(): Lobule3D { return this.buildMicro().lobule; }
   /** The two 3D views' constructors, which make every one of their materials (and none of their geometry): done under the splash, before the warm-up, so their 21 programs are compiled with the rest and the
@@ -1676,10 +1679,11 @@ export class CelScene {
     // the Anatomy <-> Lobule move: the same one blur over the whole screen, from the camera's distance alone (post-dof.ts diveBlur), in and out; the sinusoid's own focus pull has the pass when it is drawn
     if (!band && into && this.figureView !== 'circuit' && this.inDive()) band = this.post.dof.uniformFrame(into.height, diveBlur(cam.position.distanceTo(this.livePoint), this.lobuleRest(), this.diveIn(), DIVE_OUT)) > 0;
     if (!band) this.post.dof.bandShare = 0;
-    // an organ's glow: its mask and blur are made BEFORE the figure's first pass, because its lay is a quad inside that pass (behind the vessels, at the organ's own place in the organs' order), gated by the sharp mask so the organ itself is never tinted
+    // an organ's glow: its mask and blur are made BEFORE the figure's first pass, because its lay is a quad inside that pass (behind the vessels, at the organ's own place in the organs' order),
+    // gated by the sharp mask so the organ itself is never tinted
     const og = this.pins.glowing, ogQuad = this.organGlowFx.figure;
     if (og) { this.organGlowFx.prepare(gl, cam, this.scene, dpr); ogQuad.renderOrder = this.pins.glowOrder; }
-    ogQuad.visible = og;
+    gate(ogQuad, this.pins.glowAmount);   // (the lay quad follows the eased weight of the lit masks, as they do)
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');

@@ -56,6 +56,10 @@ export interface LensData {
   /** Cumulative lane boundaries per edge per end (channels 0..3), [end][edge][4]; the fifth lane is the rest. Only mode 2 reads it. */
   lanes: Float32Array;
 }
+/** Lenses whose colour eases into the junction at the downstream end (the streams and the oxygen), not along the whole vessel. */
+export const TAIL_LENSES = new Set<LensId>(['origin', 'firstpass', 'oxygen']);
+/** The alpha a texel carries for a vessel a TAIL lens colours: 1 = the lens colours it (end to end), 2 = it does, with the colour held until 55 % along and eased into the end (the shaders' `a > 1.5`). Each of the two crossfaded textures carries its own, so a switch to or from a tail lens never moves the outgoing lens's gradient. */
+export const TAIL_ON = 2;
 /** Rows of the colour texture: 0 and 1 the ends, 2 and 3 a third and two thirds along, 4 the vessel's chevron ink (lenses/chevron-ink.ts: r = 0 dark ink .. 1 cream, eased). */
 export const GRAD_ROWS = 5;
 export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 4 * GRAD_ROWS), lanes: new Float32Array(NE * 2 * 4) });
@@ -156,6 +160,7 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
     // a lens whose colour does not run along the vessel (flow, direction, system, the lanes' blend...) gives its ends' own blend a third and two thirds along, which is what the shader drew before
     const gm = (2 * NE + k) * 4, g0 = k * 4, g1 = (NE + k) * 4, G = out.grad;
     if (G[g0 + 3]! > 0 && G[gm + 3] === 0) for (let i = 0; i < 3; i++) { G[gm + i] = G[g0 + i]! + (G[g1 + i]! - G[g0 + i]!) / 3; G[gm + 4 * NE + i] = G[g0 + i]! + (G[g1 + i]! - G[g0 + i]!) * 2 / 3; G[gm + 3] = G[gm + 4 * NE + 3] = 1; }
+    if (TAIL_LENSES.has(lens)) { if (G[g0 + 3]! > 0) G[g0 + 3] = TAIL_ON; if (G[g1 + 3]! > 0) G[g1 + 3] = TAIL_ON; }   // (this texture carries its own tail flag: a crossfade never shares one)
   }
   if (lens === 'drop' || lens === 'direction' || lens === 'flow' || lens === 'velocity' || lens === 'system') meetAtNodes(out, Q);
   return out;

@@ -24,6 +24,7 @@ import { hvpgNote, useMeasured } from '../hidden.ts';
 import { usePaneHost } from '../Cv.tsx';
 import { OwnerNote, useBlocker } from '../OwnerNote.tsx';
 import { useTalkOn } from '../../../state/deck.ts';
+import { fadeAttrs } from '../../fade.tsx';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
 const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whvp', 'WHVP'], ['hvpg', 'HVPG']];
@@ -64,7 +65,7 @@ function Measure({ h }: { h: number }) {
         <div className="hvpg-procs" role="group" aria-label="Play a procedure on the anatomy">
           <span className="hvpg-procs-k">Watch</span>
           {watch.map((b) => (
-            <button key={b.kind} type="button" className={`btn sm hvpg-proc-btn${b.off ? ' off' : ''}`} hidden={b.hidden} disabled={isBusy} aria-pressed={b.on}
+            <button key={b.kind} type="button" className={`btn sm hvpg-proc-btn${b.off ? ' off' : ''}`} {...fadeAttrs(!b.hidden)} disabled={isBusy} aria-pressed={b.on}
               aria-label={`Play ${b.name} on the anatomy`} onClick={() => playProc(b.kind)} onPointerUp={(e) => touch(e, () => playProc(b.kind), isBusy)}>
               <Icon n="play" /><span>{b.name}</span>
             </button>

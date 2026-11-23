@@ -10,6 +10,7 @@ import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { TUBE_RADIAL, buildTubes } from '../src/scene/vessels/tubes.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { shaderText } from './shader-text.ts';
 import { armWalk, chooseCuts, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SIDE_TOL_R, SKIN_REACH, armReach, findSkinJunctions, nearestOnPolyline, pointAtShare } from '../src/scene/vessels/skin/inventory.ts';
 import { GENTLE, SLOW, buildSkin, buildSkinSteady, foldedTriangles, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
@@ -99,10 +100,10 @@ test('the tube: no hole by default, setSkinHole writes the two slots and reports
     assert.equal(o.setSkinHole(0, ...SKIN_HOLE_NONE), true); assert.equal(o.setSkinHole(1, ...SKIN_HOLE_NONE), true);
     assert.deepEqual(o.skinCut(), [-1, 2], 'a hole does not touch the cut');
   } finally { scene.dispose?.(); setSmoothJoins(was); }
-  assert.match(VESSEL_FS, /uniform vec2 skinHole;/); assert.match(VESSEL_FS, /uniform vec2 skinHole2;/);
-  assert.match(VESSEL_FS, /bool inSkinHole\(vec2 h\) \{ return h\.y > h\.x && vUv\.x > h\.x \+ [^;]*&& vUv\.x < h\.y - [^;]*; \}/, 'inside (lo, hi), a hair of margin so the seam rings themselves are kept');
-  assert.match(VESSEL_FS, /inSkinHole\(skinHole\) \|\| inSkinHole\(skinHole2\)/);
-  assert.match(VESSEL_FS, /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s, 'the Circuit rule (the cut part comes back as the skin goes) is the cut\'s own');
+  assert.match(shaderText(VESSEL_FS), /uniform vec2 skinHole;/); assert.match(shaderText(VESSEL_FS), /uniform vec2 skinHole2;/);
+  assert.match(shaderText(VESSEL_FS), /bool inSkinHole\(vec2 h\) \{ return h\.y > h\.x && vUv\.x > h\.x \+ [^;]*&& vUv\.x < h\.y - [^;]*; \}/, 'inside (lo, hi), a hair of margin so the seam rings themselves are kept');
+  assert.match(shaderText(VESSEL_FS), /inSkinHole\(skinHole\) \|\| inSkinHole\(skinHole2\)/);
+  assert.match(shaderText(VESSEL_FS), /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s, 'the Circuit rule (the cut part comes back as the skin goes) is the cut\'s own');
 });
 
 test('the set keeps a vessel\'s holes (two slots), writes them to the tube, and takes them back; a third hole is a SkinBuildError', () => {

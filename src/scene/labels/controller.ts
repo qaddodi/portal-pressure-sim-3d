@@ -144,6 +144,8 @@ export interface Draw {
   tone: string | null;
   /** Where the station's ring stands on its vessel (station only; every station has one, as in the 2D app). */
   dot: { x: number; y: number } | null;
+  /** Where the named point stands on the screen, always (null only for the key): the dot's place whether or not a ring is drawn there. A name beside its vessel has no ring and no leader (plan 21), so `dot` is null while the point is still where the name points; anything that asks "where is this label's point" reads this. */
+  anchor: { x: number; y: number } | null;
   /** The station's blood runs backwards now (the reversal mark shows after its reading). */
   rev: boolean;
   /** The unit after the reading, the change badge ("+7.9") and which way it went, an alert ("no flow", "stasis"), and words standing in for the number ("microcirculation"): readings.ts, as 2D says them. */
@@ -564,7 +566,7 @@ export class LabelController {
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, mix: 1, ringAlpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, word: '', value: '', tone: null, dot: null, rev: false, unit: '', delta: '', up: false, alert: '', note: '', pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, mix: 1, ringAlpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, word: '', value: '', tone: null, dot: null, anchor: null, rev: false, unit: '', delta: '', up: false, alert: '', note: '', pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);
@@ -599,7 +601,7 @@ export class LabelController {
       const say = this.live(m, snap);
       this.out.push({
         id, kind: m.kind, alpha, mix: s.mix, ringAlpha: alpha * rk, x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: snap?.word ?? form?.text ?? '',
-        value: this.valueOf(m), tone: snap ? snap.tone : this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ring.x, y: ring.y } : null, rev: snap ? snap.rev : !!m.rev, pad, ...say,
+        value: this.valueOf(m), tone: snap ? snap.tone : this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ring.x, y: ring.y } : null, anchor: { x: ring.x, y: ring.y }, rev: snap ? snap.rev : !!m.rev, pad, ...say,
         leader,
       });
       if (s.from) {
@@ -610,7 +612,7 @@ export class LabelController {
           const fa = d.project(fp, this.pt2), fbox = boxOf(f.p, fa.x, fa.y), fform = m.forms[f.p.form];
           this.out.push({
             id: id + GHOST, kind: m.kind, alpha, mix: s.oldMix, ringAlpha: 0, ghost: true, x: fbox.x0, y: fbox.y0, w: f.p.w, h: f.p.h, form: f.p.form, word: fs?.word ?? fform?.text ?? '',
-            value: this.valueOf(m), tone: fs ? fs.tone : this.state.tones[m.station.id] ?? null, dot: null, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
+            value: this.valueOf(m), tone: fs ? fs.tone : this.state.tones[m.station.id] ?? null, dot: null, anchor: { x: fa.x, y: fa.y }, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
             leader: f.p.leader && !organ ? leaderGeom(fa.x, fa.y, { x0: fbox.x0 + pad.x, y0: fbox.y0 + pad.y, x1: fbox.x1 - pad.x, y1: fbox.y1 - pad.y }) : null,
           });
         }

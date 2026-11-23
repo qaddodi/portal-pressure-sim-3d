@@ -1,0 +1,16 @@
+{
+  "_note": "Plan 39 gate G6. A uniform, opacity or alpha written as `cond ? a : b` in src/scene is a switch in one frame unless something ramps it. Each entry names the site and what drives it. The list only goes down: ease the site (an Eased in src/clock/ease.ts) and delete the entry.",
+  "entries": {
+    "disease/bleed.ts | grow": "only on `instant` (reduced motion, a seek or a jump): the eased path is the else branch, which ramps grow and drain",
+    "materials/cel.ts | flowBands": "a Settings choice (Flow marks: soft bands), set when the choice changes; flow.ts ramps flowAmount (the marks' own fade), so the swap happens at amount 0 or by the owner's own switch",
+    "materials/cel.ts | useData": "set once when the engine's data texture is bound or released (bindData), never during play",
+    "lenses/field.ts | lensRawB": "written to side B only; side A keeps its own lensRawA until lensMix reaches 1 (onFrame copies B to A at the start of a fade), so the two sides never share it",
+    "vessels/vessel-object.ts | lensSmooth": "a Settings switch (Smooth vessel joins), set for every vessel when the setting changes; it is read by the pressure ramp only and is not written during a lens crossfade",
+    "vessels/vessel-object.ts | nbrOn": "set when the vessel is built (a fork's partner is fixed by the anatomy), never changed in play",
+    "vessels/vessel-object.ts | fadeKeep": "written with fadeMode by the fade driver (vessels/fades.ts) at the same moment as the eased fade amount's own ramp; the flag only picks which end the fade keeps",
+    "vessels/vessel-object.ts | dotted": "presence-track.ts swaps it only at presence amount 0 (the vessel is not drawn at that moment): a closed collateral's ghost",
+    "vessels/vessel-object.ts | smokeOn": "set by the stasis slide's setting when its presence is 0 (the smoke's own density ramps)",
+    "micro3d/cel3d.ts | uFlowDark": "a constant per lobule layer, written every frame with the same value (true for blood and lymph there): it never changes in play",
+    "vessels/vessel-object.ts | inkOn": "set with dotted (setDotted): presence-track.ts swaps both only at presence amount 0"
+  }
+}

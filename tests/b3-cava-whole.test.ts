@@ -20,24 +20,19 @@ test('a vein that ends on the faint cava fades into it over its last stretch (2D
   assert.ok(![...IVC_EDGES].some((id) => fadeOf(id, false)?.ivcJoin));
 });
 
-test('picking the cava shows it whole: the veil rises to 1 and the cava is drawn solid over the organs; picking another vessel veils it again, easing both ways', () => {
+test('picking the cava shows it whole: the veil gives way and the cava is drawn solid over the organs; picking another vessel veils it again, easing both ways', () => {
   const s = new CelScene();
   const cava = s.vesselObject('IVC_IS')!;
-  const veil = () => (cava as unknown as { veil: { mat: { uniforms: { veilA: { value: number } } }; mesh: { visible: boolean }; whole: boolean } }).veil;
+  const veil = () => (cava as unknown as { veil: { mesh: { visible: boolean }; whole: boolean } }).veil;
   run(s, 0, 400);
-  assert.equal(veil().mat.uniforms.veilA.value, 0.4);
   assert.equal(veil().mesh.visible, true);
   s.pick('IVC_IS');
   s.update(416); s.update(432);
-  const mid = veil().mat.uniforms.veilA.value;
-  assert.ok(mid > 0.4 && mid < 1, `veil alpha ${mid} is on its way`);
   run(s, 448, 900);
-  assert.equal(veil().mat.uniforms.veilA.value, 1);
   assert.equal(veil().mesh.visible, false, 'whole: the solid mesh draws it');
   assert.equal(veil().whole, true);
   s.pick('PV_TRUNK');
   run(s, 916, 1500);
-  assert.equal(veil().mat.uniforms.veilA.value, 0.4);
   assert.equal(veil().mesh.visible, true);
   s.dispose();
 });

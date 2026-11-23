@@ -140,7 +140,7 @@ test('a new frame recomputes the arriving lens at most every 90 ms and the loop 
 
 test('the vessel shader parses as GLSL and reads the lens, the flow marks and the smoke', { skip: !parse }, () => {
   parse!(VESSEL_FS.replace(/^\n/, ''));
-  for (const t of ['lensMix', 'lensTail', 'dotted', 'markRev', 'smokeOn', 'reveal']) assert.match(VESSEL_FS, new RegExp(t));
+  for (const t of ['lensMix', 'dotted', 'markRev', 'smokeOn', 'reveal']) assert.match(VESSEL_FS, new RegExp(t));
 });
 
 test('the Blood menu\'s defaults are the 2D app\'s: chevrons on, key-only off, potential collaterals off', () => {

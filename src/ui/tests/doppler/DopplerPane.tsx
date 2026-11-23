@@ -21,6 +21,7 @@ import { spectrumUnder } from './spectrum-gl.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { useSlidePin } from '../slide/pin.ts';
 import { observeThenFit } from '../../layout/fit-later.ts';
+import { fadeAttrs } from '../../fade.tsx';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
 /** The chart canvas's pixel ratio (charts/gl.ts): a spectral line is one of its pixels wide. */
@@ -146,7 +147,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
       <div className="dop-ticks">
         <span className="dop-g-zero" data-u="" style={{ translate: `${g.pz}cqw 0` }}>0</span>
         <span className="dop-g-lo" data-u={g.open ? 'cm/s' : ''} style={{ translate: `${g.p0}cqw 0` }}>{g.n0}</span>
-        <span className="dop-g-hi" data-u="cm/s" hidden={g.open} style={{ translate: `${g.p1}cqw 0` }}>{g.open ? '' : g.n1}</span>
+        <span className="dop-g-hi" data-u="cm/s" {...fadeAttrs(!g.open)} style={{ translate: `${g.p1}cqw 0` }}>{g.open ? '' : g.n1}</span>
       </div>
     </div>
   );
@@ -178,12 +179,12 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
         <div className="dop-report" ref={reportRef}>
           <b className="dop-dir" data-sev={rep?.sev || undefined}>{rep ? rep.dir : '—'}</b>
           <div className="dop-velrow">
-            <span className="dop-vel" hidden={!!rep?.none} data-out={String(!!g?.out)}><b>{rep && !rep.acquiring ? rep.vel : '—'}</b><small>cm/s<span className="dop-mean" /></small></span>
+            <span className="dop-vel" {...fadeAttrs(!rep?.none)} data-out={String(!!g?.out)}><b>{rep && !rep.acquiring ? rep.vel : '—'}</b><small>cm/s<span className="dop-mean" /></small></span>
             <div className="dop-pattern">{rep?.pattern || ''}</div>
           </div>
           <dl className="dop-stats">
             {(rep?.tiles ?? []).map((t) => (
-              <div key={t.k} className={[t.k === 'Speed' ? 'dop-speed' : '', t.here ? 'on' : ''].filter(Boolean).join(' ') || undefined} hidden={!t.show} data-out={t.k === 'Speed' || t.seg ? String(!!t.out) : undefined} title={t.title}>
+              <div key={t.k} className={[t.k === 'Speed' ? 'dop-speed' : '', t.here ? 'on' : ''].filter(Boolean).join(' ') || undefined} {...fadeAttrs(t.show)} data-out={t.k === 'Speed' || t.seg ? String(!!t.out) : undefined} title={t.title}>
                 <dt aria-label={t.k === 'CI' ? 'Congestion index' : undefined}>
                   {t.seg && !p.slide
                     ? <button type="button" className="dop-seg" aria-pressed={!!t.here} title={`Sample the stent at its ${t.label.toLowerCase()} end`} aria-label={`${t.label}, ${t.v} centimeters per second${t.here ? ', sampling here' : ''}. Activate to sample here.`} onClick={() => setGate(t.seg as Gate)}>{t.label}</button>

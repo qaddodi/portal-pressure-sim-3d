@@ -63,7 +63,7 @@ test('the names come back when a card that came in during the dive is still up o
 test('the Portal vein and Lower IVC dots stand apart in free play, so the Portal vein callout stays beside its trunk on the liver side (Mac play-test, 19 Nov: it stood inside the stomach)', () => {
   const w = world();
   w.run(1500);
-  const dots = w.ctl.out.filter((d) => d.dot).map((d) => ({ id: d.id, ...d.dot!, box: d }));
+  const dots = w.ctl.out.filter((d) => d.anchor).map((d) => ({ id: d.id, ...d.anchor!, box: d }));   // (the anchor: a name beside its vessel has no ring, plan 21)
   const at = (id: string) => dots.find((d) => d.id === id)!;
   assert.ok(Math.hypot(at('CONF').x - at('IVCI').x, at('CONF').y - at('IVCI').y) >= DOT_ROOM - 1, 'the Portal vein and Lower IVC dots stand apart');
   const conf = dots.find((d) => d.id === 'CONF')!;

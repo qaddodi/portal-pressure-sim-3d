@@ -1,9 +1,10 @@
 // The caudate lobe and its short hepatic veins in the anatomy (2D: anatomy.js CAUDATE, drawn by stage.js `caud`; pin b3058ef3). The 2D plate shows them only on a slide about them: the lobe is a soft lighter dome of the liver's own tone
 // between the hepatic vein confluence above, the portal bifurcation below and the IVC, and it grows about `anchor` as its veins take over the liver's outflow (Budd-Chiari). The 3D app drew neither (Mohammad, 21 Nov, slide 8 of Sites and
-// causes: "No real caudate lobe or veins from it at all"; its callout pointed at empty liver). Here the lobe is a pillow inflated from 2D's own outline, built once, in the organs' frame (organs/meshes.ts), and the veins are a tributary
+// causes: "No real caudate lobe or veins from it at all"; its callout pointed at empty liver). Here the lobe is a pillow inflated from 2D's own outline, on the cava's plane (inside the liver like the vessels), built once, in the organs' frame (organs/meshes.ts), and the veins are a tributary
 // group on the IVC (vessels/caudate-veins.ts).
 import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 'three';
 import { x3, y3 } from '../frame2d.ts';
+import { ORGAN_Z } from './z.ts';
 
 /** anatomy.js CAUDATE.outline: the lobe at its normal size as one smooth closed curve (the convex hull of its two ellipses). */
 export const CAUDATE_OUTLINE = 'M573.0 401.0 C571.7 395.7 573.1 389.5 573.2 383.7 C573.3 377.9 573.3 372.2 573.4 366.4 C573.5 360.6 573.4 354.9 573.6 349.1 C573.7 343.3 573.7 337.5 574.4 331.8 C575.0 326.1 575.6 320.1 577.4 314.8 C579.3 309.5 581.9 301.5 585.6 299.9 C589.4 298.2 596.3 301.5 599.9 304.9 C603.6 308.3 605.4 315.1 607.3 320.5 C609.2 325.9 610.4 331.6 611.5 337.3 C612.6 342.9 613.3 348.7 613.8 354.4 C614.3 360.2 614.5 365.9 614.4 371.7 C614.2 377.5 614.0 383.3 613.1 388.9 C612.2 394.6 611.6 400.9 609.1 405.7 C606.5 410.6 602.7 416.2 598.0 417.9 C593.3 419.5 585.1 418.3 581.0 415.4 C576.8 412.6 574.3 406.3 573.0 401.0 Z';
@@ -15,10 +16,12 @@ export const CAUDATE_WALL = 613;
 /** CAUDATE.veins: [course (a quadratic, flow order from the lobe's tissue to the IVC's wall), caliber at the IVC in 2D units]. The 3D veins are drawn wider than 2D's 3 units (a 3-unit tube is 1.5 px on a phone, under the outline's own width). */
 export const CAUDATE_VEINS: readonly (readonly [string, number])[] = [['M588 334 Q 601 332 613 327', 3], ['M582 368 Q 598 365 613 359', 3.6], ['M590 398 Q 602 395 613 389', 2.8]];
 
-/** The lobe's mid-plane in the scene (the liver's own front face is 0.26 above the liver's centre plane 0.03, organs/z.ts): its rim lies on the liver's face, and it rises in front of it as a dome. */
-export const LOBE_Z = 0.25;
+/** The lobe's mid-plane in its own mesh: 0, so ORGAN_Z.caudate alone places it, on the cava's plane (the cava and the three short veins are the back tier, -0.02; the liver's front face is 0.29 there). It lies inside the liver like the vessels, and is drawn over the liver's face (layer.ts useOrganShader). */
+export const LOBE_Z = 0;
 /** How far its dome stands out of the liver's face (scene units: about 18 of the figure's units). */
 export const LOBE_RISE = 0.06;
+/** The scene z of the dome's top (a mark or a step on the lobe sits here: figure-cards.ts Anchor `z`). */
+export const CAUDATE_FRONT_Z = ORGAN_Z.caudate + LOBE_Z + LOBE_RISE;
 
 type P2 = [number, number];
 /** The outline (M, C, Z path) flattened to a polyline, closed (the last point is not the first). */

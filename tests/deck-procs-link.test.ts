@@ -116,7 +116,7 @@ test('every catheter state is one the presenter draws; blocked stops at the osti
 
 test('OSTIUM_U is where the 2D tip stops: two figure units before the hepatic vein begins', () => {
   const r = route3d('hvpg')!.route;
-  assert.ok(Math.abs((r.hv0 - 2 - r.start) / (r.free - r.start) - OSTIUM_U) < 0.002);
+  assert.ok(Math.abs((r.hv0 - 2 - r.start) / (r.free - r.start) - OSTIUM_U) < 0.0005);
 });
 
 test('the camera follows the tip on the way in and at the work, and not for a step with no shot', () => {

@@ -231,9 +231,10 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
   const N = stations.length, m = inp.metrics ?? {};
   const out: Shape[] = [];
   const text = pal.tok('text'), muted = pal.tok('text-2'), faint = pal.tok('text-3'), danger = pal.tok('danger'), caution = pal.tok('caution'), surface = pal.tok('surface'), surface2 = pal.tok('surface-2');
-  const TX = (x0: number, y0: number, s: string, size: number, weight: number, color: Rgba, anchor: TextShape['anchor'] = 'middle', baseline: TextShape['baseline'] = 'alphabetic', rot?: number, alpha?: number): void => {
+  const TX = (x0: number, y0: number, s: string, size: number, weight: number, color: Rgba, anchor: TextShape['anchor'] = 'middle', baseline: TextShape['baseline'] = 'alphabetic', rot?: number, alpha?: number, halo?: TextShape['halo']): void => {
     const t: TextShape = { k: 'text', x: x0, y: y0, s, size, weight, color, anchor, baseline };
     if (rot) t.rot = rot;
+    if (halo) t.halo = halo;
     if (alpha !== undefined) t.alpha = alpha;
     out.push(t);
   };
@@ -452,10 +453,18 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
       TX(mk.lx, mk.ly, mk.s, 12, 600, col === muted ? text : col, 'middle', 'middle');
     }
     const pen = { color: col, w: 1.5, cap: 'butt' as const };
-    out.push({ k: 'line', x1: x0, y1: yy - 4, x2: x0, y2: yy + 4, pen }, { k: 'line', x1: x1, y1: yy - 4, x2: x1, y2: yy + 4, pen }, { k: 'line', x1: x0, y1: yy, x2: x1, y2: yy, pen });
-    out.push({ k: 'rect', x: lx, y: yy - 8, w: tw, h: 16, r: 3, fill: surface });   // (the card's colour behind the words, so the bracket's line does not run through them: no outlined capsule)
-    TX(lx + 6, yy + 0.5, txt, 12, 600, muted, 'start', 'middle');
-    TX(lx + 6 + tw1, yy + 0.5, num, 12.5, 700, col === muted ? text : col, 'start', 'middle');
+    out.push({ k: 'line', x1: x0, y1: yy - 4, x2: x0, y2: yy + 4, pen }, { k: 'line', x1: x1, y1: yy - 4, x2: x1, y2: yy + 4, pen });
+    // The bar stops where the words stand (no box behind them): two pieces always, the spare one empty and clear, so the chart keeps one shape as a value moves.
+    const blo = Math.min(x0, x1), bhi = Math.max(x0, x1), gone = { ...pen, color: withAlpha(col, 0) };
+    const barPieces = ([[blo, Math.min(bhi, lx)], [Math.max(blo, lx + tw), bhi]] as [number, number][]).filter(([a0, a1]) => a1 - a0 >= 2);
+    if (lx + tw <= blo || lx >= bhi) barPieces.splice(0, barPieces.length, [blo, bhi]);
+    for (let k = 0; k < 2; k++) {
+      const bp = barPieces[k];
+      out.push(bp ? { k: 'line', x1: bp[0], y1: yy, x2: bp[1], y2: yy, pen } : { k: 'line', x1: blo, y1: yy, x2: blo, y2: yy, pen: gone });
+    }
+    const wordHalo = { color: surface2, w: 4 };   // (the plot's own colour round the letters)
+    TX(lx + 6, yy + 0.5, txt, 12, 600, muted, 'start', 'middle', undefined, undefined, wordHalo);
+    TX(lx + 6 + tw1, yy + 0.5, num, 12.5, 700, col === muted ? text : col, 'start', 'middle', undefined, undefined, wordHalo);
   }
   // the station values, where they were placed
   for (const v of vals) TX(v.x, v.y, v.s, 12, 600, text, 'middle', 'middle');

@@ -21,7 +21,7 @@ import { spanOf, spanStrokes } from './span-math.ts';
 import { TIP_FADE_2D } from '../vessels/fades.copied.ts';
 
 /** Where a card points: a vessel's middle, a station, a point of the 2D plate (organs, the spleen's ends), or a node of the 2D figure. */
-export type Anchor = { edge: string } | { edges: readonly string[] } | { station: string } | { at2d: readonly [number, number] } | { node: string } | { lobule: string };
+export type Anchor = { edge: string } | { edges: readonly string[] } | { station: string } | { at2d: readonly [number, number]; z?: number } | { node: string } | { lobule: string };
 
 /** A bracket on the Circuit between two stations (a slide's `span`): its words, as printed, standing under its middle. */
 export interface FigSpan { id: string; from: string; to: string; text: string }
@@ -247,7 +247,7 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
     return n ? out.set(sum.x / n, sum.y / n, sum.z / n) : null;
   }
   if ('station' in a) { const s = stationById(a.station); return s ? s.at(0.5, out) : null; }
-  if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), ORGAN_FRONT);
+  if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), a.z ?? ORGAN_FRONT);
   const p = NODE_POS_2D[a.node];
   if (!p) return null;
   try { return out.set(x3(p[0]), y3(p[1]), nodeZ(a.node)); } catch { return null; }

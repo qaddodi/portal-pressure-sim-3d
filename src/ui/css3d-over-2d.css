@@ -102,3 +102,16 @@ html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot
 
 /* The talk bar's beat strokes (2D .pzb-pips) are gone from 3D (ui/deck/PresenterBar.tsx draws none); 2D's rule stays in the copy, so here it is inert and never a full-width bar. */
 .pzb-pips { position: static; display: none; }
+
+/* ── the menu's rows and groups fade and give their room back (ui/fade.tsx) instead of [hidden] display swaps ── */
+/* a row is wrapped in .um-li-in (the li is the collapsing grid), which takes the li's own layout and the rules that named the li as the row's parent */
+.um-g li > .um-li-in { position: relative; display: flex; flex-wrap: wrap; align-items: center; scroll-margin: 28px 0 36px; }
+.um-g li.um-new > .um-li-in > .um-row { background: var(--accent-soft); }
+@media (pointer: coarse) {
+  .um-g li > .um-li-in > .um-info { align-self: stretch; height: auto; min-height: 36px; border-radius: 0 var(--r-control) var(--r-control) 0; }
+  .um-g li.um-new > .um-li-in > .um-row + .um-info { background: var(--accent-soft); }
+}
+/* the empty note is always in the tree now; 2D's :not([hidden]) is always true, so the menu's columns take the room only while the note is on */
+html .umenu:has(.um-empty[data-fade="off"]) .um-cols { flex: 1 1 auto; }
+html .umenu:has(.um-empty[data-fade="off"]) .um-empty { flex: 0 0 auto; }
+.um-empty > .fade-in { display: flex; flex-direction: column; align-items: center; }

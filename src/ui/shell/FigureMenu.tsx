@@ -17,6 +17,7 @@ import { STREAKS_ROW } from '../settings/depth-rows.ts';
 import { talkOn } from '../../state/deck.ts';
 import { FIGURE_IMAGE } from './words.ts';
 import { copyFigure, saveFigure } from './figure-image-dom.ts';
+import { fadeAttrs } from '../fade.tsx';
 
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 const KEY: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
@@ -102,7 +103,7 @@ export function FigureMenu({ kind, hidden = false }: { kind: 'blood' | 'layers';
   if (bottom) return <button type="button" className={`chip-btn${on ? '' : ' off'}`} id={id} hidden data-opens={kind} aria-haspopup="menu" aria-expanded="false" tabIndex={-1} title={t.title ?? undefined}><I n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><I n="chev-down" className="chev" /></button>;
   return (
     <Anchored sheet={kind} label={t.title ?? t.label ?? id} width={320} button={({ id: pid, open, toggle, ref }) => (
-      <button type="button" ref={ref} className={`chip-btn${on ? '' : ' off'}`} id={id} hidden={hidden || undefined} data-opens={kind} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>
+      <button type="button" ref={ref} className={`chip-btn${on ? '' : ' off'}`} id={id} {...fadeAttrs(!hidden)} data-opens={kind} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>
         <I n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><I n="chev-down" className="chev" />
       </button>)}>
       <FigureRows kind={kind} />

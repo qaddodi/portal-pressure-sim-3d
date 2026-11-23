@@ -183,7 +183,7 @@ test('labels ride the camera in flight: they stay drawn and follow their dots, t
   const now = w.byId('CONF')!;
   assert.ok(now && now.alpha > 0.99, 'still drawn in flight');
   assert.ok(Math.abs(now.x - before.x - 19 * 6) < 1.5, `carried by its dot: moved ${now.x - before.x} px`);
-  assert.ok(Math.abs(now.dot!.x - before.dot!.x - 19 * 6) < 1.5);
+  assert.ok(Math.abs(now.anchor!.x - before.anchor!.x - 19 * 6) < 1.5);
   w.set({ moving: false });
   w.step(800);
   assert.deepEqual(w.names(), ids, 'the same names stand once it has landed');
@@ -250,7 +250,7 @@ test('a label wanted at a new spot is drawn twice while it crosses over, the old
   for (let i = 0; i < 80; i++) {
     w.step(16);
     const main = w.ctl.out.find((x) => x.id === 'CONF' && !x.ghost), ghost = w.ctl.out.find((x) => x.id === 'CONF~old');
-    if (ghost && main) { saw = true; assert.ok(main.mix + ghost.mix >= 0.5 - 1e-9 && main.mix + ghost.mix <= 1 + 1e-9, 'the two shares together stay between a half and one, never two equal copies (fade.ts outWeight, inWeight)'); assert.ok(Math.min(main.mix, ghost.mix) <= 0.3); assert.equal(ghost.dot, null); assert.ok(main.dot, 'the ring stays'); }
+    if (ghost && main) { saw = true; assert.ok(main.mix + ghost.mix >= 0.5 - 1e-9 && main.mix + ghost.mix <= 1 + 1e-9, 'the two shares together stay between a half and one, never two equal copies (fade.ts outWeight, inWeight)'); assert.ok(Math.min(main.mix, ghost.mix) <= 0.3); assert.equal(ghost.dot, null); assert.ok(main.anchor, 'the anchor stays'); }
   }
   assert.ok(saw || w.byId('CONF') === undefined, 'crossed over (or the card took the label away)');
 });

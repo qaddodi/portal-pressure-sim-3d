@@ -6,6 +6,8 @@ import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
 
 /** How long the old words take to fade before the new ones fade in; the box then eases to the new words' width (transform only: its width is read from the ResizeObserver, never from layout). */
 export const TOAST_SWAP_MS = 120;
+/** The clock line held where it stands (a read held by a finger): a one-keyframe-pair animation needs a duration above nothing, and nothing moves in it. */
+const HOLD_FRAME_MS = 1;
 interface Shown { id: number; text: string; label: string | null; tone: 'info' | 'bad' }
 const ofToast = (t: NonNullable<ReturnType<typeof useShell.getState>['toast']>): Shown => ({ id: t.id, text: t.text, label: t.action?.label ?? null, tone: t.tone });
 
@@ -41,7 +43,7 @@ export function Toast() {
     const now = a ? at.current.from + (at.current.to - at.current.from) * (typeof p === 'number' ? p : 1) : 1;
     a?.cancel();
     if (!run) { const k = { transform: `scaleX(${now})` }; anim.current = r.animate([k, { transform: 'scaleX(1)' }], { duration: D_SMALL, easing: EASE_ARRIVE, fill: 'forwards' }); at.current = { from: now, to: 1 }; return; }
-    if (run.paused) { const k = { transform: `scaleX(${now})` }; anim.current = r.animate([k, k], { duration: 1, fill: 'forwards' }); at.current = { from: now, to: now }; return; }
+    if (run.paused) { const k = { transform: `scaleX(${now})` }; anim.current = r.animate([k, k], { duration: HOLD_FRAME_MS, fill: 'forwards' }); at.current = { from: now, to: now }; return; }
     const grow = run.from > now + 0.02 ? Math.min(0.3, D_SMALL / Math.max(1, run.ms)) : 0;
     const keys: Keyframe[] = grow ? [{ transform: `scaleX(${now})` }, { transform: `scaleX(${run.from})`, offset: grow }, { transform: 'scaleX(0)' }] : [{ transform: `scaleX(${run.from})` }, { transform: 'scaleX(0)' }];
     anim.current = r.animate(keys, { duration: run.ms, easing: 'linear', fill: 'forwards' });

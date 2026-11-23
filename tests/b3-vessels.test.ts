@@ -97,6 +97,7 @@ test('a closed collateral changing to dotted retracts the solid one first, then 
 import { BufferAttribute, BufferGeometry } from 'three';
 import { withRk } from '../src/scene/vessels/vessel-object.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { shaderText } from './shader-text.ts';
 
 test('the vessel geometry is the tube once (the outline is part of it, not a second copy), with a radius share of 1 where the course gave none', () => {
   const g = new BufferGeometry();
@@ -118,8 +119,8 @@ try { const mod = await import(parserName); parse = (s) => mod.parser.parse(s.re
 test('the vessel vertex shader parses; there is no hull attribute and the outline is painted in the fragment stage', { skip: !parse }, () => {
   parse!(VESSEL_VS.replace(/^\n/, ''));
   assert.doesNotMatch(VESSEL_VS, /attribute float hull/);
-  assert.doesNotMatch(VESSEL_FS, /hullOn|vHull/);
-  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard/);
+  assert.doesNotMatch(shaderText(VESSEL_FS), /hullOn|vHull/);
+  assert.match(shaderText(VESSEL_FS), /if \(!gl_FrontFacing\) discard/);   // (the assembled text: the inspector's branch off, DROP(n) as the discard it is)
 });
 
 

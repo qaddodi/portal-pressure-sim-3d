@@ -17,3 +17,7 @@ no radius (NaN geometry: the black varix spindle). Three layers now stand betwee
 
 **Pixel ratio and MSAA** (`src/scene/quality.ts`): the figure never draws above 2x (`MAX_FIGURE_DPR`); the canvas is multisampled below 2x only (`msaaFor`). A context's `antialias` is fixed
 when it is made, so `Stage` keys its `<Canvas>` on the answer and makes it again only when Settings > Figure detail crosses 2x. Sharp on a 2x or 3x screen therefore has no MSAA.
+
+## Plan 41: the gate over every program (22 Nov 2026)
+
+`tests/shader-bindings.test.ts` checks every shader the app draws with (125 programs and variants), built by one loader, `tests/gl-all-programs.ts` (the organs, the micro views, the late classes, three's per-mesh prefix via `assemble(m, { vcol, valpha, inst, instcol })`, the skin's diagnostics, the stand-ins). Per program: nothing undeclared, samplers unique and declared (preprocessed text), every live uniform in the material with the right kind and length, vertex outs equal fragment ins, no derivative or implicit-LOD texture call after a discard (`tests/gl-derivative.ts`), the budget with the vessel pinned at 16 attributes and 15 varyings (`VESSEL_PIN` in `tests/gl-gate.ts`: any change is a named decision in a plan), raw hosts' uniform lists, and `precision highp sampler2D` on raw fragment shaders (`src/ui/tests/highp-samplers.js`). Liveness fixtures make each check fail on a wrong program. It takes about 3 minutes in node, so run it only when a shader or material file changed.

@@ -55,7 +55,7 @@ test('a lobule callout is a ring, a leader and coloured words, not a glass card 
   assert.doesNotMatch(css.split('\n').filter((l) => /^\.lz-co-(ring|line) /.test(l)).join('\n'), /\b4px|-2px/, 'no stroke number of its own in .lz-co-*');
   assert.equal(typeVars(VP)['--co-w'], `${RING_STROKE}px`, 'typeVars carries the stroke');
   assert.equal(RING_STROKE, 4, '2D\'s 4 px');
-  assert.match(css, /\.cl\[data-fig="callout"\] \.cl-glass[^{]*\{ display: none; \}/, 'no glass card behind the words');
+  assert.match(css, /\.cl\[data-fig="callout"\] \.cl-glass[^{]*\{ opacity: 0; \}/, 'no glass card behind the words');
   assert.match(css, /\.lz-co \{[^}]*--co: var\(--cl-danger/, 'block is the danger red');
 });
 
@@ -72,7 +72,7 @@ test('the content under the ring is softly blurred by the app\'s one glass, ease
 test('a mark on a vessel or an organ is a coloured label with a leader, never a solid pill', () => {
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
   assert.doesNotMatch(css, /data-fig="mark"\]\[data-tone="danger"\] \.cl-glass[^{]*\{ background: var\(--cl-danger\) !important/);
-  assert.match(css, /\.cl\[data-fig="mark"\] \.cl-glass, \.cl\[data-fig="mark"\] \.cl-ring \{ display: none/);
+  assert.match(css, /\.cl\[data-fig="mark"\] \.cl-glass, \.cl\[data-fig="mark"\] \.cl-ring \{ opacity: 0/);
 });
 
 test('the ring and the leader only move by transform and fade by opacity', () => {

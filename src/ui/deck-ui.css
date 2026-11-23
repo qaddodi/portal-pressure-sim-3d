@@ -49,7 +49,7 @@
 .deck-ui.pz .dk-card.pz-panel, .deck-ui.pz .dk-card.pz-case { position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: auto; max-height: none; margin: 0; translate: none; pointer-events: auto; }
 .deck-ui.pz .dk-card.pz-case { opacity: 1; }
 .deck-ui.pz .dk-card:is(.pz-panel, .pz-case) > .dk-in { display: flex; flex-direction: column; gap: inherit; align-items: inherit; align-self: stretch; min-width: 0; padding: 0; }
-.dk-pos[data-centred] > .dk-plate { display: none; }
+.dk-pos[data-centred] > .dk-plate { opacity: 0; visibility: hidden; transition: opacity var(--d-small) var(--ease), visibility var(--d-small) linear; }
 .deck-ui .pz-veil { z-index: 0; }
 .deck-ui .pz-veil.dip { opacity: 0.85; }
 .deck-ui .pz-veil.soft { opacity: 0.5; }   /* the quick check (2D has none): the figure the talk ended on stays in view behind it, never a black screen in a dark look */   /* behind a case card the figure dips to 22% (2D `.pz-out`): the page's own colour over it at .92 x .85 */
