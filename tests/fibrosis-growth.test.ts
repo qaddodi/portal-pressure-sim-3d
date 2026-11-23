@@ -15,6 +15,8 @@ import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { useTokens, bandGeomInto } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
 
+/** Largest alpha a pixel may change in a frame: it crosses its front in three frames or more, so a sweep, never a pop. */
+const POP = 0.45;
 const net = buildLobule(), shape = { ...plateShape(net), cells: [] };
 const sins = net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
 const look = 'light' as never, L = lookColours(look);
@@ -74,7 +76,7 @@ test('the same both ways: easing up to p and easing down to p end at exactly p, 
   }
 });
 
-test('no pop: at the eased rate and 60 fps no pixel\'s alpha changes by more than 0.08 in a frame', () => {
+test('no pop: at the eased rate and 60 fps no pixel\'s alpha changes by more than 0.45 in a frame (three frames to cross the front)', () => {
   assert.ok(TAU_LO >= GROW_H && TAU_LO + TAU_SPAN <= 1 - GROW_H, 'every pixel hidden at 0 and whole at 1');
   let p = 0, worst = { d: 0, byte: 0, p: 0 }, frames = 0;
   for (; p < 1 && frames < 2000; frames++) {
@@ -84,12 +86,12 @@ test('no pop: at the eased rate and 60 fps no pixel\'s alpha changes by more tha
       const d = Math.max(Math.abs(front(b, n) - front(b, p)), Math.abs(front(b, n) * septaStrength(n) - front(b, p) * septaStrength(p)));
       if (d > worst.d) worst = { d, byte: b, p };
     }
-    assert.ok(tractFrontPx(n) - tractFrontPx(p) <= 1, 'the tracts\' crisp edge glides less than one plate px a frame (it never jumps)');
+    assert.ok(tractFrontPx(n) - tractFrontPx(p) <= 12, 'the tracts\' edge glides a few plate px a frame (it never jumps)');
     p = n;
   }
   console.log(`# no pop: largest per-frame alpha change ${worst.d.toFixed(4)} at stored time ${(worst.byte / 254).toFixed(3)} when p = ${worst.p.toFixed(3)}; a full change takes ${(frames / 60).toFixed(2)} s`);
-  assert.ok(worst.d <= 0.08, `largest change ${worst.d}`);
-  assert.ok(frames / 60 > 2.5 && frames / 60 < 4, 'a whole change takes about 3 s');
+  assert.ok(worst.d <= POP, `largest change ${worst.d}`);
+  assert.ok(frames / 60 > 0.4 && frames / 60 < 0.9, 'a whole change sweeps in about 0.6 s');
 });
 
 test('the hex-edge bridges\' fronts meet in the middle at septU 0.29 (± 0.02), from both tracts, and the portal-central bridges and spurs come after', () => {
@@ -139,13 +141,13 @@ test('no repaint: easing the model from healthy to cirrhosis 100 % and fibrosis,
   try {
     run(10);
     flat.setModel(model({ s: 1, septU: 1, fibPre: 1, fibPost: 1 }));
-    run(20);   // (a test frame reads the fake clock three times: about 48 ms of it)
+    run(6);   // (a test frame reads the fake clock three times: about 48 ms of it: 6 frames are 0.3 s, a whole change takes 0.6)
     const mid = [...a.grow];
     assert.ok(mid.every((v) => v > 0 && v < 1), `growing, not jumped (${mid.map((v) => v.toFixed(2))})`);
     run(200);
     assert.deepEqual([...a.grow].map((v) => Math.round(v * 100) / 100), [1, 0.35, 0.3], 'fully grown (Plan 31: the tracts and the vein yield to the septa)');
     flat.setModel(model());
-    run(20);
+    run(6);
     assert.ok(a.grow.every((v) => v > 0 && v < 1), 'and falling back the same way');
     run(200);
     assert.deepEqual([...a.grow], [0, 0, 0]);
@@ -170,4 +172,13 @@ test('GLSL: the plate shader parses and carries the growth rule', async () => {
   try { const m = await import(name); parse = (s) => m.parser.parse(s, { quiet: true }); } catch { /* not installed */ }
   assert.ok(parse, 'the parser is installed');
   parse!(LOBULE_PLATE_FS.replace(/^\n/, '').replace(/^#include.*$/gm, ''));
+});
+
+test('live with the slider (Mohammad 23 Nov: "i want the fibrosis to expand with the slider, not slowly after we choose"): a drag across the whole range in 1 s is never more than 0.12 of growth behind, and it has caught up 0.25 s after the finger stops', () => {
+  let p = 0, worst = 0; const dt = 1 / 60;
+  for (let f = 1; f <= 60; f++) { const goal = f / 60; p = easeGrow(p, goal, dt); worst = Math.max(worst, goal - p); }
+  assert.ok(worst <= 0.12, `lags ${worst.toFixed(3)} behind the slider`);
+  for (let f = 0; f < 15; f++) p = easeGrow(p, 1, dt);
+  assert.ok(1 - p <= 0.01, `still ${(1 - p).toFixed(3)} short a quarter second after it stopped`);
+  assert.ok(GROW_RATE >= 1.5, 'the rate cap is above a fast hand');
 });

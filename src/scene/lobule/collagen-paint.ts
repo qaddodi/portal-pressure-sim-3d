@@ -98,6 +98,11 @@ export function paintTract(c: CanvasRenderingContext2D, x: number, y: number, ra
     const sd = seed + k * 37, w = radius * (0.08 + 0.085) * (0.7 + fibHash(sd + 3));
     bundle(c, rgb, radius, fibHash(sd) * TAU, 1.2 + 2 * fibHash(sd + 1), 0.25 + 0.65 * fibHash(sd + 2), phase, w, Math.min(1, 0.75 + 0.35 * fibHash(sd + 4)), sd, 0.2, 0.25);
   }
+  // (the core: rings of bundles from the centre out to the collar, evenly round, so no part of a tract is left bare between the randomly placed arcs; Mohammad 23 Nov: "the fibrosis bands are sometimes missing in portal areas")
+  for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 5; k++) {
+    const sd = 311 + ring * 19 + k;
+    bundle(c, rgb, radius, TAU * k / 5 + ring * 0.9 + phase, TAU / 5 * (1.5 + 0.4 * fibHash(sd)), 0.13 + 0.2 * ring, fibHash(sd + 5) * TAU, radius * 0.2 * (0.9 + 0.3 * fibHash(sd + 3)), 0.8 + 0.2 * fibHash(sd + 4), sd, 0.8, 0.8, 0.5);
+  }
   const inner = radius * 0.62, outer = radius * 1.08, thick = outer - inner;
   for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 6; k++) {
     const sd = 211 + ring * 17 + k;

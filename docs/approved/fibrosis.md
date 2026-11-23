@@ -15,6 +15,9 @@ analytic band (cv-band.ts: opaque tan ring, polygonal edge, glow collar) is reti
 - Round vein: "the central vein fibrosis is just bad" (a flat opaque tan ring, hard polygonal edge, notches where each sinusoid enters, a white glow between sinusoids, no fibres): the vein's collagen is bundles, round, frayed at its ends, no glow.
 - Vessels on top: "the fibrosis should not cover up the blood bile or lymph vessels". Every vessel draws after the collagen (the plate's marks write no depth and draw first), in every view, at every growth and in the dive.
 
+- Even and full in every portal area: "the fibrosis bands are sometimes missing in portal areas" (23 Nov). Root cause: the flat disc that used to fill each tract was removed, so only a few randomly placed arcs were left and the gaps between them showed dark (11 to 21 % of a tract bare). The tract is now 10 random bundles plus three rings of five evenly spaced core bundles plus the collar, so at most 5 % of any of the six is bare (`tests/collagen-relief.test.ts`). A tract's share of the collagen in cirrhosis therefore reads a little higher (septa still lead, `tests/septa-dominant.test.ts`).
+- Live with the slider: "i want the fibrosis to expand with the slider, not slowly after we choose" (23 Nov). Root cause: the growth (`growth.ts easeGrow`) moved at a fixed 0.35 a second (3 s for a whole change), so a drag ran seconds ahead of the collagen, which then kept growing after the finger stopped. It now closes on the slider with a 0.1 s smoothing and a cap of 2 a second: never more than 0.12 behind a 1 s drag, caught up 0.25 s after it stops, a whole jump (a preset) sweeps in about 0.6 s, never a pop (`tests/fibrosis-growth.test.ts`).
+
 ## Rejected
 - Glow outside the band, any halo, a flat plateau, blobs.
 - Terraces: "banded, looks like glow" (the painter's three passes showing as stepped outlines), and the wide pale apron round a tract.

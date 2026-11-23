@@ -65,3 +65,16 @@ test('healthy tissue is untouched: no relief colour change at s = 0, lit side li
   assert.ok(lit[0]! + lit[1]! + lit[2]! > c[0]! + c[1]! + c[2]!);
   assert.ok(shade[0]! + shade[1]! + shade[2]! < c[0]! + c[1]! + c[2]!);
 });
+
+test('every portal tract is evenly fibrosed: at each of the six corners at most 5 % of the tract inside 0.95 of its radius is bare (alpha under 0.3); it was 11 to 21 %', () => {
+  const N = 512, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), net = buildLobule(), shape = { ...plateShape(net), cells: [] };
+  const L = lookColours('dark' as never); useTokens((n: string, a?: number | string) => L.tk(n, a));
+  const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, DISC_R.cv, 'dark' as never), 'tracts');
+  const R = net.rt * 1.7 * PLATE_S * sc;
+  assert.equal(net.corners.length, 6);
+  for (const [k, [x0, y0]] of net.corners.entries()) {
+    const cx = (x0 * PLATE_S + B) * sc, cy = (B - y0 * PLATE_S) * sc; let n = 0, bare = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > 0.95 * R) continue; n++; if (r.alpha[y * N + x]! < 0.3) bare++; }
+    assert.ok(bare / n <= 0.05, `corner ${k}: ${(100 * bare / n).toFixed(1)} % bare`);
+  }
+});
