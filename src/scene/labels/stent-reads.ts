@@ -47,14 +47,15 @@ export function pointVelocity(params: unknown, sid: StentId, pt: StentPoint, ope
 export function stentReads(look: () => LookId, now: () => number = () => clock.now()): StentView {
   const calm = new Map<string, number>();
   const beats = new BeatMean();
-  const frame = () => latest.frame as unknown as { D: ArrayLike<number>; Q: ArrayLike<number>; Qf?: ArrayLike<number>; Pf?: ArrayLike<number>; P: ArrayLike<number> } | null;
+  const frame = () => latest.frame as unknown as { D: ArrayLike<number>; Q: ArrayLike<number>; Qf?: ArrayLike<number>; Pf?: ArrayLike<number>; P: ArrayLike<number>; morphing?: boolean } | null;
   const probes = () => useProbes.getState();
   /** The Doppler is on this stent. */
   const dopOn = (sid: StentId) => { const p = probes(); return (p.doppler.on || p.slide.doppler) && p.doppler.edge === sid; };
   return {
     ready(sid) {
       const f = frame(), k = EI.get(sid);
-      if (!f || k === undefined || !stentOpen(f, k)) { calm.delete(sid); return false; }
+      // (a state easing in: the parameters it carries are the glide's, so the label read "TIPS 8 mm" beside a 10 mm stent while the diameter eased up from the default 8: tips-complete 20, 23 Nov review)
+      if (!f || k === undefined || !stentOpen(f, k) || f.morphing) { calm.delete(sid); return false; }
       const t = now(), c = calm.get(sid);
       if (c === undefined) { calm.set(sid, t); return false; }
       return t - c >= STENT_CALM_MS;

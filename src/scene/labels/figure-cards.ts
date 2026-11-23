@@ -93,7 +93,10 @@ const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
  *  the other labels keep off, so the LIVER name was carried under them). */
 export function splitWidth(c: FigCard, t: TagType, measure: Measure): number {
   const cap = measure('PORTAL BLOOD', t.name, 700, 0.06 * t.name) + 6 + measure(`To the liver ${c.split?.liver ?? 100}%`, t.name, 600, 0);
-  return Math.max(t.name * 12.6, cap);
+  // the headline as it is set (app-06-plate.css .sp-h: the number and its % at 1.5 em, 4 px, then "bypasses the liver"): its fixed 12.6 em is the 2D width, and a 70 % headline is wider than that at the card's own
+  // type size, so its first digit stood under the card and its words ran past the box the other labels keep off (shunts 2, 23 Nov review). Each row also carries the halo's stroke (3 px) on both sides.
+  const big = t.name * 1.5, head = measure(String(c.split?.shunt ?? 0), big, 600, -0.02 * big) + measure('%', big, 600, -0.02 * big) + 4 + measure('bypasses the liver', t.name, 500, 0);
+  return Math.max(t.name * 12.6, cap, head) + 6;
 }
 
 /** A mark on the figure (a vessel's, an organ's) is a coloured label with a leader; only a slide's lobule pointer (a ring, its own leader) and the other card kinds are not. */

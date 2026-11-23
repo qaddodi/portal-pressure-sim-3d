@@ -6,3 +6,10 @@ export interface FootIn { vw: number; vh: number; safe: { top: number; right: nu
 export function footCredit(i: FootIn): { x: number; y: number } {
   return { x: Math.round(Math.max(i.safe.left, i.margin)), y: Math.round(i.vh - Math.max(i.safe.bottom, 0) - 2 - i.h) };
 }
+
+export interface Box { l: number; t: number; r: number; b: number }
+/** Whether the credit's line (its top-left corner `at`, `w` wide, `h` high) stands clear of every box by `gap` px. A phone on its side keeps a card's drawer (the strip of the other card) along the screen's foot,
+ *  under the line's own row: the line then stays out of sight (it fades, as 2D's credit.js hides it with no free spot) and never prints over the drawer's words (review a56feaf2, item 12). Pure. */
+export function footClear(at: { x: number; y: number }, w: number, h: number, boxes: readonly Box[], gap = 4): boolean {
+  return !boxes.some((q) => at.x - gap < q.r && q.l < at.x + w + gap && at.y - gap < q.b && q.t < at.y + h + gap);
+}

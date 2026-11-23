@@ -121,3 +121,11 @@ test('the portal-blood split card\'s box holds its caption row, so the names tha
   assert.ok(splitWidth(c, t, measure) > 12 * 12.6, 'wider than 12.6 em when the caption is');
   assert.equal(cardSize(c, t, measure).w, Math.ceil((splitWidth(c, t, measure) + 8) * 100) / 100);
 });
+
+test('the split card\'s box holds its headline too ("70 % bypasses the liver" is wider than 12.6 em at a Mac\'s type)', async () => {
+  const { splitWidth } = await import('../src/scene/labels/figure-cards.ts');
+  const t = { name: 14, num: 18 } as never, measure = (s: string, size: number) => s.length * size * 0.6;   // (a wide face: the caption row is the short one here)
+  const c = { id: 's', kind: 'split', text: '', split: { liver: 30, shunt: 70, rate: 'hi' } } as never;
+  const head = measure('70', 21) + measure('%', 21) + 4 + measure('bypasses the liver', 14);
+  assert.ok(splitWidth(c, t, measure) >= head, `holds ${head.toFixed(0)} px`);
+});

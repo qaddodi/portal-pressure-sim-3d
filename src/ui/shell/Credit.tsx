@@ -9,8 +9,8 @@ import { CREDIT } from './words.ts';
 import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
-import { layoutOf, margin } from '../layout/rules2d.ts';
-import { footCredit } from './credit-foot.ts';
+import { layoutOf, margin, isSideways } from '../layout/rules2d.ts';
+import { footCredit, footClear } from './credit-foot.ts';
 import { useShell } from './store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
 import { cel } from '../../scene/api.ts';
@@ -38,15 +38,20 @@ function sinusoidVessel() {
 /** What the credit keeps clear of: every floating bar, card and chip on screen (the bottom dock with its view pill, the top bar's chips, the zoom pill, a card), as rectangles. */
 // (the view pill stands above the dock as its child: the dock's own box stops under it, so the pill is named too. Phone play-test, 20 Nov: the credit ran half under the pill.)
 const OBSTACLES = '.float-ui, .stage-blocker, .vdock, .nb-views, .zoom-pill, .dk-bar';   // (.dk-bar: a talk's slide pill)
-function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
+/** Every shown element of a selector, as rectangles (not a layer that covers the whole screen; none hidden, none nearly transparent). */
+function shownBoxes(selector: string, vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
   const out: { l: number; t: number; r: number; b: number }[] = [];
-  for (const el of document.querySelectorAll<HTMLElement>(OBSTACLES)) {
+  for (const el of document.querySelectorAll<HTMLElement>(selector)) {
     const r = el.getBoundingClientRect();
-    if (r.width < 2 || r.height < 2 || (r.width >= vw * 0.98 && r.height >= vh * 0.9)) continue;   // (not a layer that covers the whole screen)
+    if (r.width < 2 || r.height < 2 || (r.width >= vw * 0.98 && r.height >= vh * 0.9)) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) continue;
     out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
   }
+  return out;
+}
+function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
+  const out = shownBoxes(OBSTACLES, vw, vh);
   out.push(...cardContent(vw, vh), ...figureLabels());
   return out;
 }
@@ -114,7 +119,9 @@ export function Credit() {
       if (talk && (lay === 'wide' || lay === 'short')) {
         const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
-        el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true; creditClaim.set({ x: at.x, y: at.y, w, h });
+        // a phone on its side keeps a card's drawer along the foot, under this very row: the line is out of sight while a drawer or card stands on it
+        const clear = !isSideways(vw, vh) || footClear(at, w, h, shownBoxes('.dk-strip, .dk-card', vw, vh));
+        el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; creditClaim.set(clear ? { x: at.x, y: at.y, w, h } : null);
         return;
       }
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it

@@ -64,3 +64,13 @@ test('every chart is shown through the rule: the painter inks each frame before 
   const src = readFileSync('src/ui/charts/painter.ts', 'utf8');
   assert.match(src, /show\(next: Frame, glide = true\) \{\s*next = this\.legible\(next\);/);
 });
+
+// Shunts 2 (23 Nov multi-size review): a word on a bright bar was inked black for contrast, but its halo stayed the dark one laid for the light ink: dark letters in a dark halo, one black blob.
+test('a word re-inked for its backdrop does not keep a halo that swallows the new ink', () => {
+  const surface = parseColour('#1B1710'), text = parseColour('#F1EBE0'), bar = parseColour('#2A9D8F'), dark = parseColour('#1B1710');
+  const f = frame([{ k: 'rect', x: 0, y: 0, w: 100, h: 60, fill: bar } as never, word(text, { halo: { color: dark, w: 3 } })]);
+  const g = legible(f, surface, text), t = g.shapes[1] as TextShape;
+  assert.notDeepEqual(t.color, text, 'the light ink was too faint on the bar, so it was re-inked');
+  assert.ok(contrast(t.color, bar) >= MIN_INK, 'the ink reads on the bar');
+  assert.ok(contrast(t.color, t.halo!.color) >= 3 || contrast(t.halo!.color, bar) < 1.5, 'its halo is not a second dark shape under it');
+});

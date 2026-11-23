@@ -137,3 +137,9 @@ test('a point reads the open stent velocity times its third\'s factor, and the b
   assert.equal(m.mean('a', 120, 1000), 110, 'a plain average until tau has passed');
   assert.equal(m.mean('a', 90, 9000), 90, 'a gap of over 3 s starts again');
 });
+
+test('a stent\'s labels wait while the state is easing in (they read the glide\'s parameters: "TIPS 8 mm" beside a 10 mm stent, tips-complete 20, 23 Nov review)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/labels/stent-reads.ts', import.meta.url), 'utf8');
+  assert.match(src, /!stentOpen\(f, k\) \|\| f\.morphing\) \{ calm\.delete\(sid\); return false; \}/);
+});

@@ -52,7 +52,10 @@ export function legible(f: Frame, surface: Rgba, text: Rgba): Frame {
     const ink = inkFor(s.color, bg, text);   // (a label's own `alpha` is a fade that comes and goes: the ink is judged at full strength)
     if (ink === s.color) continue;
     if (!out) out = f.shapes.slice();
-    out[i] = { ...s, color: ink } as TextShape;
+    // (a halo that was laid for the OLD ink: dark letters in a dark halo merge into one blob, "Liver 30 %" and "Varices 21 %" on the shunts bar, 23 Nov review. The halo follows the ink: it takes the backdrop's colour,
+    //  so it separates nothing from the bar it stands on and the letters keep their own shape.)
+    const halo = s.halo && contrast(ink, s.halo.color) < 3 ? { ...s.halo, color: [bg[0], bg[1], bg[2], s.halo.color[3]] as Rgba } : s.halo;
+    out[i] = { ...s, color: ink, ...(halo ? { halo } : {}) } as TextShape;
   }
   return out ? { ...f, shapes: out } : f;
 }
