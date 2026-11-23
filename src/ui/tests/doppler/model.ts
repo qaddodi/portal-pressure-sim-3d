@@ -34,6 +34,8 @@ export type DopMode = 'spectrum' | 'velocity' | 'variance';
 type Any = any;
 export const WINDOWS: readonly number[] = SWEEP_SECONDS;
 const KEEP = 16, SETTLE_LAG = 0.16, COL = 2;
+/** The longest stretch of whole beats a replay loops (s), and how long the join of its end to its start takes (s). */
+const BEAT_TEMPLATE_S = 6.5, MIN_PINNED_TEMPLATE_S = 3, SEAM_S = 0.25;
 const MINUS = '−';
 
 export interface Tile { k: string; label: string; v: string; unit: string; show: boolean; out?: boolean; here?: boolean; seg?: string; title?: string }
@@ -214,14 +216,27 @@ export class DopplerModel {
     this.sync();
   }
 
-  /** The last 3 s of the record, kept as the beats a time lapse replays (2D startSynth); null when too little is recorded. */
+  /** The last whole beats of the record (up to about 6 s of them, a breath's worth: the atrial reversal comes and goes with the breath), kept as the beats a time lapse or a slide's own patient replays (2D startSynth); null when too little is recorded.
+   *  The template starts and ends where the cardiac phase wraps (the record's own beat marks), so its loop joins the end of a beat to the start of the next and every wave (a, S, v, D) is kept whole:
+   *  a cut at 1 s or 3 s of clock time ends part-way through a beat, and the join blended the late diastole, where the atrial reversal is, into the start of the template (23 Nov: the hepatic vein
+   *  read "Biphasic", V-shaped dips with nothing above the baseline). Without beat marks (a non-pulsatile record) the cut stays the last 3 s. */
   private startSynth() {
-    const buf = this.buf, tEnd = buf[buf.length - 1]![0]!;
-    let i = buf.length - 1; while (i > 0 && buf[i - 1]![0]! >= tEnd - 3) i--;
+    const buf = this.buf, tEnd = buf[buf.length - 1]![0]!, t0Buf = buf[0]![0]!;
+    const marks: number[] = [];
+    for (let j = Math.max(0, this.beatN - 16); j < this.beatN; j++) { const b = this.rd.beatT[j % 16] as number; if (b >= t0Buf && b <= tEnd) marks.push(b); }
+    marks.sort((a, b) => a - b);
+    let from = tEnd - 3, to = tEnd;
+    if (marks.length >= 2) {
+      const last = marks[marks.length - 1]!;
+      let i = marks.length - 2; while (i > 0 && last - marks[i - 1]! <= BEAT_TEMPLATE_S) i--;
+      from = marks[i]!; to = last;
+    } else if (this.pinned && tEnd - t0Buf < 4) return null;
+    let i = 0; while (i < buf.length - 1 && buf[i]![0]! < from) i++;
+    let e = buf.length - 1; while (e > i && buf[e]![0]! > to) e--;
     const pts: number[][] = [];   // (the template's own copies)
-    for (let j = i; j < buf.length; j++) pts.push([buf[j]![0]!, buf[j]![1]!, buf[j]![2]!]);
-    const L = pts[pts.length - 1]![0]! - pts[0]![0]!;
-    if (pts.length < 8 || L < 1) return null;
+    for (let j = i; j <= e; j++) pts.push([buf[j]![0]!, buf[j]![1]!, buf[j]![2]!]);
+    const L = pts.length ? pts[pts.length - 1]![0]! - pts[0]![0]! : 0;
+    if (pts.length < 8 || L < 0.4 || (this.pinned && L < MIN_PINNED_TEMPLATE_S)) return null;   // (a slide's patient waits for 3 s of whole beats: one beat can lack the reversal the breath takes away)
     const mean = pts.reduce((a, q) => a + q[1]!, 0) / pts.length;
     // (and the paired vessel's record beside it, a slide's pair: replayed unscaled, its swings eased out with the main one's)
     const pm = pts.reduce((a, q) => a + (q[2] || 0), 0) / pts.length;
@@ -235,7 +250,8 @@ export class DopplerModel {
     sy.target = sy.mean = pin;
     for (const q of this.buf) q[1] = ratio ? q[1]! * pin / m0 : q[1]! - m0 + pin;
   }
-  /** The template at time t, looped, its last 0.25 s cross-faded into its start so the seam does not step (2D tplAt). */
+  /** The template at time t, looped. Its end is joined to its start by easing the step between them out over the last 0.25 s (the whole beats the template holds meet nearly level, so this moves
+   *  the waves of that stretch by little; the 2D's blend into the start's one value flattened them). */
   private tplAt(t: number, j = 1): number {
     const { t0, L, pts } = this.tpl!;
     const x = t0 + (((t - t0) % L) + L) % L;
@@ -243,8 +259,8 @@ export class DopplerModel {
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m]![0]! <= x) lo = m; else hi = m; }
     const ta = pts[lo]![0]!, va = pts[lo]![j]!, tb = pts[hi]![0]!, vb = pts[hi]![j]!;
     const v = tb > ta ? va + (vb - va) * clamp((x - ta) / (tb - ta), 0, 1) : va;
-    const w = (x - (t0 + L - 0.25)) / 0.25;
-    return w > 0 ? v * (1 - w) + pts[0]![j]! * w : v;
+    const w = clamp((x - (t0 + L - SEAM_S)) / SEAM_S, 0, 1);
+    return w > 0 ? v + (pts[0]![j]! - pts[pts.length - 1]![j]!) * w * w * (3 - 2 * w) : v;
   }
   /** One frame of the replay: samples at bedside speed from the template, its mean easing to the vessel's now (2D runSynth). */
   private runSynth(): void {
