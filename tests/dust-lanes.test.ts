@@ -80,3 +80,17 @@ test('look B is written in the shape of look A: no break, no out parameter, no i
 test('the lane table gives up fewer lanes: more segments a vessel and finer slivers (real figure: 3 to 5 vessels of about 50 gave lanes away)', () => {
   assert.ok(SEG_MAX >= 8, `${SEG_MAX}`); assert.ok(SEG_MIN <= 0.006, `${SEG_MIN}`);
 });
+
+// the cost of look B on a phone: a lane's cell costs four hashes (centre, phase, alive, cf) until it is known to be in the pixel's reach; the other six hashes and the depth (dLaneFill) are worked out only for a streak that passes
+// the lane's membership and the reach tests. (Same numbers as before, found later: node twin of the hashes in tests/dust-lanes.test.ts.)
+test('look B hashes a streak in two steps: the cheap four first, the rest only for a streak within reach', () => {
+  const src = DUST_GLSL;
+  const part = src.slice(src.indexOf('DPart dLanePart('), src.indexOf('DPart dLaneFill('));
+  assert.equal((part.match(/dHash\(/g) ?? []).length, 4, 'the lane part makes exactly four hashes');
+  assert.match(part, /if \(P\.alive <= 0\.0\) return P;/, 'an empty cell stops after the alive hash');
+  const fill = src.slice(src.indexOf('DPart dLaneFill('), src.indexOf('// half of the room'));
+  assert.equal((fill.match(/dHash\(/g) ?? []).length, 6, 'the fill makes the other six');
+  const b = src.slice(src.indexOf('vec4 dustTubeB('), src.indexOf('vec4 dustTube(DFrame F, vec3 lit'));
+  assert.equal((b.match(/P = dLaneFill\(P\);/g) ?? []).length, 2, 'filled in the tube and in the skin');
+  for (const part2 of b.split('P = dLaneFill(P);').slice(0, -1)) assert.match(part2, /dNear\(/, 'only after the reach test');
+});

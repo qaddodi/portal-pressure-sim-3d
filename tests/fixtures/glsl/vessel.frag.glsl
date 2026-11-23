@@ -433,7 +433,7 @@ vec2 dTwist(float ae, float Lw, float turns) {
   return vec2(6.2831853 * turns * u * u * (3.0 - 2.0 * u), 6.2831853 * turns * 6.0 * u * (1.0 - u) / max(Lw, 1e-3));
 }
 // a particle of a root's lattice
-struct DPart { float alive; float h1; float h2; float h3; float h4; float h5; float h6; float h7; float rho; float yl; float zr; float se; float prof; float root; float cf; };
+struct DPart { float alive; float h1; float h2; float h3; float h4; float h5; float h6; float h7; float rho; float yl; float zr; float se; float prof; float root; float cf; float sx; float sy; };
 // its mark seen in one frame: the offset from the pixel (lumen radii, along and across), its tilt, depth, length and diameter, local speed, the edge's anti-aliasing
 struct DMark { vec2 dp; float slope; float depth; float len; float dia; float spd; float aa; float rhoE; };
 float dTurns(float edge) { return texelFetch(routeTex, ivec2(int(edge), 0), 0).w; }
@@ -532,7 +532,7 @@ DPart dPart(float root, int k, float jj, float Pf, float flowFig) {
   P.yl = P.rho * cos(th) / max(D_rhoMax, 0.05);   // its lane in the root (-1 .. 1)
   P.zr = P.rho * sin(th);
   P.se = (jj + 0.1 + 0.8 * P.h1 - 0.37 * fk) * Pf + flowFig * P.prof * D_flowK;
-  P.root = root; P.cf = 0.5;
+  P.root = root; P.cf = 0.5; P.sx = 0.0; P.sy = 0.0;
   return P;
 }
 // the cell of class k nearest the pixel's place se on the root's stream
@@ -685,7 +685,7 @@ vec2 dLaneWinB(DFrame F) {
 }
 // the streak of lane li, in the cell of that lane which holds the pixel's place se on the root's stream (P.cf: where in its cell the streak is centred, 0 .. 1)
 DPart dLanePart(DSeg g, float li, float tr, float nL, float Pf, float se, float flowFig) {
-  DPart P;
+  DPart P = DPart(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, g.root, 0.5, 0.0, 0.0);
   float rk = fract(g.root * 0.6180339) * 50.0, rm = max(D_rhoMax, 0.05);
   float lid = li + 977.0 * tr;   // (a lane carries up to two trains of streaks, each its own phase and hashes, on the same centre)
   float lj = dHash(vec2(li * 1.37 + 0.5, rk + 3.1)), ph = dHash(vec2(lid * 2.17 + 7.7, rk + 11.0));
@@ -695,13 +695,21 @@ DPart dLanePart(DSeg g, float li, float tr, float nL, float Pf, float se, float 
   float jj = floor((se - flowFig * prof * D_flowK) / Pf + ph);
   vec2 sd = vec2(mod(jj + lid * 131.0, 4093.0) + 0.5, lid * 7.13 + rk);
   P.alive = clamp((D_densK * D_fill - dHash(sd)) * 12.0, 0.0, 1.0);    // (a threshold: a density change fades single streaks in and out)
-  P.h1 = dHash(sd + vec2(17.1, 3.7)); P.h2 = dHash(sd + vec2(5.3, 29.9)); P.h3 = dHash(sd + vec2(41.3, 11.1)); P.h4 = dHash(sd + vec2(23.7, 53.9));
-  P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
-  P.rho = rho; P.yl = cy;
-  P.zr = (2.0 * P.h2 - 1.0) * sqrt(max(rm * rm - rho * rho, 0.0));    // (its depth in the chord at that lane)
+  if (P.alive <= 0.0) return P;                                          // (an empty cell costs the four hashes above and no more)
+  P.h1 = dHash(sd + vec2(17.1, 3.7));
+  P.rho = rho; P.yl = cy; P.sx = sd.x; P.sy = sd.y;
   P.cf = 0.5 + (P.h1 - 0.5) * 0.4;
   P.se = (jj - ph + P.cf) * Pf + flowFig * prof * D_flowK;
-  P.prof = prof; P.root = g.root;
+  P.prof = prof;
+  return P;
+}
+// the rest of the streak's hashes and its depth, worked out only for a streak that is in this pixel's reach (the lane's lateral place and the cell are the cheap part above): the same numbers as before, found later
+DPart dLaneFill(DPart P) {
+  float rm = max(D_rhoMax, 0.05);
+  vec2 sd = vec2(P.sx, P.sy);
+  P.h2 = dHash(sd + vec2(5.3, 29.9)); P.h3 = dHash(sd + vec2(41.3, 11.1)); P.h4 = dHash(sd + vec2(23.7, 53.9));
+  P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
+  P.zr = (2.0 * P.h2 - 1.0) * sqrt(max(rm * rm - P.rho * P.rho, 0.0));    // (its depth in the chord at that lane)
   return P;
 }
 // half of the room its cell leaves it in frame F (lumen radii): the streak's length never exceeds twice this
@@ -749,6 +757,7 @@ vec4 dustTubeB(DFrame F, vec3 lit, vec3 ink, float rev) {
           if (P.alive <= 0.0) continue;
           vec2 mb = dMember(g, P.yl);
           if (mb.y <= 0.0 || !dNear(F, g, mb.x, P)) continue;
+          P = dLaneFill(P);
           DMark M = dPlace(F, g, mb.x, P);
           M.len = min(M.len, max(2.0 * dCellExt(F, g, P.cf), M.dia));
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
@@ -793,6 +802,7 @@ vec4 dustSkinB(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
           if (arm == 1 && fb.x >= 0.0) continue;   // (the first arm drew it)
           DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
           if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;
+          P = dLaneFill(P);
           DMark M = dPlace(Fa, g, ma.x, P);
           M.len = min(M.len, max(2.0 * dCellExt(Fa, g, P.cf), M.dia));
           float sa = wa * ma.y, sb = 0.0;
