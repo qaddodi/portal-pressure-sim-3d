@@ -29,7 +29,7 @@ export function BuildPill() {
     dropThisCopy().catch(() => undefined).then(() => { clock.cancel(t); go(); });
   };
   return (
-    <div id="preview-badge" role="button" tabIndex={0} onClick={reload} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') reload(); }}
+    <div id="preview-badge" data-capture-skip="" role="button" tabIndex={0} onClick={reload} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') reload(); }}
       style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 'env(safe-area-inset-top)', zIndex: 2147483647, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '0 8px', borderRadius: '0 0 8px 8px', background: newer !== null ? '#0b7a3b' : checks ? '#b00020' : '#c9430d', color: '#fff', font: `700 12px/${BADGE_H}px system-ui,sans-serif`, letterSpacing: '.04em', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,.35)' }}>
       {busy ? 'RELOADING…' : updateText(label, checks, newer)}
     </div>

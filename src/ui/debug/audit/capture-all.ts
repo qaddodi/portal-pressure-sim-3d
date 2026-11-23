@@ -28,15 +28,16 @@ const bytesOf = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
 /** The page still: nothing moving (the camera, a card in or out, fonts, a running animation), twice over with a few real frames between so a late callout or chart that starts after the first quiet is caught.
  *  At speed N the clock's waits are N times shorter in real time, so the real pauses are given in page time (`real`). */
 async function stillPage(real: (ms: number) => number): Promise<void> {
-  await settle({ timeoutMs: 45000, quietMs: 300, pollMs: 30 });
-  await sleep(real(90));   // (a few frames: the glides land, the charts draw their last frame, the callouts place)
-  await settle({ timeoutMs: 20000, quietMs: 300, pollMs: 30 });
-  await sleep(real(60));
+  await sleep(real(80));   // (the press has reached the cards: they mount and begin on the next frames)
+  await settle({ timeoutMs: real(8000), quietMs: real(120), pollMs: real(20) });
+  try { await document.fonts?.ready; } catch { /* no font list: nothing to wait for */ }
+  await sleep(real(60));   // (the glides have landed, the charts have drawn their last frame, the callouts have placed)
+  await settle({ timeoutMs: real(4000), quietMs: real(80), pollMs: real(20) });
 }
 const stopName = (k: number): string => { const st = useUi.getState().stops[k]; return st ? (st.kind === 'slide' ? st.slide.title : st.kind) : `stop ${k + 1}`; };
 
 /** The contact sheet of one deck as a PNG. */
-async function sheet(title: string, thumbs: { n: number; title: string; img: HTMLCanvasElement }[], shot: { w: number; h: number }): Promise<Blob | null> {
+async function sheet(title: string, thumbs: { n: string; title: string; img: HTMLCanvasElement }[], shot: { w: number; h: number }): Promise<Blob | null> {
   const L = collageLayout(thumbs.length, shot);
   const c = document.createElement('canvas'); c.width = L.width; c.height = L.height;
   const g = c.getContext('2d');
@@ -63,7 +64,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const { failed } = ui.only && builtinDecks().some((d) => d.id === ui.only) ? { failed: [] as string[] } : await loadAllDecks();
   if (failed.length) notes.push(`these talks would not load, so they are not captured: ${failed.join(', ')}`);
   const decks = builtinDecks().filter((d) => !ui.only || d.id === ui.only), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
-  const speed = ui.speed && ui.speed > 1 ? ui.speed : 8, real = (ms: number) => ms * speed, t0 = new Date().getTime();
+  const speed = ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   clock.setScale(speed);   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const rate = clock.every(() => speedAnimations(document, speed), sampleRealMs(33, speed));
   let waitMs = 0, drawMs = 0;
@@ -78,32 +79,44 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       await until(talkUp, 25000);
       const stops = useUi.getState().stops.length;
       if (!stops) { notes.push(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
-      total += stops - (d.slides.length + 2);
-      const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: number; title: string; img: HTMLCanvasElement }[] = [];
+      total += stops;   // (the talk's stops are a floor: the steps within them add more as they are met)
+      const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
-      for (let k = 0; k < stops; k++) {
-        if (ui.stop()) { stopped = true; break; }
-        if (k > 0) { useUi.getState().go(k); await until(() => useUi.getState().pos.stop === k, 4000); }
-        const title = stopName(k);
-        ui.status(`${d.title}: stop ${k + 1} of ${stops} “${title}”`);
+      // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
+      let sub = 0, lastStop = -1, presses = 0;
+      const grab = async (): Promise<void> => {
+        const p = useUi.getState().pos, k = p.stop;
+        sub = k === lastStop ? sub + 1 : 0; lastStop = k;
+        const title = stopName(k), n = sub ? `${k + 1}.${sub + 1}` : `${k + 1}`;
+        ui.status(`${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
         await stillPage(real);
         const d0 = new Date().getTime(); waitMs += d0 - w0;
-        const when = new Date(), drawn = await drawScreen(when, { ratio: innerWidth < 600 ? Math.min(devicePixelRatio, 1.5) : 1 });   // (1x for a laptop or an iPad: the slides are for reading through, not for print)
-        if (!drawn) { notes.push(`${d.title}: stop ${k + 1} could not be drawn`); done++; ui.progress(done, total); continue; }
-        const jpegP = blobOf(drawn.canvas, 'image/jpeg', 0.85).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next slide is reached)
+        const when = new Date(), drawn = await drawScreen(when, { ratio: innerWidth < 600 ? Math.min(devicePixelRatio, 1.5) : 1 });   // (1x for a laptop or an iPad: the slides are for reading through)
+        if (!drawn) { notes.push(`${d.title}: ${n} could not be drawn`); done++; ui.progress(done, total); return; }
+        const jpegP = blobOf(drawn.canvas, 'image/jpeg', 0.85).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next is reached)
         shape = { w: drawn.canvas.width, h: drawn.canvas.height };
         const L = collageLayout(1, shape), thumb = document.createElement('canvas'); thumb.width = L.cellW * 2; thumb.height = L.cellH * 2;   // (twice the sheet's cell: a sharp one when the sheet is zoomed)
         thumb.getContext('2d')?.drawImage(drawn.canvas, 0, 0, thumb.width, thumb.height);
         drawn.canvas.width = 0; drawn.canvas.height = 0;   // (let the big picture go before the next)
         drawMs += new Date().getTime() - d0;
-        const base = `${dir}/${pad2(k + 1)}-${slug(title)}`;
-        const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, of: stops, title, ...drawn.record }, null, 1));
+        const base = `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
+        const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...drawn.record }, null, 1));
         encoding.push(jpegP.then((data) => { if (data) files.push({ name: `${base}.jpg`, data }); }));
         files.push({ name: `${base}.json`, data: meta });
-        thumbs.push({ n: k + 1, title, img: thumb });
-        shots++; done++; ui.progress(done, total);
+        thumbs.push({ n, title, img: thumb });
+        shots++; done++; if (done >= total) total = done + stops; ui.progress(done, total);
+      };
+      // the talk from its first stop, then Next as a person presses it, to the end: every beat (the case card first, then the slide), every page of a split card, every step of a procedure
+      // (a catheter's advance, the EUS-PPG and HVPG readings) and every reading of a tracing. Next says whether it did anything: when it does not, the talk is over.
+      useUi.getState().go(0);
+      await grab();
+      for (; presses < stops * 40; presses++) {
+        if (ui.stop()) { stopped = true; break; }
+        if (!useUi.getState().move('next')) break;
+        await grab();
       }
+      if (!stopped && presses >= stops * 40) notes.push(`${d.title}: stopped after ${presses} presses (the talk did not end)`);
       if (thumbs.length) {
         const png = await sheet(d.title, thumbs, shape);
         if (png) { const name = `${dir}-contact-sheet.png`; collages.push({ name, blob: png }); files.push({ name, data: await bytesOf(png) }); }
@@ -117,7 +130,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
-  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x`, `${shots} slides in ${decksDone} talks${stopped ? ' (stopped early)' : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that exact view, the patient, the look, the camera, the sliders).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
+  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x`, `${shots} pictures in ${decksDone} talks${stopped ? ' (stopped early)' : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that exact view, the patient, the look, the camera, the sliders).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
   return { secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };

@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { parseShadows, transformed, maskUrl, maskPlacement, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { parseShadows, transformed, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -38,7 +38,7 @@ const paintOf = (cs: CSSStyleDeclaration): Paint | null => {
   const g = cs.backgroundImage !== 'none' ? parseGradient(cs.backgroundImage) : null;
   return g ?? (clear(cs.backgroundColor) ? null : cs.backgroundColor);
 };
-const radiusOf = (cs: CSSStyleDeclaration, r: DOMRect, k: number): number => {
+const radiusOf = (cs: CSSStyleDeclaration, r: { width: number; height: number }, k: number): number => {
   const rad = cs.borderTopLeftRadius, v = rad.endsWith('%') ? (num(rad) / 100) * Math.min(r.width, r.height) : num(rad) * k;
   return Math.max(0, Math.min(v, Math.min(r.width, r.height) / 2));
 };
@@ -93,6 +93,45 @@ function rangeItems(el: HTMLInputElement, r: DOMRect, cs: CSSStyleDeclaration, a
   out.push({ k: 'box', x: tx - 8, y: cy - 8, w: 16, h: 16, r: 8, fill: '#fff', bw: 1, bc: 'rgba(0,0,0,0.25)', alpha, clips } as Paintable);
 }
 
+/** The box of an element (or of a pseudo-element: `r` is where it stands): its shadow, the frosted blur behind it, its colour or gradient or masked picture, its borders. */
+interface R4 { left: number; top: number; width: number; height: number; right: number; bottom: number }
+function boxOf(c: Ctx, cs: CSSStyleDeclaration, r: R4, alpha: number, clips: ClipRect[], own: Clip | undefined, kk: number): void {
+  const fill = paintOf(cs);
+  const bT = num(cs.borderTopWidth) * kk, bR = num(cs.borderRightWidth) * kk, bB = num(cs.borderBottomWidth) * kk, bL = num(cs.borderLeftWidth) * kk;
+  const colT = clear(cs.borderTopColor) ? '' : cs.borderTopColor, colR = clear(cs.borderRightColor) ? '' : cs.borderRightColor, colB = clear(cs.borderBottomColor) ? '' : cs.borderBottomColor, colL = clear(cs.borderLeftColor) ? '' : cs.borderLeftColor;
+  const same = bT === bR && bR === bB && bB === bL && colT === colR && colR === colB && colB === colL;
+  const rad = radiusOf(cs, r, kk);
+  const shadows = parseShadows(cs.boxShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk, spread: s.spread * kk }));
+  if (shadows.length) c.out.push({ k: 'shadow', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, shadows, alpha, clips });
+  const blur = backdropBlur(cs.getPropertyValue('backdrop-filter') || cs.getPropertyValue('-webkit-backdrop-filter')) * kk;
+  if (blur > 0) c.out.push({ k: 'blur', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, radius: blur, alpha: 1, clips, ...(own ? { clip: own } : {}) });   // (the frosted glass: what is under the box, blurred, before the box's own tint goes over it)
+  const mask = maskUrl(cs.getPropertyValue('-webkit-mask-image') || cs.getPropertyValue('mask-image'));
+  if (mask && typeof fill === 'string') {   // (an icon of the atlas: its colour seen through one cell of a picture)
+    c.out.push({ k: 'mask', x: r.left, y: r.top, w: r.width, h: r.height, url: mask, size: cs.getPropertyValue('-webkit-mask-size') || cs.getPropertyValue('mask-size'), pos: cs.getPropertyValue('-webkit-mask-position') || cs.getPropertyValue('mask-position'), color: fill, alpha, clips });
+  } else if (fill || (same && bT > 0 && colT)) c.out.push({ k: 'box', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, fill, bw: same && colT ? bT : 0, bc: same ? colT : '', alpha, clip: own, clips } as Paintable);
+  if (!same) {   // (one rule on one side: a card's header line, a tab's underline)
+    const side = (x: number, y: number, w: number, h: number, col: string) => { if (col && w > 0 && h > 0) c.out.push({ k: 'box', x, y, w, h, r: 0, fill: col, bw: 0, bc: '', alpha, clip: own, clips } as Paintable); };
+    side(r.left, r.top, r.width, bT, colT); side(r.left, r.bottom - bB, r.width, bB, colB); side(r.left, r.top, bL, r.height, colL); side(r.right - bR, r.top, bR, r.height, colR);
+  }
+}
+
+/** A `::before` or `::after` that is laid over its element (position absolute or fixed: the pill's frosted face, a card's rule): found from its computed offsets and size, since a pseudo-element has no box to measure. */
+function pseudoBox(c: Ctx, el: Element, which: '::before' | '::after', cs: CSSStyleDeclaration, r: R4, alpha: number, clips: ClipRect[], own: Clip | undefined, kk: number): void {
+  const ps = readStyle(el, which);
+  if (!ps || ps.display === 'none' || ps.content === 'none' || ps.content === 'normal' || ps.visibility === 'hidden') return;
+  if (ps.position !== 'absolute' && ps.position !== 'fixed') return;
+  const a = alpha * (ps.opacity === '' ? 1 : num(ps.opacity));
+  if (a < 0.02) return;
+  const fixed = ps.position === 'fixed', bl = fixed ? 0 : num(cs.borderLeftWidth), bt = fixed ? 0 : num(cs.borderTopWidth), br = fixed ? 0 : num(cs.borderRightWidth), bb = fixed ? 0 : num(cs.borderBottomWidth);
+  const ox = fixed ? 0 : r.left + bl, oy = fixed ? 0 : r.top + bt, cw = fixed ? innerWidth : r.width - bl - br, ch = fixed ? innerHeight : r.height - bb - bt;
+  const px = (v: string) => (/px$/.test(v) ? num(v) : null);
+  const left = px(ps.left) ?? 0, top = px(ps.top) ?? 0;
+  const w = px(ps.width) ?? cw - left - (px(ps.right) ?? 0), h = px(ps.height) ?? ch - top - (px(ps.bottom) ?? 0);
+  if (!(w > 0 && h > 0)) return;
+  const x = ox + left, y = oy + top;
+  boxOf(c, ps, { left: x, top: y, width: w, height: h, right: x + w, bottom: y + h }, a, clips, own, kk);
+}
+
 function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number, pclip: Clip | undefined): void {
   if (el.matches(SKIP)) return;
   if (el instanceof SVGElement) { if (el.tagName.toLowerCase() === 'svg' || el.ownerSVGElement) visitSvg(el, c, above, clips, pclip); return; }
@@ -119,28 +158,14 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
     if (el instanceof HTMLImageElement) { if (el.complete && el.naturalWidth > 0) c.out.push({ k: 'img', x: r.left, y: r.top, w: r.width, h: r.height, src: el, alpha, clips }); return; }
     const m = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform);
     const fill = paintOf(cs);
-    const bT = num(cs.borderTopWidth) * kk, bR = num(cs.borderRightWidth) * kk, bB = num(cs.borderBottomWidth) * kk, bL = num(cs.borderLeftWidth) * kk;
-    const colT = clear(cs.borderTopColor) ? '' : cs.borderTopColor, colR = clear(cs.borderRightColor) ? '' : cs.borderRightColor, colB = clear(cs.borderBottomColor) ? '' : cs.borderBottomColor, colL = clear(cs.borderLeftColor) ? '' : cs.borderLeftColor;
-    const same = bT === bR && bR === bB && bB === bL && colT === colR && colR === colB && colB === colL;
     if (spin(m)) {
       // a thin bar turned about its end (a leader, a bracket's line): its bounding box holds both ends on one diagonal, the way the bar leans says which
       if (num(cs.width) <= 2 && typeof fill === 'string') {
         const w = Math.max(1, num(cs.height)), right = m.a < 0, up = m.b < 0;
         c.out.push({ k: 'line', x1: right ? r.right : r.left, y1: up ? r.bottom : r.top, x2: right ? r.left : r.right, y2: up ? r.top : r.bottom, w, color: fill, alpha, clip: own, clips } as Paintable);
       }
-    } else {
-      const rad = radiusOf(cs, r, kk);
-      const shadows = parseShadows(cs.boxShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk, spread: s.spread * kk }));
-      if (shadows.length) c.out.push({ k: 'shadow', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, shadows, alpha, clips });
-      const mask = maskUrl(cs.getPropertyValue('-webkit-mask-image') || cs.getPropertyValue('mask-image'));
-      if (mask && typeof fill === 'string') {   // (an icon of the atlas: its colour seen through one cell of a picture)
-        c.out.push({ k: 'mask', x: r.left, y: r.top, w: r.width, h: r.height, url: mask, size: cs.getPropertyValue('-webkit-mask-size') || cs.getPropertyValue('mask-size'), pos: cs.getPropertyValue('-webkit-mask-position') || cs.getPropertyValue('mask-position'), color: fill, alpha, clips });
-      } else if (fill || (same && bT > 0 && colT)) c.out.push({ k: 'box', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, fill, bw: same && colT ? bT : 0, bc: same ? colT : '', alpha, clip: own, clips } as Paintable);
-      if (!same) {   // (one rule on one side: a card's header line, a tab's underline)
-        const side = (x: number, y: number, w: number, h: number, col: string) => { if (col && w > 0 && h > 0) c.out.push({ k: 'box', x, y, w, h, r: 0, fill: col, bw: 0, bc: '', alpha, clip: own, clips } as Paintable); };
-        side(r.left, r.top, r.width, bT, colT); side(r.left, r.bottom - bB, r.width, bB, colB); side(r.left, r.top, bL, r.height, colL); side(r.right - bR, r.top, bR, r.height, colR);
-      }
-    }
+    } else boxOf(c, cs, r, alpha, clips, own, kk);
+    pseudoBox(c, el, '::before', cs, r, alpha, clips, own, kk);
     if (el instanceof HTMLInputElement && el.type === 'range') rangeItems(el, r, cs, alpha, clips, c.out);
     else if (el instanceof HTMLInputElement && /^(text|search|number|email|tel|url|password)$/.test(el.type) && el.value) {
       const font = `${cs.fontStyle} ${cs.fontWeight} ${num(cs.fontSize) * kk}px ${cs.fontFamily}`;
@@ -178,6 +203,7 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
     }
   }
   for (const ch of el.children) visit(ch, c, alpha, inner, kk, own);
+  if (shown && r.width > 0 && r.height > 0 && !(el instanceof HTMLInputElement)) pseudoBox(c, el, '::after', cs, r, alpha, clips, own, kk);
 }
 
 /** Everything on the page now, in paint order. `stage`: where the figure's canvas stands (CSS px) and `stageImg` its picture, which takes the canvas's place in the order. */
@@ -211,6 +237,10 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
           g.globalAlpha = i.alpha; g.drawImage(off, i.x, i.y, i.w, i.h);
         }
       }
+    } else if (i.k === 'blur') {
+      g.beginPath();
+      if (i.clip) { g.translate(i.clip.x, i.clip.y); g.clip(new Path2D(i.clip.d)); g.translate(-i.clip.x, -i.clip.y); } else { roundedPath(g, i.x, i.y, i.w, i.h, i.r); g.clip(); }
+      blurBehind(g, i.x, i.y, i.w, i.h, i.radius * s);
     } else if (i.k === 'shadow') {
       for (const sh of i.shadows) {
         g.save();
@@ -251,4 +281,37 @@ export async function loadMasks(items: ScreenItem[], wait: (ms: number) => Promi
     got.set(u, ok ? img : null);
   }));
   for (const i of items) if (i.k === 'mask') i.img = got.get(i.url) ?? null;
+}
+
+/** The frosted glass: the pixels already painted under the box, blurred, put back (inside the clip the caller set). Safari has no filter on a canvas, so the blur is made by halving the region (each halving
+ *  averages 2 x 2) and growing it back with smooth scaling, which is a Gaussian's look at the width asked for. `sigma` in picture pixels. */
+function blurBehind(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sigma: number): void {
+  const m = g.getTransform(), W = g.canvas.width, H = g.canvas.height;
+  const cx = Math.max(0, Math.floor(m.a * x + m.e)), cy = Math.max(0, Math.floor(m.d * y + m.f));
+  const cw = Math.min(W, Math.ceil(m.a * (x + w) + m.e)) - cx, ch = Math.min(H, Math.ceil(m.d * (y + h) + m.f)) - cy;
+  if (cw < 4 || ch < 4) return;
+  const n = blurHalvings(sigma, cw, ch);
+  if (n < 1) return;
+  const stages: HTMLCanvasElement[] = [];
+  let src: CanvasImageSource = g.canvas, sx = cx, sy = cy, sw = cw, sh = ch, tw = cw, th = ch;
+  for (let k = 0; k < n; k++) {
+    tw = Math.max(1, Math.round(tw / 2)); th = Math.max(1, Math.round(th / 2));
+    const t = document.createElement('canvas'); t.width = tw; t.height = th;
+    const tg = t.getContext('2d');
+    if (!tg) return;
+    tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = 'high';
+    tg.drawImage(src, sx, sy, sw, sh, 0, 0, tw, th);
+    stages.push(t); src = t; sx = 0; sy = 0; sw = tw; sh = th;
+  }
+  for (let k = stages.length - 1; k >= 1; k--) {   // (grown back one doubling at a time, each smooth)
+    const big = stages[k - 1]!, bg = big.getContext('2d');
+    if (!bg) return;
+    bg.imageSmoothingEnabled = true; bg.imageSmoothingQuality = 'high';
+    bg.clearRect(0, 0, big.width, big.height); bg.drawImage(stages[k]!, 0, 0, big.width, big.height);
+  }
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);   // (the region is in picture pixels; the clip stays where the caller put it)
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(stages[0]!, 0, 0, stages[0]!.width, stages[0]!.height, cx, cy, cw, ch);
+  g.restore();
 }

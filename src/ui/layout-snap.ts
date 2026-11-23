@@ -4,7 +4,7 @@
 /** An element's box on the page, in CSS px (transforms included). */
 export const readBox = (el: Element): DOMRect => el.getBoundingClientRect();
 /** An element's computed style. */
-export const readStyle = (el: Element): CSSStyleDeclaration => getComputedStyle(el);
+export const readStyle = (el: Element, pseudo?: string): CSSStyleDeclaration => getComputedStyle(el, pseudo);
 /** The box of a run of text inside a text node, or of one word of it: one rect per line the run covers. */
 export function readTextRects(node: Text, from: number, to: number): DOMRect[] {
   const range = document.createRange();

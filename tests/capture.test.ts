@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseShadows, splitTop, maskUrl, maskPlacement, collageLayout, slug, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
+import { parseShadows, splitTop, maskUrl, maskPlacement, backdropBlur, blurHalvings, collageLayout, slug, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { zipParts, zipNames } from '../src/ui/capture/zip.ts';
 import { pngWithText, readPngText, crc32, asciiJson } from '../src/ui/capture/png-text.ts';
 
@@ -192,4 +192,24 @@ test('Capture this deck: a Settings row inside a talk, a Stop in the toast that 
   assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
   assert.match(page, /Talk to capture/); assert.match(page, /Stop and keep what/); assert.match(page, /only: deckSel\.value/);
   assert.ok(!/—/.test(src('src/ui/shell/words.ts').match(/export const CAPTURE = \{[\s\S]*?\} as const;/)![0]));
+});
+
+test('the frosted glass: the blur radius is read from the computed backdrop-filter, and the canvas blur (no filter on a canvas in Safari) halves the region as far as the radius asks', () => {
+  assert.equal(backdropBlur('blur(22px) saturate(1.15)'), 22);
+  assert.equal(backdropBlur('saturate(1.2) blur(8.5px)'), 8.5);
+  assert.equal(backdropBlur('none'), 0);
+  assert.equal(blurHalvings(0, 400, 300), 0);
+  assert.equal(blurHalvings(22, 340, 400), 4, 'a 22 px blur: 4 halvings (a 16th of the size) and back');
+  assert.equal(blurHalvings(66, 340, 400), 6);
+  assert.ok(blurHalvings(500, 20, 20) <= 3, 'a small region is never halved to nothing');
+});
+
+test('Capture draws what the page draws: the glass blur, the pills\' pseudo-element faces, no counters or build pill; the talk is walked by Next, which says whether it did anything', () => {
+  const dom = src('src/ui/capture/capture-dom.ts'), all = src('src/ui/debug/audit/capture-all.ts'), store = src('src/ui/ui-store.ts');
+  assert.match(dom, /k: 'blur'/); assert.match(dom, /pseudoBox\(c, el, '::before'/); assert.match(dom, /pseudoBox\(c, el, '::after'/); assert.match(dom, /function blurBehind/);
+  for (const f of ['src/ui/shell/Diagnostics.tsx', 'src/ui/shell/BuildPill.tsx']) assert.match(src(f), /data-capture-skip/);
+  assert.match(store, /move\(m: Move\): boolean/); assert.match(store, /if \(m === 'next' && lapseNext\(\)\) return true;/); assert.match(store, /if \(samePos\(to, pos\)\) return false;/);
+  assert.match(all, /useUi\.getState\(\)\.move\('next'\)/); assert.match(all, /await grab\(\)/);
+  assert.ok(!/useUi\.getState\(\)\.go\(k\)/.test(all), 'no jumps by number: a jump skips the case card and the steps within a stop');
+  assert.match(all, /: 60,/, 'no animation is seen: the clock runs 60 times faster');
 });

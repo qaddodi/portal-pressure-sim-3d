@@ -12,6 +12,8 @@ export type ScreenItem =
   | (Item & { clips?: ClipRect[] })
   | { k: 'shadow'; x: number; y: number; w: number; h: number; r: number; shadows: Shadow[]; alpha: number; clips?: ClipRect[] }
   | { k: 'img'; x: number; y: number; w: number; h: number; src: CanvasImageSource; alpha: number; clips?: ClipRect[] }
+  /** a frosted glass: what is already painted under this box is blurred (`radius` is the blur's standard deviation in CSS px, as `backdrop-filter: blur()` takes it); drawn just before the box's own fill. `clip` is a glass cut to a path. */
+  | { k: 'blur'; x: number; y: number; w: number; h: number; r: number; radius: number; alpha: number; clips?: ClipRect[]; clip?: { d: string; x: number; y: number } }
   /** an element painted through a mask image (the icon atlas: a colour seen through a cell of a picture); `img` is filled once the picture has loaded */
   | { k: 'mask'; x: number; y: number; w: number; h: number; url: string; size: string; pos: string; color: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null };
 
@@ -119,3 +121,14 @@ export function collageLayout(count: number, shot: { w: number; h: number }): { 
 
 /** A name safe in a file path: lower case, letters and digits, dashes, at most 40 characters. */
 export const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'slide';
+
+/** The standard deviation, in CSS px, of the first `blur()` of a computed `backdrop-filter` (0 for none). */
+export const backdropBlur = (css: string): number => { const m = /blur\(\s*([\d.]+)px/.exec(css || ''); return m ? parseFloat(m[1]!) || 0 : 0; };
+
+/** How a blur of `sigma` device px is made without a canvas filter (Safari has none on a canvas): the region is halved this many times (each halving averages 2 x 2), then grown back the same way,
+ *  which is a smooth blur of about the right width. Two and a half sigma of shrink is a Gaussian's reach. */
+export const blurHalvings = (sigma: number, w: number, h: number): number => {
+  let n = 0, f = 1, ww = w, hh = h;
+  while (f * 2 <= Math.max(1, sigma * 1.2) && ww > 4 && hh > 4) { ww = Math.round(ww / 2); hh = Math.round(hh / 2); f *= 2; n++; }
+  return n;
+};

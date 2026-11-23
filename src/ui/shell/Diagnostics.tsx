@@ -27,8 +27,8 @@ export function Diagnostics() {
   }, [fps, breakdown]);
   return (
     <>
-      {fps && <div className="fps-counter" aria-hidden="true"><span className="fps-num">{rate}</span><span className="fps-unit">fps</span></div>}
-      <div className="sh-diag" aria-hidden={!breakdown}>
+      {fps && <div className="fps-counter" aria-hidden="true" data-capture-skip=""><span className="fps-num">{rate}</span><span className="fps-unit">fps</span></div>}
+      <div className="sh-diag" aria-hidden={!breakdown} data-capture-skip="">
         <pre className="sh-diag-box" data-on={breakdown}>{text}</pre>
       </div>
     </>

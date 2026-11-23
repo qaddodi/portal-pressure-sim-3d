@@ -61,7 +61,8 @@ export interface UiState {
   pageCount: number;
   setPageCount(n: number): void;
   setStops(stops: Stop[], at?: number): void;
-  move(m: Move): void;
+  /** Next or Back, as the keys and the buttons press them. True when the press did something (turned a page, stepped a procedure or a reading, moved to another beat or stop); false at the end of the talk. */
+  move(m: Move): boolean;
   go(stop: number): void;
   setViewport(vp: Viewport): void;
   swapWallet(): void;
@@ -112,21 +113,22 @@ export const useUi = create<UiState>((set, get) => ({
 
   move: (m) => {
     const { stops, pos, wallet, page, pageCount } = get();
-    if (!stops.length) return;
+    if (!stops.length) return false;
     // a time-lapse still running its days: the first Next runs them to their end, the second moves on (2D V-SLIDE-10; ui/deck/lapse-next.ts)
-    if (m === 'next' && lapseNext()) return;
+    if (m === 'next' && lapseNext()) return true;
     // a split card turns its pages before the talk moves on
     const at = page === 'last' ? pageCount - 1 : Math.min(page, pageCount - 1);
-    if (m === 'next' && at < pageCount - 1) { set({ page: at + 1 }); return; }
-    if (m === 'back' && at > 0) { set({ page: at - 1 }); return; }
+    if (m === 'next' && at < pageCount - 1) { set({ page: at + 1 }); return true; }
+    if (m === 'back' && at > 0) { set({ page: at - 1 }); return true; }
     // a slide whose procedure is guided by Next plays or takes back one step first (2D procNext; ui/deck/procs-link.ts)
-    if ((m === 'next' || m === 'back') && procStep(m === 'next' ? 1 : -1)) return;
+    if ((m === 'next' || m === 'back') && procStep(m === 'next' ? 1 : -1)) return true;
     // a data card that takes its readings one Next at a time (the HVPG tracing) takes this one first (ui/talk/tool-step.ts)
-    if ((m === 'next' || m === 'back') && toolStep(m === 'next' ? 1 : -1)) return;
+    if ((m === 'next' || m === 'back') && toolStep(m === 'next' ? 1 : -1)) return true;
     const to = apply(stops, pos, m);
-    if (samePos(to, pos)) return;
+    if (samePos(to, pos)) return false;
     const forward = to.stop > pos.stop || (to.stop === pos.stop && to.beat > pos.beat);
     set({ pos: to, dir: forward ? 1 : -1, wallet: resetForSlide(wallet), page: forward ? 0 : 'last', pageCount: 1 });
+    return true;
   },
 
   go: (stop) => {
