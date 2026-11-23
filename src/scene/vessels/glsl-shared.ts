@@ -21,7 +21,7 @@ float swellOf(float idx, float bD, float kind) {
   return clamp(m1 / m0, 0.2, 8.0);
 }`;
 
-/** lensOfAt(lensIx, u, grad, lanes, mode, pal, across): the colour of one lens set at the place u along a vessel's ramp; .a says whether the lens colours it. Reads: lensUse, lensTail, lensSmooth. */
+/** lensOfAt(lensIx, u, grad, lanes, mode, pal, across): the colour of one lens set at the place u along a vessel's ramp; .a says whether the lens colours it. Reads: lensUse, lensSmooth. The tail (the colour held to 55 % along, then eased into the end) is each texture's own: its ends' alpha is 2 (lenses/model.ts TAIL_ON). */
 export const LENS_OF_AT_GLSL = /* glsl */ `// the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
 float lensAcrossFw = 0.0;   // fwidth of the lane position (across * 0.5 + 0.5): set by main BEFORE its first discard, because a derivative after a discard is garbage on a device that drops the lane
 vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
@@ -29,7 +29,7 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
   vec4 g0 = texelFetch(grad, i0, 0), g1 = texelFetch(grad, i1, 0);
   if (g0.a + g1.a < 0.5) return vec4(0.0);
-  float t = lensTail > 0.5 ? smoothstep(0.55, 1.0, u) : u;
+  float t = g1.a > 1.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
     if (lensSmooth > 0.5) {
       // the ramp's own colours along the vessel (model.ts: the pressure a third and two thirds of the way along), so a vessel that crosses a threshold passes through amber and not through a blend of its ends

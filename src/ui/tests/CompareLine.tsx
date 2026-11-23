@@ -5,6 +5,7 @@ import { useFrame } from './frame.ts';
 import { hiddenNow } from './hidden.ts';
 import { compareRows } from './copied/idle-keys.copied.js';
 import { fmt } from './copied/num.copied.js';
+import { fadeAttrs } from '../fade.tsx';
 
 function Rows({ when, a }: { when: string; a: Record<string, number> }) {
   const f = useFrame();
@@ -22,5 +23,5 @@ function Rows({ when, a }: { when: string; a: Record<string, number> }) {
 export function CompareLine({ active }: { active: boolean }) {
   const snap = useCompare((s) => s.snap);
   const on = active && !!snap;
-  return <div className="workspace-comparison" hidden={!on} aria-live="off">{on && snap && <Rows when={snap.when} a={snap.metrics as unknown as Record<string, number>} />}</div>;
+  return <div className="workspace-comparison" {...fadeAttrs(on)} aria-live="off">{on && snap && <Rows when={snap.when} a={snap.metrics as unknown as Record<string, number>} />}</div>;
 }

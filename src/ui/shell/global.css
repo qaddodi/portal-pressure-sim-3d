@@ -39,7 +39,7 @@ button { font: inherit; color: inherit; }
 html::view-transition-group(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); }
 html::view-transition-old(root), html::view-transition-new(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); mix-blend-mode: normal; }
 /* (where there is no View Transition the page's own colours ease) */
-html.look-glide *, html.look-glide *::before, html.look-glide *::after { transition: background-color var(--d-look) var(--ease-move), color var(--d-look) var(--ease-move), border-color var(--d-look) var(--ease-move), fill var(--d-look) var(--ease-move), stroke var(--d-look) var(--ease-move), box-shadow var(--d-look) var(--ease-move) !important; }
+:where(html.look-glide *, html.look-glide *::before, html.look-glide *::after) { transition: background-color var(--d-look) var(--ease-move), color var(--d-look) var(--ease-move), border-color var(--d-look) var(--ease-move), fill var(--d-look) var(--ease-move), stroke var(--d-look) var(--ease-move), box-shadow var(--d-look) var(--ease-move); }   /* (zero weight and no !important: an element that has its own transition list keeps it, so a slide or a fade in flight is not turned into a snap when the look changes) */
 
 /* First load (owner, 20 Nov): the splash lifts only when the figure and its labels are all in, and the figure settles in as it fades: the camera's own glide from a little closer than rest (boot/ready.ts, scene.playReveal),
    drawn crisp each frame with the labels following by projection. No CSS scale of the canvas (22 Nov, splash plan A2). */

@@ -164,7 +164,7 @@ export class BloodCells {
         courseTex: { value: this.courseTex }, edgeTex: { value: this.edgeTex }, amount: { value: 0 },
         tubeDark: ((deps.object(deps.vessels.find((x) => !x.feeder)?.id ?? '')?.toon.uniforms.tubeDark as { value: number } | undefined) ?? { value: 0 }),
         colPortal: tone('portal'), colSys: tone('sys'), colArt: tone('artery'),
-        lensMix: lens.lensMix, lensTail: lens.lensTail, lensModeA: lens.lensModeA, lensModeB: lens.lensModeB, lensRawA: lens.lensRawA, lensRawB: lens.lensRawB,
+        lensMix: lens.lensMix, lensModeA: lens.lensModeA, lensModeB: lens.lensModeB, lensRawA: lens.lensRawA, lensRawB: lens.lensRawB,
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, laneColA: lens.laneColA, laneColB: lens.laneColB,
       },
     });

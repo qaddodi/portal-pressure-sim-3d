@@ -55,7 +55,7 @@
   "ui/humanized.css | html:root .instr-tab[data-slot=\"2\"]::after | top",
   "ui/shell/chrome-3d.css | :root .app.thumb:is(.dock-open, .panel-open, .menu-sheet-open) .vdock:not(.mini) > .nb-views | opacity",
   "ui/shell/chrome-3d.css | html.thumb-ui:root:has(.sheet-layer > .menu, .sheet-layer > .why-pop.as-sheet.show, body > .pal-back:not([hidden])) .app.thumb .vdock:not(.mini) > .nb-views | opacity",
-  "ui/shell/ease.css | :where(.sh-row, .sh-seg-row button, .sh-tabs button, .sh-hit-row, .sh-x, .sh-sw, .ac-seg button, .ac-switch, .ac-switch i, .ac-x, .ac-back, .ac-btn, .look-tile, .look-tile *, .lens, .um-row, .menu button, .umenu button) | transition",
+  "ui/shell/ease.css | :where(.sh-row, .sh-seg-row button, .sh-tabs button, .sh-hit-row, .sh-x, .sh-sw, .ac-seg button, .ac-switch, .ac-switch i, .ac-x, .ac-back, .ac-btn, .look-tile, .look-tile *, .lens, .um-row, .menu button, .umenu button, .ac-name-btn .ac-chev, .hist-ic, .sh-info) | transition",
   "ui/shell/shell.css | .dk-jump-list .n | color",
   "ui/tests/doppler/copied/doppler-2d.copied.css | .t-card .dop-inv | width",
   "ui/tests/doppler/copied/doppler-2d.copied.css | .t-card .dop-range | display",

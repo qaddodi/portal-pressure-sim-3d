@@ -35,6 +35,7 @@ import { openFromReadings } from '../readings/FromReadings.tsx';
 import { GROUP_WHERE, fold, filterRows, emptyNote, stepRow, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
+import { Fade, fadeAttrs } from '../fade.tsx';
 const PRESET_SUMMARY: Record<string, string> = Object.fromEntries((PRESETS as { id: string; summary?: string }[]).map((p) => [p.id, p.summary ?? '']));
 const TABS = UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[];
 const TAB_ICON: Record<MenuTab, string> = { present: 'projector', patients: 'scenario' };
@@ -114,7 +115,7 @@ function Inline({ open, children }: { open: boolean; children: ReactNode }) {
 interface ItemProps { k: string; row: Row; hidden: boolean; current?: boolean; info: string; open: boolean; onInfo(): void; onHover(el: HTMLElement | null): void; onPress(): void; lead?: ReactNode; text: string; metas: ReactNode; trail?: ReactNode; pv: ReactNode; isNew?: boolean }
 function Item({ k, row, hidden, current, info, open, onInfo, onHover, onPress, lead, text, metas, trail, pv }: ItemProps) {
   return (
-    <li hidden={hidden}>
+    <li {...fadeAttrs(!hidden, 'y')}><div className="fade-in um-li-in">
       <button type="button" className="um-row" data-k={k} data-find={row.find} aria-current={current ? 'true' : undefined} onClick={onPress}
         onPointerEnter={(e) => { if (e.pointerType === 'mouse') onHover(e.currentTarget); }} onPointerLeave={() => onHover(null)}
         onFocus={(e) => { if (e.currentTarget.matches(':focus-visible')) onHover(e.currentTarget); }} onBlur={() => onHover(null)}>
@@ -122,7 +123,7 @@ function Item({ k, row, hidden, current, info, open, onInfo, onHover, onPress, l
       </button>
       <button type="button" className="um-info" aria-label={`About ${info}`} aria-expanded={open} onClick={onInfo}><I n="info" /></button>
       <Inline open={open}>{pv}</Inline>
-    </li>
+    </div></li>
   );
 }
 
@@ -216,7 +217,7 @@ export function UMenu() {
   const rowOf = (key: string) => (key[0] === 'p' ? patientRows : presentRows).find((r) => r.key === key)!;
 
   const setTab = (t: MenuTab, focus = false) => { useShell.setState({ menuTab: t }); setHover(null); if (focus) afterCommit(() => ref.current?.querySelector<HTMLElement>(`#umtab-${t}`)?.focus({ preventScroll: true })); };
-  const visible = (col: Element | null) => [...(col?.querySelectorAll<HTMLElement>('li:not([hidden]) > .um-row') ?? [])].filter((r) => !r.closest('.um-g[hidden]'));
+  const visible = (col: Element | null) => [...(col?.querySelectorAll<HTMLElement>('li:not([data-fade="off"]) .um-row') ?? [])].filter((r) => !r.closest('.um-g[data-fade="off"]'));
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     const el = ref.current!, q = el.querySelector<HTMLInputElement>('.um-q')!, t = e.target as HTMLElement;
@@ -301,12 +302,12 @@ export function UMenu() {
       <div className="um-cols">
         <section className="um-col" data-col="present" id="umcol-present" role="tabpanel" aria-labelledby="umtab-present">
           {topics.map((t) => (
-            <div key={t.topic} className="um-g" hidden={hiddenGroup(t.decks.map((d) => 'd:' + d.id), shownP)}>
+            <Fade key={t.topic} as="div" axis="y" className="um-g" on={!hiddenGroup(t.decks.map((d) => 'd:' + d.id), shownP)}>
               <div className="um-gl" id={`umt-${t.topic}`}><b>{t.label}</b></div>
               <ul aria-labelledby={`umt-${t.topic}`}>{t.decks.map(deckItem)}</ul>
-            </div>
+            </Fade>
           ))}
-          <div className="um-g scripts" hidden={mineHidden}>
+          <Fade as="div" axis="y" className="um-g scripts" on={!mineHidden}>
             <div className="um-gl" id="umt-mine"><b>{W.yourScripts}</b>
               <span className="um-gacts">
                 <button type="button" className="um-link" title={W.newTitle} onClick={() => void newScript()}><I n="plus" /><span>{W.yourScriptsNew}</span></button>
@@ -314,15 +315,15 @@ export function UMenu() {
               </span>
             </div>
             {mine.length ? <ul aria-labelledby="umt-mine">{mine.map(scriptItem)}</ul> : <p className="um-note">{W.yourScriptsEmpty}</p>}
-          </div>
+          </Fade>
         </section>
         <section className="um-col" data-col="patients" id="umcol-patients" role="tabpanel" aria-labelledby="umtab-patients">
-          <div className="um-g um-fr" hidden={!frShown}><ul><li>
+          <Fade as="div" axis="y" className="um-g um-fr" on={frShown}><ul><li>
             <button type="button" className="um-row um-fromread" data-k="from-readings" onClick={() => { close(); openFromReadings(); }}>
               <I n="rewind" className="um-play" /><span className="um-t">From readings</span><span className="um-m">Work backward</span></button>
-          </li></ul></div>
+          </li></ul></Fade>
           {groups.map((g) => (
-            <div key={g.group} className="um-g" hidden={hiddenGroup(g.patients.map((p) => 'p:' + p.id), shownT)}>
+            <Fade key={g.group} as="div" axis="y" className="um-g" on={!hiddenGroup(g.patients.map((p) => 'p:' + p.id), shownT)}>
               <div className="um-gl" id={`umg-${g.group}`}><b>{g.group}</b><span>{GROUP_WHERE[g.group] || ''}</span></div>
               <ul aria-labelledby={`umg-${g.group}`}>
                 {g.patients.map((p) => {
@@ -334,12 +335,12 @@ export function UMenu() {
                   );
                 })}
               </ul>
-            </div>
+            </Fade>
           ))}
         </section>
       </div>
-      <p className="um-empty" hidden={!empty.show}><span>{empty.text}</span>
-        <button type="button" className="um-link um-other" hidden={!empty.other} onClick={() => setTab(tab === 'present' ? 'patients' : 'present', true)}>{empty.other}</button></p>
+      <Fade as="p" axis="y" className="um-empty" on={empty.show}><span>{empty.text}</span>
+        <Fade as="button" type="button" className="um-link um-other" on={!!empty.other} onClick={() => setTab(tab === 'present' ? 'patients' : 'present', true)}>{empty.other}</Fade></Fade>
       <footer className="um-foot">
         <button type="button" className="um-link" onClick={() => { close(); shareView(patientId); }}><I n="share" /><span>Copy link to this view</span></button>
         <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'help' })}><I n="help" /><span>Help</span></button>

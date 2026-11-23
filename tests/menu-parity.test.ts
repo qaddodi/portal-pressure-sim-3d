@@ -125,5 +125,5 @@ test('the Patients list is headed by 2D\'s From readings door (menu.js onFromRea
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/ui/menu/UMenu.tsx', import.meta.url), 'utf8');
   assert.match(src, /className="um-row um-fromread"[^>]*onClick=\{\(\) => \{ close\(\); openFromReadings\(\); \}\}/);
-  assert.ok(src.indexOf('um-fromread') < src.indexOf('groups.map((g) => (\n            <div key={g.group}'), 'the door comes before the patient groups');
+  assert.ok(src.indexOf('um-fromread') < src.indexOf('groups.map((g) => (\n            <Fade key={g.group}'), 'the door comes before the patient groups');
 });

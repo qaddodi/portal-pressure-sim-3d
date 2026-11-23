@@ -30,6 +30,7 @@ import { reduced } from '../a11y/motion.ts';
 import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
+import { Fade } from '../fade.tsx';
 const L = TREAT_WORDS.lines.labels;
 
 type Active = ReturnType<typeof activeInterventions>[number];
@@ -78,8 +79,8 @@ function ChangesBody({ about, mine }: { about: Active[]; mine: Active[] }) {
         {about.length > 0 && <div className="chg-sub">{L.yours}</div>}
         {mine.map((a) => <Row key={`mine:${a.label}`} a={a} undo />)}
       </div>
-      <p className="fd-empty" hidden={mine.length > 0}><b>{L.nothing[0]}</b>{L.nothing[1]}</p>
-      <button type="button" className="link chg-clear" hidden={mine.length === 0} onClick={clearAll}>{L.clear}</button>
+      <Fade as="p" axis="y" className="fd-empty" on={mine.length === 0}><b>{L.nothing[0]}</b>{L.nothing[1]}</Fade>
+      <Fade as="button" axis="y" type="button" className="link chg-clear" on={mine.length > 0} onClick={clearAll}>{L.clear}</Fade>
     </>
   );
 }
@@ -207,7 +208,7 @@ export function TreatCard() {
   useSheetSwipe(ref, close, () => thumb);
   const sections = (
     <details ref={keptSection} className="section chart-sec" data-id="changes">
-      <summary onClick={onSummary}><span>{L.changes}</span><span className="count fd-count" hidden={mine.length === 0}>{mine.length || ''}</span><I n="chev-down" className="chev" /></summary>
+      <summary onClick={onSummary}><span>{L.changes}</span><Fade className="count fd-count" on={mine.length > 0}>{mine.length || ''}</Fade><I n="chev-down" className="chev" /></summary>
       <div className="section-body"><ChangesBody about={about} mine={mine} /></div>
     </details>
   );

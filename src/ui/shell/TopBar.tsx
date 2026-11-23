@@ -23,6 +23,7 @@ import { shortName, COMPACT } from './scenario-names.ts';
 import { yoursName } from '../readings/yours.ts';
 import { startTopbarMotion } from './topbar-motion.ts';
 import { useTalkOn } from '../../state/deck.ts';
+import { fadeAttrs } from '../fade.tsx';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -54,7 +55,7 @@ export function ViewPills() {
       {VIEWS.map((v) => {
         const hidden = pillHidden(v.id, view);
         return (
-          <button key={v.id} type="button" data-view={v.id} aria-pressed={view === v.id} hidden={hidden} data-pending={!ready[v.id] || undefined} title={UI.views.find((x) => x.id === v.id)?.label} onClick={() => tapPill(v.id, view)}>{v.label}</button>
+          <button key={v.id} type="button" data-view={v.id} aria-pressed={view === v.id} {...fadeAttrs(!hidden)} data-pending={!ready[v.id] || undefined} title={UI.views.find((x) => x.id === v.id)?.label} onClick={() => tapPill(v.id, view)}>{v.label}</button>
         );
       })}
     </div>

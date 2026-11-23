@@ -44,6 +44,7 @@ import { topBarH } from '../shell/room.ts';
 import { lazyRetry } from '../../boot/lazy-retry.ts';
 import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
+import { Fade } from '../fade.tsx';
 
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 // (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
@@ -310,7 +311,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
           </div>
           <button type="button" className="ib card-close workspace-close" aria-label="Close Tests" title="Close (Esc)" onClick={close}><I n="close" /></button>
         </div>
-        <div className="instr-hint" hidden={!picking}>Pick a second instrument to show with <b>{PANES[pane].name}</b>.</div>
+        <Fade as="div" axis="y" className="instr-hint" on={picking}>Pick a second instrument to show with <b>{PANES[pane].name}</b>.</Fade>
         <CompareLine active={open} />
         <div ref={bodyRef} className={`dock-body${split ? ' split stack' : ''}`}>
           {slots.map((s) => <Pane key={s.id} id={s.id} cls={s.cls} leaver={s.leaver} done={swap.left}>{open ? render(s.id) : null}</Pane>)}

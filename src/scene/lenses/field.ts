@@ -13,8 +13,7 @@ import { isRawLens } from './pressure-ramp.ts';
 export const LENS_MS = 420;
 export const LENS_RECOMPUTE_MS = 90;
 const NEEDS_FRAME = new Set<LensId>(['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass', 'since']);
-/** Lenses whose colour eases into the junction at the downstream end (the streams and the oxygen), not along the whole vessel. */
-export const TAIL_LENSES = new Set<LensId>(['origin', 'firstpass', 'oxygen']);
+export { TAIL_LENSES } from './model.ts';   // (moved to model.ts: the tail is written into each gradient texture with its colours)
 
 function texturesFor(data: LensData): { grad: DataTexture; lanes: DataTexture } {
   const make = (a: Float32Array) => { const t = new DataTexture(a, LENS_EDGE_COUNT, a.length / (LENS_EDGE_COUNT * 4), RGBAFormat, FloatType); t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; };
@@ -111,7 +110,6 @@ export class LensField {
     const palette = this._lens === 'firstpass' ? firstPassColours() : originColours();
     for (let i = 0; i < 5; i++) this.shared.laneColB.value[i]!.set(palette[i]![0], palette[i]![1], palette[i]![2]);
     this.shared.lensModeB.value = this.to.mode; this.shared.lensRawB.value = isRawLens(this._lens) ? 1 : 0;   // (the pressure ramp is authored as drawn: pressure-ramp.ts; crossfaded with the colours by lensMix)
-    this.shared.lensTail.value = TAIL_LENSES.has(this._lens) ? 1 : 0;
     this.ink.decide(this.to, this.look);   // (the heads' ink follows the colours just computed, through a latch)
     this.ink.write(this.to.grad);
     this.texTo.grad.needsUpdate = this.texTo.lanes.needsUpdate = true;
