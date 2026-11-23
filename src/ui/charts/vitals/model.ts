@@ -124,8 +124,8 @@ export function vitalsFrame(spec: VitalsSpec, w: number, pal: Palette): Frame {
     shapes.push({ k: 'text', x, y: y0 + 12, s: c.k, size: 12, weight: 600, color: c.bad ? alarm : col === bright ? text : col, key: `k-${c.id}` });
     // the number stands in a box of the widest it can be, flush to its right edge, so the unit and the alarm patch never move as a reading changes
     if (c.bad) shapes.push({ k: 'rect', x: x - 5, y: by - big * 0.78 - 4, w: rw + mw + 10, h: big * 0.78 + 4 + BOX_BELOW, r: 5, fill: alarm, key: `box-${c.id}` });
-    shapes.push({ k: 'text', x: x + rw - nw, y: by, s: p.main, size: big, weight: 700, color: c.bad ? bg : col, key: `v-${c.id}` });
-    if (p.mean) shapes.push({ k: 'text', x: x + rw + 4, y: by, s: p.mean, size: sm, weight: 700, color: c.bad ? bg : col, key: `m-${c.id}` });
+    shapes.push({ k: 'text', x: x + rw - nw, y: by, s: p.main, size: big, weight: 600, color: c.bad ? bg : col, key: `v-${c.id}` });
+    if (p.mean) shapes.push({ k: 'text', x: x + rw + 4, y: by, s: p.mean, size: sm, weight: 600, color: c.bad ? bg : col, key: `m-${c.id}` });
     shapes.push({ k: 'text', x: x + rw + mw + 5, y: by, s: c.u, size: 12, weight: 500, color: c.bad ? alarm : text, key: `u-${c.id}` });
   });
   const mi = hold ? cells.findIndex((c) => c.id === 'map') : -1;

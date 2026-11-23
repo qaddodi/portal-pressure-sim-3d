@@ -91,7 +91,7 @@
 /* help */
 .sh-keys { display: grid; gap: 2px; padding: 0 10px; } .sh-keys > div { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--edge); font: 500 var(--t-body) / 1.35 var(--ui); }
 .sh-keys kbd { font: 600 var(--t-cap) / 1 var(--ui); color: var(--text-2); border: 1px solid var(--edge); border-radius: var(--r-control); padding: 4px 7px; white-space: nowrap; }
-.sh-h3 { margin: 16px 12px 4px; font: 600 var(--t-lab) / 1 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
+.sh-h3 { margin: 16px 12px 4px; font: 600 var(--t-cap) / 1 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .sh-lede { margin: 6px 12px 8px; color: var(--text); font: 500 var(--t-body) / 1.45 var(--ui); }
 
 /* the note (owner, 22 Nov: rounded corners, words centred, the same glass as every panel; no dot): a glass box right above the dock and the view pill (--bot-occ), the words centred, the action as words
@@ -110,7 +110,7 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 .sh-toast[data-swap] > span { opacity: 0; }   /* a second note's words: the old fade out, then the new fade in (Toast.tsx) */
 .sh-toast[data-tone="bad"] b { color: var(--danger); }   /* red only when it failed and you must act */
 .sh-toast-time { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: color-mix(in srgb, var(--text) 24%, transparent); transform-origin: left center; pointer-events: none; }
-.sh-toast-act { flex: none; font: inherit; font-weight: 700; color: var(--accent); min-height: 34px; margin: -8px 0; padding: 0 2px 0 12px; border: 0; background: transparent; cursor: pointer; white-space: nowrap; }
+.sh-toast-act { flex: none; font: inherit; font-weight: 600; color: var(--accent); min-height: 34px; margin: -8px 0; padding: 0 2px 0 12px; border: 0; background: transparent; cursor: pointer; white-space: nowrap; }
 
 /* a Reset dialog */
 .sh-dialog { position: absolute; z-index: 5; left: 50%; top: 50%; width: min(420px, calc(100vw - 32px)); margin: -90px 0 0 calc(min(420px, 100vw - 32px) / -2); padding: 22px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;

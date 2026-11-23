@@ -85,7 +85,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .cl-pill, .cl-step, .cl-sum { position: absolute; left: 0; top: 0; visibility: hidden; will-change: transform; }
 .cl-pill[data-on], .cl-step[data-on], .cl-sum[data-on] { visibility: visible; }
 .cl { box-sizing: border-box; isolation: isolate; display: flex; flex-direction: row; align-items: baseline; justify-content: center; padding: var(--cl-air, 2px); white-space: nowrap;
-  font: 500 12px / 1 var(--font-ui, Inter, "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); font-variant-numeric: tabular-nums; color: var(--cl-text);
+  font: 500 var(--t-cap) / 1 var(--ui); font-variant-numeric: tabular-nums; color: var(--cl-text);
   --c-ink: var(--cl-text); --c: var(--cl-text); }
 .cl[data-tone="free"] { --c: var(--cl-hv); --c-ink: var(--cl-hv-ink); }
 .cl[data-tone="wedge"] { --c: var(--cl-wedge); --c-ink: var(--cl-wedge-ink); }
@@ -178,8 +178,8 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .pl-dl { width: 1px; height: var(--w); margin-top: calc(var(--w) / -2); transform-origin: 0 50%; pointer-events: none; }
 .pl-dl-rim { background: var(--dop-rim, #000); }
 .pl-dl-line { background: var(--dop-mark, #fff); }
-.pl-scan { font: 700 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }   /* (near-black ink: on the dark looks it needs the labels' halo like every figure label) */
-.pl-scan .pl-scan-unit { margin-left: 2px; font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--fibroscan) 30%, black); }
+.pl-scan { font: 600 var(--t-cap) var(--ui); font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); -webkit-text-stroke: 3px var(--label-halo); paint-order: stroke fill; stroke-linejoin: round; }   /* (near-black ink: on the dark looks it needs the labels' halo like every figure label) */
+.pl-scan .pl-scan-unit { margin-left: 2px; font-size: var(--t-cap); font-weight: 600; color: color-mix(in srgb, var(--fibroscan) 30%, black); }
 
 /* A step's leader (plan 21: a thin line to the vessel's edge, no dot on a vessel; a dot, 5 px with the labels' halo, only where it names an area: an organ, the sinusoids a group stands for). Moved by transform; the layer fades it with the number. */
 .cl-lead { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
@@ -203,13 +203,13 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .lz-co-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border: var(--co-w) solid var(--co); border-radius: 50%; will-change: transform; }
 .lz-co-line { position: absolute; left: 0; top: 0; width: 1px; height: var(--co-w); margin-top: calc(var(--co-w) / -2); transform-origin: 0 50%; background: var(--co); will-change: transform; }   /* (no leader: scaleX 0, never visibility) */
 .cl[data-fig="callout"] { padding: 0; border-radius: 0; border-color: transparent; }   /* (words only: a tag has no glass or rim to hide) */
-.cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 650; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
+.cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 600; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl[data-fig="callout"][data-co="accent"] .cl-k { color: var(--accent); }
 .cl[data-fig="callout"][data-co="note"] .cl-k { color: var(--cl-text, var(--text)); }
 /* a mark on a vessel or an organ (not the lobule's ring): a coloured label, as the station names are (words in their colour with the labels' halo, a dot on the place and a thin leader of the same colour), never a card:
    block = the danger red, treat = the accent, note = the quiet ink (22 Nov: the speech-bubble marks pointed at the wrong places and looked wrong beside "Portal vein 19.0 mmHg") */
 .cl[data-fig="mark"] { padding: 0; border-radius: 0; border-color: transparent; }
-.cl[data-fig="mark"] .cl-k { color: var(--c-ink); font-weight: 650; -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
+.cl[data-fig="mark"] .cl-k { color: var(--c-ink); font-weight: 600; -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl-lead[data-tone="danger"] { --lc: var(--cl-danger-ink, var(--danger)); }
 .cl-lead[data-tone="free"] { --lc: var(--cl-hv-ink); } .cl-lead[data-tone="wedge"] { --lc: var(--cl-wedge-ink); } .cl-lead[data-tone="pv"] { --lc: var(--cl-pv-ink); } .cl-lead[data-tone="ivc"] { --lc: var(--cl-ivc-ink); }
 .cl-lead[data-tone="ok"] { --lc: var(--cl-ok-ink); } .cl-lead[data-tone="caution"] { --lc: var(--cl-caution-ink); }

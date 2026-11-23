@@ -16,7 +16,7 @@ const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'u
 /** The 3D-only stylesheets (the 2D copies in css2d/ and the *.copied.* files are not ours to edit). */
 const CSS = [
   'src/ui/shell/global.css', 'src/ui/shell/shell.css', 'src/ui/shell/ease.css', 'src/ui/shell/menu-motion.css', 'src/ui/deck-ui.css', 'src/ui/action/action.css', 'src/ui/compare/compare.css',
-  'src/ui/why/why.css', 'src/ui/history/history.css', 'src/ui/tests/tests.css', 'src/ui/tests/ir/ir.css', 'src/ui/charts/charts.css', 'src/scene/lenses/legend.css',
+  'src/ui/why/why.css', 'src/ui/history/history.css', 'src/ui/bigtime/bigtime.css', 'src/ui/histories/histories.css', 'src/ui/tests/tests.css', 'src/ui/tests/ir/ir.css', 'src/ui/charts/charts.css', 'src/scene/lenses/legend.css',
 ];
 const TS = [
   'src/ui/shell/pill-fold.ts', 'src/ui/shell/figure-dip.ts', 'src/ui/shell/deck-fade.ts', 'src/ui/shell/talk.ts', 'src/ui/tests/TestsLayer.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/wallet/wallet-machine.ts',

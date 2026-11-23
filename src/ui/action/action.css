@@ -45,25 +45,25 @@
 .ac-card .ac-nr > .ac-state { margin-left: auto; }
 .ac-card .ac-nr > .tv-keys { flex: 1 1 auto; min-width: max-content; max-width: 100%; flex-wrap: wrap; column-gap: 8px; }
 .ac-card .ac-nr > .tv-keys > .ir-kv { flex: none; white-space: nowrap; }
-.ac-name { display: block; flex: 0 1 auto; min-width: 0; font: 600 var(--t-val) / 1.25 var(--ui); letter-spacing: -0.005em; text-wrap: balance; }
+.ac-name { display: block; flex: 0 1 auto; min-width: 0; font: 600 var(--t-val) / 1.25 var(--ui); letter-spacing: var(--ls-tight); text-wrap: balance; }
 .ac-card[data-bottom] .ac-name { font-size: var(--t-body); }
 .ac-state { flex: none; font-size: var(--t-lab); font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .ac-state:empty { display: none; }
 .st-word.rev, .st-word.bad { color: var(--danger); } .st-word.warn { color: var(--caution); }
 /* the bar: the pressure where the blood comes in and where it leaves, a track in the pressure colours between, and the drop above */
 .ac-sp { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 4px; }
-.ac-el { font-size: var(--t-cap); color: var(--text-3); height: 15px; line-height: 15px; letter-spacing: 0.02em; } .ac-el.r { text-align: right; }
+.ac-el { font-size: var(--t-cap); color: var(--text-3); height: 15px; line-height: 15px; letter-spacing: 0; } .ac-el.r { text-align: right; }
 .ac-dv { font-size: var(--t-lab); line-height: 15px; color: var(--text-2); font-weight: 500; text-align: center; white-space: nowrap; }
 .ac-dv b { font-weight: 600; color: var(--text); }
 .ac-dv .ac-cut.ok { color: var(--ok); } .ac-dv .ac-cut.caution { color: var(--caution); } .ac-dv .ac-cut.danger { color: var(--danger); }
-.ac-pa, .ac-pb { display: block; font-size: var(--t-val); font-weight: 500; line-height: 1; letter-spacing: -0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; } .ac-pb { text-align: right; }
+.ac-pa, .ac-pb { display: block; font-size: var(--t-val); font-weight: 500; line-height: 1; letter-spacing: var(--ls-tight); white-space: nowrap; font-variant-numeric: tabular-nums; } .ac-pb { text-align: right; }
 .ac-pb u { text-decoration: none; font-size: var(--t-cap); color: var(--text-3); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
 .ac-track { position: relative; height: 8px; min-width: 18px; overflow: hidden; border-radius: 3px 0 0 3px; clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%); }
 .ac-ramp { position: absolute; inset: 0; transform-origin: 0 50%; }
 /* a structure with no inflow and outflow (the heart, the spleen, the varices, a lobule part): its one reading */
 .ac-value { display: flex; align-items: baseline; min-height: 24px; }
 .ac-num { display: inline-flex; align-items: baseline; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ac-value b { font-size: var(--t-val); font-weight: 500; letter-spacing: -0.01em; line-height: 1; }
+.ac-value b { font-size: var(--t-val); font-weight: 500; letter-spacing: var(--ls-tight); line-height: 1; }
 .ac-value .unit { font-size: var(--t-cap); margin-left: 3px; color: var(--text-3); }
 .ac-delta { margin-left: 10px; font-size: var(--t-cap); font-weight: 600; color: var(--text); }
 /* the readings: named by their units (a name only where the unit would not say it) */

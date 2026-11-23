@@ -55,7 +55,7 @@ export type GeoLine = GeoRun[];
 /** 2D MM: a whole number where it is one (within 0.05), else one decimal. */
 export const MM = (v: number): string => (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1));
 
-const num = (t: string, gap = 4, size = 14): GeoRun => ({ k: 'val', t, size, weight: 650, gap });
+const num = (t: string, gap = 4, size = 14): GeoRun => ({ k: 'val', t, size, weight: 600, gap });
 const unit = (t: string, gap = 2.5): GeoRun => ({ k: 'unit', t, size: 10, weight: 500, gap });
 
 /** The stent's lines (2D geomItem): the stent and its diameter; its waist's numbers only ("6 mm × 4 cm"); its end stenosis. */

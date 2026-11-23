@@ -136,7 +136,7 @@ export function buildCaptions(ctx: CapCtx): Built {
   const keyOn = present[0] ?? null;   // ("vs healthy liver" rides once, on the outermost reading)
   for (const key of present) {
     const ratio = ctx.res[key]!;
-    const runs: Run[] = [{ ...nameRun(RES_LABEL[key]!), size: 11.5, weight: 600 }, { ...valueRun(resText(ratio), false), size: 11.5, weight: 650 }];
+    const runs: Run[] = [{ ...nameRun(RES_LABEL[key]!), size: 11.5, weight: 600 }, { ...valueRun(resText(ratio), false), size: 11.5, weight: 600 }];
     const b1 = boxSize(runs, vp, measure);
     let w = b1.w, h = b1.h;
     const keyed = keyOn === key;
@@ -219,7 +219,7 @@ export function buildCaptions(ctx: CapCtx): Built {
     const zig = (id === 'C1b' && ctx.res.rColl != null) || (id === 'A_SMA' && ctx.res.rGut != null);
     const cut = !zig ? -1 : cap.includes(' → ') ? cap.indexOf(' → ') : cap.lastIndexOf(' ', cap.length / 2);
     const lines = cut > 0 ? [cap.slice(0, cut), cap.slice(cut + 1)] : [cap];
-    const sizes = lines.map((l) => boxSize([{ ...nameRun(l), size: 10, weight: 550 }], vp, measure));
+    const sizes = lines.map((l) => boxSize([{ ...nameRun(l), size: 10, weight: 500 }], vp, measure));
     const w = Math.max(...sizes.map((s) => s.w)), h = sizes.reduce((a, s) => a + s.h, 0);
     // The caption stands beside its lane at the first of its spots where no other vessel touches it and it is in the free room (2D laneU / laneAlt: N then S of a run, 3 px and then 12 px off the
     // lane's edge; upright, one that runs up the screen is turned and goes E then W of it); with no such spot it takes the middle's, as before.

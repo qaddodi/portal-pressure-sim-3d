@@ -59,7 +59,7 @@ export async function drawScreen(at: Date, opts: { ratio?: number; /** no build 
   if (opts.stamp !== false) {
   // the stamp: small, in the lower right corner, solid, with a thin halo of the ground so it reads over the figure and over a card
   g.setTransform(s, 0, 0, s, 0, 0);
-  g.globalAlpha = 1; g.font = `500 9px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+  g.globalAlpha = 1; g.font = `500 ${Number.parseFloat(bs.getPropertyValue("--t-cap")) || 12}px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
   const words = stampText(build, at), x = vp.w - 6, y = vp.h - 5;
   g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.strokeText(words, x, y);
   g.fillStyle = bs.color; g.fillText(words, x, y);

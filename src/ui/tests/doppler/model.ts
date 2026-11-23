@@ -500,14 +500,14 @@ export class DopplerModel {
     const doppler = this.dopplerInk();
     if (cal && kind0 !== 'artery') {
       const pi = `PI ${fmt(Math.max(0, Math.min(3, cal.pi)), 2)}`;
-      text(x0, yLab, pi, { weight: 700, color: doppler, key: 'cal-pi' });
+      text(x0, yLab, pi, { weight: 600, color: doppler, key: 'cal-pi' });
       x0 += measure(pi, 12, 700) + 12;
     } else if (cal) {
       const ri = this.riOf(cal, rd);
       if (ri) {
         const spare = w - padR - x0 - 6 - measure(settings[0]!, 12, 500) - 12;
         let fi = 0; while (fi < 3 && measure(ri[fi]!, 12, 700) > spare) fi++;
-        text(x0, yLab, ri[fi]!, { weight: 700, color: doppler, key: 'cal-ri' });
+        text(x0, yLab, ri[fi]!, { weight: 600, color: doppler, key: 'cal-ri' });
         x0 += measure(ri[fi]!, 12, 700) + 12;
       }
     }
@@ -698,7 +698,7 @@ export class DopplerModel {
       const up = name === 'a', x = xAt(t), y0 = padT + baseY - lv * k * pxPerV, y = up ? Math.min(y0, padT + baseY) : y0;
       if (x < padL + 2 || x > padL + W - 2) continue;
       const ty = clamp(y + (up ? -5 : 5), padT + (up ? PX + 1 : 0), padT + H - (up ? 0 : PX + 1));
-      shapes.push({ k: 'text', x, y: ty, s: name, size: PX, weight: 700, color: [1, 1, 1, A], anchor: 'middle', baseline: up ? 'alphabetic' : 'top', halo: { color: [0, 0, 0, 0.9 * A], w: 5 }, key: `wave-${name}` });
+      shapes.push({ k: 'text', x, y: ty, s: name, size: PX, weight: 600, color: [1, 1, 1, A], anchor: 'middle', baseline: up ? 'alphabetic' : 'top', halo: { color: [0, 0, 0, 0.9 * A], w: 5 }, key: `wave-${name}` });
     }
   }
 
@@ -726,7 +726,7 @@ export class DopplerModel {
     const hiTop = lvHi <= lvLo, room = 11 / 2 + 3, top = padT + 11 / 2, bot = padT + H - 11 / 2;
     const num1 = (v: number, y: number, want: number, key: string) => {
       const fits = (sd: number) => (sd < 0 ? y - room >= top : y + room <= bot), side = fits(want) ? want : fits(-want) ? -want : want;
-      shapes.push({ k: 'text', x: xc + 4 + 3, y: clamp(y + side * room, top, bot), s: num(Math.round(sgn * v * k * gfc)), size: 11, weight: 700, color: dop, baseline: 'middle', halo: { color: dark, w: 3.5 }, key });
+      shapes.push({ k: 'text', x: xc + 4 + 3, y: clamp(y + side * room, top, bot), s: num(Math.round(sgn * v * k * gfc)), size: 11, weight: 600, color: dop, baseline: 'middle', halo: { color: dark, w: 3.5 }, key });
     };
     num1(cal.hi[1]!, lvHi, hiTop ? -1 : 1, 'cal-hi'); num1(cal.lo[1]!, lvLo, hiTop ? 1 : -1, 'cal-lo');
   }

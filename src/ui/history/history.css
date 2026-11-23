@@ -6,7 +6,7 @@
 .hist-row:last-child { border-bottom: 0; }
 .hist-row[data-future] { opacity: 0.45; }
 .hist-head { display: grid; grid-template-columns: minmax(0, 1fr) auto 56px; align-items: center; gap: 8px; font: 500 var(--t-body) / 1.25 var(--ui); }
-.hist-head b { font-weight: 600; min-width: 0; transition: color var(--d-small) var(--ease); }
+.hist-head b { font: 600 var(--t-name) / 1.25 var(--display); min-width: 0; transition: color var(--d-small) var(--ease); }   /* (a name is serif: docs/approved/type.md) */
 .hist-head .when { font: 500 var(--t-cap) / 1 var(--ui); color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
 .hist-t.jump { color: var(--accent); }
 .hist-t.start { color: var(--text-2); }

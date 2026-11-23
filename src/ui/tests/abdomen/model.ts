@@ -103,8 +103,8 @@ export function dialFrame(iap: number, shown: number, w: number, h: number, pal:
   shapes.push({ k: 'line', x1: X(kx0), y1: Y(ky0), x2: X(kx1), y2: Y(ky1), pen: { color: pal.tok('text-2'), w: 2 * k, cap: 'round' } });
   shapes.push({ k: 'circle', cx: X(kx), cy: Y(ky), r: 4.6 * k, fill: pal.tok('surface'), pen: { color: pal.tok(sevTok(sev)), w: 2.6 * k } });
   const sizeK = f / k;
-  shapes.push({ k: 'text', x: X(TX), y: Y(43), s: 'IAP', size: Math.max(8.5, sizeK) * k, weight: 600, color: pal.tok('text-3'), anchor: 'middle', baseline: 'middle', ls: 0.12, key: 'key' });
-  shapes.push({ k: 'text', x: X(TX), y: Y(DIAL_NUM_Y), s: String(n), size: 25 * k, weight: 600, color: pal.tok('text'), anchor: 'middle', baseline: 'middle', ls: -0.02, key: 'n' });
+  shapes.push({ k: 'text', x: X(TX), y: Y(43), s: 'IAP', size: Math.max(8.5, sizeK) * k, weight: 600, color: pal.tok('text-3'), anchor: 'middle', baseline: 'middle', ls: 0.06, key: 'key' });
+  shapes.push({ k: 'text', x: X(TX), y: Y(DIAL_NUM_Y), s: String(n), size: 25 * k, weight: 600, color: pal.tok('text'), anchor: 'middle', baseline: 'middle', ls: -0.015, key: 'n' });
   const yu = DIAL_NUM_Y + DIAL_NUM_HALF + DIAL_GAP + 0.5 * Math.max(8.5, sizeK);   // (the unit stands under the number's own bottom edge, whatever size the small words are drawn at)
   shapes.push({ k: 'text', x: X(TX), y: Y(yu), s: 'mmHg', size: Math.max(8.5, sizeK) * k, weight: 500, color: pal.tok('text-3'), anchor: 'middle', baseline: 'middle', key: 'unit' });
   const yw = yu + 3.5 + 0.72 * Math.max(9, sizeK);

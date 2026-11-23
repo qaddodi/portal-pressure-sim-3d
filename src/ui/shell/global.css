@@ -11,6 +11,10 @@
   --d-look: 320ms;      /* own pace: a change of look cross-fading the whole page */
   --sh-h: 44px; --sh-gap: 8px;   /* a pill's height and the gap beside a pill or a popover (the shell's, and the presenter's gear sheet beside it) */
   --sheet-gap: 12px;   /* M.sheetGap (shell/metrics.ts), until the shell publishes it on the root: the one gap above the dock's top edge (tests/ui-vocabulary.test.ts keeps the two equal) */
+  /* type.md: the serif name (a row's or an event's name). The 2D tokens have no such role; 15 px on a phone to 17 px on a Mac, like --t-body's own stride. */
+  --t-name: clamp(15px, calc(15px + (100vmin - 390px) * .00392), 17px);
+  /* the one display tracking (a serif title or a big number); caps use --caps-ls; every other run of text has none (type.md) */
+  --ls-tight: -.015em;
   --z-stage: 1; --z-cards: 10; --z-tags: 5; --z-chrome: 20; --z-perf: 100;
 }
 *, *::before, *::after { box-sizing: border-box; }

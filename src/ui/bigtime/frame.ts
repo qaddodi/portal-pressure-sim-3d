@@ -118,7 +118,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   if (!phone) {
     const end: number[] = [];
     for (const e of lines) {
-      const w = measure(e.label, fs, e.tone === 'change' ? 700 : 500), x = Math.min(X(e.day) + 5, W - 6 - w);
+      const w = measure(e.label, fs, e.tone === 'change' ? 600 : 500), x = Math.min(X(e.day) + 5, W - 6 - w);
       let r = 0; while (end[r] != null && end[r]! > x - 8) r++;
       end[r] = x + w; placed.push({ e, x, r, w });
     }
@@ -126,7 +126,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   } else {
     let band = 40, lastR = -1e9, lastSide = 'r' as 'l' | 'r';
     for (const e of lines) {
-      const ls = wrap2(e.label, fs), w = Math.max(...ls.map((l) => measure(l, fs, e.tone === 'change' ? 700 : 500)));
+      const ls = wrap2(e.label, fs), w = Math.max(...ls.map((l) => measure(l, fs, e.tone === 'change' ? 600 : 500)));
       const need = ls.length * 14, x = X(e.day);
       const side: 'l' | 'r' = x - need < lastR && lastSide === 'l' ? 'r' : 'l';
       lastR = side === 'l' ? x : x + 5 + need; lastSide = side;
@@ -224,13 +224,13 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     for (const p of parts) {
       const nm = `${p.name} `;
       say({ x, y: g.t + 14, s: nm, color: p.ink, weight: 500 }); x += measure(nm, fs, 500);
-      if (p.val) { say({ x, y: g.t + 14, s: p.val, color: p.ink, weight: 700 }); x += measure(p.val, fs, 700); }
+      if (p.val) { say({ x, y: g.t + 14, s: p.val, color: p.ink, weight: 600 }); x += measure(p.val, fs, 600); }
       x += 18;
     }
   }
   // event words
   for (const p of placed) {
-    const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 700 : 500;
+    const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
     if (!phone) say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight });
     else (p.ls ?? []).forEach((l, i, a) => { const xx = p.side === 'r' ? X(p.e.day) + 5 + 11 + i * 14 : X(p.e.day) - 5 - (a.length - 1 - i) * 14; say({ x: xx, y: top - 8, s: l, color: ink, weight, rot: -90, anchor: 'start' }); });
   }
@@ -243,7 +243,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
         ...g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], inp.cursor!); return { v: v == null ? null : m.id === 'shunt' ? v * 100 : v, col: colourOf(pal, m.tok) }; })];
       for (const d of dots) if (d.v != null) shapes.push({ k: 'circle', cx, cy: Y(d.v), r: 3.8, fill: d.col, pen: pen(pal.tok('surface'), 1.6) });
     }
-    say({ x: cx, y: bottom + 19, s: `Day ${Math.round(inp.cursor)}`, color: text, weight: 700, anchor: 'middle' });
+    say({ x: cx, y: bottom + 19, s: `Day ${Math.round(inp.cursor)}`, color: text, weight: 600, anchor: 'middle' });
   }
   if (!specs.length) say({ x: L + plotW / 2, y: top + medsH + free / 2, s: 'Nothing chosen. Turn something on under What to graph.', color: t2, anchor: 'middle', size: fs });
   const f = frame();

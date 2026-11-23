@@ -115,7 +115,7 @@ test('the frame, every look and width: words 12 px and over, in the box, readabl
       const { frame, geo } = bigFrame(inp(), c);
       const { words } = judge(frame, look);
       assert.equal(geo.lanes.map((l) => l.id).join(), 'p,hvpg,asc,shunt', `${look} ${w}`);
-      assert.ok(words.some((t) => t.s === 'Day 84' && t.weight === 700), `${look} ${w}: the crosshair's day`);
+      assert.ok(words.some((t) => t.s === 'Day 84' && t.weight === 600), `${look} ${w}: the crosshair's day`);
       assert.ok(words.some((t) => t.s === 'TIPS 8 mm'), `${look} ${w}: a procedure's name`);
       assert.ok(words.some((t) => t.s === 'Carvedilol'), `${look} ${w}: a medicine's name`);
       assert.ok(words.some((t) => t.s === 'CSPH 10') && words.some((t) => t.s === 'Bleed risk 12') && words.some((t) => t.s === 'Large shunt 30%') && words.some((t) => t.s === 'Grade 2 · 1.5 L'), `${look} ${w}: the cut-offs`);

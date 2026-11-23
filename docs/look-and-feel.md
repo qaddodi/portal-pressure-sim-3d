@@ -85,16 +85,8 @@ Pressure colours and cut-offs stay as in the engine (`pressure-cuts`: HVPG amber
 
 ## 5. Type
 
-Fonts are the app's: Inter for the interface and numbers, Source Serif 4 for titles. Numbers are tabular and lining everywhere.
-
-| Role | Mac and iPad | iPhone portrait | iPhone landscape |
-|---|---|---|---|
-| Deck title | Serif 44 / 1.08 | Serif 32 | Serif 28 |
-| Slide title | Serif 26 / 1.18 (1.53× body) | Serif 22 (1.38×) | Serif 22 (1.38×) |
-| Body (teaching line) | Inter 17 / 1.5 | Inter 16 / 1.45 | Inter 16 / 1.45 |
-| Data text, tags | Inter 13 | Inter 13 | Inter 12 minimum |
-| Kicker | Inter 11 caps, +0.09em | same | same |
-| Big number | Inter 40 semibold | 40 | 32 |
+The one place is `docs/approved/type.md` (23 Nov 2026): two fonts (Inter for the interface and numbers, Source Serif 4 for titles and names), weights 400/500/600, three trackings, a 12 px floor, the sheet ladder (`--t-*`) and the card ladder (`typeFor()` in `src/ui/layout/device.ts`). Numbers are tabular and lining everywhere.
+`tests/type-vocabulary.test.ts` holds it for every stylesheet we own. The earlier table here (body 17, data 13, kicker 11 caps +.09em, big number 40) did not match the code and is gone.
 
 Text **never shrinks to fit**. When a card does not fit, the figure gives up room, then the card splits into pages; nothing scrolls inside a card,
 and no card is taller than the screen.

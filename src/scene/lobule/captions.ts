@@ -115,7 +115,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
   if (ctx.layers.zones) {
     ZONE_WORDS.forEach(([t, d], i) => {
       const [ax, ay] = ctx.proj(0, APOTHEM * ZONE_Q[i]!);
-      const full = `${t} ${d}`, bf = boxSize([{ ...nameRun(full), size: 10.5, weight: 650 }], vp, measure), bs = boxSize([{ ...nameRun(t), size: 10.5, weight: 650 }], vp, measure);
+      const full = `${t} ${d}`, bf = boxSize([{ ...nameRun(full), size: 10.5, weight: 600 }], vp, measure), bs = boxSize([{ ...nameRun(t), size: 10.5, weight: 600 }], vp, measure);
       const id = `z:${i + 1}`;
       items.push({ id, ax, ay, au: 0.5, forms: [form(full, bf.w, bf.h), form(t, bs.w, bs.h)], pri: 95, region: true });
       meta.set(id, { id, kind: 'zone', forms: [{ name: full, value: false }, { name: t, value: false }], read: null, label: `${t}, ${d}`, target: `lobule:zone${i + 1}` });

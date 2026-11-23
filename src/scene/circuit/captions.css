@@ -1,16 +1,16 @@
 /* The Circuit's captions (CircuitCaptions.tsx) in the figure's one label type (labels/labels.css): the station names and readings are the figure's own `.lb`; these are the
    zone titles, the lane captions and the resistors' readings, which the 2D app writes in the same family at its own sizes (set on the element when it takes its place). */
 .cc-layer { z-index: var(--z-tags, 5); }
-.lb.cc-zone .lb-name { font-weight: 650; color: var(--cc-ink); }   /* (2D .lb-zone: --text-3, 650, mixed case, no tracking, no opacity) */
+.lb.cc-zone .lb-name { font-weight: 600; color: var(--cc-ink); }   /* (2D .lb-zone: --text-3, 650, mixed case, no tracking, no opacity) */
 .lb.cc-lane { align-items: center; }
-.lb.cc-lane .lb-name { font-weight: 550; font-style: italic; color: var(--cc-ink); white-space: pre; line-height: 1.15; text-align: center; }
+.lb.cc-lane .lb-name { font-weight: 500; font-style: italic; color: var(--cc-ink); white-space: pre; line-height: 1.15; text-align: center; }
 /* a resistor's reading: its name and ratio on one line, and once, on the outermost, the key under them */
 .lb.cc-res { flex-direction: column; align-items: center; justify-content: center; }
 .lb.cc-res::before { display: none; }
 .lb.cc-res .cc-row { display: flex; align-items: baseline; }
 .lb.cc-res .cc-row > span, .lb.cc-res .cc-key { line-height: 1.1; -webkit-text-stroke: var(--lb-halo-w) var(--lb-halo); paint-order: stroke fill; stroke-linejoin: round; }
 .lb.cc-res .lb-name { font-weight: 600; color: var(--lb-name); }
-.lb.cc-res .lb-val { font-weight: 650; color: var(--lb-val); margin-left: var(--lb-g-val); }
+.lb.cc-res .lb-val { font-weight: 600; color: var(--lb-val); margin-left: var(--lb-g-val); }
 .lb.cc-res .cc-key { font-weight: 500; font-size: 9.5px; color: var(--lb-name); }
 
 /* a zone title that opens a card (the Liver's and the Heart's, as in 2D): the one caption that takes the pointer */

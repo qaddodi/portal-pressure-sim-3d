@@ -11,9 +11,9 @@
 .bt button { font-family: inherit; }
 .bt-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .bt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 4px; }
-.bt-head h2 { margin: 0; font: 600 calc(var(--t-val) * 1.25) / 1.2 var(--display); }
-.bt-range { display: flex; align-items: baseline; gap: 22px; margin: 0; font: 500 var(--t-body) / 1.2 var(--ui); color: var(--text-2); }
-.bt-range button, .bt-acts button { padding: 0; border: 0; background: none; font: 500 var(--t-body) / 1.2 var(--ui); color: var(--text-2); transition: color var(--d-small) var(--ease); }
+.bt-head h2 { margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }
+.bt-range { display: flex; align-items: baseline; gap: 22px; margin: 0; font: 500 var(--t-lab) / 1.2 var(--ui); color: var(--text-2); }
+.bt-range button, .bt-acts button { padding: 0; border: 0; background: none; font: 500 var(--t-lab) / 1.2 var(--ui); color: var(--text-2); transition: color var(--d-small) var(--ease); }
 .bt-range button[data-idle] { color: var(--text-3); }
 .bt-plot { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: crosshair; outline: none; }
 .bt-plot:focus-visible, .bt-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
@@ -23,7 +23,7 @@
 
 .bt-side { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .bt-tabs { display: flex; align-items: baseline; gap: 22px; padding: 2px 0 6px; }
-.bt-tabs h2 { margin: 0; font: 600 calc(var(--t-val) * 1.15) / 1.2 var(--display); }
+.bt-tabs h2 { margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }
 .bt-tabs button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text-3); transition: color var(--d-small) var(--ease); }
 .bt-tabs button[aria-pressed="true"] { color: var(--text); }
 .bt .bt-done { margin-left: auto; padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--accent); }
@@ -33,7 +33,7 @@
 .bt-grp header b { font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); }
 .bt-grp header span { color: var(--text-3); }
 .bt-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px 64px; align-items: center; gap: 10px; width: 100%; height: var(--bt-row); padding: 0; border: 0; border-bottom: 1px solid var(--edge); background: none; font: 600 var(--t-body) / 1.2 var(--ui); text-align: left; transition: color var(--d-small) var(--ease); }
-.bt-row .bt-name { min-width: 0; white-space: nowrap; }
+.bt-row .bt-name { min-width: 0; white-space: nowrap; font: 600 var(--t-name) / 1.2 var(--display); }   /* (a name is serif: type.md) */
 .bt-row .bt-spark { position: relative; height: 28px; transition: opacity var(--d-small) var(--ease); }
 .bt-row .bt-val { text-align: right; color: var(--text); white-space: nowrap; font-weight: 600; }
 .bt-row[data-off] { color: var(--text-3); font-weight: 500; }
@@ -47,17 +47,17 @@
 .bt-case { margin-top: clamp(6px, 1.6vh, 14px); border-top: 1px solid var(--edge); }
 .bt-case header { border-bottom: 0; }
 .bt-note { margin: 0; font: 400 var(--t-cap) / 1.35 var(--ui); color: var(--text-3); }
-.bt-inert span { color: var(--text-3); font-weight: 450; }
+.bt-inert span { color: var(--text-3); font-weight: 400; }
 
 .bt-happen { position: absolute; inset: 0; }   /* its box is the room the side has, never its own rows (a list sized by its content fed its own page size back and flickered) */
 .bt-list { list-style: none; margin: 0; padding: 0; }
 .bt-list li { border-top: 1px solid var(--edge); }
 .bt-list li > button { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: baseline; gap: 12px; width: 100%; min-height: 38px; padding: 8px 0; border: 0; background: none; text-align: left; font: 400 var(--t-body) / 1.3 var(--ui); color: var(--text-2); }
-.bt-list .bt-when { color: var(--text-3); white-space: nowrap; }
-.bt-list li[data-kind="change"] .bt-what { font-weight: 700; color: var(--text); }
+.bt-list .bt-when { font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); white-space: nowrap; }
+.bt-list .bt-what { font: 600 var(--t-name) / 1.3 var(--display); }   /* (a name is serif: type.md) */
+.bt-list li[data-kind="change"] .bt-what { color: var(--text); }
 .bt-list li[data-open] > button { padding-top: 12px; }
-.bt-list li[data-open] .bt-what { font-size: calc(var(--t-body) * 1.2); font-weight: 600; }
-.bt-more { padding: 0 0 12px 76px; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
+.bt-more { padding: 0 0 12px 76px; font: 400 var(--t-lab) / 1.4 var(--ui); color: var(--text-2); }
 .bt-more p { margin: 0 0 4px; } .bt-more .bt-read { color: var(--text); }
 .bt-more dl { margin: 4px 0 0; } .bt-more dl > div { display: flex; justify-content: space-between; gap: 14px; padding: 5px 0; border-top: 1px solid var(--edge); }
 .bt-more dt { color: var(--text-3); } .bt-more dd { margin: 0; color: var(--text); font-weight: 600; text-align: right; }
@@ -68,10 +68,9 @@
 /* a phone: the chart takes the card; "What to graph" and "What happened" are two words at the foot, and raise a sheet over the chart with its own Done */
 .bt[data-compact] { display: flex; flex-direction: column; padding: 16px 16px 12px; }
 .bt[data-compact] .bt-main { flex: 1; }
-.bt[data-compact] .bt-head h2 { font-size: calc(var(--t-val) * 1.2); }
 .bt-acts { display: flex; align-items: baseline; gap: 18px; margin: 0; }
 .bt-foot { display: flex; justify-content: space-between; align-items: baseline; flex: none; margin-top: 10px; padding: 12px 0 calc(var(--safe-b, 0px) * 0.4); border-top: 1px solid var(--edge); }
-.bt-foot button { padding: 0; border: 0; background: none; font: 600 calc(var(--t-body) * 1.2) / 1.2 var(--ui); color: var(--text); }
+.bt-foot button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); }
 .bt-foot button[data-quiet] { color: var(--text-2); font-weight: 500; }
 .bt[data-compact] .bt-side { position: absolute; left: 0; right: 0; bottom: 0; height: min(78%, 640px); padding: 14px 16px 12px; border-radius: var(--r-sheet) var(--r-sheet) 0 0; border-top: 1px solid var(--edge); background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 -12px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / 0.28); opacity: 0; visibility: hidden; transform: translateY(24px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }

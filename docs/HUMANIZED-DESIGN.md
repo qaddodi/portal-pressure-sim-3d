@@ -62,6 +62,8 @@ Keep it, but never add new glass surfaces or glows beyond it.
   figure's colouring, so it stands in the foot of the story card (`key-dock.ts`). It is shown only on a slide that changes the lens from the one
   before it, or has lens buttons of its own: a run of slides on one lens names it once. `keyPlace` in `scene/labels/key.ts` is the one rule.
 
+- **Type:** `docs/approved/type.md` is the one scale (two fonts, weights 400/500/600, a name is serif, the 12 px floor); a stylesheet that drifts fails `tests/type-vocabulary.test.ts`.
+
 ## 4. Words
 
 | Do | Don't |
