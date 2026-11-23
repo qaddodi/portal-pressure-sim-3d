@@ -104,7 +104,8 @@ export function hexFrac(x: number, y: number): number {
 /** Rappaport zone of a place across the lobule (q 0 at the central vein, 1 at the portal edge): 1 periportal, 2 midzonal, 3 pericentral. */
 export const zoneOf = (q: number): 1 | 2 | 3 => (q > 0.66 ? 1 : q > 0.36 ? 2 : 3);
 
-export function buildLobule(seed = 7): LobuleNet {
+/** `bend: false` builds the same net without `bendNet` (the unbent twin the kink test measures a course against); the runtime never passes it. */
+export function buildLobule(seed = 7, opts: { bend?: boolean } = {}): LobuleNet {
   const r = rng(seed);
   const R = 1, cx = 0, cy = 0;
   const rs0 = RS0, rsN = rs0 * SIN_NARROW, rcv0 = 0.07, rt = 0.1;
@@ -201,7 +202,7 @@ export function buildLobule(seed = 7): LobuleNet {
     join(A[0], A[1], 0.012);
   }
   // The network is bent once, here, before anything is laid along it (weld-bend.ts: the shallow V of two merging sinusoids is opened to the least angle the weld planner needs)
-  bendNet(courses, triads.map((t) => { const q = dot(t.lv[0], t.lv[1]).pts; return q[Math.floor(q.length / 2)]!; }));   // (each tract's lymphatic mouth is the middle sample of its dot, as its course will be)
+  if (opts.bend !== false) bendNet(courses, triads.map((t) => { const q = dot(t.lv[0], t.lv[1]).pts; return q[Math.floor(q.length / 2)]!; }));   // (each tract's lymphatic mouth is the middle sample of its dot, as its course will be)
   // Portal-central septa (advanced cirrhosis): from three triads into the central vein's cuff
   const septa = [0, 2, 4].map((i) => {
     const [x, y] = C[i]!, ph = r() * TAU, nx = -(cy - y), ny = cx - x;

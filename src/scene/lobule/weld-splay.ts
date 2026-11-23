@@ -18,6 +18,10 @@ export const SPLAY_GAP = 1.05;
 export const SPLAY_CARRY_R = 6;
 /** ...and at least this many lengths of the shift it carries (the branch turns by about 1.5 / this at most), and at most this share of the branch (its far end is its own junction's). */
 export const SPLAY_CARRY_SLOPE = 5, SPLAY_CARRY_MAX = 0.6;
+/** ...and at least this share of the branch (a small shift still eases over a few samples, which kinked a cross-link at its host end). */
+export const SPLAY_CARRY_MIN_SHARE = 0.3;
+/** The re-routed arm keeps its cubic out to this share of the way to Q; a C2 quintic tail then lands on the path at the wiggle's inflection, at most SPLAY_JOIN_EXT samples past Q. */
+export const SPLAY_JOIN_U0 = 0.5, SPLAY_JOIN_EXT = 8;
 
 /** The structure of a junction the splay needs (welds.ts's Node has more). */
 export interface SplayNode { id: string; J: V3; /* (moved in place when a bent host carries the T) */ ends: { c: number; end: 0 | 1 }[]; host?: { c: number; seg: number; t: number } }
@@ -62,7 +66,7 @@ export function splayCourses(cs: readonly WeldCourse[], nodes: readonly SplayNod
         //  degrees in a few samples (118 degrees at an 143, 23 Nov, the SOS slide). It is at least SPLAY_CARRY_SLOPE lengths of the shift, never more than the share of the branch that leaves its other end alone,
         //  and it fades with a C2 curve, so the branch has no kink where the shift ends)
         let total = 0; for (let i = 1; i < pts.length; i++) total += hyp(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]);
-        const reach = Math.min(Math.max(SPLAY_CARRY_R * R, SPLAY_CARRY_SLOPE * hyp(dl[0], dl[1], dl[2])), SPLAY_CARRY_MAX * total);
+        const reach = Math.min(Math.max(SPLAY_CARRY_R * R, SPLAY_CARRY_SLOPE * hyp(dl[0], dl[1], dl[2]), SPLAY_CARRY_MIN_SHARE * total), SPLAY_CARRY_MAX * total);
         let run = 0, prev = pts[e.end === 0 ? 0 : pts.length - 1]!;
         for (let i = e.end === 0 ? 0 : pts.length - 1; i >= 0 && i < pts.length; i += step) {
           const q = pts[i]!;
@@ -127,17 +131,53 @@ export function splayCourses(cs: readonly WeldCourse[], nodes: readonly SplayNod
       const chord = arms.map((a, i) => (a.fixed ? a.d : unit((() => { const p = out[a.c]!.pts[a.idx[Q[i]!]!]!; return [p[0] - n.J[0], p[1] - n.J[1], p[2] - n.J[2]] as V3; })())));
       const dirs = spread(chord);
       const cand = new Map<number, V3[]>();
+      let reachMax = len;
       arms.forEach((a, i) => {
         if (a.fixed) return;
         const q = Q[i]!, L = a.arc[q]!, P1 = out[a.c]!.pts[a.idx[q]!]!;
         const after = out[a.c]!.pts[a.idx[Math.min(a.idx.length - 1, q + 1)]!]!, before = out[a.c]!.pts[a.idx[Math.max(0, q - 1)]!]!;
         const t1 = unit([after[0] - before[0], after[1] - before[1], after[2] - before[2]]);
+        const P = (k: number) => out[a.c]!.pts[a.idx[k]!]!;
+        /** The Hermite cubic from J to Q: position, first and second derivative in u (0..1). */
+        const H = (u: number): V3 => { const u2 = u * u, u3 = u2 * u; return [0, 1, 2].map((c) => (2 * u3 - 3 * u2 + 1) * n.J[c]! + (u3 - 2 * u2 + u) * L * dirs[i]![c]! + (-2 * u3 + 3 * u2) * P1[c]! + (u3 - u2) * L * t1[c]!) as V3; };
+        const H1 = (u: number) => { const u2 = u * u; return [0, 1, 2].map((c) => (6 * u2 - 6 * u) * n.J[c]! + (3 * u2 - 4 * u + 1) * L * dirs[i]![c]! + (-6 * u2 + 6 * u) * P1[c]! + (3 * u2 - 2 * u) * L * t1[c]!); };
+        const H2 = (u: number) => [0, 1, 2].map((c) => (12 * u - 6) * n.J[c]! + (6 * u - 4) * L * dirs[i]![c]! + (-12 * u + 6) * P1[c]! + (6 * u - 2) * L * t1[c]!);
+        // (the cubic is nearly straight, so it erases the course's wiggle on J..Q and met it at Q wherever the wiggle happened to be, a turn of -5 degrees per sample at the SOS ring's course, 23 Nov. The cubic stays
+        //  as it is out to U0 of the way, so the skins' seams see the same arms; a quintic tail then carries its position, direction and curvature to the path's own at the wiggle's inflection)
+        // the turn (signed, about the plan's up) at sample k of the original path
+        const turnAt = (k: number) => { const A = P(k - 1), B = P(k), C = P(k + 1); return Math.atan2((B[0] - A[0]) * (C[1] - B[1]) - (B[1] - A[1]) * (C[0] - B[0]), (B[0] - A[0]) * (C[0] - B[0]) + (B[1] - A[1]) * (C[1] - B[1])); };
+        let qE = q;
+        if (q >= 1) {
+          let best = Infinity;
+          for (let k = q; k <= Math.min(a.idx.length - 2, q + SPLAY_JOIN_EXT); k++) {
+            const tk = Math.abs(turnAt(k)); if (tk < best) { best = tk; qE = k; }
+            if (k > q && Math.sign(turnAt(k)) !== Math.sign(turnAt(k - 1))) break;
+          }
+        }
+        /** The unit tangent and the curvature vector (normal part of the second derivative over speed squared) of a curve with first and second derivatives d1, d2. */
+        const geo = (d1: number[], d2: number[]) => { const sp = hyp(d1[0]!, d1[1]!, d1[2]!), T = d1.map((x) => x / sp), dt = d2[0]! * T[0]! + d2[1]! * T[1]! + d2[2]! * T[2]!; return { T, K: d2.map((x, c) => (x - dt * T[c]!) / (sp * sp)) }; };
+        const s0 = SPLAY_JOIN_U0 * L, s1 = a.arc[qE]!, Lw = s1 - s0;
+        const tail = q >= 1 && qE + 1 < a.idx.length && qE >= 1 && Lw > 1e-9;
+        let PA: V3 = n.J, PB: V3 = n.J, g0 = { T: [0, 0, 0], K: [0, 0, 0] }, g1 = g0;
+        if (tail) {
+          PA = H(SPLAY_JOIN_U0); g0 = geo(H1(SPLAY_JOIN_U0), H2(SPLAY_JOIN_U0));
+          // the path's own state at qE: central differences by arc length (the samples are not evenly spaced)
+          const pa = P(qE + 1), pb = P(qE - 1), pm = P(qE), hA = a.arc[qE + 1]! - a.arc[qE]!, hB = a.arc[qE]! - a.arc[qE - 1]!;
+          PB = pm;
+          g1 = geo([0, 1, 2].map((c) => (pa[c]! - pb[c]!) / (hA + hB)), [0, 1, 2].map((c) => 2 * ((pa[c]! - pm[c]!) / hA - (pm[c]! - pb[c]!) / hB) / (hA + hB)));
+          reachMax = Math.max(reachMax, s1);
+        }
         const path: V3[] = [];
         a.idx.forEach((idx, k2) => {
-          if (k2 > q) { path.push([...out[a.c]!.pts[idx]!] as V3); return; }
-          const u = L > 0 ? a.arc[k2]! / L : 1, u2 = u * u, u3 = u2 * u;
-          const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
-          path.push([0, 1, 2].map((c) => h00 * n.J[c]! + h10 * L * dirs[i]![c]! + h01 * P1[c]! + h11 * L * t1[c]!) as V3);
+          const s = a.arc[k2]!;
+          if (tail && s > s0 && k2 <= qE) {
+            const t = (s - s0) / Lw, t2 = t * t, t3 = t2 * t, t4 = t3 * t, t5 = t4 * t;
+            const b0 = 1 - 10 * t3 + 15 * t4 - 6 * t5, b1 = t - 6 * t3 + 8 * t4 - 3 * t5, b2 = 0.5 * t2 - 1.5 * t3 + 1.5 * t4 - 0.5 * t5, b3 = 0.5 * t3 - t4 + 0.5 * t5, b4 = -4 * t3 + 7 * t4 - 3 * t5, b5 = 10 * t3 - 15 * t4 + 6 * t5;
+            path.push([0, 1, 2].map((c) => b0 * PA[c]! + b1 * g0.T[c]! * Lw + b2 * g0.K[c]! * Lw * Lw + b3 * g1.K[c]! * Lw * Lw + b4 * g1.T[c]! * Lw + b5 * PB[c]!) as V3);
+            return;
+          }
+          if (k2 > q && !(tail && k2 <= qE)) { path.push([...out[a.c]!.pts[idx]!] as V3); return; }
+          path.push(H(L > 0 ? s / L : 1));
         });
         cand.set(i, path);
       });
@@ -148,10 +188,10 @@ export function splayCourses(cs: readonly WeldCourse[], nodes: readonly SplayNod
         if (!cand.has(i) && !cand.has(j)) continue;
         const a = arms[i]!, b = arms[j]!, Ra = out[a.c]!.rad[a.idx[0]!]!, Rb = out[b.c]!.rad[b.idx[0]!]!;
         for (let qa = 0; qa < a.idx.length && ok; qa++) {
-          if (a.arc[qa]! > len * 1.3) break;
+          if (a.arc[qa]! > reachMax * 1.3) break;
           const pa = at(i, qa);
           for (let qb = 0; qb < b.idx.length; qb++) {
-            if (b.arc[qb]! > len * 1.3) break;
+            if (b.arc[qb]! > reachMax * 1.3) break;
             const pb = at(j, qb), d = hyp(pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]);
             if (d < Math.min(SPLAY_GAP * (Ra + Rb), 0.5 * Math.max(a.arc[qa]!, b.arc[qb]!) - 1e-3)) { ok = false; break; }
           }
