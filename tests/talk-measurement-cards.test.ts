@@ -30,8 +30,8 @@ function run(kind: string): { kinds: string; text: ProcCards['text'] }[] {
 
 test('the EUS-PPG shows the PV reading, then the HV reading with it, then the gradient they make, then none', () => {
   const seen = run('eus'), s = seen.map((x) => x.kinds);
-  // the 2D spec: nothing, the PV (the portal target's card, key 'w' here), the HV beside it ('f'), the two with their gradient between them ('fwm': a stack no more, 23 Nov), then it goes as the scope does
-  assert.deepEqual(s, ['', 'w', 'wf', 'fwm', ''], 'the cards come in this order');
+  // the 2D spec: nothing, the PV (the portal target's card, key 'w' here), the HV beside it ('f'), the stack of the two with their gradient ('s'), then it goes as the scope does
+  assert.deepEqual(s, ['', 'w', 'wf', 's', ''], 'the cards come in this order');
   const res = seen[3]!.text;
   assert.match(res.w, /\d/, 'the PV reads a number');
   assert.match(res.f, /\d/, 'the HV reads a number');

@@ -71,7 +71,16 @@ export function askOf(s: CopiedSlide): ProcsAsk {
 /** The camera's own shots for a procedure's steps, on the tip (the 2D `way`, `tip`, `fill`, `work` legs). */
 const SHOT_R: Record<string, number> = { way: 3.7, tip: 2.4, fill: 2.4, work: 2.8 };
 const SHOT_HALF: Record<string, [number, number]> = { way: [0.9, 0.8], tip: [0.6, 0.5], fill: [0.6, 0.5], work: [0.7, 0.6] };
+/** The EUS-PPG's camera stands a little to the left of its shot (Mohammad, 23 Nov: "pan a little to the left"): the figure moves right, so the PV tag is not at the screen's edge. A share of the shot's half width. */
+export const EUS_PAN = 0.3;
 export function tipShot(name: string, at: { x: number; y: number; z: number }, kind?: string): Shot | null {
+  const sh = tipShot0(name, at, kind);
+  return kind === 'eus' ? eusPan(sh) : sh;
+}
+export function eusPan(sh: Shot | null): Shot | null {
+  return sh ? { ...sh, target: [sh.target[0] - sh.half[0] * EUS_PAN, sh.target[1], sh.target[2]] } : null;
+}
+function tipShot0(name: string, at: { x: number; y: number; z: number }, kind?: string): Shot | null {
   // a procedure with a route is framed from its own geometry (cath-shot.ts stepShot); the fixed table below is for the rest (a scope, a graft)
   if (kind) { const route = specFor(kind)?.route ?? kind, d = stepShot(kind, name, at, route); if (d) return d; }
   const r = SHOT_R[name];

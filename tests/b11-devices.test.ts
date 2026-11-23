@@ -362,7 +362,7 @@ test('the EUS-PPG\'s cards: PV at the portal target while the needle reads, HV a
   r = cardsOf(spec.labels(T.hvRead0! + 50, rd, null, out) as never, cards);
   assert.deepEqual(r.kinds, ['w', 'f']); assert.equal(cards.kickers.f, 'HV'); assert.equal(cards.tones.f, 'free');
   r = cardsOf(spec.labels(spec.markT[3]! + 50, rd, null, out) as never, cards);
-  assert.deepEqual(r.kinds, ['f', 'w', 'm'], 'HV and PV stay at their points, the calculation between them');
+  assert.deepEqual(r.kinds, ['s']);
   assert.equal(cards.kickers.h, 'EUS-PPG'); assert.equal(cards.text.h, cards.text.h.trim()); assert.ok(Math.abs((cards.text.hv ?? NaN) - 8.1) < 1e-9, 'the result stands as the difference');
   assert.ok(cards.text.w.includes('14') && cards.text.f.includes('6'), 'the rows carry the readings');
   // the names and tones are part of the card's signature: a change of them is a new solve

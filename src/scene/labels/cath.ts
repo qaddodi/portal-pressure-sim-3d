@@ -17,7 +17,7 @@ import { planStack } from './cath2d/cath-leads.copied.js';
 const C = LS.CATH;
 export { PILL_GAP };
 
-export type CalloutKind = 'f' | 'w' | 's' | 'm';
+export type CalloutKind = 'f' | 'w' | 's';
 /** The reading's colour: the free vein's blue, the wedged vein's, the portal vein's (the EUS needle's), or the band the HVPG falls in. */
 export type Tone = 'free' | 'wedge' | 'pv' | 'ivc' | 'ok' | 'caution' | 'danger';
 export interface Reading { kicker: string; value: string; unit: string; tone: Tone }
@@ -91,8 +91,7 @@ export function tagSize(t: TagType, r: Reading, measure: Measure): { w: number; 
 /** The room the readings stand in, canvas px: the figure's view (under the top bar, inside the safe areas). */
 export type Band = Box;
 export interface Side { above: boolean; dx: number }
-export interface PillIn { id: string; x: number; y: number; w: number; h: number; /** the side it prefers: the free reading above its point, the wedged one below */ prefer: boolean; was: Side | null;
-  /** The side it must stand on (the EUS-PPG's pair: the upper point's reading above it, the lower one's below, so the calculation fits between them). Absent: the free choice. */ force?: boolean }
+export interface PillIn { id: string; x: number; y: number; w: number; h: number; /** the side it prefers: the free reading above its point, the wedged one below */ prefer: boolean; was: Side | null }
 export interface PillOut {
   id: string; side: Side;
   /** the card's corner, canvas px */ x0: number; y0: number;
@@ -115,7 +114,6 @@ export function placePills(items: readonly PillIn[], band: Band, blockers: reado
   else items.forEach((i, n) => { sides[n].above = i.was!.above; sides[n].dx = i.was!.dx; });
   return items.map((it, n) => {
     const side = sides[n], r = recs[n], half = r.w / 2;
-    if (items[n]!.force !== undefined) side.above = items[n]!.force!;
     // kept inside the stage: the box moves in and its leader stays on the point; and inside the band the cards leave
     const bTop = band.y0 + C.BAND.top, bBot = Math.max(bTop, band.y1 - C.BAND.bottom - r.h);
     const cx = clamp(r.x + side.dx, Math.min(half + 8, W / 2), Math.max(W - half - 8, W / 2)), cy = clamp(side.above ? r.y - PILL_GAP - r.h : r.y + PILL_GAP, bTop, bBot);

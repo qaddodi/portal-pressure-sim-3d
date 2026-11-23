@@ -15,7 +15,7 @@ import {
 
 const C = LS.CATH, N = LABEL_NAMES.CALLOUTS;
 
-export type PillId = 'f' | 'w' | 'm';
+export type PillId = 'f' | 'w';
 /** The readings as text, formatted as the cards print them. `hv` is the HVPG as a number (its band colours the card). */
 export interface CathText {
   f: string; w: string; h: string; hv: number | null;
@@ -43,7 +43,7 @@ export interface CathIn {
 
 /** The cards a catheter state shows (hvpg-proc.js): the free reading at the tip; the wedged reading ahead of it with the free one kept where it was taken;
  *  the stack (wedged over free, the HVPG they give) once the result is in. The route shows none: nothing is measured yet. */
-export type CalloutKind = 'f' | 'w' | 's' | 'm';
+export type CalloutKind = 'f' | 'w' | 's';
 export function calloutsFor(cath: CathState | null): CalloutKind[] {
   switch (cath) {
     case 'free': return ['f'];
@@ -117,10 +117,6 @@ export class CathShow {
   ride(tip: Pt | null, ahead: Pt | null): void { this.cur.tip = tip; this.cur.ahead = ahead; }
   /** How far a point has moved since a card was placed for it. */
   private away(at: Pt | null, ax: number, ay: number): [number, number] { return at ? [at[0] - ax, at[1] - ay] : [0, 0]; }
-  private awayMid(ax: number, ay: number): [number, number] {
-    const a = this.cur.tip, b = this.cur.ahead;
-    return a && b ? [(a[0] + b[0]) / 2 - ax, (a[1] + b[1]) / 2 - ay] : [0, 0];
-  }
   /** The stack's leaders are drawn once, in the box's own frame, to the points as they stood when it was placed, and the box rides the AVERAGE of the two points' moves. While the camera turns or zooms the two
    *  points move by different amounts, so the leaders end where the points were (they "hang in place"). The stack eases out then and comes back, placed again, once the picture is still. */
   private skewed(s: SumRec): boolean {
@@ -128,7 +124,7 @@ export class CathShow {
     return Math.hypot(a[0] - b[0], a[1] - b[1]) > SKEW_PX;
   }
   private pillAt(rec: PillRec): [number, number] {
-    const t = rec.t, [dx, dy] = t.id === 'm' ? this.awayMid(t.ax, t.ay) : this.away(t.id === 'f' ? this.cur.tip : this.cur.ahead, t.ax, t.ay);
+    const t = rec.t, [dx, dy] = this.away(t.id === 'f' ? this.cur.tip : this.cur.ahead, t.ax, t.ay);
     return [t.x + dx + rec.gx, t.y + dy + rec.gy];
   }
   private sumAt(s: SumRec): [number, number] {
@@ -144,13 +140,11 @@ export class CathShow {
     let sum: SumTarget | null = null;
     const blocked = !inp.kinds && inp.cath === 'blocked';
     const rf = blocked ? blockedReading(inp.text.say ?? BLOCKED_SAYS.first) : reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
-    const mid = kinds.includes('m');   // (the EUS-PPG's result: HV and PV keep their points, the calculation stands between them)
-    const ids = kinds.filter((k): k is PillId => k !== 's' && k !== 'm').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
+    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {
         const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, blocked ? { ...r, kicker: BLOCKED_SAYS.then } : r, inp.measure);   // (a blocked vein's tag is sized for its longer words, so the one crosses over to the other in place)
-        const upperIsTip = !!inp.tip && !!inp.ahead && inp.tip[1] <= inp.ahead[1];
-        return { id, x: p[0], y: p[1], w: sz.w, h: sz.h, prefer: id === 'f', was: this.sides.get(id) ?? null, ...(mid && ids.length === 2 ? { force: id === 'f' ? upperIsTip : !upperIsTip } : {}) };
+        return { id, x: p[0], y: p[1], w: sz.w, h: sz.h, prefer: id === 'f', was: this.sides.get(id) ?? null };
       });
       const out = placePills(items, inp.band, inp.blockers);
       for (const o of out) {
@@ -159,12 +153,6 @@ export class CathShow {
         pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
       }
     } else for (const id of ['f', 'w'] as const) this.sides.delete(id);
-    if (mid && inp.tip && inp.ahead && inp.got >= 2) {
-      // the calculation stands midway between the two points, centred on it: between the HV's tag and the PV's, never above either
-      const sz = tagSize(t, rh, inp.measure), mx = (inp.tip[0] + inp.ahead[0]) / 2, my = (inp.tip[1] + inp.ahead[1]) / 2;
-      const x0 = Math.min(Math.max(mx - sz.w / 2, inp.band.x0 + 8), Math.max(inp.band.x0 + 8, inp.band.x1 - sz.w - 8)), y0 = my - sz.h / 2;
-      pills.set('m', { id: 'm', reading: rh, x: x0, y: y0, w: sz.w, h: sz.h, above: false, box: { x0, y0, x1: x0 + sz.w, y1: y0 + sz.h }, key: `m|${sz.w}|${sz.h}`, spot: `m|${sz.w}|${sz.h}`, ax: mx, ay: my });
-    }
     if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= 2) {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
@@ -203,7 +191,6 @@ export class CathShow {
   setText(t: CathText, hold = false): void {
     const val = (r: Reading, v: string, tone = r.tone): Reading => (r.value === v && r.tone === tone ? r : { ...r, value: v, tone });
     const tf = (p: PillTarget) => {
-      if (p.id === 'm') { if (p.reading.value !== t.h) p.reading = val(p.reading, t.h, toneOf(t.hv)); return; }
       if (t.say !== undefined && p.id === 'f') { if (p.reading.kicker !== t.say) p.reading = { ...p.reading, kicker: t.say }; return; }
       const v = p.id === 'f' ? t.f : t.w; if (p.reading.value !== v) p.reading = val(p.reading, v);
     };
@@ -239,7 +226,7 @@ export class CathShow {
       this.sum = { t: sumWanted, fade: 0, u: 0, from, gx: 0, gy: 0 };
       this.pills.clear();
     }
-    for (const id of ['f', 'w', 'm'] as const) {
+    for (const id of ['f', 'w'] as const) {
       const w = this.want.pills.get(id);
       const rec = this.pills.get(id);
       if (!rec) { if (w && !hold && !this.sum) { this.pills.set(id, { t: w, p: 0, gx: 0, gy: 0 }); busy = true; } continue; }
@@ -282,7 +269,7 @@ export class CathShow {
     for (const rec of this.pills.values()) {
       if (rec.p <= 0) continue;
       const a = easeArrive(rec.p), t = rec.t, [px, py] = this.pillAt(rec);
-      const to: Pt = t.id === 'm' ? [t.ax + this.awayMid(t.ax, t.ay)[0], t.ay + this.awayMid(t.ax, t.ay)[1]] : (t.id === 'f' ? this.cur.tip : this.cur.ahead) ?? [t.ax, t.ay];
+      const to: Pt = (t.id === 'f' ? this.cur.tip : this.cur.ahead) ?? [t.ax, t.ay];
       f.pills.push({ id: t.id, reading: t.reading, x: px, y: py, w: t.w, h: t.h, to, above: t.above, alpha: a, rise: C.RISE * (1 - a), key: t.key });
     }
     const s = this.sum;

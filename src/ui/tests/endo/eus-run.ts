@@ -13,7 +13,7 @@ import { goToView } from '../../shell/view-actions.ts';
 import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
 import { cutRoom } from '../room.ts';
-import { tipShot } from '../../deck/procs-plan.ts';
+import { tipShot, eusPan } from '../../deck/procs-plan.ts';
 import { releaseCamera } from '../cam-release.ts';
 import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { EUS, type Reads } from './eus-words.ts';
@@ -49,12 +49,12 @@ function camera(shot: string): void {
   const tip = sceneApi.procedure.tip(V);
   if (!tip) return;
   if (shot === 'way') {
-    if (camAt !== 'way') { camAt = 'way'; const sh = tipShot('way', tip); if (sh) sceneApi.goTo(sh, room(), 1100); }
+    if (camAt !== 'way') { camAt = 'way'; const sh = eusPan(tipShot('way', tip)); if (sh) sceneApi.goTo(sh, room(), 1100); }
     sceneApi.follow([tip.x, tip.y, tip.z]);
     return;
   }
   if (shot === camAt) return;
-  const sh = tipShot(shot, tip);
+  const sh = eusPan(tipShot(shot, tip));
   if (!sh) return;
   camAt = shot; sceneApi.follow(null); sceneApi.goTo(sh, room(), 900);
 }
