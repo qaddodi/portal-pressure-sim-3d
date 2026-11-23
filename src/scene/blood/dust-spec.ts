@@ -34,7 +34,7 @@ export const DUST_SELECTS: readonly (readonly [key: string, label: string, optio
   ['partColor', 'Particle colour', [['auto', 'From the vessel'], ['custom', 'Custom']], 'auto', 'Colour'],
   ['vel', 'Speed follows', [['local', 'Local velocity'], ['flat', 'Flow only']], 'local', 'Flow'],
   ['dustLook', 'Look (23 Nov rebuild)', [['b', 'B: lane streaks (new)'], ['a', 'A: lattice scan (before)']], 'b', 'Particles'],
-  ['dustDebug', 'Paint the trouble (finding the black specks)', [['off', 'Off'], ['bad', 'Magenta: a dust term was not a number'], ['gone', 'Cyan: the vessel under the dust is missing'], ['both', 'Both'], ['dark', 'Yellow: the shader itself wrote black here'], ['cover', 'Green: every pixel the dust touches']], 'off', 'Particles'],
+  ['dustDebug', 'Paint the trouble (finding the black specks)', [['off', 'Off'], ['bad', 'Magenta: a dust term was not a number'], ['gone', 'Cyan: the vessel under the dust is missing'], ['both', 'Both'], ['dark', 'Yellow: the shader itself wrote black here'], ['cover', 'Green: every pixel the dust touches'], ['ran', 'Blue: every pixel a vessel draws, made solid'], ['why', 'Colours: why a vessel pixel is dropped']], 'off', 'Particles'],
 ];
 export const DUST_COLORS: readonly (readonly [key: string, label: string, def: string, group: Group])[] = [['partHex', 'Custom particle colour', '#9ec4ff', 'Colour']];
 /** The extra, app-only control: the shader's samples per pixel (0: by the device, see DUST_BUDGET). */
@@ -133,7 +133,7 @@ export interface DustQuality { phone: boolean; devicePixels: number }
 
 /** The uniform values, in DUST_UNIFORMS order, for these (eased) numbers: `s` the numeric settings, `w` the eased weights of the selects (colour mode, custom colour, local velocity), `rgb` the custom colour. */
 /** The debug paint's code from the select's value (the selects live in the tuner's targets, not in the eased numbers, so it travels with the weights). */
-export const DUST_DEBUG_CODE: Readonly<Record<string, number>> = { off: 0, bad: 1, gone: 2, both: 3, dark: 4, cover: 5 };
+export const DUST_DEBUG_CODE: Readonly<Record<string, number>> = { off: 0, bad: 1, gone: 2, both: 3, dark: 4, cover: 5, ran: 6, why: 7 };
 export interface DustWeights { random: number; speed: number; depth: number; radius: number; source: number; custom: number; local: number; lookB?: number; dbg?: number }
 export const DUST_UNIFORMS = [
   'size', 'sizeVar', 'soft', 'opacity',
