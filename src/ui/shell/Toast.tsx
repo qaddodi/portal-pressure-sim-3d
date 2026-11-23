@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { clock } from '../../clock/frame.ts';
 import { useShell } from './store.ts';
 import { setFootNote } from './foot-note.ts';
+import { useActionRoom } from '../action/action-room.ts';
 import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
 
 /** How long the old words take to fade before the new ones fade in; the box then eases to the new words' width (transform only: its width is read from the ResizeObserver, never from layout). */
@@ -57,6 +58,7 @@ export function Toast() {
     return () => removeEventListener('keydown', key);
   }, [!!t]);   // eslint-disable-line react-hooks/exhaustive-deps
   const down = useRef<{ x: number; y: number } | null>(null);
+  const cardH = useActionRoom((s) => s.h);   // (the note's rect is measured again when a docked card comes or goes: it stands above it)
   // the note's rect, measured when it shows or changes size (the layout's own place, not the transition's: the note slides 10 px up as it comes in), for the figure's names to keep out of
   useEffect(() => {
     const n = el.current;
@@ -65,7 +67,7 @@ export function Toast() {
       if (!t) { setFootNote(null); return; }
       const p = n.offsetParent?.getBoundingClientRect(), w = n.offsetWidth, h = n.offsetHeight;
       if (!p || !w || !h) return;
-      const x0 = Math.round(p.left + n.offsetLeft - w / 2), y0 = Math.round(p.top + n.offsetTop);
+      const x0 = Math.round(p.left + n.offsetLeft - w / 2), y0 = Math.round(p.top + n.offsetTop - useActionRoom.getState().h);   // (the note stands above a docked action card by `translate`, which the layout's offsetTop leaves out)
       setFootNote({ x0, y0, x1: x0 + w, y1: y0 + h });
     };
     put();
@@ -74,7 +76,7 @@ export function Toast() {
     ro.observe(n);
     addEventListener('resize', put);
     return () => { ro.disconnect(); removeEventListener('resize', put); };
-  }, [t, view.text, label]);
+  }, [t, view.text, label, cardH]);
   const m = /^(.+?[.!?:])\s+(.+)$/.exec(view.text);   // the first sentence carries the weight, the rest is said quieter (B1)
   return (
     <div ref={el} className="sh-toast" role="status" aria-live="polite" data-on={!!t} data-tone={view.tone} data-action={label ? '' : undefined} data-swap={swap ? '' : undefined}
