@@ -21,12 +21,22 @@ export interface PlainPlan {
  * itself (null here). A skin with two growers (the azygos wall: C9 and C1b; the lower cava wall: S_PC and C9) has to be a SHAPE for each set of growers that are there: with one open the static welded skin carries the other's whole stub beside it, and no per-pixel rule can
  * move the surface a pixel lies on (Plan 16). Null when `there` is every grower, or fewer than PLAIN_MIN_ARMS arms remain (then the tubes' own cut ends carry the weld: skin-set.ts).
  */
-export function partOf(plan: Pick<SkinPlan, 'junction' | 'cuts'>, there: readonly number[]): PlainPlan | null {
+export function partOf(plan: Pick<SkinPlan, 'junction' | 'cuts'>, there: readonly number[], leave = false): PlainPlan | null {
   const j = plan.junction;
-  const keep = j.arms.map((_, i) => i).filter((i) => !j.arms[i]!.grow || there.includes(i));
-  if (keep.length === j.arms.length || keep.length < PLAIN_MIN_ARMS) return null;
-  const tag = there.length ? `~with${there.join('.')}` : '~plain';
+  const gone = leave ? leavingOf(j, there) : [];
+  if (leave && !gone.length) return null;
+  const keep = j.arms.map((_, i) => i).filter((i) => (!j.arms[i]!.grow || there.includes(i)) && !gone.includes(i));
+  if (!leave && (keep.length === j.arms.length || keep.length < PLAIN_MIN_ARMS)) return null;
+  if (leave && keep.length < LEAVE_MIN_ARMS) return null;
+  const tag = `${there.length ? `~with${there.join('.')}` : '~plain'}${leave ? '~leave' : ''}`;
   return { junction: { ...j, node: `${j.node}${tag}`, arms: keep.map((i) => j.arms[i]!), surface: true }, cuts: keep.map((i) => plan.cuts[i]!), keep };
+}
+
+/** The fewest arms of a part that has a divided vein left out: the through run that is left, the vein's other half and the shunt that stands for the rest of it (the splenic vein into the Warren shunt: two arms). */
+export const LEAVE_MIN_ARMS = 2;
+/** The arms (indices) of the skin that LEAVE it when the growers `there` are in: the start of a divided vein whose shunt is one of them (types.ts `leaves`). */
+export function leavingOf(j: Pick<SkinJunction, 'arms'>, there: readonly number[]): number[] {
+  return j.arms.map((a, i) => (a.leaves && there.some((g) => j.arms[g]?.vesselId === a.leaves) ? i : -1)).filter((i) => i >= 0);
 }
 
 /** The plain trunk of a plan, or null when the plan has no growing arm or fewer than PLAIN_MIN_ARMS arms stay (then the tubes' own cut ends carry the weld: skin-set.ts). */
@@ -41,6 +51,18 @@ export function partSets(plan: Pick<SkinPlan, 'junction'>): number[][] {
 }
 /** The key of a set of growers in a baked file and in the set's maps. */
 export const partKey = (there: readonly number[]): string => there.join('.');
+/** A part is the skin of the arms that stay with a set of growers there (`there`), and, when `leave`, without the divided vein's start that those growers cut (types.ts `leaves`): its key in a baked file and in the set's maps ends in `L`. */
+export interface PartSpec { key: string; there: number[]; leave: boolean }
+/** Every part a plan has: the proper sets of growers (as `partSets`), and for each set of growers (the whole set too) that holds the shunt of a divided vein, the same without that vein's start. */
+export function partSpecs(plan: Pick<SkinPlan, 'junction'>): PartSpec[] {
+  const out: PartSpec[] = partSets(plan).map((there) => ({ key: partKey(there), there, leave: false }));
+  const g = plan.junction.arms.map((a, i) => (a.grow ? i : -1)).filter((i) => i >= 0);
+  for (let m = 1; m < (1 << g.length); m++) {
+    const there = g.filter((_, k) => m & (1 << k));
+    if (leavingOf(plan.junction, there).length) out.push({ key: `${partKey(there)}L`, there, leave: true });
+  }
+  return out;
+}
 
 /** The weld's share of a growing arm: 0 while it grows (the tube's flared end is drawn), 1 once it is whole and the skin has taken over; the skin comes in from growth WELD_FROM. */
 export const WELD_FROM = 0.9;

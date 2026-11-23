@@ -33,8 +33,8 @@ const sm = (a: number, b: number, x: number): number => { const t = Math.min(1, 
 /** The mask's weight at a pixel inside the vessel (the JS twin of `glowWeightGlsl`): the pick's weight `hi` (0 to 1) eased, taken away by the Circuit's change `circT`. */
 export const glowWeight = (hi: number, circT = 0): number => sm(0, 1, Math.min(1, Math.max(0, hi))) * (1 - sm(0, GLOW_GATE_T, circT));
 
-/** The halo's alpha where the blurred mask has alpha `blur` (the JS twin of the composite shader): GLOW_GAIN of it, held to GLOW_A_MAX, and nothing under the sharp mask `inside` (the vessel itself is never tinted). */
-export const glowAlpha = (blur: number, inside = 0): number => Math.min(GLOW_A_MAX, Math.max(0, blur * GLOW_GAIN)) * (1 - sm(0, 1, inside));
+/** The halo's alpha where the blurred mask has alpha `blur` (the JS twin of the composite shader): GLOW_GAIN of it, held to GLOW_A_MAX, and nothing under the sharp mask `inside` (the vessel itself is never tinted): inside is COVERAGE, any mask alpha of half a level of 8 bits up (glow-fx.ts LAY_FS), never the alpha's own share. */
+export const glowAlpha = (blur: number, inside = 0): number => Math.min(GLOW_A_MAX, Math.max(0, blur * GLOW_GAIN)) * (inside >= 0.5 / 255 ? 0 : 1);
 
 /** Gaussian taps for a blur of `sigmaPx` device px at the blur's own resolution: the tap spacing (texels, 1 up to the sigma over `TAP_SIGMA`) and the sigma in taps. The twin of what glow-fx.ts passes the blur shader; 12 taps each side. */
 export const BLUR_TAPS = 12, TAP_SIGMA = 4;

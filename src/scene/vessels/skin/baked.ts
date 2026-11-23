@@ -8,7 +8,7 @@ import { weldDigest } from '../../lobule/weld-codec.ts';
 import type { ArmTube, SkinPlan } from './cuts.ts';
 import type { ArmAxis } from './skin-object.ts';
 import type { SkinJunction, SkinMesh } from './types.ts';
-import { partKey, partOf, partSets, plainOf } from './plain.ts';
+import { partOf, partSpecs, plainOf } from './plain.ts';
 
 import { clock } from '../../../clock/frame.ts';
 /** One baked skin: the plan it was made from (its cuts, the vessels it hides whole, the node it merged with), the arms' drawn axes, the mesh, and the rung of the pace ladder (mesh.ts PACES) that closed it. */
@@ -99,10 +99,10 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
       }
       if (s.parts) {
         out.parts = {};
-        const sets = new Map(partSets(plan).map((t) => [partKey(t), t]));
+        const sets = new Map(partSpecs(plan).map((t) => [t.key, t]));
         for (const [k, v] of Object.entries(s.parts)) {
           if (v === null) { out.parts[k] = null; continue; }
-          const there = sets.get(k), pp = there && partOf(plan, there);
+          const spec = sets.get(k), pp = spec && partOf(plan, spec.there, spec.leave);
           if (!pp) return null;
           const pm = unpack(v.mesh) as SkinMesh;
           pm.junction = pp.junction; pm.cuts = pp.cuts;

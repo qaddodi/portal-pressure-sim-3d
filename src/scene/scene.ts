@@ -327,7 +327,7 @@ export class CelScene {
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();
   /** The organs' glow (a tapped or pinned organ): the same pipeline, its own mask and textures; its lay is a quad of the figure's first pass (see `render`), not a pass over the finished figure. */
-  readonly organGlowFx = new GlowFx(ORGAN_GLOW_LAYER, true);
+  readonly organGlowFx = new GlowFx(ORGAN_GLOW_LAYER);
   private readonly dive = new Group();
   private readonly sinFrame = new Group();
   private fadeNow = 1;
@@ -525,6 +525,7 @@ export class CelScene {
       add: (o) => { this.body.add(o); },
       remove: (o) => { this.body.remove(o); },
       baked: bakedSkins,
+      divided: (shunt) => this.dividedNow(shunt),
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
@@ -778,6 +779,15 @@ export class CelScene {
       const o = this.byEdge.get(v.id) as VesselObject | undefined;
       if (o && o.setMateK(Math.max(...originsOf(v.id).map((c) => this.presence.solidAmountOf(c))), 1)) this.moving = true;
     }
+  }
+  /** Whether the vein `shunt` divides is divided now (a drawn shunt, and not a side-to-side portocaval): the junction skin of that state is the one without the vein's start (skin/plain.ts `leave`). */
+  private dividedNow(shunt: string): boolean {
+    const d = DIVIDED.find(([s]) => s === shunt);
+    if (!d) return false;
+    const presence = this.presence as PresenceTracks | undefined;   // (the skins are first built in the constructor, before the presence tracks are: nothing is drawn yet)
+    if (!presence) return false;
+    const side = !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide;
+    return stumpOf(shunt, d[1], presence.amountOf(shunt), d[1] === PV_START && side)[2] > 0;
   }
   private syncStumps(): void {
     const side = !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide;

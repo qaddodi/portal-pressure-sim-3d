@@ -23,6 +23,9 @@ export interface SkinArm {
   side?: { u: number; dir: -1 | 1 };
   /** A GROWING arm (spec 10.2): a collateral or a shunt, which comes and goes. Its seam is chosen at full radius and never moves; the skin is one static shape with the arm whole and the weld (plain.ts) hands the tube over to it at growth 0.9 to 1. */
   grow?: boolean;
+  /** The DIVIDED vein's start (divide.ts DIVIDED: the splenic vein under a Warren shunt, the portal trunk under an end-to-side portocaval): the id of the shunt that divides it, a growing arm of this same junction. While that shunt is in AND the vein is divided
+   *  its start is a tied-off stump with its own round end, never an arm of the skin: the skin of that state is built without this arm (plain.ts partOf `leave`, skin-set.ts), so no capsule of the divided stretch is drawn (at alpha 0, the bulge and the fade cut). */
+  leaves?: string;
 }
 
 /** The radius an arm really has at the junction (types.ts `jointR`), else its nominal one: what the blend width is a share of. */
