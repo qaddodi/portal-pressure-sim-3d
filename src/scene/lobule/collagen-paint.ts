@@ -1,8 +1,7 @@
 // The lobule's collagen at full strength, on a layer of its own (Plan 25b): the tail of 2D's paintLobule (lobule-paint.generated.js, which is never edited) with the septa, the portal tracts and the vein's wall at their fullest, and Plan 24's
 // intimal ring, drawn with the generated file's own primitives in the painter's own order, so the layer over the tissue (painted with none of it) is the one-pass painting at the full state (source-over is associative).
 // What grows and recedes is shown by the shader from the layer's arrival times (collagen-tau.ts); the bands' shapes are listed once here (`septaBands`) for the painter and for the times.
-import { bandGeomInto, fibHash } from './from2d/lobule-paint.generated.js';
-import { arcBand, paintCords } from './collagen-cords.ts';
+import { fibrousBand, fibrousCuff, fibrousTract } from './from2d/lobule-paint.generated.js';
 import { lookColours } from './lz-colours.ts';
 import { PLATE_S } from './plate.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -49,30 +48,26 @@ export function tractCorners(G: CollagenShape): [number, number, number][] {
   return out;
 }
 
-/** The septa at their fullest into a context whose transform is set (world units), as ROPES (collagen-cords.ts: a bundle of a few twisting cords a band, flat fill, one flat shade band, a thin deeper edge line; the cells show between). Plan 31: painted on a layer of their own (see paintCollagenWorld),
- *  so a tract or the vein never carries a septum's ghost beneath it while the septa have not grown (schistosomiasis, SOS). */
+/** The septa at their fullest into a context whose transform is set (world units), with the nodules' shade beside them. Plan 31: painted on a layer of their own (see paintCollagenWorld), so a tract or the vein never carries a septum's ghost beneath it
+ *  while the septa have not grown (schistosomiasis, SOS), and the wide septa never tint a tract's translucent cuff. */
 export function paintSepta(c: CanvasRenderingContext2D, P: CollagenInput): void {
-  const { G, rgb } = P, g = { P: new Float64Array(54), N: new Float64Array(54), Wd: new Float64Array(27), n: 26, L0: 1 };
-  for (const b of septaBands(G, rgb.col)) {
-    bandGeomInto(g, b.A, b.B, b.o, b.o.path);
-    paintCords(c, { P: g.P, N: g.N, Wd: g.Wd, n: g.n, seed: b.o.seed }, rgb.col);
-  }
+  const { G, rgb } = P, COL = rgb.col;
+  c.save();
+  c.shadowColor = P.shadow;
+  // (each band twice, the second without the shade and the fibres, so the core is as dense as the bands' width is wide: coverage 0.67 to 0.89)
+  for (const b of septaBands(G, COL)) { c.shadowBlur = G.R * 0.06; fibrousBand(c, b.A, b.B, b.o); c.shadowBlur = 0; fibrousBand(c, b.A, b.B, { ...b.o, detail: 0 } as BandOpt); }   // (nodules bulge beside the bands)
+  c.restore();
   c.globalAlpha = 1;
 }
 
-/** The portal tracts at their fullest, as ropes too: bundles of twisting cords round each corner in arcs of 1.2 to 3.2 radians at 0.28 to 0.9 of the tract's radius (the painter's fibrousTract bundles, tractPath), in the periportal tone, then the cuff's ring of cords. The central vein's collagen is NOT painted:
- *  cv-band.ts draws it from its radius. */
+/** The portal tracts at their fullest, in the painter's order. The central vein's collagen is NOT painted: cv-band.ts draws it from its radius (the painted fibres made a second, see-through ring round the solid one). */
 export function paintTracts(c: CanvasRenderingContext2D, P: CollagenInput): void {
-  const { G, dark } = P, PRE = dark ? PRE_DARK : PRE_LIGHT;
+  const { G, dark, rgb } = P, COL = rgb.col, PRE = dark ? PRE_DARK : PRE_LIGHT;
   c.globalAlpha = 1;
-  const radius = G.rt * 1.7;
+  const rt = G.rt * 1.7;
   for (const [x, y, ci] of tractCorners(G)) {
-    const seed = 900 + ci * 71;
-    for (let k = 0; k < 8; k++) {
-      const sd = seed + k * 37, r0 = 0.2 + 0.68 * ((k + 0.5 * fibHash(sd + 2)) / 8), a0 = fibHash(sd) * Math.PI * 2, span = 1.6 + 2 * fibHash(sd + 1), w = radius * (0.17 + 0.05 * fibHash(sd + 3));
-      paintCords(c, arcBand(x, y, radius * r0, a0, span, w, sd), PRE);
-    }
-    paintCords(c, arcBand(x, y, radius * 0.95, fibHash(seed + 5) * Math.PI * 2, Math.PI * 1.7, radius * 0.17, seed + 9), PRE);
+    fibrousTract(c, x, y, rt, Math.atan2(y - G.cy, x - G.cx), PRE, 1, 900 + ci * 71);
+    fibrousCuff(c, x, y, rt * 0.62, rt * 1.08, PRE, 1);
   }
 }
 
@@ -93,10 +88,4 @@ export function paintCollagenWorld(w: CanvasRenderingContext2D, n: number, sc: n
 export function collagenInput(G: CollagenShape, cvR: number, look: LookId): CollagenInput {
   const L = lookColours(look);
   return { G, dark: L.dark, rgb: { col: L.rgb01('--lz-septum') }, cvIn: cvR * PLATE_S, shadow: L.tk('--lz-nodule-shadow') as string };
-}
-
-/** The collagen's flat colours for a look (Plan 48): the septa's token and the tracts' deeper periportal tone, exactly the painter's colours; the plate shader lays its fibres' striations over them. */
-export function collagenFlat(look: LookId): { septum: [number, number, number]; tract: [number, number, number] } {
-  const L = lookColours(look);
-  return { septum: L.rgb01('--lz-septum'), tract: [...(L.dark ? PRE_DARK : PRE_LIGHT)] as [number, number, number] };
 }

@@ -4,6 +4,10 @@ import { glslNum as F } from '../cel-glsl.ts';
 
 /** The slope's gain per unit of height slope (the vein's analytic band height, cv-band.ts): the steepest flank peaks at |s| about 0.8 and never clamps, its flat middle stays 0. */
 export const RELIEF_G = 100;
+/** The collagen's height is read this many plate pixels either side of the pixel (mip 3 is an 8 px blur: the slope over 2 x this), and at this mip level (absolute, so the relief is the same at every zoom). */
+export const RELIEF_D_PX = 8, RELIEF_LOD = 4;
+/** The collagen's own gain (the septa and tracts, fitted to mock C by tests/helpers and the node twin: mean 3 of 255 against render.mts), a plain clamp. */
+export const COLL_RELIEF_G = 40;
 /** The relief is linear up to this |s| and then eases into 1 (a smooth knee, never a clamp): a thin band's steep flank (a spur, a third as wide as a hex septum) would otherwise sit flat at |s| = 1 and its edge would be a crease
  *  in a smooth gradient (tests/collagen-screen.test.ts). The hex and bridge septa peak below it, so their relief is exactly the linear one. */
 export const RELIEF_KNEE = 0.7;
@@ -29,6 +33,7 @@ const V3 = (v: readonly number[]): string => `vec3(${v.map(F).join(', ')})`;
 /** GLSL twin of reliefS and reliefColour (fragment and vertex safe: no derivative). */
 export const RELIEF_GLSL = /* glsl */ `
 const float RELIEF_G = ${F(RELIEF_G)};
+const float COLL_RELIEF_G = ${F(COLL_RELIEF_G)};
 const vec3 RELIEF_LIT = ${V3(RELIEF_LIT)};
 const vec3 RELIEF_SHADE = ${V3(RELIEF_SHADE)};
 const float RELIEF_KNEE = ${F(RELIEF_KNEE)};

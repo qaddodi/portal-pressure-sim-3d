@@ -3,7 +3,7 @@
 // never per frame"); the 3D lobule (micro3d/lobule3d.ts) lays it under its cells with the shader here.
 import { CEL_TISSUE_GLSL } from './cel.ts';
 import { CEL_LIGHT_GLSL } from '../cel-glsl.ts';
-import { RELIEF_GLSL } from './relief.ts';
+import { COLL_RELIEF_G, RELIEF_D_PX, RELIEF_GLSL, RELIEF_LOD } from './relief.ts';
 import { COLL_EDGE_GLSL } from './collagen-edge.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { DataTexture } from 'three';
@@ -124,7 +124,7 @@ uniform sampler2D map;
 uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
 uniform float mixB;
 uniform float opacity;
-uniform sampler2D mapC;    // the collagen atlas (collagen-paint.ts: the tracts' cords on the left plate, the septa's on the right), painted whole and cel shaded (collagen-cords.ts): the shader only grows it
+uniform sampler2D mapC;    // the collagen atlas (collagen-paint.ts: the tracts on the left plate, the septa on the right): the painter's three soft passes and its fibres
 uniform sampler2D mapCB;   // its twin for a crossfade (the same texture when only the tissue changed); sampled in collagenAt, so it must be declared (Plan 28: it was not, and the device refused the program)
 uniform sampler2D mapT;    // the septa's arrival times (collagen-tau.ts): R arrival (255 never)
 uniform vec3 uP;           // the growth of the three channels now (growth.ts: eased on the clock, so a change of fibrosis shows more or less of the one layer and repaints nothing)
@@ -144,17 +144,30 @@ vec4 plateAt(vec2 uv, float bias) {
 }
 vec4 plateTex(vec2 uv) { return plateAt(uv, 0.0); }
 vec4 plateTexLod(vec2 uv, float bias) { return plateAt(uv, bias); }
-// The collagen over the tissue (Plan 49b, Mohammad 23 Nov 2026: "the fibrosis should look like ropes, not like a big blob", "this looks 3D", "it has to maintain the cel shadedness"): the atlas holds the cords as painted (flat fill, one flat shade band, a thin deeper edge line, the cells showing between),
-// premultiplied, and this only GROWS them, never recolours them: no edge to compute, no fade, no relief, no gradient, so nothing 3D and nothing that glows.
-//   septa: how much of a cord shows is its arrival time (front) at the pixel, so a rope eases in whole along its length
-//   tracts: the cords lie round each hexagon corner, so their reveal is the pixel's distance from the nearest corner against the front's radius at this growth: one pixel of edge at every growth, and the disc grows as it did
-// Every derivative is taken in main before the dissolve's discard.
+// The collagen over the tissue, mock C "Raised relief" (Mohammad, 23 Nov 2026: "this is NOT C"; fibrosis-color-mocks/render.mts C and PLAN-C-raised-relief.md, built as 606d60f4): the painter's own soft passes and fibres, premultiplied, as much as has grown; where the layer is faint its edge takes a softer
+// copy of itself (three mip levels coarser) so the passes blend into the cells; the collagen's height is its own alpha at mip 3, and its slope against the ONE world light lifts the colour on the lit side and deepens it on the shade side (reliefS, reliefColour: no step). main keeps the collagen out of the
+// cel step and the edge line. Every derivative and bias sample here is taken in main before the dissolve's discard.
+//   septa: how much of a band shows is its arrival time (front) at the pixel; tracts: the disc is round about each hexagon corner, so its reveal is the pixel's distance from the nearest corner against the front's radius at this growth
+float gCov = 0.0;     // what collagenAt found: its coverage here (the layers' alpha as laid over the tissue, 0 with none grown) and the share of each layer that has grown (x septa, y tracts)
+vec2 gFr = vec2(0.0);
+vec4 collAt(vec2 uvx, float bias) {
+  vec4 b = texture2D(mapC, uvx, bias);
+  return mixB > 0.0 ? mix(b, texture2D(mapCB, uvx, bias), mixB) : b;
+}
+vec4 softPass(vec4 sharp, vec4 soft) {
+  float a = mix(soft.a, sharp.a, smoothstep(0.35, 0.75, sharp.a));
+  vec3 col = mix(soft.rgb / max(soft.a, 1e-4), sharp.rgb / max(sharp.a, 1e-4), smoothstep(0.0, 0.02, sharp.a));
+  return vec4(col * a, a);
+}
 vec4 collagenAt(vec2 uv) {
+  gCov = 0.0; gFr = vec2(0.0);
   if (uBaseK > 0.5 || uP.x + uP.y + uP.z <= 0.0) return vec4(0.0);
   // (the collagen atlas is two plates wide: the tracts on the left, the septa on the right)
   vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
-  vec4 cu = texture2D(mapC, uvT), cs = texture2D(mapC, uvS);
-  if (mixB > 0.0) { cu = mix(cu, texture2D(mapCB, uvT), mixB); cs = mix(cs, texture2D(mapCB, uvS), mixB); }
+  vec4 cu = collAt(uvT, 0.0), cs = collAt(uvS, 0.0);
+  // (the painter's three passes end in hard terraces: the alpha of a faint pass takes a softer copy of itself (three mip levels coarser) so the passes blend into the cells, the dense core stays as painted; the COLOUR stays the painter's own, fibre streaks and all, as in the mock)
+  cs = softPass(cs, collAt(uvS, 3.0));
+  cu = softPass(cu, collAt(uvT, 3.0));
   float fs = front(texture2D(mapT, uv).r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x);
   // the tracts: the nearest hexagon corner (the lobule's corners are at cos and sin of k pi/3, in lobule radii; v is up, y is down)
   float rT = 1e9;
@@ -166,8 +179,24 @@ vec4 collagenAt(vec2 uv) {
   float eT = TRACT_RT_PX * (0.8 + 0.9 * tp) - rT;   // (the pixel's distance inside the front)
   float aT = max(0.5 * length(vec2(dFdx(eT), dFdy(eT))), 0.02);
   float ft = smoothstep(-aT, aT, eT) * smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
+  gCov = max(cs.a * fs, cu.a * ft); gFr = vec2(fs, ft);
   // (the septa first, the tracts over them, as the painter lays them)
   return cu * ft + cs * fs * (1.0 - cu.a * ft);
+}
+const float RELIEF_EDGE = ${(RELIEF_D_PX / PLATE_PX).toFixed(6)};
+// the collagen's height at a point, as a rope: its layers' alpha at level RELIEF_LOD (a 16 px blur, the band's profile), each as much as has grown (fr, set by collagenAt at the pixel)
+float reliefH(vec2 uv, vec2 fr) {
+  // (kept half a mip-3 texel inside the plate: the atlas holds the two plates side by side, and a septum's corner band reaches the plate's left and right edge, so a sample across the seam would read the other plate's edge as a cliff)
+  uv = clamp(uv, vec2(RELIEF_EDGE), vec2(1.0 - RELIEF_EDGE));
+  vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
+  vec4 cu = textureLod(mapC, uvT, ${RELIEF_LOD.toFixed(1)}), cs = textureLod(mapC, uvS, ${RELIEF_LOD.toFixed(1)});
+  if (mixB > 0.0) { cu = mix(cu, textureLod(mapCB, uvT, ${RELIEF_LOD.toFixed(1)}), mixB); cs = mix(cs, textureLod(mapCB, uvS, ${RELIEF_LOD.toFixed(1)}), mixB); }
+  return cs.a * fr.x + cu.a * fr.y;
+}
+// the slope of that height per plate pixel (x right, y up): 8 fetches, once per fragment
+vec2 reliefSlope(vec2 uv, vec2 fr) {
+  vec2 d = vec2(${RELIEF_D_PX.toFixed(1)} / ${PLATE_PX.toFixed(1)});
+  return vec2(reliefH(uv + vec2(d.x, 0.0), fr) - reliefH(uv - vec2(d.x, 0.0), fr), reliefH(uv + vec2(0.0, d.y), fr) - reliefH(uv - vec2(0.0, d.y), fr)) / ${(2 * RELIEF_D_PX).toFixed(1)};
 }
 // the lightness jump across one device pixel's neighbourhood of the painted tissue: 0 flat, large at a line
 float plateEdge(vec2 uv, vec2 uvPerPx, float dpr) {
@@ -183,7 +212,8 @@ void main() {
   float cvR = length(vUv - 0.5) * CV_SPAN * uScarK;
   float cvAA = max(fwidth(cvR), 1e-6);
   vec4 p = plateTex(vUv);
-  vec4 kl = collagenAt(vUv);   // (the collagen over it, premultiplied, the cords as painted)
+  vec4 kl = collagenAt(vUv);   // (the collagen over the tissue, premultiplied, the painter's soft passes; it also sets gCov and gFr)
+  float cov = gCov; vec2 fr = gFr;
   vec3 c = p.rgb / max(p.a, 1e-4);
   vec4 m = plateTexLod(vUv, 3.0);
   float lb = celLight(m.rgb / max(m.a, 1e-3));
@@ -191,6 +221,9 @@ void main() {
   float fwDv = fwidth(dv);
   vec2 uvPerPx = vec2(length(vec2(dFdx(vUv.x), dFdy(vUv.x))), length(vec2(dFdx(vUv.y), dFdy(vUv.y))));
   float edge = plateEdge(vUv, uvPerPx, uDpr);   // (it samples the plate with implicit levels: a texture call is a derivative too, so it is read here, before the discard, Plan 41)
+  // the collagen's relief: the slope of its height against the world light (0 on a flat band and on healthy tissue, where no sample is taken); explicit levels, so no derivative, but read here with the rest, before the discard
+  float rs = 0.0;
+  if (cov > 0.002) rs = clamp(-COLL_RELIEF_G * dot(reliefSlope(vUv, fr), vL), -1.0, 1.0);
   // (the dive's ONE dissolve, the same screen pattern as every tube, tile and mark of the scene: the marks go with the lobule, never before or after it)
   if (fadedOut()) discard;
   if (uBaseK > 0.5) {   // the scar mesh (it holds no tissue: p is clear): the band from the lumen's edge to the wall, opaque over the pool's tone, as much of it as has grown; nothing in the lumen (the pool shows)
@@ -203,12 +236,18 @@ void main() {
   float cvA = CV_A * cvEdge(cvR, cvAA) * cvWall(cvR) * uCv.w;
   if (p.a < 0.002 && cvA < 0.002 && kl.a < 0.002) { gl_FragColor = vec4(0.0); return; }
   // the tissue in three flat tones about its own local lightness (the painted colour blurred a few mip levels), hard edges one pixel wide
+  vec3 c0 = c;   // (the painted colour: the collagen keeps it, below)
   c = celTissue(c, lb, max(fwDv * CEL_EDGE_HALF, 1e-3));
-  // the plate's edges (Mohammad 20 Nov: "fibrosis shouldn't be outlined with black ink"): what it holds is soft tissue (septa, nutmeg, the Zones), so a strong edge takes a
-  // faint, deeper shade of the tissue's OWN colour, LINE_MIN CSS px across, never the cells' dark casing; the collagen is not in the tissue that is measured, so it has none
-  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, edge));
-  vec4 o = vec4(c * p.a, p.a);
-  o = kl + o * (1.0 - kl.a);   // (the collagen over the tissue)
+  // the collagen is out of that step (its terraces and the nodule shade would turn into tone lines) and takes its own smooth relief, as much as it covers; healthy tissue (cov 0) is untouched
+  float kc = smoothstep(0.0, 0.2, cov);
+  // the plate's edges (Mohammad 20 Nov: "fibrosis shouldn't be outlined with black ink"): what it holds is soft tissue (nutmeg, the Zones), so a strong edge takes a faint, deeper shade of the tissue's OWN colour, LINE_MIN CSS px across,
+  // never the cells' dark casing; none on the collagen (the tissue's edge is measured without it, and its weight goes with the collagen's coverage)
+  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, edge) * (1.0 - kc));
+  vec4 oc = kl + vec4(c * p.a, p.a) * (1.0 - kl.a);        // (the collagen over the tissue after its cel step)
+  vec4 orw = kl + vec4(c0 * p.a, p.a) * (1.0 - kl.a);      // (and over the painted tissue itself, before it: the cells show through the faint passes as painted)
+  vec3 cf = mix(oc.rgb / max(oc.a, 1e-4), orw.rgb / max(orw.a, 1e-4), kc);
+  cf = mix(cf, reliefColour(cf, rs), kc);
+  vec4 o = vec4(cf * oc.a, oc.a);
   if (cvA > 0.0) o = vec4(reliefColour(uCvCol, cvRelief(cvR, (vUv - 0.5) / max(length(vUv - 0.5), 1e-6))) * cvA, cvA) + o * (1.0 - cvA);
   gl_FragColor = o * opacity;
 }`;
