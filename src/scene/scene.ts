@@ -76,7 +76,7 @@ import { latest, live, patient, shownParams } from '../engine/store.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
-import { LIVER_POINT, LIVER_Z, LOBULE_SCALE, setDivePlace, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
+import { LIVER_POINT, LIVER_Z, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { shortSide } from './sinusoid/portrait.ts';
@@ -85,7 +85,6 @@ import { Sinusoid3D } from './micro3d/sinusoid3d.ts';
 import { Lobule3D } from './micro3d/lobule3d.ts';
 import { framePoint, measureScreen } from './sinusoid/portrait.ts';
 import { U as SIN_UNIT } from './sinusoid/view.ts';
-import { diveLook } from './lobule/dive-look.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
@@ -876,23 +875,13 @@ export class CelScene {
   // ---- slide state ---------------------------------------------------------------------------
 
   /** Every camera move of the app comes here. A move INTO the lobule or the sinusoid waits until their 3D parts are built and primed (`heldDive`): a dive is never begun toward something that
-   *  cannot be drawn. The body stays as it stands meanwhile (the build is rushed, a second or so at most on a phone, often nothing), then the dive starts from where the camera is. A newer move replaces a waiting one. */
+   *  cannot be drawn. The body stays as it stands meanwhile (the build is rushed, a second or so at most on a phone, often nothing), then the dive starts from where the camera is. A newer move replaces a waiting one.
+   *  It always lands on the liver's one place (`LIVER_POINT`, the lobule's anchor), whatever zoom and pan the hand had: the place is never chosen from the camera (23 Nov, docs/approved/dive.md); the rig
+   *  carries the hand home with the dive's own share (camera/rig.ts startDiveHand). */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void {
     if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
     this.hold(null);
-    this.rig.goTo(this.placeDive(shot, room), room, now, ms, false, ease ?? null); this.moving = true;
-  }
-  /** Plan 30b: a dive in from the body decides its place every time (`diveLook`, lobule/dive-look.ts): not zoomed in, the liver's default place; zoomed on the liver, where he looks (the centre of the room he is
-   *  looking at now); zoomed elsewhere, the nearest liver point on screen. The place moves while the dive frame is hidden; the shot, built on the old place, is carried by the same move, so nothing he sees
-   *  jumps (the picture only grows). Only a move between the lobule and the sinusoid (dive frame visible), or one begun inside the dive, keeps the place as it stands. The hand's pan bounds follow the place. */
-  private placeDive(shot: ShotName | Shot, room: Room): ShotName | Shot {
-    if (typeof shot === 'string' || !(this.figureView === 'lobule' || this.figureView === 'sinusoid') || this.dive.visible || !(this.rig.pose.shot.r > 0.5)) return shot;
-    const ls = this.disease.organs.liverShown, to = diveLook(this.rig, this.width, this.height, { cirrhosis: ls.cirrhosis, congestion: ls.congestion });
-    const dx = to.x - LIVER_POINT[0], dy = to.y - LIVER_POINT[1];
-    if (dx === 0 && dy === 0) return shot;
-    setDivePlace(to.x, to.y); this.dive.position.set(...LIVER_POINT); this.livePoint.set(...LIVER_POINT);
-    this.rig.setSubject(this.figureView === 'lobule' ? lobuleCorners() : (sinusoidBox() as Vec3[]));
-    return { ...shot, target: [shot.target[0] + dx, shot.target[1] + dy, shot.target[2]] };
+    this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true;
   }
   /** The boot reveal (boot/ready.ts, splash plan A2): the camera a little closer than rest while the splash is up, and the glide home as it lifts. Only the body view settles; any other start just fades. */
   primeReveal(k: number): void { if (this.figureView === 'body' && this.rig.primeSettle(k)) this.moving = true; }

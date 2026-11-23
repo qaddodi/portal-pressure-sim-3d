@@ -44,13 +44,6 @@ export function liverEdgeTable(c: number, g: number, out: Float32Array = new Flo
   return lowerEdge(cc + gg > 0 ? morphOutline(b, cc, gg).out : b.pts, out);
 }
 
-/** The liver's drawn outline in 2D units (y down) for the shown cirrhosis `c` and congestion `g`: the morphed outline (as `liverEdgeTable` reads it) shrunk about LIVER_AT by `liverScaleOf`, as the figure draws it. A fresh array. */
-export function liverOutline2d(c: number, g: number): [number, number][] {
-  const q = EDGE_STEPS, cc = Math.round(clamp01(c) * q) / q, gg = Math.round(clamp01(g) * q) / q, b = baseLiver();
-  const pts = cc + gg > 0 ? morphOutline(b, cc, gg).out : b.pts, s = liverShrink(cc, gg);
-  return Array.from(pts as ArrayLike<ArrayLike<number>>, (p) => [(p[0]! - LIVER_AT[0]) * s + LIVER_AT[0], (p[1]! - LIVER_AT[1]) * s + LIVER_AT[1]] as [number, number]);
-}
-
 /** How far the fluid is kept off the liver (0..1) at a shown congestion: stage-organs.js `smooth01(g / 0.5)`. */
 export const liverCut = (congestion: number): number => smooth01(congestion / 0.5);
 /** The liver's drawn scale about LIVER_AT (stage-diaphragm.js: liverShrink of the shown cirrhosis and congestion). */
