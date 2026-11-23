@@ -11,6 +11,7 @@ import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
 import { lookColours } from './lz-colours.ts';
 import { cvBandGlsl } from './cv-band.ts';
+import { DISC_R } from './widths.ts';
 import { GROW_H } from './growth.ts';
 import type { LookId } from '../../looks/looks.ts';
 
@@ -163,11 +164,22 @@ vec4 softPass(vec4 sharp, vec2 uvx, float lod) {
   vec3 col = mix(soft.rgb / max(soft.a, 1e-4), sharp.rgb / max(sharp.a, 1e-4), smoothstep(0.0, 0.02, sharp.a));
   return vec4(col * a, a);
 }
+// The central vein's collagen is painted at the vein's nominal wall radius (collagen-paint.ts paintVein) and lies in the tracts' plate; its place follows the live wall: about the vein's centre the uv is scaled by nominal / live wall radius (only near the vein, where nothing else is painted)
+const float CV_NOM = ${DISC_R.cv.toFixed(6)};
+vec2 veinUv(vec2 uv) {
+  float kz = 1.0 - smoothstep(0.45, 0.55, length(uv - 0.5) * CV_SPAN);
+  return 0.5 + (uv - 0.5) * mix(1.0, CV_NOM / max(uCv.y, 1e-4), kz);
+}
+// how much of the vein's collagen has grown at a point rv lobule radii from its centre: from the lumen's edge out to the collar's, soft at both ends (it frays into the bundles' own ends, never a glow)
+float veinFront(float rv) {
+  float h = 0.012;
+  return smoothstep(uCv.x - h, uCv.x + h, rv) * (1.0 - smoothstep(uCv.y + 0.6 * (uCv.z - uCv.y), uCv.z, rv)) * uCv.w;
+}
 vec4 collagenAt(vec2 uv) {
   gCov = 0.0; gFr = vec2(0.0);
-  if (uBaseK > 0.5 || uP.x + uP.y + uP.z <= 0.0) return vec4(0.0);
+  if (uP.x + uP.y + uP.z <= 0.0) return vec4(0.0);
   // (the collagen atlas is two plates wide: the tracts on the left, the septa on the right)
-  vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
+  vec2 uvV = veinUv(uv), uvT = vec2(uvV.x * 0.5, uvV.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
   vec4 cu = collAt(uvT, 0.0), cs = collAt(uvS, 0.0);
   // (the painter's three passes end in hard terraces: the alpha of a faint pass takes a softer copy of itself (three mip levels coarser) so the passes blend into the cells, the dense core stays as painted; the COLOUR stays the painter's own, fibre streaks and all, as in the mock)
   cs = softPass(cs, uvS, ${COLL_LOD_SEPTA.toFixed(1)});
@@ -182,7 +194,7 @@ vec4 collagenAt(vec2 uv) {
   float tp = (uP.y - TRACT_TAU_LO) * TRACT_TAU_K;   // (the front's tau in the painter's units: the disc is whole to 0.8 rt + 0.9 tp rt)
   float fT = TRACT_FRONT_K * TRACT_RT_PX * (0.8 + 0.9 * tp);   // (the front's radius; it fades over TRACT_SOFT of itself either side, so no bundle is cut)
   float eT = fT - rT, hT = TRACT_SOFT * fT;
-  float ft = smoothstep(-hT, hT, eT) * smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
+  float ft = max(smoothstep(-hT, hT, eT) * smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y), veinFront(length(uv - 0.5) * CV_SPAN));   // (the first arrival eases in: its disc never pops at its first radius)
   gCov = max(cs.a * fs, cu.a * ft); gFr = vec2(fs, ft);
   // (the septa first, the tracts over them, as the painter lays them)
   return cu * ft + cs * fs * (1.0 - cu.a * ft);
@@ -192,7 +204,7 @@ const float RELIEF_EDGE = ${(RELIEF_D_PX / PLATE_PX).toFixed(6)};
 float reliefH(vec2 uv, vec2 fr) {
   // (kept half a mip-3 texel inside the plate: the atlas holds the two plates side by side, and a septum's corner band reaches the plate's left and right edge, so a sample across the seam would read the other plate's edge as a cliff)
   uv = clamp(uv, vec2(RELIEF_EDGE), vec2(1.0 - RELIEF_EDGE));
-  vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
+  vec2 uvV = veinUv(uv), uvT = vec2(uvV.x * 0.5, uvV.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
   vec4 cu = textureLod(mapC, uvT, ${RELIEF_LOD.toFixed(1)}), cs = textureLod(mapC, uvS, ${RELIEF_LOD.toFixed(1)});
   if (mixB > 0.0) { cu = mix(cu, textureLod(mapCB, uvT, ${RELIEF_LOD.toFixed(1)}), mixB); cs = mix(cs, textureLod(mapCB, uvS, ${RELIEF_LOD.toFixed(1)}), mixB); }
   return collEdgeA(cs.a) * fr.x + collEdgeA(cu.a) * fr.y;
@@ -213,10 +225,9 @@ void main() {
   // (every derivative first, before the dissolve's discard and the empty-texel return: a quad whose other pixels were dropped gives a garbage fwidth on a device that drops the lane,
   // tests/no-derivative-after-discard.test.ts)
   // the central vein's own band (cv-band.ts): its radius in lobule radii, and one device pixel of it (a derivative, so read here, before any discard)
-  float cvR = length(vUv - 0.5) * CV_SPAN * uScarK;
-  float cvAA = max(fwidth(cvR), 1e-6);
   vec4 p = plateTex(vUv);
-  vec4 kl = collagenAt(vUv);   // (the collagen over the tissue, premultiplied, the painter's soft passes; it also sets gCov and gFr)
+  vec2 uvC = uBaseK > 0.5 ? 0.5 + (vUv - 0.5) * uScarK : vUv;   // (the scar mesh is scaled by the vein's own scale, its uv is not: the plate's own place of this pixel)
+  vec4 kl = collagenAt(uvC);   // (the collagen over the tissue, premultiplied, the painter's soft passes; it also sets gCov and gFr)
   float cov = gCov; vec2 fr = gFr;
   vec3 c = p.rgb / max(p.a, 1e-4);
   vec4 m = plateTexLod(vUv, 3.0);
@@ -227,18 +238,15 @@ void main() {
   float edge = plateEdge(vUv, uvPerPx, uDpr);   // (it samples the plate with implicit levels: a texture call is a derivative too, so it is read here, before the discard, Plan 41)
   // the collagen's relief: the slope of its height against the world light (0 on a flat band and on healthy tissue, where no sample is taken); explicit levels, so no derivative, but read here with the rest, before the discard
   float rs = 0.0;
-  if (cov > 0.002) rs = clamp(-COLL_RELIEF_G * dot(reliefSlope(vUv, fr), vL), -1.0, 1.0);
+  if (cov > 0.002) rs = clamp(-COLL_RELIEF_G * dot(reliefSlope(uvC, fr), vL), -1.0, 1.0);
   // (the dive's ONE dissolve, the same screen pattern as every tube, tile and mark of the scene: the marks go with the lobule, never before or after it)
   if (fadedOut()) discard;
-  if (uBaseK > 0.5) {   // the scar mesh (it holds no tissue: p is clear): the band from the lumen's edge to the wall, opaque over the pool's tone, as much of it as has grown; nothing in the lumen (the pool shows)
-    float cvCov = cvEdge(cvR, cvAA) * uCv.w;
-    vec3 bc = reliefColour(uCvCol, cvRelief(cvR, (vUv - 0.5) / max(length(vUv - 0.5), 1e-6)));
-    gl_FragColor = vec4((uBase * (1.0 - CV_A) + bc * CV_A) * cvCov, cvCov) * opacity;
+  if (uBaseK > 0.5) {   // the scar mesh (it holds no tissue: p is clear): the vein's own collagen over the pool, as much of it as has grown (the pool shows between the bundles); the same collagen as outside the wall, one system
+    float kcm = smoothstep(0.0, 0.2, cov);
+    gl_FragColor = vec4(mix(kl.rgb / max(kl.a, 1e-4), reliefColour(kl.rgb / max(kl.a, 1e-4), rs), kcm) * kl.a, kl.a) * opacity;
     return;
   }
-  // the vein's band past the wall (and under the pool inside it): the same function the scar mesh draws, over whatever the plate holds
-  float cvA = CV_A * cvEdge(cvR, cvAA) * cvWall(cvR) * uCv.w;
-  if (p.a < 0.002 && cvA < 0.002 && kl.a < 0.002) { gl_FragColor = vec4(0.0); return; }
+  if (p.a < 0.002 && kl.a < 0.002) { gl_FragColor = vec4(0.0); return; }
   // the tissue in three flat tones about its own local lightness (the painted colour blurred a few mip levels), hard edges one pixel wide
   vec3 c0 = c;   // (the painted colour: the collagen keeps it, below)
   c = celTissue(c, lb, max(fwDv * CEL_EDGE_HALF, 1e-3));
@@ -252,7 +260,6 @@ void main() {
   vec3 cf = mix(oc.rgb / max(oc.a, 1e-4), orw.rgb / max(orw.a, 1e-4), kc);
   cf = mix(cf, reliefColour(cf, rs), kc);
   vec4 o = vec4(cf * oc.a, oc.a);
-  if (cvA > 0.0) o = vec4(reliefColour(uCvCol, cvRelief(cvR, (vUv - 0.5) / max(length(vUv - 0.5), 1e-6))) * cvA, cvA) + o * (1.0 - cvA);
   gl_FragColor = o * opacity;
 }`;
 

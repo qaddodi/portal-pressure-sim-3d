@@ -86,15 +86,15 @@ test('the relief has one lit and one shade flank across the band (one reversal),
   assert.ok(Math.abs(cvRelief(g.rL, g, [1, 0], [-1, 0])) < 1e-9 && Math.abs(cvRelief(g.rC, g, [1, 0], [-1, 0])) < 1e-9);
 });
 
-test('the vein is NOT in the collagen layer: no tract/septa painting at its centre', () => {
-  const N = 192, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), look = 'light' as never, L = lookColours(look);
+test('the vein\'s collagen is bundles painted into the tracts\' plate about its centre (one system with the tracts and the septa): painted inside the collar, nothing between the collar and the tracts', () => {
+  const N = 256, B = PLATE_BOX * PLATE_S, sc = N / (2 * B), look = 'light' as never, L = lookColours(look);
   useTokens((n: string, a?: number | string) => L.tk(n, a));
   const r = rasterCtx(N);
   paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, DISC_R.cv, look), 'tracts');
-  const R2 = 0.2 * PLATE_S * sc;   // 0.2 R round the vein, in pixels (the tracts lie at the hexagon's corners, a whole radius away)
-  let sum = 0;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) < R2) sum += r.alpha[y * N + x]!;
-  assert.equal(sum, 0, 'nothing painted round the vein');
+  const ring = (lo: number, hi: number): number => { let sum = 0; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const d = Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) / (sc * PLATE_S); if (d >= lo && d < hi) sum += r.alpha[y * N + x]!; } return sum; };
+  const g = cvGeom(DISC_R.cv, shape.rcv0 / PLATE_S, 1);
+  assert.ok(ring(g.rw * 0.5, g.rC) > 200, 'bundles round the vein');
+  assert.equal(ring(g.rC * 1.15, 0.6), 0, 'nothing painted between the collar and the tracts');
 });
 
 test('the scar mesh is told the vein\'s scale, and both pieces share the band numbers', async () => {
@@ -113,14 +113,13 @@ test('the scar mesh is told the vein\'s scale, and both pieces share the band nu
   assert.equal(CV_FILL, 0.55);
 });
 
-test('shader text: the band is read by one function in both pieces, every derivative before the first discard, and it parses', async () => {
+test('shader text: the vein\'s growth is the one front over its painted bundles, read in the one collagen function, and the shader parses', async () => {
   const fs = LOBULE_PLATE_FS;
-  assert.match(fs, /float cvR = length\(vUv - 0\.5\) \* CV_SPAN \* uScarK;/);
-  assert.match(fs, /fwidth\(cvR\)/);
-  assert.ok(fs.indexOf('fwidth(cvR)') < fs.indexOf('fadedOut()) discard'), 'the derivative is read before any discard');
+  assert.match(fs, /float veinFront\(float rv\)/);
+  assert.match(fs, /vec2 veinUv\(vec2 uv\)/);
+  assert.match(fs, /veinFront\(length\(uv - 0\.5\) \* CV_SPAN\)/);
+  assert.doesNotMatch(fs, /float cvA = CV_A/, 'no analytic flat band any more: the vein is bundles');
   assert.doesNotMatch(fs, /front\(t\.b/, 'channel B is not read');
-  assert.doesNotMatch(fs, /smoothstep\(0\.0, 0\.08, cu\.a\)/, 'no alpha gate: the pool never shows through the band');
-  assert.match(fs, /cvEdge\(cvR, cvAA\)/);
   const name = '@shaderfrog/glsl-parser'; let parse: ((s: string) => unknown) | null = null;
   try { const m = await import(name); parse = (s) => m.parser.parse(s, { quiet: true }); } catch { /* not installed */ }
   if (parse) parse(fs.replace(/^\n/, '').replace(/^#include.*$/gm, ''));

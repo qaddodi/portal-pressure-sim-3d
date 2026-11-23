@@ -48,7 +48,7 @@ test('the painted tract has no rim and reaches no further than TRACT_REACH_PX (s
 
 test('the relief is read from a coarse mip before the dissolve\'s discard, and shades the collagen only by its coverage (no cel step, no edge line over it)', () => {
   const at = (re: RegExp): number => LOBULE_PLATE_FS.search(re);
-  assert.ok(at(/reliefSlope\(vUv, fr\)/) > 0 && at(/reliefSlope\(vUv, fr\)/) < at(/if \(fadedOut\(\)\) discard;/), 'the relief samples come before the first discard');
+  assert.ok(at(/reliefSlope\(uvC, fr\)/) > 0 && at(/reliefSlope\(uvC, fr\)/) < at(/if \(fadedOut\(\)\) discard;/), 'the relief samples come before the first discard');
   assert.match(LOBULE_PLATE_FS, /float kc = smoothstep\(0\.0, 0\.2, cov\)/);
   assert.match(LOBULE_PLATE_FS, /\(1\.0 - kc\)\);/, 'the plate edge line is weighted out over the collagen');
   assert.match(LOBULE_PLATE_FS, /cf = mix\(cf, reliefColour\(cf, rs\), kc\)/);

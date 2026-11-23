@@ -16,9 +16,10 @@ test('the scar mesh is a plain annulus from CV_MESH_IN of the wall to just short
   assert.equal(cvScarGrowth(0), 0);
 });
 
-test('the scar\'s shader is the plate\'s: the plate\'s own band function, laid over the pool\'s tone from its own place on the plate, whole', () => {
-  assert.match(LOBULE_PLATE_FS, /uBase \* \(1\.0 - CV_A\) \+ bc \* CV_A/, 'the band laid over the tissue\'s tone, whole (no see-through)');
-  assert.match(LOBULE_PLATE_FS, /cvRelief\(cvR,/);
+test('the scar\'s shader is the plate\'s: the same collagen function (one system), read at the pixel\'s own place on the plate, over the pool', () => {
+  assert.match(LOBULE_PLATE_FS, /vec2 uvC = uBaseK > 0\.5 \? 0\.5 \+ \(vUv - 0\.5\) \* uScarK : vUv;/);
+  assert.match(LOBULE_PLATE_FS, /vec4 kl = collagenAt\(uvC\);/);
+  assert.match(LOBULE_PLATE_FS, /gl_FragColor = vec4\(mix\(kl\.rgb/, 'the scar mesh shows the collagen layer\'s own colour and relief');
   assert.match(LOBULE_SCAR_VS, /vUv = position\.xy \/ uSide \+ 0\.5/);
 });
 

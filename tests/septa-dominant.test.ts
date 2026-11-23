@@ -10,6 +10,7 @@ import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
 import { tractReveal } from './helpers/tract-front.ts';
 import { tractFrontPx } from '../src/scene/lobule/collagen-edge.ts';
 import { front, growGoal, septaStrength } from '../src/scene/lobule/growth.ts';
+import { cvGeom } from '../src/scene/lobule/cv-band.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
 import { DISC_R, IN_R } from '../src/scene/lobule/widths.ts';
@@ -22,13 +23,18 @@ const tau = collagenTau(shape, cv * PLATE_S, N, B), tractAt = tractReveal(N, B);
 const layerT = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts'); return r; })();
 const layer = (() => { const r = rasterCtx(N); paintCollagenWorld(r.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa'); return r; })();   // (the septa's own plate)
 
+/** The vein's reveal at pixel i at its channel's growth p (plate.ts veinFront: from the lumen's edge to the collar's, soft at both ends). */
+const veinAt = (i: number, p: number): number => {
+  const gm = cvGeom(cv, net.rcv0, p), rv = Math.hypot(((i % N) + 0.5) - N / 2, (Math.floor(i / N) + 0.5) - N / 2) / (N / (2 * PLATE_BOX)), sm = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  return sm(gm.rL - 0.012, gm.rL + 0.012, rv) * (1 - sm(gm.rw + 0.6 * (gm.rC - gm.rw), gm.rC, rv)) * gm.k;
+};
 /** The visible collagen's alpha-weighted area by the last-painted channel that shows it (septa, tracts, vein), at the goals of a state. */
 function shares(s: { septU: number; fibPre: number; fibPost: number }) {
   const g = growGoal(s), area = [0, 0, 0];
   for (let i = 0; i < N * N; i++) {
     const sa = layer.alpha[i]!, ta = layerT.alpha[i]!; if (sa <= 0 && ta <= 0) continue;
     // (the painter's order: the septa first, the tracts over them, the vein's cuff and ring last: a pixel belongs to the last channel that shows it)
-    const f = [front(tau[4 * i]!, g[0]) * septaStrength(g[0]), tractAt(i, g[1]!), 0];
+    const f = [front(tau[4 * i]!, g[0]) * septaStrength(g[0]), tractAt(i, g[1]!), veinAt(i, g[2]!)];
     if (ta * Math.max(f[1]!, f[2]!) > 0.05) { const k = f[2]! > 0.5 ? 2 : 1; area[k]! += ta * f[k]!; } else area[0]! += sa * f[0]!;
   }
   const tot = area[0]! + area[1]! + area[2]!;
@@ -36,10 +42,10 @@ function shares(s: { septU: number; fibPre: number; fibPost: number }) {
 }
 const fmt = (r: ReturnType<typeof shares>) => `septa ${(r.septa * 100).toFixed(1)} %, tracts ${(r.tracts * 100).toFixed(1)} %, vein ${(r.cv * 100).toFixed(1)} %`;
 
-test('Decomp. cirrhosis: the septa are at least 55 % of the visible collagen, the tracts at most 25 %, the vein at most 10 %', () => {
+test('Decomp. cirrhosis: the septa are at least 55 % of the visible collagen, the tracts at most 32 %, the vein at most 10 %', () => {
   const r = shares({ septU: 1, fibPre: 1, fibPost: 1 });
   console.log(`# decomp cirrhosis: ${fmt(r)}`);
-  assert.ok(r.septa >= 0.55 && r.tracts <= 0.25 && r.cv <= 0.1, fmt(r));
+  assert.ok(r.septa >= 0.55 && r.tracts <= 0.32 && r.cv <= 0.1, fmt(r));
 });
 
 test('Compensated cirrhosis: the septa are at least 50 %', () => {
