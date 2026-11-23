@@ -140,6 +140,9 @@ export const SOURCE_PATCHES = [
   P('lobule', 'slides.wedge-sinusoid.title', 'the sinusoidal pressure stays normal', 'the sinusoidal pressure stays well below the portal pressure'),
   P('lobule', 'slides.wedge-sinusoid.line', 'keeps the sinusoidal pressure at {sin} while the portal pressure is high.', 'holds the sinusoidal pressure to {sin} while the portal pressure is {pv}.'),
 
+  // ---- hvpg, 23 Nov 2026 (Mohammad: "slide 8/15 in HVPG PPG is missing a case card?", then "sure" to these words): the portal vein thrombosis slide changes patient and had no case card
+  SET('hvpg', 'slides.ppg.vignette', 'A 41-year-old man has had variceal bleeding. His liver tests are normal, and imaging shows a chronic portal vein thrombus.'),
+
   // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
   ...TIPS_DOPPLER_REVIEW,
 ];
