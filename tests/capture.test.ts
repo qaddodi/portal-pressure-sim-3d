@@ -298,3 +298,13 @@ test('Capture: a half turn is a turn (the table\'s down arrows), a stuck Next do
   const a = Math.cos(Math.PI), b2 = Math.sin(Math.PI);
   assert.ok(Math.abs(b2) < 1e-3 && a < -1e-3, 'b and c are 0'); assert.ok(Math.abs(Math.abs(Math.atan2(b2, a)) - Math.PI) < 1e-6);
 });
+
+test('Copy after a capture says what was captured: deck, slide, scenario, device, build, time, file and the link', async () => {
+  const m = await import('../src/ui/capture/capture-model.ts');
+  const text = m.captureNote({ deck: 'Measuring HVPG and PPG', slideNo: 5, slideCount: 17, slideTitle: 'Wedged pressure', scenario: 'patient Healthy, look dark', device: m.deviceWords(390, 844, 3), build: 'a04a60e2', at: new Date(2026, 10, 23, 12, 42, 13), file: 'portal-pressure-capture-x.png', link: 'https://x/#s=abc' });
+  assert.equal(text, ['Portal pressure simulator: screen capture', 'Deck: Measuring HVPG and PPG', 'Slide: 5 of 17: Wedged pressure', 'Scenario: patient Healthy, look dark', 'Device: phone 390x844 at 3x', 'Build: a04a60e2', 'Captured: 2026-11-23 12:42:13', 'File: portal-pressure-capture-x.png', 'Link (reopens this exact view): https://x/#s=abc'].join('\n'));
+  const free = m.captureNote({ scenario: '', device: m.deviceWords(1440, 900, 2), build: 'b', at: new Date(2026, 0, 2, 3, 4, 5), file: 'f.png', link: 'L' });
+  assert.ok(!/Deck:|Slide:|Scenario:/.test(free), 'outside a talk there is no deck or slide line'); assert.match(free, /Device: computer 1440x900 at 2x/);
+  assert.equal(m.deviceWords(820, 1180, 2).split(' ')[0], 'tablet'); assert.equal(m.deviceWords(844, 390, 3).split(' ')[0], 'phone');
+  assert.match(src('src/ui/capture/capture.ts'), /copyNote\(made\.note\)/);
+});

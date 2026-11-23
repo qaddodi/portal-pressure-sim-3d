@@ -169,3 +169,16 @@ export function symbolPath(ch: string, x: number, y: number, w: number, h: numbe
     default: return `M${f(cx - h * 0.26)} ${f(cy + h * 0.02)}L${f(cx - h * 0.08)} ${f(cy + h * 0.22)}L${f(cx + h * 0.28)} ${f(cy - h * 0.24)}`;   // a tick
   }
 }
+
+/** What the copied text says about a capture (the toast's Copy): where in the app it was, with what, on what screen, which build and when, the file, and the link that reopens the view. A line with nothing to say is left out. */
+export interface NoteIn { deck?: string; slideNo?: number; slideCount?: number; slideTitle?: string; scenario: string; device: string; build: string; at: Date; file: string; link: string }
+export function captureNote(n: NoteIn): string {
+  const lines = ['Portal pressure simulator: screen capture'];
+  if (n.deck) lines.push(`Deck: ${n.deck}`);
+  if (n.deck && n.slideNo) lines.push(`Slide: ${n.slideNo}${n.slideCount ? ` of ${n.slideCount}` : ''}${n.slideTitle ? `: ${n.slideTitle}` : ''}`);
+  if (n.scenario) lines.push(`Scenario: ${n.scenario}`);
+  lines.push(`Device: ${n.device}`, `Build: ${n.build}`, `Captured: ${stampTime(n.at)}`, `File: ${n.file}`, `Link (reopens this exact view): ${n.link}`);
+  return lines.join('\n');
+}
+/** The kind of screen, by its width: phone, tablet or computer. */
+export const deviceWords = (w: number, h: number, dpr: number): string => `${w < 600 || (h < 600 && w < 1000) ? 'phone' : w < 1100 ? 'tablet' : 'computer'} ${w}x${h} at ${dpr}x`;

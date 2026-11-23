@@ -31,7 +31,7 @@ export const CAPTURE = {
   title: 'Portal pressure simulator capture',
   saved: 'Capture saved. Copy the link to reopen this exact view.', shared: 'Capture shared. Copy the link to reopen this exact view.',
   notShared: 'Nothing was sent. Copy the link to reopen this exact view.', ready: 'Capture ready. Tap Share to send it.',
-  share: 'Share', copyLink: 'Copy link', linkCopied: 'Link copied. It reopens this exact view.', linkFailed: 'Couldn’t copy the link from here.',
+  share: 'Share', copyLink: 'Copy details', linkCopied: 'Copied: what this is and the link that reopens this exact view.', linkFailed: 'Couldn’t copy the link from here.',
   failed: 'Couldn’t capture the screen. Try again in a moment.',
   deckRow: 'Capture this deck', deckHint: 'Every slide of this talk as pictures, with a contact sheet',
   stop: 'Stop', save: 'Save', deckStart: 'Capturing every slide of this talk. Tap Stop to keep what’s done.', deckStopping: 'Stopping after this slide.',

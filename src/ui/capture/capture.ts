@@ -12,14 +12,17 @@ import { feedbackBuild, commitOf } from '../../boot/release.ts';
 import { CAPTURE } from '../shell/words.ts';
 import { readBox, readStyle } from '../layout-snap.ts';
 import { readScreen, paintScreen, loadMasks } from './capture-dom.ts';
-import { captureScale, stampText, captureFileName, captureRecord, deliverWay, type CaptureRecord } from './capture-model.ts';
+import { captureScale, stampText, captureFileName, captureRecord, deliverWay, captureNote, deviceWords, type CaptureRecord } from './capture-model.ts';
+import { useUi } from '../ui-store.ts';
+import { useSettings } from '../../state/settings.ts';
+import { UI } from '../strings.generated.ts';
 import { pngWithText, asciiJson } from './png-text.ts';
 
 const say = (text: string, tone?: 'info' | 'bad', action?: { label: string; run: () => void }) => useShell.getState().say(text, tone, action);
 let busy = false;
 
 /** The picture and what rides with it. Null when the page could not be drawn. */
-export interface Made { blob: Blob; name: string; link: string }
+export interface Made { blob: Blob; name: string; link: string; /** the text the toast's Copy puts on the clipboard: what was captured, with the link */ note: string }
 
 async function stateRecord(): Promise<unknown> {
   try { const { stateNow } = await import('../debug/packet/sources.ts'); return stateNow(); } catch { return null; }
@@ -77,13 +80,28 @@ export async function composeScreen(at: Date): Promise<Made | null> {
   const png = await new Promise<Blob | null>((ok) => d.canvas.toBlob(ok, 'image/png'));
   if (!png) return null;
   const bytes = pngWithText(new Uint8Array(await png.arrayBuffer()), 'portal-state', asciiJson(d.record));
-  return { blob: new Blob([bytes as BlobPart], { type: 'image/png' }), link: d.link, name: nameNow(at) };
+  const name = nameNow(at);
+  return { blob: new Blob([bytes as BlobPart], { type: 'image/png' }), link: d.link, name, note: noteFor(d.record, d.build, d.link, name, at) };
 }
 
-function copyLink(link: string): void {
+/** The text Copy gives: the deck and slide the person was on, the patient and look, the screen, the build, the time, the file and the link. */
+function noteFor(rec: CaptureRecord, build: string, link: string, file: string, at: Date): string {
+  const ui = useUi.getState(), sh = useShell.getState(), k = ui.pos.stop, st = ui.deck ? ui.stops[k] : undefined;
+  const preset = useEngine.getState().presetId ?? sh.patientId, patient = UI.presets.find((p) => p.id === preset)?.label ?? preset;
+  const state = (rec.state && typeof rec.state === 'object' ? rec.state : {}) as Record<string, unknown>;
+  const part = (label: string, v: unknown) => (typeof v === 'string' && v ? `${label} ${v}` : '');
+  const scenario = [patient ? `patient ${patient}` : '', part('look', useSettings.getState().look), part('lens', state.lens), part('view', sh.view)].filter(Boolean).join(', ');
+  return captureNote({
+    deck: ui.deck?.title, slideNo: ui.deck ? k + 1 : undefined, slideCount: ui.deck ? ui.stops.length : undefined,
+    slideTitle: st ? (st.kind === 'slide' ? st.slide.title : st.kind) : undefined,
+    scenario, device: deviceWords(innerWidth, innerHeight, devicePixelRatio), build, at, file, link,
+  });
+}
+
+function copyNote(text: string): void {
   const done = () => say(CAPTURE.linkCopied), fail = () => say(CAPTURE.linkFailed, 'bad');
   if (!navigator.clipboard?.writeText) { fail(); return; }
-  navigator.clipboard.writeText(link).then(done, fail);
+  navigator.clipboard.writeText(text).then(done, fail);
 }
 
 function download(m: Made): void {
@@ -103,7 +121,7 @@ export async function captureScreen(opts: { settle?: boolean } = {}): Promise<vo
     if (!made) { say(CAPTURE.failed, 'bad'); return; }
     const file = new File([made.blob], made.name, { type: 'image/png' });
     const way = deliverWay({ touchPoints: navigator.maxTouchPoints || 0, canShareFiles: !!navigator.canShare?.({ files: [file] }) });
-    const withLink = (text: string) => say(text, 'info', { label: CAPTURE.copyLink, run: () => copyLink(made.link) });
+    const withLink = (text: string) => say(text, 'info', { label: CAPTURE.copyLink, run: () => copyNote(made.note) });
     if (way === 'download') { download(made); withLink(CAPTURE.saved); return; }
     try { await navigator.share({ files: [file], title: CAPTURE.title }); withLink(CAPTURE.shared); }
     catch (e) {
