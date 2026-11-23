@@ -35,7 +35,9 @@ function septumPath(o: BandOpt, u: number, out: number[]): void {
 export function septaBands(G: CollagenShape, rgb: ArrayLike<number> | null = null): BandSpec[] {
   const R = G.R, w = R * 0.12, wHex = R * 0.2, wPC = R * 0.14, crn = G.lobules[0]!.corners, out: BandSpec[] = [];
   const opt = (ww: number, a: number, e1: number, amp: number, seed: number, pts: P2[] | null): BandOpt => ({ w: ww, rgb, a, e0: SEPTA_E0, e1, amp, seed, pts, path: pts ? septumPath : null });
-  for (let i = 0; i < crn.length; i++) out.push({ kind: 'hex', A: crn[i]!, B: crn[(i + 1) % 6]!, o: opt(wHex, 1, 1.5, R * 0.025, 11 + i, null) });
+  // (a hex-edge septum lies INSIDE the vessel ring: its centre line is moved in by most of its half width, so its outer edge sits at the ring and the band makes no pale apron round the hexagon; capture a56feaf2, ascites 5: "a pale cream apron round the whole hexagon")
+  const IN = R * 0.085, inward = (P: P2, Q: P2): [P2, P2] => { const mx = (P[0] + Q[0]) / 2 - G.cx, my = (P[1] + Q[1]) / 2 - G.cy, l = Math.hypot(mx, my) || 1, dx = -mx / l * IN, dy = -my / l * IN; return [[P[0] + dx, P[1] + dy], [Q[0] + dx, Q[1] + dy]]; };
+  for (let i = 0; i < crn.length; i++) { const [A, B] = inward(crn[i]!, crn[(i + 1) % 6]!); out.push({ kind: 'hex', A, B, o: opt(wHex, 1, 1.5, R * 0.025, 11 + i, null) }); }
   for (let k = 0; k < G.septaPC.length; k++) { const pts = G.septaPC[k]!.pts; out.push({ kind: 'pc', A: pts[0]!, B: pts[pts.length - 1]!, o: opt(wPC, 1, 0.9, 0, 31 + k, pts) }); }
   for (let k = 0; k < 3; k++) { const A = crn[SPURS[k]!]!; out.push({ kind: 'spur', A, B: [lerp(A[0], G.cx, 0.55), lerp(A[1], G.cy, 0.55)], o: opt(w * 0.55, 0.8, 0.15, R * 0.03, 41 + k, null) }); }
   return out;

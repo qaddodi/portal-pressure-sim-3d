@@ -20,6 +20,8 @@ analytic band (cv-band.ts: opaque tan ring, polygonal edge, glow collar) is reti
 
 - A tract is layered bands, not a cloud: "the fibrosis should be bands, not a diffuse cloud", "do not cut off at the hexagon" (23 Nov, capture 58722f12, slides 4.2 and 9). Root cause: ten random wide bundles crossing the tract piled into a tangle with dark pockets at the rim, which read as a cream cloud. A tract is now a light floor (three rings of wide, translucent bundles that overlap, so no gap) under six concentric ropes of varying length, width and intensity (the periportal onion-skin), with a few long sweepers; nothing is clipped at the hexagon, and it still reaches no further than `TRACT_REACH_PX`.
 
+- No pale apron round the hexagon: a hex-edge septum lies inside the vessel ring (its centre line is moved in by 0.085 R), so it fills the hexagon's edge and spills out no more than about 0.04 R; the tracts at the corners still reach out as approved (capture a56feaf2, ascites 5, "a pale cream apron round the whole hexagon"; `tests/collagen-relief.test.ts`).
+
 ## Rejected
 - Glow outside the band, any halo, a flat plateau, blobs.
 - Terraces: "banded, looks like glow" (the painter's three passes showing as stepped outlines), and the wide pale apron round a tract.

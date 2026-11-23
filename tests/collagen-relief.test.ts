@@ -8,7 +8,7 @@ import { badSamplers, usedBeforeDeclared } from './gl-undeclared.ts';
 import { rasterCtx } from './helpers/raster-ctx.ts';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { PLATE_BOX, PLATE_S, plateShape } from '../src/scene/lobule/plate.ts';
-import { collagenInput, paintCollagenWorld } from '../src/scene/lobule/collagen-paint.ts';
+import { collagenInput, paintCollagenWorld, septaBands } from '../src/scene/lobule/collagen-paint.ts';
 import { TRACT_REACH_PX } from '../src/scene/lobule/collagen-edge.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
@@ -76,5 +76,15 @@ test('every portal tract is evenly fibrosed: at each of the six corners at most 
     const cx = (x0 * PLATE_S + B) * sc, cy = (B - y0 * PLATE_S) * sc; let n = 0, bare = 0;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > 0.95 * R) continue; n++; if (r.alpha[y * N + x]! < 0.3) bare++; }
     assert.ok(bare / n <= 0.05, `corner ${k}: ${(100 * bare / n).toFixed(1)} % bare`);
+  }
+});
+
+test('no pale apron round the hexagon: a hex-edge septum lies inside the vessel ring, its outer edge no further than 0.04 R outside the hexagon edge (capture a56feaf2, ascites 5)', () => {
+  const net = buildLobule(), shape = { ...plateShape(net), cells: [] }, G = collagenInput(shape, DISC_R.cv, 'dark' as never).G, hex = septaBands(G, null).filter((b) => b.kind === 'hex');
+  assert.equal(hex.length, 6);
+  const apothem = Math.hypot(...[0, 1].map((k) => (G.lobules[0]!.corners[0]![k]! + G.lobules[0]!.corners[1]![k]!) / 2 - (k ? G.cy : G.cx)));
+  for (const b of hex) {
+    const mx = (b.A[0] + b.B[0]) / 2 - G.cx, my = (b.A[1] + b.B[1]) / 2 - G.cy, outer = Math.hypot(mx, my) + b.o.w * 0.5 * 1.2;   // (the ropes lie within 0.475 of the width either side of the centre line)
+    assert.ok(outer <= apothem + 0.04 * G.R, `outer edge ${(outer - apothem).toFixed(1)} beyond the hexagon edge (R ${G.R})`);
   }
 });
