@@ -21,6 +21,7 @@ import { LensKey } from './LensKey.tsx';
 import { useBarFit } from './use-bar-fit.ts';
 import { shortName, COMPACT } from './scenario-names.ts';
 import { yoursName } from '../readings/yours.ts';
+import { historyName } from '../histories/meta.ts';
 import { startTopbarMotion } from './topbar-motion.ts';
 import { useTalkOn } from '../../state/deck.ts';
 import { fadeAttrs } from '../fade.tsx';
@@ -115,7 +116,7 @@ export function TopBar() {
   const view = useShell((s) => s.view);
   const patientId = useShell((s) => s.patientId);
   const lobule = view === 'lobule' || view === 'sinusoid';
-  const patient = UI.presets.find((p) => p.id === patientId)?.label ?? yoursName(patientId);
+  const patient = UI.presets.find((p) => p.id === patientId)?.label || historyName(patientId) || yoursName(patientId);
   const menu = tb('btnMenu');
   const barRef = useBarFit([patient, patientId, view, mode]);
   // a button that comes or goes, a longer name, a new fit step: the bar glides to it (2D topbar-motion.js)

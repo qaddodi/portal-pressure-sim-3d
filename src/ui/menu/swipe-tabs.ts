@@ -1,4 +1,4 @@
-// A sideways drag pages between Present and Patients (2D menu.js swipeTabs, ported line for line): the open list follows the finger with the other beside it, and on release it eases
+// A sideways drag pages between Present, Patients and Histories (2D menu.js swipeTabs, ported line for line): the open list follows the finger with the other beside it, and on release it eases
 // on to it (past a third of the way, or after a quick flick) or back. Past either end it gives a little and springs back. A vertical move stays the list's scroll or the pull down; the
 // search box keeps its own drags, and a tap is still a tap. What the page is asked is read at the touch, never as the finger moves; what is written as it moves is `transform` alone,
 // by the clock (motion.ts), and the let-go carries the finger's own speed (ease.copied.js carryCurve), as 2D's does.
@@ -12,8 +12,8 @@ import { reduced } from '../a11y/motion.ts';
 import { clock } from '../../clock/frame.ts';
 const owns = ownsSideways as unknown as (el: EventTarget | null, o: { stop: Element }) => boolean;
 
-export type Tab = 'present' | 'patients';
-export const TABS: readonly Tab[] = ['present', 'patients'];
+export type Tab = 'present' | 'patients' | 'histories';
+export const TABS: readonly Tab[] = ['present', 'patients', 'histories'];
 type Trail = [number, number][];
 
 /** The menu's own hooks: which tab is open, and the switch (`still`: the list was swiped into place, so it does not play its entrance again). */
@@ -102,6 +102,7 @@ export function swipeTabs(panel: HTMLElement, api: TabsApi): () => void {
         api.setTab(TABS[s.j]!, true);
         cols.scrollTop = 0;
       } else { clear(cur); clear(nb); }
+      for (const c of s.peers) clear(c);   // (the list that was not reached too: its place was set at the touch, and a list left with a height holds the next one to it)
     };
     let finished = 0;
     const part = () => { if (++finished === (nb ? 2 : 1)) done(); };

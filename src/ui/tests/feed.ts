@@ -33,6 +33,8 @@ const FW_LAG_S = 0.12;
 export type FeedFrame = Pick<EngineFrame, 'jump'> & {
   samples?: Packed | null; probe?: string; gen?: number; clock?: string; day?: number; metrics?: Record<string, unknown>; params?: unknown; bands?: unknown; morphing?: boolean; Pf?: ArrayLike<number>;
 };
+/** the bands on (the engine's count wears off a little each day): a whole number, or what a frame without one holds */
+export const bandsOn = (b: unknown): unknown => (typeof b === 'number' ? Math.max(0, Math.ceil(b - 1e-3)) : b);
 /** what the paper's clock reads of a frame */
 export type HeadFrame = { running?: boolean; clock?: string; morphing?: boolean; speed?: number } | null | undefined;
 
@@ -67,6 +69,10 @@ export class SampleFeed {
   /** the Days chart's points, one a day (2D days), and what changed them */
   days: DayPoint[] = [];
   daysVer = 0;
+  /** the worker's count of the states it replaced, as of the last frame (see adopt) */
+  private daysGen: number | null = null;
+  /** a patient that comes with its past: these days are laid in when the frame that replaced the model's state arrives (seedDays) */
+  private seed: DayPoint[] | null = null;
   private treatKey: string | null = null;
   private bandsNow: unknown = null;
   private stepNext = false;
@@ -112,13 +118,34 @@ export class SampleFeed {
   get n() { return this.t.length; }
   get last() { return this.t.length ? this.t[this.t.length - 1]! : NaN; }
 
+  /** The days of the patient who is going to be loaded (a model patient's history), laid in when the model's new state arrives; null for a patient who comes with none (a new patient clears any that were waiting). */
+  seedDays(days: readonly DayPoint[] | null): Promise<void> {
+    this.landed?.();
+    this.seed = days ? structuredClone(days) as DayPoint[] : null;
+    return days ? new Promise<void>((done) => { this.landed = done; }) : Promise.resolve();
+  }
+  /** resolves the promise seedDays gave, when the days are in (or when they were let go) */
+  private landed: (() => void) | null = null;
+  private newPatient() {
+    this.days.length = 0; this.treatKey = null; this.bandsNow = null; this.calmKept.clear();
+    if (this.seed) { this.days.push(...this.seed); this.seed = null; }
+    this.daysVer++;
+    this.landed?.(); this.landed = null;
+  }
+
   /** Take in one frame: its samples into the record and its day into the Days list. A new patient (a jump) starts the record again; a clock that was set under
    *  a trace that went on (a state restored, a time-lapse ended, the freewheel's sweep) moves the trace's time on to start where it left off (2D ingest). */
   adopt(f: FeedFrame, nowMs = clock.now()) {
     const s = f.samples;
     if (f.probe && f.probe !== this.probe) { this.probe = f.probe; }
     const was = this.wheel.laid;
-    if (f.jump) { this.clear(); this.days.length = 0; this.treatKey = null; this.bandsNow = null; this.calmKept.clear(); this.daysVer++; }
+    if (f.jump) {
+      this.clear();
+      // The days belong to the patient, not to a jump: the worker's `gen` counts the states it REPLACED (a patient, a restore, a reset), while an action, a change of clock or a time-lapse's first day
+      // is a jump frame too, and emptying the record there cleared a history under whoever pressed a button. A frame with no `gen` (a test's) is a new patient.
+      if (f.gen == null || f.gen !== this.daysGen) this.newPatient();
+    }
+    if (f.gen != null) this.daysGen = f.gen;
     if (s && s.t && s.t.length && f.clock !== 'disease') {
       const n = s.t.length, last = this.last, t0 = s.t[0]! + this.off;
       if (!this.t.length && this.head[1]) {
@@ -191,7 +218,9 @@ export class SampleFeed {
   private noteDay(f: FeedFrame) {
     const m = f.metrics as Record<string, number>;
     if (f.params) { const k = treatmentKey(f.params); if (k !== this.treatKey) { this.stepNext = this.treatKey != null; this.treatKey = k; } }
-    if (f.bands !== this.bandsNow) { this.stepNext = this.stepNext || this.bandsNow != null; this.bandsNow = f.bands; }
+    // (How many bands are on, not how much of the last is left: a band wears off by a fiftieth of a day, and each day's new fraction was a step in the list for the weeks after a banding.)
+    const bands = bandsOn(f.bands);
+    if (bands !== this.bandsNow) { this.stepNext = this.stepNext || this.bandsNow != null; this.bandsNow = bands; }
     const v: Record<string, number> = { hvpg: m.hvpg! };
     for (const t of TRACES) if (t.day) v[t.id] = m[t.day]!;
     Object.assign(v, dayExtras(f));   // (the timeline chart's own lanes: ascites, the shunt, the cardiac output, the varix: bigtime/day-keys.ts)

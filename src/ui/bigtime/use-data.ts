@@ -16,7 +16,7 @@ export function entriesNow(): EntryIn[] {
   const es = timeline.entries(), out: EntryIn[] = [];
   es.forEach((e, i) => {
     if (timeline.isFuture(i)) return;
-    out.push({ id: e.id, kind: e.kind, label: e.label, day: e.day, ...(e.sev ? { sev: e.sev } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}), ...(e.detail ? { detail: e.detail } : {}), ...(e.snap ? { params: e.snap.params } : {}) });
+    out.push({ id: e.id, kind: e.kind, label: e.label, day: e.day, ...(e.sev ? { sev: e.sev } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}), ...(e.detail ? { detail: e.detail } : {}), ...(e.snap ? { params: e.snap.params } : e.params != null ? { params: e.params } : {}) });
   });
   return out;
 }
