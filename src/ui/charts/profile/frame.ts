@@ -89,9 +89,9 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     // (the name stands over the zone's middle; the first zone's, past the unit's words, is moved right of them, as far as the next zone's name leaves room, and no further)
     names.forEach((n, k) => {
       const rows = n.ls.map((_, j) => G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf);
-      if (!rows.some((y) => y - 0.76 * size0 < unitBox.y1 && y + 0.24 * size0 > unitBox.y0) || n.m - n.tw / 2 >= unitBox.x1 + 4) return;
+      if (!rows.some((y) => y - 0.76 * size0 < unitBox.y1 && y + 0.24 * size0 > unitBox.y0) || n.m - n.tw / 2 >= unitBox.x1 + 10) return;
       const next = names[k + 1];
-      n.m = Math.max(n.m, Math.min(unitBox.x1 + 4 + n.tw / 2, next ? next.m - next.tw / 2 - 6 - n.tw / 2 : Infinity));
+      n.m = Math.max(n.m, Math.min(unitBox.x1 + 10 + n.tw / 2, next ? next.m - next.tw / 2 - 6 - n.tw / 2 : Infinity));
     });
     names.forEach((n) => n.ls.forEach((t, j) => shapes.push(text(n.m, G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf, t, tk, { size: size0, ls: lsp }))));
   }

@@ -3,4 +3,4 @@
 const UNIT = String.raw`(?:mmHg|mL\/min|L\/min|g\/dL|mg\/dL|kPa|cm\/s|cm|mm|mL|[µμ]L|\/[µμ]L|kg|g|L|%|points?|hours?|days?|weeks?|months?|years?)(?![\p{L}\d])`;
 const RANGE = new RegExp(String.raw`(\d) (to|or|and) (?=\d[\d.,]*[  ]?${UNIT})`, 'gu');
 const UNIT_GAP = new RegExp(String.raw`(\d) (?=${UNIT})`, 'gu');
-export const nb = (t: string | null | undefined): string => (t || '').replace(/(\p{L})–(\p{L})/gu, '$1–⁠$2').replace(RANGE, '$1 $2 ').replace(UNIT_GAP, '$1 ');
+export const nb = (t: string | null | undefined): string => (t || '').replace(/(\p{L})–(\p{L})/gu, '$1–⁠$2').replace(/\b(EUS)-(PPG)\b/g, '$1-⁠$2').replace(RANGE, '$1 $2 ').replace(UNIT_GAP, '$1 ');

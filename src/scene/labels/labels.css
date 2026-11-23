@@ -26,7 +26,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .lb .lb-name:empty, .cl .cl-n:empty, .cl .cl-u:empty, .lb.cc .cc-key:empty { display: none; }   /* (an empty part takes no room: written as text, never as style.display) */
 /* a label's old look, crossing over to its new one (roll.ts restyle): drawn, never hit */
 .lb-was { pointer-events: none; }
-.lb .lb-name { min-width: 0; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
+.lb .lb-name { min-width: 0; flex: none; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
 .lb .lb-val { margin-left: var(--lb-g-val); position: relative; display: inline-block; font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
 .lb[data-form="2"] .lb-val { margin-left: 0; }
 .lb .lb-rev { display: none; margin-left: var(--lb-g-rev); font-size: var(--lb-f-rev); font-weight: var(--lb-w-rev); color: var(--lb-rev); }
