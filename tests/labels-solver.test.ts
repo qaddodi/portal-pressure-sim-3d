@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { solve, slideInView, boxOf, LEAD_ON, CALL_MIN_GAP, type Item, type Form } from '../src/scene/labels/solver.ts';
+import { solve, slideInView, boxOf, LEAD_ON, type Item, type Form } from '../src/scene/labels/solver.ts';
 import { hits, grow, type Box } from '../src/scene/labels/geometry.ts';
 
 const form = (w: number, h = 26): Form => ({ text: 'x', w, h });
@@ -86,20 +86,6 @@ test('two stations whose dots stand close are kept apart: the lower ranked slide
   assert.notEqual(au.b, 0.5);
 });
 
-test('a callout stands clear of the cards and its pointer reaches its point', () => {
-  const card: Box = { x0: 0, y0: 56, x1: 440, y1: 700 };
-  const it = item('callout:f', 600, 300, { forms: [form(110, 56)], callout: { below: true }, must: true, pri: 500 });
-  const r = solve({ items: [it], view: VIEW, blockers: [card] });
-  const p = r.placed[0];
-  assert.ok(p.tail, 'a callout has a pointer');
-  const b = boxOf(p, it.ax, it.ay);
-  assert.ok(!hits(b, grow(card, 0)));
-  if (p.tail!.below) assert.ok(b.y0 >= it.ay + CALL_MIN_GAP, 'the card is below its point with room for the pointer'); else assert.ok(b.y1 <= it.ay - CALL_MIN_GAP);
-  // in the open it keeps the full gap; only a band too narrow for it squeezes the gap
-  assert.ok(p.tail!.below ? b.y0 >= it.ay + 18 : b.y1 <= it.ay - 18, 'with room it stands the usual 18 px or more from its point');
-});
-
-
 test('a name\'s leader prefers the side where it crosses no vessel (the leader over a vessel points at nothing useful)', () => {
   const it = item('a', 500, 300, { dirs: ['E', 'W'], vw: 0, minLead: 30 });
   const free = solve({ items: [it], view: VIEW, blockers: [] });
@@ -134,9 +120,6 @@ test('a label whose near spots are taken keeps off the vessels at every far spot
   const p = r.placed[0], b = boxOf(p, it.ax, it.ay);
   assert.ok(!(450 > b.x0 && 450 < b.x1), `form ${p.form} stands on the vessel (box ${b.x0.toFixed(0)}-${b.x1.toFixed(0)})`);
   assert.equal(p.form, 1, 'it gives up the wide form, not the clear ground');
-  // a callout or a region's name is not a label with a leader: lines never keep it out (the far spots of a callout are its normal places)
-  const call = item('c', 500, 300, { forms: [form(120)], callout: { below: false } });
-  assert.equal(solve({ items: [call], view: VIEW, blockers: [], lines: [[0, 50, 1000, 50], [450, 56, 450, 700], [0, 150, 1000, 150], [0, 200, 1000, 200], [0, 250, 1000, 250]] }).placed.length, 1, 'a callout is placed over lines');
 });
 
 test('a lobule name (looseFar) may stand at a far spot with a vessel under it before it is given up: the net fills the view, and 2D\'s lobule orders append the unclear spots (the bile ductule vanished on an iPhone after 5316a81e)', () => {

@@ -5,12 +5,11 @@ import type { FigurePlan } from './figure-plan.ts';
 import { toneCss } from './figure-plan.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { CAUDATE_FRONT_Z } from '../../scene/organs/caudate.ts';
-import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D, VAL_TONE_2D } from '../../scene/labels/figure2d.copied.ts';
+import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
 import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
 import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
 import { valueText, parseToken, VALUE_PENDING } from '../../decks/hp/numbers.ts';
-import { fmtPressure } from '../text/line.ts';
 import { portalSplit } from './from2d/table-marks.js';
 import { tearPoint, TEAR_EDGES, type BleedSite } from '../../scene/disease/tear.ts';
 import { STREAM_Z } from '../../scene/disease/bleed.ts';
@@ -21,8 +20,6 @@ export interface Reads {
   fp?: Fp | null;
   /** The model's parameters at the slide (a clot's size, the stents). */
   params?: { thrombus?: Record<string, number>; tips?: { on?: boolean; d?: number }; dips?: { on?: boolean; d?: number } } | null;
-  /** The live pressure at a node (mmHg), when the slide's own number is not in. */
-  pressure?: (node: string) => number | null;
   /** An edge's index in the engine's arrays (for a vessel's own diameter). */
   indexOf?: (edge: string) => number;
   /** Where the slide's bleed is running (its `rupture` action's site), if one is: a mark on that varix points at the tear, where the jet leaves it. */
@@ -99,7 +96,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
     else notDrawn.push(`callout ${plan.callout.at}`);
   }
 
-  // sites: a station's reading on the figure, and the portal blood's split
+  // sites: the portal blood's split (every other site is its station's own label)
   for (const k of plan.sites) {
     const d = SITE_DEF_2D[k];
     if (!d || d.res || !d.node) continue;
@@ -110,8 +107,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
       cards.push({ id: `site:${k}`, kind: 'split', text: d.kicker, tone: 'pv', anchor: { node: d.node }, below: true, split: { liver: p.liver, shunt: p.shunt, rate: p.rate } });
       continue;
     }
-    const own = fp?.[k], v = typeof own === 'number' && Number.isFinite(own) ? own : r.pressure?.(d.node) ?? null;
-    cards.push({ id: `site:${k}`, kind: 'site', text: d.kicker, value: fmtPressure(v, 1, false), unit: d.unit ?? 'mmHg', tone: VAL_TONE_2D[k] ?? 'accent', anchor: d.node === 'IVCS' || d.node === 'RA' || d.node === 'CONF' ? { station: d.node } : { node: d.node }, below: d.below });
+    // (no other site is built: a site on a station is that station's own label, and figure-plan.ts fails a site that is neither: a reading is never a card on the figure)
   }
 
   // numbered steps: each entry of the glow, at its moment, at the first vessel (or the organ) it names

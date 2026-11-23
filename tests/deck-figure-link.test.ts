@@ -133,7 +133,7 @@ test('the sites: a reading on a station is that station\'s label, never a bubble
   assert.deepEqual(p.sites.sort(), ['rLiver', 'split']);
   assert.deepEqual(['CONF', 'IVCS', 'RA'].filter((n) => !p.labels.includes(n)), [], 'each site on a station names that station\'s label');
   assert.ok(p.tones.IVCS && p.tones.CONF && p.tones.RA, 'and lends it its colour');
-  assert.ok(!c.cards.some((k) => k.kind === 'site'), 'no site bubble');
+  assert.ok(!c.cards.some((k) => (k.kind as string) === 'site'), 'there is no site card kind to build one with');
   assert.ok(c.cards.some((k) => k.kind === 'split' && k.split!.shunt === 30 && k.split!.liver === 70));
   assert.deepEqual(c.res, ['rLiver']);
 });
@@ -141,7 +141,7 @@ test('the sites: a reading on a station is that station\'s label, never a bubble
 test('no slide of any deck stands a site bubble on a station', () => {
   for (const { id, s } of slides) {
     const c = figureCalls(figurePlan(s), reads);
-    assert.deepEqual(c.cards.filter((k) => k.kind === 'site').map((k) => `${id}:${k.id}`), [], `${id}: a site on a station is a label`);
+    assert.deepEqual(c.cards.filter((k) => (k.kind as string) === 'site').map((k) => `${id}:${k.id}`), [], `${id}: a site on a station is a label`);
   }
 });
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cardParts, placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, type CardIn } from '../src/scene/labels/figure-cards.ts';
+import { placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, type CardIn } from '../src/scene/labels/figure-cards.ts';
 import { hits, type Box } from '../src/scene/labels/geometry.ts';
 import { RING_STROKE, typeVars, type Vp } from '../src/scene/labels/type.ts';
 
@@ -55,7 +55,6 @@ test('a lobule callout is a ring, a leader and coloured words, not a glass card 
   assert.doesNotMatch(css.split('\n').filter((l) => /^\.lz-co-(ring|line) /.test(l)).join('\n'), /\b4px|-2px/, 'no stroke number of its own in .lz-co-*');
   assert.equal(typeVars(VP)['--co-w'], `${RING_STROKE}px`, 'typeVars carries the stroke');
   assert.equal(RING_STROKE, 4, '2D\'s 4 px');
-  assert.deepEqual(cardParts({ kind: 'mark' }), { glass: false, ring: false }, 'no glass card behind the words: the parts are removed, not hidden (no-bubble-callouts.test.ts)');
   assert.match(css, /\.lz-co \{[^}]*--co: var\(--cl-danger/, 'block is the danger red');
 });
 
@@ -68,8 +67,7 @@ test('the ring is clear inside: no glass, blur or tint under it, and it fades wi
 
 test('a mark on a vessel or an organ is a coloured label with a leader, never a solid pill', () => {
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
-  assert.doesNotMatch(css, /data-fig="mark"\]\[data-tone="danger"\] \.cl-glass[^{]*\{ background: var\(--cl-danger\) !important/);
-  assert.deepEqual(cardParts({ kind: 'mark' }), { glass: false, ring: false });
+  assert.doesNotMatch(css, /data-fig="mark"\][^{]*\{[^}]*background:/, 'no fill behind a mark\'s words');
 });
 
 test('the ring and the leader only move by transform and fade by opacity', () => {

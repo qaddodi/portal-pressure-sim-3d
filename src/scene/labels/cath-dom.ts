@@ -1,23 +1,16 @@
-// The catheter's readings as DOM, as the 2D app builds them (stage-cath.js cathPill/cathBuild, callout.js): a card is its glass (one shape: the card and its
-// pointer, clipped from one path, its 1 px hairline that same path stroked inside it), then the name, the number and the unit. The result is a stack: the two
-// readings as cards of their own, the bracket joining them, the HVPG beside it and a thin leader from each reading to its point.
+// The catheter's readings as DOM: each is a tag (tag-dom.ts: the name, the number and the unit on one line, each letter in the labels' halo; no glass, no rim, no pointer), and a thin
+// leader with a dot on its point. The result is a stack: the two readings as tags of their own, the bracket joining them, the HVPG beside it and a thin leader from each reading to its point.
 //
-// The layer builds this once; each frame `paint` writes only transform and opacity (the glass, the path, the sizes and the words are written when a card takes
-// a new shape or its words change, which is while it is invisible). Opacity goes on a card's children and never on the card: a faded ancestor would stop
-// its glass seeing the figure behind it (2D: "the fades run on the label's children, not the label"). The words and numbers come from cath-show.ts.
+// The layer builds this once; each frame `paint` writes only transform and opacity (the sizes and the words are written when a tag takes a new size or its words change, which is while it
+// is invisible). Opacity goes on a tag's children and never on the tag. The words and numbers come from cath-show.ts.
 import type { PillDraw, SumDraw, CathFrame } from './cath-show.ts';
-import { pillGlass, type Glass, type Reading } from './cath.ts';
 import { LS } from './type.ts';
-import { restyle, rollsFor } from './roll.ts';
+import { restyle } from './roll.ts';
+import { makeTag, words, fade, place, size, show, opacity, TagLead, type Tag } from './tag-dom.ts';
+import { boxLeader } from './tag-lead.ts';
 
 const NS = 'http://www.w3.org/2000/svg';
 const px = (n: number) => Math.round(n * 100) / 100;
-const opacity = (n: number) => String(Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000);
-
-export interface Card {
-  root: HTMLElement; glass: HTMLElement; svg: SVGSVGElement; path: SVGPathElement; /** the outline: its own element, never inside the glass (a backdrop blur's layer lost the stroke of some cards on a phone) */ ring: HTMLElement; rsvg: SVGSVGElement; rpath: SVGPathElement; k: HTMLElement; n: HTMLElement; u: HTMLElement;
-  shape: string; tone: string; text: string; op: string; tx: string; size: string;
-}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: Element): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); e.className = cls; parent?.appendChild(e); return e;
@@ -26,102 +19,45 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, parent: Element): S
   const e = document.createElementNS(NS, tag); parent.appendChild(e); return e;
 }
 
-/** A reading card: glass first (behind the words), then name, number and unit. */
-export function makeCard(parent: Element, cls: string): Card {
-  const root = el('div', cls, parent);
-  const glass = el('i', 'cl-glass cl-hair', root); glass.setAttribute('aria-hidden', 'true'); 
-  const svg = svgEl('svg', glass); svg.setAttribute('preserveAspectRatio', 'none');
-  const path = svgEl('path', svg);
-  const ring = el('i', 'cl-ring', root); ring.setAttribute('aria-hidden', 'true');
-  const rsvg = svgEl('svg', ring); rsvg.setAttribute('preserveAspectRatio', 'none');
-  const rpath = svgEl('path', rsvg);
-  const k = el('small', 'cl-k', root), n = el('b', 'cl-n', root), u = el('span', 'cl-u', root);
-  return { root, glass, svg, path, ring, rsvg, rpath, k, n, u, shape: '', tone: '', text: '', op: '', tx: '', size: '' };
-}
-
-/** The words of a card (written when they change). A card that is showing (`alpha`) crosses over to its new words and tone, never steps (roll.ts `restyle`). */
-export function words(c: Card, r: Omit<Reading, 'tone'> & { tone: string }, alpha = 0): void {
-  const t = `${r.kicker}|${r.value}|${r.unit}`;
-  if (c.text === t && c.tone === r.tone) return;
-  // A reading that ticks (the manometer's number while the needle reads, a beat-filtered pressure breathing round a rounding boundary) is written where it stands, as 2D's refreshValues does and
-  // as the station labels do (roll.ts ROLL_MIN): the same kicker, unit and tone and a number within ROLL_MIN of the last is no change of words, so it never crosses over (a cross-fade per tick,
-  // every few frames, was the callout flickering while it measured). A real change (a new reading, a dash coming to a number, another tone) still crosses over.
-  if (c.tone === r.tone && c.text) {
-    const [k0, n0, u0] = c.text.split('|');
-    if (k0 === r.kicker && u0 === r.unit && n0 !== undefined && !rollsFor(r.value, n0) && /^-?\d+(\.\d+)?$/.test(r.value) && /^-?\d+(\.\d+)?$/.test(n0)) { c.text = t; c.n.textContent = r.value; return; }
-  }
-  restyle(c.root, () => {
-    if (c.text !== t) { c.text = t; c.k.textContent = r.kicker; c.n.textContent = r.value; c.u.textContent = r.unit; }   // (an empty number or unit takes no room: labels.css `:empty`)
-    if (c.tone !== r.tone) { c.tone = r.tone; c.root.dataset.tone = r.tone; }
-  }, alpha);
-}
-
-/** The glass: its place in the card's padding box, its clip and its hairline path. */
-export function shape(c: Card, g: Glass, key: string): void {
-  if (c.shape === key) return;
-  c.shape = key;
-  const s = c.glass.style;
-  s.left = 'calc(-1 * var(--cl-border))'; s.top = `calc(${px(g.top)}px - var(--cl-border))`;
-  s.width = `${px(g.w)}px`; s.height = `${px(g.h)}px`; s.clipPath = `path('${g.d}')`;
-  c.svg.setAttribute('viewBox', `0 0 ${px(g.w)} ${px(g.h)}`); c.svg.setAttribute('width', String(px(g.w))); c.svg.setAttribute('height', String(px(g.h)));
-  c.path.setAttribute('d', g.d);
-  const r = c.ring.style; r.left = s.left; r.top = s.top; r.width = s.width; r.height = s.height; r.clipPath = s.clipPath;
-  c.rsvg.setAttribute('viewBox', `0 0 ${px(g.w)} ${px(g.h)}`); c.rsvg.setAttribute('width', String(px(g.w))); c.rsvg.setAttribute('height', String(px(g.h)));
-  c.rpath.setAttribute('d', g.d);
-}
-
-/** Opacity on the card's children (never the card). */
-export function fade(c: Card, a: number): void {
-  const o = opacity(a);
-  if (o === c.op) return;
-  c.op = o;
-  c.glass.style.opacity = o; c.ring.style.opacity = o; c.k.style.opacity = o; c.n.style.opacity = o; c.u.style.opacity = o;
-}
-export function place(c: Card, x: number, y: number): void {
-  const t = `translate3d(${px(x)}px,${px(y)}px,0)`;
-  if (t !== c.tx) { c.tx = t; c.root.style.transform = t; }
-}
-export function size(c: Card, w: number, h: number): void {
-  const t = `${px(w)}x${px(h)}`;
-  if (t !== c.size) { c.size = t; c.root.style.width = `${px(w)}px`; c.root.style.height = `${px(h)}px`; }
-}
-export function show(c: Card, on: boolean): void {
-  if (on) c.root.setAttribute('data-on', ''); else { c.root.removeAttribute('data-on'); }
-}
+/** A leader that is drawn at once at its target (a tag's own fade, 0 to 1, carries it in and out: it never shows without its words). */
+const snap = (_k: number, on: boolean): number => (on ? 1 : 0);
 
 export interface CathDom { paint(f: CathFrame): void; destroy(): void }
 
 export function buildCath(parent: HTMLElement): CathDom {
   const C = LS.CATH;
-  const pills = { f: makeCard(parent, 'cl cl-pill'), w: makeCard(parent, 'cl cl-pill') };
+  const pills = { f: makeTag(parent, 'cl cl-pill'), w: makeTag(parent, 'cl cl-pill') };
   pills.f.root.dataset.k = 'f'; pills.w.root.dataset.k = 'w';
+  const leads = { f: new TagLead(parent), w: new TagLead(parent) };
 
   // the stack
   const sum = el('div', 'cl-sum', parent); sum.dataset.k = 's';
-  const rows = [makeCard(sum, 'cl cl-row'), makeCard(sum, 'cl cl-row')] as const;
-  const calc = makeCard(sum, 'cl cl-row cl-calc');
+  const rows = [makeTag(sum, 'cl cl-row'), makeTag(sum, 'cl cl-row')] as const;
+  const calc = makeTag(sum, 'cl cl-row cl-calc');
   const brace = svgEl('svg', sum); brace.setAttribute('class', 'cl-brace');
   const bpath = svgEl('path', brace);
-  const leads = svgEl('svg', sum); leads.setAttribute('class', 'cl-leads'); leads.setAttribute('width', '1'); leads.setAttribute('height', '1');
-  const lead = [svgEl('path', leads), svgEl('path', leads)] as const, dot = [svgEl('circle', leads), svgEl('circle', leads)] as const;
+  const sleads = svgEl('svg', sum); sleads.setAttribute('class', 'cl-leads'); sleads.setAttribute('width', '1'); sleads.setAttribute('height', '1');
+  const lead = [svgEl('path', sleads), svgEl('path', sleads)] as const, dot = [svgEl('circle', sleads), svgEl('circle', sleads)] as const;
   lead.forEach((l, j) => { l.setAttribute('class', 'lead'); dot[j].setAttribute('class', 'lead-dot'); dot[j].setAttribute('r', String(C.LEAD.dotR)); });
   let sumKey = '', sumOn = false, sumTx = '', braceOp = '', leadsOp = '';
   rows[0].root.dataset.k = 'w'; rows[1].root.dataset.k = 'f'; calc.root.dataset.k = 'h';
 
-  const paintPill = (c: Card, d: PillDraw | undefined) => {
-    if (!d) { if (c.root.hasAttribute('data-on')) { show(c, false); fade(c, 0); } return; }
+  const paintPill = (c: Tag, l: TagLead, d: PillDraw | undefined) => {
+    if (!d) { if (c.root.hasAttribute('data-on')) { show(c, false); fade(c, 0); } l.hide(); return; }
     show(c, true);
-    words(c, d.reading, d.alpha);   // (before the size and the glass: a crossing starts from the card as it stood)
+    words(c, d.reading, d.alpha);   // (before the size: a crossing starts from the tag as it stood)
     size(c, d.w, d.h);
-    shape(c, d.glass, d.key);
     place(c, d.x, d.y + d.rise);
     fade(c, d.alpha);
+    // the leader runs from the words' nearest edge to the point the reading was taken at, a dot on the point; it rises and fades with the tag
+    const seg = boxLeader({ x: d.x, y: d.y + d.rise, w: d.w, h: d.h }, { x: d.to[0], y: d.to[1] });
+    l.paint(seg, seg ? { x: d.to[0], y: d.to[1] } : null, d.alpha, d.reading.tone, snap);
   };
 
   return {
     paint(f: CathFrame): void {
-      paintPill(pills.f, f.pills.find((p) => p.id === 'f'));
-      paintPill(pills.w, f.pills.find((p) => p.id === 'w'));
+      paintPill(pills.f, leads.f, f.pills.find((p) => p.id === 'f'));
+      paintPill(pills.w, leads.w, f.pills.find((p) => p.id === 'w'));
       const s: SumDraw | null = f.sum;
       if (!s) { if (sumOn) { sumOn = false; sum.removeAttribute('data-on'); for (const c of [...rows, calc]) { show(c, false); fade(c, 0); } } return; }
       if (!sumOn) { sumOn = true; sum.setAttribute('data-on', ''); for (const c of [...rows, calc]) show(c, true); }
@@ -131,7 +67,6 @@ export function buildCath(parent: HTMLElement): CathDom {
       if (sumKey !== s.key) {
         sumKey = s.key;
         sum.style.width = `${px(g.w)}px`; sum.style.height = `${px(g.h)}px`;
-        if (g.tight) sum.setAttribute('data-tight', ''); else sum.removeAttribute('data-tight');
         brace.style.left = `${px(g.brace.x)}px`; brace.style.top = '0px';
         brace.setAttribute('width', String(g.brace.w)); brace.setAttribute('height', String(px(g.brace.h))); bpath.setAttribute('d', g.brace.d);
         for (let j = 0; j < 2; j++) {
@@ -141,22 +76,20 @@ export function buildCath(parent: HTMLElement): CathDom {
       }
       // (a leader takes its row's colour: when that changes while they show, they cross over to it)
       if ([0, 1].some((j) => lead[j]!.getAttribute('data-tone') !== s.rows[j]!.tone)) {
-        restyle(leads, () => { for (let j = 0; j < 2; j++) { lead[j]!.setAttribute('data-tone', s.rows[j]!.tone); dot[j]!.setAttribute('data-tone', s.rows[j]!.tone); } }, s.lead * s.alpha);
+        restyle(sleads, () => { for (let j = 0; j < 2; j++) { lead[j]!.setAttribute('data-tone', s.rows[j]!.tone); dot[j]!.setAttribute('data-tone', s.rows[j]!.tone); } }, s.lead * s.alpha);
       }
       for (let j = 0; j < 2; j++) {
         const c = rows[j], R = g.rows[j], r = s.row[j];
         words(c, s.rows[j], r.alpha * s.alpha); size(c, R.w, R.h);
-        shape(c, pillGlass(R.w, R.h, s.radius, 'none', 0), `${R.w}|${R.h}|${g.tight ? 1 : 0}`);
         place(c, R.x + r.dx, R.y + r.dy + r.rise); fade(c, r.alpha * s.alpha);
       }
       const K = g.calc;
       words(calc, s.calc, s.calcAlpha * s.alpha); size(calc, K.w, K.h);
-      shape(calc, pillGlass(K.w, K.h, s.radius, 'none', 0), `${K.w}|${K.h}|${g.tight ? 1 : 0}`);
       place(calc, K.x, K.y + s.calcRise); fade(calc, s.calcAlpha * s.alpha);
       const b = opacity(s.lead * s.alpha);
       if (b !== braceOp) { braceOp = b; brace.style.opacity = b; }
-      if (b !== leadsOp) { leadsOp = b; leads.style.opacity = b; }
+      if (b !== leadsOp) { leadsOp = b; sleads.style.opacity = b; }
     },
-    destroy(): void { pills.f.root.remove(); pills.w.root.remove(); sum.remove(); },
+    destroy(): void { pills.f.root.remove(); pills.w.root.remove(); leads.f.destroy(); leads.w.destroy(); sum.remove(); },
   };
 }

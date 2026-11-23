@@ -62,8 +62,7 @@ export const outWeight = (u: number): number => inWeight(1 - u);
 
 /** Whether two placements are one spot (the same form and leader, the box within FADE.movePx of where it stood against its dot). */
 export const samePlace = (a: Placement, b: Placement): boolean =>
-  a.form === b.form && Math.abs(a.dx - b.dx) <= FADE.movePx && Math.abs(a.dy - b.dy) <= FADE.movePx && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5 && a.leader === b.leader && Math.abs(a.au - b.au) < 0.01
-  && (a.tail?.below === b.tail?.below) && Math.abs((a.tail?.ax ?? 0) - (b.tail?.ax ?? 0)) < 1;
+  a.form === b.form && Math.abs(a.dx - b.dx) <= FADE.movePx && Math.abs(a.dy - b.dy) <= FADE.movePx && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5 && a.leader === b.leader && Math.abs(a.au - b.au) < 0.01;
 
 /** Whether the old and the new box are clear of each other (one is at least a box away from the other, along x or y): only then is a move worth crossing over (2D `apart`). */
 const apart = (a: Placement, b: Placement): boolean => Math.abs(a.dx - b.dx) >= b.w || Math.abs(a.dy - b.dy) >= b.h;

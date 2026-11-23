@@ -56,9 +56,6 @@ export interface Item {
   prefer?: readonly [number, number];
   /** The longest leader (px from the dot) this item may take on the ordinary passes; default LONG_LEAD + the vessel's width + 10. */
   reach?: number;
-  /** A reading card with a pointer whose tip is the dot (the catheter's FHVP / WHVP / HVPG): it stands below or above its point, leans, and keeps
-   *  clear of the vessels round it (the 2D app's callout-room.js, ported). `below` is the side it prefers. */
-  callout?: { below: boolean };
   /** An optional name (the 2D app's `minor`: a station shown only where it fits): whole (its first form), beside its vessel with no leader and on no vessel line, or not at all. It takes no room from a name that
    *  was asked for (ranked last) and is never counted as dropped (`skipped` lists it). */
   optional?: boolean;
@@ -94,8 +91,6 @@ export interface Placement {
   leader: boolean;
   /** Where along the vessel the dot stands (the layer places it there each frame). */
   au: number;
-  /** A callout's pointer: which edge of the card it leaves, and how far its tip (the dot) is from the card's centre, px. */
-  tail?: { below: boolean; ax: number };
 }
 
 export interface Solved {
@@ -256,30 +251,9 @@ function spreadDots(items: Anchored[], view: Box, blockers: readonly Box[]): voi
 type Anchored = Item & { ax: number; ay: number; au: number };
 const rank = (a: Item, b: Item) => (Number(!!b.must) - Number(!!a.must)) || (b.pri - a.pri) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-interface Cand { dx: number; dy: number; cost: number; tail?: { below: boolean; ax: number } }
-
-// A callout's pointer (callout-ptr.js): it reaches PTR past the card's edge, stays KEEP from the card's sides, and leans at most SLANT px per px of length.
-export const PTR = 11, KEEP = 28;
-// (14 and 16 are the squeezed gaps, tried at a cost: on a phone's narrow band between two cards a reading card with 18 px between it and its point
-// does not fit by a few px, and a card a little closer to its point beats no card)
-export const CALL_MIN_GAP = 14;
-const ROOM_BASE = 18, CALL_GAPS = [18, 24, 32, 42, 54, 68, 84, 100, 16, CALL_MIN_GAP], SLANT = 1.3;
-const CALL_LEANS = Array.from({ length: 27 }, (_, i) => i * 0.04);
-
-function calloutCands(f: Form, below: boolean): Cand[] {
-  const out: Cand[] = [];
-  const w = f.w, h = f.h;
-  for (const side of [below, !below]) for (const g of CALL_GAPS) for (const l of CALL_LEANS) for (const sg of l ? [1, -1] : [1]) {
-    const ax = l * w * sg;
-    const len = PTR + g - ROOM_BASE, base = Math.max(KEEP - w / 2, Math.min(w / 2 - KEEP, ax));
-    if (Math.abs(ax - base) > SLANT * len + 14) continue;
-    out.push({ dx: -ax - w / 2, dy: side ? g : -g - h, cost: (g < ROOM_BASE ? (ROOM_BASE - g) * 6 + 4 : (g - ROOM_BASE) * 0.8) + (Math.abs(ax) / w) * 16 + (side === below ? 0 : 10), tail: { below: side, ax } });
-  }
-  return out;
-}
+interface Cand { dx: number; dy: number; cost: number }
 
 function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
-  if (it.callout) return calloutCands(f, it.callout.below);
   const out: Cand[] = [];
   if (it.region) {
     const [dx, dy] = offsetOf('C', f.w, f.h, 0);
@@ -356,7 +330,7 @@ export function solve(input: SolveInput): Solved {
           const gap = it.region ? 0 : boxGap(box, it.ax, it.ay) - (it.vw ?? 0);
           if (it.minLead && !it.region && relax < 2 && gap < it.minLead) { if (tally) no(c, 'minLead'); continue; }
           if (strictLines && grid.some(box.x0, box.y0, box.x1, box.y1, LINE_AIR, (l) => onLine(l, box, LINE_AIR))) continue;
-          const leader = !it.region && !it.callout && gap > LEAD_ON;
+          const leader = !it.region && gap > LEAD_ON;
           if (nearOnly && leader) continue;
           let seg: Seg | null = null;
           let pen = 0;
@@ -390,8 +364,8 @@ export function solve(input: SolveInput): Solved {
           // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
           // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
           // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
-          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region && !it.looseFar) { if (tally) no(c, 'line'); continue; }
-          if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region && !it.callout) { if (tally) no(c, 'line'); continue; }
+          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.region && !it.looseFar) { if (tally) no(c, 'line'); continue; }
+          if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region) { if (tally) no(c, 'line'); continue; }
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
@@ -405,7 +379,7 @@ export function solve(input: SolveInput): Solved {
     if (tally) { tally['@relax'] = relax; tally['@form'] = best.form; tally['@lineHits'] = best.hits; tally['@spotCost'] = Math.round(best.c.cost); }
     placedBoxes.push({ id: it.id, box: best.box, air: grow(best.box, AIR_LABEL), near: grow(best.box, 1) });
     if (best.seg) leaders.push({ id: it.id, seg: best.seg });
-    placed.push({ id: it.id, form: best.form, dx: best.c.dx, dy: best.c.dy, w: it.forms[best.form].w, h: it.forms[best.form].h, leader: best.leader, au: it.au, ...(best.c.tail ? { tail: best.c.tail } : {}) });
+    placed.push({ id: it.id, form: best.form, dx: best.c.dx, dy: best.c.dy, w: it.forms[best.form].w, h: it.forms[best.form].h, leader: best.leader, au: it.au });
     return true;
   };
 

@@ -1,6 +1,6 @@
-// What the catheter's readings do on the figure, from the state of the case to the frame: which cards stand (FHVP at the tip, WHVP ahead of it, or the
-// stack the two make with the HVPG), where (cath.ts: the 2D app's own placing), and how they come and go (the 2D app's timings: a card fades in
-// over a surface step with a 6 px rise and out over a small step; the result's readings travel from where their cards stood, the bracket and leaders
+// What the catheter's readings do on the figure, from the state of the case to the frame: which tags stand (FHVP at the tip, WHVP ahead of it, or the
+// stack the two make with the HVPG), where (cath.ts: the 2D app's own placing), and how they come and go (the 2D app's timings: a tag fades in
+// over a surface step with a 6 px rise and out over a small step; the result's readings travel from where their tags stood, the bracket and leaders
 // follow at 650 ms and the HVPG at 750 ms with a small rise). Pure: no DOM, no three.js, no clock; the controller calls `solve` when the picture is still
 // and something changed, and `step` every frame; the layer writes what `frame` holds as transform and opacity.
 import type { CathState } from '../../decks/schema.ts';
@@ -9,8 +9,8 @@ import { LABEL_NAMES } from './names.copied.ts';
 import { LS, type Vp } from './type.ts';
 import { hvpgSev } from '../../ui/cuts.ts';
 import {
-  cathType, pillSize, pillGlass, placePills, swapOf, tightFor, sumLayout, placeStack, planLeaders, sumFlow, easeArrive, SUM_MS,
-  type Band, type Glass, type Measure, type Pt, type Reading, type Side, type SumGeom, type CathType, type Tone,
+  tagType, tagSize, placePills, swapOf, tightFor, sumLayout, placeStack, planLeaders, sumFlow, easeArrive, SUM_MS,
+  type Band, type Measure, type Pt, type Reading, type Side, type SumGeom, type TagType, type Tone,
 } from './cath.ts';
 
 const C = LS.CATH, N = LABEL_NAMES.CALLOUTS;
@@ -52,16 +52,16 @@ const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, k
 
 export interface PillDraw {
   id: PillId; reading: Reading;
-  /** The card's corner, canvas px, and its size. */
+  /** The tag's corner, canvas px, and its size. */
   x: number; y: number; w: number; h: number;
-  dir: 'top' | 'bottom'; glass: Glass;
+  /** The point it names, canvas px, now (its leader and dot end here). */
+  to: Pt; above: boolean;
   alpha: number; /** the arrival's rise, px (translateY), 6 → 0 */ rise: number;
-  /** Changes whenever the shape does: the layer redraws the glass only then. */
+  /** Changes whenever the size or side does: the layer rewrites them only then. */
   key: string;
 }
 export interface SumDraw {
   /** The box's corner, canvas px. */ x: number; y: number;
-  /** The corner radius of its cards (the tight ones are smaller). */ radius: number;
   geom: SumGeom; rows: [Reading, Reading]; calc: Reading;
   leaders: { d: [string, string]; dots: [Pt, Pt] };
   /** The whole stack's fade (a camera move, a card in the way). */ alpha: number;
@@ -72,12 +72,12 @@ export interface SumDraw {
 }
 export interface CathFrame { pills: PillDraw[]; sum: SumDraw | null }
 
-// `key` is what the layer redraws the glass and the leaders by (no place in it); `spot` is what a card IS: its side, its size. A card that stands at a new place with the same spot GLIDES
+// `key` is what the layer redraws the leaders by (no place in it); `spot` is what a card IS: its side, its size. A card that stands at a new place with the same spot GLIDES
 // there; only a card that changes spot (it flips to the other side, it takes another size) fades out where it stood and in again. `ax`/`ay` is the point the card was placed for: while the
 // picture moves a little (a tilt, the camera following the tip) the card rides it, drawn at its solved place plus how far its point has moved since (2D stage-cath.js: a reading is pinned
 // to its point in the world and "any move glides there, never jumps"; it is placed again only at rest).
-interface PillTarget { id: PillId; reading: Reading; x: number; y: number; w: number; h: number; dir: 'top' | 'bottom'; glass: Glass; box: Box; key: string; spot: string; ax: number; ay: number }
-interface SumTarget { x: number; y: number; radius: number; geom: SumGeom; rows: [Reading, Reading]; calc: Reading; leaders: SumDraw['leaders']; box: Box; key: string; spot: string; tip: Pt; ahead: Pt }
+interface PillTarget { id: PillId; reading: Reading; x: number; y: number; w: number; h: number; above: boolean; box: Box; key: string; spot: string; ax: number; ay: number }
+interface SumTarget { x: number; y: number; geom: SumGeom; rows: [Reading, Reading]; calc: Reading; leaders: SumDraw['leaders']; box: Box; key: string; spot: string; tip: Pt; ahead: Pt }
 interface PillRec { t: PillTarget; p: number; gx: number; gy: number }
 interface SumRec { t: SumTarget; fade: number; u: number; from: [{ x: number; y: number } | null, { x: number; y: number } | null]; gx: number; gy: number }
 /** How fast a card that was placed again glides to its new place (the time constant, ms): about a third of the small step, so it arrives within it. */
@@ -99,8 +99,8 @@ export class CathShow {
   /** Just the cards (no pointer's run to its point): what a card standing on another or on a screen card is judged by. */
   cards: Box[] = [];
 
-  /** The cards' sizes need the text; `type` is the card's type at this screen. */
-  type(vp: Vp): CathType { return cathType(vp); }
+  /** The tags' sizes need the text; `type` is the tag's type at this screen. */
+  type(vp: Vp): TagType { return tagType(vp); }
 
   /** Where the two points stand now. Called every frame, before `step`: the cards ride them (a little move of the picture never hides a card). */
   ride(tip: Pt | null, ahead: Pt | null): void { this.cur.tip = tip; this.cur.ahead = ahead; }
@@ -117,7 +117,7 @@ export class CathShow {
 
   /** Where the cards stand, worked out for the picture as it is now (the camera still): called when something changed. */
   solve(inp: CathIn): void {
-    const kinds = inp.kinds ?? calloutsFor(inp.cath), t = cathType(inp.vp);
+    const kinds = inp.kinds ?? calloutsFor(inp.cath), t = tagType(inp.vp);
     this.ride(inp.tip, inp.ahead);
     const pills = new Map<PillId, PillTarget>();
     let sum: SumTarget | null = null;
@@ -125,16 +125,14 @@ export class CathShow {
     const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {
-        const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = pillSize(t, r, inp.measure, false);
+        const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, r, inp.measure);
         return { id, x: p[0], y: p[1], w: sz.w, h: sz.h, prefer: id === 'f', was: this.sides.get(id) ?? null };
       });
       const out = placePills(items, inp.band, inp.blockers);
       for (const o of out) {
         const it = items.find((i) => i.id === o.id)!, id = o.id as PillId, r = id === 'f' ? rf : rw;
         this.sides.set(id, o.side);
-        const ax = (id === 'f' ? inp.tip![0] : inp.ahead![0]) - (o.x0 + it.w / 2);
-        const glass = pillGlass(it.w, it.h, Math.min(t.radius, it.h / 2), o.dir, ax);
-        pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, dir: o.dir, glass, box: o.box, key: `${o.dir}|${it.w}|${it.h}|${glass.d}`, spot: `${o.dir}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
+        pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
       }
     } else for (const id of ['f', 'w'] as const) this.sides.delete(id);
     if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= 2) {
@@ -148,7 +146,7 @@ export class CathShow {
       this.swapWas = plan.swap;
       const leaders = { d: plan.d, dots: plan.dots };
       const box = { x0: at.x, y0: at.y, x1: at.x + geom.w, y1: at.y + geom.h };
-      sum = { x: at.x, y: at.y, radius: tight ? C.STACK.tightRow.radius : t.radius, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}|${leaders.d.join('')}`, spot: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}`, tip: [inp.tip[0], inp.tip[1]], ahead: [inp.ahead[0], inp.ahead[1]] };
+      sum = { x: at.x, y: at.y, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}|${leaders.d.join('')}`, spot: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}`, tip: [inp.tip[0], inp.tip[1]], ahead: [inp.ahead[0], inp.ahead[1]] };
     }
     this.want = { pills, sum };
     this.boxes = [...[...pills.values()].map((p) => p.box), ...(sum ? [sum.box] : [])];
@@ -249,7 +247,8 @@ export class CathShow {
     for (const rec of this.pills.values()) {
       if (rec.p <= 0) continue;
       const a = easeArrive(rec.p), t = rec.t, [px, py] = this.pillAt(rec);
-      f.pills.push({ id: t.id, reading: t.reading, x: px, y: py, w: t.w, h: t.h, dir: t.dir, glass: t.glass, alpha: a, rise: C.RISE * (1 - a), key: t.key });
+      const to: Pt = (t.id === 'f' ? this.cur.tip : this.cur.ahead) ?? [t.ax, t.ay];
+      f.pills.push({ id: t.id, reading: t.reading, x: px, y: py, w: t.w, h: t.h, to, above: t.above, alpha: a, rise: C.RISE * (1 - a), key: t.key });
     }
     const s = this.sum;
     if (!s || s.fade <= 0) { f.sum = null; return; }
@@ -261,7 +260,7 @@ export class CathShow {
     };
     const a = rowAt(0), b = rowAt(1), flow = sumFlow(s.u, !!(s.from[0] || s.from[1]));
     f.sum = {
-      x: sx, y: sy, radius: t.radius, geom: t.geom, rows: t.rows, calc: t.calc, leaders: t.leaders, alpha: s.fade,
+      x: sx, y: sy, geom: t.geom, rows: t.rows, calc: t.calc, leaders: t.leaders, alpha: s.fade,
       row: [a, b],
       lead: flow.lead, calcAlpha: flow.calc, calcRise: flow.calcRise, key: t.key,
     };

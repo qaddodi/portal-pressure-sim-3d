@@ -1,12 +1,12 @@
 // A reading callout that is measuring does not flicker (Mohammad, 22 Nov 2026: "the callout FLICKERS as it's measuring": the EUS-PPG's "PV 20.4 mmHg" card).
-// Root cause: while the needle reads, the card's number is the model's live pressure, written a few times a second. cath-dom.ts `words` sent EVERY change of a showing card through `restyle`,
+// Root cause: while the needle reads, the card's number is the model's live pressure, written a few times a second. tag-dom.ts `words` sent EVERY change of a showing card through `restyle`,
 // which clones the card as `.lb-was` and fades the clone 1 -> 0 and the new number 0 -> 1 over D_SMALL; a second change inside those 240 ms made a second clone that began again at full
 // opacity beside the first, so the number pulsed instead of holding still. Two rules at the root: (1) restyle runs one crossing per element at a time (a change that arrives mid-crossing
 // rides it); (2) a reading that only ticks (same kicker, unit and tone, a number within ROLL_MIN of the last) is written where it stands, as the station labels' numbers are.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { restyle } from '../src/scene/labels/roll.ts';
-import { words, type Card } from '../src/scene/labels/cath-dom.ts';
+import { words, type Tag } from '../src/scene/labels/tag-dom.ts';
 
 class Anim { onfinish: (() => void) | null = null; oncancel: (() => void) | null = null; keys: unknown[]; opts: unknown; constructor(keys: unknown[], opts: unknown) { this.keys = keys; this.opts = opts; } }
 class El {
@@ -30,7 +30,7 @@ function card(value = '20.4') {
   const layer = new El(), root = new El(), k = new El(), n = new El(), u = new El();
   k.text = 'PV'; n.text = value; u.text = 'mmHg';
   root.appendChild(k); root.appendChild(n); root.appendChild(u); layer.appendChild(root); root.attrs.class = 'cl cl-pill';
-  const c = { root, k, n, u, text: `PV|${value}|mmHg`, tone: 'pv' } as unknown as Card;
+  const c = { root, k, n, u, text: `PV|${value}|mmHg`, tone: 'pv' } as unknown as Tag;
   return { layer, root, n, c };
 }
 const copies = (layer: El) => layer.children.filter((e) => /lb-was/.test(e.attrs.class ?? '')).length;

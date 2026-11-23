@@ -1,23 +1,21 @@
-// The catheter's readings on the figure, as the 2D app draws them: a glass card with its pointer (FHVP at the tip, WHVP ahead of it), then,
-// when the result is in, the two readings stacked with a bracket joining them, the HVPG they give beside it, and a thin leader from each
-// reading to where it was taken (stage-cath.js, callout.js, cath-pill.js, cath-place.js; app.css .cath-label, .cath-sum).
+// The catheter's readings on the figure: a tag (words with a halo, "FHVP 8.1 mmHg" on one line, the station labels' own look) with a leader and a dot to the point
+// it was taken at (FHVP at the tip, WHVP ahead of it), then, when the result is in, the two readings stacked with a bracket joining them, the HVPG they give beside
+// it, and a thin leader from each reading to where it was taken (the 2D app's stage-cath.js, cath-pill.js, cath-place.js; app.css .cath-sum). There is no card, no
+// glass and no pointer: 2D's speech-bubble outline is not copied here at all (Mohammad, 22 and 23 Nov).
 //
-// Nothing here is a number of this file's own. The sizes, paddings, type, gaps, bracket, leader, delays and curves are LABEL_STYLE.CATH
-// (names.copied.ts, read from the 2D source by scripts/copy-label-names.mjs); the card's outline and the places of the readings are the 2D
-// app's own code, copied whole (cath2d/*.copied.js). What is written here is the sums that join them to a screen of the 3D figure:
-// how big a card is (the 2D app asks the page; here it is worked out from the text's width, so node can judge it), where the stack's rows
-// stand, and the leaders' paths. Pure: no DOM, no three.js.
-import { LS, rolePx, type Vp } from './type.ts';
+// Nothing here is a number of this file's own. The sizes, gaps, bracket, leader, delays and curves are LABEL_STYLE (names.copied.ts, read from the 2D source by
+// scripts/copy-label-names.mjs); the places of the readings are the 2D app's own code, copied whole (cath2d/*.copied.js). What is written here is the sums that
+// join them to a screen of the 3D figure: how big a tag is (worked out from the text's width, so node can judge it), where the stack's rows stand, and the leaders'
+// paths. Pure: no DOM, no three.js.
+import { LS, fontPx, rolePx, type Vp } from './type.ts';
 import { DEVICE_TOKENS } from '../procedures/copied/device-tokens.copied.ts';
 import type { Box } from './geometry.ts';
-import { outline } from './cath2d/callout-outline.copied.js';
-import { PTR, KEEP } from './cath2d/callout-ptr.copied.js';
 import { PILL_GAP, placePillsInto, pillsClear } from './cath2d/cath-pill.copied.js';
 import { placeBeside } from './cath2d/cath-place.copied.js';
 import { planStack } from './cath2d/cath-leads.copied.js';
 
 const C = LS.CATH;
-export { PTR, KEEP, PILL_GAP };
+export { PILL_GAP };
 
 export type CalloutKind = 'f' | 'w' | 's';
 /** The reading's colour: the free vein's blue, the wedged vein's, the portal vein's (the EUS needle's), or the band the HVPG falls in. */
@@ -31,95 +29,61 @@ const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 export const isResult = (t: Tone) => t === 'ok' || t === 'caution' || t === 'danger';
 
-// ── the type and the card ──
+// ── the type and the tag ──
 
-/** Inter's vertical metrics (the app's UI face). The 2D app lets the browser lay a card out (`line-height: normal`); a card here is sized in node, so
- *  the one number it needs from the face is how tall a line of it is: 1.21 em, ascent 0.969 and descent 0.241. */
-export const INTER = { asc: 0.96875, desc: 0.2412 } as const;
-const normal = (px: number) => px * (INTER.asc + INTER.desc);
-
-export interface CathType { padTop: number; padX: number; padBottom: number; radius: number; border: number; gap: number; name: number; num: number; unit: number }
-/** The card's paddings, radius and type at this screen, as a presentation sets them (app.css `.app.presenting .cath-label`: the label size, up to its cap; the roles at this size). */
-export function cathType(vp: Vp): CathType {
-  const P = C.PRESENTING, k = Math.min(LS.LABEL_K, P.cap);
-  return { padTop: P.padTop * k, padX: P.padX * k, padBottom: P.padBottom * k, radius: P.radius * k, border: C.CARD.border, gap: C.CARD.gap, name: rolePx('lab', vp), num: rolePx('big', vp), unit: rolePx('lab', vp) };
+/** The air round a tag's words in its box, px (a mark's, 2D's own MARK_AIR). */
+export const TAG_AIR = 2;
+/** A reading's type at this screen: the station labels' own roles (a name, a number, a unit), so "FHVP 8.1 mmHg" reads as "Varices 17.7" does. */
+export interface TagType { name: number; num: number; unit: number; /** the portal blood's split headline only (the 2D 'big' role) */ big: number; /** name to number, number to unit, px */ gapVal: number; gapUnit: number; air: number; /** the tag's line, px */ line: number }
+export function tagType(vp: Vp): TagType {
+  const k = LS.LABEL_K, name = fontPx(LS.NAME.size, vp), num = fontPx(LS.VALUE.size, vp), unit = fontPx(LS.UNIT.size, vp);
+  return { name, num, unit, big: rolePx('big', vp), gapVal: LS.NAME_TO_VALUE * k, gapUnit: LS.UNIT.gap * k, air: TAG_AIR, line: Math.max(name, num, unit) * LS.LINE_H };
 }
 
-/** The custom properties a layer carries so the stylesheet holds no number of its own for these cards. */
+/** The custom properties a layer carries so the stylesheet holds no number of its own for these tags (the leader's and the bracket's strokes; the tags' own type is the station labels': typeVars). */
 export function cathVars(vp: Vp): Record<string, string> {
-  const t = cathType(vp), px = (n: number) => `${Math.round(n * 100) / 100}px`, T = C.STACK.tightRow;
+  void vp;
   return {
-    '--cl-pad': `${px(t.padTop)} ${px(t.padX)} ${px(t.padBottom)}`, '--cl-r': px(t.radius), '--cl-border': px(t.border), '--cl-gap': px(t.gap),
-    '--cl-name': px(t.name), '--cl-name-w': String(C.NAME.weight), '--cl-track': `${C.NAME.track}em`, '--cl-track-result': `${C.NAME.resultTrack}em`,
-    '--cl-num': px(t.num), '--cl-num-w': String(C.NUMBER.weight), '--cl-num-line': String(C.NUMBER.line),
-    '--cl-unit': px(t.unit), '--cl-unit-w': String(C.UNIT.weight), '--cl-unit-lift': px(C.UNIT.lift),
-    '--cl-tpad': `${px(T.padTop)} ${px(T.padX)} ${px(T.padBottom)}`, '--cl-tr': px(T.radius), '--cl-tgap': px(T.gap), '--cl-tnum': px(T.numberSize),
-    '--cl-lead-w': String(C.LEAD.stroke), '--cl-dot-w': String(C.LEAD.dotStroke), '--cl-brace-w': String(C.BRACE.stroke),
+    '--cl-air': `${TAG_AIR}px`, '--cl-lead-w': String(C.LEAD.stroke), '--cl-dot-w': String(C.LEAD.dotStroke), '--cl-brace-w': String(C.BRACE.stroke),
     '--cl-caution-mix': `${C.CAUTION_MIX}%`,
   };
 }
 
-/** How far each reading's colour steps toward the text colour in its ink, per look (tokens.css: :root, [data-theme="soft"], and the dark looks, which keep the trace colour). */
+/** How far each reading's colour steps toward the text colour in its ink, per look (tokens.css: :root, [data-theme="soft"], and the dark looks, which keep the trace colour). A reading is words with a halo now,
+ *  with no card behind it, so each ink is held to 4.5:1 (WCAG AA) against its halo over the worst the figure can put under it, black or white (tests/no-bubble-callouts.test.ts computes every one): the amber, green
+ *  and red of the light looks stepped further toward the text than they did on a card (62, 88 and 70 were measured at 4.2 to 4.4 over black). `tr` is the blue and teal traces, `wedge` the amber one. */
 const INK = {
-  light: { tr: 62, ok: 88, caution: 70, danger: 88 },
-  soft: { tr: 55, ok: 80, caution: 70, danger: 80 },
-  dark: { tr: 100, ok: 88, caution: 70, danger: 88 },
+  light: { tr: 60, wedge: 56, pv: 60, ok: 82, caution: 62, danger: 82 },
+  soft: { tr: 54, wedge: 44, pv: 54, ok: 80, caution: 70, danger: 80 },
+  dark: { tr: 100, wedge: 100, pv: 92, ok: 88, caution: 70, danger: 88 },
 } as const;
 const inkVars = (look: string): Record<string, string> => {
   const k = INK[look === 'light' || look === 'soft' ? look : 'dark'], mix = (c: string, n: number) => (n >= 100 ? `var(${c})` : `color-mix(in srgb, var(${c}) ${n}%, var(--cl-text))`);
-  return { '--cl-hv-ink': mix('--cl-hv', k.tr), '--cl-wedge-ink': mix('--cl-wedge', k.tr), '--cl-pv-ink': mix('--cl-pv', k.tr), '--cl-ivc-ink': mix('--cl-ivc', k.tr), '--cl-ok-ink': mix('--cl-ok', k.ok), '--cl-caution-ink': mix('--cl-caution', k.caution), '--cl-danger-ink': mix('--cl-danger', k.danger) };
+  return { '--cl-hv-ink': mix('--cl-hv', k.tr), '--cl-wedge-ink': mix('--cl-wedge', k.wedge), '--cl-pv-ink': mix('--cl-pv', k.pv), '--cl-ivc-ink': mix('--cl-ivc', k.tr), '--cl-ok-ink': mix('--cl-ok', k.ok), '--cl-caution-ink': mix('--cl-caution', k.caution), '--cl-danger-ink': mix('--cl-danger', k.danger) };
 };
 
-/** The ink and glass of a look for these cards (the look's own tokens, copied): the free and wedged tones, the bands, the glass tint and its hairline. */
+/** The ink of a look for these tags (the look's own tokens, copied): the free and wedged tones, the bands, the text and the surface a leader's dot is ringed with. */
 export function cathLook(look: string): Record<string, string> {
   const t = (LS.LOOKS as Record<string, Record<string, string>>)[look];
   if (!t) throw new Error(`no label ink for the look "${look}"`);
   return {
     '--cl-hv': t['tr-hv'], '--cl-wedge': t['tr-wedge'], '--cl-pv': (DEVICE_TOKENS as Record<string, { trPv: string }>)[look]?.trPv ?? t['tr-wedge'], '--cl-ivc': (DEVICE_TOKENS as Record<string, { trIvc: string }>)[look]?.trIvc ?? t['tr-hv'], '--cl-ok': t['ok'], '--cl-caution': t['caution'], '--cl-danger': t['danger'],
-    '--cl-text': t['text'], '--cl-text3': t['text-3'], '--cl-edge': t['hairline'], '--cl-surface': t['surface'],
-    // the card's outline and fill, per look: the cel ink on a light look; on a dark look the ink would vanish into the scene, so the rim is a light line, and the fill is the surface lifted a step toward the text and nearly solid (a clear tint over a brown liver went murky)
-    ...(look === 'light' || look === 'soft'
-      ? { '--cl-rim': 'var(--ink, var(--cl-text))', '--cl-fill': 'color-mix(in srgb, var(--cl-surface) 94%, transparent)' }
-      : { '--cl-rim': 'color-mix(in srgb, var(--cl-text) 78%, transparent)', '--cl-fill': 'color-mix(in srgb, color-mix(in srgb, var(--cl-surface) 84%, var(--cl-text) 16%) 95%, transparent)' }),
+    '--cl-text': t['text'], '--cl-text3': t['text-3'], '--cl-surface': t['surface'],
     // the words' ink: the colour a step toward the text colour so it clears 4.5:1 (tokens.css --tr-hv-ink, --ok-ink… per look)
     ...inkVars(look),
   };
 }
 
-/** A reading card's size (border box): the widest of its name, its number and its unit, and the three lines stacked; a tight card (a short free band)
- *  keeps all three on one line. A number counts every digit as one width (the figures are tabular), so a value counting up keeps its box. */
-export function pillSize(t: CathType, r: Reading, measure: Measure, tight: boolean): { w: number; h: number } {
-  const trackEm = isResult(r.tone) ? C.NAME.resultTrack : C.NAME.track;
-  const wName = measure(r.kicker, t.name, C.NAME.weight, trackEm * t.name);
-  const shape = r.value.replace(/\d/g, '0');
-  const wUnit = measure(r.unit, t.unit, C.UNIT.weight);
-  if (!tight) {
-    const wNum = measure(shape, t.num, C.NUMBER.weight);
-    const w = Math.max(wName, wNum, wUnit) + 2 * t.padX + 2 * t.border;
-    const h = t.padTop + t.padBottom + 2 * t.border + normal(t.name) + t.gap + t.num * C.NUMBER.line + t.gap + normal(t.unit) + C.UNIT.lift;
-    return { w: ceil2(w), h: ceil2(h) };
-  }
-  const R = C.STACK.tightRow, n = R.numberSize;
-  const wNum = measure(shape, n, C.NUMBER.weight);
-  const w = wName + R.gap + wNum + R.gap + wUnit + 2 * R.padX + 2 * t.border;
-  // a row of baseline-aligned words: the number's line is 1.1 tall, so its half-leading is negative
-  const half = (n * C.NUMBER.line - normal(n)) / 2;
-  const asc = Math.max(INTER.asc * t.name, INTER.asc * n + half, INTER.asc * t.unit), desc = Math.max(INTER.desc * t.name, INTER.desc * n + half, INTER.desc * t.unit);
-  return { w: ceil2(w), h: ceil2(R.padTop + R.padBottom + 2 * t.border + asc + desc) };
-}
-
-// ── a card's one glass shape (callout.js: the card and its pointer are one outline) ──
-
-export type Dir = 'top' | 'bottom' | 'none';
-export interface Glass { /** relative to the card's own corner */ left: number; top: number; w: number; h: number; /** where the pointer leaves the card, from its left edge */ px: number; /** the outline, in the glass's own frame */ d: string }
-
-/** The shape of a card w × h (border box) with its pointer on its `dir` edge, the point it names `ax` px from the card's centre (positive: to the right).
- *  The pointer's base stays KEEP from the card's sides and leans no more than 0.4 of the card's width (callout.js update, not leaning). */
-export function pillGlass(w: number, h: number, r: number, dir: Dir, ax: number): Glass {
-  const want = w / 2 + Math.max(-0.4 * w, Math.min(0.4 * w, ax));
-  const px = Math.max(KEEP, Math.min(w - KEEP, want)), up = dir === 'top' ? PTR : 0;
-  const gh = +(h + (dir === 'none' ? 0 : PTR)).toFixed(2);
-  return { left: 0, top: up ? -up : 0, w, h: gh, px, d: outline(w, h, Math.min(r, h / 2), up, px, dir, PTR, px, 0) };
+/** A reading's size (its box): the name, the number and the unit on one line, as the station labels set them, and a breath of air round. A number counts every digit as one width (the figures are
+ *  tabular), so a value counting up keeps its box. A name alone (a caliper's "7.3 mm", a bracket's "PPG 6.2") is the same tag without a number. */
+export function tagSize(t: TagType, r: Reading, measure: Measure): { w: number; h: number } {
+  const wName = r.kicker ? measure(r.kicker, t.name, LS.NAME.weight, 0) : 0;
+  const wNum = r.value ? measure(r.value.replace(/\d/g, '0'), t.num, LS.VALUE.weight) : 0;
+  const wUnit = r.unit ? measure(r.unit, t.unit, LS.UNIT.weight) : 0;
+  let w = wName;
+  if (wNum) w += (w ? t.gapVal : 0) + wNum;
+  if (wUnit) w += (w ? t.gapUnit : 0) + wUnit;
+  return { w: ceil2(w + 2 * t.air), h: ceil2(t.line + 2 * t.air) };
 }
 
 // ── where the readings stand ──
@@ -131,15 +95,15 @@ export interface PillIn { id: string; x: number; y: number; w: number; h: number
 export interface PillOut {
   id: string; side: Side;
   /** the card's corner, canvas px */ x0: number; y0: number;
-  /** the pointer is on the card's bottom edge (the card is above its point) or on its top */ dir: 'top' | 'bottom';
-  /** the card and its pointer's run to the point, a box a station's name keeps clear of */ box: Box;
+  /** the tag stands above its point (else below it) */ above: boolean;
+  /** the tag and its leader's run to the point, a box a station's name keeps clear of */ box: Box;
 }
 
 const shiftBox = (b: Box, dx: number): Box => ({ x0: b.x0 - dx, y0: b.y0, x1: b.x1 - dx, y1: b.y1 });
 
 /** The two readings' places, together (cath-pill.js placePillsInto, the 2D app's own): above or below their points and slid sideways so neither stands on a
- *  card, the stage's edge or the other. A reading keeps its place while it stays clear (cath-pill.js pillsClear), and only then; the card is kept in the band
- *  with its pointer on the point (stage-cath.js cathLabels). */
+ *  card, the stage's edge or the other. A reading keeps its place while it stays clear (cath-pill.js pillsClear), and only then; the tag is kept in the band
+ *  with its leader on the point (stage-cath.js cathLabels). */
 export function placePills(items: readonly PillIn[], band: Band, blockers: readonly Box[]): PillOut[] {
   if (!items.length) return [];
   const W = band.x1 - band.x0, top = band.y0 + C.BAND.top, lim = band.y1 - C.BAND.bottom;
@@ -150,13 +114,13 @@ export function placePills(items: readonly PillIn[], band: Band, blockers: reado
   else items.forEach((i, n) => { sides[n].above = i.was!.above; sides[n].dx = i.was!.dx; });
   return items.map((it, n) => {
     const side = sides[n], r = recs[n], half = r.w / 2;
-    // kept inside the stage: the box moves in and its pointer stays on the point; and inside the band the cards leave
+    // kept inside the stage: the box moves in and its leader stays on the point; and inside the band the cards leave
     const bTop = band.y0 + C.BAND.top, bBot = Math.max(bTop, band.y1 - C.BAND.bottom - r.h);
     const cx = clamp(r.x + side.dx, Math.min(half + 8, W / 2), Math.max(W - half - 8, W / 2)), cy = clamp(side.above ? r.y - PILL_GAP - r.h : r.y + PILL_GAP, bTop, bBot);
     const above = cy + r.h / 2 < r.y;
     const x0 = cx - half + band.x0;
     const box = above ? { x0, y0: cy, x1: x0 + r.w, y1: Math.max(r.y, cy + r.h) } : { x0, y0: Math.min(r.y, cy), x1: x0 + r.w, y1: cy + r.h };
-    return { id: it.id, side: { above: side.above, dx: side.dx }, x0, y0: cy, dir: above ? 'bottom' : 'top', box };
+    return { id: it.id, side: { above: side.above, dx: side.dx }, x0, y0: cy, above, box };
   });
 }
 
@@ -182,9 +146,9 @@ export interface SumGeom {
 export const STACK_MIN_H = 150;
 
 /** The stack: two readings in a column (stretched to the widest), the bracket, then the HVPG, centred on the column's height. */
-export function sumLayout(t: CathType, rows: readonly [Reading, Reading], calc: Reading, measure: Measure, tight: boolean, swap: boolean): SumGeom {
+export function sumLayout(t: TagType, rows: readonly [Reading, Reading], calc: Reading, measure: Measure, tight: boolean, swap: boolean): SumGeom {
   const S = C.STACK, gap = tight ? S.tightGap : S.gap;
-  const sz = [pillSize(t, rows[0], measure, tight), pillSize(t, rows[1], measure, tight)], cs = pillSize(t, calc, measure, tight);
+  const sz = [tagSize(t, rows[0], measure), tagSize(t, rows[1], measure)], cs = tagSize(t, calc, measure);
   const colW = Math.max(sz[0].w, sz[1].w), colH = sz[0].h + sz[1].h + gap, h = Math.max(colH, cs.h, STACK_MIN_H);
   const R: [Rect, Rect] = [{ x: 0, y: 0, w: colW, h: sz[0].h }, { x: 0, y: 0, w: colW, h: sz[1].h }];
   let y = (h - colH) / 2;

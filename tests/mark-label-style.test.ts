@@ -3,8 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isLabelMark, isWordsOnly, boxLeader, cardSize, type FigCard } from '../src/scene/labels/figure-cards.ts';
-import { cathType } from '../src/scene/labels/cath.ts';
+import { isLabelMark, boxLeader, cardSize, type FigCard } from '../src/scene/labels/figure-cards.ts';
+import { tagType } from '../src/scene/labels/cath.ts';
 
 const mark = (anchor: FigCard['anchor']): FigCard => ({ id: 'm', kind: 'mark', text: 'Clot', tone: 'block', anchor });
 const measure = (text: string, px: number) => text.length * px * 0.55;
@@ -12,16 +12,14 @@ const measure = (text: string, px: number) => text.length * px * 0.55;
 test('a mark on a vessel, an organ, a node is a label; the lobule pointer and the other cards are not', () => {
   for (const a of [{ edge: 'PV_TRUNK' }, { edges: ['C1a', 'C1b'] }, { at2d: [10, 20] as const }, { node: 'CONF' }, { station: 'RA' }] as FigCard['anchor'][]) assert.ok(isLabelMark(mark(a)));
   assert.ok(!isLabelMark(mark({ lobule: 'tract' })));
-  assert.ok(!isLabelMark({ ...mark({ edge: 'PV_TRUNK' }), kind: 'site' }));
   assert.ok(!isLabelMark({ ...mark({ edge: 'PV_TRUNK' }), kind: 'step' }));
 });
 
 test('a mark is just its words, the lobule\'s ring callout too (never a padded card)', () => {
-  const t = cathType({ w: 390, h: 844 });
+  const t = tagType({ w: 390, h: 844 });
   const label = cardSize(mark({ edge: 'PV_TRUNK' }), t, measure as never), pill = cardSize(mark({ lobule: 'tract' }), t, measure as never);
   assert.deepEqual(label, pill, 'the same words-only box');
-  assert.ok(isWordsOnly(mark({ lobule: 'tract' })) && isWordsOnly(mark({ edge: 'PV_TRUNK' })));
-  assert.ok(!isWordsOnly({ ...mark({ edge: 'PV_TRUNK' }), kind: 'site' }));
+  assert.ok(label.w < 80 && label.h < 20, 'its words and a breath of air');
 });
 
 test('the leader runs from the nearest point of the label to the place, and none when it stands against it', () => {

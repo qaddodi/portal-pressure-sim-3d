@@ -10,7 +10,7 @@ const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const SURFACES = [
   '.topbar .tb-face', '.topbar .float-pill', '.zoom-pill', '.vdock > .vd-face', '.nb-views > .vp-face',
   '.sh-sheet', '.sh-pop', '.sh-dialog', '.dk-jump', '.toast', '.sh-toast', '.modal', '.pal', '.why-pop',
-  '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.cl-glass', '.lb-key',
+  '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.cl-disc', '.lb-key',
 ];
 test('the one glass lists every panel, menu, pill and card', () => {
   for (const s of SURFACES) assert.ok(bare.includes(s), `${s} is not in glass.css`);
@@ -71,11 +71,10 @@ test('no glass sits inside a fading wrapper: the palette and dialog wrappers do 
 // Plan 20: the numbered step discs wear the shared glass; the solid fill stays for blur off, reduced transparency and no backdrop blur.
 test('a step disc is frosted glass with the blur on and solid otherwise', () => {
   const lc = readFileSync('src/scene/labels/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass path \{ fill: var\(--text\); stroke: none; \}/, 'the solid fill is kept for the fallbacks');
-  assert.match(lc, /@supports \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{[\s\S]*?html:not\(\[data-noglass\]\) \.cl\[data-fig="step"\] \.cl-glass path \{ fill: none; \}/);
-  assert.match(lc, /\.cl\[data-fig="step"\] \.cl-glass\.cl-hair\.cl-hair\.cl-hair \{ background: color-mix\(in srgb, var\(--text\) 95%, transparent\) !important; \}/);
-  assert.match(lc, /@media \(prefers-reduced-transparency: reduce\) \{[^}]*step[^}]*background: var\(--text\) !important/);
-  assert.ok(bare.includes('.cl-glass') && /backdrop-filter: blur\(var\(--glass-blur\)\)/.test(bare), 'the disc keeps the shared blur');
+  assert.match(lc, /\.cl-disc \{[^}]*border-radius: 50%;[^}]*background: var\(--text\);/, 'a plain circle, its solid fill kept for the fallbacks');
+  assert.match(lc, /@supports \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{[\s\S]*?html:not\(\[data-noglass\]\) \.lb-layer \.cl-disc\.cl-disc\.cl-disc \{ background: color-mix\(in srgb, var\(--text\) 95%, transparent\) !important; \}/);
+  assert.match(lc, /@media \(prefers-reduced-transparency: reduce\) \{[^}]*cl-disc[^}]*background: var\(--text\) !important/);
+  assert.ok(bare.includes('.cl-disc') && /backdrop-filter: blur\(var\(--glass-blur\)\)/.test(bare), 'the disc keeps the shared blur');
 });
 
 // plan 21, the root of the dark step discs: `:is()` weighs its most specific argument (`.topbar #viewSeg` holds an id), so every glass in the list weighed (1,2,1) and no class-only override could win,
@@ -90,10 +89,10 @@ function weigh(sel: string): [number, number, number] {
   return [(s.match(/#[\w-]+/g) ?? []).length, (s.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[a-z-]+/g) ?? []).length, (s.match(/(^|[\s>+~])[a-z][\w-]*/g) ?? []).length];
 }
 const higher = (a: [number, number, number], b: [number, number, number]) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-test('the step disc\'s face and the callout cards\' fill out-rank the glass rule', () => {
+test('the step disc\'s face out-ranks the glass rule', () => {
   const labels = readFileSync('src/scene/labels/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const glass: [number, number, number] = [0, 1, 1];   // html:not([data-noglass]) :where(...)
-  for (const sel of ['html:not([data-noglass]) .lb-layer .cl[data-fig="step"] .cl-glass.cl-hair.cl-hair.cl-hair', 'html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair']) {
+  for (const sel of ['html:not([data-noglass]) .lb-layer .cl-disc.cl-disc.cl-disc']) {
     assert.ok(labels.includes(sel + ' {'), sel + ' is gone');
     assert.ok(higher(weigh(sel), glass) > 0, `${sel} must out-rank the glass rule`);
   }

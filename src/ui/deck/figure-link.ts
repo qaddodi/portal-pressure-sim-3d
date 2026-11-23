@@ -5,7 +5,7 @@
 import { sceneApi } from '../../scene/api.ts';
 import { setLayer, clearLayer } from '../../scene/intent.ts';
 import { clock } from '../../clock/frame.ts';
-import { nodePressure, edgeIndex } from '../../decks/hp/figure-engine.ts';
+import { edgeIndex } from '../../decks/hp/figure-engine.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt } from './presenter-machine.ts';
 import { useFigure } from '../../scene/labels/store.ts';
@@ -35,7 +35,6 @@ function readsOf(deckId: string, index: number, action?: { kind?: string; site?:
   return {
     bleed: action?.kind === 'rupture' ? (action.site === 'GV' ? 'GV' : 'VAR') : null,
     fp: (r?.fp as Fp | undefined) ?? null, params: (r?.params as Reads['params']) ?? null,
-    pressure: nodePressure,
     indexOf: edgeIndex,
   };
 }

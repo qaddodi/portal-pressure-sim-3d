@@ -34,8 +34,8 @@ test('a blocked or out-of-view direction gives way to the next one', () => {
 
 test('placeCards gives a step the near gap and leaves the other cards\' rule alone', () => {
   const out = placeCards([it(), { id: 'mark', x: 200, y: 300, w: 80, h: 24 }], VIEW, []);
-  assert.equal(out[0]!.dir, 'none');
-  assert.equal(out[1]!.dir, 'bottom', 'a mark still stands above its point, on its pointer');
+  assert.ok(out[0]!.ok && out[0]!.box.x1 - out[0]!.box.x0 === 24, 'a step is its round face, placed off its point');
+  assert.ok(out[1]!.y0 + 24 <= 300, 'a mark still stands above its point, on its leader');
 });
 
 test('a leader runs from the circle\'s edge to the point; none where the point is inside the circle', () => {

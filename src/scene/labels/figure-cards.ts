@@ -1,14 +1,15 @@
-// The cards a slide stands on the figure besides the station names: a mark's words ("Clot", "Covered stent"), a site's reading ("Portal vein 12.3 mmHg", the portal
-// blood's split), the numbered steps and the calipers' lines and readings. They are the 2D app's callout card (the catheter's: cath.ts pillSize and pillGlass, one glass shape
-// with its pointer, callout-ptr.copied.js) pointing at a place on the figure. The place is named, not projected: a vessel (its middle), a station, a point of the 2D plate, so the
-// layer follows the camera by itself. Layout (`placeCards`) is pure and judged in node; `FigureCards` builds the DOM once and writes only transform and opacity per frame.
-// Like every label here the cards fade out while the picture moves and come back FADE.settleMs after it is still.
+// What a slide stands on the figure besides the station names: a mark's words ("Clot", "Covered stent"), the portal blood's split, the numbered steps and the calipers' and
+// brackets' readings. Every reading is a tag (tag-dom.ts): words with the labels' halo, and a leader where they stand away from what they name. There is no card, no glass and no pointer
+// here to draw a speech bubble with (Mohammad, 22 and 23 Nov). The place is named, not projected: a vessel (its middle), a station, a point of the 2D plate, so the layer follows the camera by
+// itself. Layout (`placeCards`) is pure and judged in node; `FigureCards` builds the DOM once and writes only transform and opacity per frame.
+// Like every label here the tags fade out while the picture moves and come back FADE.settleMs after it is still.
 import { Vector3 } from 'three';
 import { FADE } from './alpha.ts';
-import { type Box, hits, within } from './geometry.ts';
-import { PTR, PILL_GAP, cathType, pillGlass, pillSize, INTER, type CathType, type Reading, type Measure, type Glass } from './cath.ts';
+import { type Box, hits, within, grow } from './geometry.ts';
+import { PILL_GAP, tagType, tagSize, type TagType, type Measure } from './cath.ts';
 import { calloutClaims } from './callout-claims.ts';
-import { makeCard, words, shape, fade, place, size, show, type Card } from './cath-dom.ts';
+import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './tag-dom.ts';
+import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
 import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
@@ -25,15 +26,15 @@ export type Anchor = { edge: string } | { edges: readonly string[] } | { station
 
 /** A bracket on the Circuit between two stations (a slide's `span`): its words, as printed, standing under its middle. */
 export interface FigSpan { id: string; from: string; to: string; text: string }
-export type CardKind = 'mark' | 'site' | 'step' | 'split';
+export type CardKind = 'mark' | 'step' | 'split';
 export interface FigCard {
   id: string; kind: CardKind;
-  /** The words (a mark's label, a site's kicker), the reading and its unit (a site, a caliper). */
+  /** The words (a mark's label, the split's kicker). */
   text: string; value?: string; unit?: string;
   /** The colour token (2D: 'pv', '--tour-sys', 'accent'), or one of the card tones: block (danger), treat (accent), note (the quiet ink). */
   tone: string;
   anchor: Anchor;
-  /** The card stands below its point (a site that hangs under its station). */
+  /** The tag stands below its point. */
   below?: boolean;
   /** ms after the slide lands (a glow step). */
   at?: number;
@@ -80,51 +81,35 @@ export function ringLeader(at: { x: number; y: number }, r: number, box: Box): [
 
 /** How near its point a step's number may stand, at least (2D STEP_LEAD_GAP), px. */
 export const STEP_LEAD_GAP = 10;
-const normal = (px: number) => px * (INTER.asc + INTER.desc);
+/** Inter's line, 1.21 em (ascent 0.969 + descent 0.241): a line of words is sized in node, not asked of the page. */
+const normal = (px: number) => px * (0.96875 + 0.2412);
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
 
 /** The portal-blood split's widest row, px: the headline's fixed 12.6 em, or the caption row ("PORTAL BLOOD" and "To the liver 100%", 6 px apart, which runs past 12.6 em at every type size: its words stood outside the box
  *  the other labels keep off, so the LIVER name was carried under them). */
-export function splitWidth(c: FigCard, t: CathType, measure: Measure): number {
+export function splitWidth(c: FigCard, t: TagType, measure: Measure): number {
   const cap = measure('PORTAL BLOOD', t.name, 700, 0.06 * t.name) + 6 + measure(`To the liver ${c.split?.liver ?? 100}%`, t.name, 600, 0);
   return Math.max(t.name * 12.6, cap);
 }
 
 /** A mark on the figure (a vessel's, an organ's) is a coloured label with a leader; only a slide's lobule pointer (a ring, its own leader) and the other card kinds are not. */
 export const isLabelMark = (c: FigCard): boolean => c.kind === 'mark' && !('lobule' in c.anchor);
-/** A card that is only its words (no glass, no rim, no pointer): every mark, a vessel's, an organ's and the lobule's ring callout alike. Never a speech bubble (Mohammad, 22 and 23 Nov). */
-export const isWordsOnly = (c: Pick<FigCard, 'kind'>): boolean => c.kind === 'mark';
-/** Which of a card's own parts it keeps. A card is built with a glass and a rim (makeCard); `fade()` writes an inline opacity on both every time the card shows, which beats any stylesheet rule that hides
- *  them, so a part a card does not wear is removed from it (never hidden by CSS: that is how the bubbles came back on 0091fcc4). A mark and the lobule's callout keep neither; a step keeps its disc (the glass)
- *  and loses the dark rim; a site keeps both; the portal blood's split is its own markup. */
-export function cardParts(c: Pick<FigCard, 'kind'>): { glass: boolean; ring: boolean } {
-  if (c.kind === 'site') return { glass: true, ring: true };
-  if (c.kind === 'step') return { glass: true, ring: false };
-  return { glass: false, ring: false };   // (a mark: isWordsOnly; the split brings its own markup)
-}
 /** The label's weight (labels.css `.cl[data-fig="mark"] .cl-k`), and the air round its words in its box, px. */
 const MARK_WEIGHT = 650;
 const MARK_AIR = 2;
 
-/** A leader from the edge of a label's box to the point it names: it starts on the nearest point of the box and ends at the point. null when the point stands in the box or against it. */
-export function boxLeader(box: { x: number; y: number; w: number; h: number }, to: { x: number; y: number }): [number, number, number, number] | null {
-  const fx = Math.min(Math.max(to.x, box.x), box.x + box.w), fy = Math.min(Math.max(to.y, box.y), box.y + box.h);
-  return Math.hypot(to.x - fx, to.y - fy) < 3 ? null : [fx, fy, to.x, to.y];
-}
+export { boxLeader, leaderToEdge, LEAD_AIR };
 
-/** A card's size (border box) and its Reading: a mark is one line of words; a site is the catheter's three lines (name, number, unit). */
-export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number; h: number } {
-  if (isWordsOnly(c)) {
-    // a mark (a vessel's, an organ's, the lobule's ring callout) is its words and nothing else (the station names' look: words with a halo): its box is its words and a breath of air
-    return { w: ceil2(measure(c.text, t.name, MARK_WEIGHT, 0) + 2 * MARK_AIR), h: ceil2(normal(t.name) + 2 * MARK_AIR) };
-  }
+/** A card's size: a mark is one line of words (a vessel's, an organ's, the lobule's ring callout: the station names' look, words with a halo, its box its words and a breath of air); a step's
+ *  number is a round disc; the portal blood's split is its own markup. */
+export function cardSize(c: FigCard, t: TagType, measure: Measure): { w: number; h: number } {
+  if (c.kind === 'mark') return { w: ceil2(measure(c.text, t.name, MARK_WEIGHT, 0) + 2 * MARK_AIR), h: ceil2(normal(t.name) + 2 * MARK_AIR) };
   if (c.kind === 'step') { const d = Math.round(t.name * 1.9); return { w: d, h: d }; }
-  if (c.kind === 'split') return { w: ceil2(splitWidth(c, t, measure) + 8), h: ceil2(t.num * 1.1 + t.name * 3.6 + 6) };
-  return pillSize(t, { kicker: c.text, value: c.value ?? '', unit: c.unit ?? '', tone: 'free' }, measure, false);
+  return { w: ceil2(splitWidth(c, t, measure) + 8), h: ceil2(t.big * 1.1 + t.name * 3.6 + 6) };
 }
 
 export interface CardIn { id: string; /** a slide's ring on the figure (2D's lobule pointer): its radius with its stroke and air, px; the card stands clear of it, the leader runs from its edge */ ring?: number; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean; /** a step's number: how far its edge stands from the point it names, px (2D `near`); it stands off the point, on a leader to it */ near?: number }
-export interface CardOut { id: string; x0: number; y0: number; dir: 'top' | 'bottom' | 'none'; /** the point it names, from the card's centre */ ax: number; box: Box; /** false: no clear place in the view (the card waits) */ ok: boolean }
+export interface CardOut { id: string; /** the words' corner */ x0: number; y0: number; /** the words and the run of a leader to their point (a station's name keeps clear of all of it) */ box: Box; /** false: no clear place in the view (the tag waits) */ ok: boolean; /** the words stand at their own spot (no leader needed), not where the sweep put them */ direct?: boolean }
 
 const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
 
@@ -142,26 +127,16 @@ export function placeStep(it: CardIn, view: Box, blockers: readonly Box[], place
     if (!within(box, view)) cost += 1e6;
     for (const b of blockers) if (hits(box, b)) cost += 1e4 + overlap(box, b);
     for (const b of placed) if (hits(box, b)) cost += 1e4 + overlap(box, b);
-    const o: CardOut = { id: it.id, x0: box.x0, y0: box.y0, dir: 'none', ax: 0, box, ok: cost < 1e6 };
+    const o: CardOut = { id: it.id, x0: box.x0, y0: box.y0, box, ok: cost < 1e6 };
     if (!best || cost < best.cost) best = { cost, o };
   });
   return best!.o;
 }
 
-/** A leader from a step's circle to a point it names: it starts on the circle's edge, on the line to the point, and ends at the point. null when the point stands inside the circle. */
-/** A leader that ends on a vessel stops at the vessel's near edge, not on its axis (plan 21): its screen half width (along the line, which meets the tube at an angle: half / sin, never more than
- *  3.3 half) plus 1 px of air, so the line never crosses the tube and needs no dot. Null when nothing is left of it. `t` is the vessel's unit direction on the screen. */
-export const LEAD_AIR = 1;
-export function leaderToEdge(seg: [number, number, number, number], half: number, t: { x: number; y: number }): [number, number, number, number] | null {
-  const dx = seg[2] - seg[0], dy = seg[3] - seg[1], len = Math.hypot(dx, dy);
-  if (len <= 0) return null;
-  const sin = Math.abs((dx / len) * t.y - (dy / len) * t.x), back = Math.min(half / Math.max(sin, 0.3), half * 3.3) + LEAD_AIR;
-  if (len - back <= 0.5) return null;
-  return [seg[0], seg[1], seg[2] - (dx / len) * back, seg[3] - (dy / len) * back];
-}
 /** Whether a step's or a mark's leader ends in a dot: only where it names a point that is not a vessel (an organ, a station, a node), never on a vessel or a group of vessels (plan 21b), where each line's end at the vessel's edge is the mark. */
 export const leadHasDot = (anchor: Anchor): boolean => !('edge' in anchor) && !('edges' in anchor);
 
+/** A leader from a step's circle to a point it names: it starts on the circle's edge, on the line to the point, and ends at the point. null when the point stands inside the circle. */
 export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { x: number; y: number }): [number, number, number, number] | null {
   const dx = to.x - circle.cx, dy = to.y - circle.cy, len = Math.hypot(dx, dy);
   if (len <= circle.r + 1) return null;
@@ -170,10 +145,10 @@ export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { 
 
 /** Where each card stands (the 2D callout rule: above its point, or below it, slid sideways until it clears the cards, the view's edges and the others; the first clear
  *  spot in that order wins, and a card with none takes the one that covers least). In order, so the first of a slide has its pick. */
-export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[]): CardOut[] {
-  const placed: Box[] = [], out: CardOut[] = [];
+export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[], before: readonly Box[] = []): CardOut[] {
+  const placed: Box[] = [...before], out: CardOut[] = [];
   for (const it of items) {
-    if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, dir: 'none', ax: 0, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
+    if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
     if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
     const gap = it.ring ?? PILL_GAP, hold = it.ring ? [...blockers, { x0: it.x - it.ring, y0: it.y - it.ring, x1: it.x + it.ring, y1: it.y + it.ring }] : blockers;
@@ -188,7 +163,7 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
       if (!within(box, view)) cost += 1e6;
       for (const b of hold) if (hits(box, b)) cost += 1e4 + overlap(box, b);
       for (const b of placed) if (hits(reach, b)) cost += 1e4 + overlap(reach, b);
-      const o: CardOut = { id: it.id, x0, y0, dir: above ? 'bottom' : 'top', ax: it.x - (x0 + it.w / 2), box: reach, ok: cost < 1e6 };
+      const o: CardOut = { id: it.id, x0, y0, box: reach, ok: cost < 1e6 };
       if (!best || cost < best.cost) best = { cost, o };
       if (cost < 1) break;
     }
@@ -203,7 +178,36 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
   return out;
 }
 
-/** The clear place nearest a card's point: its box on a grid over the view, clear of every blocker and of the cards placed before it (the tail runs to the point). null when the view holds none. */
+/** A reading that is still unknown ("…", the 2D VALUE_PENDING) stands nowhere: its tag stays hidden until the number is in (it used to show "…" and then change). */
+export const isPending = (text: string | undefined): boolean => text === '…';
+
+/** How far past a caliper's tick its reading's words start, px; and how far under a bracket's line its reading stands. */
+export const CAL_GAP = 6;
+export const SPAN_GAP = 4;
+const clearOf = (box: Box, view: Box, hold: readonly Box[], placed: readonly Box[]): boolean => within(box, view) && !hold.some((b) => hits(grow(box, 1), b)) && !placed.some((b) => hits(grow(box, 1), b));
+
+/** The place of a caliper's reading, in line with the caliper: 6 px past its far tick, on the end with room (the one that reads away to the right first). The words are a tag with no leader: the
+ *  caliper is the mark. null when neither end has a clear place (then `placeCards` stands the words elsewhere and a leader runs to the nearer tick). */
+export function caliperSpot(id: string, e: readonly [number, number, number, number], w: number, h: number, view: Box, hold: readonly Box[], placed: readonly Box[]): CardOut | null {
+  const len = Math.hypot(e[2] - e[0], e[3] - e[1]) || 1, ux = (e[2] - e[0]) / len, uy = (e[3] - e[1]) / len;
+  const ends = [{ x: e[2], y: e[3], dx: ux, dy: uy }, { x: e[0], y: e[1], dx: -ux, dy: -uy }].sort((a, b) => b.x - a.x);
+  for (const p of ends) {
+    // the words' box touches the point CAL_GAP past the tick along the caliper: its centre is that far plus the box's own reach along the same line
+    const reach = Math.abs(p.dx) * w / 2 + Math.abs(p.dy) * h / 2, cx = p.x + p.dx * (CAL_GAP + reach), cy = p.y + p.dy * (CAL_GAP + reach);
+    const box: Box = { x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 };
+    if (clearOf(box, view, hold, placed)) return { id, x0: box.x0, y0: box.y0, box, ok: true, direct: true };
+  }
+  return null;
+}
+
+/** The place of a bracket's reading: centred 4 px under the middle of its line, no leader (the bracket is the mark). null when that place is taken. */
+export function spanSpot(id: string, line: readonly [number, number, number, number], w: number, h: number, view: Box, hold: readonly Box[], placed: readonly Box[]): CardOut | null {
+  const cx = (line[0] + line[2]) / 2, cy = Math.max(line[1], line[3]) + SPAN_GAP;
+  const box: Box = { x0: cx - w / 2, y0: cy, x1: cx + w / 2, y1: cy + h };
+  return clearOf(box, view, hold, placed) ? { id, x0: box.x0, y0: box.y0, box, ok: true, direct: true } : null;
+}
+
+/** The clear place nearest a card's point: its box on a grid over the view, clear of every blocker and of the cards placed before it (the leader runs to the point). null when the view holds none. */
 export function freeSpot(it: CardIn, view: Box, blockers: readonly Box[], placed: readonly Box[]): CardOut | null {
   const STEP = 8, AIR = 2;
   let best: { d: number; x0: number; y0: number } | null = null;
@@ -219,7 +223,7 @@ export function freeSpot(it: CardIn, view: Box, blockers: readonly Box[], placed
   if (!best) return null;
   const { x0, y0 } = best, x1 = x0 + it.w, y1 = y0 + it.h, above = y0 + it.h / 2 < it.y;
   const reach: Box = above ? { x0, y0, x1, y1: Math.max(it.y, y1) } : { x0, y0: Math.min(it.y, y0), x1, y1 };
-  return { id: it.id, x0, y0, dir: above ? 'bottom' : 'top', ax: it.x - (x0 + it.w / 2), box: reach, ok: true };
+  return { id: it.id, x0, y0, box: reach, ok: true };
 }
 
 export interface CardDeps {
@@ -267,9 +271,9 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
 
 interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[]; /** each leader's presence 0..1, eased: a leader that goes shrinks to nothing, it is never switched off */ k: number[]; kd: number[]; /** the translate and turn, and the length, each line last stood at (it shrinks in place) */ at: string[]; len: number[] }
 interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; tx: string; key: string; ltx: string; /** the leader's presence 0..1, eased */ k: number; /** where the leader last stood (translate and turn), so it shrinks in place */ at: string; len: number }
-interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; /** the colour the card was last written in */ look?: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
-interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
-interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
+interface Rec { card: Tag; spec: FigCard; a: number; box: CardOut | null; sig: string; /** the colour the card was last written in */ look?: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
+interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Tag; lead: TagLead; spec: FigSpan; a: number; box: CardOut | null }
+interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Tag; lead: TagLead; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
 
 export class FigureCards {
   private cards: FigCard[] = [];
@@ -307,12 +311,9 @@ export class FigureCards {
 
   private make(spec: FigCard): Rec {
     const split = spec.kind === 'split';
-    const card = makeCard(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig');
+    // a tag is its words (a step's number also carries its plain round face, `.cl-disc`): nothing else is built, so there is nothing to hide
+    const card = makeTag(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig', { disc: spec.kind === 'step' });
     card.root.dataset.fig = spec.kind;
-    // the parts this card does not wear leave it (cardParts): a hidden one came back whenever `fade()` wrote its inline opacity
-    const parts = cardParts(spec);
-    if (!parts.glass) card.glass.remove();
-    if (!parts.ring) card.ring.remove();
     const rec: Rec = { card, spec, a: 0, box: null, sig: '', root: card.root };
     if (spec.kind === 'mark' && 'lobule' in spec.anchor) {
       // a slide's pointer at the lesion (2D lobule-zoom.js callEl, callLine, callRing): a thick ring on the place, a leader of the same stroke from the ring to its words, the words in the ring's colour, no card
@@ -330,7 +331,7 @@ export class FigureCards {
     }
     if (split) {
       // the 2D portal-blood label, its own markup (stage-sites-paint.js SPLIT_B): the number and "bypasses the liver", the caption, the bar split into the liver's and the shunts' share
-      card.glass.remove(); card.ring.remove(); card.k.remove(); card.n.remove(); card.u.remove();
+      card.k.remove(); card.n.remove(); card.u.remove();
       const b = document.createElement('b');
       b.innerHTML = '<span class="sp-h"><em class="sp-n"></em><em class="sp-pc">%</em><span class="sp-w">bypasses the liver</span></span><span class="sp-cap"><em class="sp-k">Portal blood</em><em class="sp-lt"></em><em class="sp-st"></em></span><span class="sp-bar"><i class="sp-l"></i><i class="sp-s"></i></span>';
       card.root.appendChild(b);
@@ -345,29 +346,29 @@ export class FigureCards {
     const line = document.createElement('i'); line.className = 'cl-cal-line'; root.appendChild(line);
     const ticks: [HTMLElement, HTMLElement] = [document.createElement('i'), document.createElement('i')];
     for (const k of ticks) { k.className = 'cl-cal-tick'; root.appendChild(k); }
-    const card = makeCard(this.parent, 'cl cl-pill cl-fig');
+    const card = makeTag(this.parent, 'cl cl-pill cl-fig');
     card.root.dataset.fig = 'caliper';
-    return { root, line, ticks, tickTx: '', card, spec, a: 0, tx: '', box: null };
+    return { root, line, ticks, tickTx: '', card, lead: new TagLead(this.parent), spec, a: 0, tx: '', box: null };
   }
 
   private makeSpan(spec: FigSpan): SpanRec {
     const root = document.createElement('div'); root.className = 'cl-span'; this.parent.appendChild(root);
     const segs = [0, 1, 2].map(() => { const k = document.createElement('i'); k.className = 'cl-span-seg'; root.appendChild(k); return k; });
-    const card = makeCard(this.parent, 'cl cl-pill cl-fig');
+    const card = makeTag(this.parent, 'cl cl-pill cl-fig');
     card.root.dataset.fig = 'span';
-    return { root, segs, tx: ['', '', ''], card, spec, a: 0, box: null };
+    return { root, segs, tx: ['', '', ''], card, lead: new TagLead(this.parent), spec, a: 0, box: null };
   }
 
-  /** A reading's card size: one line of words in the card's own type. */
-  private textSize(text: string, t: CathType): { w: number; h: number } {
-    return { w: ceil2(this.deps.measure(text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h: ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name)) };
+  /** A caliper's or a bracket's reading: one line of words in the station labels' own type. */
+  private textSize(text: string, t: TagType): { w: number; h: number } {
+    return tagSize(t, { kicker: text, value: '', unit: '', tone: 'free' }, this.deps.measure);
   }
 
   /** One frame (the clock's tags phase). Returns true while cards still need frames (fading, or waiting to return). */
   tick(): boolean {
     const d = this.deps, now = d.now(), dt = this.last < 0 ? 16 : Math.min(100, now - this.last);
     this.last = now; this.dt = dt; this.easing = false;
-    const vp = d.vp(), t = cathType(vp), view = d.view();
+    const vp = d.vp(), t = tagType(vp), view = d.view();
     // the cards of this slide: made once each, gone with the slide
     const want = new Set(this.cards.map((c) => c.id));
     for (const [id, r] of this.recs) if (!want.has(id) && r.a <= 0) { r.root.remove(); r.lead?.root.remove(); r.co?.root.remove(); this.recs.delete(id); }
@@ -377,11 +378,11 @@ export class FigureCards {
       r.spec = c;
     }
     const wantCal = new Set(this.calipers.map((c) => c.id));
-    for (const [id, r] of this.cals) if (!wantCal.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); this.cals.delete(id); }
+    for (const [id, r] of this.cals) if (!wantCal.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); this.cals.delete(id); }
     for (const c of this.calipers) { let r = this.cals.get(c.id); if (!r) { r = this.makeCaliper(c); this.cals.set(c.id, r); } r.spec = c; }
 
     const wantSpan = new Set(this.spans.map((c) => c.id));
-    for (const [id, r] of this.spanRecs) if (!wantSpan.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); this.spanRecs.delete(id); }
+    for (const [id, r] of this.spanRecs) if (!wantSpan.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); this.spanRecs.delete(id); }
     for (const c of this.spans) { let r = this.spanRecs.get(c.id); if (!r) { r = this.makeSpan(c); this.spanRecs.set(c.id, r); } r.spec = c; }
 
     // where each named place stands now; any that moved hides the cards until the picture is still
@@ -457,18 +458,22 @@ export class FigureCards {
       this.sig = sig; this.dirty = false;
       const ins: CardIn[] = [];
       for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure), rg = anchors.get(c.id + '#r'); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null), ...(rg ? { ring: rg.x + RING_AIR } : null) }); }
+      const outs = placeCards(ins, view, blockers);
+      const taken = outs.filter((o) => o.ok).map((o) => o.box);
+      // a caliper's reading stands in line with it, past its far tick; a bracket's under the middle of its line: each with no leader. Only where that place is taken does a reading stand where the
+      // sweep finds room, with a leader to the tick (the caliper) or to the middle of the line (the bracket).
       for (const c of this.calipers) {
         const e = ends.get(c.id); if (!e) continue;
-        const w = ceil2(d.measure(c.text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h = ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name));
-        ins.push({ id: 'cal:' + c.id, x: (e[0] + e[2]) / 2, y: (e[1] + e[3]) / 2, w, h, below: false });
+        const s = this.textSize(c.text, t), id = 'cal:' + c.id;
+        const o = caliperSpot(id, e, s.w, s.h, view, blockers, taken) ?? placeCards([{ id, x: (e[0] + e[2]) / 2, y: (e[1] + e[3]) / 2, w: s.w, h: s.h }], view, blockers, taken)[0]!;
+        outs.push(o); if (o.ok) taken.push(o.box);
       }
-      // a bracket's reading stands under the middle of its line
       for (const c of this.spans) {
         const l = strokes.get(c.id)?.[0]; if (!l) continue;
-        const s = this.textSize(c.text, t);
-        ins.push({ id: 'span:' + c.id, x: (l[0] + l[2]) / 2, y: (l[1] + l[3]) / 2, w: s.w, h: s.h, below: true });
+        const s = this.textSize(c.text, t), id = 'span:' + c.id;
+        const o = spanSpot(id, l, s.w, s.h, view, blockers, taken) ?? placeCards([{ id, x: (l[0] + l[2]) / 2, y: (l[1] + l[3]) / 2, w: s.w, h: s.h, below: true }], view, blockers, taken)[0]!;
+        outs.push(o); if (o.ok) taken.push(o.box);
       }
-      const outs = placeCards(ins, view, blockers);
       const by = new Map(outs.map((o) => [o.id, o]));
       for (const [id, r] of this.recs) { r.box = by.get(id) ?? null; r.sig = ''; }
       for (const [id, r] of this.cals) r.box = by.get('cal:' + id) ?? null;
@@ -482,21 +487,21 @@ export class FigureCards {
     let busy = false;
     const age = now - this.t0;
     for (const [id, r] of this.recs) {
-      const live = want.has(id) && !!r.box?.ok && !hold && anchors.has(id) && age >= (r.spec.at ?? 0);
+      const live = want.has(id) && !!r.box?.ok && !hold && anchors.has(id) && age >= (r.spec.at ?? 0) && !isPending(r.spec.value);
       const next = Math.min(1, Math.max(0, r.a + (live ? inn : -out)));
       if (next !== r.a) busy = true;
       r.a = next;
       this.paintCard(r, t, anchors.get(id));
     }
     for (const [id, r] of this.cals) {
-      const live = wantCal.has(id) && !!r.box?.ok && !hold && ends.has(id);
+      const live = wantCal.has(id) && !!r.box?.ok && !hold && ends.has(id) && !isPending(r.spec.text);
       const next = Math.min(1, Math.max(0, r.a + (live ? inn : -out)));
       if (next !== r.a) busy = true;
       r.a = next;
       this.paintCaliper(r, t, ends.get(id));
     }
     for (const [id, r] of this.spanRecs) {
-      const live = wantSpan.has(id) && !!r.box?.ok && !hold && strokes.has(id);
+      const live = wantSpan.has(id) && !!r.box?.ok && !hold && strokes.has(id) && !isPending(r.spec.text);
       const next = Math.min(1, Math.max(0, r.a + (live ? inn : -out)));
       if (next !== r.a) busy = true;
       r.a = next;
@@ -592,7 +597,7 @@ export class FigureCards {
     return next;
   }
 
-  private paintCard(r: Rec, t: CathType, a: { x: number; y: number } | undefined): void {
+  private paintCard(r: Rec, t: TagType, a: { x: number; y: number } | undefined): void {
     const c = r.spec, box = r.box;
     if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.co) fadeRing(r.co, 0); if (r.root.hasAttribute('data-on')) { show(r.card, false); if (c.kind === 'split') r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
     show(r.card, true);
@@ -600,14 +605,13 @@ export class FigureCards {
     if (c.kind !== 'split' && r.root.style.opacity !== '') r.root.style.removeProperty('opacity');
     if (c.kind === 'split') { this.paintSplit(r, box, t); return; }
     const sz = cardSize(c, t, this.deps.measure);
-    const key = `${c.kind}|${c.text}|${c.value ?? ''}|${c.unit ?? ''}|${c.tone}|${box.dir}|${Math.round(box.ax)}|${sz.w}`;
+    const key = `${c.kind}|${c.text}|${c.value ?? ''}|${c.unit ?? ''}|${c.tone}|${sz.w}`;
     if (r.sig !== key) {
       r.sig = key;
       const tone = toneOf(c.tone), step = c.kind === 'step';
       const k = step ? String(c.n ?? '') : c.text, n = step ? '' : c.value ?? '', u = step ? '' : c.unit ?? '';
       const text = `${k}|${n}|${u}`, look = step ? 'step' : `${tone.attr}|${tone.css ?? ''}`;
-      const parts = cardParts(c), g: Glass | null = !parts.glass ? null : step ? circleGlass(sz.w) : pillGlass(sz.w, sz.h, t.radius, box.dir === 'none' ? 'none' : box.dir, box.ax);
-      // (a card that is showing crosses over to its new words and colour, one crossing for both; the glass takes its new shape beside it. An empty number or unit takes no room: labels.css `:empty`)
+      // (a card that is showing crosses over to its new words and colour, one crossing for both. An empty number or unit takes no room: labels.css `:empty`)
       if (r.card.text !== text || r.look !== look) {
         restyle(r.card.root, () => {
           r.card.text = text; r.look = look;
@@ -618,7 +622,6 @@ export class FigureCards {
         }, r.a);
       }
       size(r.card, sz.w, sz.h);
-      if (g) shape(r.card, g, key);
     }
     place(r.card, box.x0, box.y0);
     fade(r.card, r.a);
@@ -653,7 +656,7 @@ export class FigureCards {
     fadeRing(co, r.a);
   }
 
-  private paintSplit(r: Rec, box: CardOut, t: CathType): void {
+  private paintSplit(r: Rec, box: CardOut, t: TagType): void {
     const c = r.spec, sp = r.split!;
     // (its words are set in the card's own type size, the one cardSize measured the box in: 2D's CSS sets them at 12 px, which on a phone is wider than the box placed for it, so the words ran past the edge it was kept inside)
     const k = String(Math.round((t.name / 12) * 1000) / 1000);
@@ -671,9 +674,12 @@ export class FigureCards {
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
   }
 
-  private paintCaliper(r: CalRec, t: CathType, e: [number, number, number, number] | undefined): void {
+  /** A caliper: its line and the tick at each end (the mark), and its reading as plain words (a tag) standing in line with it, 6 px past its far tick on the side with room, so no leader is
+   *  needed. Where that spot is taken the words stand where `placeCards` put them, with a thin leader to the nearer tick that stops 1 px short of it (no dot). */
+  private paintCaliper(r: CalRec, t: TagType, e: [number, number, number, number] | undefined): void {
     if (r.a <= 0 || !e || !r.box) {
       if (r.root.hasAttribute('data-on')) { r.root.removeAttribute('data-on'); r.root.style.opacity = '0'; show(r.card, false); fadeKids(r.card, 0); }
+      r.lead.hide();
       return;
     }
     r.root.setAttribute('data-on', '');
@@ -686,21 +692,24 @@ export class FigureCards {
     }
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
-    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);   // (a changed caption crosses over: cath-dom.ts words)
-    const w = ceil2(this.deps.measure(r.spec.text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h = ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name));
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);   // (a changed caption crosses over: tag-dom.ts words)
+    const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
-    const key = `${r.spec.text}|${r.box.dir}|${Math.round(r.box.ax)}|${w}`;
-    if (r.card.shape !== key) {
-      shape(r.card, pillGlass(w, h, t.radius, r.box.dir === 'none' ? 'none' : r.box.dir, r.box.ax), key);
-    }
     place(r.card, r.box.x0, r.box.y0);
     fade(r.card, r.a);
+    // the leader (only where the words are not in line with the caliper): from their box to the nearer tick, stopping 1 px short of it
+    const wb = { x: r.box.x0, y: r.box.y0, w, h }, cx = wb.x + w / 2, cy = wb.y + h / 2;
+    const near: [number, number] = Math.hypot(e[0] - cx, e[1] - cy) <= Math.hypot(e[2] - cx, e[3] - cy) ? [e[0], e[1]] : [e[2], e[3]];
+    const seg = r.box.direct ? null : (() => { const s0 = boxLeader(wb, { x: near[0], y: near[1] }); return s0 && leaderShort(s0); })();
+    this.easing = r.lead.paint(seg, null, r.a, 'note', (k, on) => this.ease(k, on)) || this.easing;
   }
 
-  /** A bracket: its line and the tick at each end (a thin ink line each, moved by transform), and its reading in the card's glass under it. */
-  private paintSpan(r: SpanRec, t: CathType, st: [number, number, number, number][] | undefined): void {
+  /** A bracket: its line and the tick at each end (a thin ink line each, moved by transform), and its reading as plain words (a tag) 4 px under the middle of its line, no leader. Where that spot is
+   *  taken the words stand where `placeCards` put them, with a thin leader to the middle of the line. */
+  private paintSpan(r: SpanRec, t: TagType, st: [number, number, number, number][] | undefined): void {
     if (r.a <= 0 || !st || !r.box) {
       if (r.root.hasAttribute('data-on')) { r.root.removeAttribute('data-on'); r.root.style.opacity = '0'; show(r.card, false); fadeKids(r.card, 0); }
+      r.lead.hide();
       return;
     }
     r.root.setAttribute('data-on', '');
@@ -714,24 +723,23 @@ export class FigureCards {
     words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);
     const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
-    const key = `${r.spec.text}|${r.box.dir}|${Math.round(r.box.ax)}|${w}`;
-    if (r.card.shape !== key) {
-      shape(r.card, pillGlass(w, h, t.radius, r.box.dir === 'none' ? 'none' : r.box.dir, r.box.ax), key);
-    }
     place(r.card, r.box.x0, r.box.y0);
     fade(r.card, r.a);
+    const l = st[0]!, mid = { x: (l[0] + l[2]) / 2, y: (l[1] + l[3]) / 2 };
+    const seg = r.box.direct ? null : (() => { const s0 = boxLeader({ x: r.box.x0, y: r.box.y0, w, h }, mid); return s0 && leaderShort(s0); })();
+    this.easing = r.lead.paint(seg, null, r.a, 'note', (k, on) => this.ease(k, on)) || this.easing;
   }
 
   destroy(): void {
     for (const r of this.recs.values()) { r.root.remove(); r.lead?.root.remove(); r.co?.root.remove(); }
-    for (const r of this.cals.values()) { r.root.remove(); r.card.root.remove(); }
-    for (const r of this.spanRecs.values()) { r.root.remove(); r.card.root.remove(); }
+    for (const r of this.cals.values()) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); }
+    for (const r of this.spanRecs.values()) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); }
     this.recs.clear(); this.cals.clear(); this.spanRecs.clear();
     calloutClaims.set([]);
   }
 }
 
-const fadeKids = (c: Card, a: number) => fade(c, a);
+const fadeKids = (c: Tag, a: number) => fade(c, a);
 /** A ring's opacity, written on its own pieces (the ring and its leader). */
 function fadeRing(co: Ring, a: number): void {
   const o = String(Math.round(a * 1000) / 1000);
@@ -744,11 +752,3 @@ export function toneOf(tone: string): { attr: string; css: string | null } {
   if (tone === 'note') return { attr: 'note', css: null };
   return { attr: 'custom', css: tone === 'treat' || tone === 'accent' ? 'var(--accent)' : tone.startsWith('--') ? `var(${tone})` : `var(--tr-${tone})` };
 }
-
-/** A step's round card: no pointer. */
-function circleGlass(d: number): Glass {
-  const r = d / 2, path = `M0 ${r}a${r} ${r} 0 1 0 ${d} 0a${r} ${r} 0 1 0 ${-d} 0z`;
-  return { left: 0, top: 0, w: d, h: d, px: r, d: path };
-}
-
-export { PTR };

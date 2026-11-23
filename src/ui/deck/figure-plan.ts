@@ -184,6 +184,8 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
   // sites no station label carries
   const sites = siteKeys.filter((k) => !labelSet.includes(SITE_NODE_2D[k]!));
   for (const k of sites) if (!SITE_DEF_2D[k]) bad('site', k);
+  // a site no station carries and that is no resistor and no split would be a card of its own on the figure: there is no such card, so a deck that asks for one fails here, not on screen
+  for (const k of sites) { const d = SITE_DEF_2D[k]; if (d && !d.res && !d.split && d.node) bad('site off station', k); }
   const siteRes = sites.map((k) => (SITE_DEF_2D[k]?.res ? (`r${SITE_DEF_2D[k]!.res![0]!.toUpperCase()}${SITE_DEF_2D[k]!.res!.slice(1)}` as ResKey) : null)).filter((k): k is ResKey => !!k);
   for (const k of siteRes) if (!(RES_KEYS as readonly string[]).includes(k)) bad('site resistor', k);
   for (const k of siteRes) if (!res.has(k)) res.set(k, TARGETS_FIG[k]?.tone ?? 'accent');

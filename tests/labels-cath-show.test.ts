@@ -43,12 +43,13 @@ test('a card comes in over a surface step with a 6 px rise, never before the cat
   assert.equal(show.frame.pills.length, 0);
 });
 
-test('a card faded on its own children: the frame holds the glass shape, its pointer on its point', () => {
+test('a tag faded on its own children: the frame holds its words\' box and the point its leader ends on; there is no glass and no pointer in it', () => {
   const show = new CathShow();
   show.solve(base); run(show, 600);
   const p = show.frame.pills[0];
-  assert.match(p.glass.d, /^M[\d. ]+H/); assert.ok(p.glass.d.endsWith('Z'));
-  assert.equal(p.dir, 'bottom', 'the free reading stands above its point: its pointer is on its bottom edge');
+  assert.deepEqual(Object.keys(p).sort(), ['above', 'alpha', 'h', 'id', 'key', 'reading', 'rise', 'to', 'w', 'x', 'y'], 'a tag draws nothing but words, a place and the point it names');
+  assert.equal(p.above, true, 'the free reading stands above its point');
+  assert.deepEqual(p.to, [600, 400], 'its leader ends on the tip');
   assert.ok(p.y + p.h < 400, 'above the tip');
 });
 
@@ -121,31 +122,29 @@ test('a card that must flip to the other side fades out where it stands and come
   show.solve({ ...base, tip: [600, 70], blockers: [] }); // the point went under the band's top: its card cannot stand above it any more, so it flips below
   show.step(16, false);
   const during = show.frame.pills[0];
-  assert.ok(!during || (during.dir === was.dir && during.alpha < 1), 'still the old card (riding its point), fading');
+  assert.ok(!during || (during.above === was.above && during.alpha < 1), 'still the old card (riding its point), fading');
   run(show, 1200);
   const now = show.frame.pills[0];
-  assert.ok(now && now.alpha === 1 && now.dir !== was.dir);
+  assert.ok(now && now.alpha === 1 && now.above !== was.above);
   // (a move that keeps its side is the steady-card test's: cath-cards-steady.test.ts)
 });
 
-test('the stylesheet and the layer carry the 2D card: one glass shape, hairline, the tones, no opacity on the card', () => {
-  const css = readFileSync('src/scene/labels/labels.css', 'utf8'), dom = readFileSync('src/scene/labels/cath-dom.ts', 'utf8');
-  assert.match(dom, /clipPath = `path\('\$\{g\.d\}'\)`/, 'the glass is clipped from the one outline');
-  assert.match(css, /\.cl-glass path \{[^}]*stroke-width: 2/, 'a 2 px stroke clipped to the shape: 1 px shows');
+test('the stylesheet and the layer carry the tag: words only, the tones, no opacity on the tag', () => {
+  const css = readFileSync('src/scene/labels/labels.css', 'utf8');
   assert.match(css, /\.cl > \* \{ opacity: 0; \}/, 'opacity lives on the children');
-  assert.ok(!/\.cl[^{]*\{[^}]*(?<![-\w])opacity:/.test(css.replace(/\.cl > \* \{ opacity: 0; \}/, '').replace(/\.cl-(brace|leads?)[^{]*\{[^}]*\}/g, '').replace(/\.cl\[data-fig="[a-z]+"\][^{]*\.cl-(glass|ring)[^{]*\{ opacity: 0; \}/g, '').replace(/\.lb-layer \.cl:not\(\.cath-label\) > \.cl-glass[^{]*\{[^}]*\}/, '')), 'no opacity written on a card itself');
+  assert.match(css, /\.cl > small, \.cl > b, \.cl > span \{[^}]*-webkit-text-stroke: var\(--lb-halo-w\) var\(--lb-halo\)/, 'every word wears the labels\' halo');
   for (const t of ['free', 'wedge', 'ok', 'caution', 'danger']) assert.match(css, new RegExp(`\\.cl\\[data-tone="${t}"\\]`), `${t} has its ink`);
 });
 
 test('every look carries the ink of the free and wedged readings and the three bands; light and soft step toward the text, dark keeps the trace colour', () => {
   for (const l of LOOK_IDS) { const k = cathLook(l); for (const n of ['--cl-hv-ink', '--cl-wedge-ink', '--cl-ok-ink', '--cl-caution-ink', '--cl-danger-ink']) assert.ok(k[n], `${l} ${n}`); }
-  assert.match(cathLook('light')['--cl-hv-ink'], /62%/); assert.match(cathLook('soft')['--cl-hv-ink'], /55%/); assert.equal(cathLook('navy')['--cl-hv-ink'], 'var(--cl-hv)');
-  assert.ok(cathVars(vp)['--cl-pad']);
+  assert.match(cathLook('light')['--cl-hv-ink'], /60%/); assert.match(cathLook('soft')['--cl-hv-ink'], /54%/); assert.equal(cathLook('navy')['--cl-hv-ink'], 'var(--cl-hv)');
+  assert.ok(cathVars(vp)['--cl-air']);
 });
 
 test('the stack\'s order and leaders are the 2D planner\'s: the lower point\'s reading is the lower row, and no leader crosses another or the other row', async () => {
-  const { planLeaders, sumLayout, cathType } = await import('../src/scene/labels/cath.ts');
-  const t = cathType(vp), rd = (k: string, v: string, tone: 'free' | 'wedge') => ({ kicker: k, value: v, unit: 'mmHg', tone }) as const;
+  const { planLeaders, sumLayout, tagType } = await import('../src/scene/labels/cath.ts');
+  const t = tagType(vp), rd = (k: string, v: string, tone: 'free' | 'wedge') => ({ kicker: k, value: v, unit: 'mmHg', tone }) as const;
   const geom = sumLayout(t, [rd('WHVP', '16.5', 'wedge'), rd('FHVP', '5.0', 'free')], { kicker: 'HVPG', value: '11.5', unit: 'mmHg', tone: 'danger' }, measure, false, false);
   const tip: [number, number] = [500, 400], ahead: [number, number] = [540, 330];
   const p = planLeaders([700, 300], geom, [ahead, tip], false);
