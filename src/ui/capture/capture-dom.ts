@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { parseShadows, transformed, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { parseShadows, transformed, maskUrl, maskPlacement, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -16,6 +16,8 @@ const clear = (c: string) => !c || c === 'transparent' || /^rgba\(.*,\s*0\)$/.te
 const spin = (m: DOMMatrix) => Math.abs(m.b) > 1e-3 || Math.abs(m.c) > 1e-3;
 const SKIP = '.sh-toast, .lb-ghost, .lb-old, .lb-walk, .lb-sr, .lb-key-twin, .lb-key-probe, .lb-key-out, script, style, template, noscript, [data-capture-skip]';
 const SVG_SKIP = new Set(['defs', 'clippath', 'mask', 'symbol', 'pattern', 'marker', 'lineargradient', 'radialgradient', 'filter', 'style', 'title', 'desc', 'metadata', 'use', 'image', 'foreignobject']);
+/** Text kept for a screen reader (`clip: rect(0 0 0 0)`, `clip-path: inset(50%)`, the `.sr-only` rule): on the page but never seen, so never drawn. */
+const visuallyHidden = (cs: CSSStyleDeclaration): boolean => /^rect\(\s*0(px)?[ ,]+0(px)?[ ,]+0(px)?[ ,]+0(px)?\s*\)$/.test(cs.clip) || /^inset\(\s*50%/.test(cs.clipPath);
 const clipPathOf = (cs: CSSStyleDeclaration, r: DOMRect): Clip | undefined => { const m = cs.clipPath.match(/^path\(\s*["']?([\s\S]*?)["']?\s*\)$/); return m ? { d: m[1]!, x: r.left, y: r.top } : undefined; };
 
 /** The turn of an element's own transform or its nearest ancestor's (a FibroScan screen turns with its body), in radians. */
@@ -95,7 +97,7 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
   if (el.matches(SKIP)) return;
   if (el instanceof SVGElement) { if (el.tagName.toLowerCase() === 'svg' || el.ownerSVGElement) visitSvg(el, c, above, clips, pclip); return; }
   const cs = readStyle(el);
-  if (cs.display === 'none') return;
+  if (cs.display === 'none' || visuallyHidden(cs)) return;
   const alpha = above * (cs.opacity === '' ? 1 : num(cs.opacity));
   if (alpha < 0.02) return;
   const tm = cs.transform && cs.transform !== 'none' ? new DOMMatrix(cs.transform) : null;
@@ -130,7 +132,10 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
       const rad = radiusOf(cs, r, kk);
       const shadows = parseShadows(cs.boxShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk, spread: s.spread * kk }));
       if (shadows.length) c.out.push({ k: 'shadow', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, shadows, alpha, clips });
-      if (fill || (same && bT > 0 && colT)) c.out.push({ k: 'box', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, fill, bw: same && colT ? bT : 0, bc: same ? colT : '', alpha, clip: own, clips } as Paintable);
+      const mask = maskUrl(cs.getPropertyValue('-webkit-mask-image') || cs.getPropertyValue('mask-image'));
+      if (mask && typeof fill === 'string') {   // (an icon of the atlas: its colour seen through one cell of a picture)
+        c.out.push({ k: 'mask', x: r.left, y: r.top, w: r.width, h: r.height, url: mask, size: cs.getPropertyValue('-webkit-mask-size') || cs.getPropertyValue('mask-size'), pos: cs.getPropertyValue('-webkit-mask-position') || cs.getPropertyValue('mask-position'), color: fill, alpha, clips });
+      } else if (fill || (same && bT > 0 && colT)) c.out.push({ k: 'box', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, fill, bw: same && colT ? bT : 0, bc: same ? colT : '', alpha, clip: own, clips } as Paintable);
       if (!same) {   // (one rule on one side: a card's header line, a tab's underline)
         const side = (x: number, y: number, w: number, h: number, col: string) => { if (col && w > 0 && h > 0) c.out.push({ k: 'box', x, y, w, h, r: 0, fill: col, bw: 0, bc: '', alpha, clip: own, clips } as Paintable); };
         side(r.left, r.top, r.width, bT, colT); side(r.left, r.bottom - bB, r.width, bB, colB); side(r.left, r.top, bL, r.height, colL); side(r.right - bR, r.top, bR, r.height, colR);
@@ -144,6 +149,7 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
     // the element's own words, one word at a time, each where the browser put it (a card's wrapped lines, a tag's text), in the element's own font
     const ts = cs.textShadow !== 'none' ? parseShadows(cs.textShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk })) : [];
     const sw = num(cs.getPropertyValue('-webkit-text-stroke-width')) * kk, sc = cs.getPropertyValue('-webkit-text-stroke-color');
+    const spaced = cs.letterSpacing !== 'normal' && Math.abs(num(cs.letterSpacing)) > 0.01;
     let font = '', turn = -1;
     for (const n of el.childNodes) {
       if (n.nodeType !== 3) continue;
@@ -155,6 +161,18 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
       for (let w = word.exec(text); w; w = word.exec(text)) {
         const tr = readTextRects(n as Text, w.index, w.index + w[0].length)[0];
         if (!tr || tr.width <= 0) continue;
+        if (spaced) {
+          // letter-spaced words (the tracked capitals, a tight serif title) one letter at a time, each where the browser put it: the browser sets no ligatures between spaced letters,
+          // a canvas draws them (and may not take the spacing at all), so a whole word came out overprinted
+          let at = w.index;
+          for (const ch of w[0]) {
+            const cr = readTextRects(n as Text, at, at + ch.length)[0];
+            at += ch.length;
+            if (!cr || cr.width <= 0) continue;
+            c.out.push({ k: 'text', text: transformed(ch, cs.textTransform), x: cr.left, y: cr.top + cr.height / 2, w: cr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: 0, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+          }
+          continue;
+        }
         c.out.push({ k: 'text', text: transformed(w[0], cs.textTransform), x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
       }
     }
@@ -180,6 +198,19 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
     if (i.k === 'img') {
       g.globalAlpha = i.alpha;
       try { g.drawImage(i.src, i.x, i.y, i.w, i.h); } catch { /* a canvas that will not be read (lost context, tainted): left out */ }
+    } else if (i.k === 'mask') {
+      if (i.img) {
+        const nat = i.img as { naturalWidth?: number; naturalHeight?: number; width: number; height: number };
+        const p = maskPlacement(i.size, i.pos, { w: i.w, h: i.h }, { w: nat.naturalWidth || nat.width, h: nat.naturalHeight || nat.height });
+        const off = document.createElement('canvas'); off.width = Math.max(1, Math.ceil(i.w * s)); off.height = Math.max(1, Math.ceil(i.h * s));
+        const og = off.getContext('2d');
+        if (og) {
+          og.scale(s, s);
+          try { og.drawImage(i.img, p.x, p.y, p.w, p.h); } catch { /* a picture that will not be read: the icon is left out */ }
+          og.globalCompositeOperation = 'source-in'; og.fillStyle = i.color; og.fillRect(0, 0, i.w, i.h);
+          g.globalAlpha = i.alpha; g.drawImage(off, i.x, i.y, i.w, i.h);
+        }
+      }
     } else if (i.k === 'shadow') {
       for (const sh of i.shadows) {
         g.save();
@@ -207,4 +238,17 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
     }
     g.restore();
   }
+}
+
+/** Loads the pictures the masks use (once each; they are the page's own, already fetched), so the painter has them in hand. A picture that will not load leaves its icon out. */
+export async function loadMasks(items: ScreenItem[], wait: (ms: number) => Promise<void>): Promise<void> {
+  const urls = new Set<string>();
+  for (const i of items) if (i.k === 'mask') urls.add(i.url);
+  const got = new Map<string, HTMLImageElement | null>();
+  await Promise.all([...urls].map(async (u) => {
+    const img = new Image(); img.src = u;
+    const ok = await Promise.race([img.decode().then(() => true, () => false), wait(4000).then(() => false)]);
+    got.set(u, ok ? img : null);
+  }));
+  for (const i of items) if (i.k === 'mask') i.img = got.get(i.url) ?? null;
 }

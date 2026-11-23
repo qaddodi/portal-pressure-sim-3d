@@ -11,7 +11,9 @@ export interface Shadow { ox: number; oy: number; blur: number; spread: number; 
 export type ScreenItem =
   | (Item & { clips?: ClipRect[] })
   | { k: 'shadow'; x: number; y: number; w: number; h: number; r: number; shadows: Shadow[]; alpha: number; clips?: ClipRect[] }
-  | { k: 'img'; x: number; y: number; w: number; h: number; src: CanvasImageSource; alpha: number; clips?: ClipRect[] };
+  | { k: 'img'; x: number; y: number; w: number; h: number; src: CanvasImageSource; alpha: number; clips?: ClipRect[] }
+  /** an element painted through a mask image (the icon atlas: a colour seen through a cell of a picture); `img` is filled once the picture has loaded */
+  | { k: 'mask'; x: number; y: number; w: number; h: number; url: string; size: string; pos: string; color: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null };
 
 /** The commas of `s` that are not inside brackets split it. */
 export function splitTop(s: string): string[] {
@@ -35,6 +37,32 @@ export function parseShadows(css: string): Shadow[] {
     out.push({ ox: nums[0]!, oy: nums[1]!, blur: Math.max(0, nums[2] ?? 0), spread: nums[3] ?? 0, color: m[0] });
   }
   return out;
+}
+
+/** The url of a computed `mask-image` ("url("https://...")"), or null (none, a gradient). */
+export const maskUrl = (css: string): string | null => /^url\(\s*["']?(.*?)["']?\s*\)$/.exec((css || '').trim())?.[1] || null;
+
+/** Where a mask picture lands in its box (CSS `mask-size` and `mask-position`, no-repeat): `nat` is the picture's own size. */
+export function maskPlacement(size: string, pos: string, box: { w: number; h: number }, nat: { w: number; h: number }): { x: number; y: number; w: number; h: number } {
+  const toks = (v: string) => (v || '').match(/calc\([^)]*\)|\S+/g) ?? [];
+  const len = (t: string | undefined, of: number): number | null => {
+    if (!t || t === 'auto') return null;
+    const n = parseFloat(t.replace(/^calc\(/, ''));
+    return !Number.isFinite(n) ? null : /%/.test(t) ? (of * n) / 100 : n;
+  };
+  const st = toks(size);
+  let w: number, h: number;
+  if (st[0] === 'contain' || st[0] === 'cover') {
+    const k = (st[0] === 'contain' ? Math.min : Math.max)(box.w / (nat.w || 1), box.h / (nat.h || 1));
+    w = nat.w * k; h = nat.h * k;
+  } else {
+    const a = len(st[0], box.w), b = len(st[1], box.h);
+    w = a ?? (b != null ? (b * nat.w) / (nat.h || 1) : nat.w); h = b ?? (a != null ? (a * nat.h) / (nat.w || 1) : nat.h);
+  }
+  const KEY: Record<string, string> = { left: '0%', top: '0%', center: '50%', right: '100%', bottom: '100%' };
+  const pt = toks(pos).map((t) => KEY[t] ?? t);
+  const at = (t: string | undefined, space: number) => { if (!t) return space * 0.5; const n = parseFloat(t.replace(/^calc\(/, '')); return !Number.isFinite(n) ? 0 : /%/.test(t) ? (space * n) / 100 : n; };
+  return { x: at(pt[0], box.w - w) + 0, y: at(pt[1], box.h - h) + 0, w, h };
 }
 
 /** `text-transform` applied to a run of words (the canvas draws the characters, not the style). */

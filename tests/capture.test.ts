@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseShadows, splitTop, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
+import { parseShadows, splitTop, maskUrl, maskPlacement, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { pngWithText, readPngText, crc32, asciiJson } from '../src/ui/capture/png-text.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -120,4 +120,24 @@ test('the page walk keeps the rules: no raw time, no frame loop, every layout re
   const dom = src('src/ui/capture/capture-dom.ts');
   assert.ok(!/requestAnimationFrame|setTimeout|setInterval|performance\.now|Date\.now|getBoundingClientRect|getComputedStyle/.test(dom));
   assert.match(dom, /readBox/); assert.match(dom, /readTextRects/);
+});
+
+test('an icon of the atlas is its colour seen through one cell of the picture: the cell is found from the computed size and position', () => {
+  assert.equal(maskUrl('url("https://x.test/brand/icons/icons-r.png")'), 'https://x.test/brand/icons/icons-r.png');
+  assert.equal(maskUrl('none'), null);
+  assert.equal(maskUrl('linear-gradient(red, blue)'), null);
+  const box = { w: 24, h: 24 }, nat = { w: 960, h: 768 };
+  const p = maskPlacement('1000% 800%', '11.1111% 14.2857%', box, nat);   // (the atlas is 10 x 8 cells: cell 1 across, 1 down)
+  assert.equal(p.w, 240); assert.equal(p.h, 192);
+  assert.ok(Math.abs(p.x - -24) < 0.01 && Math.abs(p.y - -24) < 0.01, `the cell's corner is at the box's corner (${p.x}, ${p.y})`);
+  assert.deepEqual(maskPlacement('1000% 800%', '0% 0%', box, nat), { x: 0, y: 0, w: 240, h: 192 }, 'cell 0, 0');
+  assert.deepEqual(maskPlacement('contain', 'center', { w: 20, h: 10 }, { w: 40, h: 40 }), { x: 5, y: 0, w: 10, h: 10 }, 'contain, centred');
+  assert.deepEqual(maskPlacement('calc(100%) auto', 'calc(0%) calc(0%)', { w: 20, h: 10 }, { w: 40, h: 20 }), { x: 0, y: 0, w: 20, h: 10 }, 'one side auto keeps the shape');
+});
+
+test('what the page keeps for a screen reader is never drawn; letter-spaced words are drawn a letter at a time; the stamp is solid', () => {
+  const dom = src('src/ui/capture/capture-dom.ts'), cap = src('src/ui/capture/capture.ts');
+  assert.match(dom, /visuallyHidden\(cs\)/); assert.match(dom, /if \(spaced\)/); assert.match(dom, /loadMasks/);
+  assert.match(cap, /await loadMasks\(/);
+  assert.ok(!/globalAlpha = 0\.[0-9]/.test(cap), 'a translucent fill over a translucent halo came out as mush');
 });

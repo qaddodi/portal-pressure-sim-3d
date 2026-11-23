@@ -11,7 +11,7 @@ import { FEEDBACK_SHEET_MS } from '../shell/feedback.ts';
 import { feedbackBuild, commitOf } from '../../boot/release.ts';
 import { CAPTURE } from '../shell/words.ts';
 import { readBox, readStyle } from '../layout-snap.ts';
-import { readScreen, paintScreen } from './capture-dom.ts';
+import { readScreen, paintScreen, loadMasks } from './capture-dom.ts';
 import { captureScale, stampText, captureFileName, captureRecord, deliverWay } from './capture-model.ts';
 import { pngWithText, asciiJson } from './png-text.ts';
 
@@ -46,13 +46,16 @@ export async function composeScreen(at: Date): Promise<Made | null> {
   g.fillStyle = !bs.backgroundColor || bs.backgroundColor === 'transparent' || /,\s*0\)$/.test(bs.backgroundColor) ? (readStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff') : bs.backgroundColor;
   g.fillRect(0, 0, out.width, out.height);
   g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
-  paintScreen(g, readScreen(taken ? { x: taken.css.x, y: taken.css.y, w: taken.css.w, h: taken.css.h } : null, taken?.canvas ?? null), s);
-  // the stamp: small, in the lower right corner, with a halo of the ground so it reads over the figure and over a card
+  const items = readScreen(taken ? { x: taken.css.x, y: taken.css.y, w: taken.css.w, h: taken.css.h } : null, taken?.canvas ?? null);
+  await loadMasks(items, (ms) => new Promise<void>((ok) => clock.after(ok, ms)));
+  g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
+  paintScreen(g, items, s);
+  // the stamp: small, in the lower right corner, solid, with a thin halo of the ground so it reads over the figure and over a card
   g.setTransform(s, 0, 0, s, 0, 0);
-  g.font = `600 10px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+  g.globalAlpha = 1; g.font = `500 9px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
   const words = stampText(build, at), x = vp.w - 6, y = vp.h - 5;
-  g.lineJoin = 'round'; g.lineWidth = 3; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.globalAlpha = 0.85; g.strokeText(words, x, y);
-  g.fillStyle = bs.color; g.globalAlpha = 0.7; g.fillText(words, x, y);
+  g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.strokeText(words, x, y);
+  g.fillStyle = bs.color; g.fillText(words, x, y);
   const png = await new Promise<Blob | null>((ok) => out.toBlob(ok, 'image/png'));
   if (!png) return null;
   const bytes = pngWithText(new Uint8Array(await png.arrayBuffer()), 'portal-state', asciiJson(record));
