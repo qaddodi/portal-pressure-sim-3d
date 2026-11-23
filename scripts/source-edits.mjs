@@ -102,6 +102,10 @@ export const SOURCE_PATCHES = [
   APPEND('prehepatic', 'slides.carv.line', 'Then choose the anticoagulant by liver function: low-molecular-weight heparin or a vitamin K antagonist, or a DOAC in Child-Pugh A and with caution in B, not in C.'),
   P('prehepatic', 'slides.course.ask.1', 'not by the HVPG, which is unchanged.', 'not by the HVPG, which does not follow the thrombus.'),
   P('prehepatic', 'slides.cavernoma.line', 'Varices develop.', 'Varices develop: look for them with endoscopy and treat them as in cirrhosis, with a nonselective beta-blocker or band ligation.'),
+  // ---- the lobule's schistosomiasis slide (23 Nov 2026, Lobule deck review): the sinusoidal pressure there reads 9.4 to 9.5 mmHg, which the gauge rates High (9 and over, the sinusoids' own cut-off, table-marks.js RATE.sin),
+  //      so a title saying it "stays normal" contradicted the card beside it. The slide's point is the contrast with the portal vein (20 mmHg), and the words now say that. The speaker notes keep the teaching sentence. ----
+  P('lobule', 'slides.wedge-sinusoid.title', 'the sinusoidal pressure stays normal', 'the sinusoidal pressure stays well below the portal pressure'),
+  P('lobule', 'slides.wedge-sinusoid.line', 'keeps the sinusoidal pressure at {sin} while the portal pressure is high.', 'holds the sinusoidal pressure to {sin} while the portal pressure is {pv}.'),
 ];
 
 function step(node, key) {

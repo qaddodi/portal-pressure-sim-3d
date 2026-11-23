@@ -95,7 +95,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const asc = (r: ResolvedRow, n: number): Cell[] => {
     const pend = (k: string): Cell => ({ k, kind: 'pend', text: '', arrow: 0, rate: null, eff: null, miss: '', sr: 'calculating' });
     if (!r.f) return [pend('saag'), pend('tp')];
-    if ((r.f.asc ?? 0) < NO_ASC) return [{ k: 'saag', kind: 'none', text: 'None', arrow: 0, rate: null, eff: null, miss: '', sr: 'no ascites' }];
+    if ((r.f.asc ?? 0) < NO_ASC) return [{ k: 'saag', kind: 'none', text: 'No ascites', arrow: 0, rate: null, eff: null, miss: '', sr: 'no ascites' }];
     const hiS = saagPortal(r.f.saag), hiP = tpHigh(r.f.tp);
     if (isRef(r, n)) return [{ k: 'saag', kind: 'ref', text: fmt(r.f.saag, 1), arrow: 0, rate: hiS ? 'hi' : null, eff: null, miss: '', sr: `SAAG ${fmt(r.f.saag, 1)} g/dL` }, { k: 'tp', kind: 'ref', text: fmt(r.f.tp, 1), arrow: 0, rate: null, eff: null, miss: '', sr: `protein ${fmt(r.f.tp, 1)} g/dL` }];
     return [
@@ -120,7 +120,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const refTitle = first ? lcFirst(rows[0].title) : 'the baseline';
   const key = rel
     ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ by ≥40%; • unchanged${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
-    : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off';
+    : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off; • within normal';   // (the level dash is a cell's reading too: a legend that did not name it left the "–" in a row undefined)
   const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Top row: ${units.join(', ')}` : '', spec.foot || '']
     .filter(Boolean).map((x) => x.replace(/\.$/, '')).join('. ') + '.';
   return { cols: colModels, ascCols, rel, rows: rowModels, legend, rowHead: spec.rowHead || 'Level', noteHeads: notes };

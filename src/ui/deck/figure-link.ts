@@ -2,6 +2,7 @@
 // outlines, a spotlight, the cards of its marks, sites, steps and calipers, the Circuit's brackets (`span`), the Circuit's resistors, and the colours of a `since` lens counted from another slide's state. It reads the
 // copied 2D slide (copiedOf), works out its plan (figure-plan.ts) and the scene's calls (figure-calls.ts), and applies them; a slide change starts from nothing, so what the slide before
 // lit never stays. The shot, the lens and the catheter are scene-link.ts's; the station names' own placing is the labels'. Nothing here runs per frame but the glow sequence's clock system.
+import { setSlidePressures } from '../../scene/lobule/read-model.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { setLayer, clearLayer } from '../../scene/intent.ts';
 import { clock } from '../../clock/frame.ts';
@@ -68,7 +69,7 @@ export function linkFigure(): () => void {
 
   const sync = () => {
     const { stops, pos, deck } = useUi.getState();
-    let calls: FigureCalls = EMPTY_CALLS, since: ArrayLike<number> | null = null, next = '';
+    let calls: FigureCalls = EMPTY_CALLS, since: ArrayLike<number> | null = null, next = '', slideP: ArrayLike<number> | null = null;
     const stop = stops[pos.stop];
     if (deck && stop?.kind === 'slide') {
       const v = viewAt(stops, pos);
@@ -78,11 +79,13 @@ export function linkFigure(): () => void {
         const plan = figurePlan(copied);
         const reads = readsOf(deck.id, index, (copied as { action?: { kind?: string; site?: string } }).action);
         calls = figureCalls(plan, reads);
+        slideP = reads.fp?.at?.P ?? null;
         since = sinceP(deck.id, index, plan);
         // one signature for what the slide asks and the numbers its cards print: a repeat of either changes nothing
         next = `${deck.id}/${copied.id}|${JSON.stringify(calls)}|${since ? since.length : ''}`;
       }
     }
+    setSlidePressures(slideP);   // (the lobule's and the sinusoid's names print the slide's own pressures, as its cards do)
     if (next === key) return;
     const sameSlide = key.split('|')[0] === next.split('|')[0] && !!next;
     key = next;
@@ -101,5 +104,5 @@ export function linkFigure(): () => void {
   const off = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops || s.deck !== p.deck) sync(); });
   const offStates = useStates.subscribe(() => sync());
   const offLanded = onLanded(flush);
-  return () => { off(); offStates(); offLanded(); offClock(); stopSeq(); pending = null; apply(EMPTY_CALLS); clearLayer('talk'); };
+  return () => { off(); offStates(); offLanded(); offClock(); stopSeq(); pending = null; apply(EMPTY_CALLS); clearLayer('talk'); setSlidePressures(null); };
 }

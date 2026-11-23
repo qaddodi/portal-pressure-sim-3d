@@ -355,3 +355,6 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
    wide screen where the level rail names the level instead (the level tab is hidden there, app-04 `.pz-shade:not(.stack) .pz-sitetab[data-rail]`). The half tab of air under it stays: the card's top does not move. */
 .pz-tabname:has(~ .pz-sitetab:not([data-rail])) { display: none; }
 .pz-shade.stack .pz-tabname:has(~ .pz-sitetab[data-rail]) { display: none; }
+/* The summary table's legend arrows wear the colour their cells do (TableCard withArrows `rated`): one arrow past normal amber, two past the red cut-off red; below and level stay quiet. */
+.pz-table .pz-foot .pz-lg[data-rate="mid"] { color: var(--caution-ink); }
+.pz-table .pz-foot .pz-lg[data-rate="hi"] { color: var(--danger-ink); }

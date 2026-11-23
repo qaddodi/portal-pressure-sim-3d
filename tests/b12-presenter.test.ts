@@ -148,7 +148,7 @@ test('a summary table against normal: an arrow past the red cut-off is double an
   assert.equal(hv(1).arrow, 2); assert.equal(hv(1).rate, 'hi'); assert.equal(hv(1).text, '16.0', 'a gradient to one decimal');
   assert.equal(m.rows[1].cells[DEFAULT_COLS.indexOf('pv')].text, '21', 'a pressure in whole mmHg');
   assert.match(hv(1).sr, /^well above normal, 16\.0 mmHg$/);
-  assert.equal(m.rows[0].cells.at(-1)!.text, 'None', 'no ascites: None, one cell');
+  assert.equal(m.rows[0].cells.at(-1)!.text, 'No ascites', 'no ascites: one cell across SAAG and protein');
   assert.equal(m.rows[1].cells.at(-2)!.k, 'saag'); assert.equal(m.rows[1].cells.at(-2)!.arrow, 1, 'SAAG ≥ the portal cut: up');
   assert.match(m.legend, /↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off/);
   assert.ok(m.cols.every((c) => c.label === (COLS as Record<string, string>)[c.k] || ['saag', 'tp'].includes(c.k)));

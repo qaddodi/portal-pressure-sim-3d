@@ -6,6 +6,7 @@ import { Vector3 } from 'three';
 import '../labels/labels.css';
 import '../circuit/captions.css';
 import { clock } from '../../clock/frame.ts';
+import { readModel } from './read-model.ts';
 import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi, talkRects } from '../../ui/ui-store.ts';
@@ -20,6 +21,7 @@ import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { creditClaim } from '../labels/credit-claim.ts';
+import { calloutClaims } from '../labels/callout-claims.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 import { HandWatch } from '../labels/hand-watch.ts';
 
@@ -60,7 +62,9 @@ export function LobuleCaptions() {
     const view = (): Box => lobuleLabelView(useUi.getState().vp, BAR, cel.rig.targetRoom);
     const blockers = (): Box[] => {
       const out = talkRects(useUi.getState().boxes).map(rectToBox), note = footBlocker(useFootNote.getState().rect);
-      return note ? [...out, note, ...creditClaim.boxes] : [...out, ...creditClaim.boxes];   // (the foot note, while it shows: no name, reading or leader stands under it)
+      // (the foot note, while it shows: no name, reading or leader stands under it. The slide's callout ("Resistance") stands first, at the point the slide names, and the names keep off its words, as the Circuit's captions do: the words
+      //  of "Resistance" lay over "Hepatic arteriole" and its leader on slide 4.2, 23 Nov)
+      return note ? [...out, note, ...calloutClaims.boxes, ...creditClaim.boxes] : [...out, ...calloutClaims.boxes, ...creditClaim.boxes];
     };
 
     const make = (id: string, m: CapMeta): El => {
@@ -85,7 +89,7 @@ export function LobuleCaptions() {
     const solveNow = () => {
       const { vp } = useUi.getState();
       const level = useShell.getState().figure.labelLevel;
-      const m = cel.lobule.inkContext()?.model ?? null;
+      const m = readModel(cel.lobule.inkContext()?.model) ?? null;
       const L = cel.lobule.currentLayers;
       const vw = view(), bl = blockers();
       const ROOM = 64;   // (a tract takes the names only with room round it for them: the venule at least this far inside the view)
@@ -124,7 +128,7 @@ export function LobuleCaptions() {
 
     /** The readings as the model has them now, written in place into the names that stand (no solve, no fade): the numbers move with the pulse and the treatments, the places do not. */
     const refreshReadings = () => {
-      const m = cel.lobule.inkContext()?.model ?? null;
+      const m = readModel(cel.lobule.inkContext()?.model) ?? null;
       for (const [id, p] of placed) {
         const mt = metas.get(id), e = els.get(id);
         if (!mt || !e?.val) continue;
@@ -137,7 +141,7 @@ export function LobuleCaptions() {
     /** Everything that decides what the words say and where they may stand but the picture's place on the screen (a pan only carries them). */
     const layoutSig = (): string => {
       const { vp, boxes } = useUi.getState();
-      const L = cel.lobule.currentLayers, m = cel.lobule.inkContext()?.model;
+      const L = cel.lobule.currentLayers, m = readModel(cel.lobule.inkContext()?.model);
       return [vp.w, vp.h, L.zones, L.lymph, useShell.getState().figure.labelLevel, boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
         readingSig(m, onSlide()), onSlide()].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
@@ -205,8 +209,9 @@ export function LobuleCaptions() {
     const offShell = useShell.subscribe(wake);
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
     const offFoot = useFootNote.subscribe(wake);
+    const offClaims = calloutClaims.subscribe(wake);
     void document.fonts?.ready.then(refont);
-    return () => { off(); offShell(); offUi(); offUi2(); offFoot(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
+    return () => { off(); offShell(); offUi(); offUi2(); offFoot(); offClaims(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;

@@ -2,7 +2,7 @@
 // (its site's heading over its name), and in each cell the arrow against normal (or against the row it is compared with) in the colour that goes with it, and no number: the numbers are
 // the reference row's (the anchor for the arrows) and the words a screen reader and a long press hear. On a phone each row is one line of a grid (css2d: `.pz-table tr`). Every cell is computed by
 // table-model.ts from the 2D app's own cut-offs. A row's finding (its `note`) is one quiet line under its name, never a row of its own (the approved one-line-per-case layout, docs/approved/comparison-table.md). A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
@@ -18,7 +18,11 @@ export const Arrow = ({ n }: { n: number }) => {
 };
 const None = () => <span className="pz-nm" aria-hidden="true" />;
 /** A legend line with its symbols drawn as the table's own (2D withArrows): arrows, the dash and the ring. */
-export const withArrows = (t: string) => t.split(/(↑↑|↓↓|↑|↓|•|○)/).map((x, i) => (x === '↑↑' ? <Arrow key={i} n={2} /> : x === '↓↓' ? <Arrow key={i} n={-2} /> : x === '↑' ? <Arrow key={i} n={1} /> : x === '↓' ? <Arrow key={i} n={-1} /> : x === '•' ? <Arrow key={i} n={0} /> : x === '○' ? <None key={i} /> : x));
+/** `rated`: the table's cells are rated against normal (not against a row), so a legend arrow wears the colour its cells do: one arrow past normal amber, two past the red cut-off red, below and level quiet (the cells' `data-rate`). */
+export const withArrows = (t: string, rated = false) => t.split(/(↑↑|↓↓|↑|↓|•|○)/).map((x, i) => {
+  const tone = (r: 'mid' | 'hi' | null, el: ReactNode) => (rated && r ? <span key={i} className="pz-lg" data-rate={r}>{el}</span> : el);
+  return x === '↑↑' ? tone('hi', <Arrow key={i} n={2} />) : x === '↓↓' ? tone('hi', <Arrow key={i} n={-2} />) : x === '↑' ? tone('mid', <Arrow key={i} n={1} />) : x === '↓' ? <Arrow key={i} n={-1} /> : x === '•' ? <Arrow key={i} n={0} /> : x === '○' ? <None key={i} /> : x;
+});
 
 /** "114/68 (83)" with a place to break after the slash: on a phone its column (a seventh of the row) is narrower than "114/68" itself, and a word that cannot break runs into the next cell. */
 export const bpBreaks = (t: string) => t.split('/').flatMap((x, i) => (i ? [<wbr key={i} />, '/' + x] : [x]));
@@ -32,7 +36,7 @@ function Td({ c }: { c: Cell }) {
     case 'pend': return <td className="num pend" aria-busy="true"><span className="dk-tpend" aria-hidden="true" /><span className="sr-only">calculating</span></td>;
     case 'blank': return <td className="num blank" title={c.sr}><None /><span className="sr-only">{c.sr}</span></td>;
     case 'removed': return <td className="num none">Removed</td>;
-    case 'none': return <td className="num none" colSpan={2}>None</td>;
+    case 'none': return <td className="num none" colSpan={2}>{c.text}</td>;   // ("No ascites" across the SAAG and protein columns it stands for: a bare "None" read as the value of one of them)
     case 'ref': return <td className={c.k === 'map' ? 'num ref bp' : 'num ref'} data-rate={c.rate ?? undefined}>{c.k === 'map' ? bpBreaks(c.text) : c.text}<span className="sr-only">{c.sr}</span></td>;
     default: return (
       <td className={`num dir${c.k === 'map' ? ' bp' : ''}${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
@@ -113,7 +117,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
           })}
         </tbody>
       </table>
-      <p className="pz-foot dk-tfoot">{withArrows(model.legend)}{cut ? <span className="pz-cutl" role="status"><b>{cut.label}: </b>{withArrows(cut.text.replace(/\.?$/, '.'))}</span> : null}</p>
+      <p className="pz-foot dk-tfoot">{withArrows(model.legend, !model.rel)}{cut ? <span className="pz-cutl" role="status"><b>{cut.label}: </b>{withArrows(cut.text.replace(/\.?$/, '.'))}</span> : null}</p>
     </div>
   );
 }

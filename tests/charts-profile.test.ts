@@ -403,3 +403,26 @@ test('the HVPG and PPG glide to a new patient: midway the printed values are bet
   const texts = profileFrame(planB, v, ctxOf('light', 400)).shapes.filter((x) => x.k === 'text').map((x) => (x as { s: string }).s);
   assert.ok(texts.includes(gap1(mid.hvpg!)) && !texts.includes(gap1(b.hvpg)), `the bracket prints the eased value ${gap1(mid.hvpg!)}: ${texts.join('|')}`);
 });
+
+// Lobule deck review, 23 Nov (slide 8): the Gut's reading "23" stood at the left edge over the last letters of "mmHg", and every reading wore a 4 px halo of the card's opaque colour that closed
+// into one dark pill ("dark chips on every number"). The unit steps clear of every reading, and a halo on this chart is an outline.
+test('the unit stands clear of every reading, and the words wear an outline halo, never a chip', async () => {
+  const { measure } = await import('../src/ui/charts/measure.ts');
+  const { OUTLINE_W } = await import('../src/ui/charts/profile/frame.ts');
+  const healthy = profileOf(await fpOf('healthy'))!;
+  for (const id of ['healthy', 'schisto', 'csph', 'cirr-decomp', 'pvt-chronic']) {
+    const p = profileOf(await fpOf(id))!;
+    for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop'], [430, 'tablet-portrait'], [720, 'desktop']] as const) {
+      const c = ctxOf('dark', w, d), f = Math.max(12, c.type.sm), plan = planProfile(w, 0, f, goalOf(p, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
+      const texts = fr.shapes.filter((s): s is TextShape => s.k === 'text');
+      const unit = texts.find((s) => s.s === 'mmHg')!;
+      const ub = { x0: unit.x, x1: unit.x + measure('mmHg', unit.size, unit.weight ?? 500), y0: unit.y - 0.76 * unit.size, y1: unit.y + 0.24 * unit.size };
+      for (const t of texts) {
+        if (t === unit || !/^−?\d+$/.test(t.s) || t.anchor !== 'middle' || !t.halo) continue;   // (the readings on their dots)
+        const hw = measure(t.s, t.size, t.weight ?? 700) / 2, b = { x0: t.x - hw, x1: t.x + hw, y0: t.y - 0.76 * t.size, y1: t.y + 0.24 * t.size };
+        assert.ok(b.x1 <= ub.x0 || b.x0 >= ub.x1 || b.y1 <= ub.y0 || b.y0 >= ub.y1, `${id} ${w}: the reading ${t.s} lies over the unit`);
+      }
+      for (const t of texts) if (t.halo) assert.ok(t.halo.w <= OUTLINE_W + 1e-9, `${id} ${w}: "${t.s}" has a ${t.halo.w} px halo (an outline is at most ${OUTLINE_W})`);
+    }
+  }
+});

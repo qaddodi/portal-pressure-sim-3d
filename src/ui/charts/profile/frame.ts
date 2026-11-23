@@ -36,8 +36,16 @@ export function profileLooks(c: ChartCtx, f: number, cell?: CellOpts | null) {
   };
 }
 
-const text = (x: number, y: number, s: string, k: Look, o: Partial<TextShape> = {}): TextShape =>
-  ({ k: 'text', x, y, s, size: k.size!, weight: k.weight, color: k.fill!, anchor: 'middle', ...(k.halo ? { halo: k.halo } : {}), ...o });
+/** A word's halo on this chart is an outline, never a chip: the 2D look's 4 px stroke of the card's opaque colour closed the gap between two digits into one solid pill, darker than the glass and
+ *  tints behind it ("dark chips on every number", Lobule deck review 23 Nov; Mohammad: chart words get an outline, never a box). Capped so a halo reaches about 1.25 px past the letters. */
+export const OUTLINE_W = 2.5;
+const outline = (h: TextShape['halo']): TextShape['halo'] => (h ? { ...h, w: Math.min(h.w, OUTLINE_W) } : undefined);
+const text = (x: number, y: number, s: string, k: Look, o: Partial<TextShape> = {}): TextShape => {
+  const t: TextShape = { k: 'text', x, y, s, size: k.size!, weight: k.weight, color: k.fill!, anchor: 'middle', ...(k.halo ? { halo: k.halo } : {}), ...o };
+  const h = outline(t.halo);
+  if (h) t.halo = h;
+  return t;
+};
 
 /** The frame of `plan` as `view` shows it (a moment of a glide, or the chart at rest: restView). */
 /** Where the unit's baseline goes: just over the top gridline's number (the smallest y of the gridlines, less a line of the type). */
@@ -65,8 +73,16 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
   shapes.push({ k: 'unclip' });
   // The unit's words ("mmHg", at the left edge over the top gridline's number) and the box they take: a zone's name that would be set over them stands clear of them instead (the first zone's "HEPATIC"
   // reached left into the unit on a card under about 340 px, and on any card when the names took two lines: they were printed over each other).
-  const unitL = lk('plot.unit'), unitY = profileUnitY(gridOf(G, f, top).map((g) => g.y), f);
-  const unitBox = { x1: measure('mmHg', unitL.size!, unitL.weight ?? 500), y0: unitY - 0.76 * unitL.size!, y1: unitY + 0.24 * unitL.size! };
+  const unitL = lk('plot.unit'), unitW = measure('mmHg', unitL.size!, unitL.weight ?? 500);
+  // (and clear of every reading: the Gut's stands at the left edge, and its "23" (a reading above the top gridline) was set over the unit's last letters. A reading that meets the unit's box sends the unit up, to just over it.)
+  const holes = holesOf(G, f, tw, py, sh.v);
+  let unitY = profileUnitY(gridOf(G, f, top).map((g) => g.y), f);
+  for (let again = 0; again < NS; again++) {
+    const hit = holes.find(([a, , c, d]) => a < unitW + 2 && c < unitY + 0.24 * unitL.size! + 1 && d > unitY - 0.76 * unitL.size! - 1);
+    if (!hit) break;
+    unitY = hit[2] - 0.24 * unitL.size! - 2;
+  }
+  const unitBox = { x1: unitW, y0: unitY - 0.76 * unitL.size!, y1: unitY + 0.24 * unitL.size! };
   if (G.zone.lines) {
     const tk = lk('prof.zone.text'), size0 = zf < f - 0.01 ? zf : f, lsp = G.zone.tight ? 0 : 0.06;
     const names = zs.map(([a, b], k) => { const ls: string[] = zoneLines(k, G.zone.lines); return { ls, m: (G.x(a) + G.x(b)) / 2, tw: Math.max(...ls.map((t) => measure(t, size0, tk.weight ?? 500) + lsp * size0 * t.length)) }; });
@@ -111,7 +127,6 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
   }
 
   // The lines stop NUM_PAD px short of each reading: cut where they enter and leave its box.
-  const holes = holesOf(G, f, tw, py, sh.v);
   const dashed = (p: Prof | null, key: string) => {
     if (!p) return;
     const k = lk(key), hy = p.v.map((v) => yOf(G, top, v));
@@ -149,7 +164,7 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     const pen = { color: fade(bp.stroke, view.brk)!, w: bp.width ?? 1.5 };
     for (const t of g.ticks) shapes.push({ k: 'path', pts: t, pen });
     for (const t of g.bar) shapes.push({ k: 'path', pts: t, pen });
-    const halo = bt.halo ? { color: fade(bt.halo.color, view.brk)!, w: bt.halo.w } : undefined, val = gap1(v);
+    const halo = bt.halo ? { color: fade(bt.halo.color, view.brk)!, w: Math.min(bt.halo.w, OUTLINE_W) } : undefined, val = gap1(v);
     const part = (x: number, y: number, s: string, k: Look, anchor: 'start' | 'middle'): TextShape =>
       ({ k: 'text', x, y, s, size: g.fs < f - 0.01 ? g.fs : f, weight: k.weight, color: fade(k.fill, view.brk)!, anchor, ...(halo ? { halo } : {}) });
     if (g.stack) {
@@ -170,7 +185,7 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
       const at = view.pills![k];
       if (!at) return;
       const v = shownOf[key]!, rate = RATE_OF[key]!(v), tk = lk('prof.pill.text', { rate }), kk = lk('prof.pill.k'), bt = lk('prof.br.text', { rate });
-      const halo = bt.halo ? { color: fade(bt.halo.color, a)!, w: bt.halo.w } : undefined;
+      const halo = bt.halo ? { color: fade(bt.halo.color, a)!, w: Math.min(bt.halo.w, OUTLINE_W) } : undefined;
       const val = gap1(v), nw = measure(`${name} `, f, kk.weight ?? 600), vw = measure(val, f, tk.weight ?? 700), x = at.x + ps.w[k]! / 2 - (nw + vw) / 2, y = at.y + ps.h / 2 + 0.36 * f;
       shapes.push({ k: 'text', x, y, s: `${name} `, size: tk.size!, weight: kk.weight, color: fade(tk.fill, a)!, anchor: 'start', ...(halo ? { halo } : {}) });
       shapes.push({ k: 'text', x: x + nw, y, s: val, size: tk.size!, weight: tk.weight, color: fade(tk.fill, a)!, anchor: 'start', ...(halo ? { halo } : {}) });

@@ -7,6 +7,7 @@ import '../labels/labels.css';
 import '../circuit/captions.css';
 import './names.css';
 import { clock } from '../../clock/frame.ts';
+import { readModel } from '../lobule/read-model.ts';
 import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi } from '../../ui/ui-store.ts';
@@ -125,7 +126,7 @@ export function SinusoidCaptions() {
     const solveNow = () => {
       const { vp } = useUi.getState();
       const level = useShell.getState().figure.labelLevel;
-      const m = cel.lobule.inkContext()?.model ?? null;
+      const m = readModel(cel.lobule.inkContext()?.model) ?? null;
       const st = useSinusoidNames.getState();
       const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
       const built = buildSinusoidNames({
@@ -144,7 +145,7 @@ export function SinusoidCaptions() {
 
     /** The readings as the model has them now, written in place into the names that stand (no solve, no jump): the numbers move with the pulse and the treatments, the places do not. */
     const refreshReadings = () => {
-      const m = cel.lobule.inkContext()?.model, cm = m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null;
+      const m = readModel(cel.lobule.inkContext()?.model), cm = m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null;
       for (const p of placed) {
         const v = readingOf(p.key, cm, cel.sinus.porosity, cel.sinus.isPortrait);
         if (v === null || v === p.value || !p.value) continue;
@@ -165,7 +166,7 @@ export function SinusoidCaptions() {
       const still = on && now - lastMove >= SETTLE_MS;
       if (still) {
         const { vp } = useUi.getState(), st = useSinusoidNames.getState();
-        const m = cel.lobule.inkContext()?.model;
+        const m = readModel(cel.lobule.inkContext()?.model);
         const fr = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
         const s = [vp.w, vp.h, refs, cel.sinus.isPortrait, useShell.getState().figure.labelLevel, [fr.l, fr.t, fr.r, fr.b].join(','), lookRef.current, st.explain, [...st.lit].join(' '),
           Math.round(cel.sinus.porosity * 100), readingsSig(m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null)].join('|');
