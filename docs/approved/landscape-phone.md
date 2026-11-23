@@ -1,16 +1,18 @@
-# Landscape phone: side columns (an iPhone held sideways, 23 Nov 2026)
+# Landscape phone: one card column, swipe up and down (an iPhone held sideways, 23 Nov 2026)
 
-Approved look: **Mock 1, then "A + 1"** (`/mnt/project-files/landscape-phone-mocks/01-both-open-trials.png`, `02-instrument-tucked-trials.png`, `03-chart-slide-*.png`, `05-copyright-and-pill-placement.png`). Mohammad: "Mock 1 yes", then picked handle A and copyright spot 1.
+Approved look: **the one-column mock** (`/mnt/project-files/landscape-phone-mocks/07-column-swipe-sheet.png`, frames `07-column-1-teaching-in-view.png`, `-2-mid-swipe.png`, `-3-instrument-in-view.png`). Mohammad, 23 Nov: "yes, good. let's do it".
+It replaces the side-column layout (a4cb17c1; mocks 01 to 05), which he "kinda hated".
 Complaint it answers: held sideways, the slide card covered 60 to 70 % of the screen, the PRESSURES drawer sat on the copyright, and some slides showed no card.
 
 Traits (keep every one):
-- Two cards on opposite sides, the figure between them. The story (words) card is the left column, the instrument (data) card the right one. Same height, top 12 px, foot on the home-bar line; each 27 % of the screen wide (220 to 260 px, `sideColW`). One width: a card never widens, a long card pages.
-- Tuck like the upright phone's up and down, along x: a swipe right on the instrument slides it away to a 30 px strip at the right edge; a swipe left on the strip (or a tap on it) brings it back. The figure takes the room it left, and the pill follows the figure's column.
-- The handle is the strip, not a tab: the card's whole height, a grip bar, and its name turned to read down it, "PRESSURES · HVPG 6.1" (the instrument's own name and its live reading, as the upright drawer's).
-- The copyright stands in the foot of the words card, one line centred, as upright (`.pz-cred`). The floating copyright fades while a card stands on its row (`Credit.tsx`, `footClear`); no drawer ever stands on it.
-- The pill (Back, Next, step) is the 32 px phone pill, at the foot of the figure column; it eases to the new column when the instrument tucks. A slide with one card (a table) keeps it centred and the pill to its right.
-- A swipe sideways anywhere else still moves the talk. Type: title 20, body 13.5, small words 12, numbers 26 px; text never shrinks to fit, a long card pages.
+- Both cards stand in ONE column at the left safe edge, `sideColW` wide (32 % of the screen, 250 to 310 px), 12 px apart. The words (teaching) card is centred top to bottom. The instrument card stands under it and bleeds off the screen's foot, its top edge showing (at least 36 px).
+- A swipe up anywhere on the slide (not on a control) slides BOTH cards up together, following the finger, until the instrument card is centred; the words card then bleeds off the top, its foot showing. A swipe down brings them back. A tap on the card that peeks does the same. The key that swaps the cards does it too. A new slide always starts on its words card.
+- Sideways swipes still move the talk. The figure fills the rest of the screen to the right and does not move when the column slides; the pill stands at the foot of the figure's column, centred in it.
+- Neither card is ever taller than leaves the other 36 px showing (`maxH` = screen height less 2 x (36 + 12)); a taller one pages (never shrinks, never scrolls).
+- The copyright is in the foot of the words card, one 12 px line centred (so it slides away with that card); the floating copyright fades while a card stands on its row.
+- No strip, no handle, no tab, no badge. The peeking edge of the other card is the only hint.
+- The pill is the 32 px phone pill (Back, count, Next, settings, Exit). A slide with one card (a table) keeps it centred in the room; a slide with a lone words card stands it at the left, centred.
+- Type: title 20, body 13.5, small words 12, numbers 26 px; text never shrinks to fit; card padding 16 px.
 
-Rejected: the 2D-style wallet (one wide card in front, the other a 48 px strip at the foot); a tab-only handle (02b); the copyright in the free strip or hidden.
-Known deviations from the mock (told to Mohammad): the mock's 52 px insets are the real safe areas in code; the table panel's width is the room left by the pill, not the mock's fixed 496.
-Tests: `tests/landscape-phone-plan.test.ts`, `tests/ui-layout.test.ts`, `tests/credit-clear-of-drawer.test.ts`, `tests/deck-phone-chrome.test.ts`.
+Rejected: side columns with a swipe-right tuck and a strip handle (a4cb17c1); the 2D-style wallet (one wide card, the other a 48 px strip); the copyright in the free strip or hidden.
+Tests: `tests/landscape-phone-plan.test.ts`, `tests/ui-layout.test.ts`, `tests/credit-clear-of-drawer.test.ts`, `tests/deck-phone-chrome.test.ts`, `tests/deck-pair-centred.test.ts`.

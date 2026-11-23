@@ -149,10 +149,10 @@ export const useUi = create<UiState>((set, get) => ({
     set({ vp, device: deviceClass(vp.w, vp.h) });
   },
 
-  // (the key that swaps the cards brings a docked card back first; on a phone on its side there is no wallet: the key tucks the instrument, or brings it back)
+  // (the key that swaps the cards brings a docked card back first; on a phone on its side there is no wallet: the key slides the card column, the instrument or the words to the middle)
   swapWallet: () => {
     const s = get();
-    if (isSideways(s.vp.w, s.vp.h)) { if (s.dockShown) set({ docked: false }); else if (s.boxes.data) set({ docked: true }); return; }
+    if (isSideways(s.vp.w, s.vp.h)) { if (s.boxes.data) set({ docked: !s.docked }); return; }   // (the card column slides: the key brings the other card to the middle)
     set(s.dockShown ? { docked: false } : { wallet: walletSwap(s.wallet) });
   },
   docked: false,
@@ -175,7 +175,7 @@ export const useUi = create<UiState>((set, get) => ({
     const bars = [plan.bar?.rect].filter((r): r is Rect => !!r);
     const b = get().boxes;
     if (sameRect(b.words, words) && sameRect(b.data, data) && sameRect(b.strip, strip) && b.bars.length === bars.length
-      && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && b.stop === stop && b.sidePill === plan.sidePill && get().dockShown === plan.docked) return;
-    set({ boxes: { words, data, strip, bars, free: plan.free, stop, sidePill: plan.sidePill }, dockShown: plan.docked });
+      && bars.every((r, i) => sameRect(b.bars[i]!, r)) && sameRect(b.free, plan.free) && b.stop === stop && b.sidePill === plan.sidePill && get().dockShown === (plan.docked || plan.scrolled)) return;
+    set({ boxes: { words, data, strip, bars, free: plan.free, stop, sidePill: plan.sidePill }, dockShown: plan.docked || plan.scrolled });
   },
 }));

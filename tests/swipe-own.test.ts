@@ -22,7 +22,7 @@ test('the sideways recogniser listens on the window for touches (the figure, eit
   const dock = readFileSync(new URL('../src/ui/cards/useDockSwipe.ts', import.meta.url), 'utf8');
   assert.match(card, /window\.addEventListener\(n, h as EventListener, \{ capture: true/);
   assert.match(card, /axisOf\(g\.id, dx, dy\) !== 'x'/);
-  assert.match(dock, /axisOf\(g\.id, dx, dy\) !== \(X \? 'x' : 'y'\)/, 'the dock asks the axis it was given: y upright, x on its side');
+  assert.match(dock, /axisOf\(g\.id, dx, dy\) !== 'y'/);
   assert.match(card, /isPrimary/, 'a second finger gives the swipe up');
 });
 

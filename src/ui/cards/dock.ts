@@ -14,10 +14,8 @@ const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 export const closedPx = (h: number): number => Math.max(0, h - GRIP);
 /** How much of the card's words show at a level (2D dockShows: whole until it is two thirds shut, then gone by the time it is). */
 export const shows = (lvl: number): number => clamp((1 - lvl) / 0.35, 0, 1);
-/** Which way the card goes to its closed place: up on a phone or an upright iPad, to the right on a phone on its side (docs/approved/landscape-phone.md). */
-export type DockAxis = 'y' | 'x';
 /** The card's translate at a level. */
-export const translateAt = (lvl: number, px: number, axis: DockAxis = 'y'): string => (axis === 'x' ? `${(lvl * px).toFixed(2)}px 0` : `0 ${(-lvl * px).toFixed(2)}px`);
+export const translateAt = (lvl: number, px: number): string => `0 ${(-lvl * px).toFixed(2)}px`;
 /** Where a let-go goes: closed (1) or open (0). `v` is the finger's speed in px/ms (up is negative). */
 export function settleOf(lvl: number, v: number): 0 | 1 {
   if (Math.abs(v) > FLICK) return v < 0 ? 1 : 0;
@@ -28,20 +26,20 @@ interface Styled { style: { setProperty(n: string, v: string, p?: string): void;
 interface Run { from: number; to: number; elapsed: number; ms: number; done: () => void }
 
 export function createDock(clock: Clock = theClock) {
-  let pos: Styled | null = null, inner: Styled | null = null, px = 0, axis: DockAxis = 'y', lvl = 0, run: Run | null = null, hold: Hold | null = null, off: (() => void) | null = null;
+  let pos: Styled | null = null, inner: Styled | null = null, also: Styled[] = [], px = 0, lvl = 0, run: Run | null = null, hold: Hold | null = null, off: (() => void) | null = null;
   /** Told when a glide sets off (where it goes, how long it takes): the figure's camera sets off on the same clock (2D presenter-zoom.js dockTo: `layout()` then `reframe(ms)` as the glide starts). */
   let onGlide: ((to: 0 | 1, ms: number) => void) | null = null;
   const paint = () => {
     if (!pos) return;
     pos.style.setProperty('transition', 'none', 'important');
-    pos.style.setProperty('translate', translateAt(lvl, px, axis));
-    // (on its side the card slides under its strip and is gone by the time it lands: only the strip stays at the screen's edge, the rest of the card is not left standing beside it)
-    if (axis === 'x') pos.style.setProperty('opacity', (1 - clamp((lvl - 0.85) / 0.15, 0, 1)).toFixed(3));
+    pos.style.setProperty('translate', translateAt(lvl, px));
+    for (const a of also) { a.style.setProperty('transition', 'none', 'important'); a.style.setProperty('translate', translateAt(lvl, px)); }   // (a phone on its side: the whole card column moves as one)
     if (inner) { inner.style.setProperty('transition', 'none', 'important'); inner.style.setProperty('opacity', shows(lvl).toFixed(3)); }
   };
   const rest = () => {   // (at the open place nothing is left written: the card is as the layout has it)
     if (!pos) return;
-    pos.style.removeProperty('transition'); pos.style.removeProperty('translate'); pos.style.removeProperty('opacity');
+    pos.style.removeProperty('transition'); pos.style.removeProperty('translate');
+    for (const a of also) { a.style.removeProperty('transition'); a.style.removeProperty('translate'); }
     if (inner) { inner.style.removeProperty('transition'); inner.style.removeProperty('opacity'); }
   };
   const stop = () => { hold?.release(); hold = null; off?.(); off = null; };
@@ -60,13 +58,13 @@ export function createDock(clock: Clock = theClock) {
     get lvl() { return lvl; },
     get running() { return !!run; },
     /** Takes a card in hand at a level (a run in progress is taken from where it is). */
-    begin(els: { pos: Styled; inner: Styled | null }, closed: number, at: number, along: DockAxis = 'y') {
+    begin(els: { pos: Styled; inner: Styled | null; also?: Styled[] }, closed: number, at: number) {
       if (run) { run = null; stop(); }
-      pos = els.pos; inner = els.inner; px = closed; axis = along; lvl = clamp(at, 0, 1);
+      pos = els.pos; inner = els.inner; also = els.also ?? []; px = closed; lvl = clamp(at, 0, 1);
       paint();
     },
-    /** The finger has moved `dy` px since the drag began (down positive; on its side, `dx`, right positive). */
-    move(dy: number, lvl0: number) { if (!pos || !(px > 0)) return; lvl = clamp(lvl0 + (axis === 'x' ? dy : -dy) / px, 0, 1); paint(); },   // (up, a negative dy, shuts it; to the right, on its side)
+    /** The finger has moved `dy` px since the drag began (down positive). */
+    move(dy: number, lvl0: number) { if (!pos || !(px > 0)) return; lvl = clamp(lvl0 - dy / px, 0, 1); paint(); },   // (up, a negative dy, shuts it)
     /** Glides to 0 or 1 (at once under reduced motion), then `done`. */
     glide(to: 0 | 1, ms: number, done: () => void, reduce = false) {
       if (!pos) { done(); return; }
@@ -78,7 +76,7 @@ export function createDock(clock: Clock = theClock) {
     },
     set onGlide(fn: ((to: 0 | 1, ms: number) => void) | null) { onGlide = fn; },
     /** Lets go of the card (its layout took over). */
-    release() { if (run) { run = null; stop(); } pos = null; inner = null; },
+    release() { if (run) { run = null; stop(); } pos = null; inner = null; also = []; },
   };
 }
 

@@ -7,7 +7,7 @@
 //   - iPad upright: left of the nav pill at the card's left (15 % + 13 px), 29 px from the foot; too long for the room beside the pill, a row above it (73 px).
 // Pure: node judges it on every screen.
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
-import { barOf, footDrop, credRow, footReserve } from '../../ui/layout/plan.ts';
+import { barOf, sideBox, footDrop, credRow, footReserve } from '../../ui/layout/plan.ts';
 import { cardPad, clamp, isSideways, layoutOf, pzh } from '../../ui/layout/rules2d.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { hits, type Box } from './geometry.ts';
@@ -106,13 +106,10 @@ export function dockKey(i: DockIn): Dock {
     return { box: { x0: right - s.w, y0: bar.y - gap - s.h, x1: right, y1: bar.y - gap }, wrap, minH: 0, at: 'over-pill', short: false };
   };
   const one = make(natural.w, natural.h, GAP_ABOVE_PILL, null);
-  const card = i.words;
-  if (side && card) {
-    const c: Box = { x0: card.x, y0: card.y, x1: card.x + card.w, y1: card.y + card.h };
-    if (hits(one.box, { x0: c.x0 - CARD_GAP, y0: c.y0 - CARD_GAP, x1: c.x1 + CARD_GAP, y1: c.y1 + CARD_GAP })) {
-      const room = Math.floor(right - c.x1 - BESIDE_GAP);
-      if (room > 0) return make(Math.min(natural.w, room), natural.h * Math.ceil(natural.w / room), GAP_ABOVE_PILL_SIDE, room);
-    }
+  if (side) {
+    // a phone on its side: the card column (the words and, under them, the instrument) stands at the left whatever slide it is, so the key never reaches into it (landscape-phone.md)
+    const colR = sideBox(vp).colR, room = Math.floor(right - colR - BESIDE_GAP);
+    if (one.box.x0 < colR + BESIDE_GAP && room > 0) return make(Math.min(natural.w, room), natural.h * Math.ceil(natural.w / room), GAP_ABOVE_PILL_SIDE, room);
   }
   return one;
 }

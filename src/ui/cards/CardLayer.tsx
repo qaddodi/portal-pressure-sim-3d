@@ -4,12 +4,12 @@ import { useUi, atEnd } from '../ui-store.ts';
 import { dock } from './dock.ts';
 import { finishTalk } from './finish.ts';
 import { dataKeys } from './keep.ts';
-import { useDockSwipe, openDock, justDocked } from './useDockSwipe.ts';
+import { useDockSwipe, openDock, goColumn, justDocked } from './useDockSwipe.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
 import { pairSteps, stepVars, dataFitOf, type PairBase } from './pair-ladder.ts';
 import { planLayout, widthOf, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
-import { layoutOf } from '../layout/rules2d.ts';
+import { layoutOf, isSideways } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
 import type { Entry, Wanted } from './stack.ts';
@@ -134,7 +134,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const dataShown = plan.cards.find((c) => c.slot === 'data') ?? (plan.tucked && view?.data ? { id: view.data, slot: 'data' as const, rect: plan.tucked } : undefined);
   const wordsWanted: Wanted | null = view && wordsShown ? { key: wordsKey, id: view.words } : null;
   const dataWanted: Wanted | null = view?.data && dataShown ? { key: dataKey, id: view.data! } : null;
-  const stripWanted: Wanted | null = plan.strip && (!plan.docked || plan.sideways) ? { key: `strip:${plan.strip.slot}`, id: plan.strip.id } : null;
+  const stripWanted: Wanted | null = plan.strip && !plan.docked ? { key: `strip:${plan.strip.slot}`, id: plan.strip.id } : null;
   const wordsStack = useStack(wordsWanted), dataStack = useStack(dataWanted), stripStack = useStack(stripWanted);
 
   // a words card taller than its room asks for one more page (only on a measurement of the page now showing); the count goes to the presenter
@@ -275,9 +275,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   };
   // 2D's dock (ui/cards/dock.ts): on a phone or an upright iPad with both cards up, a push up anywhere on the slide slides the instrument card away to its handle, following the finger; a pull down
   // anywhere brings it back; a tap on its handle too
-  // (a phone on its side: the same, to the right. A swipe right that begins on the instrument tucks it into its strip, a swipe left on the strip, or a tap, brings it back: docs/approved/landscape-phone.md)
+  // (a phone on its side: the two cards are one column on the left; the same swipe slides BOTH up until the instrument is in the middle, a swipe down brings the words back, and a tap on the card that peeks
+  // does the same: docs/approved/landscape-phone.md. A new slide always starts on its words.)
   const dockable = ((plan.layout === 'stack' || plan.layout === 'tab') && (!plan.strip || plan.docked) || plan.sideways) && !!dataShown && !!wordsShown && !alone;
-  useDockSwipe({ enabled: dockable && !cardZoom.on, docked: plan.docked, axis: plan.sideways ? 'x' : 'y', closedPx: plan.tuckDx, onSettle: (closed) => setDocked(closed) });
+  useDockSwipe({ enabled: dockable && !cardZoom.on, docked: plan.docked || plan.scrolled, column: plan.sideways ? plan.scrollDy : undefined, onSettle: (closed) => setDocked(closed) });
+  useEffect(() => { if (useUi.getState().docked && isSideways(vp.w, vp.h)) setDocked(false); }, [pos.stop]); // eslint-disable-line react-hooks/exhaustive-deps
   // a Mac trackpad's two-finger sideways swipe: one slide a gesture (the glide after the fingers lift never skips another)
   useDeckWheel(goTo);
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
@@ -352,7 +354,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={slot === 'data' && plan.sideways ? undefined : swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} tuckX={plan.sideways ? plan.tuckDx : undefined} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked, plan.sideways ? plan.tuckDx : undefined); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
+        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} lift={plan.scrolled ? plan.scrollDy : undefined} zoomable={zoomsHere && e.phase === 'in'} onTap={plan.sideways && plan.scrollDy > 0 && e.phase === 'in' && (slot === 'data' ? !plan.scrolled : plan.scrolled) ? () => { if (!justDocked() && !justDragged()) goColumn(slot === 'data' ? 1 : 0, plan.scrollDy, setDocked); } : slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
         {slot === 'data' ? <DataCap.Provider value={alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
           // (a chart in a centred panel keeps inside what the panel leaves it, as one in a data card does: only past its floor does the panel's fit zoom take over)
           : alone === 'panel' && e.id === 'visual' ? <DataCap.Provider value={plan.maxH.words}>{content(e)}</DataCap.Provider> : content(e)}
@@ -373,7 +375,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       {stripStack.entries.map((e) => {
         const rect = (e.phase === 'in' ? plan.strip?.rect : undefined) ?? last.current[e.key] ?? ZERO;
         const behind = plan.strip ? plan.strip.slot : e.key.endsWith('data') ? 'data' : 'words';
-        return <Strip key={e.key} entry={e} rect={rect} behind={behind} hvpg={gap.value != null ? gap.hvpg : null} slideTitle={view.slide?.title ?? deck.title} dock={plan.docked} side={plan.sideways} onSwap={() => (plan.sideways ? (justDocked() ? undefined : openDock(setDocked, plan.tuckDx)) : plan.docked ? setDocked(false) : swapWallet())} onGone={stripStack.gone} />;
+        return <Strip key={e.key} entry={e} rect={rect} behind={behind} hvpg={gap.value != null ? gap.hvpg : null} slideTitle={view.slide?.title ?? deck.title} dock={plan.docked} onSwap={() => (plan.docked ? setDocked(false) : swapWallet())} onGone={stripStack.gone} />;
       })}
     </>
   );

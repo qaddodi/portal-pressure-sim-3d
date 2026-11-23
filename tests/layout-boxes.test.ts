@@ -45,7 +45,8 @@ export function sweep() {
       const paged = p.overflow.length > 0;
       if (r.x < sx0 - 0.5 || r.x + r.w > sx1 + 0.5) note(`SAFE-X ${vp.n} ${n}`, `${tag} ${JSON.stringify(r)}`);
       if (r.y < sy0 - 0.5) note(`SAFE-TOP ${vp.n} ${n}`, `${tag} ${JSON.stringify(r)}`);
-      if (r.y + r.h > sy1 + 0.5 && n !== 'bar' && !paged && !(stacked(vp.n) && n === 'words')) note(`SAFE-BOT ${vp.n} ${n}`, `${tag} ${JSON.stringify(r)}`);
+      if (r.y + r.h > sy1 + 0.5 && n !== 'bar' && !paged && !(stacked(vp.n) && n === 'words') && !(p.sideways && n === 'data'))   // (a phone on its side: the instrument bleeds off the foot by design)
+         note(`SAFE-BOT ${vp.n} ${n}`, `${tag} ${JSON.stringify(r)}`);
     }
     const live = boxes.filter(([n]) => n !== 'tucked').concat([barBox]);
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {

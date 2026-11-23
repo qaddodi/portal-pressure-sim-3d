@@ -369,9 +369,12 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz-table .pz-foot .pz-lg[data-rate="hi"] { color: var(--danger-ink); }
 
 
-/* ═══ A phone held sideways (Mohammad, 23 Nov 2026: "A + 1", docs/approved/landscape-phone.md) ═══
-   Two side columns, the words at the left and the instrument at the right, the figure between; the instrument tucks to a strip at the right edge; the pill stands at the foot of the figure's column;
-   the credit is in the foot of the words' card. The planner (plan.ts sideBox) places everything; these are the type, the pill, the strip and the credit. */
+/* ═══ A phone held sideways (Mohammad, 23 Nov 2026: "yes, good. let's do it", docs/approved/landscape-phone.md) ═══
+   One card column at the left: the words centred, the instrument under it bleeding off the foot; a swipe up slides both up, a swipe down brings them back. The figure has the rest of the screen and
+   the pill stands at the foot of its column. The planner (plan.ts sideBox, columnOf) places everything; these are the type, the pill and the credit. */
+.deck-ui[data-sideways] { --pad-x: 16px; --pad-y: 16px; }
+/* the words card's foot keeps a row for the credit line (the iPhone's rule, 20 px) */
+.deck-ui[data-sideways] .dk-card:has(.pz-cred) .dk-in { padding-bottom: calc(var(--pad-y) + 20px); }
 /* the sideways pill's cells: the phone pill's rules for an iPhone on its side (the originals above stay the stack's and the tab's, tests/tap-cells.test.ts) */
 .deck-ui[data-sideways] .dk-bar.phone { display: inline-flex; border-radius: var(--r-sheet); }
 .deck-ui[data-sideways] .dk-bar.phone { --tap-ox: 6px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
@@ -399,9 +402,5 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz[data-sideways] .pz-bar.phone .ib { width: 44px; min-width: 0; height: 44px; margin: -6px -6px; }
 .pz[data-sideways] .pz-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
 .pz[data-sideways] .pz-bar.phone button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 4px; font-size: var(--t-lab); font-variant-numeric: tabular-nums; }
-/* the instrument's strip at the right edge: the whole card's height, 30 px wide, its grip a vertical bar and its name ("PRESSURES · HVPG 6.1") turned to read down the strip */
-.deck-ui.pz .dk-strip[data-side] { height: 100%; border-radius: 15px; }
-.deck-ui.pz .dk-strip[data-side].pz-shuf::before { content: ''; left: 12px; top: 50%; bottom: auto; width: 4px; height: 42px; margin: -21px 0 0 0; border-radius: 2px; }
-.deck-ui.pz .dk-strip[data-side].pz-shuf::after { content: attr(data-strip); left: 7px; right: auto; top: 18px; bottom: auto; width: auto; writing-mode: vertical-rl; font: 600 11px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; color: var(--text-3); opacity: 1; }
-/* the credit, in the foot of the words' card (as the iPhone's, upright), one 12 px line centred; the floating one fades while that card stands on its row (Credit.tsx: footClear against the cards and the strip) */
+/* the credit, in the foot of the words' card (as the iPhone's, upright), one 12 px line centred; the floating one fades while a card stands on its row (Credit.tsx: footClear against the cards) */
 .deck-ui[data-sideways] .dk-card .pz-cred { display: block; position: absolute; left: 11px; right: 11px; bottom: 6px; text-align: center; font: 500 12px/17px var(--font-ui); letter-spacing: .01em; white-space: nowrap; color: var(--text-3); pointer-events: none; user-select: none; }

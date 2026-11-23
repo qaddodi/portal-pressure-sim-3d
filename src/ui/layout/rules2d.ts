@@ -49,7 +49,7 @@ export function padding(vw: number, vh: number, layout: Layout, ts = 1): number 
 }
 /** A phone held sideways: the two cards stand in side columns, the words at the left and the instrument at the right, the figure between (Mohammad, 23 Nov 2026, docs/approved/landscape-phone.md).
  *  One column width for both: 27 % of the screen (252 px at 932), never under 220 nor over 260. */
-export const sideColW = (vw: number): number => clamp(Math.round(0.27 * vw), 220, 260);
+export const sideColW = (vw: number): number => clamp(Math.round(0.32 * vw), 250, 310);
 /** One card width: about 40 characters of body text (--pz-cw); a phone on its side, its side column (sideColW); stacked, the screen less its margins (an upright iPad, 70 %). */
 export function cardWidth(vw: number, vh: number, layout: Layout, ts = 1): number {
   if (layout === 'stack') return vw - 16;

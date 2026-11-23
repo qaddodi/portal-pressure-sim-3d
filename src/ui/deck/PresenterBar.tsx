@@ -24,9 +24,9 @@ export function PresenterBar() {
   const first = isFirst(pos), end = useMemo(() => isLast(stops, pos), [stops, pos]);
   const place = barOf(vp);
   const sideways = isSideways(vp.w, vp.h);
-  // a phone on its side: the pill stands at the foot of the figure's column and glides across (a translate, on the compositor) when the instrument is tucked or the slide has none
+  // a phone on its side: the pill stands at the foot of the figure's column and glides across (a translate, on the compositor) when the slide has a panel standing alone
   const sidePill = useUi((s) => s.boxes.sidePill);
-  const dx = sideways ? Math.round(sidePillCentre(vp, sidePill ?? 'open') - sidePillCentre(vp, 'open')) : 0;
+  const dx = sideways ? Math.round(sidePillCentre(vp, sidePill ?? 'column') - sidePillCentre(vp, 'column')) : 0;
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   const phone = layoutOf(vp.w, vp.h) === 'stack';
   // the 2D app's own pill markup: `.pz-bar` with `.pzb-pill` on a wide screen, `.phone` stacked; `.ib` buttons, the count `.pzb-n` > `.pzb-nt`

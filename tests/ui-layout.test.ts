@@ -26,8 +26,9 @@ for (const [name, s] of Object.entries(SCREENS)) {
       const plan = planLayout(s.vp, needs(), active);
       const boxes = plan.cards.map((c) => c.rect).concat(plan.strip ? [plan.strip.rect] : []);
       for (const b of boxes) {
-        assert.ok(inside(b, s.vp.w, s.vp.h), `${name} ${JSON.stringify(b)} is off screen`);
-        assert.ok(b.y + b.h <= s.vp.h + 0.5, `${name} card runs off the foot`);
+        const bleeds = plan.sideways && b === plan.cards.find((c) => c.slot === 'data')?.rect;   // (a phone on its side: the instrument bleeds off the foot by design, docs/approved/landscape-phone.md)
+        assert.ok(bleeds ? b.x >= 0 && b.x + b.w <= s.vp.w : inside(b, s.vp.w, s.vp.h), `${name} ${JSON.stringify(b)} is off screen`);
+        assert.ok(bleeds || b.y + b.h <= s.vp.h + 0.5, `${name} card runs off the foot`);
         assert.ok(!hit(b, plan.free), `${name} a card covers the figure's room`);
         if (plan.bar.edge === 'foot') assert.ok(!hit(b, plan.bar.rect), `${name} a card covers the pill`);
       }
@@ -107,36 +108,28 @@ test('iPad upright: the phone stack at 70 % of the width, centred', () => {
   for (const c of p.cards) { assert.equal(c.rect.w, Math.round(vp.w * 0.7)); assert.equal(c.rect.x, Math.round((vp.w - c.rect.w) / 2)); }
 });
 
-test('iPhone on its side: two side columns, the words left and the instrument right, the figure between; tucked, the instrument is a 30 px strip at the right edge', () => {
+test('iPhone on its side: one card column at the left, the words centred and the instrument under them bleeding off the foot; the figure and the pill take the rest', () => {
   const { vp } = SCREENS['iphone-landscape'];
   const p = planLayout(vp, needs(230, 180));
   assert.equal(p.sideways, true);
   assert.equal(p.cards.length, 2);
   const [w, d] = [p.cards[0].rect, p.cards[1].rect];
-  assert.equal(p.cards[0].id, 'teach'); assert.equal(p.cards[1].id, 'ladder');
-  assert.equal(w.w, Math.round(0.27 * vp.w)); assert.equal(d.w, w.w, 'one column width');
-  assert.equal(w.x, vp.safe.left, 'the words stand on the left safe edge');
-  assert.equal(d.x + d.w, vp.w - vp.safe.right, 'the instrument stands on the right safe edge');
-  assert.ok(d.x > w.x + w.w + 100, 'the figure has the middle');
-  assert.equal(w.y, d.y); assert.equal(w.h, d.h);
-  assert.equal(p.sidePill, 'open');
+  assert.equal(w.w, sideColW(vp.w)); assert.equal(d.x, w.x); assert.equal(d.w, w.w);
+  assert.equal(w.x, vp.safe.left, 'the column stands on the left safe edge');
+  assert.ok(Math.abs(w.y - (vp.h - w.y - w.h)) <= 1, 'the words are centred');
+  assert.ok(d.y > w.y + w.h && d.y + d.h > vp.h, 'the instrument is under them and bleeds off');
+  assert.equal(p.sidePill, 'column'); assert.equal(p.scrolled, false);
   assert.ok(!hit(w, p.free) && !hit(d, p.free) && !hit(w, p.bar.rect) && !hit(d, p.bar.rect), 'the figure column and the pill are clear of both cards');
   const t = planLayout(vp, needs(230, 180), 'words', 0, true);
-  assert.equal(t.cards.length, 1); assert.equal(t.cards[0].id, 'teach');
-  assert.equal(t.docked, true); assert.equal(t.sidePill, 'tucked');
-  assert.equal(t.strip!.rect.w, 30, 'the handle is a 30 px strip');
-  assert.equal(t.strip!.rect.x + t.strip!.rect.w, d.x + d.w, 'the strip stands on the card\'s own right end, inside the safe area');
-  assert.equal(t.tucked!.x, d.x, 'the tucked card keeps its own place; a translate slides it away');
-  assert.equal(t.tuckDx, t.strip!.rect.x - d.x);
-  assert.ok(t.free.w > p.free.w, 'the figure gets the room the card left');
-  assert.ok(!hit(t.strip!.rect, t.free), 'the strip is clear of the figure');
+  assert.equal(t.scrolled, true); assert.ok(t.scrollDy > 0);
+  assert.equal(t.cards.length, 2, 'both cards stay up, slid together by a translate');
 });
 
-test('iPhone on its side: a card too tall for its column asks for a page, never a wider column (one width, 27 % of the screen, 220 to 260 px)', () => {
+test('iPhone on its side: a card too tall for its column asks for a page, never a wider column (one width, 32 % of the screen, 250 to 310 px)', () => {
   const { vp } = SCREENS['iphone-landscape'];
   assert.equal(stepsFor(vp, true), 1);
   assert.equal(widthOf(vp, true, 0), widthOf(vp, true, 99));
-  for (const w of [667, 750, 844, 852, 932, 1000]) assert.ok(sideColW(w) >= 220 && sideColW(w) <= 260, `${w}`);
+  for (const w of [667, 750, 844, 852, 932, 1000]) assert.ok(sideColW(w) >= 250 && sideColW(w) <= 310, `${w}`);
   assert.deepEqual(planLayout(vp, needs(900, 100)).overflow, ['teach']);
 });
 
