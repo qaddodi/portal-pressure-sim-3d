@@ -115,19 +115,11 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     shownH.current = h;
     sink(prev, h);
   };
-  // The one way a height glide ends or is cancelled (Plan 45): a cancelled glide never fires its `onfinish`, so `animH` and the words' inner offset it set would stay on (a card drawn at its old height with its
-  // words pushed down by the glide's distance: the words under the slide pill). Cancelling puts both back in the same call.
-  const settle = () => {
-    anims.current.forEach((x) => x.cancel());
-    anims.current = [];
-    setAnimH(null);
-    innerRef.current?.style.removeProperty('transform');
-  };
   const sink = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const o = opts ?? { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' }, d = prev - next, a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a];
-    settle();
+    anims.current.forEach((x) => x.cancel());
     setAnimH(prev);
     // (the words take their final places at once: the frame is still its old height, so they are moved down by what the frame's top has still to lose)
     if (a !== 'top' && innerRef.current) innerRef.current.style.transform = `translateY(${a === 'foot' ? d : d / 2}px)`;
@@ -141,13 +133,13 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const o = opts ?? { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
-    settle();
+    anims.current.forEach((a) => a.cancel());
     const a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a], g = next - prev;
     anims.current = [
       card.animate([{ clipPath: a === 'foot' ? `inset(${g}px 0 0 0 round ${rr})` : a === 'mid' ? `inset(${g / 2}px 0 ${g / 2}px 0 round ${rr})` : `inset(0 0 ${g}px 0 round ${rr})` }, { clipPath: `inset(0 0 0 0 round ${rr})` }], o),
       plate.animate([{ transform: `scaleY(${prev / next})`, transformOrigin: org }, { transform: 'scaleY(1)', transformOrigin: org }], o),
     ];
-    anims.current[0].onfinish = () => settle();
+    anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
   };
 
   // measure the words' natural height: the card is sized to it exactly
@@ -199,7 +191,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!card || !plate || !ready) return;
     const prev = shownH.current;
     shownH.current = rect.h;
-    if (out) { settle(); return; }   // (a card on its way out is never clipped by a height glide)
+    if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
     if (prev == null || prev === rect.h || !(live || gate.current)) return;
     if (typeof card.animate !== 'function' || reduced()) return;
     const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
@@ -210,7 +202,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     }
   }, [rect.h, ready, live, out]);
   // the new height is in place: let go of the glide (cancelled here, after the commit, so no frame shows the full old card)
-  useLayoutEffect(() => { if (animH == null) { innerRef.current?.style.removeProperty('transform'); if (anims.current.length) settle(); } }, [animH]);
+  useLayoutEffect(() => { if (animH == null) { innerRef.current?.style.removeProperty('transform'); if (anims.current.length) { anims.current.forEach((a) => a.cancel()); anims.current = []; } } }, [animH]);
 
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after

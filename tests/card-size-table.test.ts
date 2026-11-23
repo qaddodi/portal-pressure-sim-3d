@@ -30,8 +30,8 @@ test('no 3D rule sizes an instrument\'s box by the card\'s width or adds the Dop
   assert.match(plan, /\.pze-plot\.pze-incard/, 'the plane');
   assert.match(readFileSync('src/ui/DeckUi.tsx', 'utf8'), /'--pz-chart-px': `\$\{chartH\(vp\.w, vp\.h\)\}px`/);
   for (const [f, re] of [
-    ['src/ui/charts/profile/ProfileCard.tsx', /tableH\(\) \?\? layoutHeight\(/], ['src/ui/charts/curve/frame.ts', /tableH\(\) \?\? curveHeight/],
-    ['src/ui/charts/curve/course-frame.ts', /tableH\(\) \?\? curveHeight/], ['src/ui/charts/menu/frame.ts', /tableH\(\) \?\? curveHeight/],
+    ['src/ui/charts/profile/ProfileCard.tsx', /tableH\(\) \?\? layoutHeight\(/], ['src/ui/charts/curve/frame.ts', /const t = tableH\(\); return t == null \? [^;]*17 \* f\)\) : Math\.round\(Math\.max\(t, 17 \* f\)\)/],
+    ['src/ui/charts/curve/course-frame.ts', /curveHeight\(w, f\)/], ['src/ui/charts/menu/frame.ts', /curveHeight\(w, f\)/],
   ] as const) assert.match(readFileSync(f, 'utf8'), re, f);
 });
 
