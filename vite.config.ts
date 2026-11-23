@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { glslFiles } from './scripts/gl-scan.mjs';
 import { withCsp } from './scripts/csp.mjs';
+import { fadeHidden } from './scripts/fade-hidden.mjs';
 
 /** The built page's Content-Security-Policy (scripts/csp.mjs). Build only: the dev server's own inline scripts would be refused. */
 function csp(): Plugin {
@@ -55,6 +56,8 @@ export function vendorChunk(id: string): string | undefined {
 export default defineConfig({
   base: './',
   plugins: [react(), glModules(), appPreload(), csp()],
+  // the 2D stylesheets' `:not([hidden])` also means "not faded off" here (scripts/fade-hidden.mjs; Plan 42)
+  css: { postcss: { plugins: [fadeHidden()] } },
   worker: { format: 'es' },
   build: {
     target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 700,

@@ -73,7 +73,7 @@ for (const [name, sc] of Object.entries(SCREENS)) {
           const other = withData ? estimate('ladder', idx, vp, true, w) : 0;
           const plan = planLayout(vp, [{ id, slot: 'words', h }, ...(withData ? [{ id: 'ladder' as CardId, slot: 'data' as const, h: other }] : [])], 'words', w);
           if (!plan.overflow.length) return;
-          last = `${h}px > ${plan.maxH.words}px (step ${step}, ${pages} page${pages > 1 ? 's' : ''}${plan.shut ? ', data card closed' : ''})`;
+          last = `${h}px > ${plan.maxH.words}px (step ${step}, ${pages} page${pages > 1 ? 's' : ''})`;
         }
       }
       over.push(`${id}${id === 'teach' || id === 'case' ? ':' + HVPG_DECK.slides[idx].id : ''} ${last}${withData ? ' with its data card' : ''}`);

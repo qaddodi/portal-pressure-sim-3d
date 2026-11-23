@@ -79,6 +79,8 @@ export class DopplerModel {
   private tpl: { t0: number; L: number; pts: number[][]; mean: number; pm: number; hasPair: boolean } | null = null;
   private synth: { t: number; wall: number; mean: number; target: number; amp: number; still: boolean; flat?: boolean } | null = null;
   private carry: number | null = null;
+  /** the replay is a slide's own velocity, not a time lapse's */
+  private pinDriven = false;
   /** the GPU draws the spectrum's pixels under the shapes (spectrum-gl.ts, 2D's own shaders); false: the spectrum is laid from shapes (no WebGL2, or the program failed) */
   gpu = false;
   /** the chart canvas's device pixel ratio (a spectral line is one device pixel wide, as in 2D) */
@@ -106,11 +108,19 @@ export class DopplerModel {
     return st.v;
   }
   /** The slide's own velocity in the probed vessel as the scanner reads it (2D pinnedVel: the settled state's flows and widths), NaN when the slide pins none. */
-  private pinnedVel(): number {
+  private pinnedVel(): number { return Math.abs(this.pinnedSigned()); }
+  /** The same with its sign (the scanner's way: toward or away from the probe), NaN off a slide or when the slide pins none. */
+  private pinnedSigned(): number {
+    if (!this.slide) return NaN;
     const at = pinnedAt(), k = this.probe ? EI[this.probe] : null;
     if (!at || k == null || !at.Q || !at.D) return NaN;
-    return Math.abs(dopplerVel({ Q: at.Q, D: at.D }, k) as number);
+    const v = dopplerVel({ Q: at.Q, D: at.D }, k) as number;
+    return Number.isFinite(v) ? v : NaN;
   }
+  /** The slide's velocity as the RECORD holds it: the record is the mean across the lumen, the scanner reads the peak of the spectrum (dopplerK, doppler-reading.copied.js), and the pin is what the scanner reads. */
+  private pinnedRecord(): number { const v = this.pinnedSigned(), k = this.probe ? dopplerK(EDGES[EI[this.probe]!]) : NaN; return v / k; }
+  /** True while a slide's own patient drives the record (see ingest). */
+  get pinned(): boolean { return Number.isFinite(this.pinnedSigned()); }
 
   get sweep(): number { return SWEEP_SECONDS[this.sweepIndex]!; }
   /** True while a mark or a letter is easing (the pane asks for frames until it is still, even with the model paused). */
@@ -151,13 +161,17 @@ export class DopplerModel {
     this.sync();
     // (the gates' factors the samples coming in are read under, from the first of them on; a stopped stent reads 0 at every gate)
     if (g) { const r = this.rd.stentReads(1, true), z = this.rd.stentStopped() ? 0 : 1, tIn = this.buf.length ? this.buf[this.buf.length - 1]![0]! + 1e-6 : -Infinity; this.rd.facs.note(tIn, r[0] * z, r[1] * z, r[2] * z); }
-    if (f.clock === 'disease') {
+    // A slide's own patient (Plan 42, Mohammad 23 Nov: the acute clot slide read "31 cm/s Hepatopetal" in a portal vein the slide has occluded): the live model is part-way through its eased change to the
+    // slide's state, so its samples are some in-between patient's. On a slide with a pinned velocity the record is the replay (below) scaled to the pin from the first frame, as a lapse's is to its vessel's mean.
+    const pin = f.clock === 'disease' ? NaN : this.pinnedRecord();
+    if (f.clock === 'disease' || (Number.isFinite(pin) && this.synth)) {
       // (A time lapse has no bedside samples: the model jumps a day at a time. The trace keeps scrolling at bedside speed by replaying the last recorded beats, scaled so their mean eases to the
       // vessel's current mean velocity, 2D doppler.js startSynth / runSynth.)
       if (!this.synth && this.buf.length) this.synth = this.startSynth();
       if (!this.synth) { this.sync(); return; }
       const s = f.samples as { vel?: ArrayLike<number> } | null | undefined;
-      if (s?.vel?.length) this.synth.target = s.vel[s.vel.length - 1]!;
+      if (Number.isFinite(pin)) this.synth.target = pin;
+      else if (s?.vel?.length) this.synth.target = s.vel[s.vel.length - 1]!;
       this.synth.still = f.resp === false;
       // A lapse without respiration shows none from its first frame: the replay and the trace already drawn go flat at once.
       if (this.synth.still && !this.synth.flat) {
@@ -169,7 +183,7 @@ export class DopplerModel {
       if (f.running) this.runSynth();
     } else {
       // (the bedside clock is back: its samples follow on from where the replay ended, shifted by tOff)
-      if (this.synth) { this.carry = this.synth.t + 0.02; this.synth = null; }
+      if (this.synth) { this.carry = this.synth.t + 0.02; this.synth = null; if (this.pinDriven) { this.pinDriven = false; this.lastT = rec.t.length ? rec.t[rec.t.length - 1]! : this.lastT; } }   // (a slide's replay ran beside the page's record: only what is taken from now on is new)
       // (the record the page keeps, from the first sample after the last one taken: the record is trimmed from the front, so places are found by time)
       const T = rec.t;
       if (T.length && T[T.length - 1]! < this.lastT - 1e-9) {   // (the page's record began again)
@@ -190,6 +204,8 @@ export class DopplerModel {
         this.lastT = T[i]!;
       }
     }
+    // (a slide with its own velocity: from the live beats just taken the replay starts, and the whole record is that patient's from this frame on)
+    if (Number.isFinite(pin) && !this.synth && this.buf.length) { this.synth = this.startSynth(); if (this.synth) this.adoptPin(pin); }
     if (!this.buf.length) { this.sync(); return; }
     const tNow = this.buf[this.buf.length - 1]![0]!;
     if (f.settling) this.heldTo = tNow;
@@ -211,6 +227,13 @@ export class DopplerModel {
     const pm = pts.reduce((a, q) => a + (q[2] || 0), 0) / pts.length;
     this.tpl = { t0: pts[0]![0]!, L, pts, mean, pm, hasPair: pts.every((q) => Number.isFinite(q[2])) };
     return { t: tEnd, wall: clock.now(), mean, target: mean, amp: 1, still: false };
+  }
+  /** The replay starts on a slide's own velocity: the record already drawn is that patient's too (its beats scaled so their mean is the pin), never the in-between patient's the live model was at. */
+  private adoptPin(pin: number): void {
+    const sy = this.synth!, tp = this.tpl!, m0 = tp.mean, ratio = Math.abs(m0) > 2;
+    this.pinDriven = true;
+    sy.target = sy.mean = pin;
+    for (const q of this.buf) q[1] = ratio ? q[1]! * pin / m0 : q[1]! - m0 + pin;
   }
   /** The template at time t, looped, its last 0.25 s cross-faded into its start so the seam does not step (2D tplAt). */
   private tplAt(t: number, j = 1): number {
@@ -258,7 +281,7 @@ export class DopplerModel {
     const kind = this.probe ? rd.meta().kind as string : 'portal';
     const base = { kind, tiles: this.tilesFor(null), gauge: null, aria: '' };
     const r = this.probe ? rd.reading() : null;
-    if (!r) {
+    if (!r || (this.pinned && !this.synth)) {   // (a slide with its own velocity reads it only once the replay stands on it: never the live patient's)
       return { ...base, acquiring: true, text: f?.clock === 'disease' ? 'Not available during time lapse' : 'Acquiring…', dir: f?.clock === 'disease' ? 'Not available during time lapse' : 'Acquiring…', sev: '', vel: '—', none: false, pattern: '', note: '' };
     }
     const p = rd.meta();
