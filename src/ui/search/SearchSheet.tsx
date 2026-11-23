@@ -107,7 +107,7 @@ export function SearchSheet() {
     if (open) { setShown(true); setLeaving(false); return; }
     if (!shown) return;
     setLeaving(true);
-    const t = clock.after(() => { setShown(false); setLeaving(false); }, 180);
+    const t = clock.after(() => { setShown(false); setLeaving(false); }, onPhone() ? 260 : 180);   // (a phone's sheet leaves by the one sheet motion, 240 ms: menu-motion.css)
     return () => clock.cancel(t);
   }, [open, shown]);
   const close = () => useShell.getState().close();

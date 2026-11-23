@@ -23,7 +23,7 @@ html .treat-card.tr-card.has-plate { clip-path: none !important; }
 .treat-card.tr-card[data-bottom="true"] {
   --tr-full: calc(100% - var(--top-safe) - var(--nb-occ, var(--vdock-h)) - 22px);
   left: calc(env(safe-area-inset-left) + 6px); right: calc(env(safe-area-inset-right) + 6px); bottom: var(--nb-occ, calc(var(--vdock-h) + 14px));
-  width: auto; top: auto; border-radius: var(--r-sheet); padding-bottom: 0; max-height: var(--tr-full); transform: translateY(24px);
+  width: auto; top: auto; border-radius: var(--r-sheet); padding-bottom: 0; max-height: var(--tr-full); transform: translateY(var(--sheet-rise, 24px));
 }
 .treat-card.tr-card[data-bottom="true"][data-open="true"] { transform: none; }
 .treat-card.tr-card[data-bottom="true"][data-device="tablet-portrait"] { left: 15%; right: 15%; --tr-full: min(62%, calc(100% - var(--top-safe) - var(--nb-occ, var(--vdock-h)) - 22px)); }

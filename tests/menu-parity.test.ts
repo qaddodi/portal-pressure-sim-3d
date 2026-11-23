@@ -102,12 +102,17 @@ test('the swipe and the pushed page are driven by the one clock, in transform an
   assert.ok(/pushPage\(/.test(menu) && /placePopover\(/.test(menu) && /menuExitMs/.test(menu), 'pages swipe back; the popover is placed by 2D\'s rule; the leave takes 2D\'s time');
 });
 
-test('the sheet comes in as 2D rides it: a translate from its own height in --d-small, no fade, 8 px behind the thumb dock for a menu', () => {
+test('every phone sheet has ONE motion: fade and a short rise in --d-small on --ease-arrive, both ways (owner, 23 Nov: unify menus)', () => {
   const css = src('src/ui/shell/menu-motion.css');
-  assert.ok(/@keyframes mn-sheet-in \{ from \{ translate: 0 calc\(100% \+ var\(--ride-extra, 0px\)\); \} to \{ translate: 0 0; \} \}/.test(css));
-  assert.ok(!/mn-sheet-in \{[^}]*opacity/.test(css), 'a sheet does not fade in');
-  assert.ok(/\.umenu\.sheet \{ animation: mn-sheet-in var\(--d-small/.test(css) && /\.umenu\.sheet\.out \{ animation: mn-sheet-out var\(--d-small/.test(css));
-  assert.ok(/html\.thumb-ui \.sh-root > \.menu\.as-sheet\.from-dock \{ --ride-extra: 8px; \}/.test(css));
+  assert.ok(/:root \{ --sheet-rise: 24px; --sheet-ease: var\(--ease-arrive\); \}/.test(css));
+  assert.ok(/@keyframes mn-sheet-in \{ from \{ opacity: 0; translate: 0 var\(--sheet-rise\); \} to \{ opacity: 1; translate: 0 0; \} \}/.test(css));
+  assert.ok(/@keyframes mn-sheet-out \{ from \{ opacity: 1; translate: 0 0; \} to \{ opacity: 0; translate: 0 var\(--sheet-rise\); \} \}/.test(css));
+  for (const sel of ['.menu.as-sheet', '.umenu.sheet']) assert.ok(css.includes(`.sh-root > ${sel} { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }`), sel);
+  assert.ok(css.includes('.menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }') && css.includes('.umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }'), 'out is the same move back, on the same curve');
+  assert.ok(!/translate: 0 calc\(100%/.test(css) && !/ease-in/.test(css.split('um-inline')[0]!), 'no full-height slide, no other curve');
+  // the Frame sheets (Layers, History, Why?) and the Treat card take the same rise
+  assert.ok(/max-height: 78%; transform: translateY\(var\(--sheet-rise, 24px\)\)/.test(src('src/ui/shell/shell.css')));
+  assert.ok(/transform: translateY\(var\(--sheet-rise, 24px\)\)/.test(src('src/ui/treat/treat.css')));
   assert.ok(!/mp-in|mp-out/.test(css), 'the pushed page is moved by the clock, not by keyframes');
 });
 

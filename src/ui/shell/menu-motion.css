@@ -1,28 +1,23 @@
 /* The menus' and sheets' own motion (split from chrome-3d.css, which keeps only what the lifted 2D chrome needs over the canvas): the bottom-sheet ride, the folding preview rows, the page push's note, the colour key's cross-fade. */
-/* A menu that is a bottom sheet (the stacked layout) rides up from its own height and sinks the same way, in --d-small: 2D's own ride (sheet-ride.js rideIn / rideOut): a translate, quick off
-   the mark and settling gently coming in (--ease-arrive), --ease-in going out, no fade; over the thumb dock a menu sheet starts 8 px behind the dock (menuRide). 2D writes it in the page's
-   frames so its GPU glass goes with it; the 3D glass is the compositor's own, so one CSS translate carries both. Reduce Motion only fades (120 ms from the dock, else --d-small). */
-@keyframes mn-sheet-in { from { translate: 0 calc(100% + var(--ride-extra, 0px)); } to { translate: 0 0; } }
-@keyframes mn-sheet-out { from { translate: 0 0; } to { translate: 0 calc(100% + var(--ride-extra, 0px)); } }
-@keyframes mn-fade-in { from { opacity: 0; } }
-@keyframes mn-fade-out { to { opacity: 0; } }
-html.thumb-ui .sh-root > .menu.as-sheet.from-dock { --ride-extra: 8px; }
-.sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-small) var(--ease-arrive) both; }
-.sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--ease-in) forwards; }
-.sh-root > .umenu.sheet { animation: mn-sheet-in var(--d-small) var(--ease-arrive) both; }
+/* ONE phone-sheet motion (owner, 23 Nov: "unify menu"; he picked the Layers / History / Why? motion): every phone sheet fades and rises --sheet-rise in --d-small on --ease-arrive, and leaves the same way back
+   (a tap, a second tap on its tab and the scrim all close it by this; a swipe down carries the finger's own motion on, sheet-swipe.ts). The Frame sheets (shell.css .sh-sheet) use the same two tokens in
+   their transition; the keyframes below are the same move for the menus that are mounted only while open (Settings, Help, the main menu). Change the tokens, never a menu's own numbers (tests/menu-parity.test.ts). */
+:root { --sheet-rise: 24px; --sheet-ease: var(--ease-arrive); }
+@keyframes mn-sheet-in { from { opacity: 0; translate: 0 var(--sheet-rise); } to { opacity: 1; translate: 0 0; } }
+@keyframes mn-sheet-out { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 var(--sheet-rise); } }
+.sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
+.sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
+.sh-root > .umenu.sheet { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
+html.thumb-ui .sh-root > .pal-back:not([hidden]) > .pal { animation: mn-sheet-in var(--d-small) var(--sheet-ease) both; }
+html.thumb-ui .sh-root > .pal-back.leaving > .pal { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
 .sh-root > .umenu.sheet.still { animation: none; }
-.sh-root > .umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--ease-in) forwards; }
+.sh-root > .umenu.sheet.out { animation: mn-sheet-out var(--d-small) var(--sheet-ease) forwards; }
 /* the preview under a menu row folds open and shut by its own keyframes (2D transitions it from a class set a frame later; React mounts it open) */
 @keyframes um-inline-in { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 @keyframes um-inline-out { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }
 .um-inline.on { animation: um-inline-in var(--d-small) var(--ease-arrive) both; }
 .um-inline.on.out { animation: um-inline-out var(--d-small) var(--ease-arrive) forwards; }
-@media (prefers-reduced-motion: reduce) {
-  .sh-root > .menu.as-sheet, .sh-root > .umenu.sheet { animation: mn-fade-in var(--d-small) var(--ease-arrive) both; }
-  html.thumb-ui .sh-root > .menu.as-sheet.from-dock { animation-duration: var(--d-flip); }
-  .sh-root > .menu.as-sheet.leaving, .sh-root > .umenu.sheet.out { animation: mn-fade-out var(--d-small) var(--ease-in) forwards; }
-  html.thumb-ui .sh-root > .menu.as-sheet.from-dock.leaving { animation-duration: var(--d-flip); }
-}
+@media (prefers-reduced-motion: reduce) { :root { --sheet-rise: 0px; } }
 
 /* The first words in the preview card do not fade in a second time under the card's own fade in (menu.js placePreview: `next.style.animation = 'none'`). */
 .um-pv-first > .um-pv-in { animation: none; }
