@@ -70,6 +70,9 @@ export class SampleFeed {
   private treatKey: string | null = null;
   private bandsNow: unknown = null;
   private stepNext = false;
+  /** the worker's generation the day record belongs to, and the day History is going back to (the next state change keeps the points up to it) */
+  private daysGen = -1;
+  private keepTo: number | null = null;
   private calmKept = new Map<string, { ver: number; x: number[]; mid: number[] }>();
   private waiting = false;
   /** this record's generation (a new one each time the record is emptied), and the one that has asked the engine for its past */
@@ -118,7 +121,17 @@ export class SampleFeed {
     const s = f.samples;
     if (f.probe && f.probe !== this.probe) { this.probe = f.probe; }
     const was = this.wheel.laid;
-    if (f.jump) { this.clear(); this.days.length = 0; this.treatKey = null; this.bandsNow = null; this.calmKept.clear(); this.daysVer++; }
+    if (f.jump) {
+      this.clear();
+      // The day record lives as long as the patient does: a jump of the clock (+1 month, run to the next event) is the same patient some days on, so its points stay. It starts over
+      // only for a new patient, a reset or a morph (the worker's `gen` counts those), and goes back to the day of the entry History restored (keepDaysTo).
+      const g = f.gen ?? 0, keep = this.keepTo; this.keepTo = null;
+      if (g !== this.daysGen) {
+        this.daysGen = g;
+        if (keep != null) { const kept = this.days.filter((d) => d.day <= keep); this.days.length = 0; this.days.push(...kept); } else this.days.length = 0;
+        this.treatKey = null; this.bandsNow = null; this.calmKept.clear(); this.daysVer++;
+      }
+    }
     if (s && s.t && s.t.length && f.clock !== 'disease') {
       const n = s.t.length, last = this.last, t0 = s.t[0]! + this.off;
       if (!this.t.length && this.head[1]) {
@@ -199,6 +212,8 @@ export class SampleFeed {
     this.stepNext = false;
     if (grew) { this.daysVer++; if (!this.days.length) this.calmKept.clear(); }
   }
+  /** History is restoring the entry of this day: the record keeps its points up to it, not the later ones. */
+  keepDaysTo(day: number) { this.keepTo = day; }
   /** The Days list's trace, calmed (2D calmOf): made once for each change of the days, never for a frame that drew the same ones. */
   calmOf(key: string): { x: number[]; mid: number[] } | null {
     const c = this.calmKept.get(key);
@@ -260,5 +275,5 @@ export function startFeed(): void {
 /** The record as a trace reads it (arrays read when asked: a backfill replaces them). */
 export const record = {
   get t() { return feed.t; }, get ch() { return feed.ch; }, get binT() { return feed.binT; }, get bin() { return feed.bin; }, get beats() { return feed.beat.times; },
-  get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, calm: (key: string) => feed.calmOf(key),
+  get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, keepDaysTo: (day: number) => feed.keepDaysTo(day), calm: (key: string) => feed.calmOf(key),
 };

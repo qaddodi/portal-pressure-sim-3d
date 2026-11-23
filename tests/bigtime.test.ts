@@ -179,3 +179,20 @@ test('the day record reads the model: ascites mL to L, the shunt as 0..1, the PP
   assert.ok(eb.ppg! < ea.ppg!, 'and lowers the PPG');
   core.dispose();
 });
+
+// The cause of "Only today is recorded" (23 Nov): every frame after a jump of the clock (+1 month) carries `jump`, and the feed emptied the day record on it, so a patient run on
+// for months had one day. The record now lives as long as the patient (the worker's `gen`) and goes back only as far as the entry History restored.
+test('the day record survives the clock jumping on, starts over for a new patient and goes back to the restored day', async () => {
+  const { SampleFeed } = await import('../src/ui/tests/feed.ts');
+  const feed = new SampleFeed();
+  const f = (day: number, jump: boolean, gen: number) => ({ jump, gen, clock: 'hemo', day, metrics: { hvpg: 10 + day / 10, pv: 15, whvp: 12, fhvp: 5, ra: 4, ivc: 5, sv: 14 } }) as never;
+  const days = () => feed.days.map((d) => d.day).join();
+  feed.adopt(f(0, true, 1)); feed.adopt(f(0, false, 1));
+  feed.adopt(f(30, true, 1)); feed.adopt(f(30, false, 1));
+  feed.adopt(f(60, true, 1)); feed.adopt(f(89, true, 1));
+  assert.equal(days(), '0,30,60,89', 'a jump keeps the days before it');
+  feed.keepDaysTo(60); feed.adopt(f(60, true, 2));
+  assert.equal(days(), '0,30,60', 'History went back to day 60: the later day is dropped, the earlier kept');
+  feed.adopt(f(0, true, 3));
+  assert.equal(days(), '0', 'a new patient starts a new record');
+});

@@ -27,7 +27,7 @@ export function useBigData(on: boolean): Data {
   useEffect(() => { if (!on) return; const id = clock.every(() => setTick((n) => n + 1), TICK_MS, 'bigtime-data'); return () => clock.cancel(id); }, [on]);
   // The tick only looks again; what is drawn is made anew when the days or History changed, or today's point moved (its readings are the signature).
   const last = record.days[record.days.length - 1];
-  const sig = `${on}|${rev}|${record.daysVer}|${last ? `${last.day}:${Object.values(last.v).map((v) => Math.round(v * 100)).join(',')}` : ''}`;
+  const sig = `${on}|${rev}|${record.daysVer}|${last ? `${last.day}:${Object.values(last.v).map((v) => Math.round(v * 10)).join(',')}` : ''}`;
   void tick;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => buildData({ calm: record.calm, entries: entriesNow(), labelsOf: getInterventionLabels(), hidden }), [sig, hidden]);
