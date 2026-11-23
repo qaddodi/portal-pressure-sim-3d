@@ -46,8 +46,9 @@ export const coverageOver = (t: number, ta: number): number => COLL_A + (coverag
 /** A tract's edge is this share of its front radius (the painter's disc is faint and its dense bundles lie within about 0.75 of the radius), and its fade (and its rope) runs from that edge across the WHOLE edge radius to the centre, TRACT_FADE of it deep
  *  (a hex septum's runs across its whole half width). */
 export const TRACT_EDGE_K = 0.75, TRACT_FADE = 1;
-/** The striations' share of the colour (the painted fibres' lightness against their own surroundings, clamped, so no nucleus or fibre can ever make a dark worm: a nucleus darkens at most STRIA_MAX x STRIA_K). */
-export const STRIA_MAX = 0.06, STRIA_K = 0.6;
+/** The striations: the painted fibres' lightness against their own surroundings (fine mip minus coarse). Plan 49 (Mohammad: "those mocks don't show ropes"): ROOT CAUSE measured in node: the fine-minus-coarse lightness of the painted fibres is tiny (p95 0.013 on the septa, 0.021 on the tracts, p99 0.02 to 0.03: the strands are thin and the painter lays its second pass over them), and the old
+ *  clamp (0.06 x 0.6) never even bit: the strands showed as under 1% of the colour, so every band read as a smooth fill. Now the difference is GAINED by STRIA_GAIN (8: p95 about 10%) and a lit strand lifts the colour by up to STRIA_LIT (18%), which shows the cord's fibres; a DARK one (a deep fibre, a fibroblast nucleus) is still capped at STRIA_DARK (5%), so no dark worm is possible. */
+export const STRIA_GAIN = 8, STRIA_LIT = 0.18, STRIA_DARK = 0.05;
 
 /** The tract's front radius in plate px at growth p: the inverse of the arrival times' old rule (the tract of radius rt (0.8 + 0.9 g) is whole at g), so the disc grows as it always did, from 0.8 rt at the first arrival to the cuff's edge at full growth. */
 export const tractFrontPx = (p: number): number => TRACT_RT_PX * (0.8 + 0.9 * ((p - TAU_LO) * TAU_MAX) / TAU_SPAN);
@@ -67,8 +68,9 @@ const float COLL_A = ${F(COLL_A)};
 const float COLL_A0 = ${F(COLL_A0)};
 const float TRACT_EDGE_K = ${F(TRACT_EDGE_K)};
 const float TRACT_FADE = ${F(TRACT_FADE)};
-const float STRIA_MAX = ${F(STRIA_MAX)};
-const float STRIA_K = ${F(STRIA_K)};
+const float STRIA_GAIN = ${F(STRIA_GAIN)};
+const float STRIA_LIT = ${F(STRIA_LIT)};
+const float STRIA_DARK = ${F(STRIA_DARK)};
 const float TRACT_RT_PX = ${F(TRACT_RT_PX)};
 const float TRACT_TAU_LO = ${F(TAU_LO)};
 const float TRACT_TAU_K = ${F(TAU_MAX / TAU_SPAN)};

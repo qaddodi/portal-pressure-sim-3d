@@ -15,7 +15,7 @@ import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
 import { septaBands } from '../src/scene/lobule/collagen-paint.ts';
 import { bandOutlineFlat } from '../src/scene/lobule/from2d/lobule-look.generated.js';
 import { bandGeomInto } from '../src/scene/lobule/from2d/lobule-paint.generated.js';
-import { COLL_A, COLL_A0, EDGE_BOX, EDGE_PLATE_PX, E_LO, E_SPAN, K_EDGE, K_IN, K_MID, K_OUT, K_OUT_END, STRIA_K, STRIA_MAX, TRACT_EDGE_K, TRACT_FADE, TRACT_RT, TRACT_RT_PX, angleToByte, byteToAngle, byteToEdge, coverageAt, coverageOver, edgeToByte, tToByte, tractEdge, tractFrontPx, tractRamp } from '../src/scene/lobule/collagen-edge.ts';
+import { COLL_A, COLL_A0, EDGE_BOX, EDGE_PLATE_PX, E_LO, E_SPAN, K_EDGE, K_IN, K_MID, K_OUT, K_OUT_END, STRIA_DARK, STRIA_GAIN, STRIA_LIT, TRACT_EDGE_K, TRACT_FADE, TRACT_RT, TRACT_RT_PX, angleToByte, byteToAngle, byteToEdge, coverageAt, coverageOver, edgeToByte, tToByte, tractEdge, tractFrontPx, tractRamp } from '../src/scene/lobule/collagen-edge.ts';
 import { ROPE_LIFT_MAX, ropeColour, ropeS } from '../src/scene/lobule/relief.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -275,12 +275,12 @@ test('GATE relief: the lit flank lifts at least 0.06 and the shade flank deepens
   assert.ok(shadeCore >= 0.1, `Dark: the shade flank near the core is ${shadeCore.toFixed(3)} above the cells`);
 });
 
-test('GATE striations: a fibre or a nucleus moves the lightness by at most STRIA_MAX x STRIA_K, so no dark worm is possible (the speckle gate)', () => {
-  assert.ok(STRIA_MAX * STRIA_K <= 0.036 + 1e-12, 'the striation is at most 3.6% of the colour');
+test('GATE striations: a dark fibre or a nucleus lowers the colour by at most STRIA_DARK (5%), so no dark worm is possible (the speckle gate); a lit strand lifts it by up to 20%, so the fibres show', () => {
+  assert.ok(STRIA_DARK <= 0.05 + 1e-12, 'a dark striation is at most 5% of the colour'); assert.ok(STRIA_LIT >= 0.15 && STRIA_LIT <= 0.25, 'a lit strand lifts the colour by 15 to 25%'); assert.ok(STRIA_GAIN >= 4, 'the painted fibres\' contrast (p95 0.013) is gained so it shows');
   for (const look of LOOK_IDS) {
     const T = lookColours(look), cols = [T.rgb01('--lz-septum'), ...(T.dark ? [[0.86, 0.78, 0.6]] : [[0.78, 0.64, 0.44]])];
     for (const c of cols) {
-      const dark = c.map((v) => v * (1 - STRIA_MAX * STRIA_K));   // (the worst striation on the flat colour: a nucleus at its darkest)
+      const dark = c.map((v) => v * (1 - STRIA_DARK));   // (the worst striation on the flat colour: a nucleus at its darkest)
       assert.ok(lumOf(c) - lumOf(dark) <= 0.05, `${look}: the darkest striation is ${(lumOf(c) - lumOf(dark)).toFixed(4)} below the band's token (the plan's gate: under 0.05)`);
     }
   }
