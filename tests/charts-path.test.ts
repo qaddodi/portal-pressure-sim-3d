@@ -132,7 +132,7 @@ test('the deck hands every data card\'s instrument its room (2D --pz-room), meas
   const body = src('ui/talk/ToolCardBody.tsx'), box = src('ui/talk/ToolCard.tsx'), layer = src('ui/cards/CardLayer.tsx'), room = src('ui/talk/tool-room.ts');
   assert.match(box, /useToolRoom\(\)/, 'the instrument box measures its room');
   assert.match(box, /ToolRoom\.Provider/);
-  assert.match(layer, /DataCap\.Provider value=\{stacked \|\| alone \? 0 : plan\.maxH\.data\}/, 'the data card hands its height cap down');
+  assert.match(layer, /DataCap\.Provider value=\{stacked \|\| alone \|\| !\(wordsHit && wordsHit\.h > 0\) \? 0 : plan\.maxH\.data\}/, 'the data card hands its height cap down (once the words are measured)');
   assert.match(body, /<PathCard[^\n]*room=\{room\}/, 'the path card gets the room');
   assert.match(body, /<SaagCard[^\n]*room=\{room\}/, 'the SAAG card gets the room');
   assert.match(body, /<PlaneCard plane=\{cs\.plane as never\} points=\{points\} room=/, 'the plane in a card gets the room');

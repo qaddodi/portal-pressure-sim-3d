@@ -88,13 +88,14 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     setTable((o) => (o && tableKey(o) === k && o.caption === t.caption ? o : t));
     first.current = false;
     lastKey.current = key;
+    if (host.current && !host.current.hasAttribute('data-built')) { host.current.setAttribute('data-built', ''); host.current.dispatchEvent(new CustomEvent('pz-chart-built', { bubbles: true })); }   // (a card that holds this chart comes in only once it is drawn at its final box: cards/card-want.ts openCharts)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w, fit, look, type, device, ...deps]);
 
   // The picture is one image with a sentence; its numbers are in a hidden table beside it (table.ts): the image role would hide them from a screen reader, so the table is its sibling, out of the way, never in the Tab order.
   return (
     <>
-      <div ref={host} className={className} role="img" aria-label={label} style={{ position: 'relative', width: '100%' }} />
+      <div ref={host} data-chart="" className={className} role="img" aria-label={label} style={{ position: 'relative', width: '100%' }} />
       {table && table.rows.length > 0 ? (
         <table className="sr-only" data-chart-data="">
           <caption>{table.caption || label}</caption>

@@ -41,7 +41,7 @@ export function flattenPath(d: string, n = 14): number[] {
 }
 
 export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: Any; labels: Any } {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? fitHeight(curveHeight(w, f), c), spec.room, f)!));
+  const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
   const co = C.courseOf(spec.tool), ser = spec.ser;
   const { G, labels, zoneNames } = C.compose(w, h, f, co, ser) as Any;
   const { L, R, B, X, Y } = G, r = Math.max(3.5, 0.3 * f);
@@ -107,5 +107,5 @@ export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: A
     label = `${co.words.label}: ${co.words.before ? `${co.words.before.toLowerCase()}, ` : ''}${fmt(ser.before)}; after the ${co.words.event.toLowerCase()} ${fmt(ser.head[0][1])}, `
       + `${fmt(ser.head.at(-1)[1])} at ${ser.wait} days; ${ser.tails.map((q: Any) => `${q.name} ${fmt(q.pts.at(-1)[1])} at ${ser.days} days`).join('; ')}`;
   }
-  return { frame: { w, h, shapes, label }, G, labels };
+  return { frame: { w, h, shapes, label, ...(own > h + 0.5 ? { want: Math.round(own) } : null) }, G, labels };
 }

@@ -11,14 +11,15 @@ import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { scaleOf } from '../charts/fit.ts';
+import { heldBy, openCharts } from './card-want.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
   entry: Entry;
   /** Where the card goes (its height is the one measured; 0 until measured). */
   rect: Rect;
-  /** Reports the natural height of the content (px, border included) whenever it changes. */
-  onHeight(key: string, width: number, h: number): void;
+  /** Reports the natural height of the content (px, border included) whenever it changes, and `want`: that height with every picture held to its room at the height it wanted (Plan 43; = h when none is held). */
+  onHeight(key: string, width: number, h: number, want?: number, open?: number): void;
   onGone(key: string): void;
   children: ReactNode;
   label?: string;
@@ -141,24 +142,32 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const el = innerRef.current;
     if (!el) return;
     // a centred card (2D's panel and case) keeps its padding on the card itself, so its height is its words' and that padding
-    const report = () => {
-      markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
+    // `full`: the fit is made from scratch (the card's first measure, a new width, a new step). A pass the observer starts after the card is let in (`live`) only measures: it never changes a class, --pz-fit
+    // or a chart's box in place unless the card is really past its room (Plan 43: nothing re-spaces while a card shows or moves). A card on its way out never measures: it keeps the layout it left with.
+    const report = (full = true) => {
+      if (now.current.out) return;
+      if (full) markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
       // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split
       if (card && cs && centredKind(entry.id) === 'panel') {
-        const room = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height / scaleOf(el) + pad + 2;
-        card.style.removeProperty('--pz-fit');
+        const room = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height / scaleOf(el) + pad + 2 + heldBy(el);   // (+ what a picture held to its room still wants: the content zooms down until the picture has its height, never drawn past the panel, Plan 43)
+        const cur = parseFloat(card.style.getPropertyValue('--pz-fit')) || 1;
+        if (full) card.style.removeProperty('--pz-fit');
         const probe = card.querySelector('.pz-line, .pz-outline li, p'), lb = probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0, floor = lb > 12 ? Math.ceil((12 / lb) * 1000) / 1000 : 0.5;
-        let k = 1, hgt = size();
+        let k = full ? 1 : cur, hgt = size();
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }
       const h = Math.ceil(el.getBoundingClientRect().height / scaleOf(el) + pad) + 2;   // (a card zoom is a transform: its rect is that many times the card's own height)
       growNow(h); shrinkNow(h);
-      onHeight(entry.key, Math.round(rect.w), h);
+      onHeight(entry.key, Math.round(rect.w), h, h + heldBy(el), openCharts(el));
     };
-    report();
-    return observeThenFit([el], report);   // (the pass writes onto what it observes, its class and --pz-fit: never inside the observer's own delivery)
+    report(true);
+    // a chart that has drawn once tells the card (card-want.ts openCharts): the card judges whether it can come in at once, not at the next resize
+    const built = () => report(!now.current.live);
+    el.addEventListener('pz-chart-built', built);
+    const off = observeThenFit([el], () => report(!now.current.live));
+    return () => { el.removeEventListener('pz-chart-built', built); off(); };   // (the pass writes onto what it observes, its class and --pz-fit: never inside the observer's own delivery)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.key, Math.round(rect.w), remeasure]);
 

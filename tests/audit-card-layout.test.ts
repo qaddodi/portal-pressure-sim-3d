@@ -22,7 +22,7 @@ test('the profile chart is never taller than the room its data card leaves it (2
 test('the profile card is handed the room, and holds its height to it', () => {
   assert.match(src('src/ui/talk/ToolCardBody.tsx'), /<ProfileCard [^>]*room=\{room\}/);
   const pc = src('src/ui/charts/profile/ProfileCard.tsx');
-  assert.match(pc, /heldToRoom\(layoutHeight\(/);
+  assert.match(pc, /fitToRoom\(base, room, f/);
   assert.match(pc, /deps=\{\[[^\]]*\broom\b/);
 });
 

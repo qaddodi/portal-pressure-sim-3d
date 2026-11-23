@@ -21,7 +21,8 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   const { pal } = c, f = c.type.sm, w = Math.max(160, c.w), { ser, clock, keys } = spec, rx = spec.rx ?? [];
   const H = { host: 'flowtime' };
   const lk = (key: string, state: Record<string, unknown> = {}, tone?: string, name = 'c'): Look => look(c, H, key, state, tone ? { [name]: tone } : {});
-  const ax = ser.ax, h = Math.round(spec.height ?? flowTimeFit(w, f, keys, rx.length ? 1.4 + 0.32 * rx.length : 0, spec.room, spec.cap));
+  const ax = ser.ax, bandEm = rx.length ? 1.4 + 0.32 * rx.length : 0, h = Math.round(spec.height ?? flowTimeFit(w, f, keys, bandEm, spec.room, spec.cap));
+  const want = spec.height == null && !spec.cap ? flowTimeFit(w, f, keys, bandEm, 0, 0) : h;   // (what it would be given no room: the card judges its pair by it)
   const G = flowGeo(ser, clock, keys, rx.length, w, h, f), LINES: LineRow[] = linesOf(keys);
   const { L, R, T, B, meal } = G, X = (mm: number) => xAt(G, ax, mm);
   const surf2 = lk('plot.bg').fill!;
@@ -111,7 +112,7 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     shapes[vi] = { ...s, y: Math.min(heads[j]!.hy + 1.5 * f, B - 0.25 * f) };
   }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
-  return { frame: { w, h, shapes, label }, G };
+  return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };
 }
 function lerpAt(arr: readonly number[], from: number, m: number): number {
   const j = clamp(Math.floor(m - from), 0, arr.length - 2);

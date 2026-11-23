@@ -375,13 +375,14 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
 }
 
 export function curveFrame(spec: CurveSpec, c: ChartCtx): CurveOut {
-  const f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, heldToRoom(spec.height ?? fitHeight(curveHeight(w, f), c), spec.room, f)!));
+  const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
   let out = drawOnce(spec, c, w, h, f, false, false);
   // a crowd of names: numbers on the dots and a key under the chart, if the plot keeps its height
   if (out.crowded) { const g2 = drawOnce(spec, c, w, h, f, true, false); if (g2.G.B - g2.G.T >= 5 * f) out = g2; }
   // with against, names that found no clear spot: the key of the lines above the plot, the plot a little shorter
   if (out.G.ag && !out.G.alt && !out.fits) out = drawOnce(spec, c, w, h, f, !!out.G.stepKey, true);
-  return out;
+  // (held to the room: the card judges its pair by the height the chart wants, Frame.want)
+  return own > h + 0.5 ? { ...out, frame: { ...out.frame, want: Math.round(own) } } : out;
 }
 
 /** The same frame with the case's line at x (shown units): the line glides after its goal while the words stand where they were placed (2D moveAt: a frame of the glide moves that line and nothing else). */

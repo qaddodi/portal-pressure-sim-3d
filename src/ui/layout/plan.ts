@@ -22,7 +22,7 @@ export type CardId = 'title' | 'case' | 'teach' | 'ladder' | 'table' | 'check' |
 /** `words` is the left or top card (title, case, teaching line, quick check); `data` is the card of numbers. */
 export type Slot = 'words' | 'data';
 
-export interface Need { id: CardId; slot: Slot; /** a `visual` card's 2D visual (table, plane, walls…): its width is that kind's */ visual?: string; /** natural height at this plan's width for it (px); 0 until measured */ h: number }
+export interface Need { id: CardId; slot: Slot; /** a `visual` card's 2D visual (table, plane, walls…): its width is that kind's */ visual?: string; /** natural height at this plan's width for it (px); 0 until measured */ h: number; /** a data card whose instrument was held to its room: the height it would stand at with every picture at the height it wants (Plan 43); absent: its own h */ want?: number }
 export interface Placed { id: CardId; slot: Slot; rect: Rect }
 export interface Strip { id: CardId; slot: Slot; rect: Rect }
 export interface Plan {
@@ -44,6 +44,8 @@ export interface Plan {
   overflow: CardId[];
   /** Largest height a card of each slot may have here. */
   maxH: Record<Slot, number>;
+  /** The data card's instrument was held short by its room (what it wants is more than the card may be): the pair is judged too tall, so the title steps first (Plan 43). */
+  short: boolean;
   /** Where the presenter bar stands. */
   bar: BarPlace;
 }
@@ -181,7 +183,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const data = needs.find((n) => n.slot === 'data') ?? null;
   const placed: Placed[] = [];
   let bar = barOf(vp);
-  let strip: Strip | null = null, shut = false, docked = false, tucked: Rect | null = null;
+  let strip: Strip | null = null, shut = false, docked = false, tucked: Rect | null = null, short = false;
   const maxH: Record<Slot, number> = { words: 0, data: 0 };
   let bounds: Rect;
   const extra: Rect[] = [];
@@ -194,7 +196,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const x = Math.round((vp.w - c.w) / 2), y = Math.round(c.top + (c.room - h) / 2);
     placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
-    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, free: bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, bar };
+    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, free: bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, short: false, bar };
   } else if (sideways) {
     const steps = walletSteps(vp);
     const st = steps[Math.min(step, steps.length - 1)];
@@ -266,6 +268,8 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const capTop = rise > 0 ? y0 : top0;
     maxH.words = Math.round(foot - capTop - (data ? gap + dh : 0));
     maxH.data = Math.round(foot - capTop - (words ? gap + wh : 0));
+    // the instrument was held short by this room: what the card would stand at with it at its wanted height is more than the card may be (Plan 43)
+    short = !!data && (data.want ?? 0) > maxH.data + 0.5;
     if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y0), w, h: wh } });
     if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
     bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - 8 };
@@ -274,7 +278,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   const overflow = placed.filter((p) => p.rect.h > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut, docked, tucked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, bar };
+  return { device, layout, sideways, cards: placed, strip, shut, docked, tucked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */

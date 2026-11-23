@@ -52,6 +52,8 @@ export class ChartPainter {
   /** Show a frame. glide: blend from the one now shown (when there is one). */
   show(next: Frame, glide = true) {
     next = this.legible(next);
+    // (the height the chart wants, written where the card reads it with the box's real height: card-want.ts)
+    if (next.want != null && next.want > next.h + 0.5) this.box.dataset.wantH = String(Math.round(next.want)); else delete this.box.dataset.wantH;
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.box.style.height = `${Math.round(next.h)}px`;
     this.gl.size(next.w, next.h);

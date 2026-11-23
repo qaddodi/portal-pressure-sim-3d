@@ -56,6 +56,8 @@ export interface Frame {
   /** the box, px */
   w: number;
   h: number;
+  /** the height the chart WANTS, px, when it was held to a room shorter than that (Plan 43): the card judges its pair by it, never by the height the chart was squeezed to */
+  want?: number;
   shapes: readonly Shape[];
   /** the chart in a sentence, for a screen reader (the picture is aria-hidden) */
   label: string;

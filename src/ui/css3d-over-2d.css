@@ -115,3 +115,17 @@ html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot
 html .umenu:has(.um-empty[data-fade="off"]) .um-cols { flex: 1 1 auto; }
 html .umenu:has(.um-empty[data-fade="off"]) .um-empty { flex: 0 0 auto; }
 .um-empty > .fade-in { display: flex; flex-direction: column; align-items: center; }
+
+/* ── Plan 43: a row of choices is one line per button, sized to its words, never cut ──
+   Every choice is one line, on every screen (2D had `nowrap` only on a phone: a label that wrapped inside its button made a two-line, oversized box, "Normal / heart"). On a wide or short screen the button is
+   as tall as its words need (a 16.6 px label in a 40 px box with 17 px of padding was as tall as two lines of the card's words), its label no larger than .82 of the card's body size; the finger's 44 px is kept by
+   a transparent box over its edge (no layout height), so a smaller button is not a harder one to hit. The row itself fits in fitChoiceRow (ab-short.ts): one row, else two balanced rows. */
+.pz-abb { white-space: nowrap; }
+.pz:not(.stack):not(.low) .pz-text .pz-abb { min-height: 0; padding: .42em .8em; font-size: min(var(--s-lab), calc(var(--s-body) * .82)); }
+.pz:not(.stack):not(.low) .pz-text .pz-abb::after { content: ''; position: absolute; inset: -6px -2px; }
+
+/* ── Plan 43: the six ladders' gaps are one gap ──
+   2D had three clamps for what a reader sees as one space between boxes: the gap under the title (1.2 pzh), the row gap (1.2 pzh) and the column gap (2 pzh, 16 px at an iPad's height against 10 px). One token for all three. (The cell's own padding
+   is inside its box and stays.) */
+.pz:not(.stack):not(.low) .pz-panel.fill { --pz-grid-gap: clamp(8px, calc(1.2 * var(--pzh)), 16px); gap: var(--pz-grid-gap); }
+.pz:not(.stack):not(.low) .pz-panel.fill .pz-grid { gap: var(--pz-grid-gap); }

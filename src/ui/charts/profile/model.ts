@@ -241,3 +241,18 @@ export function heldToRoom(own: number | undefined, room: number | undefined, f:
   if (own == null || !(room && room > 0)) return own;
   return Math.max(Math.round(11 * f), Math.min(own, Math.floor(room)));
 }
+
+/** The tallest the ladder is ever drawn in its layout (2D's `min(max(62 % of the width, 28 pzh), 40 pzh) - 1.6 em`'s upper bound: `40 pzh - 1.6 em`); a phone on its side, and a stacked card, have none beyond their own height. */
+export function layoutCeiling(layout: string, sideways: boolean, pzh: number, f: number): number | undefined {
+  return layout === 'stack' || layout === 'tab' || sideways ? undefined : Math.round(40 * pzh - 1.6 * f);
+}
+
+/** The ladder's height in the room its card leaves it (Plan 43): held DOWN to the room when it is shorter than the chart's own height (never under 11 em, as `heldToRoom`), and UP to
+ *  the least of `ceil` and the room when the room is longer (a card whose words are short gives the leftover to the instrument, 2 px short of the card's cap so rounding never tips it over). The
+ *  chart's own height is what it WANTS (the card judges its pair by it: Frame.want), whatever it was given. No height, or no room measured yet: the height as it is. */
+export function fitToRoom(own: number | undefined, room: number | undefined, f: number, ceil?: number): number | undefined {
+  if (own == null || !(room && room > 0)) return own;
+  const r = Math.floor(room);
+  if (r < own) return Math.max(Math.round(11 * f), r);
+  return ceil == null ? own : Math.max(own, Math.min(Math.round(ceil), r - 2));
+}

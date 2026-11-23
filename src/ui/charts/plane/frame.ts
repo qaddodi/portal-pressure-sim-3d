@@ -35,13 +35,19 @@ export interface PlaneOut { frame: Frame; layout: PlaneLayout; /** the plot's ow
 const fade = (c: Rgba | undefined, k: number | undefined): Rgba | undefined => (c && k !== undefined ? withAlpha(c, k) : c);
 const plotR = (w: number, h: number) => Math.max(0, Math.min(10, w / 4, h / 4));
 
-/** The plane as a frame. A summary (not the data card) given the room its panel leaves it is never taller than it: the plot gives up the height the key, the sources and the reading under it need (2D sizes the plot
- *  by the window and lets the panel's fit zoom the rest; the zoom stops at 12 px words, past which the panel's foot cut the chart off: audit 95bbb8ec, 163 to 285 px on the summary planes). The plot keeps 150 px at the least. */
+/** The plane as a frame. A summary (not the data card) given the room its panel leaves it is never taller than it (Plan 43: never, whatever the room): the plot gives up the height the key, the sources and the
+ *  reading under it need (2D sizes the plot by the window and lets the panel's fit zoom the rest; the zoom stops at 12 px words, past which the panel's foot cut the chart off: audit 95bbb8ec, 163 to 285 px on the
+ *  summary planes). The plot keeps 150 px where the room allows it; where it does not, the plot gives up more (never under PLOT_LEAST) and the frame reports the height it WANTS (Frame.want), so the panel
+ *  zooms its contents down until the plane has its own plot (CardFrame's fit), instead of drawing the plane past its panel and cutting its axis, its lower zone and its last point off. */
+export const PLOT_LEAST = 96;
 export function planeFrame(spec: PlaneIn, c: ChartCtx): PlaneOut {
   const out = planeFrameAt(spec, c);
   if ((spec.card ?? !!spec.ring) || !(spec.room && spec.room > 0) || out.frame.h <= spec.room) return out;
-  const plot = Math.max(150, Math.floor(out.plotH - (out.frame.h - spec.room)));
-  return plot < out.plotH ? planeFrameAt({ ...spec, height: plot }, c) : out;
+  const over = out.frame.h - spec.room;
+  const kept = planeFrameAt({ ...spec, height: Math.max(150, Math.floor(out.plotH - over)) }, c);
+  if (kept.frame.h <= spec.room) return kept;
+  const least = planeFrameAt({ ...spec, height: Math.max(PLOT_LEAST, Math.floor(kept.plotH - (kept.frame.h - spec.room))) }, c);
+  return { ...least, frame: { ...least.frame, want: kept.frame.h } };
 }
 
 function planeFrameAt(spec: PlaneIn, c: ChartCtx): PlaneOut {

@@ -38,7 +38,7 @@ test('the card layer takes the steps before the words page, and writes them on b
   const layer = src('ui/cards/CardLayer.tsx'), frame = src('ui/cards/CardFrame.tsx');
   assert.match(layer, /pairSteps\(ladBase\[pagesKey\]\)/);
   assert.match(layer, /const tooTall = [^\n]*&& !ladBusy/, 'the words page only when the ladder is spent');
-  assert.match(layer, /vars=\{\(slot === 'data' \? dataVars : ladVars\) as never\} remeasure=\{sig\}/, 'both cards get the step, and measure again for it');
+  assert.match(layer, /vars=\{fp\.vars as never\} remeasure=\{fp\.sig\}/, 'both cards get the step they were let in with, and measure again for it (frame-props.ts)');
   assert.match(layer, /const growing = ladBusy \|\|/, 'the cards wait for the ladder, as for a page');
   assert.match(layer, /ladOn = pair && !sideways && !stacked0/, 'a laptop or tablet on its side only: the phone has its own steps');
   assert.match(frame, /style=\{\{ \.\.\.vars, width: rect\.w/);
@@ -57,7 +57,7 @@ test('the data card\'s own fit is the last step: to its room, never under 12 px'
   assert.equal(dataFitOf(900, 383, Infinity), 1);
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(layer, /dataFitOf\(dataHit\?\.h \?\? 0, plan\.maxH\.data, minPx\)/);
-  assert.match(layer, /vars=\{\(slot === 'data' \? dataVars : ladVars\) as never\}/, 'the fit is the data card\'s alone: the words never zoom');
+  assert.match(layer, /vars: \(slot === 'data' \? dataVars : ladVars\) as CSSProperties/, 'the fit is the data card\'s alone: the words never zoom');
   assert.match(layer, /!ladBusy && !fitBusy;/, 'the words page only when the fit is spent too');
 });
 
