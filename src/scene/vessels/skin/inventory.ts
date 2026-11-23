@@ -7,6 +7,7 @@ import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 import { braidRootEnds } from './braid-arm.ts';
 import { PHASE_2_NODES } from './nodes.ts';
+import { DIVIDED } from '../divide.ts';
 import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The kinds of vessel that are permanent (spec 4.1): a skin is built only where these meet. Collaterals and shunts grow from nothing and keep the fork method (`nbr`, `bury`); feeders are strands of a host. */
@@ -158,7 +159,11 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
     if (!(ends.length >= MIN_ARMS && ends.length <= MAX_ARMS) && !(ends.length === 2 && grow.length > 0)) continue;
     const sorted = ends.map((e, i) => ({ ...e, i })).sort((a, b) => b.v.radius - a.v.radius || a.i - b.i);
     // the permanent arms first, widest first (J is the widest's end), then the growing ones, widest first
-    const arms: SkinArm[] = [...sorted.map((e) => armOf(e, false)), ...grow.map((e) => armOf(e, true))];
+    const arms: SkinArm[] = [...sorted.map((e) => armOf(e, false)), ...grow.map((e) => armOf(e, true))].map((a) => {
+      // a divided vein's START ends at the node where its shunt lands: that arm leaves the skin while the shunt is in (types.ts `leaves`)
+      const d = a.grow || a.end !== 0 ? undefined : DIVIDED.find(([sh, vein]) => vein === a.vesselId && grow.some((g) => g.v.id === sh));
+      return d ? { ...a, leaves: d[0] } : a;
+    });
     const widest = sorted[0]!;
     const side = hostSides(arms, arms.map((a) => coursesOf(byId.get(a.vesselId)!, state)[0]!.pts as readonly Vec3[]), endPoint(widest.v, widest.end, state));
     out.push({ node, J: side.J, arms: side.arms });

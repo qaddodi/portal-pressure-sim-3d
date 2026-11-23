@@ -19,6 +19,7 @@ import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
 import { fanEnd, leaveAsBundle } from './strand-fan.ts';
 import { clearAt, clearances, type ClearProfile } from './clearance.ts';
+import { fairBends } from './bend.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -210,6 +211,37 @@ function held(v: NetVessel, s: ShapeState, cs: Course[]): Course[] {
   return cs.map((c, i) => ({ ...c, hold: { len: lens[i] ?? lens[0]!, a, b, ...(r0 && r0[i] != null ? { r0: r0[i] } : {}) } }));
 }
 
+// THE BEND FLOOR (bend.ts): a drawn course bends no tighter than BEND_MIN_R radii of its tube. The 2D plan's hooks and the depth dives are faired here, once per course and cached (a course that clears the floor is returned as it was).
+// A coiling vessel's course moves with the wiggle, so only its ends are faired, and by the displacement the fairing gives its course AT REST (the same at every wiggle: the held ends under a skin, and the skin's own rest course, agree).
+/** The courses faired: the surgical shunts, which the owner reported (S_PC 0.7, S_MC 0.8, S_DSR 0.9 radii by the spline). The nine other courses under the floor (hepatic veins, C5, C6, the strands) stay as they were: the junction tables read their exact places (a collateral's landing on the azygos, tests/shunt-ends.test.ts), so they need a plan of their own. */
+export const FAIRED: ReadonlySet<string> = new Set(['S_PC', 'S_MC', 'S_DSR']);
+let unfaired = false;
+const fairCache = new Map<string, { sig: string; pts: Vec3[] }>();
+const fairDelta = new Map<string, { n: number; d: Vec3[] } | null>();
+const FAIR_ENDS_R = 12;
+const sigOf = (p: readonly Vec3[]): string => { let a = 0, b = 0, c = 0; for (let i = 0; i < p.length; i++) { const w = i + 1; a += p[i]![0] * w; b += p[i]![1] * w; c += p[i]![2] * w; } return `${p.length}|${a}|${b}|${c}`; };
+function fairMain(v: NetVessel, m: Vec3[], coils: boolean): Vec3[] {
+  const R = v.radius;
+  if (unfaired || !(R > 0) || !FAIRED.has(v.id)) return m;
+  if (!coils) {
+    const sig = sigOf(m), hit = fairCache.get(v.id);
+    if (hit && hit.sig === sig) return hit.pts;
+    const pts = fairBends(m, R);
+    fairCache.set(v.id, { sig, pts });
+    return pts;
+  }
+  let dl = fairDelta.get(v.id);
+  if (dl === undefined) {
+    unfaired = true;
+    let rest: Vec3[] | undefined;
+    try { rest = coursesOf(v, REST)[0]?.pts as Vec3[] | undefined; } finally { unfaired = false; }
+    const f = rest ? fairBends(rest, R, FAIR_ENDS_R * R) : undefined;
+    dl = rest && f && f !== rest ? { n: rest.length, d: f.map((q, i): Vec3 => [q[0] - rest![i]![0], q[1] - rest![i]![1], q[2] - rest![i]![2]]) } : null;
+    fairDelta.set(v.id, dl);
+  }
+  return dl && dl.n === m.length ? m.map((q, i): Vec3 => [q[0] + dl!.d[i]![0], q[1] + dl!.d[i]![1], q[2] + dl!.d[i]![2]]) : m;
+}
+
 /** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
@@ -236,6 +268,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     const sj = smoothJoinsOn() ? SMOOTH.get(v.id) : undefined;
     let buried: readonly [Buried | null, Buried | null] | undefined;
     if (sj) { const f = fitEnds(v, m); m = f.pts; buried = f.buried; }
+    if (smoothJoinsOn()) m = fairMain(v, m, plan.coils === true);
     // the bands: each one closes a channel of the varices' plexus (strand i is live while the count is under i + 1) and the rest shrink (stage-tubes.js widthWrites: 0.14 a band, to four)
     const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
     // the varices bead by their size: every strand, and the gastrorenal shunt itself (varix-bead.js)

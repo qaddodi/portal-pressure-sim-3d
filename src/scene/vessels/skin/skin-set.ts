@@ -24,7 +24,7 @@ import { BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } fro
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, armR, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
-import { partKey, partOf, partSets, plainOf, weldOf } from './plain.ts';
+import { partKey, partOf, partSpecs, plainOf, weldOf } from './plain.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, uFadeOf, wedgeSeamD, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
@@ -74,6 +74,8 @@ export interface SkinSetDeps {
   endsChanged?(): void;
   /** milliseconds on the page's clock (a test hands in a fake to give a rebuild a cost) */
   now?(): number;
+  /** whether the vein a shunt divides is divided NOW (divide.ts stumpOf's share above 0: the shunt is drawn and not a side-to-side portocaval): the skin without that vein's start is the one drawn then (plain.ts `leave`). Absent: never. */
+  divided?(shunt: string): boolean;
   /** the skins baked at build time (baked.ts), if the page has them: `build` lays them in when they were made for exactly these junctions and tubes, and plans and meshes nothing */
   baked?(): BakedSkins | null;
 }
@@ -98,7 +100,7 @@ export function seamRingOf(ax: ArmAxis): SeamRing {
 export interface ArmSeam { vesselId: string; end: 0 | 1; node: string; ring: SeamRing; /** the tube's alpha at the seam (arm-twins.ts liveFadeAt), 1 before the first handover */ fade: number; /** how much of the tube is there at the seam (armPresenceAt) */ presence: number; /** the share of the cut end the welded skin has (1: the tube's cut end is wholly gone); a growing arm's is the node's weld, any other arm's 1 */ weld: number; obj: VesselObject; /** the seam ring's first vertex in the tube's geometry (the waist is read there) */ vi: number }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the weights are shared among the arms that are there: a growing arm that is not holds none (skin-object.ts setKeep); last written */ keep?: boolean; /** the u-fade last written (arm-twins.ts uFadeOf; NaN before the first, -1 for none) */ fk: number[]; /** a growing arm is there now (not dotted, presence above 0): only such an arm holds the node's weld */ here?: boolean; /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[]; /** the clot's uniforms last written, as a key */ clot?: string; /** the seam ring as the skin's axis has it (seamOf): its centre, the unit heading away from the node into the tube, and the ring's mean rest radius */ seam: SeamRing }
+interface ArmLink { /** the shunt that divides this arm's vein (types.ts `leaves`), when this is the divided vein's start */ leaves?: string; /** the weights are shared among the arms that are there: a growing arm that is not holds none (skin-object.ts setKeep); last written */ keep?: boolean; /** the u-fade last written (arm-twins.ts uFadeOf; NaN before the first, -1 for none) */ fk: number[]; /** a growing arm is there now (not dotted, presence above 0): only such an arm holds the node's weld */ here?: boolean; /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[]; /** the clot's uniforms last written, as a key */ clot?: string; /** the seam ring as the skin's axis has it (seamOf): its centre, the unit heading away from the node into the tube, and the ring's mean rest radius */ seam: SeamRing }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 /** The plain trunk of a skin with growing arms (plain.ts): the arms that stay, as a static skin of their own. */
 interface PlainBuilt { mesh: SkinMesh; draw: SkinDraw; keep: number[]; bake: PlainBake }
@@ -433,7 +435,10 @@ export class SkinSet {
     // from the whole arm, and a vertex of the fillet stands out of the union (wall:IVC_IS_1:S_PC1,C90 0.51, SVD 0.45+ radii; BULGE_MAX). How far to widen the neck is not one number for every skin (the fillets are chaotic in it: 0.7 and the wall skin
     // fails to build, 0.55 makes IMV bulge): each skin with growing arms is built at the least widening in NECK_FRACTIONS whose mesh builds and stays inside BULGE_MAX; one that none satisfies keeps the least bulging that built. A skin that is within the limit
     // at no widening (every one but those two today) is built once, as before.
-    const axesAt = (f: number): ArmAxis[] => weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? f : 0); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const rawAt = (f: number): ArmAxis[] => j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? f : 0); });
+    const axesAt = (f: number): ArmAxis[] => weldThrough(rawAt(f), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    // A part without a divided vein's start (plain.ts `leave`): the shunt that stands for the rest of the vein IS the run's other half, so it is no branch here and the run goes through it (through.ts `skip` false for it), one straight capsule from the vein's seam to the shunt's.
+    const leaveAxesAt = (keep: readonly number[], f: number): ArmAxis[] => { const raw = rawAt(f); return weldThrough(keep.map((i) => raw[i]!), keep.map((i) => !!j.arms[i]!.grow && !j.arms.some((x) => x.leaves === j.arms[i]!.vesselId))); };
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
@@ -471,13 +476,14 @@ export class SkinSet {
     // a skin with more than one growing arm is also built for each set of them that is THERE (Plan 16): with one open and the other collapsed the welded skin carries the absent one's whole stub beside the open one, and no per-pixel rule moves the surface
     // a pixel lies on. Each part has the same seam rings and cuts and the arms' axes as the welded skin chose them; a part whose grower's neck bulges is tried at the other widenings, as the welded skin is.
     const parts = new Map<string, PlainBuilt>(), partBake: Record<string, PlainBake | null> = {};
-    for (const there of growing ? partSets(plan) : []) {
-      const pq = partOf(plan, there);
+    for (const spec of growing ? partSpecs(plan) : []) {
+      const pq = partOf(plan, spec.there, spec.leave);
       if (!pq) continue;
-      const key = partKey(there), node = pq.junction.node, baked = ready?.parts?.[key];
+      const key = spec.key, node = pq.junction.node, baked = ready?.parts?.[key];
       if (baked === null) { partBake[key] = null; continue; }
       try {
         const sub = (ax: readonly ArmAxis[]): ArmAxis[] => pq.keep.map((i) => { const a = ax[i]!, m = a.mate === undefined ? -1 : pq.keep.indexOf(a.mate); return m >= 0 ? { ...a, mate: m } : { pts: a.pts, radii: a.radii }; });
+        const axesFor = (f: number): ArmAxis[] => (spec.leave ? leaveAxesAt(pq.keep, f) : sub(f === 0 ? axes : axesAt(f)));
         const make = (ax: ArmAxis[]): SkinMesh => {
           const m = buildSkinSteady(pq.junction, pq.cuts, pq.keep.map((i) => pos[i]!), pq.keep.map((i) => nor[i]!), ax.map(capsuleOf), undefined, this.paces);
           m.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { m.restR[v] = rest[pq.keep[a]!]![q]!; }));
@@ -486,10 +492,10 @@ export class SkinSet {
         let axesQ: ArmAxis[], meshQ: SkinMesh;
         if (baked) { axesQ = baked.axes; meshQ = baked.mesh; this.paces.set(node, baked.pace); }
         else {
-          axesQ = sub(axes); meshQ = make(axesQ);
+          axesQ = axesFor(0); meshQ = make(axesQ);
           let best = worstBulge(meshQ, axesQ);
           for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
-            const ax = sub(axesAt(NECK_FRACTIONS[q]!));
+            const ax = axesFor(NECK_FRACTIONS[q]!);
             let m: SkinMesh;
             try { m = make(ax); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
             const b = worstBulge(m, ax);
@@ -512,7 +518,7 @@ export class SkinSet {
       const cut = plan.cuts[i]!, ring = pos[i]!;
       let x = 0, y = 0;
       for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      return { fk: [NaN, NaN, NaN, NaN], seam: seamRingOf(axes[i]!), grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain) && !holes.some((h) => h.id === a.vesselId), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: [NaN, NaN, NaN, NaN, NaN], cp: [NaN, NaN, NaN] };
+      return { fk: [NaN, NaN, NaN, NaN], seam: seamRingOf(axes[i]!), ...(a.leaves ? { leaves: a.leaves } : {}), grow: !!a.grow, pi: plain ? plain.keep.indexOf(i) : -1, weld: growing && (!!a.grow || !plain) && !holes.some((h) => h.id === a.vesselId), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], wedge: [NaN, NaN, NaN, NaN, NaN], cp: [NaN, NaN, NaN] };
     });
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
@@ -801,16 +807,24 @@ export class SkinSet {
       // the pair that stands for the weld (Plan 16): `in` is the skin of the growers that are THERE (the welded skin when every one is, a part when some are, none when none are), `out` the skin without the one whose weld is lowest (the one coming or going: the plain trunk
       // when it is the only one there, as before). Every other skin of the node is not drawn. A part that could not be built falls back to the welded skin (with its keep flags) for `in` and to the plain trunk for `out`, today's behaviour.
       const gi = b.arms.map((a, i) => (a.grow ? i : -1)).filter((i) => i >= 0), there = gi.filter((i) => b.arms[i]!.here);
-      const skinOf = (set: readonly number[]): SkinDraw | null => (set.length === gi.length ? b.draw : set.length === 0 ? b.plain?.draw ?? null : b.parts.get(partKey(set))?.draw ?? null);
+      // a shunt that divides its vein (a growing arm some arm `leaves` for) is the vein's continuation when it is drawn: with it there and the vein divided now, the skin is the part WITHOUT the vein's start (plain.ts `leave`, key + 'L'),
+      // never the one that carries it at alpha 0 (the lump in the splenic vein and the fade cut over the shunt, 23 Nov). A part that failed to build falls back to the welded skin, named in `partFailed`.
+      const divides = (i: number): boolean => b.arms.some((x) => x.leaves === b.arms[i]!.id) && !!this.deps.divided?.(b.arms[i]!.id);
+      const skinOf = (set: readonly number[]): SkinDraw | null => {
+        const lp = set.some(divides) ? b.parts.get(`${partKey(set)}L`) : undefined;
+        return lp ? lp.draw : set.length === gi.length ? b.draw : set.length === 0 ? b.plain?.draw ?? null : b.parts.get(partKey(set))?.draw ?? null;
+      };
       const inD = there.length ? skinOf(there) ?? b.draw : null, outD = there.length ? skinOf(there.filter((i) => i !== coming)) ?? b.plain?.draw ?? null : b.plain?.draw ?? null;
-      const sel = `${weld}|${there.join('.')}|${coming}`;
+      const lvIn = there.some(divides) && b.parts.has(`${partKey(there)}L`);   // (the skin drawn for the growers that are there is the one without the divided vein's start)
+      const sel = `${weld}|${there.join('.')}|${coming}|${lvIn ? 1 : 0}${gi.filter(divides).join('.')}`;
       if (gi.length && (b.w !== weld || b.sel !== sel)) {
         // the weld: the skin `in` keeps the pixels whose screen pattern is under `weld`, the skin `out` the rest, and a tube's cut end the pixels neither of them draws (no pixel is two skins; at 1 the cut is whole, at 0 the skin is not drawn)
         b.w = weld; b.sel = sel; any = true;
         for (const d of [b.draw, ...[...b.parts.values()].map((p) => p.draw)]) if (d !== inD && d !== outD) d.setWeld?.(1, 0);   // (not drawn: the welded form before its weld begins)
         if (b.plain && b.plain.draw !== outD) b.plain.draw.setWeld?.(-1, 1);   // (the plain trunk once the weld is whole)
         inD?.setWeld?.(1, weld); outD?.setWeld?.(-1, weld);
-        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, a.grow && !a.here ? 0 : weld);   // (an absent growing arm's own thread keeps its end)
+        // (an absent growing arm's own thread keeps its end; so does a divided vein's start while its shunt's skin is the one without it: the stump's round end is the tube's own)
+        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, a.grow && !a.here ? 0 : lvIn && a.leaves !== undefined && there.some((g) => b.arms[g]!.id === a.leaves) ? 0 : weld);
         if (!b.plain) for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, weld);   // (a host's hole is dithered back with the weld when no plain trunk stands in for it)
       }
       if (any) changed = true;

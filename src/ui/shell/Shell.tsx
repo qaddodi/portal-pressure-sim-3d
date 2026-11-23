@@ -108,6 +108,7 @@ function useFreeCamera() {
 /** What 2D's main.js publishes on .app after measuring the bars: the cards, the zoom pill and the toast read them. Set when the screen or the layout changes, never per frame. */
 function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: boolean) {
   const vp = useUi((s) => s.vp);
+  const cardH = useActionRoom((s) => s.h);   // (a docked action card's height above the view pill's slot, 0 with none: its own resize observer, ActionCard.tsx)
   useLayoutEffect(() => {
     const el = app.current;
     if (!el || vp.w <= 0) return;
@@ -121,7 +122,9 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
     // the foot's height (the dock and the view pill over it) for what stands outside .app, the toast (2D: --toast-foot / --bot-occ, main.js)
     const lv = layoutVars(vp, d);
     if (lv['--bot-occ']) root.style.setProperty('--bot-occ', lv['--bot-occ']);
-  }, [app, vp, thumb]);
+    // the room a docked action card takes above the dock (23 Nov, Mohammad: the note covered the card's rows): the note, the zoom pill and the figure's names stand above it (shell.css .sh-toast, css3d-over-2d.css), by a transform that glides, never by `bottom`
+    root.style.setProperty('--card-occ', px(cardH));
+  }, [app, vp, thumb, cardH]);
 }
 
 /** The 2D chrome's measured numbers as `--m-*` on the shell root: the sheets' places (shell.css, history.css, why.css) read them, and without them every `calc(... var(--m-side-pad))` is invalid and the sheet falls to the corner. */

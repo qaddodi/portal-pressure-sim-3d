@@ -73,6 +73,9 @@ test('the weight and the halo: nothing without a pick weight, eased with it, gon
   for (let h = 0; h <= 1.0001; h += 0.05) { const w = GLOW.glowWeight(h); assert.ok(w >= last - 1e-12 && w - last < 0.15, 'smooth'); last = w; }
   assert.equal(GLOW.glowWeight(1, 0.15), 0, 'gone by the Circuit change\'s first 15 %');
   assert.equal(GLOW.glowAlpha(0.5, 1), 0, 'nothing over the vessel');
+  // inside is COVERAGE (23 Nov: the white blobs at a picked shunt's joins): a translucent part of the vessel (the join into the receded cava, 0.45) and the faintest covered pixel take no halo either
+  for (const a of [1 / 255, 0.45, 0.8, 1]) assert.equal(GLOW.glowAlpha(0.5, a), 0, `nothing over a vessel pixel of mask alpha ${a}`);
+  assert.ok(GLOW.glowAlpha(0.5, 0.2 / 255) > 0, 'a pixel under half a level of 8 bits is no vessel');
   assert.equal(GLOW.glowAlpha(1), GLOW.GLOW_A_MAX, 'capped');
   assert.ok(Math.abs(GLOW.glowAlpha(0.5) - GLOW.GLOW_A) < 0.01, 'the rim of a wide vessel is GLOW_A');
   assert.ok(GLOW.glowAlpha(0.3) > GLOW.glowAlpha(0.1) && GLOW.glowAlpha(0.1) > GLOW.glowAlpha(0.02), 'thins out');

@@ -50,7 +50,9 @@ export function divideOf(shunt: string, vein: string): Divide | null {
     const need = (vw + xw) / 2 + 2 * WALL + 0.35 * vw;
     const clear = Math.min(clearArc(a, b, need), vw * 4.8, len * 0.45);
     const cut = Math.max(vw * 2.2 + 2 * WALL, clear);
-    out = { cut, tie: stumpCentre(cut, len) };
+    // the tie sits on the stump's straight wall, never on its round end (the end is a quarter circle over one radius from the cut, and the pinch is PINCH_W wide each side of the tie: the portal trunk's 0.6-of-its-length clamp put the tie 6.7 units past a 7.8 cap, so the pale
+    // turns of the tie crossed the cap, 23 Nov): at least the cap, and the pinch's two widths, past the cut, and still inside the vein
+    out = { cut, tie: Math.min(len - vw / 2, Math.max(stumpCentre(cut, len), cut + vw / 2 + 2 * PINCH_W)) };
   }
   memo.set(key, out);
   return out;

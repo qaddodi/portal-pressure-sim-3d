@@ -38,7 +38,9 @@ uniform sampler2D tBlur;   // the blurred mask (premultiplied colour, weight)
 uniform sampler2D tMask;   // the sharp mask
 void main() {
   vec4 g = texture2D(tBlur, vUv);
-  float inside = smoothstep(0.0, 1.0, texture2D(tMask, vUv).a);
+  // INSIDE IS COVERAGE, NOT OPACITY (23 Nov, white blobs where a picked shunt fades into the cava): the mask's alpha is the vessel's alpha times its pick weight, so a translucent part (a join into the receded cava, 0.45) was only half 'inside' and half the halo, lifted
+  // toward white on the dark looks, was laid over the vessel's own body. Any pixel the vessel covers at all keeps the halo off it; the halo's strength still comes from the blurred mask, so it eases in with the pick as before (the organs' lay has always been this one).
+  float inside = step(0.5 / 255.0, texture2D(tMask, vUv).a);
   float a = clamp(g.a * ${F(GLOW_GAIN)}, 0.0, ${F(GLOW_A_MAX)}) * (1.0 - inside);
   // a hair of noise so the soft tail never steps in an 8-bit canvas
   a += (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5) / 255.0 * step(0.004, a);
@@ -46,12 +48,8 @@ void main() {
   gl_FragColor = vec4(g.rgb / max(g.a, 1e-4), a);
 }`;
 
-/** The organs' lay: the same shader but for the line that decides "inside". The vessels' lay eases `inside` with the mask weight; an organ's mask weight IS its eased pick weight, so early in the ease that put glow over the organ's interior (the flash before the glow). Here inside is on from the first sliver of weight, so the interior never takes glow and only the halo outside the rim rises. LAY_FS itself stays byte for byte (the vessels' program is unchanged). */
-export const LAY_INSIDE_LINE = 'float inside = smoothstep(0.0, 1.0, texture2D(tMask, vUv).a);';
-export const LAY_HARD_FS = LAY_FS.replace(LAY_INSIDE_LINE, 'float inside = step(0.5 / 255.0, texture2D(tMask, vUv).a);');
-
 /** The glow's two passes, compiled by the GLSL compile test and the ?gl page (src/debug/gl-auto.ts reads this). */
-export const GL_PROGRAMS = [{ name: 'glow blur', vs: GLOW_FX_VS, fs: BLUR_FS }, { name: 'glow lay', vs: GLOW_FX_VS, fs: LAY_FS }, { name: 'glow lay (organs, hard inside)', vs: GLOW_FX_VS, fs: LAY_HARD_FS }] as const;
+export const GL_PROGRAMS = [{ name: 'glow blur', vs: GLOW_FX_VS, fs: BLUR_FS }, { name: 'glow lay', vs: GLOW_FX_VS, fs: LAY_FS }] as const;
 
 /** What the lay's two samplers hold until the first mask is made (the lay quad of the figure is on the scene graph from the start, hidden: a sampler with no value is a bug the uniform check names). */
 const NO_MASK = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
@@ -66,8 +64,8 @@ export class GlowFx {
   private readonly quad: Mesh;
   private readonly blur = new ShaderMaterial({ name: 'glow blur', vertexShader: GLOW_FX_VS, fragmentShader: BLUR_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tSrc: { value: null }, stepUv: { value: new Vector2() }, sigma: { value: 1 } } });
   private readonly lay: ShaderMaterial;
-  private makeLay(insideHard: boolean): ShaderMaterial { return new ShaderMaterial({ name: 'glow lay',
-    vertexShader: GLOW_FX_VS, fragmentShader: insideHard ? LAY_HARD_FS : LAY_FS, transparent: true, depthTest: false, depthWrite: false,
+  private makeLay(): ShaderMaterial { return new ShaderMaterial({ name: 'glow lay',
+    vertexShader: GLOW_FX_VS, fragmentShader: LAY_FS, transparent: true, depthTest: false, depthWrite: false,
     blending: CustomBlending, blendEquation: AddEquation, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: ZeroFactor, blendDstAlpha: OneFactor,   // (the figure's own alpha is left as it is)
     uniforms: { tBlur: { value: NO_MASK }, tMask: { value: NO_MASK } },
   }); }
@@ -80,9 +78,8 @@ export class GlowFx {
   /** The lay as an object of the figure (not of this class's own quad scene): a full-screen quad, hidden until the owner asks for it, whose draw order is the owner's to set. Shares the lay material, so no second program. */
   readonly figure: Mesh;
 
-  /** `insideHard`: the organs' lay (see LAY_HARD_FS). */
-  constructor(layer: number = GLOW_LAYER, insideHard = false) {
-    this.layer = layer; this.lay = this.makeLay(insideHard);
+  constructor(layer: number = GLOW_LAYER) {
+    this.layer = layer; this.lay = this.makeLay();
     const plane = new PlaneGeometry(2, 2);
     this.quad = new Mesh(plane, this.blur);
     this.quad.frustumCulled = false;

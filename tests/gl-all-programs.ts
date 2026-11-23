@@ -32,7 +32,7 @@ const mats = (o: unknown, ...keys: string[]): ShaderMaterial[] => keys.flatMap((
 /** The real materials of the late classes, built the way the app builds them (no renderer: a constructor makes its materials and touches no GL). */
 function lateMaterials(scene: CelScene): ShaderMaterial[] {
   const dof = new PostDof(() => false, null);
-  const out: ShaderMaterial[] = [new PostAA('fxaa', dof).material, ...mats(dof, 'gather', 'mix', 'copy'), ...new GlowFx().materials, ...new GlowFx(undefined, true).materials];
+  const out: ShaderMaterial[] = [new PostAA('fxaa', dof).material, ...mats(dof, 'gather', 'mix', 'copy'), ...new GlowFx().materials];
   out.push(...mats(new AscitesLayer(), 'mats'));
   const res = new ResistorLayer();
   out.push((res as unknown as { material(): ShaderMaterial }).material());
