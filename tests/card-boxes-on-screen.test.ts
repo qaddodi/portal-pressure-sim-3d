@@ -24,7 +24,10 @@ test('every placed card and strip lies inside the screen, for any data height, d
     for (const r of boxes) {
       const at = `${vp.n} dock=${dock} ${active} data ${dh} words ${wh}: ${JSON.stringify(r)}`;
       assert.ok(r.x >= 0 && r.x + r.w <= vp.w + 0.5 && r.w > 0, `off screen sideways: ${at}`);
-      assert.ok(r.y >= 0 && (r.y + r.h <= vp.h + 0.5 || p.overflow.length > 0), `off screen vertically: ${at}`);
+      // (a phone on its side: the instrument bleeds off the foot by design, only its top edge is on the screen; docs/approved/landscape-phone.md)
+      const bleeds = p.sideways && r === p.cards.find((c) => c.slot === 'data')?.rect;
+      assert.ok(r.y >= 0 && (r.y + r.h <= vp.h + 0.5 || p.overflow.length > 0 || bleeds), `off screen vertically: ${at}`);
+      if (bleeds) assert.ok(r.y < vp.h - 30, `the bleeding card shows its edge: ${at}`);
     }
   }
 });
