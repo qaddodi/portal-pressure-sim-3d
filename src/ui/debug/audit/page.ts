@@ -95,7 +95,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
   // Capture all decks: every slide of every talk through the Capture pipeline, then one zip and a contact sheet per talk. The save buttons come when it ends (the share sheet needs a fresh tap).
   let cap: import('./capture-all.ts').AllResult | null = null;
   const saveRow = document.createElement('div'); saveRow.hidden = true;
-  // which talk and which slides: all, ticked, or a random 25, 50 or 100 (the list is read in once the talks are loaded)
+  // which talk and which slides: all, ticked, or a random 5, 10 or 25 (the list is read in once the talks are loaded)
   const picker = pickerUi(document, () => builtinDecks());
   void loadAllDecks().then(() => picker.refresh());
   // Stop: big and red, there from the first slide to the last (what is captured so far is kept and saved)

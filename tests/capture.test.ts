@@ -190,7 +190,7 @@ test('Capture this deck: a Settings row inside a talk, a Stop in the toast that 
   assert.match(sheet, /talk \? <MenuItem icon="grid" label=\{CAPTURE\.deckRow\}/);
   assert.match(deck, /only: id/); assert.match(deck, /stop: \(\) => stopped/); assert.match(deck, /restore: back/); assert.match(deck, /CAPTURE\.save/);
   assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
-  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Random 25/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /decks: sel\.decks/);
+  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Random 5/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /decks: sel\.decks/);
   assert.ok(!/—/.test(src('src/ui/shell/words.ts').match(/export const CAPTURE = \{[\s\S]*?\} as const;/)![0]));
 });
 

@@ -1,4 +1,4 @@
-// ?audit on a Mac: "Capture" beside the self-test's own buttons. It takes the slides the form names (every slide, ticked ones, or a random 25, 50, 100) in each size ticked in the bar, one frame at a time (the
+// ?audit on a Mac: "Capture" beside the self-test's own buttons. It takes the slides the form names (every slide, ticked ones, or a random 5, 10, 25) in each size ticked in the bar, one frame at a time (the
 // way the self-test does: the app in an iframe at the device's size, `?audit=capture`, capture-child.ts), and joins every size's files into one zip, a folder a size, to save with a tap.
 import { FRAME_DEVICES, fitScale } from '../frame/frame.ts';
 import { flagValue, queryWithout, searchNow } from '../flags.ts';

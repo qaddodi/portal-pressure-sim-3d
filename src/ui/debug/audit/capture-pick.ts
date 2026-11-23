@@ -1,4 +1,4 @@
-// Which slides the capture takes: all of them, some the person ticks, or a random sample (25, 50, 100) drawn from random talks. A slide is named `deck:k` (k = its stop in the talk: 0 the title, 1 the first slide,
+// Which slides the capture takes: all of them, some the person ticks, or a random sample (5, 10, 25) drawn from random talks. A slide is named `deck:k` (k = its stop in the talk: 0 the title, 1 the first slide,
 // the last the check), the same name in the address (`&pick=hvpg:3,outflow:5`) that the outer page hands each size's frame. The choice is made once (a sample is drawn once, not once per size), so every size
 // captures the same slides. Pure but for `pickerUi`, which builds the small form the audit panel and the outer page both show.
 
@@ -40,11 +40,11 @@ export function pickWords(keys: readonly string[]): string {
   return [...by].map(([d, ns]) => `${d} ${ns.join(', ')}`).join('; ');
 }
 
-/** The form: which talks (ticked; all to start with) and how many of their slides: every one, or a random 25, 50 or 100. `read()` gives `{ decks, pick, words }`: `decks` the ticked talks' ids (null when all are ticked), `pick` the random sample's keys (null for every slide of those talks). */
+/** The form: which talks (ticked; all to start with) and how many of their slides: every one, or a random 5, 10 or 25. `read()` gives `{ decks, pick, words }`: `decks` the ticked talks' ids (null when all are ticked), `pick` the random sample's keys (null for every slide of those talks). */
 export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { decks: string[] | null; pick: string[] | null; words: string; none: boolean }; refresh(): void } {
   const el = doc.createElement('div'); el.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 6px';
   const which = doc.createElement('select'); which.setAttribute('aria-label', 'How many slides');
-  for (const [v, t] of [['all', 'All slides'], ['25', 'Random 25'], ['50', 'Random 50'], ['100', 'Random 100']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
+  for (const [v, t] of [['all', 'All slides'], ['5', 'Random 5'], ['10', 'Random 10'], ['25', 'Random 25']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
   const list = doc.createElement('div'); list.style.cssText = 'flex:1 1 100%;max-height:30vh;overflow:auto;border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px';
   const off = new Set<string>();   // (the talks not ticked: a talk that loads later starts ticked)
   const draw = () => {
