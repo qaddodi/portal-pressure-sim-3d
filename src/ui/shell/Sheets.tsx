@@ -9,6 +9,7 @@ import { LayersSheet } from './FigureMenu.tsx';
 import { figureRowsOwner } from './room.ts';
 import { useUi } from '../ui-store.ts';
 import { HistorySheet } from '../history/HistorySheet.tsx';
+import { TimelineSheet } from '../bigtime/TimelineSheet.tsx';
 import { DifferencesSheet } from '../compare/CompareUi.tsx';
 import { WhySheet } from '../why/WhySheet.tsx';
 import { RESET } from './words.ts';
@@ -50,6 +51,7 @@ export function Sheets() {
       {figureRowsOwner(device) === 'sheet' && !talk && <LayersSheet />}
       {!talk && <SettingsSheet place="top" />}
       <HistorySheet />
+      <TimelineSheet />
       <DifferencesSheet />
       <WhySheet />
       <SearchSheet />

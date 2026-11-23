@@ -22,7 +22,7 @@ import { goToView } from '../shell/view-actions.ts';
 import { logInput } from '../../scene/intent-log.ts';
 
 /** The shell sheets that take the column Treat stands in. */
-export const CARD_SHEETS: ReadonlySet<string> = new Set(['settings', 'menu', 'history', 'compare', 'help', 'guide']);
+export const CARD_SHEETS: ReadonlySet<string> = new Set(['settings', 'menu', 'history', 'compare', 'help', 'guide', 'timeline']);
 
 export function startActions(): () => void {
   const off: (() => void)[] = [];

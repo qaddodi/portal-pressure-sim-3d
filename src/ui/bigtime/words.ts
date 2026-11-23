@@ -1,0 +1,23 @@
+// The words of the timeline chart card (docs/approved/timeline-chart.md). Plain words, no abbreviations a student must look up.
+export const BT = {
+  title: 'Over time',
+  open: 'See as a chart',
+  graph: 'What to graph',
+  happened: 'What happened',
+  done: 'Done',
+  reset: 'Reset zoom',
+  range: (a: number, b: number) => `Days ${Math.round(a)} to ${Math.round(b)}`,
+  day: (d: number) => `Day ${Math.round(d)}`,
+  barsOnChart: 'bars on the chart',
+  medsTitle: 'Medicines and procedures',
+  caseTitle: 'From the case',
+  caseNote: 'Not made by the model. Shown only when the case gives a value, as a step on the day it was drawn.',
+  empty: 'Nothing to draw yet.',
+  emptyHint: ' Move the clock on and the lines draw here.',
+  earlier: 'Earlier',
+  later: 'Later',
+  nothingHappened: 'Nothing has happened yet.',
+  route: 'Route',
+  stent: 'Stent',
+  tipsRoute: 'Right portal vein to right hepatic vein',
+} as const;

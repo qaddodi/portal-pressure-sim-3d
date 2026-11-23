@@ -5,6 +5,7 @@ import { timeline, fmtClock, type Entry } from '../timeline/index.ts';
 import { useTimeline } from '../timeline/store.ts';
 import { pinEntry } from '../compare/bind.ts';
 import { HIST } from './words.ts';
+import { BT } from '../bigtime/words.ts';
 
 // (an event's words take its severity's ink; a plain note stays the text colour: no dot, no chip)
 const SEV: Record<string, string> = { critical: 'var(--critical-ink)', danger: 'var(--danger-ink)', caution: 'var(--caution-ink)', ok: 'var(--ok-ink)' };
@@ -31,6 +32,7 @@ function Row({ e, i }: { e: Entry; i: number }) {
 export function HistoryList() {
   useTimeline((s) => s.rev);
   const entries = timeline.entries();
-  if (entries.length <= 1) return <p className="hist-empty"><b>{HIST.nothing}</b>{HIST.nothingHint}</p>;
-  return <div className="hist-list">{entries.map((_, i) => entries.length - 1 - i).map((i) => <Row key={entries[i]!.id} e={entries[i]!} i={i} />)}</div>;
+  const chart = <button type="button" className="hist-chart" onClick={() => useShell.getState().open('timeline')}>{BT.open}</button>;
+  if (entries.length <= 1) return <><div className="hist-list">{chart}</div><p className="hist-empty"><b>{HIST.nothing}</b>{HIST.nothingHint}</p></>;
+  return <div className="hist-list">{chart}{entries.map((_, i) => entries.length - 1 - i).map((i) => <Row key={entries[i]!.id} e={entries[i]!} i={i} />)}</div>;
 }

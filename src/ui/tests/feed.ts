@@ -12,6 +12,7 @@ import { createFreewheel } from './copied/freewheel.copied.js';
 import { recordDay, calmedDays } from '../../engine/hales/portal/trail-calm.js';
 import { treatmentKey } from '../../engine/hales/portal/change-events.js';
 import { TRACES, LAG_S } from './trace/model.ts';
+import { dayExtras } from '../bigtime/day-keys.ts';
 
 import { clock } from '../../clock/frame.ts';
 export const CHANNELS = ['ph', 'vel', 'pvVel', 'hvVel', 'whvp', 'hvpg', 'RA', 'IVCS', 'RHV', 'CONF', 'SIN_R', 'VAR', 'AO', 'SV', 'SMV'] as const;
@@ -30,7 +31,7 @@ export const KEYS = [...TRACES.map((t) => t.id), 'hvpg'] as const;
 const FW_LAG_S = 0.12;
 /** the frames' own fields the feed reads (the engine's frame, loosely: the params and the bands change the Days chart's steps) */
 export type FeedFrame = Pick<EngineFrame, 'jump'> & {
-  samples?: Packed | null; probe?: string; gen?: number; clock?: string; day?: number; metrics?: Record<string, unknown>; params?: unknown; bands?: unknown; morphing?: boolean;
+  samples?: Packed | null; probe?: string; gen?: number; clock?: string; day?: number; metrics?: Record<string, unknown>; params?: unknown; bands?: unknown; morphing?: boolean; Pf?: ArrayLike<number>;
 };
 /** what the paper's clock reads of a frame */
 export type HeadFrame = { running?: boolean; clock?: string; morphing?: boolean; speed?: number } | null | undefined;
@@ -193,6 +194,7 @@ export class SampleFeed {
     if (f.bands !== this.bandsNow) { this.stepNext = this.stepNext || this.bandsNow != null; this.bandsNow = f.bands; }
     const v: Record<string, number> = { hvpg: m.hvpg! };
     for (const t of TRACES) if (t.day) v[t.id] = m[t.day]!;
+    Object.assign(v, dayExtras(f));   // (the timeline chart's own lanes: ascites, the shunt, the cardiac output, the varix: bigtime/day-keys.ts)
     const grew = recordDay(this.days, f.day!, v, this.stepNext);
     this.stepNext = false;
     if (grew) { this.daysVer++; if (!this.days.length) this.calmKept.clear(); }

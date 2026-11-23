@@ -7,7 +7,7 @@ import type { ViewId } from './views.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
-export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | null;
+export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | 'timeline' | null;
 export type MenuTab = 'present' | 'patients';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
