@@ -30,6 +30,7 @@ import { DISC_R, DUCT_R, LT_R, RS_N, congShare, inletRadius, lyTaper, sinRadius,
 import { endTaper } from './lymph.ts';
 import { defaultCanvas, type MakeCanvas } from './plate.ts';
 import { LobuleFade, LobuleRoot } from './one-fade.ts';
+import { type CalloutSpot, calloutSpot, isCalloutName, TRACT_RING_R } from './callout-spot.ts';
 
 /** Tags hang just over the plate (it is flat: a point any higher would slide against the tissue as the view turns). */
 const ANCHOR_Z = 0.05;
@@ -221,26 +222,23 @@ export class LobuleView {
 
   // ---- tags, the halo, warming ----------------------------------------------------------------------------------------------------
 
-  /** Scene (world) points of the places tags name: the centre, each triad ('triad:0' to 'triad:5'), the zones ('zone:1' periportal, 'zone:2' midzonal, 'zone:3' pericentral).
-   *  The lobule stands inside the liver, so these are points of the liver, a hundred times closer together than the lobule's own units. */
+  /** The plate point (lobule radii, y down) and ring radius a name stands at: a slide's callout place ('tract', 'sinusoid:mid', 'sinusoid:zone3', callout-spot.ts: on the net's own vessels, on the side the shots frame),
+   *  the 'centre', or a triad ('triad:0' to 'triad:5'). The ring's radius is its own (a tract's 1.6 venule radii, a sinusoid's five lumens), the centre's the central vein's as drawn now with a little air. */
+  private readonly spots = new Map<string, CalloutSpot>();
+  private spotOf(name: string): { x: number; y: number; r: number } {
+    if (isCalloutName(name)) { let c = this.spots.get(name); if (!c) { c = calloutSpot(this.net, name); this.spots.set(name, c); } return c; }   // (the net never changes: found once)
+    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return { x: t.x, y: t.y, r: TRACT_RING_R }; }
+    return { x: 0, y: 0, r: this.cvRadiusNow * 1.2 };
+  }
+  /** Scene (world) points of the places tags name (the lobule stands inside the liver, so these are points of the liver, a hundred times closer together than the lobule's own units). */
   anchor(name: string, out: V3 = [0, 0, 0]): V3 {
-    const w = (x: number, y: number, z: number) => lobuleWorld(lobuleToScene(x, y, z, out), out);
-    if (name === 'centre') return w(0, 0, slabZ(0, 0) + ANCHOR_Z);
-    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return w(t.x, t.y, slabZ(t.x, t.y) + ANCHOR_Z); }
-    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + ANCHOR_Z); }
-    return w(0, 0, 0);
+    const { x, y } = this.spotOf(name);
+    return lobuleWorld(lobuleToScene(x, y, slabZ(x, y) + ANCHOR_Z, out), out);
   }
-  /** The plate point (lobule radii) a name stands at (the same places as `anchor`). */
-  private spotXY(name: string): [number, number] {
-    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return [t.x, t.y]; }
-    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return [Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr]; }
-    return [0, 0];
-  }
-  /** The ring a slide's callout draws round a place (2D lobule-zoom-labels.js callRingAt): a triad's ring is 1.6 times the portal venule's radius; the sinusoids' and the central vein's the
-   *  central vein's as drawn now, with a little air. Returns the scene point on the ring's edge (along the plate's x axis), so the figure measures its pixels from the camera. */
+  /** The ring a slide's callout draws round a place (2D lobule-zoom-labels.js callRingAt). Returns the scene point on the ring's edge (along the plate's x axis), so the figure measures its pixels from the camera. */
   ringEdge(name: string, out: V3 = [0, 0, 0]): V3 {
-    const [x, y] = this.spotXY(name), rho = name.startsWith('triad:') ? DISC_R.pv * 1.6 : this.cvRadiusNow * 1.2;
-    return this.anchorAt(x + rho, y, out);
+    const { x, y, r } = this.spotOf(name);
+    return this.anchorAt(x + r, y, out);
   }
   /** A point of the plate (its own units, the plane the labels stand on) in the scene. */
   anchorAt(x: number, y: number, out: V3 = [0, 0, 0]): V3 { return lobuleWorld(lobuleToScene(x, y, slabZ(x, y) + ANCHOR_Z, out), out); }

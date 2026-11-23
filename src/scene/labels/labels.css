@@ -114,7 +114,6 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .lb-layer .cl:not(.cath-label) > .cl-glass { transition: opacity var(--d-small) var(--ease); }   /* (a callout changing between step, callout and mark fades its ring and glass, never drops them in one frame: they were display: none) */
 .lb-layer .cl-ring svg { position: absolute; left: 0; top: 0; overflow: visible; }
 .lb-layer .cl-ring path { fill: none; stroke: var(--cl-rim, var(--ink)); stroke-width: 3.6; stroke-linejoin: round; }
-.cl[data-fig="step"] .cl-ring { opacity: 0; }
 html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { background: var(--cl-fill, var(--glass-tint)) !important; }
 
 /* the result: both readings stacked, a bracket joining them, the HVPG they give beside it, a thin leader from each reading to its point */
@@ -223,20 +222,16 @@ html:not([data-noglass]) .lb-layer .cl-glass.cl-hair.cl-hair.cl-hair { backgroun
 .lz-co { position: absolute; left: 0; top: 0; pointer-events: none; --co: var(--cl-danger, var(--danger)); --co-ink: var(--cl-danger-ink, var(--danger)); }
 .lz-co[data-tone="accent"] { --co: var(--accent); --co-ink: var(--accent); }
 .lz-co[data-tone="note"] { --co: var(--cl-text, var(--text-2)); --co-ink: var(--cl-text, var(--text)); }
-.lz-co-ring, .lz-co-line, .lz-co-focus { opacity: 0; }
-/* the soft focus: the one glass (glass.css `.cl-glass`) with its numbers turned down: a light blur, a breath of the callout's colour, round; off with Settings > Blur effect and with reduced transparency */
-.lz-co-focus { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; will-change: transform; --glass-blur: 4px; --glass-sat: 1.05; --glass-tint: color-mix(in srgb, var(--co) 7%, transparent); }
-@media (prefers-reduced-transparency: reduce) { .lz-co-focus { display: none; } }
+.lz-co-ring, .lz-co-line { opacity: 0; }   /* (clear inside: nothing is blurred, tinted or filled under the ring, Mohammad 23 Nov) */
 .lz-co-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border: var(--co-w) solid var(--co); border-radius: 50%; will-change: transform; }
 .lz-co-line { position: absolute; left: 0; top: 0; width: 1px; height: var(--co-w); margin-top: calc(var(--co-w) / -2); transform-origin: 0 50%; background: var(--co); will-change: transform; }   /* (no leader: scaleX 0, never visibility) */
-.cl[data-fig="callout"] .cl-glass, .cl[data-fig="callout"] .cl-ring { opacity: 0; }
+.cl[data-fig="callout"] { padding: 0; border-radius: 0; border-color: transparent; }   /* (words only: figure-cards.ts cardParts removes its glass and rim, so there is nothing for a rule to hide) */
 .cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 650; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl[data-fig="callout"][data-co="accent"] .cl-k { color: var(--accent); }
 .cl[data-fig="callout"][data-co="note"] .cl-k { color: var(--cl-text, var(--text)); }
 /* a mark on a vessel or an organ (not the lobule's ring): a coloured label, as the station names are (words in their colour with the labels' halo, a dot on the place and a thin leader of the same colour), never a card:
    block = the danger red, treat = the accent, note = the quiet ink (22 Nov: the speech-bubble marks pointed at the wrong places and looked wrong beside "Portal vein 19.0 mmHg") */
 .cl[data-fig="mark"] { padding: 0; border-radius: 0; border-color: transparent; }
-.cl[data-fig="mark"] .cl-glass, .cl[data-fig="mark"] .cl-ring { opacity: 0; }
 .cl[data-fig="mark"] .cl-k { color: var(--c-ink); font-weight: 650; -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl-lead[data-tone="danger"] { --lc: var(--cl-danger-ink, var(--danger)); }
 .cl-lead[data-tone="custom"] { --lc: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text, var(--text))); }

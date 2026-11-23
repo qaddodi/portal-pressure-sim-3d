@@ -90,8 +90,18 @@ export function splitWidth(c: FigCard, t: CathType, measure: Measure): number {
   return Math.max(t.name * 12.6, cap);
 }
 
-/** A mark on the figure (a vessel's, an organ's) is a coloured label with a leader; only a slide's lobule pointer (a ring, its own look) and the other card kinds are not. */
+/** A mark on the figure (a vessel's, an organ's) is a coloured label with a leader; only a slide's lobule pointer (a ring, its own leader) and the other card kinds are not. */
 export const isLabelMark = (c: FigCard): boolean => c.kind === 'mark' && !('lobule' in c.anchor);
+/** A card that is only its words (no glass, no rim, no pointer): every mark, a vessel's, an organ's and the lobule's ring callout alike. Never a speech bubble (Mohammad, 22 and 23 Nov). */
+export const isWordsOnly = (c: Pick<FigCard, 'kind'>): boolean => c.kind === 'mark';
+/** Which of a card's own parts it keeps. A card is built with a glass and a rim (makeCard); `fade()` writes an inline opacity on both every time the card shows, which beats any stylesheet rule that hides
+ *  them, so a part a card does not wear is removed from it (never hidden by CSS: that is how the bubbles came back on 0091fcc4). A mark and the lobule's callout keep neither; a step keeps its disc (the glass)
+ *  and loses the dark rim; a site keeps both; the portal blood's split is its own markup. */
+export function cardParts(c: Pick<FigCard, 'kind'>): { glass: boolean; ring: boolean } {
+  if (c.kind === 'site') return { glass: true, ring: true };
+  if (c.kind === 'step') return { glass: true, ring: false };
+  return { glass: false, ring: false };   // (a mark: isWordsOnly; the split brings its own markup)
+}
 /** The label's weight (labels.css `.cl[data-fig="mark"] .cl-k`), and the air round its words in its box, px. */
 const MARK_WEIGHT = 650;
 const MARK_AIR = 2;
@@ -104,12 +114,9 @@ export function boxLeader(box: { x: number; y: number; w: number; h: number }, t
 
 /** A card's size (border box) and its Reading: a mark is one line of words; a site is the catheter's three lines (name, number, unit). */
 export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number; h: number } {
-  const C = LS.CATH;
-  if (c.kind === 'mark') {
-    // a mark on a vessel or an organ is a coloured label, not a card (the station names' look: words with a halo, a dot on the place and a thin leader): its box is its words and a breath of air
-    if (isLabelMark(c)) return { w: ceil2(measure(c.text, t.name, MARK_WEIGHT, 0) + 2 * MARK_AIR), h: ceil2(normal(t.name) + 2 * MARK_AIR) };
-    const w = measure(c.text, t.name, C.NAME.weight, C.NAME.track * t.name) + 2 * t.padX + 2 * t.border;
-    return { w: ceil2(w), h: ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name)) };
+  if (isWordsOnly(c)) {
+    // a mark (a vessel's, an organ's, the lobule's ring callout) is its words and nothing else (the station names' look: words with a halo): its box is its words and a breath of air
+    return { w: ceil2(measure(c.text, t.name, MARK_WEIGHT, 0) + 2 * MARK_AIR), h: ceil2(normal(t.name) + 2 * MARK_AIR) };
   }
   if (c.kind === 'step') { const d = Math.round(t.name * 1.9); return { w: d, h: d }; }
   if (c.kind === 'split') return { w: ceil2(splitWidth(c, t, measure) + 8), h: ceil2(t.num * 1.1 + t.name * 3.6 + 6) };
@@ -225,7 +232,7 @@ export interface CardDeps {
   now(): number;
   /** The spleen's size now (1: normal); the caliper along its axis grows with it. */
   spleenScale(): number;
-  /** A place of the lobule view ('triad:0', 'centre', 'zone:2'), scene point; null when that view is not the figure now. */
+  /** A place of the lobule view (view.ts `calloutSpot`: 'tract', 'sinusoid:mid', 'sinusoid:zone3'), scene point; null when that view is not the figure now. */
   lobule(name: string, out: Vector3): Vector3 | null;
   /** The point on the ring a lobule callout draws round that place (one ring radius from it, along the plate): its pixels are measured from the camera. */
   lobuleRing(name: string, out: Vector3): Vector3 | null;
@@ -254,7 +261,7 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
 }
 
 interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[]; /** each leader's presence 0..1, eased: a leader that goes shrinks to nothing, it is never switched off */ k: number[]; kd: number[]; /** the translate and turn, and the length, each line last stood at (it shrinks in place) */ at: string[]; len: number[] }
-interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; focus: HTMLElement; tx: string; key: string; ltx: string; /** the leader's presence 0..1, eased */ k: number; /** where the leader last stood (translate and turn), so it shrinks in place */ at: string; len: number }
+interface Ring { root: HTMLElement; ring: HTMLElement; line: HTMLElement; tx: string; key: string; ltx: string; /** the leader's presence 0..1, eased */ k: number; /** where the leader last stood (translate and turn), so it shrinks in place */ at: string; len: number }
 interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; /** the colour the card was last written in */ look?: string; root: HTMLElement; lead?: Lead; co?: Ring; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
 interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
 interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
@@ -297,16 +304,19 @@ export class FigureCards {
     const split = spec.kind === 'split';
     const card = makeCard(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig');
     card.root.dataset.fig = spec.kind;
+    // the parts this card does not wear leave it (cardParts): a hidden one came back whenever `fade()` wrote its inline opacity
+    const parts = cardParts(spec);
+    if (!parts.glass) card.glass.remove();
+    if (!parts.ring) card.ring.remove();
     const rec: Rec = { card, spec, a: 0, box: null, sig: '', root: card.root };
     if (spec.kind === 'mark' && 'lobule' in spec.anchor) {
       // a slide's pointer at the lesion (2D lobule-zoom.js callEl, callLine, callRing): a thick ring on the place, a leader of the same stroke from the ring to its words, the words in the ring's colour, no card
       card.root.dataset.fig = 'callout';
       const root = document.createElement('div'); root.className = 'lz-co'; this.parent.appendChild(root);
       const ring = document.createElement('i'); ring.className = 'lz-co-ring'; const line = document.createElement('i'); line.className = 'lz-co-line';
-      // the soft focus inside the ring (the content under it blurred a little): the app's one glass (glass.css `.cl-glass`) with a light blur and no tint, so Settings > Blur effect turns it off with the rest
-      const focus = document.createElement('i'); focus.className = 'cl-glass lz-co-focus'; focus.setAttribute('aria-hidden', 'true');
-      root.append(focus, line, ring);
-      rec.co = { root, ring, line, focus, tx: '', key: '', ltx: '', k: 0, at: 'translate3d(0,0,0)', len: 0 };
+      // (clear inside: nothing under the ring is blurred, tinted or covered, Mohammad 23 Nov)
+      root.append(line, ring);
+      rec.co = { root, ring, line, tx: '', key: '', ltx: '', k: 0, at: 'translate3d(0,0,0)', len: 0 };
     }
     if (spec.kind === 'step' || isLabelMark(spec)) {
       // the leader to the vessel the number names (2D: a dot on the vessel and a thin line to the chip; a group's number a line to each of its vessels)
@@ -583,7 +593,7 @@ export class FigureCards {
       const tone = toneOf(c.tone), step = c.kind === 'step';
       const k = step ? String(c.n ?? '') : c.text, n = step ? '' : c.value ?? '', u = step ? '' : c.unit ?? '';
       const text = `${k}|${n}|${u}`, look = step ? 'step' : `${tone.attr}|${tone.css ?? ''}`;
-      const g: Glass = step ? circleGlass(sz.w) : pillGlass(sz.w, sz.h, t.radius, box.dir === 'none' ? 'none' : box.dir, box.ax);
+      const parts = cardParts(c), g: Glass | null = !parts.glass ? null : step ? circleGlass(sz.w) : pillGlass(sz.w, sz.h, t.radius, box.dir === 'none' ? 'none' : box.dir, box.ax);
       // (a card that is showing crosses over to its new words and colour, one crossing for both; the glass takes its new shape beside it. An empty number or unit takes no room: labels.css `:empty`)
       if (r.card.text !== text || r.look !== look) {
         restyle(r.card.root, () => {
@@ -595,7 +605,7 @@ export class FigureCards {
         }, r.a);
       }
       size(r.card, sz.w, sz.h);
-      shape(r.card, g, key);
+      if (g) shape(r.card, g, key);
     }
     place(r.card, box.x0, box.y0);
     fade(r.card, r.a);
@@ -614,10 +624,10 @@ export class FigureCards {
     if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, r.a);
     if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, r.a);
     const key = String(rad);
-    if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; co.focus.style.width = co.focus.style.height = `${rad * 2}px`; co.focus.style.margin = `${-rad}px 0 0 ${-rad}px`; }
+    if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; }
     const round = (n: number) => Math.round(n * 100) / 100;
     const tx = `translate3d(${round(a.x)}px,${round(a.y)}px,0)`;
-    if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; co.focus.style.transform = tx; }
+    if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; }
     const seg = ringLeader(a, rad, { x0: box.x0, y0: box.y0, x1: box.x0 + sz.w, y1: box.y0 + sz.h });
     // (no leader, when the words stand too close to the ring for one: it shrinks to nothing by its scale and eases out with the ring, never switched off)
     co.k = this.ease(co.k, !!seg);
@@ -709,10 +719,10 @@ export class FigureCards {
 }
 
 const fadeKids = (c: Card, a: number) => fade(c, a);
-/** A ring's opacity, written on its own pieces and never on their wrapper: a glass inside a fading ancestor is drawn unblurred until the fade ends (glass.css). */
+/** A ring's opacity, written on its own pieces (the ring and its leader). */
 function fadeRing(co: Ring, a: number): void {
   const o = String(Math.round(a * 1000) / 1000);
-  if (co.focus.style.opacity !== o) { co.focus.style.opacity = o; co.ring.style.opacity = o; co.line.style.opacity = o; }
+  if (co.ring.style.opacity !== o) { co.ring.style.opacity = o; co.line.style.opacity = o; }
 }
 
 /** A card tone: block is the danger red, treat the accent, note the quiet ink; any other token is a station colour. */
