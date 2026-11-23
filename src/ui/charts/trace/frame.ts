@@ -147,9 +147,9 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
     });
   } else {
     const ring = (cx: number, cy: number, i: number) => {
-      const now = i === last, rg = lk('talk.step.ring', { now }), nn = lk('talk.step.n', { now });
-      shapes.push({ k: 'circle', cx, cy, r: Lo.sr, fill: rg.fill, pen: { color: rg.stroke!, w: rg.width! } });
-      say(cx, cy + 0.35 * fs, String(i + 1), nn, { anchor: 'middle' });
+      // (the numeral alone, bold, in the text colour with the card's halo: no disc, no ring, no face, as the step numbers everywhere since 23 Nov: docs/approved/step-markers.md; the latest in the full text colour)
+      const now = i === last, nn = lk('talk.stage', { now }), card = lk('talk.step.ring', { now: false });
+      say(cx, cy + 0.35 * fs, String(i + 1), nn, { anchor: 'middle', weight: 700, halo: { color: card.fill!, w: 3 } });
     };
     const y0 = fs + 3, cap = lk('talk.stage', { now: true });
     if (n) { Lo.cap.forEach((t, q) => say(Lo.capX, y0 + q * lineH, t, cap)); ring(Lo.sr + 2, y0 - 0.35 * fs, last); }

@@ -8,6 +8,7 @@ import {
   placeStopNames as placeStopNames0, zoneRect as zoneRect0, lineBoxes as lineBoxes0,
 } from './layout.generated.js';
 import { tileShown } from './shim.ts';
+import { fullIsoNames } from './iso-names.ts';
 import { TILE } from '../tiles.generated.ts';
 import { fmt } from '../fmt.ts';
 import { lcFirst } from '../../../engine/hales/portal/lc-first.js';
@@ -161,7 +162,9 @@ export function planeLayout(inp: LayoutIn): PlaneLayout {
   const cuts: Seg[] = guide ? [] : (gapSegs0(cutSegs0(pl, X, Y, fr, true), [...names.filter((n: PlacedName | null) => n?.across).map((n: PlacedName | null) => n!.box), ...nums.map((n) => n.box)]) as Seg[]).map((c) => bleed0(c, fr, W, H) as Seg);
   const dg = diagOf0(pl, X, Y, fs) as { seg: Seg; label: PlaneLayout['lines'][number] | null } | null;
   // (The rays' names last: everything else on the plot has its place first and they find room round it.)
-  const io = isoOf0(pl, X, Y, fr, fs, [...pointBoxes, ...names.flatMap((n: PlacedName | null, i: number) => (n ? [n.box, ...(n.lead ? (leadBoxes0(at[i], n.lead) as Box[]) : [])] : [])), ...words.map((w: ZoneWords) => w.box), ...lines.map((l: { box: Box }) => l.box), ...nums.map((n) => n.box)]) as PlaneLayout['iso'];
+  const isoAvoid: Box[] = [...pointBoxes, ...names.flatMap((n: PlacedName | null, i: number) => (n ? [n.box, ...(n.lead ? (leadBoxes0(at[i], n.lead) as Box[]) : [])] : [])), ...words.map((w: ZoneWords) => w.box), ...lines.map((l: { box: Box }) => l.box), ...nums.map((n) => n.box)];
+  const io0 = isoOf0(pl, X, Y, fr, fs, isoAvoid) as PlaneLayout['iso'];
+  const io = io0 && { ...io0, lines: fullIsoNames(io0.lines, pl, X, Y, fr, fs, isoAvoid) ?? io0.lines };
   // The slide's case: a dot in proportion to the plot, a gap in the card's colour around it.
   const { r, g } = dotSize(fr), has = rg && Number.isFinite(rg[pl.x.key]) && Number.isFinite(rg[pl.y.key]);
   const now = has ? { x: +X(rg![pl.x.key]!).toFixed(1), y: +Y(rg![pl.y.key]!).toFixed(1) } : null;

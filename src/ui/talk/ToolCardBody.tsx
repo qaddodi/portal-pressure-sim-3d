@@ -43,6 +43,7 @@ import { SCORES_ON } from '../charts/scores/slides.ts';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
+import type { FlowView } from '../charts/flowtime/model.ts';
 import { SaagCard } from '../charts/saag/SaagCard.tsx';
 import { EvGraphCard } from '../charts/evgraph/EvGraphCard.tsx';
 import { evRunFor } from '../charts/evgraph/live.ts';
@@ -155,7 +156,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'flows': return <FlowsCard of={tool.of === 'inflow' ? 'inflow' : 'portal'} input={flowsInputOf(fp as never)} healthy={flowsInputOf(healthy as never)} />;
     case 'plane': return <PlaneCard plane={tool.plane as never} ring={fp as never} stops={trailStops(tool.trail as never, fpOf as never) ?? undefined} />;
     case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={fitFor(tool, fp, params, fpOf, results, copied.slides as CopiedSlide[])} head /> : null;
-    case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} />;
+    case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} before={(tool.delta ?? (cs as Rec).delta) != null ? refOf(cs, i, copied.slides as CopiedSlide[], fpOf, stateOf) : null} />;
     case 'saag': return <SaagCard rows={(((tool.of ?? cs.of) as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} room={room} />;
     case 'evgraph': return <EvGraph runKey={`${deck.id}/${slide.id}`} cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
     case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
@@ -223,11 +224,11 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
 }
 
 /** Two readings over a time-lapse: the slide's days, drawn as they play (the heads follow the lapse's progress), whole once it is done or when it does not play. */
-function FlowTime({ deck, slide, i, tool, trail }: { deck: Deck; slide: Slide; i: number; tool: Rec; trail: never }) {
+function FlowTime({ deck, slide, i, tool, trail, before }: { deck: Deck; slide: Slide; i: number; tool: Rec; trail: never; before: Fp | null }) {
   const mine = useLapse((s) => s.key === `${deck.id}/${slide.id}`), d = useLapse((s) => s.d), n = useLapse((s) => s.n);
   const k = slide.lapse?.plays && mine && n ? Math.min(1, d / n) : 1;
   void i;
-  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={(tool.view as never) ?? null} rx={Array.isArray(tool.bands) ? (tool.bands as string[]) : undefined} />;
+  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={before ? { ...(tool.view as FlowView | undefined), before: before as Record<string, number> } : ((tool.view as FlowView | undefined) ?? null)} rx={Array.isArray(tool.bands) ? (tool.bands as string[]) : undefined} />;
 }
 
 /** A procedure's graph: the two readings before the change and where the slide's settled state ends them. */

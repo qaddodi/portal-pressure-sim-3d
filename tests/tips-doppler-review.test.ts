@@ -61,7 +61,7 @@ test('a reading that cannot change size reserves its own width: no gap before th
   assert.equal(reserveOf('1.1 L', 'asc'), '00.0 L', 'with a control that can change it, the padded reserve is kept (Plan 45)');
   assert.notEqual(reserveOf('…', 'asc', false, true), '…', 'a reading not yet in still reserves its typical value');
   const line = readFileSync(new URL('../src/ui/cards/Line.tsx', import.meta.url), 'utf8'), card = readFileSync(new URL('../src/ui/cards/TeachingCard.tsx', import.meta.url), 'utf8');
-  assert.match(line, /reserveOf\(text, p\.key, p\.decimals === 0, still\)/);
+  assert.match(line, /reserveOf\(text, p\.key, p\.decimals === 0, still, \{/);
   assert.match(card, /still = !slide\.lapse && !ctl\?\.whatIf && !ctl\?\.strain && !ctl\?\.compare\?\.opts\.some\(\(o\) => o\.preset \|\| o\.slide\)/);
   // the two slides the review saw it on carry compare buttons that only move the gate or the stenosis site: they hold still
   for (const id of ['jet', 'narrow']) assert.ok(parseWords(slide(id).line).some((p) => p.t === 'value'), id);
