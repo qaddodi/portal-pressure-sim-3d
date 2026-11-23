@@ -153,22 +153,22 @@ vec4 plateTexLod(vec2 uv, float bias) { return plateAt(uv, bias); }
 //   septa: the edge is the baked distance e (mapT.b) and the fade's depth t (mapT.a); the rope's normal is the baked angle (mapT.g, read at the nearest texel); how much of a septum shows is its arrival time (front), so a band eases in whole, never fades at its sides
 //   tracts: the disc is round about each hexagon corner, so its radius is the pixel's distance from the nearest corner against the front's radius at this growth: the edge is one pixel at every growth, and the disc grows as it did; t is that distance over TRACT_FADE of the front's radius
 // Each takes the rope's relief (relief.ts): one lit flank, one shade flank, a flat crown, nothing outside the edge.
-// the painted fibres' lightness against their surroundings, FINE (mip 1.5) minus COARSE (mip 4), each over its own alpha, clamped (gained by STRIA_GAIN, lit up to STRIA_LIT, dark to STRIA_DARK) and weighted by how much collagen both levels hold: a fibre or a wavy edge shows as a few percent of lightness, and a nucleus or noisy low alpha can darken it by no more than STRIA_DARK (a dark worm is impossible by construction)
-float collStria(vec4 f, vec4 c) {
-  float lf = celLight(f.rgb / max(f.a, 0.04)), lc = celLight(c.rgb / max(c.a, 0.04));
-  float s = (lf - lc) * STRIA_GAIN;   // (the painted fibres' contrast is tiny: p95 0.013, so it is gained; a lit strand then lifts the colour by up to STRIA_LIT, a dark one lowers it by at most STRIA_DARK)
+// the painted fibres, as 606d60f4's raised-relief build had them (Mohammad: "it had already been done before"): the atlas's painted colour at the pixel's own level (the painter's LITE strands, 45% toward white, lie along every band), against the flat token it was painted from:
+// the ratio is the strand, kept whole on the lit side (up to STRIA_LIT) and capped on the dark side (STRIA_DARK: a deep fibre or a nucleus never makes a dark worm), weighted by how much collagen the texel holds
+float collStria(vec4 f, vec3 flatCol) {
+  float s = celLight(f.rgb / max(f.a, 0.04)) / max(celLight(flatCol), 0.05) - 1.0;
   s = s > 0.0 ? min(s, STRIA_LIT) : max(s, -STRIA_DARK);
-  return s * smoothstep(0.12, 0.35, min(f.a, c.a));
+  return s * smoothstep(0.12, 0.35, f.a);
 }
 vec4 collagenAt(vec2 uv, float ta) {   // ta: how much tissue lies under the band here (0 over the dark surround: the band is whole to its crisp edge; 1 over cells: it fades into them)
   if (uBaseK > 0.5 || uP.x + uP.y + uP.z <= 0.0) return vec4(0.0);
   vec2 L = vL;
   // (the collagen atlas is two plates wide: the tracts and the vein on the left, the septa on the right)
   vec2 uvT = vec2(uv.x * 0.5, uv.y), uvS = vec2(0.5 + uv.x * 0.5, uv.y);
-  vec4 cu = texture2D(mapC, uvT, 1.5), cs = texture2D(mapC, uvS, 1.5), cu4 = texture2D(mapC, uvT, 4.0), cs4 = texture2D(mapC, uvS, 4.0);
+  vec4 cu = texture2D(mapC, uvT), cs = texture2D(mapC, uvS);
   vec3 baseS = uCollS, baseT = uCollT;
   if (mixB > 0.0) {
-    cu = mix(cu, texture2D(mapCB, uvT, 1.5), mixB); cs = mix(cs, texture2D(mapCB, uvS, 1.5), mixB); cu4 = mix(cu4, texture2D(mapCB, uvT, 4.0), mixB); cs4 = mix(cs4, texture2D(mapCB, uvS, 4.0), mixB);
+    cu = mix(cu, texture2D(mapCB, uvT), mixB); cs = mix(cs, texture2D(mapCB, uvS), mixB);
     baseS = mix(uCollS, uCollSB, mixB); baseT = mix(uCollT, uCollTB, mixB);
   }
   vec4 tm = texture2D(mapT, uv);
@@ -178,7 +178,7 @@ vec4 collagenAt(vec2 uv, float ta) {   // ta: how much tissue lies under the ban
   float eS = tm.b * tm.b * E_SPAN + E_LO;
   float aS = max(0.5 * length(vec2(dFdx(eS), dFdy(eS))), 0.02);
   float covS = smoothstep(-aS, aS, eS) * collCoverage(tm.a, ta) * front(tm.r * (255.0 / 254.0), uP.x) * (0.75 + 0.25 * uP.x);
-  vec3 colS = ropeColour(baseS, ropeS(tm.a, vec2(cos(angS), sin(angS)), L)) * (1.0 + collStria(cs, cs4));
+  vec3 colS = min(ropeColour(baseS, ropeS(tm.a, vec2(cos(angS), sin(angS)), L)) * (1.0 + collStria(cs, baseS)), vec3(1.0));
   // the tracts: the nearest hexagon corner (the lobule's corners are at cos and sin of k pi/3, in lobule radii; v is up, y is down)
   float rT = 1e9; vec2 dT = vec2(0.0, 1.0);
   for (int i = 0; i < 6; i++) {
@@ -193,7 +193,7 @@ vec4 collagenAt(vec2 uv, float ta) {   // ta: how much tissue lies under the ban
   float tT = clamp(eT / max(TRACT_FADE * rF, 1.0), 0.0, 1.0);
   float ramp = smoothstep(TRACT_TAU_LO - TRACT_RAMP_H, TRACT_TAU_LO + TRACT_RAMP_H, uP.y);   // (the first arrival eases in: its disc never pops at its first radius)
   float covT = smoothstep(-aT, aT, eT) * collCoverage(tT, ta) * ramp;
-  vec3 colT = ropeColour(baseT, ropeS(tT, dT, L)) * (1.0 + collStria(cu, cu4));
+  vec3 colT = min(ropeColour(baseT, ropeS(tT, dT, L)) * (1.0 + collStria(cu, baseT)), vec3(1.0));
   // (the septa first, the tracts over them, as the painter lays them)
   vec4 o = vec4(colS * covS, covS);
   return vec4(colT * covT, covT) + o * (1.0 - covT);
