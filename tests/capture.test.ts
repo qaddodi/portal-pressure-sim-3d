@@ -308,3 +308,8 @@ test('Copy after a capture says what was captured: deck, slide, scenario, device
   assert.equal(m.deviceWords(820, 1180, 2).split(' ')[0], 'tablet'); assert.equal(m.deviceWords(844, 390, 3).split(' ')[0], 'phone');
   assert.match(src('src/ui/capture/capture.ts'), /copyNote\(made\.note\)/);
 });
+
+test('A step number is centred in its round face, both ways (the base tag rule aligns to the baseline: a lone number sat at the top)', () => {
+  const css = src('src/scene/labels/labels.css');
+  assert.match(css, /\.cl\[data-fig="step"\] \{ justify-content: center; align-items: center; padding: 0; \}/);
+});

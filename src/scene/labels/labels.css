@@ -157,7 +157,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 /* ── what a slide stands on the figure besides the names (figure-cards.ts): a mark's words, a site's reading, a numbered step, a caliper. The card is the catheter's
    (.cl); a step is its round form; the portal blood's split is the 2D app's own markup, styled by its lifted rules (.cath-label.site.split). ── */
 .cl[data-fig="mark"] .cl-k { letter-spacing: 0; }
-.cl[data-fig="step"] { justify-content: center; padding: 0; }
+.cl[data-fig="step"] { justify-content: center; align-items: center; padding: 0; }   /* (centred both ways: the base rule's baseline alignment left a lone number at the top of its disc) */
 .cl[data-fig="step"] .cl-k { color: var(--bg, #fff); font-weight: 700; -webkit-text-stroke: 0; }
 /* a step's number stands on a plain round face (a circle: border-radius, nothing clipped, no outline): the one glass of the figure besides the chrome's. With the blur on, its face is the text colour at
    95 % over the shared blur (src/ui/glass.css lists .cl-disc); blur off, reduced transparency or no backdrop blur keeps the solid fill */
