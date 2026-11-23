@@ -1,8 +1,9 @@
 /* The timeline chart's card (docs/approved/timeline-chart.md). The card is the shell's own sheet: its glass is the standard card glass (glass.css lists `.sh-sheet`), nothing blurs the figure
    behind it. Moves are opacity and transform only; nothing scrolls inside it. */
-.sh-sheet[data-kind="timeline"] { z-index: 6; left: calc(var(--safe-l, 0px) + 28px); right: calc(var(--safe-r, 0px) + 28px); top: calc(var(--safe-t, 0px) + 28px); bottom: calc(var(--safe-b, 0px) + 28px); width: auto; max-height: none; margin-left: 0; }
+.sh-sheet[data-kind="timeline"] { z-index: 3; left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); bottom: calc(var(--bot-occ, 84px) + 12px); width: auto; max-height: none; margin-left: 0; }
 .sh-sheet[data-kind="timeline"] > .sh-sheet-body { flex: 1; min-height: 0; padding: 0; overflow: hidden; display: flex; }
-.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="timeline"] { top: calc(var(--safe-t, 0px) + 52px) !important; bottom: calc(var(--safe-b, 0px) + 10px) !important; max-height: none; }
+/* the same room as every other card: under the top bar (the patient picker and the pressure legend), above the dock and the timeline bar; a phone's sheet keeps its own foot (the shell's rule) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="timeline"] { top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px) !important; max-height: none; }
 
 .bt { --bt-row: clamp(30px, 4.5vh, 42px); position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 27%, 360px); column-gap: 40px; padding: 22px 30px 20px 34px; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums; -webkit-user-select: none; user-select: none; }
 .bt button { font-family: inherit; }
