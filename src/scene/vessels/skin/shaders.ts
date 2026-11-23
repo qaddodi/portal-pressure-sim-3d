@@ -350,6 +350,18 @@ float skinArmLat(vec2 frag, int arm, float swell, out float rPx) {
   tg *= -sign(armArc[arm].y);   // (the heading as the arc grows: the axis runs from the node outward, so toward the node the arc grows against it)
   return dot(e, vec2(-tg.y, tg.x)) / max(rPx, 1e-3);
 }
+// THE CLOT STOPS AT THE TRUNK'S WALL (plan 34e, disease/clot-field.ts trunkCutTwin): 0 inside the lumen of any arm of the trunk (the arms of the run through the node: armCopy.w >= 0 or -1, not a vein that opens into its side), 1 half a pixel outside every one, by the pixel's own
+// distance to each arm's axis against its live radius, the one-pixel edge the tube's cava cut has (vessels/shaders.ts cavA). ROOT CAUSE it answers: the clot was clipped to the UNION's lumen, which includes the cava, and a vein meets the cava on a slant, so the clot's corners stood inside the cava.
+float skinOutsideTrunk(vec2 frag) {
+  float k = 1.0;
+  for (int j = 0; j < ${SKIN_ARMS}; j++) {
+    if (armData[j].x < 0.0 || armCopy[j].w < -0.5 || keepOf(j) < 0.5) continue;
+    float rPx;
+    float lat = skinArmLat(frag, j, swAt(j), rPx);
+    k *= smoothstep(-0.5, 0.5, (abs(lat) - 1.0) * rPx);
+  }
+  return k;
+}
 // THE DEPTH HOLD-OUT, as a share 0 to 1 (see skinSdPx for how it is used). A pixel's own place in the figure (vPos, the lumen's rest surface, which the mesh stands the line out from) is a point in 3D: its distance to the arm's capsule (skinArmSd3, exact) is how far out of
 // the arm it is, whatever the camera does (an arm that runs along the view is foreshortened to a few pixels, so a depth taken at the nearest SCREEN point was the wrong one and held out the pixels of an arm that were its own: holes in the junctions when the figure is turned,
 // Mohammad 22 Nov). In px at the pixel's depth: nothing within SKIN_HOLD_FROM_K (1) k of the arm's wall, all of it from SKIN_HOLD_TO_K (2) k: the fillet spans k.
@@ -657,7 +669,7 @@ void main() {
       float latC = skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxC);
       vec3 ct = clotAt(armClotA[i], armClotP[i].xy, sIa[i] / max(armArc[i].z, 1e-6), latC, armArc[i].w * swAt(i), rPxC);
       float inkC = min(inkDev, ${F(CLOT_INK_MAX_R)} * rPxC);
-      float cv = wI * ct.x;
+      float cv = wI * ct.x * (armCopy[i].w < -1.5 && ct.x > 0.0 ? skinOutsideTrunk(gl_FragCoord.xy) : 1.0);   // (a vein that opens into the trunk's side: its clot ends at the trunk's wall, not at the union's)
       covK += cv; covRaw += cv;
       inkK += cv * ct.z * (1.0 - smoothstep(inkC - 0.5, inkC + 0.5, ct.y));
     }

@@ -8,6 +8,7 @@ import { bandGeomInto, fibHash } from './from2d/lobule-paint.generated.js';
 import { CV_FILL, cvRag } from './cv-intima.ts';
 import { septaBands, tractCorners, type CollagenShape } from './collagen-paint.ts';
 import { NEVER, tauToByte } from './growth.ts';
+import { softPadWorld } from './collagen-soft.ts';
 
 /** The fronts' own meeting point of the hex-edge bridges, in septU (today's reach is 1 at su (1 - 0.3) / 2.4). */
 export const SEPTA_MEET = 0.29;
@@ -20,7 +21,7 @@ const jitter = (seed: number, u: number): number => 0.6 * Math.sin(TAU * 1.3 * u
 /** The layer's arrival times as RGBA bytes (A 255), row 0 at the top of the canvas (world y = -box), n × n pixels over world [-box, box]. `cvR`: the vein's wall radius, world units. */
 export function collagenTau(G: CollagenShape, cvR: number, n: number, box: number): Uint8Array {
   const out = new Uint8Array(n * n * 4).fill(255);
-  const sc = n / (2 * box), best = new Float32Array(n * n).fill(Infinity);
+  const sc = n / (2 * box), pad = softPadWorld(box), best = new Float32Array(n * n).fill(Infinity);
   const toPx = (v: number): number => (v + box) * sc;
   // ---- R: the septa
   const g = { P: new Float64Array(54), N: new Float64Array(54), Wd: new Float64Array(27), n: 26, L0: 1 };
@@ -28,16 +29,16 @@ export function collagenTau(G: CollagenShape, cvR: number, n: number, box: numbe
     bandGeomInto(g, b.A, b.B, b.o, b.o.path);
     const P = g.P, Wd = g.Wd, seed = b.o.seed;
     for (let i = 0; i < g.n; i++) {
-      const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = 2.1 * Math.max(Wd[i]!, Wd[i + 1]!, 0.5);
+      const ax = P[2 * i]!, ay = P[2 * i + 1]!, bx = P[2 * i + 2]!, by = P[2 * i + 3]!, wmax = 2.1 * Math.max(Wd[i]!, Wd[i + 1]!, 0.5) + pad;
       const x0 = Math.max(0, Math.floor(toPx(Math.min(ax, bx) - wmax))), x1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ax, bx) + wmax)));
       const y0 = Math.max(0, Math.floor(toPx(Math.min(ay, by) - wmax))), y1 = Math.min(n - 1, Math.ceil(toPx(Math.max(ay, by) + wmax)));
       const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
         const wx = (x + 0.5) / sc - box, wy = (y + 0.5) / sc - box;
         const t = clamp(((wx - ax) * dx + (wy - ay) * dy) / L2, 0, 1), ex = ax + t * dx - wx, ey = ay + t * dy - wy, d = Math.hypot(ex, ey);
-        const half = 2.1 * Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t);
+        const half = 2.1 * Math.max(0.5, Wd[i]! + (Wd[i + 1]! - Wd[i]!) * t);   // (the painted edge; the soft copy spreads `pad` past it and the arrival times reach as far, or front() would cut a hard edge there)
         const k = y * n + x;
-        if (d > half || d >= best[k]!) continue;
+        if (d > half + pad || d >= best[k]!) continue;
         const u = (i + t) / g.n;
         let tau: number;
         if (b.kind === 'hex') { const h = 2 * Math.min(u, 1 - u); tau = SEPTA_MEET * h + 0.03 * Math.sin(Math.PI * h) * jitter(seed, u); }
@@ -49,7 +50,7 @@ export function collagenTau(G: CollagenShape, cvR: number, n: number, box: numbe
     }
   }
   // ---- G: the portal tracts, radially (the tract of radius G.rt (0.8 + 0.9 g) reaches r at g = (r / G.rt - 0.8) / 0.9)
-  const rmax = G.rt * 2;
+  const rmax = G.rt * 2 + pad;
   for (const [cx, cy] of tractCorners(G)) {
     const x0 = Math.max(0, Math.floor(toPx(cx - rmax))), x1 = Math.min(n - 1, Math.ceil(toPx(cx + rmax)));
     const y0 = Math.max(0, Math.floor(toPx(cy - rmax))), y1 = Math.min(n - 1, Math.ceil(toPx(cy + rmax)));
@@ -61,7 +62,7 @@ export function collagenTau(G: CollagenShape, cvR: number, n: number, box: numbe
     }
   }
   // ---- B: the vein's cuff outwards and its ring inwards (centre (G.cx, G.cy))
-  const rw = cvR, rOut = (rw + G.rcv0 * 0.95) * 1.08;
+  const rw = cvR, rOut = (rw + G.rcv0 * 0.95) * 1.08 + pad;
   const x0 = Math.max(0, Math.floor(toPx(G.cx - rOut))), x1 = Math.min(n - 1, Math.ceil(toPx(G.cx + rOut)));
   const y0 = Math.max(0, Math.floor(toPx(G.cy - rOut))), y1 = Math.min(n - 1, Math.ceil(toPx(G.cy + rOut)));
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {

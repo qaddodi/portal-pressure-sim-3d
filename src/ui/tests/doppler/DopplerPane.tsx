@@ -9,7 +9,7 @@ import { EDGES } from '../../../engine/hales/portal/topology.js';
 import { clock } from '../../../clock/frame.ts';
 import { onFrame, latest } from '../../../engine/index.ts';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
-import { MAX_DPR } from '../../charts/gl.ts';
+import { onZoomK } from '../../cards/zoom-k.ts';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { feed } from '../feed.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
@@ -24,8 +24,6 @@ import { observeThenFit } from '../../layout/fit-later.ts';
 import { fadeAttrs } from '../../fade.tsx';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
-/** The chart canvas's pixel ratio (charts/gl.ts): a spectral line is one of its pixels wide. */
-const dprNow = () => Math.min(MAX_DPR, Math.max(1, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1));
 
 export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown>; /** a slide's data card: the slide's own steady reading (slide/pin.ts), the stent's three places named but not picked (2D createDoppler pickGate: false) */ slide?: boolean }) {
   const model = useRef<DopplerModel | null>(null);
@@ -66,7 +64,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   const draw = () => {
     const c = ctxRef.current, pt = painter.current;
     if (!c || !pt) return;
-    m.dpr = dprNow();
+    m.dpr = painter.current?.ratio ?? 1;   // (the canvas's own pixel ratio, a card zoom's included (charts/gl.ts chartRatio): a spectral line is one of its pixels wide)
     pt.show(m.frameFor(c.w, hRef.current, clock.now(), aria.current, c.pal.tok('doppler')), false);
     if (m.busy) clock.invalidate('doppler');   // (a mark or a letter is easing: frames until it is still, with the model paused too)
   };
@@ -93,6 +91,8 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     return () => { off(); tick(); hold?.release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [mode, invert, sweepIndex, h, probe, gate]);
+  // a card zoom opened or went home: the canvas has a new pixel ratio, so the spectrum's grid is built again at it (the trace is rebuilt from time each frame, model.ts)
+  useEffect(() => onZoomK(() => { dirty.current = true; clock.invalidate('doppler'); }), []);
   // the slide's state changed (a what-if, a time-lapse day): the reading follows it at once, not at the next frame
   useEffect(() => { refresh(); dirty.current = true; clock.invalidate('doppler'); }, [pinN]);  // eslint-disable-line react-hooks/exhaustive-deps
   // a slide's options change in place (the next slide, a compare button): the display goes back to Spectrum unless the slide names one
@@ -170,7 +170,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
           <Cv at={cv.ref}><Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey, ovTop]} label={rep?.aria || 'Spectral Doppler'}
             build={(c) => {
               ctxRef.current = c;
-              m.dpr = dprNow();
+              m.dpr = painter.current?.ratio ?? 1;   // (the canvas's own pixel ratio, a card zoom's included (charts/gl.ts chartRatio): a spectral line is one of its pixels wide)
               m.pickWindow(c.w - (PAD_L as number) - (PAD_R as number));
               if (m.sweepIndex !== sweepIndex) queueMicrotask(() => setSweepIndex(m.sweepIndex));
               return m.frameFor(c.w, h, clock.now(), aria.current, c.pal.tok('doppler'));

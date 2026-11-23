@@ -9,6 +9,9 @@
 import { useSyncExternalStore } from 'react';
 import { clock as theClock, type Clock, type FrameInfo, type Hold, clock } from '../../clock/frame.ts';
 import { easeArrive } from '../../clock/tween.ts';
+import type { Layout } from '../layout/rules2d.ts';
+import { zoomKHold, zoomKRelease, type ZoomHolder } from './zoom-k.ts';
+export { zoomKOf, onZoomK } from './zoom-k.ts';
 
 export const ZOOM_MAX = 2.2, ZOOM_MIN = 1.2, ZOOM_MS = 520, SHUT_MS = 440;
 export { easeArrive };   // (2D's --ease-arrive: the one curve, clock/tween.ts)
@@ -17,7 +20,10 @@ export interface Box { left: number; top: number; width: number; height: number 
 export interface Cur { dx: number; dy: number; s: number }
 
 export const reverseMs = (full: number, curS: number, planS: number): number => Math.round(full * Math.max(0.35, Math.min(1, (curS - 1) / ((planS - 1) || 1))));
-export const zoomMargin = (area: Box): number => Math.min(110, Math.max(72, 0.1 * Math.min(area.width, area.height)));
+/** The room round a zoomed card: 2D's tenth of the shorter side between 72 and 110 px on a 'wide' screen; 32 px on a 'short' one (an iPad 746-834 px tall or a Mac window under 860: 2D's margin left a card over 500 px tall no room to grow, Plan 43). */
+export const zoomMargin = (area: Box, layout?: Layout): number => (layout === 'short' ? 32 : Math.min(110, Math.max(72, 0.1 * Math.min(area.width, area.height))));
+/** Where a card zoom is offered: a floating layout (wide or short) on a screen that is not a phone held sideways (its wallet card is already 340 px of 393). Plan 43: the gate was `layout === 'wide'`, which every iPad under 860 px tall missed. */
+export const zoomsOn = (layout: Layout, sideways: boolean): boolean => (layout === 'wide' || layout === 'short') && !sideways;
 export const fitScale = (box: Box, area: Box, margin = zoomMargin(area)): number => Math.min((area.width - 2 * margin) / box.width, (area.height - 2 * margin) / box.height);
 
 /** Where the card goes and how much it grows ({ s, dx, dy }: dx, dy from the card's middle to the area's), or null when it would grow under ZOOM_MIN. */
@@ -39,12 +45,15 @@ export function emptyTap(target: EventTarget | null, card: Element): boolean {
   return true;
 }
 
-interface Styled { style: { setProperty(n: string, v: string): void; removeProperty(n: string): unknown }; getBoundingClientRect(): Box }
-interface Rider { els: Styled[]; rest: Box; focus: boolean }
-interface Run { from: Cur; to: Cur; elapsed: number; ms: number; done: () => void }
+interface Styled { style: { setProperty(n: string, v: string): void; removeProperty(n: string): unknown }; getBoundingClientRect(): Box; contains?(n: unknown): boolean }
+/** An element that takes an attribute (a ladder's panel and its card, while the panel is zoomed). */
+interface Attr { setAttribute(n: string, v: string): void; removeAttribute(n: string): void }
+interface Rider { els: Styled[]; rest: Box; focus: boolean; unit: number }
+interface Run { from: Cur; to: Cur; elapsed: number; ms: number; done: () => void; into: boolean }
+type Mark = { dataset: Record<string, string | undefined> };
 
 export function createCardZoom(clock: Clock = theClock) {
-  let st: { riders: Rider[]; plan: Cur; cur: Cur; cx: number; cy: number; run: Run | null; closing: Promise<void> | null; veil: { classList: { add(c: string): void; remove(c: string): void } } | null; mark: { dataset: Record<string, string | undefined> } | null } | null = null;
+  let st: { riders: Rider[]; plan: Cur; cur: Cur; cx: number; cy: number; run: Run | null; closing: Promise<void> | null; veil: { classList: { add(c: string): void; remove(c: string): void } } | null; mark: Mark | null; cell: { cell: Attr; card: Attr | null } | null; held: ZoomHolder } | null = null;
   let hold: Hold | null = null, off: (() => void) | null = null;
   const lerp = (r: Run, e: number): Cur => ({ dx: r.from.dx + (r.to.dx - r.from.dx) * e, dy: r.from.dy + (r.to.dy - r.from.dy) * e, s: r.from.s + (r.to.s - r.from.s) * e });
   const paint = () => {
@@ -52,7 +61,8 @@ export function createCardZoom(clock: Clock = theClock) {
     const c = st.cur, rest = c.s === 1 && c.dx === 0 && c.dy === 0;
     for (const r of st.riders) for (const el of r.els) {
       if (rest) { el.style.removeProperty('translate'); el.style.removeProperty('scale'); }
-      else { el.style.setProperty('translate', `${c.dx.toFixed(2)}px ${c.dy.toFixed(2)}px`); el.style.setProperty('scale', c.s.toFixed(4)); }
+      // (lengths in a zoomed ancestor (a ladder grid's `--pz-fit`) are that many times larger on the screen: `unit` brings the screen pixels back to the element's own)
+      else { el.style.setProperty('translate', `${(c.dx / r.unit).toFixed(2)}px ${(c.dy / r.unit).toFixed(2)}px`); el.style.setProperty('scale', c.s.toFixed(4)); }
     }
   };
   function step(f: FrameInfo) {
@@ -62,16 +72,18 @@ export function createCardZoom(clock: Clock = theClock) {
     const p = Math.min(1, Math.max(0, m.elapsed / m.ms));
     st.cur = lerp(m, easeArrive(p));
     paint();
-    if (p >= 1) { st.run = null; sleep(); m.done(); }
+    if (p >= 1) { st.run = null; if (m.into) landed(); sleep(); m.done(); }
   }
   const wake = () => { if (!off) off = clock.on('tween', step, 30); if (!hold) hold = clock.hold('card-zoom'); };
   const sleep = () => { hold?.release(); hold = null; off?.(); off = null; };
-  function drive(to: Cur, ms: number): Promise<void> {
+  /** The glide in has landed: body[data-card-zoom] is "up" (it is "" while the zoom glides in or out: the Doppler's own layer goes only while it stands still, css3d-over-2d.css). */
+  const landed = () => { if (st?.mark && !st.closing) st.mark.dataset.cardZoom = 'up'; };
+  function drive(to: Cur, ms: number, into = false): Promise<void> {
     return new Promise((done) => {
       if (!st) { done(); return; }
       st.run?.done();
-      if (!(ms > 0)) { st.cur = { ...to }; st.run = null; paint(); sleep(); done(); return; }
-      st.run = { from: { ...st.cur }, to, ms, elapsed: 0, done };
+      if (!(ms > 0)) { st.cur = { ...to }; st.run = null; paint(); if (into) landed(); sleep(); done(); return; }
+      st.run = { from: { ...st.cur }, to, ms, elapsed: 0, done, into };
       wake();
     });
   }
@@ -82,24 +94,32 @@ export function createCardZoom(clock: Clock = theClock) {
     for (const r of s.riders) for (const el of r.els) { el.style.removeProperty('translate'); el.style.removeProperty('scale'); el.style.removeProperty('transform-origin'); }
     s.veil?.classList.remove('on');
     if (s.mark) delete s.mark.dataset.cardZoom;
+    if (s.cell) { s.cell.cell.removeAttribute('data-zoomed'); s.cell.card?.removeAttribute('data-cell-zoom'); }
+    zoomKRelease(s.held);   // (last: the charts draw sharp at the zoomed size until the cards are home)
   }
   return {
     get on() { return !!st; },
     get up() { return !!st && !st.closing; },
     get scale() { return st ? st.cur.s : 1; },
-    /** Zooms `focus` (a card's elements) to the middle, `others` riding with it. Returns false when the card would not grow enough. */
-    open(o: { focus: Styled[]; others: Styled[][]; area: Box; reduce?: boolean; veil?: { classList: { add(c: string): void; remove(c: string): void } } | null; mark?: { dataset: Record<string, string | undefined> } | null }): boolean {
+    /** Zooms `focus` (a card's elements, or one panel of a grid with `cell`) to the middle, `others` riding with it. `layout` picks the room round it (zoomMargin); `unit` is the zoom the focus lives under
+     *  (a ladder grid's fit: 1 for a card). Returns false when it would not grow enough. */
+    open(o: { focus: Styled[]; others: Styled[][]; area: Box; layout?: Layout; unit?: number; cell?: { cell: Attr; card: Attr | null }; reduce?: boolean; veil?: { classList: { add(c: string): void; remove(c: string): void } } | null; mark?: Mark | null }): boolean {
       if (st) return false;
       const box = o.focus[0]!.getBoundingClientRect();
-      const plan = zoomPlan(box, o.area);
+      const plan = zoomPlan(box, o.area, zoomMargin(o.area, o.layout));
       if (!plan) return false;
       const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
-      const riders: Rider[] = [{ els: o.focus, rest: box, focus: true }, ...o.others.map((els) => ({ els, rest: els[0]!.getBoundingClientRect(), focus: false }))];
-      st = { riders, plan, cur: { dx: 0, dy: 0, s: 1 }, cx, cy, run: null, closing: null, veil: o.veil ?? null, mark: o.mark ?? null };
-      for (const r of riders) for (const el of r.els) el.style.setProperty('transform-origin', `${(cx - r.rest.left).toFixed(2)}px ${(cy - r.rest.top).toFixed(2)}px`);
+      const unit = o.unit && o.unit > 0 ? o.unit : 1;
+      const riders: Rider[] = [{ els: o.focus, rest: box, focus: true, unit }, ...o.others.map((els) => ({ els, rest: els[0]!.getBoundingClientRect(), focus: false, unit: 1 }))];
+      const held: ZoomHolder = { k: plan.s, els: riders.flatMap((r) => r.els) };
+      st = { riders, plan, cur: { dx: 0, dy: 0, s: 1 }, cx, cy, run: null, closing: null, veil: o.veil ?? null, mark: o.mark ?? null, cell: o.cell ?? null, held };
+      for (const r of riders) for (const el of r.els) el.style.setProperty('transform-origin', `${((cx - r.rest.left) / r.unit).toFixed(2)}px ${((cy - r.rest.top) / r.unit).toFixed(2)}px`);
       if (st.mark) st.mark.dataset.cardZoom = '';
+      if (st.cell) { st.cell.cell.setAttribute('data-zoomed', ''); st.cell.card?.setAttribute('data-cell-zoom', ''); }
       st.veil?.classList.add('on');
-      void drive(plan, o.reduce ? 0 : ZOOM_MS);
+      // (the charts are told first, before the glide's first frame: they draw at the zoomed size, then show large)
+      zoomKHold(held);
+      void drive(plan, o.reduce ? 0 : ZOOM_MS, true);
       return true;
     },
     /** Glides back (at once with `instant`). Resolves when the cards are where they were. */
@@ -108,6 +128,8 @@ export function createCardZoom(clock: Clock = theClock) {
       if (st.closing) return st.closing;
       const s = st;
       s.veil?.classList.remove('on');
+      if (s.mark) s.mark.dataset.cardZoom = '';
+      s.cell?.card?.setAttribute('data-cell-zoom', 'back');   // (the other panels come back up while it glides home: deck-ui.css)
       if (o.instant || o.reduce) { end(); return Promise.resolve(); }
       const ms = reverseMs(SHUT_MS, s.cur.s, s.plan.s);
       s.closing = Promise.race([drive({ dx: 0, dy: 0, s: 1 }, ms), new Promise<void>((r) => clock.after(r, ms + 200))]).then(() => { if (st === s) end(); });

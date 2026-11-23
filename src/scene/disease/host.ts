@@ -100,6 +100,25 @@ export function hostAt(h: Host, swells: readonly number[], shares: readonly numb
 }
 
 const nbCache = new Map<string, Float32Array | null>();
+const nbSideCache = new Map<string, Float32Array | null>();
+
+/** The laterals (shares of the vein's lumen radius, left of its heading) at which a vein's meeting with the cava's wall is read across its width: both silhouettes and between. */
+export const WALL_LATERALS: readonly number[] = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1];
+/** How far past the drawn vein's end, in lumen radii along its end heading, the wall is looked for at a silhouette (the skin's arm ends in a round cap one radius past its end). */
+export const WALL_EXTEND_R = 2;
+const WALL_EXTEND_N = 4;
+
+/** The arc length (scene units, from the vein's start) at which the line whose neighbour data is `nb` (rows `off` on, one per entry of `s`, the arc length at each of its points) first enters the cava's lumen, the cava at `cavaSwell` of its built width: the last place it is still
+ *  outside. Read from the vein's start, so a line carried on far enough to leave the cava's other wall is not read as outside again. The arc's end when it never enters. */
+function wallArcOf(s: readonly number[], nb: Float32Array, off: number, cavaSwell: number): number {
+  const wall = (i: number): number => Math.abs(nb[(off + i) * NBR_STRIDE]!) - nb[(off + i) * NBR_STRIDE + 1]! * cavaSwell;   // (> 0 outside the lumen)
+  let k = 0;
+  while (k < s.length - 1 && wall(k + 1) >= 0) k++;
+  if (k >= s.length - 1) return s[s.length - 1]!;
+  const d0 = wall(k), d1 = wall(k + 1), w = d1 === d0 ? 0 : Math.min(1, Math.max(0, d0 / (d0 - d1)));
+  return s[k]! + (s[k + 1]! - s[k]!) * w;
+}
+
 /** Where a vein that opens into the cava meets the cava's wall, as a share (0 to 1) of the drawn vein's arc length: the last place at which the vein's centre is still outside the cava's lumen (the tube is cut away inside it, shaders.ts cavaCut), the
  *  lumen at the radius the cava is DRAWN at (`cavaSwell`: its live width over the width it was built at). Null for a vein that does not open into the cava. A clot in such a vein runs to here, so it reaches the junction as the vein does. */
 export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
@@ -111,13 +130,36 @@ export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
     nbCache.set(h.id, neighbourAttr(last.id, flat));
   }
   const nb = nbCache.get(h.id);
+  return nb ? wallArcOf(h.s, nb, 0, cavaSwell) / h.length : null;
+}
+
+/** THE WALL ACROSS THE VEIN'S WIDTH (plan 34e). A vein meets the cava obliquely, so the cava's wall crosses the vein's width on a slant: its centre line reaches the wall at `cavaWallShare`, one silhouette earlier and the other later (0.15 to 0.75 vein widths in the
+ *  hepatic veins, measured), and on the late side it can lie past the drawn vein's end (up to 0.25 widths: the end is carried on straight, WALL_EXTEND_R radii). This is the LAST share of the vein's arc (it may pass 1) at which any line across the vein's lumen
+ *  (`veinSwell`: its live width over the built one) is still outside the cava: the far side of the slant. Null for a vein that does not open into the cava. */
+export function cavaFarWallShare(h: Host, cavaSwell = 1, veinSwell = 1): number | null {
+  const last = h.pieces[h.pieces.length - 1];
+  if (!last || !opensIntoCava(last.id)) return null;
+  const n = h.pts.length, m = n + WALL_EXTEND_N, e = h.pts[n - 1]!, p = h.pts[n - 2]!, tl = Math.hypot(e.x - p.x, e.y - p.y) || 1, tx = (e.x - p.x) / tl, ty = (e.y - p.y) / tl, Re = h.R[n - 1]!;
+  const sx: number[] = h.s.slice();
+  for (let q = 1; q <= WALL_EXTEND_N; q++) sx.push(h.s[n - 1]! + Re * WALL_EXTEND_R * q / WALL_EXTEND_N);
+  if (!nbSideCache.has(h.id)) {
+    const flat = new Float32Array(WALL_LATERALS.length * m * 3);
+    for (let i = 0; i < m; i++) {
+      const i0 = Math.min(i, n - 1), a = h.pts[Math.max(i0 - 1, 0)]!, b = h.pts[Math.min(i0 + 1, n - 1)]!, c = i < n ? 0 : (i - n + 1) * Re * WALL_EXTEND_R / WALL_EXTEND_N;
+      const dl = Math.hypot(b.x - a.x, b.y - a.y) || 1, hx = i < n ? (b.x - a.x) / dl : tx, hy = i < n ? (b.y - a.y) / dl : ty;   // (the heading; past the end, the end's)
+      WALL_LATERALS.forEach((l, j) => { const o = (j * m + i) * 3; flat[o] = h.pts[i0]!.x + hx * c - hy * l * h.R[i0]!; flat[o + 1] = h.pts[i0]!.y + hy * c + hx * l * h.R[i0]!; flat[o + 2] = h.pts[i0]!.z; });
+    }
+    nbSideCache.set(h.id, neighbourAttr(last.id, flat));
+  }
+  const nb = nbSideCache.get(h.id);
   if (!nb) return null;
-  const wall = (i: number): number => Math.abs(nb[i * NBR_STRIDE]!) - nb[i * NBR_STRIDE + 1]! * cavaSwell;   // (> 0 outside the lumen)
-  let k = h.pts.length - 1;
-  while (k > 0 && wall(k) < 0) k--;
-  if (k >= h.pts.length - 1) return 1;
-  const d0 = wall(k), d1 = wall(k + 1), w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0)));
-  return (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length;
+  const X = WALL_LATERALS.map((_, j) => wallArcOf(sx, nb, j * m, cavaSwell));
+  // (the wall is one line across the vein, so the crossing is linear in the lateral: read at the live half width, past the sampled silhouette by the end slope)
+  const at = (x: number): number => {
+    const L = WALL_LATERALS, k = Math.min(Math.max(Math.floor((x - L[0]!) / (L[1]! - L[0]!)), 0), L.length - 2);
+    return X[k]! + (X[k + 1]! - X[k]!) * (x - L[k]!) / (L[k + 1]! - L[k]!);
+  };
+  return Math.min(sx[m - 1]!, Math.max(at(-veinSwell), at(veinSwell), X[Math.floor(WALL_LATERALS.length / 2)]!)) / h.length;
 }
 
 /** The lumen's radius (built width, scene units) at a share of the drawn vein. */

@@ -5,6 +5,8 @@
 html [data-fade] { transition: opacity var(--d-small) var(--ease), visibility var(--d-small) linear, display var(--d-small) allow-discrete; }
 @starting-style { html [data-fade="on"] { opacity: 0; } }
 html [data-fade="off"] { opacity: 0; visibility: hidden; pointer-events: none; display: none; }
+/* (Plan 42: an element's own display rule — `.dop-stats > div:not([hidden]) { display: flex }`, `.topbar .chip-btn { display: inline-flex }` — outweighs the line above and kept a faded-off box in the layout, invisible but taking room. A transition outranks an important declaration, so the fade still plays out before the box goes.) */
+html [data-fade="off"]:not([data-fade-axis]) { display: none !important; transition: opacity var(--d-small) var(--ease), visibility var(--d-small) linear, display var(--d-small) allow-discrete !important; }
 
 html [data-fade-axis] { transition: grid-template-rows var(--d-small) var(--ease), grid-template-columns var(--d-small) var(--ease), opacity var(--d-small) var(--ease), visibility var(--d-small) linear, padding var(--d-small) var(--ease), margin var(--d-small) var(--ease); }
 html [data-fade-axis="y"] { display: grid; grid-template-rows: 1fr; }
@@ -12,4 +14,4 @@ html [data-fade-axis="y"][data-fade="off"] { display: grid; grid-template-rows: 
 html [data-fade-axis="x"] { display: inline-grid; grid-template-columns: 1fr; }
 html [data-fade-axis="x"][data-fade="off"] { display: inline-grid; grid-template-columns: 0fr; margin-inline: 0; padding-inline: 0; }
 [data-fade-axis] > .fade-in { min-width: 0; min-height: 0; overflow: hidden; }
-@media (prefers-reduced-motion: reduce) { html [data-fade], html [data-fade][data-fade-axis] { transition-duration: 0s; } }
+@media (prefers-reduced-motion: reduce) { html [data-fade], html [data-fade][data-fade-axis] { transition-duration: 0s; } html [data-fade="off"]:not([data-fade-axis]) { transition-duration: 0s !important; } }

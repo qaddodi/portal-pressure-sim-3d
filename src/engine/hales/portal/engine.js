@@ -35,6 +35,8 @@ export const VARIX = { Tcrit: 150, r0Healthy: 1.0, rMax: 6.0, w0: 1.0, open: 7.0
 export const BALLOON_SEAL_S = 3;
 /** Rupture hazard per day as a function of T/Tcrit (§7.5). */
 const ruptureHazardPerDay = (x) => (x <= 1 ? 0 : 0.01 * Math.pow((x - 1) / 0.25, 3));
+/** A vein this occluded (a clot or a stenosis, 0 to 1) carries no flow on any of its pieces (fillJunctionFlows). */
+const OCCLUDED = 0.995;
 const COLLATERAL = { open: 7.5, span: 14, tauGrow: 50, tauRegress: 120, acute: 0,
   acuteClot: 0.15 };   // acute: a clotted portal trunk opens the small pre-existing bypass veins this far (PV about 30 mmHg, not 46)
 // (The stents' hydraulics, the TIPS, the DIPS and a drawn stent, live in stent-geom.js: stentConductance below.)
@@ -200,7 +202,7 @@ export class Engine {
     this.collaterals = EDGES.map((e, k) => (e.kind === 'collateral' ? k : -1)).filter((k) => k >= 0);
     this.veins = EDGES.map((e, k) => ((e.kind === 'vein' || e.kind === 'diode') && !e.virtual ? k : -1)).filter((k) => k >= 0);
     // The veins split where a shunt joins them part-way (topology.js JUNCTIONS): the pieces' edges and the junction nodes between them, filled after each step.
-    this.jx = JUNCTION_CHAINS.map((c) => ({ ks: c.ids.map((id) => this.ei[id]), lead: c.lead, end: c.end, nodes: c.nodes.map((id) => this.ni[id]), at: c.at, taps: c.taps.map((l) => l.map(([id, sg]) => [this.ei[id], sg])) }));
+    this.jx = JUNCTION_CHAINS.map((c) => ({ host: c.host, ks: c.ids.map((id) => this.ei[id]), lead: c.lead, end: c.end, nodes: c.nodes.map((id) => this.ni[id]), at: c.at, taps: c.taps.map((l) => l.map(([id, sg]) => [this.ei[id], sg])) }));
     this.diodes = EDGES.map((e, k) => (e.kind === 'diode' ? k : -1)).filter((k) => k >= 0);
     // A shunt the engine joins past the end of a vein it is drawn into (eto / efrom: the TIPS, drawn into the right hepatic vein, joined to the cava) still
     // drains through that stretch of the vein: [the vein's solved edge, the stretch's share of its length], per shunt edge. A clot or a stenosis of the vein
@@ -681,6 +683,8 @@ export class Engine {
   fillJunctionFlows() {
     const Q = this.Q;
     for (const c of this.jx) {
+      // A vein a clot (or a stenosis) has closed carries nothing on any of its pieces: the blood a shunt joins at the junction does not run on through the shut vein (its flow marks were drawn inside the clot).
+      if (this.occlusion(c.host) >= OCCLUDED) { for (const k of c.ks) Q[k] = 0; continue; }
       const n = c.ks.length;
       const net = (i) => { let s = 0; for (const [k, sg] of c.taps[i]) s += sg * Q[k]; return s; };
       for (let i = c.lead; i < n - 1; i++) Q[c.ks[i + 1]] = Q[c.ks[i]] + net(i);

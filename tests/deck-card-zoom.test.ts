@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createClock } from '../src/clock/frame.ts';
-import { createCardZoom, zoomPlan, zoomMargin, reverseMs, ZOOM_MAX, ZOOM_MIN, ZOOM_MS, SHUT_MS } from '../src/ui/cards/card-zoom.ts';
+import { createCardZoom, zoomPlan, zoomMargin, zoomsOn, reverseMs, ZOOM_MAX, ZOOM_MIN, ZOOM_MS, SHUT_MS } from '../src/ui/cards/card-zoom.ts';
+import { layoutOf, isSideways } from '../src/ui/layout/rules2d.ts';
 
 // Mohammad, 20 Nov: "i can't zoom into the cards when i click on them". 2D's card-zoom.js: the tapped card to the middle, at most 2.2 times, the others riding along.
 const area = { left: 0, top: 0, width: 1440, height: 900 };
@@ -53,9 +54,32 @@ test('a slide change puts it back at once; a card that would not grow is not zoo
   assert.equal(zoom.open({ focus: [el({ left: 0, top: 0, width: 1400, height: 880 })], others: [], area }), false);
 });
 
-test('it is wired: a tap on the empty part of a card on a wide screen, Esc first closes it', () => {
+test('it is wired: a tap on the empty part of a card, Esc first closes it', () => {
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   const input = readFileSync(new URL('../src/ui/deck/useDeckInput.ts', import.meta.url), 'utf8');
-  assert.match(layer, /plan\.layout === 'wide'/); assert.match(layer, /emptyTap/); assert.match(layer, /cardZoom\.close\(\{ reduce: reduceMotion\(\) \}\); \}, \[wordsKey/, 'a slide change glides it back');
+  assert.match(layer, /emptyTap/); assert.match(layer, /cardZoom\.close\(\{ reduce: reduceMotion\(\) \}\); \}, \[wordsKey/, 'a slide change glides it back');
   assert.match(input, /cardZoom\.on\) void cardZoom\.close\(\)/);
+});
+
+// Plan 43 (Mohammad, 23 Nov: "tap on cards and zoom on landscape iPad"): the gate named one layout, 'wide', and every iPad under 860 px tall is 'short'.
+test('the zoom is offered by device: every landscape iPad and Mac window, not a phone, not an upright iPad', () => {
+  const on = (w: number, h: number) => zoomsOn(layoutOf(w, h), isSideways(w, h));
+  for (const [w, h] of [[1180, 820], [1180, 746], [1210, 834], [1133, 744], [1024, 768], [1366, 1024], [1440, 800], [1512, 945]]) assert.equal(on(w, h), true, `${w}x${h}`);
+  for (const [w, h] of [[852, 393], [820, 1180], [393, 852], [375, 667]]) assert.equal(on(w, h), false, `${w}x${h}`);
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /const zoomsHere = zoomsOn\(plan\.layout, plan\.sideways\)/);
+  assert.doesNotMatch(layer, /plan\.layout === 'wide'/);
+});
+
+test('the room on a short screen is 32 px, and a card that was too tall for 2D\'s margin now grows; a wide screen keeps 2D\'s', () => {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const safari = { left: 0, top: 0, width: 1180, height: 746 };
+  assert.equal(zoomMargin(safari, 'short'), 32); assert.equal(zoomMargin(area, 'wide'), 90); assert.equal(zoomMargin(area), 90);
+  assert.equal(r2(zoomPlan({ left: 0, top: 0, width: 405, height: 500 }, safari, 32)!.s), 1.36);
+  assert.equal(r2(zoomPlan({ left: 0, top: 0, width: 405, height: 300 }, safari, 32)!.s), 2.2);
+  assert.equal(zoomPlan({ left: 0, top: 0, width: 405, height: 600 }, safari, 32), null, 'a card of 600 px fills the height already');
+  // the iPad app 1180x820 inside its safe areas (24 / 20): 776 px of height
+  const app = { left: 0, top: 24, width: 1180, height: 776 };
+  assert.equal(r2(zoomPlan({ left: 0, top: 0, width: 445, height: 560 }, app, 32)!.s), 1.27);
+  assert.equal(zoomPlan({ left: 0, top: 0, width: 405, height: 500 }, safari, zoomMargin(safari, 'wide')), null, '2D\'s margin (75 px) left a 500 px card under 1.2: the tap did nothing');
 });

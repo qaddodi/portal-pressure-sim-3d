@@ -8,7 +8,7 @@
 //     tall rises into the top margin (never closer than 4 px). Where it still does not fit the pair stays stacked (the 2D app shrinks the data card's blocks;
 //     here nothing shrinks, so the words page). The Back / Next pill stands at the lower right of the screen.
 //   iPhone upright, iPad upright (stack, tab): the data card on top, the figure between, the words' card at the foot (the pill stands inside it), planned from measured heights
-//     (phonePlan): the figure's share gives way first, then the data card comes in closed (a strip at the top; a tap opens it and shuts the words).
+//     (phonePlan, then the shared column): both cards are always up; the figure keeps its 2D floor, the data card keeps what the words leave (never under 40% of the column), the words page.
 //   iPhone on its side: the wallet. One column centred on the screen (400 px, wider only for a slide that needs the height), the card in front at its own
 //     height, the other card a 48 px strip at the foot; a swipe or a tap swaps them.
 
@@ -32,7 +32,7 @@ export interface Plan {
   cards: Placed[];
   /** The card that is not showing, as a 48 px strip (the wallet: iPhone on its side, or an iPhone upright whose data card is closed). */
   strip: Strip | null;
-  /** The data card is closed to a strip because the figure and the words need the room (iPhone upright). */
+  /** Always false now (Plan 42): a phone never closes a card on its own; the wallet (an iPhone on its side) and the reader's dock are the only strips. Kept so callers read one shape. */
   shut: boolean;
   /** The reader put the data card away (2D's dock: a swipe up on it, a tap on its edge brings it back): it stands as a GRIP-px edge at the top and the figure has the room it left (a phone or an upright iPad, both cards up). */
   docked: boolean;
@@ -103,13 +103,6 @@ export function barOf(vp: Viewport): BarPlace {
   const x = vp.w - Math.max(safe.right, cm) - w, y = vp.h - Math.max(cm, safe.bottom + 8) - BAR_H;
   return { edge: 'foot', rect: { x, y, w, h: BAR_H } };
 }
-
-/** The words strip an iPhone (or upright iPad) shows under its data card: its foot stands PILL_GAP above the Back / Next pill, whatever the credit row or the safe area make of the pill's place. */
-export function stripRect(vp: Viewport, x: number, w: number): Rect {
-  return { x, y: barOf(vp).rect.y - PILL_GAP - STRIP_H, w, h: STRIP_H };
-}
-/** The tallest the words card may be while the data card stands shut as a strip at the top: from CARD_GAP under the strip to the card's foot. */
-export const shutWordsCap = (bottom: number, dtop: number): number => bottom - (dtop + STRIP_H + CARD_GAP);
 
 /** The cards that stand alone in the middle of the screen (2D: the outline's and the quick check's `.pz-panel`, a case's `.pz-case`): they have no data card beside them and the page behind them is veiled.
  *  Measures are 2D's own CSS (styles app-04-presenter.css .pz-panel, .pz-case; app-05 .pz.stack .pz-panel), worked out from the screen. */
@@ -183,7 +176,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const data = needs.find((n) => n.slot === 'data') ?? null;
   const placed: Placed[] = [];
   let bar = barOf(vp);
-  let strip: Strip | null = null, shut = false, docked = false, tucked: Rect | null = null, short = false;
+  let strip: Strip | null = null, docked = false, tucked: Rect | null = null, short = false;
   const maxH: Record<Slot, number> = { words: 0, data: 0 };
   let bounds: Rect;
   const extra: Rect[] = [];
@@ -228,24 +221,24 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const wh = words?.h ?? 0, dh = data?.h ?? 0;
     const dmax = Math.round(0.42 * vp.h);
     const plan = phonePlan({ room, dtop, data: dh, dmax, lip: 0, regular: wh, mine: Math.round(0.62 * vp.h), grip: GRIP, figMin: FIG_MIN(vp.h), figFloor: figFloorOf(vp.h), gone: !data, hasData: !!data });
-    shut = plan.shut && !!data && !!words;
-    const stripAt = stripRect(vp, x, w);
-    if (!shut) {
+    // A phone never closes a card on its own (Plan 42, Mohammad 23 Nov: "a card is supposed to be up"). With both cards the column between the data card's top and the words card's foot
+    // (the figure keeps its 2D floor) is shared: the data card keeps what the words leave, never under 40% of the column; the words take the rest and page when they are taller.
+    // `shut` and the strip stay for the wallet (an iPhone on its side) and the reader's own dock only.
+    if (words && data) {
+      const col = bottom - dtop - figFloorOf(vp.h) - 2 * CARD_GAP;
+      const dataFloor = Math.round(0.4 * col);
+      maxH.data = Math.round(Math.min(dmax, Math.max(col - wh, dataFloor)));
+      maxH.words = Math.round(col - Math.min(dh, maxH.data));
+    } else {
       maxH.words = Math.round(plan.cap);
       maxH.data = dmax;
-      // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
-      docked = dock && !!data && !!words;
-      if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
-      if (data && docked) { strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: GRIP } }; tucked = { x, y: dtop, w, h: dh }; }   // (2D's closed data card: its edge, GRIP px; the card itself stays up under it)
-      if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
-    } else {
-      const shown = active === 'data' ? data! : words!, other = shown === data ? words! : data!;
-      // 2D's `room - grip` assumes a 34 px edge at the top; the strip here is STRIP_H and starts at dtop, so the words end CARD_GAP under it
-      maxH.words = Math.round(Math.min(plan.cap, shutWordsCap(bottom, dtop)));
-      maxH.data = Math.round(stripAt.y - CARD_GAP - dtop);
-      if (shown === data) { placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } }); strip = { id: other.id, slot: 'words', rect: stripAt }; }
-      else { placed.push({ id: words!.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } }); strip = { id: other.id, slot: 'data', rect: { x, y: dtop, w, h: STRIP_H } }; }
     }
+    short = !!data && !!words && (data.want ?? 0) > maxH.data + 0.5;   // (the instrument was held short by this room: the title steps first, Plan 43)
+    // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
+    docked = dock && !!data && !!words;
+    if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
+    if (data && docked) { strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: GRIP } }; tucked = { x, y: dtop, w, h: dh }; }   // (2D's closed data card: its edge, GRIP px; the card itself stays up under it)
+    if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: bottom - safe.top };
   } else {
     // Mac, iPad on its side: words top left, the data card under it at the same width.
@@ -278,7 +271,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   const overflow = placed.filter((p) => p.rect.h > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut, docked, tucked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
+  return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */

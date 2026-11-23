@@ -1464,7 +1464,9 @@ export class CelScene {
         // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
         // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: both dissolving at once let the page show through, docs/decisions.md "Lobule to sinusoid handoff")
         const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
-        const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
+        const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value);
+        if (this.microReady) this.sinus3d.setLobuleTop(this.lobule3d.diveTopZ());
+        const sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
         if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
         return anyMoving(lob3, sin3, lobMoving, sinMoving);
       } },

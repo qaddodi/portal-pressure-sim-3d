@@ -32,7 +32,8 @@ import { useStates, ensureStates } from '../../decks/hp/calc.ts';
 import { inputsIn, GIVE_UP_MS } from './inputs-in.ts';
 import { Strip } from '../wallet/Strip.tsx';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
-import { cardZoom, emptyTap, zoomPlan } from './card-zoom.ts';
+import { cardZoom, emptyTap, zoomPlan, zoomMargin, zoomsOn } from './card-zoom.ts';
+import { fitOf } from '../charts/fit.ts';
 import { reduced } from '../a11y/motion.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
 import { useDeckWheel } from '../deck/useDeckWheel.ts';
@@ -98,7 +99,6 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const [ladBase, setLadBase] = useState<Record<string, PairBase>>({});
   // the last step, when even the smallest blocks leave the data card too tall: its own fit (2D presenter-zoom.js fitEach: its zoom, --pz-fit, never under 12 px on the screen)
   const [fitMap, setFitMap] = useState<Record<string, number>>({});
-  const stacked0 = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   const nSteps = stepsFor(vp, pair);
   // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
   const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
@@ -110,7 +110,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, capOf(view)) : 1;
   const at = clampPage(page, pages);
-  const ladOn = pair && !sideways && !stacked0 && !!view && !centredKind(view.words);
+  const ladOn = pair && !sideways && !!view && !centredKind(view.words);
   const cands = useMemo(() => (ladBase[pagesKey] ? pairSteps(ladBase[pagesKey]) : []), [ladBase, pagesKey]);
   const lad = ladOn ? Math.min(ladMap[pagesKey] ?? 0, Math.max(0, cands.length - 1)) : 0;
   const ladVars = ladOn ? stepVars(cands[lad]) : undefined;
@@ -211,9 +211,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
 
   // 2D's card zoom (card-zoom.js): a tap on the empty part of a card on a wide screen zooms it to the middle, the other card riding along; a tap on the veil,
   // Esc, a slide change or a new size puts it back. Only a card that stands whole (nothing leaving or waiting to come in).
-  const zoomsHere = plan.layout === 'wide' && !alone && !!(dataShown || wordsShown);
+  // (Plan 43: by device, not by screen height. 'wide' and 'short' are one card layout; the gate named 'wide' and so turned the zoom off on every iPad under 860 px tall)
+  const zoomsHere = zoomsOn(plan.layout, plan.sideways) && !alone && !!(dataShown || wordsShown);
   const veilRef = useRef<HTMLDivElement>(null), zveilRef = useRef<HTMLDivElement>(null);
   const reduceMotion = reduced;
+  // the room a zoomed card has: the window inside its safe areas (a notch, the home bar), the one box the tap, the corner button and the glide all measure
+  const zoomArea = () => ({ left: vp.safe.left, top: vp.safe.top, width: vp.w - vp.safe.left - vp.safe.right, height: vp.h - vp.safe.top - vp.safe.bottom });
   // the zoom of one card (the tapped card, or the one whose corner button was pressed), the other card riding with it
   const zoomOpen = (card: HTMLElement) => {
     const live = [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')];
@@ -221,27 +224,34 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const els = (c: HTMLElement) => [c, ...(c.previousElementSibling?.classList.contains('dk-plate') ? [c.previousElementSibling as HTMLElement] : [])];
     cardZoom.open({
       focus: els(card), others: live.filter((c) => c !== card).map(els), reduce: reduceMotion(), veil: zveilRef.current, mark: document.body,
-      area: { left: 0, top: 0, width: vp.w, height: vp.h },
+      area: zoomArea(), layout: plan.layout,
     });
   };
+  // one panel of a grid (a ladder's cell, Plan 43 part B): it grows to the middle alone, over its neighbours, which stay where they are and dim
+  const zoomCell = (cell: HTMLElement, card: HTMLElement) => {
+    if ([...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].some((c) => c.getAttribute('data-phase') === 'wait')) return;
+    cardZoom.open({ focus: [cell], others: [], area: zoomArea(), layout: plan.layout, unit: fitOf(cell), cell: { cell, card }, reduce: reduceMotion(), veil: zveilRef.current, mark: document.body });
+  };
+  // a tap while a zoom is up (or on its way) puts it back, wherever it lands; else on a panel of a grid it zooms that panel; else on the card's empty part it zooms the card
   const zoomTap = (e: React.MouseEvent<HTMLDivElement>) => {
     const card = e.currentTarget;
-    if (justDragged() || !zoomsHere) return;
-    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
-    if (cardZoom.on || !emptyTap(e.target, card)) return;
-    zoomOpen(card);
+    if (justDragged()) return;
+    if (cardZoom.on) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    const cell = (e.target as Element | null)?.closest?.<HTMLElement>('.pz-cell');
+    if (cell && card.contains(cell) && emptyTap(e.target, cell)) { zoomCell(cell, card); return; }
+    if (zoomsHere && emptyTap(e.target, card)) zoomOpen(card);
   };
   // 2D's corner button on an instrument's card (.pz-zbtn, presenter-start.js: `onclick: () => zoomToggle()`): the same zoom as a tap on the card's empty part, and the same way back
   const zoomButton = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();   // (the card's own tap would read it as a second one)
     if (justDragged() || !zoomsHere) return;
-    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    if (cardZoom.on) { void cardZoom.close({ reduce: reduceMotion() }); return; }
     const card = e.currentTarget.closest<HTMLElement>('.dk-card');
-    if (!cardZoom.on && card) zoomOpen(card);
+    if (card) zoomOpen(card);
   };
   // the corner button is offered where the card has room to grow (2D presenter-ladders.js `zoomOn`: wide, and `zoom.plan()` is not null), which is when it would grow by at least ZOOM_MIN
   const dataBox = dataShown?.rect;
-  const zoomableData = zoomsHere && !!dataBox && !!zoomPlan({ left: dataBox.x, top: dataBox.y, width: dataBox.w, height: dataBox.h }, { left: 0, top: 0, width: vp.w, height: vp.h });
+  const zoomableData = zoomsHere && !!dataBox && !!zoomPlan({ left: dataBox.x, top: dataBox.y, width: dataBox.w, height: dataBox.h }, zoomArea(), zoomMargin(zoomArea(), plan.layout));
   // a slide change, a new size (the window's or a card's: the plan was made for the card's size at the tap) or a leaving layout glides the zoom back (nothing in the app snaps: Mohammad, 20 Nov), as the slide's own cards go out and come in on the rail
   useEffect(() => { void cardZoom.close({ reduce: reduceMotion() }); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere, wordsShown?.rect.h, dataShown?.rect.h]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => cardZoom.reset(), []);
@@ -255,7 +265,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   useLayoutEffect(() => { if (final) publishPlan(plan, pos.stop); }, [plan, final, pos.stop, publishPlan]);
 
   // a swipe on the last slide's card ends the talk (the figure comes back); anywhere else it moves the talk
-  const goTo = (m: Move) => { if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m); };
+  // (a swipe of any kind while a card is zoomed, on the card or on the dimmed page, or a trackpad's two-finger swipe, glides the zoom back and the slide stays: Plan 43. The buttons and arrow keys still change the slide)
+  const goTo = (m: Move) => {
+    if (cardZoom.on) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m);
+  };
   // 2D's dock (ui/cards/dock.ts): on a phone or an upright iPad with both cards up, a push up anywhere on the slide slides the instrument card away to its handle, following the finger; a pull down
   // anywhere brings it back; a tap on its handle too
   const dockable = (plan.layout === 'stack' || plan.layout === 'tab') && (!plan.strip || plan.docked) && !!dataShown && !!wordsShown && !alone;
@@ -284,7 +298,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       const v2 = viewAt(stops, to, lastSlideShot(stops));
       return (v2.slide && (v2.words === 'teach' || v2.words === 'case' || v2.words === 'visual') ? `${v2.words}:${v2.slide.id}` : v2.words) !== wordsKey;
     },
-    can: (dx) => pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
+    can: (dx) => !cardZoom.on && (pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos)),
     width: vp.w,
     cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
   });
@@ -334,8 +348,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
-        {slot === 'data' ? <DataCap.Provider value={stacked || alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
+        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
+        {slot === 'data' ? <DataCap.Provider value={alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
           // (a chart in a centred panel keeps inside what the panel leaves it, as one in a data card does: only past its floor does the panel's fit zoom take over)
           : alone === 'panel' && e.id === 'visual' ? <DataCap.Provider value={plan.maxH.words}>{content(e)}</DataCap.Provider> : content(e)}
       </CardFrame>

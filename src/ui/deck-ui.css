@@ -231,6 +231,13 @@
 /* ── card zoom (2D card-zoom.js, app.css .pz-zscrim): the tapped card grows to the middle, the page dims a little, the figure's labels sit out ── */
 .deck-ui .pz-zveil { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--stage-bg) 20%, transparent); opacity: 0; pointer-events: none; cursor: zoom-out; transition: opacity var(--d-zoom-out) var(--ease-arrive); }
 .deck-ui .pz-zveil.on { opacity: 1; pointer-events: auto; transition-duration: var(--d-zoom-in); }
+/* One panel of a grid zoomed (Plan 43 part B: a ladder's cell, card-zoom.ts `cell`): the card lets the grown panel out (it clips its own corners otherwise), the panel stands over its neighbours on its own opaque
+   surface (the neighbours fade to 35 %, back up as it glides home: `data-cell-zoom` is "" while it is up, "back" once it is closing), and nothing but opacity eases. */
+.deck-ui .dk-card[data-cell-zoom] { overflow: visible; clip-path: none; z-index: 3; }
+.deck-ui .dk-card[data-cell-zoom] .pz-grid, .deck-ui .dk-card[data-cell-zoom] > .dk-in { overflow: visible; clip-path: none; }
+.deck-ui .pz-cell[data-zoomed] { position: relative; z-index: 2; background: var(--surface-2); box-shadow: var(--glass-shadow, 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / .35)); }
+.deck-ui .pz-cell { transition: opacity var(--d-zoom-out) var(--ease-arrive); }
+.deck-ui .dk-card[data-cell-zoom=""] .pz-cell:not([data-zoomed]) { opacity: .35; transition: opacity var(--d-zoom-in) var(--ease-arrive); }
 .deck-ui .dk-card[data-zoomable] { cursor: zoom-in; }
 body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
 body[data-card-zoom] .lb-layer:not(.lb-key-layer) { opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }

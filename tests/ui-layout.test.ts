@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deviceClass, typeFor, checkTypeScale, type DeviceClass, type Rect } from '../src/ui/layout/device.ts';
-import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, STRIP_H, PILL_W, BAR_H_PHONE, PILL_CORNER, type Need } from '../src/ui/layout/plan.ts';
+import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, PILL_W, BAR_H_PHONE, PILL_CORNER, type Need } from '../src/ui/layout/plan.ts';
 import { pairGap, margin, shufCol, SHUF, layoutOf } from '../src/ui/layout/rules2d.ts';
 
 const SCREENS: Record<string, { vp: { w: number; h: number; safe: { top: number; right: number; bottom: number; left: number } }; device: DeviceClass }> = {
@@ -86,14 +86,19 @@ test('iPhone upright: data card on top, words at the foot (the pill stands in it
   assert.ok(p.bar.rect.y > w.y && p.bar.rect.y + p.bar.rect.h <= w.y + w.h, 'the pill is inside the words card');
 });
 
-test('iPhone upright: where the figure and the words need the room, the data card comes in closed as a strip at the top, and a swap opens it', () => {
+test('iPhone upright: a phone never closes a card on its own (Plan 42): a tall pair keeps both cards up, the data card keeps what the words leave, the words page', () => {
   const { vp } = SCREENS['iphone-portrait'];
-  const p = planLayout(vp, needs(330, 330));
-  assert.equal(p.shut, true);
-  assert.equal(p.strip?.slot, 'data'); assert.equal(p.strip?.rect.h, STRIP_H); assert.ok(p.strip!.rect.y < p.cards[0].rect.y);
-  assert.equal(p.cards[0].slot, 'words');
-  const q = planLayout(vp, needs(330, 330), 'data');
-  assert.equal(q.cards[0].slot, 'data'); assert.equal(q.strip?.slot, 'words');
+  for (const [wh, dh] of [[330, 330], [246, 330], [327, 264], [400, 250], [900, 900]]) for (const active of ['words', 'data'] as const) {
+    const p = planLayout(vp, needs(wh, dh), active);
+    assert.equal(p.shut, false); assert.equal(p.strip, null);
+    assert.deepEqual(p.cards.map((c) => c.slot).sort(), ['data', 'words']);
+    for (const c of p.cards) assert.ok(c.rect.h > 0);
+  }
+  // the column between the data card's top and the words card's foot is shared: 844 - 67 - 187 - 16 = 574 px
+  const p = planLayout(vp, needs(246, 330));
+  assert.equal(p.maxH.data, 328); assert.equal(p.maxH.words, 574 - 328);
+  const q = planLayout(vp, needs(400, 250));
+  assert.equal(q.maxH.data, 230); assert.equal(q.maxH.words, 344 + 0);
 });
 
 test('iPad upright: the phone stack at 70 % of the width, centred', () => {
@@ -109,7 +114,7 @@ test('iPhone on its side: the wallet. One 400 px column centred on the screen, t
   const c = p.cards[0].rect;
   assert.equal(c.w, Math.round(shufCol(0, vp.w))); assert.equal(c.w, 400);
   assert.ok(Math.abs(c.x + c.w / 2 - vp.w / 2) < 1, 'centred');
-  assert.equal(p.strip!.rect.h, SHUF.strip); assert.equal(p.strip!.rect.y + p.strip!.rect.h, vp.h);
+  assert.equal(p.strip!.rect.h, SHUF.strip); assert.equal(p.strip!.rect.y + p.strip!.rect.h, vp.h - vp.safe.bottom, 'the strip stands on the safe area (Plan 37: one footEdge)');
   assert.ok(p.strip!.rect.y > c.y + c.h, 'the strip is under the card');
   assert.equal(p.bar.edge, 'foot');
   assert.ok(!hit(p.strip!.rect, p.bar.rect) && !hit(c, p.bar.rect), 'clear of the pill');

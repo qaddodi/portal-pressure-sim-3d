@@ -14,6 +14,7 @@ import { useTokens } from '../src/scene/lobule/from2d/lobule-paint.generated.js'
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
 import { celTissueJS, tissueTone } from '../src/scene/lobule/cel.ts';
 import { CEL_LIGHT_UNIT } from '../src/scene/cel-glsl.ts';
+import { SOFT_E0, SOFT_E1, SOFT_LOD } from '../src/scene/lobule/collagen-soft.ts';
 import { RELIEF_D_PX, RELIEF_G, RELIEF_GLSL, RELIEF_LIT, RELIEF_SHADE, reliefColour, reliefS } from '../src/scene/lobule/relief.ts';
 import { toOklab } from '../src/scene/lenses/oklab.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -84,21 +85,21 @@ function twin(look: 'light' | 'dark', S: { septU: number; fibSin: number; act: n
   const tr = rasterCtx(N); paintCollagenWorld(tr.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'tracts');
   const sp = rasterCtx(N); paintCollagenWorld(sp.ctx, N, sc, -B, -B, collagenInput(shape, cv, look), 'septa');
   const goal = growGoal(S), grown = goal[0] + goal[1] + goal[2] > 0, M = N * N;
-  const smooth = (a: Float32Array) => (relief ? blur(a, Math.max(1, Math.round(4 * K))) : a);   // (8 px at 2048: the soft copy of the faint edge)
+  const smooth = (a: Float32Array) => (relief ? blur(a, Math.max(1, Math.round(2 ** (SOFT_LOD - 1) * K))) : a);   // (SOFT_LOD, 64 px at 2048: the soft copy, collagen-soft.ts)
   const sA = smooth(sp.alpha), tA = smooth(tr.alpha);
-  const img = new Float32Array(M * 3), cov = new Float32Array(M), alpha = new Float32Array(M), h = new Float32Array(M);
+  const img = new Float32Array(M * 3), cov = new Float32Array(M), own = new Float32Array(M), alpha = new Float32Array(M), h = new Float32Array(M);
   for (let i = 0; i < M; i++) {
     let a = tissueR.alpha[i]!, r = tissueR.rgb[3 * i]! / 255, g = tissueR.rgb[3 * i + 1]! / 255, b = tissueR.rgb[3 * i + 2]! / 255;
     if (grown) {
       const fs = front(tau[4 * i]!, goal[0]) * septaStrength(goal[0]), ft = Math.max(front(tau[4 * i + 1]!, goal[1]), front(tau[4 * i + 2]!, goal[2]));
-      // (a layer's own alpha, softened where faint: the shader's `mix(blurred, own, smoothstep(0.35, 0.75, a))`)
-      const as = relief ? sA[i]! + (sp.alpha[i]! - sA[i]!) * ss(0.35, 0.75, sp.alpha[i]!) : sp.alpha[i]!, au = relief ? tA[i]! + (tr.alpha[i]! - tA[i]!) * ss(0.35, 0.75, tr.alpha[i]!) : tr.alpha[i]!;
+      // (a layer's own alpha, softened where the soft copy is faint: the shader's `mix(soft, own, smoothstep(SOFT_E0, SOFT_E1, soft.a))`)
+      const as = relief ? sA[i]! + (sp.alpha[i]! - sA[i]!) * ss(SOFT_E0, SOFT_E1, sA[i]!) : sp.alpha[i]!, au = relief ? tA[i]! + (tr.alpha[i]! - tA[i]!) * ss(SOFT_E0, SOFT_E1, tA[i]!) : tr.alpha[i]!;
       const ps = sp.alpha[i]! > 0 ? sp.rgb[3 * i]! / 255 / sp.alpha[i]! : 0, pu = tr.alpha[i]! > 0 ? tr.rgb[3 * i]! / 255 / tr.alpha[i]! : 0;   // (straight red of each layer, for the grey of the stand-in below)
       void ps; void pu;
       const cs = [0, 1, 2].map((k) => (sp.alpha[i]! > 0 ? sp.rgb[3 * i + k]! / 255 / sp.alpha[i]! : 0) * as), cu = [0, 1, 2].map((k) => (tr.alpha[i]! > 0 ? tr.rgb[3 * i + k]! / 255 / tr.alpha[i]! : 0) * au);
       r = cs[0]! * fs + r * (1 - as * fs); g = cs[1]! * fs + g * (1 - as * fs); b = cs[2]! * fs + b * (1 - as * fs); a = as * fs + a * (1 - as * fs);
       r = cu[0]! * ft + r * (1 - au * ft); g = cu[1]! * ft + g * (1 - au * ft); b = cu[2]! * ft + b * (1 - au * ft); a = au * ft + a * (1 - au * ft);
-      cov[i] = Math.max(as * fs, au * ft); h[i] = sp.alpha[i]! * fs + tr.alpha[i]! * ft;
+      cov[i] = Math.max(as * fs, au * ft); own[i] = Math.max(sp.alpha[i]! * fs, tr.alpha[i]! * ft); h[i] = sp.alpha[i]! * fs + tr.alpha[i]! * ft;
     }
     alpha[i] = a; img[3 * i] = r / Math.max(a, 1e-4); img[3 * i + 1] = g / Math.max(a, 1e-4); img[3 * i + 2] = b / Math.max(a, 1e-4);
   }
@@ -117,7 +118,7 @@ function twin(look: 'light' | 'dark', S: { septU: number; fibSin: number; act: n
   // the hard tone edges ON collagen: neighbouring pixels (covered by the collagen to any degree) whose cel tones differ
   let edges = 0, collagen = 0, healthyDiff = 0;
   for (let y = 0; y < N - 1; y++) for (let x = 0; x < N - 1; x++) {
-    const i = y * N + x; if (cov[i]! <= 0.002) continue; collagen++;
+    const i = y * N + x; if (own[i]! <= 0.002) continue; collagen++;   // (the pixels the painter laid collagen on, the same set before and after: the soft copy's wider halo is not counted, its cells' own tone lines are the cells')
     for (const j of [i + 1, i + N]) if (tone[i]! >= 0 && tone[j]! >= 0 && tone[i] !== tone[j]) { edges++; break; }
   }
   for (let i = 0; i < M; i++) if (cov[i]! === 0 && kc[i]! !== 0) healthyDiff++;
@@ -143,7 +144,7 @@ test('healthy tissue is bit-identical: no collagen coverage, no change of weight
   }
   // the shader: the early return of "no growth anywhere" comes before the soft edges and the relief samples, and the relief reads nothing where there is no collagen
   const fs = LOBULE_PLATE_FS;
-  assert.ok(fs.indexOf('if (uP.x + uP.y + uP.z <= 0.0)') < fs.indexOf('cs = mix(collAt(uvS, bias + 3.0), cs'), 'the early return is before the soft edge');
+  assert.ok(fs.indexOf('if (uP.x + uP.y + uP.z <= 0.0)') < fs.indexOf('cs = mix(sS, cs'), 'the early return is before the soft edge');
   assert.match(fs, /if \(cov > 0\.002\) rs = reliefS\(reliefSlope\(vUv, fr\), vL\);/);
 });
 
@@ -174,7 +175,7 @@ test('shader shape: the relief, the collagen kept out of the cel step and of the
   assert.ok(main.indexOf('reliefSlope(vUv, fr)') > 0 && main.indexOf('reliefSlope(vUv, fr)') < main.indexOf('discard;'), 'the relief samples come before the first discard');
   assert.ok(main.indexOf('plateTex(vUv)') < main.indexOf('reliefSlope(vUv, fr)') && main.indexOf('float cov = gCov;') < main.indexOf('plateEdge('), 'the coverage is read before plateEdge overwrites it');
   assert.match(fs, /textureLod\(mapC, uvT, 3\.0\)/, 'the height is read at one explicit level (the same relief at every zoom)');
-  assert.match(fs, /cu = mix\(collAt\(uvT, bias \+ 3\.0\), cu, smoothstep\(0\.35, 0\.75, cu\.a\)\)/, 'the pass edges are softened');
+  assert.match(fs, /cu = mix\(sU, cu, smoothstep\(SOFT_E0, SOFT_E1, sU\.a\)\)/, 'the pass edges are softened (collagen-terraces.test.ts judges how)');
   for (const vs of [LOBULE_PLATE_VS, LOBULE_SCAR_VS]) { assert.match(vs, /varying vec2 vL;/); assert.match(vs, /vL = plateLight\(\);/); assert.match(vs, /CEL_LIGHT/, 'the one world light'); assert.match(vs, /mat3|modelMatrix/); }
   assert.ok(RELIEF_GLSL.includes('reliefColour'));
   let parse: ((s: string) => unknown) | null = null;

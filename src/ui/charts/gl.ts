@@ -6,6 +6,7 @@
 // WebGL2 on an OffscreenCanvas falls back to a context per canvas, as before. The drawer draws only when asked (the clock) and, when the shared context is lost,
 // every chart draws its last mesh again once it is back.
 import { FLOATS, type Mesh } from './geometry.ts';
+import { zoomKOf } from '../cards/zoom-k.ts';
 
 const VS = `#version 300 es
 in vec2 a_pos; in vec4 a_col; uniform vec2 u_size; out vec4 v_col;
@@ -19,6 +20,22 @@ export { VS as CHART_VS, FS as CHART_FS };
 
 /** Pixel ratio cap: charts are small and crisp at 2; a higher ratio only costs memory (docs/look-and-feel.md performance bar). */
 export const MAX_DPR = 2;
+/** The most pixels a canvas side takes (a zoomed chart's ceiling; WebGL2's own is far higher on a phone, this keeps the memory sane). */
+export const MAX_SIDE = 4096;
+
+/** The one source of a chart canvas's pixel ratio: the device's, capped at MAX_DPR; and, while a card zoom (cards/card-zoom.ts) has grown the chart by `k` (and a ladder's cell has scaled its chart down
+ *  by `ladK`, `--lad-k`), that many times more, so each canvas pixel is one pixel on the glass at the zoomed size. Never under the base (a zoom shut again draws the same picture), never over MAX_SIDE a side. */
+export function chartRatio(dpr: number, k: number, w: number, h: number, ladK = 1): number {
+  const base = Math.min(MAX_DPR, Math.max(1, dpr));
+  const grown = base * Math.max(1, k) * Math.min(1, ladK > 0 ? ladK : 1);
+  return Math.max(base, Math.min(grown, w > 0 ? MAX_SIDE / w : grown, h > 0 ? MAX_SIDE / h : grown));
+}
+/** A ladder cell's scale on its chart (`.pz-cc` inline `--lad-k`, never above 1): a style-attribute read, no layout. 1 outside a ladder. */
+export function ladKOf(el: Element | null | undefined): number {
+  const cc = el?.closest?.('.pz-cc') as HTMLElement | null | undefined;
+  const k = cc ? parseFloat(cc.style?.getPropertyValue('--lad-k') ?? '') : NaN;
+  return k > 0 && Number.isFinite(k) ? Math.min(1, k) : 1;
+}
 const ATTRS = { antialias: true, alpha: true, premultipliedAlpha: true, stencil: true, depth: false, preserveDrawingBuffer: false, powerPreference: 'low-power' } as const;
 
 type Surface = HTMLCanvasElement | OffscreenCanvas;
@@ -140,7 +157,7 @@ export class ChartGL {
   readonly canvas: HTMLCanvasElement;
   private own: Drawer | null = null;
   private show: ImageBitmapRenderingContext | null = null;
-  private w = 0; private h = 0; private dpr = 1;
+  private w = 0; private h = 0; private dev = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1; private dpr = Math.min(MAX_DPR, Math.max(1, this.dev));
   private last: Mesh | null = null;
   /** Called after the context came back and the last picture was drawn again. */
   onRestored: (() => void) | null = null;
@@ -162,11 +179,22 @@ export class ChartGL {
 
   /** The box in CSS px; the canvas takes its pixels from it at the capped ratio when it next draws (a canvas resized now would show blank until then). */
   size(w: number, h: number, dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1) {
-    this.w = w; this.h = h; this.dpr = Math.min(MAX_DPR, Math.max(1, dpr));
+    this.w = w; this.h = h; this.dev = dpr; this.dpr = this.ratioNow();
     // The canvas element is exactly the box the mesh is made for, in CSS px (not 100% of a box that may be a fraction wider): the picture is drawn at w x h x ratio device pixels and shown at w x h, so at
     // a whole device ratio each of its pixels is one device pixel and nothing is stretched or resampled (a 447 px picture shown in a 447.4 px canvas put a seam row through the Scope, Mohammad 20 Nov).
     const st = this.canvas.style;
     if (st) { const cw = `${w}px`, ch = `${h}px`; if (st.width !== cw) st.width = cw; if (st.height !== ch) st.height = ch; }
+  }
+
+  private ratioNow() { return chartRatio(this.dev, zoomKOf(this.canvas), this.w, this.h, ladKOf(this.canvas)); }
+  /** The canvas's pixel ratio now (CSS px to canvas px): the Doppler's one-line-per-pixel grid and the FibroScan's map radius are in these. */
+  get ratio() { return this.dpr; }
+  /** A card zoom opened or went home: take the ratio again for the same box. True when it changed (the chart is then drawn again, at the new size, in the same frame). */
+  rescale(): boolean {
+    const r = this.ratioNow();
+    if (r === this.dpr) return false;
+    this.dpr = r;
+    return true;
   }
 
   draw(mesh: Mesh) { this.last = mesh; this.paint(mesh); }

@@ -29,6 +29,15 @@ test('plan.short: the data card\'s want is more than the card may be', () => {
   }
 });
 
+test('a phone or an upright iPad judges its pair by the want too', () => {
+  for (const vp of [{ n: 'iPhone', w: 393, h: 852, safe: { top: 59, bottom: 34, left: 0, right: 0 } }, { n: 'iPad up', w: 820, h: 1180, safe: { top: 24, bottom: 20, left: 0, right: 0 } }]) {
+    const needs = (want: number) => [{ id: 'teach' as const, slot: 'words' as const, h: 300 }, { id: 'ladder' as const, slot: 'data' as const, h: 200, want }];
+    const cap = planLayout(vp as never, needs(200), 'words').maxH.data;
+    assert.equal(planLayout(vp as never, needs(cap), 'words').short, false, vp.n);
+    assert.equal(planLayout(vp as never, needs(cap + 30), 'words').short, true, vp.n);
+  }
+});
+
 test('a shorter words card only ever gives the data card more room (so each title step lowers what is held, and the ladder converges)', () => {
   for (const vp of S) {
     let prev = -Infinity;

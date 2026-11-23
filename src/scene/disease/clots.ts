@@ -6,7 +6,7 @@
 import { Group } from 'three';
 import type { LookId } from '../../looks/looks.ts';
 import type { Palette } from '../palette.ts';
-import { type Host, type Swells, radiusAtShare, cavaWallShare, drawnHost, swellsOf } from './host.ts';
+import { type Host, type Swells, radiusAtShare, cavaWallShare, cavaFarWallShare, drawnHost, swellsOf } from './host.ts';
 import { CAUDATE_VEIN_ID } from '../vessels/caudate-veins.ts';
 import { ClotGrow } from './clot-ease.ts';
 import { clotTokens } from './paint.ts';
@@ -16,7 +16,7 @@ import { type ClotUniform, clotPhases, clotPiece, clotRange, ostialLength, CLOT_
 /** What the layer needs of a drawn vessel: its piece's clot uniform. */
 export interface ClotSink { setClot(c: ClotUniform | null): void }
 
-interface Clot { id: string; grow: ClotGrow; goal: number; cur: number; written: number; cava: number }
+interface Clot { id: string; grow: ClotGrow; goal: number; cur: number; written: number; cava: number; vein: number }
 
 const hasClotSink = (v: object): v is ClotSink => typeof (v as { setClot?: unknown }).setClot === 'function';
 
@@ -32,20 +32,21 @@ export function pieceRanges(host: Host): Array<[number, number]> {
 const OSTIUM = new Set(['RHV_IVC', 'MHV_IVC', 'LHV_IVC', CAUDATE_VEIN_ID]);
 export const clotAnchor = (id: string): 'ostium' | 'mid' => (OSTIUM.has(id) ? 'ostium' : 'mid');
 
-/** The ostial clot's ends (plan 34d), shares of the drawn vein: b is the IVC's drawn wall less the cap's length (the cap's tip touches the wall from the vein's side and never enters the IVC; the junction skin paints the clot across the seam from the arm's mirrored uniforms), a is b less
- *  ostialLength (vein widths) upstream. b does not depend on v. Null for a vein that does not open into the cava. */
-export function ostialEnds(host: Host, v: number, cavaSwell: number): { a: number; b: number; D: number; wall: number } | null {
-  const wall = cavaWallShare(host, cavaSwell);
-  if (wall == null) return null;
-  let b = wall;
-  for (let i = 0; i < 4; i++) b = wall - CLOT_CAP_LEN * radiusAtShare(host, b) / host.length;   // (the cap's length is in lumen radii at the clot's own end: a fixed point)
-  const D = 2 * radiusAtShare(host, b);
-  return { ...clotRange(v, b, ostialLength(v, D, host.length) / host.length), D, wall };
+/** The ostial clot's ends (plan 34d, 34e), shares of the drawn vein. The distal end a is plan 34d's: the cap's length short of the IVC's drawn wall at the vein's centre line (b0, a fixed point), `ostialLength` (vein widths) upstream of that; it does not depend on the slant.
+ *  The proximal end b is the FAR side of the wall's slant (cavaFarWallShare: the last place any line across the vein is outside the IVC), never before b0: the body runs out to the wall across the vein's whole width, and the cap and everything past the wall lie in the IVC,
+ *  where the skin and the tube cut a clot away (clot-field.ts trunkCut). b does not depend on v. Null for a vein that does not open into the cava. */
+export function ostialEnds(host: Host, v: number, cavaSwell: number, veinSwell = 1): { a: number; b: number; b0: number; D: number; wall: number } | null {
+  const wall = cavaWallShare(host, cavaSwell), far = cavaFarWallShare(host, cavaSwell, veinSwell);
+  if (wall == null || far == null) return null;
+  let b0 = wall;
+  for (let i = 0; i < 4; i++) b0 = wall - CLOT_CAP_LEN * radiusAtShare(host, b0) / host.length;   // (the cap's length is in lumen radii at the clot's own end: a fixed point)
+  const D = 2 * radiusAtShare(host, b0), { a } = clotRange(v, b0, ostialLength(v, D, host.length) / host.length);
+  return { a, b: Math.max(far, b0), b0, D, wall };
 }
 
-/** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall). An 'ostium' vein's clot touches the IVC's wall with its cap and grows upstream (ostialEnds). */
-export function clotUniforms(host: Host, v: number, cavaSwell: number, id: string): ClotUniform[] {
-  const e = clotAnchor(id) === 'ostium' ? ostialEnds(host, v, cavaSwell) : null;
+/** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall). An 'ostium' vein's clot runs to the IVC's wall across the vein's width and grows upstream (ostialEnds). `veinSwell`: the vein's live width over its built one at the cava end. */
+export function clotUniforms(host: Host, v: number, cavaSwell: number, id: string, veinSwell = 1): ClotUniform[] {
+  const e = clotAnchor(id) === 'ostium' ? ostialEnds(host, v, cavaSwell, veinSwell) : null;
   const { a, b } = e ?? clotRange(v, null), { side } = clotPhases(id);
   return pieceRanges(host).map(([s0, s1]) => clotPiece(a, b, host.length, s0, s1, side * v, id));
 }
@@ -65,22 +66,22 @@ export class ClotLayer {
 
   /** The params' thrombus map. `instant` (a new patient) takes it whole. `D`: the engine's diameter of every edge (mm): a cava-opening vein's clot ends at the cava's wall. Returns true while a clot grows or shrinks. */
   set(thrombus: Record<string, number>, dt: number, instant = false, D: ArrayLike<number> | null = null): boolean {
-    for (const id of Object.keys(thrombus)) if (!this.clots.has(id) && drawnHost(id)) this.clots.set(id, { id, grow: new ClotGrow(), goal: 0, cur: 0, written: -1, cava: NaN });
+    for (const id of Object.keys(thrombus)) if (!this.clots.has(id) && drawnHost(id)) this.clots.set(id, { id, grow: new ClotGrow(), goal: 0, cur: 0, written: -1, cava: NaN, vein: NaN });
     let moving = false;
     for (const c of this.clots.values()) {
       c.goal = thrombus[c.id] ?? 0;
       c.grow.to(c.goal, instant); c.grow.step(instant ? 0 : dt);
       const next = c.grow.v;   // (the DRAWN occlusion eases on its own profile: clot-ease.ts; the engine's value is untouched)
-      const host = drawnHost(c.id)!, cava = (swellsOf(host, D) as Swells).cava ?? 1;
-      if (next !== c.cur || c.written !== next || Math.abs(cava - c.cava) > 0.004 * cava) { c.cur = next; this.write(c, host, cava); }
+      const host = drawnHost(c.id)!, sw = swellsOf(host, D) as Swells, cava = sw.cava ?? 1, vein = sw[sw.length - 1] ?? 1;   // (the vein's own live width at its cava end: where the wall crosses its width)
+      if (next !== c.cur || c.written !== next || Math.abs(cava - c.cava) > 0.004 * cava || Math.abs(vein - c.vein) > 0.004 * vein) { c.cur = next; this.write(c, host, cava, vein); }
       if (c.cur !== c.goal || c.grow.vel !== 0) moving = true;
     }
     return moving;
   }
 
-  private write(c: Clot, host: Host, cava: number): void {
-    c.written = c.cur; c.cava = cava;
-    const on = c.cur > CLOT_V_FROM, list = on ? clotUniforms(host, c.cur, cava, c.id) : null;
+  private write(c: Clot, host: Host, cava: number, vein: number): void {
+    c.written = c.cur; c.cava = cava; c.vein = vein;
+    const on = c.cur > CLOT_V_FROM, list = on ? clotUniforms(host, c.cur, cava, c.id, vein) : null;
     host.pieces.forEach((p, k) => { for (const s of this.sinks.get(p.id) ?? []) s.setClot(list ? list[k]! : null); });
   }
 

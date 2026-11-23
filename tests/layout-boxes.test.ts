@@ -53,6 +53,13 @@ export function sweep() {
       if (!ov(ra, rb) || PAIR_OK.has([a, b].sort().join('~'))) continue;
       note(`OVERLAP ${vp.n} ${a}~${b}`, `${tag} ${JSON.stringify(ra)} ${JSON.stringify(rb)}`);
     }
+    // Plan 42: a phone or an upright iPad never closes a card on its own; only the reader's dock leaves a strip, and both cards stay up and at least 120 px of room each
+    if (stacked(vp.n) && wh && dh) {
+      if (p.shut) note(`SHUT ${vp.n}`, tag);
+      if (!p.docked && (p.cards.length !== 2 || p.cards.some((c) => !(c.rect.h > 0)))) note(`CARD-MISSING ${vp.n}`, tag);
+      if (p.strip && !p.docked) note(`STRIP ${vp.n}`, tag);
+      if (p.maxH.words < 120 || p.maxH.data < 120) note(`ROOM ${vp.n}`, `${tag} words ${p.maxH.words} data ${p.maxH.data}`);
+    }
     if (p.strip) {
       const pill = p.bar.rect;
       if (ov(p.strip.rect, pill)) note(`STRIP-PILL ${vp.n}`, `${tag} strip ${JSON.stringify(p.strip.rect)} pill ${JSON.stringify(pill)}`);

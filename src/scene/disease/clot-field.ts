@@ -47,14 +47,20 @@ export function clotShapeAt(v: number, f: number, id: string): { h: number; c: n
 
 /** The shader's clot function (GLSL clotAt) as pure JS: coverage 0..1 at the pixel, how far inside the edge it is (device px), and the ink's free weight. `u` the share along the piece, `lat` the signed lateral in lumen units, `lenFig` the piece's
  *  vessel length is not needed: `vRf` the lumen radius in figure units, `rDev` the lumen radius in device px. */
-export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, rDev: number): { cover: number; distIn: number; free: number } {
+/** The clot's half width and centre as the shader draws them at the share `fc` (0..1) along it, in lumen units, on a lumen `rDev` device px in radius (the wall side is pushed CLOT_WALL_SLACK_PX past the edge, under the ink): the one place the twin and the tests read them. */
+export function clotDrawnShape(a: ClotUniform, fc: number, rDev: number): { h: number; c: number; side: number } {
   const v = Math.abs(a.sv), side = a.sv < 0 ? -1 : 1;
-  const f = a.f0 + a.df * u, fc = clamp(f, 0, 1);
   const fl = 0.3 + 0.5 * v * v * v;
   const body = fl + (1 - fl) * Math.sqrt(Math.max(Math.sin(Math.PI * fc), 0));
   const lump = 1 + 0.08 * Math.sin(fc * 18.85 + a.p1) + 0.05 * Math.sin(fc * 43.98 + a.p2);
   const h = Math.min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0, 1) * body * lump);
-  const c = side * (CLOT_INSIDE - h) + side * (CLOT_WALL_SLACK_PX / Math.max(rDev, 1));
+  return { h, c: side * (CLOT_INSIDE - h) + side * (CLOT_WALL_SLACK_PX / Math.max(rDev, 1)), side };
+}
+
+export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, rDev: number): { cover: number; distIn: number; free: number } {
+  const v = Math.abs(a.sv);
+  const f = a.f0 + a.df * u, fc = clamp(f, 0, 1);
+  const { h, c, side } = clotDrawnShape(a, fc, rDev);
   const along = f < 0 ? -f : f > 1 ? f - 1 : 0;
   const dn = along * a.length / Math.max(CLOT_CAP_LEN * vRf, 1e-6);
   const q = (lat - c) / h;
@@ -67,6 +73,10 @@ export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, 
 
 /** The geometry of the shape on the wall: the wall side of a clot of occlusion `v` at share `f` is on the lumen's edge, never past it (the gate: |c| + h <= CLOT_INSIDE). */
 export function clotWallReach(v: number, f: number, id: string): number { const { h, c } = clotShapeAt(v, f, id); return Math.abs(c) + h; }
+
+/** THE CLOT IS CUT AT THE TRUNK'S WALL (plan 34e): a clot is never outside its own vein's wall, and a vein that opens into the cava ends at the cava's wall. `px`: how far OUTSIDE the trunk's lumen the pixel is, in device px (negative inside); the clot's share is 0 from half a pixel inside, whole from half a pixel
+ *  outside: the one-pixel edge the tube's own cava cut has (vessels/shaders.ts cavA). The tube multiplies its clot by cavA; the junction skin, whose union lumen includes the cava, by this (skin/shaders.ts skinOutsideTrunk), so neither paints a clot pixel inside the cava. */
+export const trunkCutTwin = (px: number): number => smooth(-0.5, 0.5, px);
 
 /** How long an OSTIAL clot is, in vein widths (plan 34d): (1 + 2 v) widths, so about one width as it starts and three at full occlusion, never more than this share of the drawn vein (a short vein's clot stays in its proximal half). */
 export const OSTIAL_MAX_SHARE = 0.45;
