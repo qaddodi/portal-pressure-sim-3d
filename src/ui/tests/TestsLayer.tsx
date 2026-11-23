@@ -28,7 +28,7 @@ import { probeSelected } from './from-orders.ts';
 import { useThumb } from '../shell/thumb.ts';
 import { need, needAll, LOADERS } from './dock/lazy.ts';
 import { usePaneSwap } from './dock/swap.ts';
-import { attachSwipe, type SwipeApi } from './dock/swipe.ts';
+import { attachSwipe, swipeOn, type SwipeApi } from './dock/swipe.ts';
 import { attachDivider, removeGuide } from './dock/resize.ts';
 import { attachPull, easeBack } from './dock/pull.ts';
 import { publishSideWidth } from './dock/app-classes.ts';
@@ -216,7 +216,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
     const body = bodyRef.current;
     if (!body) return;
     const api: SwipeApi = {
-      enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && !g.second && g.kind === 'sheet'; },
+      enabled: () => swipeOn(live.current),
       tabs: TABS,
       index: () => TABS.indexOf(tabOf(live.current.pane)),
       ready: (id) => !need(id),
