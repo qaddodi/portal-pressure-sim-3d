@@ -125,7 +125,7 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
       {onBack && pg.shown && pageNow && <MenuPageView page={pageNow} pushed={pushed} geo={geo} leaving={leaving} onPop={() => undefined} onBack={onBack} onClose={close} />}
     </div>
   );
-  return createPortal(<>{sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={close} />}{menu}</>, root);
+  return createPortal(<>{sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={() => useShell.getState().closeByPress()} />}{menu}</>, root);
 }
 
 /** menuSection: a titled group of rows; a group of radios is a radiogroup. */

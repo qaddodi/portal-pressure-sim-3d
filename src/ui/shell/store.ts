@@ -51,6 +51,8 @@ interface ShellState {
   set(p: Partial<ShellState>): void;
   open(sheet: Exclude<Sheet, null>): void;
   close(): void;
+  /** Close from a press that may be on the sheet's own opener (a scrim or backdrop press): the opener's click that follows does not reopen it. */
+  closeByPress(): void;
   toggle(sheet: Exclude<Sheet, null>): void;
   /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy full report"). */
   say(text: string, tone?: 'info' | 'bad', action?: ToastAction, sticky?: boolean): void;
@@ -83,6 +85,17 @@ export const toastMs = (text: string): number => Math.min(TOAST_MAX_MS, Math.max
 /** A toast with a button stays long enough to reach it. */
 export const ACTION_MS = 9000;
 
+/** A press on a scrim (or a palette's backdrop) closes the sheet, and the scrim sits over the dock, so a press on the sheet's own opener (the Settings tab) lands on the scrim and the opener's click that follows
+ *  finds the scrim gone and toggles the sheet straight back open (owner, 23 Nov, iPhone: tapping Settings again did not close it). `closeByPress` records the sheet it closed; `toggle` of that same sheet is
+ *  then ignored until the next press starts (or PRESS_CLOSE_MS passes), so the tail of the closing tap never reopens what it closed. One rule for every opener of every sheet. */
+export const PRESS_CLOSE_MS = 1500;
+let pressClosed: { sheet: Exclude<Sheet, null>; at: number } | null = null;
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', () => { pressClosed = null; }, true);   // (capture: a new press clears it before any handler of that press sets it again)
+const reopenedByTail = (sheet: Exclude<Sheet, null>): boolean => {
+  const p = pressClosed; pressClosed = null;
+  return !!p && p.sheet === sheet && clock.now() - p.at < PRESS_CLOSE_MS;
+};
+
 export const useShell = create<ShellState>((set, get) => ({
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
@@ -94,7 +107,8 @@ export const useShell = create<ShellState>((set, get) => ({
   set: (p) => set(p),
   open: (sheet) => set({ sheet }),
   close: () => { if (get().sheet) set({ sheet: null }); },
-  toggle: (sheet) => set({ sheet: get().sheet === sheet ? null : sheet }),
+  closeByPress: () => { const sheet = get().sheet; if (!sheet) return; pressClosed = { sheet, at: clock.now() }; set({ sheet: null }); },
+  toggle: (sheet) => { if (get().sheet !== sheet && reopenedByTail(sheet)) return; set({ sheet: get().sheet === sheet ? null : sheet }); },
   say: (text, tone = 'info', action, sticky = false) => {
     clock.cancel(toastTimer);
     // (a sticky note, the first-run hint, stays until its owner closes it, as 2D's toast with `sticky`)

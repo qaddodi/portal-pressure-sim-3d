@@ -26,18 +26,20 @@ interface Styled { style: { setProperty(n: string, v: string, p?: string): void;
 interface Run { from: number; to: number; elapsed: number; ms: number; done: () => void }
 
 export function createDock(clock: Clock = theClock) {
-  let pos: Styled | null = null, inner: Styled | null = null, px = 0, lvl = 0, run: Run | null = null, hold: Hold | null = null, off: (() => void) | null = null;
+  let pos: Styled | null = null, inner: Styled | null = null, also: Styled[] = [], px = 0, lvl = 0, run: Run | null = null, hold: Hold | null = null, off: (() => void) | null = null;
   /** Told when a glide sets off (where it goes, how long it takes): the figure's camera sets off on the same clock (2D presenter-zoom.js dockTo: `layout()` then `reframe(ms)` as the glide starts). */
   let onGlide: ((to: 0 | 1, ms: number) => void) | null = null;
   const paint = () => {
     if (!pos) return;
     pos.style.setProperty('transition', 'none', 'important');
     pos.style.setProperty('translate', translateAt(lvl, px));
+    for (const a of also) { a.style.setProperty('transition', 'none', 'important'); a.style.setProperty('translate', translateAt(lvl, px)); }   // (a phone on its side: the whole card column moves as one)
     if (inner) { inner.style.setProperty('transition', 'none', 'important'); inner.style.setProperty('opacity', shows(lvl).toFixed(3)); }
   };
   const rest = () => {   // (at the open place nothing is left written: the card is as the layout has it)
     if (!pos) return;
     pos.style.removeProperty('transition'); pos.style.removeProperty('translate');
+    for (const a of also) { a.style.removeProperty('transition'); a.style.removeProperty('translate'); }
     if (inner) { inner.style.removeProperty('transition'); inner.style.removeProperty('opacity'); }
   };
   const stop = () => { hold?.release(); hold = null; off?.(); off = null; };
@@ -56,9 +58,9 @@ export function createDock(clock: Clock = theClock) {
     get lvl() { return lvl; },
     get running() { return !!run; },
     /** Takes a card in hand at a level (a run in progress is taken from where it is). */
-    begin(els: { pos: Styled; inner: Styled | null }, closed: number, at: number) {
+    begin(els: { pos: Styled; inner: Styled | null; also?: Styled[] }, closed: number, at: number) {
       if (run) { run = null; stop(); }
-      pos = els.pos; inner = els.inner; px = closed; lvl = clamp(at, 0, 1);
+      pos = els.pos; inner = els.inner; also = els.also ?? []; px = closed; lvl = clamp(at, 0, 1);
       paint();
     },
     /** The finger has moved `dy` px since the drag began (down positive). */
@@ -74,7 +76,7 @@ export function createDock(clock: Clock = theClock) {
     },
     set onGlide(fn: ((to: 0 | 1, ms: number) => void) | null) { onGlide = fn; },
     /** Lets go of the card (its layout took over). */
-    release() { if (run) { run = null; stop(); } pos = null; inner = null; },
+    release() { if (run) { run = null; stop(); } pos = null; inner = null; also = []; },
   };
 }
 

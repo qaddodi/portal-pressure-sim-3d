@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deviceClass, typeFor, checkTypeScale, type DeviceClass, type Rect } from '../src/ui/layout/device.ts';
 import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, PILL_W, BAR_H_PHONE, PILL_CORNER, type Need } from '../src/ui/layout/plan.ts';
-import { pairGap, margin, shufCol, SHUF, layoutOf } from '../src/ui/layout/rules2d.ts';
+import { pairGap, margin, shufCol, SHUF, layoutOf, isSideways, sideColW } from '../src/ui/layout/rules2d.ts';
 
 const SCREENS: Record<string, { vp: { w: number; h: number; safe: { top: number; right: number; bottom: number; left: number } }; device: DeviceClass }> = {
   mac: { vp: { w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, device: 'desktop' },
@@ -26,8 +26,9 @@ for (const [name, s] of Object.entries(SCREENS)) {
       const plan = planLayout(s.vp, needs(), active);
       const boxes = plan.cards.map((c) => c.rect).concat(plan.strip ? [plan.strip.rect] : []);
       for (const b of boxes) {
-        assert.ok(inside(b, s.vp.w, s.vp.h), `${name} ${JSON.stringify(b)} is off screen`);
-        assert.ok(b.y + b.h <= s.vp.h + 0.5, `${name} card runs off the foot`);
+        const bleeds = plan.sideways && b === plan.cards.find((c) => c.slot === 'data')?.rect;   // (a phone on its side: the instrument bleeds off the foot by design, docs/approved/landscape-phone.md)
+        assert.ok(bleeds ? b.x >= 0 && b.x + b.w <= s.vp.w : inside(b, s.vp.w, s.vp.h), `${name} ${JSON.stringify(b)} is off screen`);
+        assert.ok(bleeds || b.y + b.h <= s.vp.h + 0.5, `${name} card runs off the foot`);
         assert.ok(!hit(b, plan.free), `${name} a card covers the figure's room`);
         if (plan.bar.edge === 'foot') assert.ok(!hit(b, plan.bar.rect), `${name} a card covers the pill`);
       }
@@ -107,29 +108,29 @@ test('iPad upright: the phone stack at 70 % of the width, centred', () => {
   for (const c of p.cards) { assert.equal(c.rect.w, Math.round(vp.w * 0.7)); assert.equal(c.rect.x, Math.round((vp.w - c.rect.w) / 2)); }
 });
 
-test('iPhone on its side: the wallet. One 400 px column centred on the screen, the card in front, the other a 48 px strip at the foot; the pill at the lower right', () => {
+test('iPhone on its side: one card column at the left, the words centred and the instrument under them bleeding off the foot; the figure and the pill take the rest', () => {
   const { vp } = SCREENS['iphone-landscape'];
   const p = planLayout(vp, needs(230, 180));
   assert.equal(p.sideways, true);
-  const c = p.cards[0].rect;
-  assert.equal(c.w, Math.round(shufCol(0, vp.w))); assert.equal(c.w, 400);
-  assert.ok(Math.abs(c.x + c.w / 2 - vp.w / 2) < 1, 'centred');
-  assert.equal(p.strip!.rect.h, SHUF.strip); assert.equal(p.strip!.rect.y + p.strip!.rect.h, vp.h - vp.safe.bottom, 'the strip stands on the safe area (Plan 37: one footEdge)');
-  assert.ok(p.strip!.rect.y > c.y + c.h, 'the strip is under the card');
-  assert.equal(p.bar.edge, 'foot');
-  assert.ok(!hit(p.strip!.rect, p.bar.rect) && !hit(c, p.bar.rect), 'clear of the pill');
-  assert.equal(p.cards.length, 1);
-  const a = planLayout(vp, needs(), 'words'), b = planLayout(vp, needs(), 'data');
-  assert.equal(a.cards[0].id, 'teach'); assert.equal(a.strip?.id, 'ladder'); assert.equal(b.cards[0].id, 'ladder'); assert.equal(b.strip?.id, 'teach');
+  assert.equal(p.cards.length, 2);
+  const [w, d] = [p.cards[0].rect, p.cards[1].rect];
+  assert.equal(w.w, sideColW(vp.w)); assert.equal(d.x, w.x); assert.equal(d.w, w.w);
+  assert.equal(w.x, vp.safe.left, 'the column stands on the left safe edge');
+  assert.ok(Math.abs(w.y - (vp.h - w.y - w.h)) <= 1, 'the words are centred');
+  assert.ok(d.y > w.y + w.h && d.y + d.h > vp.h, 'the instrument is under them and bleeds off');
+  assert.equal(p.sidePill, 'column'); assert.equal(p.scrolled, false);
+  assert.ok(!hit(w, p.free) && !hit(d, p.free) && !hit(w, p.bar.rect) && !hit(d, p.bar.rect), 'the figure column and the pill are clear of both cards');
+  const t = planLayout(vp, needs(230, 180), 'words', 0, true);
+  assert.equal(t.scrolled, true); assert.ok(t.scrollDy > 0);
+  assert.equal(t.cards.length, 2, 'both cards stay up, slid together by a translate');
 });
 
-test('iPhone on its side: a card too tall for its column asks for a wider one before it asks for a page', () => {
+test('iPhone on its side: a card too tall for its column asks for a page, never a wider column (one width, 32 % of the screen, 250 to 310 px)', () => {
   const { vp } = SCREENS['iphone-landscape'];
-  assert.ok(stepsFor(vp, true) >= 7, 'the usual three in each tighter room, then the wider ones');
-  assert.ok(widthOf(vp, true, 99) > widthOf(vp, true, 0), 'the last step is the widest');
-  
-  assert.ok(widthOf(vp, true, 99) <= barOf(vp).rect.x - 8 - 59, 'never under the pill');
-  assert.deepEqual(planLayout(vp, needs(400, 100)).overflow, ['teach']);
+  assert.equal(stepsFor(vp, true), 1);
+  assert.equal(widthOf(vp, true, 0), widthOf(vp, true, 99));
+  for (const w of [667, 750, 844, 852, 932, 1000]) assert.ok(sideColW(w) >= 250 && sideColW(w) <= 310, `${w}`);
+  assert.deepEqual(planLayout(vp, needs(900, 100)).overflow, ['teach']);
 });
 
 test('a card that is taller than its room is reported (the card pages itself; it never shrinks or scrolls)', () => {
@@ -152,7 +153,7 @@ test('widths do not depend on heights (a card is measured at the width it will h
 });
 
 test('the pill is on screen on every layout', () => {
-  for (const s of Object.values(SCREENS)) { const b = barOf(s.vp); assert.ok(inside(b.rect, s.vp.w, s.vp.h), s.device); assert.ok(b.rect.h >= (b.edge === 'card' && s.vp.w < 600 ? BAR_H_PHONE : 44)); }
+  for (const s of Object.values(SCREENS)) { const b = barOf(s.vp); assert.ok(inside(b.rect, s.vp.w, s.vp.h), s.device); assert.ok(b.rect.h >= (b.edge === 'card' && s.vp.w < 600 || isSideways(s.vp.w, s.vp.h) ? BAR_H_PHONE : 44)); }
 });
 
 test('type floors on every screen the 2D app has: body 17 px floating and 16 stacked, titles 1.4× body (1.33× stacked), data text 12 px or more', () => {

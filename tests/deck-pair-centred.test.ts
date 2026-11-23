@@ -54,12 +54,12 @@ test('the pair stays centred when the figure room is derived from it (the free r
   }
 });
 
-test('an iPhone on its side: a single card is centred between the screen\'s 10 px edges; the pair is the wallet\'s (already centred by its own height)', () => {
+test('an iPhone on its side: a single card is centred top to bottom, never taller than the column cap (the pair cap, so the card that stands beside it never changes size)', () => {
   const vp = S(852, 393, [0, 59, 21, 59]);
   for (const h of [120, 200, 300]) {
     const r = planLayout(vp, [{ id: 'teach', slot: 'words', h }]).cards[0].rect;
     assert.ok(Math.abs(r.y - (vp.h - r.y - r.h)) <= 1, `${h}: ${r.y} above, ${vp.h - r.y - r.h} below`);
   }
   const r = planLayout(vp, [{ id: 'teach', slot: 'words', h: 390 }]).cards[0].rect;
-  assert.equal(r.y, 10, 'one that fills the screen keeps the 10 px edge');
+  assert.equal(r.h, 393 - 2 * (36 + 12), 'one too tall for the screen stops at the column cap'); assert.equal(r.y, 48);
 });

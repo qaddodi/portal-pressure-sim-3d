@@ -119,9 +119,9 @@ export function Credit() {
       if (talk && (lay === 'wide' || lay === 'short')) {
         const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
-        // a phone on its side keeps a card's drawer along the foot, under this very row: the line is out of sight while a drawer or card stands on it
-        const clear = !isSideways(vw, vh) || footClear(at, w, h, shownBoxes('.dk-strip, .dk-card', vw, vh));
-        el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; creditClaim.set(clear ? { x: at.x, y: at.y, w, h } : null);
+        // a phone on its side: a words card carries the credit in its own foot (CardFrame .pz-cred), so the floating line fades while one is up, and while any card stands on its row
+        const clear = !isSideways(vw, vh) || (!document.querySelector('.dk-card .pz-cred') && footClear(at, w, h, shownBoxes('.dk-strip, .dk-card', vw, vh)));
+        el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);
         return;
       }
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it

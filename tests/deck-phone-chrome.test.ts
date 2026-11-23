@@ -42,10 +42,13 @@ test('the dock (2D): a phone with both cards up puts the data card away to a str
   assert.ok(!hit(away.free, away.strip!.rect) && !hit(away.free, away.cards[0].rect), 'and it clears the strip and the words');
 });
 
-test('the dock is a phone\'s and an upright iPad\'s: a wide screen and an iPhone on its side never put a card away, and a slide with one card has nothing to dock', () => {
+test('the dock is a phone\'s and an upright iPad\'s: a wide screen never puts a card away (an iPhone on its side slides its one card column instead: `scrolled`, never `docked`), and a slide with one card has nothing to dock', () => {
   assert.equal(planLayout(mac, needs, 'words', 0, true).docked, false);
   assert.equal(planLayout(mac, needs, 'words', 0, true).cards.length, 2);
   assert.equal(planLayout(side, needs, 'words', 0, true).docked, false);
+  assert.equal(planLayout(side, needs, 'words', 0, true).scrolled, true);
+  assert.equal(planLayout(side, needs, 'words', 0, true).cards.length, 2);
+  assert.equal(planLayout(side, [needs[0]!], 'words', 0, true).scrolled, false);
   assert.equal(planLayout(phone, [needs[0]!], 'words', 0, true).docked, false);
   assert.equal(planLayout(phone, [needs[1]!], 'words', 0, true).docked, false);
 });

@@ -16,18 +16,14 @@ const SIDE = [
 ];
 const needs: Need[] = [{ id: 'teach', slot: 'words', h: 150 }, { id: 'ladder', slot: 'data', h: 150 }];
 
-test('a phone on its side: the strip stands on the credit row, so the line is judged covered; with no strip and a short card it is clear', () => {
+test('a phone on its side: the instrument bleeding off the foot stands on the credit row (and the words\' card carries the line in its own foot), so the floating line is judged covered; the figure column is clear', () => {
   for (const s of SIDE) {
     assert.ok(isSideways(s.w, s.h), s.n);
     const lay = layoutOf(s.w, s.h), at = footCredit({ vw: s.w, vh: s.h, safe: s.safe, h: 16.8, margin: margin(s.w, s.h, lay) }), w = 212, h = 16.8;
     const both = planLayout({ w: s.w, h: s.h, safe: s.safe }, needs);
-    assert.ok(both.strip, s.n);
-    const covered = !footClear(at, w, h, [box(both.strip!.rect), ...both.cards.map((c) => box(c.rect))]);
-    // the strip runs from the card's left edge to its right edge along the foot: it is on the line exactly when the line reaches that far
-    assert.equal(covered, at.x + w + 4 > both.strip!.rect.x, `${s.n}: strip at x ${both.strip!.rect.x}, line ${at.x}..${at.x + w}`);
-    const one = planLayout({ w: s.w, h: s.h, safe: s.safe }, [needs[0]]);
-    assert.equal(one.strip, null);
-    assert.ok(footClear(at, w, h, one.cards.map((c) => box(c.rect))), `${s.n}: a short lone card leaves the foot row free`);
+    assert.equal(both.strip, null, `${s.n}: no strip in the one-column layout`);
+    assert.ok(!footClear(at, w, h, both.cards.map((c) => box(c.rect))), `${s.n}: the column covers the line`);
+    assert.ok(footClear({ x: both.free.x + 4, y: at.y }, Math.min(w, both.free.w - 8), h, both.cards.map((c) => box(c.rect))), `${s.n}: the figure's column is clear of both cards`);
   }
 });
 
@@ -40,6 +36,6 @@ test('footClear: touching or inside is covered, a gap is clear', () => {
 
 test('Credit.tsx asks it for a phone on its side and fades the line (covered), never pops it', () => {
   const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
-  assert.match(src, /isSideways\(vw, vh\) \|\| footClear\(/);
+  assert.match(src, /isSideways\(vw, vh\) \|\| \(!document\.querySelector\('\.dk-card \.pz-cred'\) && footClear\(/);
   assert.match(src, /classList\.toggle\('covered', !clear\)/);
 });

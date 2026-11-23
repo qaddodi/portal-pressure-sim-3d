@@ -40,7 +40,7 @@ test('the card layer takes the steps before the words page, and writes them on b
   assert.match(layer, /const tooTall = [^\n]*&& !ladBusy/, 'the words page only when the ladder is spent');
   assert.match(layer, /vars=\{fp\.vars as never\} remeasure=\{fp\.sig\}/, 'both cards get the step they were let in with, and measure again for it (frame-props.ts)');
   assert.match(layer, /const growing = ladBusy \|\|/, 'the cards wait for the ladder, as for a page');
-  assert.match(layer, /ladOn = pair && !sideways && !!view/, 'every screen but the wallet takes the ladder: a phone\'s data card fits instead of shutting (Plan 42)');
+  assert.match(layer, /ladOn = pair && !!view/, 'every screen takes the ladder, an iPhone on its side too: its one column width asks for the ladder\'s steps, then the words page (landscape-phone.md)');
   assert.match(frame, /style=\{\{ \.\.\.vars, width: rect\.w/);
   assert.match(frame, /\}, \[entry\.key, Math\.round\(rect\.w\), remeasure\]\);/, 'a step that changes no height is still judged afresh');
   assert.match(layer, /ladBusy, fitBusy, lad, cands\.length,/, 'the effect runs again when the ladder\'s sizes arrive, or it never takes its first step (the first pass only reads them)');

@@ -47,11 +47,14 @@ export function padding(vw: number, vh: number, layout: Layout, ts = 1): number 
   if (isSideways(vw, vh)) return 14;
   return clamp(1.4 * bodyB(vw, vh, ts), 18, 40);
 }
-/** One card width: about 40 characters of body text (--pz-cw); a phone on its side, 340 at most (the wallet widens it, shufCol); stacked, the screen less its margins (an upright iPad, 70 %). */
+/** A phone held sideways: the two cards stand in side columns, the words at the left and the instrument at the right, the figure between (Mohammad, 23 Nov 2026, docs/approved/landscape-phone.md).
+ *  One column width for both: 27 % of the screen (252 px at 932), never under 220 nor over 260. */
+export const sideColW = (vw: number): number => clamp(Math.round(0.32 * vw), 250, 310);
+/** One card width: about 40 characters of body text (--pz-cw); a phone on its side, its side column (sideColW); stacked, the screen less its margins (an upright iPad, 70 %). */
 export function cardWidth(vw: number, vh: number, layout: Layout, ts = 1): number {
   if (layout === 'stack') return vw - 16;
   if (layout === 'tab') return vw * 0.7;
-  if (isSideways(vw, vh)) return Math.min(340, 0.42 * vw + 28);
+  if (isSideways(vw, vh)) return sideColW(vw);
   return Math.min(clamp(Math.min(0.38 * vw, 23.5 * bodyB(vw, vh, ts)), 340, 640), 0.42 * vw);
 }
 /** The corner radius of a floating card (--pz-r); a stacked card has 18. */

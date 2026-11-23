@@ -13,6 +13,8 @@ import { clock } from '../../clock/frame.ts';
 const own = (t: Element | null) => ownsTouch(t) || !!t?.closest?.('.dk-strip, [data-no-dock]');
 
 interface Opts {
+  /** A phone on its side (docs/approved/landscape-phone.md): the two cards are one column, and the swipe slides BOTH by this many px (instead of putting the instrument away to its edge); 0 or absent: the portrait dock. */
+  column?: number;
   /** both cards are up and the layout docks (a phone or an upright iPad), and no zoom or case is over them */
   enabled: boolean;
   /** the data card's settled state: docked (closed) or not */
@@ -21,11 +23,13 @@ interface Opts {
   onSettle(closed: boolean): void;
 }
 
-const dataEls = () => {
+const dataEls = (column = false) => {
   const pos = document.querySelector<HTMLElement>('.dk-pos[data-slot="data"]');
   const card = pos?.querySelector<HTMLElement>('.dk-card');
   const inner = card?.querySelector<HTMLElement>('.dk-in') ?? null;
-  return pos && card ? { pos, inner, h: card.offsetHeight } : null;
+  // (the column: the words card moves with it, and no card's words fade: both stay up, one of them is only partly on screen)
+  const words = column ? document.querySelector<HTMLElement>('.dk-pos[data-slot="words"]') : null;
+  return pos && card ? { pos, inner: column ? null : inner, also: words ? [words] : [], h: card.offsetHeight } : null;
 };
 
 /** The dock's finger (2D presenter.js dockTouch, and its far-touch: "swiping down or up anywhere on the slide should trigger as if I'm holding the handle"). A touch that turns up or down
@@ -48,11 +52,11 @@ export function useDockSwipe(o: Opts) {
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       if (!g.on) {
         if (axisOf(g.id, dx, dy) !== 'y') return;   // (not decided yet, or sideways: the slide's own swipe, useCardDrag)
-        const els = dataEls();
+        const els = dataEls(!!opts.current.column);
         if (!els) { g = null; return; }
-        const closed = closedPx(els.h), at = dock.running ? dock.lvl : opts.current.docked ? 1 : 0;
+        const closed = opts.current.column ? opts.current.column : closedPx(els.h), at = dock.running ? dock.lvl : opts.current.docked ? 1 : 0;
         if ((dy < 0 && at >= 1) || (dy > 0 && at <= 0)) { g = null; return; }   // (nowhere to go that way)
-        dock.begin({ pos: els.pos, inner: els.inner }, closed, at);
+        dock.begin({ pos: els.pos, inner: els.inner, also: els.also }, closed, at);
         g.on = true; g.lvl0 = at;
         try { g.el.setPointerCapture?.(e.pointerId); } catch { /* (the touch is gone) */ }
       }
@@ -93,4 +97,12 @@ export function openDock(onSettle: (closed: boolean) => void): void {
   if (!els) { onSettle(false); return; }
   dock.begin({ pos: els.pos, inner: els.inner }, closedPx(els.h), 1);
   dock.glide(0, OPEN_MS, () => onSettle(false), reduced());
+}
+
+/** A phone on its side: slides the card column to `to` (1: the instrument in the middle, the words bleeding off the top; 0: the words in the middle) by `px`, as a swipe would, for a tap on the card that peeks. */
+export function goColumn(to: 0 | 1, px: number, onSettle: (scrolled: boolean) => void): void {
+  const els = dataEls(true);
+  if (!els || !(px > 0)) { onSettle(to === 1); return; }
+  dock.begin({ pos: els.pos, inner: null, also: els.also }, px, to === 1 ? 0 : 1);
+  dock.glide(to, to === 1 ? DOCK_MS : OPEN_MS, () => onSettle(to === 1), reduced());
 }

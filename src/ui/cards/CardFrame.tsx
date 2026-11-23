@@ -7,7 +7,7 @@ import { rail, GLIDE_MS, STAGGER, PARALLAX, RAIL_MS, IN_MS, OUT_DONE, RAIL_CSS, 
 import { useUi } from '../ui-store.ts';
 import { closedPx } from './dock.ts';
 import { CREDIT } from '../shell/words.ts';
-import { layoutOf, radius } from '../layout/rules2d.ts';
+import { layoutOf, radius, isSideways } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { scaleOf } from '../charts/fit.ts';
@@ -45,6 +45,8 @@ interface Props {
   swap?: boolean;
   /** the data card is docked (2D's dock): it stays up, slid away to its handle, its words faded; a tap on its edge brings it back */
   tuck?: boolean;
+  /** a phone on its side: the card column is scrolled, so this card rests slid up by this many px (the same for both cards: the instrument in the middle, the words bleeding off the top) */
+  lift?: number;
   /** custom properties written on the card's box (the pair's steps: --pz-tk on the words, --pz-dk on the data card) */
   vars?: CSSProperties;
   /** a new value measures the card again at once (a step that changes no height still has to be judged afresh) */
@@ -73,7 +75,7 @@ type Anchor = 'foot' | 'mid' | 'top';
 const ORIGIN: Record<Anchor, string> = { foot: '50% 100%', mid: '50% 50%', top: '50% 0%' };
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false, vars, remeasure }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false, lift, vars, remeasure }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   // the words card on an iPhone with rounded corners takes the screen's own corner (less its inset) at its bottom two corners
@@ -251,14 +253,14 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const alone = centredKind(entry.id);
   const surface = alone === 'panel' ? `pz-panel${extra ? ` ${extra}` : ''}` : alone === 'case' ? 'pz-case on' : entry.id === 'ladder' ? `pz-data${extra ? ` ${extra}` : ''}` : `pz-shade pz-card${stackCls}`;
   return (
-    <div className="dk-pos" data-anchor={anchor !== 'top' ? anchor : undefined} data-live={live && !out} data-centred={alone || undefined} data-slot={data ? 'data' : 'words'} data-tucked={tuck || undefined} style={{ ...vars, width: rect.w, transform: `translate3d(${rect.x}px, ${anchor === 'foot' ? rect.y + rect.h : anchor === 'mid' ? rect.y + rect.h / 2 : rect.y}px, 0)`, ...(tuck ? { translate: `0 ${-closedPx(rect.h)}px` } : null), ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
+    <div className="dk-pos" data-anchor={anchor !== 'top' ? anchor : undefined} data-live={live && !out} data-centred={alone || undefined} data-slot={data ? 'data' : 'words'} data-tucked={tuck || undefined} style={{ ...vars, width: rect.w, transform: `translate3d(${rect.x}px, ${anchor === 'foot' ? rect.y + rect.h : anchor === 'mid' ? rect.y + rect.h / 2 : rect.y}px, 0)`, ...(tuck ? { translate: `0 ${-closedPx(rect.h)}px` } : lift ? { translate: `0 ${-lift}px` } : null), ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
         role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(anchor === 'mid' && ready ? { top: -(animH ?? rect.h) / 2 } : null), ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'} style={tuck ? { opacity: 0 } : undefined}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away. Every data card has it (the summary table's too: it docks the same way) */}
         {/* An iPhone's credit: one line in the foot of the words card, in the same place on every slide, never over its words (2D `.pz-cred`; the foot's padding and the pill's place leave its row, plan.ts CRED_ROW) */}
-        {lay === 'stack' && !data && surface.startsWith('pz-shade') && <span className="pz-cred" aria-hidden="true">{CREDIT}</span>}
+        {(lay === 'stack' || isSideways(vp.w, vp.h)) && !data && surface.startsWith('pz-shade') && <span className="pz-cred" aria-hidden="true">{CREDIT}</span>}
         {(entry.id === 'ladder' || entry.id === 'table') && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}
       </div>
     </div>
