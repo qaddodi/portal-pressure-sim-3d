@@ -213,3 +213,12 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
   assert.ok(!/useUi\.getState\(\)\.go\(k\)/.test(all), 'no jumps by number: a jump skips the case card and the steps within a stop');
   assert.match(all, /: 60,/, 'no animation is seen: the clock runs 60 times faster');
 });
+
+test('Capture all decks waits on arrivals only (not the audit\'s every-animation check) and takes both words of a blocked catheter', () => {
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.ok(!/\bsettle\b/.test(all.replace(/\/\/.*$/gm, '')), 'the audit settle counts every running animation: a perpetual one kept each picture waiting five seconds');
+  assert.match(all, /function arriving\(\)/); assert.match(all, /endTime\) > 2500/, 'a long or endless animation is not a slide settling');
+  assert.match(all, /cel\.rig\.isMoving/); assert.match(all, /data-phase="out"/);
+  assert.match(all, /BLOCKED_SAYS\.first/); assert.match(all, /BLOCKED_SAYS\.then/); assert.match(all, /blockedThen\(\)/, 'Occluded and then No reading are two pictures');
+  assert.match(all, /still not still after 5 s/, 'a wait that gave up says why in the README');
+});

@@ -3,7 +3,9 @@
 // contact sheet (one PNG per deck: a grid of its slides with their numbers and titles). The ZIP holds every slide, its state and the contact sheets. Started by a tap, can be stopped (what was
 // captured so far is kept); nothing is sent anywhere: the person saves the file with the share sheet (iPhone, iPad) or the download (Mac).
 import { builtinDecks } from '../../../decks/registry.ts';
-import { loadAllDecks, liveCatalog, openEntry, settle } from '../page/live.ts';
+import { loadAllDecks, liveCatalog, openEntry } from '../page/live.ts';
+import { cel } from '../../../scene/api.ts';
+import { BLOCKED_SAYS } from '../../../scene/labels/cath-show.ts';
 import { useUi } from '../../ui-store.ts';
 import { talkOn } from '../../../state/deck.ts';
 import { leaveTalk } from '../../shell/talk.ts';
@@ -25,14 +27,43 @@ const talkUp = () => talkOn() && useUi.getState().stops.length > 0 && !!document
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const blobOf = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob | null>((ok) => c.toBlob(ok, type, q));
 const bytesOf = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
-/** The page still: nothing moving (the camera, a card in or out, fonts, a running animation), twice over with a few real frames between so a late callout or chart that starts after the first quiet is caught.
- *  At speed N the clock's waits are N times shorter in real time, so the real pauses are given in page time (`real`). */
-async function stillPage(real: (ms: number) => number): Promise<void> {
-  await sleep(real(80));   // (the press has reached the cards: they mount and begin on the next frames)
-  await settle({ timeoutMs: real(8000), quietMs: real(120), pollMs: real(20) });
-  try { await document.fonts?.ready; } catch { /* no font list: nothing to wait for */ }
-  await sleep(real(60));   // (the glides have landed, the charts have drawn their last frame, the callouts have placed)
-  await settle({ timeoutMs: real(4000), quietMs: real(80), pollMs: real(20) });
+/** What is still arriving on the screen, in words (empty when nothing is): the camera in flight, a card leaving, fonts loading, or a card, label or bar still easing in. Only arrivals count: a CSS animation of more than two and a
+ *  half seconds (a toast's timer rule, a loop of many turns) or one on anything but the cards, the labels and the bars is a perpetual motion, not a slide settling, and is left out. The audit's own check (page/live.ts busyWhy)
+ *  counts every running animation, which kept this waiting five seconds on a slide that had been still for a moment. */
+const CONTENT = '.dk-card, .dk-plate, .lb-layer, .dk-bar, .vdock, .topbar, .stage-credit, .zoom-pill, .dk-strip';
+function arriving(): string {
+  try {
+    if (cel.rig.isMoving) return 'the camera is moving';
+    if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
+    if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
+    for (const a of document.getAnimations()) {
+      if (a.playState !== 'running' || !(a.effect instanceof KeyframeEffect)) continue;
+      if (!Number.isFinite(a.effect.getTiming().iterations) || Number(a.effect.getComputedTiming().endTime) > 2500) continue;
+      const el = a.effect.target;
+      if (!el?.closest?.(CONTENT) || el.closest('[data-debug], [data-capture-skip], .sh-toast')) continue;
+      return `${(a as CSSAnimation).animationName ?? (a as CSSTransition).transitionProperty ?? 'an animation'} is running on ${el.tagName.toLowerCase()}.${String(el.className).slice(0, 40)}`;
+    }
+  } catch { /* a page that will not say: taken as still */ }
+  return '';
+}
+/** Waits until nothing is arriving for a moment (a few real frames), at most five seconds; returns what was still moving when it gave up, or ''. At speed N the clock's waits are N times shorter in real time, so the real pauses are given in page time (`real`). */
+/** The words of the callouts on the figure now (their small names: "Occluded", "No reading", "FHVP"...), joined. */
+const tagWords = (): string => [...document.querySelectorAll('.lb-layer .cl-k')].map((e) => e.textContent ?? '').join('|');
+/** Waits until nothing is arriving for a moment, at most five seconds. Returns what was still moving when it gave up ('' when it settled) and the callouts' words at that moment. A catheter against a blocked vein says "Occluded" for
+ *  only 2.6 s (BLOCKED_SAYS) before "No reading", so the wait is short once those words stand (a few real frames) and the picture is taken while they are up. At speed N the clock's waits are N times shorter in real time, so the
+ *  real pauses are given in page time (`real`). */
+async function stillPage(real: (ms: number) => number): Promise<{ moving: string; words: string }> {
+  await sleep(real(60));   // (the press has reached the cards: they mount and begin on the next frames)
+  const t0 = clock.now(), limit = real(5000);
+  let still = -1, why = '', words = '';
+  while (clock.now() - t0 < limit) {
+    why = arriving(); words = tagWords();
+    if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real(words.includes(BLOCKED_SAYS.first) ? 25 : 60)) { why = ''; break; } } else still = -1;
+    await sleep(real(15));
+  }
+  const gaveUp = clock.now() - t0 >= limit;
+  if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
+  return { moving: gaveUp ? why : '', words: tagWords() };
 }
 const stopName = (k: number): string => { const st = useUi.getState().stops[k]; return st ? (st.kind === 'slide' ? st.slide.title : st.kind) : `stop ${k + 1}`; };
 
@@ -83,14 +114,16 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
-      let sub = 0, lastStop = -1, presses = 0;
+      let sub = 0, lastStop = -1, presses = 0, shownNow = '';
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
         sub = k === lastStop ? sub + 1 : 0; lastStop = k;
         const title = stopName(k), n = sub ? `${k + 1}.${sub + 1}` : `${k + 1}`;
         ui.status(`${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
-        await stillPage(real);
+        const { moving, words } = await stillPage(real);
+        if (moving) notes.push(`${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
+        shownNow = words;
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const when = new Date(), drawn = await drawScreen(when, { ratio: innerWidth < 600 ? Math.min(devicePixelRatio, 1.5) : 1 });   // (1x for a laptop or an iPad: the slides are for reading through)
         if (!drawn) { notes.push(`${d.title}: ${n} could not be drawn`); done++; ui.progress(done, total); return; }
@@ -109,12 +142,18 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       };
       // the talk from its first stop, then Next as a person presses it, to the end: every beat (the case card first, then the slide), every page of a split card, every step of a procedure
       // (a catheter's advance, the EUS-PPG and HVPG readings) and every reading of a tracing. Next says whether it did anything: when it does not, the talk is over.
+      // a catheter against a blocked vein says "Occluded" at its tip, then 2.6 s later "No reading" (cath-show.ts): the second words are a picture of their own, taken once they stand
+      const blockedThen = async (): Promise<void> => {
+        if (!shownNow.includes(BLOCKED_SAYS.first)) return;
+        await until(() => tagWords().includes(BLOCKED_SAYS.then), BLOCKED_SAYS.afterMs + 1500);
+        if (tagWords().includes(BLOCKED_SAYS.then)) await grab(); else notes.push(`${d.title} ${sub + 1}: the words "${BLOCKED_SAYS.then}" did not come`);
+      };
       useUi.getState().go(0);
-      await grab();
+      await grab(); await blockedThen();
       for (; presses < stops * 40; presses++) {
         if (ui.stop()) { stopped = true; break; }
         if (!useUi.getState().move('next')) break;
-        await grab();
+        await grab(); await blockedThen();
       }
       if (!stopped && presses >= stops * 40) notes.push(`${d.title}: stopped after ${presses} presses (the talk did not end)`);
       if (thumbs.length) {
