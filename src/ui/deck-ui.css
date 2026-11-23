@@ -373,7 +373,7 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
    One card column at the left: the words centred, the instrument under it bleeding off the foot; a swipe up slides both up, a swipe down brings them back. The figure has the rest of the screen and
    the pill stands at the foot of its column. The planner (plan.ts sideBox, columnOf) places everything; these are the type, the pill and the credit. */
 /* the words card's foot keeps a row for the credit line (the iPhone's rule, 20 px) */
-.deck-ui[data-sideways] .dk-card:has(.pz-cred) .dk-in { padding-bottom: calc(var(--pad-y) + 20px); }
+.deck-ui[data-sideways] .dk-card:has(.pz-cred) .dk-in { padding-bottom: calc(var(--pad-y) + 20px / var(--pz-fit, 1)); }   /* (the card's fit zooms `.dk-in`, padding with it, but the © line stays 12 px at the card's foot: the room kept for it is 20 px on the screen at any fit; at a fit of 0.5 it was 10 and the line stood on the buttons, iPhone on its side, 23 Nov 2026) */
 /* the sideways pill's cells: the phone pill's rules for an iPhone on its side (the originals above stay the stack's and the tab's, tests/tap-cells.test.ts) */
 .deck-ui[data-sideways] .dk-bar.phone { display: inline-flex; border-radius: var(--r-sheet); }
 .deck-ui[data-sideways] .dk-bar.phone { --tap-ox: 0px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
