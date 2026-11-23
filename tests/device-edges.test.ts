@@ -13,6 +13,7 @@ import { DEVICE_TOKENS } from '../src/scene/procedures/copied/device-tokens.copi
 import { NEEDLE_EDGE, SCOPE_EDGE_A, mixHex, resolveEdge, scopeEdge, scopeSoftHex } from '../src/scene/devices/edges.ts';
 import { EndoScope, FAN_COLS, FAN_ROWS, MARK_EVERY, MARK_UNITS, SCOPE_BEND, SCOPE_CREAM, SCOPE_LIGHT, SCOPE_NEEDLE, SCOPE_SILVER, SCOPE_TUBE } from '../src/scene/devices/probes/scope.ts';
 import { DopplerProbe, WEDGE_STOPS, WEDGE_MID } from '../src/scene/devices/probes/doppler-probe.ts';
+import { SWATCH } from '../src/scene/devices/probes/probe-shape.ts';
 import { FibroProbe, HEAD_MS, SCAN_FADE_MS, BODY_LIFT, bodyFill, tapAt, TAP_V } from '../src/scene/devices/probes/fibro-probe.ts';
 import { ArriveTrack } from '../src/scene/devices/probes/ease-track.ts';
 import { Bands } from '../src/scene/devices/bands.ts';
@@ -76,17 +77,23 @@ for (const id of LOOK_IDS) {
     sc.dispose();
   });
 
-  test(`${id}: the Doppler head is the look's surface in its ink line on a rim, the face the inverse, the light and beam in --dop-glow`, () => {
-    const t = DEVICE_TOKENS[id], d = new DopplerProbe(sh);
+  test(`${id}: the Doppler head is the approved 1A: a cream shell in its ink line on a rim, a lens, ring and boot flush on it, the bead in the accent, the beam in --dop-glow`, () => {
+    const t = DEVICE_TOKENS[id], d = new DopplerProbe(sh), sw = SWATCH[LOOKS[id].scheme === 'dark' ? 'dark' : 'light'];
     d.applyPalette(PALETTES[id]);
-    const [head, face, light] = d.parts as unknown as DeviceObject[], rim = d.parts[d.parts.length - 1] as unknown as DeviceObject;
-    assert.equal(fill(head!), raw(LOOKS[id].card)); assert.equal(edge(head!), raw(t.dopHeadInk)); assert.equal(edgeA(head!), 1);
-    assert.equal(fill(face!), raw(t.dopFace)); assert.equal(edge(face!), raw(t.dopHeadInk));
-    assert.equal(fill(light!), raw(t.dopGlow)); assert.equal(edgeA(light!), 0);
+    const ps = d.parts as unknown as DeviceObject[], priv = d as unknown as { rim: DeviceObject; cableRim: DeviceObject };
+    const [head, lens, ring, boot, ...rest] = ps, seams = rest.slice(0, 4), light = rest[4]!, cable = rest[5]!, bands = [lens!, ring!, boot!], { rim, cableRim } = priv;
+    assert.equal(fill(head!), raw(sw.shell)); assert.equal(edge(head!), raw(t.dopHeadInk)); assert.equal(edgeA(head!), 1);
+    assert.equal(fill(lens!), raw(sw.lens)); assert.equal(fill(ring!), raw(LOOKS[id].accent), 'the ring is the look\'s accent'); assert.equal(fill(boot!), raw(sw.boot));
+    for (const b of bands) { assert.equal(edgeA(b), 0, 'a band has no outline of its own: the head\'s line goes round the whole'); assert.equal(b.toon.uniforms.fatPx!.value, -0.8, 'flush on the body'); }
+    assert.equal(seams.length, 4); assert.equal(fill(seams[0]!), raw(t.dopHeadInk), 'the lens\'s end is inked like the head\'s line');
+    assert.equal(fill(light), raw(LOOKS[id].accent)); assert.equal(edge(light), raw(t.dopHeadInk));
+    assert.equal(fill(cable), raw(sw.boot)); assert.equal(cable.toon.uniforms.tailFade!.value, 0.6, 'the cable fades out, never cut'); assert.equal(cableRim.toon.uniforms.tailFade!.value, 0.6);
     assert.equal(fill(rim), raw(t.dopHeadRim), 'the 4 px rim: --dop-head-rim'); assert.equal(edgeA(rim), 0);
     assert.notEqual(t.dopHeadRim, t.dopHeadInk, 'the rim is the inverse of the line');
+    // the colours are authored as drawn (the vessels' caps would grey the cream shell)
+    for (const o of [head!, lens!, ring!, boot!, cable]) assert.ok(o.toon.fragmentShader.includes('tubeRawK = 1.0;'), 'raw tube tones');
     // the fill is shrunk by half the line and the rim grown by half its width: 2D's strokes are centred on the path
-    assert.equal(head!.toon.uniforms.fatPx!.value, -0.8); assert.equal(face!.toon.uniforms.fatPx!.value, -0.7); assert.equal(rim.toon.uniforms.fatPx!.value, 2);
+    assert.equal(head!.toon.uniforms.fatPx!.value, -0.8); assert.equal(rim.toon.uniforms.fatPx!.value, 2);
     // the beam: --dop-glow, three stops
     const col = (d as unknown as { wedgeGeo: { getAttribute(n: string): { getX(i: number): number; getW(i: number): number } } }).wedgeGeo.getAttribute('color');
     const g = new Color(t.dopGlow);
@@ -157,7 +164,7 @@ test('with a screen the Doppler\'s marks are thin strokes over the figure (scree
   const d = new DopplerProbe(createShared());
   for (let t = 0; t < 4000; t += 16) d.update(16, true, 'PV_TRUNK', null, env as never, t);
   assert.equal(d.overlay, true); assert.ok(d.shown > 0.99);
-  const [, , , sight, axis, barA, barB] = d.parts;
+  const [sight, axis, barA, barB] = (d as unknown as { markParts: unknown[] }).markParts as DeviceObject[];
   for (const o of [sight, axis, barA, barB]) assert.equal(o!.group.visible, false, 'the 3D rods are not drawn');
   assert.equal(d.parts[0]!.group.visible, true, 'the head is');
   const L = d.lines;

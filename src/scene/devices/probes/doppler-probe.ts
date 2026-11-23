@@ -17,10 +17,12 @@ import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, pr
 import { easeMove } from '../../../ui/tests/copied/ease.copied.js';
 import { smooth01 } from '../../../ui/tests/copied/num.copied.js';
 import type { Ring } from '../tube-rings.ts';
-import { ProbePart, TubeBuf, linePart, lookOf, type PartStyle } from './parts.ts';
-import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
+import { ProbePart, TubeBuf, linePart, lookOf, type PartColour, type PartStyle } from './parts.ts';
+import { DEVICE_TOKENS, type DeviceTokens } from '../../procedures/copied/device-tokens.copied.ts';
+import type { LookId } from '../../palette.ts';
 import { LOOKS } from '../../../looks/looks.ts';
-import { DOP_BODY_PX, DOP_FACE_PX, DOP_INK, DOP_RIM_PX } from '../edges.ts';
+import { DOP_BODY_PX, DOP_INK, DOP_RIM_PX, mixHex } from '../edges.ts';
+import { BANDS, BEAD, CABLE, SEAMS, SEAM_INK_PX, SEAM_SOFT, SEAM_SOFT_PX, SWATCH, bodyStations, cableAt, radiusAt, stations, type Station } from './probe-shape.ts';
 import { basisAt, newBasis, toPlate, toScreen, type Basis, type Box, type Pt, type ScreenEnv } from './screen.ts';
 import type { DopplerSeg } from './state.ts';
 import { addClaim, addStroke } from '../../labels/probe-claims.ts';
@@ -32,11 +34,12 @@ export const VIEW_SETTLE_MS = 300;
 /** The place is chosen once the camera has been still, and the cards unchanged, this long (ms); verified against the cards and the stage this often; and chosen again only when the cards have covered it this long. */
 export const LAND_MS = 150, CARD_STILL_MS = 150, VERIFY_MS = 120, COVERED_MS = 350;
 export const LINE_SIGHT = 0, LINE_AXIS = 1, LINE_BAR_A = 2, LINE_BAR_B = 3;
-/** The probe's body, face to end, in px along its axis from the face and the radius there (dop-probe.js BODY: the face band, the neck, the handle, its round end). */
-const PROFILE: readonly (readonly [number, number])[] = [[0, 9], [2, 11], [10, 11], [18, 6], [42, 6], [46, 4.5], [48, 0.5]];
+/** The probe's body, face to end: its rings (probe-shape.ts, the approved 1A: a convex face, head, waist, grip and boot), and the rings of each band that lies flush on it. */
+const BODY_ST: readonly Station[] = bodyStations();
+const BAND_ST: readonly (readonly Station[])[] = BANDS.map((b) => stations(b.x0, b.x1));
+const schemeOf = (look: string): 'light' | 'dark' => (LOOKS[look as keyof typeof LOOKS].scheme === 'dark' ? 'dark' : 'light');
 /** The beam's opacity at its face, at 0.8 of its length, and at the far end (dop-probe.js #dpr-wedge), and where the middle stop is. */
 export const WEDGE_STOPS = [0.46, 0.22, 0] as const, WEDGE_MID = 0.8;
-const FACE: readonly (readonly [number, number])[] = [[-1.5, 10], [0, 11.4], [6, 11.4], [7.5, 10]];
 
 /** A point at arc fraction f along a vessel's course, and its direction of flow, in the figure's plane. */
 export function gateOf(id: string, f: number | null, out: { p: Vector3; t: Vector3; r: number } = { p: new Vector3(), t: new Vector3(), r: 0 }): { p: Vector3; t: Vector3; r: number } | null {
@@ -102,11 +105,11 @@ export class DopplerProbe {
   shown = 0;
   private headA = 1;
   private placedKey = '';
-  private readonly head: TubeBuf; private readonly face: TubeBuf; private readonly light: TubeBuf;
+  private readonly head: TubeBuf; private readonly bands: TubeBuf[] = []; private readonly seams: TubeBuf[] = []; private readonly light: TubeBuf; private readonly cable: TubeBuf;
   private readonly bufs: TubeBuf[] = [];
   private readonly sight: TubeBuf; private readonly axis: TubeBuf; private readonly barA: TubeBuf; private readonly barB: TubeBuf;
   private readonly headParts: ProbePart[] = []; private readonly markParts: ProbePart[] = [];
-  private readonly rim: ProbePart;
+  private readonly rim: ProbePart; private readonly cableRim: ProbePart;
   private readonly wedgeGeo = new BufferGeometry();
   private readonly wedge: Mesh;
   private readonly wedgeMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });   // (the beam fades from the probe's face to nothing past the vessel: 2D #dpr-wedge, .46 to 0)
@@ -161,22 +164,38 @@ export class DopplerProbe {
       add(buf, part, head);
       return buf;
     };
-    // The head is 2D's (app-06-plate.css .dpr-rim, .dpr-body, .dpr-face, .dpr-light; tokens.css --dop-head-rim, --dop-head-ink, --dop-face, --dop-glow): the body in the look's surface under a 1.6 px line in --dop-head-ink
-    // (white on the light looks, black on the dark ones), the face band in --dop-face (dark on the light looks, pale on the dark ones: the exact inverse) under a 1.4 px line of the same ink, the whole head on a
-    // 4 px rim in --dop-head-rim (the inverse of the ink), so it reads on any vessel. A stroke 2D centres on the path sits half inside it: the fill shrinks by half the line (`fat`), the line is drawn out to half beyond.
-    this.head = mk('poly', (_t, look) => LOOKS[look].card, PROFILE.length, DOP_BODY_PX, 2, true, { edge: DOP_INK, fat: -DOP_BODY_PX / 2 });
-    this.face = mk('steel', (t) => t.dopFace, FACE.length, DOP_FACE_PX, 3, true, { edge: DOP_INK, fat: -DOP_FACE_PX / 2 });
-    this.light = mk('graft', (t) => t.dopGlow, 2, 0.5, 4, true, { edge: 'none' });
+    // The head is the classic curvilinear probe (owner, 23 Nov 2026, "just build 1A", docs/approved/us-probe.md; shapes and swatches in probe-shape.ts): one body (a cream shell on the light looks, a pale one on the dark) with the
+    // lens, the accent ring and the rubber boot lying flush on it as bands, the seams between them, a bead in the look's accent on the grip, and a short cable that fades out. Its line is 2D's (--dop-head-ink, white on the
+    // light looks and black on the dark ones, 1.6 px) on a 4 px rim in --dop-head-rim (the inverse), so it reads on any vessel. A stroke 2D centres on the path sits half inside it: the fill shrinks by half the line (`fat`),
+    // the line is drawn out to half beyond. The colours are authored as drawn (`raw`): the vessels' caps would grey a cream shell.
+    const swatch = (look: string) => SWATCH[schemeOf(look)];
+    const BODY: PartStyle = { raw: true, fat: -DOP_BODY_PX / 2 };
+    this.head = mk('poly', (_t, look) => swatch(look).shell, BODY_ST.length, DOP_BODY_PX, 2, true, { ...BODY, edge: DOP_INK });
+    const bandColour = { lens: (_t: unknown, look: string) => swatch(look).lens, ring: (_t: unknown, look: string) => LOOKS[look as keyof typeof LOOKS].accent, boot: (_t: unknown, look: string) => swatch(look).boot };
+    BANDS.forEach((b, i) => this.bands.push(mk('poly', bandColour[b.id] as PartColour, BAND_ST[i]!.length, DOP_BODY_PX, 3, true, { ...BODY, edge: 'none' })));
+    // the seams across the body: the lens's end inked like the head's line (1.4 px), the others a soft dark hairline over the shell (0.9 px)
+    const seamFlat: PartStyle = { flat: true, edge: 'none', fat: 0 };
+    for (const s of SEAMS) {
+      const soft = SEAM_SOFT;
+      this.seams.push(mk('graft', s.ink ? (t: DeviceTokens) => t.dopHeadInk : (_t: DeviceTokens, look: LookId) => { const k = soft[schemeOf(look)]; return mixHex(swatch(look).shell, '#' + k.rgb.map((v) => v.toString(16).padStart(2, '0')).join(''), k.a); }, 2, 0.5, 4, true, seamFlat));
+    }
+    this.light = mk('graft', (_t, look) => LOOKS[look].accent, 2, 0.9, 4, true, { flat: true, edge: DOP_INK, fat: 0 });
+    // the cable runs from its free end (ring 0) to the boot, so the tail fade takes the free end out as a gradient, never a cut
+    this.cable = mk('poly', (_t, look) => swatch(look).boot, CABLE.rings, 0.5, 3, true, { raw: true, edge: 'none', fat: 0, radial: 12 });
+    this.parts[this.parts.length - 1]!.setTailFade(CABLE.fade);
     // the marks are the 2D's: white lines on a black rim in every theme (--dop-mark, --dop-rim), the rim 1.2 px outside a 2 px line (the gate's bars 3 px with 1.3)
     const MARK: PartStyle = { flat: true, rim: '#000000' };
+    const m0 = this.parts.length;
     this.sight = mk('graft', '#FFFFFF', 2, 1.2, 5, false, MARK);
     this.axis = mk('graft', '#FFFFFF', 2, 1.2, 5, false, MARK);
     this.barA = mk('graft', '#FFFFFF', 2, 1.3, 6, false, MARK);
     this.barB = mk('graft', '#FFFFFF', 2, 1.3, 6, false, MARK);
-    this.closing = [this.parts[4]!, this.parts[5]!, this.parts[6]!];
+    this.closing = [this.parts[m0 + 1]!, this.parts[m0 + 2]!, this.parts[m0 + 3]!];
     // the rim: the body's own tube once more, one flat fill under it grown to the rim's half width (no outline, no highlight)
     this.rim = new ProbePart(this.head.geometry, 'poly', shared, (t) => t.dopHeadRim, { px: 0, order: 1, spec: 0 }, { flat: true, edge: 'none', fat: DOP_RIM_PX / 2 });
     this.parts.push(this.rim); this.headParts.push(this.rim); this.group.add(this.rim.group);
+    this.cableRim = new ProbePart(this.cable.geometry, 'poly', shared, (t) => t.dopHeadRim, { px: 0, order: 1, spec: 0 }, { flat: true, edge: 'none', fat: DOP_RIM_PX / 2, radial: 12 });
+    this.cableRim.setTailFade(CABLE.fade); this.parts.push(this.cableRim); this.headParts.push(this.cableRim); this.group.add(this.cableRim.group);
     // the beam's stops are 2D's (dop-probe.js #dpr-wedge: --dop-glow at .46 at the face, .22 at .8 of the way, 0 at the far wall): the apex, the far corners, and the 0.8 line between
     this.wedgeGeo.setAttribute('position', new BufferAttribute(new Float32Array(15), 3));
     this.wedgeGeo.setAttribute('color', new BufferAttribute(new Float32Array([0, 0, 0, WEDGE_STOPS[0], 0, 0, 0, WEDGE_STOPS[2], 0, 0, 0, WEDGE_STOPS[2], 0, 0, 0, WEDGE_STOPS[1], 0, 0, 0, WEDGE_STOPS[1]]), 4));
@@ -194,14 +213,28 @@ export class DopplerProbe {
     const t = this.tmp, u = this.tmp2;
     const at = (x: number, y: number, o: Vector3): Vector3 => o.copy(gate).addScaledVector(ex, x).addScaledVector(ey, y);
     const axisT = this.axisT.copy(ex).normalize();
-    // the body and the face band, along the line of sight from the face outward
-    const lay = (buf: TubeBuf, prof: readonly (readonly [number, number])[]) => {
-      for (let i = 0; i < prof.length; i++) { const r = buf.rings[i]!; at(g.dh + prof[i]![0] * S, 0, r.c); r.t.copy(axisT); r.r = prof[i]![1] * S * U; }
+    // the body and its bands, along the line of sight from the face outward
+    const lay = (buf: TubeBuf, st: readonly Station[]) => {
+      for (let i = 0; i < st.length; i++) { const r = buf.rings[i]!; at(g.dh + st[i]!.x * S, 0, r.c); r.t.copy(axisT); r.r = st[i]!.r * S * U; }
       buf.commit();
     };
-    lay(this.head, PROFILE); lay(this.face, FACE);
-    // the light on the handle: a bead facing the viewer
-    this.light.line(at(g.dh + 33 * S, 0, t).setZ(gate.z + 0.004), at(g.dh + 33 * S, 0, u).setZ(gate.z + 0.007), px(3), px(2.2));
+    lay(this.head, BODY_ST);
+    this.bands.forEach((b, i) => lay(b, BAND_ST[i]!));
+    // the seams: a hairline across the body at x, a little short of the outline both sides
+    SEAMS.forEach((s, i) => { const h = (radiusAt(s.x) - 0.3) * S; this.seams[i]!.line(at(g.dh + s.x * S, -h, t), at(g.dh + s.x * S, h, u), U * (s.ink ? SEAM_INK_PX : SEAM_SOFT_PX) / 2); });
+    // the bead on the grip, facing the viewer
+    this.light.line(at(g.dh + BEAD.x * S, 0, t).setZ(gate.z + 0.004), at(g.dh + BEAD.x * S, 0, u).setZ(gate.z + 0.007), U * BEAD.r, U * BEAD.r * 0.92);
+    // the cable, from its free end to the boot (the curve is in the probe's own frame: x along the axis, y across)
+    {
+      const cb = this.cable, n = cb.n, w = this.w0, w2 = this.w1;
+      for (let i = 0; i < n; i++) {
+        const tt = 1 - i / (n - 1), c = cableAt(tt), c2 = cableAt(Math.min(1, Math.max(0, tt - 0.02))), c1 = cableAt(Math.min(1, tt + 0.02)), r = cb.rings[i]!;
+        at(g.dh + c.x * S, c.y * S, r.c);
+        r.t.copy(at(g.dh + c2.x * S, c2.y * S, w)).sub(at(g.dh + c1.x * S, c1.y * S, w2)).normalize();
+        r.r = (CABLE.w / 2) * S * U;
+      }
+      cb.commit();
+    }
     // the line of sight runs from the face to the near gate bar; the flow axis a little past both bars
     this.sight.line(at(g.dh - PROBE.EDGE, 0, t), at(g.bx1, 0, u), U * 1.0);
     // the sample volume: two short bars across the line, `at` px either side of the gate, half-width `half`; the axis through the gate at the flow's angle

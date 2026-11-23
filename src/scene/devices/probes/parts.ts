@@ -15,7 +15,8 @@ export type PartColour = string | ((t: DeviceTokens, look: LookId) => string);
 export const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
 /** How a part's look is fixed whatever the theme: `flat` (its shade is its colour: a mark is one white, never a grey in the dark), `rim` (its outline's own colour, a fixed hex, not the look's ink), `edge` (the edge rule 2D gives the part: devices/edges.ts; the look's ink when left out) and `spec` (0: no highlight) and `fat` (device px the fill grows by: a stroke 2D centres on the path sits half inside it). */
-export interface PartStyle { /** sides round the tube (DEVICE_SIDES when left out): a long tube seen up close needs more, or it reads faceted */ radial?: number; flat?: boolean; rim?: string; edge?: EdgeRule; fat?: number; spec?: 0 | 1; /** the tube's radius when it casts a soft contact shadow (devices/contact-shadow.ts) */ shadow?: number }
+export interface PartStyle { /** sides round the tube (DEVICE_SIDES when left out): a long tube seen up close needs more, or it reads faceted */ radial?: number; flat?: boolean; rim?: string; edge?: EdgeRule; fat?: number; spec?: 0 | 1; /** the tube's radius when it casts a soft contact shadow (devices/contact-shadow.ts) */ shadow?: number;
+  /** the colour is authored as drawn: the tube's two tones are cut from it as it is (the shade x (1 - SHADE)), never darkened and greyed first by the vessels' caps (cel-glsl.ts tubeRawK; a cream shell would come out grey) */ raw?: boolean }
 
 export class ProbePart extends DeviceObject {
   private colour: PartColour | null;
@@ -27,6 +28,12 @@ export class ProbePart extends DeviceObject {
     super(geometry, tone, shared, { ...o, ...(style.fat != null ? { fat: style.fat } : {}), ...(style.spec != null ? { spec: style.spec } : {}), ...(style.shadow != null ? { shadow: style.shadow } : {}), ...(style.flat ? { tubeTones: false } : {}) }, style.edge ?? 'ink');
     this.colour = colour;
     this.style = style;
+    if (style.raw) {
+      const at = 'vec3 c = celTubeTone(base, sT0, fwS0, rDev0);';
+      if (!this.toon.fragmentShader.includes(at)) throw new Error('probe part: the tube tone line is not in the shader');
+      this.toon.fragmentShader = this.toon.fragmentShader.replace(at, 'tubeRawK = 1.0;\n  ' + at);
+      this.toon.needsUpdate = true;
+    }
     this.park();
   }
   /** Changes the colour the part wears (a ring that is the portal vein's, then the hepatic vein's): it glides there (a part that is not drawn takes it at once). */
