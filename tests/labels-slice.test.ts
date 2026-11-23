@@ -95,7 +95,7 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
         assert.ok(shown || hidden, `${n} is named by the slide but neither shown nor hidden`);
       }
       // the catheter's reading cards: the slide's cards all stand (none dropped), in the view, never on one another, and clear of the screen's cards
-      const want = h.lab.cath === 'free' ? 1 : h.lab.cath === 'wedge' ? 2 : h.lab.cath === 'result' ? 1 : 0;
+      const want = h.lab.cath === 'free' ? 1 : h.lab.cath === 'wedge' ? 2 : h.lab.cath === 'result' || h.lab.cath === 'blocked' ? 1 : 0;   // (a blocked vein: the one tag at the tip, "Occluded")
       const calls = h.ctl.cath.pills.length + (h.ctl.cath.sum ? 1 : 0);
       assert.equal(calls, want, 'the slide\'s reading cards stand');
       const cards = h.ctl.cathCards();
