@@ -47,6 +47,47 @@ export function undeclared(glsl: string, three: readonly string[]): string[] {
   return out;
 }
 
+/** Every global the text uses ABOVE the line that declares it (`name@useLine<declLine`). GLSL needs a name declared before it is used: a driver refuses the program for `vL` used in an injected
+ *  chunk and declared further down (the lobule plate, 23 Nov 2026), and the check above passes it, since the name is declared somewhere. Variables (uniform, varying, attribute, const, globals) read
+ *  the parser's scope entries (declaration line against the first reference, in its own scope or the scope chain above); functions are read from the text: the first `name(` must be the definition or a prototype. */
+export function usedBeforeDeclared(glsl: string): string[] {
+  const text = preprocessed(glsl);
+  const ast = parser.parse(text, { quiet: true, includeLocation: true }) as unknown as { scopes: Scope[] };
+  const lineOf = (e: { location?: { start: { line: number } } } | undefined) => e?.location?.start.line;
+  const declLine = (s: Scope | undefined, n: string): number | undefined => {
+    for (let c = s; c; c = c.parent) { const e = c.bindings[n]; if (e?.declaration) return lineOf(e.declaration as { location?: { start: { line: number } } }); }
+    return undefined;
+  };
+  const out = new Set<string>();
+  for (const s of ast.scopes) {
+    for (const [n, e] of Object.entries(s.bindings)) {
+      const refs = e.references.map(lineOf).filter((l): l is number => l !== undefined);
+      if (!refs.length) continue;
+      const decl = e.declaration ? lineOf(e.declaration as { location?: { start: { line: number } } }) : declLine(s.parent, n);
+      const first = Math.min(...refs);
+      if (decl !== undefined && first < decl) out.add(`${n}@${first}<${decl}`);
+    }
+  }
+  const at = (i: number) => text.slice(0, i).split('\n').length;
+  const fnNames = new Set<string>();
+  for (const s of ast.scopes) for (const n of Object.keys(s.functions)) fnNames.add(n);
+  for (const n of fnNames) {
+    if (n === 'main') continue;
+    const def = new RegExp(`(?:^|[;}\\n])\\s*(?:(?:highp|mediump|lowp|const|in|out|inout)\\s+)*[A-Za-z_]\\w*\\s+${n}\\s*\\([^)]*\\)\\s*[{;]`);
+    const m = def.exec(text);
+    if (!m) continue;   // (no definition in the text: a builtin, a constructor, or three.js' own: the check above owns it)
+    const defAt = at(m.index + m[0].search(/\S/));
+    const call = new RegExp(`\\b${n}\\s*\\(`, 'g');
+    for (let c = call.exec(text); c; c = call.exec(text)) {
+      const before = text.slice(0, c.index);
+      if (/(?:^|[;}\s])(?:void|float|int|bool|uint|[iub]?vec[234]|mat[234](?:x[234])?|[A-Za-z_]\w*)\s+$/.test(before) && !/\b(?:return|else|case|discard)\s+$/.test(before)) break;   // the definition or prototype comes first
+      out.add(`${n}()@${at(c.index)}<${defAt}`);
+      break;
+    }
+  }
+  return [...out];
+}
+
 /** Samplers: every `texture2D(x, ...)`/`texture(x, ...)`/`textureLod(x, ...)` names a declared `uniform sampler*` (or a sampler parameter) as its first argument, read on the PREPROCESSED text (a sampler declared only under an
  *  `#ifdef` and sampled outside it is no declaration), and each bad name is listed once (a sampler called twice, like the plate's `mapCB`, is one bad name, not two). */
 export function badSamplers(glsl: string): string[] {

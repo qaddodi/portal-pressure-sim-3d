@@ -18,7 +18,7 @@ import { GL_FILES } from '../src/debug/gl-registry.ts';
 import { onSceneGraph, programsOfModule } from '../src/debug/gl-auto.ts';
 import { glslFiles } from '../scripts/gl-scan.mjs';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
-import { undeclared, badSamplers, stageNames } from './gl-undeclared.ts';
+import { undeclared, usedBeforeDeclared, badSamplers, stageNames } from './gl-undeclared.ts';
 import { uniformChecks } from './gl-gate.ts';
 
 // every file that holds GLSL and is not on the closed hand list is found by scanning and its programs read from the module (src/debug/gl-auto.ts): a new shader needs nothing registered.
@@ -82,6 +82,7 @@ test('every name every program uses is declared, and every texture call names a 
     const at = (n: string) => glsl.split('\n').findIndex((l) => new RegExp(`\\b${n}\\b`).test(l)) + 1;
     for (const u of undeclared(glsl, stageNames(p, stage))) bad.push(`${p.name} (${stage}): ${u.split('@')[0]} is used and never declared (first near line ${at(u.split('@')[0]!)})`);
     for (const n of badSamplers(glsl)) bad.push(`${p.name} (${stage}): a texture call samples ${n}, which is no declared sampler`);
+    for (const u of usedBeforeDeclared(glsl)) bad.push(`${p.name} (${stage}): ${u} is used above the line that declares it (a chunk injected before the declaration it needs)`);
   }
   assert.deepEqual(bad, [], 'a real GPU refuses the program, and everything drawn with it is missing');
   assert.ok(programs.length > 40, `${programs.length} programs checked`);
@@ -95,6 +96,19 @@ test('the declaration check is live: it names the undeclared sampler of 9aad1bb4
   assert.notEqual(broken, plate.fragmentGlsl, 'the plate declares mapCB');
   assert.ok(undeclared(broken, THREE_FRAGMENT_NAMES).some((u) => u.startsWith('mapCB@')));
   assert.deepEqual(badSamplers(broken), ['mapCB']);
+});
+
+// 23 Nov 2026: the plate's `varying vec2 vL;` sat below the injected cv-band chunk that reads it; the name was declared "somewhere", so the check above passed, and the device refused the program.
+test('the use-before-declaration check is live: the plate with `vL` declared below the central vein band is named', () => {
+  const plate = programs.find((p) => p.name === 'lobule plate')!;
+  const line = 'varying vec2 vL;';
+  assert.equal(plate.fragmentGlsl.split(line).length, 2, 'the plate declares vL once');
+  assert.deepEqual(usedBeforeDeclared(plate.fragmentGlsl), [], 'as built, every global is declared before its first use');
+  const broken = plate.fragmentGlsl.replace(line, '') + `\n${line}\n`;
+  assert.ok(usedBeforeDeclared(broken).some((u) => u.startsWith('vL@')), `named: ${usedBeforeDeclared(broken).join(', ') || 'nothing'}`);
+  const fn = 'float later(float a);\nvoid main() { gl_FragColor = vec4(later(1.0)); }\nfloat later(float a) { return a; }\n';
+  assert.deepEqual(usedBeforeDeclared(fn), [], 'a prototype above the call is a declaration');
+  assert.ok(usedBeforeDeclared(fn.replace('float later(float a);\n', '')).some((u) => u.startsWith('later()@')), 'a function called above its definition is named');
 });
 
 test('every program declares nothing twice, and nothing three.js already declares', () => {

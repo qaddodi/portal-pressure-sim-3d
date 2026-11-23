@@ -117,6 +117,7 @@ ${CEL_TISSUE_GLSL}
 const float PLATE_EDGE_SHADE = ${PLATE_EDGE_SHADE.toFixed(3)};
 const float PLATE_EDGE_K = ${PLATE_EDGE_K.toFixed(3)};
 ${FADE_GLSL}
+varying vec2 vL;   // the world light in the plate's own x and y (PLATE_LIGHT_GLSL)
 ${RELIEF_GLSL}
 ${collagenSoftGlsl()}
 ${cvBandGlsl(2 * PLATE_BOX)}
@@ -133,7 +134,6 @@ uniform float uBaseK;   // 1: the central vein's scar mesh (cv-band.ts inside th
 uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
 ${COLL_FIELD_GLSL}
 varying vec2 vUv;
-varying vec2 vL;   // the world light in the plate's own x and y (PLATE_LIGHT_GLSL)
 const float GROW_H = ${GROW_H.toFixed(3)};   // the front's half width (growth.ts)
 float front(float t, float p) { return t > 0.995 ? 0.0 : smoothstep(t - GROW_H, t + GROW_H, p); }
 // what the last plateAt found of the collagen: its coverage there (the layers' alpha as laid over the tissue, 0 with none grown) and the share of each layer that has grown (x septa, y tracts and the vein); main reads them

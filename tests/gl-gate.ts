@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { type Decl, type Program, ES3_FLOOR, THREE_FRAGMENT_NAMES, THREE_VERTEX_NAMES, budget, declarations, uniformProblems } from '../src/debug/gl-programs.ts';
 import { afterDiscardProblems } from './gl-derivative.ts';
-import { badSamplers, stageNames, undeclared } from './gl-undeclared.ts';
+import { badSamplers, stageNames, undeclared, usedBeforeDeclared } from './gl-undeclared.ts';
 
-/** (a) every name the program uses resolves to a declaration, a GLSL builtin or three's prefix. */
+/** (a) every name the program uses resolves to a declaration, a GLSL builtin or three's prefix, and is declared above its first use. */
 export function undeclaredProblems(p: Program): string[] {
   const out: string[] = [];
   for (const stage of ['vertex', 'fragment'] as const) for (const u of undeclared(stage === 'vertex' ? p.vertexGlsl : p.fragmentGlsl, stageNames(p, stage))) out.push(`${p.name} (${stage}): ${u.split('@')[0]} is used and never declared`);
+  for (const stage of ['vertex', 'fragment'] as const) for (const u of usedBeforeDeclared(stage === 'vertex' ? p.vertexGlsl : p.fragmentGlsl)) out.push(`${p.name} (${stage}): ${u} is used above the line that declares it`);
   return out;
 }
 
