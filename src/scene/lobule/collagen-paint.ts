@@ -94,19 +94,23 @@ export function paintSepta(c: CanvasRenderingContext2D, P: CollagenInput): void 
 export function paintTract(c: CanvasRenderingContext2D, x: number, y: number, radius: number, angle: number, rgb: ArrayLike<number>, seed: number): void {
   c.save(); c.translate(x, y); c.rotate(angle);
   const phase = fibHash(seed) * TAU;
-  for (let k = 0; k < 10; k++) {
-    const sd = seed + k * 37, w = radius * (0.08 + 0.085) * (0.7 + fibHash(sd + 3));
-    bundle(c, rgb, radius, fibHash(sd) * TAU, 1.2 + 2 * fibHash(sd + 1), 0.25 + 0.65 * fibHash(sd + 2), phase, w, Math.min(1, 0.75 + 0.35 * fibHash(sd + 4)), sd, 0.2, 0.25);
+  // (a few long bundles sweep across the tract, thin and sparse: they are what makes it a tract and not a round ring; the rings below do the filling, so it reads as layered bands and not a tangle)
+  for (let k = 0; k < 5; k++) {
+    const sd = seed + k * 37, w = radius * 0.1 * (0.7 + 0.6 * fibHash(sd + 3));
+    bundle(c, rgb, radius, fibHash(sd) * TAU, 1.2 + 1.6 * fibHash(sd + 1), 0.25 + 0.65 * fibHash(sd + 2), phase, w, 0.55 + 0.4 * fibHash(sd + 4), sd, 0.2, 0.25);
   }
-  // (the core: rings of bundles from the centre out to the collar, evenly round, so no part of a tract is left bare between the randomly placed arcs; Mohammad 23 Nov: "the fibrosis bands are sometimes missing in portal areas")
-  for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 5; k++) {
+  // (a floor: two rings of wide, light bundles that overlap their neighbours, so no part of a tract is bare and the tissue never shows through as a hole; Mohammad 23 Nov: "the fibrosis bands are sometimes missing in portal areas")
+  for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 7; k++) {
     const sd = 311 + ring * 19 + k;
-    bundle(c, rgb, radius, TAU * k / 5 + ring * 0.9 + phase, TAU / 5 * (1.5 + 0.4 * fibHash(sd)), 0.13 + 0.2 * ring, fibHash(sd + 5) * TAU, radius * 0.2 * (0.9 + 0.3 * fibHash(sd + 3)), 0.8 + 0.2 * fibHash(sd + 4), sd, 0.8, 0.8, 0.5);
+    bundle(c, rgb, radius, TAU * k / 7 + ring * 0.45 + phase, TAU / 7 * (1.7 + 0.4 * fibHash(sd)), 0.28 + 0.28 * ring, fibHash(sd + 5) * TAU, radius * (ring === 1 ? 0.36 : ring ? 0.27 : 0.3), (ring === 2 ? 0.42 : 0.64) + 0.14 * fibHash(sd + 4), sd, 0.8, 0.8, 0.5);
   }
-  const inner = radius * 0.62, outer = radius * 1.08, thick = outer - inner;
-  for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 6; k++) {
-    const sd = 211 + ring * 17 + k;
-    bundle(c, rgb, radius, TAU * k / 6 + ring * 0.27, TAU / 6 * (1.2 + 0.5 * fibHash(sd)), (inner + thick * (0.18 + ring * 0.3)) / radius, fibHash(sd + 5) * TAU, thick * 0.34, 1, sd, 0.45, 0.5);
+  // (the bands: distinct ropes on the floor, concentric about the tract as the periportal fibrosis lies, each ring with its own start, length, width and intensity, so it reads as bands of varying intensity and not a tangle or a cloud)
+  for (let ring = 0; ring < 6; ring++) {
+    const n = ring < 2 ? 3 : 4;
+    for (let k = 0; k < n; k++) {
+      const sd = 211 + ring * 17 + k, len = TAU / n * (0.8 + 0.35 * fibHash(sd + 1));
+      bundle(c, rgb, radius, TAU * k / n + ring * 0.83 + phase, len, 0.14 + 0.15 * ring, fibHash(sd + 5) * TAU, radius * (0.07 + 0.045 * fibHash(sd + 3)), 0.75 + 0.25 * fibHash(sd + 4), sd, 0.45, 0.5, 0.3);
+    }
   }
   c.restore();
 }
