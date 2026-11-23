@@ -76,10 +76,11 @@
 /* ── type ──
    The words' type (.pz-kick, .pz-h, .pz-line, .pz-eq, .pz-val, .pz-term) and the data card's (.pz-dh, .pz-tile) are the lifted 2D rules. What is left here is the card-owned bits. */
 .dk-num { font-variant-numeric: tabular-nums lining-nums; font-weight: 600; white-space: nowrap; }
-/* Prose figures are proportional (TIPS Doppler review, item 8, 23 Nov 2026): the card's tabular figures gave a "1" a full-width cell, so ">190 cm/s" read ">1 90 cm/s" and "10%" read "1 0%". Tabular figures stay
-   where a number changes in place: a reading's own box (.dk-num, .pz-val, a step disc), the tiles and the tables. */
-.deck-ui :is(.pz-h, .pz-line, .pz-side-p, .pz-caveat, .pz-cite, .pz-sub, .pz-causes, .pz-eq) { font-variant-numeric: lining-nums proportional-nums; }
-.deck-ui :is(.pz-line, .pz-side-p, .pz-h) :is(.dk-num, .pz-val, .pz-step) { font-variant-numeric: tabular-nums lining-nums; }
+/* Prose figures are proportional (TIPS Doppler review item 8, and again in the 23 Nov multi-size review: "≥1 0 mmHg", "IGV1 ),", "118/78 (91 )", "3 / 1 5"). A tabular "1" is a full-width cell, so ">190 cm/s" read ">1 90 cm/s" and "10%" read "1 0%".
+   ROOT CAUSE of the first fix doing nothing: the lifted 2D stylesheet ends with `* { font-variant-numeric: tabular-nums lining-nums !important }` (app-11-deck-visuals.css), and an important rule beats any plain one whatever its specificity,
+   so the plain proportional rule here never applied. These two are important too, and more specific than `*`. Tabular figures stay where a number changes in place: a reading's own box (.dk-num, .pz-val, a step disc), the tiles. */
+.deck-ui :is(.pz-h, .pz-line, .pz-side-p, .pz-caveat, .pz-cite, .pz-sub, .pz-causes, .pz-eq, .pz-eq *, .pz-line *, .pz-h *, .pz-side-p *, .pz-caveat *, .pz-table td.num, .pz-table .tn, .pz-table .vs, .pz-table .pz-foot, .pz-table .pz-foot *) { font-variant-numeric: lining-nums proportional-nums !important; }
+.deck-ui :is(.pz-line, .pz-side-p, .pz-h) :is(.dk-num, .pz-val, .pz-step, .dk-num *, .pz-val *, .pz-step *) { font-variant-numeric: tabular-nums lining-nums !important; }
 .dk-body + .dk-body { margin-top: 10px; }
 .dp-eqnote { margin: 2px 0 8px; font-size: var(--fs-data); opacity: 0.72; }
 
@@ -211,6 +212,10 @@
 .pz-table.dk-pztable thead th:not(.num):not(:first-child) { display: none; }
 .pz-table.dk-pztable tbody th[scope="row"] { display: block; min-width: 0; padding: .3em 8px .3em 12px; }
 .pz-table.dk-pztable .tw { display: block; min-width: 0; }
+/* A phone on its side whose table card still stood past its room after every step (hyperdynamic 11, recompensation 14, 23 Nov review): the rows sit closer, the head and the legend with them; the type keeps its size (CardLayer `tight`). */
+.pz-tight .pz-table.dk-pztable tbody :is(th, td) { padding-block: .14em; }
+.pz-tight .pz-table.dk-pztable thead th { padding-block: .32em; }
+.pz-tight .pz-table.dk-pztable .pz-foot { padding: .32em 1em .4em; }
 .pz-table.dk-pztable .tn { margin: 0; line-height: 1.15; overflow-wrap: normal; -webkit-hyphens: manual; hyphens: manual; }
 .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
 .dk-tnone.dk-noflow { font: 500 max(12px, .72em) / 1.2 var(--ui, system-ui); letter-spacing: .02em; }   /* (a flat trace says so in words, under its line) */

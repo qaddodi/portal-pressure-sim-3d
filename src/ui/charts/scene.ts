@@ -43,6 +43,8 @@ export interface TextShape {
   /** letter spacing, em */
   ls?: number;
   italic?: boolean;
+  /** tabular figures: only a count that runs in place and must hold its width (the timeline's clock). Every other word is proportional: a tabular "1" is a full-width cell, so ">10" read ">1 0" (23 Nov review). */
+  tab?: boolean;
   /** the word turned this many degrees about its anchor point (the station names of a narrow chart, -30) */
   rot?: number;
   /** opacity 0..1 (a label that fades, never slides) */

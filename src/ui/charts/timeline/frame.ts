@@ -10,5 +10,5 @@ export function clockFrame(spec: ClockSpec, c: ChartCtx): Frame {
   const l = look(c, { host: 'dock' }, 'small.day');
   const align = spec.align ?? 'start';
   const x = align === 'end' ? w : align === 'middle' ? w / 2 : 0;
-  return { w, h, shapes: [{ k: 'text', x, y: h / 2, s: clockWords(spec), size, weight, color: l.fill!, anchor: align, baseline: 'middle' }], label: clockLabel(spec) };
+  return { w, h, shapes: [{ k: 'text', x, y: h / 2, s: clockWords(spec), size, weight, color: l.fill!, anchor: align, baseline: 'middle', tab: true }], label: clockLabel(spec) };
 }

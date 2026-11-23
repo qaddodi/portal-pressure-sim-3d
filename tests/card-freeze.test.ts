@@ -57,3 +57,10 @@ test('the six ladders have one gap between boxes', () => {
   assert.match(css, /\.pz-panel\.fill \{ --pz-grid-gap: clamp\(8px, calc\(1\.2 \* var\(--pzh\)\), 16px\); gap: var\(--pz-grid-gap\); \}/);
   assert.match(css, /\.pz-panel\.fill \.pz-grid \{ gap: var\(--pz-grid-gap\); \}/);
 });
+
+// A phone on its side whose table card stood past its room after every step sits its rows closer (hyperdynamic 11, recompensation 14, 23 Nov review).
+test('a tight table card wears pz-tight, and only the visual card', () => {
+  assert.equal(wordsClasses('visual', 'table', false, true), 'pz-tight');
+  assert.equal(wordsClasses('visual', 'table', false), undefined);
+  assert.equal(wordsClasses('teach', 'table', false, true), undefined);
+});

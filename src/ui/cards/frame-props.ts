@@ -10,6 +10,8 @@ export interface FrameLive {
   visual: string | undefined;
   /** the signature that makes the card measure again */
   sig: string;
+  /** a phone on its side whose table card still stood past its room after every step: its rows sit closer (`pz-tight`) */
+  tight?: boolean;
 }
 
 /** The values a card draws with: the live ones while it is the current card, its own snapshot (the last it was current with) once it is leaving. A card with no snapshot yet takes the live ones. */
@@ -18,6 +20,6 @@ export function frameProps(current: boolean, live: FrameLive, snap: FrameLive | 
 }
 
 /** The classes of a words card (the panel's name tab, the six ladders' fill), from the visual it was let in with. */
-export function wordsClasses(id: string, visual: string | undefined, tabbed: boolean): string | undefined {
-  return [(id === 'check' || id === 'visual') && tabbed ? 'tabbed' : '', id === 'visual' && visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined;
+export function wordsClasses(id: string, visual: string | undefined, tabbed: boolean, tight = false): string | undefined {
+  return [(id === 'check' || id === 'visual') && tabbed ? 'tabbed' : '', id === 'visual' && visual === 'ladders' ? 'fill' : '', id === 'visual' && tight ? 'pz-tight' : ''].filter(Boolean).join(' ') || undefined;
 }

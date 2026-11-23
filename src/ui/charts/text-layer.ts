@@ -47,9 +47,13 @@ export class TextLayer {
         `font:${w.italic ? 'italic ' : ''}${w.weight ?? 500} ${w.size}px/1 var(${w.font === 'display' ? '--display' : '--ui'}, system-ui, sans-serif);`,
         w.upper ? 'text-transform:uppercase;' : '',
         w.ls ? `letter-spacing:${w.ls}em;` : '',
-        'font-variant-numeric:tabular-nums lining-nums;',
       ].join('');
-      if (style !== sl.style) { sl.el.style.cssText = style; sl.style = style; sl.t = ''; sl.o = ''; sl.c = ''; }
+      // (the figures' own variant is written on the box AND on both spans inside it, important: the page's universal tabular rule is important and would otherwise win on the spans)
+      const nums = w.tab ? 'tabular-nums lining-nums' : 'proportional-nums lining-nums';
+      if (style + nums !== sl.style) {
+        sl.el.style.cssText = style; sl.style = style + nums; sl.t = ''; sl.o = ''; sl.c = '';
+        for (const e of [sl.el, sl.txt, sl.halo]) e?.style.setProperty('font-variant-numeric', nums, 'important');
+      }
       // (the colours are written alone, and only when they differ: a colour glide rewrites one property, never the whole font and box style)
       const c = toCss(w.color);
       if (c !== sl.c) { sl.el.style.color = c; sl.c = c; }
@@ -58,7 +62,7 @@ export class TextLayer {
       const h = w.halo ? `${w.halo.w}px ${toCss(w.halo.color)}` : '';
       if (h !== sl.h) {
         sl.h = h;
-        if (w.halo && !sl.halo) { sl.halo = this.root.ownerDocument.createElement('span'); sl.halo.setAttribute('aria-hidden', 'true'); sl.halo.style.cssText = HALO_CSS; if (sl.el.insertBefore) sl.el.insertBefore(sl.halo, sl.txt); else sl.el.append(sl.halo); sl.halo.textContent = w.s; }
+        if (w.halo && !sl.halo) { sl.halo = this.root.ownerDocument.createElement('span'); sl.halo.setAttribute('aria-hidden', 'true'); sl.halo.style.cssText = HALO_CSS; sl.halo.style.setProperty('font-variant-numeric', nums, 'important'); if (sl.el.insertBefore) sl.el.insertBefore(sl.halo, sl.txt); else sl.el.append(sl.halo); sl.halo.textContent = w.s; }
         if (sl.halo) { const hc = w.halo ? toCss(w.halo.color) : 'transparent'; sl.halo.style.color = hc; sl.halo.style.setProperty('-webkit-text-stroke', h || '0 transparent'); sl.halo.style.display = w.halo ? '' : 'none'; }
       }
       if (w.s !== sl.text) { sl.txt.textContent = w.s; if (sl.halo) sl.halo.textContent = w.s; sl.text = w.s; }

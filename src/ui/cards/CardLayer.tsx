@@ -29,7 +29,8 @@ import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates, ensureStates } from '../../decks/hp/calc.ts';
-import { inputsIn, GIVE_UP_MS } from './inputs-in.ts';
+import { inputsIn, wordsStateIndex, GIVE_UP_MS } from './inputs-in.ts';
+import { tokensOf } from '../text/tokens.ts';
 import { Strip } from '../wallet/Strip.tsx';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
 import { cardZoom, emptyTap, zoomPlan, zoomMargin, zoomsOn } from './card-zoom.ts';
@@ -116,7 +117,10 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const ladVars = ladOn ? stepVars(cands[lad]) : undefined;
   const fitK = ladOn ? fitMap[pagesKey] : undefined;
   const dataVars = fitK != null && fitK < 1 ? { ...ladVars, '--pz-fit': fitK } : ladVars;
-  const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}|${lad}|${fitK ?? ''}`;
+  // (a phone on its side, a table card past its room after every step: its rows sit closer, one last step; the type never shrinks)
+  const [tightMap, setTightMap] = useState<Record<string, boolean>>({});
+  const tight = !!tightMap[pagesKey];
+  const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}|${lad}|${fitK ?? ''}|${tight ? 't' : ''}`;
   sigRef.current = sig;
 
   const dataKey = here?.key ?? 'ladder';
@@ -171,7 +175,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const cap = capOf(view);
     if (tooTallPair && stepAt < nSteps) { setStepMap((m) => ({ ...m, [pagesKey]: stepAt + 1 })); return; }
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
-  }, [tooTall, tooTallPair, ladBusy, fitBusy, lad, cands.length, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
+    else if (tightens) setTightMap((m) => ({ ...m, [pagesKey]: true }));
+  }, [tightens, tooTall, tooTallPair, ladBusy, fitBusy, lad, cands.length, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes
@@ -186,7 +191,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
   // holds a slide back for good: past 320 ms the cards come in as they are.
   const fonts = useFontsReady();
-  const growing = ladBusy || fitBusy || (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1));
+  const tightens = sideways && tooTall && !tight && stepAt >= nSteps && !!view && pages >= capOf(view) && view.slide?.visual === 'table';
+  const growing = ladBusy || fitBusy || (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1)) || tightens;
   // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
@@ -194,16 +200,19 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
   const states = useStates((st) => st.results[deck.id]);
   const toolAt = view?.data && here?.key.startsWith('tool:') && carried && copiedOf(deck.id) ? deck.slides.findIndex((x) => x.id === carried.id) : -1;
-  const numbers = inputsIn(toolAt, states);
+  // (and the words card whose line prints the slide's own readings waits for that slide's state too: no "…" holes in the sentence, wordsStateIndex)
+  const wordsAt = view?.slide && view.words === 'teach' ? wordsStateIndex(view.slide.line, deck.slides.findIndex((x) => x.id === view.slide!.id), !!copiedOf(deck.id), (t) => tokensOf(t).some((q) => q.token.kind === 'value' && !q.token.at)) : -1;
+  const numbers = inputsIn(toolAt, states) && inputsIn(wordsAt, states);
+  const numbersKey = `${deck.id}:${toolAt}:${wordsAt}`;
   const [gaveUp, setGaveUp] = useState('');
   useEffect(() => {
     if (numbers) return;
     const c = copiedOf(deck.id);
     if (c) void ensureStates(c);
-    const t = clock.after(() => setGaveUp(`${deck.id}:${toolAt}`), GIVE_UP_MS);
+    const t = clock.after(() => setGaveUp(numbersKey), GIVE_UP_MS);
     return () => clock.cancel(t);
-  }, [numbers, deck.id, toolAt]);
-  const go = fonts && !growing && (numbers || gaveUp === `${deck.id}:${toolAt}`) && (measured || late === pagesKey);
+  }, [numbers, deck.id, numbersKey]);
+  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || late === pagesKey);
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;
@@ -342,13 +351,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const rect = placed ?? last.current[e.key] ?? ZERO;
     // Each card is drawn from what it was let in with (frame-props.ts): a card on its way out keeps its own step, visual and signature, never the new slide's, so it is not re-spaced or measured while it goes
     const isCurrent = e.phase === 'in' && e.key === wantedKey;
-    const live: FrameLive = { vars: (slot === 'data' ? dataVars : ladVars) as CSSProperties | undefined, visual: view.slide?.visual, sig };
+    const live: FrameLive = { vars: (slot === 'data' ? dataVars : ladVars) as CSSProperties | undefined, visual: view.slide?.visual, sig, tight };
     if (isCurrent) frameSnap.current[e.key] = live;
     const fp = frameProps(isCurrent, live, frameSnap.current[e.key]);
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
+        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck), fp.tight)}>
         {slot === 'data' ? <DataCap.Provider value={alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
           // (a chart in a centred panel keeps inside what the panel leaves it, as one in a data card does: only past its floor does the panel's fit zoom take over)
           : alone === 'panel' && e.id === 'visual' ? <DataCap.Provider value={plan.maxH.words}>{content(e)}</DataCap.Provider> : content(e)}

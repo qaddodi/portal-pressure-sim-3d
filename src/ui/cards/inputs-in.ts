@@ -6,3 +6,7 @@ export const GIVE_UP_MS = 8000;
 /** Whether the numbers the data card draws from are in. `index`: the slide whose instrument the card shows (-1: it shows none, or the deck keeps no states: nothing to wait for);
  *  `states`: the deck's steps worked out so far (slide i's at i). */
 export const inputsIn = (index: number, states: readonly (unknown | undefined)[] | undefined): boolean => index < 0 || !!states?.[index];
+
+/** The slide whose own state the WORDS card needs: a slide whose line prints a reading ({co}, {map}...) waits for its state, or the card shows "…" holes that roll in later (hyperdynamic 4, tips-complete 20: a quick Next, or a slow engine,
+ *  showed "rises to …, yet the blood pressure is …"). -1: the line prints no reading of the slide's own, or the deck keeps no states. */
+export const wordsStateIndex = (line: string | undefined, slideIndex: number, kept: boolean, hasReading: (line: string) => boolean): number => (kept && slideIndex >= 0 && !!line && hasReading(line) ? slideIndex : -1);

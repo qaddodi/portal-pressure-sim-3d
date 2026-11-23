@@ -99,3 +99,10 @@ test('a time-lapse in play draws its head on the trail and the column follows th
   assert.ok(Math.max(...heads(f1)) > Math.max(...heads(f0)), 'the head moves right as the days play');
   assert.ok(f1.frame.label.length > 0);
 });
+
+test('the chart\'s SVR is MAP over CO, so CO x SVR is the MAP it names (hyperdynamic 4: 133 % x 64 % was 85 %, not 91 %)', async () => {
+  const { stateOfStep } = await import('../src/ui/charts/shift/data.ts');
+  const h = stateOfStep({ fp: { co: 5, svr: 18, map: 93, bv: 5000, pv: 7, spl: 1 } as never }).fp!, c = stateOfStep({ fp: { co: 6.65, svr: 11.6, map: 84.6, bv: 5500, pv: 13, spl: 1.5 } as never, trail: [[0, 5, 18, 93, 5000, 7, 1], [1, 6.65, 11.6, 84.6, 5500, 13, 1.5]] as never });
+  assert.ok(Math.abs((c.fp!.co! / h.co!) * (c.fp!.svr! / h.svr!) - c.fp!.map! / h.map!) < 1e-9);
+  assert.ok(Math.abs(c.trail![1]![2]! - 84.6 / 6.65) < 1e-9);
+});
