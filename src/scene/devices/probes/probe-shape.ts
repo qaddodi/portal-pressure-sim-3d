@@ -36,11 +36,15 @@ const faceR = (x: number): number => { const c = FACE_R - x; return Math.sqrt(Ma
 /** Behind the face: the head (13.3 wide at its fullest), the shoulder, the waist, the grip, the boot's taper. */
 const KEYS: readonly (readonly [number, number])[] = [[4.5, 12.5], [7, 12.9], [15, 13.3], [19, 11.9], [23, 8.3], [28, 7.3], [39, 7.5], [43, 6.2], [47, 4.8], [54, 3.9]];
 const behind = monotone(KEYS);
-/** The probe's radius at x (0 at the apex, the boot's end at BODY_END). */
-export const radiusAt = (x: number): number => (x <= FACE_SAG ? faceR(Math.max(0, x)) : behind(x));
-export const BODY_END = 54;
+/** The boot ends in a short round cap (a CLOSED end: an open end of a revolved body has no outline, the line and the rim stop short of it, owner 23 Nov: "the outline seems not to include the tip"): from x = BOOT_FLAT the radius
+ *  closes to nothing over CAP px, an ellipse. */
+export const BOOT_FLAT = 54, CAP = 2.2, BODY_END = BOOT_FLAT + CAP;
+const BOOT_R = 3.9;
+const capR = (x: number): number => { const t = (x - BOOT_FLAT) / CAP; return BOOT_R * Math.sqrt(Math.max(0, 1 - t * t)); };
+/** The probe's radius at x (0 at the apex, 3.9 at the boot's end BOOT_FLAT, closed again at BODY_END). */
+export const radiusAt = (x: number): number => (x <= FACE_SAG ? faceR(Math.max(0, x)) : x <= BOOT_FLAT ? behind(x) : capR(x));
 /** Rings of the face's dome and of the body behind it. */
-const DOME_RINGS = 14, STEP = 1.25;
+const DOME_RINGS = 14, CAP_RINGS = 6, STEP = 1.25;
 
 /** Stations of a stretch [x0, x1] of the body: the dome by angle (so the apex is round), the rest every STEP; both ends exact. */
 export function stations(x0: number, x1: number): Station[] {
@@ -51,7 +55,11 @@ export function stations(x0: number, x1: number): Station[] {
     const a1 = Math.asin(Math.min(1, radiusAt(Math.min(x1, FACE_SAG)) / FACE_R));
     for (let i = 1; i <= DOME_RINGS; i++) { const x = FACE_R * (1 - Math.cos((i / DOME_RINGS) * a1)); if (x > x0 + 1e-6 && x <= Math.min(x1, FACE_SAG) + 1e-6) add(Math.min(x, x1)); }
   }
-  for (let x = Math.max(x0, FACE_SAG) + STEP; x < x1 - 1e-6; x += STEP) add(x);
+  for (let x = Math.max(x0, FACE_SAG) + STEP; x < Math.min(x1, BOOT_FLAT) - 1e-6; x += STEP) add(x);
+  if (x1 > BOOT_FLAT) {
+    add(Math.max(x0, BOOT_FLAT));
+    for (let i = 1; i < CAP_RINGS; i++) { const a = (i / CAP_RINGS) * (Math.PI / 2), x = BOOT_FLAT + CAP * Math.sin(a); if (x > x0 + 1e-6 && x < x1 - 1e-6) add(x); }
+  }
   add(x1);
   return out;
 }

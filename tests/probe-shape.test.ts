@@ -1,7 +1,7 @@
 // The ultrasound probe's approved look (1A, 23 Nov 2026, docs/approved/us-probe.md): its outline, bands, seams and cable are pinned here so a later change cannot drift from the mock.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BANDS, BODY_END, CABLE, FACE_HALF, SEAMS, bodyStations, radiusAt, stations, cableAt } from '../src/scene/devices/probes/probe-shape.ts';
+import { BANDS, BODY_END, BOOT_FLAT, CABLE, FACE_HALF, SEAMS, bodyStations, radiusAt, stations, cableAt } from '../src/scene/devices/probes/probe-shape.ts';
 import { PROBE } from '../src/scene/devices/probes/copied/dop-probe.copied.js';
 
 test('the face is a convex arc: a round apex that widens to the footprint', () => {
@@ -9,9 +9,9 @@ test('the face is a convex arc: a round apex that widens to the footprint', () =
   assert.ok(Math.abs(radiusAt(4.5) - FACE_HALF) < 1e-9, 'the footprint is 25 px wide');
   let last = -1; for (let x = 0; x <= 4.5; x += 0.25) { const r = radiusAt(x); assert.ok(r > last); last = r; }
 });
-test('the outline keeps the mock\'s widths: head 13.3 at x 15, waist 7.3 at x 28, boot 3.9 at the end', () => {
-  assert.ok(Math.abs(radiusAt(15) - 13.3) < 0.01); assert.ok(Math.abs(radiusAt(28) - 7.3) < 0.01); assert.ok(Math.abs(radiusAt(BODY_END) - 3.9) < 0.01);
-  for (let x = 4.5; x <= BODY_END; x += 0.1) assert.ok(radiusAt(x) <= 13.5 && radiusAt(x) >= 3.8, `no overshoot at ${x}`);
+test('the outline keeps the mock\'s widths: head 13.3 at x 15, waist 7.3 at x 28, boot 3.9 at x 54', () => {
+  assert.ok(Math.abs(radiusAt(15) - 13.3) < 0.01); assert.ok(Math.abs(radiusAt(28) - 7.3) < 0.01); assert.ok(Math.abs(radiusAt(BOOT_FLAT) - 3.9) < 0.01);
+  for (let x = 4.5; x <= BOOT_FLAT; x += 0.1) assert.ok(radiusAt(x) <= 13.5 && radiusAt(x) >= 3.8, `no overshoot at ${x}`);
 });
 test('bands lie flush on the body: their stations are the body\'s own, exact at both ends', () => {
   for (const b of BANDS) { const s = stations(b.x0, b.x1); assert.equal(s[0]!.x, b.x0); assert.equal(s[s.length - 1]!.x, b.x1); for (const q of s) assert.ok(Math.abs(q.r - radiusAt(q.x)) < 1e-12); }
@@ -30,4 +30,11 @@ test('the probe keeps the room the layout search gives it (PROBE.LEN 84 px, at s
 test('the cable leaves the boot on the axis and fades out at its free end', () => {
   assert.deepEqual(cableAt(0), { x: CABLE.pts[0][0], y: CABLE.pts[0][1] });
   assert.ok(Math.abs(cableAt(1).x - CABLE.pts[3][0]) < 1e-9); assert.ok(CABLE.fade > 0 && CABLE.fade < 1);
+});
+
+test('both ends of the body are CLOSED (radius 0): an open end of a revolved body has no outline, so the line and the rim stopped short of the probe\'s tail (owner, 23 Nov: "the outline seems not to include the tip")', () => {
+  const s = bodyStations();
+  assert.equal(s[0]!.r, 0); assert.equal(s[s.length - 1]!.r, 0); assert.equal(s[s.length - 1]!.x, BODY_END);
+  for (let i = 1; i < s.length; i++) assert.ok(s[i]!.x > s[i - 1]!.x, 'rings never double back');
+  const tail = s.filter((q) => q.x > BOOT_FLAT); assert.ok(tail.length >= 5, 'a round cap, not a point'); for (let i = 1; i < tail.length; i++) assert.ok(tail[i]!.r <= tail[i - 1]!.r + 1e-9);
 });

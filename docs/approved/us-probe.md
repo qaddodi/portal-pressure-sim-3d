@@ -5,7 +5,7 @@ Reference: mock "1A" in `/mnt/project-files/us-probe-mocks/option1-variants/` (c
 Complaint it answered: "The US probe could look better."
 
 Traits (the classic curvilinear probe; keep every one):
-- Convex face: a round dome, 25 px footprint, edge 4.5 px behind the apex. Head 26.6 px wide at its fullest, a shoulder, a waist (14.6 px), a grip, a rubber boot tapering to 7.8 px. 54 px long, drawn at PROBE.SCALE 1.35 (73 px on screen).
+- Convex face: a round dome, 25 px footprint, edge 4.5 px behind the apex. Head 26.6 px wide at its fullest, a shoulder, a waist (14.6 px), a grip, a rubber boot tapering to 7.8 px. 54 px long plus a 2.2 px round cap (56.2 px), drawn at PROBE.SCALE 1.35 (76 px on screen). The boot ends in that closed round cap, never an open tube: an open end of a revolved body has no outline, so the line and the rim stopped short of the tip (owner 23 Nov: "the outline seems not to include the tip"). `tests/probe-shape.test.ts` pins that both ends close.
 - Cream shell (Light, Soft) or pale shell (Dark, Navy, Black), colours authored as drawn (`raw`), never greyed by the vessels' caps.
 - Lens band on the face (navy, deeper on the dark looks) with an inked seam at its end (1.4 px, the head's ink).
 - Flush accent ring (the look's own accent) at x 21.4 to 24.4 and a grey rubber boot from x 42.2, both with soft hairline seams (0.9 px).
