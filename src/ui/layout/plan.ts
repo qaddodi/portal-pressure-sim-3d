@@ -63,8 +63,8 @@ export const BAR_H = 44;
 /** The band the shell's top bar takes above the figure (labels and the free-room solver keep clear of it). */
 export const BAR = 56;
 export const PILL_W = 272;
-/** An iPhone's pill (Mohammad, 20 Nov: smaller, in the card's lower right corner): 32 px tall, each button's 44 px tap box reaching over its edge (deck-ui.css), about this wide. */
-export const BAR_H_PHONE = 32, PILL_W_PHONE = 177, PILL_CORNER = 14;
+/** An iPhone's pill (Mohammad, 20 Nov: smaller, in the card's lower right corner): 44 px tall (23 Nov: was 32), every button its own 44 px box (deck-ui.css), about this wide. */
+export const BAR_H_PHONE = 44, PILL_W_PHONE = 190, PILL_CORNER = 14;
 export const PILL_W_SIDE = PILL_W_PHONE;   // (iPhone on its side: the phone's own pill, Back, the count, Next, the settings and Exit; a swipe on the instrument tucks it, so the pill moves the talk)
 /** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
 export const FOOT_ZONE = 62;

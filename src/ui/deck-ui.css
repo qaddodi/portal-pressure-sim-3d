@@ -120,14 +120,14 @@
 .deck-ui .pz-jump { z-index: 5; }   /* the slide list over the pill */
 .deck-ui[data-layout="stack"] .dk-bar.phone { display: inline-flex; border-radius: var(--r-sheet); }
 /* the phone's pill is small: 32 px, its icons 16 px; every button keeps its 44 px tap box by reaching over its neighbours' edges (a 6 px negative margin each side), so a smaller look is not a smaller target */
-.deck-ui[data-layout="stack"] .dk-bar.phone { --tap-ox: 3px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
+.deck-ui[data-layout="stack"] .dk-bar.phone { --tap-ox: 0px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
 .deck-ui[data-layout="tab"] .dk-bar.phone { --tap-ox: 3px; }   /* (an upright iPad: 2D's own `.pz.stack .pz-bar .ib { margin: -4px -3px }`, tests/tap-cells.test.ts holds the 3) */
-.deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px calc(-1 * var(--tap-ox)); }
+.deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: 0 calc(-1 * var(--tap-ox)); }
 .deck-ui[data-layout="stack"] .dk-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
 /* The pill's two ends (Back, Exit) are 28 px slots, not 32 (Plan 44, Mohammad 23 Nov: "on iPhone make the pill little less wide"): the same rule with a deeper reach, 8 px each side, so the box is still 44 px, the icon is still
    centred in its slot (a 16 px icon, 6 px clear of the end; the 16 px curve is 2.1 px in at the icon's top row) and the cell, which reaches out past the pill's end by the same 2 x --tap-ox, is still 44 px wide. */
 .deck-ui[data-layout="stack"] .dk-bar.phone > .ib:is(:first-child, :last-child) { --tap-ox: 8px; }
-.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.6em; min-height: 44px; margin-block: -6px; padding: 0; font-size: var(--t-lab); }
+.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.7em; min-height: 44px; margin-block: 0; padding: 0; font-size: var(--t-lab); }
 /* ── the pill's tap cells (root fix, 20 Nov, review item P2): a button's 44 px box reaches over its neighbours, so the boxes overlapped (12 px between two buttons here, 6 px on an
    upright iPad) and whichever came later in the page took the shared strip: Back lost 6 px to the count, Next and the gear were 32 px wide. The boxes stay as they are (they paint
    the press tint and place the icon, so the look is the same); the touch moves off them onto a pseudo-element that is each button's own cell: its slot (the 32 px it takes in the pill)
@@ -376,11 +376,11 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .deck-ui[data-sideways] .dk-card:has(.pz-cred) .dk-in { padding-bottom: calc(var(--pad-y) + 20px); }
 /* the sideways pill's cells: the phone pill's rules for an iPhone on its side (the originals above stay the stack's and the tab's, tests/tap-cells.test.ts) */
 .deck-ui[data-sideways] .dk-bar.phone { display: inline-flex; border-radius: var(--r-sheet); }
-.deck-ui[data-sideways] .dk-bar.phone { --tap-ox: 3px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
-.deck-ui[data-sideways] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px calc(-1 * var(--tap-ox)); }
+.deck-ui[data-sideways] .dk-bar.phone { --tap-ox: 0px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
+.deck-ui[data-sideways] .dk-bar.phone .ib { width: 44px; height: 44px; margin: 0 calc(-1 * var(--tap-ox)); }
 .deck-ui[data-sideways] .dk-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
 .deck-ui[data-sideways] .dk-bar.phone > .ib:is(:first-child, :last-child) { --tap-ox: 8px; }
-.deck-ui[data-sideways] .dk-bar.phone > button.pzb-n { min-width: 3.6em; min-height: 44px; margin-block: -6px; padding: 0; font-size: var(--t-lab); }
+.deck-ui[data-sideways] .dk-bar.phone > button.pzb-n { min-width: 3.7em; min-height: 44px; margin-block: 0; padding: 0; font-size: var(--t-lab); }
 .deck-ui[data-sideways] .dk-bar.phone > :is(.ib, button.pzb-n),
 .deck-ui[data-sideways] .dk-bar.phone .dk-settings > .ib { pointer-events: none; }
 .deck-ui[data-sideways] .dk-bar.phone > :is(.ib, button.pzb-n)::after,
