@@ -74,12 +74,11 @@ test('Keep waiting buys a fresh 8 s, and the offline note does not flash back at
   c.advance(c.at() + 2000); assert.equal(c.boot.className, 'slow');
 });
 
-test('the bar: sliding until the cover has been up 1.2 s, then a fill of bytes/total that only ever grows, short of the end until the cover lifts, full at the lift', () => {
+test('the bar: a creep from the first paint, then a fill of bytes/total that only ever grows, short of the end until the cover lifts, full at the lift (plan 49)', () => {
   const total = 1_000_000;
   const c = run({ total, entries: (t) => file(Math.min(12, 1 + Math.floor(t / 1000))), dcl: false });   // 100 kB a second, 12 files: 1.2 MB, more than the total
-  c.advance(1000); assert.equal(c.boot.hasAttribute('data-det'), false, 'not before 1.2 s (a warm start lifts first and never shows it)');
-  assert.deepEqual(c.boot.history, []);
-  c.advance(1500); assert.equal(c.boot.hasAttribute('data-det'), true);
+  c.advance(500); assert.equal(c.boot.hasAttribute('data-det'), true, 'the first tick (0.5 s) already shows the percent: nothing waits 1.2 s any more');
+  assert.ok(c.boot.history.length >= 1 && c.boot.history[0]! <= 0.1, 'the fill starts low (what bytes have come) and the CSS creep is what moves at first');
   c.advance(12000);
   const h: number[] = c.boot.history;
   assert.ok(h.length > 3);
@@ -89,9 +88,47 @@ test('the bar: sliding until the cover has been up 1.2 s, then a fill of bytes/t
   assert.equal(c.boot.history.at(-1), 1, 'full as it lifts');
 });
 
-test('the bar stays sliding where the build gave no total (a dev page) and it never moves back when a number falls', () => {
+test('plan 49: a warm start that lifts at 600 ms still ends the bar at 100% and leaves with the cover fade (nothing pops)', () => {
+  const c = run({ total: 1_000_000, entries: () => file(12), rows: true, held: false });
+  c.advance(600); c.ctx.ppsBootLift();   // (the app is ready at once)
+  assert.equal(c.boot.history.at(-1), 1); assert.equal(c.boot.children['.boot-pct'].textContent, '100%');
+  c.advance(1300); assert.equal(c.boot.className, 'done');
+});
+
+test('plan 49: the percent is never below the creep, never goes down, and is 100 only at the lift, across creep, bytes and stages', () => {
+  const c = run({ total: 1_000_000, entries: (t) => (t < 2000 ? [] : file(12)), dcl: false, rows: true });
+  c.advance(500);
+  const pct = c.boot.children['.boot-pct'];
+  const seen: number[] = [];
+  const creepAt = (t: number) => { const x = Math.min(1, t / 8000); let lo = 0, hi = 1, s = .5; for (let i = 0; i < 40; i++) { s = (lo + hi) / 2; const m = 1 - s; if (3 * m * m * s * .1 + 3 * m * s * s * .3 + s ** 3 < x) lo = s; else hi = s; } const v = 1 - s; return .3 * (3 * v * v * s * .6 + 3 * v * s * s + s ** 3); };
+  for (let t = 500; t <= 3000; t += 500) { c.advance(t); const p = parseInt(pct.textContent); seen.push(p); assert.ok(p >= Math.floor(creepAt(t) * 100) - 1, `at ${t} ms: ${p}% is the creep ${(creepAt(t) * 100).toFixed(1)}% or more`); assert.ok(p <= 99); }
+  assert.ok(seen[0]! > 0 && seen[0]! <= 30, `the first tick already has a number (${seen[0]}%)`);
+  c.ctx.ppsBootStarted = true; c.advance(4000); c.ctx.ppsBootStage('engine'); c.advance(5000); c.ctx.ppsBootStage('scene'); c.advance(6000);
+  seen.push(parseInt(pct.textContent));
+  for (let t = 6500; t <= 9000; t += 500) { c.advance(t); seen.push(parseInt(pct.textContent)); }
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i]! >= seen[i - 1]!, `never down at ${i}: ${seen.join(',')}`);
+  assert.ok(seen.at(-1)! <= 99, 'not 100 while the cover is up');
+  c.ctx.ppsBootLift(); assert.equal(pct.textContent, '100%');
+});
+
+test('plan 49: the bar, its words and the creep are in the static HTML and CSS, with no delay and no wait for the script (compositor-only creep)', () => {
+  const css = (sel: RegExp) => { const m = HTML.match(sel); assert.ok(m, String(sel)); return m![0]; };
+  const bar = css(/#boot \.boot-bar \{[^}]*\}/);
+  assert.match(bar, /animation: boot-bar-in 240ms ease forwards;/);
+  assert.doesNotMatch(bar, /1\.2s/, 'no 1.2 s delay');
+  assert.doesNotMatch(HTML, /BAR_AFTER_MS/); assert.doesNotMatch(HTML, /boot-slide/); assert.doesNotMatch(HTML, /\.boot-bar i/);
+  const row = css(/#boot \.boot-row \{[^}]*\}/); assert.match(row, /animation: boot-bar-in 240ms ease forwards/); assert.match(row, /opacity: 0/);
+  assert.doesNotMatch(HTML, /#boot\[data-det\] \.boot-row/, 'the row shows without data-det');
+  assert.match(HTML, /<span class="boot-stage"><span>Getting ready<\/span><\/span>/, 'the words are in the HTML');
+  assert.match(css(/#boot \.boot-pct \{[^}]*\}/), /transition: opacity 200ms ease/); assert.match(HTML, /#boot\[data-det\] \.boot-pct \{ opacity: 1; \}/);
+  assert.match(css(/#boot \.boot-bar u \{[^}]*\}/), /animation: boot-creep 8s cubic-bezier\(\.1,\.6,\.3,1\) forwards/);
+  assert.match(HTML, /@keyframes boot-creep \{ to \{ transform: scaleX\(\.3\); \} \}/, 'the creep is a transform only and stops at .3, below the bytes\' 55%');
+  assert.doesNotMatch(css(/@media \(prefers-reduced-motion: reduce\) \{[^\n]*\}/), /boot-bar u/, 'Reduce Motion keeps the creep: it is progress, not decoration');
+});
+
+test('the fill stays at 0 where the build gave no total (a dev page) and it never moves back when a number falls', () => {
   const none = run({ total: 0, entries: () => file(5), dcl: false }); none.advance(3000);
-  assert.equal(none.boot.hasAttribute('data-det'), false);
+  assert.ok((none.boot.history as number[]).every((v) => v === 0), 'no byte total (a dev page): the fill stays 0, only the CSS creep moves');
   let n = 6; const c = run({ total: 1_000_000, entries: () => file(n), dcl: false });
   c.advance(2000); n = 2; c.advance(4000);
   const h: number[] = c.boot.history; assert.ok(h.length >= 1);
@@ -266,9 +303,9 @@ test('D: the stage name is present at every tick from the first bar to the lift,
 });
 
 test('D: the markup and the look: one row under the bar, the stage left in the mute colour, the percent right in tabular digits; the slow note takes the whole block away', () => {
-  assert.match(HTML, /<div class="boot-prog"><div class="boot-bar"><i><\/i><b><\/b><\/div><div class="boot-row"><span class="boot-stage"><\/span><span class="boot-pct"><\/span><\/div><\/div>/);
+  assert.match(HTML, /<div class="boot-prog"><div class="boot-bar"><u><\/u><b><\/b><\/div><div class="boot-row"><span class="boot-stage"><span>Getting ready<\/span><\/span><span class="boot-pct"><\/span><\/div><\/div>/);
   assert.match(HTML, /#boot \.boot-pct \{[^}]*font-variant-numeric: tabular-nums/);
-  assert.match(HTML, /#boot \.boot-stage > \.n \{ animation: boot-stage-in/); assert.doesNotMatch(HTML, /data-swap/, 'the stage name never depends on a timer to appear'); assert.match(HTML, /#boot\[data-det\] \.boot-row \{ opacity: 1; \}/, 'shown with the bar, not before');
+  assert.match(HTML, /#boot \.boot-stage > \.n \{ animation: boot-stage-in/); assert.doesNotMatch(HTML, /data-swap/, 'the stage name never depends on a timer to appear'); assert.match(HTML, /#boot \.boot-row \{[^}]*animation: boot-bar-in 240ms/, 'shown with the bar, from the first paint');
   const names = [...HTML.matchAll(/NAMES=\{([^}]*)\}/g)][0]![1]!;
   for (const n of [...names.matchAll(/'([^']+)'(?=[,}]|$)/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '')).filter((x) => /\s/.test(x))) assert.ok(n.length <= 21, `${n} fits 172 px at 12 px beside the percent`);
   const c = run({ entries: () => file(3), dcl: false, realCover: true, fonts: 'now' }); c.advance(9000);

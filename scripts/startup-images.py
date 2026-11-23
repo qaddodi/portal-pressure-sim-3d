@@ -2,7 +2,7 @@
 """iPhone / iPad home-screen launch images (splash plan A8, 22 Nov 2026).
 
 Without a startup image an iOS home-screen launch shows a plain screen until the page paints. These images are the cover as it looks at its first paint (index.html #boot: the look's ground, the 64 px mark, the
-name in Source Serif 4 600 20 px, the same centring), for Light and Dark, so the launch screen, the cover and the figure follow on with nothing changing between them.
+name in Source Serif 4 600 20 px, the same centring, and the empty track of the wait bar, which the cover has from its first paint), for Light and Dark, so the launch screen, the cover and the figure follow on with nothing changing between them.
 
 Run by hand when the cover's look changes (a manual tool, in no workflow, no browser):   pip install pillow fonttools brotli;  python3 scripts/startup-images.py
 It writes public/brand/launch/*.png and the <link rel="apple-touch-startup-image"> block between the markers in index.html. tests/startup-images.test.ts checks the files, their sizes and the grounds.
@@ -21,6 +21,7 @@ NAME = 'Portal Pressure Simulator 3D'
 # (CSS width, CSS height, device pixel ratio, status bar height in CSS px), portrait; iPads also go out in landscape
 PHONES = [(440, 956, 3, 62), (402, 874, 3, 62), (430, 932, 3, 59), (393, 852, 3, 59), (428, 926, 3, 47), (390, 844, 3, 47), (375, 812, 3, 44), (414, 896, 3, 44), (414, 896, 2, 44), (375, 667, 2, 20)]
 PADS = [(1032, 1376, 2, 24), (1024, 1366, 2, 24), (834, 1210, 2, 24), (834, 1194, 2, 24), (820, 1180, 2, 24), (810, 1080, 2, 24), (768, 1024, 2, 20)]
+BAR_W, BAR_H = 172, 3
 MARK, GAP, NAME_PX, BAR_BLOCK = 64, 16, 20, 29   # (the cover: mark, flex gap, name size, the progress block: its 4 px margin, the 3 px bar, 6 px and the 16 px row of the stage and percent, laid out even while still invisible)
 
 def font(px):
@@ -51,6 +52,13 @@ def render(w, h, dpr, sb, theme):
     for i, ch in enumerate(NAME):
         d.text((x, base), ch, font=f, fill=hexrgb(ink), anchor='ls')
         x += f.getlength(NAME[:i + 1]) - f.getlength(NAME[:i]) + track
+    # the empty wait bar (plan 49, 23 Nov): the cover now has its track from the first paint, so the launch image has it too, at the cover's own offset (4 px under the name block's gap, 172 x 3 px, radius 3,
+    # 14% of the text colour over the ground), and the page's fade-in lands on it
+    ty = top + MARK + GAP + round(NAME_PX * 1.2) + GAP + 4
+    tx = (w - BAR_W) / 2
+    ink_rgb, bg_rgb = hexrgb(ink), hexrgb(ground)
+    track_rgb = tuple(round(bg_rgb[k] + (ink_rgb[k] - bg_rgb[k]) * 0.14) for k in range(3))
+    d.rounded_rectangle((round(tx * s), round(ty * s), round((tx + BAR_W) * s) - 1, round((ty + BAR_H) * s) - 1), radius=BAR_H * s / 2, fill=track_rgb)
     return im
 
 def entries():
