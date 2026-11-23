@@ -7,7 +7,7 @@
 //   - iPad upright: left of the nav pill at the card's left (15 % + 13 px), 29 px from the foot; too long for the room beside the pill, a row above it (73 px).
 // Pure: node judges it on every screen.
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
-import { barOf, sideBox, footDrop, credRow, footReserve } from '../../ui/layout/plan.ts';
+import { barOf, sideBox, footDrop, credRow, footReserve, BAR_H_PHONE } from '../../ui/layout/plan.ts';
 import { cardPad, clamp, isSideways, layoutOf, pzh } from '../../ui/layout/rules2d.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { hits, type Box } from './geometry.ts';
@@ -28,7 +28,7 @@ const K = LABEL_NAMES.LABEL_STYLE.KEY, D = K.DOCK;
 export const GAP_ABOVE_PILL = D.aboveWide;
 export const GAP_ABOVE_PILL_SIDE = D.aboveSide;
 export const PHONE_SIDE = D.phoneSide;
-export const PHONE_MIN_H = D.phoneMinH;
+export const PHONE_MIN_H = Math.max(D.phoneMinH, BAR_H_PHONE);   // (23 Nov, Mohammad: the key and the nav pill are a matched pair, the same height; the pill is BAR_H_PHONE tall)
 export const PHONE_UP_FOOT = D.phoneUp;
 export const TAB_FOOT = D.tabRow;
 export const TAB_UP_FOOT = D.tabUp;

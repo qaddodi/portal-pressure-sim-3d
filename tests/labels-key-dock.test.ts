@@ -129,3 +129,12 @@ test('the split card\'s box holds its headline too ("70 % bypasses the liver" is
   const head = measure('70', 21) + measure('%', 21) + 4 + measure('bypasses the liver', 14);
   assert.ok(splitWidth(c, t, measure) >= head, `holds ${head.toFixed(0)} px`);
 });
+
+test('Mohammad 23 Nov (option 2): the key beside the phone pill is as tall as the pill, the same corner and the same row, so the two are a matched pair; the card is not taller for it', async () => {
+  const { BAR_H_PHONE } = await import('../src/ui/layout/plan.ts');
+  assert.equal(PHONE_MIN_H, BAR_H_PHONE);
+  const css = (await import('node:fs')).readFileSync('src/scene/labels/labels.css', 'utf8');
+  assert.match(css, /\.lb-key \{[^}]*border-radius: 16px;[^}]*min-height: var\(--lb-key-minh, 0\);/);   // 16 = --r-sheet, the nav pill's radius
+  const dk = (await import('node:fs')).readFileSync('src/ui/deck-ui.css', 'utf8');
+  assert.match(dk, /padding-bottom: calc\(var\(--pad-y\) \+ 50px\)/, 'the words card\'s foot padding (its height) is as it was');
+});
