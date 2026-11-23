@@ -75,3 +75,12 @@ test('only trials checked against their paper go without the warning', () => {
     assert.equal(has, t.status !== 'checked', id);
   }
 });
+
+test('the endpoint line never says the follow-up twice (ATTIRE: "days 3 to 15, days 3 to 15")', async () => {
+  const { endpointOf, sameTime } = await import('../src/ui/charts/trial/model.ts');
+  assert.ok(sameTime('New infection, renal dysfunction or death, days 3 to 15', 'Days 3 to 15'));
+  for (const id of ids) {
+    const t = trialOf(id)!, w = endpointOf(t).toLowerCase(), f = String(t.followUp ?? '').trim().toLowerCase();
+    if (f) assert.equal(w.split(f).length - 1 <= 1, true, `${id}: ${w}`);
+  }
+});

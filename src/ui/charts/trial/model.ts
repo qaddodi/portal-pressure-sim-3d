@@ -51,6 +51,9 @@ export function effectOf(t: Trial): string | null {
 const TIME = /(\d[\d.]*)\s*(day|week|month|year)/gi;
 /** Whether the endpoint already names the follow-up time ("Alive at 6 weeks, 6 weeks" would read it twice). */
 export function sameTime(endpoint: string, followUp: string): boolean {
+  // The whole follow-up phrase already inside the endpoint ("days 3 to 15" in "..., days 3 to 15"), whatever its shape.
+  const fu = String(followUp).trim().toLowerCase();
+  if (fu && String(endpoint).toLowerCase().includes(fu)) return true;
   const f = [...String(followUp).matchAll(TIME)];
   if (f.length !== 1) return false;
   const [, n, u] = f[0]!, e = String(endpoint);
