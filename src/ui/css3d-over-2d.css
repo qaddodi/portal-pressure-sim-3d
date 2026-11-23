@@ -169,3 +169,8 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
    "13 cm/s Hepatopetal · Ph", iPhone on its side, 23 Nov 2026). Same selectors as the copied rules, loaded after them. */
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="doppler"] .dop-report { flex-wrap: wrap; white-space: normal; overflow: visible; }
 :is(.pz:not(.stack):not(.low) .pz-data.pz-beside, .pz:not(.stack):not(.low) .pz-data.has-tool, .pz.stack .pz-data.has-tool, .pz.low .pz-data.has-tool) .pz-tool[data-kind="doppler"] .dop-report > .dop-pattern { overflow: visible; text-overflow: clip; white-space: nowrap; }
+
+/* A phone's only (or opened) instrument whose lines cannot get shorter (the criteria card, 563 px in a 354 px room) takes the data card's last-resort fit (`--pz-fit`, pair-ladder.ts dataFitOf).
+   The copied rule gave the card's words their zoom of 1 to let the instrument give way, but here the instrument sits inside `.dk-in` with them, so the fit was worked out and never applied: the card
+   stood 563 px tall and ran 33 px into the words card (Variceal bleed 2, iPhone upright, 23 Nov 2026). The fit is only written when the ladder has run out of steps. */
+.pz.stack .pz-data:is(.tool-open, .tool-only) > .dk-in { zoom: var(--pz-fit, 1); }
