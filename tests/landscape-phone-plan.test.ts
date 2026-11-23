@@ -63,7 +63,6 @@ test('a slide with one card keeps it at the left, centred, with the pill in the 
   const vp = { w: 852, h: 393, safe: { top: 0, right: 59, bottom: 21, left: 59 } };
   const p = planLayout(vp, [needs()[0]], 'words', 0, true);
   assert.equal(p.scrolled, false); assert.equal(p.scrollDy, 0); assert.equal(p.cards.length, 1);
-  assert.equal(p.sidePill, 'column');
   assert.ok(Math.abs(p.cards[0].rect.y - (vp.h - p.cards[0].rect.y - p.cards[0].rect.h)) <= 1);
 });
 
@@ -74,4 +73,20 @@ test('the swipe moves both cards: dock.ts takes the words as well, Strip.tsx sta
   assert.match(layer, /column: plan\.sideways \? plan\.scrollDy : undefined/);
   assert.match(layer, /lift=\{plan\.scrolled \? plan\.scrollDy : undefined\}/);
   assert.doesNotMatch(strip, /data-side/);
+});
+
+test('every slide uses the column: a chart, an outline, a check or a case standing alone is the column\'s width at the left, centred, with the figure unveiled and the pill in its column', () => {
+  const vp = { w: 852, h: 393, safe: { top: 0, right: 59, bottom: 21, left: 59 } };
+  for (const id of ['visual', 'title', 'check', 'case'] as const) {
+    const p = planLayout(vp, [{ id, slot: 'words', h: 200, visual: 'plane' }]);
+    const r = p.cards[0].rect;
+    assert.equal(r.w, sideColW(vp.w), id); assert.equal(r.x, 59, id);
+    assert.ok(Math.abs(r.y - (vp.h - r.y - r.h)) <= 1, `${id} centred`);
+    assert.ok(p.free.x >= r.x + r.w && p.free.w >= vp.w * 0.4, `${id} leaves the figure its room`);
+    assert.ok(p.bar.rect.x >= r.x + r.w, `${id}: the pill stands in the figure column`);
+    const tall = planLayout(vp, [{ id, slot: 'words', h: 900, visual: 'plane' }]);
+    assert.deepEqual(tall.overflow, [id], `${id} too tall pages`);
+  }
+  const src = readFileSync('src/ui/cards/CardLayer.tsx', 'utf8');
+  assert.match(src, /pz-veil\$\{plan\.sideways \? ''/, 'no veil beside the column');
 });

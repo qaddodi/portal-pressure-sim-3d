@@ -25,7 +25,7 @@ test('the pill stands CRED_ROW higher in the card, so the credit row under it is
 
 test('the words card carries the credit line and the foot padding leaves its row; the floating credit yields to it', () => {
   const frame = readFileSync('src/ui/cards/CardFrame.tsx', 'utf8');
-  assert.match(frame, /\(lay === 'stack' \|\| isSideways\(vp\.w, vp\.h\)\) && !data && surface\.startsWith\('pz-shade'\) && <span className="pz-cred" aria-hidden="true">\{CREDIT\}<\/span>/);
+  assert.match(frame, /!data && \(lay === 'stack' \? surface\.startsWith\('pz-shade'\) : isSideways\(vp\.w, vp\.h\) && \(surface\.startsWith\('pz-shade'\) \|\| surface\.startsWith\('pz-panel'\)\)\) && <span className="pz-cred" aria-hidden="true">\{CREDIT\}<\/span>/);
   const css = readFileSync('src/ui/deck-ui.css', 'utf8');
   assert.match(css, /@media \(min-height: 601px\) \{ \.deck-ui\[data-layout="stack"\] \.dk-card:not\(\[data-card="ladder"\]\) \.dk-in \{ padding-bottom: calc\(var\(--pad-y\) \+ 50px \+ 20px\)/);
   assert.equal(CRED_ROW, 20, 'the CSS says 20 px');

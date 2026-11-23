@@ -118,7 +118,7 @@ test('iPhone on its side: one card column at the left, the words centred and the
   assert.equal(w.x, vp.safe.left, 'the column stands on the left safe edge');
   assert.ok(Math.abs(w.y - (vp.h - w.y - w.h)) <= 1, 'the words are centred');
   assert.ok(d.y > w.y + w.h && d.y + d.h > vp.h, 'the instrument is under them and bleeds off');
-  assert.equal(p.sidePill, 'column'); assert.equal(p.scrolled, false);
+  assert.equal(p.scrolled, false);
   assert.ok(!hit(w, p.free) && !hit(d, p.free) && !hit(w, p.bar.rect) && !hit(d, p.bar.rect), 'the figure column and the pill are clear of both cards');
   const t = planLayout(vp, needs(230, 180), 'words', 0, true);
   assert.equal(t.scrolled, true); assert.ok(t.scrollDy > 0);
