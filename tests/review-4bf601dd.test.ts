@@ -25,3 +25,14 @@ test('the labels wait while the figure has not reached the slide (Where resistan
   setFigurePending(false);
   assert.equal(figurePending(), false, 'the state is in: they come back');
 });
+
+import { csphFingerprint } from '../scripts/gen-engine-fixture.mjs';
+import { profileOf, planProfile, goalOf, spansOf } from '../src/ui/charts/profile/model.ts';
+test('a short profile plot: "Healthy" never stands on a reading\'s number (Where resistance 7, IVC web, 400 px wide, 150 px room)', async () => {
+  const h = profileOf(await csphFingerprint('healthy'))!, p = profileOf(await csphFingerprint('ivc-web'))!;
+  for (const room of [140, 150, 170]) {
+    const plan = planProfile(400, room, 13.8, goalOf(p, h, null), h, null, spansOf(['hvpg', 'ppg'])), n = plan.names.find((x) => x.c === 'hl')!;
+    const b = [n.x - n.w / 2, n.x + n.w / 2, n.y - 0.72 * 13.8, n.y + 0.2 * 13.8];
+    for (const s of plan.sides) assert.ok(!(b[0]! < s.box[1] && s.box[0] < b[1]! && b[2]! < s.box[3] && s.box[2] < b[3]!), `${room}: Healthy over a number`);
+  }
+});

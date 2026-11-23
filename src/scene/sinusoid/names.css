@@ -18,3 +18,6 @@
 .sv-layer .sv-end-arrow-r { left: calc(100% + 12px); top: calc(50% - 10.5px); }
 .sv-layer .sv-end-arrow-u { bottom: calc(100% + 13px); left: calc(50% - 12px); transform: rotate(-90deg); }
 .sv-layer .sv-end-arrow-d { top: calc(100% + 13px); left: calc(50% - 12px); transform: rotate(90deg); }
+
+/* a tall screen whose room is short: a name and its readings on one line (names.ts `inline`, measured so) */
+.sv-layer .sv-region[data-inline] { flex-direction: row; align-items: baseline; gap: 6px; }

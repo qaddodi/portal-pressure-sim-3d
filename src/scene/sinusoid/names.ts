@@ -45,7 +45,8 @@ export interface NamesInput {
   /** The terms a slide lights now (`sinusoid:canaliculus` names a canaliculus on a tall screen). */
   lit?: ReadonlySet<string>;
   /** A name's size in px: its capitals and its readings, as the label layer sets them. */
-  measure(key: NameKey, name: string, value: string): readonly [number, number];
+  /** `inline`: the name and its readings on one line (a tall screen whose room is too short to stack the names, 2D has no such room): the layer sets the caption so, then measures it. */
+  measure(key: NameKey, name: string, value: string, inline?: boolean): readonly [number, number];
 }
 export interface NamePlacement {
   key: NameKey; name: string; value: string;
@@ -54,6 +55,8 @@ export interface NamePlacement {
   /** Its box's centre and size on screen (px). */
   cx: number; cy: number; w: number; hh: number;
   end: boolean;
+  /** Set on one line (name, then readings) because the room is short. */
+  inline?: boolean;
   /** The thin leader from its box to what it names (px), or null when it stands on it. */
   leader: { x1: number; y1: number; x2: number; y2: number; tx: number; ty: number } | null;
 }
@@ -72,6 +75,12 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   // the tissue's own geometry below keeps the room as it is
   const fe = { ...fe0, l: fe0.l + EDGE, r: fe0.r - EDGE };
   const feGeom = fe0;
+  // a tall screen whose room is too short to stack the ends' names and the sinusoid's (each a name over its readings, plus the arrows) puts name and readings on one line (Mohammad, 23 Nov: "tighter labels";
+  // Ascites 9 on an iPhone with both cards up: Portal venule, Central vein and Sinusoid printed over each other in 176 px)
+  const INLINE: ReadonlySet<NameKey> = new Set<NameKey>(['in', 'out', 'sin', 'fen', 'lymph']);
+  const stacked = V ? ([['in', END_NAMES[0], inp.text.inValue], ['out', END_NAMES[1], inp.text.outValue], ['sin', 'Sinusoid', inp.text.sin]] as const).reduce((a, [key, name, value]) => a + inp.measure(key, name, value)[1], 0) : 0;
+  const tight = V && fe.b - fe.t < stacked + 2 * 48 + 24;
+  const meas = (key: NameKey, name: string, value: string): { w: number; hh: number; inl: boolean } => { const inl = tight && INLINE.has(key); const [w, hh] = inp.measure(key, name, value, inl); return { w, hh, inl }; };
   const out: NamePlacement[] = [];
   const by: Partial<Record<NameKey, NamePlacement>> = {};
   const ang = V ? Math.PI / 2 : 0, ca = Math.cos(ang), sa = Math.sin(ang);
@@ -85,7 +94,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
 
   const region = (key: NameKey, name: string, value: string, x: number, y: number, o: { along?: boolean; side?: number } = {}): NamePlacement => {
     const alongName = !!o.along, side = o.side ?? 0;
-    const [w, hh] = inp.measure(key, name, value);
+    const { w, hh, inl } = meas(key, name, value);
     const a = alongName && !V ? ang : 0;
     const across = alongName ? hh : Math.abs(w * Math.sin(ang)) + Math.abs(hh * Math.cos(ang));
     const yc = y + side * (across / 2) / k;
@@ -102,7 +111,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
       cx = clamp(cx, Math.min(fe.l + w / 2 + 4, W / 2), Math.max(fe.r - w / 2 - 4, W / 2));
     }
     void a;
-    const P: NamePlacement = { key, name, value, x: x + (V ? 0 : (cx - cx0) / k), y, cx, cy, w, hh, end: false, leader: null };
+    const P: NamePlacement = { key, name, value, x: x + (V ? 0 : (cx - cx0) / k), y, cx, cy, w, hh, end: false, leader: null, ...(inl ? { inline: true } : {}) };
     out.push(P); by[key] = P;
     return P;
   };
@@ -159,15 +168,15 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
 
   // ── the ends: the portal venule above (left of) the vessel, the central vein below (right of) it, each with its arrow outside the name (2D layoutEnds) ──
   const band: [number, number] = [0, 0];
-  const A = 22 + 26;
+  const A = tight ? 36 : 22 + 26;
   const leg = inp.legend;
   for (let u = 0; u < 2; u++) {
     const key: NameKey = u ? 'out' : 'in', name = END_NAMES[u]!, value = u ? inp.text.outValue : inp.text.inValue;
-    const [w, hh] = inp.measure(key, name, value);
+    const { w, hh, inl } = meas(key, name, value);
     let x: number, y: number;
     if (V) { x = C[0] - w / 2; y = u ? fe.b - hh - A : fe.t + A; } else { x = u ? fe.r - w - 8 - A : fe.l + 8 + A; y = C[1] - hh / 2; }
     if (V && !u && leg && leg.w && leg.x + leg.w > x - 6) y = Math.max(y, leg.y + leg.h + A);
-    const P: NamePlacement = { key, name, value, x: 0, y: 0, cx: x + w / 2, cy: y + hh / 2, w, hh, end: true, leader: null };
+    const P: NamePlacement = { key, name, value, x: 0, y: 0, cx: x + w / 2, cy: y + hh / 2, w, hh, end: true, leader: null, ...(inl ? { inline: true } : {}) };
     out.push(P); by[key] = P;
     if (!V) endBox[u] = { u, x0: u ? x : x - A, x1: u ? x + w + A : x + w, y0: y, y1: y + hh };
     if (V) band[u] = u ? y - 6 : y + hh + 6;

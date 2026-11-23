@@ -82,12 +82,39 @@ export function heightFor(w: number, f: number, spans: Span[], asked?: number): 
   return Math.ceil(Math.max(own, 11 * f, need));
 }
 
+/** A line's name that stands on a reading's number (a short plot has no clear place beside the line: "Healthy" over the HV's 16, Where resistance 7, capture 4bf601dd) goes on its own line instead
+ *  (Mohammad, 21 Oct: "put healthy on the dashed line"), where its halo breaks it: the place nearest the line's right end clear of every number (and its halo) and of the slide's own line. */
+export function clearOfReadings(names: LineName[], G: Geo, goal: Goal, hl: Prof | null, bf: Prof | null, sides: Side[]): LineName[] {
+  const f = G.f, cap = 0.72 * f, halo = 2.5;
+  const yg = (v: number) => G.Z - (G.Z - G.T) * Math.max(0, Math.min(v, goal.top)) / goal.top;
+  const lineAt = (p: Prof, x: number): number => {
+    const xs = p.v.map((_, i) => G.x(i));
+    let i = 0; while (i < xs.length - 2 && x > xs[i + 1]!) i++;
+    const t = Math.max(0, Math.min(1, (x - xs[i]!) / ((xs[i + 1]! - xs[i]!) || 1)));
+    return yg(p.v[i]! + (p.v[i + 1]! - p.v[i]!) * t);
+  };
+  const over = (b: Box, bs: Box[]) => bs.some((o) => b[0] < o[1] && o[0] < b[1] && b[2] < o[3] && o[2] < b[3]);
+  const nums: Box[] = sides.filter((v) => v?.box).map((v) => [v.box[0] - halo, v.box[1] + halo, v.box[2] - halo, v.box[3] + halo]);
+  return names.map((n) => {
+    const own = n.c === 'hl' ? hl : bf;
+    const box: Box = [n.x - n.w / 2, n.x + n.w / 2, n.y - cap, n.y + 0.2 * f];
+    if (!own || !over(box, nums)) return n;
+    for (let x = G.R - n.w / 2; x >= G.L + n.w / 2 + 2; x -= 3) {
+      const y = lineAt(own, x) + 0.36 * f, b: Box = [x - n.w / 2, x + n.w / 2, y - cap, y + 0.2 * f];
+      const gy = [x - n.w / 2, x, x + n.w / 2].map((px) => lineAt(goal, px));
+      if (over(b, nums) || gy.some((g) => g > b[2] - 2 && g < b[3] + 2) || b[2] < G.T || b[3] > G.Z) continue;
+      return { ...n, x, y };
+    }
+    return n;
+  });
+}
+
 export function planProfile(w: number, h: number, f: number, goal: Goal, hl: Prof | null, bf: Prof | null, spans: Span[], bfName = 'Before'): ProfilePlan {
   const tw = twAt(f);
   const hh = heightFor(w, f, spans, h > 0 ? h : undefined);
   const G = profileGeo(w, hh, f, tw, false, spans);
   const sides = numberSides(G, tw, goal), pills = placePills(G, tw, goal, hl, bf, sides);
-  const names = placeLineNames(G, tw, goal, hl, bf, sides, null, bfName, pills || []);
+  const names = clearOfReadings(placeLineNames(G, tw, goal, hl, bf, sides, null, bfName, pills || []), G, goal, hl, bf, sides);
   return { size: `${Math.round(w)}x${Math.round(hh)}|${f.toFixed(3)}|${spans.map(([k]) => k).join()}`, w, h: hh, f, tw, G, goal, hl, bf, spans, sides, pills, names, bfName };
 }
 

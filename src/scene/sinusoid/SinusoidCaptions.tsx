@@ -118,8 +118,9 @@ export function SinusoidCaptions() {
       return e;
     };
     /** a caption's size as the page sets it (2D: the stylesheet's type, read once when its words change; never in a frame) */
-    const size = (key: NameKey, name: string, value: string, note: string | null): readonly [number, number] => {
+    const size = (key: NameKey, name: string, value: string, note: string | null, inline = false): readonly [number, number] => {
       const e = fill(els.get(key) ?? make(key), name, value, key, note ? key : null);
+      e.root.toggleAttribute('data-inline', inline);   // (names.css: the name and its readings on one line; measured so)
       return [e.root.offsetWidth, e.root.offsetHeight];
     };
 
@@ -140,6 +141,7 @@ export function SinusoidCaptions() {
       for (const p of placed) {
         const e = els.get(p.key) ?? make(p.key);
         fill(e, p.name, p.value, p.key, st.explain);
+        e.root.toggleAttribute('data-inline', !!p.inline);
       }
     };
 
