@@ -9,6 +9,8 @@ import { jump, setSpeed, settle, togglePlay } from './transport.ts';
 import { PLAY_TITLES, SETTLED } from './words.ts';
 import { useCompare } from '../compare/store.ts';
 import { useTimeline } from '../timeline/store.ts';
+import { useUi } from '../ui-store.ts';
+import { BT } from '../bigtime/words.ts';
 import { restartPatient } from '../patients/index.ts';
 import { CMP } from '../compare/words.ts';
 import { envNow } from '../action/env.ts';
@@ -36,11 +38,12 @@ function SpeedMenu() {
   );
 }
 
-function JumpMenu({ compare }: { compare: boolean }) {
+function JumpMenu({ compare, chart }: { compare: boolean; chart: boolean }) {
   const done = () => useShell.getState().close();
   const canUndo = useTimeline((t) => t.canUndo), comparing = useCompare((c) => !!c.snap);
   return (
     <>
+      {chart && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); useShell.getState().open('timeline'); }}><span className="sh-t"><b>{BT.open}</b></span></button>}
       {canUndo && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); runFeature('undo', pb.menu[2]); }}><span className="sh-t">{pb.menu[2]}</span></button>}
       <div className="sh-title">{pb.menu[3]}</div>
       {pb.jumps.map((j) => <button key={j.short} type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); jump(j.days); }}><span className="sh-t">{`Jump ${j.long} ahead`}</span></button>)}
@@ -127,6 +130,7 @@ export function Timeline({ phone }: { phone: boolean }) {
   const { running, speed, lapse, time } = useShell((s) => s.transport);
   const hold = useRef<{ t: TimerId | undefined; held: boolean }>({ t: undefined, held: false });
   const comparing = useCompare((c) => !!c.snap), histCount = useTimeline((t) => t.count);
+  const charting = useShell((s) => s.sheet === 'timeline'), upright = useUi((s) => s.device) === 'phone-portrait';   // (a phone held upright has no room for the Chart button: the jump menu carries it)
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
   return (
@@ -150,10 +154,11 @@ export function Timeline({ phone }: { phone: boolean }) {
       <div className="tl-jumps">
         <Anchored sheet="jump" place="above" align="end" width={300} label={pb.controls[4]} button={({ id, open, toggle, ref }) => (
           <button type="button" ref={ref} className="ib tl-ff" data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><I n="ffwd" /></button>)}>
-          <JumpMenu compare={phone} />
+          <JumpMenu compare={phone} chart={upright} />
         </Anchored>
       </div>
       <button type="button" className="tl-hist" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><I n="clock" className="mi-ic" /><span className="tl-hl">{pb.controls[3]}</span><span className="tl-hc">{histCount > 0 ? histCount : ''}</span></button>
+      <button type="button" className="tl-pin tl-chart" aria-pressed={charting} aria-haspopup="dialog" aria-label={BT.open} title={BT.open} onClick={() => useShell.getState().toggle('timeline')}><I n="chart" className="mi-ic" /><span>Chart</span></button>
       <button type="button" className="tl-pin" aria-pressed={comparing} aria-label={comparing ? CMP.stop : pb.controls[5]} title={comparing ? PLAY_TITLES.stopCompare : PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><I n="compare" className="mi-ic" /><span>{comparing ? 'Stop' : 'Compare'}</span></button>
     </div>
   );

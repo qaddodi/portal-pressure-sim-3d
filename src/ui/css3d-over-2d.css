@@ -158,3 +158,9 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
   .pz-table td.bp { font-size: .86em; }
   .pz .pz-table thead tr.th-up th.num { text-orientation: sideways; }
 }
+
+/* The timeline chart's button in the bar (owner picked option A, 23 Nov 2026): it is a `.tl-pin` like Compare (a label on a Mac and an iPad held sideways, an icon elsewhere), but it stays on an iPad upright, where
+   Compare is off, and goes only on a phone held upright, where the jump menu carries "See as a chart". Its word is as wide as it is, not the 8 characters Compare keeps for "Stop". */
+.tl-pin.tl-chart > span { min-width: 0; }
+@media (max-width: 1100px) and (orientation: portrait) { .vdock .tl-pin.tl-chart { display: inline-flex; } }
+@media (max-width: 599px) and (orientation: portrait) { .vdock .tl-pin.tl-chart { display: none; } }

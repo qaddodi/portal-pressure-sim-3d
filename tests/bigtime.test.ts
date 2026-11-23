@@ -230,3 +230,13 @@ test('the gradients: HVPG, PPG and EUS-PPG are each a series with a toggle; the 
   assert.ok(off.w.includes('PPG '));
   assert.equal(words(['pv']).lanes, 'p', 'none of the three on: no gradients lane');
 });
+
+test('the chart is one tap from the timeline bar: a Chart button beside Compare, and "See as a chart" first in the jump menu on a phone held upright', async () => {
+  const { readFileSync } = await import('node:fs');
+  const bar = readFileSync(new URL('../src/ui/shell/PlayBar.tsx', import.meta.url), 'utf8');
+  assert.ok(/className="tl-pin tl-chart"[^\n]*toggle\('timeline'\)/.test(bar), 'the bar has a Chart button that toggles the chart');
+  assert.ok(bar.indexOf('tl-pin tl-chart') < bar.indexOf('className="tl-pin" aria-pressed={comparing}'), 'it sits before Compare');
+  assert.ok(/chart && <button[^\n]*open\('timeline'\)/.test(bar) && /chart=\{upright\}/.test(bar), 'the jump menu carries it where the row has no room');
+  const css = readFileSync(new URL('../src/ui/css3d-over-2d.css', import.meta.url), 'utf8');
+  assert.ok(/max-width: 599px\) and \(orientation: portrait\) \{ \.vdock \.tl-pin\.tl-chart \{ display: none/.test(css), 'hidden only on a phone held upright');
+});
