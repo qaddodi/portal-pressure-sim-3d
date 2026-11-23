@@ -9,7 +9,7 @@ import type { WeldCourseOut, WeldSkin } from '../lobule/welds.ts';
 
 /** The parallel arrays a part keeps beside its mesh (every vertex pushes one number to each, in the order the mesh's vertices are written). */
 /** `fc`: the dust's place on each vertex (cel3d `fcourse`: the course's column of the dust's route table, its arc, its length, the true place across; 3 where none is drawn), for the blood's parts. */
-export interface PartData { b: MeshBuilder; W: number[]; K: number[]; sw?: number[]; W2?: number[]; M?: number[]; fc?: number[] }
+export interface PartData { b: MeshBuilder; W: number[]; K: number[]; sw?: number[]; /** each vertex's own tube radius (local units): the ink's width never outgrows it (cel3d `inkR`) */ ir?: number[]; W2?: number[]; M?: number[]; fc?: number[] }
 
 export interface EmitOpts {
   /** Radius scale: the lobule's radius in local units. */
@@ -59,6 +59,7 @@ export function emitCourse(d: PartData, out: WeldCourseOut, o: EmitOpts): void {
       const i = sampleOf(before + v), ring = v < ringVerts;
       d.W.push(out.w[i]!); d.K.push(1);
       if (d.sw) { const r = out.rad[i]!; d.sw.push(r, r * (o.cong?.(rho(i)) ?? 0)); }
+      d.ir?.push(out.rad[i]!);
       if (d.W2) { d.W2.push(o.altW?.(rho(i)) ?? out.w[i]!); d.M!.push(0); }
       b.aux.push(phase + out.arc[i]!);
       const g = before + v, [tx, ty] = tangent(i), acr = -ty * b.n[g * 3]! + tx * b.n[g * 3 + 1]!;
@@ -82,6 +83,7 @@ export function emitSkin(d: PartData, skin: WeldSkin, byKey: ReadonlyMap<string,
     skin.arms.forEach((a, i) => { const k = wt[i]!; if (hostArms[i]) { w += k * a.wSeam; share += k; } else other += k; });
     d.W.push(share > 1e-6 ? w / share : (o.altW?.(rho) ?? 0)); d.K.push(1);
     if (d.sw) { const r = m.restR[v]!; d.sw.push(r, r * (o.cong?.(rho) ?? 0)); }
+    d.ir?.push(m.restR[v]!);
     if (d.W2) { d.W2.push(o.altW?.(rho) ?? 0); d.M!.push(Math.min(1, Math.max(0, other))); }
     // the flow marks: a through host's run on over the skin where the host owns the vertex
     let aux = 0, aux2 = 3;

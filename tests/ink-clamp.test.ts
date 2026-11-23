@@ -2,7 +2,7 @@
 // tube's own width; the lymph channels taper to nothing in zone 3, so once the strip of tube beside its wall was narrower than the hull only ink showed, and where the tube dived under a crossing vessel the sliver came and went.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { INK_HALF, MICRO_INK_FS, MICRO_INK_VS, MIN_LINE, inkAlpha, inkWidth } from '../src/scene/micro3d/cel3d.ts';
+import { INK_HALF, INK_FADE_HI, INK_FADE_LO, MICRO_INK_FS, MICRO_INK_VS, MIN_LINE, inkWidth } from '../src/scene/micro3d/cel3d.ts';
 
 test('the twin: never more than half the radius, none as the tube goes to nothing, the whole hull from twice its width', () => {
   for (const px of [0.8, 1, 1.5, 2.5]) {
@@ -11,7 +11,7 @@ test('the twin: never more than half the radius, none as the tube goes to nothin
       const w = inkWidth(px, r);
       assert.ok(w <= INK_HALF * r + 1e-12, `px ${px} r ${r}: ${w}`);
       assert.ok(w >= prev - 1e-12, 'it grows with the tube');
-      if (r >= 2 * px) assert.equal(w, px, 'a wide tube keeps its whole line');
+      if (r >= 2 * px && px >= MIN_LINE) assert.equal(w, px, 'a wide tube keeps its whole line');
       prev = w;
     }
     assert.equal(inkWidth(px, 0), 0);
@@ -20,18 +20,18 @@ test('the twin: never more than half the radius, none as the tube goes to nothin
   assert.equal(INK_HALF, 0.5);
 });
 
-test('a thread\'s line fades out instead of breaking into dashes: 0 below 0.35 of the minimum line, whole from it, smooth between', () => {
-  assert.equal(inkAlpha(0), 0); assert.equal(inkAlpha(0.35 * MIN_LINE), 0); assert.equal(inkAlpha(MIN_LINE), 1); assert.equal(inkAlpha(3 * MIN_LINE), 1);
-  let prev = 0; for (let w = 0; w <= 1.2; w += 0.01) { const a = inkAlpha(w); assert.ok(a >= prev - 1e-12 && a <= 1); assert.ok(a - prev < 0.06, 'no step'); prev = a; }
+test('a thread\'s line thins out instead of breaking into dashes: 0 below 0.35 of the minimum line, whole from it, smooth between (in the width, never the opacity)', () => {
+  const px = 2;   // (a hull wide enough that the clamp is the half radius over this range)
+  assert.equal(inkWidth(px, 0.35 * MIN_LINE * 2), 0); assert.ok(Math.abs(inkWidth(px, 2 * MIN_LINE) - MIN_LINE) < 1e-12); assert.equal(inkWidth(px, 6), px);
+  assert.ok(INK_FADE_LO < INK_FADE_HI);
+  let prev = 0; for (let r = 0; r <= 3; r += 0.01) { const w = inkWidth(px, r); assert.ok(w >= prev - 1e-12); assert.ok(w - prev < 0.04, 'no step'); prev = w; }
 });
 
-test('the ink shader applies the clamp and the fade for every part that carries a radius (source ratchet)', () => {
-  assert.match(MICRO_INK_VS, /#ifdef SWELL[\s\S]*float rPx = max\(swell\.x \+ infl, 0\.0\)[\s\S]*w = min\(px, 0\.5 \* rPx\);[\s\S]*vInkA = smoothstep\(0\.35, 1\.0, w \/ 1\.0\);[\s\S]*#endif/);
+test('the ink shader applies the clamp and the fade, in the width, for every part that carries a tube radius (source ratchet)', () => {
+  assert.match(MICRO_INK_VS, /#ifdef INKR[\s\S]*float rPx = max\(inkR \+ infl, 0\.0\)[\s\S]*w = min\(px, 0\.5 \* rPx\);[\s\S]*w \*= smoothstep\(0\.35, 1\.0, w \/ 1\.0\);[\s\S]*#endif/);
   assert.match(MICRO_INK_VS, /c\.xy \+= nd \* w \* smoothstep/, 'the push is the clamped width, not px');
   assert.doesNotMatch(MICRO_INK_VS, /c\.xy \+= nd \* px/);
-  assert.match(MICRO_INK_FS, /varying float vInkA;/);
-  assert.match(MICRO_INK_FS, /float o = opacity \* vInkA;/);
-  assert.match(MICRO_INK_VS, /vInkA = 1\.0;/, 'a part with no radius keeps its whole line');
+  assert.doesNotMatch(MICRO_INK_FS, /vInkA/, 'no opacity fade: the ink is opaque, so it only darkened the line');
 });
 
 test('GLSL: the ink shaders parse (with and without the swell)', async () => {

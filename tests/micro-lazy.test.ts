@@ -111,7 +111,9 @@ test('a lazy Lobule3D builds its vessels in several slices, and a late weld plan
   assert.equal(l3.vesselsReady, true);
   assert.ok(THIN_SEG < TUBE_SEG);
   const src = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
-  assert.match(src, /this\.vesselsBuilt = false; this\.vgen = null; this\.inkKey = '';\n\s+this\.pumpVessels\(\);/);
+  assert.match(src, /this\.vesselsBuilt = false; this\.vgen = null;\n\s+this\.pumpVessels\(\);/);
+  // (the colour is re-laid by the one tint step, which also forgets the ink key, f55663d1)
+  assert.match(src, /p\.setTint\(\[1, 1, 1\]\);\n\s+this\.inkKey = '';/);
 });
 
 test('the sinusoid shape passes are cut into sections: many small steps, then ready; the scene takes them in time-boxed slices of the one background slot', async () => {

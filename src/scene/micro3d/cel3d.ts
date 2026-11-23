@@ -413,14 +413,14 @@ export const INK_BACK = 0.0015;
 /** No line thinner than this (CSS px): the canvas has no multisampling, and a hull band under about 1.5 device px breaks into dashes as it crosses the pixel grid (the dotted
  *  hepatocytes, the stippled nucleus rings, eyes 20 Nov). Every micro part's line is held to it, so no part can ask for a line too thin to draw. */
 export const MIN_LINE = 1.0;
-/** A tube never wears more ink than this share of its own radius on screen, and its line fades out (rather than breaking into dashes) as that share shrinks under MIN_LINE: INK_FADE_LO to INK_FADE_HI of MIN_LINE.
- *  Root cause of the black slivers and notches along the lymph's and the sinusoids' edges (Mohammad, 23 Nov 2026, the SOS slide): every hull was pushed out a fixed `px` whatever the tube's own width, and the lymph
- *  tubes taper to nothing in zone 3, so once the strip of tube beside its wall was narrower than the hull only ink showed. The twin of the vertex shader's clamp (tests/ink-clamp.test.ts). */
+/** A tube never wears more ink than this share of its own radius on screen, and its line thins out (rather than breaking into dashes) as that share shrinks under MIN_LINE: the width is faded by INK_FADE_LO to INK_FADE_HI of MIN_LINE.
+ *  Root cause of the black slivers and notches along the tubes' edges (Mohammad, 23 Nov 2026, the SOS slide): every hull was pushed out a fixed `px` whatever the tube's own width, and the tubes taper to nothing, so once
+ *  the strip of tube beside its wall was narrower than the hull only ink showed. Every tube part carries its own rest radius per vertex (`inkR`), so the rule holds for each: sinusoids, inlets, twigs, bile, lymph and
+ *  the junction skins. The fade is in the WIDTH (the ink material is opaque, so an opacity fade only darkened the line). The twin of the vertex shader (tests/ink-clamp.test.ts). */
 export const INK_HALF = 0.5, INK_FADE_LO = 0.35, INK_FADE_HI = 1.0;
-/** The ink's width for a hull of `px` on a tube whose own radius is `rPx` on screen: never more than half of it. */
-export const inkWidth = (px: number, rPx: number): number => Math.min(px, INK_HALF * Math.max(0, rPx));
-/** The ink's presence for a width: 0 below INK_FADE_LO of MIN_LINE, whole from MIN_LINE, smooth between. */
-export const inkAlpha = (w: number): number => { const t = Math.min(1, Math.max(0, (w / MIN_LINE - INK_FADE_LO) / (INK_FADE_HI - INK_FADE_LO))); return t * t * (3 - 2 * t); };
+const smooth01 = (t: number): number => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
+/** The ink's width for a hull of `px` on a tube whose own radius is `rPx` on screen: never more than half of it, and thinning to nothing under MIN_LINE. */
+export const inkWidth = (px: number, rPx: number): number => { const w = Math.min(px, INK_HALF * Math.max(0, rPx)); return w * smooth01((w / MIN_LINE - INK_FADE_LO) / (INK_FADE_HI - INK_FADE_LO)); };
 /** The canvas's pixel ratio, for the lines drawn in the fill (uRim, device px). The scene writes it each frame; every micro part's rim width follows it. */
 export const MICRO_DPR = { value: 2 };
 export const MICRO_INK_VS = /* glsl */ `
@@ -428,6 +428,10 @@ uniform float px;
 uniform vec2 res;
 uniform vec3 tint;
 uniform float inflate;
+#ifdef INKR
+// (the tube's own rest radius, local units, on every tube part: the ink's width never outgrows it)
+attribute float inkR;
+#endif
 #ifdef SWELL
 // (a swelling that follows each vertex's own place: swell = (its radius, its radius times its share of the swelling), uSwell = (the whole widening, the share's), so a widening that
 //  differs from the portal side to the centre runs smoothly along every vessel and through every junction: one number per part stepped where two parts met, Mohammad 20 Nov 2026
@@ -444,7 +448,6 @@ ${SHAPE_VS_DECL}
 varying float vHy;
 varying vec2 vXY;
 varying vec3 vOwnC;
-varying float vInkA;
 void main() {
   vOwnC = tint;
 #ifdef USE_COLOR
@@ -489,12 +492,11 @@ ${SHAPE_VS_APPLY}
   // only a normal that faces sideways on screen pushes the line out: a face toward the viewer (a tile's top, the inner ring of a bevel) stays put, so the hull never folds
   // over the face and draws creases across it
   float w = px;
-  vInkA = 1.0;
-#ifdef SWELL
+#ifdef INKR
   // (the tube's own radius on screen, in the units px is in: a hull wider than the strip of tube beside its wall shows only ink, a black sliver. Never more than half the radius, and a line that thins out fades)
-  float rPx = max(swell.x + infl, 0.0) * length(modelViewMatrix[0].xyz) * abs(projectionMatrix[1][1]) / max(c.w, 1e-5) * res.y * 0.5;
+  float rPx = max(inkR + infl, 0.0) * length(modelViewMatrix[0].xyz) * abs(projectionMatrix[1][1]) / max(c.w, 1e-5) * res.y * 0.5;
   w = min(px, ${F(INK_HALF)} * rPx);
-  vInkA = smoothstep(${F(INK_FADE_LO)}, ${F(INK_FADE_HI)}, w / ${F(MIN_LINE)});
+  w *= smoothstep(${F(INK_FADE_LO)}, ${F(INK_FADE_HI)}, w / ${F(MIN_LINE)});
 #endif
   c.xy += nd * w * smoothstep(0.2, 0.6, length(vn.xy)) * 2.0 / res * c.w;
   gl_Position = c;
@@ -516,8 +518,7 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
 varying vec2 vXY;
-varying float vInkA;
-void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); float o = opacity * vInkA; gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * o, o); }`;
+void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); float o = opacity; gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * o, o); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -552,6 +553,8 @@ export interface MicroOptions {
   rimK?: { value: number };
   /** A per-vertex swelling (the geometry carries `swell`, see MICRO_VS), set with setSwell. */
   swell?: boolean;
+  /** The geometry carries `inkR` (each vertex's tube radius, local units): the ink's width never outgrows the tube, and thins out with it (MICRO_INK_VS). Every tube part. */
+  inkR?: boolean;
   /** The part moves with its vessel's wall as the vessel swells (the geometry carries `hug`, see MICRO_VS), set with setHug. */
   hug?: boolean;
   /** The part's shape follows the sinusoid's state on the GPU (the geometry carries `dH` and `dD`, and with `second` also `dH2`; sinusoid-shape.ts): `u` is the scene's one shape uniform. */
@@ -596,7 +599,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({ name: 'micro ink',
-    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
+    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.inkR ? { INKR: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
     uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, uShape: toon.uniforms.uShape!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
     // (the hull's faces toward the viewer sit INK_BACK behind the shape's own in the vertex shader, but that is a share of the eye's distance: where the depth buffer cannot tell the two apart, a flat top such as the
