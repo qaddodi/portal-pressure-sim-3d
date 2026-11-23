@@ -15,19 +15,19 @@ export type SpecRow = readonly [key: string, label: string, min: number, max: nu
 
 /** The lab's sliders that mean something on the real vessels (its vessel radius, outline, chevrons, tilt, zoom, scenario lesions and background are the app's own: see LAB_ONLY). Defaults are Mohammad's own pick of 20 Nov, 15:53 UTC (the look he chose for the app). */
 export const DUST_SPEC: readonly SpecRow[] = [
-  ['density', 'Density (full at 2400)', 100, 2400, 50, 2400, 'Particles'],
+  ['density', 'Density (full at 2400)', 100, 2400, 50, 750, 'Particles'],
   ['size', 'Size (lab px)', 0.6, 8, 0.1, 1, 'Particles'], ['sizeVar', 'Size variation', 0, 0.9, 0.05, 0.35, 'Particles'],
-  ['soft', 'Edge softness', 0, 1, 0.05, 0.4, 'Particles'], ['opacity', 'Opacity', 0.05, 1, 0.05, 1, 'Particles'], ['opVar', 'Opacity variation', 0, 0.9, 0.05, 0.5, 'Particles'],
-  ['stretch', 'Dot to streak', 0, 1, 0.05, 1, 'Particles'], ['lenK', 'Streak length', 0.04, 0.5, 0.01, 0.33, 'Particles'], ['feather', 'Streak end fade', 0, 1, 0.05, 1, 'Particles'],
+  ['soft', 'Edge softness', 0, 1, 0.05, 0, 'Particles'], ['opacity', 'Opacity', 0.05, 1, 0.05, 0.75, 'Particles'], ['opVar', 'Opacity variation', 0, 0.9, 0.05, 0, 'Particles'],
+  ['stretch', 'Dot to streak', 0, 1, 0.05, 1, 'Particles'], ['lenK', 'Streak length', 0.04, 0.5, 0.01, 0.5, 'Particles'], ['feather', 'Streak end fade', 0, 1, 0.05, 0.5, 'Particles'],
   ['ring', 'Dot outline', 0, 1, 0.05, 0, 'Particles'], ['twinkle', 'Twinkle', 0, 1, 0.05, 0, 'Particles'], ['depthSize', 'Nearer is bigger', 0, 1, 0.05, 0, 'Particles'], ['depthDim', 'Far side dimmer', 0, 1, 0.05, 0.5, 'Particles'],
-  ['hueSpread', 'Hue spread (°)', 0, 90, 1, 24, 'Colour'], ['lightSpread', 'Lightness spread', 0, 0.6, 0.01, 0.3, 'Colour'], ['lightBias', 'Lightness bias', -0.2, 0.3, 0.01, 0.06, 'Colour'], ['satShift', 'Saturation shift', -0.3, 0.3, 0.01, 0, 'Colour'],
-  ['steps', 'Tone steps (0 = smooth)', 0, 8, 1, 0, 'Colour'], ['warm', 'Warm tint when reversed', 0, 1, 0.05, 0.35, 'Colour'],
-  ['speed', 'Flow speed (lab px/s; 44 = the blood\'s own)', 0, 160, 2, 44, 'Flow'], ['uMax', 'Most speed-up', 1, 8, 0.5, 4.5, 'Flow'], ['uMin', 'Least speed (bulbs)', 0.05, 1, 0.05, 0.3, 'Flow'],
+  ['hueSpread', 'Hue spread (°)', 0, 90, 1, 22, 'Colour'], ['lightSpread', 'Lightness spread', 0, 0.6, 0.01, 0.5, 'Colour'], ['lightBias', 'Lightness bias', -0.2, 0.3, 0.01, 0.05, 'Colour'], ['satShift', 'Saturation shift', -0.3, 0.3, 0.01, 0, 'Colour'],
+  ['steps', 'Tone steps (0 = smooth)', 0, 8, 1, 0, 'Colour'], ['warm', 'Warm tint when reversed', 0, 1, 0.05, 0.5, 'Colour'],
+  ['speed', 'Flow speed (lab px/s; 44 = the blood\'s own)', 0, 160, 2, 44, 'Flow'], ['uMax', 'Most speed-up', 1, 8, 0.5, 5, 'Flow'], ['uMin', 'Least speed (bulbs)', 0.05, 1, 0.05, 0.3, 'Flow'],
   ['flat', 'Centre faster than walls', 0, 1, 0.05, 0.5, 'Flow'], ['radExp', 'Crowd toward the centre', 0.25, 1.4, 0.05, 0.5, 'Flow'], ['rhoMax', 'Stay off the wall', 0.3, 0.95, 0.01, 0.8, 'Flow'],
-  ['lanes', 'Lanes across the stream', 8, 48, 1, 26, 'Lane streaks'], ['cellLen', 'Cell length (root radii; a streak stays inside its cell)', 2.4, 8, 0.1, 3.2, 'Lane streaks'],
+  ['lanes', 'Lanes across the stream', 8, 48, 1, 8, 'Lane streaks'], ['cellLen', 'Cell length (root radii; a streak stays inside its cell)', 2.4, 8, 0.1, 3.2, 'Lane streaks'],
   ['fill', 'Share of cells holding a streak', 0.1, 1, 0.05, 0.8, 'Lane streaks'], ['trains', 'Streak trains a lane (1 or 2: 2 is the fuller look)', 1, 2, 1, 2, 'Lane streaks'], ['laneJit', 'Lane jitter', 0, 1, 0.05, 0.4, 'Lane streaks'],
-  ['turb', 'Turbulence', 0, 2, 0.05, 1, 'Lesions'], ['swirl', 'Swirl strength', 0, 3, 0.1, 1.6, 'Lesions'], ['pitch', 'Swirl pitch (lab px)', 20, 120, 1, 60, 'Lesions'], ['wobble', 'Wobble', 0, 1.5, 0.05, 0.8, 'Lesions'],
-  ['turbFreq', 'Wobble frequency', 0.4, 3, 0.1, 1, 'Lesions'], ['turbSpeed', 'Wobble speed', 0, 3, 0.1, 1, 'Lesions'], ['rhoJit', 'Sideways jitter', 0, 2, 0.05, 1, 'Lesions'], ['shrink', 'Smaller in narrowings', 0, 1, 0.05, 0.5, 'Lesions'],
+  ['turb', 'Turbulence', 0, 2, 0.05, 1, 'Lesions'], ['swirl', 'Swirl strength', 0, 3, 0.1, 2, 'Lesions'], ['pitch', 'Swirl pitch (lab px)', 20, 120, 1, 60, 'Lesions'], ['wobble', 'Wobble', 0, 1.5, 0.05, 0.8, 'Lesions'],
+  ['turbFreq', 'Wobble frequency', 0.4, 3, 0.1, 1, 'Lesions'], ['turbSpeed', 'Wobble speed', 0, 3, 0.1, 1, 'Lesions'], ['rhoJit', 'Sideways jitter', 0, 2, 0.05, 1, 'Lesions'], ['shrink', 'Smaller in narrowings', 0, 1, 0.05, 0.7, 'Lesions'],
 ];
 export const DUST_SELECTS: readonly (readonly [key: string, label: string, options: readonly (readonly [string, string])[], def: string, group: Group])[] = [
   ['colorBy', 'Colour by', [['random', 'Random'], ['speed', 'Local speed'], ['depth', 'Depth'], ['radius', 'Distance from wall'], ['source', 'Source vessel']], 'random', 'Colour'],
@@ -58,9 +58,9 @@ export function dustDefaults(): DustSettings {
 const LAB_BASE: DustSettings = { hueSpread: 40, uMax: 5, uMin: 0.25, swirl: 1.9, pitch: 46, shrink: 1 };
 /** Mohammad's picks (20 Nov), each over the defaults: the one he chose for the app (the default, 15:53 UTC), the earlier stenosis streaks and the varix dots. */
 export const DUST_PRESETS: readonly (readonly [name: string, over: DustSettings])[] = [
-  ['Your pick (the default)', {}],
-  ['Velocity streaks (earlier stenosis pick)', { ...LAB_BASE, density: 1400, size: 1.5, soft: 0.75, opacity: 0.7, lenK: 0.18 }],
-  ['Dots (your varix pick)', { ...LAB_BASE, density: 1700, size: 1.4, sizeVar: 0.4, soft: 1, opacity: 0.75, stretch: 0.2, lenK: 0.31, feather: 0.95, ring: 0.1, depthDim: 0.2, rhoMax: 0.95 }],
+  ['Your pick (23 Nov, the default)', {}],
+  ['Velocity streaks (earlier stenosis pick)', { ...LAB_BASE, density: 1400, size: 1.5, soft: 0.75, opacity: 0.7, lenK: 0.18, opVar: 0.5, feather: 1, lightSpread: 0.3, lightBias: 0.06, warm: 0.35 }],
+  ['Dots (your varix pick)', { ...LAB_BASE, density: 1700, size: 1.4, sizeVar: 0.4, soft: 1, opacity: 0.75, stretch: 0.2, lenK: 0.31, feather: 0.95, ring: 0.1, depthDim: 0.2, rhoMax: 0.95, opVar: 0.5, lightSpread: 0.3, lightBias: 0.06, warm: 0.35 }],
   ['Fine mist', { density: 2400, size: 1.1, opacity: 0.5, soft: 0.8, sizeVar: 0.3, stretch: 0 }],
   ['Cel dots', { density: 700, size: 2.4, soft: 0.05, opacity: 1, opVar: 0, steps: 4, hueSpread: 30, lightSpread: 0.32, depthDim: 0.3, stretch: 0 }],
   ['Soft streaks', { density: 1600, size: 1.4, stretch: 0.6, lenK: 0.12, soft: 0.8, opacity: 0.7 }],
