@@ -1,7 +1,8 @@
 // The live controls of a teaching card, as the 2D presenter's DOM and classes draw them (pz-ab / pz-abb buttons, pz-wi slider, the scale pill): compare buttons that switch the live
 // model (treatments, a patient, another slide's state, the vessel lens), the beta-blocker response, a what-if slider, and the Anatomy / Lobule / Sinusoid pill.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { fitChoiceRow } from './ab-short.ts';
+import { fitChoiceRow, labelPxOf } from './ab-short.ts';
+import { useUi } from '../ui-store.ts';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useLapse, lapseText } from '../../decks/hp/lapse.ts';
 import { pickCompare, dragWhatIf, whatIfStart, pickScale, dragToolOption, toolOptionStart, strainHold } from '../talk/controls-run.ts';
@@ -35,10 +36,11 @@ function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   useEffect(() => { setOn(own); useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, own, deck.id]);
   // 2D's one row (ab-short.ts): measured with the full names, then the compact names where it would wrap; again whenever the card's width changes or the fonts arrive
   const row = useRef<HTMLDivElement>(null);
+  const vw = useUi((st) => st.vp.w), vh = useUi((st) => st.vp.h);
   useLayoutEffect(() => {
     const el = row.current, host = el?.parentElement;
     if (!el) return;
-    const fit = () => { fitChoiceRow(el); };
+    const fit = () => { fitChoiceRow(el, labelPxOf(vw, vh)); };
     fit();
     let live = true;
     if (typeof document !== 'undefined' && document.fonts) void document.fonts.ready.then(() => { if (live) fit(); });
@@ -47,7 +49,7 @@ function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
     const ro = new ResizeObserver(() => { if (host.clientWidth !== w) { w = host.clientWidth; fit(); } });
     ro.observe(host);
     return () => { live = false; ro.disconnect(); };
-  }, [slide.id, opts]);
+  }, [slide.id, opts, vw, vh]);
   return (
     <div ref={row} className="pz-ab" role="group" aria-label={name}>
       {opts.map((o, k) => (

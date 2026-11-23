@@ -1,3 +1,4 @@
+import { layoutOf, isSideways, pzh, clamp } from '../layout/rules2d.ts';
 // 2D's "a row of choices is one row" (presenter-ladders.js abShort): where the choices' full names would wrap, each button that has a compact label takes it (the full name stays its accessible name and tooltip), never a
 // second row, never a smaller size, on every screen. The 3D port had no such step, so six full names ("Portal vein thrombosis", "Sinusoidal obstruction"...) wrapped to two-line buttons of ragged widths in a tall
 // card (Mohammad, 20 Nov, Sites and causes 10/14: "disgusting teaching card with the buttons").
@@ -33,10 +34,18 @@ export function rowStep(o: { fullFits: boolean; compactable: boolean; compactFit
   return fits ? { step: 'tight', zoom } : { step: 'two', zoom: 1 };
 }
 
+/** A choice's label size on this screen, px (no layout read: 2D's own clamps): on a wide or short screen the smaller of the label size and .82 of the body's (css3d-over-2d.css), else 0 (a phone's row keeps the 0.8 floor). */
+export function labelPxOf(vw: number, vh: number): number {
+  const lay = layoutOf(vw, vh);
+  if (lay === 'stack' || lay === 'tab' || isSideways(vw, vh)) return 0;
+  const p = pzh(vw, vh);
+  return Math.min(clamp(2.022 * p, 14, 24.5), clamp(2.311 * p, 17, 28) * 0.82);
+}
+
 /** Measure `row` with every full name showing; where that wraps, show the compact labels; where those wrap too, close the padding and gap up (data-tight) and scale the buttons to fit one row
- *  (--ab-z, never under the floor in px); where even that does not fit, two balanced rows (data-two, --ab-cols). Every button is one line (CSS: nowrap), so a row never overflows its card: it
+ *  (--ab-z, never under the floor in px: `labelPx`, from labelPxOf); where even that does not fit, two balanced rows (data-two, --ab-cols). Every button is one line (CSS: nowrap), so a row never overflows its card: it
  *  is never `nowrap` and wider than its room. Reads layout, so it runs while the card is still waiting to come in (CardFrame's gate), and again only when the card's width changes. */
-export function fitChoiceRow(row: HTMLElement): boolean {
+export function fitChoiceRow(row: HTMLElement, labelPx = 0): boolean {
   for (const a of ['data-compact', 'data-tight', 'data-two']) row.removeAttribute(a);
   row.style.removeProperty('--ab-z'); row.style.removeProperty('--ab-cols');
   const compactable = row.querySelector('.pz-abb[data-short]') !== null;   // (a row with no compact labels still closes up and scales)
@@ -46,8 +55,7 @@ export function fitChoiceRow(row: HTMLElement): boolean {
   let compactFits = false;
   if (compactable) { row.setAttribute('data-compact', ''); compactFits = !wraps(); if (compactFits) return true; }
   row.setAttribute('data-tight', '');   // (one row, no wrapping: the content's width is then the row's scroll width)
-  const px = parseFloat(getComputedStyle(all[0] ?? row).fontSize) || 14, zm = parseFloat(getComputedStyle(row).getPropertyValue('zoom')) || 1;
-  const { step, zoom } = rowStep({ fullFits: false, compactable, compactFits, contentW: row.scrollWidth, roomW: row.clientWidth, floor: zoomFloor(px * zm) });
+  const { step, zoom } = rowStep({ fullFits: false, compactable, compactFits, contentW: row.scrollWidth, roomW: row.clientWidth, floor: zoomFloor(labelPx) });
   if (step === 'tight') { if (zoom < 1) row.style.setProperty('--ab-z', String(zoom)); return true; }
   row.removeAttribute('data-tight');
   row.setAttribute('data-two', ''); row.style.setProperty('--ab-cols', String(rowSplit(all.length)[0]));

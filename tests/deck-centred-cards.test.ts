@@ -114,5 +114,5 @@ test('the six ladders are 2D\'s `.pz-panel.fill`: the screen\'s width, not a rea
   const full = centredBox(mac, 'panel', 'ladders').w, table = centredBox(mac, 'panel', 'table').w;
   assert.ok(full > table, 'wider than a table');
   assert.equal(full, Math.round(Math.min(1560, 1440 - 2 * Math.max(Math.min(64, Math.max(16, 0.03 * 1440)), 0))));
-  assert.match(readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8'), /visual === 'ladders' \? 'fill'/);
+  assert.match(readFileSync(new URL('../src/ui/cards/frame-props.ts', import.meta.url), 'utf8'), /visual === 'ladders' \? 'fill'/);
 });

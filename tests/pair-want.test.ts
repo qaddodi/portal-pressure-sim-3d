@@ -84,16 +84,16 @@ test('fitToRoom: held down to the room (never under 11 em), grown up to the ceil
 
 test('heldPx: how much taller a card would stand at its pictures\' wanted heights, in the card\'s own measure', () => {
   assert.equal(heldPx([]), 0);
-  assert.equal(heldPx([{ want: 225, rectH: 164, fit: 1, scale: 1 }]), 61);
-  assert.equal(heldPx([{ want: 225, rectH: 250, fit: 1, scale: 1 }]), 0, 'a chart taller than it wanted holds nothing');
-  assert.equal(heldPx([{ want: 200, rectH: 150, fit: 0.8, scale: 1 }]), 10, 'under the card\'s fit the want is in screen px');
-  assert.equal(heldPx([{ want: 200, rectH: 300, fit: 1, scale: 2 }]), 50, 'a card zoom is a transform: the rect is its multiple');
+  assert.equal(heldPx([{ gap: 61, fit: 1 }]), 61);
+  assert.equal(heldPx([{ gap: 0, fit: 1 }]), 0, 'a chart that has what it wanted holds nothing');
+  assert.equal(heldPx([{ gap: 50, fit: 0.8 }]), 40, 'under the card\'s fit the gap is in screen px');
+  assert.equal(heldPx([{ gap: 20, fit: 1 }, { gap: 30, fit: 1 }]), 50, 'every held picture counts');
 });
 
 test('the wiring: the chart frames carry a want, the painter writes it, the card reports it, the plan judges by it', () => {
   const rd = (p: string) => readFileSync(p, 'utf8');
   for (const p of ['src/ui/charts/profile/ProfileCard.tsx', 'src/ui/charts/curve/frame.ts', 'src/ui/charts/curve/course-frame.ts', 'src/ui/charts/flowtime/frame.ts', 'src/ui/charts/plane/frame.ts']) assert.match(rd(p), /want/, p);
-  assert.match(rd('src/ui/charts/painter.ts'), /dataset\.wantH/);
+  assert.match(rd('src/ui/charts/painter.ts'), /dataset\.wantGap/);
   assert.match(rd('src/ui/cards/CardFrame.tsx'), /onHeight\(entry\.key, Math\.round\(rect\.w\), h, h \+ heldBy\(el\)/);
   const cl = rd('src/ui/cards/CardLayer.tsx');
   assert.match(cl, /want: hit\(dataKey\)\?\.want/);

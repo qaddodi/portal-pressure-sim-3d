@@ -15,7 +15,7 @@ test('a row wraps when its buttons stand at more than one top, or it scrolls', (
 
 test('the compare row measures with the full names, then shows the compact labels only where it wraps (the port had no such step)', () => {
   const src = readFileSync('src/ui/cards/SlideControls.tsx', 'utf8');
-  assert.match(src, /fitChoiceRow\(el\)/);
+  assert.match(src, /fitChoiceRow\(el, labelPxOf\(vw, vh\)\)/);
   assert.match(src, /document\.fonts\.ready/, 'again when the fonts arrive');
   assert.match(src, /new ResizeObserver/, 'again when the card\'s width changes');
   assert.match(src, /className="ab-f"[^>]*>\{o\.label\}.*className="ab-s"[^>]*>\{o\.short\}/s, 'both names are in the button; the row picks one');
