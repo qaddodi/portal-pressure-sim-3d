@@ -4,18 +4,19 @@
 //
 // These are the colours the figure DRAWS, authored in OKLCH with the lightness falling in a straight line with pressure, so the vessels wear them as they are (no saturation step, no caps:
 // cel-ink.ts celTubeBase `raw`, cel-glsl.ts tubeRawK) and a legend swatch, a chart line and a vessel are the same colour. The 2D app's own ramp stays in tokens.copied.ts as the reference it was copied from.
-// Hues are the app's (blue, violet at the CSPH line, magenta, wine). Measured per look in tests/pressure-ramp.test.ts: lightness strictly falls; two pressures 2.5 mmHg apart differ by 3.5 or more
+// Hues: ice blue, periwinkle, violet at the CSPH line, orchid, aubergine (Dusk). Measured per look in tests/pressure-ramp.test.ts: lightness strictly falls; two pressures 2.5 mmHg apart differ by 3.5 or more
 // (OKLab x100) for normal, deutan and protan vision (Machado 2009, full strength); 9 against 13 mmHg by 7.5 or more; no stop within 10 of the artery red; the lit tone is 1.6:1 or more against the page.
 import type { Ramp } from './tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import type { LensId } from './model.ts';
 
-/** Stops [colour, mmHg] per look. Light and Dark from the design review (visual-design-fable.md 2); the pale end of Light is a little deeper than the review's (#98C3E8, #70A9E8 gave 1.57:1 on the page);
- *  Soft is its own (its ground is a tan 0.64 bright, so the whole ramp sits deeper: found by search against the same limits); Navy and Black take Dark's (their grounds are darker still). */
+/** Stops [colour, mmHg] per look: option A, "Dusk" (Mohammad, 23 Nov 2026: "Let's do A"; mocks in the project files, pressure-lens-mocks/). Ice blue, periwinkle, orchid, aubergine: a quiet pale-blue normal range, the turn to violet at the 10 mmHg line,
+ *  orchid at 12 and a deep plum-wine end. Authored in OKLCH with lightness falling in a straight line, then fitted to the limits in tests/pressure-ramp.test.ts per look. Soft is its own (its ground is a darker tan, so the whole ramp sits deeper);
+ *  Navy and Black take Dark's (their grounds are darker still). */
 export const PRESSURE_RAMP: Readonly<Record<LookId, Ramp>> = (() => {
-  const light: Ramp = [['#92BDE2', 0], ['#6FA7E6', 5], ['#5D80EF', 10], ['#8859E3', 12], ['#9C0766', 20], ['#5F011F', 30]];
-  const soft: Ramp = [['#769EBF', 0], ['#4C83BE', 5], ['#4868D2', 10], ['#6A2BC6', 12], ['#8E015C', 20], ['#510019', 30]];
-  const dark: Ramp = [['#D3ECFE', 0], ['#A6D3FF', 5], ['#8CAFFE', 10], ['#AC8BFE', 12], ['#E11F97', 20], ['#B90635', 30]];
+  const light: Ramp = [['#98B9D1', 0], ['#73A0CE', 5], ['#647CEC', 10], ['#8852E3', 12], ['#920181', 20], ['#4F023B', 30]];
+  const soft: Ramp = [['#84A2B7', 0], ['#5E8AB7', 5], ['#5E75E0', 10], ['#7D44D6', 12], ['#850175', 20], ['#460030', 30]];
+  const dark: Ramp = [['#D5EDFE', 0], ['#B1D5F8', 5], ['#A6B7F6', 10], ['#BB94FF', 12], ['#D14B97', 20], ['#9C1472', 30]];
   return { light, soft, dark, navy: dark, black: dark };
 })();
 

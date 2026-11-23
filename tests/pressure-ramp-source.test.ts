@@ -74,7 +74,7 @@ test('nothing but the ramp module (and the copy and parity files that hold 2D\'s
 });
 
 test('as-drawn path: celTubeBase and figureHex are the identity for the pressure ramp, and unchanged for everything else', () => {
-  for (const look of LOOK_IDS) for (const h of ['#92BDE2', '#D3ECFE', '#5F011F']) {
+  for (const look of LOOK_IDS) for (const h of ['#98B9D1', '#D5EDFE', '#4F023B']) {
     const c = hexToRgb01(h);
     assert.deepEqual(celTubeBase(c, look === 'dark', true), c);
     assert.equal(figureHex(h, look, true), h);

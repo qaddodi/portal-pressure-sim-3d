@@ -65,7 +65,7 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
     case 'pressure':
       return { lens, name: lensTitle('pressure'), title: ['Mean venous pressure', 'mmHg'], caption: ['Pressure', 'mmHg'],
         bar: { stops: rampStops(look, 'pressure', LG_MAX), nums: [0, 10, 20, 30].map((p) => ({ at: at(p), text: String(p) })), ticks: [0, 10, 20, 30].map(at) },
-        aria: 'Legend: mean venous pressure at each vessel, 0 to 30 millimeters of mercury, pale blue to dark magenta' };
+        aria: 'Legend: mean venous pressure at each vessel, 0 to 30 millimeters of mercury, pale blue through violet to dark plum' };
     case 'drop':
       return { lens, name: lensTitle('drop'), title: ['Pressure drop', 'mmHg'], caption: ['Drop', 'mmHg'],
         bar: { stops: rampStops(look, 'drop', 1), nums: [{ at: 0, text: '0' }, { at: 100, text: '≥12' }], ticks: [] },

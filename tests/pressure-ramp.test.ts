@@ -88,3 +88,15 @@ test('the hues are the app\'s: blue to violet at the CSPH line to magenta to win
     assert.ok(h[h.length - 1]! < 30 || h[h.length - 1]! > 340, `${look}: 30 mmHg is wine (${h[h.length - 1]!.toFixed(0)} deg)`);
   }
 });
+
+test('Dusk (option A, Mohammad 23 Nov 2026): the stops are the ones he picked, and the 10 mmHg line turns the colour (9 against 11 mmHg is clearly different in every vision, every look)', () => {
+  assert.deepEqual(PRESSURE_RAMP.light.map((s) => s[0]), ['#98B9D1', '#73A0CE', '#647CEC', '#8852E3', '#920181', '#4F023B']);
+  assert.deepEqual(PRESSURE_RAMP.dark.map((s) => s[0]), ['#D5EDFE', '#B1D5F8', '#A6B7F6', '#BB94FF', '#D14B97', '#9C1472']);
+  assert.equal(PRESSURE_RAMP.navy, PRESSURE_RAMP.dark);
+  assert.equal(PRESSURE_RAMP.black, PRESSURE_RAMP.dark);
+  for (const look of LOOK_IDS) {
+    const c = colours(look);
+    for (const v of VISIONS) assert.ok(dE(c[18]!, c[22]!, v) >= 3.5, `${look} ${v}: 9 against 11 mmHg only ${dE(c[18]!, c[22]!, v).toFixed(1)}`);
+    assert.ok(dE(c[18]!, c[22]!, 'normal') >= 5.5, `${look}: the turn at 10 mmHg shows for normal vision`);
+  }
+});
