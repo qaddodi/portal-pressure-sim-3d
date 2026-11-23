@@ -1,0 +1,210 @@
+// The impure half of Capture: the page read once, element by element, into a drawing list (what the person sees: boxes, borders, shadows, words, the icons' shapes, the charts' canvases),
+// and that list painted on one 2D canvas at the device's pixel ratio. The figure itself is the stage drawn once at that ratio (scene/figure-shot.ts), laid in where its canvas stands, so
+// the cards, tags, legends, bars and sheets come out over it in the order the page paints them. Runs on a tap, never in a frame. (figure-image-dom.ts does the same for the label layers only;
+// the two share the painter for boxes, words, shapes and lines.) What a picture cannot carry: a frosted glass's blur and a CSS mask; the glass's colour and its shadow come out.
+import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
+import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
+import { paintItems } from '../shell/figure-image-dom.ts';
+import { parseShadows, transformed, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+
+type Rect = { x: number; y: number; w: number; h: number };
+interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
+type Paintable = Item & { clips?: ClipRect[]; ts?: Shadow[] };
+
+const num = (v: string | null | undefined) => { const n = parseFloat(v ?? ''); return Number.isFinite(n) ? n : 0; };
+const clear = (c: string) => !c || c === 'transparent' || /^rgba\(.*,\s*0\)$/.test(c) || /^rgb\(.*\/\s*0(\.0+)?\)$/.test(c) || /^color\(.*\/\s*0(\.0+)?\)$/.test(c);
+const spin = (m: DOMMatrix) => Math.abs(m.b) > 1e-3 || Math.abs(m.c) > 1e-3;
+const SKIP = '.sh-toast, .lb-ghost, .lb-old, .lb-walk, .lb-sr, .lb-key-twin, .lb-key-probe, .lb-key-out, script, style, template, noscript, [data-capture-skip]';
+const SVG_SKIP = new Set(['defs', 'clippath', 'mask', 'symbol', 'pattern', 'marker', 'lineargradient', 'radialgradient', 'filter', 'style', 'title', 'desc', 'metadata', 'use', 'image', 'foreignobject']);
+const clipPathOf = (cs: CSSStyleDeclaration, r: DOMRect): Clip | undefined => { const m = cs.clipPath.match(/^path\(\s*["']?([\s\S]*?)["']?\s*\)$/); return m ? { d: m[1]!, x: r.left, y: r.top } : undefined; };
+
+/** The turn of an element's own transform or its nearest ancestor's (a FibroScan screen turns with its body), in radians. */
+function turnOf(el: Element): number {
+  for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) { const t = readStyle(e).transform; if (t && t !== 'none') { const m = new DOMMatrix(t); if (spin(m)) return Math.atan2(m.b, m.a); } }
+  return 0;
+}
+/** An SVG paint: a colour, or the middle stop of the gradient it names (a canvas path takes one colour here), or null for none. */
+function svgPaint(v: string): string | null {
+  if (!v || v === 'none' || clear(v)) return null;
+  const m = v.match(/^url\(["']?#([^"')]+)["']?\)/);
+  if (!m) return v;
+  const g = document.getElementById(m[1]!), stops = g ? [...g.querySelectorAll('stop')] : [];
+  const s = stops[Math.floor(stops.length / 2)];
+  return s ? readStyle(s).stopColor || null : null;
+}
+const paintOf = (cs: CSSStyleDeclaration): Paint | null => {
+  const g = cs.backgroundImage !== 'none' ? parseGradient(cs.backgroundImage) : null;
+  return g ?? (clear(cs.backgroundColor) ? null : cs.backgroundColor);
+};
+const radiusOf = (cs: CSSStyleDeclaration, r: DOMRect, k: number): number => {
+  const rad = cs.borderTopLeftRadius, v = rad.endsWith('%') ? (num(rad) / 100) * Math.min(r.width, r.height) : num(rad) * k;
+  return Math.max(0, Math.min(v, Math.min(r.width, r.height) / 2));
+};
+
+function svgShape(el: Element, c: Ctx, cs: CSSStyleDeclaration, alpha: number, clips: ClipRect[], pclip: Clip | undefined): void {
+  const m = (el as SVGGraphicsElement).getScreenCTM?.();
+  if (!m) return;
+  const tag = el.tagName.toLowerCase(), a = (n: string) => num(el.getAttribute(n));
+  let d = '';
+  if (tag === 'path') d = el.getAttribute('d') ?? '';
+  else if (tag === 'circle') { const cx = a('cx'), cy = a('cy'), r = a('r'); d = `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`; }
+  else if (tag === 'ellipse') { const cx = a('cx'), cy = a('cy'), rx = a('rx'), ry = a('ry'); d = `M${cx - rx} ${cy}a${rx} ${ry} 0 1 0 ${2 * rx} 0a${rx} ${ry} 0 1 0 ${-2 * rx} 0`; }
+  else if (tag === 'line') d = `M${a('x1')} ${a('y1')}L${a('x2')} ${a('y2')}`;
+  else if (tag === 'rect') { const x = a('x'), y = a('y'), w = a('width'), h = a('height'), rx = Math.min(a('rx') || a('ry'), w / 2), ry = Math.min(a('ry') || a('rx'), h / 2); d = rx > 0 || ry > 0 ? `M${x + rx} ${y}H${x + w - rx}A${rx} ${ry} 0 0 1 ${x + w} ${y + ry}V${y + h - ry}A${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h}H${x + rx}A${rx} ${ry} 0 0 1 ${x} ${y + h - ry}V${y + ry}A${rx} ${ry} 0 0 1 ${x + rx} ${y}Z` : `M${x} ${y}H${x + w}V${y + h}H${x}Z`; }
+  else if (tag === 'polyline' || tag === 'polygon') { const pts = (el.getAttribute('points') ?? '').trim().split(/[\s,]+/).map(parseFloat).filter(Number.isFinite); for (let i = 0; i + 1 < pts.length; i += 2) d += `${i ? 'L' : 'M'}${pts[i]} ${pts[i + 1]}`; if (d && tag === 'polygon') d += 'Z'; }
+  if (!d) return;
+  const fill = svgPaint(cs.fill), stroke = svgPaint(cs.stroke);
+  if (!fill && !stroke) return;
+  const op = num(fill ? cs.fillOpacity : cs.strokeOpacity);
+  const it: Paintable = { k: 'path', d, m: [m.a, m.b, m.c, m.d, m.e, m.f], fill, stroke, sw: num(cs.strokeWidth), join: cs.strokeLinejoin, cap: cs.strokeLinecap, alpha: alpha * (cs.fillOpacity === '' ? 1 : op), clip: pclip, clips };
+  c.out.push(it);
+}
+
+function visitSvg(el: Element, c: Ctx, above: number, clips: ClipRect[], pclip: Clip | undefined): void {
+  const tag = el.tagName.toLowerCase();
+  if (SVG_SKIP.has(tag)) return;
+  const cs = readStyle(el);
+  if (cs.display === 'none') return;
+  const alpha = above * (cs.opacity === '' ? 1 : num(cs.opacity));
+  if (alpha < 0.02) return;
+  if (cs.visibility !== 'hidden') {
+    if (tag === 'text') {
+      const r = readBox(el), text = (el.textContent ?? '').replace(/\s+/g, ' ').trim(), fill = svgPaint(cs.fill);
+      if (text && fill && r.width > 0) {
+        const sw = num(cs.strokeWidth), stroke = svgPaint(cs.stroke);
+        c.out.push({ k: 'text', text: transformed(text, cs.textTransform), x: r.left, y: r.top + r.height / 2, w: r.width, font: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, fill, halo: stroke && sw > 0 ? stroke : '', haloW: stroke ? sw : 0, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing), rot: 0, alpha, clip: pclip, clips } as Paintable);
+      }
+      return;
+    }
+    svgShape(el, c, cs, alpha, clips, pclip);
+  }
+  for (const ch of el.children) visitSvg(ch, c, alpha, clips, pclip);
+}
+
+/** A native slider as a rail and a thumb (the page's own controls are drawn by the browser, which a picture cannot read). */
+function rangeItems(el: HTMLInputElement, r: DOMRect, cs: CSSStyleDeclaration, alpha: number, clips: ClipRect[], out: ScreenItem[]): void {
+  const min = num(el.min) || 0, max = el.max === '' ? 100 : num(el.max), at = max > min ? Math.max(0, Math.min(1, (num(el.value) - min) / (max - min))) : 0;
+  const accent = cs.accentColor && cs.accentColor !== 'auto' ? cs.accentColor : readStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2f6fed';
+  const cy = r.top + r.height / 2, x0 = r.left + 8, x1 = r.right - 8, tx = x0 + (x1 - x0) * at;
+  out.push({ k: 'box', x: x0, y: cy - 2, w: Math.max(0, x1 - x0), h: 4, r: 2, fill: 'rgba(128,128,128,0.35)', bw: 0, bc: '', alpha, clips } as Paintable);
+  out.push({ k: 'box', x: x0, y: cy - 2, w: Math.max(0, tx - x0), h: 4, r: 2, fill: accent, bw: 0, bc: '', alpha, clips } as Paintable);
+  out.push({ k: 'box', x: tx - 8, y: cy - 8, w: 16, h: 16, r: 8, fill: '#fff', bw: 1, bc: 'rgba(0,0,0,0.25)', alpha, clips } as Paintable);
+}
+
+function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number, pclip: Clip | undefined): void {
+  if (el.matches(SKIP)) return;
+  if (el instanceof SVGElement) { if (el.tagName.toLowerCase() === 'svg' || el.ownerSVGElement) visitSvg(el, c, above, clips, pclip); return; }
+  const cs = readStyle(el);
+  if (cs.display === 'none') return;
+  const alpha = above * (cs.opacity === '' ? 1 : num(cs.opacity));
+  if (alpha < 0.02) return;
+  const tm = cs.transform && cs.transform !== 'none' ? new DOMMatrix(cs.transform) : null;
+  let kk = k * (tm ? Math.hypot(tm.a, tm.b) || 1 : 1);
+  if (cs.scale && cs.scale !== 'none') kk *= num(cs.scale) || 1;   // (the `scale` property: the first number, the one that grows the words)
+  const shown = cs.visibility !== 'hidden';   // (a hidden card's child may be shown again)
+  const r = readBox(el);
+  const own = clipPathOf(cs, r) ?? pclip;
+  const isRoot = el === document.body || el === document.documentElement || el.id === 'root';
+  const cuts = !isRoot && (cs.overflowX !== 'visible' || cs.overflowY !== 'visible');
+  const inner: ClipRect[] = cuts ? [...clips, { x: r.left, y: r.top, w: r.width, h: r.height, r: radiusOf(cs, r, kk) }] : clips;
+  if (shown && r.width > 0 && r.height > 0) {
+    if (el instanceof HTMLCanvasElement) {
+      const s = c.stage;
+      if (s && !c.stageDrawn && c.stageImg && Math.abs(r.left - s.x) < 2 && Math.abs(r.top - s.y) < 2 && Math.abs(r.width - s.w) < 2) { c.out.push({ k: 'img', x: s.x, y: s.y, w: s.w, h: s.h, src: c.stageImg, alpha, clips }); c.stageDrawn = true; }
+      else if (!s || Math.abs(r.width - s.w) >= 2) c.out.push({ k: 'img', x: r.left, y: r.top, w: r.width, h: r.height, src: el, alpha, clips });
+      return;
+    }
+    if (el instanceof HTMLImageElement) { if (el.complete && el.naturalWidth > 0) c.out.push({ k: 'img', x: r.left, y: r.top, w: r.width, h: r.height, src: el, alpha, clips }); return; }
+    const m = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform);
+    const fill = paintOf(cs);
+    const bT = num(cs.borderTopWidth) * kk, bR = num(cs.borderRightWidth) * kk, bB = num(cs.borderBottomWidth) * kk, bL = num(cs.borderLeftWidth) * kk;
+    const colT = clear(cs.borderTopColor) ? '' : cs.borderTopColor, colR = clear(cs.borderRightColor) ? '' : cs.borderRightColor, colB = clear(cs.borderBottomColor) ? '' : cs.borderBottomColor, colL = clear(cs.borderLeftColor) ? '' : cs.borderLeftColor;
+    const same = bT === bR && bR === bB && bB === bL && colT === colR && colR === colB && colB === colL;
+    if (spin(m)) {
+      // a thin bar turned about its end (a leader, a bracket's line): its bounding box holds both ends on one diagonal, the way the bar leans says which
+      if (num(cs.width) <= 2 && typeof fill === 'string') {
+        const w = Math.max(1, num(cs.height)), right = m.a < 0, up = m.b < 0;
+        c.out.push({ k: 'line', x1: right ? r.right : r.left, y1: up ? r.bottom : r.top, x2: right ? r.left : r.right, y2: up ? r.top : r.bottom, w, color: fill, alpha, clip: own, clips } as Paintable);
+      }
+    } else {
+      const rad = radiusOf(cs, r, kk);
+      const shadows = parseShadows(cs.boxShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk, spread: s.spread * kk }));
+      if (shadows.length) c.out.push({ k: 'shadow', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, shadows, alpha, clips });
+      if (fill || (same && bT > 0 && colT)) c.out.push({ k: 'box', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, fill, bw: same && colT ? bT : 0, bc: same ? colT : '', alpha, clip: own, clips } as Paintable);
+      if (!same) {   // (one rule on one side: a card's header line, a tab's underline)
+        const side = (x: number, y: number, w: number, h: number, col: string) => { if (col && w > 0 && h > 0) c.out.push({ k: 'box', x, y, w, h, r: 0, fill: col, bw: 0, bc: '', alpha, clip: own, clips } as Paintable); };
+        side(r.left, r.top, r.width, bT, colT); side(r.left, r.bottom - bB, r.width, bB, colB); side(r.left, r.top, bL, r.height, colL); side(r.right - bR, r.top, bR, r.height, colR);
+      }
+    }
+    if (el instanceof HTMLInputElement && el.type === 'range') rangeItems(el, r, cs, alpha, clips, c.out);
+    else if (el instanceof HTMLInputElement && /^(text|search|number|email|tel|url|password)$/.test(el.type) && el.value) {
+      const font = `${cs.fontStyle} ${cs.fontWeight} ${num(cs.fontSize) * kk}px ${cs.fontFamily}`;
+      c.out.push({ k: 'text', text: el.type === 'password' ? '•'.repeat(el.value.length) : el.value, x: r.left + num(cs.paddingLeft) * kk + num(cs.borderLeftWidth) * kk, y: r.top + r.height / 2, w: r.width, font, fill: cs.color, halo: '', haloW: 0, spacing: 0, rot: 0, alpha, clip: own, clips: inner } as Paintable);
+    }
+    // the element's own words, one word at a time, each where the browser put it (a card's wrapped lines, a tag's text), in the element's own font
+    const ts = cs.textShadow !== 'none' ? parseShadows(cs.textShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk })) : [];
+    const sw = num(cs.getPropertyValue('-webkit-text-stroke-width')) * kk, sc = cs.getPropertyValue('-webkit-text-stroke-color');
+    let font = '', turn = -1;
+    for (const n of el.childNodes) {
+      if (n.nodeType !== 3) continue;
+      const text = n.textContent ?? '';
+      if (!text.trim()) continue;
+      if (!font) font = `${cs.fontStyle} ${cs.fontWeight} ${num(cs.fontSize) * kk}px ${cs.fontFamily}`;
+      if (turn < 0) turn = turnOf(el);
+      const word = /\S+/g;
+      for (let w = word.exec(text); w; w = word.exec(text)) {
+        const tr = readTextRects(n as Text, w.index, w.index + w[0].length)[0];
+        if (!tr || tr.width <= 0) continue;
+        c.out.push({ k: 'text', text: transformed(w[0], cs.textTransform), x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+      }
+    }
+  }
+  for (const ch of el.children) visit(ch, c, alpha, inner, kk, own);
+}
+
+/** Everything on the page now, in paint order. `stage`: where the figure's canvas stands (CSS px) and `stageImg` its picture, which takes the canvas's place in the order. */
+export function readScreen(stage: Rect | null, stageImg: CanvasImageSource | null): ScreenItem[] {
+  const c: Ctx = { out: [], stage, stageImg, stageDrawn: false };
+  for (const ch of document.body.children) visit(ch, c, 1, [], 1, undefined);
+  if (stage && stageImg && !c.stageDrawn) c.out.unshift({ k: 'img', ...stage, src: stageImg, alpha: 1 });   // (the page's canvas was not found where the stage reported: the figure goes under everything)
+  return c.out;
+}
+
+const roundedPath = (g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => { g.beginPath(); if (r > 0 && g.roundRect) g.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2)); else g.rect(x, y, w, h); };
+
+/** The drawing list painted on `g`, whose transform maps CSS px onto the picture; `s` is the picture's pixels per CSS px (a canvas shadow is measured in picture pixels, not in the transform's). */
+export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s: number): void {
+  for (const i of items) {
+    g.save();
+    for (const cl of i.clips ?? []) { roundedPath(g, cl.x, cl.y, cl.w, cl.h, cl.r); g.clip(); }
+    if (i.k === 'img') {
+      g.globalAlpha = i.alpha;
+      try { g.drawImage(i.src, i.x, i.y, i.w, i.h); } catch { /* a canvas that will not be read (lost context, tainted): left out */ }
+    } else if (i.k === 'shadow') {
+      for (const sh of i.shadows) {
+        g.save();
+        g.globalAlpha = i.alpha;
+        g.beginPath(); g.rect(-1e5, -1e5, 2e5, 2e5);   // (a shadow falls outside the box only: everything but the box is kept)
+        if (i.r > 0 && g.roundRect) g.roundRect(i.x, i.y, i.w, i.h, Math.min(i.r, i.w / 2, i.h / 2)); else g.rect(i.x, i.y, i.w, i.h);
+        g.clip('evenodd');
+        g.shadowColor = sh.color; g.shadowBlur = sh.blur * s; g.shadowOffsetX = sh.ox * s; g.shadowOffsetY = sh.oy * s;
+        roundedPath(g, i.x - sh.spread, i.y - sh.spread, i.w + 2 * sh.spread, i.h + 2 * sh.spread, i.r + sh.spread);
+        g.fillStyle = '#000'; g.fill();
+        g.restore();
+      }
+    } else {
+      const it = i as Paintable;
+      if (it.k === 'text' && it.ts?.length) {   // (a glow behind the words: the words drawn once with the shadow, then the words as they are)
+        for (const sh of it.ts) {
+          g.save();
+          g.globalAlpha = it.alpha; g.textBaseline = 'middle'; g.font = it.font;
+          g.shadowColor = sh.color; g.shadowBlur = sh.blur * s; g.shadowOffsetX = sh.ox * s; g.shadowOffsetY = sh.oy * s;
+          g.fillStyle = it.fill; g.fillText(it.text, it.x, it.y);
+          g.restore();
+        }
+      }
+      paintItems(g, [it]);
+    }
+    g.restore();
+  }
+}

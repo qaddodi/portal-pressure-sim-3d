@@ -1,0 +1,98 @@
+// Settings > Capture screen: one PNG of the whole screen as the person sees it, for troubleshooting. The figure (the stage drawn once at the device's pixel ratio) and everything over it
+// (cards, tags, legends, pills, the dock) laid in the order the page paints them (capture-dom.ts), the build and the time stamped small in the corner, and the state that makes the
+// view (patient, slide, look, lens, camera, sliders) inside the file as a text chunk (png-text.ts) and as a link that reopens the exact view (share-wire.ts). A phone or an iPad hands the
+// file to the share sheet (Save Image, Messages, Mail, Files); a laptop downloads it. The toast that follows offers the link. Runs on a tap or the shortcut, never in a frame.
+import { figureShot } from '../../scene/figure-shot.ts';
+import { clock } from '../../clock/frame.ts';
+import { useShell } from '../shell/store.ts';
+import { useEngine } from '../../engine/index.ts';
+import { shareLinkNow } from '../shell/share-wire.ts';
+import { FEEDBACK_SHEET_MS } from '../shell/feedback.ts';
+import { feedbackBuild, commitOf } from '../../boot/release.ts';
+import { CAPTURE } from '../shell/words.ts';
+import { readBox, readStyle } from '../layout-snap.ts';
+import { readScreen, paintScreen } from './capture-dom.ts';
+import { captureScale, stampText, captureFileName, captureRecord, deliverWay } from './capture-model.ts';
+import { pngWithText, asciiJson } from './png-text.ts';
+
+const say = (text: string, tone?: 'info' | 'bad', action?: { label: string; run: () => void }) => useShell.getState().say(text, tone, action);
+let busy = false;
+
+/** The picture and what rides with it. Null when the page could not be drawn. */
+export interface Made { blob: Blob; name: string; link: string }
+
+async function stateRecord(): Promise<unknown> {
+  try { const { stateNow } = await import('../debug/packet/sources.ts'); return stateNow(); } catch { return null; }
+}
+
+/** The whole screen as one PNG. `now` is when it was pressed (the stamp and the name). */
+export async function composeScreen(at: Date): Promise<Made | null> {
+  const root = document.getElementById('root') ?? document.body, rb = readBox(root);
+  const vp = { w: rb.width, h: rb.height };
+  if (vp.w <= 0 || vp.h <= 0) return null;
+  let link = '';
+  try { link = shareLinkNow(); } catch { link = location.href; }
+  const build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
+  const record = captureRecord({ at, build, screen: `${innerWidth}x${innerHeight} at ${devicePixelRatio}x`, link, state: await stateRecord() });
+  // the figure at the device's pixel ratio, drawn now (before anything can clear its canvas), then the page over it
+  let taken: ReturnType<typeof figureShot.take> = null;
+  try { taken = figureShot.take(captureScale(vp, devicePixelRatio)); } catch { taken = null; }
+  const s = taken ? taken.canvas.width / taken.css.w : captureScale(vp, devicePixelRatio);
+  const out = document.createElement('canvas'); out.width = Math.round(vp.w * s); out.height = Math.round(vp.h * s);
+  const g = out.getContext('2d');
+  if (!g) return null;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  const bs = readStyle(document.body);
+  g.fillStyle = !bs.backgroundColor || bs.backgroundColor === 'transparent' || /,\s*0\)$/.test(bs.backgroundColor) ? (readStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff') : bs.backgroundColor;
+  g.fillRect(0, 0, out.width, out.height);
+  g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
+  paintScreen(g, readScreen(taken ? { x: taken.css.x, y: taken.css.y, w: taken.css.w, h: taken.css.h } : null, taken?.canvas ?? null), s);
+  // the stamp: small, in the lower right corner, with a halo of the ground so it reads over the figure and over a card
+  g.setTransform(s, 0, 0, s, 0, 0);
+  g.font = `600 10px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+  const words = stampText(build, at), x = vp.w - 6, y = vp.h - 5;
+  g.lineJoin = 'round'; g.lineWidth = 3; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.globalAlpha = 0.85; g.strokeText(words, x, y);
+  g.fillStyle = bs.color; g.globalAlpha = 0.7; g.fillText(words, x, y);
+  const png = await new Promise<Blob | null>((ok) => out.toBlob(ok, 'image/png'));
+  if (!png) return null;
+  const bytes = pngWithText(new Uint8Array(await png.arrayBuffer()), 'portal-state', asciiJson(record));
+  const sh = useShell.getState();
+  return { blob: new Blob([bytes as BlobPart], { type: 'image/png' }), link, name: captureFileName(sh.view, useEngine.getState().presetId ?? sh.patientId, commitOf(import.meta.env.VITE_BUILD) || 'local', at) };
+}
+
+function copyLink(link: string): void {
+  const done = () => say(CAPTURE.linkCopied), fail = () => say(CAPTURE.linkFailed, 'bad');
+  if (!navigator.clipboard?.writeText) { fail(); return; }
+  navigator.clipboard.writeText(link).then(done, fail);
+}
+
+function download(m: Made): void {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(m.blob); a.download = m.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  clock.after(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+/** Capture the screen and hand it over. `settle`: the Settings sheet is open (the tap came from it), so it is let go first and not in the picture. */
+export async function captureScreen(opts: { settle?: boolean } = {}): Promise<void> {
+  if (busy) return;
+  busy = true;
+  try {
+    if (opts.settle) { useShell.getState().close(); await new Promise<void>((ok) => clock.after(ok, FEEDBACK_SHEET_MS)); }
+    const made = await composeScreen(new Date());
+    if (!made) { say(CAPTURE.failed, 'bad'); return; }
+    const file = new File([made.blob], made.name, { type: 'image/png' });
+    const way = deliverWay({ touchPoints: navigator.maxTouchPoints || 0, canShareFiles: !!navigator.canShare?.({ files: [file] }) });
+    const withLink = (text: string) => say(text, 'info', { label: CAPTURE.copyLink, run: () => copyLink(made.link) });
+    if (way === 'download') { download(made); withLink(CAPTURE.saved); return; }
+    try { await navigator.share({ files: [file], title: CAPTURE.title }); withLink(CAPTURE.shared); }
+    catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') { withLink(CAPTURE.notShared); return; }   // (the sheet was closed: nothing was sent, the link is still there)
+      // the tap's permission ran out before the picture was ready, or the sheet would not open: the picture waits for one more tap
+      say(CAPTURE.ready, 'info', { label: CAPTURE.share, run: () => { navigator.share({ files: [file], title: CAPTURE.title }).then(() => withLink(CAPTURE.shared), (e2: unknown) => { if ((e2 as { name?: string })?.name === 'AbortError') return; download(made); withLink(CAPTURE.saved); }); } });
+    }
+  } catch (e) {
+    console.warn('[capture] the screen could not be captured', e);
+    say(CAPTURE.failed, 'bad');
+  } finally { busy = false; }
+}

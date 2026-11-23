@@ -20,6 +20,7 @@ import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
 import { escStep } from './escape.ts';
 import { talkOn } from '../../state/deck.ts';
+import { isCaptureKey } from '../capture/capture-model.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -90,6 +91,7 @@ export const dyeKeyUp = (): void => { if (dyeKey) { dyeKey = false; releaseDye()
 export function useKeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (isCaptureKey(e)) { e.preventDefault(); void import('../capture/capture.ts').then((m) => m.captureScreen()); return; }   // (Option Shift S: the screen as it is, the open sheet and all)
       const sh = useShell.getState();
       const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: talkOn(), keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
       if (!a) return;

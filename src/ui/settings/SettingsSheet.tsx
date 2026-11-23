@@ -15,7 +15,7 @@ import { HistoryList } from '../history/HistoryList.tsx';
 import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
 import { usesBottomBar } from '../shell/room.ts';
-import { FULLSCREEN } from '../shell/words.ts';
+import { FULLSCREEN, CAPTURE } from '../shell/words.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
 import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, type Row } from './rows.ts';
@@ -68,6 +68,12 @@ function WrongHere() {
   const open = (window as unknown as { pps?: { packet?: { open?: () => void } } }).pps?.packet?.open;
   if (!open) return null;
   return <MenuItem icon="help" label="What's wrong here?" onClick={() => { useShell.getState().close(); open(); }} />;
+}
+
+/** Capture screen (3D only): one picture of the whole screen, for troubleshooting. The sheet lets go first, so it is not in the picture; the code is fetched when the row is first tapped. */
+function CaptureRow() {
+  const touch = typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 1;
+  return <MenuItem icon="camera" label={CAPTURE.row} kb={touch ? null : '⌥⇧S'} title={CAPTURE.hint} onClick={() => { void import('../capture/capture.ts').then((m) => m.captureScreen({ settle: true })); }} />;
 }
 
 type PageId = 'history' | 'help' | 'advanced';
@@ -146,6 +152,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
               return <Item key={row.label} row={row} push={setPageId} />;
             })}
+            {i === 0 ? <CaptureRow /> : null}
             {sec.title === 'Model' ? <MenuItem icon="rewind" label={FR_WORDS.title} kb={FR_WORDS.sub} title={FR_WORDS.hint} onClick={openFromReadings} /> : null}
           </MenuGroup>
           {sec.title === 'Display' ? <DepthGroup /> : null}

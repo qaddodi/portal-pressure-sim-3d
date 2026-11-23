@@ -25,6 +25,15 @@ export const NO_WEBGL = { title: 'The 3D app needs WebGL 2', body: 'This browser
 /** The engine could not start (src/main.tsx, BootCrash.tsx). 2D says "The model stopped. Reload, or restart this patient." once it runs; at start there is no patient to restart. */
 /** Figure menu > Image: the figure as a picture (figure-image-dom.ts). */
 export const FIGURE_IMAGE = { section: 'Image', copy: 'Copy figure', copyHint: 'As a picture, with its labels', save: 'Save figure', saveHint: 'A PNG file', copied: 'Figure copied, labels included.', saved: 'Figure saved', failed: 'Couldn’t make a picture of the figure. Try again in a moment.' } as const;
+/** Settings > Capture screen (ui/capture/capture.ts): one picture of the whole screen, for troubleshooting. */
+export const CAPTURE = {
+  row: 'Capture screen', hint: 'One picture of everything on screen, with the build, the time and the settings behind it',
+  title: 'Portal pressure simulator capture',
+  saved: 'Capture saved. Copy the link to reopen this exact view.', shared: 'Capture shared. Copy the link to reopen this exact view.',
+  notShared: 'Nothing was sent. Copy the link to reopen this exact view.', ready: 'Capture ready. Tap Share to send it.',
+  share: 'Share', copyLink: 'Copy link', linkCopied: 'Link copied. It reopens this exact view.', linkFailed: 'Couldn’t copy the link from here.',
+  failed: 'Couldn’t capture the screen. Try again in a moment.',
+} as const;
 export const BOOT_CRASH = { title: 'The simulator didn’t start', body: 'The model didn’t load, and reloading usually fixes it.', reload: 'Reload' } as const;
 /** The app-level safety net (AppBoundary.tsx): a render error outside a card never blanks the app. */
 export const APP_CRASH = {
