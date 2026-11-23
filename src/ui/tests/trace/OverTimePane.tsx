@@ -131,7 +131,7 @@ export function OverTimePane({ plot }: { plot: number }) {
           <span className="pt-st"><span className="pt-sev" data-sev={hv.sev}>{hv.word}</span><span className="pt-delta" data-dir={hv.dir}>{hv.delta}</span></span>
         </div>
       </div>
-      <div ref={box} className="chart-box pt-box" style={host.box(h0)}
+      <div ref={box} className="chart-box pt-box" data-scrub="" style={host.box(h0)}
         onPointerEnter={() => { over.current = true; readLeft(); }}
         onPointerMove={(e) => { if (e.pointerType === 'mouse' || e.buttons) setCross(e); }}
         onPointerDown={(e) => { over.current = true; readLeft(); setCross(e); }}

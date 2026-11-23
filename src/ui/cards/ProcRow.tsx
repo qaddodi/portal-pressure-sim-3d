@@ -43,7 +43,7 @@ export function ProcRow({ slide, deck }: { slide: Slide; deck: Deck }) {
       <button type="button" className="pz-prail-go" disabled={r.disabled} aria-label={r.action} title={r.why || r.action} onClick={() => playProcedure()}>
         <svg viewBox="0 0 24 24" aria-hidden="true">{ICON[r.icon]}</svg>
       </button>
-      <span className="pz-prail-track" style={track} role="list" aria-hidden={n < 2 ? true : undefined}>
+      <span className="pz-prail-track" data-scrub="" style={track} role="list" aria-hidden={n < 2 ? true : undefined}>
         <i className="pz-prail-line" />
         <i className="pz-prail-fill" style={{ transform: `scaleX(${r.fill.toFixed(4)})` }} />
         {st.steps.map((s, k) => (

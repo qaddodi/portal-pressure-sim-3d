@@ -2,9 +2,9 @@
 // own, and which way a finger that has moved a few pixels is going. The sideways recogniser (useCardDrag: the talk moves, the cards follow) and the vertical one (useDockSwipe: the
 // instrument card goes to its handle or comes back) both ask here, so a touch is never given to both and a control is never taken from.
 
-/** What a touch that starts on it stays its own: a field, a slider, a link, the hold-to-strain button, a dialog or menu or the slide list, anything marked `data-no-swipe`.
+/** What a touch that starts on it stays its own: a field, a slider, a link, the hold-to-strain button, a dialog or menu or the slide list, anything marked `data-no-swipe`, and every strip a finger moves along sideways (a timeline or an over-time chart, a procedure's step rail, a scrolling row): those carry `data-scrub`, so a sideways drag on them moves the strip and never the cards or the slide. Everywhere else on the card a sideways swipe still changes slides.
  *  Every other button (a question, a compare button, the pill's) is only a place the finger happens to start: a tap on it is still a tap, a swipe from it is a swipe. */
-export const OWN = 'a, input, select, textarea, [role="slider"], .range-wrap, .pz-strain, [data-no-swipe], [role="dialog"], [role="menu"], [aria-modal="true"], .menu, .modal, .sh-sheet, .pz-jump, .pz-black';
+export const OWN = 'a, input, select, textarea, [role="slider"], .range-wrap, .pz-strain, [data-no-swipe], [data-scrub], [role="dialog"], [role="menu"], [aria-modal="true"], .menu, .modal, .sh-sheet, .pz-jump, .pz-black';
 export const ownsTouch = (t: Element | null | undefined): boolean => !t || !!t.closest?.(OWN);
 
 /** How far a finger moves before its direction is decided (px). */

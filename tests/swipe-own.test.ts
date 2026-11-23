@@ -35,3 +35,16 @@ test('a vertical swipe the dock took is never also the wallet\'s swap', async ()
   const i = layer.indexOf('onEnd: (g, e) => {');
   assert.ok(i > 0 && layer.slice(i, layer.indexOf('swapWallet()', i)).includes('if (justDocked()) return;'), 'onEnd lets a swipe the dock took go before it can swap the wallet');
 });
+
+// Mohammad, 23 Nov: "when there is a timeline or a procedure steps in the teaching card, swiping to right should NOT make the cards move". One shared rule: a strip a finger moves along is marked
+// `data-scrub` and `ownsTouch` leaves it alone, so the card recogniser, the dock swipe and the wheel never take a touch that starts on it.
+test('a touch that starts on a scrub strip (over-time chart, step rail) is its own; elsewhere on the card it is a swipe', async () => {
+  const { ownsTouch } = await import('../src/ui/cards/swipe-own.ts');
+  const strip = { closest: (s: string) => (s.includes('[data-scrub]') ? {} : null) } as unknown as Element;
+  const plain = { closest: () => null } as unknown as Element;
+  assert.equal(ownsTouch(strip), true);
+  assert.equal(ownsTouch(plain), false);
+  const read = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
+  assert.match(read('../src/ui/tests/trace/OverTimePane.tsx'), /pt-box" data-scrub=""/);
+  assert.match(read('../src/ui/cards/ProcRow.tsx'), /pz-prail-track" data-scrub=""/);
+});
