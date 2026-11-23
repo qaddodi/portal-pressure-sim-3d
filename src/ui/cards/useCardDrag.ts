@@ -41,14 +41,14 @@ const slot = (data: boolean) => (data ? PARALLAX.data : PARALLAX.words);
  *  and a vertical swipe are reported through `onEnd`, as before. */
 export function useCardDrag(o: Opts) {
   const opts = useRef(o); opts.current = o;
-  const st = useRef<{ x: number; y: number; t: number; id: number; touch: boolean; on: boolean; card: boolean; el: Element | null; pts: [number, number][]; cards: { els: HTMLElement[]; data: boolean }[]; f: Pt } | null>(null);
+  const st = useRef<{ x: number; y: number; t: number; id: number; touch: boolean; on: boolean; card: boolean; veil: boolean; el: Element | null; pts: [number, number][]; cards: { els: HTMLElement[]; data: boolean }[]; f: Pt } | null>(null);
   const fns = useMemo(() => {
     const drop = (g: NonNullable<typeof st.current>) => { try { g.el?.releasePointerCapture?.(g.id); } catch { /* (no capture held) */ } };
     const down = (e: Pe) => {
       const t = e.target as Element | null, touch = e.pointerType !== 'mouse';
       if (touch ? ownsTouch(t) : t?.closest?.('button, a, input')) { st.current = null; return; }
       if (touch) axisStart(e.pointerId);
-      st.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, touch, on: false, card: !!t?.closest?.('.dk-card'), el: t, pts: [[e.clientX, e.timeStamp]], cards: [], f: { x: 0, o: 1 } };
+      st.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, touch, on: false, card: !!t?.closest?.('.dk-card'), veil: !!t?.closest?.('.pz-zveil'), el: t, pts: [[e.clientX, e.timeStamp]], cards: [], f: { x: 0, o: 1 } };
     };
     const move = (e: Pe) => {
       const g = st.current;
@@ -69,7 +69,7 @@ export function useCardDrag(o: Opts) {
       if (!g || g.id !== e.pointerId) return;
       axisEnd(g.id);
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
-      if (!g.on) { if (!g.touch || g.card) opts.current.onEnd({ dx, dy, ms: e.timeStamp - g.t }, e, g.card); return; }
+      if (!g.on) { if (!g.touch || g.card || g.veil) opts.current.onEnd({ dx, dy, ms: e.timeStamp - g.t }, e, g.card); return; }
       drop(g);
       lastDragEnd = clock.now();
       g.pts.push([e.clientX, e.timeStamp]);

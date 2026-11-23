@@ -3,6 +3,7 @@
 import { clock } from '../../clock/frame.ts';
 import { easeArrive, MOTION } from '../../clock/tween.ts';
 import { ChartGL, type Under } from './gl.ts';
+import { onZoomK } from '../cards/zoom-k.ts';
 import { tessellate } from './geometry.ts';
 import { blend } from './morph.ts';
 import type { Frame } from './scene.ts';
@@ -25,6 +26,7 @@ export class ChartPainter {
   private dirty = false;
   private tag: string;
   private offRender: () => void;
+  private offZoom: () => void;
 
   constructor(tag = 'chart', doc: Document = document) {
     this.tag = tag;
@@ -39,7 +41,12 @@ export class ChartPainter {
     this.box.append(canvas, this.text.root);
     // drawing happens in the clock's render phase, once per frame that asked
     this.offRender = clock.on('render', (f) => this.frame(f.time), 5);
+    // a card zoom opening or gone home (Plan 43): the canvas takes the pixels of the size it is shown at, and the picture is drawn again in the next render phase (the size changes inside that draw, so no blank frame)
+    this.offZoom = onZoomK(() => { if (this.gl.rescale()) this.redraw(); });
   }
+
+  /** The canvas's pixel ratio now (the zoom's included). */
+  get ratio(): number { return this.gl.ratio; }
 
   /** A picture drawn under the shapes on every draw (the FibroScan's map); null takes it away. The pane asks for a frame itself when the picture moves. */
   setUnder(fn: Under | null) { this.gl.under = fn; this.dirty = true; clock.invalidate(this.tag); }
@@ -93,5 +100,5 @@ export class ChartPainter {
   private draw() { if (this.shown) this.drawFrame(this.shown); }
   private drawFrame(f: Frame) { this.gl.draw(tessellate(f)); this.text.sync(f.shapes); }
 
-  dispose() { this.offRender(); this.off?.(); this.stopHold(); this.gl.dispose(); this.text.dispose(); this.box.remove(); }
+  dispose() { this.offRender(); this.offZoom(); this.off?.(); this.stopHold(); this.gl.dispose(); this.text.dispose(); this.box.remove(); }
 }

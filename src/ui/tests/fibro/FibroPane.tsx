@@ -8,7 +8,7 @@ import { latest, useEngine } from '../../../engine/index.ts';
 import { lsmContext } from '../../../engine/hales/portal/lsm-cuts.js';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
 import type { ChartPainter } from '../../charts/painter.ts';
-import { MAX_DPR } from '../../charts/gl.ts';
+import { onZoomK } from '../../cards/zoom-k.ts';
 import { StiffCard } from '../../charts/stiff/StiffCard.tsx';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { useTests } from '../store.ts';
@@ -87,7 +87,7 @@ export function FibroPane({ plot, slide = false, bar = true, platelets = false }
     const key = `${c.w}|${hh}|${og}`;
     if (lay.current?.key !== key) lay.current = { key, L: layoutOf(c.w, hh, ORGAN[og].widest) };
     const kpa = mdl == null ? last : shown;
-    const dpr = Math.min(MAX_DPR, Math.max(1, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1));
+    const dpr = painter.current?.ratio ?? 1;   // (the canvas's own pixel ratio, a card zoom's included)
     under.set({ NB, t0: WAVE_T0, N: clamp(Math.round(Math.max(c.w, hh) * 0.75), 140, 300), c: shearSpeed(driftOf(kpa, t)), t, rad: MAP_RADIUS * dpr, lo: ORGAN[og].lo, hi: ORGAN[og].hi });
     return { frame: fibroFrame({ organ: og, txt, kpa, t }, c.w, hh, c.pal, lay.current.L), txt };
   }, [under]);
@@ -122,6 +122,8 @@ export function FibroPane({ plot, slide = false, bar = true, platelets = false }
   // a change of exam shows its own number at once, never eased across from the other organ's; any change of what is shown draws again
   useEffect(() => { snap.current = true; dirty.current = true; clock.invalidate(TAG); }, [organ]);
   useEffect(() => { dirty.current = true; clock.invalidate(TAG); }, [model, h, json]);
+  // a card zoom opened or went home: the canvas has a new pixel ratio, so the map's radius (in canvas pixels) is worked out again
+  useEffect(() => onZoomK(() => { dirty.current = true; clock.invalidate(TAG); }), []);
   // the probe on the figure stops reading when the pane goes
   useEffect(() => () => setFibroProbe({ txt: null, kpa: null }), []);
 

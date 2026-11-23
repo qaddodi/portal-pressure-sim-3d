@@ -115,3 +115,6 @@ html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot
 html .umenu:has(.um-empty[data-fade="off"]) .um-cols { flex: 1 1 auto; }
 html .umenu:has(.um-empty[data-fade="off"]) .um-empty { flex: 0 0 auto; }
 .um-empty > .fade-in { display: flex; flex-direction: column; align-items: center; }
+/* A zoomed card (Plan 43, cards/card-zoom.ts): the Doppler box's own layer (2D's `will-change: transform`) is kept at the raster scale it first drew at, so its axis numbers would stay soft at 2.2 times.
+   It goes while the zoom stands up ("up" is written when the glide in lands, "" while it glides) and comes back with the card at rest. */
+body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will-change: auto; }
