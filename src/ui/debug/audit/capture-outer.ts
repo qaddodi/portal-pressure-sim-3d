@@ -11,9 +11,9 @@ import { readBox } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
 
 /** The address of the app in a capture frame: the same path with the capture flags (and none of the self-test's). */
-export function captureSrc(pathname: string, search: string, o: { speed: number; pick: string[] | null; only?: string }): string {
-  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass', 'sequence', 'pick', 'only']);
-  return `${pathname}?audit=capture&speed=${o.speed}${o.pick ? `&pick=${packPick(o.pick)}` : ''}${o.only ? `&only=${o.only}` : ''}${rest ? `&${rest}` : ''}`;
+export function captureSrc(pathname: string, search: string, o: { speed: number; pick: string[] | null; decks: string[] | null }): string {
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass', 'sequence', 'pick', 'only', 'decks']);
+  return `${pathname}?audit=capture&speed=${o.speed}${o.pick ? `&pick=${packPick(o.pick)}` : ''}${o.decks ? `&decks=${o.decks.join(',')}` : ''}${rest ? `&${rest}` : ''}`;
 }
 /** The zip's file name: what, where and when. */
 export const captureZipName = (commit: string, sizes: readonly string[], at: Date): string => {
@@ -39,10 +39,10 @@ export function addCaptureControls(k: OuterKit): void {
   wrap.append(lab, picker.el, go, stopBtn, save); bar.append(wrap);
 
   /** One size: a fresh frame, its files when it ends. */
-  const one = (id: string, sel: { only?: string; pick: string[] | null }, speed: number): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
+  const one = (id: string, sel: { decks: string[] | null; pick: string[] | null }, speed: number): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
     const box = doc.createElement('div'), frame = doc.createElement('iframe'); box.className = 'ao-wrap'; frame.title = `${d.label} ${d.w}x${d.h}`;
-    frame.src = captureSrc(win.location.pathname, searchNow(), { speed, pick: sel.pick, only: sel.only });
+    frame.src = captureSrc(win.location.pathname, searchNow(), { speed, pick: sel.pick, decks: sel.decks });
     box.append(frame); room.textContent = ''; room.append(box);
     const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, r.width - 24), Math.max(1, r.height - 24));
     box.style.width = `${Math.round(d.w * s)}px`; box.style.height = `${Math.round(d.h * s)}px`;
@@ -66,7 +66,7 @@ export function addCaptureControls(k: OuterKit): void {
     if (k.busy()) return;
     const sel = picker.read(), ids = k.sizes();
     if (!ids.length) { status.textContent = 'Tick at least one size in the bar.'; return; }
-    if (sel.pick && !sel.pick.length) { status.textContent = 'Tick at least one slide first.'; return; }
+    if (sel.none) { status.textContent = 'Tick at least one talk first.'; return; }
     k.setBusy(true); stop = false; zip = null; save.hidden = true; go.disabled = true;
     const at = new Date(), all: ZipFile[] = [], enc = new TextEncoder(), notes: string[] = [], speed = k.speed() > 1 ? k.speed() : 20;
     try {
@@ -77,7 +77,7 @@ export function addCaptureControls(k: OuterKit): void {
         if (r.why) notes.push(`${FRAME_DEVICES[id]!.label}: ${r.why}`);
         for (const f of r.files) all.push({ name: `${id}/${f.name}`, data: f.data });
       }
-      all.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: captured on a computer at the sizes ${ids.join(', ')}`, `Slides: ${sel.words}`, `Build: ${buildOf()}`, `Made: ${at.toISOString()}`, 'One folder per size (each with its own README, pictures, state files and contact sheets).', ...notes].join('\n')) });
+      all.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: captured on a computer at the sizes ${ids.join(', ')}`, `Taken: ${sel.words}`, `Build: ${buildOf()}`, `Made: ${at.toISOString()}`, 'One folder per size (each with its own README, pictures, state files and contact sheets).', ...notes].join('\n')) });
       zip = { blob: zipBlob(all, at), name: captureZipName(commitOf(import.meta.env.VITE_BUILD) || 'local', ids, at) };
       status.textContent = `${stop ? 'Stopped. ' : 'Done. '}${all.filter((f) => f.name.endsWith('.jpg')).length} pictures in ${ids.length} size${ids.length > 1 ? 's' : ''}. Tap Save zip.${notes.length ? ` ${notes.join('; ')}` : ''}`;
       save.hidden = false;

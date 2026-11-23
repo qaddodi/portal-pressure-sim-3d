@@ -40,52 +40,41 @@ export function pickWords(keys: readonly string[]): string {
   return [...by].map(([d, ns]) => `${d} ${ns.join(', ')}`).join('; ');
 }
 
-export type SliceChoice = { kind: 'all' } | { kind: 'ticked' } | { kind: 'random'; n: number };
-/** The form: a talk (or all), and which of its slides (all, ticked, or a random 25, 50 or 100). `read()` gives the choice as `{ only, pick }`, `pick` null for every slide. */
-export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { only?: string; pick: string[] | null; words: string }; refresh(): void } {
+/** The form: which talks (ticked; all to start with) and how many of their slides: every one, or a random 25, 50 or 100. `read()` gives `{ decks, pick, words }`: `decks` the ticked talks' ids (null when all are ticked), `pick` the random sample's keys (null for every slide of those talks). */
+export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { decks: string[] | null; pick: string[] | null; words: string; none: boolean }; refresh(): void } {
   const el = doc.createElement('div'); el.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 6px';
-  const talk = doc.createElement('select'); talk.setAttribute('aria-label', 'Talk to capture');
-  const which = doc.createElement('select'); which.setAttribute('aria-label', 'Which slides');
-  for (const [v, t] of [['all', 'Every slide'], ['ticked', 'Pick slides…'], ['25', 'Random 25 slides'], ['50', 'Random 50 slides'], ['100', 'Random 100 slides']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
-  const list = doc.createElement('div'); list.hidden = true; list.style.cssText = 'flex:1 1 100%;max-height:34vh;overflow:auto;border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:6px 8px';
-  const ticks = new Set<string>();
-  const drawList = () => {
+  const which = doc.createElement('select'); which.setAttribute('aria-label', 'How many slides');
+  for (const [v, t] of [['all', 'Every slide of the ticked talks'], ['25', 'Random 25 slides'], ['50', 'Random 50 slides'], ['100', 'Random 100 slides']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
+  const list = doc.createElement('div'); list.style.cssText = 'flex:1 1 100%;max-height:30vh;overflow:auto;border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px';
+  const off = new Set<string>();   // (the talks not ticked: a talk that loads later starts ticked)
+  const draw = () => {
     list.textContent = '';
-    const bar = doc.createElement('div'); bar.style.cssText = 'display:flex;gap:6px;margin-bottom:4px';
+    const bar = doc.createElement('div'); bar.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px';
     const mk = (t: string, on: () => void) => { const b = doc.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = on; bar.append(b); };
-    const shown = decks().filter((d) => !talk.value || d.id === talk.value);
-    mk('Tick all', () => { for (const d of shown) for (let i = 1; i <= d.slides.length; i++) ticks.add(stopKey(d.id, i)); drawList(); });
-    mk('Clear', () => { ticks.clear(); drawList(); });
-    const count = doc.createElement('span'); count.textContent = `${ticks.size} ticked`; bar.append(count); list.append(bar);
-    for (const d of shown) {
-      const det = doc.createElement('details'); det.open = shown.length === 1;
-      const sum = doc.createElement('summary'); sum.textContent = d.title; det.append(sum);
-      d.slides.forEach((s, i) => {
-        const key = stopKey(d.id, i + 1), l = doc.createElement('label'); l.style.cssText = 'display:flex;gap:6px;align-items:baseline;padding:2px 0';
-        const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = ticks.has(key);
-        c.onchange = () => { if (c.checked) ticks.add(key); else ticks.delete(key); count.textContent = `${ticks.size} ticked`; };
-        l.append(c, `${i + 1}. ${s.title}`); det.append(l);
-      });
-      list.append(det);
+    const count = doc.createElement('span');
+    const all = decks();
+    const upd = () => { count.textContent = `${all.length - [...off].filter((id) => all.some((d) => d.id === id)).length} of ${all.length} talks`; };
+    mk('All talks', () => { off.clear(); draw(); });
+    mk('None', () => { for (const d of all) off.add(d.id); draw(); });
+    bar.append(count); list.append(bar); upd();
+    for (const d of all) {
+      const l = doc.createElement('label'); l.style.cssText = 'display:flex;gap:6px;align-items:baseline';
+      const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = !off.has(d.id);
+      c.onchange = () => { if (c.checked) off.delete(d.id); else off.add(d.id); upd(); };
+      l.append(c, `${d.title} (${d.slides.length} slides)`); list.append(l);
     }
   };
-  const refresh = () => {
-    const keep = talk.value; talk.textContent = '';
-    const all = doc.createElement('option'); all.value = ''; all.textContent = 'All talks'; talk.append(all);
-    for (const d of decks()) { const o = doc.createElement('option'); o.value = d.id; o.textContent = d.title; talk.append(o); }
-    talk.value = keep; list.hidden = which.value !== 'ticked'; if (!list.hidden) drawList();
-  };
-  talk.onchange = () => { if (which.value === 'ticked') drawList(); };
-  which.onchange = () => { list.hidden = which.value !== 'ticked'; if (!list.hidden) drawList(); };
-  el.append(talk, which, list); refresh();
+  const refresh = draw;
+  el.append(which, list); draw();
   return {
     el, refresh,
     read() {
-      const only = talk.value || undefined, pool = decks().filter((d) => !only || d.id === only);
-      if (which.value === 'all') return { only, pick: null, words: only ? pool[0]?.title ?? only : 'every slide of every talk' };
-      if (which.value === 'ticked') { const keys = slideKeys(pool).filter((k) => ticks.has(k)); return { only, pick: keys, words: pickWords(keys) }; }
-      const keys = randomPick(pool, Number(which.value), new Date().getTime());
-      return { only, pick: keys, words: `random ${keys.length}: ${pickWords(keys)}` };
+      const all = decks(), ticked = all.filter((d) => !off.has(d.id)), allTicked = ticked.length === all.length;
+      const names = allTicked ? 'every talk' : ticked.map((d) => d.title).join(', ');
+      if (!ticked.length) return { decks: [], pick: null, words: '', none: true };
+      if (which.value === 'all') return { decks: allTicked ? null : ticked.map((d) => d.id), pick: null, words: `every slide of ${names}`, none: false };
+      const keys = randomPick(ticked, Number(which.value), new Date().getTime());
+      return { decks: allTicked ? null : ticked.map((d) => d.id), pick: keys, words: `random ${keys.length} from ${names}: ${pickWords(keys)}`, none: false };
     },
   };
 }

@@ -24,9 +24,9 @@ export function mountCaptureChild(): void {
     void settle().then(async () => {
       try {
         const m = await import('./capture-all.ts');
-        const speed = speedOf(flagValue('speed')), pick = unpackPick(flagValue('pick')), only = flagValue('only') || undefined;
+        const speed = speedOf(flagValue('speed')), pick = unpackPick(flagValue('pick')), decks = (flagValue('decks') ?? '').split(',').filter((x) => /^[\w-]+$/.test(x));
         const r = await m.captureAllDecks({
-          only, pick, speed: speed > 1 ? speed : undefined,
+          decks: decks.length ? new Set(decks) : null, pick, speed: speed > 1 ? speed : undefined,
           status: (s) => { text = s; }, stop: () => stop,
           progress: (n, total) => post({ capture: 'progress', text, n, total }),
         });

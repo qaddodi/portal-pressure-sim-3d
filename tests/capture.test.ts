@@ -190,7 +190,7 @@ test('Capture this deck: a Settings row inside a talk, a Stop in the toast that 
   assert.match(sheet, /talk \? <MenuItem icon="grid" label=\{CAPTURE\.deckRow\}/);
   assert.match(deck, /only: id/); assert.match(deck, /stop: \(\) => stopped/); assert.match(deck, /restore: back/); assert.match(deck, /CAPTURE\.save/);
   assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
-  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Talk to capture/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /only: sel\.only/);
+  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Random 25 slides/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /decks: sel\.decks/);
   assert.ok(!/—/.test(src('src/ui/shell/words.ts').match(/export const CAPTURE = \{[\s\S]*?\} as const;/)![0]));
 });
 
@@ -261,7 +261,7 @@ test('Capture picks: ticked slides, a seeded random sample from random talks, an
   assert.equal(p.lastPicked(set, 'a'), 2); assert.equal(p.lastPicked(set, 'c'), -1);
   assert.equal(p.pickWords(['a:2', 'a:3', 'b:1']), 'a 2, 3; b 1');
   const outer = await import('../src/ui/debug/audit/capture-outer.ts');
-  assert.equal(outer.captureSrc('/x/', '?audit=frames&sizes=mac&speed=20&look=dark', { speed: 20, pick: ['a:1', 'b:2'], only: 'a' }), '/x/?audit=capture&speed=20&pick=a:1,b:2&only=a&look=dark');
+  assert.equal(outer.captureSrc('/x/', '?audit=frames&sizes=mac&speed=20&look=dark', { speed: 20, pick: ['a:1', 'b:2'], decks: ['a', 'b'] }), '/x/?audit=capture&speed=20&pick=a:1,b:2&decks=a,b&look=dark');
   assert.match(outer.captureZipName('abc123', ['iphone', 'mac'], new Date(2026, 10, 23, 9, 5, 7)), /^portal-pressure-capture-abc123-iphone\+mac-20261123-090507\.zip$/);
   const all = src('src/ui/debug/audit/capture-all.ts'), child = src('src/ui/debug/audit/capture-child.ts'), mount = src('src/ui/debug/mount.ts');
   assert.match(all, /pick\.has\(stopKey\(d\.id, k\)\)/, 'a slide not picked is walked past'); assert.match(all, /pos\.stop > last/, 'the walk ends after the last picked slide');
