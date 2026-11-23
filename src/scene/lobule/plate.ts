@@ -172,20 +172,13 @@ float plateEdge(vec2 uv, vec2 uvPerPx, float dpr) {
   return length(vec2(a - b, c - d));
 }
 void main() {
+  // (the collagen field first, once, only where something has grown: healthy tissue takes no fetch, collagen-field.ts)
+  if (uP.x + uP.y + uP.z > 0.0) { gFS = collField(vUv, 0.5); gFU = collField(vUv, 0.0); }
   // (every derivative first, before the dissolve's discard and the empty-texel return: a quad whose other pixels were dropped gives a garbage fwidth on a device that drops the lane,
   // tests/no-derivative-after-discard.test.ts)
   // the central vein's own band (cv-band.ts): its radius in lobule radii, and one device pixel of it (a derivative, so read here, before any discard)
   float cvR = length(vUv - 0.5) * CV_SPAN * uScarK;
   float cvAA = max(fwidth(cvR), 1e-6);
-  if (uBaseK > 0.5) {   // the scar mesh: the band from the lumen's edge to the wall, opaque over the pool's tone, as much of it as has grown; nothing in the lumen (the pool shows)
-    if (fadedOut()) discard;
-    float cov = cvEdge(cvR, cvAA) * uCv.w;
-    vec3 bc = reliefColour(uCvCol, cvRelief(cvR, (vUv - 0.5) / max(length(vUv - 0.5), 1e-6)));
-    gl_FragColor = vec4((uBase * (1.0 - CV_A) + bc * CV_A) * cov, cov) * opacity;
-    return;
-  }
-  // (the collagen field first, once, only where something has grown: healthy tissue takes no fetch, collagen-field.ts)
-  if (uP.x + uP.y + uP.z > 0.0) { gFS = collField(vUv, 0.5); gFU = collField(vUv, 0.0); }
   vec4 p = plateTex(vUv);
   float cov = gCov; vec2 fr = gFr;   // (the collagen here, before plateEdge's calls overwrite them)
   vec3 c = p.rgb / max(p.a, 1e-4);
@@ -201,6 +194,12 @@ void main() {
   float rs = 0.0;
   if (cov > 0.002) rs = reliefS(gFS.g * fr.x + gFU.g * fr.y, vL);   // (the height is the soft alpha the eye sees, each layer as much as has grown)
   if (fadedOut()) discard;
+  if (uBaseK > 0.5) {   // the scar mesh (it holds no tissue: p is clear): the band from the lumen's edge to the wall, opaque over the pool's tone, as much of it as has grown; nothing in the lumen (the pool shows)
+    float cvCov = cvEdge(cvR, cvAA) * uCv.w;
+    vec3 bc = reliefColour(uCvCol, cvRelief(cvR, (vUv - 0.5) / max(length(vUv - 0.5), 1e-6)));
+    gl_FragColor = vec4((uBase * (1.0 - CV_A) + bc * CV_A) * cvCov, cvCov) * opacity;
+    return;
+  }
   // the vein's band past the wall (and under the pool inside it): the same function the scar mesh draws, over whatever the plate holds
   float cvA = CV_A * cvEdge(cvR, cvAA) * cvWall(cvR) * uCv.w;
   if (p.a < 0.002 && cvA < 0.002) { gl_FragColor = vec4(0.0); return; }

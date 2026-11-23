@@ -129,10 +129,9 @@ test('arrival times: the tracts reach the soft copy\'s spread (2 rt + pad) and n
   }
 });
 
-test('arrival times: the vein\'s cuff reaches its painted edge plus the pad and not past it', () => {
+test('arrival times: the vein has none (it is not in the collagen layer: cv-band.ts draws it from its radius), so no soft copy reaches past it', () => {
   const rOut = (cvR + shape.rcv0 * 0.95) * 1.08;
-  assert.notEqual(at(shape.cx + rOut + 0.8 * pad, shape.cy, 2), NEVER, 'the soft copy past the cuff has an arrival time');
-  assert.equal(at(shape.cx + rOut + 1.4 * pad, shape.cy, 2), NEVER);
+  for (const r of [0, cvR, rOut, rOut + 0.8 * pad]) assert.equal(at(shape.cx + r, shape.cy, 2), NEVER, `channel B at ${r} is never`);
 });
 
 test('arrival times: a pixel has a septum arrival time exactly when it lies within the painted half width (2.1 x the width) plus the pad of some band', () => {

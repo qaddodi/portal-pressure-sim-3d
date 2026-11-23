@@ -46,8 +46,8 @@ test('the collagen layer over the tissue with none of it equals today\'s one-pas
 /** The visible collagen of a channel at growth p (the shader's own rule on the layer's alpha). */
 const visible = (ch: number, p: number, i: number): boolean => (ch === 0 ? layerS : layer).alpha[i]! * front(tau[4 * i + ch]!, p) * (ch === 0 ? septaStrength(p) : 1) > 0.05;
 
-test('nested by construction: each channel\'s collagen at p is a subset of its collagen at any larger p (101 steps, pixel by pixel), and it grows', () => {
-  for (const ch of [0, 1, 2]) {
+test('nested by construction: each channel\'s collagen at p is a subset of its collagen at any larger p (101 steps, pixel by pixel), and it grows (the vein is not in this layer: cv-band.ts)', () => {
+  for (const ch of [0, 1]) {
     let prev = new Uint8Array(N * N), last = 0, first = -1;
     for (let k = 0; k <= 100; k++) {
       const p = k / 100, cur = new Uint8Array(N * N); let n = 0;
@@ -106,7 +106,8 @@ test('deterministic: the same layout gives the same arrival times, byte for byte
   const hash = (a: Uint8Array) => createHash('sha1').update(a).digest('hex');
   const again = collagenTau(shape, cv * PLATE_S, N, B);
   assert.equal(hash(again), hash(tau));
-  for (let ch = 0; ch < 3; ch++) { let n = 0; for (let i = 0; i < N * N; i++) if (tau[4 * i + ch] !== NEVER) n++; assert.ok(n > 500, `channel ${ch} has times`); }
+  for (let ch = 0; ch < 2; ch++) { let n = 0; for (let i = 0; i < N * N; i++) if (tau[4 * i + ch] !== NEVER) n++; assert.ok(n > 500, `channel ${ch} has times`); }
+  for (let i = 0; i < N * N; i++) assert.equal(tau[4 * i + 2], NEVER, 'the vein is not in the layer (cv-band.ts draws it): channel B is never');
 });
 
 test('the layer and the times at the plate\'s size, in bytes (an iPhone paints the same 2048 px plate)', () => {
