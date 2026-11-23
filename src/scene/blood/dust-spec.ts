@@ -132,7 +132,9 @@ export const dustBand = (k: number, K: number, radExp: number, rhoMax: number): 
 export interface DustQuality { phone: boolean; devicePixels: number }
 
 /** The uniform values, in DUST_UNIFORMS order, for these (eased) numbers: `s` the numeric settings, `w` the eased weights of the selects (colour mode, custom colour, local velocity), `rgb` the custom colour. */
-export interface DustWeights { random: number; speed: number; depth: number; radius: number; source: number; custom: number; local: number; lookB?: number }
+/** The debug paint's code from the select's value (the selects live in the tuner's targets, not in the eased numbers, so it travels with the weights). */
+export const DUST_DEBUG_CODE: Readonly<Record<string, number>> = { off: 0, bad: 1, gone: 2, both: 3, dark: 4, cover: 5 };
+export interface DustWeights { random: number; speed: number; depth: number; radius: number; source: number; custom: number; local: number; lookB?: number; dbg?: number }
 export const DUST_UNIFORMS = [
   'size', 'sizeVar', 'soft', 'opacity',
   'opVar', 'stretch', 'lenK', 'feather',
@@ -186,7 +188,7 @@ export function dustDerive(s: Readonly<Record<string, number>>, w: DustWeights, 
     wSource: w.source, custom: w.custom, nCls: K, win,
     cr: rgb[0]!, cg: rgb[1]!, cb: rgb[2]!, lenCap: lenMax,
     wLookB: w.lookB ?? 1, lanes: Math.round(s.lanes ?? 26), laneJit: s.laneJit ?? 0.4, cellLen: s.cellLen ?? 3.2, fill: s.fill ?? 0.8, trains: Math.round(s.trains ?? 2),
-    dbg: ({ bad: 1, gone: 2, both: 3, dark: 4, cover: 5 } as Record<string, number>)[String(s.dustDebug)] ?? 0,
+    dbg: w.dbg ?? 0,
   };
   return v;
 }

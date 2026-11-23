@@ -1,7 +1,7 @@
 // The dust's live settings: the numbers the vessels' shader reads (one vec4 array, shared by every vessel), eased. A setting changed (by the hidden ?dust panel, a preset, pasted text) is a new TARGET: the values glide to it
 // (EASE_MS), so a density, a size, a swirl or a colour never snaps, and a select (colour by, particle colour, speed follows) is a set of weights that cross-fade. Nothing here runs a frame of its own: the scene steps it
 // in its own update and keeps the clock awake while it returns true. Pure but for the three.js-free Float32Array: a node test loads it.
-import { DUST_NUMERIC, DUST_UNIFORMS, DUST_VEC4, dustDefaults, dustDerive, hexRgb, parseDust, type DustSettings, type DustWeights } from './dust-spec.ts';
+import { DUST_DEBUG_CODE, DUST_NUMERIC, DUST_UNIFORMS, DUST_VEC4, dustDefaults, dustDerive, hexRgb, parseDust, type DustSettings, type DustWeights } from './dust-spec.ts';
 
 /** The time constant of the glide (ms): 95 percent of the way in three of these. */
 export const DUST_EASE_MS = 240;
@@ -14,7 +14,7 @@ export class DustTuner {
   readonly uniform: { value: Float32Array } = { value: new Float32Array(DUST_VEC4 * 4) };
   private tgt: DustSettings = dustDefaults();
   private cur: Record<string, number> = {};
-  private w: DustWeights = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1, lookB: 1 };
+  private w: DustWeights = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1, lookB: 1, dbg: 0 };
   private rgb: [number, number, number] = [0.62, 0.77, 1];
   private phone = false;
   private devicePixels = 4.5e6;
@@ -51,7 +51,7 @@ export class DustTuner {
 
   private weightsOf(): DustWeights {
     const mode = String(this.tgt.colorBy);
-    return { random: mode === 'random' ? 1 : 0, speed: mode === 'speed' ? 1 : 0, depth: mode === 'depth' ? 1 : 0, radius: mode === 'radius' ? 1 : 0, source: mode === 'source' ? 1 : 0, custom: this.tgt.partColor === 'custom' ? 1 : 0, local: this.tgt.vel === 'flat' ? 0 : 1, lookB: this.tgt.dustLook === 'a' ? 0 : 1 };
+    return { random: mode === 'random' ? 1 : 0, speed: mode === 'speed' ? 1 : 0, depth: mode === 'depth' ? 1 : 0, radius: mode === 'radius' ? 1 : 0, source: mode === 'source' ? 1 : 0, custom: this.tgt.partColor === 'custom' ? 1 : 0, local: this.tgt.vel === 'flat' ? 0 : 1, lookB: this.tgt.dustLook === 'a' ? 0 : 1, dbg: DUST_DEBUG_CODE[String(this.tgt.dustDebug)] ?? 0 };
   }
 
   /** Eases the values toward the targets by `dtMs`. Returns true while anything is still moving (the scene keeps asking for frames). */
@@ -71,6 +71,7 @@ export class DustTuner {
     }
     const want = this.weightsOf(), w = this.w as unknown as Record<string, number>;
     for (const key of [...MODES, 'custom', 'local', 'lookB']) w[key] = go(w[key]!, (want as unknown as Record<string, number>)[key]!, 1);
+    w.dbg = want.dbg ?? 0;   // (a code, not a glide)
     const rgb = hexRgb(String(this.tgt.partHex));
     for (let i = 0; i < 3; i++) this.rgb[i] = go(this.rgb[i]!, rgb[i]!, 1);
     this.write();

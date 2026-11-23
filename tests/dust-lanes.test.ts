@@ -106,3 +106,19 @@ test('a NaN or an infinity in the dust is found on the bits, per particle and on
   assert.match(src, /fd = dSafe\(clamp\(dSafe\(fd\), 0\.0, 1\.0\) \* dHold\(fadeHere \* cavA\)\);/, 'the tube paints no NaN');
   assert.match(src, /dustAcc \*= dWall\(skinWall\([^\n]*\n\s*dustAcc = dSafe\(dustAcc\);/, 'the skin paints no NaN');
 });
+
+// The debug paint's first build never reached the shader: the select lives in the tuner's targets and the uniforms are derived from the eased NUMBERS, so `dbg` was always 0 and Mohammad's probes (23 Nov, "no green, no yellow
+// anywhere") painted nothing. The code now travels with the weights; every choice of the select must reach its uniform, and the default must be off.
+test('the debug paint reaches its uniform: every choice of the select, off by default', () => {
+  const sel = DUST_SELECTS.find((r) => r[0] === 'dustDebug')!;
+  const ix = DUST_UNIFORMS.indexOf('dbg');
+  assert.ok(ix >= 0 && sel[3] === 'off');
+  const t = new DustTuner(); t.snap();
+  assert.equal(t.uniform.value[ix], 0, 'off unless asked');
+  const seen = new Set<number>();
+  for (const [v] of sel[2]) { t.set({ dustDebug: v }); t.step(16); seen.add(t.uniform.value[ix]!); }
+  assert.equal(seen.size, sel[2].length, 'each choice is its own code');
+  assert.ok(!seen.has(undefined as never) && [...seen].every((n) => Number.isInteger(n)));
+  t.set({ dustDebug: 'off' }); t.step(16);
+  assert.equal(t.uniform.value[ix], 0);
+});
