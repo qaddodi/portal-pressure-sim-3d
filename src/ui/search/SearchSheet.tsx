@@ -113,7 +113,7 @@ export function SearchSheet() {
   const close = () => useShell.getState().close();
   // 2D palette.js markup: .pal-back > .pal (.pal-top: icon, field, close; .pal-list of .pal-item; .pal-foot), on the 2D stylesheet
   return (
-    <div ref={back} className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!open && !shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div ref={back} className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!open && !shown} onPointerDown={(e) => { if (e.target === e.currentTarget) useShell.getState().closeByPress(); }}>
       <div ref={panel} className="pal" role="dialog" aria-modal="true" aria-label="Command palette" inert={!open}>
         <div className="pal-top">
           <Icon n="search" className="pal-ic" />

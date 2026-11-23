@@ -351,7 +351,7 @@ export function UMenu() {
   const hovered = pvOn ? hover : null;
   if (hovered) pvLast.current = hovered;
   return createPortal(<>
-    {sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={close} />}
+    {sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={() => useShell.getState().closeByPress()} />}
     {menu}
     {pv.shown && pvLast.current && <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clock.cancel(hideT.current)} onLeave={() => { hideT.current = clock.after(() => setHover(null), 220); }} />}
   </>, root);
