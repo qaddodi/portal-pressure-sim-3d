@@ -4,6 +4,7 @@
 import { CEL_TISSUE_GLSL } from './cel.ts';
 import { CEL_LIGHT_GLSL } from '../cel-glsl.ts';
 import { RELIEF_D_PX, RELIEF_GLSL, RELIEF_LOD } from './relief.ts';
+import { collagenSoftGlsl } from './collagen-soft.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { DataTexture } from 'three';
 import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
@@ -117,6 +118,7 @@ const float PLATE_EDGE_SHADE = ${PLATE_EDGE_SHADE.toFixed(3)};
 const float PLATE_EDGE_K = ${PLATE_EDGE_K.toFixed(3)};
 ${FADE_GLSL}
 ${RELIEF_GLSL}
+${collagenSoftGlsl(PLATE_PX)}
 uniform sampler2D map;
 uniform sampler2D mapB;   // the plate being crossfaded in, mixB of the way (0: none): one sampling of both, so the mix of two premultiplied plates is whole at every step (alpha (1-e)A + eB, never a gap)
 uniform float mixB;
@@ -136,10 +138,10 @@ float front(float t, float p) { return t > 0.995 ? 0.0 : smoothstep(t - GROW_H, 
 // right after its own plateTex(vUv) call, before plateEdge's four calls overwrite them
 float gCov = 0.0;
 vec2 gFr = vec2(0.0);
-// the collagen atlas at a point, the two atlases of a crossfade mixed
-vec4 collAt(vec2 uvx, float bias) {
-  vec4 b = texture2D(mapC, uvx, bias);
-  return mixB > 0.0 ? mix(b, texture2D(mapCB, uvx, bias), mixB) : b;
+// the collagen atlas at an explicit level, the two atlases of a crossfade mixed
+vec4 collLod(vec2 uvx, float lod) {
+  vec4 b = textureLod(mapC, uvx, lod);
+  return mixB > 0.0 ? mix(b, textureLod(mapCB, uvx, lod), mixB) : b;
 }
 // the plate at a point: the tissue (the two plates of a crossfade mixed, premultiplied) with the collagen layer over it, as much of it as has grown; the vein's scar (uBaseK 1) is that collagen, whole, over the tissue's tone
 vec4 plateAt(vec2 uv, float bias) {
@@ -150,9 +152,12 @@ vec4 plateAt(vec2 uv, float bias) {
   vec4 cu = texture2D(mapC, uvT, bias), cs = texture2D(mapC, uvS, bias);
   if (mixB > 0.0) { a = mix(a, texture2D(mapB, uv, bias), mixB); cu = mix(cu, texture2D(mapCB, uvT, bias), mixB); cs = mix(cs, texture2D(mapCB, uvS, bias), mixB); }
   if (uP.x + uP.y + uP.z <= 0.0) return uBaseK > 0.5 ? vec4(0.0) : a;
-  // (Plan 'raised relief': the painter's three passes end in hard terraces; where the layer is faint, its edge takes a softer copy of itself (three mip levels coarser), the dense core stays as painted. Premultiplied, so the mix is exact)
-  cs = mix(collAt(uvS, bias + 3.0), cs, smoothstep(0.35, 0.75, cs.a));
-  cu = mix(collAt(uvT, bias + 3.0), cu, smoothstep(0.35, 0.75, cu.a));
+  // (the painter's passes end in flat tiers, and a tier is up to 55 plate px wide: each layer takes a soft copy of itself at an absolute level (SOFT_LOD, 64 px, wider than any tier) and the painted fibres show only where that soft
+  // copy is itself dense, so the switch is as smooth as the copy and no terrace is left (collagen-soft.ts). Kept SOFT_EDGE inside the plate: the atlas holds two plates side by side. Premultiplied, so the mix is exact)
+  vec2 uvK = clamp(uv, vec2(SOFT_EDGE), vec2(1.0 - SOFT_EDGE));
+  vec4 sS = collLod(vec2(0.5 + uvK.x * 0.5, uvK.y), SOFT_LOD), sU = collLod(vec2(uvK.x * 0.5, uvK.y), SOFT_LOD);
+  cs = mix(sS, cs, smoothstep(SOFT_E0, SOFT_E1, sS.a));
+  cu = mix(sU, cu, smoothstep(SOFT_E0, SOFT_E1, sU.a));
   vec3 t = texture2D(mapT, uv).rgb * (255.0 / 254.0);
   float fb = front(t.b, uP.z);
   if (uBaseK > 0.5) { float cov = fb * smoothstep(0.0, 0.08, cu.a); gCov = cov; gFr = vec2(0.0, fb); return vec4((uBase * (1.0 - cu.a) + cu.rgb) * cov, cov); }
