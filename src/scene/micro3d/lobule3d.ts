@@ -58,8 +58,9 @@ import { type EmitOpts, type PartData, emitCourse, emitSkin } from './lobule-wel
 
 import { clock } from '../../clock/frame.ts';
 const R = LOBULE_R;
-/** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
-export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;   // (cellBot a hair over the ground: a tile's wall ended under it, and its line, drawn down the wall, dipped in and out of the ground in dashes, eyes 20 Nov)
+/** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate.
+ *  The plate stands over the tallest nucleus crown (0.0436 at septU 1) and 0.017 (3.8 µm) under the sinusoid scene's lowest surface (0.0634): it is depth-TESTED, so the sinusoid, standing over the lobule at the dive's landing, hides it (23 Nov, the dive's flash). */
+export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.046 } as const;   // (cellBot a hair over the ground: a tile's wall ended under it, and its line, drawn down the wall, dipped in and out of the ground in dashes, eyes 20 Nov)
 /** The lobule vessels' line (CSS px): the Anatomy's vessels' weight (about 2 px at the fit). */
 export const VESSEL_LINE = 2;
 /** Segments round a tube and round a mouth. */
@@ -79,6 +80,8 @@ export const LYMPH_UNDER_Z = LZ.disse - 0.01;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
 /** Where the bile is drawn: before every blood vessel and the lymph (all -1), writing no depth. */
 export const BILE_ORDER = -1.8;
+/** The distances from the centre (lobule radii) the dive's view of the lobule spans round the sinusoid's station (rho 0.45): diveTopZ. */
+export const DIVE_RHO: readonly [number, number] = [0.3, 0.6];
 export const FADE_SNAP = 0.98;
 /** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
 export const END_HUSH_R = 3;
@@ -109,6 +112,8 @@ interface Flat {
   look: LookId;
   isVisible: boolean;
   readonly sinSwell: { whole: number; share: number };
+  /** A sinusoid's width now against its healthy width at distance `rho` from the centre (lum, and congestion's share of it). */
+  sinScaleAt(rho: number): number;
   cvRadiusNow: number;
   /** The wedge's wash, 0..1 (0 when no slide runs it). */
   readonly washProgress: number;
@@ -272,7 +277,7 @@ export class Lobule3D {
     this.mouthBd = mk('ductules', { px: S.LINE_SMALL });
     this.mouthLv = mk('lymphatics', { px: S.LINE_SMALL });
     this.mouthCv = mk('central-vein', { px: VESSEL_LINE });
-    // the marks plate (above the tiles, under the vessels: drawn after the tiles with no depth test, the vessels after it)
+    // the marks plate (above the tiles, under the vessels: drawn after the tiles, testing depth and writing none, the vessels after it)
     this.shape = { ...plateShape(this.flat.net), cells: [] };
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
     this.canvas = defaultCanvas(PLATE_PX);   // (the plate's one canvas maker, plate.ts: a 2D canvas sent as a texture, no GL context of its own)
@@ -282,7 +287,7 @@ export class Lobule3D {
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true; this.blankColl = blank;
     this.marksMat = new ShaderMaterial({ name: 'lobule marks',
       vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
-      transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
+      transparent: false, depthWrite: false, depthTest: true, side: DoubleSide,   // (depth-TESTED, writing none: the vessels still draw over it, and the sinusoid scene that stands over the lobule at the dive's landing hides it; it was depth-blind, so Disse's lining, the septa and the tracts were painted over the whole sinusoid until the lobule dropped out, then popped off: 23 Nov)
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
     // SOS's scar inside the central vein: the plate's own painting (cv-intima.ts) shown over the vein's pool by this one shader, the plate's textures and mix shared with the marks, laid whole over the tissue's tone
@@ -992,6 +997,16 @@ export class Lobule3D {
   }
   /** The parts (tests). */
   get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
+  /** The height (local units) of the tallest blood-vessel tube standing within the dive's view of the lobule (the sinusoid's own station, rho 0.3 to 0.6): its axis at OVER_Z and its radius as drawn now, congestion's
+   *  widening included. The sinusoid scene stands over this (sinusoid3d.ts lift), so no lobule tube ever pokes through its ground while the two cross (23 Nov, the dive's flash). */
+  diveTopZ(): number {
+    let r = 0;
+    for (let i = 0; i <= 6; i++) {
+      const rho = DIVE_RHO[0] + ((DIVE_RHO[1] - DIVE_RHO[0]) * i) / 6, sc = this.flat.sinScaleAt(rho);
+      for (const k of ['s0', 's1', 's2', 'an'] as const) r = Math.max(r, sinRadius(k, rho) * sc);
+    }
+    return OVER_Z + r * R;
+  }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
   buildForTest(look: LookId, congU = 0, septU = 0): void { if (!this.vesselsBuilt) this.buildVessels(); this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 

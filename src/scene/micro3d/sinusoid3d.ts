@@ -20,6 +20,7 @@ import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
 import { U } from '../sinusoid/view.ts';
+import { SIN_REL } from '../lobule/frames.ts';
 import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSteps, newWeights, phiAt, wallColumns, type Weights } from './sinusoid-wall.ts';
 import { CEL_STYLE } from '../cel-style.ts';
@@ -54,7 +55,11 @@ export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -1
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 // (26: the whole scene, its ground 12 µm down included, stands over the lobule's tubes (their tops about 11 µm up in these units) and tiles: at 8 the tube showed through the lumen and the
 //  lobule's branches through the ground while it grew, a hybrid picture, eyes 20 Nov. holdScale keeps it its landed size on screen however high it stands.)
-const LIFT = 26;
+export const LIFT = 26;
+/** How far (µm) the scene's lowest surface stands over the tallest lobule tube in view, at the least. */
+export const LIFT_MARGIN = 2;
+/** One µm of this scene in the lobule's local units (the scene's unit is U per µm and SIN_REL lobule units: lobule/frames.ts). */
+export const UM_LOBULE = U * SIN_REL;
 /** The dive share over which the scene grows out from its lumen (see update): from nothing to whole, which the lobule's standing aside follows (scene.ts LOBULE_UNDER_FROM). */
 /** CSS px per µm from which the small shapes' lines are whole (see rimK). */
 export const RIM_FULL_PX = 2.5;
@@ -271,6 +276,11 @@ export class Sinusoid3D {
   private pinned = false;
 
   /** One frame, after the host's own update (its state, palette and traffic are this frame's). `on`: always true now (everything is 3D); false only hides it in tests. True while anything of this scene moves. */
+  /** The tallest lobule tube in view (local units of the lobule, Lobule3D.diveTopZ): the scene stands so that its ground, 12 µm down in its own units, is over it by LIFT_MARGIN at the least, however far congestion has widened the tubes. */
+  setLobuleTop(z: number): void { this.lobTop = z; }
+  private lobTop = 0;
+  /** The lift (µm): LIFT, or higher where the lobule's tubes stand higher (congestion). */
+  liftUm(): number { return Math.max(LIFT, this.lobTop / UM_LOBULE - Z.ground + LIFT_MARGIN); }
   /** The lift (toward the eye, over the lobule while the two cross) never changes the scene's size on screen: the group shrinks by the eye's distance to its plane against the lifted
    *  distance, about the point under the eye, so the lumen stays exactly as wide as the lobule's tube it grows out of (eyes 20 Nov: lumen 70 px against the tube's 40, a 1.7x step at the
    *  handoff, with the camera smooth: the lift of 8 µm was near half the eye's height there). Call after the camera has moved and update() has set the lift. */
@@ -306,7 +316,7 @@ export class Sinusoid3D {
     // (the sinusoid comes in inside the blur, FOCUS: dithered, which the blur over it turns into a smooth dissolve; whole before the picture sharpens)
     this.fade.value = d == null ? 1 : smooth(FOCUS[1], FOCUS[2], d);
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
-    this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
+    this.group.position.z = d == null ? 0 : this.liftUm() * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
     const S = f.cur;
