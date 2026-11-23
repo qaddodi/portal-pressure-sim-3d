@@ -240,6 +240,11 @@ export interface CardDeps {
   circuit(): { k: number; project(x: number, y: number, out: { x: number; y: number }): { x: number; y: number } } | null;
 }
 
+/** The point along a varix column (0..1) that stands clear of the scope ring and its badge: the middle when it is clear already (the calipers' rule, one for every mark and ruler on the varices). */
+export function clearOfRing(curve: { getPointAt(u: number, out: Vector3): Vector3 }, scratch: Vector3): number {
+  return clearParam((u, o) => { curve.getPointAt(u, scratch); o.x = scratch.x; o.y = scratch.y; }, { x: x3(RING.x), y: y3(RING.y) }, (RING.r + BADGE_R + 4) / UNITS_PER_SCENE, 0.5);
+}
+
 /** Where along a vessel a step's number points (2D stage-label-solve.js: arcMid at 0.5, and for a vein that fades in from its start (TIP_FADE over half its length) the middle of its solid
  *  stretch, which the fade leaves, not the middle of the whole, which is faint). */
 export const stepMidOf = (edge: string): number => { const f = TIP_FADE_2D[edge] ?? 0; return f > 0.5 ? (1 + f) / 2 : 0.5; };
@@ -389,12 +394,12 @@ export class FigureCards {
     };
     for (const c of this.cards) {
       // a step's number points at the middle of its vessel's solid stretch (stepMidOf); a group's at the middle of its vessels, with a leader to each (the fans)
-      const p = anchorPoint(c.anchor, this.p, d.lobule, c.kind === 'step' && 'edge' in c.anchor ? stepMidOf(c.anchor.edge) : 0.5);
+      const p = anchorPoint(c.anchor, this.p, d.lobule, this.atOf(c));
       if (!p) continue;
       const at = d.project(p, { x: 0, y: 0 });
       put(c.id, at);
       if ('edge' in c.anchor && (c.kind === 'step' || isLabelMark(c))) {
-        const u = c.kind === 'step' ? stepMidOf(c.anchor.edge) : 0.5, cv = curveOf(c.anchor.edge), vs = NETWORK_BY_ID.get(c.anchor.edge);
+        const u = this.atOf(c), cv = curveOf(c.anchor.edge), vs = NETWORK_BY_ID.get(c.anchor.edge);
         if (cv && vs) {
           cv.getPointAt(u, this.p); cv.getPointAt(Math.min(1, u + 0.02), this.q);
           const a0 = d.project(this.p, this.pt), b0 = d.project(this.q, this.pt2), n0 = Math.hypot(b0.x - a0.x, b0.y - a0.y) || 1, per = n0 / (this.p.distanceTo(this.q) || 1);
@@ -551,6 +556,14 @@ export class FigureCards {
   }
 
   /** A caliper's two ends on the canvas: the spleen's axis (2D `spleenCaliper`) or a line across a vessel, wall to wall at its middle. */
+  /** Where along its vessel a card's point stands (0..1): a step's at the middle of the vessel's solid stretch; a mark on a varix column, while the slide has the scope ring (and no bleed to point at: figure-calls.ts),
+   *  stands clear of the ring and its badge, as the varix ruler does, never inside it, where the ring's claim leaves the card no clear box and it fades away. */
+  private atOf(c: FigCard): number {
+    if (!('edge' in c.anchor)) return 0.5;
+    if (c.kind === 'step') return stepMidOf(c.anchor.edge);
+    const curve = c.kind === 'mark' && scopeClaims.wantsRing && VARIX_CALIPERS.has(c.anchor.edge) ? curveOf(c.anchor.edge) : null;
+    return curve ? clearOfRing(curve, this.q) : 0.5;
+  }
   private caliperEnds(c: FigCaliper): [number, number, number, number] | null {
     const d = this.deps;
     if ('ends' in c.line) {
@@ -562,7 +575,7 @@ export class FigureCards {
     if (!curve || !v) return null;
     // (a slide that has the scope ring on the varices: the ruler across them stands above the ring, never inside it or under its badge)
     let t = 0.5;
-    if (scopeClaims.wantsRing && VARIX_CALIPERS.has(c.id)) t = clearParam((u, o) => { curve.getPointAt(u, this.q); o.x = this.q.x; o.y = this.q.y; }, { x: x3(RING.x), y: y3(RING.y) }, (RING.r + BADGE_R + 4) / UNITS_PER_SCENE, 0.5);
+    if (scopeClaims.wantsRing && VARIX_CALIPERS.has(c.id)) t = clearOfRing(curve, this.q);
     curve.getPointAt(t, this.p); curve.getPointAt(Math.min(1, t + 0.02), this.q);
     const a = d.project(this.p, this.pt), b = d.project(this.q, this.pt2);
     const tx = b.x - a.x, ty = b.y - a.y, n = Math.hypot(tx, ty) || 1;

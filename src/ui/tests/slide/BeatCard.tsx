@@ -8,7 +8,6 @@ import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { feed, record, startFeed } from '../feed.ts';
 import { metricsOf } from '../frame.ts';
-import { headOf } from '../trace/live.ts';
 import { hvpgWordOf, sevTok } from '../trace/model.ts';
 import { fmt } from '../../charts/fmt.ts';
 import { hiddenNow } from '../hidden.ts';
@@ -45,9 +44,9 @@ export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }:
     const pin = s.fp ? beatReadings(s.fp) : null;
     // (A slide's numbers are its settled state's; a number it does not give is the live one's.)
     const now: BeatReadings = pin ? { whvp: Number.isFinite(pin.whvp) ? pin.whvp : live.whvp, fhvp: Number.isFinite(pin.fhvp) ? pin.fhvp : live.fhvp, pv: Number.isFinite(pin.pv) ? pin.pv : live.pv, hr: Number.isFinite(pin.hr) ? pin.hr : live.hr, hvpg: Number.isFinite(pin.hvpg) ? pin.hvpg : live.hvpg } : live;
-    const head = headOf(feed.last, wall.current, clock.now(), !!f?.running && f.clock !== 'disease', f?.speed ?? 1) || (f?.t ?? 0);
+    const head = feed.headNow(f, wall.current, clock.now());   // (the trace's own clock, forward only: never the model's, which runs backwards while a slide eases in)
     const noPv = !!hid?.has('pv');
-    return beatFrame({ rec: record as never, head, now, before: s.before ? { r: beatReadings(s.before), label: s.deltaLabel || 'before' } : null, ekg: s.ekg, noPv }, { w: Math.round(c.w), h, pal: c.pal }).frame;
+    return beatFrame({ rec: record as never, head, now, before: s.before ? { r: beatReadings(s.before), label: s.deltaLabel || 'before' } : null, ekg: s.ekg, noPv, headed: true }, { w: Math.round(c.w), h, pal: c.pal }).frame;
   };
   const draw = () => { const c = ctx.current, p = painter.current; if (c && p) p.show(frame(c), false); };
   const sync = () => {
@@ -56,10 +55,11 @@ export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }:
   };
   useEffect(() => {
     if (!feed.n || feed.last - feed.t[0]! < BEAT_CARD_S + 1) void feed.backfill(BEAT_CARD_S + 2).then(() => { dirty.current = true; clock.invalidate('beat-card'); });
+    const want = feed.want('beat-card', BEAT_CARD_S + 2, () => { dirty.current = true; clock.invalidate('beat-card'); });
     const off = onFrame(() => { wall.current = clock.now(); dirty.current = true; sync(); clock.invalidate('beat-card'); });
     const tick = clock.on('tween', () => { if (dirty.current || hold.current) { dirty.current = false; draw(); } });
     wall.current = clock.now(); sync();
-    return () => { off(); tick(); hold.current?.release(); hold.current = null; };
+    return () => { off(); tick(); want(); hold.current?.release(); hold.current = null; };
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('beat-card'); }, [fp, before, deltaLabel, ekg, h]);
 

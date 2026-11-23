@@ -61,6 +61,9 @@ export interface Frame {
   shapes: readonly Shape[];
   /** the chart in a sentence, for a screen reader (the picture is aria-hidden) */
   label: string;
+  /** a chart laid out on time (a trace, the EKG paper): it moves by itself from one frame to the next, so it is never blended with the frame before it (painter.ts `glides`):
+   *  blend() pairs the shapes by their place in the list, and when a line of the paper leaves the left edge every line is paired with its neighbour and glides the wrong way */
+  scrolls?: true;
 }
 
 /** The height a chart takes by its own aspect (a plot so many tenths of its width), under its card's fit (2D `.pz-curve { height: cv-h * var(--pz-fit) }`). A card's `zoom` lays the box out at width / fit,

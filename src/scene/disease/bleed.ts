@@ -18,6 +18,7 @@ import { bloodColour, recolour } from './paint.ts';
 import { type JetBuffers, type JetParams, fillJet, jetIndex, jetUv, makeJetBuffers, smooth, spurtOf, VERTS } from './jet.ts';
 
 export const STREAM_Z = 0.36;
+export { tearPoint } from './tear.ts';
 export interface BleedState { active: boolean; site: 'VAR' | 'GV'; rate: number; total: number }
 
 /** The jet's ink: the toon's own hull, but its width and its dither follow a per-vertex strength (`ik`: full at the tear, a quarter at the tip), so the line fades with the stream. */

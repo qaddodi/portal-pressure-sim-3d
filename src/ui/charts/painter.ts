@@ -12,6 +12,9 @@ import { legible } from './legible.ts';
 import { paletteOf } from './palette.ts';
 import type { LookId } from '../../looks/looks.ts';
 
+/** Whether a frame is blended in from the one shown: asked to, motion not reduced, something shown, and the new frame is not one laid out on time (scene.ts `scrolls`). */
+export const glides = (shown: Frame | null, next: Frame, glide: boolean, reduce: boolean): boolean => glide && !reduce && !!shown && !next.scrolls;
+
 export class ChartPainter {
   readonly box: HTMLDivElement;
   private gl: ChartGL;
@@ -64,7 +67,7 @@ export class ChartPainter {
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.box.style.height = `${Math.round(next.h)}px`;
     this.gl.size(next.w, next.h);
-    if (glide && !reduce && this.shown) {
+    if (glides(this.shown, next, glide, reduce)) {
       this.from = this.shown; this.to = next; this.t0 = clock.now(); this.ms = MOTION.cardInMs;
       if (!this.hold) this.hold = clock.hold(this.tag);
     } else {

@@ -1,17 +1,11 @@
 // The pure parts of the Over time pane that read the record and the clock: where the trace's right edge stands, the header's words and the lanes' gliding y ranges (2D pressure-time.js).
 import { fmt } from '../../charts/fmt.ts';
-import { feed } from '../feed.ts';
-import { LAG_S, hvpgWordOf, sevTok, type Range } from './model.ts';
+import { feed, headOf } from '../feed.ts';
+import { hvpgWordOf, sevTok, type Range } from './model.ts';
 
 const NOT_SHOWN = '—';
 
-/** The head of the trace: the newest sample's time less the lag, plus the wall time since the frame came (never past the lag), at the model's speed. */
-export function headOf(last: number, wallMs: number, nowMs: number, running: boolean, speed: number): number {
-  if (!Number.isFinite(last)) return 0;
-  if (!running) return last;
-  const rate = speed || 1;
-  return last - LAG_S * rate + Math.min(Math.max(0, nowMs - wallMs) / 1000, LAG_S) * rate;
-}
+export { headOf };
 
 /** The header's readings as words: the HVPG, its band and its change over the range on screen (2D updateHero). */
 export function heroOf(hvpg: number, range: Range = 'beats', hidden: ReadonlySet<string> | null = null, measured: number | null = null) {

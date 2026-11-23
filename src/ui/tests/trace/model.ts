@@ -70,8 +70,10 @@ export interface TraceView {
   range: Range;
   chosen: ReadonlySet<TraceId>;
   smooth: boolean; ekg: boolean; lane: boolean;
-  /** model time at the right edge */
+  /** model time at the right edge (the trace's own: the record's time, the model's plus `off`) */
   head: number;
+  /** what the model's time has to be given to be the record's (feed.off): the marks are model time */
+  off?: number;
   /** the readings written at the lines' ends (the tiles' own numbers); a missing one reads the line's last second */
   ends: Readonly<Partial<Record<TraceId | 'hvpg', number>>>;
   hvpg: number; hr: number;
@@ -246,7 +248,7 @@ function marksIn(view: TraceView, x0: number, x1: number): { x: number; label: s
     if (e.kind === 'start') continue;
     let x: number;
     if (view.range === 'days') x = e.day + (e.t || 0) / 86400;
-    else { if (e.day !== view.dayNow) continue; x = e.t!; }
+    else { if (e.day !== view.dayNow) continue; x = e.t! + (view.off ?? 0); }
     if (x == null || !(x >= x0 && x <= x1)) continue;
     out.push({ x, label: e.label || '', sev: e.kind === 'event' ? (e.sev === 'info' ? null : e.sev ?? null) : null });
   }
@@ -537,7 +539,7 @@ export function traceFrame(rec: Record_, view: TraceView, box: TraceBox, ease: E
     });
     out.cross = { x: cx, when, rows: crossRows.map((r) => ({ label: r.label, v: r.v })) };
   }
-  out.frame = { w, h, shapes, label: traceLabel(view, hv, traces) };
+  out.frame = { w, h, shapes, label: traceLabel(view, hv, traces), ...(!days || view.stripHead != null ? { scrolls: true as const } : {}) };
   return out;
 }
 

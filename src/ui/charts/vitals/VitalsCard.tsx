@@ -47,7 +47,7 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
     } else {
       synth.current = null;
       if (!Number.isFinite(feed.last)) return null;
-      x1 = headOf(feed.last, wall.current, now, running, f?.speed ?? 1) || feed.last; times = feed.beat.times;
+      x1 = feed.headNow(f, wall.current, now); times = feed.beat.times;
     }
     const x0 = Math.max(x1 - SPAN_S, feed.n ? feed.t[0]! : x1 - SPAN_S);
     if (!(x1 > x0 + 0.05) || !times.length) return null;
@@ -88,6 +88,7 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
   useEffect(() => {
     startFeed();
     void feed.backfill(SPAN_S).then(() => clock.invalidate('vitals'));
+    const release = feed.want('vitals', SPAN_S, () => { dirty.current = true; clock.invalidate('vitals'); });
     let hd: { release(): void } | null = null;
     const sync = () => {
       const f = latest.frame, run = !!f?.running;
@@ -97,7 +98,7 @@ export function VitalsCard({ tool, fp = null }: { tool: Rec; fp?: Rec | null }) 
     const tick = clock.on('tween', () => { if (hd || moving.current || dirty.current) { dirty.current = false; draw(); } });
     wall.current = clock.now();
     sync();
-    return () => { off(); tick(); hd?.release(); };
+    return () => { off(); tick(); hd?.release(); release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('vitals'); }, [fp, ids, hold, rail]);
 

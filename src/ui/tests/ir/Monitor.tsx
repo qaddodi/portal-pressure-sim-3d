@@ -7,6 +7,9 @@ import type { ChartPainter } from '../../charts/painter.ts';
 import type { Frame } from '../../charts/scene.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 
+/** A monitor's frame is laid out on time (the waves sweep): never blended with the one before it (scene.ts `scrolls`). */
+const onTime = (f: Frame): Frame => (f.scrolls ? f : { ...f, scrolls: true });
+
 export interface MonSource {
   /** the name the clock shows in ?perf */
   id: string;
@@ -25,13 +28,13 @@ export function Monitor({ src, h: h0, deps, onClick, className = 'chart-box hvpg
   const cv = useCv(h0), h = cv.h, host = usePaneHost();
   useEffect(() => clock.on('tween', () => {
     const c = ctx.current, p = painter.current;
-    if (c && p && src.active()) p.show(src.frame(c.w, h, true), false);
+    if (c && p && src.active()) p.show(onTime(src.frame(c.w, h, true)), false);
   }), [src, h]);
   return (
     <div ref={boxRef} className={className} style={host.box(h0)} onClick={onClick}>
       <Cv at={cv.ref}>
         <Chart tag={src.id} painter={painter} deps={[h, ...deps]} label={src.label()}
-          build={(c) => { ctx.current = c; return src.frame(c.w, h, false); }} />
+          build={(c) => { ctx.current = c; return onTime(src.frame(c.w, h, false)); }} />
       </Cv>
     </div>
   );

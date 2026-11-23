@@ -387,7 +387,7 @@ export class DopplerModel {
   frameFor(w: number, h: number, nowMs: number, label: string, ink?: Rgba): Frame {
     if (ink) this.ink = ink;
     const shapes: Shape[] = [];
-    const out: Frame = { w, h, shapes, label };
+    const out: Frame = { w, h, shapes, label, scrolls: true };
     const white = (a: number): Rgba => [1, 1, 1, a];
     this.spec = null;
     if (!this.gpu) shapes.push({ k: 'rect', x: 0, y: 0, w, h, r: 12, fill: [0, 0, 0, 1], key: 'plate' });   // (with the GPU's picture under the shapes the box's own black shows)

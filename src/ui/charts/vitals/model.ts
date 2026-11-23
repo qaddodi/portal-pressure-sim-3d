@@ -166,5 +166,5 @@ export function vitalsFrame(spec: VitalsSpec, w: number, pal: Palette): Frame {
       shapes.push({ k: 'text', x: pad + ew - widthOf(word, 12, 600), y: ry + 22, s: word, size: 12, weight: 600, color: band === 'below' ? alarm : band === 'in' ? ecg : text, key: 'word' });
     }
   }
-  return { w: L.w, h: L.h, shapes, label: vitalsLabel(cells) };
+  return { w: L.w, h: L.h, shapes, label: vitalsLabel(cells), scrolls: true };
 }

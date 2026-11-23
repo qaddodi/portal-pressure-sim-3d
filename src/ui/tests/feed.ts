@@ -11,7 +11,7 @@ import { createBeatClock } from './copied/ekg.copied.js';
 import { createFreewheel } from './copied/freewheel.copied.js';
 import { recordDay, calmedDays } from '../../engine/hales/portal/trail-calm.js';
 import { treatmentKey } from '../../engine/hales/portal/change-events.js';
-import { TRACES } from './trace/model.ts';
+import { TRACES, LAG_S } from './trace/model.ts';
 
 import { clock } from '../../clock/frame.ts';
 export const CHANNELS = ['ph', 'vel', 'pvVel', 'hvVel', 'whvp', 'hvpg', 'RA', 'IVCS', 'RHV', 'CONF', 'SIN_R', 'VAR', 'AO', 'SV', 'SMV'] as const;
@@ -30,8 +30,18 @@ export const KEYS = [...TRACES.map((t) => t.id), 'hvpg'] as const;
 const FW_LAG_S = 0.12;
 /** the frames' own fields the feed reads (the engine's frame, loosely: the params and the bands change the Days chart's steps) */
 export type FeedFrame = Pick<EngineFrame, 'jump'> & {
-  samples?: Packed | null; probe?: string; gen?: number; clock?: string; day?: number; metrics?: Record<string, unknown>; params?: unknown; bands?: unknown;
+  samples?: Packed | null; probe?: string; gen?: number; clock?: string; day?: number; metrics?: Record<string, unknown>; params?: unknown; bands?: unknown; morphing?: boolean;
 };
+/** what the paper's clock reads of a frame */
+export type HeadFrame = { running?: boolean; clock?: string; morphing?: boolean; speed?: number } | null | undefined;
+
+/** The head of a trace: the newest sample's time less the lag, plus the wall time since the frame came (never past the lag), at the model's speed. */
+export function headOf(last: number, wallMs: number, nowMs: number, running: boolean, speed: number): number {
+  if (!Number.isFinite(last)) return 0;
+  if (!running) return last;
+  const rate = speed || 1;
+  return last - LAG_S * rate + Math.min(Math.max(0, nowMs - wallMs) / 1000, LAG_S) * rate;
+}
 /** one point of the Days chart: a day's readings (start: a treatment began a new piece here, so a calmed line steps there) */
 export interface DayPoint { day: number; v: Record<string, number>; start?: boolean }
 
@@ -61,6 +71,13 @@ export class SampleFeed {
   private stepNext = false;
   private calmKept = new Map<string, { ver: number; x: number[]; mid: number[] }>();
   private waiting = false;
+  /** this record's generation (a new one each time the record is emptied), and the one that has asked the engine for its past */
+  private gen = 0;
+  private askedGen = -1;
+  /** the whole record shares `off` (set where it began): its past, asked for later, can be shifted by it and joined with no seam */
+  private offAll = true;
+  /** the pasts the instruments on screen want (seconds), by tag, and what each does when the past has landed */
+  private wants = new Map<string, { secs: number; landed?: () => void }>();
   /** the record as the freewheel reads it ({ t, ph, ...keys }, each column the kept one) */
   readonly fine: Record<string, number[]> = {};
   constructor() {
@@ -68,7 +85,7 @@ export class SampleFeed {
     for (const k of CHANNELS) Object.defineProperty(this.fine, k, { get: () => this.ch[k], enumerable: true });
   }
 
-  clear() { this.beat.reset(); this.wheel.stop(); this.off = 0; this.t.length = 0; for (const k of CHANNELS) this.ch[k].length = 0; this.clearBins(); this.version++; }
+  clear() { this.beat.reset(); this.wheel.stop(); this.off = 0; this.offAll = true; this.gen++; this.t.length = 0; for (const k of CHANNELS) this.ch[k].length = 0; this.clearBins(); this.version++; }
   private clearBins() { this.binT.length = 0; for (const k of CHANNELS) { const b = this.bin[k]; b.lo.length = b.hi.length = b.mean.length = b.sum.length = b.n.length = 0; } }
   /** Lay samples i0..i1 of the kept arrays into the bins. */
   private binFrom(i0: number) {
@@ -96,22 +113,59 @@ export class SampleFeed {
 
   /** Take in one frame: its samples into the record and its day into the Days list. A new patient (a jump) starts the record again; a clock that was set under
    *  a trace that went on (a state restored, a time-lapse ended, the freewheel's sweep) moves the trace's time on to start where it left off (2D ingest). */
-  adopt(f: FeedFrame) {
+  adopt(f: FeedFrame, nowMs = clock.now()) {
     const s = f.samples;
     if (f.probe && f.probe !== this.probe) { this.probe = f.probe; }
     const was = this.wheel.laid;
     if (f.jump) { this.clear(); this.days.length = 0; this.treatKey = null; this.bandsNow = null; this.calmKept.clear(); this.daysVer++; }
     if (s && s.t && s.t.length && f.clock !== 'disease') {
       const n = s.t.length, last = this.last, t0 = s.t[0]! + this.off;
-      if (this.t.length && (t0 < last - 1e-9 || t0 > last + JUMP_S)) {
+      if (!this.t.length && this.head[1]) {
+        // (A record that begins after the paper has been drawn (a slide's eased change of patient, a new patient) goes on from the head: the paper only ever moves on, whatever the model's clock now says.)
+        this.off = this.head[0]! + Math.min(0.25, Math.max(0, nowMs - this.head[1]!) / 1000) + FW_LAG_S - s.t[n - 1]!;
+      } else if (this.t.length && (t0 < last - 1e-9 || t0 > last + JUMP_S)) {
         // (After a freewheel the newest sample is put the lag ahead of the head as it has moved on, so the trace keeps its pace through the landing.)
-        this.off = was ? Math.max(last, this.head[0]! + Math.min(0.25, (clock.now() - this.head[1]!) / 1000) + FW_LAG_S) - s.t[n - 1]!
+        this.off = was ? Math.max(last, this.head[0]! + Math.min(0.25, (nowMs - this.head[1]!) / 1000) + FW_LAG_S) - s.t[n - 1]!
           : last + (n > 1 ? s.t[1]! - s.t[0]! : 0.004) - s.t[0]!;
+        this.offAll = false;
       }
       this.wheel.land();
       this.push(s, this.off);
+      this.wantPast(f);
     }
     if (f.clock && f.day != null && f.metrics) this.noteDay(f);
+  }
+
+  /** The trace's own clock, forward only (never the model's: while a slide eases in, the model's clock runs from the old moment to the slide's, here backwards, and the paper slid with it).
+   *  A record that is there and live: a little behind its newest sample, glided by the wall time since the frame came. No record, or the model easing: the head goes on from where it was, at the model's pace.
+   *  Never less than the last head given: a late frame that brought fewer samples than the wall time that passed holds the paper still instead of drawing it back. */
+  headNow(f: HeadFrame, wallMs: number, nowMs: number): number {
+    const running = !!f?.running, rate = f?.speed || 1;
+    const drawn = this.head[1] !== 0;
+    let h: number;
+    if (this.t.length && !f?.morphing) h = headOf(this.last, wallMs, nowMs, running && f?.clock !== 'disease', rate);
+    else if (drawn) h = this.head[0]! + (running ? Math.min(0.25, Math.max(0, nowMs - this.head[1]!) / 1000) * rate : 0);   // (a page that was hidden does not run the paper on by the minutes it was away)
+    else if (Number.isFinite(this.last)) h = this.last;
+    else return 0;   // (nothing drawn, nothing recorded: no paper has been laid, so no head is kept for a record to go on from)
+    if (drawn && h < this.head[0]!) h = this.head[0]!;
+    this.head[0] = h; this.head[1] = nowMs;
+    return h;
+  }
+
+  /** An instrument wants this many seconds of past under its trace while it is on screen; the release is what it calls when it goes. `landed` redraws it once the past is in. */
+  want(tag: string, secs: number, landed?: () => void): () => void {
+    this.wants.set(tag, { secs, landed });
+    return () => { this.wants.delete(tag); };
+  }
+  private wanted(): number { let m = 0; for (const w of this.wants.values()) if (w.secs > m) m = w.secs; return m; }
+  /** A record that has just begun on a landed state (the slide's easing is over) holds none of the past the instruments show: ask the engine for it once. (It answers empty while the model eases,
+   *  and a past asked for at mount was refused then; nothing asked again, so the plot stood empty for the seconds it took the live samples to fill it.) */
+  private wantPast(f: FeedFrame) {
+    const need = this.wanted();
+    if (!need || f.clock !== 'hemo' || f.morphing || this.waiting || this.askedGen === this.gen) return;
+    if (this.t.length && this.last - this.t[0]! >= need - 1) return;
+    this.askedGen = this.gen;
+    void this.backfill(need).then((ok) => { if (ok) for (const w of this.wants.values()) w.landed?.(); });
   }
 
   /** Samples (a frame's, the freewheel's) into the kept arrays, the bins and the beat clock; a sample not after the newest is skipped. */
@@ -169,17 +223,18 @@ export class SampleFeed {
 
   /** The record before what is kept: the model's own history of the last `secs` seconds (the engine runs a scratch copy; null when it is not a steady state). */
   async backfill(secs: number): Promise<boolean> {
-    if (this.waiting || this.off || this.wheel.laid) return false;   // (a strip that went on by itself keeps its beats)
+    if (this.waiting || !this.offAll || this.wheel.laid) return false;   // (a strip that went on by itself keeps its beats; so does a record whose time was set part way)
     this.waiting = true;
+    const gen = this.gen;
     try {
       const m = await engine().request({ type: 'history', secs }) as unknown as { samples: Packed | null; t?: number };
       const s = m.samples;
-      if (!s || !s.t || !s.t.length) return false;
-      const firstLive = this.t.length ? this.t[0]! : Infinity;
+      if (!s || !s.t || !s.t.length || gen !== this.gen || !this.offAll || this.wheel.laid) return false;
+      const o = this.off, firstLive = this.t.length ? this.t[0]! : Infinity;
       const keep: number[] = [];
-      for (let i = 0; i < s.t.length; i++) if (s.t[i]! < firstLive - 1e-9) keep.push(i);
+      for (let i = 0; i < s.t.length; i++) if (s.t[i]! + o < firstLive - 1e-9) keep.push(i);
       if (!keep.length) return false;
-      const t = keep.map((i) => s.t![i]!);
+      const t = keep.map((i) => s.t![i]! + o);
       const chs = Object.fromEntries(CHANNELS.map((k) => [k, keep.map((i) => (s[k] ? s[k]![i]! : NaN))])) as Record<Channel, number[]>;
       this.t = t.concat(this.t);
       for (const k of CHANNELS) this.ch[k] = chs[k].concat(this.ch[k]);

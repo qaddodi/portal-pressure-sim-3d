@@ -33,6 +33,8 @@ export interface BeatIn {
   ekg: boolean;
   /** the portal vein's trace is left out (the case leaves it unmeasured) */
   noPv: boolean;
+  /** a header above the card already gives the HVPG and its word (the slide's BeatCard): the card says it nowhere else, so the number stands once. 2D's card had no header, so it keeps its own copies. */
+  headed?: boolean;
 }
 export interface BeatBox { w: number; h: number; pal: Palette }
 
@@ -98,12 +100,14 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
     y += 32 * k; big(x, y, hrT, '/min', Math.max(20, 28 * k), hrC);
     if (plan.deltas) { y += 20 * k; since(x, y, hrSince, 'hr-since'); }
     y += 14 * k; rule(y);
-    y += 24 * k; T(x, y, 'HVPG', 12, 600, muted, { baseline: 'alphabetic', key: 'hv-k' });
-    y += 36 * k; big(x, y, hvT, 'mmHg', Math.max(22, 32 * k), text);
-    y += 24 * k; T(x, y, word, 14, 600, sevI, { baseline: 'alphabetic', key: 'hv-word' });
-    if (plan.deltas) { y += 20 * k; since(x, y, hvSince, 'hv-since'); }
+    if (!inp.headed) {
+      y += 24 * k; T(x, y, 'HVPG', 12, 600, muted, { baseline: 'alphabetic', key: 'hv-k' });
+      y += 36 * k; big(x, y, hvT, 'mmHg', Math.max(22, 32 * k), text);
+      y += 24 * k; T(x, y, word, 14, 600, sevI, { baseline: 'alphabetic', key: 'hv-word' });
+      if (plan.deltas) { y += 20 * k; since(x, y, hvSince, 'hv-since'); }
+    }
     if (plan.rows) {
-      y += 14 * k; rule(y);
+      if (!inp.headed) { y += 14 * k; rule(y); }
       for (const r of keyRows) {
         y += 24 * k;
         shapes.push({ k: 'rect', x, y: y - 4, w: 9, h: 3, fill: r.c, key: `sw-${r.label}` });
@@ -113,7 +117,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
     }
   } else {
     // (a narrow card: the line of readings on top, the heart rate and the HVPG)
-    T(L, 18, `HVPG ${hvT}`, 14, 650, sevI, { key: 'top-hv' });
+    if (!inp.headed) T(L, 18, `HVPG ${hvT}`, 14, 650, sevI, { key: 'top-hv' });
     T(w - 12, 18, `${hrT} /min`, 14, 650, hrC, { anchor: 'end', key: 'top-hr' });
   }
 
@@ -196,7 +200,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
   if (finite(hv) && finite(wNow) && finite(fNow)) {
     const label = `HVPG ${fmt(hv, 1)}`, ym = (YB(wNow) + YB(fNow)) / 2, lw = measure(label, 13 * 13 / 12, 700) + 12, lx = R - 8 - lw;
     const clear = !wasBox || wasBox[2]! + 6 < lx || wasBox[3]! + 4 < ym - 10 || wasBox[1]! - 4 > ym + 10;
-    if (YB(fNow) - YB(wNow) >= 26 && R - L >= lw + 40 && clear) {
+    if (!inp.headed && YB(fNow) - YB(wNow) >= 26 && R - L >= lw + 40 && clear) {
       T(lx + 6, ym + 0.5, label, 13, 700, sevI, { key: 'gap-label', halo: { color: panel, w: 4 } });
     }
   }
@@ -222,5 +226,5 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
   }
   void HVPG_CUTS; void HVPG_WORDS;
   const label = `Pressure beat by beat. HVPG ${hvT} mmHg, ${word}. Wedged ${finite(wNow) ? fmt(wNow, 1) : NOT_SHOWN}, free ${finite(fNow) ? fmt(fNow, 1) : NOT_SHOWN}${noPv ? '' : `, portal vein ${finite(pvNow) ? fmt(pvNow, 0) : NOT_SHOWN}`} mmHg. Heart rate ${hrT} a minute.`;
-  return { frame: { w, h, shapes, label }, hvpg: hv };
+  return { frame: { w, h, shapes, label, scrolls: true }, hvpg: hv };
 }

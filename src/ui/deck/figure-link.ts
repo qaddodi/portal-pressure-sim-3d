@@ -30,9 +30,10 @@ export function sinceP(deckId: string, index: number, plan: ReturnType<typeof fi
 }
 
 /** The numbers a slide's cards read: its state's fingerprint and parameters once they are in, the live model until then. */
-function readsOf(deckId: string, index: number): Reads {
+function readsOf(deckId: string, index: number, action?: { kind?: string; site?: string } | null): Reads {
   const r = useStates.getState().results[deckId]?.[index];
   return {
+    bleed: action?.kind === 'rupture' ? (action.site === 'GV' ? 'GV' : 'VAR') : null,
     fp: (r?.fp as Fp | undefined) ?? null, params: (r?.params as Reads['params']) ?? null,
     pressure: nodePressure,
     indexOf: edgeIndex,
@@ -76,7 +77,7 @@ export function linkFigure(): () => void {
       if (copied) {
         const index = copiedOf(deck.id)!.slides.indexOf(copied);
         const plan = figurePlan(copied);
-        const reads = readsOf(deck.id, index);
+        const reads = readsOf(deck.id, index, (copied as { action?: { kind?: string; site?: string } }).action);
         calls = figureCalls(plan, reads);
         since = sinceP(deck.id, index, plan);
         // one signature for what the slide asks and the numbers its cards print: a repeat of either changes nothing

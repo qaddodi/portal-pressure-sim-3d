@@ -14,7 +14,7 @@ import { toCss } from '../../charts/colour.ts';
 import { paletteOf } from '../../charts/palette.ts';
 import { useLookId } from '../../charts/Chart.tsx';
 import { metricsOf } from '../frame.ts';
-import { headOf, heroOf, createEase } from './live.ts';
+import { heroOf, createEase } from './live.ts';
 import { TRACES, RANGES, LAG_S, TRACE_OF, traceFrame, traceLabel, activeTraces, traceColour, type Range, type TraceId, type TraceView } from './model.ts';
 import { useTrace } from './store.ts';
 import { hiddenNow, useHidden, useMeasured } from '../hidden.ts';
@@ -48,7 +48,7 @@ export function OverTimePane({ plot }: { plot: number }) {
   const headX = (): number => {
     const f = latest.frame;
     if (feed.wheel.on) return feed.wheel.head();
-    return headOf(feed.last, wall.current, clock.now(), !!f?.running && f.clock !== 'disease', f?.speed ?? 1) || (f?.t ?? 0);
+    return feed.headNow(f, wall.current, clock.now());   // (the trace's own clock, forward only: never the model's, which runs backwards while a slide eases in)
   };
   /** While the model's own clock stands still under a running page (a state easing in: the frame says how long) it sends no samples: the last beat is replayed over the time that passes. */
   const advanceWheel = (t: number) => {
@@ -68,7 +68,7 @@ export function OverTimePane({ plot }: { plot: number }) {
     for (const t of TRACES) if (t.day && Number.isFinite(m?.[t.day])) ends[t.id] = m[t.day];
     return {
       range: r, chosen: st.chosen, smooth: st.smooth, ekg: st.ekg, lane: st.lane,
-      head: headX(), ends, hvpg: m?.hvpg, hr: m?.hr, hidden: hiddenNow() ?? undefined,
+      head: headX(), off: feed.off, ends, hvpg: m?.hvpg, hr: m?.hr, hidden: hiddenNow() ?? undefined,
       cross: cross.current, marks: timeline.entries(), dayNow: latest.frame?.day ?? 0, stripHead: now.current.stripDays ? headX() : undefined,
     };
   };
@@ -88,6 +88,7 @@ export function OverTimePane({ plot }: { plot: number }) {
   useEffect(() => {
     const need = RANGES.find((r) => r[0] === range)![2];
     if (need && (!feed.n || feed.last - feed.t[0]! < need - 1)) void feed.backfill(need).then(() => { dirty.current = true; clock.invalidate('trace'); });
+    return need ? feed.want('trace', need, () => { dirty.current = true; clock.invalidate('trace'); }) : undefined;
   }, [range]);
   // The scroll runs only while the trace is moving: the model running, and a range with a sweep (the days' trend stands still unless its strip goes on).
   const hold = useRef<{ release(): void } | null>(null);
