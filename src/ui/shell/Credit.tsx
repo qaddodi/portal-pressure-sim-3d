@@ -119,7 +119,7 @@ export function Credit() {
       if (talk && (lay === 'wide' || lay === 'short')) {
         const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
-        // a phone on its side keeps a card's drawer along the foot, under this very row: the line is out of sight while a drawer or card stands on it
+        // a phone on its side: the words' card stands on this row and carries the credit in its own foot (CardFrame .pz-cred), so the floating line fades while a card or the tucked strip stands on it
         const clear = !isSideways(vw, vh) || footClear(at, w, h, shownBoxes('.dk-strip, .dk-card', vw, vh));
         el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; creditClaim.set(clear ? { x: at.x, y: at.y, w, h } : null);
         return;

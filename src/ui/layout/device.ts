@@ -28,6 +28,11 @@ export interface TypeScale {
 /** What the 2D stylesheet gives the teaching card on this screen: the stacked layouts set the line in its label role and the heading in its value role
  *  (styles/app-05-presenter-cards.css .pz.stack); every floating card sets the line in body and the heading in title. */
 export function typeFor(w: number, h: number): TypeScale {
+  if (isSideways(w, h)) {
+    // a phone held sideways: the side columns are 27 % of the screen wide (docs/approved/landscape-phone.md), so the type is the approved mock's: a 20 px title, 13.5 px words, 12 px small words, 26 px numbers
+    const body = 13.5, slideTitle = 20;
+    return { deckTitle: 22, slideTitle, slideTitleTrim: Math.min(slideTitle, Math.max(slideTitle * WIDE.tight, 1.4 * body)), body, kicker: 12, data: 12, bigNumber: 26, deckTitleLead: 1.06, slideTitleLead: 1.17, bodyLead: 1.42 };
+  }
   const layout = layoutOf(w, h);
   const text = cardScale({ vw: w, vh: h, layout, part: 'text', card: true });
   const data = cardScale({ vw: w, vh: h, layout, part: 'data' });
@@ -40,16 +45,16 @@ export function typeFor(w: number, h: number): TypeScale {
   };
 }
 
-/** The floors the owner set (rule list of 19 Nov): body 17 on a floating card, 16 on a stacked one; a slide title at least 1.4× the body (1.33× on a stacked screen where
+/** The floors the owner set (rule list of 19 Nov): body 17 on a floating card, 16 on a stacked one, 13 on a phone's side column (approved 23 Nov, the mock's 13.5); a slide title at least 1.4× the body (1.33× on a stacked screen where
  *  the text needs the room); data text and tags at least 12 px. */
-export const FLOORS = { body: { floating: 17, stacked: 16 }, titleRatio: { floating: 1.4, stacked: 1.33 }, data: 12 } as const;
+export const FLOORS = { body: { floating: 17, stacked: 16, sideways: 13 }, titleRatio: { floating: 1.4, stacked: 1.33, sideways: 1.4 }, data: 12 } as const;
 
 export function checkTypeScale(w: number, h: number, t: TypeScale = typeFor(w, h)): string[] {
   const bad: string[] = [];
-  const l = layoutOf(w, h), stacked = l === 'stack' || l === 'tab', at = `${w}×${h}`;
-  const body = stacked ? FLOORS.body.stacked : FLOORS.body.floating;
+  const l = layoutOf(w, h), stacked = l === 'stack' || l === 'tab', side = isSideways(w, h), at = `${w}×${h}`;
+  const body = side ? FLOORS.body.sideways : stacked ? FLOORS.body.stacked : FLOORS.body.floating;
   if (t.body < body - 1e-9) bad.push(`${at}: body ${t.body} px is under ${body}`);
-  const ratio = stacked ? FLOORS.titleRatio.stacked : FLOORS.titleRatio.floating;
+  const ratio = side ? FLOORS.titleRatio.sideways : stacked ? FLOORS.titleRatio.stacked : FLOORS.titleRatio.floating;
   if (t.slideTitle / t.body < ratio - 1e-6) bad.push(`${at}: slide title ${t.slideTitle} px is ${(t.slideTitle / t.body).toFixed(2)}× the body, under ${ratio}×`);
   if (t.data < FLOORS.data) bad.push(`${at}: data text ${t.data} px is under ${FLOORS.data}`);
   if (t.kicker < FLOORS.data) bad.push(`${at}: kicker ${t.kicker} px is under ${FLOORS.data}`);

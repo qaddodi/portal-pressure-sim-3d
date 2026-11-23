@@ -46,6 +46,7 @@ Keep it, but never add new glass surfaces or glows beyond it.
 
 - **Cards:** side cards are 340 px on Mac and iPad landscape (`M.sideCardW`). The card stack is always vertically centred: top margin equals
   bottom margin.
+- **An iPhone on its side: two side columns** (owner, 23 Nov; `docs/approved/landscape-phone.md`): words left, instrument right, the figure between; the instrument tucks to a 30 px strip with a swipe right and returns with a swipe left; the copyright is in the words card's foot. Never one wide card.
 - A card appears only when its content is laid out and its fonts are loaded. Text never shrinks below the floor (fitted data cards may shrink
   down to 12 px, then the card pages). Nothing scrolls inside a card; no card is taller than the screen.
 - Chips on deck slides are compact like 2D's; slide choice buttons sit on one row.

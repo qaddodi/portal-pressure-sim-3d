@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import {
-  layoutOf, isSideways, isShortSide, pzh, bodyB, margin, padding, cardWidth, cardScale, FIG_MIN, figFloorOf, phonePlan, SHUF, shufCol, shufMaxH, shufTop,
+  layoutOf, isSideways, sideColW, isShortSide, pzh, bodyB, margin, padding, cardWidth, cardScale, FIG_MIN, figFloorOf, phonePlan, SHUF, shufCol, shufMaxH, shufTop,
   titleFloorK, SHORT_H, SIDEWAYS_MAX_H, GRIP, WIDE, TITLE_RATIO, WALLET_STEPS,
 } from '../src/ui/layout/rules2d.ts';
 import { execFileSync } from 'node:child_process';
@@ -38,7 +38,9 @@ for (const z of fx.sizes) {
     if (z.layout === 'wide' || z.layout === 'short') {
       near(margin(z.w, z.h, z.layout), z.geometry.cm, 'margin --pz-cm');
       near(padding(z.w, z.h, z.layout), z.geometry.cp, 'padding --pz-cp');
-      near(cardWidth(z.w, z.h, z.layout), z.geometry.cw, 'width --pz-cw');
+      // an iPhone on its side leaves 2D's one wide card: two side columns (docs/approved/landscape-phone.md, Mohammad 23 Nov)
+      if (!z.sideways) near(cardWidth(z.w, z.h, z.layout), z.geometry.cw, 'width --pz-cw');
+      else near(cardWidth(z.w, z.h, z.layout), sideColW(z.w), 'a sideways card is a side column');
     } else {
       assert.equal(margin(z.w, z.h, z.layout), 8, 'a stacked card is 8 px from the edge');
       near(cardWidth(z.w, z.h, z.layout), z.layout === 'tab' ? z.w * 0.7 : z.w - 16, 'a stacked card is the screen less 8 px each side (an upright iPad: 70 %)');
@@ -53,7 +55,7 @@ for (const z of fx.sizes) {
     assert.equal(FIG_MIN(z.h), z.figMin, 'the figure keeps this share of a phone');
     assert.equal(figFloorOf(z.h), z.figFloor, 'and gives way to this');
     for (let r = 0; r < 3; r++) near(shufMaxH(z.h, r), z.maxH[r], `wallet room ${r}`);
-    for (let i = 0; i < z.shufCols.length; i++) near(shufCol(i, z.w), z.shufCols[i], `wallet column ${i}`);
+    for (let i = 0; i < z.shufCols.length; i++) if (!z.sideways) near(shufCol(i, z.w), z.shufCols[i], `wallet column ${i}`);
     for (const t of z.shufTop) near(shufTop(z.h, t.h), t.top, `wallet top for a card ${t.h} tall`);
   });
 }

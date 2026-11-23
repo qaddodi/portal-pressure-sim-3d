@@ -61,5 +61,5 @@ test('an iPhone on its side: a single card is centred between the screen\'s 10 p
     assert.ok(Math.abs(r.y - (vp.h - r.y - r.h)) <= 1, `${h}: ${r.y} above, ${vp.h - r.y - r.h} below`);
   }
   const r = planLayout(vp, [{ id: 'teach', slot: 'words', h: 390 }]).cards[0].rect;
-  assert.equal(r.y, 10, 'one that fills the screen keeps the 10 px edge');
+  assert.equal(r.y, 12, 'one that fills the screen keeps the 12 px edge');
 });

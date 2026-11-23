@@ -16,18 +16,17 @@ const SIDE = [
 ];
 const needs: Need[] = [{ id: 'teach', slot: 'words', h: 150 }, { id: 'ladder', slot: 'data', h: 150 }];
 
-test('a phone on its side: the strip stands on the credit row, so the line is judged covered; with no strip and a short card it is clear', () => {
+test('a phone on its side: the words\' side column stands on the credit row (the card carries the line in its foot), so the floating line is judged covered; the middle column is clear', () => {
   for (const s of SIDE) {
     assert.ok(isSideways(s.w, s.h), s.n);
     const lay = layoutOf(s.w, s.h), at = footCredit({ vw: s.w, vh: s.h, safe: s.safe, h: 16.8, margin: margin(s.w, s.h, lay) }), w = 212, h = 16.8;
     const both = planLayout({ w: s.w, h: s.h, safe: s.safe }, needs);
-    assert.ok(both.strip, s.n);
-    const covered = !footClear(at, w, h, [box(both.strip!.rect), ...both.cards.map((c) => box(c.rect))]);
-    // the strip runs from the card's left edge to its right edge along the foot: it is on the line exactly when the line reaches that far
-    assert.equal(covered, at.x + w + 4 > both.strip!.rect.x, `${s.n}: strip at x ${both.strip!.rect.x}, line ${at.x}..${at.x + w}`);
-    const one = planLayout({ w: s.w, h: s.h, safe: s.safe }, [needs[0]]);
-    assert.equal(one.strip, null);
-    assert.ok(footClear(at, w, h, one.cards.map((c) => box(c.rect))), `${s.n}: a short lone card leaves the foot row free`);
+    assert.equal(both.strip, null, `${s.n}: the pair has no strip until the instrument is tucked`);
+    assert.ok(!footClear(at, w, h, both.cards.map((c) => box(c.rect))), `${s.n}: the words' column covers the line`);
+    const tucked = planLayout({ w: s.w, h: s.h, safe: s.safe }, needs, 'words', 0, true);
+    assert.ok(tucked.strip, s.n);
+    assert.ok(!footClear(at, w, h, [box(tucked.strip!.rect), ...tucked.cards.map((c) => box(c.rect))]), `${s.n}: still covered when the instrument is tucked`);
+    assert.ok(footClear({ x: both.free.x + 4, y: at.y }, Math.min(w, both.free.w - 8), h, both.cards.map((c) => box(c.rect))), `${s.n}: the figure's column is clear of both cards`);
   }
 });
 
