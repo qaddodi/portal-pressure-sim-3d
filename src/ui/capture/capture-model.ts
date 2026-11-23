@@ -107,3 +107,15 @@ export function deliverWay(env: { touchPoints: number; canShareFiles: boolean })
 /** The shortcut: Alt (Option) + Shift + S, read by its place on the board (Option makes another character on a Mac). */
 export const isCaptureKey = (e: { code?: string; key?: string; altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; repeat?: boolean }): boolean =>
   !!e.altKey && !!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.repeat && (e.code === 'KeyS' || (e.key ?? '').toLowerCase() === 's');
+
+/** A contact sheet of one deck's slides: a header with the deck's name, then a grid of the slides, each with its number and title under it. Landscape screens go three across, portrait ones five. */
+export function collageLayout(count: number, shot: { w: number; h: number }): { cols: number; cellW: number; cellH: number; labelH: number; gap: number; pad: number; headH: number; width: number; height: number; cells: { x: number; y: number }[] } {
+  const landscape = shot.w >= shot.h, cols = Math.max(1, Math.min(count || 1, landscape ? 3 : 5)), cellW = landscape ? 480 : 300;
+  const cellH = Math.round((cellW * shot.h) / Math.max(1, shot.w)), labelH = 34, gap = 14, pad = 20, headH = 48;
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const cells = Array.from({ length: count }, (_, i) => ({ x: pad + (i % cols) * (cellW + gap), y: pad + headH + Math.floor(i / cols) * (cellH + labelH + gap) }));
+  return { cols, cellW, cellH, labelH, gap, pad, headH, width: pad * 2 + cols * cellW + (cols - 1) * gap, height: pad * 2 + headH + rows * (cellH + labelH) + (rows - 1) * gap, cells };
+}
+
+/** A name safe in a file path: lower case, letters and digits, dashes, at most 40 characters. */
+export const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'slide';

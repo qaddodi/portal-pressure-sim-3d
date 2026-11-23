@@ -12,7 +12,7 @@ import { feedbackBuild, commitOf } from '../../boot/release.ts';
 import { CAPTURE } from '../shell/words.ts';
 import { readBox, readStyle } from '../layout-snap.ts';
 import { readScreen, paintScreen, loadMasks } from './capture-dom.ts';
-import { captureScale, stampText, captureFileName, captureRecord, deliverWay } from './capture-model.ts';
+import { captureScale, stampText, captureFileName, captureRecord, deliverWay, type CaptureRecord } from './capture-model.ts';
 import { pngWithText, asciiJson } from './png-text.ts';
 
 const say = (text: string, tone?: 'info' | 'bad', action?: { label: string; run: () => void }) => useShell.getState().say(text, tone, action);
@@ -25,8 +25,11 @@ async function stateRecord(): Promise<unknown> {
   try { const { stateNow } = await import('../debug/packet/sources.ts'); return stateNow(); } catch { return null; }
 }
 
-/** The whole screen as one PNG. `now` is when it was pressed (the stamp and the name). */
-export async function composeScreen(at: Date): Promise<Made | null> {
+/** The screen drawn on one canvas, with what rides with it (the record, the build, the link). Null when the page could not be drawn. */
+export interface Drawn { canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number }
+
+/** The whole screen on one canvas at the device's pixel ratio, stamped. `at` is when it was pressed (the stamp and the record). */
+export async function drawScreen(at: Date): Promise<Drawn | null> {
   const root = document.getElementById('root') ?? document.body, rb = readBox(root);
   const vp = { w: rb.width, h: rb.height };
   if (vp.w <= 0 || vp.h <= 0) return null;
@@ -45,7 +48,6 @@ export async function composeScreen(at: Date): Promise<Made | null> {
   const bs = readStyle(document.body);
   g.fillStyle = !bs.backgroundColor || bs.backgroundColor === 'transparent' || /,\s*0\)$/.test(bs.backgroundColor) ? (readStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff') : bs.backgroundColor;
   g.fillRect(0, 0, out.width, out.height);
-  g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
   const items = readScreen(taken ? { x: taken.css.x, y: taken.css.y, w: taken.css.w, h: taken.css.h } : null, taken?.canvas ?? null);
   await loadMasks(items, (ms) => new Promise<void>((ok) => clock.after(ok, ms)));
   g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
@@ -56,11 +58,23 @@ export async function composeScreen(at: Date): Promise<Made | null> {
   const words = stampText(build, at), x = vp.w - 6, y = vp.h - 5;
   g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.strokeText(words, x, y);
   g.fillStyle = bs.color; g.fillText(words, x, y);
-  const png = await new Promise<Blob | null>((ok) => out.toBlob(ok, 'image/png'));
-  if (!png) return null;
-  const bytes = pngWithText(new Uint8Array(await png.arrayBuffer()), 'portal-state', asciiJson(record));
+  return { canvas: out, record, build, link, scale: s };
+}
+
+/** The file's name for a capture of the screen as it is now. */
+export function nameNow(at: Date): string {
   const sh = useShell.getState();
-  return { blob: new Blob([bytes as BlobPart], { type: 'image/png' }), link, name: captureFileName(sh.view, useEngine.getState().presetId ?? sh.patientId, commitOf(import.meta.env.VITE_BUILD) || 'local', at) };
+  return captureFileName(sh.view, useEngine.getState().presetId ?? sh.patientId, commitOf(import.meta.env.VITE_BUILD) || 'local', at);
+}
+
+/** The whole screen as one PNG with its state inside. */
+export async function composeScreen(at: Date): Promise<Made | null> {
+  const d = await drawScreen(at);
+  if (!d) return null;
+  const png = await new Promise<Blob | null>((ok) => d.canvas.toBlob(ok, 'image/png'));
+  if (!png) return null;
+  const bytes = pngWithText(new Uint8Array(await png.arrayBuffer()), 'portal-state', asciiJson(d.record));
+  return { blob: new Blob([bytes as BlobPart], { type: 'image/png' }), link: d.link, name: nameNow(at) };
 }
 
 function copyLink(link: string): void {

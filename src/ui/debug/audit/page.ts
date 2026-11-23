@@ -56,7 +56,7 @@ const bundle = (parts: AuditData[], depth: 'quick' | 'full', failed: Bundle['fai
 export function mountAudit(mode: 'here' | 'run'): void {
   if (document.getElementById('au-root')) return;
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
-  const root = document.createElement('div'); root.className = 'au'; root.id = 'au-root'; root.setAttribute('data-debug', '');
+  const root = document.createElement('div'); root.className = 'au'; root.id = 'au-root'; root.setAttribute('data-debug', ''); root.setAttribute('data-capture-skip', '');   // (the panel is not in a capture)
   const status = document.createElement('div'); status.setAttribute('role', 'status'); status.textContent = mode === 'run' ? 'Audit starting…' : 'Self-test ready. Keep this tab in front while it runs.';
   const hash = buildInfo().badge || buildInfo().commit || 'dev';
   const head = document.createElement('div'); head.textContent = `Self-test · build ${hash}`; head.style.cssText = 'font-weight:700;margin-bottom:4px';
@@ -90,9 +90,27 @@ export function mountAudit(mode: 'here' | 'run'): void {
       if (mode === 'run') post({ audit: 'done', data });
     } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; }
   };
+  // Capture all decks: every slide of every talk through the Capture pipeline, then one zip and a contact sheet per talk. The save buttons come when it ends (the share sheet needs a fresh tap).
+  let cap: import('./capture-all.ts').AllResult | null = null;
+  const saveRow = document.createElement('div'); saveRow.hidden = true;
+  const goCapture = async () => {
+    if (running) return;
+    running = true; stop = false; cap = null; saveRow.hidden = true; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
+    try {
+      const m = await import('./capture-all.ts');
+      cap = await m.captureAllDecks({ status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      bar.value = 100;
+      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done. '}${cap.shots} slides from ${cap.decks} talks, one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
+      saveRow.hidden = false;
+    } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; }
+  };
+  const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { const f = files(); if (f) void import('./capture-all.ts').then((m) => m.saveFiles(f)); }; saveRow.append(b); };
+  saveBtn('Save zip', () => (cap ? [new File([cap.zip], cap.zipName, { type: 'application/zip' })] : null));
+  saveBtn('Share contact sheets', () => (cap && cap.collages.length ? cap.collages.map((c) => new File([c.blob], c.name, { type: 'image/png' })) : null));
+  if (mode === 'here') btn('Capture all decks', () => { void goCapture(); });
   if (mode === 'here') { btn('Run full', () => { void go('full'); }); btn('Run quick', () => { void go('quick'); }); btn('Stop', () => { stop = true; status.textContent = 'Stopping after this step…'; }); }
   btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
-  root.append(head, status, bar, pctLine, ...(mode === 'here' ? [speedRow, why] : []), row, out);
+  root.append(head, status, bar, pctLine, ...(mode === 'here' ? [speedRow, why] : []), row, saveRow, out);
   document.body.append(root);
   attach('audit', { run: (d: 'quick' | 'full' = 'full') => go(d), text: () => (last ? renderText(last) : ''), json: () => (last ? renderJson(last) : ''), stop: () => { stop = true; } });
   if (mode === 'run') {

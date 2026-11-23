@@ -2,7 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseShadows, splitTop, maskUrl, maskPlacement, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
+import { parseShadows, splitTop, maskUrl, maskPlacement, collageLayout, slug, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
+import { zipParts, zipNames } from '../src/ui/capture/zip.ts';
 import { pngWithText, readPngText, crc32, asciiJson } from '../src/ui/capture/png-text.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -140,4 +141,38 @@ test('what the page keeps for a screen reader is never drawn; letter-spaced word
   assert.match(dom, /visuallyHidden\(cs\)/); assert.match(dom, /if \(spaced\)/); assert.match(dom, /loadMasks/);
   assert.match(cap, /await loadMasks\(/);
   assert.ok(!/globalAlpha = 0\.[0-9]/.test(cap), 'a translucent fill over a translucent halo came out as mush');
+});
+
+test('a zip of stored files lists, checks and unpacks: names (accents too), sizes, checksums, offsets', () => {
+  const files = [{ name: '01-hvpg/01-outline.jpg', data: new Uint8Array([1, 2, 3, 4, 5]) }, { name: '01-hvpg/01-outline.json', data: new TextEncoder().encode('{"a":"café"}') }, { name: 'README.txt', data: new Uint8Array(0) }];
+  const parts = zipParts(files, at), zip = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0; for (const p of parts) { zip.set(p, o); o += p.length; }
+  const list = zipNames(zip);
+  assert.deepEqual(list.map((f) => f.name), files.map((f) => f.name));
+  assert.deepEqual(list.map((f) => f.size), [5, 13, 0]);
+  assert.equal(list[0]!.crc, crc32(files[0]!.data));
+  // the first local header stands at 0 and the central directory's first offset says so
+  assert.equal(new DataView(zip.buffer).getUint32(0, true), 0x04034b50);
+});
+
+test('a deck\'s contact sheet: three across for a laptop or iPad, five for a phone, every slide in its own place under the header', () => {
+  const l = collageLayout(11, { w: 2360, h: 1640 });
+  assert.equal(l.cols, 3); assert.equal(l.cells.length, 11); assert.equal(l.cellW, 480);
+  assert.equal(l.cellH, Math.round((480 * 1640) / 2360));
+  assert.deepEqual(l.cells[0], { x: l.pad, y: l.pad + l.headH });
+  assert.equal(l.cells[3]!.x, l.pad); assert.ok(l.cells[3]!.y > l.cells[0]!.y, 'the fourth starts a new row');
+  const last = l.cells[10]!;
+  assert.ok(last.x + l.cellW <= l.width && last.y + l.cellH + l.labelH <= l.height, 'the last slide and its words are inside the sheet');
+  const p = collageLayout(12, { w: 1290, h: 2796 });
+  assert.equal(p.cols, 5); assert.equal(p.cellW, 300);
+  assert.equal(collageLayout(2, { w: 100, h: 100 }).cols, 2, 'two slides: two across, not three');
+  assert.equal(slug('Portal blood drains the intestine and spleen, then some more words'), 'portal-blood-drains-the-intestine-and-sp');
+  assert.equal(slug('???'), 'slide');
+});
+
+test('Capture all decks: in the audit panel, every talk and stop, kept out of its own pictures, saved from a fresh tap', () => {
+  const page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(page, /btn\('Capture all decks'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
+  assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(\)/); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
+  assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });
