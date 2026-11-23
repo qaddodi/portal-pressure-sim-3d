@@ -102,6 +102,15 @@ export const RELAX = { spleenBase: 45, spleenExtra: 165, toneBase: 30, toneExtra
 // that uptake. With diuretics the kidneys draw more back (`water`, up to `waterMax`). Tense ascites settles where the take-back meets
 // the overflow.
 const PERIT = { bulk: 0.6, bulkL: 1 / 2000, kIap: 0.16, waterMax: 0.9, waterL: 1 / 1500 };
+// The kidney keeps holding salt and water for weeks after the pressure behind it has fallen (a TIPS, a cured cause, an albumin course):
+// the renin, aldosterone and noradrenaline of a decompensated patient fall over one to three months, and natriuresis follows them. The belly
+// is refilled at that held rate while the peritoneum takes the fluid back, so the ascites clears gradually, not within a day. Quiroga 1995
+// (Hepatology 21:986, PMID 7705810): of patients with tense ascites before TIPS, 56 % had mild or none at 1 month and 66 % at 3 to 6 months;
+// sodium excretion rose and renin and aldosterone fell, and diuretic and paracentesis needs fell but did not end. `ASC_HOLD.tauDays` is the
+// time constant, in days of the disease clock, of the FALL of that held overflow (slow.ascHold, in mL/min, like `excess`); a rise is at once,
+// so the steady state, the pressures and every other number are as they were. A model choice tuned to those figures.
+export const ASC_HOLD = { tauDays: 45, meanS: 20, band: 0.02 };
+// (band: mL/min the overflow must fall below the held one before any is held, so the shown means and the instant's beat, which differ by a hair from the settled ones, hold nothing at rest. meanS: seconds over which the live overflow is averaged before it is compared with the held one, so a beat's swing in it does not read as a hold.)
 // Protein in lymph and ascites (Kedem–Katchalsky sieving per bed, then a peritoneal mass balance).
 // From the literature: the sinusoidal reflection coefficient for albumin, low in a fenestrated liver (lymph
 // about 85 % of plasma) and about 0.55 once cirrhosis capillarizes it (lymph about 52 %, PMID 1214504);
@@ -242,6 +251,7 @@ export class Engine {
       marrow: 1,   // (the share of the healthy red cell mass the marrow keeps, see RED)
       lymphCap: LYMPH.base,
       ascites: 0,
+      ascHold: 0,   // (the lymph overflow the kidney's salt and water holding still sustains after the pressure fell, mL/min: ASC_HOLD)
       ascAlb: null, ascGlob: null,   // ascitic albumin and globulin, g/dL (null: no fluid yet)
     };
     // ref: the patient's own blood volume (the reflexes measure a loss against it), inf0: infused when it was set,
@@ -371,7 +381,8 @@ export class Engine {
     if (pr.volume) this.addVolume(pr.volume, 0.35, true);
     this.settle();
     const n = days ?? pr.days;
-    if (n > 0) yield* this.advanceDaySteps(n, { noRupture: true, silent: true });
+    this._presetRun = true;   // (the years a preset has run are its own: the kidney's holding of ascites, ASC_HOLD, begins when it is done)
+    try { if (n > 0) yield* this.advanceDaySteps(n, { noRupture: true, silent: true }); } finally { this._presetRun = false; }
     // What the patient has now, after the years of disease (a pregnancy): set once the disease clock has run.
     if (pr.now) Object.assign(params, deepMerge(params, pr.now));
     // (Years of disease: the anemia of liver disease is complete, and the red cell mass sits at the marrow's set point.)
@@ -380,6 +391,8 @@ export class Engine {
     // (e.g. closing a shunt) shows the intervention, not leftover relaxation.
     this.settle();
     this.blood.ref = this.bloodVolume(); this.blood.inf0 = this.blood.infused;
+    // (A preset is a patient at rest: the kidney holds back no more than the pressure makes now, so its ascites is as the preset left it, and only a change made from here is lagged: ASC_HOLD.)
+    this.slow.ascHold = 0; this._exM = null; this.slow.ascHold = this.starling().excess;
     this.day = 0;
     this.t = 0;
     this.eventLog = [];
@@ -1085,6 +1098,7 @@ export class Engine {
     this.plasmaRefill(dt);
     // Ascites (mL/min → per dt)
     const as = this.starling();
+    this._exM = this._exM == null ? as.excess : this._exM + (as.excess - this._exM) * Math.min(1, dt / ASC_HOLD.meanS);   // (the overflow the held one is judged against)
     this.ascitesProtein(as, dt / 60);
     this.slow.ascites = Math.max(0, this.slow.ascites + (as.net * dt) / 60);
     // Bleeding / clot
@@ -1322,10 +1336,12 @@ export class Engine {
     if (b.rbc !== own) b.rbc += (own - b.rbc) * Math.min(1, days / (own > b.rbc ? RED.upDays * (1 + p.cirrhosis) : RED.downDays));
     this.plasmaRefill(days * 86400);
     // The lymphatics remodel toward (but never fully match) the chronic demand, and level off at their most (LYMPH).
+    this._exM = null;   // (a day's step judges the held overflow against the settled one)
     const st = this.starling();
     const capT = Math.min(LYMPH.max, LYMPH.base + LYMPH.adaptFrac * Math.max(0, st.made - LYMPH.base));
     s.lymphCap += (capT - s.lymphCap) * (1 - Math.exp(-LYMPH.adapt * days));   // (by the exact exponential, so a long step and many short ones agree)
     this.ascitesProtein(st, 1440 * days);
+    { const h = s.ascHold ?? 0; s.ascHold = st.excess >= h ? st.excess : st.excess + (h - st.excess) * Math.exp(-days / ASC_HOLD.tauDays); }   // (by the exact exponential: ASC_HOLD)
     // A day's step can carry the fluid past the volume where it balances (the net turns with the volume and the belly's
     // pressure: drained by diuretics, refilled when nearly empty), and the next step back past it, so the volume would
     // swing every day. A step that crosses the balance is taken implicitly instead (the volume whose own net, over the
@@ -1409,7 +1425,9 @@ export class Engine {
     const bulk = V > 0 ? Math.min(PERIT.bulk, V * PERIT.bulkL) + PERIT.kIap * (iapFromAscites(V) - 5) : 0;
     const water = p.diuretics && V > 0 ? Math.min(PERIT.waterMax, V * PERIT.waterL) : 0;
     const reabs = bulk + water;
-    const net = excess - reabs;
+    // What the kidney still holds back: the overflow the pressure made a while ago, less what it makes now (ASC_HOLD).
+    const extra = this._presetRun ? 0 : Math.max(0, (this.slow.ascHold ?? 0) - ASC_HOLD.band - (this._exM ?? excess)), held = extra;
+    const net = excess + extra - reabs;
     // Protein: what crosses each bed (sieving by the wall's reflection coefficient, more complete the faster
     // the filtration), then the overflow's mix of liver and gut lymph.
     const alb = p.albumin, glob = 3 + 0.8 * s;          // plasma, g/dL (globulins rise in cirrhosis)
@@ -1419,9 +1437,9 @@ export class Engine {
     const wH = PROT.hepWeep * hep, wS = jg;
     const inAlb = (wH * hA + wS * gA * alb) / (wH + wS), inGlob = (wH * hG + wS * gG * glob) / (wH + wS);
     const prot = { sigma: sA, alb, glob, hepAlb: hA, hepTP: hA + hG, lymphProt: (hA + hG) / (alb + glob), inAlb, inGlob };
-    this.flows = { hep, spl, carried, excess, reabs, bulk, water, prot };
+    this.flows = { hep, spl, carried, excess, held, extra, reabs, bulk, water, prot };
     const ascAlb = this.slow.ascAlb ?? inAlb, ascTP = ascAlb + (this.slow.ascGlob ?? inGlob);
-    return { hep, spl, made, carried, cap, net, excess, bulk, water, prot, ascAlb, ascTP, saag: alb - ascAlb, highProtein: ascTP >= 2.5 };
+    return { hep, spl, made, carried, cap, net, excess, held, extra, bulk, water, prot, ascAlb, ascTP, saag: alb - ascAlb, highProtein: ascTP >= 2.5 };
   }
 
   /**

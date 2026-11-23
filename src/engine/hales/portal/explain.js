@@ -145,6 +145,7 @@ export function explain(eng, metricId) {
   const at = (mutate) => {
     scratch.restore(snap);
     scratch.bleed.active = false; // attribution in quasi-steady state
+    scratch.slow.ascHold = 0;     // (and without the kidney's lagged holding of ascites after a fall in pressure: ASC_HOLD)
     scratch.params.catheter = { vein: null, wedged: false };
     if (mutate) mutate(scratch);
     scratch.settleQuick(); scratch.settleQuick();
