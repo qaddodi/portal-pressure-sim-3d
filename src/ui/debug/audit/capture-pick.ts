@@ -44,7 +44,7 @@ export function pickWords(keys: readonly string[]): string {
 export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { decks: string[] | null; pick: string[] | null; words: string; none: boolean }; refresh(): void } {
   const el = doc.createElement('div'); el.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 6px';
   const which = doc.createElement('select'); which.setAttribute('aria-label', 'How many slides');
-  for (const [v, t] of [['all', 'Every slide of the ticked talks'], ['25', 'Random 25 slides'], ['50', 'Random 50 slides'], ['100', 'Random 100 slides']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
+  for (const [v, t] of [['all', 'All slides'], ['25', 'Random 25'], ['50', 'Random 50'], ['100', 'Random 100']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
   const list = doc.createElement('div'); list.style.cssText = 'flex:1 1 100%;max-height:30vh;overflow:auto;border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px';
   const off = new Set<string>();   // (the talks not ticked: a talk that loads later starts ticked)
   const draw = () => {
@@ -53,19 +53,19 @@ export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el:
     const mk = (t: string, on: () => void) => { const b = doc.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = on; bar.append(b); };
     const count = doc.createElement('span');
     const all = decks();
-    const upd = () => { count.textContent = `${all.length - [...off].filter((id) => all.some((d) => d.id === id)).length} of ${all.length} talks`; };
-    mk('All talks', () => { off.clear(); draw(); });
+    const upd = () => { count.textContent = `${all.length - [...off].filter((id) => all.some((d) => d.id === id)).length} of ${all.length} decks`; };
+    mk('All', () => { off.clear(); draw(); });
     mk('None', () => { for (const d of all) off.add(d.id); draw(); });
     bar.append(count); list.append(bar); upd();
     for (const d of all) {
       const l = doc.createElement('label'); l.style.cssText = 'display:flex;gap:6px;align-items:baseline';
       const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = !off.has(d.id);
       c.onchange = () => { if (c.checked) off.delete(d.id); else off.add(d.id); upd(); };
-      l.append(c, `${d.title} (${d.slides.length} slides)`); list.append(l);
+      l.append(c, d.title); list.append(l);
     }
   };
   const refresh = draw;
-  el.append(which, list); draw();
+  el.append(list, which); draw();
   return {
     el, refresh,
     read() {

@@ -45,7 +45,7 @@ const CSS = `html,body{margin:0;height:100%}body{font:500 14px/1.4 system-ui,-ap
 .ao-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 14px;background:#faf9f7;border-bottom:1px solid rgba(0,0,0,.18)}
 .ao-bar button{font:inherit;font-weight:600;color:inherit;min-height:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(0,0,0,.3);background:transparent}
 .ao-bar label{display:inline-flex;gap:4px;align-items:center}.ao-bar button:disabled{opacity:.45}
-.ao-note{flex:1 1 100%;color:#5b5a57}
+.ao-note{flex:1 1 100%;color:#5b5a57}.ao-bar[data-mode=capture] .ao-test,.ao-bar[data-mode=test] .ao-cap{display:none!important}
 .ao-main{flex:1;min-height:0;display:flex}.ao-room{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .ao-wrap{position:relative;flex:none}.ao-wrap iframe{position:absolute;left:0;top:0;border:0;background:#fff;transform-origin:0 0;border-radius:6px;box-shadow:0 8px 28px -8px rgba(0,0,0,.45)}
 .ao-out{width:min(520px,40vw);margin:0;padding:10px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.4 ui-monospace,Menlo,monospace;border-left:1px solid rgba(0,0,0,.18)}`;
@@ -87,9 +87,18 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   showHint();
   bar.append(...boxes, dsel, ssel, sqL, ngL, parL);
   const start = btn('Start', () => { void run(); });
-  btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
-  btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
+  const stopTest = btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
+  const copies = [btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }), btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }), btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); })];
   bar.prepend(stamp); bar.append(meter, meterText, status, note);
+  // two pages in one: the self-test's many choices, and Capture slides (the sizes, the talks, how many slides, Capture, Stop). Capture is the one that opens; the self-test's controls are hidden under it, one tap away.
+  const testOnly = [dsel, ssel, sqL, ngL, parL, start, stopTest, ...copies, meter, meterText, note];
+  for (const e of testOnly) e.classList.add('ao-test');
+  const modeBtn = mk('button', 'ao-mode', ''); modeBtn.type = 'button';
+  const setMode = (m: 'capture' | 'test') => { bar.dataset.mode = m; modeBtn.textContent = m === 'capture' ? 'Self-test…' : 'Capture slides…'; };
+  modeBtn.onclick = () => setMode(bar.dataset.mode === 'capture' ? 'test' : 'capture');
+  setMode(flagValue('mode') === 'test' ? 'test' : 'capture');
+  stamp.after(modeBtn);
+  if (bar.dataset.mode === 'capture') status.textContent = 'Tick the sizes and the decks, then Capture. The app appears here.';
   void import('./capture-outer.ts').then((m) => m.addCaptureControls({ doc, win, bar, room, status, sizes: () => ALL_SIZES.filter((id) => wanted.has(id)), speed: () => speed, busy: () => running, setBusy: (b) => { running = b; start.disabled = b; } }));
   main.append(room, out); doc.body.append(bar, main);
 

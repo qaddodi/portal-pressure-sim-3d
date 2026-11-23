@@ -190,7 +190,7 @@ test('Capture this deck: a Settings row inside a talk, a Stop in the toast that 
   assert.match(sheet, /talk \? <MenuItem icon="grid" label=\{CAPTURE\.deckRow\}/);
   assert.match(deck, /only: id/); assert.match(deck, /stop: \(\) => stopped/); assert.match(deck, /restore: back/); assert.match(deck, /CAPTURE\.save/);
   assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
-  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Random 25 slides/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /decks: sel\.decks/);
+  assert.match(src('src/ui/debug/audit/capture-pick.ts'), /Random 25/); assert.match(page, /pickerUi\(/); assert.match(page, /Stop and keep what/); assert.match(page, /decks: sel\.decks/);
   assert.ok(!/—/.test(src('src/ui/shell/words.ts').match(/export const CAPTURE = \{[\s\S]*?\} as const;/)![0]));
 });
 
@@ -266,4 +266,12 @@ test('Capture picks: ticked slides, a seeded random sample from random talks, an
   const all = src('src/ui/debug/audit/capture-all.ts'), child = src('src/ui/debug/audit/capture-child.ts'), mount = src('src/ui/debug/mount.ts');
   assert.match(all, /pick\.has\(stopKey\(d\.id, k\)\)/, 'a slide not picked is walked past'); assert.match(all, /pos\.stop > last/, 'the walk ends after the last picked slide');
   assert.match(child, /captureAllDecks\(/); assert.match(mount, /audit === 'capture'/);
+});
+
+test('The Mac capture page is simple: sizes, decks with All and None, one how-many choice, Capture and Stop; the self-test sits behind one button; a frame that cannot fetch a part is started again', () => {
+  const outer = src('src/ui/debug/audit/outer.ts'), cap = src('src/ui/debug/audit/capture-outer.ts'), pick = src('src/ui/debug/audit/capture-pick.ts'), child = src('src/ui/debug/audit/capture-child.ts');
+  assert.match(outer, /ao-test/); assert.match(outer, /data-mode=capture\] \.ao-test/); assert.match(outer, /flagValue\('mode'\) === 'test'/, 'Capture opens; the self-test is one tap away');
+  assert.match(cap, /b\('Capture'/); assert.match(cap, /b\('Stop'/); assert.ok(!/Capture slides'/.test(cap));
+  assert.match(pick, /'All slides'/); assert.match(pick, /mk\('All'/); assert.match(pick, /mk\('None'/);
+  assert.match(cap, /module script\|dynamically imported/); assert.match(child, /importAgain\(/); assert.match(child, /responseStatus/);
 });

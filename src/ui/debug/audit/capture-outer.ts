@@ -28,21 +28,20 @@ export function addCaptureControls(k: OuterKit): void {
   const decks = () => builtinDecks().map((d) => ({ id: d.id, title: d.title, slides: d.slides }));
   const picker = pickerUi(doc, decks);
   void Promise.all(lazyDecks().map((l) => loadBuiltin(l.id).catch(() => null))).then(() => picker.refresh());   // (the talks' data only: the app itself is started in the frames)
-  const wrap = doc.createElement('div'); wrap.style.cssText = 'flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center';
+  const wrap = doc.createElement('div'); wrap.className = 'ao-cap'; wrap.style.cssText = 'flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center';
   const b = (label: string, on: () => void) => { const e = doc.createElement('button'); e.type = 'button'; e.textContent = label; e.onclick = on; return e; };
   let stop = false, zip: { blob: Blob; name: string } | null = null;
-  const go = b('Capture slides', () => { void run(); });
-  const stopBtn = b('Stop capture', () => { stop = true; status.textContent = 'Stopping: the frame finishes its slide, then what is done is kept.'; });
+  const go = b('Capture', () => { void run(); });
+  const stopBtn = b('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its slide, then what is done is kept.'; });
   const save = b('Save zip', () => { if (zip) void import('./capture-all.ts').then((m) => m.saveFiles([new File([zip!.blob], zip!.name, { type: 'application/zip' })])); });
   save.hidden = true;
-  const lab = doc.createElement('strong'); lab.textContent = 'Capture, in the sizes ticked above:';
-  wrap.append(lab, picker.el, go, stopBtn, save); bar.append(wrap);
+  wrap.append(picker.el, go, stopBtn, save); bar.append(wrap);
 
   /** One size: a fresh frame, its files when it ends. */
-  const one = (id: string, sel: { decks: string[] | null; pick: string[] | null }, speed: number): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
+  const one = (id: string, sel: { decks: string[] | null; pick: string[] | null }, speed: number, again = 0): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
     const box = doc.createElement('div'), frame = doc.createElement('iframe'); box.className = 'ao-wrap'; frame.title = `${d.label} ${d.w}x${d.h}`;
-    frame.src = captureSrc(win.location.pathname, searchNow(), { speed, pick: sel.pick, decks: sel.decks });
+    frame.src = captureSrc(win.location.pathname, searchNow(), { speed, pick: sel.pick, decks: sel.decks }) + (again ? `&retry=${again}-${new Date().getTime()}` : '');
     box.append(frame); room.textContent = ''; room.append(box);
     const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, r.width - 24), Math.max(1, r.height - 24));
     box.style.width = `${Math.round(d.w * s)}px`; box.style.height = `${Math.round(d.h * s)}px`;
@@ -73,7 +72,9 @@ export function addCaptureControls(k: OuterKit): void {
       for (const id of ids) {
         if (stop) break;
         status.textContent = `${FRAME_DEVICES[id]!.label}: loading the app…`;
-        const r = await one(id, sel, speed);
+        let r = await one(id, sel, speed);
+        // a frame that could not fetch a part of the app (a deploy landed while it started) is started again, up to twice, on a fresh address
+        for (let again = 1; r.why && /module script|dynamically imported|Load failed|Failed to fetch/i.test(r.why) && again <= 2 && !stop; again++) { status.textContent = `${FRAME_DEVICES[id]!.label}: a part of the app would not load; trying again (${again} of 2)…`; r = await one(id, sel, speed, again); }
         if (r.why) notes.push(`${FRAME_DEVICES[id]!.label}: ${r.why}`);
         for (const f of r.files) all.push({ name: `${id}/${f.name}`, data: f.data });
       }
