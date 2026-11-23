@@ -77,6 +77,28 @@ export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt
     }
     q.ly = Math.min(Math.max(q.ly, T + pl * 0.8), T + ph - pls * 0.4);
   });
+  // (a label never stands on another label or on the zone's own word: "Peritoneal carcinomatosis / not modeled" ran into "No portal hypertension", and Heart failure sat on both, capture 4bf601dd, Ascites 9.
+  //  The labels are pushed apart a little at a time, up and down, each kept within a line or two of its own dot; the zone word is a wall.)
+  const zw = mt(ZONE_WORDS.none, 'saag.ql'), zx0 = L + f * 0.4, zx1 = zx0 + zw, zy1 = T + ph - ql * 0.4 + ql * 0.25, zy0 = zy1 - ql * 1.1;
+  const hOf = (q: (typeof placed)[number]) => (q.p.modeled ? pl * 1.05 : pl * 1.05 + pls * 1.2), topOf = (q: (typeof placed)[number]) => q.ly - pl * 0.7;
+  const xs = (q: (typeof placed)[number]): [number, number] => { const tx = q.side === 'start' ? q.x + q.rr + f * 0.35 : q.x - q.rr - f * 0.35; return q.side === 'start' ? [tx, tx + q.w] : [tx - q.w, tx]; };
+  const slack = lh * 1.5;
+  for (let pass = 0; pass < 8; pass++) {
+    let moved = false;
+    for (const q of placed) {
+      const [a, b] = xs(q);
+      if (b > zx0 && a < zx1 && topOf(q) < zy1 && topOf(q) + hOf(q) > zy0) { q.ly = Math.max(q.y - slack, zy0 - hOf(q) + pl * 0.7 - 1); moved = true; }
+    }
+    for (let i = 0; i < placed.length; i++) for (let j = i + 1; j < placed.length; j++) {
+      const u = placed[i]!, v = placed[j]!, [a, b] = xs(u), [c, d] = xs(v);
+      if (b <= c || d <= a) continue;
+      const need = (topOf(u) < topOf(v) ? topOf(u) + hOf(u) : topOf(v) + hOf(v)) - (topOf(u) < topOf(v) ? topOf(v) : topOf(u));
+      if (need <= 0) continue;
+      const up = topOf(u) < topOf(v) ? u : v, dn = up === u ? v : u;
+      up.ly = Math.max(up.y - slack, T + pl * 0.8, up.ly - need / 2); dn.ly = Math.min(dn.y + slack, dn.ly + need / 2); moved = true;
+    }
+    if (!moved) break;
+  }
   for (const q of placed) {
     dots.push({ cx: q.x, cy: q.y, r: q.p.modeled ? q.rr : q.rr - 0.75, look: !q.p.modeled ? 'saag.ptx' : q.p.own ? 'saag.pt.cur' : 'saag.pt' });
     const tx = q.side === 'start' ? q.x + q.rr + f * 0.35 : q.x - q.rr - f * 0.35;

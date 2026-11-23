@@ -69,7 +69,7 @@ export function fitWords(fit: Fit | null | undefined): string | null {
   if (fit.verdict === 'no') {
     const r = (fit.rows ?? []).find((x) => x?.state === 'no');
     if (!r?.rule) return 'Does not fit';
-    const v = typeof r.value === 'string' || Number.isFinite(r.value as number) ? ` (this patient: ${r.value})` : '';
+    const v = typeof r.value === 'string' || Number.isFinite(r.value as number) ? ` (this patient: ${typeof r.value === 'string' ? lcFirst(r.value) : r.value})` : '';
     return `Does not fit: ${lcFirst(String(r.rule))}${v}`;
   }
   return groupOf(fit) === 'possible' ? possiblyWords(fit) : 'Cannot tell from the model';
