@@ -546,6 +546,7 @@ void main() {
       cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
     }
   }
+  covC *= cavA;   // (plan 34e: a clot is never inside the cava: cut along the wall's own line with the vein, so its tone never paints over the wall's pixel of anti-aliasing)
   fadeHere = mix(fadeHere, vFade, covC);   // (plan 34b: the cava's opacity ramp is lifted in the clot's own pixels, before the dither and every fade discard: a thrombus is not the cava)
   if (cavA < 0.004) DROP(10);
 #ifdef VEIL
