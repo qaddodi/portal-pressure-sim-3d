@@ -10,6 +10,7 @@ import { fitHeight, type Frame, type Shape, type TextShape } from '../scene.ts';
 import * as P from './curve-pure.generated.js';
 import { minusFixed } from '../looks2d/num.js';
 import { heldToRoom } from '../profile/model.ts';
+import { tableH } from '../../layout/chart-box.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -43,7 +44,9 @@ const H = { host: 'curve' };
 const withA = (c: Rgba, a: number): Rgba => [c[0], c[1], c[2], c[3] * a];
 
 /** The height a curve wants at width w in type f (the 2D card gives the chart what is left of it; here, a plot about three fifths as high as it is wide, with room for its rows). */
-export const curveHeight = (w: number, f: number) => Math.round(Math.max(0.62 * w, 17 * f));
+/** A curve, course or menu's picture height: the screen's table height (layout/card-size.ts, Plan 45), never under 17 em (the least that keeps its tick and event names: at 186 px on an iPhone the course dropped "1.5 L" and
+ *  "Treatment starts"); a phone on its side keeps 2D's own (0.62 of the width). */
+export const curveHeight = (w: number, f: number) => { const t = tableH(); return t == null ? Math.round(Math.max(0.62 * w, 17 * f)) : Math.round(Math.max(t, 17 * f)); };
 
 // A dot's place on line j (shown units), or null: with against every line is the one reading, so a dot sits once, on the first.
 function dotXY(t: CurveTool, d: Any, j: number, ls: Any[]): [number, number] | null {

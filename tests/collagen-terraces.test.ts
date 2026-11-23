@@ -6,8 +6,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { LOBULE_PLATE_FS, PLATE_BOX, PLATE_PX, PLATE_S, plateShape } from '../src/scene/lobule/plate.ts';
-import { SOFT_E0, SOFT_E1, SOFT_LOD, SOFT_PAD_PX, SOFT_PLATE_PX, collagenSoft, softPadWorld } from '../src/scene/lobule/collagen-soft.ts';
-import { RELIEF_LOD } from '../src/scene/lobule/relief.ts';
+import { SOFT_E0, SOFT_E1, SOFT_PAD_PX, SOFT_PLATE_PX, collagenSoft, softPadWorld } from '../src/scene/lobule/collagen-soft.ts';
+import { COLL_LOD, COLL_PX, bsplineW } from '../src/scene/lobule/collagen-field.ts';
+import { q8 } from './helpers/gpu-mips.ts';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { collagenTau } from '../src/scene/lobule/collagen-tau.ts';
 import { septaBands, tractCorners } from '../src/scene/lobule/collagen-paint.ts';
@@ -27,17 +28,22 @@ const PASS_K = nums('PASS_K'), PASS_A = nums('PASS_A');
 test('the painter\'s passes are the three flat fills this test models (a change of them is a change of the profile)', () => {
   assert.deepEqual(PASS_K, [2.1, 1.45, 1]); assert.deepEqual(PASS_A, [0.12, 0.24, 0.5]);
   assert.equal(SOFT_PLATE_PX, PLATE_PX, 'the arrival times\' pad is in plate px');
-  assert.equal(2 ** SOFT_LOD / 2, SOFT_PAD_PX, 'the pad is half a texel of the soft copy\'s level');
-  assert.ok(SOFT_LOD > RELIEF_LOD, 'the soft copy is coarser than the relief\'s height');
+  assert.equal(SOFT_PAD_PX, 2.5 * 2 ** COLL_LOD, 'the pad is the B-spline\'s reach: 2 texels either side and half a texel of the texel that holds the alpha (collagen-field.ts)');
+  assert.equal(COLL_PX, 2 ** COLL_LOD);   // (ONE level serves the soft edge and the relief's height: there is no second constant to differ)
 });
 
 // ---- 1D profiles (plate px; the plate is 2048 px over 2.44 R)
 const pxR = PLATE_PX / (PLATE_BOX * 2);
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
-/** A box blur of one profile, `s` px wide (mip level log2 s): the soft copy. */
-const boxBlur = (v: number[], s: number): number[] => v.map((_, i) => { let a = 0; for (let j = -s / 2; j < s / 2; j++) a += v[clamp(i + j, 0, v.length - 1)]!; return a / s; });
-/** The profile through the shader's rule. */
-const soften = (a: number[]): number[] => { const soft = boxBlur(a, 2 ** SOFT_LOD); return a.map((v, i) => collagenSoft(v, soft[i]!)); };
+/** The collagen field of one profile: the GPU's mip chain (lattice aligned 2^COLL_LOD px boxes at a lattice `phase` px off the profile, stored at 8 bits) and the cubic B-spline the shader reconstructs from it (collagen-field.ts). */
+const fieldOf = (v: number[], phase: number): number[] => {
+  const s = COLL_PX, m = Math.ceil((v.length + phase) / s) + 3, T = new Float64Array(m);
+  for (let j = 0; j < m; j++) { let a = 0; for (let i = 0; i < s; i++) a += v[clamp(j * s + i - phase - s, 0, v.length - 1)]! * (j * s + i - phase - s >= 0 && j * s + i - phase - s < v.length ? 1 : 0); T[j] = q8(a / s); }
+  return v.map((_, x) => { const u = (x + phase + s + 0.5) / s - 0.5, i = Math.floor(u), w = bsplineW(u - i); let h = 0; for (let a = 0; a < 4; a++) h += w[a]! * T[clamp(i - 1 + a, 0, m - 1)]!; return h; });
+};
+/** The profile through the shader's rule (the lattice phases 0, 11 and 23 px: a band never sits on the lattice). */
+const PHASES = [0, 11, 23];
+const soften = (a: number[], phase = 0): number[] => { const soft = fieldOf(a, phase); return a.map((v, i) => collagenSoft(v, soft[i]!)); };
 /** The worst contrast of the layer's colour against the cells, over every look (Oklab L). */
 function worstContrast(layer: 'septa' | 'tracts'): number {
   let m = 0;
@@ -77,17 +83,22 @@ test('the painted septum IS a staircase (the test sees what it must cure): tiers
 
 test('every look: the septum, the tract and the vein\'s cuff take no step over 1.5 % lightness per plate px', () => {
   for (const [name, prof, layer] of [['septum', septum, 'septa'], ['tract', tract, 'tracts'], ['vein cuff', cuff, 'tracts']] as const) {
-    const contrast = worstContrast(layer), { step, at } = maxStep(soften([...prof]), contrast);
-    console.log(`# ${name}: worst contrast ${contrast.toFixed(2)} L, max step ${(step * 100).toFixed(2)} % per px at ${at}`);
-    assert.ok(contrast > 0.1, `${name}: the contrast is real (${contrast.toFixed(2)})`);
-    assert.ok(step <= 0.015, `${name}: step ${(step * 100).toFixed(2)} % per plate px at px ${at}`);
+    const contrast = worstContrast(layer);
+    for (const ph of PHASES) {
+      const { step, at } = maxStep(soften([...prof], ph), contrast);
+      console.log(`# ${name} (lattice phase ${ph}): worst contrast ${contrast.toFixed(2)} L, max step ${(step * 100).toFixed(2)} % per px at ${at}`);
+      assert.ok(contrast > 0.1, `${name}: the contrast is real (${contrast.toFixed(2)})`);
+      assert.ok(step <= 0.015, `${name} phase ${ph}: step ${(step * 100).toFixed(2)} % per plate px at px ${at}`);
+    }
   }
 });
 
 test('no flat terrace is left outside a band\'s dense core: the septum has none, the tract only its dense centre (r < 0.07 R)', () => {
-  assert.deepEqual(terraces(soften([...septum])).map(([a, n, at]) => `${a.toFixed(2)} x ${n} px at ${at}`), [], 'the septum');
-  const left = terraces(soften([...tract])).filter(([, , at]) => at / pxR >= 0.07);
-  assert.deepEqual(left.map(([a, n, at]) => `${a.toFixed(2)} x ${n} px at ${(at / pxR).toFixed(2)} R`), [], 'the tract beyond its centre');
+  for (const ph of PHASES) {
+    assert.deepEqual(terraces(soften([...septum], ph)).map(([a, n, at]) => `${a.toFixed(2)} x ${n} px at ${at}`), [], `the septum, phase ${ph}`);
+    const left = terraces(soften([...tract], ph)).filter(([, , at]) => at / pxR >= 0.07);
+    assert.deepEqual(left.map(([a, n, at]) => `${a.toFixed(2)} x ${n} px at ${(at / pxR).toFixed(2)} R`), [], `the tract beyond its centre, phase ${ph}`);
+  }
   // the vein's cuff is one flat fill: the soft copy must still ramp (no step), which the step test holds; its flat middle is the fill itself, not a terrace beside a step
 });
 
@@ -106,7 +117,7 @@ const n = 512, box = PLATE_BOX * PLATE_S, sc = n / (2 * box), cvR = DISC_R.cv * 
 const tau = collagenTau(shape, cvR, n, box);
 const at = (x: number, y: number, ch: number): number => { const px = Math.floor((x + box) * sc), py = Math.floor((y + box) * sc); return tau[4 * (py * n + px) + ch]!; };
 
-test('the pad is 32 plate px in world units', () => { assert.ok(Math.abs(pad - SOFT_PAD_PX * 2 * box / PLATE_PX) < 1e-9 && pad > 10 && pad < 25, `pad ${pad}`); });
+test('the pad is 80 plate px in world units', () => { assert.ok(Math.abs(pad - SOFT_PAD_PX * 2 * box / PLATE_PX) < 1e-9 && pad > 30 && pad < 50, `pad ${pad}`); });
 
 test('arrival times: the tracts reach the soft copy\'s spread (2 rt + pad) and not past it', () => {
   for (const [cx, cy] of tractCorners(shape)) {
@@ -148,19 +159,17 @@ test('arrival times: a pixel has a septum arrival time exactly when it lies with
     if (sl <= pad - px) { assert.ok(has, `px ${k}: ${sl.toFixed(1)} past the painted edge, inside the spread, has no arrival time`); inside++; if (sl > 2) padRing++; }
     else if (sl >= pad + px) { assert.ok(!has, `px ${k}: ${sl.toFixed(1)} past the painted edge, beyond the spread, has an arrival time`); outside++; }
   }
-  assert.ok(inside > 10000 && outside > 10000 && padRing > 500, `the check saw the band (${inside}), the far field (${outside}) and the pad ring (${padRing})`);
+  assert.ok(inside > 10000 && outside > 3000 && padRing > 500, `the check saw the band (${inside}), the far field (${outside}) and the pad ring (${padRing})`);
 });
 
 // ---- the shader
-test('shader text: plateAt softens at SOFT_LOD and switches on the soft alpha; the old 8 px copy and its switch on the sharp alpha are gone; it declares what it uses', () => {
+test('shader text: plateAt softens with the collagen field and switches on its own alpha; the old copies and their switch are gone; it declares what it uses', () => {
   const t = shaderText(LOBULE_PLATE_FS), pa = block(t, 'vec4 plateAt(');
-  assert.ok(pa.includes('collLod(vec2(0.5 + uvK.x * 0.5, uvK.y), SOFT_LOD)') && pa.includes('collLod(vec2(uvK.x * 0.5, uvK.y), SOFT_LOD)'), 'both layers read the soft copy at SOFT_LOD');
-  assert.ok(pa.includes('cs = mix(sS, cs, smoothstep(SOFT_E0, SOFT_E1, sS.a));') && pa.includes('cu = mix(sU, cu, smoothstep(SOFT_E0, SOFT_E1, sU.a));'), 'the switch is on the soft copy\'s own alpha');
-  assert.ok(pa.includes('clamp(uv, vec2(SOFT_EDGE), vec2(1.0 - SOFT_EDGE))'), 'the copy is kept half a texel inside its plate (the atlas seam)');
-  assert.ok(!t.includes('bias + 3.0') && !/smoothstep\(0\.35, 0\.75, c[su]\.a\)/.test(t) && !t.includes('collAt('), 'the old rule is gone');
-  assert.ok(pa.indexOf('if (uP.x + uP.y + uP.z <= 0.0)') < pa.indexOf('collLod('), 'healthy tissue returns before any soft sample');
-  for (const [name, v] of [['SOFT_LOD', SOFT_LOD], ['SOFT_E0', SOFT_E0], ['SOFT_E1', SOFT_E1]] as const) assert.match(t, new RegExp(`const float ${name} = ${v.toFixed(1)};`));
-  assert.match(t, new RegExp(`const float SOFT_EDGE = ${(SOFT_PAD_PX / PLATE_PX).toFixed(6)};`));
+  assert.ok(pa.includes('cs = mix(gFS.v, cs, smoothstep(SOFT_E0, SOFT_E1, gFS.v.a));') && pa.includes('cu = mix(gFU.v, cu, smoothstep(SOFT_E0, SOFT_E1, gFU.v.a));'), 'the switch is on the field\'s own alpha');
+  assert.ok(!t.includes('bias + 3.0') && !/smoothstep\(0\.35, 0\.75, c[su]\.a\)/.test(t) && !t.includes('collAt(') && !t.includes('collLod(') && !t.includes('SOFT_LOD'), 'the old rules are gone');
+  assert.ok(pa.indexOf('if (uP.x + uP.y + uP.z <= 0.0)') < pa.indexOf('gFS.v'), 'healthy tissue returns before it reads the field');
+  for (const [name, v] of [['SOFT_E0', SOFT_E0], ['SOFT_E1', SOFT_E1]] as const) assert.match(t, new RegExp(`const float ${name} = ${v.toFixed(1)};`));
+  assert.match(t, new RegExp(`const float COLL_LOD = ${COLL_LOD.toFixed(1)};`));
   assert.deepEqual(undeclared(LOBULE_PLATE_FS, ['cameraPosition', 'modelMatrix', 'modelViewMatrix', 'projectionMatrix', 'viewMatrix', 'normalMatrix']), [], 'every name resolves');
   assert.deepEqual(badSamplers(LOBULE_PLATE_FS), [], 'every sampler is declared');
 });

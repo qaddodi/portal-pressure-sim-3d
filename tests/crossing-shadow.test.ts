@@ -9,7 +9,7 @@ import { LOOK_IDS } from '../src/looks/looks.ts';
 import { SHADOW, SHADOW_MIN_DL, SHADOW_PX, SHADOW_FEATHER, SHADOW_DEPTH, SHADOW_DEPTH_MAP, MAP_DEPTH_STEP, celTubeBase, isDarkLook, shadowFeather, shadowEndK, shadowEndLen } from '../src/scene/vessels/cel-ink.ts';
 import { NETWORK, MAPPED } from '../src/scene/vessels/network.ts';
 import { neighboursAt, shadowEndsOf } from '../src/scene/vessels/shadow.ts';
-import { mapDepthOf } from '../src/scene/circuit/map-depth.ts';
+import { mapDepthOf, mapDepthOfTube, mapOrder } from '../src/scene/circuit/map-depth.ts';
 import { TIER_Z, x2d, y2d, UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 import { TUBE_DEPTH_SHARE, VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
@@ -126,8 +126,11 @@ test('the Circuit\'s lines each stand at a depth of their own, in the body\'s ti
     else if (TIER_Z[a.tier] === TIER_Z[b.tier] && a.radius < b.radius) assert.ok(mapDepthOf(a.id) > mapDepthOf(b.id), `${a.id} is thinner than ${b.id} and over it`);
   }
   assert.ok(Math.min(...depths) >= 0 && Math.max(...depths) < 0.02, 'under 0.02 scene units: about a pixel of parallax at the map\'s edge');
+  // (the liver's branches and the caudate lane stand on the plate too, circuit/map-depth.ts: the network's lines keep their order and are a whole number of steps apart, the whole plate one step apart)
   const sorted = [...depths].sort((x, y) => x - y);
-  for (let i = 1; i < sorted.length; i++) assert.ok(Math.abs(sorted[i]! - sorted[i - 1]! - MAP_DEPTH_STEP) < 1e-9, 'one step apart');
+  for (let i = 1; i < sorted.length; i++) assert.ok(sorted[i]! - sorted[i - 1]! >= MAP_DEPTH_STEP - 1e-9 && Math.abs(Math.round((sorted[i]! - sorted[i - 1]!) / MAP_DEPTH_STEP) * MAP_DEPTH_STEP - (sorted[i]! - sorted[i - 1]!)) < 1e-9, 'a whole number of steps apart');
+  const plate = mapOrder().map(mapDepthOfTube).sort((x, y) => x - y);
+  for (let i = 1; i < plate.length; i++) assert.ok(Math.abs(plate[i]! - plate[i - 1]! - MAP_DEPTH_STEP) < 1e-9, 'one step apart on the whole plate');
   assert.ok(SHADOW_DEPTH_MAP > 0 && SHADOW_DEPTH_MAP < MAP_DEPTH_STEP, 'the hull lies between two lines, behind its own');
 });
 

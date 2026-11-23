@@ -69,6 +69,9 @@ uniform vec2 res;
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 mateK;   // how far each mate counts (1: always, the tube beside it is there; a mate that is drawn on and off, the ascending lumbar vein into the azygos's start, counts as far as it is drawn)
+uniform float nbrMap;   // 1 on a map-only tube (circuit/tubes.ts: a liver branch): its nbr is the host it lies in on the MAP, so the union rule holds there too; 0 on every vessel of the figure (their map joins are skins)
+uniform vec4 nbrW0;   // a map-only tube's two tubes' width rules (the circW of the lane or branch each lies in): nbr.x is its distance from the first axis, nbr.y from the second (1000: none)
+uniform vec4 nbrW1;
 uniform vec3 nbrMate;   // the vessel nbr is measured against (a fork's other tube, the cava): its data index, the diameter it was built at, its width kind (-1: none)
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform float hiOn;
@@ -136,6 +139,7 @@ float circMateWidth(vec3 m) {   // a run-on mate's width on the map (m: its data
   if (useData > 0.5) { ivec2 tc = ivec2(int(mod(m.x, vdataSize.x)), int(floor(m.x / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
   return circWidthOf(d, m.z);
 }
+float nbrHostR(vec4 hw) { return 0.5 * max(max(hw.z, hw.x * mix(1.0, circBoost, hw.y)), hw.w * circPerPx) * CIRC_MAPK; }   // (a map-only tube's neighbour: its radius now, scene units)
 float circSwell() {
   float wc;
   if (circW.x >= 0.0) wc = max(circW.z, circW.x * mix(1.0, circBoost, circW.y));
@@ -192,6 +196,13 @@ ${FADE_ALPHA_GLSL}
   vFade = fa;
   // the other tube's radius is the one it is DRAWN at: its built radius times its own live swell (the engine's diameter). Its built radius put the cut and the union's outline inside the real wall wherever the engine widens it (Mohammad, 20 Nov: "a big gaping hole" at the hepatic veins' mouths)
   vNbr = vec3(nbr.x, nbr.y * (nbrMate.x >= 0.0 ? swellOf(nbrMate.x, nbrMate.y, nbrMate.z) : 1.0), nbr.z);   // (the swell is the mate's width; its end plane does not move with it)
+  // (on the map a branch lies against up to two tubes of the map alone (the tube it leaves or reaches, and the sibling that leaves or reaches the same place): nbr is its distance from each axis (1000: none), and each radius is the one it is DRAWN at now, circSwell's own rule: the width before the boost's floor on the screen, times the boost where it applies, never under the least width or the least on the screen. The vertex carries how far inside the deeper one it stands)
+  if (nbrMap > 0.5) {
+    float r0 = nbrHostR(nbrW0), r1 = nbrHostR(nbrW1);
+    float m0 = nbr.x < 100.0 ? r0 - nbr.x : -1.0, m1 = nbr.y < 100.0 ? r1 - nbr.y : -1.0;
+    float rs = m0 >= m1 ? r0 : r1, ms = max(m0, m1);
+    vNbr = ms > -0.5 ? vec3(rs - ms, rs, -1000.0) : vec3(0.0, 0.0, -1000.0);
+  }
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two widths in CSS px (never device px: a device-px clamp drew
   // the line a third as heavy on a 3x iPhone as on a 1x screen), the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone; thinned with a lumen under LINE_MIN CSS px of radius (cel-ink.ts inkTaper), so the smallest branches keep their colour.
@@ -321,6 +332,7 @@ uniform vec2 skinHole;   // a side-wall junction's HOLE (skin/types.ts, spec 10.
 uniform vec2 skinHole2; // a vessel has at most two
 uniform vec2 skinWeldC;  // the same weld on the Circuit's MAP cut (circuit/skins.ts): per end, 1 the cut is whole (the map's skin has taken it), less and a growing arm's cut end is drawn at the pixels the skin does not draw
 uniform vec3 skinWeld;  // how much of the tube's CUT end the skin has taken over, per end (x the start's, y the end's, z a hole's): 1 the cut is whole (every skinned end but a growing one's), less and the cut part is still drawn at the pixels the skin does not draw (the same screen pattern: a pixel is the skin's where the pattern is under this), so a growing arm's flared end goes as its welded skin comes in
+uniform float nbrMap;   // 1 on a map-only tube: the union's rule holds on the map for it (nbr is its host's there)
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
@@ -516,7 +528,7 @@ void main() {
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
   // (past the other tube's open end nothing of it is drawn: the ink and the drop give way over half a pixel either side of its end plane, by vNbr.z, which the GPU blends exactly where the radius ramped to 0 over a whole triangle)
-  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT) * (1.0 - smoothstep(-0.5, 0.5, vNbr.z / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
+  if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * mix(1.0 - circT, 1.0, nbrMap) * (1.0 - smoothstep(-0.5, 0.5, vNbr.z / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
   // THE CLOT'S OWN PIXELS (plan 34b): coverage and shape are computed here, before the cava opacity ramp and the fade discards, so the ramp is lifted under the clot (a thrombus is not the cava: it stays as solid as the vein's own fade, with no screen dither on its caps).
   float rDevC = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;
   vec3 ct = vec3(0.0);
@@ -595,7 +607,7 @@ void main() {
   }
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
-  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
+  if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * mix(1.0 - circT, 1.0, nbrMap) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
   vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
@@ -671,7 +683,7 @@ void main() {
   if (nbrK > 0.5 && dLat > rDevAx + 0.5) DROP(12);
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);   // (CSS px set, held in device px here: the same share of the line on every screen)
-  c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);
+  c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn * (1.0 - nbrK));   // (not inside the other tube's lumen: the union's outline has no line there)
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
