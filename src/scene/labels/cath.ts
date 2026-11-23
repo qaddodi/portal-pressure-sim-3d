@@ -165,7 +165,8 @@ export function sumLayout(t: TagType, rows: readonly [Reading, Reading], calc: R
 
 /** The stack's top-left (cath-place.js placeBeside, the 2D app's own): beside the points, above or below them, clear of the cards and of the vein between the
  *  points, whichever covers least. Canvas px in and out. */
-export function placeStack(tip: Pt, ahead: Pt, bw: number, bh: number, band: Band, blockers: readonly Box[]): { x: number; y: number } {
+export function placeStack(tip: Pt, ahead: Pt, bw: number, bh: number, band: Band, blockers: readonly Box[], mid = false): { x: number; y: number } {
+  if (mid) return placeMid(tip, ahead, bw, bh, band, blockers);
   const S = C.STACK, W = band.x1 - band.x0, top = stackTop(band), lim = band.y1;
   const A = { tip: [tip[0] - band.x0, tip[1]], ahead: [ahead[0] - band.x0, ahead[1]] };
   const seg = (x0: number, y0: number, x1: number, y1: number) => ({ x0: x0 - 8, y0: y0 - 8, x1: x1 + 8, y1: y1 + 8 });
@@ -173,6 +174,18 @@ export function placeStack(tip: Pt, ahead: Pt, bw: number, bh: number, band: Ban
   const keep = [seg(Math.min(A.tip[0], A.ahead[0]), Math.min(A.tip[1], A.ahead[1]), Math.max(A.tip[0], A.ahead[0]), Math.max(A.tip[1], A.ahead[1])), seg(A.ahead[0], A.ahead[1], A.ahead[0], A.ahead[1])];
   const p = placeBeside({ A, bw, bh, W, top, lim, off: S.off, blockers: blockers.map((b) => shiftBox(b, band.x0)), keep });
   return { x: p.x + band.x0, y: p.y };
+}
+
+/** The EUS-PPG's stack (2D `mid`): midway between its two points, which stand far apart (the hepatic vein's and the portal vein's), so its leaders are short. It stands beside them (right, else left, whichever
+ *  covers less of a card), centred on the middle of the two, kept in the band. The 2D placing keeps clear of the whole stretch between the points and so sent it to the top of the screen (Mohammad, 23 Nov). */
+export function placeMid(tip: Pt, ahead: Pt, bw: number, bh: number, band: Band, blockers: readonly Box[]): { x: number; y: number } {
+  const S = C.STACK, top = stackTop(band), lim = band.y1, yMax = Math.max(top, lim - bh - 12);
+  const my = (tip[1] + ahead[1]) / 2, y = clamp(my - bh / 2, top, yMax);
+  const xMin = band.x0 + 28, xMax = Math.max(xMin, band.x1 - bw - 12);
+  const right = Math.max(tip[0], ahead[0]) + S.off, left = Math.min(tip[0], ahead[0]) - S.off - bw;
+  const cover = (x: number) => blockers.reduce((n, b) => n + Math.max(0, Math.min(x + bw, b.x1) - Math.max(x, b.x0)) * Math.max(0, Math.min(y + bh, b.y1) - Math.max(y, b.y0)), 0);
+  const xr = clamp(right, xMin, xMax), xl = clamp(left, xMin, xMax);
+  return { x: cover(xl) < cover(xr) ? xl : xr, y };
 }
 
 /** A leader from each reading's row to its point (stage-cath.js): beside the points, straight out of the row's left edge; else the nearer row from its edge and the

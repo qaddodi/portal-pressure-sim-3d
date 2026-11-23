@@ -39,6 +39,8 @@ export interface CathIn {
   kinds?: readonly CalloutKind[];
   kickers?: { f: string; w: string; h: string };
   tones?: { f: Tone; w: Tone };
+  /** The result stack stands midway between the two points (2D `mid`: the EUS-PPG's). */
+  mid?: boolean;
 }
 
 /** The cards a catheter state shows (hvpg-proc.js): the free reading at the tip; the wedged reading ahead of it with the free one kept where it was taken;
@@ -157,7 +159,7 @@ export class CathShow {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
       let geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);
-      const at = placeStack(inp.tip, inp.ahead, geom.w, geom.h, inp.band, inp.blockers);
+      const at = placeStack(inp.tip, inp.ahead, geom.w, geom.h, inp.band, inp.blockers, !!inp.mid);
       // the order of the rows and the leaders are planned together once the place is known (cath-leads.js: nothing crosses)
       const plan = planLeaders([at.x, at.y], geom, [inp.ahead, inp.tip], swap);
       if (plan.swap !== swap) geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, plan.swap);

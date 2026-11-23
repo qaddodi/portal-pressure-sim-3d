@@ -10,7 +10,7 @@ import type { Tone } from './cath.ts';
 import { readFrame } from '../../ui/tests/slide/reads.ts';
 
 /** The 2D card record (proc-anim.js): key 'f' stands at the tip, 'w' ahead of it, 'g' is the IR gradient (at the tip), 's' the stack with its rows and its result. */
-interface Card { key?: string; at?: string; kicker?: string; text?: string; unit?: string; cls?: string; rows?: Card[]; calc?: Card }
+interface Card { mid?: boolean; key?: string; at?: string; kicker?: string; text?: string; unit?: string; cls?: string; rows?: Card[]; calc?: Card }
 
 /** A card's class as the layer's tone: the veins' own colours, or the band of a result. */
 export function toneOfCls(cls: string | undefined, fallback: Tone): Tone {
@@ -29,7 +29,7 @@ export function cardsOf(out: readonly Card[], into: ProcCards): { kinds: Callout
   let f = '', w = '', h = '', hv: number | null = null;
   for (const c of out) {
     if (c.key === 's') {
-      kinds.push('s');
+      kinds.push('s'); into.mid = !!c.mid;
       for (const r of c.rows ?? []) { if (r.at === 'ahead') { w = r.text ?? ''; into.kickers.w = r.kicker ?? into.kickers.w; into.tones.w = toneOfCls(r.cls, into.tones.w); } else { f = r.text ?? ''; into.kickers.f = r.kicker ?? into.kickers.f; into.tones.f = toneOfCls(r.cls, into.tones.f); } }
       h = c.calc?.text ?? ''; into.kickers.h = c.calc?.kicker ?? into.kickers.h;
       hv = Number.parseFloat(h); if (!Number.isFinite(hv)) hv = null;

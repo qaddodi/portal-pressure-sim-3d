@@ -542,7 +542,7 @@ export class LabelController {
       const cs = `${this.state.proc?.sig ?? ''}|${this.state.cath ?? ''}|${here ? 1 : 0}|${this.cGot}|${keyBox ? boxKey(keyBox) : '-'}|${boxKey(view)}|${blockers.map(boxKey).join(';')}`;
       if (cs !== this.cardSig) {
         this.cardSig = cs;
-        this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
+        this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones, ...(procNow.mid ? { mid: true } : {}) } : {}) });
       }
     }
     if (!hold && resting && (this.dirty || sig !== this.sig || (this.settleSolve && now - this.lastDrift >= FOLLOW_MS))) {
@@ -551,7 +551,7 @@ export class LabelController {
       this.sig = sig; this.dirty = false; this.settleSolve = !still;
       for (const [id, m] of next) this.metas.set(id, m);
       // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them
-      this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
+      this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones, ...(procNow.mid ? { mid: true } : {}) } : {}) });
       this.solveNow(metas, view, [...blockers, ...this.show.boxes], still ? STAY : Infinity);
       if (keyBox) this.wants.set('key', { p: { id: 'key', form: 0, dx: keyBox.x0, dy: keyBox.y0, w: keyBox.x1 - keyBox.x0, h: keyBox.y1 - keyBox.y0, leader: false, au: 0.5 }, dim: false });
     }

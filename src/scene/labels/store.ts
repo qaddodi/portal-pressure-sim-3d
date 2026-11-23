@@ -14,6 +14,8 @@ export interface ProcCards {
   sig: string;
   kickers: { f: string; w: string; h: string };
   tones: { f: Tone; w: Tone };
+  /** the result stack stands midway between the points (2D `mid`, the EUS-PPG's) */
+  mid?: boolean;
   text: CathText;
   /** the two points the cards point to, in the figure's own space: `tip` the one 'f' stands at, `ahead` the one 'w' does; false while the scene has none */
   points(tip: Vector3, ahead: Vector3): boolean;

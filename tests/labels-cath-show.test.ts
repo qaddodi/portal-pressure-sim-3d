@@ -175,3 +175,15 @@ test('the EUS-PPG camera pans a little to the left of its shot (23 Nov)', async 
   const p = eusPan(sh)!;
   assert.ok(Math.abs(p.target[0] - (1 - 0.6 * EUS_PAN)) < 1e-9 && p.target[1] === 2 && p.target[2] === 3, 'only x moves, left');
 });
+
+test('the EUS-PPG\'s stack stands midway between its two points, beside them, not at the top of the screen (23 Nov)', async () => {
+  const { placeMid } = await import('../src/scene/labels/cath.ts');
+  const p = placeMid([400, 200], [380, 900], 330, 150, { x0: 0, y0: 56, x1: 1280, y1: 1000 }, []);
+  assert.ok(Math.abs(p.y + 75 - 550) < 1, 'centred on the middle of the two points');
+  assert.ok(p.x >= 400, 'beside them, clear of both');
+  const show = new CathShow();
+  show.solve({ ...base, cath: 'result', tip: [400, 200], ahead: [380, 900], band: { x0: 0, y0: 56, x1: 1280, y1: 1000 }, mid: true });
+  run(show, 1500);
+  const s = show.frame.sum!;
+  assert.ok(s.y > 300 && s.y + s.geom.h < 800, `the stack is in the middle, not at the top (y ${s.y})`);
+});
