@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, type CardIn } from '../src/scene/labels/figure-cards.ts';
+import { placeCards, ringLeader, RING_AIR, RING_LABEL_GAP, RING_LEAD_MIN, type CardIn } from '../src/scene/labels/figure-cards.ts';
 import { hits, type Box } from '../src/scene/labels/geometry.ts';
 import { RING_STROKE, typeVars, type Vp } from '../src/scene/labels/type.ts';
 
@@ -74,4 +74,33 @@ test('the ring and the leader only move by transform and fade by opacity', () =>
   const fc = readFileSync('src/scene/labels/figure-cards.ts', 'utf8').split('private paintRing')[1]!.split('\n  }\n')[0]!;
   assert.doesNotMatch(fc, /style\.(left|top)\b/);
   assert.match(fc, /fadeRing\(co, r\.a\)/);
+});
+
+// Plan B (23 Nov, the SOS slide: "the ring has no leader"): the words stood 3 px of leader off the ring (under ringLeader's 4 px), so no slide ever showed one.
+test('every spot placeCards gives a ring card shows a leader of at least RING_LEAD_MIN (both sides, every sideways step, the free-spot fallback)', () => {
+  const r = 40, ring = r + RING_AIR;
+  const spots: Box[] = [];
+  for (const below of [false, true]) {
+    // a clear view: the first spot tried (straight above, or below)
+    const [o] = placeCards([ringCard({ below })], VIEW, []);
+    spots.push(box(o!));
+    // each sideways step: the ones before it are blocked, one at a time, so placeCards falls through to the next
+    const w = 120, steps = [0, 0.25, -0.25, 0.5, -0.5, 0.75, -0.75, 1, -1, 1.5, -1.5].map((k) => k * w);
+    for (let n = 1; n < steps.length; n++) {
+      const blockers: Box[] = steps.slice(0, n).map((dx) => { const x0 = 195 + dx - w / 2; return { x0, y0: below ? 300 + ring : 300 - ring - 24, x1: x0 + w, y1: below ? 300 + ring + 24 : 300 - ring }; });
+      const [p] = placeCards([ringCard({ below })], VIEW, blockers);
+      if (p!.ok) spots.push(box(p!));
+    }
+  }
+  // the free-spot fallback: both sides blocked, so the nearest clear place anywhere
+  const [f] = placeCards([ringCard()], VIEW, [{ x0: 0, y0: 300 - ring - 30, x1: 390, y1: 300 + ring + 30 }]);
+  if (f!.ok) spots.push(box(f!));
+  assert.ok(spots.length >= 10);
+  for (const b of spots) {
+    const seg = ringLeader({ x: 195, y: 300 }, r, b);
+    assert.ok(seg, `a leader shows for the words at ${b.x0},${b.y0}`);
+    const len = Math.hypot(seg![2] - seg![0], seg![3] - seg![1]);
+    assert.ok(len >= RING_LEAD_MIN - 0.5, `leader ${len.toFixed(1)} px`);
+  }
+  assert.equal(RING_LEAD_MIN, 16);
 });

@@ -1,11 +1,10 @@
 // The collagen layer's arrival times (Plan 25b): for every pixel of the layer, when (at what growth p of its channel) the collagen there appears. Computed, not painted, from the same centre lines the painter draws along
-// (bandGeomInto's points, the septa's paths, the tracts' and the vein's centres), so it is exact and the same every time. One byte per channel (growth.ts): R the septa, G the portal tracts, B the vein's cuff and ring; 255: never.
+// (bandGeomInto's points, the septa's paths, the tracts' and the vein's centres), so it is exact and the same every time. One byte per channel (growth.ts): R the septa, G the portal tracts, B the vein (always 255: never, it is not in this layer); 255: never.
 //   septa      the hex-edge bridges grow from both tracts and meet in the middle at su 0.29 (as today's reach does); the portal-central bridges creep from the tract to the vein; the spurs push in last;
 //              every band thickens from a strand to its full width, and a seeded low-frequency jitter keeps each front organic and the same every time
 //   tracts     radially out: the inverse of today's tract radius G.rt (0.8 + 0.9 g)
-//   cuff, ring the cuff outwards from the wall (the inverse of today's outer radius), the ring inwards from it (the inverse of cv-intima.ts's inner edge), so the lumen closes in as the cuff grows out
+//   vein       none: cv-band.ts draws the central vein's collar and ring analytically from the eased growth of this channel, so B stays 255 (never)
 import { bandGeomInto, fibHash } from './from2d/lobule-paint.generated.js';
-import { CV_FILL, cvRag } from './cv-intima.ts';
 import { septaBands, tractCorners, type CollagenShape } from './collagen-paint.ts';
 import { NEVER, tauToByte } from './growth.ts';
 import { softPadWorld } from './collagen-soft.ts';
@@ -18,8 +17,8 @@ const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(
 /** A band's front is irregular and stable: low-frequency noise along it from its own seed. */
 const jitter = (seed: number, u: number): number => 0.6 * Math.sin(TAU * 1.3 * u + fibHash(seed) * TAU) + 0.4 * Math.sin(TAU * 3.1 * u + fibHash(seed + 9) * TAU);
 
-/** The layer's arrival times as RGBA bytes (A 255), row 0 at the top of the canvas (world y = -box), n × n pixels over world [-box, box]. `cvR`: the vein's wall radius, world units. */
-export function collagenTau(G: CollagenShape, cvR: number, n: number, box: number): Uint8Array {
+/** The layer's arrival times as RGBA bytes (A 255), row 0 at the top of the canvas (world y = -box), n × n pixels over world [-box, box]. `_cvR` (the vein's wall radius) is unused now: the vein is not in this layer. */
+export function collagenTau(G: CollagenShape, _cvR: number, n: number, box: number): Uint8Array {
   const out = new Uint8Array(n * n * 4).fill(255);
   const sc = n / (2 * box), pad = softPadWorld(box), best = new Float32Array(n * n).fill(Infinity);
   const toPx = (v: number): number => (v + box) * sc;
@@ -61,16 +60,7 @@ export function collagenTau(G: CollagenShape, cvR: number, n: number, box: numbe
       if (out[k] === NEVER || b < out[k]!) out[k] = b;
     }
   }
-  // ---- B: the vein's cuff outwards and its ring inwards (centre (G.cx, G.cy))
-  const rw = cvR, rOut = (rw + G.rcv0 * 0.95) * 1.08 + pad;
-  const x0 = Math.max(0, Math.floor(toPx(G.cx - rOut))), x1 = Math.min(n - 1, Math.ceil(toPx(G.cx + rOut)));
-  const y0 = Math.max(0, Math.floor(toPx(G.cy - rOut))), y1 = Math.min(n - 1, Math.ceil(toPx(G.cy + rOut)));
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const dx = (x + 0.5) / sc - box - G.cx, dy = (y + 0.5) / sc - box - G.cy, r = Math.hypot(dx, dy);
-    if (r > rOut) continue;
-    const tau = r < rw ? clamp((1 - r / (rw * cvRag(Math.atan2(dy, dx) < 0 ? Math.atan2(dy, dx) + TAU : Math.atan2(dy, dx)))) / CV_FILL, 0, 1) : clamp(((r - rw) / G.rcv0 - 0.1) / 0.85, 0, 1);
-    out[4 * (y * n + x) + 2] = tauToByte(tau);
-  }
+  // ---- B: the vein is not in this layer (cv-band.ts draws it from its radius): its byte stays 255, never
   return out;
 }
 

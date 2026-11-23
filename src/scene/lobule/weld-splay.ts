@@ -16,6 +16,8 @@ export const SPLAY_TRIES = [1, 1.5, 2.2, 3.2] as const;
 export const SPLAY_GAP = 1.05;
 /** A branch that follows its host's bend eases the shift out over this many of its radii. */
 export const SPLAY_CARRY_R = 6;
+/** ...and at least this many lengths of the shift it carries (the branch turns by about 1.5 / this at most), and at most this share of the branch (its far end is its own junction's). */
+export const SPLAY_CARRY_SLOPE = 5, SPLAY_CARRY_MAX = 0.6;
 
 /** The structure of a junction the splay needs (welds.ts's Node has more). */
 export interface SplayNode { id: string; J: V3; /* (moved in place when a bent host carries the T) */ ends: { c: number; end: 0 | 1 }[]; host?: { c: number; seg: number; t: number } }
@@ -24,7 +26,7 @@ const hyp = Math.hypot;
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const unit = (a: V3): V3 => { const l = hyp(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
-const smooth = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
+const smoother = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * x * (x * (x * 6 - 15) + 10); };
 
 /** `v` turned by `ang` radians about the unit `axis` (Rodrigues). */
 export function rotate(v: V3, axis: V3, ang: number): V3 {
@@ -56,11 +58,16 @@ export function splayCourses(cs: readonly WeldCourse[], nodes: readonly SplayNod
       if (hyp(dl[0], dl[1], dl[2]) < 1e-9) continue;
       for (const e of t.ends) {
         const pts = out[e.c]!.pts, R = out[e.c]!.rad[e.end === 0 ? 0 : pts.length - 1]!, step = e.end === 0 ? 1 : -1;
+        // (the ease is long enough for the branch to turn gently: a host's bend shifts a T's junction by many radii, and easing that over six radii kicked the cross-link's first samples sideways, turns of 75 and 60
+        //  degrees in a few samples (118 degrees at an 143, 23 Nov, the SOS slide). It is at least SPLAY_CARRY_SLOPE lengths of the shift, never more than the share of the branch that leaves its other end alone,
+        //  and it fades with a C2 curve, so the branch has no kink where the shift ends)
+        let total = 0; for (let i = 1; i < pts.length; i++) total += hyp(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]);
+        const reach = Math.min(Math.max(SPLAY_CARRY_R * R, SPLAY_CARRY_SLOPE * hyp(dl[0], dl[1], dl[2])), SPLAY_CARRY_MAX * total);
         let run = 0, prev = pts[e.end === 0 ? 0 : pts.length - 1]!;
         for (let i = e.end === 0 ? 0 : pts.length - 1; i >= 0 && i < pts.length; i += step) {
           const q = pts[i]!;
           run += hyp(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]); prev = q;
-          const w = 1 - smooth(run / (SPLAY_CARRY_R * R));
+          const w = 1 - smoother(run / reach);
           if (w <= 0) break;
           pts[i] = [q[0] + dl[0] * w, q[1] + dl[1] * w, q[2] + dl[2] * w];
         }

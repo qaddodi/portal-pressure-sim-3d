@@ -14,7 +14,7 @@
 // names, the taps and the clock. Flow marks: 2D's chevrons ride on the flat view's own tubes, which are hidden here, so this scene shows none (the blood's colour along each sinusoid
 // still runs from the portal's to the central vein's).
 import { useSettings } from '../../state/settings.ts';
-import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, Texture, Vector3, type BufferAttribute, type BufferGeometry } from 'three';
+import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, Texture, Vector3, Vector4, type BufferAttribute, type BufferGeometry } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { CelObject } from '../materials/cel.ts';
 import type { LobuleView } from '../lobule/view.ts';
@@ -35,7 +35,9 @@ import { ATLAS_W, collagenInput, paintCollagenWorld } from '../lobule/collagen-p
 import { CollagenAtlas } from '../lobule/collagen-atlas.ts';
 import { collagenTau, flipRows } from '../lobule/collagen-tau.ts';
 import { easeGrow, growGoal } from '../lobule/growth.ts';
-import { CV_FILL, CV_OPEN_MIN, CV_RING_N, CV_WALL, cvInner, cvScarGrowth } from '../lobule/cv-intima.ts';
+import { CV_FILL, CV_MESH_IN, CV_WALL, cvScarGrowth } from '../lobule/cv-intima.ts';
+import { cvGeom } from '../lobule/cv-band.ts';
+import { deadAmount } from '../lobule/dead-cells.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, LOBULE_SCAR_VS, PLATE_BOX, paintPlateWorld, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateQuantizer, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
 import { hexToRgb01 } from '../lenses/oklab.ts';
@@ -285,18 +287,18 @@ export class Lobule3D {
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true; this.blankColl = blank;
     this.marksMat = new ShaderMaterial({ name: 'lobule marks',
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, mapB: { value: blank }, mapC: { value: blank }, mapCB: { value: blank }, mapT: { value: never }, uP: { value: new Vector3() }, mixB: { value: 0 }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade, uBase: { value: new Vector3() }, uBaseK: { value: 0 }, uCv: { value: new Vector4() }, uCvCol: { value: new Vector3() }, uScarK: { value: 1 }, uSide: { value: 2 * PLATE_BOX * R } },   // (a new plate is MIXED in by the one shader, mapB at mixB, never drawn as a second layer: two see-through layers at 1-e and e leave a quarter of the page showing at the middle of the fade, a flash on every swap)
       transparent: false, depthWrite: false, depthTest: true, side: DoubleSide,   // (depth-TESTED, writing none: the vessels still draw over it, and the sinusoid scene that stands over the lobule at the dive's landing hides it; it was depth-blind, so Disse's lining, the septa and the tracts were painted over the whole sinusoid until the lobule dropped out, then popped off: 23 Nov)
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
     // SOS's scar inside the central vein: the plate's own painting (cv-intima.ts) shown over the vein's pool by this one shader, the plate's textures and mix shared with the marks, laid whole over the tissue's tone
     // (no see-through: it is the same collagen as the bands outside the wall, Plan 24)
     this.cvScar = new MicroPart(new MeshBuilder().build(), { ink: null, toon: new ShaderMaterial({ name: 'lobule central-vein scar',
-      vertexShader: LOBULE_SCAR_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { ...this.marksMat.uniforms, opacity: { value: 0 }, uBaseK: { value: 1 } },
+      vertexShader: LOBULE_SCAR_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { ...this.marksMat.uniforms, opacity: { value: 0 }, uBaseK: { value: 1 }, uScarK: { value: 1 } },
       transparent: true, depthWrite: false, depthTest: true, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     }) }, 'lobule3d/central-vein-scar');
-    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, 1, CV_SCAR_Z()); this.cvScar.setOpacity(0);   // (the ring at its fullest, once: the shader shows as much of it as has grown, collagen-tau.ts)
+    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, CV_SCAR_Z()); this.cvScar.setOpacity(0);   // (the ring at its fullest, once: the shader shows as much of it as has grown, collagen-tau.ts)
     const side = 2 * PLATE_BOX * R;
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
@@ -584,20 +586,22 @@ export class Lobule3D {
     let n = 0;
     for (const k of net.cells) {
       if (++n % 24 === 0) yield;
-      const z3 = k.q < 0.4, dead = z3 && cu > 0.12 && k.drop < cu * (1.25 - k.q * 1.6);
+      // (how dead, 0 to 1, a smooth function of the place, dead-cells.ts: a ghost's fill, alpha, size, height and nucleus all ease by it, so zone 3 fades out from the vein and no tile is a coin toss beside its neighbour)
+      const dk = cu > 0.08 && k.q < 0.45 ? deadAmount(cu, k.q, Math.atan2(k.y, k.x)) : 0;
       const t = 0.88 + 0.12 * k.tone;
-      let fill: RGB, alpha: number;
-      if (dead) { fill = dark ? [0.42, 0.33, 0.3] : [0.93, 0.86, 0.72]; alpha = 0.6; }
-      else { for (let i = 0; i < 3; i++) CT[i] = base[i]! * t + (1 - t) * (dark ? 0.15 : 1) * 0.3; fill = cordToneInto(TONE, CT, k.q, dark) as number[]; alpha = dark ? 0.8 : 0.92; }
+      for (let i = 0; i < 3; i++) CT[i] = base[i]! * t + (1 - t) * (dark ? 0.15 : 1) * 0.3;
+      const live = cordToneInto(TONE, CT, k.q, dark) as number[], ghost = dark ? [0.42, 0.33, 0.3] : [0.93, 0.86, 0.72];
+      const fill: RGB = dk > 0 ? [live[0]! + (ghost[0]! - live[0]!) * dk, live[1]! + (ghost[1]! - live[1]!) * dk, live[2]! + (ghost[2]! - live[2]!) * dk] : [live[0]!, live[1]!, live[2]!];
+      const alpha = (dark ? 0.8 : 0.92) + (0.6 - (dark ? 0.8 : 0.92)) * dk;
       const col = mix3(ground, fill, alpha);
       const dz = sj * Math.min(k.l, k.w) * 0.45, cx = k.x + k.jx * dz, cy = k.y + k.jy * dz, a = k.a + k.ja * sj * 0.9;
-      const lw = (dead ? k.l * 0.7 : k.l) * (1 + 0.12 * sj), ww = (dead ? k.w * 0.7 : k.w) * (1 + 0.3 * sj);
+      const sz = 1 - 0.3 * dk, lw = k.l * sz * (1 + 0.12 * sj), ww = k.w * sz * (1 + 0.3 * sj);
       const outline = roundRect(cx, cy, lw, ww, Math.min(lw, ww) * 0.38, a);
-      const top = dead ? LZ.cellTop * 0.4 : LZ.cellTop;
+      const top = LZ.cellTop * (1 - 0.6 * dk);
       pillow(cb, outline, top, LZ.cellBot, Math.min(lw, ww) * R * BEVEL, col, 3);
       {
         // the nucleus: 2D's dot at nu along the cell, a low dome in the cell's colour under the nodule ink
-        const nr = dead ? 1e-6 : Math.max(0.0023, ww * 0.16) * R, ca = Math.cos(a), sa = Math.sin(a);
+        const nr = Math.max(1e-6, Math.max(0.0023, ww * 0.16) * R * (1 - dk)), ca = Math.cos(a), sa = Math.sin(a);
         const nx = cx + k.nu * lw * ca, ny = cy + k.nu * lw * sa;
         const nc = mix3(col, nucInk, Math.min(1, nucA * 2.4));
         ellipsoid(nb, nx * R, -ny * R, top - nr * 0.55, nr, nr, nr * 0.8, 0, nc, 12, 6);
@@ -979,14 +983,19 @@ export class Lobule3D {
   /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well ... so it shows it's blocked"; 22 Nov: it must look like the bands outside): the ring is one mesh at its fullest and the one shader shows as much of it as the
    *  vein's growth has reached (collagen-tau.ts B: the lumen closes in as the cuff grows out). It comes in with the disease and goes with it, never repainted. */
   private stepCvScar(kcv: number): void {
-    const on = this.grow[2] > 0.0005;
-    this.cvScar.setOpacity(on ? (this.marksMat.uniforms.opacity!.value as number) : 0);
+    const on = this.grow[2] > 0.0005, u = this.marksMat.uniforms;
+    // (the one band, cv-band.ts: the same numbers for the marks plate past the wall and the scar mesh inside it, the live wall and the eased growth; the mesh's uv does not know its scale, so it is told)
+    const g = cvGeom(this.flat.cvRadiusNow, this.flat.net.rcv0, this.grow[2]);
+    (u.uCv!.value as Vector4).set(g.rL, g.rw, g.rC, g.k);
+    this.cvScar.setOpacity(on ? (u.opacity!.value as number) : 0);
     this.cvScar.group.scale.set(kcv, kcv, 1);
+    (this.cvScar.mats.toon.uniforms.uScarK!).value = kcv;
     if (!on) return;
     const base = `${this.flat.look}`;
     if (base !== this.cvScarBase) {
       this.cvScarBase = base;
-      const L = lookColours(this.flat.look), gap = L.rgb01('--og-liver-2'), cell = L.rgb01('--og-liver-1');
+      const L = lookColours(this.flat.look), gap = L.rgb01('--og-liver-2'), cell = L.rgb01('--og-liver-1'), sep = L.rgb01('--lz-septum');
+      (u.uCvCol!.value as Vector3).set(sep[0]!, sep[1]!, sep[2]!);
       (this.marksMat.uniforms.uBase!.value as Vector3).set(gap[0]! + (cell[0]! - gap[0]!) * 0.85, gap[1]! + (cell[1]! - gap[1]!) * 0.85, gap[2]! + (cell[2]! - gap[2]!) * 0.85);
     }
   }
@@ -1163,20 +1172,18 @@ export function skipFirstFills(ctx: CanvasRenderingContext2D, n: number): Canvas
 }
 
 /** SOS's scar in the central vein (its shape: lobule/cv-intima.ts, shared with the plate's painter). The onset is the span of fibPost over which it eases in, never a see-through strength. */
-export { CV_FILL, CV_OPEN_MIN, cvScarGrowth };
+export { CV_FILL, cvScarGrowth };
 /** Just over the central vein's pool top (its mouth's top, buildVessels' POUR), under nothing else. */
 const CV_SCAR_Z = (): number => (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * 1.04 + 0.002;
 
-/** The scar's mesh, flat at height z over a vein of radius rw: ONE ring of collagen from the wall in to the open lumen, its inner edge a soft lobed curve (organic, never jagged), and NOTHING across the lumen.
- *  (Mohammad 21 Nov 2026, "the fibrosis inside the central vein is broken, it shouldn't cross the centre": the chords of collagen strands drawn across the open lumen, overlapping the ring and each other
- *  in the same plane, stacked their see-through layers into blotches and ran over the node dot. The ring alone is what a narrowing is: the lumen narrows from the wall and its middle stays clear.)
- *  One layer, no overlap, so the see-through scar is one even tone; its inner edge stays at least CV_OPEN_MIN of the wall's radius from the centre. Seeded, so it never flickers as it grows. */
-export function buildCvScar(geo: import('three').BufferGeometry, rw: number, grow: number, z: number): void {
-  const b = new MeshBuilder(), N = CV_RING_N;
+/** The scar's mesh, flat at height z over a vein of radius rw: a plain annulus from CV_MESH_IN of the wall out to the wall. The shader draws the lumen's edge and the band on it (cv-band.ts), so the mesh has no shape of its own:
+ *  a round lumen, no lobes, nothing to disagree with the collagen outside the wall. */
+export function buildCvScar(geo: import('three').BufferGeometry, rw: number, z: number): void {
+  const b = new MeshBuilder(), N = 96;
   const outer: number[] = [], inner: number[] = [];
   for (let i = 0; i < N; i++) {
-    const t = (i / N) * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t), ri = cvInner(rw, grow, t);
-    outer.push(b.v(rw * CV_WALL * c, rw * CV_WALL * sn, z, 0, 0, 1)); inner.push(b.v(ri * c, ri * sn, z, 0, 0, 1));
+    const t = (i / N) * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t);
+    outer.push(b.v(rw * CV_WALL * c, rw * CV_WALL * sn, z, 0, 0, 1)); inner.push(b.v(rw * CV_MESH_IN * c, rw * CV_MESH_IN * sn, z, 0, 0, 1));
   }
   for (let i = 0; i < N; i++) { const j = (i + 1) % N; b.quad(inner[i]!, outer[i]!, outer[j]!, inner[j]!); }
   b.build(geo);

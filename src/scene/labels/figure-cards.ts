@@ -56,10 +56,14 @@ export interface FigCaliper {
 
 /** A slide's ring on the figure (2D lobule-zoom-labels.js RING_STROKE, RING_GAP): its stroke, the air a label keeps off it, its least radius, px. */
 export { RING_STROKE };
-export const RING_AIR = RING_STROKE / 2 + 8;
 const ringPx = (r: number) => Math.max(10, Math.round(r * 10) / 10);
 /** The label of a ring stands this far (px) off the leader's end, so the line never runs in under the letters (2D CALL_GAP). */
 export const RING_LABEL_GAP = 7;
+/** The leader's least length beyond the ring's stroke, px (2D lobule-zoom-records.js: `Math.max(0, 16 - lead)`). Root cause of the ring with no line (23 Nov, the SOS slide): the words stood RING_STROKE/2 + 8 off the ring and the leader stops
+ *  RING_LABEL_GAP short of them, so straight above or below (the first spot tried) it was 3 px, under ringLeader's 4 px, and it was null on every slide. */
+export const RING_LEAD_MIN = 16;
+/** The air the words keep off a ring (its centre line out to the words' box): half the stroke, the leader, and the gap the leader stops short of the words. */
+export const RING_AIR = RING_STROKE / 2 + RING_LEAD_MIN + RING_LABEL_GAP;
 
 /** A leader from a ring's edge to its label: it starts on the ring (at its radius, on the line to the label's centre) and stops RING_LABEL_GAP short of the label's box, where that line enters it.
  *  null when the label stands too close for a line to show. */

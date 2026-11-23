@@ -2,7 +2,6 @@
 // intimal ring, drawn with the generated file's own primitives in the painter's own order, so the layer over the tissue (painted with none of it) is the one-pass painting at the full state (source-over is associative).
 // What grows and recedes is shown by the shader from the layer's arrival times (collagen-tau.ts); the bands' shapes are listed once here (`septaBands`) for the painter and for the times.
 import { fibrousBand, fibrousCuff, fibrousTract } from './from2d/lobule-paint.generated.js';
-import { paintIntima } from './cv-intima.ts';
 import { lookColours } from './lz-colours.ts';
 import { PLATE_S } from './plate.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -61,7 +60,7 @@ export function paintSepta(c: CanvasRenderingContext2D, P: CollagenInput): void 
   c.globalAlpha = 1;
 }
 
-/** The portal tracts, the vein's cuff and Plan 24's ring at their fullest, in the painter's order. */
+/** The portal tracts at their fullest, in the painter's order. The central vein's collagen is NOT painted: cv-band.ts draws it from its radius (the painted fibres made a second, see-through ring round the solid one). */
 export function paintTracts(c: CanvasRenderingContext2D, P: CollagenInput): void {
   const { G, dark, rgb } = P, COL = rgb.col, PRE = dark ? PRE_DARK : PRE_LIGHT;
   c.globalAlpha = 1;
@@ -70,8 +69,6 @@ export function paintTracts(c: CanvasRenderingContext2D, P: CollagenInput): void
     fibrousTract(c, x, y, rt, Math.atan2(y - G.cy, x - G.cx), PRE, 1, 900 + ci * 71);
     fibrousCuff(c, x, y, rt * 0.62, rt * 1.08, PRE, 1);
   }
-  fibrousCuff(c, G.cx, G.cy, P.cvIn, P.cvIn + G.rcv0 * 0.95, COL, 1);
-  paintIntima(c, { m: { fibPost: 1 }, G, rgb: { col: COL }, cvIn: P.cvIn });
 }
 
 /** The collagen layer is an atlas two plates wide, n × n each: the tracts and the vein on the left, the septa on the right (the shader reads each at its own uv). `which` paints one plate alone at the left (a node twin that is one plate square). */

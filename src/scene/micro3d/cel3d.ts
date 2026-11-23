@@ -413,6 +413,14 @@ export const INK_BACK = 0.0015;
 /** No line thinner than this (CSS px): the canvas has no multisampling, and a hull band under about 1.5 device px breaks into dashes as it crosses the pixel grid (the dotted
  *  hepatocytes, the stippled nucleus rings, eyes 20 Nov). Every micro part's line is held to it, so no part can ask for a line too thin to draw. */
 export const MIN_LINE = 1.0;
+/** A tube never wears more ink than this share of its own radius on screen, and its line fades out (rather than breaking into dashes) as that share shrinks under MIN_LINE: INK_FADE_LO to INK_FADE_HI of MIN_LINE.
+ *  Root cause of the black slivers and notches along the lymph's and the sinusoids' edges (Mohammad, 23 Nov 2026, the SOS slide): every hull was pushed out a fixed `px` whatever the tube's own width, and the lymph
+ *  tubes taper to nothing in zone 3, so once the strip of tube beside its wall was narrower than the hull only ink showed. The twin of the vertex shader's clamp (tests/ink-clamp.test.ts). */
+export const INK_HALF = 0.5, INK_FADE_LO = 0.35, INK_FADE_HI = 1.0;
+/** The ink's width for a hull of `px` on a tube whose own radius is `rPx` on screen: never more than half of it. */
+export const inkWidth = (px: number, rPx: number): number => Math.min(px, INK_HALF * Math.max(0, rPx));
+/** The ink's presence for a width: 0 below INK_FADE_LO of MIN_LINE, whole from MIN_LINE, smooth between. */
+export const inkAlpha = (w: number): number => { const t = Math.min(1, Math.max(0, (w / MIN_LINE - INK_FADE_LO) / (INK_FADE_HI - INK_FADE_LO))); return t * t * (3 - 2 * t); };
 /** The canvas's pixel ratio, for the lines drawn in the fill (uRim, device px). The scene writes it each frame; every micro part's rim width follows it. */
 export const MICRO_DPR = { value: 2 };
 export const MICRO_INK_VS = /* glsl */ `
@@ -436,6 +444,7 @@ ${SHAPE_VS_DECL}
 varying float vHy;
 varying vec2 vXY;
 varying vec3 vOwnC;
+varying float vInkA;
 void main() {
   vOwnC = tint;
 #ifdef USE_COLOR
@@ -479,7 +488,15 @@ ${SHAPE_VS_APPLY}
   nd = l > 1e-6 ? nd / l : vec2(0.0);
   // only a normal that faces sideways on screen pushes the line out: a face toward the viewer (a tile's top, the inner ring of a bevel) stays put, so the hull never folds
   // over the face and draws creases across it
-  c.xy += nd * px * smoothstep(0.2, 0.6, length(vn.xy)) * 2.0 / res * c.w;
+  float w = px;
+  vInkA = 1.0;
+#ifdef SWELL
+  // (the tube's own radius on screen, in the units px is in: a hull wider than the strip of tube beside its wall shows only ink, a black sliver. Never more than half the radius, and a line that thins out fades)
+  float rPx = max(swell.x + infl, 0.0) * length(modelViewMatrix[0].xyz) * abs(projectionMatrix[1][1]) / max(c.w, 1e-5) * res.y * 0.5;
+  w = min(px, ${F(INK_HALF)} * rPx);
+  vInkA = smoothstep(${F(INK_FADE_LO)}, ${F(INK_FADE_HI)}, w / ${F(MIN_LINE)});
+#endif
+  c.xy += nd * w * smoothstep(0.2, 0.6, length(vn.xy)) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
 
@@ -499,7 +516,8 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
 varying vec2 vXY;
-void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
+varying float vInkA;
+void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); float o = opacity * vInkA; gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * o, o); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
