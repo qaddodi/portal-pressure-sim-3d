@@ -29,7 +29,7 @@ async function stateRecord(): Promise<unknown> {
 export interface Drawn { canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number }
 
 /** The whole screen on one canvas at the device's pixel ratio (or `opts.ratio`), stamped. `at` is when it was pressed (the stamp and the record). */
-export async function drawScreen(at: Date, opts: { ratio?: number } = {}): Promise<Drawn | null> {
+export async function drawScreen(at: Date, opts: { ratio?: number; /** no build and time stamp in the corner (the talk's own pictures: the build is in the zip's README and each JSON) */ stamp?: boolean } = {}): Promise<Drawn | null> {
   const want = opts.ratio ?? devicePixelRatio;
   const root = document.getElementById('root') ?? document.body, rb = readBox(root);
   const vp = { w: rb.width, h: rb.height };
@@ -53,12 +53,14 @@ export async function drawScreen(at: Date, opts: { ratio?: number } = {}): Promi
   await loadMasks(items, (ms) => new Promise<void>((ok) => clock.after(ok, ms)));
   g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
   paintScreen(g, items, s);
+  if (opts.stamp !== false) {
   // the stamp: small, in the lower right corner, solid, with a thin halo of the ground so it reads over the figure and over a card
   g.setTransform(s, 0, 0, s, 0, 0);
   g.globalAlpha = 1; g.font = `500 9px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
   const words = stampText(build, at), x = vp.w - 6, y = vp.h - 5;
   g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.strokeText(words, x, y);
   g.fillStyle = bs.color; g.fillText(words, x, y);
+  }
   return { canvas: out, record, build, link, scale: s };
 }
 

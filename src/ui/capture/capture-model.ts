@@ -132,3 +132,40 @@ export const blurHalvings = (sigma: number, w: number, h: number): number => {
   while (f * 2 <= Math.max(1, sigma * 1.2) && ww > 4 && hh > 4) { ww = Math.round(ww / 2); hh = Math.round(hh / 2); f *= 2; n++; }
   return n;
 };
+
+/** The words a computed `content` value holds: `"01"`, `"· mmHg"` (quotes and escapes taken off); '' for none, a picture or an empty string. A counter that the browser has not resolved (`counter(dko, decimal-leading-zero)`) is returned as is: `counterCall` reads it. */
+export function contentString(content: string): string {
+  const v = (content ?? '').trim();
+  if (!v || v === 'none' || v === 'normal' || /^url\(/.test(v)) return '';
+  const q = v.match(/^(["'])([\s\S]*)\1$/);
+  if (!q) return v;
+  return q[2]!.replace(/\\(["'\\])/g, '$1').replace(/\\([0-9a-f]{1,6})\s?/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)));
+}
+/** A `counter(name, style)` in a content value: its name and style, or null. */
+export function counterCall(s: string): { name: string; style: string } | null {
+  const m = s.match(/^counter\(\s*([-\w]+)\s*(?:,\s*([-\w]+)\s*)?\)$/);
+  return m ? { name: m[1]!, style: m[2] ?? 'decimal' } : null;
+}
+/** A counter's number in its list style (decimal, decimal-leading-zero). */
+export const counterText = (n: number, style: string): string => (style === 'decimal-leading-zero' && n >= 0 && n < 10 ? `0${n}` : String(n));
+/** How a `counter-increment` / `counter-reset` value changes `name`: its step (default 1), or null when it does not name it. */
+export function counterStep(value: string, name: string): number | null {
+  const parts = (value ?? '').trim().split(/\s+/);
+  for (let i = 0; i < parts.length; i++) if (parts[i] === name) { const n = Number(parts[i + 1]); return Number.isFinite(n) && parts[i + 1] !== undefined && parts[i + 1] !== '' ? n : 1; }
+  return null;
+}
+
+/** The glyphs a web font may not hold and a canvas then draws as a block: arrows and a tick. Drawn as strokes instead. */
+export const SYMBOLS = /[↑↓←→✓✔]/;
+/** The stroke of a symbol in the box `x,y,w,h` of its letter (the line's width is `sw`): a polyline's path data. */
+export function symbolPath(ch: string, x: number, y: number, w: number, h: number): string {
+  const cx = x + w / 2, cy = y + h / 2, a = Math.min(w, h) * 0.34, half = h * 0.3;
+  const f = (n: number) => +n.toFixed(2);
+  switch (ch) {
+    case '↑': return `M${f(cx)} ${f(cy + half)}L${f(cx)} ${f(cy - half)}M${f(cx - a)} ${f(cy - half + a)}L${f(cx)} ${f(cy - half)}L${f(cx + a)} ${f(cy - half + a)}`;
+    case '↓': return `M${f(cx)} ${f(cy - half)}L${f(cx)} ${f(cy + half)}M${f(cx - a)} ${f(cy + half - a)}L${f(cx)} ${f(cy + half)}L${f(cx + a)} ${f(cy + half - a)}`;
+    case '←': return `M${f(cx + half)} ${f(cy)}L${f(cx - half)} ${f(cy)}M${f(cx - half + a)} ${f(cy - a)}L${f(cx - half)} ${f(cy)}L${f(cx - half + a)} ${f(cy + a)}`;
+    case '→': return `M${f(cx - half)} ${f(cy)}L${f(cx + half)} ${f(cy)}M${f(cx + half - a)} ${f(cy - a)}L${f(cx + half)} ${f(cy)}L${f(cx + half - a)} ${f(cy + a)}`;
+    default: return `M${f(cx - h * 0.26)} ${f(cy + h * 0.02)}L${f(cx - h * 0.08)} ${f(cy + h * 0.22)}L${f(cx + h * 0.28)} ${f(cy - h * 0.24)}`;   // a tick
+  }
+}

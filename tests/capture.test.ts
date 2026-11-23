@@ -138,7 +138,7 @@ test('an icon of the atlas is its colour seen through one cell of the picture: t
 
 test('what the page keeps for a screen reader is never drawn; letter-spaced words are drawn a letter at a time; the stamp is solid', () => {
   const dom = src('src/ui/capture/capture-dom.ts'), cap = src('src/ui/capture/capture.ts');
-  assert.match(dom, /visuallyHidden\(cs\)/); assert.match(dom, /if \(spaced\)/); assert.match(dom, /loadMasks/);
+  assert.match(dom, /visuallyHidden\(cs\)/); assert.match(dom, /const apart = spaced \|\|/); assert.match(dom, /loadMasks/);
   assert.match(cap, /await loadMasks\(/);
   assert.ok(!/globalAlpha = 0\.[0-9]/.test(cap), 'a translucent fill over a translucent halo came out as mush');
 });
@@ -173,7 +173,7 @@ test('a deck\'s contact sheet: three across for a laptop or iPad, five for a pho
 test('Capture all decks: in the audit panel, every talk and stop, kept out of its own pictures, saved from a fresh tap', () => {
   const page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(page, /btn\('Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
-  assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(real\)/); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
+  assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(real, /); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
   assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });
 
@@ -181,7 +181,7 @@ test('Capture all decks runs the page fast: the clock at speed, the animations a
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(all, /clock\.setScale\(speed\)/); assert.match(all, /speedAnimations\(document, speed\)/); assert.match(all, /clock\.setScale\(1\)/);
   assert.match(all, /encoding\.push\(/); assert.match(all, /await Promise\.all\(encoding\)/);
-  assert.match(all, /ratio: innerWidth < 600/, 'a laptop and an iPad at 1x');
+  assert.match(all, /ratio: Math\.min\(devicePixelRatio, 2\)/, 'the device\'s own sharpness, 2x at most');
   assert.ok(!/Date\.now|performance\.now/.test(all), 'wall time is read from a Date, not the scaled clock or a raw time call');
 });
 
@@ -217,8 +217,23 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
 test('Capture all decks waits on arrivals only (not the audit\'s every-animation check) and takes both words of a blocked catheter', () => {
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.ok(!/\bsettle\b/.test(all.replace(/\/\/.*$/gm, '')), 'the audit settle counts every running animation: a perpetual one kept each picture waiting five seconds');
-  assert.match(all, /function arriving\(\)/); assert.match(all, /endTime\) > 2500/, 'a long or endless animation is not a slide settling');
+  assert.match(all, /function arriving\(/); assert.match(all, /endTime\) > 2500/, 'a long or endless animation is not a slide settling');
   assert.match(all, /cel\.rig\.isMoving/); assert.match(all, /data-phase="out"/);
   assert.match(all, /BLOCKED_SAYS\.first/); assert.match(all, /BLOCKED_SAYS\.then/); assert.match(all, /blockedThen\(\)/, 'Occluded and then No reading are two pictures');
   assert.match(all, /still not still after 5 s/, 'a wait that gave up says why in the README');
+});
+
+test('Capture draws a list\'s numbers, ticks and arrows (generated content and glyphs a font may lack), and no stamp in the talk\'s pictures', async () => {
+  const m = await import('../src/ui/capture/capture-model.ts');
+  assert.equal(m.contentString('"01"'), '01'); assert.equal(m.contentString('"\\00a0· mmHg"'), '\u00a0· mmHg'); assert.equal(m.contentString('none'), ''); assert.equal(m.contentString('normal'), '');
+  assert.deepEqual(m.counterCall('counter(dko, decimal-leading-zero)'), { name: 'dko', style: 'decimal-leading-zero' }); assert.equal(m.counterCall('"01"'), null);
+  assert.equal(m.counterText(3, 'decimal-leading-zero'), '03'); assert.equal(m.counterText(12, 'decimal-leading-zero'), '12'); assert.equal(m.counterText(3, 'decimal'), '3');
+  assert.equal(m.counterStep('dko', 'dko'), 1); assert.equal(m.counterStep('a 2 dko 3', 'dko'), 3); assert.equal(m.counterStep('none', 'dko'), null); assert.equal(m.counterStep('', 'dko'), null);
+  assert.ok(m.SYMBOLS.test('↑') && m.SYMBOLS.test('✓') && !m.SYMBOLS.test('a'));
+  for (const ch of ['↑', '↓', '←', '→', '✓']) assert.match(m.symbolPath(ch, 0, 0, 12, 12), /^M[\d. -]+L/, ch);
+  const dom = src('src/ui/capture/capture-dom.ts'), cap = src('src/ui/capture/capture.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(dom, /function pseudoFlow/); assert.match(dom, /pseudoWords\(/); assert.match(dom, /counterValue\(/, 'a counter Safari leaves unresolved is worked out');
+  assert.match(dom, /Math\.abs\(mw - tr\.width\)/, 'a word set at another width than the browser did goes one letter at a time');
+  assert.match(cap, /opts\.stamp !== false/); assert.match(all, /stamp: false/); assert.match(all, /Math\.min\(devicePixelRatio, 2\)/); assert.match(all, /pictures are \$\{shape0\.w\}x\$\{shape0\.h\} px/);
+  assert.match(all, /clock\.moving/); assert.match(all, /blockedSlide\(k\)/, 'a blocked-catheter slide waits for its words');
 });

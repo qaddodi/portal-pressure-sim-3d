@@ -31,9 +31,10 @@ const bytesOf = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
  *  half seconds (a toast's timer rule, a loop of many turns) or one on anything but the cards, the labels and the bars is a perpetual motion, not a slide settling, and is left out. The audit's own check (page/live.ts busyWhy)
  *  counts every running animation, which kept this waiting five seconds on a slide that had been still for a moment. */
 const CONTENT = '.dk-card, .dk-plate, .lb-layer, .dk-bar, .vdock, .topbar, .stage-credit, .zoom-pill, .dk-strip';
-function arriving(): string {
+function arriving(clockToo = true): string {
   try {
     if (cel.rig.isMoving) return 'the camera is moving';
+    if (clockToo && clock.moving > 0) return `moving: ${clock.movingTags().join(', ')}`;   // (a glide, a tween, a card sliding, the labels placing: the clock's own list of what is in motion; the steady instruments, a live trace, are not in it)
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
     for (const a of document.getAnimations()) {
@@ -52,19 +53,23 @@ const tagWords = (): string => [...document.querySelectorAll('.lb-layer .cl-k')]
 /** Waits until nothing is arriving for a moment, at most five seconds. Returns what was still moving when it gave up ('' when it settled) and the callouts' words at that moment. A catheter against a blocked vein says "Occluded" for
  *  only 2.6 s (BLOCKED_SAYS) before "No reading", so the wait is short once those words stand (a few real frames) and the picture is taken while they are up. At speed N the clock's waits are N times shorter in real time, so the
  *  real pauses are given in page time (`real`). */
-async function stillPage(real: (ms: number) => number): Promise<{ moving: string; words: string }> {
+async function stillPage(real: (ms: number) => number, needWords = false): Promise<{ moving: string; words: string; perpetual: string }> {
   await sleep(real(60));   // (the press has reached the cards: they mount and begin on the next frames)
-  const t0 = clock.now(), limit = real(5000);
+  const t0 = clock.now(), limit = real(needWords ? 7000 : 5000);
   let still = -1, why = '', words = '';
   while (clock.now() - t0 < limit) {
-    why = arriving(); words = tagWords();
+    why = arriving(clock.now() - t0 < real(2500)); words = tagWords();   // (the clock's motion list counts for 2.5 s: a hold that is still there after that is a perpetual one, and is said in the README)
+    if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
     if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real(words.includes(BLOCKED_SAYS.first) ? 25 : 60)) { why = ''; break; } } else still = -1;
     await sleep(real(15));
   }
   const gaveUp = clock.now() - t0 >= limit;
   if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
-  return { moving: gaveUp ? why : '', words: tagWords() };
+  const perpetual = clock.moving > 0 && !gaveUp ? ` (moving for good: ${clock.movingTags().join(', ')})` : '';
+  return { moving: gaveUp ? why : '', words: tagWords(), perpetual };
 }
+/** A slide whose catheter stands against a blocked vein (its words "Occluded" and "No reading" must be on the figure). */
+const blockedSlide = (k: number): boolean => { const st = useUi.getState().stops[k]; return !!st && st.kind === 'slide' && st.slide.cath === 'blocked'; };
 const stopName = (k: number): string => { const st = useUi.getState().stops[k]; return st ? (st.kind === 'slide' ? st.slide.title : st.kind) : `stop ${k + 1}`; };
 
 /** The contact sheet of one deck as a PNG. */
@@ -98,7 +103,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const speed = ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   clock.setScale(speed);   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const rate = clock.every(() => speedAnimations(document, speed), sampleRealMs(33, speed));
-  let waitMs = 0, drawMs = 0;
+  const seen = new Set<string>();
+  let waitMs = 0, drawMs = 0, shape0 = { w: 0, h: 0 };
   let total = decks.reduce((n, d) => n + d.slides.length + 2, 0), done = 0, shots = 0, stopped = false, decksDone = 0;
   try {
     for (const [di, d] of decks.entries()) {
@@ -121,14 +127,15 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         const title = stopName(k), n = sub ? `${k + 1}.${sub + 1}` : `${k + 1}`;
         ui.status(`${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
-        const { moving, words } = await stillPage(real);
+        const { moving, words, perpetual } = await stillPage(real, blockedSlide(k));
         if (moving) notes.push(`${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words;
+        if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: waited 2.5 s for the clock's motion, then took the picture${perpetual}`); }
         const d0 = new Date().getTime(); waitMs += d0 - w0;
-        const when = new Date(), drawn = await drawScreen(when, { ratio: innerWidth < 600 ? Math.min(devicePixelRatio, 1.5) : 1 });   // (1x for a laptop or an iPad: the slides are for reading through)
+        const when = new Date(), drawn = await drawScreen(when, { ratio: Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
         if (!drawn) { notes.push(`${d.title}: ${n} could not be drawn`); done++; ui.progress(done, total); return; }
         const jpegP = blobOf(drawn.canvas, 'image/jpeg', 0.85).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next is reached)
-        shape = { w: drawn.canvas.width, h: drawn.canvas.height };
+        shape = { w: drawn.canvas.width, h: drawn.canvas.height }; shape0 = shape;
         const L = collageLayout(1, shape), thumb = document.createElement('canvas'); thumb.width = L.cellW * 2; thumb.height = L.cellH * 2;   // (twice the sheet's cell: a sharp one when the sheet is zoomed)
         thumb.getContext('2d')?.drawImage(drawn.canvas, 0, 0, thumb.width, thumb.height);
         drawn.canvas.width = 0; drawn.canvas.height = 0;   // (let the big picture go before the next)
@@ -169,7 +176,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
-  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x`, `${shots} pictures in ${decksDone} talks${stopped ? ' (stopped early)' : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that exact view, the patient, the look, the camera, the sliders).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
+  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, `${shots} pictures in ${decksDone} talks${stopped ? ' (stopped early)' : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that exact view, the patient, the look, the camera, the sliders).', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
   return { secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };

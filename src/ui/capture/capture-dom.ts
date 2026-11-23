@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { parseShadows, transformed, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { parseShadows, transformed, contentString, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -119,9 +119,9 @@ function boxOf(c: Ctx, cs: CSSStyleDeclaration, r: R4, alpha: number, clips: Cli
 function pseudoBox(c: Ctx, el: Element, which: '::before' | '::after', cs: CSSStyleDeclaration, r: R4, alpha: number, clips: ClipRect[], own: Clip | undefined, kk: number): void {
   const ps = readStyle(el, which);
   if (!ps || ps.display === 'none' || ps.content === 'none' || ps.content === 'normal' || ps.visibility === 'hidden') return;
-  if (ps.position !== 'absolute' && ps.position !== 'fixed') return;
   const a = alpha * (ps.opacity === '' ? 1 : num(ps.opacity));
   if (a < 0.02) return;
+  if (ps.position !== 'absolute' && ps.position !== 'fixed') { pseudoFlow(c, el, which, cs, ps, r, a, clips, own, kk); return; }
   const fixed = ps.position === 'fixed', bl = fixed ? 0 : num(cs.borderLeftWidth), bt = fixed ? 0 : num(cs.borderTopWidth), br = fixed ? 0 : num(cs.borderRightWidth), bb = fixed ? 0 : num(cs.borderBottomWidth);
   const ox = fixed ? 0 : r.left + bl, oy = fixed ? 0 : r.top + bt, cw = fixed ? innerWidth : r.width - bl - br, ch = fixed ? innerHeight : r.height - bb - bt;
   const px = (v: string) => (/px$/.test(v) ? num(v) : null);
@@ -129,7 +129,80 @@ function pseudoBox(c: Ctx, el: Element, which: '::before' | '::after', cs: CSSSt
   const w = px(ps.width) ?? cw - left - (px(ps.right) ?? 0), h = px(ps.height) ?? ch - top - (px(ps.bottom) ?? 0);
   if (!(w > 0 && h > 0)) return;
   const x = ox + left, y = oy + top;
-  boxOf(c, ps, { left: x, top: y, width: w, height: h, right: x + w, bottom: y + h }, a, clips, own, kk);
+  const box = { left: x, top: y, width: w, height: h, right: x + w, bottom: y + h };
+  boxOf(c, ps, box, a, clips, own, kk);
+  pseudoWords(c, el, ps, box, a, clips, own, kk, null);
+}
+
+let measuring: CanvasRenderingContext2D | null = null;
+/** The width a canvas gives a run of text in a font (-1 when no canvas). */
+function measureWidth(font: string, text: string): number {
+  measuring ??= document.createElement('canvas').getContext('2d');
+  if (!measuring) return -1;
+  measuring.font = font;
+  return measuring.measureText(text).width;
+}
+/** A counter's number now (the browsers differ: Chrome gives `content` with counters worked out, Safari the call itself): the steps of `counter-increment` from the list's `counter-reset` to this element. */
+function counterValue(el: Element, name: string): number {
+  let top: Element | null = el.parentElement, n = 0;
+  for (; top; top = top.parentElement) { const st = counterStep(readStyle(top).counterReset, name); if (st !== null) { n = st; break; } }
+  for (const e of (top ?? document.body).querySelectorAll('*')) {
+    const st = counterStep(readStyle(e).counterIncrement, name);
+    if (st !== null) n += st;
+    if (e === el) break;
+  }
+  return n;
+}
+/** The first (or last) word's first (or last) letter inside an element, where it stands, and the size of its font. */
+function edgeText(el: Element, last: boolean, kk: number): { rect: DOMRect; fs: number } | null {
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let pick: Text | null = null;
+  for (let n = tw.nextNode(); n; n = tw.nextNode()) { if (!(n.textContent ?? '').trim()) continue; pick = n as Text; if (!last) break; }
+  if (!pick) return null;
+  const t = pick.textContent ?? '', i = last ? t.trimEnd().length - 1 : t.length - t.trimStart().length;
+  const rect = readTextRects(pick, i, i + 1)[0];
+  return rect && rect.width > 0 ? { rect, fs: num(readStyle(pick.parentElement ?? el).fontSize) * kk } : null;
+}
+/** The words a `::before` or `::after` holds (a list's number, a tick, a unit), drawn in the box it stands in: `box` when it is laid out (absolute), else at the element's start or end (`at`: where its middle line and left edge are). */
+function pseudoWords(c: Ctx, el: Element, ps: CSSStyleDeclaration, box: R4 | null, a: number, clips: ClipRect[], own: Clip | undefined, kk: number, at: { x: number; midY: number } | null): void {
+  let text = contentString(ps.content);
+  if (!text) return;
+  const cc = counterCall(text);
+  if (cc) text = counterText(counterValue(el, cc.name), cc.style);
+  else if (/^(counter|counters|attr|open-quote|close-quote)/.test(text)) return;
+  text = transformed(text, ps.textTransform);
+  const fpx = num(ps.fontSize) * kk, font = `${ps.fontStyle} ${ps.fontWeight} ${fpx}px ${ps.fontFamily}`;
+  const ls = ps.letterSpacing === 'normal' ? 0 : num(ps.letterSpacing) * kk;
+  const mw = Math.max(0, measureWidth(font, text)) + ls * text.length;
+  let x: number, midY: number;
+  if (box) {
+    const mid = ps.textAlign === 'center' || ps.display === 'grid' || ps.display === 'flex';
+    x = mid ? box.left + (box.width - mw) / 2 : box.left + num(ps.paddingLeft) * kk;
+    midY = box.height > 2.2 * fpx && !mid ? box.top + (num(ps.lineHeight) || fpx * 1.2) * kk / 2 : box.top + box.height / 2;
+  } else if (at) { x = at.x; midY = at.midY; } else return;
+  if (text.length === 1 && SYMBOLS.test(text)) {
+    c.out.push({ k: 'path', d: symbolPath(text, x, midY - fpx / 2, mw || fpx, fpx), m: [1, 0, 0, 1, 0, 0], fill: null, stroke: ps.color, sw: Math.max(1, fpx * 0.1), join: 'round', cap: 'round', alpha: a, clip: own, clips } as Paintable);
+    return;
+  }
+  c.out.push({ k: 'text', text, x, y: midY, w: mw, font, fill: ps.color, halo: '', haloW: 0, spacing: ls, rot: 0, alpha: a, clip: own, clips } as Paintable);
+}
+/** A `::before` or `::after` that sits in the flow (a list's number in its first column, a unit after a value, a tick in its round chip): its own size when it has one, its words at the element's start or after its last word. */
+function pseudoFlow(c: Ctx, el: Element, which: '::before' | '::after', cs: CSSStyleDeclaration, ps: CSSStyleDeclaration, r: R4, a: number, clips: ClipRect[], own: Clip | undefined, kk: number): void {
+  const text = contentString(ps.content);
+  const w = /px$/.test(ps.width) ? num(ps.width) * kk : 0, h = /px$/.test(ps.height) ? num(ps.height) * kk : 0;
+  if (!text) return;   // (a box with no words has no place to be read from: it is left out, as before)
+  const edge = edgeText(el, which === '::after', kk), fpx = num(ps.fontSize) * kk;
+  const padL = (num(cs.borderLeftWidth) + num(cs.paddingLeft)) * kk, padR = (num(cs.borderRightWidth) + num(cs.paddingRight)) * kk;
+  const midY = edge ? edge.rect.top + edge.rect.height / 2 + 0.3 * (edge.fs - fpx) : r.top + r.height / 2;
+  const mw = text ? Math.max(0, measureWidth(`${ps.fontStyle} ${ps.fontWeight} ${fpx}px ${ps.fontFamily}`, text)) : 0;
+  const bw = w || mw;
+  const x = which === '::before' ? r.left + padL : edge ? edge.rect.right : r.right - padR - bw;
+  if (w > 0 && h > 0) {
+    const box = { left: x, top: (edge ? edge.rect.top + edge.rect.height / 2 : r.top + r.height / 2) - h / 2, width: w, height: h, right: x + w, bottom: 0 };
+    box.bottom = box.top + h;
+    boxOf(c, ps, box, a, clips, own, kk);
+    pseudoWords(c, el, ps, box, a, clips, own, kk, null);
+  } else pseudoWords(c, el, ps, null, a, clips, own, kk, { x, midY });
 }
 
 function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number, pclip: Clip | undefined): void {
@@ -182,23 +255,27 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
       if (!text.trim()) continue;
       if (!font) font = `${cs.fontStyle} ${cs.fontWeight} ${num(cs.fontSize) * kk}px ${cs.fontFamily}`;
       if (turn < 0) turn = turnOf(el);
-      const word = /\S+/g;
+      const word = /\S+/g, fpx = num(cs.fontSize) * kk, ls = cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk;
       for (let w = word.exec(text); w; w = word.exec(text)) {
         const tr = readTextRects(n as Text, w.index, w.index + w[0].length)[0];
         if (!tr || tr.width <= 0) continue;
-        if (spaced) {
-          // letter-spaced words (the tracked capitals, a tight serif title) one letter at a time, each where the browser put it: the browser sets no ligatures between spaced letters,
-          // a canvas draws them (and may not take the spacing at all), so a whole word came out overprinted
+        const shown = transformed(w[0], cs.textTransform);
+        // a word the canvas would set at another width than the browser did (a font feature the canvas does not take: tabular figures, a wider comma), a symbol a web font may not hold, and letter-spaced words
+        // (the tracked capitals, a tight serif title: the browser sets no ligatures between spaced letters, a canvas draws them) go one letter at a time, each where the browser put it
+        const mw = spaced || turn !== 0 ? 0 : measureWidth(font, shown) + ls * shown.length;
+        const apart = spaced || SYMBOLS.test(w[0]) || (turn === 0 && mw > 0 && Math.abs(mw - tr.width) > Math.max(0.9, fpx * 0.035));
+        if (apart) {
           let at = w.index;
           for (const ch of w[0]) {
             const cr = readTextRects(n as Text, at, at + ch.length)[0];
             at += ch.length;
             if (!cr || cr.width <= 0) continue;
+            if (SYMBOLS.test(ch)) { c.out.push({ k: 'path', d: symbolPath(ch, cr.left, cr.top + cr.height / 2 - fpx / 2, cr.width, fpx), m: [1, 0, 0, 1, 0, 0], fill: null, stroke: cs.color, sw: Math.max(1, fpx * 0.1), join: 'round', cap: 'round', alpha, clip: own, clips: inner } as Paintable); continue; }
             c.out.push({ k: 'text', text: transformed(ch, cs.textTransform), x: cr.left, y: cr.top + cr.height / 2, w: cr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: 0, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
           }
           continue;
         }
-        c.out.push({ k: 'text', text: transformed(w[0], cs.textTransform), x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+        c.out.push({ k: 'text', text: shown, x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
       }
     }
   }
