@@ -34,8 +34,8 @@ export type DopMode = 'spectrum' | 'velocity' | 'variance';
 type Any = any;
 export const WINDOWS: readonly number[] = SWEEP_SECONDS;
 const KEEP = 16, SETTLE_LAG = 0.16, COL = 2;
-/** The longest stretch of whole beats a replay loops (s), and how long the join of its end to its start takes (s). */
-const BEAT_TEMPLATE_S = 6.5, MIN_PINNED_TEMPLATE_S = 3, SEAM_S = 0.25;
+/** The longest stretch of whole beats a replay loops (s), and how long a join's leftover step takes to ease out (s): a replay never steps, it re-enters its template where the beat and the breath match and eases what is left. */
+const BEAT_TEMPLATE_S = 6.5, MIN_PINNED_TEMPLATE_S = 3, JOIN_S = 0.5;
 const MINUS = '−';
 
 export interface Tile { k: string; label: string; v: string; unit: string; show: boolean; out?: boolean; here?: boolean; seg?: string; title?: string }
@@ -78,8 +78,12 @@ export class DopplerModel {
   /** whether the Speed tile is shown: a vessel with a usual range has it (2D showStat(Speed, !!normal)); kept while a new vessel acquires */
   private speedOn = false;
   private tOff = 0;
-  private tpl: { t0: number; L: number; pts: number[][]; mean: number; pm: number; hasPair: boolean } | null = null;
-  private synth: { t: number; wall: number; mean: number; target: number; amp: number; still: boolean; flat?: boolean } | null = null;
+  private tpl: { t0: number; L: number; pts: number[][]; mean: number; pm: number; hasPair: boolean; mk: number[]; live: number } | null = null;
+  /** t: the replay's own clock; x: where it stands in the template (null until it enters); o1, o2, age: the step left over at the last entry (main and paired trace), easing out over JOIN_S */
+  private synth: { t: number; wall: number; mean: number; target: number; amp: number; still: boolean; flat?: boolean; x: number | null; o1: number; o2: number; age: number } | null = null;
+  /** The step between a replay's last sample and the bedside's first, easing out over JOIN_S (a time lapse ending): t0 is the first bedside sample's time. */
+  private join: { t0: number; o1: number; o2: number } | null = null;
+  private joinWant = false;
   private carry: number | null = null;
   /** the replay is a slide's own velocity, not a time lapse's */
   private pinDriven = false;
@@ -143,7 +147,7 @@ export class DopplerModel {
 
   private sync() { this.rd.sync({ buf: this.buf, beatN: this.beatN, probe: this.probe, frame: this.frame, gi: this.gi, heldTo: this.heldTo, invert: this.invert }); }
   private clearBuf() {
-    this.buf.length = 0; this.beatN = 0; this.lastPh = NaN; this.rd.facs.clear(); this.heldTo = null; this.wl = null; this.pairSc = null; this.calMk.hi.on = this.calMk.lo.on = false; this.scaleSt.scale = null; this.scaleSt.baseF = null; this.scaleSt.refit = false; this.tDisp = null; this.tOff = 0; this.synth = null; this.tpl = null; this.carry = null;
+    this.buf.length = 0; this.beatN = 0; this.lastPh = NaN; this.rd.facs.clear(); this.heldTo = null; this.wl = null; this.pairSc = null; this.calMk.hi.on = this.calMk.lo.on = false; this.scaleSt.scale = null; this.scaleSt.baseF = null; this.scaleSt.refit = false; this.tDisp = null; this.tOff = 0; this.synth = null; this.tpl = null; this.carry = null; this.join = null; this.joinWant = false;
   }
 
   /** Forget the record (the page's own began again, or its past was filled in in front): the next ingest reads it afresh. */
@@ -194,13 +198,24 @@ export class DopplerModel {
       }
       let lo = 0, hi = T.length;
       while (lo < hi) { const m = (lo + hi) >> 1; if (T[m]! <= this.lastT) lo = m + 1; else hi = m; }
-      if (this.carry != null && lo < T.length) { this.tOff = this.carry - T[lo]!; this.carry = null; }
+      if (this.carry != null && lo < T.length) { this.tOff = this.carry - T[lo]!; this.carry = null; this.joinWant = true; }
       else if (this.tOff && this.buf.length && lo < T.length && T[lo]! + this.tOff < this.buf[this.buf.length - 1]![0]! - 1e-9) this.tOff = this.buf[this.buf.length - 1]![0]! + 0.02 - T[lo]!;
       const vel = rec.ch.vel, ph = rec.ch.ph, pair = rec.ch[pairOf(this.rd.meta().kind) === 'PV_TRUNK' ? 'pvVel' : 'hvVel'];
       for (let i = lo; i < T.length; i++) {
-        const t = T[i]! + this.tOff, v = vel[i]!;
+        const t = T[i]! + this.tOff;
+        let v = vel[i]!, v2 = pair[i] ?? NaN;
         // (A sample with no velocity is of another vessel, from before the probe moved: it draws no line, so it is not recorded; its beat still counts.)
-        if (Number.isFinite(v)) this.buf.push([t, v, pair[i] ?? NaN]);
+        if (Number.isFinite(v)) {
+          // (the bedside follows a replay: its first sample is not where the replay ended, so the difference eases out, never a step)
+          if (this.joinWant && this.buf.length) {
+            const e = this.buf[this.buf.length - 1]!;
+            this.join = { t0: t, o1: e[1]! - v, o2: Number.isFinite(e[2]) && Number.isFinite(v2) ? e[2]! - v2 : 0 };
+          }
+          this.joinWant = false;
+          const jn = this.join;
+          if (jn) { const a = (t - jn.t0) / JOIN_S; if (a >= 1) this.join = null; else { const e = 1 - smooth01(Math.max(0, a)); v += jn.o1 * e; if (Number.isFinite(v2)) v2 += jn.o2 * e; } }
+          this.buf.push([t, v, v2]);
+        }
         const p = ph[i];
         if (p != null && Number.isFinite(p)) { if (p < this.lastPh - 0.5) this.rd.beatT[this.beatN++ % 16] = t; this.lastPh = p; }
         this.lastT = T[i]!;
@@ -225,11 +240,23 @@ export class DopplerModel {
     const marks: number[] = [];
     for (let j = Math.max(0, this.beatN - 16); j < this.beatN; j++) { const b = this.rd.beatT[j % 16] as number; if (b >= t0Buf && b <= tEnd) marks.push(b); }
     marks.sort((a, b) => a - b);
-    let from = tEnd - 3, to = tEnd;
+    let from = tEnd - 3, to = tEnd, mk: number[] = [], live = 0;
     if (marks.length >= 2) {
       const last = marks[marks.length - 1]!;
-      let i = marks.length - 2; while (i > 0 && last - marks[i - 1]! <= BEAT_TEMPLATE_S) i--;
+      // (the template starts at the beat start, within BEAT_TEMPLATE_S of the last, whose value and slope are nearest the last's: where the replay loops, the end then meets the start, the breath included)
+      const at = (t: number) => { let j = 0; while (j < buf.length - 1 && buf[j + 1]![0]! <= t) j++; const a = buf[j]!, b = buf[Math.min(buf.length - 1, j + 1)]!; return b[0]! > a[0]! ? a[1]! + (b[1]! - a[1]!) * clamp((t - a[0]!) / (b[0]! - a[0]!), 0, 1) : a[1]!; };
+      const v1 = at(last), s1 = at(last + 0.1) - v1, lowest = marks.length - 2;
+      let i = lowest; while (i > 0 && last - marks[i - 1]! <= BEAT_TEMPLATE_S) i--;
+      let bi = lowest, bs = Infinity;
+      for (let q = i; q <= lowest; q++) {
+        if (this.pinned && last - marks[q]! < MIN_PINNED_TEMPLATE_S && q > i) continue;
+        const sc = Math.abs(at(marks[q]!) - v1) + 0.5 * Math.abs((at(marks[q]! + 0.1) - at(marks[q]!)) - s1) - 0.02 * (last - marks[q]!);
+        if (sc < bs) { bs = sc; bi = q; }
+      }
+      i = bi;
       from = marks[i]!; to = last;
+      mk = marks.slice(i).map((b) => b - from);   // (the template's beat starts, from 0 to L)
+      live = clamp((tEnd - last) / ((last - from) / (mk.length - 1)), 0, 0.999);   // (how far into its beat the record has run at its end)
     } else if (this.pinned && tEnd - t0Buf < 4) return null;
     let i = 0; while (i < buf.length - 1 && buf[i]![0]! < from) i++;
     let e = buf.length - 1; while (e > i && buf[e]![0]! > to) e--;
@@ -240,8 +267,8 @@ export class DopplerModel {
     const mean = pts.reduce((a, q) => a + q[1]!, 0) / pts.length;
     // (and the paired vessel's record beside it, a slide's pair: replayed unscaled, its swings eased out with the main one's)
     const pm = pts.reduce((a, q) => a + (q[2] || 0), 0) / pts.length;
-    this.tpl = { t0: pts[0]![0]!, L, pts, mean, pm, hasPair: pts.every((q) => Number.isFinite(q[2])) };
-    return { t: tEnd, wall: clock.now(), mean, target: mean, amp: 1, still: false };
+    this.tpl = { t0: pts[0]![0]!, L, pts, mean, pm, hasPair: pts.every((q) => Number.isFinite(q[2])), mk: mk.length >= 2 && mk[mk.length - 1]! < L + 0.05 ? mk : [], live };
+    return { t: tEnd, wall: clock.now(), mean, target: mean, amp: 1, still: false, x: null, o1: 0, o2: 0, age: 1 };
   }
   /** The replay starts on a slide's own velocity: the record already drawn is that patient's too (its beats scaled so their mean is the pin), never the in-between patient's the live model was at. */
   private adoptPin(pin: number): void {
@@ -250,32 +277,74 @@ export class DopplerModel {
     sy.target = sy.mean = pin;
     for (const q of this.buf) q[1] = ratio ? q[1]! * pin / m0 : q[1]! - m0 + pin;
   }
-  /** The template at time t, looped. Its end is joined to its start by easing the step between them out over the last 0.25 s (the whole beats the template holds meet nearly level, so this moves
-   *  the waves of that stretch by little; the 2D's blend into the start's one value flattened them). */
-  private tplAt(t: number, j = 1): number {
-    const { t0, L, pts } = this.tpl!;
-    const x = t0 + (((t - t0) % L) + L) % L;
+  /** The template at position x (s from its start, 0 to L), channel j (1 the main trace, 2 the paired one), straight between its samples. */
+  private tplRaw(x: number, j = 1): number {
+    const pts = this.tpl!.pts;
     let lo = 0, hi = pts.length - 1;
-    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m]![0]! <= x) lo = m; else hi = m; }
-    const ta = pts[lo]![0]!, va = pts[lo]![j]!, tb = pts[hi]![0]!, vb = pts[hi]![j]!;
-    const v = tb > ta ? va + (vb - va) * clamp((x - ta) / (tb - ta), 0, 1) : va;
-    const w = clamp((x - (t0 + L - SEAM_S)) / SEAM_S, 0, 1);
-    return w > 0 ? v + (pts[0]![j]! - pts[pts.length - 1]![j]!) * w * w * (3 - 2 * w) : v;
+    if (x <= pts[0]![0]! - this.tpl!.t0) return pts[0]![j]!;
+    const xa = x + this.tpl!.t0;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m]![0]! <= xa) lo = m; else hi = m; }
+    const ta = pts[lo]![0]!, tb = pts[hi]![0]!;
+    return tb > ta ? pts[lo]![j]! + (pts[hi]![j]! - pts[lo]![j]!) * clamp((xa - ta) / (tb - ta), 0, 1) : pts[lo]![j]!;
   }
-  /** One frame of the replay: samples at bedside speed from the template, its mean easing to the vessel's now (2D runSynth). */
+  /** The replay's output sample at its position x with the step left over from the last entry, as the card draws it (the template's swings scaled by amp, its mean the slide's now). */
+  private replayAt(x: number, j: number): number {
+    const sy = this.synth!, tp = this.tpl!, ease = 1 - smooth01(clamp(sy.age / JOIN_S, 0, 1));
+    const raw = this.tplRaw(x, j) + (j === 1 ? sy.o1 : sy.o2) * ease;
+    if (j === 2) return tp.pm + (raw - tp.pm) * sy.amp;
+    const v = tp.mean + (raw - tp.mean) * sy.amp;
+    return Math.abs(tp.mean) > 2 ? v * sy.mean / tp.mean : v - tp.mean + sy.mean;
+  }
+  /** Where the replay enters its template: at the same point of the beat as it is now (`phase`, 0 to 1; the template's beat starts are tp.mk), at the position whose value and slope are nearest the sample just drawn
+   *  (`last`, `prev` 0.1 s before it, both from the card's buffer; NaN when there is nothing to match). The step left over is kept in o1 and o2 and eases out over JOIN_S: the trace is level where the replay
+   *  loops or begins, never a step, whatever part of the breath the end of the template is at. */
+  private enter(phase: number, last: number, prev: number): number {
+    const sy = this.synth!, tp = this.tpl!, L = tp.L;
+    const unit = (o: number) => (Math.abs(tp.mean) > 2 ? o * tp.mean / sy.mean : o - sy.mean + tp.mean);   // (the output back to the template's own scale)
+    const can = Number.isFinite(last) && Math.abs(sy.mean) > 1e-6 && sy.amp > 0.05;
+    const back = (o: number) => tp.mean + (unit(o) - tp.mean) / sy.amp;
+    const u0 = can ? back(last) : NaN, du = can && Number.isFinite(prev) ? u0 - back(prev) : NaN;
+    // (candidates: each beat's own point of the beat, and a little either side of it: a beat starts a few hundredths of a second early or late with the breath, nothing in its waves)
+    const at: { x: number; pen: number }[] = [];
+    if (tp.mk.length >= 2) {
+      for (let i = 0; i < tp.mk.length - 1; i++) {
+        const x0 = tp.mk[i]! + phase * (tp.mk[i + 1]! - tp.mk[i]!);
+        for (let d = -0.06; d <= 0.0601; d += 0.01) if (x0 + d >= 0) at.push({ x: x0 + d, pen: 8 * Math.abs(d) });
+      }
+    } else for (let x = 0; x <= L - 0.5; x += 0.02) at.push({ x, pen: 0 });
+    let best = at[0]!.x, bs = Infinity;
+    for (const { x, pen } of at) {
+      if (x > L - 0.5 && at.length > 1) continue;
+      const v = this.tplRaw(x), sc = pen + (Number.isFinite(u0) ? Math.abs(v - u0) + (Number.isFinite(du) ? 0.5 * Math.abs((this.tplRaw(x + 0.1) - v) - du) : 0) : 0);
+      if (sc < bs) { bs = sc; best = x; }
+    }
+    sy.o1 = Number.isFinite(u0) ? u0 - this.tplRaw(best) : 0;
+    const l2 = this.buf[this.buf.length - 1]![2]!;
+    sy.o2 = tp.hasPair && sy.amp > 0.05 && Number.isFinite(l2) ? tp.pm + (l2 - tp.pm) / sy.amp - this.tplRaw(best, 2) : 0;
+    sy.age = 0;
+    return best;
+  }
+  /** One frame of the replay: samples at bedside speed from the template, its mean easing to the vessel's now (2D runSynth). The template loops by entering itself again where the beat and the breath match (`enter`). */
   private runSynth(): void {
     const sy = this.synth!, tp = this.tpl!;
     const now = clock.now();
     const dt = Math.min(0.25, (now - sy.wall) / 1000);
     sy.wall = now;
-    const m0 = tp.mean, ratio = Math.abs(m0) > 2;
     for (let k = 0, n = Math.ceil(dt / 0.02); k < n; k++) {
-      sy.t += dt / n;
-      sy.mean += (sy.target - sy.mean) * Math.min(1, (dt / n) * 3);
+      const h = dt / n;
+      sy.t += h;
+      sy.mean += (sy.target - sy.mean) * Math.min(1, h * 3);
       // (The template was recorded with breathing; a lapse run without respiration eases its swings out.)
-      sy.amp = clamp(sy.amp + (sy.still ? -1.5 : 1.5) * (dt / n), 0, 1);
-      const v = m0 + (this.tplAt(sy.t) - m0) * sy.amp;
-      this.buf.push([sy.t, ratio ? v * sy.mean / m0 : v - m0 + sy.mean, tp.hasPair ? tp.pm + (this.tplAt(sy.t, 2) - tp.pm) * sy.amp : NaN]);
+      sy.amp = clamp(sy.amp + (sy.still ? -1.5 : 1.5) * h, 0, 1);
+      if (sy.x == null || sy.x >= tp.L) {
+        // (the first entry carries on from the live record's end; a later one from the template's own end, which is the start of a beat)
+        const b = this.buf, e = b[b.length - 1]!;
+        let j = b.length - 1; while (j > 0 && e[0]! - b[j]![0]! < 0.1) j--;
+        const over = sy.x == null ? 0 : sy.x - tp.L;
+        sy.x = this.enter(sy.x == null ? tp.live : 0, e[1]!, b[j]![1]!) + over;
+      }
+      sy.x += h; sy.age += h;
+      this.buf.push([sy.t, this.replayAt(sy.x, 1), tp.hasPair ? this.replayAt(sy.x, 2) : NaN]);
     }
   }
 
