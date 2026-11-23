@@ -128,6 +128,13 @@ test('the tube and the skin end with a colour that is a number', () => {
   assert.match(DUST_GLSL, /vec3 dFinite\(vec3 c, vec3 fb\) \{ return dBad\(vec4\(c, 0\.0\)\) \? fb : c; \}/);
   const tube = fs.readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
   const skin = fs.readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
-  assert.match(tube, /c = dFinite\(c, dFinite\(cBody, vec3\(0\.5\)\)\);[^\n]*\n\s*gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
+  assert.match(tube, /c = dFinite\(c, dFinite\(cBody, vec3\(0\.5\)\)\);[\s\S]{0,260}gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
   assert.match(skin, /c = dFinite\(c, dFinite\(cBody, vec3\(0\.5\)\)\);[\s\S]*gl_FragColor = vec4\(c, alpha\);/);
+});
+
+test('an alpha that is not a number is made whole before it is written (tube and skin)', () => {
+  const tube = fs.readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  const skin = fs.readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
+  assert.match(tube, /if \(dBad\(vec4\(fadeHere \* cavA\)\)\) \{ fadeHere = 1\.0; cavA = 1\.0; \}[^\n]*\n\s*gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
+  assert.match(skin, /if \(dBad\(vec4\(alpha\)\)\) alpha = 1\.0;[^\n]*\n\s*gl_FragColor = vec4\(c, alpha\);/);
 });

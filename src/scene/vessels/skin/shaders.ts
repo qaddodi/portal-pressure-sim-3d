@@ -716,5 +716,6 @@ void main() {
 #else
   c = dFinite(c, vec3(0.5));
 #endif
+  if (dBad(vec4(alpha))) alpha = 1.0;   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
   gl_FragColor = vec4(c, alpha);
 }`;

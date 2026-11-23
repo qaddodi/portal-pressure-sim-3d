@@ -700,5 +700,6 @@ ${PROCEDURE_MARKS_GLSL}
 #endif
   c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
   c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
+  if (dBad(vec4(fadeHere * cavA))) { fadeHere = 1.0; cavA = 1.0; }   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
   gl_FragColor = vec4(c, fadeHere * cavA);
 }`;
