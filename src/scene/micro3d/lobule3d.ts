@@ -236,8 +236,7 @@ export class Lobule3D {
     clock.after(() => {
       if (this.disposed || this.vesselsBuilt) return;
       this.prepareVessels();
-      if (this.vesselsBuilt) this.inkKey = '';
-      else this.pumpVessels();
+      if (!this.vesselsBuilt) this.pumpVessels();
     }, 30);
   }
   get vesselsReady(): boolean { return this.vesselsBuilt; }
@@ -348,13 +347,13 @@ export class Lobule3D {
     this.weldPlan = this.pendingWelds; this.pendingWelds = null;
     if (!this.vesselsBuilt) return;   // (not built yet: the plan is simply used when they are)
     // (rebuilt part by part in timer slices, never in one task: the welded plan comes from the worker at an arbitrary moment, and the whole rebuild was one long task that could land in a drawn frame)
-    this.vesselsBuilt = false; this.vgen = null; this.inkKey = '';
+    this.vesselsBuilt = false; this.vgen = null;
     this.pumpVessels();
   }
   /** Welds laid in now (tests and the debug page). */
   get weldCount(): number { return this.weldPlan?.skins.length ?? 0; }
   /** Lays a plan in at once (tests). */
-  layWeldsForTest(plan: WeldPlan): void { this.pendingWelds = plan; this.group.visible = false; this.layWelds(); if (!this.vesselsBuilt) this.buildVessels(); this.inkKey = ""; }
+  layWeldsForTest(plan: WeldPlan): void { this.pendingWelds = plan; this.group.visible = false; this.layWelds(); if (!this.vesselsBuilt) this.buildVessels(); }
 
   get enabled(): boolean { return this.on; }
 
@@ -486,6 +485,8 @@ export class Lobule3D {
     this.twigs.setTint(tone('artery')); this.mouthHa.setTint(tone('artery'));
     this.mouthBd.setTint(tone('bile')); this.bile.setTint(tone('bile'));
     this.lt.setTint(tone('lymph')); this.duct.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
+    // the lens-coloured parts carry their colour in the vertices (stepInk), so their tint is white; this is the one place any vessel tint is written (a geometry build never writes a material uniform)
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.mouthPv, this.mouthCv]) p.setTint([1, 1, 1]);
     this.inkKey = '';
   }
 
@@ -777,7 +778,6 @@ export class Lobule3D {
     const coloured = function* (part: MicroPart, b: MeshBuilder, seg: Seg | null, w: number[], k: number[], alt?: { seg2: Seg; w2: number[]; m: number[] }): Generator<void> {
       yield* b.buildSteps(part.geometry, pace);
       done.push({ part, seg, w: Float32Array.from(w), k: Float32Array.from(k), ...(alt ? { seg2: alt.seg2, w2: Float32Array.from(alt.w2), m: Float32Array.from(alt.m) } : {}) });
-      part.setTint([1, 1, 1]);
     };
     // the dust's courses (lobule-routes.ts), one column each, in the order they are first written
     const dustCourses: LobuleRouteCourse[] = [], weldCols = new Map<string, number>();
@@ -972,6 +972,8 @@ export class Lobule3D {
     yield* mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true, (LZ.cellTop + 0.001 + 0.0078 * R) * POUR);
     yield* mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true, (LZ.tube + LT_R * R) * POUR);
     yield* mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
+    // the rebuild overwrote every vertex colour: the lens colours are written again at the next stepInk, whichever path finished the build
+    this.inkKey = '';
   }
 
   /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well ... so it shows it's blocked"; 22 Nov: it must look like the bands outside): the ring is one mesh at its fullest and the one shader shows as much of it as the
