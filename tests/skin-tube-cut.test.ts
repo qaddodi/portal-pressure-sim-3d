@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { shaderText } from './shader-text.ts';
 import { SKIN_CIRC_SPAN, SKIN_CUT_EPS, SKIN_CUT_NONE } from '../src/scene/vessels/skin/types.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
@@ -32,14 +33,14 @@ test('setSkinCut writes the uniform, reports a change only when there is one, an
 });
 
 test('the fragment stage cuts only where a cut is set, and only past it (a plain discard at rest, the screen pattern in the Circuit)', () => {
-  assert.match(VESSEL_FS, /uniform vec2 skinCut;/);
-  assert.match(VESSEL_FS, /bool skinCutOn\(\) \{ return dotted < 0\.5 && \(skinCut\.x >= 0\.0 \|\| skinCut\.y <= 1\.0\) \|\| skinHole\.y > skinHole\.x \|\| skinHole2\.y > skinHole2\.x; \}/);   // (a dotted thread is never cut: spec 10.2; and the side-wall holes: tests/skin-side-wall.test.ts)
-  assert.match(VESSEL_FS, /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s);
-  assert.ok(VESSEL_FS.includes(`smoothstep(0.0, ${SKIN_CIRC_SPAN}, circT)`));
-  assert.ok(VESSEL_FS.includes(String(SKIN_CUT_EPS)), 'a hair of margin, so the seam ring itself is never discarded');
+  assert.match(shaderText(VESSEL_FS), /uniform vec2 skinCut;/);
+  assert.match(shaderText(VESSEL_FS), /bool skinCutOn\(\) \{ return dotted < 0\.5 && \(skinStartCut\(\) >= 0\.0 \|\| skinCut\.y <= 1\.0\) \|\| skinHole\.y > skinHole\.x \|\| skinHole2\.y > skinHole2\.x; \}/);   // (a dotted thread is never cut: spec 10.2; and the side-wall holes: tests/skin-side-wall.test.ts)
+  assert.match(shaderText(VESSEL_FS), /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s);
+  assert.ok(shaderText(VESSEL_FS).includes(`smoothstep(0.0, ${SKIN_CIRC_SPAN}, circT)`));
+  assert.ok(shaderText(VESSEL_FS).includes(String(SKIN_CUT_EPS)), 'a hair of margin, so the seam ring itself is never discarded');
   assert.ok(!VESSEL_VS.includes('skinCut'), 'the vertex stage is untouched');
 });
 
 test('the tube\'s flow marks (chevrons, streaks, dust) run right up to the seam: no fade before it (Mohammad, 20 Nov: particles cross a junction, they do not disappear); the skin carries them on (tests/skin-marks.test.ts)', () => {
-  assert.doesNotMatch(VESSEL_FS, /skinMarkK|skinSeamDist/);
+  assert.doesNotMatch(shaderText(VESSEL_FS), /skinMarkK|skinSeamDist/);
 });

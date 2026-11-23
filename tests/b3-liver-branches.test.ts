@@ -2,6 +2,7 @@
 // (Mohammad, 20 Nov: "the hepatic veins are branching outside the liver and into each other"; the middle hepatic vein does not branch.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { shaderText } from './shader-text.ts';
 import { readFileSync } from 'node:fs';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
@@ -203,10 +204,10 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   }
   assert.equal(forkMateOf('PV_TRUNK'), null);
   assert.match(VESSEL_VS, /attribute vec3 nbr;/);
-  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
-  assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
-  assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
-  assert.match(VESSEL_FS, /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\)/);
+  assert.match(shaderText(VESSEL_FS), /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
+  assert.match(shaderText(VESSEL_FS), /inkT \*= 1\.0 - nbrK;/);
+  assert.match(shaderText(VESSEL_FS), /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
+  assert.match(shaderText(VESSEL_FS), /celTubeToneArt\(base, mix\(sT, 1\.0, nbrT\)/);
 });
 
 test('the bed that continues a vein which branches wears no fork collar (root cause of the fat bulb on the left portal vein in the Circuit: the cut stopped counting the pair as a run-on, so the bed was dressed as a branch on a wall, and the Circuit draws the beds)', async () => {
@@ -216,9 +217,9 @@ test('the bed that continues a vein which branches wears no fork collar (root ca
 
 test('flow marks hold back inside the vessel a tube leaves: the shader multiplies the chevrons and the streaks by the buried share', async () => {
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
-  assert.match(VESSEL_FS, /float markK\(float d0, float d1\)/);
-  assert.match(VESSEL_FS, /flowDust\([^;]*\) \* markK\(/, 'the dust');
-  assert.match(VESSEL_FS, /flowHeads\([^;]*markK\(/, 'the heads (the buried share rides in as endK)');
+  assert.match(shaderText(VESSEL_FS), /float markK\(float d0, float d1\)/);
+  assert.match(shaderText(VESSEL_FS), /flowDust\([^;]*\) \* markK\(/, 'the dust');
+  assert.match(shaderText(VESSEL_FS), /flowHeads\([^;]*markK\(/, 'the heads (the buried share rides in as endK)');
 });
 
 test('a hepatic vein opens into the cava with a clean edge: it is cut away exactly where it lies inside the cava\'s lumen, and only a piece that ENDS on the cava does it (root cause of the round end inside the IVC, and of the broken outline at the join of the right hepatic vein\'s two pieces in the Circuit: the rule was keyed by the vein\'s name)', async () => {
@@ -241,9 +242,9 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
     const inside = (i: number): boolean => a[3 * i + 1]! > 0 && Math.abs(a[3 * i]!) < a[3 * i + 1]!;
     assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
   }
-  assert.match(VESSEL_FS, /uniform float cavaCut;/);
-  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) discard;/);
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
+  assert.match(shaderText(VESSEL_FS), /uniform float cavaCut;/);
+  assert.match(shaderText(VESSEL_FS), /if \(cavA < 0\.004\) discard;/);
+  assert.match(shaderText(VESSEL_FS), /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
 });
 
 test('a side branch starts as wide as it is where it leaves its vein (a half-width start made a step on the vein\'s outline where the branch\'s own begins: eyes, v8 of 5b59c0a)', async () => {
@@ -265,12 +266,12 @@ test('a vein that opens into the cava takes the cava\'s colour as it nears the w
   const { CelScene } = await import('../src/scene/scene.ts');
   const { indexOf } = await import('../src/engine/vessel-data.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
-  assert.match(VESSEL_FS, /vec4 lensOfAt\(float lensIx, float u,/);
-  assert.match(VESSEL_FS, /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
-  assert.match(VESSEL_FS, /fadeHere = mix\(vFade, cavaA, wA\);/, 'the vein comes to the cava\'s opacity at the wall, by its distance from the wall (Mohammad, 20 Nov: both have the same fade at the point of junction)');
-  assert.match(VESSEL_FS, /float wA = smoothstep\(-2\.5 \* vNbr\.y, 0\.0, cd\)/, 'over 2.5 cava radii, by the pixel\'s own distance: never by a share of the vein\'s length');
-  assert.match(VESSEL_FS, /cavA = mix\(1\.0 - smoothstep\(-0\.5, 0\.5, cdPx\), 1\.0, circT\);/, 'and is cut along the wall\'s line, a pixel wide');
-  assert.doesNotMatch(VESSEL_FS, /smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\)/, 'no dissolve over the last stretch before the wall (a gap, Mohammad 20 Nov)');
+  assert.match(shaderText(VESSEL_FS), /vec4 lensOfAt\(float lensIx, float u,/);
+  assert.match(shaderText(VESSEL_FS), /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
+  assert.match(shaderText(VESSEL_FS), /fadeHere = mix\(vFade, cavaA, wA\);/, 'the vein comes to the cava\'s opacity at the wall, by its distance from the wall (Mohammad, 20 Nov: both have the same fade at the point of junction)');
+  assert.match(shaderText(VESSEL_FS), /float wA = smoothstep\(-2\.5 \* vNbr\.y, 0\.0, cd\)/, 'over 2.5 cava radii, by the pixel\'s own distance: never by a share of the vein\'s length');
+  assert.match(shaderText(VESSEL_FS), /cavA = mix\(1\.0 - smoothstep\(-0\.5, 0\.5, cdPx\), 1\.0, circT\);/, 'and is cut along the wall\'s line, a pixel wide');
+  assert.doesNotMatch(shaderText(VESSEL_FS), /smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\)/, 'no dissolve over the last stretch before the wall (a gap, Mohammad 20 Nov)');
   const s = new CelScene();
   try {
     const ref = (id: string) => (s.vesselObject(id)!.toon.uniforms as unknown as { cavaRef: { value: { x: number; y: number } } }).cavaRef.value;
