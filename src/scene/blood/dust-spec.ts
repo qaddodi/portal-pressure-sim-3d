@@ -33,7 +33,7 @@ export const DUST_SELECTS: readonly (readonly [key: string, label: string, optio
   ['colorBy', 'Colour by', [['random', 'Random'], ['speed', 'Local speed'], ['depth', 'Depth'], ['radius', 'Distance from wall'], ['source', 'Source vessel']], 'random', 'Colour'],
   ['partColor', 'Particle colour', [['auto', 'From the vessel'], ['custom', 'Custom']], 'auto', 'Colour'],
   ['vel', 'Speed follows', [['local', 'Local velocity'], ['flat', 'Flow only']], 'local', 'Flow'],
-  ['dustLook', 'Look (23 Nov rebuild)', [['b', 'B: lane streaks (new)'], ['a', 'A: lattice scan (before)']], 'b', 'Particles'],
+  ['dustLook', 'Look (23 Nov rebuild)', [['a', 'A: lattice scan (the default)'], ['b', 'B: lane streaks (specks on iPhone and Mac)']], 'a', 'Particles'],
   ['dustDebug', 'Paint the trouble (finding the black specks)', [['off', 'Off'], ['bad', 'Magenta: a dust term was not a number'], ['gone', 'Cyan: the final colour was not a number'], ['both', 'Both'], ['dark', 'Yellow: the shader itself wrote black here'], ['cover', 'Green: every pixel the dust touches']], 'off', 'Particles'],
 ];
 export const DUST_COLORS: readonly (readonly [key: string, label: string, def: string, group: Group])[] = [['partHex', 'Custom particle colour', '#9ec4ff', 'Colour']];
@@ -65,7 +65,7 @@ export const DUST_PRESETS: readonly (readonly [name: string, over: DustSettings]
   ['Cel dots', { density: 700, size: 2.4, soft: 0.05, opacity: 1, opVar: 0, steps: 4, hueSpread: 30, lightSpread: 0.32, depthDim: 0.3, stretch: 0 }],
   ['Soft streaks', { density: 1600, size: 1.4, stretch: 0.6, lenK: 0.12, soft: 0.8, opacity: 0.7 }],
   ['Turbulent storm', { turb: 1.6, swirl: 2.6, wobble: 1.2, rhoJit: 1.6, density: 2400, stretch: 0.5, size: 1.4 }],
-  ['A: the lattice scan, as before 23 Nov', { dustLook: 'a' }],
+  ['B: lane streaks (23 Nov rebuild; black specks at junctions on iPhone and Mac)', { dustLook: 'b' }],
 ];
 
 export function clampKey(key: string, v: unknown, cur: number | string | undefined): number | string | undefined {
@@ -187,7 +187,7 @@ export function dustDerive(s: Readonly<Record<string, number>>, w: DustWeights, 
     wRandom: w.random, wSpeed: w.speed, wDepth: w.depth, wRadius: w.radius,
     wSource: w.source, custom: w.custom, nCls: K, win,
     cr: rgb[0]!, cg: rgb[1]!, cb: rgb[2]!, lenCap: lenMax,
-    wLookB: w.lookB ?? 1, lanes: Math.round(s.lanes ?? 26), laneJit: s.laneJit ?? 0.4, cellLen: s.cellLen ?? 3.2, fill: s.fill ?? 0.8, trains: Math.round(s.trains ?? 2),
+    wLookB: w.lookB ?? 0, lanes: Math.round(s.lanes ?? 26), laneJit: s.laneJit ?? 0.4, cellLen: s.cellLen ?? 3.2, fill: s.fill ?? 0.8, trains: Math.round(s.trains ?? 2),
     dbg: w.dbg ?? 0,
   };
   return v;

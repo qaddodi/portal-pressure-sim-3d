@@ -10,17 +10,17 @@ import { SEG_MAX, SEG_MIN } from '../src/scene/blood/routes.ts';
 
 const W = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1 };
 
-test('B is the default and A stays one choice away: the look select, the eased weight, the uniforms and the rows the panel shows', () => {
+test('A is the default (24 Nov: specks with B on iPhone and Mac) and B stays one choice away: the look select, the eased weight, the uniforms and the rows the panel shows', () => {
   const d = dustDefaults();
-  assert.equal(d.dustLook, 'b');
+  assert.equal(d.dustLook, 'a');
   const sel = DUST_SELECTS.find((r) => r[0] === 'dustLook')!;
-  assert.deepEqual(sel[2].map((o) => o[0]), ['b', 'a']);
-  assert.ok(DUST_PRESETS.some(([n, o]) => /lattice scan/i.test(n) && o.dustLook === 'a'), 'a preset puts the old look back');
+  assert.deepEqual(sel[2].map((o) => o[0]), ['a', 'b']);
+  assert.ok(DUST_PRESETS.some(([n, o]) => /lane streaks/i.test(n) && o.dustLook === 'b'), 'a preset puts the lane streaks back');
   for (const k of ['lanes', 'cellLen', 'fill', 'laneJit', 'trains']) assert.ok(DUST_NUMERIC.some((r) => r[0] === k && r[6] === 'Lane streaks'), `${k} is a slider under Lane streaks`);
   for (const k of ['wLookB', 'lanes', 'laneJit', 'cellLen', 'fill', 'trains']) { assert.ok(DUST_UNIFORMS.includes(k as never), k); assert.ok(DUST_MACROS.includes(`#define D_${k} `), k); }
   // the lab's own `look` (its background) is not the app's: a lab paste still applies and leaves the look alone
-  assert.equal(parseDust('{"look":"dark","density":1400}').dustLook, 'b');
-  assert.equal(parseDust(dustText({ ...d, dustLook: 'a' })).dustLook, 'a', 'Copy settings carries the look and Apply restores it');
+  assert.equal(parseDust('{"look":"dark","density":1400}').dustLook, 'a');
+  assert.equal(parseDust(dustText({ ...d, dustLook: 'b' })).dustLook, 'b', 'Copy settings carries the look and Apply restores it');
   const v = dustDerive({ ...d, lanes: 30, cellLen: 4 } as Record<string, number>, { ...W, lookB: 1 }, [0.6, 0.7, 1], { phone: false, devicePixels: 4.5e6 });
   assert.equal(v.wLookB, 1); assert.equal(v.lanes, 30); assert.equal(v.cellLen, 4);
   assert.equal(dustDerive(d as Record<string, number>, { ...W, lookB: 0 }, [0.6, 0.7, 1], { phone: true, devicePixels: 2e6 }).wLookB, 0);
@@ -29,14 +29,14 @@ test('B is the default and A stays one choice away: the look select, the eased w
 test('switching the look eases: the weight glides, never snaps, and reports motion until it lands', () => {
   const t = new DustTuner(); t.snap();
   const ix = DUST_UNIFORMS.indexOf('wLookB');
-  assert.equal(t.uniform.value[ix], 1);
-  t.set({ dustLook: 'a' });
+  assert.equal(t.uniform.value[ix], 0, 'A is where it starts');
+  t.set({ dustLook: 'b' });
   const moving = t.step(DUST_EASE_MS / 2);
   assert.equal(moving, true); const mid = t.uniform.value[ix]!; assert.ok(mid > 0 && mid < 1, `mid-way: ${mid}`);
   let n = 0; while (t.step(100) && n++ < 200);
-  assert.equal(t.uniform.value[ix], 0, 'settled on A');
-  t.set({ dustLook: 'b' }); n = 0; while (t.step(100) && n++ < 200);
-  assert.equal(t.uniform.value[ix], 1, 'and back on B');
+  assert.equal(t.uniform.value[ix], 1, 'settled on B');
+  t.set({ dustLook: 'a' }); n = 0; while (t.step(100) && n++ < 200);
+  assert.equal(t.uniform.value[ix], 0, 'and back on A');
 });
 
 test('the shader: B finds a streak by its lane and its cell, a handful of candidates, never the scan; the look is a weight, and only the looks that show are drawn', () => {

@@ -14,7 +14,7 @@ export class DustTuner {
   readonly uniform: { value: Float32Array } = { value: new Float32Array(DUST_VEC4 * 4) };
   private tgt: DustSettings = dustDefaults();
   private cur: Record<string, number> = {};
-  private w: DustWeights = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1, lookB: 1, dbg: 0 };
+  private w: DustWeights = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1, lookB: 0, dbg: 0 };
   private rgb: [number, number, number] = [0.62, 0.77, 1];
   private phone = false;
   private devicePixels = 4.5e6;
