@@ -236,7 +236,7 @@ export interface CardDeps {
   now(): number;
   /** The spleen's size now (1: normal); the caliper along its axis grows with it. */
   spleenScale(): number;
-  /** A place of the lobule view (view.ts `calloutSpot`: 'tract', 'sinusoid:mid', 'sinusoid:zone3'), scene point; null when that view is not the figure now. */
+  /** A place of the lobule view (view.ts `calloutSpot`: 'tract', 'sinusoid:mid', 'sinusoid:zone3', 'central'), scene point; null when that view is not the figure now. */
   lobule(name: string, out: Vector3): Vector3 | null;
   /** The point on the ring a lobule callout draws round that place (one ring radius from it, along the plate): its pixels are measured from the camera. */
   lobuleRing(name: string, out: Vector3): Vector3 | null;

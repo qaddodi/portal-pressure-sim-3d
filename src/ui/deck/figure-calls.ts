@@ -89,9 +89,9 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
     cards.push({ id: `mark:${i}`, kind: 'mark', text, tone: m.kind === 'block' ? 'block' : m.kind === 'treat' ? 'treat' : 'note', anchor });
   });
 
-  // the lobule's pointer at the lesion (lobule-zoom.js callSet): a block, treatment or note ring on the framed portal tract or on a sinusoid (resistance is in the sinusoids: the central-vein slides ring a zone 3 one, never the vein; lobule/callout-spot.ts); it stands only while the lobule is the figure
+  // the lobule's pointer at the lesion (lobule-zoom.js callSet): a block, treatment or note ring on the framed portal tract or on a sinusoid (the central-vein slides, postsinusoidal and SOS, ring the vein itself; only a label that names sinusoids rings a zone 3 sinusoid; lobule/callout-spot.ts); it stands only while the lobule is the figure
   if (plan.callout) {
-    const at = { triad: 'tract', sin: 'sinusoid:mid', cv: 'sinusoid:zone3' }[plan.callout.at];
+    const at = plan.callout.at === 'cv' ? (/sinusoid/i.test(plan.callout.label) ? 'sinusoid:zone3' : 'central') : { triad: 'tract', sin: 'sinusoid:mid' }[plan.callout.at];
     if (at) cards.push({ id: 'callout', kind: 'mark', text: plan.callout.label, tone: plan.callout.kind === 'treat' ? 'treat' : plan.callout.kind === 'note' ? 'note' : 'block', anchor: { lobule: at } });
     else notDrawn.push(`callout ${plan.callout.at}`);
   }

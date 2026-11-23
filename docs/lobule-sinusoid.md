@@ -91,7 +91,7 @@ const sinus  = new SinusoidView(cel.shared, { look, phone }); cel.scene.add(sinu
 * **Inputs the shell must supply:** the healthy patient's reference (`{ P, Q, hepLymph }`, from the worker's `healthyProfile` and its `metrics.ascites.hepLymph`) and the
   patient's `params` (kept from `presetLoaded` / `setParams`; frames carry them only on a jump). Without the reference, flows read 1 and congestion 0.
 * The two views stand at `LOBULE_ORIGIN` (24, 0, 0) and `SINUSOID_ORIGIN` (48, 0, 0), away from the body (about ±3.5). Tags use `view.anchor(name)`
-  (lobule: `centre`, `triad:0..5`, and a slide callout's `tract`, `sinusoid:mid`, `sinusoid:zone3` (scene/lobule/callout-spot.ts); sinusoid: `in`, `out`, `lumen`, `fen`, `disse`, `hep`, `hsc`, `kup`, `lymph`) with `sceneApi.project`.
+  (lobule: `centre`, `triad:0..5`, and a slide callout's `tract`, `sinusoid:mid`, `sinusoid:zone3`, `central` (scene/lobule/callout-spot.ts: the postsinusoidal and SOS "Resistance" ring stands on the central vein, at its drawn radius times 1.2; only a label that names sinusoids rings a zone 3 sinusoid); sinusoid: `in`, `out`, `lumen`, `fen`, `disse`, `hep`, `hsc`, `kup`, `lymph`) with `sceneApi.project`.
 * Wash (HVPG slide 5): `lobule.startWash(landedAtMs)` once the camera has landed on `lobule:sinusoid`; a dive on into `sinusoid` calls `sinus.startWash(...)`. `stopWash()` on leaving.
 * Flow marks: `setLit(litParts(slide.terms))`, deck terms as in 2D (`lobule:triad` and `lobule:central` light the sinusoids too). Option A/B/C/D follow `setFlowMode`.
 

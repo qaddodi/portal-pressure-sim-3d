@@ -2,9 +2,10 @@
 // Root cause: figure-calls.ts named three fixed places ('triad:0' = the tract at angle 0, 'zone:2' = a point on a hepatocyte plate 9 to 12 lumens off the nearest sinusoid, 'centre' = the central vein), none
 // of them the place the slide's camera frames. Now the places are resolved on the net's own vessels, on the side the shots frame (scene/lobule/callout-spot.ts).
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
-import { BAND, SINUSOID_RING_R, calloutSpot, framedTriad, isCalloutName, type CalloutName } from '../src/scene/lobule/callout-spot.ts';
+import { BAND, CV_RING_AIR, CV_RING_R, SINUSOID_RING_R, calloutSpot, framedTriad, isCalloutName, type CalloutName } from '../src/scene/lobule/callout-spot.ts';
 import { stationAt } from '../src/scene/lobule/captions.ts';
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
 import { LOBULE_CAMS, LOBULE_R, lobuleShot, lobuleToScene, type LobuleCam } from '../src/scene/lobule/shots.ts';
@@ -75,4 +76,44 @@ test('every slide\'s callout resolves to a named place, and the place is inside 
   assert.ok(n >= 12, `the lobule's callouts were judged (${n})`);
   // the one callout whose slide frames the sinusoid view (hp lobule/cirr) is listed, not given a ring of its own here
   assert.deepEqual(outsideLobule, ['lobule/cirr (cam sinusoid)']);
+});
+
+// ---- the central-vein slides (Plan 46; Mohammad, 23 Nov: "SOS resistance is in the central vein dude wtf") -----------------------------------------------------
+test('the five slides whose callout is at the central vein: the Resistance ones ring the vein, the one that names sinusoids rings a zone 3 sinusoid', async () => {
+  const want: Record<string, string> = { 'rw/postsin': 'central', 'hp/lobule/sos': 'central', 'hp/outflow/sos': 'central', 'hp/lobule/cong': 'sinusoid:zone3' };
+  const seen: Record<string, string> = {};
+  for (const { deck, slide } of await slides()) {
+    const s = slide as Slide & { id: string; callout: { at: string; label: string } };
+    if (s.callout.at !== 'cv') continue;
+    const call = figureCalls(figurePlan(slide)).cards.find((c) => c.id === 'callout')!;
+    const name = (call.anchor as { lobule: string }).lobule;
+    // the rule itself: a label that names sinusoids rings a sinusoid, every other central-vein label rings the vein
+    assert.equal(name, /sinusoid/i.test(s.callout.label) ? 'sinusoid:zone3' : 'central', `${deck}/${s.id} "${s.callout.label}"`);
+    seen[`${deck === 'rw' || deck === 'sites' ? 'rw' : deck}/${s.id}`] = name;
+  }
+  const keys = Object.keys(seen);
+  assert.ok(keys.length >= 4, `the central-vein slides were found (${keys.join(', ')})`);
+  for (const k of keys) { const w = Object.entries(want).find(([id]) => k.endsWith(id.split('/').slice(1).join('/'))); if (w) assert.equal(seen[k], w[1], k); }
+  assert.ok(keys.some((k) => seen[k] === 'central') && keys.some((k) => seen[k] === 'sinusoid:zone3'));
+});
+
+test('"central" is the central vein course\'s own point, with the ring round the vein and its air', () => {
+  const cv = net.courses.find((c) => c.kind === 'cv')!, s = calloutSpot(net, 'central');
+  assert.ok(Math.abs(s.x - cv.pts.reduce((a, p) => a + p[0], 0) / cv.pts.length) < 1e-12 && Math.abs(s.y - cv.pts.reduce((a, p) => a + p[1], 0) / cv.pts.length) < 1e-12, 'the middle of the vein\'s own points');
+  assert.ok(Math.hypot(s.x, s.y) < 1e-9, 'the plate\'s centre');
+  assert.equal(s.r, CV_RING_R); assert.ok(Math.abs(CV_RING_R - 1.2 * DISC_R.cv) < 1e-12);
+  assert.ok(isCalloutName('central'));
+});
+
+test('at the widest congestion the vein ring (1.2 x the vein) still clears the sinusoid places (the nearest leaves 0.028 R: the rings never touch)', () => {
+  const ring = CV_RING_AIR * CV_MAX;
+  for (const name of ['sinusoid:zone3', 'sinusoid:mid'] as const) {
+    const s = calloutSpot(net, name), gap = Math.hypot(s.x, s.y) - s.r - ring;
+    assert.ok(gap >= 0.02, `${name}: the vein ring (${ring.toFixed(3)}) leaves ${gap.toFixed(3)} R to the sinusoid ring`);
+  }
+});
+
+test('"central" is never used for a label that names sinusoids, and a sinusoid place is never used for a label of the vein', () => {
+  const src = readFileSync('src/ui/deck/figure-calls.ts', 'utf8');
+  assert.match(src, /plan\.callout\.at === 'cv' \? \(\/sinusoid\/i\.test\(plan\.callout\.label\) \? 'sinusoid:zone3' : 'central'\)/);
 });
