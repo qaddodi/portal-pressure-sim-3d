@@ -323,3 +323,9 @@ test('A phone on its side takes both cards: -teaching with the words in view, -i
   assert.match(all, /thumbs\.length - lastThumbs/, 'a later step replaces both small copies');
   assert.match(all, /-teaching \(the words in view\) and -instrument/, 'the README says so');
 });
+
+test('the page walk multiplies every size by the CSS zoom it lives under (a card fitted to 0.5 was drawn at its unzoomed type, the lines over one another)', async () => {
+  const { zoomOf } = await import('../src/ui/capture/capture-model.ts');
+  assert.equal(zoomOf('0.5'), 0.5); assert.equal(zoomOf('1'), 1); assert.equal(zoomOf(''), 1); assert.equal(zoomOf(undefined), 1); assert.equal(zoomOf('0'), 1); assert.equal(zoomOf('normal'), 1);
+  assert.match(src('src/ui/capture/capture-dom.ts'), /kk \*= zoomOf\(cs\.zoom\)/);
+});

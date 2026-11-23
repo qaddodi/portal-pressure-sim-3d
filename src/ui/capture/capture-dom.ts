@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { parseShadows, transformed, contentString, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { zoomOf, parseShadows, transformed, contentString, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -230,6 +230,7 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
   if (alpha < 0.02) return;
   const tm = cs.transform && cs.transform !== 'none' ? new DOMMatrix(cs.transform) : null;
   let kk = k * (tm ? Math.hypot(tm.a, tm.b) || 1 : 1);
+  kk *= zoomOf(cs.zoom);   // (the card's fit is a CSS `zoom`: it is in no transform, and the computed sizes below it are the unzoomed ones)
   if (cs.scale && cs.scale !== 'none') kk *= num(cs.scale) || 1;   // (the `scale` property: the first number, the one that grows the words)
   const shown = cs.visibility !== 'hidden';   // (a hidden card's child may be shown again)
   const r = readBox(el);

@@ -68,6 +68,13 @@ export function maskPlacement(size: string, pos: string, box: { w: number; h: nu
 }
 
 /** `text-transform` applied to a run of words (the canvas draws the characters, not the style). */
+/** The CSS `zoom` of one element as its computed style reports it (its own, not its ancestors'; 1 when none or unusable). The computed lengths under a zoom (font size, borders, radii) are the unzoomed ones, so the
+ *  picture multiplies them by it: a data card fitted down to 0.5 drew its 12 px words at 12 px on boxes laid out at 6, and the lines printed over one another (iPad and iPhone on its side, 23 Nov 2026). */
+export function zoomOf(zoom: string | null | undefined): number {
+  const z = parseFloat(zoom ?? '');
+  return Number.isFinite(z) && z > 0 ? z : 1;
+}
+
 export function transformed(text: string, mode: string): string {
   return mode === 'uppercase' ? text.toUpperCase() : mode === 'lowercase' ? text.toLowerCase() : mode === 'capitalize' ? text.replace(/(^|\s)(\S)/g, (_m, a: string, b: string) => a + b.toUpperCase()) : text;
 }
