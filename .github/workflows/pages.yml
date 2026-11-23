@@ -6,6 +6,13 @@
 #
 # The feedback address is the repository VARIABLE FEEDBACK_EMAIL (Settings > Secrets and variables > Actions > Variables), never a file in the repo; unset, the Send feedback row is absent.
 # Either push rebuilds both, so the two copies are always one consistent site (after a merge into main, /preview/ equals the live site).
+#
+# Fast on purpose (Plan 50, owner: "from writing code to push to me testing online should be very, very extremely fast"; target about 80 s from push to live):
+#   - node_modules come back from the Actions cache (keyed on package-lock.json): no npm ci on a hit.
+#   - The baked files (charts, skins, welds, organs) come back from the cache too, and each bake skips itself when what it is made from is unchanged (scripts/bake-sig.mjs, the charts' own key).
+#     A push re-bakes only what it touched; the four bakes run at once (scripts/build.mjs).
+#   - No sleep: the artifact is polled for, up to 20 seconds, and the deploy starts the moment it is listed.
+#   - Main is only checked out (and built) once it has an app.
 name: Pages
 
 on:
@@ -17,6 +24,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read
 
 concurrency:
   group: pages
@@ -30,10 +38,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # main first, only package.json: whether main has the app decides if it is built at all
       - uses: actions/checkout@v4
         with:
           ref: main
           path: live
+          sparse-checkout: package.json
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v4
         with:
           ref: claude/project-thread-ge1swr
@@ -41,15 +52,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: preview/package-lock.json
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v4
+        with:
+          path: preview/node_modules
+          key: modules-${{ runner.os }}-node22-${{ hashFiles('preview/package-lock.json') }}
+      # The last bakes, newest first (restore-keys): each bake's signature (or the charts' key) says which of them is stale. Only the bake outputs are listed, never public/anatomy/organs.bin
+      # (a checked-in source that a restore must not replace).
+      - name: Restore the baked files
+        uses: actions/cache@v4
+        with:
+          path: |
+            preview/public/baked
+            preview/public/lobule
+            preview/public/anatomy/skins.bin
+            preview/public/anatomy/skins.bin.sig
+            preview/public/anatomy/circuit-skins.bin
+            preview/public/anatomy/circuit-skins.bin.sig
+            preview/public/anatomy/organs-baked.bin
+            preview/public/anatomy/organs-baked.bin.sig
+          key: bakes-${{ github.sha }}
+          restore-keys: bakes-
+      - name: Install packages (only without a cached node_modules)
+        if: steps.modules.outputs.cache-hit != 'true'
+        working-directory: preview
+        run: npm ci
       - name: Build the preview (integration branch) into site/preview
         working-directory: preview
         env:
           VITE_CHANNEL: preview
           VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
         run: |
-          npm ci
           VITE_BUILD="claude/project-thread-ge1swr@$(git rev-parse --short=8 HEAD)" npm run build
           mkdir -p ../site
           cp -r dist ../site/preview
@@ -57,7 +91,8 @@ jobs:
         env:
           VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
         run: |
-          if [ -f live/package.json ] && grep -q '"build"' live/package.json; then
+          if grep -q '"build"' live/package.json; then
+            git -C live sparse-checkout disable
             cd live
             npm ci
             VITE_CHANNEL=live VITE_BUILD="main@$(git rev-parse --short=8 HEAD)" npm run build
@@ -66,13 +101,20 @@ jobs:
             echo "main has no app yet: / redirects to /preview/"
             printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./preview/"><title>Portal Pressure 3D</title><a href="./preview/">Open the preview</a>' > site/index.html
           fi
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
-      # GitHub lists a freshly uploaded artifact a few seconds late: deploy-pages one second after the upload sometimes finds "No artifacts named github-pages"
-      # (runs 4 and 42). A short wait, in the same job, is the whole fix.
-      - name: Let the artifact register
-        run: sleep 20
+      # GitHub lists a freshly uploaded artifact a moment late: deploy-pages straight after the upload sometimes finds "No artifacts named github-pages" (runs 4 and 42).
+      # Instead of a fixed sleep, wait until this run lists it (usually the first or second look), up to 20 seconds.
+      - name: Wait until the artifact is listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 20); do
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages" and (.expired | not))] | length' 2>/dev/null || echo 0)
+            if [ "$n" -ge 1 ]; then echo "artifact listed after $i look(s)"; exit 0; fi
+            sleep 1
+          done
+          echo "artifact not listed after 20 s; deploying anyway"
       - id: deployment
         uses: actions/deploy-pages@v4

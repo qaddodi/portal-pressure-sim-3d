@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import type { Object3D } from 'three';
 
 const { CelScene } = await import('../src/scene/scene.ts');
@@ -23,8 +24,18 @@ const digest = (root: Object3D): string => {
   return h.digest('hex');
 };
 
-/** Builds both views, one small step at a time, returning the work of every step and the finished geometry's digests. */
-function build(): { sinus: number[]; lobule: number[]; dSinus: string; dLobule: string } {
+type Built = { sinus: number[]; lobule: number[]; dSinus: string; dLobule: string };
+const builds = new Map<string, Built>();
+/** Builds both views, one small step at a time, returning the work of every step and the finished geometry's digests.
+ *  (Plan 50: one build per step budget for the whole file; the tests that only read it share it. Test 2 asks for exactly two: the sliced and the whole.) */
+function build(): Built {
+  const key = String(pacing.stepWork), had = builds.get(key);
+  if (had) return had;
+  const made = buildNow();
+  builds.set(key, made);
+  return made;
+}
+function buildNow(): Built {
   const sc = new CelScene();
   const sinus = new Sinusoid3D(sc.sinus, sc.shared), lobule = new Lobule3D(sc.lobule, sc.shared, true);
   const steps = (more: () => boolean): number[] => { const w: number[] = []; for (let go = true; go;) { const m = meshWork.n; go = more(); w.push(meshWork.n - m); } return w; };
@@ -90,8 +101,13 @@ test('the lobule\'s bile is worked out once per net (the flat view, the unwelded
 test('with a weld plan laid in (the device\'s path), the lobule\'s steps stay inside the cap and are byte for byte the whole build', async () => {
   const { weldRequest } = await import('../src/scene/micro3d/lobule3d.ts');
   const { planWelds } = await import('../src/scene/lobule/welds.ts');
+  // (Plan 50: the plan is worked out once for the file, the way the device gets it: the baked file when there is one, else planned once with the bake's own options)
+  const { decodePlan, weldDigest } = await import('../src/scene/lobule/weld-codec.ts');
+  const req0 = weldRequest(new CelScene().lobule.net);
+  const baked = ((): ReturnType<typeof decodePlan> => { try { const b = gunzipSync(readFileSync('public/lobule/welds.bin')); return decodePlan(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), weldDigest(req0)); } catch { return null; } })();
+  const plan = baked ?? planWelds(req0.courses, { avoid: req0.avoid, splay: false });
   const run = (): { w: number[]; d: string; skins: number } => {
-    const sc = new CelScene(), req = weldRequest(sc.lobule.net), plan = planWelds(req.courses, { avoid: req.avoid });
+    const sc = new CelScene();
     const l3 = new Lobule3D(sc.lobule, sc.shared, true);
     l3.layWeldsForTest(plan);   // (the plan is taken when the vessels are built: they are not yet)
     const w: number[] = [];

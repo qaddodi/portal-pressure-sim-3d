@@ -6,9 +6,15 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
+import { SKINS_EXTRAS, SKINS_SKIP, bakeSig, isCurrent, writeSig } from './bake-sig.mjs';
+
 process.env.PPS_NO_BAKED = '1';   // (the bake builds live: it must never lay in the file it is about to replace)
 const out = fileURLToPath(new URL('../public/anatomy/skins.bin', import.meta.url));
 const outCircuit = fileURLToPath(new URL('../public/anatomy/circuit-skins.bin', import.meta.url));
+// Plan 50: a bake whose inputs are unchanged does nothing (the signature is in <out>.sig). The skins are the figure's vessels and their joins: what the lobule, the sinusoid, the decks and the UI do
+// (and every shader) cannot change them; the one file of those folders the skins read is the weld codec's digest.
+const sig = bakeSig(fileURLToPath(import.meta.url), SKINS_EXTRAS, SKINS_SKIP);
+if (!process.argv.includes('--check') && !process.argv.includes('--force') && isCurrent([out, outCircuit], sig)) { console.log('baked skins: unchanged since the last bake (signature), skipped'); process.exit(0); }
 const { Group } = await import('three');
 const { CelScene } = await import('../src/scene/scene.ts');
 const { setSmoothJoins } = await import('../src/scene/vessels/join-mode.ts');
@@ -48,6 +54,7 @@ const gz = gzipSync(encodeSkins(baked), { level: 9 });
 writeFileSync(out, gz);
 const gzC = gzipSync(encodeSkins(bakedCircuit), { level: 9 });
 writeFileSync(outCircuit, gzC);
+writeSig([out, outCircuit], sig);
 console.log(`baked circuit skins: ${bakedCircuit.skins.length} skins, ${bakedCircuit.lost.length} left as lines, ${(gzC.length / 1048576).toFixed(2)} MB gzip`);
 console.log(`baked skins: ${baked.skins.length} skins, ${baked.lost.length} left as joins, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${((Date.now() - t) / 1000).toFixed(1)} s`);
 process.exit(0);

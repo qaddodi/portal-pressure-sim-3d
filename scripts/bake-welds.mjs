@@ -6,7 +6,12 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
+import { bakeSig, isCurrent, writeSig } from './bake-sig.mjs';
+
 const out = fileURLToPath(new URL('../public/lobule/welds.bin', import.meta.url));
+// Plan 50: unchanged inputs (the signature in <out>.sig) mean nothing to do. A shader is no input.
+const sig = bakeSig(fileURLToPath(import.meta.url), ['public/anatomy/vessels.json']);
+if (!process.argv.includes('--check') && !process.argv.includes('--force') && isCurrent([out], sig)) { console.log('baked welds: unchanged since the last bake (signature), skipped'); process.exit(0); }
 const { createShared } = await import('../src/scene/materials/cel.ts');
 const { LobuleView } = await import('../src/scene/lobule/view.ts');
 const { weldRequest } = await import('../src/scene/micro3d/lobule3d.ts');
@@ -23,5 +28,6 @@ const t = Date.now(), plan = planWelds(req.courses, { avoid: req.avoid, splay: f
 mkdirSync(fileURLToPath(new URL('../public/lobule/', import.meta.url)), { recursive: true });
 const gz = gzipSync(encodePlan(plan, digest), { level: 9 });
 writeFileSync(out, gz);
+writeSig([out], sig);
 console.log(`baked welds: ${plan.skins.length} skins, ${plan.skipped.length} left as tubes, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${((Date.now() - t) / 1000).toFixed(1)} s`);
 process.exit(0);

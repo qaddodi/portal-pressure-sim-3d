@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Production build to dist/ (bundled, minified, hashed file names). The build id (short commit) is stamped into the bundle for ?perf
 // and written to dist/build-info.txt so "which build am I looking at" has one answer.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { organsDigest } from './organs-digest.mjs';
@@ -16,33 +16,30 @@ const branch = preset?.[0] || sh('rev-parse', '--abbrev-ref', 'HEAD') || process
 // The release: package.json's version, stamped into the bundle as VITE_RELEASE (About and the feedback draft show it; docs/release.md says how it is bumped).
 const release = JSON.parse(readFileSync(`${root}package.json`, 'utf8')).version;
 
-// The Lobule's weld plan is made here, once, and shipped as a file (a phone plans nothing). A failure only warns: the page then plans in a worker.
-const bake = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-welds.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
-const onMain = branch === 'main';   // (main is the shipped site: there nothing is allowed to fail quietly; a branch preview warns and says so on its pill)
+// The four bakes (the weld plan, the Anatomy's junction skins, the finished organs, every deck's chart data) run AT ONCE, and each one skips itself when what it is made from is unchanged (Plan 50: a signature of its
+// import graph beside its file, scripts/bake-sig.mjs; the charts' own key): the deploy restores last run's files from the Actions cache, so a typical push bakes nothing. A failure only warns on a branch preview,
+// and the page then does that work live as before; on main (the shipped site) nothing is allowed to fail quietly.
+const onMain = branch === 'main';
 const failed = [];
-if (bake.status !== 0) { console.warn('warning: the Lobule weld plan was not baked; the page will plan it in a worker'); failed.push('weld bake'); }
-
-// The Anatomy's junction skins (src/scene/vessels/skin) are made here too: planning and meshing the 14 of them is seconds of CPU, a stall before the first picture. A failure only warns: the page then builds them live.
-const bakeSkins = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-skins.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
-if (bakeSkins.status !== 0) { console.warn('warning: the Anatomy skins were not baked; the page will build them at load'); failed.push('skin bake'); }
-
-// The organs are finished here too (src/scene/organs/prepare.ts: about 2 s of CPU on a laptop, the same on every start): the page reads the finished file (anatomy/organs-baked.bin) and hands nothing to the CPU. The digest of its inputs goes
-// into the page (VITE_ORGANS_DIGEST), which lays the file in only when it is equal. A failure only warns: no digest, and the page makes the organs live from organs.bin as before.
-const bakeOrgans = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-organs.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
-if (bakeOrgans.status !== 0) { console.warn('warning: the organs were not baked; the page will make them at load'); failed.push('organ bake'); }
-const organsId = bakeOrgans.status === 0 ? organsDigest() : '';
-
-// Every deck's chart data is worked out here too (scripts/bake-charts.mjs, Plan 33): the page fetches a talk's file when it opens and its charts draw their first frame from it, never empty and waiting on a sweep in the worker.
-// A failure only warns: the page then works the charts out live as before. Decks whose file is current are left alone.
-const bakeCharts = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-charts.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
-if (bakeCharts.status !== 0) { console.warn('warning: the charts were not baked; the page will work their data out live'); failed.push('chart bake'); }
+const bakeNow = (script) => new Promise((done) => { const c = spawn(process.execPath, [fileURLToPath(new URL(`./${script}`, import.meta.url))], { cwd: root, stdio: 'inherit' }); c.once('error', () => done(1)); c.once('close', (code) => done(code ?? 1)); });
+// (the typecheck and the lint, about 8 s together, run beside the bakes: they read the source, the bakes write files)
+const capture = (args) => new Promise((done) => { let out = '', err = ''; const c = spawn(process.execPath, args, { cwd: root }); c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { err += d; }); c.once('error', () => done({ status: 1, stdout: out, stderr: err })); c.once('close', (code) => done({ status: code ?? 1, stdout: out, stderr: err })); });
+const [weldCode, skinCode, organCode, chartCode, tsc, lint] = await Promise.all([...['bake-welds.mjs', 'bake-skins.mjs', 'bake-organs.mjs', 'bake-charts.mjs'].map(bakeNow),
+  capture([fileURLToPath(new URL('../node_modules/typescript/lib/tsc.js', import.meta.url)), '--noEmit']), capture([fileURLToPath(new URL('./lint.mjs', import.meta.url))])]);
+// (the Lobule's weld plan: a phone plans nothing, it fetches the file)
+if (weldCode !== 0) { console.warn('warning: the Lobule weld plan was not baked; the page will plan it in a worker'); failed.push('weld bake'); }
+// (the Anatomy's junction skins: planning and meshing the 14 of them is seconds of CPU, a stall before the first picture)
+if (skinCode !== 0) { console.warn('warning: the Anatomy skins were not baked; the page will build them at load'); failed.push('skin bake'); }
+// (the organs are finished here too, src/scene/organs/prepare.ts: the digest of their inputs goes into the page, VITE_ORGANS_DIGEST, which lays the file in only when it is equal; no digest, and the page makes the organs live)
+if (organCode !== 0) { console.warn('warning: the organs were not baked; the page will make them at load'); failed.push('organ bake'); }
+// (every deck's chart data, Plan 33: the page fetches a talk's file when it opens and draws its first frame from it)
+if (chartCode !== 0) { console.warn('warning: the charts were not baked; the page will work their data out live'); failed.push('chart bake'); }
+const organsId = organCode === 0 ? organsDigest() : '';
 
 // The two fast checks (about 5 s, in this one deploy job: no new workflow): the typecheck and the project's lint. A preview still ships (fast previews), but the result is stamped on the
 // pill (VITE_CHECKS, src/ui/shell/build-pill.ts buildChecks) and in build-info.txt so a broken branch cannot go unseen; on main any failure fails the build.
-const tsc = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/typescript/lib/tsc.js', import.meta.url)), '--noEmit'], { cwd: root, encoding: 'utf8' });
 const typeErrors = tsc.status === 0 ? 0 : ((tsc.stdout ?? '').match(/error TS\d+/g) ?? []).length || 1;
 if (typeErrors) console.warn(`warning: ${typeErrors} type error(s)\n${(tsc.stdout ?? '').split('\n').slice(0, 20).join('\n')}`);
-const lint = spawnSync(process.execPath, [fileURLToPath(new URL('./lint.mjs', import.meta.url))], { cwd: root, encoding: 'utf8' });
 if (lint.status !== 0) console.warn(`warning: lint failed\n${lint.stderr ?? ''}`);
 const checks = [typeErrors ? `types: ${typeErrors} error${typeErrors === 1 ? '' : 's'}` : '', lint.status !== 0 ? 'lint failed' : '', ...failed.map((f) => `${f} failed`)].filter(Boolean).join(', ');
 if (onMain && checks) { console.error(`main does not ship with a failed check: ${checks}`); process.exit(1); }
