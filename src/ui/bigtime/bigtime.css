@@ -1,11 +1,11 @@
 /* The timeline chart's card (docs/approved/timeline-chart.md). The card is the shell's own sheet: its glass is the standard card glass (glass.css lists `.sh-sheet`), nothing blurs the figure
    behind it. Moves are opacity and transform only; nothing scrolls inside it. */
-.sh-sheet[data-kind="timeline"] { --bt-gap: clamp(14px, 1.6vw, 24px); z-index: 3; left: calc(var(--safe-l, 0px) + var(--bt-gap)); right: calc(var(--safe-r, 0px) + var(--bt-gap)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)); bottom: calc(var(--bot-occ, 84px) + var(--bt-gap)); width: auto; max-height: none; margin-left: 0; }
+.sh-sheet[data-kind="timeline"] { --bt-gap: clamp(14px, 1.6vw, 24px); z-index: 3; left: calc(var(--safe-l, 0px) + var(--bt-gap)); right: calc(var(--safe-r, 0px) + var(--bt-gap)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)); bottom: calc(var(--bot-occ, 84px) + var(--bt-gap)); width: auto; max-width: 1340px; max-height: min(800px, 100%); margin: auto; }
 /* the chart has its own zoom: the figure's zoom pill eases out while it is open */
 .app.bt-up .zoom-pill { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
 .sh-sheet[data-kind="timeline"] > .sh-sheet-body { flex: 1; min-height: 0; padding: 0; overflow: hidden; display: flex; }
 /* the same room as every other card: under the top bar (the patient picker and the pressure legend), above the dock and the timeline bar; a phone's sheet keeps its own foot (the shell's rule) */
-.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="timeline"] { top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)) !important; max-height: none; }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="timeline"] { top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)) !important; max-height: min(800px, 100%); }
 
 .bt { --bt-row: clamp(30px, 4.5vh, 42px); position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 27%, 360px); column-gap: 40px; padding: 22px 30px 20px 34px; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums; -webkit-user-select: none; user-select: none; }
 .bt button { font-family: inherit; }

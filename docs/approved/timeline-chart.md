@@ -15,6 +15,8 @@
 - Phone: the chart takes the whole card; "What to graph" and "What happened" are two words at the foot that raise a sheet over the chart with its own Done. Mac and iPad: the chooser sits beside the chart and "What happened" swaps into the same column.
 - Dark follows the app's look; the same mock in dark is `F-mac-dark.png`.
 
+- **Size (24 Nov 2026):** the card is capped at 1340 × 800 px and centred in the room it had, so the figure shows around it on a big screen; text, every menu and panel keep their size. Where the room is smaller (iPad, phone) the card fills it as before. Picked from four mocks (`/mnt/project-files/chart-card-mocks-24nov/`, option 1, "centered"); the others (bottom dock, right dock, shorter lanes) were not chosen.
+
 ## Rejected
 - Blurring the figure behind the card (Mohammad, 23 Nov). Pills, chips, dots-with-words, bubbles, a box behind a label. Child-Pugh and MELD stay on their own card.
 
