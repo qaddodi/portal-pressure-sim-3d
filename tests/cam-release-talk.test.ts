@@ -13,5 +13,5 @@ test('releaseCamera asks the talk first, and only then goes to free play', () =>
 });
 test('scene-link forgets its cached shot on a reframe and unhooks when the talk ends', () => {
   assert.match(link, /reframe = \(\) => \{ shot = null; sync\(\); \}/);
-  assert.match(link, /return \(\) => \{ reframe = null;/);
+  assert.match(link, /return \(\) => \{ leaveSplit\(\); reframe = null;/);
 });
