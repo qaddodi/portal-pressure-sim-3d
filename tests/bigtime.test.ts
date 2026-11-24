@@ -461,3 +461,11 @@ test('root cause (an opened event popped, with no ease): the details of a row ar
   assert.ok(!/\{isOpen && \(/.test(hap), 'no conditional mount');
   assert.ok(/\.bt-list li > button \{ transition: padding-top var\(--d-small\)/.test(css), 'the opened row\'s own padding eases too');
 });
+
+test('every event of What happened carries a chevron that says it opens: down while shut, up while open, eased', async () => {
+  const { readFileSync } = await import('node:fs');
+  const hap = readFileSync(new URL('../src/ui/bigtime/Happened.tsx', import.meta.url), 'utf8'), css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
+  assert.ok(/ic ic-chev-down bt-go/.test(hap));
+  assert.ok(/\.bt-list li\[data-open\] \.bt-go \{ transform: rotate\(180deg\)/.test(css) && /\.bt-list \.bt-go \{[^}]*transition: transform var\(--d-small\)/.test(css));
+  assert.ok(/grid-template-columns: 64px minmax\(0, 1fr\) 16px/.test(css), 'a column for it, so no name runs under it');
+});

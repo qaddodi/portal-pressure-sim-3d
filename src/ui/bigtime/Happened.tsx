@@ -37,6 +37,7 @@ export function Happened({ data, onPick, scroll = false }: { data: Data; onPick(
               <button type="button" aria-expanded={isOpen} onClick={() => { set({ row: isOpen ? null : r.id }); if (!isOpen) onPick(r.day); }}>
                 <span className="bt-when">{BT.day(r.day)}</span>
                 <span className="bt-what" style={isOpen ? { color: TONE[r.tone] } : undefined}>{r.label}</span>
+                <i className="ic ic-chev-down bt-go" aria-hidden="true" />
               </button>
               {kept.current.has(r.id) && (
                 <Fade on={isOpen} as="div" axis="y" className="bt-more-wrap">

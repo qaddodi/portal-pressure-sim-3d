@@ -73,3 +73,8 @@ Mohammad, 24 Nov: "Why does it say MELD Na just say MELD". The grey "From the ca
 
 ## An opened event eases (24 Nov 2026)
 Mohammad, 24 Nov: "when it expands it doesn't animate transition." Root cause: the details were mounted and unmounted with the click, so the block and every row under it popped. Now the block is the app's one fade (`fade.tsx`, `axis="y"`: a grid that eases 0fr to 1fr, the words fading with it), mounted once a row has been opened and asked off when it closes; the rows below move with it. The opened row's top padding eases too.
+
+## Events show they open (24 Nov 2026)
+**Reference:** option A of `/mnt/project-files/phone-panel-button-mocks-24nov/events-tappable-options.png`. Mohammad, 24 Nov: "It's also not obvious that I can click on each event of what happened for more info", then picked "A".
+- Every event row ends in a chevron (the atlas's `ic-chev-down`, 16 px, quiet grey): down while shut, turning up (and to the text colour) while its details are open, eased over the small duration. Rows are otherwise as before. Every device.
+- Rejected: a raised fill on each event (B), a blue "Details" word (C).
