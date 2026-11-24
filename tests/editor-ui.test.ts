@@ -16,7 +16,7 @@ import { editableSkeleton } from '../src/editor/vessel-skeleton.ts';
 import { applyOrganEdit, organCentroid } from '../src/editor/organ-apply.ts';
 import { x2d, y2d, x3, y3 } from '../src/scene/frame2d.ts';
 import { BoxGeometry } from 'three';
-import { flagOn, knownFlags } from '../src/ui/debug/flags.ts';
+import { flagOn, flagValue, knownFlags } from '../src/ui/debug/flags.ts';
 
 test('a node move is kept, and moving it back removes it', () => {
   const a = setNode(EMPTY, 'PV', { dx: 4, dy: -2, dz: 0.01 });
@@ -260,4 +260,10 @@ test('the view comes back after a Save reload: camera, mode and picks round-trip
   assert.deepEqual(loadView(st), { yaw: 1.2, pitch: -0.3, mode: 'vessels', organ: 'liver', vessel: 'PV', panel: false });
   st.setItem(VIEW_KEY, JSON.stringify({ yaw: 'x', pitch: 0, mode: 'organs' })); assert.equal(loadView(st), null);
   st.setItem(VIEW_KEY, '{oops'); assert.equal(loadView(st), null);
+});
+
+test('?editor=view is still the editor flag (the draft is read), and says view (no panel)', () => {
+  assert.equal(flagOn('editor', '?editor=view'), true);
+  assert.equal(flagValue('editor', '?editor=view'), 'view');
+  assert.notEqual(flagValue('editor', '?editor'), 'view');
 });

@@ -41,6 +41,7 @@ export function mountEditor(): void {
   let mode: Mode = 'orbit', tool: 'move' | 'cage' | 'liquify' = 'cage';
   let target: Target | null = null, selVessel: string | null = null, selOrgan: string | null = organIds()[0] ?? null;
   let radius = 0.08, strength = 0.5, lock: Lock = 'free';
+  let playing = false;
   let msg = recovered && exportText(recovered.now) !== exportText(loaded) ? 'Recovered your unsaved edits from this browser.' : '';
 
   const css = document.createElement('style');
@@ -155,7 +156,7 @@ export function mountEditor(): void {
   };
   const refreshOverlay = (): void => {
     syncOrgans();
-    if (mode === 'vessels') previewVesselEdits(hist.now); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
+    if (mode === 'vessels' || playing) previewVesselEdits(hist.now); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
     const vessels = mode === 'vessels';
     overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
     if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: dotPx(16), color: 0xff3d71 });
@@ -281,6 +282,18 @@ export function mountEditor(): void {
     const a = cel.rig.inspectAngles; if (session) saveView(session, { yaw: a.yaw, pitch: a.pitch, mode, organ: selOrgan, vessel: selVessel, panel: box.style.display !== 'none' });
     saveDraft(hist.now);
   };
+  // Play slides with the edits: the panel and the pointer layer go, the free orbit is released (the slides' own camera, callouts and cards run), one quiet text control brings the editor back
+  const playBack = el('button', { id: 'editor-back', textContent: 'Back to editing' }); playBack.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:calc(var(--z-perf,100) + 1);display:none;font:600 12px ui-monospace,Menlo,monospace;color:#fff;background:none;border:0;padding:10px;text-shadow:0 0 3px #000,0 0 6px #000;opacity:.8;touch-action:manipulation';
+  document.body.append(playBack);
+  const playB = el('button', { textContent: 'Play slides' });
+  const setPlaying = (on: boolean): void => {
+    playing = on;
+    topbar.style.display = on ? 'none' : 'flex'; box.style.display = on ? 'none' : (panelB.classList.contains('on') ? 'block' : 'none');
+    layer.style.display = on || mode === 'orbit' ? 'none' : 'block'; playBack.style.display = on ? 'block' : 'none';
+    cel.rig.setInspect(!on); labelEl.style.opacity = '0';
+    if (on) cel.setEditorOverlay(null); else sync();
+  };
+  playB.onclick = () => setPlaying(true); playBack.onclick = () => setPlaying(false);
   const panelB = el('button', { textContent: 'Panel' }); panelB.onclick = () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; panelB.classList.toggle('on', box.style.display !== 'none'); }; panelB.classList.add('on');
   const clear = el('button', { textContent: 'Clear draft' });
   clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); if (store) clearHistory(store); location.reload(); } };
@@ -299,7 +312,7 @@ export function mountEditor(): void {
   more.append(paste);
   file.append(exp, clear);
   more.append(file);
-  topbar.append(el('span', { className: 'gap' }), undoB, redoB, save, panelB);
+  topbar.append(el('span', { className: 'gap' }), undoB, redoB, save, playB, panelB);
   box.append(dyn, status, more, msgEl);
 
   // ── the pointer layer ──
