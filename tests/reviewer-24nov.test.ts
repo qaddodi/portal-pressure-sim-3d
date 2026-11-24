@@ -75,3 +75,14 @@ test('the capture waits for the slide\'s state to reach the figure, past the lab
   const { readFileSync } = await import('node:fs');
   assert.match(readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8'), /figureWaiting\(\)\) return/);
 });
+
+test('a label never prints the slide before\'s patient: the figure stays pending however long the state takes, there is no timeout fallback', async () => {
+  const { setFigurePending, figurePending } = await import('../src/ui/deck/figure-pending.ts');
+  const { clock } = await import('../src/clock/frame.ts');
+  setFigurePending(false); setFigurePending(true);
+  const old = clock.now; (clock as { now: () => number }).now = () => old.call(clock) + 3_600_000;   // an hour of page time later
+  try { assert.equal(figurePending(), true, 'still pending after an hour: no give-up'); } finally { (clock as { now: () => number }).now = old; setFigurePending(false); }
+  const { readFileSync } = await import('node:fs');
+  assert.ok(!/GIVE_UP/.test(readFileSync('src/ui/deck/figure-pending.ts', 'utf8').replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')));
+  assert.match(readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), /figurePending\(\)/);
+});
