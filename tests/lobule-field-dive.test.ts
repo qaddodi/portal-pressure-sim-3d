@@ -30,5 +30,5 @@ test('the scene drives the field\'s breadth from the camera\'s distance, and the
   const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
   assert.match(scene, /this\.lobule\.field\.setWide\(fieldWide\(d, this\.lobuleRest\(\)\)\)/);
   const l3 = readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
-  assert.match(l3, /const come = 1 - f\.field\.wideNow;/);
+  assert.match(l3, /const come = lobuleStays\(f\.field\.wideNow, body\);/);
 });

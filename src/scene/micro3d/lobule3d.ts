@@ -165,6 +165,10 @@ export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Co
 /** The key of the state the tiles are built for (the model's congestion and septal asks, in 32 steps). */
 const cellKeyOf = (g: { congU: number; septU: number }): string => { const q = (x: number): number => Math.round(clamp(x || 0, 0, 1) * 32); return `${q(g.congU)}|${q(g.septU)}`; };
 
+/** How much of the lobule's own detail stays on a dive: it follows the field's breadth, but never less than the body has yet to cover (`body` is the body's share, 0 gone, 1 whole). Before, it was gone by
+ *  the time the body was half back, and the screen was darker than both ends of the move: the black dive, slide 7 to 8, Black look. One picture both ways: the same on the way in. */
+export const lobuleStays = (wideNow: number, body: number): number => Math.max(1 - wideNow, 1 - Math.min(1, Math.max(0, body)));
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -362,7 +366,7 @@ export class Lobule3D {
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden, so the first show costs a frame's worth. */
-  update(on: boolean, under = 0, now = 0, rate = 1, force = false): boolean {
+  update(on: boolean, under = 0, now = 0, rate = 1, force = false, body = 0): boolean {
     if (!this.vesselsBuilt) this.buildVessels();
     if (!this.weldsAsked && on && this.flat.isVisible) this.askWelds();   // (the Lobule is wanted before the timer: ask now)
     if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
@@ -372,7 +376,7 @@ export class Lobule3D {
     // landed neither this scene nor the flat lobule is drawn: the lobule's solid tiles and tubes stand above the sinusoid's plane and would cut across it in the foreground
     // (and on the way in from the body it comes in as the field narrows onto it: the hex lobules tile the liver from afar, the neighbours resolve, then this lobule's own detail fades in until the
     //  landing, and the reverse on the way out; the field's breadth is the camera's distance against the lobule's framing, field.ts fieldWide)
-    const come = 1 - f.field.wideNow;
+    const come = lobuleStays(f.field.wideNow, body);
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
     // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the field itself widens)

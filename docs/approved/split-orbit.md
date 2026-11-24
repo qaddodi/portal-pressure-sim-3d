@@ -11,7 +11,7 @@ Mohammad, 24 Nov 02:31 UTC: "let's do the one from front side by side".
   Each has its name above it in the slide's own type ("Healthy", "Schistosomiasis", "Right heart failure"), plain words, no pill, no box.
 - The patient cards stay where they are; the figures live right of the cards.
 - Both livers turn together, in sync, through the same angles: about -49 degrees, front, +49 degrees (the mock's three frames), eased, never popping.
-- First slides: HVPG slide 7 (healthy beside schistosomiasis), slide 11 (healthy beside right heart failure).
+- First slides were HVPG 7 and 11; both taken off (see below). Candidates are listed to him; none built until he picks.
 
 ## Build plan (decided 24 Nov: twin scene, only on split slides)
 The scene (`CelScene`) is one object per page and reads the engine through module globals (`latest`, `live`, `patient`, `shownParams` in `src/engine/store.ts`; about 15 sites in `scene.ts`), plus `dustTuner` and `flowRate` singletons. So:
@@ -20,7 +20,8 @@ The scene (`CelScene`) is one object per page and reads the engine through modul
 3. Render: two scissored viewports of the one canvas, left twin, right main, one orbit angle for both (about -49, 0, +49 degrees, eased); labels above each; cards unchanged.
 4. Slide field `split: { with: 'healthy', labels: [...] }` on HVPG slides 7 and 11 first.
 
-## Built (24 Nov). On by default since 24 Nov 04:26 UTC ("Do it we can remove if it sucks"); `?split=0` turns it off. Not yet seen on screen.
+## Built (24 Nov), shown on no slide
+Mohammad, 24 Nov 06:31 UTC: slide 7 stays in the lobule and "even slide 11 is not a good use of Split View so we can save Split View for other slides". The table in `src/decks/split-slides.ts` is empty; the feature stays in the code for slides he picks (`?split=0` still turns it off). Not yet seen on screen.
 - Twin scene `src/scene/twin/` reads a fixed healthy frame (`model-source.ts`), draws into the page scene's own render target in its own scissored region, no canvas of its own.
 - Driver `twin/split.ts`: a slide in `src/decks/split-slides.ts` asks; the twin is made in a quiet slot after the camera lands, the cut sweeps in from the left (700 ms), the turn plays once
   (-49, +49, front, 2 s a leg, both cameras sent to the same shot) and then rests at the front; leaving the slide disposes the twin.

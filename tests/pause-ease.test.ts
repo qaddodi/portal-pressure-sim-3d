@@ -22,10 +22,10 @@ const FRAME = 1 / 60;
 test('one shared rate, exported from one module, is what the scene steps and every site reads', () => {
   const fr = src('scene/flow-rate.ts'), sc = src('scene/scene.ts');
   assert.match(fr, /export const flowRate = new FlowRate\(\)/);
-  assert.match(sc, /readonly flowRate = flowRate;/, 'the scene steps the shared instance, not a copy of its own');
-  assert.doesNotMatch(sc, /new FlowRate\(/);
-  assert.match(sc, /this\.flowRate\.step\(dt \/ 1000, flowTarget\(live\.frame\?\.running\)\)/, 'the target is the live model\'s own running flag (not a pinned Compare frame)');
-  assert.match(sc, /this\.lobule3d\.update\(this\.micro3d, under, now, this\.flowRate\.value\)/);
+  assert.match(sc, /this\.flowRate = this\.twin \? new FlowRate\(\) : flowRate;/, 'the page\'s scene steps the shared instance; only a split-orbit twin has a copy of its own');
+  assert.equal((sc.match(/new FlowRate\(/g) ?? []).length, 1);
+  assert.match(sc, /this\.flowRate\.step\(dt \/ 1000, flowTarget\(this\.src\.liveFrame\(\)\?\.running\)\)/, 'the target is the live model\'s own running flag (not a pinned Compare frame)');
+  assert.match(sc, /this\.lobule3d\.update\(this\.micro3d, under, now, this\.flowRate\.value, false, this\.fadeNow\)/);
   assert.match(sc, /this\.sinus3d\.update\(this\.micro3d, this\.flowRate\.value\)/);
   assert.match(sc, /streams\.step\(now, this\.flowRate\.value\)/);
   // no site still takes the boolean that froze the picture at once

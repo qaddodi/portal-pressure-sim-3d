@@ -64,7 +64,7 @@ test('the eased rate drives the streams\' distance (the chevrons, the streaks an
 
 test('the Lobule and Sinusoid (3D) ride the same eased rate: none of them reads the abrupt running flag for its flow', () => {
   const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
-  assert.match(scene, /this\.lobule3d\.update\([^)]*this\.flowRate\.value\)/);
+  assert.match(scene, /this\.lobule3d\.update\([^)]*this\.flowRate\.value[^)]*\)/);
   assert.match(scene, /this\.sinus3d\.update\(this\.micro3d, this\.flowRate\.value\)/);
   const lob3 = readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(lob3, /if \(running\)/);

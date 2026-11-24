@@ -58,11 +58,10 @@ test('the turn goes toward the patient\'s left, then the other way, then home', 
   assert.ok(Math.abs((b! - a!) / 2 - (49 * Math.PI) / 180) < 1e-9);
 });
 
-test('the split is off unless asked for, and every slide it names is in the HVPG deck', () => {
-  assert.ok(splitOf('hvpg', 'presin'), 'on by default');
-  assert.equal(splitOf('hvpg', 'route'), null);
-  for (const id of splitDecks()) assert.equal(id, HVPG_DECK.id);
-  for (const id of ['presin', 'heart']) assert.ok(HVPG_DECK.slides.some((s) => s.id === id), id);
+test('no slide shows the split now (HVPG 7 and 11 were taken off, 24 Nov), and a slide that is added names a slide the deck has', () => {
+  assert.equal(splitOf('hvpg', 'presin'), null);
+  assert.equal(splitOf('hvpg', 'heart'), null);
+  assert.deepEqual(splitDecks(), []);
 });
 
 test('with no twin up the page keeps its whole room and leaving is harmless', () => {
