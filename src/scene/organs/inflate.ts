@@ -1,5 +1,5 @@
 // The approved placement's organs (docs/approved/anatomy-placement.md, frozen round 16): the app's own outline meshes moved and re-inflated round from their silhouette (a Poisson dome: no flat face, no creases), at their own
-// depth and thickness. This is the mock's own code (round-16 page/geom.js: refineRim, poissonHeight, inflateOrgan), ported line for line so the app builds exactly the surface he approved; tests/organs-placed.test.ts holds the result
+// depth and thickness. This is the mock's own code (round-16 page/geom.js: refineRim, poissonHeight, inflateOrgan), ported line for line so the app builds the surface he approved, with two corrections at the outline only (rimTrue: the dome meets the rim at zero height instead of a cliff; the slope read inside the organ); tests/organs-placed.test.ts holds the result
 // to the frozen vertices (art/anatomy-placement/organsA.json, rounded there to 1e-3). Pure arithmetic: no three.js, no clock. Run once per organ when the organs are prepared (prepare.ts), at build time when the bake has the file.
 import type { PlacedOrganA } from './placed-map.ts';
 
@@ -54,12 +54,42 @@ export function poissonHeight(pos: ArrayLike<number>, idx: ArrayLike<number>, ce
   return { h: out, sample };
 }
 
+/** How far in from the outline the grid's height is brought down to meet it (scene units: the Poisson grid's cell). */
+export const RIM_TRUE = 0.008;
+/** The height `grid` gives, made to vanish ON the outline: the grid's own zero line lies up to a cell outside the outline, so the height at the outline was a cell's worth, and with the rim pinned to the organ's mid-depth
+ *  the surface dropped down a sheer cliff in its last fraction of a cell (a crease at the top of the wall, 25 to 40 degrees in the shading). Within RIM_TRUE of the outline the grid's height at the nearest outline point
+ *  is taken off, fading to nothing at RIM_TRUE: the dome now meets the rim as a Poisson dome does, its height going to zero linearly, so its wall turns upright with no crease. Away from the outline nothing changes. */
+function rimTrue(raw: ArrayLike<number>, idx: ArrayLike<number>, grid: (x: number, y: number) => number): (x: number, y: number) => number {
+  const n = raw.length / 3, fr = new Uint8Array(n), bk = new Uint8Array(n);
+  for (let k = 0; k < idx.length; k += 3) { const A = idx[k]! * 3, B = idx[k + 1]! * 3, C = idx[k + 2]! * 3; const z = (raw[B]! - raw[A]!) * (raw[C + 1]! - raw[A + 1]!) - (raw[B + 1]! - raw[A + 1]!) * (raw[C]! - raw[A]!); const m = z >= 0 ? fr : bk; m[idx[k]!] = m[idx[k + 1]!] = m[idx[k + 2]!] = 1; }
+  const segs: number[] = [], seen = new Set<number>(), cells = new Map<number, number[]>(), D = RIM_TRUE, cell = (v: number) => Math.floor(v / D), ck = (cx: number, cy: number) => (cx + 32768) * 65536 + (cy + 32768);
+  for (let k = 0; k < idx.length; k += 3) for (let j = 0; j < 3; j++) {
+    const u = idx[k + j]!, v = idx[k + ((j + 1) % 3)]!;
+    if (!(fr[u] && bk[u] && fr[v] && bk[v])) continue;
+    const key = u < v ? u * n + v : v * n + u; if (seen.has(key)) continue; seen.add(key);
+    const s0 = segs.length / 4, ax = raw[u * 3]!, ay = raw[u * 3 + 1]!, bx = raw[v * 3]!, by = raw[v * 3 + 1]!;
+    segs.push(ax, ay, bx, by);
+    for (let cx = cell(Math.min(ax, bx)) - 1; cx <= cell(Math.max(ax, bx)) + 1; cx++) for (let cy = cell(Math.min(ay, by)) - 1; cy <= cell(Math.max(ay, by)) + 1; cy++) { const c = ck(cx, cy); (cells.get(c) ?? cells.set(c, []).get(c)!).push(s0); }
+  }
+  return (x: number, y: number): number => {
+    const g = grid(x, y); if (g <= 0) return 0;
+    let bd = D, qx = 0, qy = 0;
+    for (const s0 of cells.get(ck(cell(x), cell(y))) ?? []) {
+      const ax = segs[s0 * 4]!, ay = segs[s0 * 4 + 1]!, dx = segs[s0 * 4 + 2]! - ax, dy = segs[s0 * 4 + 3]! - ay, l2 = dx * dx + dy * dy;
+      const t = l2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0, px = ax + t * dx, py = ay + t * dy, d = Math.hypot(x - px, y - py);
+      if (d < bd) { bd = d; qx = px; qy = py; }
+    }
+    return bd >= D ? g : Math.max(0, g - grid(qx, qy) * (1 - bd / D));
+  };
+}
+
 /** The organ moved (p -> t, x pulled toward xs[1] by xs[0]) and re-inflated round about its depth zc (geom.js inflateOrgan): thick is its greatest front-to-back depth, back how much flatter the back is, zones add depth or make a strip round
  *  (the oesophagus). Returns the positions and the surface's own smooth normals (from the height function, not the triangles). */
 export function inflateOrgan(raw: ArrayLike<number>, idx: ArrayLike<number>, P: PlacedOrganA, hc?: Height, /** the organ's thickness is set by its first this many vertices (the mock's own: a mesh refined further after them keeps the mock's surface) */ tmaxOf?: number): { pos: Float32Array; normals: Float32Array } {
   const n = raw.length / 3, out = new Float32Array(raw.length);
-  const H = hc ?? poissonHeight(raw, idx), h = H.h, sample = H.sample;
+  const H = hc ?? poissonHeight(raw, idx), h = H.h, grid = H.sample;
   let tmax = 0; for (let i = 0; i < (tmaxOf ?? n); i++) tmax = Math.max(tmax, Math.sqrt(2 * h[i]!));
+  const sample = rimTrue(raw, idx, grid);
   const nz = vertexNormalZ(raw, idx), back = P.back ?? 0.8, f = (P.thick ?? 0) / (tmax * (1 + back));
   const xs = P.xs ?? [1, 0];
   const p = P.p ?? [0, 0], t = P.t ?? p, s = [1, 1], a = 0, ca = Math.cos(a), sa = Math.sin(a);
@@ -88,7 +118,7 @@ export function inflateOrgan(raw: ArrayLike<number>, idx: ArrayLike<number>, P: 
     }
   }
   for (let i = 0; i < n; i++) {
-    const x = raw[i * 3]!, y = raw[i * 3 + 1]!, rim = !!(fr[i] && bk[i]), front = nz[i]! >= 0, q = F(x, y, front, rim ? 0 : h[i]);
+    const x = raw[i * 3]!, y = raw[i * 3 + 1]!, rim = !!(fr[i] && bk[i]), front = nz[i]! >= 0, q = F(x, y, front, rim ? 0 : sample(x, y));
     out[i * 3] = q[0]; out[i * 3 + 1] = q[1]; out[i * 3 + 2] = q[2];
     let N: number[];
     if (rim) {

@@ -12,11 +12,12 @@ const R = (p: string) => new URL(`../${p}`, import.meta.url);
 const { PLACED } = await import('../src/scene/anatomy/source.ts');
 const { PLACED_CAUDATE, PLACED_GUT } = await import('../src/scene/anatomy/placement.generated.ts');
 const { ORGAN_MESHES, setOrganData, organsReady } = await import('../src/scene/organs/meshes.ts');
-const { ORGAN_Z } = await import('../src/scene/organs/z.ts');
+const { ORGAN_Z, ORGAN_DEPTH } = await import('../src/scene/organs/z.ts');
 const { INFLATED_IDS, planeMap, mapX, mapY } = await import('../src/scene/organs/placed-map.ts');
 const { PYL_CUT, HAUSTRA, gutTubes, stomachShare } = await import('../src/scene/organs/gut-tubes.ts');
 const { caudateGeometry, CAUDATE_FRONT_Z } = await import('../src/scene/organs/caudate.ts');
 const { prepareOrgans } = await import('../src/scene/organs/prepare.ts');
+const { RIM_TRUE } = await import('../src/scene/organs/inflate.ts');
 const { encodeOrgans, decodeOrgans, RAW_IDS } = await import('../src/scene/organs/baked.ts');
 const L = await import('../src/scene/organs/layer.ts');
 const { createShared } = await import('../src/scene/materials/cel.ts');
@@ -32,6 +33,9 @@ test('the switch is on in this file, and every organ mesh carries its own depth 
   assert.equal(PLACED, true);
   assert.deepEqual(INFLATED_IDS.slice().sort(), ['heart', 'heart-ra', 'kidney-l', 'liver', 'spleen', 'stomach']);
   for (const [id, z] of Object.entries(ORGAN_Z)) assert.equal(z, 0, id);
+  // a reader that needs the organ's place reads ORGAN_DEPTH: the spleen's own depth (the splenic vein starts there, vessels/network.ts), not ORGAN_Z's 0
+  const g = ORGAN_MESHES.spleen!(); g.computeBoundingBox();
+  assert.ok(Math.abs(ORGAN_DEPTH.spleen! - (g.boundingBox!.min.z + g.boundingBox!.max.z) / 2) < 0.03 && ORGAN_DEPTH.spleen! < -0.1, `the spleen lies at ${ORGAN_DEPTH.spleen}`);
 });
 
 test('each re-inflated organ is the mock\'s surface: its vertices are the frozen ones (organsA.json, rounded there to 1e-3), in their order', () => {
@@ -39,16 +43,41 @@ test('each re-inflated organ is the mock\'s surface: its vertices are the frozen
     const a = FROZEN[id]!, p = arr(ORGAN_MESHES[id]!(), 'position');
     let worst = 0;
     if (id === 'stomach') {
-      // (the stomach keeps all but what is never drawn: the antrum's tip inside the funnel and the oesophagus past its fade; the oesophagus's tube is split across before it is inflated. Every kept frozen vertex is matched)
+      // (the stomach keeps all but what is never drawn: the antrum's tip inside the funnel and the oesophagus past its fade; the mesh is split again where its surface turns fast. Every kept frozen vertex is matched)
       // (a front and a back vertex share their x and y: each frozen vertex is matched to the kept one at its x and y nearest in depth)
       const key = (x: number, y: number) => `${Math.round(x * 1000)},${Math.round(y * 1000)}`, at = new Map<string, number[]>();
       for (let i = 0; i < p.length; i += 3) { const k = key(p[i]!, p[i + 1]!); (at.get(k) ?? at.set(k, []).get(k)!).push(p[i + 2]!); }
       let found = 0;
-      for (let i = 0; i < a.length; i += 3) { const zs = at.get(key(a[i]!, a[i + 1]!)); if (!zs) continue; found++; worst = Math.max(worst, Math.min(...zs.map((z) => Math.abs(z - a[i + 2]!)))); }
+      // (within RIM_TRUE of the outline the dome is brought down to meet the rim, inflate.ts rimTrue: only those rows move in depth, by less than the cliff was)
+      const k2 = (i: number) => `${Math.round(a[i]! * 1e4)},${Math.round(a[i + 1]! * 1e4)}`, cnt = new Map<string, number>();
+      for (let i = 0; i < a.length; i += 3) cnt.set(k2(i), (cnt.get(k2(i)) ?? 0) + 1);
+      const rimXY: number[] = []; for (let i = 0; i < a.length; i += 3) if (cnt.get(k2(i)) === 1) rimXY.push(a[i]!, a[i + 1]!);
+      for (let i = 0; i < a.length; i += 3) {
+        const zs = at.get(key(a[i]!, a[i + 1]!)); if (!zs) continue; found++;
+        const d = Math.min(...zs.map((z) => Math.abs(z - a[i + 2]!)));
+        if (d <= 0.0005 + 1e-6) { worst = Math.max(worst, d); continue; }
+        let near = Infinity; for (let r = 0; r < rimXY.length; r += 2) near = Math.min(near, Math.hypot(a[i]! - rimXY[r]!, a[i + 1]! - rimXY[r + 1]!));
+        // (up the esophagus the organs file's tube has its rim vertices doubled, so the lone-vertex rule above misses that rim: its rows, all within a cell of their own rim, move by under 0.005)
+        assert.ok((near < RIM_TRUE + 0.004 || (a[i + 1]! > 1.6 && d < 0.005)) && d < 0.035, `stomach: only a row by the rim moves (${d.toFixed(4)} at ${near.toFixed(4)} from it)`);
+      }
       assert.ok(found > 0.8 * (a.length / 3), `most of the stomach's frozen vertices are kept (${found})`);
     } else {
-      assert.equal(p.length, a.length, `${id}: same vertex count`);
-      for (let i = 0; i < a.length; i++) worst = Math.max(worst, Math.abs(p[i]! - a[i]!));
+      // (the mesh is then split again only where its surface turns fast, placed.ts: the new vertices come after the mock's own, which stay first and in their order. Their x and y are the mock's; their depth too, except
+      // within RIM_TRUE of the outline, where the dome is brought down to meet the rim at zero height instead of a cliff (inflate.ts rimTrue): only those rows move, never by more than the cliff was)
+      assert.ok(p.length >= a.length, `${id}: the mock's vertices are all there`);
+      // (the rim is where the front and the back sheet meet: a vertex alone at its x and y)
+      const k2 = (i: number) => `${Math.round(a[i]! * 1e4)},${Math.round(a[i + 1]! * 1e4)}`, cnt = new Map<string, number>();
+      for (let i = 0; i < a.length; i += 3) cnt.set(k2(i), (cnt.get(k2(i)) ?? 0) + 1);
+      const rimXY: number[] = []; for (let i = 0; i < a.length; i += 3) if (cnt.get(k2(i)) === 1) rimXY.push(a[i]!, a[i + 1]!);
+      let moved = 0;
+      for (let i = 0; i < a.length; i++) {
+        const d = Math.abs(p[i]! - a[i]!);
+        if (i % 3 !== 2 || d <= 0.0005 + 1e-6) { worst = Math.max(worst, d); continue; }
+        moved++;
+        let near = Infinity; for (let r = 0; r < rimXY.length; r += 2) near = Math.min(near, Math.hypot(a[i - 2]! - rimXY[r]!, a[i - 1]! - rimXY[r + 1]!));
+        assert.ok(near < RIM_TRUE + 0.004 && d < 0.035, `${id}: only a row by the rim moves (${d.toFixed(4)} at ${near.toFixed(4)} from it)`);
+      }
+      assert.ok(moved > 0, `${id}: the rows by the rim are brought down`);
     }
     assert.ok(worst <= 0.0005 + 1e-6, `${id}: within the frozen file's rounding (${worst})`);
   }

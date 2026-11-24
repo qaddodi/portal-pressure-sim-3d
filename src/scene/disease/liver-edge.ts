@@ -28,6 +28,10 @@ const baseLiver = () => base ?? (() => {
 /** stage-organs.js lowerEdge: the lowest y (2D, y down) of the outline `P` in each of FLUID_COLS columns across FLUID_R, NO_LIVER where it has none. Written into `out`. */
 export function lowerEdge(P: ArrayLike<ArrayLike<number>>, out: Float32Array): Float32Array {
   out.fill(NO_LIVER);
+  return lowerEdgeInto(P, out);
+}
+/** lowerEdge without clearing `out` first: the polygon's lower edge laid into what `out` already holds (the deepest wins), so many pieces fill one table. */
+function lowerEdgeInto(P: ArrayLike<ArrayLike<number>>, out: Float32Array): Float32Array {
   const k = (FLUID_COLS - 1) / FLUID_R[2]!;
   for (let i = 0; i < P.length; i++) {
     const a = P[i]!, b = P[(i + 1) % P.length]!, ax = a[0]!, ay = a[1]!, bx = b[0]!, by = b[1]!;
@@ -83,20 +87,18 @@ float liverKeep(vec2 w, float px) {
   return 1.0 - uLiverCut * (1.0 - smoothstep(-px, px, lu.y - lb));
 }`;
 
-let meshKept: { geo: unknown; edge: Float32Array } | null = null;
-/** The liver mesh's lower edge (lowerEdge over every edge of its triangles, in the figure's units): the lowest point of the drawn liver in each column, the same table the 2D outline gives. Null until the organ file is in. */
+let meshKept: Float32Array | null = null;
+/** The liver mesh's lower edge (lowerEdge over every edge of its triangles, in the figure's units): the lowest point of the drawn liver in each column, the same table the 2D outline gives. Null until the organ file is in.
+ *  The mesh is the organ file's, made once, so the table is made once: ORGAN_MESHES hands out a fresh geometry on every ask, so a cache keyed by the geometry never held and every ask walked the whole liver again,
+ *  1201 columns cleared and read for each of its triangles (on the placed liver, 100 000 of them). x and y only: ORGAN_Z moves the mesh in depth alone. */
 function meshEdge(): Float32Array | null {
+  if (meshKept) return meshKept;
   let geo;
   try { geo = ORGAN_MESHES.liver!(); } catch { return null; }
-  if (meshKept?.geo === geo) return meshKept.edge;
-  const pos = geo.getAttribute('position'), idx = geo.index, edge = new Float32Array(FLUID_COLS).fill(NO_LIVER), seg = new Float32Array(FLUID_COLS);
+  const pos = geo.getAttribute('position'), idx = geo.index, edge = new Float32Array(FLUID_COLS).fill(NO_LIVER);
   const P = (i: number): [number, number] => [x2d(pos.getX(i)), y2d(pos.getY(i))];
   const n = idx ? idx.count : pos.count;
-  for (let t = 0; t + 2 < n; t += 3) {
-    const a = P(idx ? idx.getX(t) : t), b = P(idx ? idx.getX(t + 1) : t + 1), c = P(idx ? idx.getX(t + 2) : t + 2);
-    lowerEdge([a, b, c], seg);
-    for (let k = 0; k < FLUID_COLS; k++) if (seg[k]! > edge[k]!) edge[k] = seg[k]!;
-  }
-  meshKept = { geo, edge };
+  for (let t = 0; t + 2 < n; t += 3) lowerEdgeInto([P(idx ? idx.getX(t) : t), P(idx ? idx.getX(t + 1) : t + 1), P(idx ? idx.getX(t + 2) : t + 2)], edge);
+  meshKept = edge;
   return edge;
 }

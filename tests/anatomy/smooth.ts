@@ -87,6 +87,29 @@ export function organSmoothness(id: string, g: BufferGeometry, normal = 'normal'
   return { id, crease: folds[folds.length - 1] ?? 0, p999: folds[Math.floor(folds.length * 0.999)] ?? 0 };
 }
 
+/** Where one organ's surface hands over to another's (the stomach to the duodenum's funnel at its cut): every vertex of `a` that `from` picks, against the nearest vertex of `b`, the fold between their shading normals,
+ *  as a crease (so it is held to the organs' bar), and the largest distance from such a vertex to `b` (a hole in the hand-off would show as a gap). */
+export function handoffSmoothness(id: string, a: BufferGeometry, from: (i: number) => boolean, b: BufferGeometry, normal = 'shadeN'): OrganSmooth & { gap: number; n: number } {
+  const PA = a.getAttribute('position'), NA = a.getAttribute(normal), PB = b.getAttribute('position'), NB = b.getAttribute(normal);
+  const folds: number[] = []; let gap = 0;
+  for (let i = 0; i < PA.count; i++) {
+    if (!from(i)) continue;
+    let bj = -1, bd = Infinity;
+    for (let j = 0; j < PB.count; j++) { const d = Math.hypot(PB.getX(j) - PA.getX(i), PB.getY(j) - PA.getY(i), PB.getZ(j) - PA.getZ(i)); if (d < bd) { bd = d; bj = j; } }
+    gap = Math.max(gap, bd);
+    folds.push(ang([NA.getX(i), NA.getY(i), NA.getZ(i)], [NB.getX(bj), NB.getY(bj), NB.getZ(bj)]));
+  }
+  folds.sort((x, y) => x - y);
+  return { id, crease: folds[folds.length - 1] ?? 0, p999: folds[Math.floor(folds.length * 0.999)] ?? 0, gap, n: folds.length };
+}
+
+/** The largest step of a per-vertex fade (`esoA`, the rectum's) between two vertices of one triangle: a fade that pops shows as a big step. */
+export function fadeStep(g: BufferGeometry, attr = 'esoA'): number {
+  const A = g.getAttribute(attr), I = g.getIndex()!; let worst = 0;
+  for (let k = 0; k < I.count; k += 3) { const a = A.getX(I.getX(k)), b = A.getX(I.getX(k + 1)), c = A.getX(I.getX(k + 2)); worst = Math.max(worst, Math.abs(a - b), Math.abs(b - c), Math.abs(c - a)); }
+  return worst;
+}
+
 /** The bar every vessel, join and organ is held to (set 24 Nov 2026 from today's smoothest pieces: the portal trunk, the cava, the splenic vein, the liver, the spleen and the kidney all pass it). */
 export const BAR = {
   vessel: { turn: 12, jerk: 8, widen: 0.06 },
