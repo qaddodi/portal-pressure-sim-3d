@@ -3,15 +3,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHASE_KEYS, hvpgChase } from '../src/scene/camera/chase.ts';
+import { PerspectiveCamera, Vector3 } from 'three';
+import { CHASE_KEYS, CHASE_AHEAD_RADII, CHASE_BEHIND_RADII, hvpgChase } from '../src/scene/camera/chase.ts';
+import { AHEAD_RADII, BEHIND_RADII, tipCloseShot } from '../src/ui/deck/cath-shot.ts';
+import { route3d } from '../src/scene/procedures/route3d.ts';
+import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 
-test('the five approved frames of the mock (move4-A-camera-values.md) are hit exactly: distance, yaw, pitch, lens 20', () => {
+test('the keyframes are the mock\'s yaw, pitch and lens 20 (move4-A-camera-values.md), the distances pulled back at Mohammad\'s word (24 Nov, twice)', () => {
   for (const k of CHASE_KEYS) {
     const p = hvpgChase(k.u)!;
     assert.ok(Math.abs(p.dist - k.d) < 1e-9 && Math.abs(p.yaw - k.yaw) < 1e-9 && Math.abs(p.pitch - k.pitch) < 1e-9, `frame at ${k.u}: ${p.dist} ${p.yaw} ${p.pitch}`);
     assert.equal(p.fov, 20);
   }
-  assert.deepEqual(CHASE_KEYS.map((k) => [k.u, k.d, k.yaw, k.pitch]), [[0.62, 4.2, 0, 0.05], [0.74, 2.6, -0.12, 0.06], [0.82, 1.7, -0.3, 0.1], [0.92, 1.35, -0.45, 0.14], [0.995, 1.0, -0.55, 0.16]]);
+  assert.deepEqual(CHASE_KEYS.map((k) => [k.u, k.d, k.yaw, k.pitch]), [[0.62, 4.2, 0, 0.05], [0.74, 3.5, -0.12, 0.06], [0.82, 3.0, -0.3, 0.1], [0.92, 2.7, -0.45, 0.14], [0.995, 2.4, -0.55, 0.16]]);
 });
 
 test('between the frames the camera only closes in and swings one way, with no jump; before the first it holds, after the last it stays', () => {
@@ -24,7 +28,7 @@ test('between the frames the camera only closes in and swings one way, with no j
     assert.ok(p.target.every(Number.isFinite));
   }
   assert.equal(hvpgChase(0)!.dist, 4.2);
-  assert.equal(hvpgChase(1)!.dist, 1.0);
+  assert.equal(hvpgChase(1)!.dist, 2.4);
 });
 
 test('it is the deck\'s scene link that drives it, and only on a body slide with a catheter', () => {
@@ -33,4 +37,22 @@ test('it is the deck\'s scene link that drives it, and only on a body slide with
   assert.match(link, /setChase\(null\)/);
   const other = ['src/ui/tests/ir/run.ts', 'src/scene/gesture/controller.ts'].map((f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8')).join('');
   assert.doesNotMatch(other, /setChase|hvpgChase/);
+});
+
+test('the wedge frame holds the tip, the balloon behind it and the vein AHEAD where the WHVP is read, on a phone in portrait (the WHVP leader ran to a dot off the screen edge at 0.75 to 1.0)', () => {
+  assert.equal(CHASE_AHEAD_RADII, AHEAD_RADII); assert.equal(CHASE_BEHIND_RADII, BEHIND_RADII);
+  assert.ok(tipCloseShot('tip'));
+  const r3 = route3d('hvpg')!, d = r3.tipD(1), R = r3.lumen(r3.route.free) * UNITS_PER_SCENE;
+  // (where the figure hangs the wedged reading: proc-catheter.ts aheadAt, 6.4 radii of the free vein on, held to 0.6 of what is left of the vein the tip is in)
+  const end = r3.route.parts.find((q) => q.id && d <= q.d1 + 1e-6 && d >= q.d0 - 1e-6)?.d1 ?? r3.route.total, aheadD = d + Math.min(R * AHEAD_RADII, (end - d) * 0.6);
+  const p = hvpgChase(1)!;
+  const cam = new PerspectiveCamera(p.fov, 390 / 844, 0.01, 100);
+  const pitch = p.pitch, c = Math.cos(pitch);
+  cam.position.set(p.target[0] + Math.sin(p.yaw) * c * p.dist, p.target[1] + Math.sin(pitch) * p.dist, p.target[2] + Math.cos(p.yaw) * c * p.dist);
+  cam.lookAt(p.target[0], p.target[1], p.target[2]); cam.updateMatrixWorld();
+  for (const [name, at] of [['tip', d], ['ahead', aheadD], ['balloon end', d - R * BEHIND_RADII]] as const) {
+    const v = r3.point(Math.min(r3.route.total, Math.max(0, at)), new Vector3()).project(cam);
+    // (the free room is about the middle half of the screen's height; keep a margin for the tags)
+    assert.ok(Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.55, `${name} at ${v.x.toFixed(2)}, ${v.y.toFixed(2)}`);
+  }
 });

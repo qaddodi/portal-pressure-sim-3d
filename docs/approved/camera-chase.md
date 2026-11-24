@@ -16,3 +16,6 @@ Not rejected anything yet. Not yet seen on a device: say "pushed, not yet seen".
 
 ## 24 Nov, later: "This slide should be zoomed out a bit" (wedge frame, iPhone)
 Last two keys pulled back: advance 0.92 distance 1.1 to 1.35, advance 0.995 distance 0.75 to 1.0. Everything else on this sheet unchanged. Also: equation signs (WHVP − FHVP) get two explicit equal spaces (`mspace`) in `TeachingCard.tsx`, because iOS printed the operator's own spacing unevenly.
+
+## 24 Nov, third word: "We agreed to make this view zoomed out right?"
+1.0 still read as a close-up. Distances now 4.2, 3.5, 3.0, 2.7, 2.4 (advance 0.62 to 0.995); yaw, pitch, lens unchanged. The aim moves to the middle of (balloon behind, vein ahead) as the tip arrives. Root cause of the WHVP leader running to a dot off the left edge: the WHVP point is 2D's place 6.4 free-vein radii AHEAD of the tip (`proc-catheter.ts aheadAt`), and the camera aimed at the tip, 0.75 to 1.0 away, so that point was off screen. `tests/camera-chase.test.ts` now projects the tip, the balloon's end and that point on a 390x844 phone and fails if any is outside the free room.
