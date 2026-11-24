@@ -7,7 +7,7 @@
 // the shot's target is the box's centre, its half extents the box's, and the room solver (camera/room.ts) fits it into whatever room the cards leave.
 // The slide's `kMax` (the most the 2D camera may zoom) is the 3D shot's nearest distance.
 import { SHOTS, type Shot } from '../../scene/camera/shots.ts';
-import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/anatomy/source.ts';
+import { NODE_POS_2D, EDGE_PATH_2D, HIDDEN_EDGES, PLACED, placedRegionBox, placedBoxOfBox2, boxOfNames, growBox3, unionBox3, box2Of, centreOf, FIGURE_NAMES, type Box3 } from '../../scene/anatomy/source.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Box2D } from './copied/plate.ts';
 
@@ -97,6 +97,49 @@ export function shotOfBox(box: Box2D): Shot {
   };
 }
 
+// ---- the approved placement (anatomy/source.ts PLACED): a camera frames its subject's placed bounds, by name ----
+
+/** The organs a term target or a name may point at, as the placement calls them (the 2D 'caudate-lobe' is the caudate). */
+const PLACED_ORGAN: Readonly<Record<string, string>> = { 'caudate-lobe': 'caudate' };
+/** What a list of names points at, as placed names (engine edges, organ parts, nodes): `namesBox`'s walk through the sets, the term targets and the organs, with the same unknowns. */
+export function namesPlaced(on: readonly string[]): { names: string[]; unknown: string[] } {
+  const names: string[] = [], unknown: string[] = [];
+  const vessel = (id: string) => { if (EDGE_PATH_2D[id]?.length) { names.push(id); return true; } return false; };
+  const add = (n: string): void => {
+    const t = TARGETS_2D[n];
+    if (n.startsWith('@')) { const ids = SETS_2D[n.slice(1)]; if (!ids) unknown.push(n); else for (const id of ids) add(id); return; }
+    if (t && (t.edges?.length || t.organ)) { for (const e of t.edges ?? []) vessel(e); if (t.organ && ORGAN_BOX_2D[t.organ]) names.push(PLACED_ORGAN[t.organ] ?? t.organ); return; }
+    if (ORGAN_BOX_2D[n]) { names.push(PLACED_ORGAN[n] ?? n); return; }
+    if (NODE_POS_2D[n]) { names.push(n); return; }
+    if (!vessel(n)) unknown.push(n);
+  };
+  for (const n of on) add(n);
+  return { names, unknown };
+}
+/** The placed box a body camera frames (null for 'fit'): a region's subject, a list of regions' subjects, what a raw box was drawn round, or what `{ on, near }` names, each with room round it. */
+export function box3Of(cam: unknown): Box3 | null {
+  if (cam == null || cam === 'fit') return null;
+  if (typeof cam === 'string') return placedRegionBox(cam);
+  if (isBox(cam)) return placedBoxOfBox2(cam, HIDDEN_EDGES);
+  if (isNames(cam)) return unionBox3(cam.map((r) => placedRegionBox(r)));
+  if (isOn(cam)) {
+    const { box } = boxOfNames(namesPlaced(cam.on).names);
+    const near = cam.near ? placedRegionBox(cam.near) : null;
+    return unionBox3([near, box ? growBox3(box) : null]);
+  }
+  return null;
+}
+/** The whole figure, placed (what 'fit' frames): every organ and every vessel a healthy figure draws, with a little room. */
+export function placedFitBox(): Box3 {
+  const b = boxOfNames(FIGURE_NAMES).box!, m = 0.04;
+  return [b[0] - m, b[1] - m, b[2], b[3] + m, b[4] + m, b[5]];
+}
+/** A placed box as a body shot: its middle (at its own depth) as the target, its half extents (never under MIN_HALF), the body pose and the nearest distance a plate box gets. */
+export function shotOfBox3(b: Box3): Shot {
+  const c = centreOf(b);
+  return { yaw: POSE.yaw, pitch: POSE.pitch, r: MIN_R, target: [c[0], c[1], c[2]], half: [Math.max((b[3] - b[0]) / 2, MIN_HALF), Math.max((b[4] - b[1]) / 2, MIN_HALF)] };
+}
+
 /** What is wrong with a slide's camera (the same checks the 2D deck test makes), as readable sentences. Empty: fine. */
 export function camProblems(cam: Cam2D, view?: unknown): string[] {
   if (view === 'circuit') {
@@ -125,6 +168,7 @@ export function place(cam: Cam2D, view?: unknown): Placed {
   if (typeof cam === 'string' && /^(lobule|sinusoid)/.test(cam)) {
     return cam === 'sinusoid' ? { view: 'sinusoid', shot: sinusoidShot() } : { view: 'lobule', cam: cam as LobuleCam, shot: lobuleShot(cam as LobuleCam) };
   }
+  if (PLACED) { const b3 = box3Of(cam); return b3 ? { view: 'body', shot: shotOfBox3(b3), box: box2Of(b3), fit: false } : { view: 'body', shot: SHOTS.play, box: null, fit: true }; }
   const box = boxOf(cam);
   return box ? { view: 'body', shot: shotOfBox(box), box, fit: false } : { view: 'body', shot: SHOTS.play, box: null, fit: true };
 }

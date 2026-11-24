@@ -5,7 +5,8 @@ import { x3, y3 } from '../../scene/frame2d.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot } from '../../scene/lobule/index.ts';
 import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/anatomy/source.ts';
-import { REGIONS_2D, CIRC_REGIONS_2D } from '../../scene/anatomy/source.ts';
+import { REGIONS_2D, CIRC_REGIONS_2D, PLACED, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
+import { box3Of, placedFitBox } from '../rw/cams.ts';
 import type { CopiedSlide } from './types.ts';
 
 export type Box = readonly [number, number, number, number];
@@ -72,6 +73,13 @@ export function shotOfBox(box: Box): Shot {
   return { yaw: BODY_YAW, pitch: BODY_PITCH, r: BODY_MIN_R, target: [x3((box[0] + box[2]) / 2), y3((box[1] + box[3]) / 2), 0], half };
 }
 
+/** The Shot that frames a placed box (anatomy/source.ts, the approved placement): `shotOfBox`'s pose and nearest distance, the box's middle at its own depth. */
+export function shotOfBox3(b: Box3): Shot {
+  const c = centreOf(b);
+  return { yaw: BODY_YAW, pitch: BODY_PITCH, r: BODY_MIN_R, target: [c[0], c[1], c[2]], half: [(b[3] - b[0]) / 2, (b[4] - b[1]) / 2] };
+}
+const placedSpec = (name: string, b: Box3): ShotSpec => ({ kind: 'body', name, box: box2Of(b), shot: shotOfBox3(b) });
+
 /** A slide's camera as a ShotSpec. Never null: a slide with no camera shows the whole figure, as in 2D (`cam: st.cam || 'fit'`). */
 export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec {
   if (view === 'circuit') {
@@ -79,7 +87,8 @@ export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec 
     return { kind: 'circuit', name: typeof cam === 'string' ? cam : typeof zone === 'string' ? zone : 'fit', box };
   }
   if (isLobuleCam(cam)) return { kind: 'lobule', name: cam, cam };
-  if (cam == null || cam === 'fit') return { kind: 'body', name: 'fit', box: FIT_BOX, shot: shotOfBox(FIT_BOX) };
+  if (cam == null || cam === 'fit') return PLACED ? placedSpec('fit', placedFitBox()) : { kind: 'body', name: 'fit', box: FIT_BOX, shot: shotOfBox(FIT_BOX) };
+  if (PLACED && typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) return placedSpec('on', box3Of(cam) ?? placedFitBox());
   if (typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) {
     const c = cam as { on: string[]; near?: string };
     const base = c.near ? regionBox(c.near) : null;
@@ -90,6 +99,7 @@ export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec 
   const box = regionBox(cam);
   if (!box) throw new Error(`the camera ${JSON.stringify(cam)} names no region of the 2D figure`);
   const name = typeof cam === 'string' ? cam : isBox(cam) ? 'box' : (cam as string[]).join('+');
+  if (PLACED) { const b3 = box3Of(cam); if (b3) return placedSpec(name, b3); }
   return { kind: 'body', name, box, shot: shotOfBox(box) };
 }
 

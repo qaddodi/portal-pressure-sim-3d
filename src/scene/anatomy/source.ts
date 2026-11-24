@@ -19,3 +19,11 @@ const want = ((): string | undefined => {
 })();
 export const ANATOMY_ID: AnatomyId = want === 'new' || want === 'placed' ? 'placed' : 'today';
 export const PLACED = ANATOMY_ID === 'placed';
+
+/** The approved placement by name (placed-bounds.ts): each engine edge's placed course, each node's place, each organ part's 3D box, the camera regions as lists of names, and the
+ *  organs' placed silhouettes and name anchors (placed-organs.generated.ts, measured once by scripts/gen-placed-organs.mjs). The cameras and the organ names read them when PLACED. */
+export {
+  placedEdge, placedNode, placedMorph, placedBoxOfName, todayBoxOfName, boxOfNames, growBox3, box2Of, centreOf, unionBox3, REGION_SUBJECTS, placedRegionBox,
+  subjectOfBox2, placedBoxOfBox2, FIGURE_NAMES, WHOLE_OF, GROW, GROW_FLOOR, type Box3, type Box2,
+} from './placed-bounds.ts';
+export { PLACED_ORGAN_BOX, PLACED_ORGAN_RINGS, PLACED_ORGAN_NAMES } from './placed-organs.generated.ts';

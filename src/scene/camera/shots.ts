@@ -1,5 +1,6 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
+import { PLACED, boxOfNames, centreOf, FIGURE_NAMES, type Box3 } from '../anatomy/source.ts';
 
 // Named shots for the HVPG slice. A shot says what to look at (target, direction, how close at least, how much of the body it needs
 // on screen); the room solver (room.ts) then fits it into whatever room the cards leave free on this device. Frontal view: the patient's
@@ -37,7 +38,7 @@ export const lensDistance = (r: number, fov = FOV): number => (r * Math.tan((15 
 // about 4.7 x 3.3 scene units; `r` is the nearest the camera may sit and `half` what the shot must keep in the free room, so the room solver does the framing.
 // The rest shots (title, play, pick) look straight at the plate (yaw 0, pitch 0): that is the atlas, and what the 2D app shows. The orbit is the reward for touching
 // (the drag turns it, ±25°, and it springs back to the shot: gesture/controller.ts). The catheter shots keep a small turn, because they look past the liver at the hepatic veins.
-export const SHOTS: Readonly<Record<ShotName, Shot>> = {
+const TODAY_SHOTS: Readonly<Record<ShotName, Shot>> = {
   // deck title: the whole figure, slow settle
   title: { yaw: 0, pitch: 0, r: lensDistance(7), target: [x3(740), y3(480), 0], half: [2.0, 1.8] },
   // route: from the neck down the SVC, the right atrium and the IVC to the hepatic vein junction
@@ -53,6 +54,52 @@ export const SHOTS: Readonly<Record<ShotName, Shot>> = {
   play: { yaw: 0, pitch: 0, r: lensDistance(7.6), target: [x3(712), y3(491), 0.2], half: [1.32, 1.94] },
   pick: { yaw: 0, pitch: 0, r: lensDistance(5.5), target: [x3(740), y3(500), 0.2], half: [1.15, 1.1] },
 };
+
+
+/** What each named shot is about, by name (organs, engine edges, whole-vessel keys: anatomy/placed-bounds.ts). Placed, the shot keeps its turn, tilt, nearest distance and room, and follows
+ *  its subject: the target moves as the subject's middle moved, it looks at the subject's own depth, and the room grows where the subject would no longer fit in it. */
+export const SHOT_SUBJECTS: Readonly<Record<ShotName, readonly string[]>> = {
+  title: FIGURE_NAMES,
+  route: ['V_UP', 'SVC_RA_1', 'SVC_RA', 'heart-ra', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'RHV_IVC_1'],
+  free: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'liver'],
+  // (the wedge sits in the lower right hepatic branch, rhvb: owner's ruling, docs/approved/anatomy-placement.md)
+  wedge: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
+  hvpg: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
+  play: FIGURE_NAMES,
+  pick: ['PV_TRUNK', 'PV_TRUNK_1', 'SV_CONF', 'SV_MID', 'V_SPL', 'SMV_CONF', 'V_INT', 'V_INT_1', 'V_IMV', 'V_COL', 'LGV_CONF', 'PVH_R', 'PVH_R_1', 'PVH_R_2', 'PVH_L', 'PVH_L_1', 'rpva', 'rpvp'],
+};
+
+/** The camera's right and up in the scene for a turn and tilt (the rig's: positive yaw swings the camera to the viewer's right, the camera at target + r (sin yaw cos pitch, sin pitch, cos yaw cos pitch)). */
+export function viewAxes(yaw: number, pitch: number): { right: Vec3; up: Vec3 } {
+  return { right: [Math.cos(yaw), 0, -Math.sin(yaw)], up: [-Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), -Math.cos(yaw) * Math.sin(pitch)] };
+}
+/** How far a box reaches from a shot's target across the view, scene units (right, up): what the shot's half extents must hold for the box to be in the room. */
+export function viewReach(b: Box3, s: Pick<Shot, 'yaw' | 'pitch' | 'target'>): [number, number] {
+  const { right, up } = viewAxes(s.yaw, s.pitch);
+  let rx = 0, ry = 0;
+  for (const x of [b[0], b[3]]) for (const y of [b[1], b[4]]) for (const z of [b[2], b[5]]) {
+    const d = [x - s.target[0], y - s.target[1], z - s.target[2]] as const;
+    rx = Math.max(rx, Math.abs(d[0] * right[0] + d[1] * right[1] + d[2] * right[2]));
+    ry = Math.max(ry, Math.abs(d[0] * up[0] + d[1] * up[1] + d[2] * up[2]));
+  }
+  return [rx, ry];
+}
+/** The room kept round a placed subject inside a shot's half extents, scene units (about 1 cm of body). */
+export const SHOT_MARGIN = 0.04;
+/** A shot carried onto the placed anatomy: the same turn, tilt and nearest distance; the target moved as its subject's middle moved, at the subject's depth; the half extents the shot's own,
+ *  grown only where the placed subject would reach past them. */
+export function placedShot(s: Shot, names: readonly string[]): Shot {
+  const was = boxOfNames(names, false).box, now = boxOfNames(names, true).box;
+  if (!was || !now) throw new Error(`a shot names nothing placed: ${names.join(', ')}`);
+  const cw = centreOf(was), cn = centreOf(now);
+  const target: Vec3 = [s.target[0] + cn[0] - cw[0], s.target[1] + cn[1] - cw[1], cn[2]];
+  const reach = viewReach(now, { ...s, target });
+  const grow = (h: number, k: 0 | 1) => Math.max(h, reach[k] + SHOT_MARGIN);
+  return { ...s, target, half: [grow(s.half[0], 0), grow(s.half[1], 1)], ...(s.halfNarrow ? { halfNarrow: [grow(s.halfNarrow[0], 0), grow(s.halfNarrow[1], 1)] as [number, number] } : {}) };
+}
+export const SHOTS: Readonly<Record<ShotName, Shot>> = PLACED
+  ? Object.fromEntries(Object.entries(TODAY_SHOTS).map(([k, s]) => [k, placedShot(s, SHOT_SUBJECTS[k as ShotName])])) as Record<ShotName, Shot>
+  : TODAY_SHOTS;
 
 /** Camera shot to shot: 950 ms, ease in-out cubic (look-and-feel.md section 7). */
 export const SHOT_MS = 950;
