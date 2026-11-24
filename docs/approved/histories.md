@@ -16,8 +16,13 @@
 4. Budd-Chiari syndrome: anticoagulation, then an angioplasty of a hepatic vein; the ascites clears and no TIPS is needed.
 5. A TIPS that has narrowed: a TIPS for ascites, then months of stenosis; the gradient is over 12 again, the fluid is back, and Doppler picks it up.
 
+## Seven more (24 Nov, not yet seen by him: built on his word "do like 7 of those that the model supports")
+6. Bleed, TIPS in 24 hours (Child-Pugh B, active bleeding at endoscopy). 7. Hepatitis C cured, pressure persists (carvedilol, DAA, SVR12, HVPG still 10 or more). 8. Alcohol cirrhosis, recompensated (abstinence, carvedilol, diuretics off, a year on). 9. PSVD: a bleed with a normal HVPG. 10. Gastric varix bleed, BRTO (esophageal varices after it). 11. Cirrhosis in pregnancy (propranolol and bands in the second trimester). 12. Cardiac cirrhosis (HVPG normal, wedged pressure high, tricuspid repair).
+Not built from the 12 proposed (the model cannot yet): MASH on a GLP-1, ACLF, JAK2 PVT, a Budd-Chiari TIPS history. See the thread's list of what the model would need.
+
 ## How it is built (so it stays true)
 - `src/ui/histories/courses.ts` is the script, `play.ts` plays it on the engine (the same Treat words, History words and day record as the page makes), `scripts/gen-histories.mjs` bakes it to `baked/*.generated.ts` and `index.generated.ts`. `tests/histories.test.ts` fails when a course or the engine changes and the files were not baked again, and holds each history to Baveno VIII's order.
+- A course with `still: true` takes its daily look at the model with the breath and pulse held still. Live steps moved the fluid by litres over months (a cirr-comp patient with no drug and no change formed 9 L of ascites in 540 days), so any course where the fluid must follow only the disease and the treatments sets it. The first five do not: their fluid coming back is that drift.
 - The days record is the patient's: only a replaced state (a new patient, a restore) empties it, never an action or a change of clock (`tests/histories-open.test.ts`).
 
 ## Rejected
