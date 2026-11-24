@@ -10,6 +10,8 @@ export const HISTORY_KEY = 'pps3d.editor.history.v1';
 export const EXPORT_KEY = 'pps3d.editor.exported.v1';
 export const VIEW_KEY = 'pps3d.editor.view.v1';
 const KEEP_PAST = 40;   // (each state may carry strokes: the entry must fit a browser's few MB)
+/** The commit this build is made from ("branch@commit" in VITE_BUILD), or ''. */
+export const buildCommit = (): string => (((import.meta as { env?: { VITE_BUILD?: string } }).env?.VITE_BUILD ?? '').split('@')[1] ?? '');
 export const EXPORT_REMIND_MS = 10 * 60 * 1000;
 
 export interface Persisted { base: string; now: Overrides; past: Overrides[]; future: Overrides[]; savedAt: number }

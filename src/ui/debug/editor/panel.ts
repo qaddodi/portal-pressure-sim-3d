@@ -9,18 +9,19 @@ import { cel } from '../../../scene/api.ts';
 import { frameFor } from '../../../clock/frame.ts';
 import { readBox, readMetric } from '../../layout-snap.ts';
 import { clearDraft, committedOverrides, overrides, saveDraft } from '../../../editor/store.ts';
-import { CAGE_LIMIT, ORGAN_LIMITS, type Cage, type Grid, type Stroke, type V3 } from '../../../editor/types.ts';
+import { CAGE_LIMIT, ORGAN_LIMITS, type Overrides, type Cage, type Grid, type Stroke, type V3 } from '../../../editor/types.ts';
+import { bakeOverrides } from '../../../editor/organ-apply.ts';
 import { cageBox, cageRest, organBox, organBoxes, organPointMap } from '../../../editor/organ-apply.ts';
 import { liveTransform } from './live.ts';
 import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
-import { VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
+import { buildCommit, VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
 import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './orphans.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
-import { History, differs, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -32,6 +33,7 @@ const loaded = overrides();   // the overrides this page was built with: handles
 export function mountEditor(): void {
   if (document.getElementById('editor-panel')) return;
   const hist = new History(loaded);
+  let snaps: NonNullable<Overrides['snapshots']> = { ...(loaded.snapshots ?? {}) };   // (named snapshots: kept with the draft and in the Export file, not in the undo history)
   const store = ((): StorageLike | null => { try { return localStorage; } catch { return null; } })();
   const session = ((): StorageLike | null => { try { return sessionStorage; } catch { return null; } })();
   const recovered = store ? restorableHistory(store, loaded) : null;
@@ -262,7 +264,7 @@ export function mountEditor(): void {
     status.textContent = `${dirty() ? 'Unsaved edits' : 'No edits since the last Save'} · ${Object.keys(hist.now.nodes ?? {}).length} junctions, ${Object.keys(hist.now.vessels ?? {}).length} vessels, ${Object.keys(hist.now.organs ?? {}).length} organs`;
     undoB.disabled = !hist.canUndo; redoB.disabled = !hist.canRedo;
     const remind = store ? exportReminder(store, hist.now, committedOverrides(), clock.now()) : null;
-    msgEl.textContent = [msg, remind, orphanNote()].filter(Boolean).join(' '); refreshOverlay();
+    msgEl.textContent = [msg, remind, orphanNote(), staleNote(loaded.meta?.base, buildCommit()), differs(hist.now, committedOverrides()) ? 'The draft differs from the committed file.' : ''].filter(Boolean).join(' '); refreshOverlay();
     if (store && !autosavePending) { autosavePending = true; clock.after(flushHistory, 800, 'editor-autosave'); }   // (a moment after the last edit, not per move)
   };
 
@@ -275,7 +277,7 @@ export function mountEditor(): void {
   const file = el('div', { className: 'bar' });
   const exp = el('button', { textContent: 'Export' });
   exp.onclick = () => {
-    const text = exportText(hist.now);
+    const text = fileText(bakeOverrides(hist.now), snaps, buildCommit());   // (strokes folded into the grid: a page that loads the file pays no per-stroke cost)
     if (store) { noteExported(store, hist.now, clock.now()); sync(); }
     void navigator.clipboard?.writeText(text).then(() => say('Copied to the clipboard and downloaded.'), () => say('Downloaded (the clipboard was refused).'));
     const a = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'overrides.json' }); a.click(); URL.revokeObjectURL(a.href);
@@ -284,7 +286,10 @@ export function mountEditor(): void {
     flushHistory();
     // (Save reloads the page: the view comes back with it, sessionStorage, once)
     const a = cel.rig.inspectAngles; if (session) saveView(session, { yaw: a.yaw, pitch: a.pitch, mode, organ: selOrgan, vessel: selVessel, panel: box.style.display !== 'none' });
-    saveDraft(hist.now);
+    const baked = bakeOverrides(hist.now);
+    if (differs(baked, hist.now)) hist.commit(baked, true);   // (the history then ends at what the reloaded page is built with, so it is kept)
+    flushHistory();
+    saveDraft(fileOverrides(baked, snaps, buildCommit()));
   };
   // Play slides with the edits: the panel and the pointer layer go, the free orbit is released (the slides' own camera, callouts and cards run), one quiet text control brings the editor back
   const playBack = el('button', { id: 'editor-back', textContent: 'Back to editing' }); playBack.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:calc(var(--z-perf,100) + 1);display:none;font:600 12px ui-monospace,Menlo,monospace;color:#fff;background:none;border:0;padding:10px;text-shadow:0 0 3px #000,0 0 6px #000;opacity:.8;touch-action:manipulation';
@@ -303,12 +308,22 @@ export function mountEditor(): void {
   clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); if (store) clearHistory(store); location.reload(); } };
   const dropO = el('button', { textContent: 'Drop orphan edits' }); dropO.onclick = () => { hist.commit(withoutOrphans(hist.now, known)); say('Dropped the edits that named nothing.'); sync(); };
   file.append(dropO);
+  // snapshots and the committed file
+  const snapName = el('input', { type: 'text', placeholder: 'Snapshot name' }); snapName.style.cssText = 'font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:6px;min-width:0;flex:1';
+  const snapSel = el('select');
+  const fillSnaps = (): void => { snapSel.replaceChildren(...Object.keys(snaps).map((n) => el('option', { value: n, textContent: n }))); };
+  const takeSnap = el('button', { textContent: 'Snapshot' }); takeSnap.onclick = () => { const n = snapName.value.trim() || `snapshot ${Object.keys(snaps).length + 1}`; snaps = { ...snaps, [n]: core(hist.now) }; snapName.value = ''; fillSnaps(); snapSel.value = n; say(`Kept “${n}”. Export and Save carry it.`); sync(); };
+  const restoreSnap = el('button', { textContent: 'Restore' }); restoreSnap.onclick = () => { const s0 = snaps[snapSel.value]; if (s0) { hist.commit(core({ ...s0, version: 1 })); say(`Restored “${snapSel.value}”. Undo takes it back.`); sync(); } };
+  const dropSnap = el('button', { textContent: 'Delete' }); dropSnap.onclick = () => { const { [snapSel.value]: _gone, ...rest } = snaps; snaps = rest; fillSnaps(); sync(); };
+  fillSnaps();
+  const toCommitted = el('button', { textContent: 'Reset to committed' }); toCommitted.onclick = () => { if (confirm('Throw away every edit in the draft and go back to the committed file?')) { hist.commit(core(committedOverrides())); say('Back to the committed file. Undo takes it back.'); sync(); } };
+  more.append(el('div', { className: 'bar' }, [snapName, takeSnap]), el('div', { className: 'bar' }, [snapSel, restoreSnap, dropSnap]), el('div', { className: 'bar' }, [toCommitted]));
   const paste = el('textarea', { placeholder: 'Paste an overrides file here, then Import', rows: 3 });
   paste.style.cssText = 'width:100%;box-sizing:border-box;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:6px';
   const importText = (text: string, from: string): void => {
     const o = parseOverrides(text);
     if (!o) { say(`${from} is not an overrides file (version 1 JSON).`); sync(); return; }
-    hist.commit(o); say(`Imported ${from}: ${Object.keys(o.nodes ?? {}).length} junctions, ${Object.keys(o.vessels ?? {}).length} vessels, ${Object.keys(o.organs ?? {}).length} organs. Undo takes it back.`); sync();
+    snaps = { ...snaps, ...(o.snapshots ?? {}) }; hist.commit(core(o)); say(`Imported ${from}: ${Object.keys(o.nodes ?? {}).length} junctions, ${Object.keys(o.vessels ?? {}).length} vessels, ${Object.keys(o.organs ?? {}).length} organs. Undo takes it back.`); sync();
   };
   const imp = el('button', { textContent: 'Import pasted' }); imp.onclick = () => importText(paste.value, 'the pasted text');
   const pick = el('input', { type: 'file', accept: 'application/json,.json' }); pick.style.display = 'none';

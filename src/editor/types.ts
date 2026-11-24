@@ -14,7 +14,9 @@ export interface Cage { n: readonly [number, number, number]; d: readonly V3[] }
 /** Liquify strokes baked into a displacement grid (nothing is dropped and no per-stroke cost is paid at load): `n` samples per axis over the box `lo`..`hi` (reference frame), `d` the offsets (scene units, xyz per sample, x fastest), read back with a smooth Catmull-Rom blend; zero outside the box. */
 export interface Grid { n: readonly [number, number, number]; lo: V3; hi: V3; d: readonly number[] }
 export interface OrganEdit { move?: V3; rotY?: number; scale?: number; strokes?: readonly Stroke[]; cage?: Cage; grid?: Grid }
-export interface Overrides { version: 1; nodes?: Record<string, NodeMove>; vessels?: Record<string, VesselEdit>; organs?: Record<string, OrganEdit> }
+/** What a file says about itself (the editor writes it, nothing reads it to build): the commit it was made on, so a thread can see a stale draft. */
+export interface Meta { base?: string }
+export interface Overrides { version: 1; nodes?: Record<string, NodeMove>; vessels?: Record<string, VesselEdit>; organs?: Record<string, OrganEdit>; meta?: Meta; /** named snapshots of the edits (the editor's), each without its own meta or snapshots */ snapshots?: Record<string, Omit<Overrides, 'meta' | 'snapshots'>> }
 export const EMPTY: Overrides = { version: 1 };
 /** Limits (scene units, radians): an organ moves at most this far from its reference; a liquified vertex at most LIQUIFY_LIMIT from its reference place. */
 export const ORGAN_LIMITS = { move: 0.15, rotY: 0.35, scaleMin: 0.85, scaleMax: 1.15 } as const;

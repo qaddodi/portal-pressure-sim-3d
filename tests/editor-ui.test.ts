@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
-import { differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
@@ -292,4 +292,17 @@ test('history: a step noticed after the change (a slider) goes back to what it w
 test('differs: equal drafts in different objects are the same, and the answer is cached per object', () => {
   const a = setNode(EMPTY, 'A', { dx: 1, dy: 1 }), b = setNode(EMPTY, 'A', { dx: 1, dy: 1 });
   assert.equal(differs(a, b), false); assert.equal(differs(a, a), false); assert.equal(differs(a, EMPTY), true);
+});
+
+test('versioning: the file carries the base commit and snapshots, edits are judged without them, migration refuses unknown versions', () => {
+  const o = setNode(EMPTY, 'A', { dx: 1, dy: 2 }), snap = { v1: core(setNode(EMPTY, 'B', { dx: 3, dy: 3 })) };
+  const text = fileText(o, snap, 'abc1234def');
+  const back = parseOverrides(text)!;
+  assert.equal(back.meta?.base, 'abc1234def'); assert.deepEqual(back.snapshots, snap);
+  assert.equal(exportText(back), exportText(o), 'meta and snapshots are not edits');
+  assert.equal(differs(back, o), false);
+  assert.deepEqual(core(fileOverrides(o, snap, 'x')), core(o));
+  assert.equal(parseOverrides('{"version":2,"nodes":{}}'), null, 'a newer format is refused, not guessed at');
+  assert.match(staleNote('abc1234def', 'fff0000aaa')!, /abc1234/); assert.equal(staleNote('abc1234def', 'abc1234def'), null); assert.equal(staleNote(undefined, 'x'), null);
+  assert.equal(fileText(EMPTY, {}, ''), '{\n  "version": 1\n}\n');
 });

@@ -10,9 +10,15 @@ const editorPage = (): boolean => {
   const preview = /\/preview\//.test(location.pathname) || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   return preview && new URLSearchParams(location.search).has('editor');
 };
+/** Any file's version to the current one (the one place a change of the format is handled): version 1 is the current; anything else is refused (null), never guessed at. */
+export function migrate(raw: unknown): Overrides | null {
+  const o = raw as { version?: unknown } | null;
+  if (!o || typeof o !== 'object') return null;
+  return o.version === 1 ? (o as Overrides) : null;
+}
 function load(): Overrides {
   if (editorPage()) {
-    try { const s = localStorage.getItem(DRAFT_KEY); if (s) { const o = JSON.parse(s) as Overrides; if (o?.version === 1) return o; } } catch { /* fall through */ }
+    try { const s = localStorage.getItem(DRAFT_KEY); if (s) { const o = migrate(JSON.parse(s)); if (o) return o; } } catch { /* fall through */ }
   }
   const c = committed as Overrides;
   return c?.version === 1 ? c : EMPTY;

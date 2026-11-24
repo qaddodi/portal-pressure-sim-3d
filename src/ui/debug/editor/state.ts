@@ -1,4 +1,5 @@
 // The editor's pure state (no DOM, no three): the overrides being edited, the edits that change them, and the undo history. Every edit returns a new Overrides (the old one stays in the history).
+import { migrate } from '../../../editor/store.ts';
 import { foldStrokes } from '../../../editor/organ-apply.ts';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS, type Cage, type OrganEdit, type Overrides, type Stroke, type V3 } from '../../../editor/types.ts';
 
@@ -104,15 +105,27 @@ export const resetOrgan = (o: Overrides, id: string): Overrides => { const organ
 /** The Overrides as the file wants it: no empty maps, so an untouched draft equals EMPTY. */
 export function tidy(o: Overrides): Overrides {
   const out: { -readonly [K in keyof Overrides]: Overrides[K] } = { version: 1 };
+  if (o.meta && Object.keys(o.meta).length) out.meta = o.meta;
+  if (o.snapshots && Object.keys(o.snapshots).length) out.snapshots = o.snapshots;
   if (Object.keys(o.nodes ?? {}).length) out.nodes = o.nodes!;
   if (Object.keys(o.vessels ?? {}).length) out.vessels = o.vessels!;
   if (Object.keys(o.organs ?? {}).length) out.organs = o.organs!;
   return out;
 }
-export const exportText = (o: Overrides): string => JSON.stringify(tidy(o), null, 2) + '\n';
+/** The edits themselves: no file notes (meta) and no snapshots. Equality of drafts is judged on this. */
+export const core = (o: Overrides): Overrides => { const { meta: _m, snapshots: _s, ...rest } = tidy(o); return rest; };
+export const exportText = (o: Overrides): string => JSON.stringify(core(o), null, 2) + '\n';
+/** The file as Save and Export write it: the edits, the named snapshots, and the commit it was made on. */
+export function fileText(o: Overrides, snapshots: Overrides['snapshots'], base: string): string {
+  return JSON.stringify(tidy({ ...core(o), ...(snapshots && Object.keys(snapshots).length ? { snapshots } : {}), ...(base ? { meta: { base } } : {}) }), null, 2) + '\n';
+}
+/** A draft's file content as an Overrides (what saveDraft keeps). */
+export const fileOverrides = (o: Overrides, snapshots: Overrides['snapshots'], base: string): Overrides => JSON.parse(fileText(o, snapshots, base)) as Overrides;
+/** The note for a draft made on another commit than this build, or null. */
+export const staleNote = (draftBase: string | undefined, build: string): string | null => (draftBase && build && draftBase !== build ? `This draft was made on commit ${draftBase.slice(0, 7)}; this build is ${build.slice(0, 7)}. Check it still fits.` : null);
 /** A draft read back from text (a paste or localStorage): version 1 or nothing. */
 export function parseOverrides(s: string): Overrides | null {
-  try { const o = JSON.parse(s) as Overrides; return o && o.version === 1 ? tidy(o) : null; } catch { return null; }
+  try { const o = migrate(JSON.parse(s)); return o ? tidy(o) : null; } catch { return null; }
 }
 
 /** Undo history. A drag calls `mark` once at its start and then `commit(next, true)` per move, so the whole drag is one undo step. */
