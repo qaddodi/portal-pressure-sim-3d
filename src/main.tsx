@@ -1,11 +1,13 @@
 // Boot order: the saved look (before anything paints) → fonts and the engine's first patient, in parallel → React → the first card.
 // Nothing is shown before it is ready: the screen is the look's ground until then, never white, never half-styled.
+// The first two imports, before any module that could pull in a component's own sheet: the bundler orders stylesheets by first import, so the lifted 2D sheets are always below the app's own and equal-specificity
+// rules cannot flip with the load order of a chunk (24 Nov: a lone slider filled half the action card). tests/css-same-selector.test.ts holds this.
+import './ui/shell/global.css';
+import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
 import './boot/started.ts';
 import { engineBooted } from './boot/engine-start.ts';   // (second, before any other module is evaluated: the engine's worker computes the first patient while the main thread builds the scene; boot/engine-start.ts)
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './ui/shell/global.css';
-import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
 import './ui/css3d-over-2d.css';   // 3D's own changes to the copied 2D rules, same selectors, loaded after them (the copies are never edited)
 import './ui/shell/ease.css';   // every control eases its state changes (zero weight: a control's own transition wins)
 import './ui/humanized.css';   // the 2D pills, chips and badges taken off: plain words (docs/HUMANIZED-DESIGN.md; tests/no-dot-pills.test.ts)
