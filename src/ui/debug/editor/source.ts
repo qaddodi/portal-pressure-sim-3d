@@ -10,6 +10,13 @@ export const organList = (): { id: string; centroid: V3 }[] => editableOrgans();
 export const organIds = (): readonly string[] => organList().map((o) => o.id);
 export const centroidOf = (id: string): V3 => organList().find((o) => o.id === id)?.centroid ?? [0, 0, 0];
 
+/** The share (0..1) of a course's length at a fractional vertex index (the inverse of pointAt). */
+export function uAtIndex(course: readonly V3[], f: number): number {
+  const seg: number[] = [0];
+  for (let i = 1; i < course.length; i++) seg.push(seg[i - 1]! + Math.hypot(course[i]![0] - course[i - 1]![0], course[i]![1] - course[i - 1]![1], course[i]![2] - course[i - 1]![2]));
+  const i = Math.min(course.length - 2, Math.max(0, Math.floor(f))), t = Math.min(1, Math.max(0, f - i)), total = seg[seg.length - 1]! || 1;
+  return (seg[i]! + (seg[i + 1]! - seg[i]!) * t) / total;
+}
 /** The point at `u` (0..1 by length) along a course. */
 export function pointAt(course: readonly V3[], u: number): V3 {
   const seg: number[] = [0];

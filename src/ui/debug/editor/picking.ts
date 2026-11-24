@@ -34,6 +34,16 @@ export function nearestLine(lines: readonly (readonly (readonly [number, number]
   });
   return best;
 }
+/** Where along the polyline (of screen points) the nearest point to (x, y) lies, as a fractional vertex index (segment i + t), or null when it is farther than `radius`. */
+export function nearestParam(line: readonly (readonly [number, number])[], x: number, y: number, radius: number): number | null {
+  let best: number | null = null, bd = radius * radius;
+  for (let k = 1; k < line.length; k++) {
+    const [ax, ay] = line[k - 1]!, [bx, by] = line[k]!, dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / L)) : 0, d = (x - (ax + dx * t)) ** 2 + (y - (ay + dy * t)) ** 2;
+    if (d <= bd) { bd = d; best = k - 1 + t; }
+  }
+  return best;
+}
 /** How far from a handle a press still grabs it (CSS px): a finger needs more than a mouse, and neither under 22. */
 export const hitRadius = (touch: boolean): number => (touch ? 30 : 22);
 /** The size of a handle dot (CSS px): larger where the pointer is a finger. */

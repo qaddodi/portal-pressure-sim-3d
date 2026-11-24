@@ -16,14 +16,24 @@ export function setNode(o: Overrides, id: string, m: { dx: number; dy: number; d
   return { ...o, nodes };
 }
 /** Set the control point of vessel `id` at `u` (merged with a point within 0.02 of it) to the offsets; all-zero removes it. */
-export function setControl(o: Overrides, id: string, u: number, m: { dx: number; dy: number; dz?: number }): Overrides {
-  const pts = [...(o.vessels?.[id]?.pts ?? [])].filter((p) => Math.abs(p.u - u) > 0.02);
-  if (m.dx || m.dy || m.dz) pts.push({ u: r4(clamp(u, 0, 1)), dx: r4(m.dx), dy: r4(m.dy), ...(m.dz ? { dz: r4(m.dz) } : {}) });
+export function setControl(o: Overrides, id: string, u: number, m: { dx: number; dy: number; dz?: number }, keep = false): Overrides {
+  const before = o.vessels?.[id]?.pts ?? [], had = before.some((p) => Math.abs(p.u - u) <= 0.02), pts = [...before].filter((p) => Math.abs(p.u - u) > 0.02);
+  if (m.dx || m.dy || m.dz || had || keep) pts.push({ u: r4(clamp(u, 0, 1)), dx: r4(m.dx), dy: r4(m.dy), ...(m.dz ? { dz: r4(m.dz) } : {}) });
   pts.sort((a, b) => a.u - b.u);
   const vessels = { ...o.vessels };
   if (pts.length) vessels[id] = { pts }; else delete vessels[id];
   return { ...o, vessels };
 }
+/** A control point at `u` with no offset yet (a place the vessel is pinned at; drag it to bend). Added anywhere along the vessel. */
+export const addControl = (o: Overrides, id: string, u: number): Overrides => setControl(o, id, u, controlOf(o, id, u), true);
+/** Takes the control point near `u` away (the vessel's course there is the plan's again). */
+export function removeControl(o: Overrides, id: string, u: number): Overrides {
+  const pts = (o.vessels?.[id]?.pts ?? []).filter((p) => Math.abs(p.u - u) > 0.02), vessels = { ...o.vessels };
+  if (pts.length) vessels[id] = { pts }; else delete vessels[id];
+  return { ...o, vessels };
+}
+/** The control points a vessel shows handles for: its own, or three starting places while it has none. */
+export const knotsOf = (o: Overrides, id: string): number[] => { const k = (o.vessels?.[id]?.pts ?? []).map((p) => p.u); return k.length ? k : [0.25, 0.5, 0.75]; };
 export const controlOf = (o: Overrides, id: string, u: number): { dx: number; dy: number; dz: number } => {
   const p = o.vessels?.[id]?.pts.find((q) => Math.abs(q.u - u) <= 0.02);
   return { dx: p?.dx ?? 0, dy: p?.dy ?? 0, dz: p?.dz ?? 0 };

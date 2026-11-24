@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
-import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
-import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
+import { addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
-import { pointAt } from '../src/ui/debug/editor/source.ts';
+import { pointAt, uAtIndex } from '../src/ui/debug/editor/source.ts';
 import { applyVesselOverrides } from '../src/editor/vessel-apply.ts';
 import { editableSkeleton } from '../src/editor/vessel-skeleton.ts';
 import { applyOrganEdit, organCentroid } from '../src/editor/organ-apply.ts';
@@ -31,7 +31,8 @@ test('control points merge near one another, stay sorted, and zero removes', () 
   o = setControl(o, 'V', 0.51, { dx: 3, dy: 3 });
   assert.deepEqual(o.vessels!.V!.pts.map((p) => p.u), [0.25, 0.51]);
   assert.deepEqual(controlOf(o, 'V', 0.5), { dx: 3, dy: 3, dz: 0 });
-  o = setControl(setControl(o, 'V', 0.25, { dx: 0, dy: 0 }), 'V', 0.51, { dx: 0, dy: 0 });
+  assert.deepEqual(controlOf(setControl(o, 'V', 0.25, { dx: 0, dy: 0 }), 'V', 0.25), { dx: 0, dy: 0, dz: 0 }, 'a point dragged back to zero stays (it is removed on purpose)');
+  o = removeControl(removeControl(o, 'V', 0.25), 'V', 0.51);
   assert.equal(isEmpty(o), true);
 });
 
@@ -235,4 +236,19 @@ test('import: an exported file reads back to the same overrides, and a bad file 
   const o = setOrgan(setControl(setNode(EMPTY, 'N', { dx: 3, dy: -4, dz: 0.01 }), 'V', 0.4, { dx: 1, dy: 2 }), 'liver', { rotY: 0.1 });
   assert.deepEqual(parseOverrides(exportText(o)), tidy(o));
   assert.equal(parseOverrides(''), null); assert.equal(parseOverrides('[]'), null); assert.equal(parseOverrides('{"version":9}'), null);
+});
+
+test('control points: added anywhere, any number, removed on purpose; a tap finds its place along the vessel', () => {
+  let o = EMPTY;
+  assert.deepEqual(knotsOf(o, 'V'), [0.25, 0.5, 0.75], 'three starting places while there are none');
+  for (const u of [0.1, 0.33, 0.5, 0.62, 0.9]) o = addControl(o, 'V', u);
+  assert.deepEqual(knotsOf(o, 'V'), [0.1, 0.33, 0.5, 0.62, 0.9], 'five points, in order');
+  o = setControl(o, 'V', 0.33, { dx: 4, dy: 0 });
+  assert.equal(controlOf(o, 'V', 0.33).dx, 4);
+  o = removeControl(o, 'V', 0.5);
+  assert.deepEqual(knotsOf(o, 'V'), [0.1, 0.33, 0.62, 0.9]);
+  const screen: [number, number][] = [[0, 0], [100, 0], [100, 100]], course: [number, number, number][] = [[0, 0, 0], [1, 0, 0], [1, 1, 0]];
+  const f = nearestParam(screen, 100, 50, 10)!;
+  assert.ok(Math.abs(f - 1.5) < 1e-9 && Math.abs(uAtIndex(course, f) - 0.75) < 1e-9, 'a tap on the middle of the second leg is three quarters along');
+  assert.equal(nearestParam(screen, 50, 50, 10), null);
 });

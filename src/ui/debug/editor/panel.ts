@@ -17,13 +17,12 @@ import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
 import { clearHistory, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
 import { Overlay } from './overlay.ts';
-import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
-import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
+import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
+import { History, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
-const CTRL_U = [0.25, 0.5, 0.75] as const;
 const coarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const hitPx = (e: PointerEvent): number => hitRadius(e.pointerType === 'touch' || coarse());
 const dotPx = (n: number): number => dotSize(n, coarse());
@@ -163,7 +162,7 @@ export function mountEditor(): void {
     else overlay.clear('pick');
     const vid = vessels ? (target?.kind === 'ctrl' ? target.vid : selVessel) : null;
     if (vid && vesselById.has(vid)) {
-      overlay.dots('ctrl', { pos: CTRL_U.map((u) => ctrlShown(vid, u)), size: dotPx(12), color: 0x41d6ff });
+      overlay.dots('ctrl', { pos: knotsOf(hist.now, vid).map((u) => ctrlShown(vid, u)), size: dotPx(12), color: 0x41d6ff });
       overlay.line('sel', vesselById.get(vid)!.course, 0x41d6ff);
     } else { overlay.clear('ctrl'); overlay.clear('sel'); }
     if (mode === 'organs' && selOrgan) {
@@ -207,7 +206,7 @@ export function mountEditor(): void {
       dyn.append(el('div', { className: 'hint', textContent: 'Drag turns the figure all the way round. Pinch and the other gestures work as usual.' }));
       dyn.append(bar([{ label: 'Face front', run: () => { cel.rig.inspectTo(0, 0); frameFor('editor', 900); } }, { label: 'Side', run: () => { cel.rig.inspectTo(Math.PI / 2, 0); frameFor('editor', 900); } }, { label: 'Top', run: () => { cel.rig.inspectTo(0, 1.2); frameFor('editor', 900); } }]));
     } else if (mode === 'vessels') {
-      dyn.append(el('div', { className: 'hint', textContent: 'Orange: junctions (drag moves every vessel end there). Tap a vessel to get its three blue control points; drag one to bend it. Save applies the edit.' }));
+      dyn.append(el('div', { className: 'hint', textContent: 'Orange: junctions (drag moves every vessel end there). Tap a vessel to pick it; tap it again to add a blue control point anywhere along it, drag a point to bend, Remove point takes one away. Save applies the edit.' }));
       const sel = (): { get: () => { dx: number; dy: number; dz: number }; put: (m: { dx: number; dy: number; dz: number }) => void } | null => {
         const t = target; if (!t) return null;
         return t.kind === 'node'
@@ -219,7 +218,8 @@ export function mountEditor(): void {
       syncers.push(() => { which.textContent = !target ? 'Nothing picked.' : target.kind === 'node' ? `Junction ${target.id}` : `${target.vid} at ${Math.round(target.u * 100)}%`; });
       dyn.append(which);
       dyn.append(slider('Depth (scene units)', -0.2, 0.2, 0.002, () => sel()?.get().dz ?? 0, (z) => { const s = sel(); if (s) { const g = s.get(); s.put({ ...g, dz: z }); } }));
-      dyn.append(bar([{ label: 'Reset picked', off: () => !target, run: () => { const s = sel(); if (s) s.put({ dx: 0, dy: 0, dz: 0 }); } },
+      dyn.append(bar([{ label: 'Remove point', off: () => target?.kind !== 'ctrl', run: () => { if (target?.kind === 'ctrl') { hist.commit(removeControl(hist.now, target.vid, target.u)); target = null; } } },
+        { label: 'Reset picked', off: () => !target, run: () => { const s = sel(); if (s) s.put({ dx: 0, dy: 0, dz: 0 }); } },
         { label: 'Reset vessel', off: () => !(target?.kind === 'ctrl' ? target.vid : selVessel), run: () => { const v = target?.kind === 'ctrl' ? target.vid : selVessel; if (v) { hist.commit(resetVessel(hist.now, v)); } } },
         { label: 'Reset junction', off: () => target?.kind !== 'node', run: () => { if (target?.kind === 'node') hist.commit(resetNode(hist.now, target.id)); } }]));
     } else {
@@ -322,7 +322,7 @@ export function mountEditor(): void {
       const cands: Target[] = [], pts: ([number, number] | null)[] = [];
       for (const n of sk.nodes) { cands.push({ kind: 'node', id: n.id }); pts.push(screenOf(nodeShown(n.id))); }
       const vid = target?.kind === 'ctrl' ? target.vid : selVessel;
-      if (vid) for (const u of CTRL_U) { cands.push({ kind: 'ctrl', vid, u }); pts.push(screenOf(ctrlShown(vid, u))); }
+      if (vid) for (const u of knotsOf(hist.now, vid)) { cands.push({ kind: 'ctrl', vid, u }); pts.push(screenOf(ctrlShown(vid, u))); }
       let i = nearest(pts.slice(sk.nodes.length), x, y, hitR);   // (the control points first: they sit on a vessel, over its junctions)
       i = i >= 0 ? i + sk.nodes.length : nearest(pts.slice(0, sk.nodes.length), x, y, hitR);
       if (i >= 0) {
@@ -332,7 +332,13 @@ export function mountEditor(): void {
       } else {
         const lines = sk.vessels.map((v) => v.course.map((p) => screenOf(p) ?? [NaN, NaN] as [number, number]));
         const k = nearestLine(lines, x, y, hitR);
-        selVessel = k >= 0 ? sk.vessels[k]!.id : null; target = null;
+        const tapped = k >= 0 ? sk.vessels[k]!.id : null;
+        const f = k >= 0 && tapped === vid ? nearestParam(lines[k]!, x, y, hitR) : null;
+        if (tapped && tapped === vid && f !== null) {   // (a tap on the vessel that is already picked adds a control point there)
+          const u = Math.round(uAtIndex(sk.vessels[k]!.course, f) * 1000) / 1000;
+          if (u > 0.03 && u < 0.97) { hist.commit(addControl(hist.now, tapped, u)); target = { kind: 'ctrl', vid: tapped, u }; say('Point added: drag it to bend. Tap another place for more.'); sync(); return; }
+        }
+        selVessel = tapped; target = null;
       }
       sync(); return;
     }
