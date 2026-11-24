@@ -3,6 +3,7 @@
 // tubes (the duodenum's funnel from the stomach's cut with no seam, the packed loops, the colon whose rectum end alone fades); the gut draws as one surface (a depth pass, one fill a pixel, the outlines last); the caudate lobe is
 // the mock's egg, hidden until a slide or a case calls for it; and the baked file carries all of it.
 process.env.PPS_ANATOMY = 'placed';
+import type { Object3D } from 'three';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -145,6 +146,13 @@ test('the gut draws as one surface: a depth pass of every part, then the fills (
   for (const id of L.GUT_GROUP) {
     const o = layer.byId.get(id)!, pre = o.group.children.find((k) => k.name === 'gut-depth');
     assert.ok(pre, `${id}: a depth pass`);
+    // the specks (iPhone, 24 Nov): the fill is tested against a depth another program wrote for the same wall, so the pass sits behind it by a margin and computes its place in the fill's own order
+    const pm = (pre as Object3D & { material: { polygonOffset: boolean; polygonOffsetFactor: number; polygonOffsetUnits: number; vertexShader: string } }).material;
+    assert.ok(pm.polygonOffset && pm.polygonOffsetFactor > 0 && pm.polygonOffsetUnits > 0, `${id}: the depth pass is pushed back, so its own fill never loses to it`);
+    const place = (vs: string) => vs.match(/gl_Position = [^;]+;/)![0];
+    assert.match(o.toon.vertexShader, /vec4 mv = modelViewMatrix \* vec4\(position, 1\.0\);/);
+    assert.match(pm.vertexShader, /vec4 mv = modelViewMatrix \* vec4\(position, 1\.0\);/, `${id}: the depth pass takes the model-view first, as the fill does`);
+    assert.equal(place(pm.vertexShader), place(o.toon.vertexShader), `${id}: the same position expression as the fill`);
     pres.push(pre.renderOrder); fills.push(o.toonMesh.renderOrder); inks.push(o.group.children.find((k) => (k as { material?: unknown }).material === o.ink)!.renderOrder);
     assert.ok(o.toon.stencilWrite && o.toon.stencilRef === 2, `${id}: one fill a pixel`);
     assert.ok(!('art' in o.toon.uniforms) || id === 'stomach', `${id}: no painted art on a tube`);

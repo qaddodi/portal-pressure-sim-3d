@@ -244,7 +244,10 @@ export const organPreVs = (esoA: boolean, cutA: boolean): string => /* glsl */ `
 ${esoA ? 'attribute float esoA;\n' : ''}${cutA ? 'attribute float cutA;\n' : ''}varying float vA;
 void main() {
   vA = ${esoA ? 'esoA' : '1.0'} * ${cutA ? 'step(0.5, cutA)' : '1.0'};
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // (the SAME expression, in the same order, as the fill's ORGAN_VS: P * (MV * p), never (P * MV) * p. The fill is depth-tested against this pass, and a phone's GPU rounds the two orders apart by a step
+  //  of the depth buffer, so half a wall's pixels lost to their own depth and showed the page through: black specks on the stomach and the gut, iPhone 24 Nov. layer.ts also pushes this pass back by PRE_DEPTH_*)
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mv;
 }`;
 export const ORGAN_PRE_FS = /* glsl */ `
 uniform float fade;

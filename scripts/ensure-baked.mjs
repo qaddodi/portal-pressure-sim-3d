@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 if (spawnSync(process.execPath, [fileURLToPath(new URL('./bake-organs.mjs', import.meta.url)), '--check'], { stdio: 'ignore' }).status !== 0) spawnSync(process.execPath, [fileURLToPath(new URL('./bake-organs.mjs', import.meta.url))], { stdio: 'inherit' });
 // (every deck's chart data, Plan 33: only the decks whose file is missing or for other numbers are worked out again; a first run is minutes on a few threads)
 if (spawnSync(process.execPath, [fileURLToPath(new URL('./bake-charts.mjs', import.meta.url)), '--check'], { stdio: 'ignore' }).status !== 0) spawnSync(process.execPath, [fileURLToPath(new URL('./bake-charts.mjs', import.meta.url))], { stdio: 'inherit' });
-const files = ['skins.bin', 'circuit-skins.bin'].map((n) => fileURLToPath(new URL(`../public/anatomy/${n}`, import.meta.url)));
+// (both anatomies' skins: today's and the approved placement's, PPS_ANATOMY=placed; bake-skins.mjs bakes both)
+const files = ['skins.bin', 'circuit-skins.bin', 'skins-placed.bin', 'circuit-skins-placed.bin'].map((n) => fileURLToPath(new URL(`../public/anatomy/${n}`, import.meta.url)));
 // (the digest only covers what the tubes are made FROM, not the mesher: a file older than the skin code or the circuit's skins was made by other code, so it is baked again)
 const srcDir = fileURLToPath(new URL('../src/scene/vessels/skin/', import.meta.url)), circuitSkins = fileURLToPath(new URL('../src/scene/circuit/skins.ts', import.meta.url));
 const newest = Math.max(statSync(circuitSkins).mtimeMs, ...readdirSync(srcDir).filter((f) => f.endsWith('.ts')).map((f) => statSync(srcDir + f).mtimeMs));
