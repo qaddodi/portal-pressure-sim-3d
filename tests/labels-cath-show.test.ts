@@ -203,3 +203,37 @@ test('every stack leader is ONE straight line from its row to its point, whateve
     }
   }
 });
+
+test('no stack leader crosses any text: neither row, the bracket nor the HVPG card, nor the other leader (24 Nov: the FHVP leader ran through the bracket on an iPhone)', async () => {
+  const { placeClean, sumLayout, tagType, placeStack } = await import('../src/scene/labels/cath.ts');
+  const { segHitsBox, segsCross } = await import('../src/scene/labels/cath2d/seg-hits.copied.js');
+  const r = (kicker: string, v: string, unit = 'mmHg') => ({ kicker, value: v, unit, tone: 'free' as const });
+  const cases = [
+    { vp: { w: 430, h: 932 }, tip: [230, 514], ahead: [140, 539] },
+    { vp: { w: 430, h: 932 }, tip: [140, 539], ahead: [230, 514] },
+    { vp: { w: 430, h: 932 }, tip: [300, 560], ahead: [120, 520] },
+    { vp: { w: 1280, h: 800 }, tip: [600, 400], ahead: [650, 330] },
+    { vp: { w: 1280, h: 800 }, tip: [320, 250], ahead: [300, 600] },
+    { vp: { w: 932, h: 430 }, tip: [500, 250], ahead: [420, 200] },
+  ] as const;
+  for (const c of cases) {
+    const band = { x0: 0, y0: 56, x1: c.vp.w, y1: c.vp.h };
+    for (const swap of [false, true]) for (const mid of [false, true]) {
+      const g0 = sumLayout(tagType(c.vp), [r('WHVP', '16.3'), r('FHVP', '5.2')], r('HVPG', '11.1'), measure, false, swap);
+      const at = placeStack(c.tip as never, c.ahead as never, g0.w, g0.h, band, [], mid);
+      const { plan, ...at2 } = placeClean(at, g0, [c.ahead as never, c.tip as never], swap, band, []); void at2;
+      const g = sumLayout(tagType(c.vp), [r('WHVP', '16.3'), r('FHVP', '5.2')], r('HVPG', '11.1'), measure, false, plan.swap);
+      const off = { x: at2.x, y: at2.y };
+      const bm = g.rows.map((q) => q.y + q.h / 2);
+      const boxes = [...g.rows.map((q) => ({ x: q.x, y: q.y, w: q.w, h: q.h })), { x: g.calc.x, y: g.calc.y, w: g.calc.w, h: g.calc.h }, { x: g.brace.x, y: Math.min(bm[0]!, bm[1]!), w: 6, h: Math.abs(bm[0]! - bm[1]!) }];
+      const segs = plan.d.map((d) => d.match(/-?[\d.]+/g)!.map(Number) as [number, number, number, number]);
+      const label = `${c.vp.w}x${c.vp.h} tip ${c.tip} swap ${swap} mid ${mid}`;
+      assert.ok(plan.clean, `a clean leader plan exists (${label})`);
+      for (const s of segs) for (const b of boxes) {
+        // a leader leaves its own row's edge: shrink by 1.5 px so the starting edge is not a hit
+        assert.ok(!segHitsBox({ x0: s[0], y0: s[1], x1: s[2], y1: s[3] }, { x0: b.x + 1.5, y0: b.y + 1.5, x1: b.x + b.w - 1.5, y1: b.y + b.h - 1.5 }, 0), `a leader crosses text (${label})`);
+      }
+      assert.ok(!segsCross(segs[0]!, segs[1]!), `the leaders cross (${label})`);
+    }
+  }
+});

@@ -14,7 +14,6 @@ import { PILL_GAP, placePillsInto, pillsClear } from './cath2d/cath-pill.copied.
 import { placeBeside } from './cath2d/cath-place.copied.js';
 import { planStack } from './cath2d/cath-leads.copied.js';
 import { segsCross, segHitsBox } from './cath2d/seg-hits.copied.js';
-import { boxLeader } from './tag-lead.ts';
 
 const C = LS.CATH;
 export { PILL_GAP };
@@ -228,17 +227,63 @@ export function planLeaders(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt],
   // the other order: the two rows exchange their places in the column (the gap between them is kept)
   const alt = cur.map((r) => ({ ...r })), y0 = cur[top]!.y, gap = cur[bot]!.y - (cur[top]!.y + cur[top]!.h);
   alt[bot]!.y = y0; alt[top]!.y = y0 + cur[bot]!.h + gap;
-  const lines = (rs: Rect[]): [number, number, number, number][] => [0, 1].map((j) => boxLeader(rs[j]!, { x: points[j]![0], y: points[j]![1] }) ?? [rs[j]!.x, rs[j]!.y + rs[j]!.h / 2, points[j]![0], points[j]![1]]);
-  const faults = (rs: Rect[], L: [number, number, number, number][]): number => {
-    let n = segsCross(L[0]!, L[1]!) ? 1 : 0;
-    for (let j = 0; j < 2; j++) { const o = rs[1 - j]!; if (segHitsBox({ x0: L[j]![0], y0: L[j]![1], x1: L[j]![2], y1: L[j]![3] }, { x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }, 0)) n++; }
-    return n;
+  // Text the leaders must never cross (Mohammad, 24 Nov: "they shouldn't intersect text"): both rows, the bracket and the HVPG's card, in the page's frame.
+  const B = C.BRACE, br = geom.brace, bm = geom.rows.map((r) => r.y + r.h / 2);
+  const brace: Rect = { x: x + br.x, y: y + Math.min(bm[0]!, bm[1]!) - 2, w: B.width, h: Math.abs(bm[0]! - bm[1]!) + 4 };
+  const calc: Rect = { x: x + geom.calc.x, y: y + geom.calc.y, w: geom.calc.w, h: geom.calc.h };
+  const box = (r: Rect) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h });
+  type Seg = [number, number, number, number];
+  // Every way out of a row: from its left edge, its top and its bottom (never the right, which faces the bracket). The shortest straight line that touches no text wins.
+  const anchors = (r: Rect): [number, number][] => {
+    const o: [number, number][] = [];
+    for (const k of [0.5, 0.25, 0.75]) o.push([r.x, r.y + r.h * k]);
+    for (const k of [0.5, 0.2, 0.35, 0.65, 0.8]) { o.push([r.x + r.w * k, r.y]); o.push([r.x + r.w * k, r.y + r.h]); }
+    return o;
   };
-  const L1 = lines(cur), L2 = lines(alt), f1 = faults(cur, L1), f2 = faults(alt, L2);
-  const useAlt = f2 < f1, L = useAlt ? L2 : L1;
+  const hits = (L: Seg, r: Rect, pad: number): boolean => segHitsBox({ x0: L[0], y0: L[1], x1: L[2], y1: L[3] }, box(r), pad);
+  const plan = (rs: Rect[]): { L: Seg[]; n: number; len: number } => {
+    const best: { L: Seg; n: number; len: number }[][] = [0, 1].map((j) => anchors(rs[j]!).map((a) => {
+      const L: Seg = [a[0], a[1], points[j]![0], points[j]![1]];
+      const o = rs[1 - j]!, own = { x: rs[j]!.x + 1, y: rs[j]!.y + 1, w: rs[j]!.w - 2, h: rs[j]!.h - 2 };
+      return { L, n: (hits(L, o, 0) ? 1 : 0) + (hits(L, calc, 0) ? 1 : 0) + (hits(L, brace, 0) ? 1 : 0) + (hits(L, own, 0) ? 1 : 0), len: Math.hypot(L[2] - L[0], L[3] - L[1]) };
+    }));
+    let out: { L: Seg[]; n: number; len: number } | null = null;
+    for (const a of best[0]!) for (const b of best[1]!) {
+      const n = a.n + b.n + (segsCross(a.L, b.L) ? 1 : 0), len = a.len + b.len;
+      if (!out || n < out.n || (n === out.n && len < out.len)) out = { L: [a.L, b.L], n, len };
+    }
+    return out!;
+  };
+  const P1 = plan(cur), P2 = plan(alt), useAlt = P2.n < P1.n, P = useAlt ? P2 : P1, L = P.L;
+  const f1 = P1.n, f2 = P2.n;
   const f = (n: number) => n.toFixed(1), d = ['', ''] as [string, string];
   for (let j = 0; j < 2; j++) d[j] = `M${f(L[j]![0] - x)} ${f(L[j]![1] - y)} L${f(L[j]![2] - x)} ${f(L[j]![3] - y)}`;
   return { swap: useAlt ? !(S.swap as boolean) : (S.swap as boolean), clean: Math.min(f1, f2) === 0, d, dots: [[points[0][0] - x, points[0][1] - y], [points[1][0] - x, points[1][1] - y]] };
+}
+
+/** Where the stack stands so that its leaders touch no text: the usual place when its straight leaders are clean there; else the nearest place (beside the points, above them, below them, level
+ *  with them, on either side) that is clean, clear of the cards and of the points; the usual place when none is. A leader never runs through the stack's own rows, bracket or HVPG, so the
+ *  stack must stand where every point can be reached round them (Mohammad, 24 Nov). */
+export function placeClean(at: { x: number; y: number }, geom: SumGeom, points: readonly [Pt, Pt], kept: boolean, band: Band, blockers: readonly Box[]): { x: number; y: number; plan: ReturnType<typeof planLeaders> } {
+  const first = planLeaders([at.x, at.y], geom, points, kept);
+  if (first.clean) return { ...at, plan: first };
+  const S = C.STACK, top = stackTop(band), yMax = Math.max(top, band.y1 - geom.h - 12), xMin = band.x0 + 12, xMax = Math.max(xMin, band.x1 - geom.w - 12);
+  const xs = Math.min(points[0][0], points[1][0]), xe = Math.max(points[0][0], points[1][0]), ys = Math.min(points[0][1], points[1][1]), ye = Math.max(points[0][1], points[1][1]);
+  const cx = (xs + xe) / 2 - geom.w / 2, cy = (ys + ye) / 2 - geom.h / 2;
+  const X = [xe + S.off, xs - S.off - geom.w, cx, xe + S.off * 2.5, xs - S.off * 2.5 - geom.w], Y = [ys - geom.h - S.off, ye + S.off, cy, ys - geom.h * 1.6, ye + geom.h * 0.6 + S.off];
+  const cover = (x: number, y: number) => blockers.reduce((n, b) => n + Math.max(0, Math.min(x + geom.w, b.x1) - Math.max(x, b.x0)) * Math.max(0, Math.min(y + geom.h, b.y1) - Math.max(y, b.y0)), 0);
+  // the stack never stands on a point
+  const onPoint = (x: number, y: number) => points.some((q) => q[0] > x - 6 && q[0] < x + geom.w + 6 && q[1] > y - 6 && q[1] < y + geom.h + 6);
+  let best: { x: number; y: number; plan: ReturnType<typeof planLeaders>; c: number } | null = null;
+  for (const px of X) for (const py of Y) {
+    const x = clamp(px, xMin, xMax), y = clamp(py, top, yMax);
+    if (onPoint(x, y)) continue;
+    const plan = planLeaders([x, y], geom, points, kept);
+    if (!plan.clean) continue;
+    const c = cover(x, y) * 1e3 + Math.hypot(x - at.x, y - at.y);
+    if (!best || c < best.c) best = { x, y, plan, c };
+  }
+  return best ? { x: best.x, y: best.y, plan: best.plan } : { ...at, plan: first };
 }
 
 // ── how they come ──

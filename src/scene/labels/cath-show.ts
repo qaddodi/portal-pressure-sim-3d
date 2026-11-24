@@ -9,7 +9,7 @@ import { LABEL_NAMES } from './names.copied.ts';
 import { LS, type Vp } from './type.ts';
 import { hvpgSev } from '../../ui/cuts.ts';
 import {
-  tagType, tagSize, placePills, swapOf, tightFor, sumLayout, placeStack, planLeaders, sumFlow, easeArrive, SUM_MS,
+  tagType, tagSize, placePills, swapOf, tightFor, sumLayout, placeStack, planLeaders, placeClean, sumFlow, easeArrive, SUM_MS,
   type Band, type Measure, type Pt, type Reading, type Side, type SumGeom, type TagType, type Tone,
 } from './cath.ts';
 
@@ -159,9 +159,9 @@ export class CathShow {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
       let geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);
-      const at = placeStack(inp.tip, inp.ahead, geom.w, geom.h, inp.band, inp.blockers, !!inp.mid);
-      // the order of the rows and the leaders are planned together once the place is known (cath-leads.js: nothing crosses)
-      const plan = planLeaders([at.x, at.y], geom, [inp.ahead, inp.tip], swap);
+      const at0 = placeStack(inp.tip, inp.ahead, geom.w, geom.h, inp.band, inp.blockers, !!inp.mid);
+      // the order of the rows and the leaders are planned together once the place is known (nothing crosses a leader or any text; a place where a leader cannot reach its point is moved)
+      const { plan, ...at } = placeClean(at0, geom, [inp.ahead, inp.tip], swap, inp.band, inp.blockers);
       if (plan.swap !== swap) geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, plan.swap);
       this.swapWas = plan.swap;
       const leaders = { d: plan.d, dots: plan.dots };
