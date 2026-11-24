@@ -158,8 +158,12 @@ export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { 
 /** Where each card stands (the 2D callout rule: above its point, or below it, slid sideways until it clears the cards, the view's edges and the others; the first clear
  *  spot in that order wins, and a card with none takes the one that covers least). In order, so the first of a slide has its pick. */
 export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[], before: readonly Box[] = []): CardOut[] {
-  const placed: Box[] = [...before], out: CardOut[] = [];
-  for (const it of items) {
+  const placed: Box[] = [...before];
+  // The biggest card first (a stable sort: equal areas keep the slide's order). A small mark stood first in the middle of a short view left bands too thin for the portal blood's split, which then stood on
+  // the mark ("94% bypasses the liver" over "Covered stent", Encephalopathy 10 on an iPhone: a 440 x 138 view, a 204 x 73 split and a 93 x 19 mark; 120 of 4480 anchor pairs had no clear place before).
+  const order = items.map((it, i) => ({ it, i })).sort((a, b) => b.it.w * b.it.h - a.it.w * a.it.h || a.i - b.i);
+  const out: CardOut[] = [];
+  for (const { it } of order) {
     if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
     if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
@@ -187,7 +191,8 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
     placed.push(best!.o.box);
     out.push(best!.o);
   }
-  return out;
+  const at = new Map(out.map((o) => [o.id, o] as const));
+  return items.map((it) => at.get(it.id)!);   // (the slide's order back: the callers read the result by position)
 }
 
 /** A reading that is still unknown ("…", the 2D VALUE_PENDING) stands nowhere: its tag stays hidden until the number is in (it used to show "…" and then change). */
