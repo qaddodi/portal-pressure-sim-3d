@@ -34,7 +34,12 @@ export function vesselSmoothness(): VesselSmooth[] {
   return out;
 }
 
-export interface JoinSmooth { a: string; b: string; /** the gap between the two ends, scene units */ gap: number; /** the angle between their headings, degrees */ turn: number; /** the radius step, as a share */ step: number }
+export interface JoinSmooth { a: string; b: string; /** the gap between the two ends, scene units */ gap: number; /** the angle between their headings, degrees */ turn: number; /** the radius step, as a share */ step: number;
+  /** over a window of WINDOW either side of the join, on the joined path: the sharpest turn per step, the biggest change of turn, and the biggest change of radius per step (a share): the join judged by the vessel bar, so a size jump with no taper fails (Mohammad, 24 Nov: "a big step change in size from small to large, without smooth transition") */
+  wturn: number; wjerk: number; widen: number }
+
+/** How far either side of a join it is judged as one path: 0.1 scene units (about 2.4 cm). */
+export const WINDOW = 0.1;
 
 export function joinSmoothness(): JoinSmooth[] {
   const out: JoinSmooth[] = [];
@@ -47,7 +52,20 @@ export function joinSmoothness(): JoinSmooth[] {
     const ta = a.tangentAt(ua) as V, tb = b.tangentAt(ub) as V;
     const outA: V = ua === 1 ? ta : [-ta[0], -ta[1], -ta[2]], outB: V = ub === 1 ? tb : [-tb[0], -tb[1], -tb[2]];
     const ra = a.radiusAt(ua), rb = b.radiusAt(ub);
-    out.push({ a: r.a, b: r.b, gap: len(sub(pa, pb)), turn: 180 - ang(outA, outB), step: Math.abs(ra - rb) / Math.max(1e-6, Math.min(ra, rb)) });
+    // the joined path: a's last WINDOW walked toward the join, then b's first WINDOW walked away from it
+    const side = (c: NonNullable<ReturnType<typeof centrelineOf>>, u: 0 | 1, into: boolean) => {
+      const w = Math.min(WINDOW, c.length) / c.length, n = Math.max(2, Math.ceil(Math.min(WINDOW, c.length) / STEP));
+      const us = Array.from({ length: n + 1 }, (_, i) => (u === 1 ? 1 - w + (w * i) / n : w - (w * i) / n));
+      const pts = (into ? us : us.slice().reverse()).map((x) => ({ p: c.pointAt(x) as V, r: c.radiusAt(x) }));
+      return pts;
+    };
+    const path = [...side(a, ua, true), ...side(b, ub, false).slice(1)];
+    const T: number[] = [];
+    for (let i = 1; i < path.length - 1; i++) T.push(ang(sub(path[i]!.p, path[i - 1]!.p), sub(path[i + 1]!.p, path[i]!.p)));
+    let wjerk = 0, widen = 0;
+    for (let i = 1; i < T.length; i++) wjerk = Math.max(wjerk, Math.abs(T[i]! - T[i - 1]!));
+    for (let i = 1; i < path.length; i++) { const r0 = path[i - 1]!.r, r1 = path[i]!.r; widen = Math.max(widen, Math.abs(r1 - r0) / Math.max(1e-6, Math.min(r0, r1))); }
+    out.push({ a: r.a, b: r.b, gap: len(sub(pa, pb)), turn: 180 - ang(outA, outB), step: Math.abs(ra - rb) / Math.max(1e-6, Math.min(ra, rb)), wturn: Math.max(0, ...T), wjerk, widen });
   }
   return out;
 }
@@ -72,18 +90,18 @@ export function organSmoothness(id: string, g: BufferGeometry, normal = 'normal'
 /** The bar every vessel, join and organ is held to (set 24 Nov 2026 from today's smoothest pieces: the portal trunk, the cava, the splenic vein, the liver, the spleen and the kidney all pass it). */
 export const BAR = {
   vessel: { turn: 12, jerk: 8, widen: 0.06 },
-  join: { gap: 0.002, turn: 5, step: 0.1 },
+  join: { gap: 0.002, turn: 5, step: 0.06, wturn: 12, wjerk: 8, widen: 0.06 },
   organ: { crease: 25 },
 } as const;
 
 /** What is rougher than the bar today, by how much at most (tests/anatomy/smooth-allow.json). Like the lint allowances it only goes down: a piece that now passes the bar comes off the list. */
-export type SmoothAllow = { vessel: Record<string, Partial<Record<'turn' | 'jerk' | 'widen', number>>>; join: Record<string, Partial<Record<'gap' | 'turn' | 'step', number>>>; organ: Record<string, { crease: number }> };
+export type SmoothAllow = { vessel: Record<string, Partial<Record<'turn' | 'jerk' | 'widen', number>>>; join: Record<string, Partial<Record<'gap' | 'turn' | 'step' | 'wturn' | 'wjerk' | 'widen', number>>>; organ: Record<string, { crease: number }> };
 
 /** Every number over the bar: [kind, name, measure, value]. */
 export function overBar(v: VesselSmooth[], j: JoinSmooth[], o: OrganSmooth[]): [keyof SmoothAllow, string, string, number][] {
   const out: [keyof SmoothAllow, string, string, number][] = [];
   for (const x of v) for (const k of ['turn', 'jerk', 'widen'] as const) if (x[k] > BAR.vessel[k]) out.push(['vessel', x.id, k, x[k]]);
-  for (const x of j) for (const k of ['gap', 'turn', 'step'] as const) if (x[k] > BAR.join[k]) out.push(['join', `${x.a}>${x.b}`, k, x[k]]);
+  for (const x of j) for (const k of ['gap', 'turn', 'step', 'wturn', 'wjerk', 'widen'] as const) if (x[k] > BAR.join[k]) out.push(['join', `${x.a}>${x.b}`, k, x[k]]);
   for (const x of o) if (x.crease > BAR.organ.crease) out.push(['organ', x.id, 'crease', x.crease]);
   return out;
 }
