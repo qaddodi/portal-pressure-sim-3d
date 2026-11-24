@@ -175,3 +175,80 @@ test('the point stations stand on the placed vessels that meet there', () => {
   assert.ok(near(at('VAR'), 'C1a') < 0.02, 'the varices on C1a');
   assert.ok(near(at('GV'), 'C2') < 0.02, 'the fundal varices on C2');
 });
+
+// ---- the frame on the screen: every body slide of every talk, in the room the cards leave (24 Nov 2026, the Circulation talk on an iPhone 440 x 736: the route slides drew the liver small,
+// and the portal vein and the gut ran under the story card, because the route frame held the whole of the neck's vein V_UP, which today's box only touches) ----
+const { planLayout } = await import('../src/ui/layout/plan.ts');
+const { effectiveDistance, FILL } = await import('../src/scene/camera/room.ts');
+const { FOV, viewAxes: axes } = await import('../src/scene/camera/shots.ts');
+const { slideFrames } = await import('./anatomy/slide-frames.ts');
+type Frame = Awaited<ReturnType<typeof slideFrames>>[string];
+type Rect = { x: number; y: number; w: number; h: number };
+/** The free room between the cards on the screens the framing knows (layout/plan.ts, with a data card and a story card of typical height): iPhone and iPad upright, iPad on its side, Mac. */
+const SCREENS = ([['iPhone', 440, 736, 240, 250], ['iPad', 820, 1180, 300, 300], ['iPad sideways', 1180, 820, 300, 300], ['Mac', 1440, 900, 300, 320]] as const).map(([name, w, h, data, words]) => {
+  const plan = planLayout({ w, h, safe: { top: 0, bottom: 0, left: 0, right: 0 } }, [{ id: 'teach', slot: 'words', h: words }, { id: 'ladder', slot: 'data', h: data }]);
+  return { name, w, h, room: plan.free as Rect };
+});
+/** Where a shot draws a box on the screen (the rig's camera: the shot's distance for the room, its turn and tilt, the picture's middle at the room's middle), and its zoom (px per scene unit at the target). */
+function onScreen(f: Pick<Frame, 'shot'>, b: Box3, s: (typeof SCREENS)[number]) {
+  const sh = f.shot as Shot, d = effectiveDistance(sh, s.room, s.h, s.w), px = s.h / (2 * Math.tan((FOV * Math.PI) / 360));
+  const { right, up } = axes(sh.yaw, sh.pitch), back = [Math.sin(sh.yaw) * Math.cos(sh.pitch), Math.sin(sh.pitch), Math.cos(sh.yaw) * Math.cos(sh.pitch)];
+  const cx = s.room.x + s.room.w / 2, cy = s.room.y + s.room.h / 2;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const x of [b[0], b[3]]) for (const y of [b[1], b[4]]) for (const z of [b[2], b[5]]) {
+    const q = [x - sh.target[0], y - sh.target[1], z - sh.target[2]], dot = (a: readonly number[]) => q[0]! * a[0]! + q[1]! * a[1]! + q[2]! * a[2]!, k = px / (d - dot(back));
+    x0 = Math.min(x0, cx + dot(right) * k); x1 = Math.max(x1, cx + dot(right) * k); y0 = Math.min(y0, cy - dot(up) * k); y1 = Math.max(y1, cy - dot(up) * k);
+  }
+  return { x0, y0, x1, y1, zoom: px / d, cx, cy };
+}
+/** Least zoom a placed slide keeps of today's on the same screen (the body drawn as big as today's, within 5 %), unless its named subject needs the room. */
+const KEEP_ZOOM = 0.95;
+const todayFrames = JSON.parse(execFileSync(process.execPath, [`${root}tests/anatomy/slide-frames.ts`], { env: { ...process.env, PPS_ANATOMY: 'today' }, maxBuffer: 1 << 26 }).toString()) as Record<string, Frame>;
+const placedFrames = await slideFrames();
+
+test('every region names only what today\'s region box shows at least half of (a vessel the box only touches pulls the frame away from the subject)', () => {
+  const X = (x: number) => (x - 700) / 300, Y = (y: number) => -(y - 556) / 300;
+  for (const [r, names] of Object.entries(src.REGION_SUBJECTS)) {
+    const b = src.REGIONS_2D[r]!;
+    for (const n of names) {
+      const t = src.todayBoxOfName(n);
+      if (!t) continue;   // (a name only the placement has: the gastro-oesophageal junction, the rectum)
+      const share = (lo: number, hi: number, a: number, c: number) => (hi - lo < 1e-6 ? (lo >= a && lo <= c ? 1 : 0) : Math.max(0, Math.min(hi, c) - Math.max(lo, a)) / (hi - lo));
+      const s = share(t[0], t[3], X(b[0]), X(b[2])) * share(t[1], t[4], Y(b[3]), Y(b[1]));
+      assert.ok(s >= 0.5, `region ${r}: today's box shows only ${(s * 100).toFixed(0)} % of ${n}`);
+    }
+  }
+});
+
+test('every body slide of every talk draws its named subject inside the free room between the cards, at today\'s zoom or as close as the subject allows (iPhone, iPad, Mac)', () => {
+  assert.deepEqual(Object.keys(placedFrames).sort(), Object.keys(todayFrames).sort());
+  const circ = SCREENS[0]!.room;
+  assert.ok(circ.y > 240 && circ.y + circ.h < 490, `the iPhone's room is the one the owner saw (${JSON.stringify(circ)})`);
+  let n = 0;
+  for (const [k, p] of Object.entries(placedFrames)) for (const s of SCREENS) {
+    const t = todayFrames[k]!, P = onScreen(p, p.subject, s), T = onScreen(t, t.subject, s), r = s.room;
+    const at = `${k} ${p.cam} on the ${s.name}`;
+    assert.ok(P.x0 >= r.x - 0.5 && P.y0 >= r.y - 0.5 && P.x1 <= r.x + r.w + 0.5 && P.y1 <= r.y + r.h + 0.5,
+      `${at}: the subject is drawn at x ${P.x0.toFixed(0)} to ${P.x1.toFixed(0)}, y ${P.y0.toFixed(0)} to ${P.y1.toFixed(0)}, past the room ${JSON.stringify(r)}`);
+    if (P.zoom < KEEP_ZOOM * T.zoom) {
+      // drawn smaller than today: only where the subject would not fit at today's zoom (where it stands in the frame)
+      const g = T.zoom / P.zoom, mx = (r.w * FILL) / 2, my = (r.h * FILL) / 2;
+      const over = Math.max((P.cx - P.x0) * g - mx, (P.x1 - P.cx) * g - mx, (P.cy - P.y0) * g - my, (P.y1 - P.cy) * g - my);
+      assert.ok(over > 0, `${at}: the body is drawn at ${(100 * P.zoom / T.zoom).toFixed(0)} % of today's size, though its subject would fit at today's`);
+    }
+    n++;
+  }
+  assert.ok(n > 4 * 450, `only ${n} slide frames read`);
+});
+
+test('the Circulation talk\'s anatomy slides on the iPhone frame the liver, the portal vein and the hepatic veins as today does, with the portal vein clear of the story card', () => {
+  const s = SCREENS[0]!;
+  for (const i of [3, 6, 7, 8, 9]) {   // (the owner's stops 04, 07, 08, 09 and 10: stop 01 is the title)
+    const k = `circulation/${i}`, p = placedFrames[k]!, t = todayFrames[k]!;
+    assert.equal(p.cam, '"route"', k);
+    const P = onScreen(p, p.subject, s), T = onScreen(t, t.subject, s);
+    assert.ok(Math.abs(P.zoom / T.zoom - 1) < 0.05, `${k}: drawn at ${(100 * P.zoom / T.zoom).toFixed(0)} % of today's size`);
+    const pv = onScreen(p, src.placedBoxOfName('PV_TRUNK_1')!, s), pvToday = onScreen(t, src.todayBoxOfName('PV_TRUNK_1')!, s);
+    assert.ok(pv.y1 <= pvToday.y1 + 8 && pv.y1 < s.room.y + s.room.h - 30, `${k}: the portal vein's foot at y ${pv.y1.toFixed(0)} (today ${pvToday.y1.toFixed(0)}; the story card at ${s.room.y + s.room.h})`);
+  }
+});

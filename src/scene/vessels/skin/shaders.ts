@@ -64,8 +64,11 @@ export const SKIN_CIRCUIT_FADE = 0.35;
 export const SKIN_ARM_ABSENT = 0.3;
 /** The depth hold-out's ramp (skinArmHeld), in shares of the blend width k of 3D gap between a pixel's rest surface and an arm's wall: an arm is not held out of the outline within SKIN_HOLD_FROM_K of it, wholly from SKIN_HOLD_TO_K. It was 0.25 to 1; the FILLET spans the whole of k, so
  *  a pixel a quarter k from an arm already lies in the smooth union of the mesh and was held out of the outline's: the stem's edge was inked inside the fillet, the two lines that ran on into the azygos (Plan 16C, 22 Nov, node numbers: 281 pixels of ink inside the union at the azygos landing, 0 from 1 to 2). */
-export const SKIN_HOLD_FROM_K = 1;
-export const SKIN_HOLD_TO_K = 2;
+// PLACED: 3 k to 6 k. The ramp was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host, its rim stands in front of
+// the host's wall, as far as 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host's lumen. From 1 k that rim held the host out of the outline, and the branch's silhouette was inked across the host. That was the hepatic
+// confluence's heavy dark lines: 1.1 % of IVCS's lumen drawn as line only, 6.7 % at SMV and 3.3 % at PVH, against 0.1 % today. From 3 k the inking is 0 at IVCS (tests/skin-weld-shade.test.ts).
+export const SKIN_HOLD_FROM_K = PLACED ? 3 : 1;
+export const SKIN_HOLD_TO_K = PLACED ? 6 : 2;
 /** How many CSS px wider the outline's band is on a seam ring, so the skin never trims a pixel of the silhouette the cut tube no longer covers (the specks along the walls, Mohammad 20 Nov). */
 export const SKIN_SEAM_PAD_PX = 1.5;
 /** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */

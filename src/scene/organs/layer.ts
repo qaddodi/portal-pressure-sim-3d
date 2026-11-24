@@ -98,6 +98,10 @@ NO_TEX.needsUpdate = true;
 /** The caudate lobe's organ id and the stencil bit it marks its pixels with (see useOrganShader). */
 const CAUDATE_ID = 'caudate', CAUDATE_STENCIL = 4;
 
+/** The gut depth pass's offset away from the eye (the ink hull's own, cel3d.ts): a fill is tested against a depth another program wrote for the SAME surface, so it must win by a margin, never by equal rounding.
+ *  Two different programs are not bound to round a point to the same depth (GLSL gives no invariance across programs), and on the iPhone they do not: without it the wall lost to itself in specks.
+ *  The margin (4 steps plus the face's slope) is far below the gap between a near and a far wall of the gut, so each pixel still keeps only its nearest wall. tests/organs-placed.test.ts pins it. */
+export const PRE_DEPTH_UNITS = 4, PRE_DEPTH_FACTOR = 1;
 function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { value: number }): ShaderMaterial | null {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
@@ -132,7 +136,8 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     m.stencilWrite = true; m.stencilRef = 2; m.stencilFuncMask = 2; m.stencilWriteMask = 2;
     m.stencilFunc = NotEqualStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
     if (r.pre !== undefined) {   // (the gut's depth pass: no colour, the nearest wall's depth, dropped where the part is cut or faded away as its fill is)
-      const pre = new ShaderMaterial({ name: 'organ gut depth', vertexShader: organPreVs(!!g.getAttribute('esoA'), !!g.getAttribute('cutA')), fragmentShader: ORGAN_PRE_FS, colorWrite: false, depthWrite: true, transparent: true, uniforms: { fade: m.uniforms.fade! } });
+      const pre = new ShaderMaterial({ name: 'organ gut depth', vertexShader: organPreVs(!!g.getAttribute('esoA'), !!g.getAttribute('cutA')), fragmentShader: ORGAN_PRE_FS, colorWrite: false, depthWrite: true, transparent: true, uniforms: { fade: m.uniforms.fade! },
+        polygonOffset: true, polygonOffsetFactor: PRE_DEPTH_FACTOR, polygonOffsetUnits: PRE_DEPTH_UNITS });
       const pm = new Mesh(g, pre);
       pm.renderOrder = r.pre; pm.name = 'gut-depth'; pm.raycast = () => {};
       o.group.add(pm);

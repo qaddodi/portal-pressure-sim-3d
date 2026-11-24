@@ -2,9 +2,10 @@
 // (vessels/centreline.ts centrelineOf: the course and radius each tube is built from, whatever placement the network holds), never on the 2D courses with tier depths: the same specs as route.ts (the 2D
 // app's legs, names, stops and shares), the same builder, on a geometry whose points are [figure x, figure y, depth in figure units]. The route's `raw3` is the vessels' own centreline at every sample
 // (route3d.ts lays the device on it and rounds the corners inside the lumen), `pts` its projection on the figure, `cum` its length in 3D, so every reader of a route keeps working.
-// The HVPG wedges in the lower right hepatic branch (owner's ruling, question 4): the tip goes out of the right hepatic vein's trunk into that branch and stops part-way along it.
+// The HVPG wedges in the MAIN right hepatic vein, not its branch (Mohammad 24 Nov, replacing question 4): the tip goes out along the vein's trunk and stops short of its fork (WEDGE_ALONG).
 import { JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 import { NETWORK, NETWORK_BY_ID } from '../vessels/network.ts';
+import { PLACED_BRANCHES } from '../anatomy/placed-network.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
 import { smoothJoinsOn } from '../vessels/join-mode.ts';
@@ -48,25 +49,17 @@ export function geo3(): Geo3 {
   return g;
 }
 
-/** The lower right hepatic branch the HVPG wedges in: a draw-only branch of the right hepatic vein (no engine edge). The placed network names it `rhvb` (or a liver branch of the right hepatic vein's
- *  outer piece, `RHV_IVC_1~F:…`, the side branch today's network grows downward); null when the network draws none (the tip then reads in the trunk, as today). */
-export function rhvbId(): string | null {
-  if (NETWORK_BY_ID.has('rhvb')) return 'rhvb';
-  const named = NETWORK.find((v) => /(^|[^a-z])rhvb([^a-z]|$)/i.test(v.id));
-  if (named) return named.id;
-  // (the right hepatic vein's own side branch: the one whose liver end is lowest, so the lower branch)
-  let best: string | null = null, by = Infinity;
-  for (const v of NETWORK) {
-    if (!v.id.startsWith('RHV_IVC') || !v.id.includes('~F')) continue;
-    const c = centrelineOf(v.id); if (!c) continue;
-    const y = Math.min(c.pointAt(0)[1], c.pointAt(1)[1]);
-    if (y < by) { by = y; best = v.id; }
-  }
-  return best;
+/** The right hepatic vein's branches past its fork, those the network draws: the draw-only branches by name (placed-network.ts PLACED_BRANCHES, `rhva`/`rhvb`) or as the trunk's liver forks (`RHV_IVC_1~F:…`,
+ *  which the wedge's column already fills from the trunk, proc-catheter.ts wedgeTint). */
+export const RHV_FORK_PIECE = 'RHV_IVC_1';
+export function rhvBranchIds(): string[] {
+  const b = PLACED_BRANCHES[RHV_FORK_PIECE], named = b ? [b.through, b.side].filter((id) => NETWORK_BY_ID.has(id)) : [];
+  return [...named, ...NETWORK.filter((v) => v.id.startsWith(`${RHV_FORK_PIECE}~F`)).map((v) => v.id)];
 }
-/** Where along the lower branch (0 at its join with the trunk, 1 at its tip in the liver) the HVPG's tip wedges: past its middle, with the balloon and the gap behind it inside the branch, and the
- *  branch ahead of it for the wedged reading (the WHVP) to hang in. */
-export const WEDGE_ALONG = 0.55;
+/** Where along the main right hepatic vein's trunk (0 at its mouth on the cava, 1 at its fork into the upper and lower branches) the HVPG's tip wedges. Mohammad's ruling (24 Nov 2026, over the plan's
+ *  question 4): "HVPG catheter should wedge the main right hepatic vein not its branch". The tip lies in the trunk's outer piece (RHV_IVC_1, past the TIPS's mouth), the balloon and its gap behind it in the
+ *  trunk, and the trunk ahead of it, to the fork, for the wedged reading (the WHVP) to hang in. tests/anatomy-placed-devices.test.ts pins it. */
+export const WEDGE_ALONG = 0.8;
 
 const lenTo = (pts: readonly P3[]): number[] => { const c = [0]; for (let i = 1; i < pts.length; i++) c.push(c[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2])); return c; };
 const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(a, x));
@@ -132,29 +125,21 @@ interface Spec { ids: string[]; start: number; tip: (string | number)[]; focus: 
 
 const headOf = (g: Geo3, id: string): P3 => (wholeOf3(g, id)?.P ?? g[id]!.cur)[0]!;
 
-/** The HVPG on the placed anatomy: the neck, the SVC, the right atrium, down the IVC to the right hepatic vein's opening, out along its trunk to the fork, and into the lower branch, where it wedges. */
-function hvpgPlaced(g: Geo3, rad: (id: string) => number): Spec {
-  const br = rhvbId(), brPts = br ? g[br]?.cur : null;
-  // (the branch's end that joins the trunk: of its two ends, the one nearer the trunk's course)
-  const trunk = wholeOf3(g, 'RHV_IVC')?.P ?? g.RHV_IVC!.cur;
-  const near = (p: P3): number => Math.min(...trunk.map((q) => dist(p, q)));
-  const join = brPts ? (near(brPts[0]!) <= near(brPts[brPts.length - 1]!) ? brPts[0]! : brPts[brPts.length - 1]!) : null;
-  const brRev = !!brPts && join === brPts[brPts.length - 1];
-  // (where the branch has left the trunk's lumen: its first point, from the join, a little over half the trunk's radius off the trunk's centreline. The catheter turns out of the trunk there, across the join's
-  //  shared lumen, never at the branch's very start, which lies inside the trunk and, where the branch is tucked behind its vein, a step back in depth)
-  const trunkR = rad('RHV_IVC'), walk = brPts ? (brRev ? brPts.slice().reverse() : brPts) : [];
-  const entry = walk.find((q) => near(q) >= 0.6 * trunkR) ?? join;
+/** The HVPG on the placed anatomy: the neck, the SVC, the right atrium, down the IVC to the right hepatic vein's opening, and out along its main trunk, where it wedges short of the fork (WEDGE_ALONG). */
+function hvpgPlaced(g: Geo3): Spec {
   return {
-    ids: expandPieces(['SVC_RA', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', ...(br ? [br] : ['POST_R_RHV'])]), start: 0.55, tip: br ? ['branch', WEDGE_ALONG] : ['hv', 0.62], focus: ['hv', 'branch'],
+    ids: expandPieces(['SVC_RA', 'IVCS_RA', 'IVC_IS', 'RHV_IVC']), start: 0.55, tip: ['hv', WEDGE_ALONG], focus: ['hv', 'hv'],
     build(B) {
       const top = headOf(g, 'SVC_RA'), ost = g.RHV_IVC!.cur[g.RHV_IVC!.cur.length - 1]!;
       B.pts([[top[0] - 6, top[1] - 150, top[2]], [top[0] - 2, top[1] - 60, top[2]], top], 'SVC_RA', 0);
       B.vessel('SVC_RA'); B.vessel('IVCS_RA', { rev: true });
       B.vessel('IVC_IS', { rev: true, until: (q) => q[1] >= ost[1] - 4, name: 'ivc' });
-      if (br && entry) { B.vessel('RHV_IVC', { rev: true, near: entry, name: 'hv' }); B.vessel(br, { rev: brRev, from: entry, name: 'branch', r: rad(br) }); }
-      else { B.vessel('RHV_IVC', { rev: true, name: 'hv' }); if (g.POST_R_RHV) B.vessel('POST_R_RHV', { rev: true, name: 'branch' }); }
+      // (the trunk's leg ends AT THE FORK, where the side branch's join end (u = 1) lies on it, so WEDGE_ALONG is a share of mouth to fork, as it says, whatever the branches' lengths: as a share of the
+      //  whole vein out to the through branch's tip (rhvb), the tip moved past the fork the moment that branch grew, round 17)
+      const side = rhvBranchIds().find((id) => id.startsWith(`${RHV_FORK_PIECE}~F`)), fork = side ? g[side]?.cur : undefined;
+      B.vessel('RHV_IVC', { rev: true, name: 'hv', near: fork ? fork[fork.length - 1]! : null });
     },
-    after(r) { const hv = r.spans.hv!; r.hv0 = hv[0]; r.hvEnd = (r.spans.branch ?? hv)[1]; },
+    after(r) { const hv = r.spans.hv!; r.hv0 = hv[0]; r.hvEnd = hv[1]; },
   };
 }
 /** The DIPS's catheter on the placed anatomy (route.ts DIPS): the cava down to where the shunt leaves it, then the shunt to the portal vein. */
@@ -175,7 +160,7 @@ function dipsPlaced(g: Geo3, rad: (id: string) => number): Spec {
 export function placedRoute(kind: string, lumenRadius: (id: string, f?: number) => number): (Route & { raw3: [number, number, number][] }) | null {
   const g = geo3(), rad = (id: string): number => lumenRadius(id, 0.5);
   const k = kind === 'tipscoilin' ? 'tipscoil' : kind;
-  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g, rad) : k === 'dips' ? dipsPlaced(g, rad) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
+  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
   if (!spec) return null;
   const pts: P3[] = [], radA: number[] = [], marks: number[] = [], parts: RoutePart[] = [];
   // A BRIDGE: where one leg ends a step away from where the next begins (the left renal vein's piece at the cava ends short of where the gastrorenal shunt joins the renal vein further out), the catheter

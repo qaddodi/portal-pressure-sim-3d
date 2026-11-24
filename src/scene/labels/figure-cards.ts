@@ -13,8 +13,7 @@ import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './ta
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
-import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
-import { NODE_POS_2D } from '../anatomy/source.ts';
+import { stationById, curveOf, nodeAt, ORGAN_FRONT } from './stations.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
 import { scopeClaims, clearParam } from './scope-claims.ts';
@@ -281,9 +280,9 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
   }
   if ('station' in a) { const s = stationById(a.station); return s ? s.at(0.5, out) : null; }
   if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), a.z ?? ORGAN_FRONT);
-  const p = NODE_POS_2D[a.node];
-  if (!p) return null;
-  try { return out.set(x3(p[0]), y3(p[1]), nodeZ(a.node)); } catch { return null; }
+  // (a node: where the figure draws it now, the approved placement's node when it is on (stations.ts nodeAt). Read from the 2D figure, a slide's card pointed where today's figure had the node,
+  //  off the drawn placed anatomy: Circulation deck, 24 Nov)
+  try { const p = nodeAt(a.node); return out.set(p[0], p[1], p[2]); } catch { return null; }
 }
 
 interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[]; /** each leader's presence 0..1, eased: a leader that goes shrinks to nothing, it is never switched off */ k: number[]; kd: number[]; /** the translate and turn, and the length, each line last stood at (it shrinks in place) */ at: string[]; len: number[] }

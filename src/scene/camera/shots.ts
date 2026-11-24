@@ -62,7 +62,7 @@ export const SHOT_SUBJECTS: Readonly<Record<ShotName, readonly string[]>> = {
   title: FIGURE_NAMES,
   route: ['V_UP', 'SVC_RA_1', 'SVC_RA', 'heart-ra', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'RHV_IVC_1'],
   free: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'liver'],
-  // (the wedge sits in the lower right hepatic branch, rhvb: owner's ruling, docs/approved/anatomy-placement.md)
+  // (the wedge sits in the main right hepatic vein's trunk, short of its fork: Mohammad 24 Nov, docs/approved/anatomy-placement.md; the frame keeps the fork and its branches round it)
   wedge: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
   hvpg: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
   play: FIGURE_NAMES,

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
-const from = flag('--from') ?? '/mnt/project-files/anatomy-placement-mocks/frozen/round-16';
+const from = flag('--from') ?? '/mnt/project-files/anatomy-placement-mocks/frozen/round-17';
 const check = args.includes('--check');
 const ROUND = (from.match(/round-(\d+)/) ?? [])[1] ?? '?';
 if (!existsSync(`${from}/placement-data.json`)) { console.error(`copy-placement: no frozen round at ${from}`); process.exit(2); }
