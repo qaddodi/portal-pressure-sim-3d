@@ -14,11 +14,22 @@ import { MAX_MOVE, rimRoughness, smoothSilhouette, tailFade } from '../src/scene
 import { patchedShaders } from '../src/scene/organs/organ-art.ts';
 import { LiverShape, edgeFree } from '../src/scene/organs/liver-shape.ts';
 import { BufferGeometry, Float32BufferAttribute } from 'three';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { TUBE_IDS } from '../src/scene/organs/placed.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 
 test('organ depth: the liver is in front of the stomach (and the heart), the kidney is at the IVC\'s depth, every organ has one', () => {
+  if (PLACED) {   // (placed path: every mesh carries the approved placement's own depth and ORGAN_Z moves none of them; the same order, read from the meshes' fronts and middles)
+    for (const id of Object.keys(ORGAN_STYLE)) assert.equal(ORGAN_Z[id], 0, `${id}: not moved again`);
+    const box = (id: string) => { const g = id === 'caudate' ? caudateGeometry() : ORGAN_MESHES[id]!(); g.computeBoundingBox(); return g.boundingBox!; }, front = (id: string) => box(id).max.z, mid = (id: string) => (box(id).max.z + box(id).min.z) / 2;
+    assert.ok(front('liver') > front('stomach') && front('liver') > front('heart-ra'), 'liver in front of the stomach and the atrium');
+    assert.ok(front('spleen') < front('stomach'), 'the spleen lies behind the stomach');
+    assert.ok(mid('kidney-l') < mid('stomach') && mid('kidney-l') < mid('spleen') + 0.01, 'the kidney lies at the back');
+    assert.ok(front('duodenum') < front('colon'), 'the duodenum lies behind the colon');   // (by its front: the colon's loops run from the back to the front)
+    return;
+  }
   assert.ok(ORGAN_Z.liver! > ORGAN_Z.stomach!, 'liver in front of the stomach');
   assert.ok(ORGAN_Z.liver! > ORGAN_Z.heart! && ORGAN_Z.liver! > ORGAN_Z['heart-ra']!);
   assert.equal(ORGAN_Z['kidney-l'], TIER_Z.back, 'the kidney lies where the cava and the renal veins lie (the back tier)');
@@ -31,10 +42,12 @@ test('organ depth: the liver is in front of the stomach (and the heart), the kid
 test('smooth silhouette: every organ\'s rim is smoother than the file\'s, moved by at most MAX_MOVE, and the surface stays whole', async () => {
   await organsReady;
   for (const [id, make] of Object.entries(ORGAN_MESHES)) {
+    if (PLACED && TUBE_IDS.has(id)) continue;   // (placed path: a gut tube is never smoothed, prepare.ts: its rim is its round rings', not an outline's)
     const raw = make(), sm = make(), before = rimRoughness(raw), moved = smoothSilhouette(sm), after = rimRoughness(sm);
     if (before === 0) continue;   // (no silhouette ring in this mesh)
     assert.ok(moved <= MAX_MOVE + 1e-9, `${id}: moved ${moved}`);
-    assert.ok(after <= before, `${id}: rim roughness ${before.toFixed(5)} -> ${after.toFixed(5)}`);
+    // (placed path: the approved mock's rims are refined twice and already about 1e-4 smooth, a twentieth of today's; there the smoothing may leave one level within that floor)
+    assert.ok(after <= (PLACED ? Math.max(before, 1e-4) : before), `${id}: rim roughness ${before.toFixed(5)} -> ${after.toFixed(5)}`);
     const p = sm.getAttribute('position'), n = sm.getAttribute('normal');
     for (let i = 0; i < p.count; i++) assert.ok(Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i) + n.getX(i)), `${id}: finite`);
   }

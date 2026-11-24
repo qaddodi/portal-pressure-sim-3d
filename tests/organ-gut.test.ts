@@ -13,6 +13,8 @@ import { ART_CLASSES, type Art, type Ctx2D, type Tones, paintArt, styleOf } from
 import { PALETTES } from '../src/scene/palette.ts';
 import { rgbOf } from '../src/scene/organs/organ-look.ts';
 import { x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { planeMap, unmapX, unmapY } from '../src/scene/organs/placed-map.ts';
 
 const art = JSON.parse(readFileSync(new URL('../public/anatomy/organ-art.json', import.meta.url), 'utf8')) as ArtData;
 const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
@@ -62,11 +64,14 @@ test('the esophagus lies where 2D\'s does: the stomach\'s pillow rises up the 2D
   const poly = art.eso.poly;
   const px = poly.filter((_, i) => i % 2 === 0), py = poly.filter((_, i) => i % 2 === 1);
   assert.equal(Math.min(...py), -90);
-  let top = 1e9; for (let i = 0; i < pos.count; i++) top = Math.min(top, y2d(pos.getY(i)));
-  assert.ok(Math.abs(top - -90) < 1, `the pillow's top is at 2D y ${top}`);
+  // (placed path: the stomach is moved by its own exact map, placed-map.ts, so 2D's frame is read through it back; and the tube's last stretch above 2D y -40, where the fade has already made it clear, is not kept, placed.ts OESO_GONE)
+  const m = planeMap('stomach'), X = (i: number) => x2d(unmapX(m, pos.getX(i))), Y = (i: number) => y2d(unmapY(m, pos.getY(i)));
+  let top = 1e9; for (let i = 0; i < pos.count; i++) top = Math.min(top, Y(i));
+  if (PLACED) assert.ok(top >= -90 - 1 && top <= -40, `the pillow's top is at 2D y ${top}, where the fade has it clear`);
+  else assert.ok(Math.abs(top - -90) < 1, `the pillow's top is at 2D y ${top}`);
   let n = 0;
   for (let i = 0; i < pos.count; i++) {
-    const x = x2d(pos.getX(i)), y = y2d(pos.getY(i));
+    const x = X(i), y = Y(i);
     if (y < 0) { n++; assert.ok(x >= 775 - 0.5 && x <= 799 + 0.5, `a vertex of the tube at 2D (${x.toFixed(1)}, ${y.toFixed(1)}) is off 2D's esophagus`); }
   }
   assert.ok(n > 100);
@@ -137,7 +142,9 @@ test('the organ layer wears the art: the stomach\'s materials are patched, the c
   assert.match(st.toon.fragmentShader, /main_organ/); assert.match(st.ink.fragmentShader, /vEsoA/);
   assert.match(co.ink.fragmentShader, /vEsoA/); assert.doesNotMatch(co.toon.fragmentShader, /eso1/);
   assert.doesNotMatch(du.toon.fragmentShader, /vArt/, 'the duodenum has no art: the painter\'s own tube, patched only for its tail\'s fade');
-  assert.match(du.toon.fragmentShader, /gl_FragColor\.a \*= vEsoA/, 'the duodenum\'s free end fades out');
+  // (placed path: the duodenum is the funnel from the stomach's cut into the bowel's tube, so it has no free end to fade: it carries the stomach's look into its own over its first stretch instead, organ-art.ts `tos`)
+  if (PLACED) { assert.doesNotMatch(du.toon.fragmentShader, /vEsoA/); assert.match(du.toon.fragmentShader, /tos/, 'the funnel takes the stomach\'s look at its start'); }
+  else assert.match(du.toon.fragmentShader, /gl_FragColor\.a \*= vEsoA/, 'the duodenum\'s free end fades out');
   const box = st.toon.uniforms.box!.value as { z: number; w: number };
   assert.ok(Math.abs(box.w - 319 / 300) < 1e-6, 'the stomach\'s gradient runs over its own outline, not the esophagus\'s length too');
   layer.setBody({ spleenScale: 1, splenicRx: 0, bleed: { active: false, total: 0 }, cirrhosis: 0, congestion: 0, tint: 0 } as never, true);

@@ -14,7 +14,7 @@ const SNORM = 32767;
 /** The organs kept as the organs file has them, besides the finished ones: the scope fits its esophagus to the raw stomach (devices/probes/scope.ts), and with the file laid in the page never fetches organs.bin. */
 export const RAW_IDS: readonly string[] = ['stomach'];
 
-interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[]; /** further per-vertex floats it carries (EXTRA_ATTRS: the placed stomach's cut, the duodenum's share of the stomach's look) */ extra?: string[]; /** its surface normal is its own (a gut tube's round one), kept in the file, not made again from the triangles */ nrm?: true }[]; raw: { id: string; verts: number; indices: number }[] }
+interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[]; /** further per-vertex floats it carries (EXTRA_ATTRS: the placed stomach's cut, the duodenum's share of the stomach's look) */ extra?: string[]; /** its surface normal is kept in the file, not made again from the triangles: a gut tube's round one, or one the file's grid cannot give back (the placed stomach's twice-split esophagus has triangles a few grid steps wide) */ nrm?: true; /** a gut tube (prepare.ts userData.tube) */ tube?: true }[]; raw: { id: string; verts: number; indices: number }[] }
 const pad4 = (n: number) => (n + 3) & ~3;
 /** The per-vertex floats an organ may carry besides the ones every organ has (the approved placement's: organs/placed.ts stomachCut `cutA`, organs/gut-tubes.ts `tos`), kept exactly. */
 export const EXTRA_ATTRS: readonly string[] = ['cutA', 'tos'];
@@ -61,9 +61,9 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
     if (eso) put(eso.array as Float32Array);
     const extra = EXTRA_ATTRS.filter((k) => g.getAttribute(k));
     for (const k of extra) put(Float32Array.from(g.getAttribute(k).array));
-    const nrm = !!g.userData.tube;
+    const tube = !!g.userData.tube, nrm = tube || !gridKeepsNormals(q, idx, g.getAttribute('normal').array);
     if (nrm) { const s = new Int16Array(n * 2); octEncode(g.getAttribute('normal').array, s); put(s); }
-    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}) });
+    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}), ...(tube ? { tube: true as const } : {}) });
   }
   for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; the stomach's mesh in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);
@@ -77,6 +77,15 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
   let at = start;
   for (const p of parts) { out.set(p, at); at += p.length; }
   return out;
+}
+
+/** Whether the surface normals made again from the file's positions (on the grid) are the live ones, within 0.99 (the bar tests/organs-baked.test.ts holds them to; today's organs all pass it, so their file is as before): when not, the file keeps the normals. */
+function gridKeepsNormals(q: Int16Array, idx: ArrayLike<number>, live: ArrayLike<number>): boolean {
+  const g = new BufferGeometry(), pos = Float32Array.from(q, (v) => v / BAKED_Q);
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3)); g.setIndex(Array.from(idx)); g.computeVertexNormals();
+  const m = g.getAttribute('normal').array;
+  for (let i = 0; i < m.length; i += 3) if (m[i]! * live[i]! + m[i + 1]! * live[i + 1]! + m[i + 2]! * live[i + 2]! <= 0.99) return false;
+  return true;
 }
 
 export interface BakedOrgans { digest: string; organs: [string, BufferGeometry][]; /** the organs as the organs file has them (before prepare), by id: made on first ask */ raw: Record<string, () => BufferGeometry> }
@@ -106,7 +115,8 @@ export function decodeOrgans(buf: ArrayBuffer): BakedOrgans | null {
       for (const k of ['shadeN', 'hullN']) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute(k, new Float32BufferAttribute(f, 3)); }
       if (o.eso) g.setAttribute('esoA', new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
       for (const k of o.extra ?? []) g.setAttribute(k, new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
-      if (o.nrm) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute('normal', new Float32BufferAttribute(f, 3)); g.userData.tube = true; }
+      if (o.nrm) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute('normal', new Float32BufferAttribute(f, 3)); }
+      if (o.tube) g.userData.tube = true;
       g.computeBoundingBox(); g.boundingSphere = null;
       return [o.id, g];
     });

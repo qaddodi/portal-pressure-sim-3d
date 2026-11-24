@@ -11,6 +11,7 @@ import { smoothRestNormals } from './normal-smooth.ts';
 import { ORGAN_Z } from './z.ts';
 import { PLACED } from '../anatomy/source.ts';
 import { TUBE_IDS, stomachCut } from './placed.ts';
+import { INFLATED_IDS } from './placed-map.ts';
 
 /** Passes of smoothing of the normals the outline is pushed along (the hull's edge, a sawtooth otherwise). */
 export const SHADE_PASSES = 6;
@@ -22,7 +23,8 @@ export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [st
   for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) {
     const g = make();
     if (PLACED && TUBE_IDS.has(id)) { g.userData.tube = true; made.push([id, g]); continue; }   // (a gut tube is round by construction, at its own depth, with its own round normals: gut-tubes.ts. Its rim is not an outline's and is left as it is)
-    smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]);
+    // (placed: an inflated organ is the approved mock's mesh, its rim already refined twice and its walls upright at the seam; the cubic split overshoots those walls into small folds, false rim rings, so it is not split again)
+    smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || (PLACED && INFLATED_IDS.includes(id)) || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]);
   }   // (the rim's saw-tooth is smoothed out first: contour.ts; a small organ then gets a round of butterfly subdivision, which also refines its rim (subdivide.ts), a big one only its rim; each organ at its own depth: z.ts, x and y untouched by it)
   // the duodenum's free end fades out (it joins nothing there): its tail alpha, which organ-art patches into its fill and outline
   const duo = made.find(([id]) => id === 'duodenum'), stom = made.find(([id]) => id === 'stomach');
@@ -39,7 +41,7 @@ export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [st
     g.setAttribute('shadeN', new Float32BufferAttribute(shadeN, 3));
     g.setAttribute('ringD', new Float32BufferAttribute(ringDistance(g), 1));
     g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
-    rimStrip(g);
+    if (!g.userData.tube) rimStrip(g);   // (a gut tube's normal turns fully sideways at its own edge, so it needs no strip's tilt; and its packed loops lie over each other, so a strip grown from their rings would paint a crescent inside the gut)
   }
   return made;
 }

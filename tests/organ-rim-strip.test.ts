@@ -13,10 +13,13 @@ import { SMOOTH_SHADE } from '../src/scene/organs/layer.ts';
 import { RIM_KNOTS, RIM_SPECK, RIM_ZONE, fitRimProfile, rimProfileAt, rimShadeNormal } from '../src/scene/organs/rim-profile.ts';
 import { ORGAN_FS, ORGAN_VS } from '../src/scene/organs/organ-shader.ts';
 import { decodeOrgans, encodeOrgans } from '../src/scene/organs/baked.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
-const made = prepareOrgans({ ...ORGAN_MESHES, caudate: caudateGeometry });
+const all = prepareOrgans({ ...ORGAN_MESHES, caudate: caudateGeometry });
+// (placed path: the gut tubes wear no strip, prepare.ts: their round normal turns sideways at their own edge, and their loops lie over each other, so their rings are many by design; every other organ is held as before)
+const made = all.filter(([, g]) => !g.userData.tube);
 
 test('rimDistance is the true distance to the silhouette: on a disc, the radius to the rim', () => {
   const N = 48, pos: number[] = [0, 0, 0.1, 0, 0, -0.1], idx: number[] = [];
@@ -43,6 +46,7 @@ test('the profile: eight knots, monotone, in range; the JS twin of the shader le
 });
 
 test('every organ has the strip: rimD and rimC bytes, an eight-point profile, and the baked file holds them exactly', () => {
+  for (const [id, g] of all) if (g.userData.tube) assert.ok(!g.getAttribute('rimD') && !g.userData.rimProfile, `${id}: a tube has no strip`);
   for (const [id, g] of made) {
     const rd = g.getAttribute('rimD'), rc = g.getAttribute('rimC'), pr = g.userData.rimProfile as number[];
     assert.ok(rd && rc && rd.count === g.getAttribute('position').count && rc.count === rd.count, `${id}: attributes`);
@@ -157,7 +161,8 @@ test('every baked organ: where the shade normal nearly faces the eye, the strip 
     assert.ok(guarded.worst < 0.15, `${id}: the strip's normal moves ${guarded.worst.toFixed(3)} in a pixel over ${guarded.pairs} samples`);
     unguardedWorst = Math.max(unguardedWorst, bare.worst);
   }
-  assert.ok(unguardedWorst > 0.5, `the unguarded strip does swing (${unguardedWorst.toFixed(3)}), so this test has teeth`);
+  // (placed path: the approved mock's inflated organs stand up smoothly from their Poisson height, so even unguarded their strip barely swings; the guard's teeth are held on today's organs and by the shader test above)
+  if (!PLACED) assert.ok(unguardedWorst > 0.5, `the unguarded strip does swing (${unguardedWorst.toFixed(3)}), so this test has teeth`);
 });
 
 // ---- false rims -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -216,6 +221,8 @@ test('every baked organ has one silhouette ring and no inner fold in it (a fold 
   const PINCHED = new Set(['bowel', 'duodenum', 'caudate']);
   for (const [id, g] of made) {
     const r = ringReport(g);
+    // (placed path: the stomach is open where the duodenum's funnel takes over and above where its esophagus has faded clear, placed.ts, so its outline is two open pieces, the greater and the lesser curve; neither is a fold)
+    if (PLACED && id === 'stomach') { assert.equal(r.pieces.length, 2, `${id}: ${r.pieces.length} pieces`); assert.ok(r.pieces.every((p) => !p.closed)); assert.equal(r.inner, 0, `${id}: ${r.inner} ring segments are folds inside the outline`); continue; }
     assert.equal(r.pieces.length, 1, `${id}: ${r.pieces.length} separate rings (${r.pieces.slice(0, 5).map((p) => p.n).join(', ')}): restrict the strip's ring (contour.ts rimDistance) to the outer one`);
     assert.equal(r.pieces[0]!.closed, !PINCHED.has(id), `${id}: ring ${r.pieces[0]!.closed ? 'is' : 'is not'} one closed loop`);
     assert.equal(r.inner, 0, `${id}: ${r.inner} ring segments are folds inside the outline (surface beyond them on both sides)`);

@@ -61,7 +61,8 @@ function smooth(a: number, b: number, x: number): number { const t = Math.min(1,
 function eggFull(y: number): number { return 1 + 0.16 * smooth(0.2, -0.9, y); }
 /** The egg's IVC side drawn in (script2.js: x < 0, the side the cava lies in the groove of). */
 const eggGroove = (x: number): number => (x < 0 ? 1 - 0.18 * x * x : 1);
-const EGG_N = 72, EGG_K = 14;
+// (fine enough to stay off the cubic split, prepare.ts: split, the egg's pole-to-pole rings overshoot into small folds at its outline, false rim rings)
+const EGG_N = 144, EGG_K = 28;
 /** The placed lobe (the mock's egg, script2.js PLACED_CAUDATE) as a closed surface of two sheets that meet at its front-view outline, like every other organ, so the outline smoothing, the rim strip and the cel's ink
  *  see it as they see the others: the unit sphere taken from its front pole (+z) to its back pole in rings, each point moved as the mock moves its sphere's. */
 export function placedCaudateGeometry(): BufferGeometry {

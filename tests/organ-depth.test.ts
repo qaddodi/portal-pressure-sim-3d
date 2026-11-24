@@ -11,6 +11,7 @@ import { bindOrganSettings } from '../src/scene/organs/organ-settings.ts';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { useSettings } from '../src/state/settings.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 const buf = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
@@ -45,7 +46,8 @@ test('the baked term is a byte per vertex, in range, deterministic, and small (w
   assert.ok(sum / n / 255 > 0.01, 'and the term is not all zero');
   assert.ok(lo >= 0);
   console.log(`# organ depth bake: ${n} vertices, ${bytes} bytes, ${ms.toFixed(1)} ms in node (mean ${(sum / n / 255).toFixed(3)}, max ${hi})`);
-  assert.ok(ms < 400, `the bake took ${ms} ms`);
+  // (placed path: the approved placement's meshes have 134 752 vertices to today's 76 378, the gut tubes and the twice-refined rims; the bar is the same time per vertex)
+  assert.ok(ms < 400 * (PLACED ? n / 76378 : 1), `the bake took ${ms} ms`);
 });
 
 test('a crease is tucked more than a flat or a bulge; where one organ meets another is tucked, and the same organ never darkens itself', () => {
