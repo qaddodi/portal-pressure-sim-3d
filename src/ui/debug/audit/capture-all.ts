@@ -86,7 +86,7 @@ const tagWords = (): string => [...document.querySelectorAll('.lb-layer .cl-k')]
  *  only 2.6 s (BLOCKED_SAYS) before "No reading", so the wait is short once those words stand (a few real frames) and the picture is taken while they are up. At speed N the clock's waits are N times shorter in real time, so the
  *  real pauses are given in page time (`real`). */
 async function stillPage(real: (ms: number) => number, needWords = false, fast = false): Promise<{ moving: string; words: string; perpetual: string }> {
-  const q = fast ? 0.4 : 1;   // (skip mode: the waits that only existed for animations to play are cut to two fifths; the checks themselves are the same)
+  const q = 1;   // (the first wait and the still hold stay whole in skip mode: the press needs a few frames, and a React commit, to reach the cards, and a shorter wait judged the slide before as settled)
   await sleep(real(60 * q));   // (the press has reached the cards: they mount and begin on the next frames)
   let frames = 0;
   const off = clock.on('tween', () => { frames++; });   // (frames drawn since this wait began: a strip fills by frames, not by the clock)
@@ -100,7 +100,7 @@ async function stillPage(real: (ms: number) => number, needWords = false, fast =
   }
   off();
   const gaveUp = clock.now() - t0 >= limit;
-  if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30 * q));   // (the last frame: the charts draw their last mesh, the callouts have placed)
+  if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
   const soft = arriving(false, true, frames);
   const perpetual = [clock.moving > 0 ? `the clock still held motion after 4 s (${clock.movingTags().join(', ')})` : '', soft ? `${soft}, still, after 3 s (the picture shows it so; it may in the app too)` : ''].filter(Boolean).join('; ');
   return { moving: gaveUp ? why : '', words: tagWords(), perpetual };
@@ -162,8 +162,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       ui.status(`${d.title}: opening`);
       clock.setDrawing(true);   // (skip mode holds the draw back between slides: a talk always opens with it on)
       await openEntry(entry);
-      await until(talkUp, 25000);
-      if (!talkUp()) { notes.push(`${d.title}: the talk did not open the first time; opened again`); if (talkOn()) leaveTalk(); await sleep(real(200)); await openEntry(entry); await until(talkUp, 25000); }
+      await until(talkUp, real(25000));   // (25 s of the WALL: `until` counts page time, which at 300x passes 300 times faster, so a bare 25000 was 83 ms and the cold first talk never had time to load)
       const stops = useUi.getState().stops.length;
       if (!stops) { notes.push(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
       total = growCaptureTotal(total, stops, single);   // (the talk's stops are a floor: the steps within them add more as they are met)

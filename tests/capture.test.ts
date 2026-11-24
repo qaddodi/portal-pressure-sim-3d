@@ -346,3 +346,11 @@ test('a skipped capture draws nothing while a slide is on its way: setDrawing(fa
   assert.match(all, /clock\.setDrawing\(false\);\s*\n\s*if \(!useUi\.getState\(\)\.move\('next'\)\) break;/); assert.match(all, /clock\.setDrawing\(true\)/);
   assert.ok(!/veil/.test(page), 'no cover');
 });
+
+test('capture waits are in WALL time: until() counts page time, so at the skip clock scale a bare 25000 is 83 ms and the cold first talk "did not open"; the open wait is real(25000)', async () => {
+  const { scaledDelay } = await import('../src/clock/frame.ts');
+  assert.ok(scaledDelay(25000, 300) < 100, 'a bare 25000 at 300x is under 100 ms of wall time (the HVPG talk, loaded cold, failed at that)');
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /await until\(talkUp, real\(25000\)\)/); assert.ok(!/until\(talkUp, 25000\)/.test(all));
+  assert.ok(!/opened again/.test(all), 'no retry patch');
+});
