@@ -5,6 +5,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
+import { liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt } from '../src/ui/debug/editor/source.ts';
 import { applyVesselOverrides } from '../src/editor/vessel-apply.ts';
 import { editableSkeleton } from '../src/editor/vessel-skeleton.ts';
@@ -137,4 +138,18 @@ test('a stroke on a rotated and scaled organ moves the vertex by the drag as see
   const edited = applyOrganEdit(ref.clone(), { ...edit, strokes: [{ at: toReference(hit, edit, c), radius: st.radius, by: st.by }] }, { centroid: c }).getAttribute('position');
   const got = [edited.getX(i) - hit[0], edited.getY(i) - hit[1], edited.getZ(i) - hit[2]];
   drag.forEach((v, k) => assert.ok(Math.abs(got[k]! - v) < 1e-5, `axis ${k}: ${got[k]} vs ${v}`));
+});
+
+test('live: the organ transformed by the draft over its loaded edit equals the organ Save builds', () => {
+  const ref = new BoxGeometry(1, 1, 1, 4, 4, 4), c = organCentroid(ref);
+  const loadedE = { move: [0.02, 0.01, -0.03] as const, rotY: -0.1, scale: 0.95 }, nowE = { move: [-0.04, 0.03, 0.05] as const, rotY: 0.25, scale: 1.12 };
+  const built = applyOrganEdit(ref.clone(), loadedE, { centroid: c }), want = applyOrganEdit(ref.clone(), nowE, { centroid: c });
+  const t = liveTransform(loadedE, nowE, c), b = built.getAttribute('position'), w = want.getAttribute('position');
+  const cs = Math.cos(t.rotY), sn = Math.sin(t.rotY);
+  for (const i of [0, 9, 31, 60]) {
+    const x = b.getX(i) * t.scale, y = b.getY(i) * t.scale, z = b.getZ(i) * t.scale;   // three's order: scale, turn about Y, then position
+    const got = [x * cs + z * sn + t.position[0], y + t.position[1], -x * sn + z * cs + t.position[2]];
+    assert.ok(Math.hypot(got[0]! - w.getX(i), got[1]! - w.getY(i), got[2]! - w.getZ(i)) < 1e-5);
+  }
+  assert.deepEqual(liveTransform(loadedE, loadedE, c), { position: [0, 0, 0], rotY: 0, scale: 1 });
 });

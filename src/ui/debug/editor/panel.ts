@@ -10,6 +10,7 @@ import { frameFor } from '../../../clock/frame.ts';
 import { readBox, readMetric } from '../../layout-snap.ts';
 import { clearDraft, overrides, saveDraft } from '../../../editor/store.ts';
 import { ORGAN_LIMITS, type V3 } from '../../../editor/types.ts';
+import { liveTransform } from './live.ts';
 import { Overlay } from './overlay.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
@@ -86,7 +87,18 @@ export function mountEditor(): void {
     }
     return { lo, hi };
   };
+  const shownOrgans = new Set<string>();
+  /** The organs' meshes carry the draft over the loaded edit, live (live.ts): children of the organ's group, never the group (the layer owns that). */
+  const syncOrgans = (): void => {
+    for (const id of [...Object.keys(hist.now.organs ?? {}), ...Object.keys(loaded.organs ?? {}), ...shownOrgans]) {
+      const o = cel.disease.organs.byId.get(id); if (!o) continue;
+      const t = liveTransform(loaded.organs?.[id], hist.now.organs?.[id], centroidOf(id));
+      for (const m of o.group.children) { m.position.set(t.position[0], t.position[1], t.position[2]); m.rotation.y = t.rotY; m.scale.setScalar(t.scale); }
+      shownOrgans.add(id);
+    }
+  };
   const refreshOverlay = (): void => {
+    syncOrgans();
     const vessels = mode === 'vessels';
     overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: 9, color: 0xffb347 });
     if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: 16, color: 0xff3d71 });
@@ -99,7 +111,7 @@ export function mountEditor(): void {
     } else { overlay.clear('ctrl'); overlay.clear('sel'); }
     if (mode === 'organs' && selOrgan) {
       const b = organBoxLocal(selOrgan);
-      if (b) { const m = organOf(hist.now, selOrgan).move, l = organOf(loaded, selOrgan).move; overlay.box('organ', add(b.lo, [m[0] - l[0], m[1] - l[1], m[2] - l[2]]), add(b.hi, [m[0] - l[0], m[1] - l[1], m[2] - l[2]]), 0xffb347); }
+      if (b) overlay.box('organ', b.lo, b.hi, 0xffb347);   // (the box is of the live meshes, which already carry the draft)
     } else overlay.clear('organ');
     cel.setEditorOverlay(overlay.object);   // (asks for a frame; the same object, so nothing is rebuilt)
     frameFor('editor', 300);
@@ -268,9 +280,9 @@ export function mountEditor(): void {
         if (!drag.marked) { hist.mark(); drag.marked = true; }
         const w = dragDelta(cel.rig.camera, drag.lastHit, drag.last, ndc);
         const by = toLocal(drag.lastHit.clone().add(w)).sub(toLocal(drag.lastHit)).multiplyScalar(strength);
-        const hp = toLocal(hit.point), at = toReference([hp.x, hp.y, hp.z], loaded.organs?.[drag.id], centroidOf(drag.id));
-        // (a stroke is in the organ's reference frame, organ-apply.ts: the built mesh is the reference with the loaded edit on it, so undo that)
-        const st = strokeToReference([by.x, by.y, by.z], radius, loaded.organs?.[drag.id]);
+        const hp = toLocal(hit.point), at = toReference([hp.x, hp.y, hp.z], hist.now.organs?.[drag.id], centroidOf(drag.id));
+        // (a stroke is in the organ's reference frame, organ-apply.ts: the mesh on screen carries the draft's move, turn and scale, so undo those)
+        const st = strokeToReference([by.x, by.y, by.z], radius, hist.now.organs?.[drag.id]);
         edit(addStroke(hist.now, drag.id, { at, radius: st.radius, by: st.by }));
         drag.last = ndc; drag.lastHit = hit.point;
       }
