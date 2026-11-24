@@ -2,6 +2,7 @@
 // (.pzt-vu > .pzt-v + small), the rating's word (.pzt-r), the line that says where it started (.pzt-d) and the scale bar (.pzt-bar: bands, cut-off ticks and numbers, a ring where it
 // started and a dot where it is). Which tiles, their words and their numbers are tiles-2d.ts, from the slide's own state in the engine; this file only draws them.
 // An instrument card's readings stand in its header row instead (.pz-dh > .pz-hr > .pz-hi) and its tiles card is not drawn (2D: .pz-data.tool-only .pz-tiles is hidden).
+import { fitLabels } from './tile-labels.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { useLayoutEffect, useMemo, useRef, type MouseEvent, type RefObject } from 'react';
 import { copiedOf } from '../../decks/hp/deck.ts';
@@ -109,16 +110,9 @@ export function useTileFit(row: RefObject<HTMLDivElement | null>, sig: string) {
       bars.forEach(({ ls }, n) => {
         const { B, rs } = boxes[n]!;
         if (!B.width) { measured = false; return; }
-        let end = -Infinity, clash = false;
-        ls.forEach((l, i) => {
-          const r = rs[i]!;
-          if (!r.width) return;
-          let left = r.left, right = r.right;
-          if (r.left < B.left) { l.classList.add('lo'); left += r.width / 2; right += r.width / 2; } else if (r.right > B.right) { l.classList.add('hi'); left -= r.width / 2; right -= r.width / 2; }
-          if (left < end + 8) clash = true; else end = right;
-        });
-        if (clash) ls.forEach((l) => l.classList.add('off'));
-        else if (ls.length) anyShown = true;
+        const fits = fitLabels(B, rs);
+        ls.forEach((l, i) => { const f = fits[i]!; if (f.lean) l.classList.add(f.lean); if (f.off) l.classList.add('off'); });
+        if (fits.some((f, i) => rs[i]!.width > 0 && !f.off)) anyShown = true;
       });
       if (measured && bars.length) el.classList.toggle('pzb-nonum', !anyShown);
     };

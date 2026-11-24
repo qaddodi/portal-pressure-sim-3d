@@ -85,6 +85,8 @@ export const footDrop = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8 - foot
 
 /** ONE geometry for the gaps between cards, strips, the pill and the screen's edges (Plan 37: several literals for one gap, some ignoring the safe areas, put the words over the data strip,
  *  the data card over the words strip, the pill on the strip and a card under the home bar). Every top is `topEdge`, every bottom `footEdge`; the strip's lift and the cards' caps derive from them. */
+/** The least an instrument card keeps beside a words card too tall for the column (its title and a short chart). */
+const DATA_LEAST = 150;
 export const CARD_GAP = 8;   // least room between two cards, or a card and a strip
 export const PILL_GAP = 6;   // least room between a strip and the pill
 export const topEdge = (vp: Viewport, m: number): number => Math.max(m, vp.safe.top);
@@ -254,9 +256,18 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     short = !!data && !!words && (data.want ?? 0) > maxH.data + 0.5;   // (the instrument was held short by this room: the title steps first, Plan 43)
     // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
     docked = dock && !!data && !!words;
-    if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
+    // Two cards never stand on each other (Stiffness 12 page 2, capture 572259fd: a words card of 645 px under a 240 px instrument on a 894 px phone, 11 px of the instrument over its tag). The figure's floor
+    // above gave way first; when the two cards alone are taller than the column, the instrument keeps what the words leave (never under DATA_LEAST) and the words take the rest, which they report as
+    // an overflow, so the card layer pages or steps the card instead of the planner stacking one on the other.
+    let dh2 = dh, wh2 = wh;
+    if (words && data && !docked && wh + dh + CARD_GAP > bottom - dtop) {
+      dh2 = Math.round(Math.max(Math.min(dh, DATA_LEAST), Math.min(dh, bottom - dtop - CARD_GAP - wh)));
+      wh2 = Math.round(Math.min(wh, bottom - dtop - CARD_GAP - dh2));
+      maxH.data = Math.min(maxH.data, dh2); maxH.words = Math.min(maxH.words, wh2);
+    }
+    if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh2 } });
     if (data && docked) { strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: GRIP } }; tucked = { x, y: dtop, w, h: dh }; }   // (2D's closed data card: its edge, GRIP px; the card itself stays up under it)
-    if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
+    if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh2), w, h: wh2 } });
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: bottom - safe.top };
   } else {
     // Mac, iPad on its side: words top left, the data card under it at the same width.
@@ -290,7 +301,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   // (a card's own height, not the room it stands in: a pair's two cards stand the room's whole height whatever their words need)
   const need = (p: Placed) => needs.find((n) => n.slot === p.slot)?.h ?? p.rect.h;
-  const overflow = placed.filter((p) => (sideways ? need(p) : p.rect.h) > maxH[p.slot] + 0.5).map((p) => p.id);
+  const overflow = placed.filter((p) => (sideways || (!alone && (layout === 'stack' || layout === 'tab')) ? need(p) : p.rect.h) > maxH[p.slot] + 0.5).map((p) => p.id);
   return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, scrolled, scrollDy, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
 }
 
