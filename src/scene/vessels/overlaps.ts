@@ -78,8 +78,15 @@ export function overlapRuns(A: Sampled, B: Sampled, limit: number): Run[] {
   for (let p = 0; p < A.pts.length; p++) {
     const a = A.pts[p]!;
     if (a[0] < bx0 || a[0] > bx1 || a[1] < by0 || a[1] > by1 || a[2] < bz0 || a[2] > bz1) { flush(); continue; }
-    let d = Infinity, q = -1;
-    for (let r = 0; r < B.pts.length; r++) { const b = B.pts[r]!, dd = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); if (dd < d) { d = dd; q = r; } }
+    let d = Infinity, q = -1, d2 = Infinity;
+    // (the nearest sample of B: a squared distance, a few multiplies, turns away every sample that cannot be nearer; only a possible winner pays for `Math.hypot`, so the value, and which sample wins, are what they were.
+    //  `Math.hypot` of three numbers was the clearance pass's whole cost: 24 Nov profile of the scene's constructor)
+    for (let r = 0; r < B.pts.length; r++) {
+      const b = B.pts[r]!, ex = a[0] - b[0], ey = a[1] - b[1], ez = a[2] - b[2], e2 = ex * ex + ey * ey + ez * ez;
+      if (e2 > d2 * 1.000001) continue;
+      const dd = Math.hypot(ex, ey, ez);
+      if (dd < d) { d = dd; q = r; d2 = e2; }
+    }
     if (q < 0 || d >= limit) { flush(); continue; }
     if (!cur) cur = { i0: p, i1: p, d, at: p, mate: q, j0: q, j1: q };
     else { cur.i1 = p; cur.j0 = Math.min(cur.j0, q); cur.j1 = Math.max(cur.j1, q); if (d < cur.d) { cur.d = d; cur.at = p; cur.mate = q; } }

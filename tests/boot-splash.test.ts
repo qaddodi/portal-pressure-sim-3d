@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Script, createContext } from 'node:vm';
 
 const HTML = readFileSync('index.html', 'utf8');
-interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean; held?: boolean; rows?: boolean }
+interface Opts { total?: number; entries?: (now: number) => { name: string; encodedBodySize: number }[]; onLine?: boolean; controller?: boolean; fonts?: 'none' | 'now' | 'never'; dcl?: boolean; realCover?: boolean; richBar?: boolean; held?: boolean; rows?: boolean; glide?: { frames: Keyframe[]; opt: { duration: number; easing: string; fill: string }; cancelled: boolean }[] }
 
 function run(o: Opts = {}) {
   const code = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((c) => c.includes('ppsBootLift'))!;   // (the cover's script: found by what it defines, not by its place: the look script before it came first from 22 Nov)
@@ -16,7 +16,7 @@ function run(o: Opts = {}) {
     const el: any = { id, className: '', innerHTML: '<i>orig</i>', parentNode: { removeChild() { el.removed = true; } }, removed: false, children: {} as Record<string, any>, history,
       style: { setProperty: (k: string, v: string) => { css[k] = v; if (k === '--p') history.push(Number(v)); } },
       getAttribute: (k: string) => attrs[k] ?? null, setAttribute: (k: string, v: string) => { attrs[k] = v; }, removeAttribute: (k: string) => { delete attrs[k]; }, hasAttribute: (k: string) => k in attrs,
-      querySelector: (sel: string) => { if (o.rows && (sel === '.boot-stage' || sel === '.boot-pct')) return (el.children[sel] ??= { textContent: '', attrs: {} as Record<string, string>, setAttribute(k: string, v: string) { this.attrs[k] = v; }, removeAttribute(k: string) { delete this.attrs[k]; } }); if (o.richBar && sel === '.boot-prog' && !el.innerHTML.includes('boot-msg')) return (el.children['.boot-prog'] ??= { style: {}, offsetHeight: 1 }); const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
+      querySelector: (sel: string) => { if (o.glide && sel === '.boot-bar u') return (el.children[sel] ??= { animate(frames: Keyframe[], opt: { duration: number; easing: string; fill: string }) { const a = { frames, opt, cancelled: false }; o.glide!.push(a); return { cancel() { a.cancelled = true; } }; } }); if (o.rows && (sel === '.boot-stage' || sel === '.boot-pct')) return (el.children[sel] ??= { textContent: '', attrs: {} as Record<string, string>, setAttribute(k: string, v: string) { this.attrs[k] = v; }, removeAttribute(k: string) { delete this.attrs[k]; } }); if (o.richBar && sel === '.boot-prog' && !el.innerHTML.includes('boot-msg')) return (el.children['.boot-prog'] ??= { style: {}, offsetHeight: 1 }); const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
     return el;
   };
   const boot = mkEl('boot'), root = mkEl('root'); root.firstChild = null;
@@ -310,4 +310,31 @@ test('D: the markup and the look: one row under the bar, the stage left in the m
   for (const n of [...names.matchAll(/'([^']+)'(?=[,}]|$)/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '')).filter((x) => /\s/.test(x))) assert.ok(n.length <= 21, `${n} fits 172 px at 12 px beside the percent`);
   const c = run({ entries: () => file(3), dcl: false, realCover: true, fonts: 'now' }); c.advance(9000);
   assert.doesNotMatch(c.boot.innerHTML, /boot-prog|boot-row/, 'the slow note keeps the mark and the name only');
+});
+
+
+// ---- 24 Nov: the compositor carries the bar through a main-thread block ----
+test('each stage hands the creep layer a compositor animation from its share toward the next, on the fill\'s own curve, and cancels the one before', () => {
+  const g: { frames: any[]; opt: any; cancelled: boolean }[] = [];
+  const c = run({ total: 1_000_000, entries: () => file(12), dcl: false, glide: g });
+  c.ctx.ppsBootStarted = true; c.advance(1200);
+  assert.equal(g.length, 1, 'the app began to run: one animation, from the bytes\' 55%');
+  const sc = (f: any, i: number) => Number(/scaleX\(([\d.e-]+)\)/.exec(f.frames[i].transform)![1]);
+  assert.equal(sc(g[0], 0), 0.55);
+  const reach = sc(g[0], 1);
+  assert.ok(reach > 0.55 && reach < 0.66, `it heads for the engine's share (0.66) and stops short of it (${reach})`);
+  assert.ok(Math.abs(reach - (0.55 + 0.11 * 0.85 * (1 - Math.exp(-4)))) < 1e-9, 'where the fill\'s own creep would be after 10 s');
+  assert.equal(g[0]!.opt.duration, 10000); assert.match(g[0]!.opt.easing, /^cubic-bezier\(/); assert.equal(g[0]!.opt.fill, 'forwards');
+  c.ctx.ppsBootStage('engine'); c.ctx.ppsBootStage('engine');
+  assert.equal(g.length, 2, 'a stage reported twice is one animation');
+  assert.equal(g[0]!.cancelled, true, 'the one before is cancelled');
+  assert.equal(sc(g[1]!, 0), 0.66);
+  c.ctx.ppsBootStage('labels');
+  assert.ok(sc(g.at(-1)!, 1) < 0.97 && sc(g.at(-1)!, 1) > 0.96, 'the last stage heads for .97 at most, never the end (the lift is the end)');
+});
+
+test('the creep\'s fitted curve stays within 1% of the span of the fill\'s own creep (1 - e^(-t/2.5 s) over 10 s)', () => {
+  const m = /GLIDE_EASE='cubic-bezier\(([^)]*)\)'/.exec(HTML)!, [x1, y1, x2, y2] = m[1]!.split(',').map(Number) as [number, number, number, number];
+  const f = (x: number) => { let lo = 0, hi = 1, s = .5; for (let i = 0; i < 40; i++) { s = (lo + hi) / 2; const k = 1 - s; if (3 * k * k * s * x1 + 3 * k * s * s * x2 + s ** 3 < x) lo = s; else hi = s; } const k = 1 - s; return 3 * k * k * s * y1 + 3 * k * s * s * y2 + s ** 3; };
+  for (let x = 0; x <= 1; x += 0.02) assert.ok(Math.abs(f(x) - (1 - Math.exp(-4 * x)) / (1 - Math.exp(-4))) < 0.01, `at ${x}`);
 });

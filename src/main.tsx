@@ -1,6 +1,7 @@
 // Boot order: the saved look (before anything paints) → fonts and the engine's first patient, in parallel → React → the first card.
 // Nothing is shown before it is ready: the screen is the look's ground until then, never white, never half-styled.
 import './boot/started.ts';
+import { engineBooted } from './boot/engine-start.ts';   // (second, before any other module is evaluated: the engine's worker computes the first patient while the main thread builds the scene; boot/engine-start.ts)
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';
@@ -14,7 +15,7 @@ import { lookGlide } from './looks/glide.ts';
 import { followDevice } from './looks/follow-device.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
-import { bootEngine, useEngine } from './engine/index.ts';
+import { useEngine } from './engine/index.ts';
 import { App } from './App.tsx';
 import { mountPerf } from './ui/perf/mount.ts';
 import { hasWebGL2 } from './boot/webgl.ts';
@@ -67,7 +68,7 @@ window.addEventListener('vite:preloadError', () => {
 
 async function start() {
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
-  const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); }), bakedReady]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
+  const [fonts] = await Promise.all([fontsReady(), engineBooted, bakedReady]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();

@@ -11,7 +11,7 @@ import { isLate } from '../scripts/pwa.mjs';
 function fakeDist(chunk: string, data: Record<string, string> = {}) {
   const dist = mkdtempSync(join(tmpdir(), 'dist-'));
   mkdirSync(join(dist, 'assets')); mkdirSync(join(dist, 'anatomy'));
-  writeFileSync(join(dist, 'assets/main-abc.js'), chunk); writeFileSync(join(dist, 'index.html'), '<html></html>');
+  writeFileSync(join(dist, 'assets/main-abc.js'), chunk); writeFileSync(join(dist, "index.html"), "<html><head></head></html>");
   for (const n of DATA_FILES) if (n in data) writeFileSync(join(dist, n), data[n]!);
   return dist;
 }
@@ -48,4 +48,13 @@ test('the build runs it after the bundler and before the worker is written', () 
   const b = readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
   assert.ok(b.indexOf('hash-data.mjs') > b.indexOf('vite.js') && b.indexOf('hash-data.mjs') < b.indexOf('pwa.mjs'));
   assert.ok(readdirSync(new URL('../scripts/', import.meta.url)).includes('hash-data.mjs'));
+});
+
+test('the page\'s head preloads the boot data (organs, skins, art) by their hashed names, low priority, and only the files this build has', () => {
+  const dist = fakeDist('"anatomy/skins.bin";"anatomy/organs-baked.bin";"anatomy/circuit-skins.bin"', { 'anatomy/skins.bin': 'S', 'anatomy/organs-baked.bin': 'O', 'anatomy/circuit-skins.bin': 'C' });
+  const r = hashData(dist), page = readFileSync(join(dist, 'index.html'), 'utf8');
+  for (const n of ['anatomy/skins.bin', 'anatomy/organs-baked.bin']) assert.ok(page.includes(`<link rel="preload" as="fetch" crossorigin fetchpriority="low" href="./${r[n]}">`), `${n} is preloaded`);
+  assert.ok(!page.includes(r['anatomy/circuit-skins.bin']!), 'the Circuit\'s skins are not on the boot path: not preloaded');
+  assert.ok(!page.includes('organ-art'), 'a file the build lacks has no tag');
+  assert.ok(page.indexOf('preload') < page.indexOf('</head>'));
 });

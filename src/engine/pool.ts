@@ -75,8 +75,16 @@ export class Second {
   }
 }
 
+/** The live worker the entry started while the app's code was still on its way (`enginePool.early`), waiting for the engine's boot to take it. */
+let early: WorkerLike | null = null;
+
 export const enginePool = {
-  live: startWorker,
+  /** Starts the live worker now and keeps it for `live()`. The page's entry calls this as it asks for the app's code (src/entry.ts), so the worker's own file is fetched and run, on its own thread, beside the download and the
+   *  run of the 3.9 MB the app is: before 24 Nov the worker was made by `bootEngine` at the END of the app's start, after the scene had been built on the one main thread, so the simulation's first patient waited for the whole
+   *  scene build and the two ran one after the other. A worker that cannot be made is left for `live()` to say why. */
+  early(): void { if (early) return; try { early = startWorker(); } catch { early = null; } },
+  /** The worker the figure's clock runs on: the one started early when there is one (once), else a new one. */
+  live: (): WorkerLike => { const w = early; early = null; return w ?? startWorker(); },
   sequence: new Second(),
   whatIf: new Second(),
 };

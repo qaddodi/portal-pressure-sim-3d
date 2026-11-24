@@ -18,18 +18,37 @@ function footOnSegment(x: number, y: number, a: V3, b: V3): { d: number; t: numb
   return { d: hyp(x - a[0] - t * bx, y - a[1] - t * by), t };
 }
 
-/** Every place one course's end touches another course of its family. */
+/** How many segment distances `findTouches` has worked out (a counter, so a test can hold the work to a budget without a clock: tests/boot-work-budget.test.ts). */
+export const touchWork = { segments: 0 };
+
+/** Every place one course's end touches another course of its family.
+ *  Root cause of the Lobule's 235 ms (laptop, cold) in the scene's constructor, and of the weld planner's own seconds on a phone: every end was measured against EVERY segment of EVERY other course
+ *  (about 12 million `hypot`s a pass, three passes), though a place can only touch what lies within `touch` of it. A segment whose box, grown by the best distance so far, does not hold the end cannot be nearer
+ *  than that distance, so it is skipped before any arithmetic; a course's own box is tried first. The answer is the same (the test holds it against the plain loop). */
 export function findTouches(cs: readonly WeldCourse[], touch: number): Touch[] {
   const out: Touch[] = [];
+  // (each course's box in the plan, once)
+  const box = cs.map((c) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const p of c.pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; } return [x0, y0, x1, y1] as const; });
   cs.forEach((c, i) => {
     for (const end of [0, 1] as const) {
       const P = end === 0 ? c.pts[0]! : c.pts[c.pts.length - 1]!;
+      const px = P[0], py = P[1];
       let best: Touch | null = null, bd = touch;
       cs.forEach((o, j) => {
         if (j === i || o.family !== c.family) return;
-        for (let s = 0; s < o.pts.length - 1; s++) {
-          const f = footOnSegment(P[0], P[1], o.pts[s]!, o.pts[s + 1]!);
-          if (f.d < bd) { bd = f.d; best = { c: i, end, to: j, seg: s, t: f.t, x: lerp(o.pts[s]![0], o.pts[s + 1]![0], f.t), y: lerp(o.pts[s]![1], o.pts[s + 1]![1], f.t), atEnd: (s === 0 && f.t < 1e-6) || (s === o.pts.length - 2 && f.t > 1 - 1e-6) }; }
+        const b = box[j]!;
+        if (px < b[0] - bd || px > b[2] + bd || py < b[1] - bd || py > b[3] + bd) return;
+        const pts = o.pts;
+        let ax = pts[0]![0], ay = pts[0]![1];
+        for (let s = 0; s < pts.length - 1; s++) {
+          const bx = pts[s + 1]![0], by = pts[s + 1]![1];
+          // (the segment's own box, grown by the best so far: a end outside it is farther than `bd`, and `<` would not take it)
+          if (!((ax < bx ? px < ax - bd || px > bx + bd : px < bx - bd || px > ax + bd) || (ay < by ? py < ay - bd || py > by + bd : py < by - bd || py > ay + bd))) {
+            touchWork.segments++;
+            const f = footOnSegment(px, py, pts[s]!, pts[s + 1]!);
+            if (f.d < bd) { bd = f.d; best = { c: i, end, to: j, seg: s, t: f.t, x: lerp(ax, bx, f.t), y: lerp(ay, by, f.t), atEnd: (s === 0 && f.t < 1e-6) || (s === pts.length - 2 && f.t > 1 - 1e-6) }; }
+          }
+          ax = bx; ay = by;
         }
       });
       if (best) out.push(best);
