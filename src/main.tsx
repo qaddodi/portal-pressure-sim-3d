@@ -15,6 +15,7 @@ import { lookGlide } from './looks/glide.ts';
 import { followDevice } from './looks/follow-device.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
+import { appStylesReady } from './boot/styles.ts';
 import { useEngine } from './engine/index.ts';
 import { App } from './App.tsx';
 import { mountPerf } from './ui/perf/mount.ts';
@@ -70,10 +71,12 @@ window.addEventListener('vite:preloadError', () => {
 });
 
 async function start() {
-  if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
+  // The stylesheets are loaded beside the cover's first paint, not in front of it (boot/styles.ts): nothing is put in #root until they are all on, so no part of the app is ever drawn unstyled.
+  const styles = appStylesReady();
+  if (!hasWebGL2()) { await styles; createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   // The scene is built a step per task while the worker computes the first patient and the fonts and the baked files arrive: no one task is the whole scene, so the cover's bar and the browser's input run between the steps.
   const sceneBuilt = buildSceneSliced(nextTask).then(wireScene);
-  const [fonts] = await Promise.all([fontsReady(), engineBooted, bakedReady, sceneBuilt]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
+  const [fonts] = await Promise.all([fontsReady(), engineBooted, bakedReady, sceneBuilt, styles]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();

@@ -65,7 +65,7 @@
 .bt-list li[data-kind="change"] .bt-what { color: var(--text); }
 .bt-list li > button { transition: padding-top var(--d-small) var(--ease); }
 /* the chevron at the right of every event (option A of phone-panel-button-mocks-24nov/events-tappable-options.png): down while it is shut, up while it is open */
-.bt-list .bt-go { font-size: 16px; color: var(--text-3); transition: transform var(--d-small) var(--ease), color var(--d-small) var(--ease); }
+.bt-list .bt-go { font-size: var(--t-body); color: var(--text-3); transition: transform var(--d-small) var(--ease), color var(--d-small) var(--ease); }
 .bt-list li[data-open] .bt-go { transform: rotate(180deg); color: var(--text); }
 .bt-list li[data-open] > button { padding-top: 12px; }
 .bt-more { padding: 0 0 12px 76px; font: 400 var(--t-lab) / 1.4 var(--ui); color: var(--text-2); }
@@ -88,11 +88,11 @@
 .bt-acts { display: flex; align-items: baseline; gap: 18px; margin: 0; }
 .bt-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: none; margin-top: 12px; padding: 0 0 calc(var(--safe-b, 0px) * 0.4); }
 /* the two openers are buttons (docs/approved/timeline-chart.md, option A of phone-panel-button-mocks-24nov): a raised fill with a hairline, the panel's icon, its name and a chevron up that says it rises */
-.bt-foot button { display: flex; align-items: center; gap: 10px; min-width: 0; height: 46px; padding: 0 12px 0 14px; border: 1px solid var(--edge); border-radius: 12px; background: var(--surface-2); font: 600 14.5px / 1.2 var(--ui); color: var(--text); text-align: left; white-space: nowrap; transition: background-color var(--d-small) var(--ease), transform var(--d-small) var(--ease); }
+.bt-foot button { display: flex; align-items: center; gap: 10px; min-width: 0; height: 46px; padding: 0 12px 0 14px; border: 1px solid var(--edge); border-radius: var(--r-card); background: var(--surface-2); font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); text-align: left; white-space: nowrap; transition: background-color var(--d-small) var(--ease), transform var(--d-small) var(--ease); }
 .bt-foot button:active { transform: scale(0.98); background: color-mix(in srgb, var(--surface-2) 82%, var(--text)); }
 .bt-foot button[data-quiet] { color: var(--text-2); }
-.bt-foot .ic { font-size: 18px; }
-.bt-foot .bt-go { margin-left: auto; font-size: 16px; color: var(--text-3); transform: rotate(180deg); }
+.bt-foot .ic { font-size: var(--t-val); }
+.bt-foot .bt-go { margin-left: auto; font-size: var(--t-body); color: var(--text-3); transform: rotate(180deg); }
 .bt[data-compact] .bt-side { position: absolute; left: 0; right: 0; bottom: 0; height: min(78%, 640px); padding: 14px 16px 12px; border-radius: var(--r-sheet) var(--r-sheet) 0 0; border-top: 1px solid var(--edge); background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 -12px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / 0.28); opacity: 0; visibility: hidden; transform: translateY(24px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .bt[data-compact][data-raised] .bt-side { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }

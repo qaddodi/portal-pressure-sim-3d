@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { glslFiles } from './scripts/gl-scan.mjs';
 import { withCsp } from './scripts/csp.mjs';
 import { fadeHidden } from './scripts/fade-hidden.mjs';
+import { appCssTags } from './scripts/app-css.mjs';
 
 /** The built page's Content-Security-Policy (scripts/csp.mjs). Build only: the dev server's own inline scripts would be refused. */
 function csp(): Plugin {
@@ -27,7 +28,8 @@ function appPreload(): Plugin {
         for (const i of c.imports) walk(i);
       };
       walk(app.fileName);
-      const tags = [...js].map((f) => `<link rel="modulepreload" crossorigin href="./${f}">`).concat([...css].map((f) => `<link rel="stylesheet" crossorigin href="./${f}">`)).join('\n    ');
+      // (the stylesheets are not render-blocking: scripts/app-css.mjs. The cover's own style is inline in index.html, so the first paint does not wait for them; the app waits for them, src/boot/styles.ts)
+      const tags = [...js].map((f) => `<link rel="modulepreload" crossorigin href="./${f}">`).concat(appCssTags([...css])).join('\n    ');
       return html.replace('</head>', `    ${tags}\n  </head>`);
     } },
   };

@@ -37,7 +37,7 @@ test('engine-start.ts boots the engine at once and main.tsx waits for that one b
   const es = readFileSync('src/boot/engine-start.ts', 'utf8'), main = readFileSync('src/main.tsx', 'utf8');
   assert.match(es, /export const engineBooted[^=]*= bootEngine\(\)\.catch\(/);
   assert.equal([...main.matchAll(/bootEngine\(/g)].length, 0, 'main.tsx does not boot the engine itself');
-  assert.match(main, /Promise\.all\(\[fontsReady\(\), engineBooted, bakedReady, sceneBuilt\]\)/);
+  assert.match(main, /Promise\.all\(\[fontsReady\(\), engineBooted, bakedReady, sceneBuilt, styles\]\)/);
 });
 
 test('the entry starts the worker as it asks for the app, after every page that is not the app has been ruled out', () => {

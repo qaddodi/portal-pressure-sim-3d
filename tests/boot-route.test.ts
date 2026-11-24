@@ -13,9 +13,9 @@ test('index.html loads the entry, not the app', () => {
   assert.match(html, /<script type="module" src="\.\/src\/entry\.ts"><\/script>/);
 });
 
-test('the entry statically imports only the started flag and the light gate and flag tables', () => {
+test('the entry statically imports only the started flag, the styles wait (boot/styles.ts: a few lines) and the light gate and flag tables', () => {
   const statics = [...entry.matchAll(/^import\s+(?:[^'"]*from\s+)?'([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(statics.sort(), ['./boot/started.ts', './ui/debug/flags.ts', './ui/debug/frame/request.ts', './ui/debug/gate.ts']);
+  assert.deepEqual(statics.sort(), ['./boot/started.ts', './boot/styles.ts', './ui/debug/flags.ts', './ui/debug/frame/request.ts', './ui/debug/gate.ts']);
 });
 
 test('every page that is not the app lifts the cover (plainPage) before it opens, and the app is fetched only after all of them', () => {
