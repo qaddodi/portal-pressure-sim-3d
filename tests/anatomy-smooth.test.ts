@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { vesselSmoothness, joinSmoothness, organSmoothness, overBar, type SmoothAllow } from './anatomy/smooth.ts';
 import { ORGAN_MESHES, setOrganData, organsReady } from '../src/scene/organs/meshes.ts';
 import { prepareOrgans } from '../src/scene/organs/prepare.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 
 const FILE = new URL('./anatomy/smooth-allow.json', import.meta.url);
 
@@ -23,10 +24,12 @@ test('every vessel, join and organ is as smooth as the bar, or no rougher than i
     writeFileSync(FILE, JSON.stringify(a, null, 1) + '\n');
     return;
   }
-  const allow = JSON.parse(readFileSync(FILE, 'utf8')) as SmoothAllow;
+  const listedAllow = JSON.parse(readFileSync(FILE, 'utf8')) as SmoothAllow;
+  // (the approved placement, PPS_ANATOMY=placed: NO allowance for a vessel or a join, every one is under the bar (Mohammad, 24 Nov: "do NOT give me a reason not to trust you"); the list is today's path only. The organs keep theirs.)
+  const allow: SmoothAllow = PLACED ? { vessel: {}, join: {}, organ: listedAllow.organ } : listedAllow;
   const rough = over.filter(([kind, name, k, v]) => !((allow[kind] as Record<string, Record<string, number>>)[name]?.[k]! >= v - 1e-9));
   assert.deepEqual(rough.map((r) => `${r[0]} ${r[1]} ${r[2]} ${r[3].toFixed(3)}`), [], 'rougher than the bar and than its allowance');
   const listed = new Set(over.map(([kind, name, k]) => `${kind} ${name} ${k}`));
-  const stale = Object.entries(allow).flatMap(([kind, m]) => Object.entries(m as Record<string, Record<string, number>>).flatMap(([name, ks]) => Object.keys(ks).map((k) => `${kind} ${name} ${k}`))).filter((s) => !listed.has(s));
+  const stale = PLACED ? [] : Object.entries(allow).flatMap(([kind, m]) => Object.entries(m as Record<string, Record<string, number>>).flatMap(([name, ks]) => Object.keys(ks).map((k) => `${kind} ${name} ${k}`))).filter((s) => !listed.has(s));
   assert.deepEqual(stale, [], 'these now pass the bar: take them off tests/anatomy/smooth-allow.json');
 });

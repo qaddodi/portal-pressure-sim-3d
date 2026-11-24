@@ -12,7 +12,7 @@
 // Pure data, no three.js, no reader of network.ts (network.ts reads this when PLACED is on).
 import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS } from './placement.generated.ts';
 import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
-import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
+import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES, PLACED } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
 
 export type V3 = [number, number, number];
@@ -128,232 +128,239 @@ function fair(D: V3[], zone: readonly [number, number] = [-Infinity, Infinity]):
   return D;
 }
 
-const COURSE: Record<string, V3[]> = {};
-const rOf = (k: string): number => PLACED_VESSELS[k]?.r ?? 0.01;
-for (const [k, c] of Object.entries(PLACED_COURSES)) COURSE[k] = fair(relax(denseCurve(c), PLACED_JOINS.relax ?? 40));
-
-// ---- run-ons: one smooth curve through the node ----
-/** How far either side of a run-on the joined course is relaxed (scene units; at most this share of each course). */
+// ---- the network, built once at load and only with the switch on (today's path never pays for it) ----
 export const RUNON_WINDOW = 0.12;
-const RUNON_SHARE = 0.4;
-/** `a`'s end `ea` and `b`'s end `eb` meet end to end. `a` keeps its end where it is (it is the trunk); the stretch of `b` that lies back along `a` is cut away. Both courses are rewritten. */
-function runOn(a: string, ea: 0 | 1, b: string, eb: 0 | 1, meet: 'a' | 'mid' = 'a'): void {
-  let A = ea ? COURSE[a]! : rev(COURSE[a]!);   // (A ends at the node)
-  let B = eb ? rev(COURSE[b]!) : COURSE[b]!;   // (B starts at it)
-  let N = meet === 'mid' ? mul(add(A[A.length - 1]!, B[0]!), 0.5) : A[A.length - 1]!;
-  // the stretch of B that runs back along A (it starts part-way down A: a doubled tube): B starts where it passes nearest the node
-  const kB = nearestIdx(B, N, 0, Math.floor(B.length * 0.5)).i;
-  if (kB > 0) B = B.slice(kB);
-  // the same for A, when B's start lies back along A
-  const kA = nearestIdx(A, B[0]!, Math.floor(A.length * 0.5), A.length - 1).i;
-  if (meet === 'mid' && kA < A.length - 1) A = A.slice(0, kA + 1);
-  if (meet === 'mid') N = mul(add(A[A.length - 1]!, B[0]!), 0.5);
-  // ease each end onto the node over a short stretch, then join and relax the joined course round the node
-  const ease = (D: V3[], atEnd: boolean): V3[] => { const s = arc(D), L = s[s.length - 1]!, reach = Math.min(0.06, 0.3 * L), d = sub(N, atEnd ? D[D.length - 1]! : D[0]!); return D.map((p, i) => add(p, mul(d, 1 - smooth((atEnd ? L - s[i]! : s[i]!) / reach)))); };
-  A = ease(A, true); B = ease(B, false);
-  const J = [...A, ...B.slice(1)], at = A.length - 1, sJ = arc(J), s0 = sJ[at]!;
-  const wa = Math.min(RUNON_WINDOW, RUNON_SHARE * lengthOf(A)), wb = Math.min(RUNON_WINDOW, RUNON_SHARE * lengthOf(B));
-  const R = relax(J, 400, (i) => { const d = sJ[i]! - s0, w = d < 0 ? -d / wa : d / wb; return 1 - smooth(w); });
-  // (faired only round the join: the courses' far ends, and the joins already made there, keep their headings)
-  const zA = Math.max(0, at - Math.round((wa + FAIR_SPAN) / STEP)), zB = Math.max(0, R.length - 1 - at - Math.round((wb + FAIR_SPAN) / STEP));
-  void zA; void zB;
-  const F = fair(R, [s0 - wa, s0 + wb]);
-  A = resample(F.slice(0, at + 1), STEP); B = resample(F.slice(at), STEP);
-  COURSE[a] = ea ? A : rev(A); COURSE[b] = eb ? rev(B) : B;
-}
-
-// ---- branches: arrive on the host's centreline at an acute angle along its flow (geom.js joinEnd) ----
-/** `D` (its join end last) arrives on `P` (in the sense the flow should merge along). */
-function joinEnd(D: V3[], P: readonly V3[], rP: number, rD: number): V3[] {
-  const end = D[D.length - 1]!, hit = nearestOn(P, end), Jp = hit.at, tp = tangentAt(P, hit.i);
-  const cut = 3.2 * rP + 3 * rD;
-  let k = D.length - 1, acc = 0; while (k > 1 && acc < cut) { acc += len(sub(D[k]!, D[k - 1]!)); k--; }
-  const P0 = D[k]!, t0 = tangentAt(D, k), chord = norm(sub(Jp, P0));
-  const t1 = norm(add(chord, mul(tp, 0.9))), L = len(sub(Jp, P0));
-  const n = Math.max(4, Math.round(L / STEP)), out = D.slice(0, k + 1);
-  for (let i = 1; i <= n; i++) {
-    const u = i / n, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
-    out.push([0, 1, 2].map((q) => h00 * P0[q]! + h10 * t0[q]! * L + h01 * Jp[q]! + h11 * t1[q]! * L) as V3);
-  }
-  // (relaxed round the old corner at P0, the end held on the host: the bend into the merge is gradual, not a Hermite's sudden start)
-  const s = arc(out), sk = s[k]!, w = Math.max(0.04, 0.6 * cut), tot = s[s.length - 1]!;
-  return resample(relax(out, 200, (i) => Math.min(1 - smooth(Math.abs(s[i]! - sk) / w), smooth((tot - s[i]!) / (0.5 * L)))), STEP);
-}
-/** Vessel `v`'s end `end` joins host course `h` as a branch (a tributary when its flow ends there, a branch leaving when it starts there). */
-function branch(v: string, end: 0 | 1, host: string, hostCourse?: V3[]): void {
-  const P = hostCourse ?? COURSE[host]!, D = COURSE[v]!;
-  // (faired only over the stretch the merge re-routed and a little more: the far end, and whatever join it has, keeps its heading)
-  const R = joinEnd(end ? D : rev(D), end ? P : rev(P), rOf(host), rOf(v)), m = Math.round((3.2 * rOf(host) + 3 * rOf(v) + 0.1) / STEP);
-  const sR = arc(R), tot = sR[sR.length - 1]!;
-  const F = fair(R, [tot - m * STEP, Infinity]);
-  COURSE[v] = end ? F : rev(F);
-}
-
-// the joins, in the mock's order (parents first), then the collaterals' and shunts' ends
-const J: { readonly joins: readonly { readonly v: string; readonly to: string; readonly end?: 0 | 1; readonly runon?: boolean }[] } = PLACED_JOINS;
-// (run-ons first: they rewrite both courses' ends; then every branch lands on the courses as they stand)
-runOn('smv', 1, 'pv', 0);
-runOn('pv', 1, 'rpv', 0);
-runOn('ha', 1, 'rha', 0);
-runOn('ivc', 1, 'svc', 1, 'mid');
-runOn('lgv', 0, 'C1a', 0);
-runOn('C1a', 1, 'C1b', 0, 'mid');
-runOn('C2', 1, 'C5', 0, 'mid');
-runOn('EPI_ILI', 0, 'EPI_SVC', 0, 'mid');
-// the draw-only through branches run on from their trunk (one tube to the tip)
-runOn('rpv', 1, 'rpvp', 0);
-runOn('rhv', 0, 'rhvb', 0);
-for (const jn of J.joins) {
-  if (jn.runon || jn.end == null) continue;
-  if (['rpvp', 'rhvb', 'rha'].includes(jn.v) || (jn.v === 'rpv' && jn.to === 'pv')) continue;   // (run-ons above)
-  if (jn.v === 'rpva') { branch('rpva', 0, 'rpv', [...COURSE.rpv!, ...COURSE.rpvp!.slice(1)]); continue; }
-  if (jn.v === 'rhva') { branch('rhva', 0, 'rhv', [...rev(COURSE.rhvb!), ...COURSE.rhv!.slice(1)].reverse()); continue; }
-  branch(jn.v, jn.end, jn.to);
-}
-
-// ---- collaterals and shunts: each end lands on the vessel its engine node belongs to ----
-/** The whole vessels (and collaterals) that have a piece at `node`, but `self`. */
-function atNode(node: string, self: string): { whole: string; piece: string; end: 0 | 1 }[] {
-  const out: { whole: string; piece: string; end: 0 | 1 }[] = [];
-  for (const e of edges) {
-    const w = PIECE_WHOLE.get(e.id);
-    if (!w || w === self) continue;
-    if (e.from === node) out.push({ whole: w, piece: e.id, end: 0 });
-    if (e.to === node) out.push({ whole: w, piece: e.id, end: 1 });
-  }
-  return out;
-}
-const isMain = (w: string): boolean => w in WHOLE_PIECES;
-/** How near an end must be to a host to land on it (a collateral whose end is drawn away from its node, the rectal varices down the rectum, is left as placed). */
-const LAND_REACH = 0.06;
-const RUN_ON_ENDS = new Set(['C1a|0', 'C1a|1', 'C1b|0', 'C2|1', 'C5|0', 'EPI_ILI|0', 'EPI_SVC|0']);
-/** The host course a collateral end lands on: the whole vessel (its trunk only, never a draw-only branch). */
-const ownCourse = (w: string): V3[] => COURSE[w]!;
-for (const id of OWN) {
-  const e = edgeById.get(id)!;
-  for (const end of [0, 1] as const) {
-    if (RUN_ON_ENDS.has(`${id}|${end}`)) continue;
-    const node = end ? e.to : e.from, p = end ? COURSE[id]![COURSE[id]!.length - 1]! : COURSE[id]![0]!;
-    const cands = atNode(node, id).filter((c) => c.whole !== id);
-    let best: { w: string; d: number } | null = null;
-    for (const c of cands) { const d = nearestOn(ownCourse(c.whole), p).d - 0 * rOf(c.whole); if (!best || (isMain(c.whole) && !isMain(best.w)) || (isMain(c.whole) === isMain(best.w) && d < best.d)) best = { w: c.whole, d }; }
-    if (!best || best.d > LAND_REACH + rOf(best.w)) continue;
-    // (a shunt or collateral that lands on another collateral's run: the epigastric vein's pair, the azygos: the same rule)
-    // the host's flow sense at the landing: a vessel that ENDS there merges along the host's flow; one that starts there leaves along it
-    branch(id, end, best.w, ownCourse(best.w));
-  }
-}
-
-// ---- the caudate veins: three short tributaries into the cava (the pieces are cut below, so this lands on the whole cava) ----
-for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) branch(k, 1, 'ivc');
-
-// ---- cut each whole vessel into its engine pieces at the attach points ----
 export const PLACED_EDGE_3D: Record<string, V3[]> = {};
-/** Where each engine node sits (3D): a piece's end; for a branching host's far end, its split. */
 export const PLACED_NODE_3D: Record<string, V3> = {};
-const endPt = (id: string, end: 0 | 1): V3 => { const c = COURSE[id]!; return end ? c[c.length - 1]! : c[0]!; };
-for (const [w, pieces] of Object.entries(WHOLE_PIECES)) {
-  const D = COURSE[w]!, s = arc(D), L = s[s.length - 1]!;
-  const cuts: number[] = [];
-  for (let i = 0; i < pieces.length - 1; i++) {
-    const node = edgeById.get(pieces[i]!)!.to;
-    // the joiners at the node: their ends (as they now stand) on this course; a main vessel first, the widest; else a collateral or a shunt, the widest
-    const js = atNode(node, w).filter((c) => !pieces.includes(c.piece)).map((c) => {
-      // (the joiner's end at this node: a collateral's own end; a main vessel's whole end, when its piece there is the whole's first or last)
-      const pw = c.whole, ps = WHOLE_PIECES[pw];
-      const atStart = ps ? ps[0] === c.piece && c.end === 0 : c.end === 0, atEndW = ps ? ps[ps.length - 1] === c.piece && c.end === 1 : c.end === 1;
-      const p = atStart ? endPt(pw, 0) : atEndW ? endPt(pw, 1) : null;
-      const k = edgeById.get(c.piece)!.kind;
-      return p ? { p, main: k !== 'collateral' && k !== 'shunt', r: rOf(pw), hit: nearestOn(D, p) } : null;
-    }).filter((x): x is NonNullable<typeof x> => !!x && x.hit.d < LAND_REACH + rOf(w));
-    js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
-    let at: number;
-    if (js.length) at = js[0]!.hit.s / L;
-    else { const row = (JUNCTIONS as readonly (readonly unknown[])[]).find((r) => r[0] === node); at = row ? Number(row[2]) : (i + 1) / pieces.length; }
-    cuts.push(at);
-  }
-  // (in flow order, each piece at least a hundredth of the course)
-  for (let i = 0; i < cuts.length; i++) cuts[i] = Math.min(1 - 0.01 * (cuts.length - i), Math.max(cuts[i]!, (i ? cuts[i - 1]! : 0) + 0.01));
-  const bounds = [0, ...cuts, 1];
-  pieces.forEach((id, i) => {
-    const a = bounds[i]! * L, b = bounds[i + 1]! * L;
-    const pts: V3[] = [];
-    const at = (d: number): V3 => { let j = 1; while (j < D.length - 1 && s[j]! < d) j++; const u = (d - s[j - 1]!) / ((s[j]! - s[j - 1]!) || 1); return add(D[j - 1]!, mul(sub(D[j]!, D[j - 1]!), Math.min(1, Math.max(0, u)))); };
-    pts.push(at(a));
-    for (let j = 0; j < D.length; j++) if (s[j]! > a + 1e-9 && s[j]! < b - 1e-9) pts.push(D[j]!);
-    pts.push(at(b));
-    PLACED_EDGE_3D[id] = resample(pts, STEP);
-  });
-}
-for (const id of OWN) PLACED_EDGE_3D[id] = COURSE[id]!;
-// the node places, before the through branches are hung on (a branching host's far node is its split)
-for (const e of edges) {
-  const c = PLACED_EDGE_3D[e.id];
-  if (!c) continue;
-  if (!PLACED_NODE_3D[e.from]) PLACED_NODE_3D[e.from] = c[0]!;
-  if (!PLACED_NODE_3D[e.to]) PLACED_NODE_3D[e.to] = c[c.length - 1]!;
-}
-
-// ---- the draw-only branches: the through branch carried on in the host's piece, the side branch on its own ----
 export interface PlacedSplit { /** where the split is along the drawn vein, 0 to 1 by length from its root (the portal veins' start, the hepatic veins' IVC end), liver-branches.ts Tree.q */ q: number; /** the side branch, flow order */ side: V3[] }
 export const PLACED_SPLIT: Record<string, PlacedSplit> = {};
-for (const [host, b] of Object.entries(PLACED_BRANCHES)) {
-  const own = PLACED_EDGE_3D[host]!, th = COURSE[b.through]!;
-  const whole = b.out ? [...own, ...th.slice(1)] : [...rev(th), ...own.slice(1)];
-  PLACED_EDGE_3D[host] = whole;
-  const q = lengthOf(own) / lengthOf(whole);
-  PLACED_SPLIT[host] = { q, side: b.out ? COURSE[b.side]! : rev(COURSE[b.side]!) };
-}
-
-// ---- the liver beds (no placed course; drawn only on the Circuit): one smooth curve from the portal branch's split on through the lobe to where its hepatic vein begins, cut in three (the
-// inflow bed, the sinusoids, the outflow bed), so the beds are pieces of one curve and run on into one another; it leaves the portal vein along its heading and arrives along the hepatic vein's ----
-const isBed = (e: Edge): boolean => e.kind === 'liver' && !!EDGE_PATH_2D[e.id] && !HIDDEN_EDGES.has(e.id) && !ANAT_HIDDEN.has(e.id);
-/** A cubic Hermite from A (heading tA) to B (heading tB), dense. */
-function hermite(A: V3, tA: V3, B: V3, tB: V3, k = 1): V3[] {
-  const L = len(sub(B, A)) * k, n = Math.max(12, Math.round((len(sub(B, A)) * 2) / STEP)), pts: V3[] = [];
-  for (let i = 0; i <= n; i++) {
-    const u = i / n, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
-    pts.push([0, 1, 2].map((q) => h00 * A[q]! + h10 * tA[q]! * L + h01 * B[q]! + h11 * tB[q]! * L) as V3);
-  }
-  return resample(pts, STEP);
-}
-/** `D` cut at the shares `cuts` (by length). */
-function cutAt(D: readonly V3[], cuts: readonly number[]): V3[][] {
-  const s = arc(D), L = s[s.length - 1]!, bounds = [0, ...cuts, 1];
-  const at = (d: number): V3 => { let j = 1; while (j < D.length - 1 && s[j]! < d) j++; const u = (d - s[j - 1]!) / ((s[j]! - s[j - 1]!) || 1); return add(D[j - 1]!, mul(sub(D[j]!, D[j - 1]!), Math.min(1, Math.max(0, u)))); };
-  return bounds.slice(1).map((b, i) => { const a0 = bounds[i]! * L, b0 = b * L, pts: V3[] = [at(a0)]; for (let j = 0; j < D.length; j++) if (s[j]! > a0 + 1e-9 && s[j]! < b0 - 1e-9) pts.push(D[j]!); pts.push(at(b0)); return resample(pts, STEP); });
-}
-{
-  const splitIdx = (c: readonly V3[], share: number): number => { const s = arc(c), L = s[s.length - 1]!; return Math.max(0, s.findIndex((x) => x >= share * L - 1e-9)); };
-  const portal = (host: string, at = 1): { at: V3; t: V3 } => { const c = PLACED_EDGE_3D[host]!, sp = PLACED_SPLIT[host], k = sp ? splitIdx(c, sp.q) : Math.min(c.length - 1, splitIdx(c, at)); return { at: c[k]!, t: tangentAt(c, k) }; };
-  const hepatic = (host: string, at = 0): { at: V3; t: V3 } => { const c = PLACED_EDGE_3D[host]!, sp = PLACED_SPLIT[host], k = sp ? splitIdx(c, 1 - sp.q) : splitIdx(c, at); return { at: c[k]!, t: tangentAt(c, k) }; };
-  const lay = (pre: string, sin: string, post: string, pv: string, hv: string, pa = 1, ha = 0): void => {
-    const P = portal(pv, pa), H = hepatic(hv, ha), D = hermite(P.at, P.t, H.at, H.t, 1.2), [a, b, c] = cutAt(D, [1 / 3, 2 / 3]);
-    PLACED_EDGE_3D[pre] = a!; PLACED_EDGE_3D[sin] = b!; PLACED_EDGE_3D[post] = c!;   // (the Hermite is fair already: one cubic)
-  };
-  lay('PRE_R', 'SIN_RR', 'POST_R_RHV', 'PVH_R_2', 'RHV_IVC_1');
-  lay('PRE_L', 'SIN_LL', 'POST_L_LHV', 'PVH_L_1', 'LHV_IVC', 0.2, 0.45);   // (the left portal vein runs on past its lobe's outflow: its bed leaves it where it starts to fade)
-  // the right lobe's second outflow bed: from the central vein on to the middle hepatic vein, leaving along the bed it continues
-  {
-    const sinR = PLACED_EDGE_3D.SIN_RR!, A = sinR[sinR.length - 1]!, H = hepatic('MHV_IVC', 0.3);   // (the middle hepatic vein starts in front of the lobe's centre: its bed joins it where it has come back to the veins' depth)
-    PLACED_EDGE_3D.POST_R_MHV = fair(hermite(A, norm(add(tangentAt(sinR, sinR.length - 1), norm(sub(H.at, A)))), H.at, H.t, 1));
-  }
-  // (the beds' own nodes, the sinusoids' and the central veins', are where the beds meet; the lobar arteries' ends are not them)
-  for (const [n, id] of [['SIN_R', 'PRE_R'], ['SIN_L', 'PRE_L'], ['CV_R', 'SIN_RR'], ['CV_L', 'SIN_LL']] as const) { const c = PLACED_EDGE_3D[id]!; PLACED_NODE_3D[n] = c[c.length - 1]!; }
-}
-
-// ---- the caudate veins ----
-/** The three caudate veins (flow order: out of the lobe into the cava). */
-export const PLACED_CAUDATE_VEINS: readonly V3[][] = ['cv1', 'cv2', 'cv3'].filter((k) => COURSE[k]).map((k) => COURSE[k]!);
-/** Their radii (the placement's). */
-export const PLACED_CAUDATE_R: readonly number[] = ['cv1', 'cv2', 'cv3'].filter((k) => COURSE[k]).map((k) => rOf(k));
-
-// ---- 2D projections: the courses in the 2D figure's units, for the rules written in them (joins, coils, strands), and their depths ----
+export const PLACED_CAUDATE_VEINS: V3[][] = [];
+export const PLACED_CAUDATE_R: number[] = [];
 export const PLACED_PATH_2D: Record<string, readonly (readonly [number, number])[]> = {};
 export const PLACED_Z: Record<string, readonly number[]> = {};
-for (const [id, c] of Object.entries(PLACED_EDGE_3D)) { PLACED_PATH_2D[id] = c.map((p): P2 => [x2d(p[0]), y2d(p[1])]); PLACED_Z[id] = c.map((p) => p[2]); }
 export const PLACED_NODE_2D: Record<string, readonly [number, number]> = {};
-for (const [n, p] of Object.entries(PLACED_NODE_3D)) PLACED_NODE_2D[n] = [x2d(p[0]), y2d(p[1])];
+/** Built only with the approved placement switched on (`?anatomy=new`, PPS_ANATOMY=placed). */
+function buildPlaced(): void {
+  const COURSE: Record<string, V3[]> = {};
+  const rOf = (k: string): number => PLACED_VESSELS[k]?.r ?? 0.01;
+  for (const [k, c] of Object.entries(PLACED_COURSES)) COURSE[k] = fair(relax(denseCurve(c), PLACED_JOINS.relax ?? 40));
+
+  // ---- run-ons: one smooth curve through the node ----
+  /** How far either side of a run-on the joined course is relaxed (scene units; at most this share of each course). */
+  const RUNON_SHARE = 0.4;
+  /** `a`'s end `ea` and `b`'s end `eb` meet end to end. `a` keeps its end where it is (it is the trunk); the stretch of `b` that lies back along `a` is cut away. Both courses are rewritten. */
+  function runOn(a: string, ea: 0 | 1, b: string, eb: 0 | 1, meet: 'a' | 'mid' = 'a'): void {
+    let A = ea ? COURSE[a]! : rev(COURSE[a]!);   // (A ends at the node)
+    let B = eb ? rev(COURSE[b]!) : COURSE[b]!;   // (B starts at it)
+    let N = meet === 'mid' ? mul(add(A[A.length - 1]!, B[0]!), 0.5) : A[A.length - 1]!;
+    // the stretch of B that runs back along A (it starts part-way down A: a doubled tube): B starts where it passes nearest the node
+    const kB = nearestIdx(B, N, 0, Math.floor(B.length * 0.5)).i;
+    if (kB > 0) B = B.slice(kB);
+    // the same for A, when B's start lies back along A
+    const kA = nearestIdx(A, B[0]!, Math.floor(A.length * 0.5), A.length - 1).i;
+    if (meet === 'mid' && kA < A.length - 1) A = A.slice(0, kA + 1);
+    if (meet === 'mid') N = mul(add(A[A.length - 1]!, B[0]!), 0.5);
+    // ease each end onto the node over a short stretch, then join and relax the joined course round the node
+    const ease = (D: V3[], atEnd: boolean): V3[] => { const s = arc(D), L = s[s.length - 1]!, reach = Math.min(0.06, 0.3 * L), d = sub(N, atEnd ? D[D.length - 1]! : D[0]!); return D.map((p, i) => add(p, mul(d, 1 - smooth((atEnd ? L - s[i]! : s[i]!) / reach)))); };
+    A = ease(A, true); B = ease(B, false);
+    const J = [...A, ...B.slice(1)], at = A.length - 1, sJ = arc(J), s0 = sJ[at]!;
+    const wa = Math.min(RUNON_WINDOW, RUNON_SHARE * lengthOf(A)), wb = Math.min(RUNON_WINDOW, RUNON_SHARE * lengthOf(B));
+    const R = relax(J, 400, (i) => { const d = sJ[i]! - s0, w = d < 0 ? -d / wa : d / wb; return 1 - smooth(w); });
+    // (faired only round the join: the courses' far ends, and the joins already made there, keep their headings)
+    const zA = Math.max(0, at - Math.round((wa + FAIR_SPAN) / STEP)), zB = Math.max(0, R.length - 1 - at - Math.round((wb + FAIR_SPAN) / STEP));
+    void zA; void zB;
+    const F = fair(R, [s0 - wa, s0 + wb]);
+    A = resample(F.slice(0, at + 1), STEP); B = resample(F.slice(at), STEP);
+    COURSE[a] = ea ? A : rev(A); COURSE[b] = eb ? rev(B) : B;
+  }
+
+  // ---- branches: arrive on the host's centreline at an acute angle along its flow (geom.js joinEnd) ----
+  /** `D` (its join end last) arrives on `P` (in the sense the flow should merge along). */
+  function joinEnd(D: V3[], P: readonly V3[], rP: number, rD: number): V3[] {
+    const end = D[D.length - 1]!, hit = nearestOn(P, end), Jp = hit.at, tp = tangentAt(P, hit.i);
+    const cut = 3.2 * rP + 3 * rD;
+    let k = D.length - 1, acc = 0; while (k > 1 && acc < cut) { acc += len(sub(D[k]!, D[k - 1]!)); k--; }
+    const P0 = D[k]!, t0 = tangentAt(D, k), chord = norm(sub(Jp, P0));
+    const t1 = norm(add(chord, mul(tp, 0.9))), L = len(sub(Jp, P0));
+    const n = Math.max(4, Math.round(L / STEP)), out = D.slice(0, k + 1);
+    for (let i = 1; i <= n; i++) {
+      const u = i / n, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+      out.push([0, 1, 2].map((q) => h00 * P0[q]! + h10 * t0[q]! * L + h01 * Jp[q]! + h11 * t1[q]! * L) as V3);
+    }
+    // (relaxed round the old corner at P0, the end held on the host: the bend into the merge is gradual, not a Hermite's sudden start)
+    const s = arc(out), sk = s[k]!, w = Math.max(0.04, 0.6 * cut), tot = s[s.length - 1]!;
+    return resample(relax(out, 200, (i) => Math.min(1 - smooth(Math.abs(s[i]! - sk) / w), smooth((tot - s[i]!) / (0.5 * L)))), STEP);
+  }
+  /** Vessel `v`'s end `end` joins host course `h` as a branch (a tributary when its flow ends there, a branch leaving when it starts there). */
+  function branch(v: string, end: 0 | 1, host: string, hostCourse?: V3[]): void {
+    const P = hostCourse ?? COURSE[host]!, D = COURSE[v]!;
+    // (faired only over the stretch the merge re-routed and a little more: the far end, and whatever join it has, keeps its heading)
+    const R = joinEnd(end ? D : rev(D), end ? P : rev(P), rOf(host), rOf(v)), m = Math.round((3.2 * rOf(host) + 3 * rOf(v) + 0.1) / STEP);
+    const sR = arc(R), tot = sR[sR.length - 1]!;
+    const F = fair(R, [tot - m * STEP, Infinity]);
+    COURSE[v] = end ? F : rev(F);
+  }
+
+  // the joins, in the mock's order (parents first), then the collaterals' and shunts' ends
+  const J: { readonly joins: readonly { readonly v: string; readonly to: string; readonly end?: 0 | 1; readonly runon?: boolean }[] } = PLACED_JOINS;
+  // (run-ons first: they rewrite both courses' ends; then every branch lands on the courses as they stand)
+  runOn('smv', 1, 'pv', 0);
+  runOn('pv', 1, 'rpv', 0);
+  runOn('ha', 1, 'rha', 0);
+  runOn('ivc', 1, 'svc', 1, 'mid');
+  runOn('lgv', 0, 'C1a', 0);
+  runOn('C1a', 1, 'C1b', 0, 'mid');
+  runOn('C2', 1, 'C5', 0, 'mid');
+  runOn('EPI_ILI', 0, 'EPI_SVC', 0, 'mid');
+  // the draw-only through branches run on from their trunk (one tube to the tip)
+  runOn('rpv', 1, 'rpvp', 0);
+  runOn('rhv', 0, 'rhvb', 0);
+  for (const jn of J.joins) {
+    if (jn.runon || jn.end == null) continue;
+    if (['rpvp', 'rhvb', 'rha'].includes(jn.v) || (jn.v === 'rpv' && jn.to === 'pv')) continue;   // (run-ons above)
+    if (jn.v === 'rpva') { branch('rpva', 0, 'rpv', [...COURSE.rpv!, ...COURSE.rpvp!.slice(1)]); continue; }
+    if (jn.v === 'rhva') { branch('rhva', 0, 'rhv', [...rev(COURSE.rhvb!), ...COURSE.rhv!.slice(1)].reverse()); continue; }
+    branch(jn.v, jn.end, jn.to);
+  }
+
+  // ---- collaterals and shunts: each end lands on the vessel its engine node belongs to ----
+  /** The whole vessels (and collaterals) that have a piece at `node`, but `self`. */
+  function atNode(node: string, self: string): { whole: string; piece: string; end: 0 | 1 }[] {
+    const out: { whole: string; piece: string; end: 0 | 1 }[] = [];
+    for (const e of edges) {
+      const w = PIECE_WHOLE.get(e.id);
+      if (!w || w === self) continue;
+      if (e.from === node) out.push({ whole: w, piece: e.id, end: 0 });
+      if (e.to === node) out.push({ whole: w, piece: e.id, end: 1 });
+    }
+    return out;
+  }
+  const isMain = (w: string): boolean => w in WHOLE_PIECES;
+  /** How near an end must be to a host to land on it (a collateral whose end is drawn away from its node, the rectal varices down the rectum, is left as placed). */
+  const LAND_REACH = 0.06;
+  const RUN_ON_ENDS = new Set(['C1a|0', 'C1a|1', 'C1b|0', 'C2|1', 'C5|0', 'EPI_ILI|0', 'EPI_SVC|0']);
+  /** The host course a collateral end lands on: the whole vessel (its trunk only, never a draw-only branch). */
+  const ownCourse = (w: string): V3[] => COURSE[w]!;
+  for (const id of OWN) {
+    const e = edgeById.get(id)!;
+    for (const end of [0, 1] as const) {
+      if (RUN_ON_ENDS.has(`${id}|${end}`)) continue;
+      const node = end ? e.to : e.from, p = end ? COURSE[id]![COURSE[id]!.length - 1]! : COURSE[id]![0]!;
+      const cands = atNode(node, id).filter((c) => c.whole !== id);
+      let best: { w: string; d: number } | null = null;
+      for (const c of cands) { const d = nearestOn(ownCourse(c.whole), p).d - 0 * rOf(c.whole); if (!best || (isMain(c.whole) && !isMain(best.w)) || (isMain(c.whole) === isMain(best.w) && d < best.d)) best = { w: c.whole, d }; }
+      if (!best || best.d > LAND_REACH + rOf(best.w)) continue;
+      // (a shunt or collateral that lands on another collateral's run: the epigastric vein's pair, the azygos: the same rule)
+      // the host's flow sense at the landing: a vessel that ENDS there merges along the host's flow; one that starts there leaves along it
+      branch(id, end, best.w, ownCourse(best.w));
+    }
+  }
+
+  // ---- the caudate veins: three short tributaries into the cava (the pieces are cut below, so this lands on the whole cava) ----
+  for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) branch(k, 1, 'ivc');
+
+  // ---- cut each whole vessel into its engine pieces at the attach points ----
+  /** Where each engine node sits (3D): a piece's end; for a branching host's far end, its split. */
+  const endPt = (id: string, end: 0 | 1): V3 => { const c = COURSE[id]!; return end ? c[c.length - 1]! : c[0]!; };
+  for (const [w, pieces] of Object.entries(WHOLE_PIECES)) {
+    const D = COURSE[w]!, s = arc(D), L = s[s.length - 1]!;
+    const cuts: number[] = [];
+    for (let i = 0; i < pieces.length - 1; i++) {
+      const node = edgeById.get(pieces[i]!)!.to;
+      // the joiners at the node: their ends (as they now stand) on this course; a main vessel first, the widest; else a collateral or a shunt, the widest
+      const js = atNode(node, w).filter((c) => !pieces.includes(c.piece)).map((c) => {
+        // (the joiner's end at this node: a collateral's own end; a main vessel's whole end, when its piece there is the whole's first or last)
+        const pw = c.whole, ps = WHOLE_PIECES[pw];
+        const atStart = ps ? ps[0] === c.piece && c.end === 0 : c.end === 0, atEndW = ps ? ps[ps.length - 1] === c.piece && c.end === 1 : c.end === 1;
+        const p = atStart ? endPt(pw, 0) : atEndW ? endPt(pw, 1) : null;
+        const k = edgeById.get(c.piece)!.kind;
+        return p ? { p, main: k !== 'collateral' && k !== 'shunt', r: rOf(pw), hit: nearestOn(D, p) } : null;
+      }).filter((x): x is NonNullable<typeof x> => !!x && x.hit.d < LAND_REACH + rOf(w));
+      js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
+      let at: number;
+      if (js.length) at = js[0]!.hit.s / L;
+      else { const row = (JUNCTIONS as readonly (readonly unknown[])[]).find((r) => r[0] === node); at = row ? Number(row[2]) : (i + 1) / pieces.length; }
+      cuts.push(at);
+    }
+    // (in flow order, each piece at least a hundredth of the course)
+    for (let i = 0; i < cuts.length; i++) cuts[i] = Math.min(1 - 0.01 * (cuts.length - i), Math.max(cuts[i]!, (i ? cuts[i - 1]! : 0) + 0.01));
+    const bounds = [0, ...cuts, 1];
+    pieces.forEach((id, i) => {
+      const a = bounds[i]! * L, b = bounds[i + 1]! * L;
+      const pts: V3[] = [];
+      const at = (d: number): V3 => { let j = 1; while (j < D.length - 1 && s[j]! < d) j++; const u = (d - s[j - 1]!) / ((s[j]! - s[j - 1]!) || 1); return add(D[j - 1]!, mul(sub(D[j]!, D[j - 1]!), Math.min(1, Math.max(0, u)))); };
+      pts.push(at(a));
+      for (let j = 0; j < D.length; j++) if (s[j]! > a + 1e-9 && s[j]! < b - 1e-9) pts.push(D[j]!);
+      pts.push(at(b));
+      PLACED_EDGE_3D[id] = resample(pts, STEP);
+    });
+  }
+  for (const id of OWN) PLACED_EDGE_3D[id] = COURSE[id]!;
+  // the node places, before the through branches are hung on (a branching host's far node is its split)
+  for (const e of edges) {
+    const c = PLACED_EDGE_3D[e.id];
+    if (!c) continue;
+    if (!PLACED_NODE_3D[e.from]) PLACED_NODE_3D[e.from] = c[0]!;
+    if (!PLACED_NODE_3D[e.to]) PLACED_NODE_3D[e.to] = c[c.length - 1]!;
+  }
+
+  // ---- the draw-only branches: the through branch carried on in the host's piece, the side branch on its own ----
+  for (const [host, b] of Object.entries(PLACED_BRANCHES)) {
+    const own = PLACED_EDGE_3D[host]!, th = COURSE[b.through]!;
+    const whole = b.out ? [...own, ...th.slice(1)] : [...rev(th), ...own.slice(1)];
+    PLACED_EDGE_3D[host] = whole;
+    const q = lengthOf(own) / lengthOf(whole);
+    PLACED_SPLIT[host] = { q, side: b.out ? COURSE[b.side]! : rev(COURSE[b.side]!) };
+  }
+
+  // ---- the liver beds (no placed course; drawn only on the Circuit): one smooth curve from the portal branch's split on through the lobe to where its hepatic vein begins, cut in three (the
+  // inflow bed, the sinusoids, the outflow bed), so the beds are pieces of one curve and run on into one another; it leaves the portal vein along its heading and arrives along the hepatic vein's ----
+  const isBed = (e: Edge): boolean => e.kind === 'liver' && !!EDGE_PATH_2D[e.id] && !HIDDEN_EDGES.has(e.id) && !ANAT_HIDDEN.has(e.id);
+  /** A cubic Hermite from A (heading tA) to B (heading tB), dense. */
+  function hermite(A: V3, tA: V3, B: V3, tB: V3, k = 1): V3[] {
+    const L = len(sub(B, A)) * k, n = Math.max(12, Math.round((len(sub(B, A)) * 2) / STEP)), pts: V3[] = [];
+    for (let i = 0; i <= n; i++) {
+      const u = i / n, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+      pts.push([0, 1, 2].map((q) => h00 * A[q]! + h10 * tA[q]! * L + h01 * B[q]! + h11 * tB[q]! * L) as V3);
+    }
+    return resample(pts, STEP);
+  }
+  /** `D` cut at the shares `cuts` (by length). */
+  function cutAt(D: readonly V3[], cuts: readonly number[]): V3[][] {
+    const s = arc(D), L = s[s.length - 1]!, bounds = [0, ...cuts, 1];
+    const at = (d: number): V3 => { let j = 1; while (j < D.length - 1 && s[j]! < d) j++; const u = (d - s[j - 1]!) / ((s[j]! - s[j - 1]!) || 1); return add(D[j - 1]!, mul(sub(D[j]!, D[j - 1]!), Math.min(1, Math.max(0, u)))); };
+    return bounds.slice(1).map((b, i) => { const a0 = bounds[i]! * L, b0 = b * L, pts: V3[] = [at(a0)]; for (let j = 0; j < D.length; j++) if (s[j]! > a0 + 1e-9 && s[j]! < b0 - 1e-9) pts.push(D[j]!); pts.push(at(b0)); return resample(pts, STEP); });
+  }
+  {
+    const splitIdx = (c: readonly V3[], share: number): number => { const s = arc(c), L = s[s.length - 1]!; return Math.max(0, s.findIndex((x) => x >= share * L - 1e-9)); };
+    const portal = (host: string, at = 1): { at: V3; t: V3 } => { const c = PLACED_EDGE_3D[host]!, sp = PLACED_SPLIT[host], k = sp ? splitIdx(c, sp.q) : Math.min(c.length - 1, splitIdx(c, at)); return { at: c[k]!, t: tangentAt(c, k) }; };
+    const hepatic = (host: string, at = 0): { at: V3; t: V3 } => { const c = PLACED_EDGE_3D[host]!, sp = PLACED_SPLIT[host], k = sp ? splitIdx(c, 1 - sp.q) : splitIdx(c, at); return { at: c[k]!, t: tangentAt(c, k) }; };
+    const lay = (pre: string, sin: string, post: string, pv: string, hv: string, pa = 1, ha = 0): void => {
+      const P = portal(pv, pa), H = hepatic(hv, ha), D = hermite(P.at, P.t, H.at, H.t, 1.2), [a, b, c] = cutAt(D, [1 / 3, 2 / 3]);
+      PLACED_EDGE_3D[pre] = a!; PLACED_EDGE_3D[sin] = b!; PLACED_EDGE_3D[post] = c!;   // (the Hermite is fair already: one cubic)
+    };
+    lay('PRE_R', 'SIN_RR', 'POST_R_RHV', 'PVH_R_2', 'RHV_IVC_1');
+    lay('PRE_L', 'SIN_LL', 'POST_L_LHV', 'PVH_L_1', 'LHV_IVC', 0.2, 0.45);   // (the left portal vein runs on past its lobe's outflow: its bed leaves it where it starts to fade)
+    // the right lobe's second outflow bed: from the central vein on to the middle hepatic vein, leaving along the bed it continues
+    {
+      const sinR = PLACED_EDGE_3D.SIN_RR!, A = sinR[sinR.length - 1]!, H = hepatic('MHV_IVC', 0.3);   // (the middle hepatic vein starts in front of the lobe's centre: its bed joins it where it has come back to the veins' depth)
+      PLACED_EDGE_3D.POST_R_MHV = fair(hermite(A, norm(add(tangentAt(sinR, sinR.length - 1), norm(sub(H.at, A)))), H.at, H.t, 1));
+    }
+    // (the beds' own nodes, the sinusoids' and the central veins', are where the beds meet; the lobar arteries' ends are not them)
+    for (const [n, id] of [['SIN_R', 'PRE_R'], ['SIN_L', 'PRE_L'], ['CV_R', 'SIN_RR'], ['CV_L', 'SIN_LL']] as const) { const c = PLACED_EDGE_3D[id]!; PLACED_NODE_3D[n] = c[c.length - 1]!; }
+  }
+
+  // ---- the caudate veins ----
+  /** The three caudate veins (flow order: out of the lobe into the cava). */
+  for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) PLACED_CAUDATE_VEINS.push(COURSE[k]!);
+  /** Their radii (the placement's). */
+  for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) PLACED_CAUDATE_R.push(rOf(k));
+
+  // ---- 2D projections: the courses in the 2D figure's units, for the rules written in them (joins, coils, strands), and their depths ----
+  for (const [id, c] of Object.entries(PLACED_EDGE_3D)) { PLACED_PATH_2D[id] = c.map((p): P2 => [x2d(p[0]), y2d(p[1])]); PLACED_Z[id] = c.map((p) => p[2]); }
+  for (const [n, p] of Object.entries(PLACED_NODE_3D)) PLACED_NODE_2D[n] = [x2d(p[0]), y2d(p[1])];
+}
+if (PLACED) buildPlaced();
 /** A course as 2D points and depths. */
 export const to2D = (c: readonly V3[]): { pts: P2[]; z: number[] } => ({ pts: c.map((p): P2 => [x2d(p[0]), y2d(p[1])]), z: c.map((p) => p[2]) });
 /** Where along `host`'s piece (0 to 1, by length) the point nearest `p` lies. */

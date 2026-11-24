@@ -11,6 +11,7 @@ import type { SkinJunction, SkinMesh } from './types.ts';
 import { partOf, partSpecs, plainOf } from './plain.ts';
 
 import { clock } from '../../../clock/frame.ts';
+import { ANATOMY_ID, PLACED } from '../../anatomy/source.ts';
 /** One baked skin: the plan it was made from (its cuts, the vessels it hides whole, the node it merged with), the arms' drawn axes, the mesh, and the rung of the pace ladder (mesh.ts PACES) that closed it. */
 export interface BakedSkin { plan: SkinPlan; axes: ArmAxis[]; mesh: SkinMesh; pace: number; /** the plain trunk of a skin with growing arms (plain.ts): its axes, mesh and pace; null when it could not be built (the weld then runs over the tubes' cut ends alone); absent on a skin with no growing arm */ plain?: PlainBake | null; /** the parts of a skin with more than one growing arm (plain.ts partOf), by the key of the growers that are there (partKey): the skin of the permanent arms and just those growers; null when one could not be built; absent in a file made before parts */ parts?: Record<string, PlainBake | null> }
 /** The plain trunk of one baked skin: the welded skin's axes of the arms that stay, its mesh and the rung of the pace ladder that closed it. */
@@ -44,7 +45,8 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
     const g = t.geometry.getAttribute('position');   // (a tube with no recorded input: its vertices, as before)
     for (let i = 0; i < g.count; i++) { mix(Math.round(g.getX(i) * 1e4) | 0); mix(Math.round(g.getY(i) * 1e4) | 0); mix(Math.round(g.getZ(i) * 1e4) | 0); }
   }
-  return `${weldDigest(js)}/${h1.toString(16)}-${h2.toString(16)}-${n}`;
+  // (the approved placement's skins are named as such: a placed bake never passes for today's, nor today's for a placed page, whatever its numbers; today's digest is unchanged, so today's files stay current)
+  return `${PLACED ? `${ANATOMY_ID}/` : ''}${weldDigest(js)}/${h1.toString(16)}-${h2.toString(16)}-${n}`;
 }
 
 export function encodeSkins(b: BakedSkins): Uint8Array {
@@ -119,8 +121,8 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
 // ---- the page's side: fetched once, as early as the scene module loads, waited for by the boot -------------------------------------------------
 
 /** Where the baked files are, next to the page (the same folder in a preview and on the live site): the Anatomy's skins and the Circuit's (circuit/skins.ts, made by the same script). */
-export const BAKED_SKINS = 'anatomy/skins.bin';
-export const BAKED_CIRCUIT_SKINS = 'anatomy/circuit-skins.bin';
+export const BAKED_SKINS = PLACED ? 'anatomy/skins-placed.bin' : 'anatomy/skins.bin';
+export const BAKED_CIRCUIT_SKINS = PLACED ? 'anatomy/circuit-skins-placed.bin' : 'anatomy/circuit-skins.bin';
 
 let held: BakedSkins | null = null;
 let heldCircuit: BakedSkins | null = null;
