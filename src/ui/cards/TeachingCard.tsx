@@ -3,7 +3,7 @@ import { Fragment, useMemo, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
-import { NameTab } from './NameTab.tsx';
+import { NameTab, nameTabOf } from './NameTab.tsx';
 import { SlideControls, LapseRow } from './SlideControls.tsx';
 import { ProcRow } from './ProcRow.tsx';
 import type { Deck } from '../../decks/schema.ts';
@@ -97,8 +97,8 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
     <>
       {deck && <NameTab deck={deck} />}
       {tab ? <span className="pz-sitetab" data-site={tab.site} data-rail={tab.rail ? '' : undefined} aria-hidden="true">{tab.name}</span> : null}
-      {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card that splits into pages (a phone on its side, 3D only) says which page this is. */}
-      {pages > 1 ? <div className="pz-kick" data-site="none"><span className="dk-pageno">{page + 1} of {pages}</span></div> : null}
+      {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card that splits into pages (a phone on its side, 3D only) says which page this is in the name tab's band (top left, no row of its own; owner 24 Nov, option 2). */}
+      {pages > 1 ? <><span className="pz-pageno" aria-label={`Page ${page + 1} of ${pages}`}>{page + 1} of {pages}</span>{deck && nameTabOf(deck) ? null : <span className="dk-tabgap" aria-hidden="true" />}</> : null}
       {titles('h2', kick)}
       {eq && slide.eq && (
         <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
