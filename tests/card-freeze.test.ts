@@ -40,7 +40,7 @@ test('CardFrame: a leaving card never measures; a card already let in is never r
   assert.match(cf, /pz-chart-built/, 'a chart that has drawn tells the card');
 });
 
-test('go waits for every chart to have drawn once (the 320 ms give-up stays the net)', () => {
+test('go waits for every chart to have drawn once (the give-up stays the net)', () => {
   const cl = rd('src/ui/cards/CardLayer.tsx');
   assert.match(cl, /\.open \?\? 0\) === 0/);
   assert.match(cl, /late === pagesKey/);

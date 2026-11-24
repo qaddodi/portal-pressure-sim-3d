@@ -61,6 +61,8 @@ function useFontsReady(): boolean {
 /** The card of a slot that is standing (not on its way out): the one the ladder's measures are about. */
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
+/** How long a card's measured height must stand still before the card is let in (a late row or readout shows up inside this), and the longest the cards wait for it before they come in as they are. */
+export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 700;
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
@@ -88,11 +90,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   }, [stops, pos, here, sidewaysNow]);
   const carried = here && stops[here.from]?.kind === 'slide' ? (stops[here.from] as { slide: Slide }).slide : null;   // (the slide whose instrument the data card shows)
   // heights are tagged with the page they were measured on, so a card that has just been split is never judged by its whole height
-  const [heights, setHeights] = useState<Record<string, { h: number; want: number; open: number; sig: string; f: boolean }>>({});
+  const [heights, setHeights] = useState<Record<string, { h: number; want: number; open: number; sig: string; f: boolean; t: number }>>({});
   const sigRef = useRef('');
   const onHeight = useCallback((key: string, w: number, h: number, want = h, open = 0) => {
     const sig = sigRef.current, f = fontsLoaded();   // (a height measured while a font was still loading is not final: the card is not let in on it, 24 Nov)
-    setHeights((m) => { const o = m[`${key}@${w}`]; return o && o.h === h && o.want === want && o.open === open && o.sig === sig && o.f === f ? m : { ...m, [`${key}@${w}`]: { h, want, open, sig, f } }; });
+    setHeights((m) => { const o = m[`${key}@${w}`]; return o && o.h === h && o.want === want && o.open === open && o.sig === sig && o.f === f ? m : { ...m, [`${key}@${w}`]: { h, want, open, sig, f, t: clock.now() } }; });
   }, []);
   const [pagesMap, setPagesMap] = useState<Record<string, number>>({});
   const page = useUi((s) => s.page);
@@ -196,13 +198,17 @@ export function CardLayer({ deck }: { deck: Deck }) {
 
   // The cards come in together, whole: only when every card of the slide is measured on the page now showing, nothing is still to widen or split,
   // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
-  // holds a slide back for good: past 320 ms the cards come in as they are.
+  // holds a slide back for good: past GIVE_UP_CARDS_MS the cards come in as they are.
   const fonts = useFontsReady();
   const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens;
   // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
-  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false) || (plan.docked && n.slot === 'data'));
+  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false && settleLeft <= 0) || (plan.docked && n.slot === 'data'));
+  // (and its height has stood still for SETTLE_MS: a row or a readout that mounts in the frame after the first measure, from an effect or a second render, has come by then, so the card is let in at the height it keeps)
+  const [, setTick] = useState(0);
+  const settleLeft = needs.reduce((m, n) => { const e = hit(n.slot === 'words' ? wordsKey : dataKey); return e ? Math.max(m, SETTLE_MS - (clock.now() - e.t)) : m; }, 0);
+  useEffect(() => { if (settleLeft <= 0) return; const t = clock.after(() => setTick((k) => k + 1), settleLeft + 1); return () => clock.cancel(t); }, [settleLeft, heights]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [late, setLate] = useState('');
-  useEffect(() => { const t = clock.after(() => setLate(pagesKey), 320); return () => clock.cancel(t); }, [pagesKey]);
+  useEffect(() => { const t = clock.after(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
   // (the states baked at build time count as in: the cards of a slide opened first by a link or a jump no longer wait for the whole live chain to be worked out, 6 s and more on a phone: Encephalopathy 8, review bbe955e5)
   const liveStates = useStates((st) => st.results[deck.id]);

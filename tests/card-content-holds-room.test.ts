@@ -32,7 +32,7 @@ test('the procedure row stands from the slide\'s own plan, never only from the s
 test('a card is let in only on a height measured with the fonts in, and the fonts arriving re-measure it (a fallback-font measure grew the card after it landed)', () => {
   const layer = read('src/ui/cards/CardLayer.tsx'), frame = read('src/ui/cards/CardFrame.tsx');
   assert.match(layer, /const sig = sigRef\.current, f = fontsLoaded\(\)/);
-  assert.match(layer, /\?\.f !== false\)/, 'the gate (`measured`) must require a measure taken with the fonts in');
+  assert.match(layer, /\?\.f !== false/, 'the gate (`measured`) must require a measure taken with the fonts in');
   assert.match(frame, /document\.fonts\.ready\.then\(\(\) => \{ if \(alive\) report\(!now\.current\.live\)/);
 });
 
@@ -59,4 +59,12 @@ test('a kept card whose new slide needs a taller box is replaced by a fresh card
   assert.match(layer, /const dataKey = rekeys\[baseKey\] \? `\$\{baseKey\}~\$\{rekeys\[baseKey\]\}` : baseKey/);
   assert.match(layer, /onOutgrown=\{slot === 'data' \? outgrown : undefined\}/);
   assert.match(layer, /to\.key === baseKey/);
+});
+
+test('a card is let in only once its measured height has stood still, so a late row or readout cannot grow it on screen', () => {
+  const layer = read('src/ui/cards/CardLayer.tsx');
+  assert.match(layer, /SETTLE_MS = 120, GIVE_UP_CARDS_MS = 700/);
+  assert.match(layer, /t: clock\.now\(\) \}/, 'the time of the last change of each measure');
+  assert.match(layer, /&& settleLeft <= 0\)/, 'the gate (`measured`) waits for it');
+  assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/, 'the give-up leaves room for it');
 });
