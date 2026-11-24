@@ -6,11 +6,12 @@ import { measure } from '../charts/measure.ts';
 import { pen, type Frame, type Shape } from '../charts/scene.ts';
 import type { Palette } from '../charts/palette.ts';
 import { HVPG_CUTS } from '../../engine/hales/portal/pressure-cuts.js';
-import { ASCITES_CUTS } from '../../engine/hales/portal/metrics.js';
+import { ASCITES_CUTS, VARIX_NONE_MM, VARIX_LARGE_MM } from '../../engine/hales/portal/metrics.js';
 import { FLOW_CUTS } from '../../engine/hales/portal/flow-cuts.js';
 import { LSM_CUTS } from '../../engine/hales/portal/lsm-cuts.js';
 import { SSM_CUTS } from '../../engine/hales/portal/ssm-cuts.js';
-import { MEASURE_OF, HVPG, laneOf, type LaneId, type Measure } from './measures.ts';
+import { MAP_BETA_CUT } from '../../engine/hales/portal/kidney-cuts.js';
+import { MEASURE_OF, HVPG, HE_CUTS, laneOf, type LaneId, type Measure } from './measures.ts';
 import type { MarkLine, MedBar, Tone } from './marks.ts';
 import { maxOf, pointsIn, tickStep, valueAt, type Series } from './record.ts';
 import { paceOf, scaleWord } from './pace.ts';
@@ -45,8 +46,8 @@ export interface Geo {
   groups: readonly { key: string; x: number; n: number }[];
 }
 
-const WEIGHT: Record<LaneId, number> = { p: 3, hvpg: 1.5, stiff: 1.5, asc: 1.7, shunt: 1.7, co: 1.4 };
-const ORDER: readonly LaneId[] = ['p', 'hvpg', 'stiff', 'asc', 'shunt', 'co'];
+const WEIGHT: Record<LaneId, number> = { p: 3, hvpg: 1.5, stiff: 1.5, spl: 1.3, plt: 1.3, asc: 1.7, shunt: 1.7, co: 1.4, bp: 1.4, hr: 1.2, vx: 1.3, he: 1.3, habr: 1.2 };
+const ORDER: readonly LaneId[] = ['p', 'hvpg', 'stiff', 'spl', 'plt', 'asc', 'shunt', 'co', 'bp', 'hr', 'vx', 'he', 'habr'];
 export const ROW_H = 17, MED_H = 24, AXIS_H = 24, GAP = 22;
 /** the strip at the top of each lane that holds its title: the lines are drawn below it, so a title never sits on a curve */
 export const TITLE_H = 20;
@@ -93,7 +94,19 @@ function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
     return { id, ms, max, ticks: Array.from({ length: Math.floor(max / st) + 1 }, (_, i) => i * st), cuts: [...(has('ssm') ? [{ v: SSM_CUTS.ruleIn, word: `SSM ${SSM_CUTS.ruleIn}`, ink: 'text-2' as const }] : []), ...(has('lsm') ? [{ v: LSM_CUTS.ruleIn, word: `LSM ${LSM_CUTS.ruleIn}`, ink: 'text-3' as const }] : [])] };
   }
   if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i).filter((t) => max <= 5 || t % 2 === 0), fill: true, cuts: [{ v: ASCITES_CUTS[1]! / 1000, word: `Grade 2 · ${ASCITES_CUTS[1]! / 1000} L`, ink: 'text-2' }, { v: ASCITES_CUTS[0]! / 1000, word: `Grade 1 · ${ASCITES_CUTS[0]! / 1000} L`, ink: 'text-3' }] }; }
-  if (id === 'shunt') { const max = Math.min(100, niceMax(peak, 70, 10)); return { id, ms, max, ticks: [0, 20, 40, 60, 80, 100].filter((t) => t <= max), cuts: [{ v: FLOW_CUTS.shuntLarge * 100, word: `Large shunt ${Math.round(FLOW_CUTS.shuntLarge * 100)}%`, ink: 'text-2' }] }; }
+  if (id === 'shunt') {
+    // the shunt as a share of the splanchnic inflow and the liver's perfusion as a share of healthy: both percents, so one lane (perfusion can run past 100)
+    const has = (k: string) => ms.some((m) => m.id === k), max = Math.min(has('perf') ? 140 : 100, niceMax(peak, 70, 10));
+    return { id, ms, max, ticks: [0, 20, 40, 60, 80, 100, 120, 140].filter((t) => t <= max), cuts: [...(has('shunt') ? [{ v: FLOW_CUTS.shuntLarge * 100, word: `Large shunt ${Math.round(FLOW_CUTS.shuntLarge * 100)}%`, ink: 'text-2' as const }] : []), ...(has('perf') ? [{ v: FLOW_CUTS.liverLow, word: `Low liver flow ${FLOW_CUTS.liverLow}%`, ink: 'text-3' as const }] : [])] };
+  }
+  const has = (k: string) => ms.some((m) => m.id === k), upTo = (max: number, st: number): number[] => Array.from({ length: Math.floor(max / st + 1e-9) + 1 }, (_, i) => +(i * st).toFixed(2));
+  if (id === 'spl') { const max = niceMax(peak, 20, 2); return { id, ms, max, ticks: upTo(max, max > 30 ? 10 : 5), cuts: [] }; }
+  if (id === 'plt') { const max = niceMax(peak, 300, 50); return { id, ms, max, ticks: upTo(max, 100), cuts: [{ v: LSM_CUTS.ruleOutPlt, word: `Platelets ${LSM_CUTS.ruleOutPlt}`, ink: 'text-2' }] }; }
+  if (id === 'bp') { const max = niceMax(peak, 120, 20); return { id, ms, max, ticks: upTo(max, max > 140 ? 50 : 25), cuts: has('map') ? [{ v: MAP_BETA_CUT, word: `MAP ${MAP_BETA_CUT}`, ink: 'text-2' }] : [] }; }
+  if (id === 'hr') { const max = niceMax(peak, 120, 20); return { id, ms, max, ticks: upTo(max, 40), cuts: [] }; }
+  if (id === 'vx') { const max = niceMax(peak, 8, 2); return { id, ms, max, ticks: upTo(max, max > 10 ? 4 : 2), cuts: [{ v: VARIX_LARGE_MM, word: `Large varix ${VARIX_LARGE_MM} mm`, ink: 'text-2' }, { v: VARIX_NONE_MM, word: `Varix seen ${VARIX_NONE_MM} mm`, ink: 'text-3' }] }; }
+  if (id === 'he') { const max = peak > 0.55 ? 1 : 0.6; return { id, ms, max, ticks: [0, 0.2, 0.4, 0.6, 0.8, 1].filter((t) => t <= max + 1e-9), cuts: [{ v: HE_CUTS.high, word: `High ${HE_CUTS.high}`, ink: 'text-2' }, { v: HE_CUTS.moderate, word: `Moderate ${HE_CUTS.moderate}`, ink: 'text-3' }] }; }
+  if (id === 'habr') { const max = niceMax(peak, 1.5, 0.5); return { id, ms, max, ticks: upTo(max, 0.5), cuts: [] }; }
   const max = niceMax(peak, 9, 3);
   return { id, ms, max, ticks: Array.from({ length: Math.floor(max / 3) + 1 }, (_, i) => i * 3), cuts: [] };
 }
@@ -187,13 +200,16 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     top = 10 + Math.ceil(band) + 12;
   }
   // ── lanes ──
-  const specs = ORDER.map((id) => specOf(id, inp)).filter((s): s is LaneSpec => !!s);
+  const chosen = ORDER.map((id) => specOf(id, inp)).filter((s): s is LaneSpec => !!s);
   const medRows = meds.length, medsH = medRows ? medRows * MED_H + 6 : 0;
+  // how many lanes the box holds: each 60 px or more, a title and a line at the very least (34 px, closer together); the lanes that would not fit are left out and said, never cut off at the foot
+  const avail = H - top - medsH - axH, roomy = 60 * chosen.length + GAP * (chosen.length - 1) <= avail, gap = roomy ? GAP : 10, floor = roomy ? 60 : 34;
+  const cap = Math.max(1, Math.floor((avail + gap) / (floor + gap))), specs = chosen.slice(0, cap), left = chosen.length - specs.length;
   const nL = Math.max(1, specs.length);
-  const free = Math.max(60 * nL, H - top - medsH - axH - GAP * (nL - 1)), wsum = specs.reduce((a, s) => a + WEIGHT[s.id], 0) || 1;
+  const free = Math.max(floor * nL, avail - gap * (nL - 1)), wsum = specs.reduce((a, s) => a + WEIGHT[s.id], 0) || 1;
   let y = top + medsH;
-  const geoLanes = specs.map((s) => { const h = specs.length ? free * WEIGHT[s.id] / wsum : free, g = { s, t: y, h }; y += h + GAP; return g; });
-  const bottom = specs.length ? y - GAP : top + medsH + free;
+  const geoLanes = specs.map((s) => { const h = specs.length ? free * WEIGHT[s.id] / wsum : free, g = { s, t: y, h }; y += h + gap; return g; });
+  const bottom = specs.length ? y - gap : top + medsH + free;
   const frame = (): Frame => ({ w: W, h: bottom + axH, shapes, label: '' });
   const geo: Geo = { w: W, h: bottom + axH, L, R, top, bottom, x0, x1, X, dayAt, lanes: geoLanes.map((g) => ({ id: g.s.id, t: g.t, h: g.h })), groups: marks };
 
@@ -296,6 +312,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
       x += 18;
     }
   }
+  if (left > 0 && geoLanes.length) { const g = geoLanes[geoLanes.length - 1]!; say({ x: W - R - 4, y: g.t + 14, s: `${left} more chosen: no room, turn one off`, color: t3, anchor: 'end' }); }
   // event words
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;

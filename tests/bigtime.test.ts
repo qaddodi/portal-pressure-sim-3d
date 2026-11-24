@@ -8,7 +8,7 @@ import { before, isTips, tipsFacts, readingsAt } from '../src/ui/bigtime/facts.t
 import { paceOf, scaleFor, scaleWord } from '../src/ui/bigtime/pace.ts';
 import { zoomed, slid } from '../src/ui/bigtime/store.ts';
 import { dayExtras } from '../src/ui/bigtime/day-keys.ts';
-import { MEASURES, MEASURE_OF } from '../src/ui/bigtime/measures.ts';
+import { MEASURES, MEASURE_OF, heWord } from '../src/ui/bigtime/measures.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 import type { TextShape } from '../src/ui/charts/scene.ts';
 
@@ -293,7 +293,7 @@ test('the What to graph list: every measure with a record is a row (Splenic, SMV
 
 test('root cause (EUS-PPG had no history line): every saved patient history carries every key the day record keeps today, so a key added later fails here until the histories are baked again', async () => {
   const { LOAD } = await import('../src/ui/histories/index.generated.ts');
-  const want = ['hvpg', 'asc', 'shunt', 'co', 'ppg', 'eus', 'var', 'smv', 'lsm', 'ssm'];
+  const want = ['hvpg', 'asc', 'shunt', 'co', 'ppg', 'eus', 'var', 'smv', 'lsm', 'ssm', 'spl', 'plt', 'pflow', 'perf', 'map', 'app', 'hr', 'vx', 'he', 'habr'];
   for (const [id, load] of Object.entries(LOAD)) {
     const { days } = await (load as () => Promise<{ days: { v: Record<string, number> }[] }>)();
     const last = days[days.length - 1]!.v;
@@ -382,4 +382,44 @@ test('stiffness: LSM and SSM are two measures of one kPa lane, off until chosen,
     }
   });
   assert.ok(!bigFrame(inp(), ctxOf('light', 1200)).geo.lanes.some((l) => l.id === 'stiff'), 'off, no lane');
+});
+
+const ALL_NEW = ['spl', 'plt', 'pflow', 'perf', 'map', 'app', 'hr', 'vx', 'he', 'habr'] as const;
+test('the day record reads the rest of what the model computes: spleen, platelets, portal flow, liver perfusion, MAP, APP, heart rate, varix, encephalopathy risk, artery response', async () => {
+  const { createCore } = await import('../src/engine/hales/host/worker-core.js');
+  const out: { type: string; metrics?: Record<string, unknown> }[] = [];
+  const core = createCore((m: never) => { out.push(m); });
+  await core.handle({ type: 'init' }); await core.handle({ type: 'run', running: false });
+  await core.handle({ type: 'preset', id: 'cirr-decomp', reqId: 1 });
+  const f = [...out].reverse().find((m) => m.type === 'frame')!, e = dayExtras(f as never), m = f.metrics as { spleen: { length: number; platelets: number }; portalIn: number; liverPerfPct: number; map: number; rpp: number; hr: number; varix: { d: number }; heRisk: { index: number; label: string }; habr: number };
+  assert.deepEqual(ALL_NEW.filter((k) => !(k in e)), [], 'every key is in the record');
+  assert.equal(e.spl, m.spleen.length); assert.equal(e.plt, m.spleen.platelets); assert.equal(e.pflow, m.portalIn); assert.equal(e.perf, m.liverPerfPct);
+  assert.equal(e.map, m.map); assert.equal(e.app, m.rpp); assert.equal(e.hr, m.hr); assert.equal(e.vx, m.varix.d); assert.equal(e.he, m.heRisk.index); assert.equal(e.habr, m.habr);
+  assert.ok(e.spl! > 14 && e.plt! < 150 && e.perf! < 100 && e.map! > 50 && e.hr! > 40 && e.vx! > 2, `a decompensated cirrhosis: big spleen ${e.spl}, low platelets ${e.plt}, low liver flow ${e.perf}%`);
+  assert.equal(heWord(e.he!), m.heRisk.label, 'the words of the risk index are the engine\'s own');
+  for (const v of [0.05, 0.19, 0.2, 0.44, 0.45, 0.9]) assert.equal(heWord(v), v < 0.2 ? 'Low' : v < 0.45 ? 'Moderate' : 'High');
+  core.dispose();
+  assert.deepEqual(dayExtras({ metrics: { spleen: { length: 0, platelets: 380 } } }), { plt: 380 }, 'no spleen: no size');
+});
+
+test('every measure draws in every look and width on its own lane, with its own cut-offs, and a box too small for all the lanes says so instead of cutting them', () => {
+  const ser = (a: number, b: number): Series => ({ x: [0, 60, 120], y: [a, (a + b) / 2, b] });
+  const series: Record<string, Series> = { ...inp().series, spl: ser(12, 24), plt: ser(250, 60), pflow: ser(1.1, 0.5), perf: ser(100, 45), map: ser(93, 70), app: ser(88, 60), hr: ser(70, 95), vx: ser(1, 6), he: ser(0.05, 0.5), habr: ser(1, 1.3) };
+  eachLook((look) => {
+    for (const w of [380, 760, 1200]) {
+      const { frame, geo } = bigFrame(inp({ series, on: ['co', 'pv', 'asc', 'shunt', ...ALL_NEW], h: 900 }), ctxOf(look, w));
+      const { words } = judge(frame, look);
+      assert.equal(geo.lanes.map((l) => l.id).join(), 'p,spl,plt,asc,shunt,co,bp,hr,vx,he,habr', `${look} ${w}`);
+      for (const t of ['Platelets 150', 'Low liver flow 75%', 'Large shunt 30%', 'MAP 65', 'Large varix 5 mm', 'Varix seen 2.5 mm', 'High 0.45', 'Moderate 0.2']) assert.ok(words.some((x) => x.s === t), `${look} ${w}: ${t}`);
+      assert.ok(geo.lanes.every((l) => l.t >= 0 && l.t + l.h <= geo.bottom + 0.5) && geo.h <= 900.5, `${look} ${w}: every lane inside the box`);
+      assert.ok(!words.some((x) => /no room/.test(x.s)), 'nine lanes fit a tall card');
+    }
+  });
+  // a short box: the lanes that cannot be 34 px tall are left out and the foot of the last says how many
+  const short = bigFrame(inp({ series, on: ['pv', 'asc', 'shunt', 'co', ...ALL_NEW], h: 520 }), ctxOf('light', 760));
+  assert.ok(short.geo.lanes.length < 11 && short.geo.h <= 520.5, `${short.geo.lanes.length} lanes, ${short.geo.h} px`);
+  assert.ok((short.frame.shapes as TextShape[]).some((x) => x.k === 'text' && /^\d+ more chosen: no room/.test(x.s)));
+  // the rows' words
+  assert.equal(MEASURE_OF.he!.words(0.31), '0.31 Moderate'); assert.equal(MEASURE_OF.habr!.words(1.294), '1.29×'); assert.equal(MEASURE_OF.perf!.row!(63.4), '63%');
+  assert.ok(ALL_NEW.every((k) => !MEASURE_OF[k]!.on), 'all off until chosen');
 });
