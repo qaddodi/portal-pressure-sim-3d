@@ -8,7 +8,7 @@ import { readBox, readStyle } from '../../layout-snap.ts';
 import { cel } from '../../../scene/api.ts';
 import { BLOCKED_SAYS } from '../../../scene/labels/cath-show.ts';
 import { useUi } from '../../ui-store.ts';
-import { talkOn } from '../../../state/deck.ts';
+import { talkOn, talkId } from '../../../state/deck.ts';
 import { leaveTalk } from '../../shell/talk.ts';
 import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
@@ -31,7 +31,8 @@ export interface AllResult { /** every file of the zip (name and bytes), for a p
 
 const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
 const until = async (cond: () => boolean, ms: number) => { const t = clock.now(); while (!cond() && clock.now() - t < ms) await sleep(50); };
-const talkUp = () => talkOn() && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
+/** The talk NAMED is open and showing a card. (Not just "a talk": the one before is still open while the next loads, and its stops and cards passed the old check: capture 2c00c0ce took Circuit 2 with the gastric varices title and the circuit outline's picture.) */
+const talkUp = (id: string) => talkId() === id && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
 /** The cards standing now (not leaving), by id: a Next has reached the screen when this changes or a card starts to leave. */
 const cardIds = (): string => [...document.querySelectorAll('.dk-card[data-card]:not([data-phase="out"])')].map((e) => e.getAttribute('data-card')).sort().join(',');
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -162,7 +163,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       ui.status(`${d.title}: opening`);
       clock.setDrawing(true);   // (skip mode holds the draw back between slides: a talk always opens with it on)
       await openEntry(entry);
-      await until(talkUp, real(25000));   // (25 s of the WALL: `until` counts page time, which at 300x passes 300 times faster, so a bare 25000 was 83 ms and the cold first talk never had time to load)
+      await until(() => talkUp(d.id), real(25000));   // (25 s of the WALL: `until` counts page time, which at 300x passes 300 times faster, so a bare 25000 was 83 ms and the cold first talk never had time to load)
       const stops = useUi.getState().stops.length;
       if (!stops) { notes.push(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
       total = growCaptureTotal(total, stops, single);   // (the talk's stops are a floor: the steps within them add more as they are met)
