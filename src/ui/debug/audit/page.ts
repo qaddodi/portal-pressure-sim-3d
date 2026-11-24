@@ -21,8 +21,12 @@ import { saveFiles } from '../../capture/save-files.ts';
 import { clock } from '../../../clock/frame.ts';
 export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'partial'; data: AuditData } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
 
-const CSS = `.au{position:fixed;left:8px;bottom:8px;z-index:var(--z-perf,300);max-width:min(560px,94vw);font:500 12px/1.35 system-ui,-apple-system,sans-serif;color:#efefef;background:rgba(20,20,24,.92);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px}
-.au button{font:inherit;font-weight:600;color:inherit;min-height:32px;padding:0 10px;margin:0 6px 6px 0;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:transparent}
+const CSS = `.au{position:fixed;left:0;right:0;bottom:0;margin:0 auto;box-sizing:border-box;z-index:var(--z-perf,300);max-width:560px;max-height:92vh;overflow:auto;font:500 15px/1.35 system-ui,-apple-system,sans-serif;color:#efefef;background:#1a1a1e;border-radius:22px 22px 0 0;padding:10px 20px calc(16px + env(safe-area-inset-bottom))}
+.au [hidden]{display:none!important}
+.au button{font:inherit;font-weight:600;color:inherit;min-height:44px;padding:0 12px;margin:0 6px 6px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:transparent}
+.au button.au-primary{width:100%;min-height:50px;margin:10px 0 0;background:#408cff;border-color:#408cff;color:#fff}
+.au button.au-link{min-height:32px;padding:0;margin:0 16px 0 0;border:0;border-radius:0;font-size:13px;font-weight:500;color:#408cff}
+.au progress{accent-color:#408cff}
 .au pre{margin:6px 0 0;max-height:38vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.4 ui-monospace,Menlo,monospace}`;
 
 const depthOf = (): 'quick' | 'full' => (flagValue('depth') === 'quick' ? 'quick' : 'full');
@@ -62,9 +66,9 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const root = document.createElement('div'); root.className = 'au'; root.id = 'au-root'; root.setAttribute('data-debug', ''); root.setAttribute('data-capture-skip', '');   // (the panel is not in a capture)
   const status = document.createElement('div'); status.setAttribute('role', 'status'); status.textContent = mode === 'run' ? 'Audit starting…' : 'Self-test ready. Keep this tab in front while it runs.';
   const hash = buildInfo().badge || buildInfo().commit || 'dev';
-  const head = document.createElement('div'); head.textContent = `Self-test · build ${hash}`; head.style.cssText = 'font-weight:700;margin-bottom:4px';
-  const bar = document.createElement('progress'); bar.max = 100; bar.value = 0; bar.hidden = true; bar.style.cssText = 'width:100%;height:10px';
-  const pctLine = document.createElement('div'); pctLine.hidden = true;
+  const head = document.createElement('div'); head.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin:8px 0 10px'; { const t = document.createElement('span'), v = document.createElement('span'); t.textContent = mode === 'here' ? 'Capture' : 'Self-test'; t.style.cssText = 'font-size:20px;font-weight:600'; v.textContent = `build ${hash}`; v.style.cssText = 'font-size:12px;opacity:.6'; head.append(t, v); }
+  const bar = document.createElement('progress'); bar.max = 100; bar.value = 0; bar.hidden = true; bar.style.cssText = 'width:100%;height:6px;margin:8px 0 4px';
+  const pctLine = document.createElement('div'); pctLine.hidden = true; pctLine.style.cssText = 'font-size:12px;opacity:.6';
   let startedAt = 0;
   const out = document.createElement('pre'); out.hidden = true;
   const row = document.createElement('div');
@@ -76,14 +80,14 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Speed of the test');
   for (const c of SPEEDS) { const o = document.createElement('option'); o.value = String(c.n); o.textContent = c.label; sel.append(o); }
   sel.value = String(speed);
-  const why = document.createElement('div'); why.style.cssText = 'opacity:.75;margin:4px 0'; why.textContent = hintOf(speed);
-  sel.onchange = () => { speed = Number(sel.value); why.textContent = hintOf(speed); };
-  const speedRow = document.createElement('label'); speedRow.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0'; speedRow.append('Speed', sel);
+  sel.title = hintOf(speed); sel.style.cssText = 'font:inherit;color:inherit;opacity:.6;background:transparent;border:0;text-align:right;text-align-last:right;max-width:60%';
+  sel.onchange = () => { speed = Number(sel.value); sel.title = hintOf(speed); };
+  const speedRow = document.createElement('label'); speedRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;min-height:40px;border-bottom:1px solid rgba(255,255,255,.18)'; speedRow.append('Speed', sel);
   const btn = (label: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = on; row.append(b); return b; };
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
   const go = async (depth: 'quick' | 'full') => {
     const saveSoFar = (d: AuditData) => { last = bundle([d], depth); if (mode === 'run') post({ audit: 'partial', data: d }); };
-    if (running) return; running = true; sel.disabled = true; stop = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = clock.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
+    if (running) return; running = true; sel.disabled = true; stop = false; capStop.hidden = false; capStop.disabled = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = clock.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
     try {
       const data = await runHere(depth, { partial: saveSoFar, status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
       bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, clock.now(), true).text;
@@ -91,7 +95,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
       out.textContent = renderText(last, { short: true }); out.hidden = false;
       status.textContent = `Done: ${data.rows.length} steps in ${Math.round(data.ms / 1000)} s${data.stopped ? ' (stopped early)' : ''}. Copy the report.`;
       if (mode === 'run') post({ audit: 'done', data });
-    } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; }
+    } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; capStop.hidden = true; }
   };
   // Capture all decks: every slide of every talk through the Capture pipeline, then one zip and a contact sheet per talk. The save buttons come when it ends (the share sheet needs a fresh tap).
   let cap: import('./capture-all.ts').AllResult | null = null;
@@ -100,7 +104,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const picker = pickerUi(document, () => builtinDecks());
   void loadAllDecks().then(() => picker.refresh());
   // Stop: big and red, there from the first slide to the last (what is captured so far is kept and saved)
-  const capStop = document.createElement('button'); capStop.type = 'button'; capStop.hidden = true; capStop.textContent = 'Stop and keep what’s done'; capStop.style.cssText = 'display:block;width:100%;min-height:44px;font-size:15px;background:#c62828;border-color:#c62828;color:#fff;margin:6px 0';
+  const capStop = document.createElement('button'); capStop.type = 'button'; capStop.hidden = true; capStop.textContent = 'Stop and keep what’s done'; capStop.style.cssText = 'display:block;width:100%;min-height:50px;font-size:15px;background:#c62828;border-color:#c62828;color:#fff;margin:10px 0 0';
   capStop.onclick = () => { stop = true; capStop.disabled = true; status.textContent = 'Stopping after this slide…'; };
   const goCapture = async () => {
     if (running) return;
@@ -115,13 +119,24 @@ export function mountAudit(mode: 'here' | 'run'): void {
       saveRow.hidden = false;
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; }
   };
-  const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { const f = files(); if (f) void saveFiles(f); }; saveRow.append(b); };
+  const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (label === 'Save zip') b.className = 'au-primary'; b.onclick = () => { const f = files(); if (f) void saveFiles(f); }; saveRow.append(b); };
   saveBtn('Save zip', () => (cap ? [new File([cap.zip], cap.zipName, { type: 'application/zip' })] : null));
   saveBtn('Share contact sheets', () => (cap && cap.collages.length ? cap.collages.map((c) => new File([c.blob], c.name, { type: 'image/png' })) : null));
-  if (mode === 'here') { btn('Capture', () => { void goCapture(); }); }
-  if (mode === 'here') { btn('Run full', () => { void go('full'); }); btn('Run quick', () => { void go('quick'); }); btn('Stop', () => { stop = true; status.textContent = 'Stopping after this step…'; }); }
-  btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
-  root.append(head, status, capStop, bar, pctLine, ...(mode === 'here' ? [speedRow, why, picker.el] : []), row, saveRow, out);
+  const cmds = document.createElement('div'); cmds.style.cssText = 'display:flex;align-items:center;margin:14px 0 0';
+  const link = (label: string, on: () => void, into: HTMLElement) => { const l = document.createElement('button'); l.type = 'button'; l.className = 'au-link'; l.textContent = label; l.onclick = on; into.append(l); return l; };
+  const copies = document.createElement('div'); copies.hidden = true; copies.style.cssText = 'margin:6px 0 0';
+  const copyRow = () => { link('Report', () => { if (last) copy(renderText(last), 'The report'); }, copies); link('Short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }, copies); link('JSON', () => { if (last) copy(renderJson(last), 'The JSON'); }, copies); };
+  if (mode === 'here') {
+    const capBtn = document.createElement('button'); capBtn.type = 'button'; capBtn.className = 'au-primary'; capBtn.textContent = 'Capture'; capBtn.onclick = () => { void goCapture(); };
+    const lab = document.createElement('span'); lab.textContent = 'Self-test'; lab.style.cssText = 'font-size:13px;font-weight:600;opacity:.6;margin-right:16px';
+    cmds.append(lab); link('Run full', () => { void go('full'); }, cmds); link('Run quick', () => { void go('quick'); }, cmds);
+    const more = link('Copy report  ›', () => { copies.hidden = !copies.hidden; }, cmds); more.style.cssText = 'margin:0 0 0 auto';
+    copyRow();
+    root.append(head, status, bar, pctLine, capStop, picker.el, speedRow, capBtn, cmds, copies, saveRow, out);
+  } else {
+    btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
+    root.append(head, status, bar, pctLine, row, saveRow, out);
+  }
   document.body.append(root);
   attach('audit', { run: (d: 'quick' | 'full' = 'full') => go(d), text: () => (last ? renderText(last) : ''), json: () => (last ? renderJson(last) : ''), stop: () => { stop = true; } });
   if (mode === 'run') {

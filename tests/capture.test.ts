@@ -172,7 +172,7 @@ test('a deck\'s contact sheet: three across for a laptop or iPad, five for a pho
 
 test('Capture all decks: in the audit panel, every talk and stop, kept out of its own pictures, saved from a fresh tap', () => {
   const page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
-  assert.match(page, /btn\('Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
+  assert.match(page, /capBtn.textContent = 'Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
   assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(real, /); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
   assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });
@@ -272,7 +272,7 @@ test('The Mac capture page is simple: sizes, decks with All and None, one how-ma
   const outer = src('src/ui/debug/audit/outer.ts'), cap = src('src/ui/debug/audit/capture-outer.ts'), pick = src('src/ui/debug/audit/capture-pick.ts'), child = src('src/ui/debug/audit/capture-child.ts');
   assert.match(outer, /ao-test/); assert.match(outer, /data-mode=capture\] \.ao-test/); assert.match(outer, /flagValue\('mode'\) === 'test'/, 'Capture opens; the self-test is one tap away');
   assert.match(cap, /b\('Capture'/); assert.match(cap, /b\('Stop'/); assert.ok(!/Capture slides'/.test(cap));
-  assert.match(pick, /'All slides'/); assert.match(pick, /mk\('All'/); assert.match(pick, /mk\('None'/);
+  assert.match(pick, /\['all', 'All'\]/); assert.match(pick, /mk\('All'/); assert.match(pick, /mk\('None'/);
   assert.match(cap, /module script\|dynamically imported/); assert.match(child, /importAgain\(/); assert.match(child, /responseStatus/);
 });
 

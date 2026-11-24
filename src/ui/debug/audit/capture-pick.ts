@@ -40,40 +40,54 @@ export function pickWords(keys: readonly string[]): string {
   return [...by].map(([d, ns]) => `${d} ${ns.join(', ')}`).join('; ');
 }
 
-/** The form: which talks (ticked; all to start with) and how many of their slides: every one, or a random 5, 10 or 25. `read()` gives `{ decks, pick, words }`: `decks` the ticked talks' ids (null when all are ticked), `pick` the random sample's keys (null for every slide of those talks). */
+/** The form: how many slides (All, Ticked, Random 5, 10, 25 as one segmented row) and which talks (a "Talks 42 of 42 ›" row that opens the ticked list). `read()` gives `{ decks, pick, words, none }`: `decks` the talks' ids (null for every talk), `pick` the random sample's keys (null for every slide of those talks). All ignores the ticks; Ticked takes every slide of the ticked talks; Random draws from the ticked talks. */
 export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { decks: string[] | null; pick: string[] | null; words: string; none: boolean }; refresh(): void } {
-  const el = doc.createElement('div'); el.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 6px';
-  const which = doc.createElement('select'); which.setAttribute('aria-label', 'How many slides');
-  for (const [v, t] of [['all', 'All slides'], ['5', 'Random 5'], ['10', 'Random 10'], ['25', 'Random 25']] as const) { const o = doc.createElement('option'); o.value = v; o.textContent = t; which.append(o); }
-  const list = doc.createElement('div'); list.style.cssText = 'flex:1 1 100%;max-height:30vh;overflow:auto;border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px';
+  const LINE = 'rgba(255,255,255,.18)';
+  const el = doc.createElement('div'); el.style.cssText = 'flex:1 1 100%;margin:0 0 4px';
+  const cap = doc.createElement('div'); cap.textContent = 'WHICH SLIDES'; cap.style.cssText = 'font-size:12px;font-weight:600;letter-spacing:.04em;opacity:.6;margin:6px 0';
+  const seg = doc.createElement('div'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Which slides'); seg.style.cssText = 'display:flex;gap:4px;margin:0 0 10px';
+  const MODES = [['all', 'All'], ['ticked', 'Ticked'], ['5', 'Random 5'], ['10', '10'], ['25', '25']] as const;
+  let which: string = '5';
+  const segBtns = MODES.map(([v, t]) => {
+    const b = doc.createElement('button'); b.type = 'button'; b.textContent = t;
+    b.style.cssText = 'flex:1 1 0;min-width:0;min-height:38px;margin:0;padding:0 2px;font-size:13px;border-radius:9px';
+    b.onclick = () => { which = v; paint(); };
+    seg.append(b); return [v, b] as const;
+  });
+  const paint = () => { for (const [v, b] of segBtns) { const on = v === which; b.setAttribute('aria-pressed', String(on)); b.style.background = on ? 'rgba(255,255,255,.2)' : 'transparent'; b.style.borderColor = on ? 'transparent' : LINE; b.style.opacity = on ? '1' : '.7'; b.style.fontWeight = on ? '600' : '400'; } };
+  paint();
+  const talks = doc.createElement('button'); talks.type = 'button'; talks.setAttribute('aria-expanded', 'false');
+  talks.style.cssText = `display:flex;justify-content:space-between;align-items:center;width:100%;min-height:40px;margin:0;padding:0;border:0;border-bottom:1px solid ${LINE};border-radius:0;font-size:15px;font-weight:400;background:transparent`;
+  const list = doc.createElement('div'); list.hidden = true; list.style.cssText = `max-height:30vh;overflow:auto;border-bottom:1px solid ${LINE};padding:6px 0;display:flex;flex-direction:column;gap:4px`;
+  talks.onclick = () => { list.hidden = !list.hidden; talks.setAttribute('aria-expanded', String(!list.hidden)); upd(); };
   const off = new Set<string>();   // (the talks not ticked: a talk that loads later starts ticked)
+  const upd = () => { const all = decks(); talks.textContent = ''; const a = doc.createElement('span'), b = doc.createElement('span'); a.textContent = 'Talks'; b.textContent = `${all.length - [...off].filter((id) => all.some((d) => d.id === id)).length} of ${all.length}  ${list.hidden ? '›' : '⌄'}`; b.style.opacity = '.6'; talks.append(a, b); };
   const draw = () => {
     list.textContent = '';
-    const bar = doc.createElement('div'); bar.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px';
-    const mk = (t: string, on: () => void) => { const b = doc.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = on; bar.append(b); };
-    const count = doc.createElement('span');
     const all = decks();
-    const upd = () => { count.textContent = `${all.length - [...off].filter((id) => all.some((d) => d.id === id)).length} of ${all.length} decks`; };
+    const bar = doc.createElement('div'); bar.style.cssText = 'display:flex;gap:16px;margin-bottom:2px';
+    const mk = (t: string, on: () => void) => { const b = doc.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = on; b.style.cssText = 'border:0;background:transparent;color:#408cff;min-height:28px;margin:0;padding:0;font-size:13px'; bar.append(b); };
     mk('All', () => { off.clear(); draw(); });
     mk('None', () => { for (const d of all) off.add(d.id); draw(); });
-    bar.append(count); list.append(bar); upd();
+    list.append(bar);
     for (const d of all) {
-      const l = doc.createElement('label'); l.style.cssText = 'display:flex;gap:6px;align-items:baseline';
+      const l = doc.createElement('label'); l.style.cssText = 'display:flex;gap:8px;align-items:baseline;font-size:14px';
       const c = doc.createElement('input'); c.type = 'checkbox'; c.checked = !off.has(d.id);
       c.onchange = () => { if (c.checked) off.delete(d.id); else off.add(d.id); upd(); };
       l.append(c, d.title); list.append(l);
     }
+    upd();
   };
   const refresh = draw;
-  el.append(list, which); draw();
+  el.append(cap, seg, talks, list); draw();
   return {
     el, refresh,
     read() {
-      const all = decks(), ticked = all.filter((d) => !off.has(d.id)), allTicked = ticked.length === all.length;
+      const all = decks(), ticked = which === 'all' ? all : all.filter((d) => !off.has(d.id)), allTicked = ticked.length === all.length;
       const names = allTicked ? 'every talk' : ticked.map((d) => d.title).join(', ');
       if (!ticked.length) return { decks: [], pick: null, words: '', none: true };
-      if (which.value === 'all') return { decks: allTicked ? null : ticked.map((d) => d.id), pick: null, words: `every slide of ${names}`, none: false };
-      const keys = randomPick(ticked, Number(which.value), new Date().getTime());
+      if (which === 'all' || which === 'ticked') return { decks: allTicked ? null : ticked.map((d) => d.id), pick: null, words: `every slide of ${names}`, none: false };
+      const keys = randomPick(ticked, Number(which), new Date().getTime());
       return { decks: allTicked ? null : ticked.map((d) => d.id), pick: keys, words: `random ${keys.length} from ${names}: ${pickWords(keys)}`, none: false };
     },
   };
