@@ -10,8 +10,7 @@ import { ORGAN_MESHES, setOrganData, organsReady } from '../src/scene/organs/mes
 import { prepareOrgans } from '../src/scene/organs/prepare.ts';
 import { PLACED } from '../src/scene/anatomy/source.ts';
 
-// (the approved placement, PPS_ANATOMY=placed, is held by its own list: what is rougher there is not what is rougher today, and each list only shrinks)
-const FILE = new URL(PLACED ? './anatomy/smooth-allow.placed.json' : './anatomy/smooth-allow.json', import.meta.url);
+const FILE = new URL('./anatomy/smooth-allow.json', import.meta.url);
 
 test('every vessel, join and organ is as smooth as the bar, or no rougher than its listed allowance (which only goes down)', async () => {
   const b = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
@@ -19,7 +18,7 @@ test('every vessel, join and organ is as smooth as the bar, or no rougher than i
   await organsReady;
   const organs = prepareOrgans(ORGAN_MESHES).map(([id, g]) => organSmoothness(id, g, 'shadeN'));
   const over = overBar(vesselSmoothness(), joinSmoothness(), organs);
-  if (process.env.SMOOTH_ALLOW_WRITE === '1') {
+  if (process.env.SMOOTH_ALLOW_WRITE === '1' && !PLACED) {
     const a: SmoothAllow = { vessel: {}, join: {}, organ: {} };
     for (const [kind, name, k, v] of over) ((a[kind] as Record<string, Record<string, number>>)[name] ??= {})[k] = Math.ceil(v * 1000) / 1000;
     writeFileSync(FILE, JSON.stringify(a, null, 1) + '\n');
