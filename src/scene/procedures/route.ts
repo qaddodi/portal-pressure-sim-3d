@@ -4,11 +4,13 @@
 //
 // A route is a smoothed polyline `pts` through the vessels' centrelines, with `raw` (the vessels' own centrelines, where the walls are), `rad` (the lumen's radius at each
 // point), `cum` (arc length) and `parts` (each leg: its vessel, name, and where it starts and ends along the route). Positions along a route are lengths `d` in figure units.
-import { EDGE_PATH_2D } from '../anatomy/source.ts';
+import { EDGE_PATH_2D, PLACED } from '../anatomy/source.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { cutLen, headOf, legSubs, pieceAt, procSpecs, wholeOf } from './copied/proc-routes.js';
 import { expandPieces } from './copied/part-names.js';
+import { placedRoute } from './route-placed.ts';
+import { smoothJoinsOn } from '../vessels/join-mode.ts';
 
 export type P2 = [number, number];
 export interface RoutePart { id: string | null; name: string; fa: number; fb: number; d0: number; d1: number; whole?: unknown; subs?: RoutePart[] }
@@ -22,6 +24,8 @@ export interface Route {
   coilAt?: { id: string; f: number; dir: number };
   /** every vessel the route touches (a vein cut in pieces counts whole) */
   ids: string[];
+  /** the placed anatomy only (route-placed.ts): the vessels' own drawn centreline at every sample, in scene units (x, y, z), the route laid in 3D */
+  raw3?: [number, number, number][];
 }
 
 /** The 2D figure's drawn courses by edge ID: `{ cur }`, the shape the copied routing code reads. */
@@ -114,6 +118,11 @@ const kept = new Map<string, Route>();
 export function routeOf(kind: string): Route | null {
   const hit = kept.get(kind);
   if (hit) return hit;
+  if (PLACED) {   // (laid in 3D on the drawn courses, which follow the join mode)
+    const key = `${kind}|${smoothJoinsOn()}`, h = kept.get(key);
+    if (h) return h;
+    const placed = placedRoute(kind, lumenRadius); if (placed) kept.set(key, placed); return placed;
+  }
   const spec = specOf(kind === 'tipscoilin' ? 'tipscoil' : kind);
   if (!spec) return null;
   const pts: P2[] = [], rad: number[] = [], marks: number[] = [], parts: RoutePart[] = [];

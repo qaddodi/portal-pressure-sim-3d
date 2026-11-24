@@ -12,6 +12,8 @@ import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copie
 import { GAS, gasShape, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
 import { sectionsOf } from './tamponade-shape.ts';
 import { easeMove } from '../../procedures/copied/ease.js';
+import { PLACED } from '../../anatomy/source.ts';
+import { scopeZ, wayShift } from '../probes/scope.ts';
 
 const U = 300;
 const Z = TIER_Z.mid;
@@ -104,7 +106,12 @@ export class Tamponade {
 
   get isIn(): boolean { return this.state.adv > 0.001; }
 
-  private pt(x: number, y: number, out: Vector3): Vector3 { return out.set(x3(x), y3(y), Z); }
+  // (the placed anatomy, `?anatomy=new`: the tube and its balloons are carried, with the scope's way, onto the oesophagus and stomach the stomach mesh has (probes/eso-axis.ts), at their middle in depth)
+  private pt(x: number, y: number, out: Vector3): Vector3 {
+    if (!PLACED) return out.set(x3(x), y3(y), Z);
+    const Y = y3(y), X = x3(x) + wayShift(Y);
+    return out.set(X, Y, scopeZ(X, Y));
+  }
 
   private draw(): void {
     const { adv, gas, eso } = this.state;

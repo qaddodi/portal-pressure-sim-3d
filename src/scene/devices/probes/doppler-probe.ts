@@ -11,6 +11,8 @@ import { Mesh, Vector3, BufferGeometry, BufferAttribute, MeshBasicMaterial, Doub
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
+import { centrelineOf } from '../../vessels/centreline.ts';
+import { PLACED } from '../../anatomy/source.ts';
 import { len3, UNITS_PER_SCENE } from '../../frame2d.ts';
 import { STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, probePoseInto, makeProbePose, makeProbeGeom, probeGeomInto, probeSwing, probeTurn, probeFade } from './copied/dop-probe.copied.js';
@@ -45,6 +47,15 @@ export const WEDGE_STOPS = [0.46, 0.22, 0] as const, WEDGE_MID = 0.8;
 export function gateOf(id: string, f: number | null, out: { p: Vector3; t: Vector3; r: number } = { p: new Vector3(), t: new Vector3(), r: 0 }): { p: Vector3; t: Vector3; r: number } | null {
   const v = NETWORK_BY_ID.get(id);
   if (!v || v.pts.length < 2) return null;
+  // (the placed anatomy, `?anatomy=new`: on the vessel's DRAWN centreline, by its length in 3D, so the gate is in the lumen that is on the screen whatever depth the vessel runs at; the flow's heading in the figure's plane, as today)
+  const c = PLACED ? centrelineOf(id) : null;
+  if (c) {
+    const fu = Math.min(1, Math.max(0, f ?? 0.5)), p = c.pointAt(fu), t = c.tangentAt(fu);
+    out.p.set(p[0], p[1], p[2]); out.t.set(t[0], t[1], 0);
+    if (out.t.lengthSq() < 1e-12) out.t.set(1, 0, 0);
+    out.t.normalize(); out.r = v.radius;
+    return out;
+  }
   const pts = v.pts, cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
   const total = cum[cum.length - 1]!, want = Math.min(1, Math.max(0, f ?? 0.5)) * total;

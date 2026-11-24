@@ -5,6 +5,9 @@
 // copied/liver-morph.js) and the same sum, once; ascites.ts hands the table to the pool's program as a texture.
 import { LIVER_OUTLINE, FLUID_COLS, FLUID_R } from './copied/liver-outline.js';
 import { contourNodules, liverShrink, morphOutline, outlineNormals, smooth01 } from './copied/liver-morph.js';
+import { PLACED } from '../anatomy/source.ts';
+import { ORGAN_MESHES } from '../organs/meshes.ts';
+import { x2d, y2d } from '../frame2d.ts';
 
 export { FLUID_COLS, FLUID_R };
 /** The liver's pivot (stage-diaphragm.js: its shrink is about this point) in 2D units. */
@@ -40,6 +43,9 @@ export function lowerEdge(P: ArrayLike<ArrayLike<number>>, out: Float32Array): F
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 /** The liver's lower edge for the shown cirrhosis `c` and congestion `g` (0..1), written into `out` (FLUID_COLS floats): the outline as the 2D reshapes it (morphOutline, in the liver's own frame, before its shrink). */
 export function liverEdgeTable(c: number, g: number, out: Float32Array = new Float32Array(FLUID_COLS)): Float32Array {
+  // (the placed anatomy, `?anatomy=new`: the lower edge of the liver mesh as it is built, whatever placement it holds, once the organ file is in; until then the 2D outline's)
+  const m = PLACED ? meshEdge() : null;
+  if (m) { out.set(m); return out; }
   const q = EDGE_STEPS, cc = Math.round(clamp01(c) * q) / q, gg = Math.round(clamp01(g) * q) / q, b = baseLiver();
   return lowerEdge(cc + gg > 0 ? morphOutline(b, cc, gg).out : b.pts, out);
 }
@@ -76,3 +82,21 @@ float liverKeep(vec2 w, float px) {
   float lb = mix(texelFetch(uLiverEdge, ivec2(l0, 0), 0).r, texelFetch(uLiverEdge, ivec2(l0 + 1, 0), 0).r, lx - float(l0));
   return 1.0 - uLiverCut * (1.0 - smoothstep(-px, px, lu.y - lb));
 }`;
+
+let meshKept: { geo: unknown; edge: Float32Array } | null = null;
+/** The liver mesh's lower edge (lowerEdge over every edge of its triangles, in the figure's units): the lowest point of the drawn liver in each column, the same table the 2D outline gives. Null until the organ file is in. */
+function meshEdge(): Float32Array | null {
+  let geo;
+  try { geo = ORGAN_MESHES.liver!(); } catch { return null; }
+  if (meshKept?.geo === geo) return meshKept.edge;
+  const pos = geo.getAttribute('position'), idx = geo.index, edge = new Float32Array(FLUID_COLS).fill(NO_LIVER), seg = new Float32Array(FLUID_COLS);
+  const P = (i: number): [number, number] => [x2d(pos.getX(i)), y2d(pos.getY(i))];
+  const n = idx ? idx.count : pos.count;
+  for (let t = 0; t + 2 < n; t += 3) {
+    const a = P(idx ? idx.getX(t) : t), b = P(idx ? idx.getX(t + 1) : t + 1), c = P(idx ? idx.getX(t + 2) : t + 2);
+    lowerEdge([a, b, c], seg);
+    for (let k = 0; k < FLUID_COLS; k++) if (seg[k]! > edge[k]!) edge[k] = seg[k]!;
+  }
+  meshKept = { geo, edge };
+  return edge;
+}
