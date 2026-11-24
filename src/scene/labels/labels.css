@@ -161,6 +161,9 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
    (.cl); a step is its round form; the portal blood's split is the 2D app's own markup, styled by its lifted rules (.cath-label.site.split). ── */
 .cl[data-fig="mark"] .cl-k { letter-spacing: 0; }
 .cl[data-fig="step"] { justify-content: center; align-items: center; padding: 0; }   /* (centred both ways: the base rule's baseline alignment left a lone number at the top of its box; Inter's digits are centred on the line box at line-height 1) */
+/* the portal blood's split stands at the corner the placer gave it (figure-cards.ts paintSplit writes translate3d(x0, y0)): the 2D label rule `.cath-label` also shifts it by translate: -50% calc(-100% - 18px), which put it half its width
+   left of its box (its words cut by the screen's edge, "PORTAL BLOOD" and the percent unreadable) and a card's height above it (over the LIVER name and the stent's tag; Encephalopathy capture 572259fd, slides 2, 3.2, 10.2) */
+.cath-label.site.split.tg { translate: none; }
 /* a step's number is words (Mohammad, 23 Nov, option 4 of the step-disc mocks): a bold numeral in the text colour with the names' halo, no face, no glass. 1.75 x the names' size (21 px at 12), centred
    in the box the old round face had, so it stands where it stood; the leader and its dot are unchanged. docs/approved/step-markers.md */
 .cl[data-fig="step"] .cl-k { color: var(--text); font-size: calc(var(--lb-f-name) * 1.75); font-weight: 700; letter-spacing: 0; -webkit-text-stroke: calc(var(--lb-halo-w, 3px) * 1.6) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
