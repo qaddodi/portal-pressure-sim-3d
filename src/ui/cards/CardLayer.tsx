@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
-import { useUi, atEnd } from '../ui-store.ts';
+import { useUi, atEnd, type Readings } from '../ui-store.ts';
 import { dock } from './dock.ts';
 import { finishTalk } from './finish.ts';
 import { dataKeys } from './keep.ts';
@@ -56,7 +56,7 @@ function useFontsReady(): boolean {
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
-interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean }
+interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
 /** Every card on screen: what the presenter says is up, where the planner puts it, kept through a leave and an enter. */
 export function CardLayer({ deck }: { deck: Deck }) {
@@ -313,30 +313,30 @@ export function CardLayer({ deck }: { deck: Deck }) {
   });
 
   if (!view) return null;
-  const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const gap = gapOf(readings);
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { dkey: cardKeyAt(stops, here?.from ?? pos.stop), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim };
+  const now: Snap = { dkey: cardKeyAt(stops, here?.from ?? pos.stop), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
   const content = (e: Entry) => {
     // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
     if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
     const sn = snaps[e.key] ?? now;
+    const own = sn.readings, readOwn = (k: string, at?: string) => own[at ? `${k}@${at}` : k];
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
       case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
-      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={read} fp={readings} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
+      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={readOwn} fp={own} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
       case 'table': return sn.dslide?.table ? <TableCard deck={deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={deck} slide={sn.dslide} /> : null;
       case 'ladder': return (
         <>
           {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} onZoom={sn.dslide.tool ? zoomButton : undefined} /> : null}
           {sn.dkey ? <CardKey lens={sn.dkey} /> : null}
           {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={deck} slide={sn.dslide} /> : null}
-          {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
+          {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={own} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
-      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} fp={readings} /> : null;
+      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={readOwn} fp={own} /> : null;
       case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };
