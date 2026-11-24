@@ -12,7 +12,8 @@ import { clearDraft, committedOverrides, overrides, saveDraft } from '../../../e
 import { CAGE_LIMIT, ORGAN_LIMITS, type Overrides, type Cage, type Grid, type Stroke, type V3 } from '../../../editor/types.ts';
 import { bakeOverrides } from '../../../editor/organ-apply.ts';
 import { cageBox, cageRest, organBox, organBoxes, organPointMap } from '../../../editor/organ-apply.ts';
-import { liveTransform } from './live.ts';
+import { liveTransform, throughTransform } from './live.ts';
+import { organHints } from '../../../editor/overlap.ts';
 import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
@@ -258,13 +259,30 @@ export function mountEditor(): void {
   const known = knownIds();
   const orphanNote = (): string => { const r = orphansOf(hist.now, known); return orphanCount(r) ? `${orphanCount(r)} edit${orphanCount(r) === 1 ? '' : 's'} name${orphanCount(r) === 1 ? 's' : ''} something that no longer exists (${orphanText(r)}) and do${orphanCount(r) === 1 ? 'es' : ''} nothing.` : ''; };
   { const r = orphansOf(loaded, known); if (orphanCount(r)) console.warn('[editor] overrides name parts this build does not have:', orphanText(r)); }
+  // Overlap hint (audit 14): an edit that presses one organ deeper into another than the page was built with is named, a moment after the edit settles
+  const refPos = new Map<string, Float32Array>();
+  let hintText = '', hintPending = false;
+  const computeHints = (): void => {
+    hintPending = false;
+    const set: Record<string, { edited: Float32Array; reference: Float32Array; index?: ArrayLike<number> }> = {};
+    for (const [id, o] of cel.disease.organs.byId) {
+      const g = o.toonMesh.geometry, pos = g.getAttribute('position').array as Float32Array;
+      if (!refPos.has(id)) refPos.set(id, Float32Array.from(pos));   // (what the page was built with: first looked at before the first live stroke)
+      const t = liveTransform(loaded.organs?.[id], hist.now.organs?.[id], centroidOf(id));
+      set[id] = { edited: throughTransform(pos, t), reference: throughTransform(refPos.get(id)!, { position: [0, 0, 0], rotY: 0, scale: 1 }), index: g.index?.array };
+    }
+    const h = organHints(set);
+    hintText = h.length ? `Overlap: ${h.slice(0, 2).map((x) => `${x.a} presses into ${x.b} by ${(x.depth - x.was).toFixed(2)}`).join('; ')}${h.length > 2 ? ` (+${h.length - 2})` : ''}. Look before Save.` : '';
+    msgEl.textContent = [msg, hintText].filter(Boolean).join(' ');
+  };
   const dirty = (): boolean => differs(hist.now, loaded);
   const sync = (): void => {
     for (const f of syncers) f();
     status.textContent = `${dirty() ? 'Unsaved edits' : 'No edits since the last Save'} · ${Object.keys(hist.now.nodes ?? {}).length} junctions, ${Object.keys(hist.now.vessels ?? {}).length} vessels, ${Object.keys(hist.now.organs ?? {}).length} organs`;
     undoB.disabled = !hist.canUndo; redoB.disabled = !hist.canRedo;
     const remind = store ? exportReminder(store, hist.now, committedOverrides(), clock.now()) : null;
-    msgEl.textContent = [msg, remind, orphanNote(), staleNote(loaded.meta?.base, buildCommit()), differs(hist.now, committedOverrides()) ? 'The draft differs from the committed file.' : ''].filter(Boolean).join(' '); refreshOverlay();
+    msgEl.textContent = [msg, hintText, remind, orphanNote(), staleNote(loaded.meta?.base, buildCommit()), differs(hist.now, committedOverrides()) ? 'The draft differs from the committed file.' : ''].filter(Boolean).join(' '); refreshOverlay();
+    if (mode === 'organs' && !hintPending) { hintPending = true; clock.after(computeHints, 400, 'editor-hints'); }
     if (store && !autosavePending) { autosavePending = true; clock.after(flushHistory, 800, 'editor-autosave'); }   // (a moment after the last edit, not per move)
   };
 

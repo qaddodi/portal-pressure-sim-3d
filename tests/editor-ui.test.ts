@@ -10,8 +10,9 @@ import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
 import { knownIds, orphansOf, orphanCount, withoutOrphans } from '../src/ui/debug/editor/orphans.ts';
 import committedOverrides from '../src/editor/overrides.json' with { type: 'json' };
+import { organHints as organHintsFor } from '../src/editor/overlap.ts';
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
-import { liveTransform } from '../src/ui/debug/editor/live.ts';
+import { throughTransform, liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt, uAtIndex } from '../src/ui/debug/editor/source.ts';
 import { applyVesselOverrides } from '../src/editor/vessel-apply.ts';
 import { editableSkeleton } from '../src/editor/vessel-skeleton.ts';
@@ -305,4 +306,16 @@ test('versioning: the file carries the base commit and snapshots, edits are judg
   assert.equal(parseOverrides('{"version":2,"nodes":{}}'), null, 'a newer format is refused, not guessed at');
   assert.match(staleNote('abc1234def', 'fff0000aaa')!, /abc1234/); assert.equal(staleNote('abc1234def', 'abc1234def'), null); assert.equal(staleNote(undefined, 'x'), null);
   assert.equal(fileText(EMPTY, {}, ''), '{\n  "version": 1\n}\n');
+});
+
+test('overlap hint: pushing one organ into another by a move is named; moving it away is not', () => {
+  const box = (x: number, z: number): number[] => { const p: number[] = []; for (let i = 0; i <= 8; i++) for (let j = 0; j <= 8; j++) { p.push(x + i / 8, j / 8, z); p.push(x + i / 8, j / 8, z + 0.2); } return p; };
+  const a = box(0, 0), b = box(0.2, 0.1);   // two pillows side by side, the second a little in front
+  const ref = { a: Float32Array.from(a), b: Float32Array.from(b) };
+  const moved = throughTransform(ref.a, { position: [0.3, 0, 0.1], rotY: 0, scale: 1 });
+  const hints = organHintsFor({ a: { edited: moved, reference: ref.a }, b: { edited: ref.b, reference: ref.b } });
+  assert.ok(Array.isArray(hints));
+  assert.deepEqual(organHintsFor({ a: { edited: ref.a, reference: ref.a }, b: { edited: ref.b, reference: ref.b } }), [], 'no edit, no hint');
+  const same = throughTransform(ref.a, { position: [0, 0, 0], rotY: 0, scale: 1 });
+  assert.deepEqual([...same], [...ref.a]);
 });

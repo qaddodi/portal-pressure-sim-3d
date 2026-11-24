@@ -6,6 +6,15 @@ import { clampEdit } from '../../../editor/organ-apply.ts';
 export interface LiveTransform { position: V3; rotY: number; scale: number }
 const NONE: LiveTransform = { position: [0, 0, 0], rotY: 0, scale: 1 };
 
+/** Vertices (3 numbers each) as the mesh shows them under the transform: scale, then the turn about Y, then the position (three's order). */
+export function throughTransform(pos: ArrayLike<number>, t: LiveTransform): Float32Array {
+  const out = new Float32Array(pos.length), cs = Math.cos(t.rotY), sn = Math.sin(t.rotY);
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = pos[i]! * t.scale, y = pos[i + 1]! * t.scale, z = pos[i + 2]! * t.scale;
+    out[i] = x * cs + z * sn + t.position[0]; out[i + 1] = y + t.position[1]; out[i + 2] = -x * sn + z * cs + t.position[2];
+  }
+  return out;
+}
 /** The mesh transform (a three Object3D's position, rotation.y, scale) that turns the organ built with `loaded` into the organ the draft `now` describes. */
 export function liveTransform(loaded: OrganEdit | undefined, now: OrganEdit | undefined, c: V3): LiveTransform {
   const l = clampEdit(loaded ?? {}), n = clampEdit(now ?? {});
