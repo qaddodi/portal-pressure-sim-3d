@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment2.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       # main first, only package.json: whether main has the app decides if it is built at all
       - uses: actions/checkout@v4
@@ -127,7 +127,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
-      # GitHub lists a freshly uploaded artifact a moment late: deploy-pages straight after the upload sometimes finds "No artifacts named github-pages" (runs 4 and 42).
+      # GitHub lists a freshly uploaded artifact a moment late: deploy-pages straight after the upload sometimes finds "No artifacts named github-pages" (runs 4, 42 and 1579).
       # Instead of a fixed sleep, wait until this run lists it (usually the first or second look), up to 20 seconds.
       - name: Wait until the artifact is listed
         env:
@@ -139,5 +139,14 @@ jobs:
             sleep 1
           done
           echo "artifact not listed after 20 s; deploying anyway"
+      # Run 1579 root cause: the listing above already showed the artifact on the first look, yet deploy-pages' own metadata fetch (a different, slower-to-update read)
+      # answered "Found 0 artifact(s)" one second later. So the first attempt may fail on that lag; a second one runs after a short wait. A real failure (a bad deploy) fails both.
       - id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Wait before the second deploy attempt
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 15
+      - id: deployment2
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
