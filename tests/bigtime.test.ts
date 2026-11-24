@@ -439,7 +439,7 @@ test('root cause (a phone\'s What to graph / What happened could not scroll or b
 test('the phone\'s two openers are raised buttons (option A): icon, name, up chevron, a fill and a hairline, never the old plain words', async () => {
   const { readFileSync } = await import('node:fs');
   const css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8'), card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8');
-  assert.ok(/\.bt-foot \{ display: grid; grid-template-columns: 1fr 1fr/.test(css) && /\.bt-foot button \{[^}]*height: 46px[^}]*border: 1px solid var\(--edge\)[^}]*border-radius: 12px[^}]*background: var\(--surface-2\)/.test(css), 'two equal raised buttons');
+  assert.ok(/\.bt-foot \{ display: grid; grid-template-columns: 1fr 1fr/.test(css) && /\.bt-foot button \{[^}]*height: 46px[^}]*border: 1px solid var\(--edge\)[^}]*border-radius: var\(--r-card\)[^}]*background: var\(--surface-2\)/.test(css), 'two equal raised buttons');
   assert.ok(/ic-trend/.test(card) && /ic-bullets/.test(card) && (card.match(/ic ic-chev-down bt-go/g) ?? []).length === 2, 'each has its icon and an up chevron');
   assert.ok(/\.bt-foot \.bt-go \{[^}]*rotate\(180deg\)/.test(css), 'the chevron points up');
   assert.ok(readFileSync(new URL('../src/ui/css2d/icons.css', import.meta.url), 'utf8').includes('.ic-chev-down {'), 'the atlas has the chevron');
