@@ -126,11 +126,12 @@ test('what waits for the end of a slide\'s move asks the one landing signal: the
   assert.match(dk, /linkLanding\(\)/);
 });
 
-test('a new patient is put in under a dimmed figure, in decks of states and in decks of models', () => {
+test('a new patient blends in over the slide\'s own time, nothing darkens, nothing cuts (owner, 24 Nov 2026)', () => {
   const hp = src('src/decks/hp/link.ts');
-  assert.match(hp, /freshPatient\(cs, false, false\) && shownOnce && !cs\?\.cath && snap\) dipTo\(snap\)/);
+  assert.match(hp, /engine\(\)\.send\(\{ type: 'morph', snap, ms: morphMsFor\(cs\) \}\)/);
+  assert.doesNotMatch(hp, /dipIn|dipOut|dipTo/, 'no wash on a slide change');
   const dm = src('src/ui/talk/deck-model.ts');
-  assert.match(dm, /if \(dip\) await dipIn\(who\)/);
+  assert.doesNotMatch(dm, /dipIn|dipOut/);
   assert.match(dm, /seen === null \? firstModel\(stops\)/, 'the first slide\'s patient is in under the cover');
 });
 

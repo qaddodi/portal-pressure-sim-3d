@@ -2,7 +2,6 @@
 // a slide that names none keeps the patient it is on. A start remembers the patient the person was on and leaving puts that patient back (the 2D app's `saved`).
 import { engine, useEngine } from '../../engine/index.ts';
 import { useUi } from '../ui-store.ts';
-import { dipIn, dipOut } from '../shell/figure-dip.ts';
 import { useShell } from '../shell/store.ts';
 import { loadPatient } from '../menu/patients.ts';
 import { patient } from '../../engine/store.ts';
@@ -24,15 +23,13 @@ export function slideParams(slide: object, base: unknown = presetBase()): unknow
 }
 let token = 0;
 /** Loads a slide's patient; the newest ask wins (a second tap meanwhile drops the first). */
-export async function applyModel(m: SlideModel, dip = false): Promise<boolean> {
+export async function applyModel(m: SlideModel): Promise<boolean> {
   const mine = ++token;
   if (useEngine.getState().presetId !== m.preset) {
-    // a new patient is put in under a dimmed figure (2D `dip`): it dims, the patient changes unseen, and the figure comes back as someone else, never a morph between two people
-    const who = {};
-    if (dip) await dipIn(who);
+    // a new patient replaces the old at once (loadPatient's `jump` frame); nothing dims the figure for it (owner, 24 Nov 2026). Only the first slide's patient is a model here today (decks/hvpg.ts),
+    // so no deck changes patient mid-talk on this path; the states path (decks/hp/link.ts) blends one patient into the next.
     const ok = (await loadPatient(m.preset)) && mine === token;
     if (ok && m.params) { sendParams(m.params, { settle: true }); rebase(); }   // (the new patient's own settings are the base; the slide's changes are the talk's, not his)
-    if (dip) { if (ok) await new Promise((r) => clock.after(r, 180)); await dipOut(who); }   // (the new patient's first frames are drawn before the dim lifts)
     return ok;
   }
   if (!m.params) return true;
@@ -49,9 +46,7 @@ export function linkModel(): () => void {
     // (the outline stands on the first slide's patient, as 2D's does: it is in under the start's cover, never dipped in)
     const m = modelAt(stops, pos) ?? (seen === null ? firstModel(stops) : null);
     if (m && m !== seen) {
-      // (the first slide's patient is in before the talk is seen; a case card no longer washes the figure, so a change behind one is dipped like any other)
-      const dip = seen !== null;
-      seen = m; void applyModel(m, dip);
+      seen = m; void applyModel(m);
     }
   };
   sync();

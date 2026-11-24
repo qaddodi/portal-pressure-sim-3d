@@ -1,5 +1,5 @@
-// The figure dims and comes back (2D: `view.classList.add('pz-out')`, putHealthy's `view.style.opacity = '.22'`): a new patient is put in, or a talk ends, under a dimmed figure, so nobody is
-// ever seen turning into somebody else. A wash of the page's own colour over the figure and its labels (under the cards and the chrome), eased in and out; nothing here moves per frame.
+// The wash a talk's end puts over the figure while the patient the person came with is put back (2D: `putHealthy`'s dim). A slide change or a case card never uses it: a new patient blends in (decks/hp/link.ts morph), nothing darkens (owner, 24 Nov 2026).
+// A wash of the page's own colour over the figure and its labels (under the cards and the chrome), eased in and out; nothing here moves per frame.
 // `.22` is the 2D figure's own level: the wash carries the rest (1 - .22).
 import { fadeMs } from '../a11y/motion.ts';
 import { D_SURFACE, EASE_ARRIVE } from '../motion.ts';
